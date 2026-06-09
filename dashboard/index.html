@@ -12653,9 +12653,17 @@ body.rr-cmdk-open{ overflow:hidden }
             .rr-iv-day input[type=time],.rr-iv-day input[type=number],
             .rr-iv-add input{background:var(--canvas);border:1px solid var(--border);border-radius:7px;padding:6px 8px;font:inherit;font-size:13px;color:var(--text)}
             .rr-iv-cfg input[type=number]{width:58px}
-            .rr-iv-day{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--border)}
+            .rr-iv-day{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;padding:9px 0;border-top:1px solid var(--border)}
             .rr-iv-day.off{opacity:.5}
-            .rr-iv-daylbl{display:inline-flex;align-items:center;gap:7px;width:108px;font-size:14px;font-weight:500;cursor:pointer}
+            .rr-iv-daylbl{display:inline-flex;align-items:center;gap:7px;width:108px;font-size:14px;font-weight:500;cursor:pointer;padding-top:6px}
+            .rr-iv-wins{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+            .rr-iv-win{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+            .rr-iv-winx{background:transparent;border:0;color:var(--text-subtle);font-size:18px;line-height:1;cursor:pointer;padding:0 4px}
+            .rr-iv-winx:hover:not([disabled]){color:var(--red)}
+            .rr-iv-winx[disabled]{opacity:.35;cursor:not-allowed}
+            .rr-iv-addwin{align-self:flex-start;background:transparent;border:1px dashed var(--border);color:var(--text-muted);border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer;margin-top:4px}
+            .rr-iv-addwin:hover:not([disabled]){border-color:var(--accent);color:var(--accent-text)}
+            .rr-iv-addwin[disabled]{opacity:.4;cursor:not-allowed}
             .rr-iv-day input[type=number]{width:52px}
             .rr-iv-capl,.rr-iv-capr{font-size:12px;color:var(--text-subtle)}
             .rr-iv-dash{color:var(--text-subtle)}
@@ -36814,7 +36822,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc25"></script>
+<script type="module" src="./live.js?v=20260608-oc26"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
