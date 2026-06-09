@@ -10270,6 +10270,12 @@ body.rr-cmdk-open{ overflow:hidden }
         Schedule
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
+      <!-- Onboarding · standalone sidebar destination (was a tab in the
+           Schedule cmd-strip). Routes to the onboarding-ops view. -->
+      <button class="nav-item" data-view="onboarding-ops" data-c="pipeline" onclick="goto('onboarding-ops')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><polyline points="9 13 11 15 15 11"/></svg></span>
+        Onboarding
+      </button>
       <!-- Workspaces · re-revealed in the sidebar (was hidden so the
            Schedule view's Van Assignments flow could reuse
            loadWorkspacesView internally; that path still works).
@@ -17478,12 +17484,8 @@ body.rr-cmdk-open{ overflow:hidden }
                unchanged. -->
           <div class="sched-cmd-tabs sched-v2-cmd-tabs" role="tablist" aria-label="Command strip mode">
             <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
-            <!-- Onboarding · navigation tab (not a mode-switch). Clicking
-                 goes to the Onboarding-ops view. Handled inline in the
-                 cmd-tab click listener (live.js ~line 1532). The Roster
-                 nav tab was removed — the roster lives on the Schedule
-                 page's own Roster icon-strip tile. -->
-            <button class="sched-cmd-tab" type="button" data-cmd-tab="onboarding" role="tab" aria-selected="false">Onboarding</button>
+            <!-- Onboarding moved to a standalone sidebar icon — no longer a
+                 tab on the Schedule command strip. -->
             <button class="sched-cmd-tab" type="button" data-cmd-tab="fleet" role="tab" aria-selected="false">Fleet</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="workflows" role="tab" aria-selected="false">Workflows</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
