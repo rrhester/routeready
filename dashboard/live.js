@@ -17117,7 +17117,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     if (act === "important") { highImportance = !highImportance; e.target.closest("[data-ne-act]").classList.toggle("active", highImportance); toast(highImportance ? "Marked High importance" : "Importance cleared", "info"); return; }
     if (act === "attach") { filePicker.click(); return; }
     if (act === "dictate") { toggleDictate(e.target.closest("[data-ne-act]")); return; }
-    if (act === "delete") { if (confirm("Discard this event?")) closeEditor(); return; }
+    if (act === "delete") { closeEditor(); return; }
 
     const chipBtn = e.target.closest("[data-ne-chip]");
     if (chipBtn) { attachments.splice(+chipBtn.getAttribute("data-ne-chip"), 1); renderChips(); return; }
