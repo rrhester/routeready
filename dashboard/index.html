@@ -12941,6 +12941,23 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-onboarding-ops .ob-rules-foot[aria-expanded="true"]{
           opacity:1;color:var(--sch-blue);background:var(--sch-blue-soft);
         }
+        /* Onboarding-steps "Rules" · the single rules-foot kept persistently
+           visible (the others stay hover-only carets). Shows the bold "Rules"
+           label + the subtle box-arrow launcher, dropped just below the tile
+           so it sits on the strip's lower line like the Calendar group's
+           Rules — instead of the invisible font-size:0 hover caret. */
+        #view-onboarding-ops .ob-rules-foot.ob-rules-foot-shown{
+          opacity:1;pointer-events:auto;
+          font-size:11px;font-weight:800;gap:4px;letter-spacing:.01em;
+          bottom:-8px;color:var(--text-subtle);background:transparent;
+        }
+        #view-onboarding-ops .ob-tab-wrap:hover .ob-rules-foot.ob-rules-foot-shown,
+        #view-onboarding-ops .ob-rules-foot.ob-rules-foot-shown:focus-visible{opacity:1}
+        #view-onboarding-ops .ob-rules-foot.ob-rules-foot-shown svg{width:12px;height:12px;stroke-width:1.4}
+        #view-onboarding-ops .ob-rules-foot.ob-rules-foot-shown:hover,
+        #view-onboarding-ops .ob-rules-foot.ob-rules-foot-shown[aria-expanded="true"]{
+          opacity:1;color:var(--accent-text);background:var(--accent-soft);
+        }
         /* Attendance policy popover · anchored to the Attendance
            tile's Rules footer. Same Fluent acrylic chrome as the
            Schedule van-rules / smart-fill popovers, but wider so
@@ -13573,9 +13590,14 @@ body.rr-cmdk-open{ overflow:hidden }
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="4" y="3" width="16" height="18"/><rect x="9" y="1.5" width="6" height="4"/><polyline points="8 11 10 13 13 10"/><line x1="15" y1="11" x2="17" y2="11"/><polyline points="8 16 10 18 13 15"/><line x1="15" y1="16" x2="17" y2="16"/></svg>
                     <span>Onboarding</span>
                   </button>
-                  <button type="button" class="ob-rules-foot" id="rr-ob-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-ob-rules-popover" title="Onboarding steps — edit the onboarding blueprint">
+                  <!-- Onboarding-steps Rules · the one rules-foot that stays
+                       visible (it's the primary way to edit the onboarding
+                       blueprint, so it must be discoverable). Shows the
+                       "Rules" label + the subtle box-arrow launcher, matching
+                       the Calendar group's Rules. -->
+                  <button type="button" class="ob-rules-foot ob-rules-foot-shown" id="rr-ob-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-ob-rules-popover" title="Onboarding steps — edit the onboarding blueprint">
                     Rules
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
                   </button>
                   <div class="ob-rules-popover" id="rr-ob-rules-popover" role="dialog" aria-modal="false" aria-label="Onboarding steps" hidden>
                     <div class="ob-rules-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><polyline points="3.5 6 4.5 7 6.5 5"/><polyline points="3.5 12 4.5 13 6.5 11"/><polyline points="3.5 18 4.5 19 6.5 17"/></svg>Onboarding steps</div>
