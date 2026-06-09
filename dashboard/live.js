@@ -16509,8 +16509,13 @@ function _ivcalFitHeight() {
   // so the calendar never overflows it and forces the toolbar/header out of view.
   const parent = _ivcalScrollParent(sc);
   const bottom = parent ? parent.getBoundingClientRect().bottom : window.innerHeight;
-  const avail = Math.min(window.innerHeight, bottom) - top - 14; // small bottom gap
+  const avail = Math.min(window.innerHeight, bottom) - top - 8; // small bottom gap
   sc.style.height = Math.max(320, avail) + "px";
+  // Trim any residual overflow (calendar margins, etc.) so the PAGE itself
+  // can't scroll — otherwise the sticky header drifts with that scroll.
+  const scroller = parent || document.scrollingElement || document.documentElement;
+  const overflow = scroller.scrollHeight - scroller.clientHeight;
+  if (overflow > 1) sc.style.height = Math.max(320, (parseFloat(sc.style.height) || avail) - overflow) + "px";
   if (!_ivcalFitInstalled) {
     _ivcalFitInstalled = true;
     let raf = null;
@@ -17691,21 +17696,29 @@ async function loadInterviewAvailabilityEditor() {
   const cfg = av.config || {};
   const tz = cfg.timezone || "America/Chicago";
   const slot = cfg.slot_minutes || 30, lead = cfg.min_lead_hours ?? 12, windowDays = cfg.window_days ?? 21, buffer = cfg.buffer_minutes ?? 0;
-  const byDay = {}; (av.windows || []).forEach(w => { if (!byDay[w.weekday]) byDay[w.weekday] = w; });
+  const byDay = {}; (av.windows || []).forEach(w => { (byDay[w.weekday] = byDay[w.weekday] || []).push(w); });
+  Object.values(byDay).forEach(arr => arr.sort((x, y) => x.start_min - y.start_min));
   const tzOpts = ["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix","America/Anchorage","Pacific/Honolulu"]
     .map(z => `<option value="${z}"${z===tz?" selected":""}>${z.replace(/^(America|Pacific)\//,"").replace("_"," ")}</option>`).join("");
 
+  // One time-window row (a day can have several).
+  const winRow = (w, on) => `<div class="rr-iv-win">
+    <input type="time" class="rr-iv-start" value="${_ivMinToHHMM(w.start_min)}" ${on?"":"disabled"}>
+    <span class="rr-iv-dash">–</span>
+    <input type="time" class="rr-iv-end" value="${_ivMinToHHMM(w.end_min)}" ${on?"":"disabled"}>
+    <span class="rr-iv-capl">up to</span>
+    <input type="number" min="1" class="rr-iv-cap" value="${w.capacity||1}" ${on?"":"disabled"}>
+    <span class="rr-iv-capr">people</span>
+    <button type="button" class="rr-iv-winx" title="Remove time" ${on?"":"disabled"} aria-label="Remove time">×</button>
+  </div>`;
   let rows = "";
   for (let d=0; d<7; d++) {
-    const w = byDay[d], on = !!w;
+    const wins = byDay[d] || [], on = wins.length > 0;
+    const list = on ? wins : [{ start_min:540, end_min:1020, capacity:1 }];
     rows += `<div class="rr-iv-day${on?"":" off"}" data-day="${d}">
       <label class="rr-iv-daylbl"><input type="checkbox" class="rr-iv-on" ${on?"checked":""}><span>${_IV_DAYS[d]}</span></label>
-      <input type="time" class="rr-iv-start" value="${_ivMinToHHMM(w?w.start_min:540)}" ${on?"":"disabled"}>
-      <span class="rr-iv-dash">–</span>
-      <input type="time" class="rr-iv-end" value="${_ivMinToHHMM(w?w.end_min:1020)}" ${on?"":"disabled"}>
-      <span class="rr-iv-capl">up to</span>
-      <input type="number" min="1" class="rr-iv-cap" value="${w?w.capacity:1}" ${on?"":"disabled"}>
-      <span class="rr-iv-capr">people</span>
+      <div class="rr-iv-wins">${list.map(w => winRow(w, on)).join("")}</div>
+      <button type="button" class="rr-iv-addwin" ${on?"":"disabled"}>+ Add time</button>
     </div>`;
   }
   const sessHtml = sessions.length ? sessions.map(se => {
@@ -17735,10 +17748,24 @@ async function loadInterviewAvailabilityEditor() {
     </div>`;
 
   body.querySelectorAll(".rr-iv-day").forEach(row => {
-    row.querySelector(".rr-iv-on").addEventListener("change", (e) => {
-      const dis = !e.target.checked;
-      row.classList.toggle("off", dis);
-      row.querySelectorAll("input:not(.rr-iv-on)").forEach(i => i.disabled = dis);
+    const setOn = (on) => {
+      row.classList.toggle("off", !on);
+      row.querySelectorAll("input:not(.rr-iv-on), .rr-iv-winx, .rr-iv-addwin").forEach(el => { el.disabled = !on; });
+    };
+    row.querySelector(".rr-iv-on").addEventListener("change", (e) => setOn(e.target.checked));
+    // Add another time window for this day.
+    row.querySelector(".rr-iv-addwin").addEventListener("click", () => {
+      if (!row.querySelector(".rr-iv-on").checked) return;
+      const tmp = document.createElement("div");
+      tmp.innerHTML = winRow({ start_min:540, end_min:1020, capacity:1 }, true);
+      row.querySelector(".rr-iv-wins").appendChild(tmp.firstElementChild);
+    });
+    // Remove a window (× on each); removing the last turns the day off.
+    row.querySelector(".rr-iv-wins").addEventListener("click", (e) => {
+      const x = e.target.closest(".rr-iv-winx"); if (!x) return;
+      const wins = row.querySelector(".rr-iv-wins");
+      if (wins.querySelectorAll(".rr-iv-win").length > 1) x.closest(".rr-iv-win").remove();
+      else { const cb = row.querySelector(".rr-iv-on"); cb.checked = false; setOn(false); }
     });
   });
   document.getElementById("rr-iv-save").onclick = () => _ivSave(body);
@@ -17751,9 +17778,12 @@ async function _ivSave(body) {
   const windows = [];
   body.querySelectorAll(".rr-iv-day").forEach(row => {
     if (!row.querySelector(".rr-iv-on").checked) return;
-    const s = _ivHHMMToMin(row.querySelector(".rr-iv-start").value), e = _ivHHMMToMin(row.querySelector(".rr-iv-end").value);
-    if (e <= s) return;
-    windows.push({ weekday: +row.getAttribute("data-day"), start_min: s, end_min: e, capacity: Math.max(1, parseInt(row.querySelector(".rr-iv-cap").value)||1) });
+    const wd = +row.getAttribute("data-day");
+    row.querySelectorAll(".rr-iv-win").forEach(win => {
+      const s = _ivHHMMToMin(win.querySelector(".rr-iv-start").value), e = _ivHHMMToMin(win.querySelector(".rr-iv-end").value);
+      if (e <= s) return;
+      windows.push({ weekday: wd, start_min: s, end_min: e, capacity: Math.max(1, parseInt(win.querySelector(".rr-iv-cap").value)||1) });
+    });
   });
   if (st){ st.textContent="Saving…"; st.className="rr-iv-save-status"; }
   try {
