@@ -12592,8 +12592,8 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-ev.dragging{opacity:.9;box-shadow:0 6px 16px rgba(0,0,0,.28);z-index:7;cursor:grabbing}
             #rr-ivcal .oc-cghost{position:absolute;left:2px;right:2px;background:rgba(15,108,189,.16);border:1px solid #0F6CBD;border-radius:2px;z-index:3;pointer-events:none;font-size:11px;color:#0F3D63;padding:1px 5px;overflow:hidden;font-weight:600}
             /* month */
-            #rr-ivcal .oc-mhead{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--oc-line)}
-            #rr-ivcal .oc-mdow{text-align:right;padding:4px 8px;font-size:11px;font-weight:600;color:var(--oc-sub);text-transform:uppercase}
+            #rr-ivcal .oc-mhead{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--oc-line);background:var(--oc-surface);position:sticky;top:0;z-index:6}
+            #rr-ivcal .oc-mdow{text-align:left;padding:6px 0 7px 12px;font-size:14px;font-weight:600;color:var(--oc-sub);letter-spacing:.01em}
             #rr-ivcal .oc-mgrid{display:grid;grid-template-columns:repeat(7,1fr)}
             #rr-ivcal .oc-mcell{min-height:104px;border-top:1px solid var(--oc-line2);border-left:1px solid var(--oc-line2);padding:2px 3px 3px;cursor:default;overflow:hidden}
             #rr-ivcal .oc-mcell:nth-child(7n+1){border-left:0}
@@ -13621,8 +13621,8 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
               <!-- Rules launcher · bottom-right of the calendar group; opens the
                    Interview availability editor (#rr-iv-rules-popover). -->
+              <span class="rr-cal-rules-cap" aria-hidden="true">Rules</span>
               <button type="button" class="rr-cal-rules-launch" id="rr-iv-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-iv-rules-popover" title="Interview availability — days, times, capacity, and group sessions">
-                <span>Rules</span>
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
               </button>
             </div><!-- /group: calendar-controls -->
@@ -13768,20 +13768,32 @@ body.rr-cmdk-open{ overflow:hidden }
             display: none !important;
             content: none !important;
           }
-          /* Rules launcher pinned to the bottom-right of the calendar (Day /
-             Week / Work Week / Month) group · opens Interview availability. */
+          /* "Rules" caption centered on the group's bottom line, with the
+             launcher icon pinned bottom-right near the hairline divider —
+             mirrors the Schedule strip's group caption + launcher. */
+          #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-cap {
+            position: absolute; left: 0; right: 0; bottom: 4px;
+            text-align: center; font-size: 10px; font-weight: 600;
+            letter-spacing: .06em; text-transform: uppercase;
+            color: var(--text-subtle); pointer-events: none;
+          }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch {
-            position: absolute; right: 8px; bottom: 4px;
-            display: inline-flex; align-items: center; gap: 4px;
+            position: absolute; right: 4px; bottom: 2px;
+            display: inline-flex; align-items: center; justify-content: center;
             appearance: none; border: 0; background: transparent; cursor: pointer;
-            font: inherit; font-size: 10px; font-weight: 600; letter-spacing: .02em;
-            color: var(--text-subtle); padding: 1px 6px; border-radius: 999px; line-height: 1.5;
+            color: var(--text-subtle); padding: 2px; border-radius: 5px;
             transition: color var(--t-fast), background var(--t-fast);
           }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch:hover {
             color: var(--accent-text); background: var(--accent-soft);
           }
-          #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch svg { width: 11px; height: 11px; flex: 0 0 auto; }
+          #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch svg { width: 13px; height: 13px; flex: 0 0 auto; }
+          /* "Add applicant" tile · blue-shaded like the Schedule Fleet/Unassign tile. */
+          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item{ background:var(--accent-soft-strong); border-radius:var(--sch-radius,6px); }
+          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item:hover{ background:var(--accent-soft); }
+          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item,
+          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item span{ color:var(--accent-text) !important; }
+          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item svg{ color:var(--accent) !important; }
         </style>
         <style>
           /* Onboarding overview · placeholder card shell. Matches the
@@ -36800,7 +36812,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc24"></script>
+<script type="module" src="./live.js?v=20260608-oc25"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
