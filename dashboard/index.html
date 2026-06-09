@@ -12540,6 +12540,36 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-mini-d.in-range{background:rgba(15,108,189,.16);color:var(--oc-blue-strong);font-weight:600}
             #rr-ivcal .oc-mini-d.today{background:var(--oc-blue);color:#fff;font-weight:700}
             #rr-ivcal .oc-mini-d.today:hover{background:var(--oc-blue-strong);color:#fff}
+            /* My Calendars (sidebar, below the mini-months) */
+            #rr-ivcal .oc-cals{margin-top:14px;border-top:1px solid var(--oc-colsep);padding-top:12px}
+            #rr-ivcal .oc-cals-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--oc-sub)}
+            #rr-ivcal .oc-cals-add{appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-sub);font-size:18px;line-height:1;width:22px;height:22px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center}
+            #rr-ivcal .oc-cals-add:hover{background:var(--oc-hover);color:var(--oc-blue)}
+            #rr-ivcal .oc-cals-grp{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+            #rr-ivcal .oc-cal-row{display:flex;align-items:center;gap:7px;padding:3px 4px;border-radius:5px;font-size:13px;color:var(--oc-ink);cursor:pointer}
+            #rr-ivcal .oc-cal-row:hover{background:var(--oc-hover)}
+            #rr-ivcal .oc-cal-lbl{display:flex;align-items:center;gap:7px;flex:1;min-width:0;cursor:pointer}
+            #rr-ivcal .oc-cal-row input[type=checkbox]{margin:0;flex:0 0 auto;accent-color:var(--oc-blue)}
+            #rr-ivcal .oc-cal-dot{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
+            #rr-ivcal .oc-cal-name{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+            #rr-ivcal .oc-cal-menu{appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-sub);font-size:15px;line-height:1;padding:0 4px;border-radius:4px;opacity:0;flex:0 0 auto}
+            #rr-ivcal .oc-cal-row:hover .oc-cal-menu{opacity:1}
+            #rr-ivcal .oc-cal-menu:hover{background:var(--oc-hover);color:var(--oc-ink)}
+            #rr-ivcal .oc-cals-empty{font-size:12px;color:var(--oc-sub);line-height:1.4;padding:2px 4px}
+            /* Add/Edit calendar dialog */
+            .oc-caldlg-back{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.32);display:flex;align-items:center;justify-content:center}
+            .oc-caldlg{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 24px 70px rgba(15,23,42,.36);width:min(380px,94vw);padding:18px 20px;font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
+            .oc-caldlg-h{font-size:16px;font-weight:700;color:var(--text);margin-bottom:14px}
+            .oc-caldlg-f{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+            .oc-caldlg-f>span{min-width:54px;font-size:13px;font-weight:600;color:var(--text-subtle);padding-top:7px}
+            .oc-caldlg-f input{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;background:var(--surface);color:var(--text)}
+            .oc-caldlg-sw{display:flex;flex-wrap:wrap;gap:8px;flex:1}
+            .oc-caldlg-sw .oc-sw{width:24px;height:24px;border-radius:6px;border:2px solid transparent;cursor:pointer;padding:0;outline:none}
+            .oc-caldlg-sw .oc-sw.on{border-color:var(--text);box-shadow:0 0 0 2px var(--surface) inset}
+            .oc-caldlg-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+            .oc-caldlg-acts .oc-btn{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 14px}
+            .oc-caldlg-acts .oc-btn.pri{background:var(--oc-blue,#0F6CBD);border-color:var(--oc-blue,#0F6CBD);color:#fff;font-weight:600}
+            .oc-caldlg-acts .oc-btn:disabled{opacity:.6;cursor:default}
             /* command bar */
             #rr-ivcal .oc-bar{display:flex;align-items:center;gap:8px;padding:13px 10px;border-bottom:1px solid var(--oc-line);background:var(--oc-surface-2);flex-wrap:wrap}
             #rr-ivcal .oc-btn{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--oc-ink);background:var(--oc-surface);border:1px solid var(--border);border-radius:6px;padding:4px 10px;display:inline-flex;align-items:center;gap:6px;line-height:1}
@@ -13631,6 +13661,10 @@ body.rr-cmdk-open{ overflow:hidden }
                 <button class="subnav-item" type="button" onclick="rrIvcalNewEvent()" title="New event">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="12" y1="12.5" x2="12" y2="18.5"/><line x1="9" y1="15.5" x2="15" y2="15.5"/></svg>
                   <span>New event</span>
+                </button>
+                <button class="subnav-item" type="button" onclick="rrIvcalAddCalendar()" title="Add calendar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><circle cx="17.5" cy="16.5" r="4.2" fill="var(--oc-surface,#fff)"/><line x1="17.5" y1="14.3" x2="17.5" y2="18.7"/><line x1="15.3" y1="16.5" x2="19.7" y2="16.5"/></svg>
+                  <span>Add calendar</span>
                 </button>
                 <div class="ob-tab-divider" aria-hidden="true"></div>
                 <!-- View-selector subgroup (Day / Week / Work Week / Month) ·

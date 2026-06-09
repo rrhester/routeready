@@ -16231,7 +16231,124 @@ const _IVCAL_DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 // Outlook-style UI state.
 let _ivcalSelected = null;            // { kind, id } of the selected event (reading pane)
 let _ivcalClipboard = null;           // copied event for paste
-const _ivcalFilters = { interview: true, orientation: true, event: true, session: true };
+// Built-in calendars (event kinds), toggled in the "My Calendars" sidebar.
+// Persisted so the operator's overlay choices stick across reloads.
+const _ivcalFilters = (() => {
+  const d = { interview: true, orientation: true, event: true, session: true };
+  try { Object.assign(d, JSON.parse(localStorage.getItem("rr_ivcal_filters") || "{}")); } catch (_) {}
+  return d;
+})();
+// Per-custom-calendar visibility, keyed by calendar id (default visible).
+const _ivcalCalVis = (() => {
+  try { return JSON.parse(localStorage.getItem("rr_ivcal_calvis") || "{}"); } catch (_) { return {}; }
+})();
+function _ivcalSaveToggles() {
+  try {
+    localStorage.setItem("rr_ivcal_filters", JSON.stringify(_ivcalFilters));
+    localStorage.setItem("rr_ivcal_calvis", JSON.stringify(_ivcalCalVis));
+  } catch (_) {}
+}
+// Legend swatch per built-in calendar (events keep their status-based color;
+// these are just the dots shown next to each built-in in My Calendars).
+const _IVCAL_KIND_COLOR = { interview:"#0F6CBD", orientation:"#B45309", event:"#0E7C66", session:"#7C3AED" };
+const _IVCAL_KIND_LABEL = { interview:"Interviews", orientation:"Orientations", event:"Events", session:"Group sessions" };
+// Swatches offered in the Add/Edit calendar dialog.
+const _IVCAL_PALETTE = ["#0F6CBD","#107C41","#B45309","#B91C1C","#0E7C66","#7C3AED","#C2410C","#0891B2","#BE185D","#4338CA","#65A30D","#475569"];
+// Resolve a custom calendar's color for an event (null if none / not custom).
+function _ivcalCalColor(ev) {
+  if (!ev || !ev.calendar_id || !_ivcalCache || !_ivcalCache.calendars) return null;
+  const c = _ivcalCache.calendars.find(x => String(x.id) === String(ev.calendar_id));
+  return c ? c.color : null;
+}
+
+// ── "My Calendars" sidebar section (below the mini-months). Built-in event
+//    kinds toggle via _ivcalFilters; custom calendars toggle via _ivcalCalVis
+//    and overlap like Outlook. ───────────────────────────────────────────────
+function _ivcalMyCalendars() {
+  const cals = (_ivcalCache && _ivcalCache.calendars) || [];
+  const builtin = ["interview","orientation","event","session"].map(k =>
+    `<label class="oc-cal-row"><input type="checkbox" data-ivcal-filter="${k}"${_ivcalFilters[k]?" checked":""}><span class="oc-cal-dot" style="background:${_IVCAL_KIND_COLOR[k]}"></span><span class="oc-cal-name">${escapeHtml(_IVCAL_KIND_LABEL[k])}</span></label>`
+  ).join("");
+  const custom = cals.map(c => {
+    const on = _ivcalCalVis[c.id] !== false;
+    return `<div class="oc-cal-row"><label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="${escapeHtml(c.id)}"${on?" checked":""}><span class="oc-cal-dot" style="background:${escapeHtml(c.color||'#0F6CBD')}"></span><span class="oc-cal-name">${escapeHtml(c.name)}</span></label><button class="oc-cal-menu" data-ivcal-calmenu="${escapeHtml(c.id)}" title="Calendar options" aria-label="Calendar options">⋯</button></div>`;
+  }).join("");
+  return `<div class="oc-cals">
+    <div class="oc-cals-h"><span>My Calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
+    <div class="oc-cals-grp">${builtin}</div>
+    ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
+  </div>`;
+}
+
+// Per-calendar kebab menu (Edit / Delete).
+function _ivcalCalendarMenu(e, id) {
+  _ivcalCloseMenus();
+  const cal = ((_ivcalCache && _ivcalCache.calendars) || []).find(c => String(c.id) === String(id));
+  if (!cal) return;
+  const menu = document.createElement("div");
+  menu.className = "oc-menu";
+  menu.innerHTML = `<button data-cm="edit">Edit calendar…</button><button data-cm="delete" class="danger">Delete calendar</button>`;
+  document.body.appendChild(menu);
+  const btn = (e.target && e.target.closest("[data-ivcal-calmenu]")) || e.target;
+  const r = btn.getBoundingClientRect();
+  menu.style.left = Math.min(r.left, window.innerWidth - 200) + "px";
+  menu.style.top = (r.bottom + 4) + "px";
+  menu.querySelector('[data-cm="edit"]').onclick = () => { _ivcalCloseMenus(); _ivcalCalendarDialog(cal); };
+  menu.querySelector('[data-cm="delete"]').onclick = () => { _ivcalCloseMenus(); _ivcalDeleteCalendar(cal); };
+  const off = (ev) => { if (!menu.contains(ev.target)) { _ivcalCloseMenus(); document.removeEventListener("mousedown", off); } };
+  setTimeout(() => document.addEventListener("mousedown", off), 0);
+}
+
+async function _ivcalDeleteCalendar(cal) {
+  if (!confirm(`Delete the calendar "${cal.name}"? Events on it stay on the calendar but become uncategorized.`)) return;
+  const { error } = await sb.from("calendars").delete().eq("id", cal.id);
+  if (error) { toast("Couldn't delete calendar: " + (error.message || error), "warn"); return; }
+  delete _ivcalCalVis[cal.id]; _ivcalSaveToggles();
+  toast("Calendar deleted", "success");
+  loadIvCalendar();
+}
+
+// Create / edit a custom calendar (name + color). Direct CRUD on the
+// RLS-scoped calendars table.
+function _ivcalCalendarDialog(existing) {
+  _ivcalCloseMenus();
+  const old = document.getElementById("rr-ivcal-caldlg"); if (old) old.remove();
+  const isEdit = !!existing;
+  let color = (existing && existing.color) || _IVCAL_PALETTE[0];
+  const m = document.createElement("div");
+  m.id = "rr-ivcal-caldlg";
+  m.className = "oc-caldlg-back";
+  m.innerHTML = `<div class="oc-caldlg" role="dialog" aria-modal="true">
+    <div class="oc-caldlg-h">${isEdit ? "Edit calendar" : "New calendar"}</div>
+    <label class="oc-caldlg-f"><span>Name</span><input id="rr-caldlg-name" type="text" maxlength="60" placeholder="e.g. Site visits" value="${escapeHtml((existing && existing.name) || "")}"></label>
+    <div class="oc-caldlg-f"><span>Color</span><div class="oc-caldlg-sw">${_IVCAL_PALETTE.map(c=>`<button type="button" class="oc-sw${c===color?" on":""}" data-sw="${c}" style="background:${c}" aria-label="${c}"></button>`).join("")}</div></div>
+    <div class="oc-caldlg-acts"><button class="oc-btn" data-cd="cancel">Cancel</button><button class="oc-btn pri" data-cd="save">${isEdit?"Save":"Create"}</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  const nameInp = m.querySelector("#rr-caldlg-name"); nameInp.focus();
+  m.querySelectorAll("[data-sw]").forEach(b => b.onclick = () => { color = b.getAttribute("data-sw"); m.querySelectorAll(".oc-sw").forEach(x=>x.classList.toggle("on", x===b)); });
+  const close = () => m.remove();
+  m.addEventListener("mousedown", (e) => { if (e.target === m) close(); });
+  m.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+  m.querySelector('[data-cd="cancel"]').onclick = close;
+  m.querySelector('[data-cd="save"]').onclick = async () => {
+    const name = nameInp.value.trim();
+    if (!name) { toast("Name your calendar", "warn"); nameInp.focus(); return; }
+    const saveBtn = m.querySelector('[data-cd="save"]'); saveBtn.disabled = true;
+    try {
+      if (isEdit) {
+        const { error } = await sb.from("calendars").update({ name, color, updated_at: new Date().toISOString() }).eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const order = ((_ivcalCache && _ivcalCache.calendars) || []).length;
+        const { error } = await sb.from("calendars").insert({ dsp_id: window.RR.dsp.id, name, color, sort_order: order });
+        if (error) throw error;
+      }
+      close(); toast(isEdit ? "Calendar updated" : "Calendar created", "success"); loadIvCalendar();
+    } catch (err) { toast("Couldn't save calendar: " + (err.message || err), "warn"); saveBtn.disabled = false; }
+  };
+}
+
 // Map an event to an Outlook colour category (by RSVP/status).
 function _ivcalCat(ev, kind) {
   if (kind === "session") return "teal";
@@ -16256,23 +16373,43 @@ async function loadIvCalendar() {
   const firstLoad = !_ivcalCache || !host.querySelector(".oc");
   if (firstLoad) host.innerHTML = `<div class="rr-loading">Loading calendar…</div>`;
   try {
-    const [a, s, b] = await Promise.all([
+    const [a, s, b, c] = await Promise.all([
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         .order("starts_at", { ascending: true })
         .limit(500),
+      sb.from("calendars")
+        .select("id, name, color, sort_order")
+        .eq("dsp_id", window.RR.dsp.id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
     ]);
     if (a.error) throw a.error;
+    let bookings = b.data || [];
+    if (b.error) {
+      // Pre-migration fallback: the calendar_id column / calendars table may
+      // not exist yet (operator applies migrations manually). Re-fetch without
+      // calendar_id so the calendar still renders all events.
+      const b2 = await sb.from("cal_events")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, applicants:applicant_id (full_name, email, phone)")
+        .eq("dsp_id", window.RR.dsp.id)
+        .in("status", ["scheduled", "rescheduled"])
+        .order("starts_at", { ascending: true })
+        .limit(500);
+      if (b2.error) throw b2.error;
+      bookings = b2.data || [];
+    }
     const av = a.data || {};
     _ivcalCache = {
       tz: (av.config && av.config.timezone) || "America/Chicago",
       windows: av.windows || [],
       sessions: s.data || [],
-      bookings: b.data || [],
+      bookings: bookings,
+      calendars: (c && !c.error && c.data) ? c.data : [],
     };
   } catch (e) {
     if (firstLoad) host.innerHTML = `<div class="rr-iv-err">Couldn't load calendar: ${escapeHtml(e.message || String(e))}</div>`;
@@ -16401,7 +16538,7 @@ function _ivcalRender() {
 
   host.innerHTML = `
     <div class="oc">
-      <div class="oc-side">${_ivcalMiniMonths()}</div>
+      <div class="oc-side">${_ivcalMiniMonths()}${_ivcalMyCalendars()}</div>
       <div class="oc-main">
         <div class="oc-bar">
           <button class="oc-btn" data-ivcal-nav="0" title="Today (T)">Today</button>
@@ -16437,6 +16574,18 @@ function _ivcalRender() {
     _ivcalView = "week"; _ivcalAnchor = new Date(Y, M - 1, D); _ivcalMiniAnchor = null; _ivcalRender();
   });
   host.querySelector("[data-ivcal-new]")?.addEventListener("click", () => _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30));
+
+  // ── My Calendars: built-in kind toggles + custom calendar toggles ──
+  host.querySelectorAll("[data-ivcal-filter]").forEach(cb => cb.onchange = () => {
+    _ivcalFilters[cb.getAttribute("data-ivcal-filter")] = cb.checked; _ivcalSaveToggles(); _ivcalRender();
+  });
+  host.querySelectorAll("[data-ivcal-cal]").forEach(cb => cb.onchange = () => {
+    _ivcalCalVis[cb.getAttribute("data-ivcal-cal")] = cb.checked; _ivcalSaveToggles(); _ivcalRender();
+  });
+  host.querySelectorAll("[data-ivcal-addcal]").forEach(b => b.onclick = (e) => { e.stopPropagation(); _ivcalCalendarDialog(null); });
+  host.querySelectorAll("[data-ivcal-calmenu]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation(); _ivcalCalendarMenu(e, b.getAttribute("data-ivcal-calmenu"));
+  });
 
   // Event interactions: single-click → reading pane; right-click → context
   // menu; hover → preview card.
@@ -16499,6 +16648,10 @@ window.rrIvcalSetView = function (v) {
 window.rrIvcalNewEvent = function () {
   if (!_ivcalOnCalendar() && typeof window.obSub === "function") window.obSub("calendar");
   _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30);
+};
+window.rrIvcalAddCalendar = function () {
+  if (!_ivcalOnCalendar() && typeof window.obSub === "function") window.obSub("calendar");
+  _ivcalCalendarDialog(null);
 };
 
 // Size the scrolling time grid to fill the viewport so the calendar never
@@ -16737,6 +16890,14 @@ function _ivcalNewEvent(dateISO, startMin, endMin, editEv) {
   const isEdit = !!editEv;
   const ev0 = editEv && editEv.ev;
   const titleReadonly = isEdit && ev0 && ev0.kind !== "event"; // interview titles follow the applicant
+  // Free-form events can be filed under a custom calendar; interviews /
+  // orientations belong to their built-in calendar, so hide the picker there
+  // (and when no custom calendars exist yet).
+  const _calList = (_ivcalCache && _ivcalCache.calendars) || [];
+  const showCalPicker = !titleReadonly && _calList.length > 0;
+  const _calCurrent = (ev0 && ev0.calendar_id) || "";
+  const _calOptions = `<option value="">No calendar</option>` + _calList.map(c =>
+    `<option value="${escapeHtml(c.id)}"${String(c.id)===String(_calCurrent)?" selected":""}>${escapeHtml(c.name)}</option>`).join("");
   let roomUrl = "";
   const rsvpToken = ((typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID().replace(/-/g, "")
@@ -16872,6 +17033,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         ${row("Start", `<input id="rr-ne-sdate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-stime" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}"><label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);margin-left:8px;cursor:pointer"><input id="rr-ne-allday" type="checkbox"> All day</label>`)}
         ${row("End", `<input id="rr-ne-edate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-etime" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}">`)}
         ${row("Location", `<input id="rr-ne-location" type="text" placeholder="Online video meeting (link added automatically)" style="${fld};flex:1;min-width:220px">`)}
+        ${showCalPicker ? row("Calendar", `<select id="rr-ne-calendar" style="${fld};flex:1;min-width:220px">${_calOptions}</select>`) : ""}
         <div id="rr-ne-recsum" class="rr-ne-recsum"></div>
         <div id="rr-ne-chips" style="display:none;flex-wrap:wrap;gap:6px"></div>
         <textarea id="rr-ne-body" placeholder="Add a message — Dictate to speak it, or Schedule Meeting to drop in the interview template" style="${fld};flex:1;min-height:160px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
@@ -17186,7 +17348,14 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
         if (new Date(endISO) <= new Date(startISO)) { toast("End must be after start", "warn"); if (btn) btn.style.opacity = ""; return; }
         const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null } };
-        if (ev0.kind === "event") patch.title = title;
+        if (ev0.kind === "event") {
+          patch.title = title;
+          // Only touch calendar_id when assigning one or clearing a prior one,
+          // so editing stays compatible if the column isn't migrated yet.
+          const calSel = document.getElementById("rr-ne-calendar");
+          const calVal = calSel ? (calSel.value || null) : null;
+          if (calVal || ev0.calendar_id) patch.calendar_id = calVal;
+        }
         try {
           const { error } = await sb.from("cal_events").update(patch).eq("id", editEv.id);
           if (error) throw error;
@@ -17219,12 +17388,17 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           // Only the first occurrence carries invitees so a recurring series
           // doesn't fire an invite email per occurrence.
           const inviteThis = i === 0 ? invitees : [];
-          const { error } = await sb.rpc("create_calendar_event", {
+          const calSel = document.getElementById("rr-ne-calendar");
+          const rpcArgs = {
             p_title: subjTitle, p_starts_at: startISO, p_ends_at: endISO,
             p_invitees: inviteThis, p_note: bodyText || null, p_timezone: tz,
             p_meeting_url: roomUrl || null, p_body_text: inv.text, p_body_html: inv.html,
             p_rsvp_token: i === 0 ? rsvpToken : null,
-          });
+          };
+          // Only pass the calendar when one is chosen, so default event
+          // creation still resolves the RPC if the migration isn't applied yet.
+          if (calSel && calSel.value) rpcArgs.p_calendar_id = calSel.value;
+          const { error } = await sb.rpc("create_calendar_event", rpcArgs);
           if (error) throw error;
           made++;
         }
@@ -17358,6 +17532,8 @@ async function _ivcalLoadEventMessages(eventId, host) {
 }
 
 function _ivcalFilterOk(ev, type) {
+  // Events on a custom calendar are governed solely by that calendar's toggle.
+  if (type !== "session" && ev.calendar_id) return _ivcalCalVis[ev.calendar_id] !== false;
   const k = type === "session" ? "session" : _ivcalEvKind(ev);
   return !!_ivcalFilters[k];
 }
@@ -17388,7 +17564,11 @@ function _ivcalEventBlock(ev, type) {
     ? `<div class="en"><span class="et">${escapeHtml(time)}</span> ${escapeHtml(label)}${ico}</div>`
     : `<div class="et">${escapeHtml(time)}${ico}</div><div class="en">${escapeHtml(label)}</div>`;
   const rz = kindAttr === "booking" ? `<div class="oc-rz" data-oc-resize></div>` : "";
-  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
+  // Custom-calendar events take their calendar's color, overriding the
+  // status-based category palette (left bar + faint fill + text).
+  const cc = _ivcalCalColor(ev);
+  const ccStyle = cc ? `;border-left-color:${cc};border-color:${cc}55;background:${cc}1f;color:${cc}` : "";
+  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${ccStyle}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
 }
 
 // Live "current time" indicator · keep the red now-line + timestamp moving
@@ -17467,12 +17647,14 @@ function _ivcalMonth() {
     const isToday = d.getTime() === today.getTime();
     const items = [];
     _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => { if (_ivcalFilterOk(s,"session")) items.push({ t:new Date(s.starts_at), label:_ivcalEventLabel(s,"session"), cat:_ivcalCat(s,"session"), kind:"session", id:s.id, declined:false }); });
-    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ t:new Date(b.starts_at), label:_ivcalEventLabel(b,"booking"), cat:_ivcalCat(b,"booking"), kind:"booking", id:b.id, declined:(b.rsvp==="declined") }); });
+    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ t:new Date(b.starts_at), label:_ivcalEventLabel(b,"booking"), cat:_ivcalCat(b,"booking"), kind:"booking", id:b.id, declined:(b.rsvp==="declined"), color:_ivcalCalColor(b) }); });
     items.sort((x,y) => x.t - y.t);
     const pills = items.slice(0,4).map(it => {
       const tm = it.t.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
       const sel = _ivcalSelected && _ivcalSelected.kind === it.kind && String(_ivcalSelected.id) === String(it.id);
-      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${sel?" sel":""}" data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
+      const dotStyle = it.color ? ` style="background:${it.color}"` : "";
+      const pillStyle = it.color ? ` style="color:${it.color}"` : "";
+      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${sel?" sel":""}"${pillStyle} data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"${dotStyle}></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
     }).join("");
     const more = items.length > 4 ? `<div class="oc-more">+${items.length-4} more</div>` : "";
     cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${pills}${more}</div>`;
