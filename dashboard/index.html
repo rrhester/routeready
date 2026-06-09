@@ -12633,7 +12633,9 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-now-lbl{position:absolute;left:4px;top:-15px;font-size:10px;font-weight:700;color:#fff;background:#D13438;padding:0 4px;border-radius:3px;line-height:14px;font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:none}
             #rr-ivcal .oc-avail{position:absolute;left:0;right:0;background:var(--oc-surface)}
             /* event blocks · light category fill + colored left bar (modern Outlook) */
-            #rr-ivcal .oc-ev{position:absolute;left:2px;right:2px;border:1px solid;border-left-width:4px;border-radius:3px;padding:3px 6px 3px 8px;overflow:hidden;font-size:11px;line-height:1.3;cursor:pointer;z-index:2}
+            /* right:16px leaves a clickable grid strip so you can still
+               double-click the cell to create a new event at the same time. */
+            #rr-ivcal .oc-ev{position:absolute;left:2px;right:16px;border:1px solid;border-left-width:4px;border-radius:3px;padding:3px 6px 3px 8px;overflow:hidden;font-size:11px;line-height:1.3;cursor:pointer;z-index:2}
             #rr-ivcal .oc-ev:hover{filter:brightness(.98);box-shadow:0 1px 3px rgba(0,0,0,.18)}
             #rr-ivcal .oc-ev.sel{box-shadow:0 0 0 2px var(--oc-surface),0 0 0 3px var(--oc-blue);z-index:4}
             #rr-ivcal .oc-ev .et{font-weight:700;font-size:12px;line-height:1.2;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -36988,7 +36990,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260609-oc30"></script>
+<script type="module" src="./live.js?v=20260609-oc31"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
