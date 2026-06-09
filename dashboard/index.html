@@ -13658,6 +13658,11 @@ body.rr-cmdk-open{ overflow:hidden }
                  Rules live on the Week tile. Wired in live.js. order:1 = first. -->
             <div class="sched-ribbon-group" data-group="calendar-controls" id="rr-cal-ribbon" style="order:1;position:relative">
               <div class="subnav" data-rr-tabbar="calendar-controls">
+                <!-- New-action subgroup (New event / Add calendar) · same
+                     full-height group treatment as the view-selector below, so
+                     the "New" group caption centers under the pair and sits on
+                     the strip's bottom line, mirroring "Rules". -->
+                <div class="rr-cal-newgroup">
                 <button class="subnav-item" type="button" onclick="rrIvcalNewEvent()" title="New event">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="12" y1="12.5" x2="12" y2="18.5"/><line x1="9" y1="15.5" x2="15" y2="15.5"/></svg>
                   <span>New event</span>
@@ -13666,6 +13671,8 @@ body.rr-cmdk-open{ overflow:hidden }
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><circle cx="17.5" cy="16.5" r="4.2" fill="var(--oc-surface,#fff)"/><line x1="17.5" y1="14.3" x2="17.5" y2="18.7"/><line x1="15.3" y1="16.5" x2="19.7" y2="16.5"/></svg>
                   <span>Add calendar</span>
                 </button>
+                <span class="rr-cal-newgroup-cap" aria-hidden="true">New</span>
+                </div><!-- /.rr-cal-newgroup -->
                 <div class="ob-tab-divider" aria-hidden="true"></div>
                 <!-- View-selector subgroup (Day / Week / Work Week / Month) ·
                      mirrors the Schedule page's .sched-v2-viewgroup so the
@@ -13863,6 +13870,18 @@ body.rr-cmdk-open{ overflow:hidden }
              as one group (like Schedule's .sched-v2-viewgroup) so the "Rules"
              caption + launcher can anchor to it, not the whole calendar
              ribbon (which would pull them off-center toward "New event"). */
+          /* New-action subgroup · same full-height treatment as the view
+             group so its "New" caption sits on the strip's bottom line. */
+          #view-onboarding-ops #rr-cal-ribbon .rr-cal-newgroup {
+            display: inline-flex; align-items: flex-start; gap: 8px;
+            position: relative; flex: 0 0 auto; align-self: stretch;
+          }
+          #view-onboarding-ops #rr-cal-ribbon .rr-cal-newgroup .rr-cal-newgroup-cap {
+            position: absolute; left: 0; right: 0; bottom: -4px;
+            text-align: center; font-size: 11px; font-weight: 800;
+            line-height: 1; letter-spacing: .01em; white-space: nowrap;
+            color: var(--text-subtle); pointer-events: none; z-index: 1;
+          }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup {
             display: inline-flex; align-items: flex-start; gap: 8px;
             position: relative; flex: 0 0 auto;
