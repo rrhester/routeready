@@ -16408,6 +16408,9 @@ function _ivcalRender() {
       ${pane}
     </div>`;
 
+  // Keep the current-time line ticking (created once, cheap minute updates).
+  if (!_ivcalNowTimer) _ivcalNowTimer = setInterval(_ivcalTickNow, 60000);
+
   host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
   host.querySelectorAll("[data-ivcal-zoom]").forEach(btn => btn.onclick = () => _ivcalSetZoom(parseInt(btn.getAttribute("data-ivcal-zoom"), 10)));
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
@@ -17267,6 +17270,22 @@ function _ivcalEventBlock(ev, type) {
   return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
 }
 
+// Live "current time" indicator · keep the red now-line + timestamp moving
+// between full re-renders. Updates only the existing today-column line, so it
+// is cheap; a nav/view change re-creates it from _ivcalTimeGrid.
+let _ivcalNowTimer = null;
+function _ivcalTickNow() {
+  if (typeof _ivcalOnCalendar === "function" && !_ivcalOnCalendar()) return;
+  const line = document.querySelector("#rr-ivcal .oc-now");
+  if (!line) return;
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  if (nowMin < _IVCAL_H0*60 || nowMin > _IVCAL_H1*60) return;
+  line.style.top = _ivcalYpos(nowMin) + "px";
+  const lbl = line.querySelector(".oc-now-lbl");
+  if (lbl) lbl.textContent = now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 function _ivcalTimeGrid(ndays) {
   let startDay;
   if (ndays === 1) { startDay = new Date(_ivcalAnchor); startDay.setHours(0,0,0,0); }
@@ -17300,7 +17319,7 @@ function _ivcalTimeGrid(ndays) {
       lines += `<div class="oc-hline" style="top:${y}px"></div><div class="oc-hhline" style="top:${y+_IVCAL_RH/2}px"></div>`;
     }
     const nowLine = (isToday && nowMin >= _IVCAL_H0*60 && nowMin <= _IVCAL_H1*60)
-      ? `<div class="oc-now" style="top:${_ivcalYpos(nowMin)}px"></div>` : "";
+      ? `<div class="oc-now" style="top:${_ivcalYpos(nowMin)}px"><span class="oc-now-lbl">${escapeHtml(now.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}))}</span></div>` : "";
     let evs = "";
     for (const s of _ivcalDayItems(d, _ivcalCache.sessions, "starts_at")) evs += _ivcalEventBlock(s, "session");
     for (const b of _ivcalDayItems(d, _ivcalCache.bookings, "starts_at")) evs += _ivcalEventBlock(b, "booking");
