@@ -17302,7 +17302,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       const joinA = st.querySelector("[data-ne-join]");
       if (joinA) joinA.onclick = (e) => {
         e.preventDefault();
-        if (isEdit && ev0 && ev0.meeting_url) _ivcalOpenRoom(ev0);
+        if (isEdit && ev0 && ev0.meeting_url) { closeEditor(); _ivcalOpenRoom(ev0); }
         else window.open(roomUrl, "_blank", "noreferrer"); // unsaved event: no notes yet
       };
     } else if (st) { st.textContent = "Video link ready ✓"; st.style.color = "var(--green)"; }
@@ -18021,72 +18021,191 @@ function _ivcalWirePane(host) {
   });
 }
 
-// Embedded in-app interview room: the Jitsi meeting in an iframe next to an
-// "Add Notes" panel persisted to cal_events.interview_notes. Opened from the
-// calendar "Join" action and the editor's join link (replaces the new-tab join).
+// Full in-dashboard interview workspace: applicant panel + embedded Jitsi video
+// + a bottom bar of Interview Notes / Quick Notes / Actions. Sits inside the
+// app (the left nav rail stays visible). Opened from the calendar "Join" action
+// and the editor's join link.
+const _IVR_QUICK = ["Strong Candidate", "Good Experience", "Needs More Experience", "Availability Concern", "Communication Strong", "Technically Strong"];
+const _IVR_STATUS_LABEL = {
+  applied: "Applied", contacted: "Contacted", screening_started: "Screening", screening_completed: "Screened",
+  qualified: "Qualified", review_needed: "Review needed", interview_invited: "Interview invited",
+  interview_booked: "In Interview", interview_completed: "Interview completed", orientation_invited: "Orientation invited",
+  orientation_booked: "Orientation booked", hired: "Hired", no_show: "No show", rejected: "Rejected", auto_declined: "Declined",
+};
 function _ivcalOpenRoom(ev) {
   if (!ev || !ev.meeting_url) { toast("No video link for this interview yet", "warn"); return; }
   const old = document.getElementById("rr-ivroom"); if (old) old.remove();
-  const a = ev.applicants || {};
-  const who = rrTitleCaseName(a.full_name) || (ev.kind === "event" ? (ev.title || "Interview") : "Interview");
+  const a0 = ev.applicants || {};
+  const who = rrTitleCaseName(a0.full_name) || (ev.kind === "event" ? (ev.title || "Interview") : "Interview");
+  const apptId = ev.applicant_id || null;
   const me = (window.RR && window.RR.user && (window.RR.user.full_name || window.RR.user.name))
     || (window.RR && window.RR.dsp && window.RR.dsp.name) || "Interviewer";
-  // Hash config: skip Jitsi's prejoin screen + set our display name.
   const hash = "#config.prejoinPageEnabled=false&userInfo.displayName=" + encodeURIComponent('"' + me + '"');
   const src = ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
   const canNotes = !!ev.id;
+  const initials = (who || "?").split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+
   const m = document.createElement("div");
   m.id = "rr-ivroom";
   m.innerHTML = `
-    <div class="rr-ivroom-card">
-      <div class="rr-ivroom-h">
-        <div class="rr-ivroom-t">🎥 Interview · ${escapeHtml(who)}</div>
-        <button class="rr-ivroom-x" data-ivroom="close" title="Leave the call">✕ End</button>
+    <div class="ivr-top">
+      <div class="ivr-bc"><span class="ivr-bc-mut">Interview ·</span> <strong>${escapeHtml(who)}</strong></div>
+      <div class="ivr-top-acts">
+        ${apptId ? `<button class="ivr-btn" data-ivr="profile">‹ Back to Applicant</button>` : ""}
+        <button class="ivr-btn" data-ivr="copy">⧉ Copy Invite Link</button>
+        <button class="ivr-btn ivr-end" data-ivr="close">End Call</button>
       </div>
-      <div class="rr-ivroom-b">
-        <div class="rr-ivroom-video"><iframe allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write" src="${escapeHtml(src)}"></iframe></div>
-        <div class="rr-ivroom-notes">
-          <div class="rr-ivroom-nh">Add Notes</div>
-          <div class="rr-ivroom-tb">
-            <button type="button" data-ivroom-fmt="bold" title="Bold"><b>B</b></button>
-            <button type="button" data-ivroom-fmt="italic" title="Italic"><i>I</i></button>
-            <button type="button" data-ivroom-fmt="insertUnorderedList" title="Bulleted list">•</button>
-            <button type="button" data-ivroom-fmt="insertOrderedList" title="Numbered list">1.</button>
+    </div>
+    <div class="ivr-main">
+      <div class="ivr-upper">
+        <aside class="ivr-profile">
+          <div class="ivr-av">${escapeHtml(initials)}</div>
+          <div class="ivr-name">${escapeHtml(who)}</div>
+          <div class="ivr-status" id="rr-ivr-status">In Interview</div>
+          <div class="ivr-sec"><div class="ivr-sec-h">Contact</div>
+            <div class="ivr-row">${a0.email ? `<a href="mailto:${escapeHtml(a0.email)}">${escapeHtml(a0.email)}</a>` : "—"}</div>
+            <div class="ivr-row">${a0.phone ? `<a href="tel:${escapeHtml(a0.phone)}">${escapeHtml(a0.phone)}</a>` : "—"}</div>
           </div>
-          <div class="rr-ivroom-ed" id="rr-ivroom-ed" contenteditable="true" data-ph="Type your notes here…"></div>
-          <div class="rr-ivroom-nf">
-            <span class="rr-ivroom-saved" id="rr-ivroom-saved"></span>
-            <button class="rr-ivroom-save" data-ivroom="save"${canNotes ? "" : ' disabled title="Save the interview first"'}>Save Notes</button>
+          <div class="ivr-sec" id="rr-ivr-appsec"><div class="ivr-sec-h">Application</div><div class="ivr-row ivr-mut">Loading…</div></div>
+          <div class="ivr-sec" id="rr-ivr-intro"></div>
+          ${apptId ? `<button class="ivr-fullbtn" data-ivr="profile">View Full Profile</button>` : ""}
+        </aside>
+        <div class="ivr-video"><iframe allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write" src="${escapeHtml(src)}"></iframe></div>
+      </div>
+      <div class="ivr-lower">
+        <div class="ivr-tabs">
+          <button class="ivr-tab on">Interview Notes</button>
+          <button class="ivr-tab" disabled title="Coming soon">Scorecard</button>
+          <button class="ivr-tab" disabled title="Coming soon">Timeline</button>
+          <button class="ivr-tab" disabled title="Coming soon">Messages</button>
+        </div>
+        <div class="ivr-cols">
+          <div class="ivr-col">
+            <div class="ivr-col-h">Add Notes</div>
+            <div class="ivr-ed" id="rr-ivr-ed" contenteditable="true" data-ph="Type your notes here…"></div>
+            <div class="ivr-tb">
+              <button type="button" data-ivr-fmt="bold" title="Bold"><b>B</b></button>
+              <button type="button" data-ivr-fmt="italic" title="Italic"><i>I</i></button>
+              <button type="button" data-ivr-fmt="insertUnorderedList" title="Bulleted list">•</button>
+              <button type="button" data-ivr-fmt="insertOrderedList" title="Numbered list">1.</button>
+              <span style="flex:1"></span>
+              <span class="ivr-saved" id="rr-ivr-saved"></span>
+              <button class="ivr-save" data-ivr="save"${canNotes ? "" : " disabled"}>Save Notes</button>
+            </div>
+          </div>
+          <div class="ivr-col">
+            <div class="ivr-col-h">Quick Notes</div>
+            <div class="ivr-chips">${_IVR_QUICK.map(q => `<button class="ivr-chip" data-ivr-quick="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join("")}</div>
+          </div>
+          <div class="ivr-col">
+            <div class="ivr-col-h">Actions</div>
+            <div class="ivr-acts">
+              ${apptId ? `<button class="ivr-act ok" data-ivr="hire">Move to Onboarding</button>
+              <button class="ivr-act info" data-ivr="schedule">Schedule Next Interview</button>
+              <button class="ivr-act danger" data-ivr="reject">Reject Applicant</button>` : `<div class="ivr-row ivr-mut">No applicant linked to this event.</div>`}
+            </div>
           </div>
         </div>
       </div>
     </div>`;
   document.body.appendChild(m);
-  const ed = document.getElementById("rr-ivroom-ed");
+  const ed = document.getElementById("rr-ivr-ed");
+
+  // Hydrate the profile panel + load notes.
+  if (apptId) {
+    sb.from("applicants").select("status, source, created_at, video_url").eq("id", apptId).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        const st = document.getElementById("rr-ivr-status");
+        if (st) st.textContent = _IVR_STATUS_LABEL[data.status] || (data.status || "");
+        const app = document.getElementById("rr-ivr-appsec");
+        if (app) {
+          const applied = data.created_at ? new Date(data.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+          app.innerHTML = `<div class="ivr-sec-h">Application</div>
+            <div class="ivr-kv"><span>Source</span><b>${escapeHtml(data.source || "—")}</b></div>
+            <div class="ivr-kv"><span>Applied</span><b>${escapeHtml(applied)}</b></div>`;
+        }
+        const intro = document.getElementById("rr-ivr-intro");
+        if (intro && data.video_url) intro.innerHTML = `<div class="ivr-sec-h">Intro video</div><div class="ivr-row"><a href="${escapeHtml(data.video_url)}" target="_blank" rel="noreferrer">▶ Watch intro video</a></div>`;
+      }).catch(() => {});
+  }
   if (canNotes) {
     sb.from("cal_events").select("interview_notes").eq("id", ev.id).maybeSingle()
-      .then(({ data }) => { if (data && data.interview_notes) ed.innerHTML = data.interview_notes; })
-      .catch(() => {});
+      .then(({ data }) => { if (data && data.interview_notes) ed.innerHTML = data.interview_notes; }).catch(() => {});
   }
-  m.querySelectorAll("[data-ivroom-fmt]").forEach(b => b.onmousedown = (e) => {
-    e.preventDefault(); document.execCommand(b.getAttribute("data-ivroom-fmt"), false, null); ed.focus();
+
+  // Formatting + quick-note chips.
+  m.querySelectorAll("[data-ivr-fmt]").forEach(b => b.onmousedown = (e) => {
+    e.preventDefault(); document.execCommand(b.getAttribute("data-ivr-fmt"), false, null); ed.focus();
   });
+  m.querySelectorAll("[data-ivr-quick]").forEach(b => b.onclick = () => {
+    const t = b.getAttribute("data-ivr-quick");
+    const cur = ed.innerHTML.trim();
+    ed.innerHTML = (cur ? cur + "<div>" : "") + "• " + escapeHtml(t) + (cur ? "</div>" : "");
+    ed.focus();
+  });
+
   const onKey = (e) => { if (e.key === "Escape" && document.activeElement !== ed) close(); };
   const close = () => { document.removeEventListener("keydown", onKey); m.remove(); };
   document.addEventListener("keydown", onKey);
-  m.querySelector('[data-ivroom="close"]').onclick = close;
-  const saveBtn = m.querySelector('[data-ivroom="save"]');
-  if (canNotes) saveBtn.onclick = async () => {
-    const html = ed.innerHTML.trim();
-    saveBtn.disabled = true; saveBtn.textContent = "Saving…";
-    try {
-      const { error } = await sb.from("cal_events").update({ interview_notes: html || null }).eq("id", ev.id);
-      if (error) throw error;
-      const s = document.getElementById("rr-ivroom-saved");
-      if (s) { s.textContent = "Saved ✓"; setTimeout(() => { if (s) s.textContent = ""; }, 2500); }
-    } catch (e) { toast("Couldn't save notes: " + (e.message || e), "warn"); }
-    finally { saveBtn.disabled = false; saveBtn.textContent = "Save Notes"; }
-  };
+
+  m.querySelectorAll('[data-ivr]').forEach(b => b.onclick = async () => {
+    const act = b.getAttribute("data-ivr");
+    if (act === "close") return close();
+    if (act === "copy") {
+      try { await navigator.clipboard.writeText(ev.meeting_url); b.textContent = "✓ Copied"; setTimeout(() => { b.textContent = "⧉ Copy Invite Link"; }, 1800); }
+      catch (_) { toast("Couldn't copy link", "warn"); }
+      return;
+    }
+    if (act === "profile") { if (apptId) { close(); _ivcalOpenApplicant(apptId); } return; }
+    if (act === "save") {
+      const html = ed.innerHTML.trim();
+      b.disabled = true; b.textContent = "Saving…";
+      try {
+        const { error } = await sb.from("cal_events").update({ interview_notes: html || null }).eq("id", ev.id);
+        if (error) throw error;
+        const s = document.getElementById("rr-ivr-saved");
+        if (s) { s.textContent = "Saved ✓"; setTimeout(() => { if (s) s.textContent = ""; }, 2500); }
+      } catch (e) { toast("Couldn't save notes: " + (e.message || e), "warn"); }
+      finally { b.disabled = false; b.textContent = "Save Notes"; }
+      return;
+    }
+    if (!apptId) return;
+    if (act === "hire") {
+      if (!confirm(`Move ${who} to onboarding? This marks them hired and creates a driver record.`)) return;
+      b.disabled = true;
+      try {
+        const notes = ed.innerHTML.replace(/<[^>]+>/g, " ").trim() || null;
+        const { error } = await sb.rpc("record_outcome", { p_applicant_id: apptId, p_outcome: "hired", p_notes: notes, p_interview_day_id: null });
+        if (error) throw error;
+        toast(`${who} moved to onboarding`, "success");
+        close(); loadIvCalendar();
+      } catch (e) { toast("Couldn't move to onboarding: " + (e.message || e), "warn"); b.disabled = false; }
+      return;
+    }
+    if (act === "schedule") {
+      if (!confirm(`Send ${who} a booking link to schedule the next interview?`)) return;
+      b.disabled = true;
+      try {
+        const { error } = await sb.rpc("send_booking_link", { p_id: apptId, p_kind: "interview" });
+        if (error) throw error;
+        toast("Booking link sent", "success");
+      } catch (e) { toast("Couldn't send booking link: " + (e.message || e), "warn"); }
+      finally { b.disabled = false; }
+      return;
+    }
+    if (act === "reject") {
+      if (!confirm(`Reject ${who}? They'll be moved to Rejected.`)) return;
+      b.disabled = true;
+      try {
+        const { error } = await sb.rpc("decline_applicant", { p_id: apptId, p_reason: "Rejected from interview" });
+        if (error) throw error;
+        toast(`${who} rejected`, "success");
+        close(); loadIvCalendar();
+      } catch (e) { toast("Couldn't reject: " + (e.message || e), "warn"); b.disabled = false; }
+      return;
+    }
+  });
 }
 function _ivcalOpenApplicant(id) {
   if (typeof window.openApplicant === "function") window.openApplicant(id);
