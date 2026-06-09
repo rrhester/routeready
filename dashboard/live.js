@@ -16804,14 +16804,15 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-win.close:hover{background:#D13438;color:#fff}
       #rr-ivcal-new .rr-ne-ribbon{display:flex;align-items:stretch;gap:2px;padding:7px 12px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));flex-wrap:wrap}
       #rr-ivcal-new .rr-ne-vdiv{width:1px;align-self:stretch;background:var(--border);margin:4px 7px}
-      #rr-ivcal-new .rr-ne-ico{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:62px;padding:5px 8px 6px;border:0;background:transparent;cursor:pointer;border-radius:7px;color:var(--text-muted);font:inherit;font-size:11px;line-height:1.1}
+      #rr-ivcal-new .rr-ne-ico{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:62px;padding:5px 8px 6px;border:0;background:transparent;cursor:pointer;border-radius:7px;color:var(--text);font:inherit;font-size:11px;line-height:1.1}
       #rr-ivcal-new .rr-ne-ico span{white-space:nowrap}
       #rr-ivcal-new .rr-ne-ico:hover{background:rgba(15,23,42,.05);color:var(--text)}
       #rr-ivcal-new .rr-ne-ico.active{color:var(--accent-text);background:var(--accent-soft)}
       #rr-ivcal-new .rr-ne-ico.danger:hover{background:rgba(209,52,56,.12);color:#C4281C}
       #rr-ivcal-new .rr-ne-ico.send{color:#fff;background:var(--accent);font-weight:600}
       #rr-ivcal-new .rr-ne-ico.send:hover{background:var(--accent-hover)}
-      #rr-ivcal-new .rr-ne-ico svg{width:26px;height:26px}
+      /* Match the main page strip icons exactly: 33px, 1.6 stroke, round caps, var(--text). */
+      #rr-ivcal-new .rr-ne-ico svg{width:33px;height:33px;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
       #rr-ivcal-new .rr-ne-ico,#rr-ivcal-new .rr-ne-win{transition:background var(--t-fast),color var(--t-fast),transform .12s cubic-bezier(.2,.7,.2,1)}
       #rr-ivcal-new .rr-ne-ico:active,#rr-ivcal-new .rr-ne-win:active{transform:translateY(1px) scale(.97)}
       #rr-ivcal-new .rr-ne-fields{flex:1;min-height:0;display:flex;flex-direction:column;gap:11px;padding:16px 22px;box-sizing:border-box;overflow-y:auto}
