@@ -7,14 +7,19 @@ import { verifyState, encryptSecret } from "../_shared/google_crypto.ts";
 
 function closePage(ok: boolean, msg: string) {
   const origin = Deno.env.get("DASHBOARD_URL") || "*";
+  // Use numeric HTML entities for the emoji (not raw UTF-8 bytes) so the page
+  // renders correctly regardless of how the charset is negotiated — raw bytes
+  // were showing up mojibaked ("âœ…") in some browsers.
+  const icon = ok ? "&#x2705;" : "&#x26A0;&#xFE0F;";
+  const text = ok ? "Google Calendar connected. You can close this window." : msg;
   return new Response(
-    `<!doctype html><meta charset=utf-8><body style="font:14px system-ui;padding:24px">
-     ${ok ? "✅ Google Calendar connected. You can close this window." : "⚠️ " + msg}
+    `<!doctype html><html><head><meta charset="utf-8"></head><body style="font:14px system-ui;padding:24px">
+     ${icon} ${text.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]!))}
      <script>
        try { window.opener && window.opener.postMessage(
          { type: "rr-gcal", ok: ${ok}, message: ${JSON.stringify(msg)} }, ${JSON.stringify(origin)}); } catch (e) {}
        setTimeout(function(){ window.close(); }, ${ok ? 800 : 3000});
-     </script></body>`,
+     </script></body></html>`,
     { headers: { "content-type": "text/html; charset=utf-8" } },
   );
 }
