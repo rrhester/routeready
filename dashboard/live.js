@@ -18021,17 +18021,9 @@ function _ivcalWirePane(host) {
   });
 }
 
-// Full in-dashboard interview workspace: applicant panel + embedded Jitsi video
-// + a bottom bar of Interview Notes / Quick Notes / Actions. Sits inside the
-// app (the left nav rail stays visible). Opened from the calendar "Join" action
-// and the editor's join link.
-const _IVR_QUICK = ["Strong Candidate", "Good Experience", "Needs More Experience", "Availability Concern", "Communication Strong", "Technically Strong"];
-const _IVR_STATUS_LABEL = {
-  applied: "Applied", contacted: "Contacted", screening_started: "Screening", screening_completed: "Screened",
-  qualified: "Qualified", review_needed: "Review needed", interview_invited: "Interview invited",
-  interview_booked: "In Interview", interview_completed: "Interview completed", orientation_invited: "Orientation invited",
-  orientation_booked: "Orientation booked", hired: "Hired", no_show: "No show", rejected: "Rejected", auto_declined: "Declined",
-};
+// Full in-dashboard interview workspace: embedded Jitsi video + a bottom bar of
+// Interview Notes + Actions. Sits inside the app (the left nav rail stays
+// visible). Opened from the calendar "Join" action and the editor's join link.
 function _ivcalOpenRoom(ev) {
   if (!ev || !ev.meeting_url) { toast("No video link for this interview yet", "warn"); return; }
   const old = document.getElementById("rr-ivroom"); if (old) old.remove();
@@ -18043,7 +18035,6 @@ function _ivcalOpenRoom(ev) {
   const hash = "#config.prejoinPageEnabled=false&userInfo.displayName=" + encodeURIComponent('"' + me + '"');
   const src = ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
   const canNotes = !!ev.id;
-  const initials = (who || "?").split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
 
   const m = document.createElement("div");
   m.id = "rr-ivroom";
@@ -18058,18 +18049,6 @@ function _ivcalOpenRoom(ev) {
     </div>
     <div class="ivr-main">
       <div class="ivr-upper">
-        <aside class="ivr-profile">
-          <div class="ivr-av">${escapeHtml(initials)}</div>
-          <div class="ivr-name">${escapeHtml(who)}</div>
-          <div class="ivr-status" id="rr-ivr-status">In Interview</div>
-          <div class="ivr-sec"><div class="ivr-sec-h">Contact</div>
-            <div class="ivr-row">${a0.email ? `<a href="mailto:${escapeHtml(a0.email)}">${escapeHtml(a0.email)}</a>` : "—"}</div>
-            <div class="ivr-row">${a0.phone ? `<a href="tel:${escapeHtml(a0.phone)}">${escapeHtml(a0.phone)}</a>` : "—"}</div>
-          </div>
-          <div class="ivr-sec" id="rr-ivr-appsec"><div class="ivr-sec-h">Application</div><div class="ivr-row ivr-mut">Loading…</div></div>
-          <div class="ivr-sec" id="rr-ivr-intro"></div>
-          ${apptId ? `<button class="ivr-fullbtn" data-ivr="profile">View Full Profile</button>` : ""}
-        </aside>
         <div class="ivr-video"><iframe allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write" src="${escapeHtml(src)}"></iframe></div>
       </div>
       <div class="ivr-lower">
@@ -18094,10 +18073,6 @@ function _ivcalOpenRoom(ev) {
             </div>
           </div>
           <div class="ivr-col">
-            <div class="ivr-col-h">Quick Notes</div>
-            <div class="ivr-chips">${_IVR_QUICK.map(q => `<button class="ivr-chip" data-ivr-quick="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join("")}</div>
-          </div>
-          <div class="ivr-col">
             <div class="ivr-col-h">Actions</div>
             <div class="ivr-acts">
               ${apptId ? `<button class="ivr-act ok" data-ivr="hire">Move to Onboarding</button>
@@ -18111,38 +18086,14 @@ function _ivcalOpenRoom(ev) {
   document.body.appendChild(m);
   const ed = document.getElementById("rr-ivr-ed");
 
-  // Hydrate the profile panel + load notes.
-  if (apptId) {
-    sb.from("applicants").select("status, source, created_at, video_url").eq("id", apptId).maybeSingle()
-      .then(({ data }) => {
-        if (!data) return;
-        const st = document.getElementById("rr-ivr-status");
-        if (st) st.textContent = _IVR_STATUS_LABEL[data.status] || (data.status || "");
-        const app = document.getElementById("rr-ivr-appsec");
-        if (app) {
-          const applied = data.created_at ? new Date(data.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
-          app.innerHTML = `<div class="ivr-sec-h">Application</div>
-            <div class="ivr-kv"><span>Source</span><b>${escapeHtml(data.source || "—")}</b></div>
-            <div class="ivr-kv"><span>Applied</span><b>${escapeHtml(applied)}</b></div>`;
-        }
-        const intro = document.getElementById("rr-ivr-intro");
-        if (intro && data.video_url) intro.innerHTML = `<div class="ivr-sec-h">Intro video</div><div class="ivr-row"><a href="${escapeHtml(data.video_url)}" target="_blank" rel="noreferrer">▶ Watch intro video</a></div>`;
-      }).catch(() => {});
-  }
   if (canNotes) {
     sb.from("cal_events").select("interview_notes").eq("id", ev.id).maybeSingle()
       .then(({ data }) => { if (data && data.interview_notes) ed.innerHTML = data.interview_notes; }).catch(() => {});
   }
 
-  // Formatting + quick-note chips.
+  // Notes formatting.
   m.querySelectorAll("[data-ivr-fmt]").forEach(b => b.onmousedown = (e) => {
     e.preventDefault(); document.execCommand(b.getAttribute("data-ivr-fmt"), false, null); ed.focus();
-  });
-  m.querySelectorAll("[data-ivr-quick]").forEach(b => b.onclick = () => {
-    const t = b.getAttribute("data-ivr-quick");
-    const cur = ed.innerHTML.trim();
-    ed.innerHTML = (cur ? cur + "<div>" : "") + "• " + escapeHtml(t) + (cur ? "</div>" : "");
-    ed.focus();
   });
 
   const onKey = (e) => { if (e.key === "Escape" && document.activeElement !== ed) close(); };
