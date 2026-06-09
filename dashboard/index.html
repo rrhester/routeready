@@ -12590,7 +12590,43 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivroom .ivr-end:hover{background:#1e40af}
             /* Notes + Actions live in a left side panel; the video fills the rest. */
             #rr-ivroom .ivr-main{flex:1;min-height:0;display:flex;gap:16px;padding:16px 20px}
-            #rr-ivroom .ivr-side{flex:0 0 340px;display:flex;flex-direction:column;gap:18px;overflow-y:auto;border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:16px;background:var(--surface,#fff)}
+            #rr-ivroom .ivr-side{flex:0 0 360px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;padding:2px}
+            /* Enterprise ATS cards · clean white surfaces, light borders, minimal shadow. */
+            #rr-ivroom .ivr-card{border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--surface,#fff);padding:14px 16px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+            #rr-ivroom .ivr-card-h{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle,#6b7280);margin-bottom:10px}
+            #rr-ivroom .ivr-snap-top{display:flex;gap:12px;align-items:center}
+            #rr-ivroom .ivr-snap-av{flex:0 0 auto;width:52px;height:52px;border-radius:50%;background:var(--accent-soft,#e0ecfb);color:var(--accent-text,#0F6CBD);font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center}
+            #rr-ivroom .ivr-snap-name{font-weight:700;font-size:16px;color:var(--text,#111)}
+            #rr-ivroom .ivr-snap-pos{font-size:13px;color:var(--text-subtle,#6b7280);margin:1px 0 5px}
+            #rr-ivroom .ivr-snap-stage{display:inline-block;font-size:11px;font-weight:700;color:var(--oc-blue,#0F6CBD);background:var(--accent-soft,#eef4fc);border:1px solid #cfe0f6;padding:2px 8px;border-radius:999px}
+            #rr-ivroom .ivr-snap-grid{margin-top:12px;border-top:1px solid var(--border,#eef0f3);padding-top:10px;display:flex;flex-direction:column;gap:7px}
+            #rr-ivroom .ivr-score-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0}
+            #rr-ivroom .ivr-score-cat{font-size:13px;color:var(--text,#111);font-weight:500}
+            #rr-ivroom .ivr-stars{display:inline-flex;gap:2px}
+            #rr-ivroom .ivr-star{appearance:none;border:0;background:none;cursor:pointer;font-size:17px;line-height:1;color:#d4d8df;padding:0 1px}
+            #rr-ivroom .ivr-star.on{color:#F5B301}
+            #rr-ivroom .ivr-star:hover{color:#f0c34d}
+            #rr-ivroom .ivr-rec-h{font-size:12px;font-weight:700;color:var(--text,#111);margin:12px 0 8px;padding-top:10px;border-top:1px solid var(--border,#eef0f3)}
+            #rr-ivroom .ivr-recs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+            #rr-ivroom .ivr-rec{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text,#111);border:1px solid var(--border,#e5e7eb);border-radius:7px;padding:7px 9px;cursor:pointer}
+            #rr-ivroom .ivr-rec input{margin:0;accent-color:var(--oc-blue,#0F6CBD)}
+            #rr-ivroom .ivr-rec.on{border-color:var(--oc-blue,#0F6CBD);background:var(--accent-soft,#eef4fc);font-weight:600}
+            #rr-ivroom .ivr-rec.strong_hire.on{border-color:#107C41;background:#ecfdf3;color:#0B5A2E}
+            #rr-ivroom .ivr-rec.no_hire.on{border-color:#B91C1C;background:#fef2f2;color:#9b1c1c}
+            #rr-ivroom .ivr-journey{flex:0 0 230px;position:relative;border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--surface,#fff);box-shadow:0 1px 2px rgba(15,23,42,.04);overflow:hidden;transition:flex-basis .18s ease}
+            #rr-ivroom .ivr-journey.collapsed{flex-basis:26px}
+            #rr-ivroom .ivr-journey.collapsed .ivr-jinner{display:none}
+            #rr-ivroom .ivr-jtoggle{position:absolute;top:8px;left:6px;z-index:2;appearance:none;border:0;background:none;cursor:pointer;color:var(--text-subtle,#6b7280);font-size:14px;line-height:1;padding:2px 4px;border-radius:5px}
+            #rr-ivroom .ivr-jtoggle:hover{background:var(--surface-hover,#f3f4f6)}
+            #rr-ivroom .ivr-jinner{padding:14px 16px 14px 26px;height:100%;overflow-y:auto}
+            #rr-ivroom .ivr-jrow{display:flex;gap:10px;align-items:flex-start;padding:9px 0;position:relative}
+            #rr-ivroom .ivr-jrow:not(:last-child):before{content:"";position:absolute;left:8px;top:24px;bottom:-9px;width:2px;background:var(--border,#e5e7eb)}
+            #rr-ivroom .ivr-jdot{flex:0 0 18px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;background:#eef0f3;color:#9ca3af;z-index:1}
+            #rr-ivroom .ivr-jdot.done{background:#dff3e7;color:#107C41}
+            #rr-ivroom .ivr-jdot.cur{background:var(--oc-blue,#0F6CBD);color:#fff}
+            #rr-ivroom .ivr-jrow.cur .ivr-jlabel{color:var(--oc-blue,#0F6CBD);font-weight:700}
+            #rr-ivroom .ivr-jlabel{font-size:13px;font-weight:600;color:var(--text,#111)}
+            #rr-ivroom .ivr-jsub{font-size:11px;color:var(--text-subtle,#6b7280);margin-top:1px}
             #rr-ivroom .ivr-profile{flex:0 0 280px;border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:18px;overflow-y:auto;background:var(--surface,#fff)}
             #rr-ivroom .ivr-av{width:72px;height:72px;border-radius:50%;background:var(--accent-soft,#e0ecfb);color:var(--accent-text,#0F6CBD);font-weight:700;font-size:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
             #rr-ivroom .ivr-name{text-align:center;font-weight:700;font-size:18px}
@@ -12641,11 +12677,13 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivroom .ivr-act.info:hover{background:#dcebfb}
             #rr-ivroom .ivr-act.danger{background:#fef2f2;border-color:#f4c2c2;color:#9b1c1c}
             #rr-ivroom .ivr-act.danger:hover{background:#fde1e1}
-            @media (max-width:1000px){
+            @media (max-width:1100px){
               #rr-ivroom{left:0}
               #rr-ivroom .ivr-main{flex-direction:column}
               #rr-ivroom .ivr-side{flex:0 0 auto;order:2}
-              #rr-ivroom .ivr-video{min-height:48vh;order:1}
+              #rr-ivroom .ivr-video{min-height:46vh;order:1}
+              #rr-ivroom .ivr-journey{flex:0 0 auto;order:3}
+              #rr-ivroom .ivr-journey.collapsed{flex-basis:auto}
             }
             /* Add/Edit calendar dialog */
             .oc-caldlg-back{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.32);display:flex;align-items:center;justify-content:center}
@@ -37061,7 +37099,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260609-oc37"></script>
+<script type="module" src="./live.js?v=20260609-oc38"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

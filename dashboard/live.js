@@ -18021,9 +18021,39 @@ function _ivcalWirePane(host) {
   });
 }
 
-// Full in-dashboard interview workspace: embedded Jitsi video + a bottom bar of
-// Interview Notes + Actions. Sits inside the app (the left nav rail stays
-// visible). Opened from the calendar "Join" action and the editor's join link.
+// ── Interview workspace · enterprise ATS-style hiring command center ────────
+const _IVR_SCORE_CATS = [
+  ["communication", "Communication"], ["customer_service", "Customer Service"],
+  ["reliability", "Reliability"], ["professionalism", "Professionalism"],
+  ["driving_experience", "Driving Experience"], ["overall_fit", "Overall Fit"],
+];
+const _IVR_RECS = [["strong_hire", "Strong Hire"], ["hire", "Hire"], ["maybe", "Maybe"], ["no_hire", "No Hire"]];
+const _IVR_FUNNEL = {
+  applied: "Applied", contacted: "Contacted", screening_started: "Screening", screening_completed: "Screened",
+  qualified: "Qualified", review_needed: "Review needed", interview_invited: "Interview invited",
+  interview_booked: "Interview", interview_completed: "Interview complete", orientation_invited: "Orientation invited",
+  orientation_booked: "Orientation booked", hired: "Hired", no_show: "No show", rejected: "Rejected", auto_declined: "Declined",
+};
+function _ivrStarsRow(key, label, val) {
+  let stars = "";
+  for (let i = 1; i <= 5; i++) stars += `<button type="button" class="ivr-star${i <= val ? " on" : ""}" data-cat="${key}" data-star="${i}" aria-label="${i} of 5">★</button>`;
+  return `<div class="ivr-score-row"><span class="ivr-score-cat">${escapeHtml(label)}</span><div class="ivr-stars">${stars}</div></div>`;
+}
+// Derive the 5-stage candidate journey from the applicant's status.
+function _ivrJourney(appl) {
+  const st = appl && appl.status;
+  const fmt = (d) => d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+  const hired = ["hired", "orientation_invited", "orientation_booked"].includes(st);
+  const done = (s) => `<span class="ivr-jdot done">✓</span>`, cur = `<span class="ivr-jdot cur">●</span>`, pend = `<span class="ivr-jdot">○</span>`;
+  const rows = [
+    { label: "Applied", dot: done(), sub: fmt(appl && appl.created_at), cur: false },
+    { label: "Screening", dot: done(), sub: fmt(appl && appl.screening_completed_at), cur: false },
+    { label: "Interview", dot: hired ? done() : cur, sub: hired ? "" : "Today", cur: !hired },
+    { label: "Onboarding", dot: hired ? cur : pend, sub: "", cur: hired },
+    { label: "Active Driver", dot: pend, sub: "", cur: false },
+  ];
+  return rows.map(r => `<div class="ivr-jrow${r.cur ? " cur" : ""}">${r.dot}<div class="ivr-jbody"><div class="ivr-jlabel">${escapeHtml(r.label)}</div>${r.sub ? `<div class="ivr-jsub">${escapeHtml(r.sub)}</div>` : ""}</div></div>`).join("");
+}
 function _ivcalOpenRoom(ev) {
   if (!ev || !ev.meeting_url) { toast("No video link for this interview yet", "warn"); return; }
   const old = document.getElementById("rr-ivroom"); if (old) old.remove();
@@ -18035,6 +18065,8 @@ function _ivcalOpenRoom(ev) {
   const hash = "#config.prejoinPageEnabled=false&userInfo.displayName=" + encodeURIComponent('"' + me + '"');
   const src = ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
   const canNotes = !!ev.id;
+  const initials = (who || "?").split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+  const scorecard = {};
 
   const m = document.createElement("div");
   m.id = "rr-ivroom";
@@ -18050,42 +18082,137 @@ function _ivcalOpenRoom(ev) {
     </div>
     <div class="ivr-main">
       <aside class="ivr-side">
-        <div class="ivr-tabs"><button class="ivr-tab on">Interview Notes</button></div>
-        <div class="ivr-col">
-          <div class="ivr-col-h">Add Notes</div>
-          <div class="ivr-ed" id="rr-ivr-ed" contenteditable="true" data-ph="Type your notes here…"></div>
+        <section class="ivr-card ivr-snap">
+          <div class="ivr-snap-top">
+            <div class="ivr-snap-av">${escapeHtml(initials)}</div>
+            <div class="ivr-snap-id">
+              <div class="ivr-snap-name">${escapeHtml(who)}</div>
+              <div class="ivr-snap-pos" id="rr-ivr-pos">Delivery Driver</div>
+              <span class="ivr-snap-stage" id="rr-ivr-stage">In Interview</span>
+            </div>
+          </div>
+          <div class="ivr-snap-grid">
+            <div class="ivr-kv"><span>Phone</span><b id="rr-ivr-phone">${a0.phone ? `<a href="tel:${escapeHtml(a0.phone)}">${escapeHtml(a0.phone)}</a>` : "—"}</b></div>
+            <div class="ivr-kv"><span>Email</span><b id="rr-ivr-email">${a0.email ? `<a href="mailto:${escapeHtml(a0.email)}">${escapeHtml(a0.email)}</a>` : "—"}</b></div>
+            <div class="ivr-kv"><span>Source</span><b id="rr-ivr-source">—</b></div>
+            <div class="ivr-kv"><span>Applied</span><b id="rr-ivr-applied">—</b></div>
+          </div>
+        </section>
+
+        <section class="ivr-card">
+          <div class="ivr-card-h">Interview Notes <span class="ivr-saved" id="rr-ivr-saved"></span></div>
+          <div class="ivr-ed" id="rr-ivr-ed" contenteditable="true" data-ph="Type your notes here… (auto-saves)"></div>
           <div class="ivr-tb">
             <button type="button" data-ivr-fmt="bold" title="Bold"><b>B</b></button>
             <button type="button" data-ivr-fmt="italic" title="Italic"><i>I</i></button>
             <button type="button" data-ivr-fmt="insertUnorderedList" title="Bulleted list">•</button>
             <button type="button" data-ivr-fmt="insertOrderedList" title="Numbered list">1.</button>
-            <span style="flex:1"></span>
-            <span class="ivr-saved" id="rr-ivr-saved"></span>
-            <button class="ivr-save" data-ivr="save"${canNotes ? "" : " disabled"}>Save Notes</button>
           </div>
-        </div>
-        <div class="ivr-col">
-          <div class="ivr-col-h">Actions</div>
+        </section>
+
+        <section class="ivr-card">
+          <div class="ivr-card-h">Scorecard</div>
+          <div id="rr-ivr-score">${_IVR_SCORE_CATS.map(([k, l]) => _ivrStarsRow(k, l, 0)).join("")}</div>
+          <div class="ivr-rec-h">Hiring Recommendation</div>
+          <div class="ivr-recs">${_IVR_RECS.map(([v, l]) => `<label class="ivr-rec ${v}"><input type="radio" name="rr-ivr-rec" value="${v}"><span>${escapeHtml(l)}</span></label>`).join("")}</div>
+        </section>
+
+        <section class="ivr-card">
+          <div class="ivr-card-h">Actions</div>
           <div class="ivr-acts">
-            ${apptId ? `<button class="ivr-act ok" data-ivr="hire">Move to Onboarding</button>
-            <button class="ivr-act info" data-ivr="schedule">Schedule Next Interview</button>
-            <button class="ivr-act danger" data-ivr="reject">Reject Applicant</button>` : `<div class="ivr-row ivr-mut">No applicant linked to this event.</div>`}
+            ${apptId ? `<button class="ivr-act ok" data-ivr="hire">🟢 Hire Applicant</button>
+            <button class="ivr-act info" data-ivr="schedule">🔵 Schedule Follow-Up Interview</button>
+            <button class="ivr-act danger" data-ivr="reject">🔴 Reject Applicant</button>` : `<div class="ivr-kv ivr-mut">No applicant linked to this event.</div>`}
           </div>
+        </section>
+      </aside>
+
+      <div class="ivr-video"><iframe allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write" src="${escapeHtml(src)}"></iframe><button class="ivr-fsexit" data-ivr="fsexit" title="Exit full screen">⤡ Exit full screen</button></div>
+
+      <aside class="ivr-journey" id="rr-ivr-journey">
+        <button class="ivr-jtoggle" data-ivr="journey" title="Collapse / expand">⟩</button>
+        <div class="ivr-jinner">
+          <div class="ivr-card-h">Candidate Journey</div>
+          <div id="rr-ivr-jbody">${apptId ? "" : `<div class="ivr-kv ivr-mut">No applicant.</div>`}</div>
         </div>
       </aside>
-      <div class="ivr-video"><iframe allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write" src="${escapeHtml(src)}"></iframe><button class="ivr-fsexit" data-ivr="fsexit" title="Exit full screen">⤡ Exit full screen</button></div>
     </div>`;
   document.body.appendChild(m);
   const ed = document.getElementById("rr-ivr-ed");
 
-  if (canNotes) {
-    sb.from("cal_events").select("interview_notes").eq("id", ev.id).maybeSingle()
-      .then(({ data }) => { if (data && data.interview_notes) ed.innerHTML = data.interview_notes; }).catch(() => {});
+  // ── Snapshot + Journey: hydrate from the applicant record ──
+  if (apptId) {
+    sb.from("applicants").select("status, source, created_at, screening_completed_at").eq("id", apptId).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+        set("rr-ivr-stage", _IVR_FUNNEL[data.status] || (data.status || "—"));
+        set("rr-ivr-source", data.source || "—");
+        set("rr-ivr-applied", data.created_at ? new Date(data.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—");
+        const jb = document.getElementById("rr-ivr-jbody");
+        if (jb) jb.innerHTML = _ivrJourney(data);
+      }).catch(() => {});
   }
+
+  // ── Load saved notes + scorecard ──
+  if (canNotes) {
+    sb.from("cal_events").select("interview_notes, interview_scorecard").eq("id", ev.id).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        if (data.interview_notes) ed.innerHTML = data.interview_notes;
+        const sc = data.interview_scorecard || {};
+        Object.assign(scorecard, sc);
+        for (const [k] of _IVR_SCORE_CATS) {
+          const v = sc[k] || 0;
+          m.querySelectorAll(`.ivr-star[data-cat="${k}"]`).forEach(st => st.classList.toggle("on", +st.getAttribute("data-star") <= v));
+        }
+        if (sc.recommendation) { const r = m.querySelector(`input[name="rr-ivr-rec"][value="${sc.recommendation}"]`); if (r) { r.checked = true; r.closest(".ivr-rec")?.classList.add("on"); } }
+      }).catch(() => {});
+  }
+
+  // ── Auto-save (notes + scorecard) ──
+  let _saving = false, _savedAt = null, _saveTimer = null;
+  const savedEl = () => document.getElementById("rr-ivr-saved");
+  function refreshSaved() {
+    const el = savedEl(); if (!el) return;
+    if (_saving) { el.textContent = "Saving…"; return; }
+    if (!_savedAt) { el.textContent = ""; return; }
+    const s = Math.round((Date.now() - _savedAt) / 1000);
+    el.textContent = s < 3 ? "✓ Saved just now" : `✓ Last saved ${s < 60 ? s + "s" : Math.round(s / 60) + "m"} ago`;
+  }
+  async function saveRoom() {
+    if (!canNotes) return;
+    _saving = true; refreshSaved();
+    const notes = ed.innerHTML.trim() || null;
+    try {
+      let { error } = await sb.from("cal_events").update({ interview_notes: notes, interview_scorecard: scorecard }).eq("id", ev.id);
+      if (error) { const r2 = await sb.from("cal_events").update({ interview_notes: notes }).eq("id", ev.id); if (r2.error) throw r2.error; } // pre-migration fallback
+      _saving = false; _savedAt = Date.now();
+    } catch (e) { _saving = false; const el = savedEl(); if (el) el.textContent = "⚠ Save failed"; console.warn("interview save:", e); return; }
+    refreshSaved();
+  }
+  const queueSave = () => { clearTimeout(_saveTimer); _saveTimer = setTimeout(saveRoom, 1200); };
+  const savedTick = setInterval(refreshSaved, 5000);
+
+  ed.addEventListener("input", queueSave);
 
   // Notes formatting.
   m.querySelectorAll("[data-ivr-fmt]").forEach(b => b.onmousedown = (e) => {
-    e.preventDefault(); document.execCommand(b.getAttribute("data-ivr-fmt"), false, null); ed.focus();
+    e.preventDefault(); document.execCommand(b.getAttribute("data-ivr-fmt"), false, null); ed.focus(); queueSave();
+  });
+
+  // Scorecard stars.
+  m.querySelectorAll(".ivr-star").forEach(st => st.onclick = () => {
+    const cat = st.getAttribute("data-cat"), n = +st.getAttribute("data-star");
+    scorecard[cat] = (scorecard[cat] === n) ? n - 1 : n; // click the same star again to lower by one
+    m.querySelectorAll(`.ivr-star[data-cat="${cat}"]`).forEach(s2 => s2.classList.toggle("on", +s2.getAttribute("data-star") <= scorecard[cat]));
+    queueSave();
+  });
+  // Hiring recommendation.
+  m.querySelectorAll('input[name="rr-ivr-rec"]').forEach(r => r.onchange = () => {
+    scorecard.recommendation = r.value;
+    m.querySelectorAll(".ivr-rec").forEach(l => l.classList.toggle("on", l.contains(r)));
+    queueSave();
   });
 
   const onKey = (e) => {
@@ -18093,43 +18220,33 @@ function _ivcalOpenRoom(ev) {
     if (m.classList.contains("ivr-max")) { m.classList.remove("ivr-max"); return; }
     if (document.activeElement !== ed) close();
   };
-  const close = () => { document.removeEventListener("keydown", onKey); m.remove(); };
+  const close = () => { clearInterval(savedTick); clearTimeout(_saveTimer); document.removeEventListener("keydown", onKey); m.remove(); };
   document.addEventListener("keydown", onKey);
 
   m.querySelectorAll('[data-ivr]').forEach(b => b.onclick = async () => {
     const act = b.getAttribute("data-ivr");
-    if (act === "close") return close();
+    if (act === "close") { saveRoom(); return close(); }
     if (act === "fs") { m.classList.add("ivr-max"); return; }
     if (act === "fsexit") { m.classList.remove("ivr-max"); return; }
+    if (act === "journey") { m.querySelector(".ivr-journey").classList.toggle("collapsed"); b.textContent = m.querySelector(".ivr-journey").classList.contains("collapsed") ? "⟨" : "⟩"; return; }
     if (act === "copy") {
       try { await navigator.clipboard.writeText(ev.meeting_url); b.textContent = "✓ Copied"; setTimeout(() => { b.textContent = "⧉ Copy Invite Link"; }, 1800); }
       catch (_) { toast("Couldn't copy link", "warn"); }
       return;
     }
-    if (act === "profile") { if (apptId) { close(); _ivcalOpenApplicant(apptId); } return; }
-    if (act === "save") {
-      const html = ed.innerHTML.trim();
-      b.disabled = true; b.textContent = "Saving…";
-      try {
-        const { error } = await sb.from("cal_events").update({ interview_notes: html || null }).eq("id", ev.id);
-        if (error) throw error;
-        const s = document.getElementById("rr-ivr-saved");
-        if (s) { s.textContent = "Saved ✓"; setTimeout(() => { if (s) s.textContent = ""; }, 2500); }
-      } catch (e) { toast("Couldn't save notes: " + (e.message || e), "warn"); }
-      finally { b.disabled = false; b.textContent = "Save Notes"; }
-      return;
-    }
+    if (act === "profile") { if (apptId) { saveRoom(); close(); _ivcalOpenApplicant(apptId); } return; }
     if (!apptId) return;
     if (act === "hire") {
-      if (!confirm(`Move ${who} to onboarding? This marks them hired and creates a driver record.`)) return;
+      if (!confirm(`Hire ${who}? This advances them to onboarding and creates a driver record.`)) return;
       b.disabled = true;
       try {
+        await saveRoom();
         const notes = ed.innerHTML.replace(/<[^>]+>/g, " ").trim() || null;
         const { error } = await sb.rpc("record_outcome", { p_applicant_id: apptId, p_outcome: "hired", p_notes: notes, p_interview_day_id: null });
         if (error) throw error;
-        toast(`${who} moved to onboarding`, "success");
+        toast(`${who} hired · advanced to onboarding`, "success");
         close(); loadIvCalendar();
-      } catch (e) { toast("Couldn't move to onboarding: " + (e.message || e), "warn"); b.disabled = false; }
+      } catch (e) { toast("Couldn't hire: " + (e.message || e), "warn"); b.disabled = false; }
       return;
     }
     if (act === "schedule") {
