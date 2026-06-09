@@ -16303,10 +16303,13 @@ function _ivcalGoogleRow() {
   const head = `<div class="oc-cals-sub">Google Calendar</div>`;
   if (connected) {
     const on = _ivcalCalVis["google"] !== false;
+    const errNote = (on && _ivcalGoogleErr)
+      ? `<div class="oc-gcal-err" title="${escapeHtml(_ivcalGoogleErr)}">⚠ Couldn't load Google events — is the google-calendar-events function deployed?</div>`
+      : "";
     return head + `<div class="oc-cal-row oc-gcal-row">
       <label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="google"${on?" checked":""}><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span><span class="oc-cal-name" title="${escapeHtml(g.email||"")}">${escapeHtml(g.email||"Google")}</span></label>
       <button class="oc-cal-menu" data-ivcal-gcal="disconnect" title="Disconnect Google Calendar" aria-label="Disconnect Google Calendar">⋯</button>
-    </div>`;
+    </div>${errNote}`;
   }
   return head + `<button class="oc-gcal-connect" data-ivcal-gcal="connect"><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span>Connect Google Calendar</button>`;
 }
@@ -16314,6 +16317,7 @@ function _ivcalGoogleRow() {
 // ── Google event overlay ───────────────────────────────────────────────────
 let _ivcalGoogleLoading = false;
 let _ivcalGoogleAttempt = null;       // { minMs, maxMs } of the last fetched window
+let _ivcalGoogleErr = null;           // last fetch error (shown in the Google row)
 function _ivcalGoogleVisible() {
   const g = _ivcalCache && _ivcalCache.gcal;
   return !!(g && g.connected) && _ivcalCalVis["google"] !== false;
@@ -16352,8 +16356,10 @@ function _ivcalEnsureGoogle() {
     _ivcalCache.googleEvents = evs
       .map(ge => ({ ...ge, sortAt: (ge.allDay && ge.start) ? (ge.start + "T12:00:00") : ge.start }))
       .filter(ge => ge.sortAt);
+    _ivcalGoogleErr = null;
   }).catch(e => {
-    console.warn("google events load failed:", (e && e.message) || e);
+    _ivcalGoogleErr = (e && e.message) || String(e);
+    console.warn("google events load failed:", _ivcalGoogleErr);
   }).finally(() => {
     _ivcalGoogleLoading = false; _ivcalRender();
   });
