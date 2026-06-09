@@ -12576,6 +12576,33 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-gcal-connect{display:inline-flex;align-items:center;gap:7px;width:100%;text-align:left;appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--oc-ink);cursor:pointer;font:inherit;font-size:13px;padding:6px 9px;border-radius:6px;transition:background var(--t-fast),border-color var(--t-fast)}
             #rr-ivcal .oc-gcal-connect:hover{background:var(--oc-hover);border-color:var(--oc-blue)}
             #rr-ivcal .oc-gcal-err{font-size:11px;color:var(--red,#B91C1C);line-height:1.35;padding:2px 4px 0}
+            /* Embedded interview room (video + Add Notes) */
+            #rr-ivroom{position:fixed;inset:0;z-index:10001;background:rgba(8,12,20,.72);display:flex;align-items:center;justify-content:center}
+            #rr-ivroom .rr-ivroom-card{background:var(--surface,#fff);width:min(1240px,96vw);height:min(88vh,860px);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+            #rr-ivroom .rr-ivroom-h{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#0f172a;color:#fff;flex:0 0 auto}
+            #rr-ivroom .rr-ivroom-t{font-weight:700;font-size:15px}
+            #rr-ivroom .rr-ivroom-x{appearance:none;border:0;background:#D13438;color:#fff;font-weight:700;cursor:pointer;border-radius:8px;padding:7px 14px;font-size:13px}
+            #rr-ivroom .rr-ivroom-x:hover{background:#b91c1c}
+            #rr-ivroom .rr-ivroom-b{flex:1;min-height:0;display:flex}
+            #rr-ivroom .rr-ivroom-video{flex:1;min-width:0;background:#000}
+            #rr-ivroom .rr-ivroom-video iframe{width:100%;height:100%;border:0;display:block}
+            #rr-ivroom .rr-ivroom-notes{flex:0 0 360px;display:flex;flex-direction:column;border-left:1px solid var(--border,#e5e7eb);background:var(--surface,#fff);min-height:0}
+            #rr-ivroom .rr-ivroom-nh{font-weight:700;font-size:14px;padding:14px 16px 8px;color:var(--text,#111)}
+            #rr-ivroom .rr-ivroom-tb{display:flex;gap:4px;padding:0 16px 8px}
+            #rr-ivroom .rr-ivroom-tb button{appearance:none;border:1px solid var(--border,#e5e7eb);background:var(--surface,#fff);cursor:pointer;border-radius:6px;width:30px;height:28px;font-size:13px;color:var(--text,#111)}
+            #rr-ivroom .rr-ivroom-tb button:hover{background:var(--surface-hover,#f3f4f6)}
+            #rr-ivroom .rr-ivroom-ed{flex:1;min-height:0;overflow-y:auto;margin:0 16px;border:1px solid var(--border,#e5e7eb);border-radius:8px;padding:10px 12px;font:inherit;font-size:14px;line-height:1.5;color:var(--text,#111);background:var(--surface,#fff)}
+            #rr-ivroom .rr-ivroom-ed:empty:before{content:attr(data-ph);color:var(--text-subtle,#9ca3af)}
+            #rr-ivroom .rr-ivroom-ed:focus{outline:none;border-color:var(--oc-blue,#0F6CBD)}
+            #rr-ivroom .rr-ivroom-nf{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;flex:0 0 auto}
+            #rr-ivroom .rr-ivroom-saved{font-size:12px;color:var(--green,#107C41);font-weight:600}
+            #rr-ivroom .rr-ivroom-save{appearance:none;border:0;background:var(--oc-blue,#0F6CBD);color:#fff;font-weight:600;cursor:pointer;border-radius:8px;padding:8px 16px;font-size:13px}
+            #rr-ivroom .rr-ivroom-save:hover{background:var(--oc-blue-strong,#115EA3)}
+            #rr-ivroom .rr-ivroom-save:disabled{opacity:.6;cursor:default}
+            @media (max-width:880px){
+              #rr-ivroom .rr-ivroom-b{flex-direction:column}
+              #rr-ivroom .rr-ivroom-notes{flex:0 0 40%;border-left:0;border-top:1px solid var(--border,#e5e7eb)}
+            }
             /* Add/Edit calendar dialog */
             .oc-caldlg-back{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.32);display:flex;align-items:center;justify-content:center}
             .oc-caldlg{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 24px 70px rgba(15,23,42,.36);width:min(380px,94vw);padding:18px 20px;font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
@@ -36990,7 +37017,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260609-oc31"></script>
+<script type="module" src="./live.js?v=20260609-oc32"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
