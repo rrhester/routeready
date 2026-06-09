@@ -10743,8 +10743,11 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <!-- FUNNEL SUB-VIEW -->
-        <div class="pipe-subview active" id="pipe-sub-funnel">
+        <!-- FUNNEL SUB-VIEW · starts hidden like the Interview/Calendar panes
+             so it can't flash on first paint when the page lands on (or flips
+             to) Calendar. pipeSub('funnel') reveals it when the Funnel tab is
+             actually selected. -->
+        <div class="pipe-subview" id="pipe-sub-funnel" style="display:none">
 
         <!-- ─── Hiring KPI banner — mirrors Interview Day visual ─── -->
         <style>
