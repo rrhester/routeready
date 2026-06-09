@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google Calendar</title>
+  <style>
+    html,body{height:100%}
+    body{margin:0;display:flex;align-items:center;justify-content:center;
+      font:14px -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;color:#1f2937;background:#fff}
+    .box{text-align:center;padding:24px;max-width:360px;line-height:1.5}
+    .err{color:#b91c1c}
+  </style>
+</head>
+<body>
+  <!-- OAuth popup landing. google-oauth-callback (Supabase) does the token
+       exchange, then 302s here so the success/close UI is served by Cloudflare
+       as real HTML (the function's own HTML response wasn't rendering). This
+       page posts the result back to the opener (same origin) and closes. -->
+  <div class="box" id="box">Finishing up&hellip;</div>
+  <script>
+    (function () {
+      var p = new URLSearchParams(location.search);
+      var ok = p.get("ok") === "1";
+      var msg = p.get("msg") || "";
+      var box = document.getElementById("box");
+      if (ok) {
+        box.innerHTML = "&#x2705; Google Calendar connected. You can close this window.";
+      } else {
+        box.className = "box err";
+        box.innerHTML = "&#x26A0;&#xFE0F; " + (msg ? msg.replace(/[<>&]/g, function (c) {
+          return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
+        }) : "Connection failed.");
+      }
+      try {
+        if (window.opener) {
+          window.opener.postMessage({ type: "rr-gcal", ok: ok, message: msg || (ok ? "ok" : "failed") }, location.origin);
+        }
+      } catch (e) { /* opener gone — page just self-closes below */ }
+      setTimeout(function () { try { window.close(); } catch (e) {} }, ok ? 400 : 2500);
+    })();
+  </script>
+</body>
+</html>

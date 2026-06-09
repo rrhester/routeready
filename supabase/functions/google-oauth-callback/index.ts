@@ -5,23 +5,14 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { verifyState, encryptSecret } from "../_shared/google_crypto.ts";
 
+// Hand the success/close UI off to a dashboard-hosted page (served by Cloudflare
+// as real HTML) by 302-redirecting there. The function's own HTML response was
+// being served as plain text by the gateway — the page showed raw markup and
+// never auto-closed. The landing page posts the result to the opener and closes.
 function closePage(ok: boolean, msg: string) {
-  const origin = Deno.env.get("DASHBOARD_URL") || "*";
-  // Use numeric HTML entities for the emoji (not raw UTF-8 bytes) so the page
-  // renders correctly regardless of how the charset is negotiated — raw bytes
-  // were showing up mojibaked ("âœ…") in some browsers.
-  const icon = ok ? "&#x2705;" : "&#x26A0;&#xFE0F;";
-  const text = ok ? "Google Calendar connected. You can close this window." : msg;
-  return new Response(
-    `<!doctype html><html><head><meta charset="utf-8"></head><body style="font:14px system-ui;padding:24px">
-     ${icon} ${text.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]!))}
-     <script>
-       try { window.opener && window.opener.postMessage(
-         { type: "rr-gcal", ok: ${ok}, message: ${JSON.stringify(msg)} }, ${JSON.stringify(origin)}); } catch (e) {}
-       setTimeout(function(){ window.close(); }, ${ok ? 800 : 3000});
-     </script></body></html>`,
-    { headers: { "content-type": "text/html; charset=utf-8" } },
-  );
+  const base = (Deno.env.get("DASHBOARD_URL") || "https://gorouteready.com/dashboard").replace(/\/+$/, "");
+  const url = `${base}/gcal-callback.html?ok=${ok ? "1" : "0"}` + (msg ? `&msg=${encodeURIComponent(msg)}` : "");
+  return new Response(null, { status: 302, headers: { location: url } });
 }
 
 Deno.serve(async (req) => {
