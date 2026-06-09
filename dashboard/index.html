@@ -13867,29 +13867,38 @@ body.rr-cmdk-open{ overflow:hidden }
             display: inline-flex; align-items: center; gap: 8px;
             position: relative; flex: 0 0 auto;
           }
-          /* Rules footer · one flex row pinned just below the view tiles. The
-             caption + launcher sit together, centered, and flex align-items
-             keeps them on the exact same line — "Rules ⧉", matching the
-             Onboarding-steps and Funnel rules captions. */
+          /* Rules footer · a positioning context spanning the view-tile group.
+             The caption and launcher position INDEPENDENTLY inside it (not a
+             shared centered flex row) so "Rules" centers under the whole
+             Day/Week/Work Week/Month group while the dialog-launcher pins to
+             the bottom-right by the hairline — exactly like Schedule's
+             "Go To" label + .sched-v2-group-launcher. */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-foot {
-            position: absolute; left: 0; right: 0; bottom: -8px; height: 14px;
-            display: flex; align-items: center; justify-content: center; gap: 5px;
-            pointer-events: none; z-index: 1;
+            position: absolute; left: 0; right: 0; bottom: -6px; height: 14px;
+            display: block; pointer-events: none; z-index: 1;
           }
+          /* Caption · centered across the group on the bottom line. */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-cap {
-            font-size: 11px; font-weight: 800 !important; line-height: 1;
-            letter-spacing: .01em; white-space: nowrap;
+            position: absolute; left: 0; right: 0; bottom: 0;
+            text-align: center; font-size: 11px; font-weight: 800 !important;
+            line-height: 1; letter-spacing: .01em; white-space: nowrap;
             color: var(--text-subtle); pointer-events: none;
           }
+          /* Dialog-launcher · pinned bottom-right, pushed into the gap next to
+             the hairline divider, on the same bottom line as the caption. */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch {
+            position: absolute; right: -18px; bottom: -1px;
             display: inline-flex; align-items: center; justify-content: center;
             appearance: none; border: 0; background: transparent; cursor: pointer;
-            color: var(--text-subtle); padding: 1px; border-radius: 5px;
-            pointer-events: auto;
-            transition: color var(--t-fast), background var(--t-fast);
+            color: var(--text-subtle); padding: 1px 4px; margin: 0; border-radius: 999px;
+            pointer-events: auto; opacity: .85; z-index: 1;
+            transition: color var(--t-fast), background var(--t-fast), opacity var(--t-fast);
+          }
+          #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup:hover .rr-cal-rules-launch {
+            opacity: .9;
           }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch:hover {
-            color: var(--accent-text); background: var(--accent-soft);
+            opacity: 1; color: var(--accent-text); background: var(--accent-soft);
           }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch svg { width: 12px; height: 12px; flex: 0 0 auto; }
           /* "Add applicant" tile · blue-shaded square like the Schedule Fleet/
