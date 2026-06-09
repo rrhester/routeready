@@ -11723,8 +11723,10 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           /* Per-stage glyph · inherits the button color (grey at rest,
              blue when active) via stroke:currentColor. */
+          /* Stage-tab icons removed per operator — the labels alone read
+             cleaner across the pipeline header. */
           #view-pipeline .hp-stage-ico{
-            width:16px;height:16px;flex:0 0 auto;stroke-width:1.7;
+            display:none;
           }
           #view-pipeline .hp-stage-btn:hover:not(.active){
             color:var(--text);background:rgba(15,23,42,.04);
@@ -12517,7 +12519,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-side{flex:0 0 240px;border-right:1px solid var(--oc-line);background:var(--oc-surface-2);overflow-y:auto;padding:14px 14px}
             #rr-ivcal .oc-mini{margin-bottom:16px}
             #rr-ivcal .oc-mini-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-            #rr-ivcal .oc-mini-title{font-size:12px;font-weight:700;color:var(--oc-ink)}
+            #rr-ivcal .oc-mini-title{font-size:15px;font-weight:700;color:var(--oc-ink)}
             #rr-ivcal .oc-mini-nav{appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-sub);font-size:15px;line-height:1;padding:1px 7px;border-radius:5px}
             #rr-ivcal .oc-mini-nav:hover{background:var(--oc-hover);color:var(--oc-blue)}
             #rr-ivcal .oc-mini-nav-sp{display:inline-block;width:24px}
@@ -12532,7 +12534,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-mini-d.in-range{background:rgba(15,108,189,.14);color:var(--oc-ink)}
             #rr-ivcal .oc-mini-d.today{background:var(--oc-blue);color:#fff;font-weight:700}
             /* command bar */
-            #rr-ivcal .oc-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--oc-line);background:var(--oc-surface-2);flex-wrap:wrap}
+            #rr-ivcal .oc-bar{display:flex;align-items:center;gap:8px;padding:13px 10px;border-bottom:1px solid var(--oc-line);background:var(--oc-surface-2);flex-wrap:wrap}
             #rr-ivcal .oc-btn{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--oc-ink);background:var(--oc-surface);border:1px solid var(--border);border-radius:6px;padding:4px 10px;display:inline-flex;align-items:center;gap:6px;line-height:1}
             #rr-ivcal .oc-btn:hover{background:var(--oc-hover)}
             #rr-ivcal .oc-btn.pri{background:var(--oc-blue);border-color:var(--oc-blue);color:#fff;font-weight:600}
@@ -12543,7 +12545,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-seg button:first-child{border-left:0}
             #rr-ivcal .oc-seg button.on{background:var(--oc-blue);color:#fff;font-weight:600}
             #rr-ivcal .oc-zoom button{padding:4px 9px;font-size:15px;line-height:1;min-width:28px;justify-content:center}
-            #rr-ivcal .oc-period{font-size:14px;font-weight:600;color:var(--oc-ink);margin:0 4px}
+            #rr-ivcal .oc-period{font-size:15px;font-weight:600;color:var(--oc-ink);margin:0 4px}
             #rr-ivcal .oc-sp{flex:1}
             #rr-ivcal .oc-search{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:6px;padding:3px 8px;background:var(--oc-surface);color:var(--oc-sub);font-size:12px}
             #rr-ivcal .oc-search input{border:0;outline:0;font:inherit;font-size:12px;width:120px;background:transparent;color:var(--oc-ink)}
@@ -13819,7 +13821,7 @@ body.rr-cmdk-open{ overflow:hidden }
              below the tile labels — the same offset Schedule's "Go To" sits
              below Today/Weekly/Monthly. Bold, mixed-case. */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-cap {
-            position: absolute; left: 0; right: 0; bottom: 9px;
+            position: absolute; left: 0; right: 0; bottom: -4px;
             text-align: center; font-size: 11px; font-weight: 800 !important;
             letter-spacing: .01em; white-space: nowrap;
             color: var(--text-subtle); pointer-events: none;
@@ -13828,7 +13830,7 @@ body.rr-cmdk-open{ overflow:hidden }
              right into the gap next to the hairline divider (mirrors the
              Schedule launcher's right:-18px). Aligned to the caption's line. */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch {
-            position: absolute; right: -14px; bottom: 8px; z-index: 1;
+            position: absolute; right: -18px; bottom: -3px; z-index: 1;
             display: inline-flex; align-items: center; justify-content: center;
             appearance: none; border: 0; background: transparent; cursor: pointer;
             color: var(--text-subtle); padding: 2px; border-radius: 5px;
@@ -36864,7 +36866,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc26"></script>
+<script type="module" src="./live.js?v=20260609-oc27"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
