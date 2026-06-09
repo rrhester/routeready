@@ -13768,17 +13768,19 @@ body.rr-cmdk-open{ overflow:hidden }
             display: none !important;
             content: none !important;
           }
-          /* "Rules" caption centered on the group's bottom line, with the
-             launcher icon pinned bottom-right near the hairline divider —
-             mirrors the Schedule strip's group caption + launcher. */
+          /* Stretch the calendar group to the strip's full height so the
+             "Rules" caption + launcher sit on the strip's bottom line. */
+          #view-onboarding-ops #rr-cal-ribbon { align-self: stretch; }
+          /* "Rules" caption centered on the bottom line; launcher icon pinned
+             bottom-right flush to the hairline divider. */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-cap {
-            position: absolute; left: 0; right: 0; bottom: 4px;
-            text-align: center; font-size: 10px; font-weight: 600;
-            letter-spacing: .06em; text-transform: uppercase;
+            position: absolute; left: 0; right: 0; bottom: 3px;
+            text-align: center; font-size: 11px; font-weight: 700;
+            letter-spacing: .01em;
             color: var(--text-subtle); pointer-events: none;
           }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch {
-            position: absolute; right: 4px; bottom: 2px;
+            position: absolute; right: 1px; bottom: 1px;
             display: inline-flex; align-items: center; justify-content: center;
             appearance: none; border: 0; background: transparent; cursor: pointer;
             color: var(--text-subtle); padding: 2px; border-radius: 5px;
@@ -13788,9 +13790,11 @@ body.rr-cmdk-open{ overflow:hidden }
             color: var(--accent-text); background: var(--accent-soft);
           }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch svg { width: 13px; height: 13px; flex: 0 0 auto; }
-          /* "Add applicant" tile · blue-shaded like the Schedule Fleet/Unassign tile. */
-          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item{ background:var(--accent-soft-strong); border-radius:var(--sch-radius,6px); }
-          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item:hover{ background:var(--accent-soft); }
+          /* "Add applicant" tile · blue-shaded square like the Schedule Fleet/
+             Unassign tile (the whole tile, not just the text). */
+          #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-addapplicant"]{ background:var(--accent-soft-strong) !important; border-radius:var(--sch-radius,6px); }
+          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item{ background:transparent !important; border-radius:var(--sch-radius,6px); }
+          #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-addapplicant"]:hover{ background:var(--accent-soft) !important; }
           #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item,
           #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item span{ color:var(--accent-text) !important; }
           #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item svg{ color:var(--accent) !important; }
