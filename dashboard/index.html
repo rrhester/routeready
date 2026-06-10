@@ -25157,7 +25157,7 @@ body.rr-cmdk-open{ overflow:hidden }
           transition: color var(--rr-motion-fast, 0.12s);
         }
         #view-fleet2 .f2-cmd-tab:hover:not(.active) { color: var(--rr-fg-primary, #242424); }
-        #view-fleet2 .f2-cmd-tab.active { color: #0F6CBD; }
+        #view-fleet2 .f2-cmd-tab.active { color: var(--rr-brand-primary, #0078D4); }
         #view-fleet2 .f2-cmd-tab.active::after {
           content: "";
           position: absolute;
@@ -25440,14 +25440,9 @@ body.rr-cmdk-open{ overflow:hidden }
              Tiles are visual placeholders; nothing is wired. -->
         <div class="f2-strip" role="toolbar" aria-label="Fleet ribbon">
 
-          <!-- Header · title + Live pill + subtitle. -->
+          <!-- Header · title + subtitle. -->
           <div class="f2-title">
-            <h1 class="page-title"><span>Fleet</span>
-              <span class="f2-status-pill">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 12 10 16 18 8"/></svg>
-                <span>Live</span>
-              </span>
-            </h1>
+            <h1 class="page-title"><span>Fleet</span></h1>
             <p class="page-sub" id="rr-fleet-page-sub">Fleet overview</p>
           </div>
 
