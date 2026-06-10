@@ -13155,6 +13155,11 @@ body.rr-cmdk-open{ overflow:hidden }
            default top justification; only the absolute foot drops to the line. */
         #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-funnel"]{ align-self:stretch; }
         #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-funnel"] .ob-rules-foot.ob-rules-foot-shown{ bottom:-4px; }
+        /* Onboarding-steps "Rules" · same treatment as Funnel so its persistent
+           launcher drops onto the strip's BOTTOM line and is discoverable,
+           instead of floating in the middle band where it gets clipped. */
+        #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-overview"]{ align-self:stretch; }
+        #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-overview"] .ob-rules-foot.ob-rules-foot-shown{ bottom:-4px; }
         /* Attendance policy popover · anchored to the Attendance
            tile's Rules footer. Same Fluent acrylic chrome as the
            Schedule van-rules / smart-fill popovers, but wider so
