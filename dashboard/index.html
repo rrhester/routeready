@@ -25185,12 +25185,13 @@ body.rr-cmdk-open{ overflow:hidden }
 
         /* ── Command/header strip card ──────────────────────────────
            Geometry 1:1 with Schedule's visible strip (.sched-v2-strip,
-           schedule-rrx.css:1892): Schedule's strip top sits at
-           20px page padding + 12px (the hidden legacy cmd-shell's
-           margin-bottom, --rr-space-120) = 32px. Fleet has no hidden
-           shell, so the 12px is a margin-top here. position:relative
-           anchors the absolute cmd-tabs above; the triple height lock
-           matches Schedule's hard lock on --tcp-strip-h. */
+           schedule-rrx.css:1892): Schedule's strip top sits at 37px
+           from the .page top — 20px page padding + 17px from the
+           hidden legacy cmd-shell's margin-bottom (index.html:19463;
+           the measured stack at index.html:19541 confirms 37px).
+           Fleet has no hidden shell, so the 17px is a margin-top here.
+           position:relative anchors the absolute cmd-tabs above; the
+           triple height lock matches Schedule's lock on --tcp-strip-h. */
         #view-fleet2 .f2-strip {
           position: relative;
           display: flex;
@@ -25198,7 +25199,7 @@ body.rr-cmdk-open{ overflow:hidden }
           flex-wrap: nowrap;
           gap: 8px;
           padding: 3px 18px 6px;
-          margin: var(--rr-space-120, 12px) 0 0;
+          margin: 17px 0 0;
           background: var(--rr-bg-surface-1);
           border: 1px solid var(--f2-sch-line-subtle);
           border-radius: var(--f2-sch-radius);
@@ -25294,26 +25295,30 @@ body.rr-cmdk-open{ overflow:hidden }
           font-size: 13px;
           font-weight: 500;
           line-height: 1.2;
-          transition: background 0.12s ease;
+          /* Tactile press feedback · same spring as Schedule's
+             .sched-v2-tile (schedule-rrx.css:1993). */
+          transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
+                      box-shadow 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
+                      background 0.12s ease;
         }
-        /* Count badge pinned to the tile's top-right (Vehicles / Issues),
-           mirroring the Fleet tab page's .fl-ribbon-count. */
-        #view-fleet2 .f2-tile { position: relative; }
-        #view-fleet2 .f2-count {
-          position: absolute; top: 2px; right: 8px;
-          min-width: 16px; height: 16px; padding: 0 4px;
-          display: inline-flex; align-items: center; justify-content: center;
-          font-size: 10px; font-weight: 700; line-height: 1;
-          border-radius: 8px; background: rgba(15,23,42,.10); color: #605E5C;
+        /* Press / sink — real-button feedback on click, 1:1 with
+           Schedule's .sched-v2-tile:active. */
+        #view-fleet2 .f2-tile:active {
+          transform: translateY(1px) scale(0.97);
+          transition-duration: 0.04s;
         }
-        #view-fleet2 .f2-count.is-blue { background: #0F6CBD; color: #fff; }
+        @media (prefers-reduced-motion: reduce) {
+          #view-fleet2 .f2-tile { transition: none; }
+          #view-fleet2 .f2-tile:active { transform: none; }
+        }
         #view-fleet2 .f2-tile svg {
-          /* 1:1 with the VISIBLE Schedule strip tiles (.sched-v2-tile svg):
-             base 42px / butt / miter (schedule-rrx.css:2010), then the
-             inline override at index.html (#view-schedule .sched-v2-tile svg)
-             forces color var(--text) + stroke-width 1.1, with 1.25 on hover.
-             (The 28px .subnav-item tiles are the RETIRED legacy ribbon —
-             hidden by schedule-rrx.css:3199 — not what renders today.) */
+          /* Size/color 1:1 with the VISIBLE Schedule strip tiles
+             (.sched-v2-tile svg): base 42px / butt / miter
+             (schedule-rrx.css:2010) + the inline override forcing
+             color var(--text) and stroke-width 1.1.
+             Operator preference: the thin 1.1 stroke at ALL times —
+             deliberately NO hover thicken (Schedule bumps to 1.25 on
+             hover; Fleet does not). */
           width: 42px;
           height: 42px;
           flex: 0 0 auto;
@@ -25321,9 +25326,6 @@ body.rr-cmdk-open{ overflow:hidden }
           stroke-width: 1.1;
           stroke-linecap: butt;
           stroke-linejoin: miter;
-        }
-        #view-fleet2 .f2-tile:hover svg {
-          stroke-width: 1.25;
         }
         #view-fleet2 .f2-tile span {
           white-space: nowrap;
@@ -25421,7 +25423,6 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-fleet2 .f2-tile.active:hover {
           background: rgba(15, 23, 42, 0.06);
         }
-        #view-fleet2 .f2-tile.active .f2-count { background: var(--f2-sch-blue); color: #fff; }
 
         /* ── Print / Download toolbar · shown only when the Print/Download
              command tab is active (toggled by the cmd-tab handler in
@@ -25488,31 +25489,32 @@ body.rr-cmdk-open{ overflow:hidden }
                Each tile calls fleetSub() (live.js), which toggles the
                matching #fl-sub-* container + active tile and runs the
                sub-view's loader. Add van reuses #rr-fleet-add so the
-               existing delegated handler (openFleetDrawer(null)) fires. -->
-          <div class="f2-split">
+               existing delegated handler (openFleetDrawer(null)) fires.
+               Group layout (operator-specified):
+                 | Vehicles Calendar Issues | Van Rotation Assignments | Add van |
+               .f2-divides on the split that STARTS each group +
+               .f2-divides-end on the last one — the same pattern as
+               Schedule's dividers (schedule-rrx.css:2318: border-left on
+               the group-starting split, border-right on the trailing
+               split, 16px margin+padding, #C8C6C4). The first divider
+               lands at the same x as Schedule's first divider because
+               both pages hard-lock the title block to 240px. -->
+          <div class="f2-split f2-divides">
             <button type="button" class="f2-tile active" data-sub="vehicles" onclick="fleetSub('vehicles')" aria-label="Vehicles">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="4" height="4"/><rect x="3" y="10" width="4" height="4"/><rect x="3" y="16" width="4" height="4"/><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/></svg>
               <span>Vehicles</span>
-              <span class="f2-count is-blue" id="rr-fleet-tabcount-vehicles">0</span>
+            </button>
+          </div>
+          <div class="f2-split">
+            <button type="button" class="f2-tile" data-sub="calendar" onclick="fleetSub('calendar')" aria-label="Calendar" title="Calendar — schedule events per van">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+              <span>Calendar</span>
             </button>
           </div>
           <div class="f2-split">
             <button type="button" class="f2-tile" data-sub="issues" onclick="fleetSub('issues')" aria-label="Issues">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M12 3 22 21H2z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               <span>Issues</span>
-              <span class="f2-count" id="rr-fleet-tabcount-issues" style="display:none">0</span>
-            </button>
-          </div>
-          <div class="f2-split">
-            <button type="button" class="f2-tile" data-sub="calendar" onclick="fleetSub('calendar')" aria-label="Fleet calendar" title="Fleet calendar — schedule events per van">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
-              <span>Fleet calendar</span>
-            </button>
-          </div>
-          <div class="f2-split">
-            <button type="button" class="f2-tile" data-sub="assign" onclick="fleetSub('assign')" aria-label="Fleet assignment" title="Fleet assignment — van / driver chains">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-              <span>Fleet assignment</span>
             </button>
           </div>
 
@@ -25523,6 +25525,13 @@ body.rr-cmdk-open{ overflow:hidden }
             </button>
           </div>
           <div class="f2-split">
+            <button type="button" class="f2-tile" data-sub="assign" onclick="fleetSub('assign')" aria-label="Assignments" title="Assignments — van / driver chains">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M8 4H4v18h16V4h-4"/><rect x="8" y="2" width="8" height="4"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="8" y1="19" x2="12" y2="19"/></svg>
+              <span>Assignments</span>
+            </button>
+          </div>
+
+          <div class="f2-split f2-divides f2-divides-end">
             <button type="button" class="f2-tile" id="rr-fleet-add" aria-label="Add van" title="Add van">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
               <span>Add van</span>
