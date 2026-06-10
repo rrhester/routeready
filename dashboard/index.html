@@ -1051,9 +1051,9 @@ html.rr-sidebar-light .sidebar{
   --sidebar-hover:rgba(15,23,42,.05);
   --sidebar-active:rgba(0,120,212,.10);
   --sidebar-divider:transparent;
-  /* Light-mode rail blends with the page ground (#EAF2FD) — same soft
-     blue as the schedule background + header card. */
-  background:#EAF2FD;background-image:none;
+  /* Light-mode rail blends with the page ground (#F7F8FA) — same
+     neutral canvas as the schedule background + header card. */
+  background:#F7F8FA;background-image:none;
   color:var(--text);
   border-right:0;
 }
@@ -1213,10 +1213,10 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
      fallback (var(--canvas)) is preserved via the @supports
      guard for browsers without backdrop-filter (rare on
      desktop in 2026, but still ~Firefox-Android). */
-  /* Header (topbar) paints the soft Google-blue page tint (#EAF2FD) so
-     the chrome matches the schedule background + light sidebar. The dark
+  /* Header (topbar) paints the neutral page canvas (#F7F8FA) so the
+     chrome matches the schedule background + light sidebar. The dark
      header toggle (body.rr-header-dark) still overrides this. */
-  background:#EAF2FD;
+  background:#F7F8FA;
   /* Operator wanted the hairline between topbar and the dashboard
      dropped — header now reads as flush against the canvas, no
      dividing line. */
@@ -1365,16 +1365,12 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .hdr-ask-icon{
   display:inline-flex;align-items:center;justify-content:center;
   width:26px;height:26px;border-radius:var(--r-md);flex:0 0 auto;
-  /* AI vibe · vivid gradient badge with a slow ambient glow. */
-  background:linear-gradient(135deg,#6366F1 0%,#8B5CF6 48%,#EC4899 100%);
+  /* AI signature · single flat purple — same accent as the Smart Fill
+     tile (modernization pass: dropped the indigo→pink gradient and
+     ambient glow animation; one quiet purple is the AI marker). */
+  background:#7C3AED;
   color:#fff;
-  animation:hdr-ask-glow 3.2s ease-in-out infinite;
 }
-@keyframes hdr-ask-glow{
-  0%,100%{box-shadow:0 1px 4px rgba(139,92,246,.35),0 0 0 0 rgba(139,92,246,0)}
-  50%{box-shadow:0 1px 9px rgba(139,92,246,.55),0 0 0 4px rgba(139,92,246,.13)}
-}
-.hdr-ask:focus-within .hdr-ask-icon{animation-duration:1.6s}
 .hdr-ask-icon svg{width:14px;height:14px}
 .hdr-ask-input{
   flex:1;min-width:0;appearance:none;
@@ -15117,7 +15113,7 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--surface);background-image:none;
             /* Same elevation as the Schedule card so the roster table
                reads as the same kind of surface. */
-            box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
+            box-shadow:0 1px 2px rgba(15,23,42,.05);
             overflow:hidden;
           }
           #view-drivers .table thead th,
@@ -18259,7 +18255,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:var(--sch-radius);
             background:#FFFFFF;
             border:1px solid var(--sch-line-subtle);
-            box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
+            box-shadow:0 1px 2px rgba(15,23,42,.05);
             overflow:hidden;
           }
           #view-schedule .driver-pool,
@@ -18267,7 +18263,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:var(--sch-radius);
             background:#FFFFFF;
             border:1px solid var(--sch-line-subtle);
-            box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
+            box-shadow:0 1px 2px rgba(15,23,42,.05);
           }
           #view-schedule .shift-chip{
             border-radius:14px;
@@ -19378,7 +19374,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--sch-line-subtle);
             border-radius:var(--sch-radius);
             padding:0;
-            box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
+            box-shadow:0 1px 2px rgba(15,23,42,.05);
             overflow:hidden;
           }
           #view-schedule .sched-kpi-pill{
@@ -19605,7 +19601,7 @@ body.rr-cmdk-open{ overflow:hidden }
                  --sch-line-subtle is .04, so the token can't be reused). */
           #view-onboarding-ops #rr-ob-cmd.is-roster .sched-nav-heading{
             border-color:rgba(15,23,42,.07) !important;
-            box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10) !important;
+            box-shadow:0 1px 2px rgba(15,23,42,.05) !important;
           }
           /* Icon card -> grid gap · tightened to hug the grid right under
              the card (operator request). This inline !important is the
@@ -25115,9 +25111,11 @@ body.rr-cmdk-open{ overflow:hidden }
           --f2-divider: #C8C6C4;
         }
 
-        /* Page ground · the soft Google-blue wash. */
+        /* Page ground · neutral near-white canvas (kept in sync with
+           the Schedule ground — see the modernization note in
+           schedule-rrx.css). */
         #view-fleet2.rrx-schedule {
-          background: #EAF2FD;
+          background: #F7F8FA;
           font-family: var(--rr-font-family);
           color: var(--rr-fg-primary);
         }
@@ -25205,7 +25203,7 @@ body.rr-cmdk-open{ overflow:hidden }
           background: var(--rr-bg-surface-1);
           border: 1px solid var(--f2-sch-line-subtle);
           border-radius: var(--f2-sch-radius);
-          box-shadow: 0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
+          box-shadow: 0 1px 2px rgba(15,23,42,.05);
           min-height: var(--tcp-strip-h, 106px);
           height: var(--tcp-strip-h, 106px);
           max-height: var(--tcp-strip-h, 106px);
@@ -25254,9 +25252,9 @@ body.rr-cmdk-open{ overflow:hidden }
           margin-left: var(--rr-space-80);
           white-space: nowrap;
           vertical-align: middle;
-          background: linear-gradient(135deg, #22C55E 0%, #107C41 100%);
-          color: #ffffff;
-          border: 1px solid rgba(13,92,49,.55);
+          background: rgba(34,197,94,.15);
+          color: #15803D;
+          border: 1px solid rgba(21,128,61,.35);
           transform-origin: center;
           animation: f2-live-pulse 4s ease-in-out infinite;
         }
@@ -26000,7 +25998,7 @@ body.rr-cmdk-open{ overflow:hidden }
                (Re-scoped from #view-fleet2 → #view-fleet2 when the Fleet
                content moved; defines the --flu-* tokens the moved roster/
                table/drawer markup depends on.) */
-            background:#EAF2FD;
+            background:#F7F8FA;
             --flu-brand:#0F6CBD;
             --flu-brand-hover:#115EA3;
             --flu-stroke:#E1DFDD;
