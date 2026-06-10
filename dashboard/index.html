@@ -13160,6 +13160,13 @@ body.rr-cmdk-open{ overflow:hidden }
            instead of floating in the middle band where it gets clipped. */
         #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-overview"]{ align-self:stretch; }
         #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-overview"] .ob-rules-foot.ob-rules-foot-shown{ bottom:-4px; }
+        /* The sourcing subnav must fill the strip height. The calendar group
+           sets the strip's height via its in-flow Rules footer; without this,
+           the sourcing subnav centers (align-self:center above) and stays short,
+           so its tiles' per-tile align-self:stretch can't reach full height and
+           the persistent Funnel/Onboarding launchers float mid-strip instead of
+           dropping to the bottom line — leaving no visible Rules icon. */
+        #view-onboarding-ops .sched-ribbon-group[data-group="sourcing"] > .subnav{ align-self:stretch; }
         /* Attendance policy popover · anchored to the Attendance
            tile's Rules footer. Same Fluent acrylic chrome as the
            Schedule van-rules / smart-fill popovers, but wider so
