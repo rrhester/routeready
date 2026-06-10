@@ -12749,7 +12749,12 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-ev.sel{box-shadow:0 0 0 2px var(--oc-surface),0 0 0 3px var(--oc-blue);z-index:4}
             #rr-ivcal .oc-ev .et{font-weight:700;font-size:12px;line-height:1.2;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
             #rr-ivcal .oc-ev .en{margin-top:1px;font-weight:500;opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-            #rr-ivcal .oc-ev .ei{display:inline-flex;gap:2px;font-size:9px;opacity:.85;margin-left:3px;vertical-align:1px}
+            #rr-ivcal .oc-ev .ei{display:inline-flex;align-items:center;gap:3px;font-size:9px;opacity:.85;margin-left:3px;vertical-align:1px}
+            #rr-ivcal .ei-cam{width:13px;height:13px;display:inline-block;vertical-align:-2px}
+            /* Camera glyph is a click target that opens the video workspace. */
+            #rr-ivcal .oc-ev .ei .ei-cam-hit{display:inline-flex;align-items:center;cursor:pointer;border-radius:4px;padding:1px;opacity:1;transition:transform var(--t-fast),background var(--t-fast)}
+            #rr-ivcal .oc-ev .ei .ei-cam-hit:hover{transform:scale(1.12);background:rgba(37,99,235,.12)}
+            #rr-ivcal .oc-drow .ei-cam{width:15px;height:15px;display:inline-block;vertical-align:-2px}
             /* Event chips reuse the Schedule shift-chip palette so a booked
                interview reads like a shift on the schedule grid. */
             #rr-ivcal .oc-ev.cat-blue{background:rgba(15,108,189,.08);border-color:rgba(15,108,189,.20);border-left-color:#0F6CBD;color:#0E4F86}
@@ -12819,6 +12824,8 @@ body.rr-cmdk-open{ overflow:hidden }
             .oc-quick .qa{display:flex;gap:6px;justify-content:flex-end}
           </style>
           <div id="rr-ivcal" tabindex="0">
+            <!-- Shared gradient for the blue→purple camera "video link" glyph. -->
+            <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0"><defs><linearGradient id="rr-cam-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5B8DEF"/><stop offset="52%" stop-color="#2563EB"/><stop offset="100%" stop-color="#6D28D9"/></linearGradient></defs></svg>
             <div id="rr-ivcal-body"><div class="rr-loading">Loading calendar…</div></div>
           </div>
 
@@ -37099,7 +37106,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260609-oc38"></script>
+<script type="module" src="./live.js?v=20260610-oc39"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

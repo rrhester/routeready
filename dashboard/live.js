@@ -16524,6 +16524,9 @@ function _ivcalCat(ev, kind) {
   if (kind === "session") return "teal";
   if (ev.status === "cancelled" || ev.status === "no_show") return ev.status === "no_show" ? "red" : "gray";
   const r = ev.rsvp || "accepted";
+  // Interviews use the Schedule-page blue for their normal/confirmed state so
+  // the calendar reads like the blue shift cards on the Schedule grid.
+  if (_ivcalEvKind(ev) === "interview" && r === "accepted") return "blue";
   if (r === "accepted") return "green";
   if (r === "pending") return "orange";
   if (r === "declined") return "gray";
@@ -16533,6 +16536,10 @@ function _ivcalCat(ev, kind) {
 // shift-chip colors used across the Schedule and Onboarding surfaces.
 const _IVCAL_CAT_COLOR = { blue:"#0F6CBD", green:"#107C41", orange:"#B45309", gray:"#7C8698", teal:"#0E7C66", red:"#B91C1C" };
 function _ivcalEvKind(ev) { return ev.kind === "orientation" ? "orientation" : (ev.kind === "event" ? "event" : "interview"); }
+// Small blue→purple gradient camera glyph used as the "has video link" marker
+// (replaces the old 🎥 emoji). References #rr-cam-grad, defined once in the
+// calendar container in index.html.
+const _IVCAL_CAM_SVG = '<svg class="ei-cam" viewBox="0 0 24 24" fill="url(#rr-cam-grad)" aria-hidden="true"><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>';
 
 async function loadIvCalendar() {
   const host = document.getElementById("rr-ivcal-body");
@@ -16774,14 +16781,18 @@ function _ivcalRender() {
     else _ivcalGoogleDisconnect();
   });
 
-  // Event interactions: single-click → reading pane; right-click → context
-  // menu; hover → preview card.
+  // Event interactions: click the camera glyph → open the video interview
+  // workspace; click elsewhere on the chip → reading pane; right-click →
+  // context menu. (The hover preview card was removed per user request.)
   host.querySelectorAll("[data-ivcal-id]").forEach(el => {
-    el.addEventListener("click", (e) => { e.stopPropagation(); if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; } _ivcalHoverHide(); _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
-    el.addEventListener("dblclick", (e) => { e.stopPropagation(); _ivcalHoverHide(); _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (e.target.closest(".ei-cam-hit")) { const ev = _ivcalFindEv(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); if (ev && ev.meeting_url) { _ivcalOpenRoom(ev); return; } }
+      if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; }
+      _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id"));
+    });
+    el.addEventListener("dblclick", (e) => { e.stopPropagation(); _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
     el.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); _ivcalContextMenu(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
-    el.addEventListener("mouseenter", (e) => _ivcalHoverShow(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")));
-    el.addEventListener("mouseleave", _ivcalHoverHide);
   });
   // Read-only Google events open in Google Calendar.
   host.querySelectorAll("[data-ivcal-glink]").forEach(el => {
@@ -17783,7 +17794,9 @@ function _ivcalEventBlock(ev, type, lay) {
   const rsvp = type === "session" ? "accepted" : (ev.rsvp || "accepted");
   const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
   let icons = "";
-  if (ev.meeting_url) icons += "🎥";
+  // The camera glyph is its own hit target: clicking it opens the video
+  // interview workspace (the rest of the chip opens the reading pane/editor).
+  if (ev.meeting_url) icons += `<span class="ei-cam-hit" data-ivcal-room="1" title="Open video interview" role="button" tabindex="-1">${_IVCAL_CAM_SVG}</span>`;
   if (type !== "session" && rsvp === "accepted") icons += "✓"; else if (rsvp === "pending") icons += "✉";
   const ico = icons ? `<span class="ei">${icons}</span>` : "";
   const inner = (h < 30)
@@ -17988,8 +18001,8 @@ function _ivcalPaneHtml() {
   let rows = drow("🕑", `<strong>${escapeHtml(dateStr)}</strong><br><span style="color:var(--oc-sub)">${escapeHtml(timeStr)}</span>`);
   if (a.email) rows += drow("✉", `<a href="mailto:${escapeHtml(a.email)}">${escapeHtml(a.email)}</a>`);
   if (a.phone) rows += drow("📞", `<a href="tel:${escapeHtml(a.phone)}">${escapeHtml(a.phone)}</a>`);
-  if (ev.meeting_url) rows += drow("🎥", `<a href="${escapeHtml(ev.meeting_url)}" target="_blank" rel="noreferrer">Join video meeting</a>`);
-  else rows += drow("🎥", `<span style="color:var(--oc-sub)">No video link yet</span>`);
+  if (ev.meeting_url) rows += drow(_IVCAL_CAM_SVG, `<a href="${escapeHtml(ev.meeting_url)}" target="_blank" rel="noreferrer">Join video meeting</a>`);
+  else rows += drow(_IVCAL_CAM_SVG, `<span style="color:var(--oc-sub)">No video link yet</span>`);
   if (type !== "session") rows += drow("●", `${escapeHtml(catLabel)}`);
   const note = ev.metadata && ev.metadata.note;
   if (note) rows += drow("🗒", `<span style="white-space:pre-wrap;color:#3a3a45">${escapeHtml(String(note))}</span>`);
