@@ -25185,13 +25185,15 @@ body.rr-cmdk-open{ overflow:hidden }
 
         /* ── Command/header strip card ──────────────────────────────
            Geometry 1:1 with Schedule's visible strip (.sched-v2-strip,
-           schedule-rrx.css:1892): Schedule's strip top sits at 37px
-           from the .page top — 20px page padding + 17px from the
-           hidden legacy cmd-shell's margin-bottom (index.html:19463;
-           the measured stack at index.html:19541 confirms 37px).
-           Fleet has no hidden shell, so the 17px is a margin-top here.
-           position:relative anchors the absolute cmd-tabs above; the
-           triple height lock matches Schedule's lock on --tcp-strip-h. */
+           schedule-rrx.css:1892). Headless-Chromium-verified: Schedule's
+           strip top = page padding 20px + 12px (the hidden legacy
+           cmd-shell renders 0px tall with a 12px margin-bottom from
+           schedule-rrx.css:106 — the higher-specificity rule; the 17px
+           at index.html:19463 loses the cascade and the "37px" comment
+           at index.html:19541 is stale). Fleet has no hidden shell, so
+           the 12px is a margin-top here. position:relative anchors the
+           absolute cmd-tabs above; the triple height lock matches
+           Schedule's lock on --tcp-strip-h. */
         #view-fleet2 .f2-strip {
           position: relative;
           display: flex;
@@ -25199,7 +25201,7 @@ body.rr-cmdk-open{ overflow:hidden }
           flex-wrap: nowrap;
           gap: 8px;
           padding: 3px 18px 6px;
-          margin: 17px 0 0;
+          margin: 12px 0 0;
           background: var(--rr-bg-surface-1);
           border: 1px solid var(--f2-sch-line-subtle);
           border-radius: var(--f2-sch-radius);
@@ -25316,14 +25318,21 @@ body.rr-cmdk-open{ overflow:hidden }
              (.sched-v2-tile svg): base 42px / butt / miter
              (schedule-rrx.css:2010) + the inline override forcing
              color var(--text) and stroke-width 1.1.
+             stroke-width MUST be !important: these SVGs carry the
+             stroke-width="1.6" markup attribute, which the dashboard-
+             wide sharpness rule `.view svg[stroke-width="1.6"]`
+             (index.html:753) bumps to 1.9 !important. This ID-scoped
+             rule out-specifies it — same trick Schedule's own
+             1.1 !important rule (index.html:18858) uses.
              Operator preference: the thin 1.1 stroke at ALL times —
-             deliberately NO hover thicken (Schedule bumps to 1.25 on
-             hover; Fleet does not). */
+             deliberately NO hover thicken (this also out-specifies the
+             global button:hover 1.25 bump; Schedule keeps its hover
+             bump, Fleet does not). */
           width: 42px;
           height: 42px;
           flex: 0 0 auto;
           color: var(--text);
-          stroke-width: 1.1;
+          stroke-width: 1.1 !important;
           stroke-linecap: butt;
           stroke-linejoin: miter;
         }
