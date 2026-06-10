@@ -25270,8 +25270,11 @@ body.rr-cmdk-open{ overflow:hidden }
           transition: background 0.12s ease;
         }
         #view-fleet2 .f2-tile svg {
-          width: 42px;
-          height: 42px;
+          /* The real Schedule strip tiles are .subnav-item icons at 28px / 1.6
+             (schedule-rrx.css), NOT the 42px .sched-v2-tile. At 42px the same
+             stroke renders much thicker — that was the "too thick". Match 28px. */
+          width: 28px;
+          height: 28px;
           flex: 0 0 auto;
           color: #605E5C;
           stroke-width: 1.6;
