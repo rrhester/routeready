@@ -1037,17 +1037,39 @@ function _rrCloseRecruitingChooser() {
 // bottom of the viewport with no usable scroll. Re-pin the opened popover as a
 // fixed panel under the strip, right-aligned, bounded to the viewport height
 // with its own scroll. Re-fit on resize while it's open.
+// One-time style that constrains the rules popovers' inner content so there's a
+// SINGLE scrollbar (the popover's own, at its right edge) and nothing spills
+// horizontally past it. A style rule (not inline) survives the builder's
+// re-renders of its rows.
+function _rrInstallRulesPopoverStyle() {
+  if (document.getElementById("rr-rules-pop-fit-style")) return;
+  const st = document.createElement("style");
+  st.id = "rr-rules-pop-fit-style";
+  st.textContent = `
+    #rr-ob-rules-popover, #rr-funnel-rules-popover { overflow-x: hidden !important; }
+    #rr-ob-rules-popover .ob-rules-body, #rr-ob-rules-popover #obsub-builder,
+    #rr-funnel-rules-popover .ob-rules-body, #rr-funnel-rules-popover [data-rr-questions]{
+      overflow: visible !important; max-height: none !important; min-width: 0 !important; width: auto !important;
+    }
+    #rr-ob-rules-popover .ob-bld-card, #rr-funnel-rules-popover .cal-edit-card {
+      max-width: 100% !important; box-sizing: border-box !important;
+    }
+  `;
+  document.head.appendChild(st);
+}
 function _rrFitRulesPopover(pop) {
   if (!pop) return;
+  _rrInstallRulesPopoverStyle();
   let top = 64;
   const strip = document.querySelector("#view-onboarding-ops .sched-nav-heading-actions")
     || document.querySelector("#view-onboarding-ops .sched-nav-heading");
   if (strip) { const r = strip.getBoundingClientRect(); if (r.bottom > 0) top = Math.round(r.bottom + 8); }
   const set = (k, v) => pop.style.setProperty(k, v, "important");
   set("position", "fixed"); set("top", top + "px"); set("right", "16px");
-  set("left", "auto"); set("bottom", "auto");
-  set("width", "min(620px, calc(100vw - 32px))"); set("max-width", "calc(100vw - 32px)");
-  set("max-height", "calc(100vh - " + (top + 16) + "px)"); set("overflow-y", "auto");
+  set("left", "auto"); set("bottom", "auto"); set("box-sizing", "border-box");
+  set("width", "min(720px, calc(100vw - 32px))"); set("max-width", "calc(100vw - 32px)");
+  set("max-height", "calc(100vh - " + (top + 16) + "px)");
+  set("overflow-y", "auto"); set("overflow-x", "hidden");
   set("z-index", "9998");
   // Keep it fitted if the window is resized while open.
   if (!pop._rrFitBound) {
