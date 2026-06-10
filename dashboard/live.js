@@ -17147,7 +17147,34 @@ function _rrResetCalAncestorsScroll(el) {
   const ds = document.scrollingElement;
   if (ds && ds.scrollTop) ds.scrollTop = 0;
 }
+// Hard scroll-lock: while the calendar grid is visible, ANY scroll on a
+// container that wraps the grid (or the document) is snapped back to 0 — so the
+// toolbar + day header can never scroll away. The grid (#rr-ivcal-scroll) and
+// the left side panel scroll normally; everything else stays pinned. This is
+// the bulletproof backstop to the height-fit math, which depends on correctly
+// identifying the scroll container (it doesn't always).
+let _ivcalScrollLockInstalled = false;
+function _ivcalInstallScrollLock() {
+  if (_ivcalScrollLockInstalled) return;
+  _ivcalScrollLockInstalled = true;
+  document.addEventListener("scroll", (e) => {
+    const sc = document.getElementById("rr-ivcal-scroll");
+    if (!sc || !sc.offsetParent) return;              // grid not visible → lock off
+    const t = e.target;
+    // Let the grid and the left side panel scroll freely.
+    if (t === sc || (t.nodeType === 1 && sc.contains(t))) return;
+    const side = document.querySelector("#rr-ivcal .oc-side");
+    if (side && (t === side || (t.nodeType === 1 && side.contains(t)))) return;
+    if (t === document || t === document.documentElement || t === document.body) {
+      const ds = document.scrollingElement || document.documentElement;
+      if (ds && ds.scrollTop) ds.scrollTop = 0;
+    } else if (t.nodeType === 1 && t.contains(sc)) {   // an ancestor of the grid scrolled
+      if (t.scrollTop) t.scrollTop = 0;
+    }
+  }, true);                                            // capture: catch scroll on any element
+}
 function _ivcalFitHeight() {
+  _ivcalInstallScrollLock();
   const sc = document.getElementById("rr-ivcal-scroll");
   if (!sc) return;
   _rrResetCalAncestorsScroll(sc);                     // measure from an un-scrolled state
