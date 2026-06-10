@@ -1020,34 +1020,66 @@ async function _initApplicantNotes(slot, applicantId) {
 }
 
 
-// Force the onboarding/funnel "Rules" launchers onto the strip's bottom line
-// and make them visible. Delivered from live.js (cache-busted via ?v=) rather
-// than index.html so it can't be defeated by a stale cached HTML document, and
-// because the sourcing group needs the full-height stretch the centered strip
-// container never gave it (so its absolute launchers floated mid-strip and read
-// as invisible). Targets the launchers by id with !important so it works even
-// against older cached markup. Idempotent.
-(function _rrInjectObRulesFix() {
-  if (typeof document === "undefined" || document.getElementById("rr-ob-rules-fix")) return;
-  const s = document.createElement("style");
-  s.id = "rr-ob-rules-fix";
-  s.textContent = `
-    #view-onboarding-ops .sched-nav-heading-actions{align-items:stretch}
-    #view-onboarding-ops .sched-ribbon-group[data-group="sourcing"] > .subnav,
-    #view-onboarding-ops .sched-ribbon-group[data-group="actions"] > .subnav{align-self:stretch;align-items:stretch}
-    #view-onboarding-ops .sched-ribbon-group[data-group="sourcing"] .ob-tab-wrap,
-    #view-onboarding-ops .sched-ribbon-group[data-group="actions"] .ob-tab-wrap{align-self:stretch}
-    #view-onboarding-ops #rr-ob-rules-toggle,
-    #view-onboarding-ops #rr-funnel-rules-toggle{
-      opacity:1 !important;pointer-events:auto !important;
-      font-size:11px !important;font-weight:800;gap:4px;letter-spacing:.01em;
-      bottom:-4px !important;color:var(--text-subtle);
+// Force the onboarding/funnel "Rules" launchers visible by operating on the DOM
+// elements directly (inline styles win over any stale/scoped CSS, and unlike a
+// CSS rule this also overrides display:none and any wrong scoping). The launcher
+// is pulled into normal flow under its tile so nothing can clip or hide it; if
+// the markup is missing entirely, a working launcher is created. Re-applied on
+// DOM changes since the strip can re-render. This replaced two CSS-only attempts
+// that never took effect.
+function _rrStyleRulesLauncher(el) {
+  const set = (k, v) => el.style.setProperty(k, v, "important");
+  set("opacity", "1"); set("visibility", "visible"); set("pointer-events", "auto");
+  set("display", "inline-flex"); set("align-items", "center"); set("justify-content", "center");
+  set("gap", "4px"); set("position", "static"); set("transform", "none");
+  set("font-size", "11px"); set("font-weight", "700"); set("letter-spacing", ".01em");
+  set("margin", "1px auto 3px"); set("padding", "1px 6px"); set("border-radius", "999px");
+  set("color", "var(--text-subtle)"); set("background", "transparent"); set("border", "0"); set("cursor", "pointer");
+  el.querySelectorAll("svg").forEach((s) => { s.style.width = "12px"; s.style.height = "12px"; s.style.display = "block"; });
+  const wrap = el.closest(".ob-tab-wrap");
+  if (wrap) {
+    wrap.style.setProperty("display", "flex", "important");
+    wrap.style.setProperty("flex-direction", "column", "important");
+    wrap.style.setProperty("align-items", "center", "important");
+    wrap.style.setProperty("justify-content", "flex-start", "important");
+  }
+}
+function _rrForceObRulesVisible() {
+  if (typeof document === "undefined") return;
+  const specs = [
+    { id: "rr-ob-rules-toggle",     tile: '[data-rr-tile="ob-overview"]', open: () => window._rrToggleObRules && window._rrToggleObRules(),     title: "Onboarding steps — edit the onboarding blueprint" },
+    { id: "rr-funnel-rules-toggle", tile: '[data-rr-tile="ob-funnel"]',   open: () => window._rrToggleFunnelRules && window._rrToggleFunnelRules(), title: "Screening questions — what applicants answer before booking" },
+  ];
+  for (const spec of specs) {
+    const els = document.querySelectorAll('[id="' + spec.id + '"]');
+    if (els.length) {
+      els.forEach(_rrStyleRulesLauncher);
+    } else {
+      // Markup missing — create a working launcher inside the tile wrap.
+      document.querySelectorAll("#view-onboarding-ops " + spec.tile).forEach((wrap) => {
+        if (wrap.querySelector(".rr-rules-injected")) return;
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "rr-rules-injected"; b.title = spec.title;
+        b.innerHTML = 'Rules <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>';
+        b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); spec.open(); });
+        wrap.appendChild(b);
+        _rrStyleRulesLauncher(b);
+      });
     }
-    #view-onboarding-ops #rr-ob-rules-toggle svg,
-    #view-onboarding-ops #rr-funnel-rules-toggle svg{width:12px;height:12px;stroke-width:1.4}
-  `;
-  (document.head || document.documentElement).appendChild(s);
-})();
+  }
+}
+let _rrObRulesQueued = false;
+function _rrForceObRulesSoon() {
+  if (_rrObRulesQueued) return;
+  _rrObRulesQueued = true;
+  setTimeout(() => { _rrObRulesQueued = false; _rrForceObRulesVisible(); }, 200);
+}
+if (typeof document !== "undefined") {
+  _rrForceObRulesVisible();
+  setTimeout(_rrForceObRulesVisible, 600);
+  setTimeout(_rrForceObRulesVisible, 1800);
+  try { new MutationObserver(_rrForceObRulesSoon).observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
+}
 
 let _emailThreadChannel = null;
 function _closeEmailThreadChannel() {
