@@ -1033,7 +1033,7 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
   m.id = "rr-email-thread-modal";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:min(1100px,96vw);height:88vh;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(15,23,42,.34)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
         <div>
           <div style="font-size:var(--fs-lg);font-weight:600">Email · ${escapeHtml(rrTitleCaseName(fullName))}</div>
