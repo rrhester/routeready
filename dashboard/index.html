@@ -25129,62 +25129,84 @@ body.rr-cmdk-open{ overflow:hidden }
           min-height: 0;
         }
 
-        /* ── Command-mode tabs (Schedule / Fleet / Workflows / Print) ──
-           Plain uppercase labels above the strip card; the active tab is
-           brand-blue with a short navy underline, matching the Schedule
-           page's .sched-v2-cmd-tabs. */
+        /* ── Command-mode tabs (Fleet) ──────────────────────────────
+           1:1 with Schedule's .sched-v2-cmd-tabs (schedule-rrx.css:2572):
+           absolutely anchored to the strip card's top-LEFT edge at
+           top:-28px so they hang above the card without taking flow
+           space. Tab cosmetics copied from .sched-cmd-tab — caption
+           font 600 uppercase, 6px/12px padding, var(--text) color in
+           every state (Schedule forces var(--text) !important on all
+           cmd-tabs, active included; only the navy underline marks
+           the active tab). */
         #view-fleet2 .f2-cmd-tabs {
-          display: flex;
-          align-items: center;
+          position: absolute;
+          top: -28px;
+          left: 0;
+          margin: 0;
+          display: inline-flex;
           gap: 2px;
-          padding: 0 4px;
-          margin: 0 0 1px;
-          flex: 0 0 auto;
+          z-index: 2;
         }
         #view-fleet2 .f2-cmd-tab {
           appearance: none;
           background: transparent;
           cursor: pointer;
-          font: inherit;
-          font-size: 12px;
+          font: var(--rr-font-caption);
           font-weight: 600;
           letter-spacing: 0.04em;
           text-transform: uppercase;
-          color: #605E5C;
-          padding: 3px 12px 4px;
-          border: 0;
+          color: var(--text);
+          padding: var(--rr-space-60) var(--rr-space-120);
+          border: 1px solid transparent;
+          border-bottom: 0;
+          border-radius: var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
           position: relative;
-          transition: color var(--rr-motion-fast, 0.12s);
+          transition:
+            color var(--rr-motion-fast),
+            background var(--rr-motion-fast),
+            border-color var(--rr-motion-fast);
         }
-        #view-fleet2 .f2-cmd-tab:hover:not(.active) { color: var(--rr-fg-primary, #242424); }
-        /* Match the Schedule tabs exactly: they use var(--rr-brand-primary) with
-           NO fallback — undefined, so the active tab inherits the normal dark
-           text color (not blue). Same declaration here. */
-        #view-fleet2 .f2-cmd-tab.active { color: var(--rr-brand-primary); }
+        #view-fleet2 .f2-cmd-tab:hover:not(.active) { background: transparent; }
+        #view-fleet2 .f2-cmd-tab.active {
+          color: var(--text);
+          background: transparent;
+          border-color: transparent;
+        }
         #view-fleet2 .f2-cmd-tab.active::after {
           content: "";
           position: absolute;
-          left: 12px;
-          right: 12px;
+          left: var(--rr-space-120);
+          right: var(--rr-space-120);
           bottom: 3px;
           height: 2px;
           border-radius: 2px;
           background: var(--sidebar-bg, #205285);
         }
 
-        /* ── Command/header strip card ──────────────────────────── */
+        /* ── Command/header strip card ──────────────────────────────
+           Geometry 1:1 with Schedule's visible strip (.sched-v2-strip,
+           schedule-rrx.css:1892): Schedule's strip top sits at
+           20px page padding + 12px (the hidden legacy cmd-shell's
+           margin-bottom, --rr-space-120) = 32px. Fleet has no hidden
+           shell, so the 12px is a margin-top here. position:relative
+           anchors the absolute cmd-tabs above; the triple height lock
+           matches Schedule's hard lock on --tcp-strip-h. */
         #view-fleet2 .f2-strip {
+          position: relative;
           display: flex;
           align-items: stretch;
           flex-wrap: nowrap;
           gap: 8px;
           padding: 3px 18px 6px;
-          margin: 0;
+          margin: var(--rr-space-120, 12px) 0 0;
           background: var(--rr-bg-surface-1);
           border: 1px solid var(--f2-sch-line-subtle);
           border-radius: var(--f2-sch-radius);
           box-shadow: 0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
           min-height: var(--tcp-strip-h, 106px);
+          height: var(--tcp-strip-h, 106px);
+          max-height: var(--tcp-strip-h, 106px);
+          overflow: visible;
           width: 100%;
           box-sizing: border-box;
         }
@@ -25286,16 +25308,22 @@ body.rr-cmdk-open{ overflow:hidden }
         }
         #view-fleet2 .f2-count.is-blue { background: #0F6CBD; color: #fff; }
         #view-fleet2 .f2-tile svg {
-          /* The real Schedule strip tiles are .subnav-item icons at 28px / 1.6
-             (schedule-rrx.css), NOT the 42px .sched-v2-tile. At 42px the same
-             stroke renders much thicker — that was the "too thick". Match 28px. */
-          width: 28px;
-          height: 28px;
+          /* 1:1 with the VISIBLE Schedule strip tiles (.sched-v2-tile svg):
+             base 42px / butt / miter (schedule-rrx.css:2010), then the
+             inline override at index.html (#view-schedule .sched-v2-tile svg)
+             forces color var(--text) + stroke-width 1.1, with 1.25 on hover.
+             (The 28px .subnav-item tiles are the RETIRED legacy ribbon —
+             hidden by schedule-rrx.css:3199 — not what renders today.) */
+          width: 42px;
+          height: 42px;
           flex: 0 0 auto;
-          color: #605E5C;
-          stroke-width: 1.6;
+          color: var(--text);
+          stroke-width: 1.1;
           stroke-linecap: butt;
           stroke-linejoin: miter;
+        }
+        #view-fleet2 .f2-tile:hover svg {
+          stroke-width: 1.25;
         }
         #view-fleet2 .f2-tile span {
           white-space: nowrap;
@@ -25381,16 +25409,18 @@ body.rr-cmdk-open{ overflow:hidden }
           border-right: 1px solid var(--f2-divider);
         }
 
-        /* ── Active strip tile · mirrors the retired Fleet ribbon's
-             .fl-ribbon-view.active — brand-blue glyph + label on a soft
-             selected-blue background. Set by fleetSub() in live.js. ─── */
-        #view-fleet2 .f2-tile.active,
-        #view-fleet2 .f2-tile.active:hover {
-          background: var(--f2-sch-blue-softer);
-          color: #115EA3;
+        /* ── Active strip tile · 1:1 with Schedule's selected-view tile
+             (.sched-v2-tile.rr-v2-current, schedule-rrx.css:2179):
+             soft gray rounded box via inset ring — no blue glyph, no
+             label-weight bump; the icon keeps var(--text) like every
+             other tile. Set by fleetSub() in live.js. ─── */
+        #view-fleet2 .f2-tile.active {
+          box-shadow: inset 0 0 0 1px #C8C6C4;
+          background: rgba(15, 23, 42, 0.04);
         }
-        #view-fleet2 .f2-tile.active svg { color: var(--f2-sch-blue); }
-        #view-fleet2 .f2-tile.active span { font-weight: 600; }
+        #view-fleet2 .f2-tile.active:hover {
+          background: rgba(15, 23, 42, 0.06);
+        }
         #view-fleet2 .f2-tile.active .f2-count { background: var(--f2-sch-blue); color: #fff; }
 
         /* ── Print / Download toolbar · shown only when the Print/Download
@@ -25434,14 +25464,19 @@ body.rr-cmdk-open{ overflow:hidden }
       </style>
 
       <div class="page">
-        <!-- Command-mode tabs · matches the Schedule page's tab row, with
-             Fleet active (blue underline). Placeholders for now. -->
-        <div class="f2-cmd-tabs" role="tablist" aria-label="Fleet command strip mode">
-          <button class="f2-cmd-tab active" type="button" data-f2-cmd-tab="fleet" role="tab" aria-selected="true">Fleet</button>
-        </div>
         <!-- Header + command icon strip (Schedule chrome replica).
              Tiles are visual placeholders; nothing is wired. -->
         <div class="f2-strip" role="toolbar" aria-label="Fleet ribbon">
+
+          <!-- Command-mode tabs · moved INSIDE the strip card and
+               absolutely anchored to its top-left edge, exactly like
+               Schedule's .sched-v2-cmd-tabs (position:absolute,
+               top:-28px, left:0 on the position:relative strip). This
+               is what puts the Fleet strip card at the SAME Y as
+               Schedule's: the tabs no longer take flow space above it. -->
+          <div class="f2-cmd-tabs" role="tablist" aria-label="Fleet command strip mode">
+            <button class="f2-cmd-tab active" type="button" data-f2-cmd-tab="fleet" role="tab" aria-selected="true">Fleet</button>
+          </div>
 
           <!-- Header · title + subtitle. -->
           <div class="f2-title">
