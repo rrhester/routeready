@@ -25269,6 +25269,17 @@ body.rr-cmdk-open{ overflow:hidden }
           line-height: 1.2;
           transition: background 0.12s ease;
         }
+        /* Count badge pinned to the tile's top-right (Vehicles / Issues),
+           mirroring the Fleet tab page's .fl-ribbon-count. */
+        #view-fleet2 .f2-tile { position: relative; }
+        #view-fleet2 .f2-count {
+          position: absolute; top: 2px; right: 8px;
+          min-width: 16px; height: 16px; padding: 0 4px;
+          display: inline-flex; align-items: center; justify-content: center;
+          font-size: 10px; font-weight: 700; line-height: 1;
+          border-radius: 8px; background: rgba(15,23,42,.10); color: #605E5C;
+        }
+        #view-fleet2 .f2-count.is-blue { background: #0F6CBD; color: #fff; }
         #view-fleet2 .f2-tile svg {
           /* The real Schedule strip tiles are .subnav-item icons at 28px / 1.6
              (schedule-rrx.css), NOT the 42px .sched-v2-tile. At 42px the same
@@ -25390,97 +25401,46 @@ body.rr-cmdk-open{ overflow:hidden }
             <p class="page-sub">Fleet overview</p>
           </div>
 
-          <!-- Go To group · Today / Weekly / Monthly + expand launcher. -->
-          <div class="f2-viewgroup">
-            <div class="f2-split">
-              <button type="button" class="f2-tile" tabindex="-1">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><rect x="10" y="13" width="4" height="4" fill="currentColor" stroke="none"/></svg>
-                <span>Today</span>
-              </button>
-            </div>
-            <div class="f2-split">
-              <button type="button" class="f2-tile" tabindex="-1">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/></svg>
-                <span>Weekly</span>
-              </button>
-              <span class="f2-group-label" aria-hidden="true">Go To</span>
-            </div>
-            <div class="f2-split">
-              <button type="button" class="f2-tile" tabindex="-1">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="3" y1="18" x2="21" y2="18"/><line x1="9" y1="10" x2="9" y2="22"/><line x1="15" y1="10" x2="15" y2="22"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/></svg>
-                <span>Monthly</span>
-              </button>
-            </div>
-            <button type="button" class="f2-group-launcher" tabindex="-1" title="View display options" aria-hidden="true">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
+          <!-- Fleet command tiles · mirror the existing Fleet tab page's
+               ribbon (Vehicles / Issues / Fleet calendar / Fleet assignment |
+               Van Rotation / Add van). Visual placeholders; counts are static. -->
+          <div class="f2-split">
+            <button type="button" class="f2-tile" tabindex="-1" aria-label="Vehicles">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="4" height="4"/><rect x="3" y="10" width="4" height="4"/><rect x="3" y="16" width="4" height="4"/><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/></svg>
+              <span>Vehicles</span>
+              <span class="f2-count is-blue">13</span>
+            </button>
+          </div>
+          <div class="f2-split">
+            <button type="button" class="f2-tile" tabindex="-1" aria-label="Issues">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M12 3 22 21H2z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>Issues</span>
+              <span class="f2-count">1</span>
+            </button>
+          </div>
+          <div class="f2-split">
+            <button type="button" class="f2-tile" tabindex="-1" aria-label="Fleet calendar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+              <span>Fleet calendar</span>
+            </button>
+          </div>
+          <div class="f2-split">
+            <button type="button" class="f2-tile" tabindex="-1" aria-label="Fleet assignment">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+              <span>Fleet assignment</span>
             </button>
           </div>
 
-          <!-- Roster / Attendance / Requests group. -->
           <div class="f2-split f2-divides">
-            <button type="button" class="f2-tile" tabindex="-1">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="18" x2="13" y2="18"/></svg>
-              <span>Roster</span>
+            <button type="button" class="f2-tile" tabindex="-1" aria-label="Van rotation">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L21 9"/><polyline points="21 4 21 9 16 9"/><path d="M20 12a8 8 0 0 1-13.7 5.6L3 15"/><polyline points="3 20 3 15 8 15"/></svg>
+              <span>Van Rotation</span>
             </button>
           </div>
           <div class="f2-split">
-            <button type="button" class="f2-tile" tabindex="-1">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 15 11 17 16 12"/></svg>
-              <span>Attendance</span>
-            </button>
-          </div>
-          <div class="f2-split">
-            <button type="button" class="f2-tile" tabindex="-1">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="2" y="3" width="20" height="18"/><polyline points="2 13 7 13 9 16 15 16 17 13 22 13"/></svg>
-              <span>Requests</span>
-            </button>
-          </div>
-
-          <!-- Rules group · Targets / Smart Fill / Finalize + launcher. -->
-          <div class="f2-viewgroup f2-divides">
-            <div class="f2-split">
-              <button type="button" class="f2-tile" tabindex="-1">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><rect x="7" y="7" width="10" height="10"/><rect x="11" y="11" width="2" height="2" fill="currentColor" stroke="none"/></svg>
-                <span>Targets</span>
-              </button>
-            </div>
-            <div class="f2-split">
-              <button type="button" class="f2-tile" tabindex="-1">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polygon points="13 2 4 13 11 13 10 22 20 11 13 11"/></svg>
-                <span>Smart Fill</span>
-              </button>
-              <span class="f2-group-label" aria-hidden="true">Rules</span>
-            </div>
-            <div class="f2-split">
-              <button type="button" class="f2-tile" tabindex="-1">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><polyline points="7 12 11 16 17 8"/></svg>
-                <span>Finalize</span>
-              </button>
-            </div>
-            <button type="button" class="f2-group-launcher" tabindex="-1" title="Scheduling rules" aria-hidden="true">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
-            </button>
-          </div>
-
-          <!-- Fleet / Unassign group. -->
-          <div class="f2-split f2-divides">
-            <button type="button" class="f2-tile" tabindex="-1">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><rect x="6" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="11" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="16" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="6" y="17" width="2" height="2" fill="currentColor" stroke="none"/><rect x="11" y="17" width="2" height="2" fill="currentColor" stroke="none"/></svg>
-              <span>Fleet</span>
-            </button>
-          </div>
-          <div class="f2-split">
-            <button type="button" class="f2-tile" tabindex="-1">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="2" y="6" width="13" height="10"/><polygon points="15 8 19 8 22 11 22 16 15 16"/><rect x="5" y="15" width="3" height="3"/><rect x="16" y="15" width="3" height="3"/></svg>
-              <span>Unassign</span>
-            </button>
-          </div>
-
-          <!-- Kudos group (trailing divider). -->
-          <div class="f2-split f2-divides f2-divides-end">
-            <button type="button" class="f2-tile" tabindex="-1">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polygon points="12 2 15 9 22 10 17 15 18 22 12 18 6 22 7 15 2 10 9 9"/></svg>
-              <span>Kudos</span>
+            <button type="button" class="f2-tile" tabindex="-1" aria-label="Add van">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+              <span>Add van</span>
             </button>
           </div>
 
