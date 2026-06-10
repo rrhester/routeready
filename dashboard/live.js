@@ -1020,6 +1020,35 @@ async function _initApplicantNotes(slot, applicantId) {
 }
 
 
+// Force the onboarding/funnel "Rules" launchers onto the strip's bottom line
+// and make them visible. Delivered from live.js (cache-busted via ?v=) rather
+// than index.html so it can't be defeated by a stale cached HTML document, and
+// because the sourcing group needs the full-height stretch the centered strip
+// container never gave it (so its absolute launchers floated mid-strip and read
+// as invisible). Targets the launchers by id with !important so it works even
+// against older cached markup. Idempotent.
+(function _rrInjectObRulesFix() {
+  if (typeof document === "undefined" || document.getElementById("rr-ob-rules-fix")) return;
+  const s = document.createElement("style");
+  s.id = "rr-ob-rules-fix";
+  s.textContent = `
+    #view-onboarding-ops .sched-nav-heading-actions{align-items:stretch}
+    #view-onboarding-ops .sched-ribbon-group[data-group="sourcing"] > .subnav,
+    #view-onboarding-ops .sched-ribbon-group[data-group="actions"] > .subnav{align-self:stretch;align-items:stretch}
+    #view-onboarding-ops .sched-ribbon-group[data-group="sourcing"] .ob-tab-wrap,
+    #view-onboarding-ops .sched-ribbon-group[data-group="actions"] .ob-tab-wrap{align-self:stretch}
+    #view-onboarding-ops #rr-ob-rules-toggle,
+    #view-onboarding-ops #rr-funnel-rules-toggle{
+      opacity:1 !important;pointer-events:auto !important;
+      font-size:11px !important;font-weight:800;gap:4px;letter-spacing:.01em;
+      bottom:-4px !important;color:var(--text-subtle);
+    }
+    #view-onboarding-ops #rr-ob-rules-toggle svg,
+    #view-onboarding-ops #rr-funnel-rules-toggle svg{width:12px;height:12px;stroke-width:1.4}
+  `;
+  (document.head || document.documentElement).appendChild(s);
+})();
+
 let _emailThreadChannel = null;
 function _closeEmailThreadChannel() {
   if (_emailThreadChannel) { try { sb.removeChannel(_emailThreadChannel); } catch {} _emailThreadChannel = null; }
