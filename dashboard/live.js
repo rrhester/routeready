@@ -1025,6 +1025,97 @@ function _closeEmailThreadChannel() {
   if (_emailThreadChannel) { try { sb.removeChannel(_emailThreadChannel); } catch {} _emailThreadChannel = null; }
 }
 
+// ── Shared "email tools" ribbon ─────────────────────────────────────────────
+// The same Outlook-style ribbon the calendar event editor uses, reused on every
+// email surface (driver thread, Mail composer) so it reads as one email system.
+// Tiles carry data-mailact; each surface wires the actions that apply to it.
+const _RR_MAIL_RIBBON_ICONS = {
+  send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+  save:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+  invite:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
+  meeting:'<svg viewBox="0 0 24 24" fill="url(#rr-cam-grad)" aria-hidden="true"><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>',
+  recur:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+  important:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="14"/><line x1="12" y1="19" x2="12" y2="19.5"/></svg>',
+  attach:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
+  dictate:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+};
+function _rrMailRibbonStyle(rootId) {
+  return `<style>
+    #${rootId} .rr-mail-ribbon{display:flex;align-items:stretch;gap:2px;padding:7px 12px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));background:var(--surface);flex-wrap:wrap}
+    #${rootId} .rr-mail-vdiv{width:1px;align-self:stretch;background:var(--border);margin:4px 7px}
+    #${rootId} .rr-mail-ico{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:62px;padding:5px 8px 6px;border:0;background:transparent;cursor:pointer;border-radius:7px;color:var(--text);font:inherit;font-size:11px;line-height:1.1;transition:background var(--t-fast),color var(--t-fast),transform .12s cubic-bezier(.2,.7,.2,1)}
+    #${rootId} .rr-mail-ico span{white-space:nowrap}
+    #${rootId} .rr-mail-ico:hover{background:rgba(15,23,42,.05);color:var(--text)}
+    #${rootId} .rr-mail-ico:active{transform:translateY(1px) scale(.97)}
+    #${rootId} .rr-mail-ico.active{color:var(--accent-text);background:var(--accent-soft)}
+    #${rootId} .rr-mail-ico.danger:hover{background:rgba(209,52,56,.12);color:#C4281C}
+    #${rootId} .rr-mail-ico.send{color:#fff;background:var(--accent);font-weight:600}
+    #${rootId} .rr-mail-ico.send:hover{background:var(--accent-hover)}
+    #${rootId} .rr-mail-ico svg{width:33px;height:33px;stroke-linecap:round;stroke-linejoin:round}
+  </style>`;
+}
+function _rrMailRibbonHtml(sendLabel) {
+  const tile = (id, label, icon, extra) => `<button type="button" class="rr-mail-ico${extra?(" "+extra):""}" data-mailact="${id}" title="${label}" aria-label="${label}">${icon}<span>${label}</span></button>`;
+  const V = `<span class="rr-mail-vdiv" aria-hidden="true"></span>`;
+  return `<div class="rr-mail-ribbon">
+    ${tile("send", sendLabel || "Send", _RR_MAIL_RIBBON_ICONS.send, "send")}
+    ${tile("save", "Save", _RR_MAIL_RIBBON_ICONS.save)}
+    ${V}
+    ${tile("invite", "Invite Attendees", _RR_MAIL_RIBBON_ICONS.invite)}
+    ${tile("meeting", "Schedule Meeting", _RR_MAIL_RIBBON_ICONS.meeting)}
+    ${tile("recur", "Recurrence", _RR_MAIL_RIBBON_ICONS.recur)}
+    ${V}
+    ${tile("important", "High Importance", _RR_MAIL_RIBBON_ICONS.important)}
+    ${V}
+    ${tile("attach", "Attach", _RR_MAIL_RIBBON_ICONS.attach)}
+    ${tile("dictate", "Dictate", _RR_MAIL_RIBBON_ICONS.dictate)}
+    ${V}
+    ${tile("delete", "Delete", _RR_MAIL_RIBBON_ICONS.trash, "danger")}
+  </div>`;
+}
+function _rrMailRibbonWire(rootEl, handlers) {
+  rootEl.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-mailact]");
+    if (!b || !rootEl.contains(b)) return;
+    e.preventDefault(); e.stopPropagation();
+    const fn = handlers[b.getAttribute("data-mailact")];
+    if (typeof fn === "function") fn(b);
+  });
+}
+// Shared dictation (Web Speech API) for the email surfaces. Works on a
+// <textarea>/<input> (value) or a contenteditable element (execCommand).
+let _rrDictateRecog = null;
+function _rrToggleDictate(targetEl, btn) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast("Dictation isn't supported in this browser", "warn"); return; }
+  if (_rrDictateRecog) { try { _rrDictateRecog.stop(); } catch (_) {} return; }
+  const r = new SR(); _rrDictateRecog = r;
+  r.continuous = true; r.interimResults = false; r.lang = "en-US";
+  const insert = (t) => {
+    t = (t || "").trim(); if (!t) return;
+    const s = t.charAt(0).toUpperCase() + t.slice(1) + ". ";
+    if (targetEl && "value" in targetEl) {
+      targetEl.value += (targetEl.value && !/\s$/.test(targetEl.value) ? " " : "") + s;
+    } else if (targetEl) {
+      targetEl.focus(); document.execCommand("insertText", false, s);
+    }
+  };
+  r.onresult = (e) => { let t = ""; for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) t += e.results[i][0].transcript; insert(t); };
+  r.onend = () => { _rrDictateRecog = null; if (btn) btn.classList.remove("active"); };
+  r.onerror = () => { toast("Dictation stopped", "warn"); _rrDictateRecog = null; if (btn) btn.classList.remove("active"); };
+  try { r.start(); if (btn) btn.classList.add("active"); toast("Listening… speak now (click Dictate again to stop)", "info"); }
+  catch (_) { _rrDictateRecog = null; }
+}
+// Open the calendar event editor prefilled with an email recipient, used by the
+// Schedule Meeting tile on email surfaces to bridge into a calendar invite.
+function _rrScheduleMeetingFor(toEmail) {
+  if (typeof _ivcalNewEvent !== "function") { toast("Open the Calendar tab once, then try Schedule Meeting", "warn"); return; }
+  const now = new Date(); const base = (typeof _ivcalISODate === "function") ? _ivcalISODate(now) : now.toISOString().slice(0, 10);
+  _ivcalNewEvent(base, 9 * 60, 9 * 60 + 30);
+  setTimeout(() => { const r = document.getElementById("rr-ne-required"); if (r && toEmail) { r.value = toEmail; } const t = document.getElementById("rr-ne-title"); if (t) t.focus(); }, 60);
+}
+
 async function openEmailThreadModal(applicantId, fullName, toEmail) {
   let m = document.getElementById("rr-email-thread-modal");
   if (m) m.remove();
@@ -1033,6 +1124,7 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
   m.id = "rr-email-thread-modal";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
+    ${_rrMailRibbonStyle("rr-email-thread-modal")}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:min(1100px,96vw);height:88vh;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(15,23,42,.34)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
         <div>
@@ -1041,6 +1133,7 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
         </div>
         <button class="btn btn-sm" data-rr-email-close>Close</button>
       </div>
+      ${_rrMailRibbonHtml("Send")}
       <div id="rr-email-thread-body" style="flex:1;overflow-y:auto;padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
         <div style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading thread…</div>
       </div>
@@ -1050,8 +1143,11 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
           <button class="btn btn-primary" id="rr-email-reply-send">Send reply</button>
         </div>
       </div>
+      <input type="file" id="rr-email-file" multiple style="display:none" aria-hidden="true">
     </div>`;
   document.body.appendChild(m);
+  // Restore any saved draft for this driver.
+  try { const d = localStorage.getItem("rr-reply-draft-" + applicantId); if (d) { const ta = document.getElementById("rr-email-reply-body"); if (ta) ta.value = d; } } catch (_) {}
 
   // Live-refresh the thread when a new email_messages row lands for this
   // applicant (e.g. an inbound reply arriving via webhook-email-inbound),
@@ -1062,37 +1158,60 @@ async function openEmailThreadModal(applicantId, fullName, toEmail) {
         () => { if (document.getElementById("rr-email-thread-modal")) _renderEmailThread(applicantId); })
     .subscribe();
 
+  const closeThread = () => { _closeEmailThreadChannel(); m.remove(); };
+  const draftKey = "rr-reply-draft-" + applicantId;
+
+  async function doSendReply() {
+    const ta = document.getElementById("rr-email-reply-body");
+    const body = (ta?.value || "").trim();
+    if (!body) { toast("Type a reply first", "warn"); return; }
+    const sendBtn = document.getElementById("rr-email-reply-send");
+    const ribbonSend = m.querySelector('[data-mailact="send"]');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = "Sending…"; }
+    if (ribbonSend) ribbonSend.style.opacity = ".5";
+    const { error } = await sb.rpc("send_applicant_email", {
+      p_applicant_id: applicantId, p_body: body, p_subject: null,
+    });
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = "Send reply"; }
+    if (ribbonSend) ribbonSend.style.opacity = "";
+    if (error) { toast("Send failed: " + error.message, "warn"); return; }
+    if (ta) ta.value = "";
+    try { localStorage.removeItem(draftKey); } catch (_) {}
+    toast("Reply queued", "success");
+    await _renderEmailThread(applicantId);
+  }
+
   // Enter sends; Shift+Enter inserts a newline.
   m.addEventListener("keydown", (e) => {
     if (e.target?.id === "rr-email-reply-body" && e.key === "Enter" && !e.shiftKey && !e.isComposing) {
-      e.preventDefault();
-      document.getElementById("rr-email-reply-send")?.click();
+      e.preventDefault(); doSendReply();
     }
   });
 
-  m.addEventListener("click", async (e) => {
-    if (e.target === m || e.target.closest("[data-rr-email-close]")) {
-      _closeEmailThreadChannel();
-      m.remove(); return;
-    }
-    if (e.target.closest("#rr-email-reply-send")) {
-      const body = document.getElementById("rr-email-reply-body").value.trim();
-      if (!body) { toast("Type a reply first", "warn"); return; }
-      const sendBtn = e.target.closest("button");
-      sendBtn.disabled = true; sendBtn.textContent = "Sending…";
-      const { error } = await sb.rpc("send_applicant_email", {
-        p_applicant_id: applicantId, p_body: body, p_subject: null,
-      });
-      if (error) {
-        toast("Send failed: " + error.message, "warn");
-        sendBtn.disabled = false; sendBtn.textContent = "Send reply";
-        return;
-      }
-      document.getElementById("rr-email-reply-body").value = "";
-      toast("Reply queued", "success");
-      sendBtn.disabled = false; sendBtn.textContent = "Send reply";
-      await _renderEmailThread(applicantId);
-    }
+  // Backdrop / Close button / bottom send button.
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-rr-email-close]")) { closeThread(); return; }
+    if (e.target.closest("#rr-email-reply-send")) { e.preventDefault(); doSendReply(); }
+  });
+
+  // Attach picker (replies don't carry attachments yet — warn rather than fail silently).
+  const fileInp = document.getElementById("rr-email-file");
+  if (fileInp) fileInp.addEventListener("change", () => {
+    if (fileInp.files.length) toast("Attachments aren't sent with quick replies yet — compose from the Mail tab to attach files", "info");
+    fileInp.value = "";
+  });
+
+  // The shared 9-tool ribbon.
+  _rrMailRibbonWire(m, {
+    send: () => doSendReply(),
+    save: () => { const ta = document.getElementById("rr-email-reply-body"); try { localStorage.setItem(draftKey, ta?.value || ""); } catch (_) {} toast("Draft saved", "success"); },
+    invite: () => toast(`This is a 1:1 thread with ${rrTitleCaseName(fullName) || "this driver"}. Use Schedule Meeting to set up a call.`, "info"),
+    meeting: () => { closeThread(); _rrScheduleMeetingFor(toEmail); },
+    recur: () => toast("Recurrence applies to scheduled meetings — use Schedule Meeting.", "info"),
+    important: (b) => b.classList.toggle("active"),
+    attach: () => fileInp && fileInp.click(),
+    dictate: (b) => _rrToggleDictate(document.getElementById("rr-email-reply-body"), b),
+    delete: () => closeThread(),
   });
 
   await _renderEmailThread(applicantId);
@@ -64142,12 +64261,14 @@ document.addEventListener("click", (e) => {
     if (subjectPrefill) subject = subjectPrefill;
     if (htmlPrefill) body = htmlPrefill;
     const titles = { "new": "New email", "reply": "Reply", "reply-all": "Reply all", "forward": "Forward" };
+    const draftKey = _emDraftKey;
     const m = document.createElement("div");
     m.id = "rr-em-composer";
     m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     const FONTS = ["Calibri","Arial","Helvetica","Times New Roman","Georgia","Verdana","Tahoma","Trebuchet MS","Courier New","Cambria"];
     const fontOpts = FONTS.map(f => `<option value="${f}" style="font-family:'${f}'">${f}</option>`).join("");
     m.innerHTML = `
+      ${_rrMailRibbonStyle("rr-em-composer")}
       <div class="em-composer-card" style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-xl);width:95vw;height:90vh;max-width:1400px;display:flex;flex-direction:column;overflow:hidden">
         <div class="em-popout-iconbar">
           <div class="em-popout-title" style="display:inline-flex;align-items:center;gap:8px">${mode === "forward" ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>' : ''}${escapeHtmlLocal(titles[mode] || "New email")}</div>
@@ -64157,6 +64278,7 @@ document.addEventListener("click", (e) => {
           ${onCancel ? `<button type="button" class="em-popout-ibtn" id="rr-em-composer-cancel-event" title="Cancel this meeting and notify attendees" aria-label="Cancel event" style="color:#C4281C"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="8" x2="16" y2="16"/><line x1="16" y1="8" x2="8" y2="16"/></svg><span>Cancel event</span></button>` : ""}
           <button type="button" class="em-popout-ibtn em-popout-ibtn-close" data-rr-composer-close title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
+        ${_rrMailRibbonHtml("Send")}
         <!-- Formatting toolbar · single-row Outlook-style ribbon. -->
         <div class="em-composer-toolbar">
           <div class="emct-group">
@@ -64230,6 +64352,55 @@ document.addEventListener("click", (e) => {
     ["rr-em-composer-send", "rr-em-composer-send-top"].forEach((id) => {
       const b = document.getElementById(id);
       if (b) b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); sendComposerDraft(); });
+    });
+
+    // Restore a saved draft into a blank new email.
+    if (mode === "new" && !toPrefill && !subjectPrefill && !htmlPrefill) {
+      try {
+        const d = JSON.parse(localStorage.getItem(draftKey) || "null");
+        if (d) {
+          const toEl = document.getElementById("rr-em-composer-to");
+          const ccEl = document.getElementById("rr-em-composer-cc");
+          const subjEl = document.getElementById("rr-em-composer-subject");
+          const bodyEl = document.getElementById("rr-em-composer-body");
+          if (toEl && d.to) toEl.value = d.to;
+          if (ccEl && d.cc) ccEl.value = d.cc;
+          if (subjEl && d.subject) subjEl.value = d.subject;
+          if (bodyEl && d.html) bodyEl.innerHTML = d.html;
+        }
+      } catch (_) {}
+    }
+
+    // ── The shared 9-tool ribbon (matches the calendar event editor). ──
+    _rrMailRibbonWire(m, {
+      send: () => sendComposerDraft(),
+      save: () => {
+        try {
+          localStorage.setItem(draftKey, JSON.stringify({
+            to: (document.getElementById("rr-em-composer-to")?.value || ""),
+            cc: (document.getElementById("rr-em-composer-cc")?.value || ""),
+            subject: (document.getElementById("rr-em-composer-subject")?.value || ""),
+            html: (document.getElementById("rr-em-composer-body")?.innerHTML || ""),
+          }));
+          toast("Draft saved", "success");
+        } catch (_) { toast("Couldn't save draft", "warn"); }
+      },
+      invite: () => { const t = document.getElementById("rr-em-composer-to"); if (t) { t.focus(); t.scrollIntoView({ block: "nearest" }); } },
+      meeting: () => { const to = document.getElementById("rr-em-composer-to")?.value || ""; closeComposer(); _rrScheduleMeetingFor(to); },
+      recur: () => toast("Recurrence applies to scheduled meetings — use Schedule Meeting.", "info"),
+      important: (b) => {
+        const subjEl = document.getElementById("rr-em-composer-subject");
+        const on = !b.classList.contains("active");
+        b.classList.toggle("active", on);
+        if (subjEl) {
+          if (on && !/^❗\s/.test(subjEl.value)) subjEl.value = "❗ " + subjEl.value;
+          else if (!on) subjEl.value = subjEl.value.replace(/^❗\s*/, "");
+        }
+        toast(on ? "Marked High importance" : "Importance cleared", "info");
+      },
+      attach: () => document.getElementById("rr-em-composer-file")?.click(),
+      dictate: (b) => _rrToggleDictate(document.getElementById("rr-em-composer-body"), b),
+      delete: () => closeComposer(),
     });
 
     // ── Toolbar wiring ─────────────────────────────────────────────
@@ -64338,6 +64509,8 @@ document.addEventListener("click", (e) => {
 
   // Per-session state for the open composer's attachments.
   let composerAttachments = [];
+  // localStorage key for a saved-but-unsent composer draft (Save tile).
+  const _emDraftKey = "rr-em-composer-draft";
   // Cancel-event callback for the open composer (set by openComposer when the
   // composer was launched from a calendar event). Lives at this scope because
   // the click handler that fires it is the shared document handler below.
@@ -64427,6 +64600,7 @@ document.addEventListener("click", (e) => {
       return;
     }
     if (typeof toast === "function") toast("Message queued · will ship within the minute", "success");
+    try { localStorage.removeItem(_emDraftKey); } catch (_) {}
     // Run the post-send hook (e.g. flip applicant status) before we tear down
     // the composer, since closeComposer() clears composerOnSent.
     if (typeof composerOnSent === "function") { try { await composerOnSent(); } catch (_) {} }
