@@ -17124,9 +17124,33 @@ function _ivcalScrollParent(el) {
   }
   return null;
 }
+// Sum of how far any scrollable ancestor of `el` (and the document) is
+// overflowed past its box — i.e. how much the toolbar/header can be scrolled away.
+function _rrMaxScrollOverflow(el) {
+  let max = 0;
+  const ds = document.scrollingElement || document.documentElement;
+  if (ds) max = Math.max(max, ds.scrollHeight - ds.clientHeight);
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const s = getComputedStyle(p);
+    if (/(auto|scroll)/.test(s.overflowY)) max = Math.max(max, p.scrollHeight - p.clientHeight);
+  }
+  return max;
+}
+// Reset scroll on every ancestor above the grid (NOT the grid itself) so the
+// toolbar/header sit at their true position. A scrolled ancestor would otherwise
+// inflate the measured top and make the fit oversize the grid — which recreates
+// the exact overflow, so the header never settles ("keeps moving").
+function _rrResetCalAncestorsScroll(el) {
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    if (p.scrollTop) p.scrollTop = 0;
+  }
+  const ds = document.scrollingElement;
+  if (ds && ds.scrollTop) ds.scrollTop = 0;
+}
 function _ivcalFitHeight() {
   const sc = document.getElementById("rr-ivcal-scroll");
   if (!sc) return;
+  _rrResetCalAncestorsScroll(sc);                     // measure from an un-scrolled state
   const top = sc.getBoundingClientRect().top;        // live position below toolbar + day header
   // Fit to whichever actually scrolls — an inner content pane or the window —
   // so the calendar never overflows it and forces the toolbar/header out of view.
@@ -17142,16 +17166,16 @@ function _ivcalFitHeight() {
     const sideTop = side.getBoundingClientRect().top;
     side.style.height = Math.max(240, Math.min(window.innerHeight, bottom) - sideTop - 8) + "px";
   }
-  // Trim any residual overflow (calendar margins, late layout shifts, etc.) so
-  // the PAGE itself can't scroll — otherwise the sticky header drifts with that
-  // scroll. Loop a few times so sub-pixel/multi-source overflow fully settles.
-  const scroller = parent || document.scrollingElement || document.documentElement;
-  for (let i = 0; i < 4; i++) {
-    const overflow = scroller.scrollHeight - scroller.clientHeight;
+  // Trim against EVERY scrollable ancestor (not just one) so nothing outside the
+  // grid can scroll — otherwise the sticky toolbar/header drifts. Loop so
+  // sub-pixel / multi-source overflow fully settles.
+  for (let i = 0; i < 5; i++) {
+    const overflow = _rrMaxScrollOverflow(sc);
     if (overflow <= 1) break;
     const cur = parseFloat(sc.style.height) || avail;
     sc.style.height = Math.max(320, cur - overflow) + "px";
   }
+  _rrResetCalAncestorsScroll(sc);                     // clamp back to the pinned position
   if (!_ivcalFitInstalled) {
     _ivcalFitInstalled = true;
     let raf = null;
