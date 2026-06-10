@@ -1140,6 +1140,9 @@ function _rrBuildRecruitingFooter() {
   launch.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _rrToggleRecruitingChooser(launch); });
   group.appendChild(cap);
   group.appendChild(launch);
+  // The footer can nudge strip layout; re-fit the calendar so its sticky header
+  // stays pinned (deferred so it runs after module init and this paint).
+  setTimeout(() => { try { if (typeof _ivcalFitHeight === "function") _ivcalFitHeight(); } catch (_) {} }, 0);
 }
 let _rrRecruitingQueued = false;
 function _rrBuildRecruitingFooterSoon() {
@@ -17078,7 +17081,7 @@ function _ivcalRender() {
   // Reading pane wiring; preserve scroll across re-renders, else scroll to now.
   _ivcalInstallDrag(host);
   if (_ivcalSelected) _ivcalWirePane(host);
-  _ivcalFitHeight();
+  _ivcalFitHeightSoon();
   const sc = document.getElementById("rr-ivcal-scroll");
   if (sc) { if (_prevScroll != null) sc.scrollTop = _prevScroll; else if (_ivcalView !== "month") _ivcalAutoScroll(); else sc.scrollTop = 0; }
   _ivcalInstallKeys();
@@ -17139,16 +17142,31 @@ function _ivcalFitHeight() {
     const sideTop = side.getBoundingClientRect().top;
     side.style.height = Math.max(240, Math.min(window.innerHeight, bottom) - sideTop - 8) + "px";
   }
-  // Trim any residual overflow (calendar margins, etc.) so the PAGE itself
-  // can't scroll — otherwise the sticky header drifts with that scroll.
+  // Trim any residual overflow (calendar margins, late layout shifts, etc.) so
+  // the PAGE itself can't scroll — otherwise the sticky header drifts with that
+  // scroll. Loop a few times so sub-pixel/multi-source overflow fully settles.
   const scroller = parent || document.scrollingElement || document.documentElement;
-  const overflow = scroller.scrollHeight - scroller.clientHeight;
-  if (overflow > 1) sc.style.height = Math.max(320, (parseFloat(sc.style.height) || avail) - overflow) + "px";
+  for (let i = 0; i < 4; i++) {
+    const overflow = scroller.scrollHeight - scroller.clientHeight;
+    if (overflow <= 1) break;
+    const cur = parseFloat(sc.style.height) || avail;
+    sc.style.height = Math.max(320, cur - overflow) + "px";
+  }
   if (!_ivcalFitInstalled) {
     _ivcalFitInstalled = true;
     let raf = null;
     window.addEventListener("resize", () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(_ivcalFitHeight); });
   }
+}
+// Run the fit now plus on the next frame and a couple of short delays, so it
+// absorbs late layout settling (web fonts, the Recruiting footer, async content)
+// that would otherwise leave the page a few px scrollable and drift the header.
+let _ivcalFitT1 = 0, _ivcalFitT2 = 0;
+function _ivcalFitHeightSoon() {
+  _ivcalFitHeight();
+  requestAnimationFrame(_ivcalFitHeight);
+  clearTimeout(_ivcalFitT1); _ivcalFitT1 = setTimeout(_ivcalFitHeight, 130);
+  clearTimeout(_ivcalFitT2); _ivcalFitT2 = setTimeout(_ivcalFitHeight, 480);
 }
 
 // Scroll the day/week grid so the current time sits near the top third.
