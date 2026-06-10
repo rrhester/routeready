@@ -25127,6 +25127,46 @@ body.rr-cmdk-open{ overflow:hidden }
           min-height: 0;
         }
 
+        /* ── Command-mode tabs (Schedule / Fleet / Workflows / Print) ──
+           Plain uppercase labels above the strip card; the active tab is
+           brand-blue with a short navy underline, matching the Schedule
+           page's .sched-v2-cmd-tabs. */
+        #view-fleet2 .f2-cmd-tabs {
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          padding: 0 4px;
+          margin: 0 0 6px;
+          flex: 0 0 auto;
+        }
+        #view-fleet2 .f2-cmd-tab {
+          appearance: none;
+          background: transparent;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: #605E5C;
+          padding: 6px 12px;
+          border: 0;
+          position: relative;
+          transition: color var(--rr-motion-fast, 0.12s);
+        }
+        #view-fleet2 .f2-cmd-tab:hover:not(.active) { color: var(--rr-fg-primary, #242424); }
+        #view-fleet2 .f2-cmd-tab.active { color: #0F6CBD; }
+        #view-fleet2 .f2-cmd-tab.active::after {
+          content: "";
+          position: absolute;
+          left: 12px;
+          right: 12px;
+          bottom: 3px;
+          height: 2px;
+          border-radius: 2px;
+          background: var(--sidebar-bg, #205285);
+        }
+
         /* ── Command/header strip card ──────────────────────────── */
         #view-fleet2 .f2-strip {
           display: flex;
@@ -25234,7 +25274,7 @@ body.rr-cmdk-open{ overflow:hidden }
           height: 42px;
           flex: 0 0 auto;
           color: #605E5C;
-          stroke-width: 1.9;
+          stroke-width: 1.6;
           stroke-linecap: butt;
           stroke-linejoin: miter;
         }
@@ -25324,6 +25364,14 @@ body.rr-cmdk-open{ overflow:hidden }
       </style>
 
       <div class="page">
+        <!-- Command-mode tabs · matches the Schedule page's tab row, with
+             Fleet active (blue underline). Placeholders for now. -->
+        <div class="f2-cmd-tabs" role="tablist" aria-label="Fleet command strip mode">
+          <button class="f2-cmd-tab" type="button" data-f2-cmd-tab="schedule" role="tab" aria-selected="false">Schedule</button>
+          <button class="f2-cmd-tab active" type="button" data-f2-cmd-tab="fleet" role="tab" aria-selected="true">Fleet</button>
+          <button class="f2-cmd-tab" type="button" data-f2-cmd-tab="workflows" role="tab" aria-selected="false">Workflows</button>
+          <button class="f2-cmd-tab" type="button" data-f2-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
+        </div>
         <!-- Header + command icon strip (Schedule chrome replica).
              Tiles are visual placeholders; nothing is wired. -->
         <div class="f2-strip" role="toolbar" aria-label="Fleet ribbon">
