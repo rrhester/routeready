@@ -148,7 +148,7 @@ body{
      Windows 11). Fall back to Segoe UI on older Windows, then the
      platform UI font on Mac/iOS/Android so non-Microsoft devices
      still get a clean system render. */
-  font:16px/1.45 "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI",
+  font:16px/1.45 "Inter", "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI",
     -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing:antialiased;
   -webkit-tap-highlight-color: transparent;

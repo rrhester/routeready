@@ -11,7 +11,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <meta name="theme-color" content="#0F6CBD">
 <style>
-/* ─────────────────────────────────────────────────────────────
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(app/fonts/inter-var-latin.woff2) format('woff2')}
+  /* ─────────────────────────────────────────────────────────────
    RouteReady marketing site · Microsoft Fluent 2 / M365 surface
    ────────────────────────────────────────────────────────────
    Same brand language as the dashboard + driver app:
@@ -34,8 +35,8 @@ body{
      puts Windows + M365 visitors on Microsoft's flagship UI font.
      Inter is the cross-platform web fallback the dashboard also
      uses (loaded above), then platform UI fonts after that. */
-  font-family:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI",
-    "Inter",system-ui,-apple-system,sans-serif;
+  font-family:"Inter","Segoe UI Variable Text","Segoe UI Variable","Segoe UI",
+    system-ui,-apple-system,sans-serif;
   background:#FAFAFA;color:#242424;line-height:1.6;overflow-x:hidden;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
   font-feature-settings:"ss01","cv11";
