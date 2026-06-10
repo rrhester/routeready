@@ -82,7 +82,7 @@
   /* ─── RADIUS ─────────────────────────────────────────────── */
   --rr-radius-none:   0px;
   --rr-radius-small:  2px;
-  --rr-radius-medium: 4px;
+  --rr-radius-medium: 6px;  /* 4→6 · modernization pass 3 — controls share one 6px radius with the dashboard's --r-md */
   --rr-radius-large:  8px;
   --rr-radius-pill:   9999px;
 
