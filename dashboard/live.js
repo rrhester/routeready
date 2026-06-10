@@ -2822,7 +2822,14 @@ window.goto = function (view) {
   if (view === "forms")     loadFormsList();
   if (view === "admin")     { loadPlatformAdmin(); loadAdminSupportInbox(); }
   if (view === "outlook")   loadStaffingOutlook();
-  if (view === "fleet" && typeof loadFleetView === "function") loadFleetView();
+  // Fleet lives on #view-fleet2 now ('fleet' is redirected to 'fleet2'
+  // by the base goto). Load the roster + restore the last sub-view on
+  // entry to either alias.
+  if ((view === "fleet" || view === "fleet2") && typeof loadFleetView === "function") {
+    loadFleetView();
+    if (typeof window.fleetSub === "function") window.fleetSub(_fleetSub || "vehicles");
+    if (typeof _f2CmdTab === "function") _f2CmdTab("fleet");  // land on Fleet mode, print bar hidden
+  }
   if (view === "recognition" && typeof loadRecognitionView === "function") loadRecognitionView();
   if (view === "compliance" && typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
 };
@@ -29670,7 +29677,7 @@ function refreshActiveView() {
     if (typeof loadCheckinView === "function") loadCheckinView();
   } else if (activeView === "view-admin") {
     if (typeof loadPlatformAdmin === "function") loadPlatformAdmin();
-  } else if (activeView === "view-fleet") {
+  } else if (activeView === "view-fleet2") {
     if (typeof loadFleetView === "function") loadFleetView();
   }
   // view-schedule / view-okami refresh via their own focus hook below;
@@ -56568,12 +56575,14 @@ function _flVanTypeLabel(t) {
 // ─── Sub-tab routing ─────────────────────────────────────────────────
 window.fleetSub = function (sub) {
   _fleetSub = sub;
-  // The Vehicles / Issues views are switched from the icon ribbon
-  // (the old tab bar was removed) — toggle the active ribbon button.
-  document.querySelectorAll("#view-fleet .fl-ribbon-view").forEach((b) => {
+  // The Fleet page now lives in #view-fleet2; its strip tiles (.f2-tile)
+  // are the sub-view switchers. Toggle the active tile by data-sub.
+  document.querySelectorAll("#view-fleet2 .f2-tile[data-sub]").forEach((b) => {
     b.classList.toggle("active", b.getAttribute("data-sub") === sub);
   });
-  document.querySelectorAll("#view-fleet .fl-sub").forEach((s) => s.classList.remove("active"));
+  // Sub-view containers (#fl-sub-*) are unique ids, so an unscoped toggle
+  // is safe and view-agnostic after the move into #view-fleet2.
+  document.querySelectorAll(".fl-sub").forEach((s) => s.classList.remove("active"));
   document.getElementById("fl-sub-" + sub)?.classList.add("active");
   if (sub === "vehicles")    _flLoadRoster();
   else if (sub === "issues") _flLoadIssues();
@@ -57370,7 +57379,7 @@ function _flCmdTab(mode) {
 window._flCmdTab = _flCmdTab;
 
 function _flActiveSub() {
-  return document.querySelector("#view-fleet .fl-sub.active");
+  return document.querySelector("#view-fleet2 .fl-sub.active");
 }
 function _flActiveSubLabel() {
   return ({
@@ -57607,8 +57616,35 @@ function _flOpenProofModal() {
 }
 window._flOpenProofModal = _flOpenProofModal;
 
+// New Fleet page (#view-fleet2) command-mode tabs (Schedule / Fleet /
+// Workflows / Print-Download). Fleet stays in-page; Schedule + Workflows
+// navigate to their hubs; Print toggles the print/download toolbar.
+function _f2CmdTab(mode) {
+  document.querySelectorAll("#view-fleet2 .f2-cmd-tab").forEach((t) => {
+    const on = t.getAttribute("data-f2-cmd-tab") === mode;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const printBar = document.getElementById("rr-f2-print-actions");
+  if (printBar) printBar.hidden = (mode !== "print");
+}
+window._f2CmdTab = _f2CmdTab;
+
 document.addEventListener("click", (e) => {
   if (!e.target.closest) return;
+  const f2tab = e.target.closest("#view-fleet2 .f2-cmd-tab");
+  if (f2tab) {
+    e.preventDefault();
+    const mode = f2tab.getAttribute("data-f2-cmd-tab");
+    if (mode === "schedule" || mode === "workflows") {
+      _f2CmdTab("fleet");  // reset local state so returning shows Fleet
+      try { window.goto(mode === "workflows" ? "forms" : "schedule"); } catch (_) {}
+      return;
+    }
+    // fleet / print stay in-page.
+    _f2CmdTab(mode);
+    return;
+  }
   const tab = e.target.closest(".fl-cmd-tab");
   if (tab) {
     e.preventDefault();
