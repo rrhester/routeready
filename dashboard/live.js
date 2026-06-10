@@ -1032,6 +1032,29 @@ function _rrCloseRecruitingChooser() {
   const m = document.getElementById("rr-recruiting-chooser");
   if (m) m.remove();
 }
+// The Funnel/Onboarding rules popovers are anchored to their tile, so opening
+// them from the right-side launcher pushed them off the right edge and past the
+// bottom of the viewport with no usable scroll. Re-pin the opened popover as a
+// fixed panel under the strip, right-aligned, bounded to the viewport height
+// with its own scroll. Re-fit on resize while it's open.
+function _rrFitRulesPopover(pop) {
+  if (!pop) return;
+  let top = 64;
+  const strip = document.querySelector("#view-onboarding-ops .sched-nav-heading-actions")
+    || document.querySelector("#view-onboarding-ops .sched-nav-heading");
+  if (strip) { const r = strip.getBoundingClientRect(); if (r.bottom > 0) top = Math.round(r.bottom + 8); }
+  const set = (k, v) => pop.style.setProperty(k, v, "important");
+  set("position", "fixed"); set("top", top + "px"); set("right", "16px");
+  set("left", "auto"); set("bottom", "auto");
+  set("width", "min(620px, calc(100vw - 32px))"); set("max-width", "calc(100vw - 32px)");
+  set("max-height", "calc(100vh - " + (top + 16) + "px)"); set("overflow-y", "auto");
+  set("z-index", "9998");
+  // Keep it fitted if the window is resized while open.
+  if (!pop._rrFitBound) {
+    pop._rrFitBound = true;
+    window.addEventListener("resize", () => { if (!pop.hidden) _rrFitRulesPopover(pop); });
+  }
+}
 function _rrToggleRecruitingChooser(anchor) {
   if (document.getElementById("rr-recruiting-chooser")) { _rrCloseRecruitingChooser(); return; }
   const menu = document.createElement("div");
@@ -1058,10 +1081,12 @@ function _rrToggleRecruitingChooser(anchor) {
   menu.appendChild(mk("Screening questions", () => {
     if (window._rrToggleObRules) window._rrToggleObRules(false);
     if (window._rrToggleFunnelRules) window._rrToggleFunnelRules(true);
+    _rrFitRulesPopover(document.getElementById("rr-funnel-rules-popover"));
   }));
   menu.appendChild(mk("Onboarding steps", () => {
     if (window._rrToggleFunnelRules) window._rrToggleFunnelRules(false);
     if (window._rrToggleObRules) window._rrToggleObRules(true);
+    _rrFitRulesPopover(document.getElementById("rr-ob-rules-popover"));
   }));
   document.body.appendChild(menu);
   const r = anchor.getBoundingClientRect();
