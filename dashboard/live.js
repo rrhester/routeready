@@ -17177,12 +17177,26 @@ function _ivcalFitHeight() {
   _ivcalInstallScrollLock();
   const sc = document.getElementById("rr-ivcal-scroll");
   if (!sc) return;
+  // DevTools confirmed the calendar's wrapper (#obsub-pipeline) is what scrolls
+  // and drags the toolbar/header away. Capture its bottom, then make every
+  // scrollable wrapper around the calendar NON-scrollable so only the inner grid
+  // scrolls — the toolbar/header can no longer move. (These wrappers hold only
+  // the calendar, so removing their scroll is safe; the grid + side panel keep
+  // their own.)
+  let wrapBottom = 0;
+  for (let p = sc.parentElement; p && p !== document.body; p = p.parentElement) {
+    const s = getComputedStyle(p);
+    if (/(auto|scroll)/.test(s.overflowY)) {
+      if (!wrapBottom) wrapBottom = p.getBoundingClientRect().bottom;
+      p.style.setProperty("overflow-y", "hidden", "important");
+    }
+  }
   _rrResetCalAncestorsScroll(sc);                     // measure from an un-scrolled state
   const top = sc.getBoundingClientRect().top;        // live position below toolbar + day header
-  // Fit to whichever actually scrolls — an inner content pane or the window —
-  // so the calendar never overflows it and forces the toolbar/header out of view.
+  // Fit to the wrapper we just captured (or the window) so the grid fills it
+  // exactly and nothing is clipped.
   const parent = _ivcalScrollParent(sc);
-  const bottom = parent ? parent.getBoundingClientRect().bottom : window.innerHeight;
+  const bottom = wrapBottom || (parent ? parent.getBoundingClientRect().bottom : window.innerHeight);
   const avail = Math.min(window.innerHeight, bottom) - top - 8; // small bottom gap
   sc.style.height = Math.max(320, avail) + "px";
   // Bound the left panel to the same viewport area so its My Calendars list
