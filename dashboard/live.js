@@ -17090,9 +17090,10 @@ Add to calendar: ${o.gcalUrl}`;
 }
 
 // Outlook-style click-to-create. Opens a pop-out event editor (To / Subject
-// / date-time / body). A Jitsi room link is assigned up front so it shows in
-// the body immediately; on Send the event is saved with that link and the
-// invite (this exact body) goes to every attendee.
+// / date-time / body). By default the event is a plain calendar invite; the
+// user adds a video meeting on demand via the blue "Schedule Meeting" button.
+// On Send the event is saved (with the video link only if one was added) and
+// the invite (this exact body) goes to every attendee.
 function _ivcalNewEvent(dateISO, startMin, endMin, editEv) {
   const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
   const old = document.getElementById("rr-ivcal-new");
@@ -17252,12 +17253,12 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         ${row("Optional", `<input id="rr-ne-optional" type="text" placeholder="optional attendees (comma-separated)" style="${fld};flex:1;min-width:220px">`)}
         ${row("Start", `<input id="rr-ne-sdate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-stime" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}"><label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);margin-left:8px;cursor:pointer"><input id="rr-ne-allday" type="checkbox"> All day</label>`)}
         ${row("End", `<input id="rr-ne-edate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-etime" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}">`)}
-        ${row("Location", `<input id="rr-ne-location" type="text" placeholder="Online video meeting (link added automatically)" style="${fld};flex:1;min-width:220px">`)}
+        ${row("Location", `<input id="rr-ne-location" type="text" placeholder="Add a location (optional) — or press Schedule Meeting for a video link" style="${fld};flex:1;min-width:220px">`)}
         ${showCalPicker ? row("Calendar", `<select id="rr-ne-calendar" style="${fld};flex:1;min-width:220px">${_calOptions}</select>`) : ""}
         <div id="rr-ne-recsum" class="rr-ne-recsum"></div>
         <div id="rr-ne-chips" style="display:none;flex-wrap:wrap;gap:6px"></div>
-        <textarea id="rr-ne-body" placeholder="Add a message — Dictate to speak it, or Schedule Meeting to drop in the interview template" style="${fld};flex:1;min-height:160px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
-        <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)">Creating video link…</span>
+        <textarea id="rr-ne-body" placeholder="Add a message — Dictate to speak it aloud" style="${fld};flex:1;min-height:160px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
+        <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)"></span>
         <div id="rr-ne-history" style="display:none"></div>
       </div>
       <input type="file" id="rr-ne-file" multiple style="display:none">
@@ -17311,10 +17312,18 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     });
   });
 
-  // Assign the video room up front (reuse the existing one when editing).
-  roomUrl = (isEdit && ev0 && ev0.meeting_url) ? ev0.meeting_url : _ivcalVideoRoom();
-  { const st = document.getElementById("rr-ne-roomstate");
-    if (st && roomUrl) {
+  // Video is OFF by default: a new event is a plain calendar invite unless the
+  // user presses "Schedule Meeting" (the blue video button). When editing an
+  // event that already has a video link, start with video ON.
+  roomUrl = (isEdit && ev0 && ev0.meeting_url) ? ev0.meeting_url : "";
+  // Reflect the current video state in the footer line + the Schedule Meeting
+  // tile's active styling. Called on open and whenever video is toggled.
+  function renderRoomState() {
+    const st = document.getElementById("rr-ne-roomstate");
+    const tileEl = m.querySelector('[data-ne-act="meeting"]');
+    if (tileEl) tileEl.classList.toggle("active", !!roomUrl);
+    if (!st) return;
+    if (roomUrl) {
       // Clickable so the interviewer can join straight from the editor. For a
       // saved interview this opens the embedded in-app room (with notes); the
       // same link is dropped into the invite email (_rrInviteEmail joinUrl).
@@ -17325,8 +17334,12 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         if (isEdit && ev0 && ev0.meeting_url) { closeEditor(); _ivcalOpenRoom(ev0); }
         else window.open(roomUrl, "_blank", "noreferrer"); // unsaved event: no notes yet
       };
-    } else if (st) { st.textContent = "Video link ready ✓"; st.style.color = "var(--green)"; }
+    } else {
+      st.textContent = "No video link · press Schedule Meeting to add one";
+      st.style.color = "var(--text-subtle)";
+    }
   }
+  renderRoomState();
 
   // Prefill the form when editing an existing event.
   if (isEdit && ev0) {
@@ -17535,9 +17548,25 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     const act = e.target.closest("[data-ne-act]")?.getAttribute("data-ne-act");
     if (act === "invite") { const r = document.getElementById("rr-ne-required"); r.focus(); r.scrollIntoView({ block:"nearest" }); return; }
     if (act === "meeting") {
-      document.getElementById("rr-ne-body").value = INTERVIEW_TEMPLATE;
-      if (!titleInp.value.trim()) { titleInp.value = "Driver interview"; document.getElementById("rr-ne-tt").textContent = "Driver interview"; }
-      toast("Interview template added", "success"); return;
+      // Toggle the video meeting on/off. Off by default → plain calendar
+      // invite; pressing this adds a video link that's included in the invite.
+      const loc = document.getElementById("rr-ne-location");
+      if (roomUrl) {
+        roomUrl = "";
+        if (loc && loc.value.trim() === "Online video meeting") loc.value = "";
+        renderRoomState();
+        toast("Video meeting removed — this is now a plain calendar invite", "info");
+      } else {
+        roomUrl = (isEdit && ev0 && ev0.meeting_url) ? ev0.meeting_url : _ivcalVideoRoom();
+        if (loc && !loc.value.trim()) loc.value = "Online video meeting";
+        // Convenience: seed the interview template/title on a blank event.
+        const bodyEl = document.getElementById("rr-ne-body");
+        if (bodyEl && !bodyEl.value.trim()) bodyEl.value = INTERVIEW_TEMPLATE;
+        if (!titleInp.value.trim()) { titleInp.value = "Driver interview"; document.getElementById("rr-ne-tt").textContent = "Driver interview"; }
+        renderRoomState();
+        toast("Video meeting added · link included in the invite", "success");
+      }
+      return;
     }
     if (act === "recur") { syncRecurUnit(); recurPop.hidden = !recurPop.hidden; return; }
     if (act === "important") { highImportance = !highImportance; e.target.closest("[data-ne-act]").classList.toggle("active", highImportance); toast(highImportance ? "Marked High importance" : "Importance cleared", "info"); return; }
@@ -17593,7 +17622,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         } catch (err) { toast("Couldn't save: " + (err.message || err), "warn"); if (btn) btn.style.opacity = ""; }
         return;
       }
-      if (!roomUrl) roomUrl = _ivcalVideoRoom();
+      // No forced video link — roomUrl is set only when the user pressed
+      // Schedule Meeting. An untouched event stays a plain calendar invite.
       const subjTitle = highImportance ? ("❗ " + title) : title;
       // Occurrence dates: a single one, or the recurrence series.
       const dates = recurrence ? expandOccurrences(recurrence, sdate) : [sdate];
