@@ -1020,65 +1020,113 @@ async function _initApplicantNotes(slot, applicantId) {
 }
 
 
-// Force the onboarding/funnel "Rules" launchers visible by operating on the DOM
-// elements directly (inline styles win over any stale/scoped CSS, and unlike a
-// CSS rule this also overrides display:none and any wrong scoping). The launcher
-// is pulled into normal flow under its tile so nothing can clip or hide it; if
-// the markup is missing entirely, a working launcher is created. Re-applied on
-// DOM changes since the strip can re-render. This replaced two CSS-only attempts
-// that never took effect.
-function _rrStyleRulesLauncher(el) {
-  const set = (k, v) => el.style.setProperty(k, v, "important");
-  set("opacity", "1"); set("visibility", "visible"); set("pointer-events", "auto");
-  set("display", "inline-flex"); set("align-items", "center"); set("justify-content", "center");
-  set("gap", "4px"); set("position", "static"); set("transform", "none");
-  set("font-size", "11px"); set("font-weight", "700"); set("letter-spacing", ".01em");
-  set("margin", "1px auto 3px"); set("padding", "1px 6px"); set("border-radius", "999px");
-  set("color", "var(--text-subtle)"); set("background", "transparent"); set("border", "0"); set("cursor", "pointer");
-  el.querySelectorAll("svg").forEach((s) => { s.style.width = "12px"; s.style.height = "12px"; s.style.display = "block"; });
-  const wrap = el.closest(".ob-tab-wrap");
-  if (wrap) {
-    wrap.style.setProperty("display", "flex", "important");
-    wrap.style.setProperty("flex-direction", "column", "important");
-    wrap.style.setProperty("align-items", "center", "important");
-    wrap.style.setProperty("justify-content", "flex-start", "important");
-  }
+// Consolidated "Recruiting" footer for the sourcing tile group (Funnel /
+// Interview / Onboarding). Instead of a separate "Rules" launcher per tile, the
+// whole group gets ONE centered caption on the strip's bottom line plus a single
+// box-arrow launcher pinned bottom-right — matching the calendar group's
+// "Rules". The launcher opens a small chooser with two options (Screening
+// questions → funnel rules, Onboarding steps → onboarding blueprint), each
+// forwarding to its existing popover. Built/repositioned from live.js (DOM +
+// inline styles) so it reliably reaches the browser regardless of cached HTML.
+function _rrCloseRecruitingChooser() {
+  const m = document.getElementById("rr-recruiting-chooser");
+  if (m) m.remove();
 }
-function _rrForceObRulesVisible() {
+function _rrToggleRecruitingChooser(anchor) {
+  if (document.getElementById("rr-recruiting-chooser")) { _rrCloseRecruitingChooser(); return; }
+  const menu = document.createElement("div");
+  menu.id = "rr-recruiting-chooser";
+  Object.assign(menu.style, {
+    position: "fixed", zIndex: "10000", background: "var(--surface,#fff)",
+    border: "1px solid var(--border,rgba(15,23,42,.12))", borderRadius: "8px",
+    boxShadow: "0 12px 32px rgba(15,23,42,.18)", padding: "4px", minWidth: "190px",
+    display: "flex", flexDirection: "column", gap: "1px",
+  });
+  const mk = (label, fn) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = label;
+    Object.assign(b.style, {
+      display: "block", width: "100%", textAlign: "left", appearance: "none",
+      border: "0", background: "transparent", cursor: "pointer", font: "inherit",
+      fontSize: "13px", color: "var(--text,#1b1b1f)", padding: "8px 12px", borderRadius: "6px",
+    });
+    b.addEventListener("mouseenter", () => { b.style.background = "rgba(15,108,189,.08)"; b.style.color = "#0F6CBD"; });
+    b.addEventListener("mouseleave", () => { b.style.background = "transparent"; b.style.color = "var(--text,#1b1b1f)"; });
+    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _rrCloseRecruitingChooser(); fn(); });
+    return b;
+  };
+  menu.appendChild(mk("Screening questions", () => {
+    if (window._rrToggleObRules) window._rrToggleObRules(false);
+    if (window._rrToggleFunnelRules) window._rrToggleFunnelRules(true);
+  }));
+  menu.appendChild(mk("Onboarding steps", () => {
+    if (window._rrToggleFunnelRules) window._rrToggleFunnelRules(false);
+    if (window._rrToggleObRules) window._rrToggleObRules(true);
+  }));
+  document.body.appendChild(menu);
+  const r = anchor.getBoundingClientRect();
+  menu.style.top = (r.bottom + 4) + "px";
+  menu.style.left = Math.max(8, r.right - menu.offsetWidth) + "px";
+  setTimeout(() => {
+    document.addEventListener("click", function onDoc(e) {
+      if (!e.target.closest("#rr-recruiting-chooser") && !e.target.closest(".rr-recruiting-foot")) {
+        _rrCloseRecruitingChooser();
+        document.removeEventListener("click", onDoc);
+      }
+    });
+  }, 0);
+}
+function _rrBuildRecruitingFooter() {
   if (typeof document === "undefined") return;
-  const specs = [
-    { id: "rr-ob-rules-toggle",     tile: '[data-rr-tile="ob-overview"]', open: () => window._rrToggleObRules && window._rrToggleObRules(),     title: "Onboarding steps — edit the onboarding blueprint" },
-    { id: "rr-funnel-rules-toggle", tile: '[data-rr-tile="ob-funnel"]',   open: () => window._rrToggleFunnelRules && window._rrToggleFunnelRules(), title: "Screening questions — what applicants answer before booking" },
-  ];
-  for (const spec of specs) {
-    const els = document.querySelectorAll('[id="' + spec.id + '"]');
-    if (els.length) {
-      els.forEach(_rrStyleRulesLauncher);
-    } else {
-      // Markup missing — create a working launcher inside the tile wrap.
-      document.querySelectorAll("#view-onboarding-ops " + spec.tile).forEach((wrap) => {
-        if (wrap.querySelector(".rr-rules-injected")) return;
-        const b = document.createElement("button");
-        b.type = "button"; b.className = "rr-rules-injected"; b.title = spec.title;
-        b.innerHTML = 'Rules <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>';
-        b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); spec.open(); });
-        wrap.appendChild(b);
-        _rrStyleRulesLauncher(b);
-      });
-    }
-  }
+  const group = document.querySelector('#view-onboarding-ops .sched-ribbon-group[data-group="sourcing"]');
+  if (!group) return;
+  // Hide every per-tile launcher in the group — one footer replaces them all.
+  group.querySelectorAll('#rr-ob-rules-toggle, #rr-funnel-rules-toggle, .ob-rules-foot, .rr-rules-injected')
+    .forEach((el) => el.style.setProperty("display", "none", "important"));
+  // Full strip height + relative anchor so the caption/launcher sit on the
+  // bottom hairline (the calendar group sets the strip height); top-align the
+  // tiles so they match the calendar group's tiles.
+  group.style.setProperty("align-self", "stretch", "important");
+  group.style.setProperty("position", "relative", "important");
+  const sub = group.querySelector(".subnav");
+  if (sub) sub.style.setProperty("align-self", "flex-start", "important");
+  if (group.querySelector(".rr-recruiting-cap")) return; // footer already built
+  const cap = document.createElement("span");
+  cap.className = "rr-recruiting-cap";
+  cap.textContent = "Recruiting";
+  Object.assign(cap.style, {
+    position: "absolute", left: "0", right: "0", bottom: "-4px", textAlign: "center",
+    fontSize: "11px", fontWeight: "800", lineHeight: "1", letterSpacing: ".01em",
+    whiteSpace: "nowrap", color: "var(--text-subtle)", pointerEvents: "none", zIndex: "1",
+  });
+  const launch = document.createElement("button");
+  launch.type = "button";
+  launch.className = "rr-recruiting-foot";
+  launch.title = "Recruiting rules — screening questions & onboarding steps";
+  launch.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>';
+  Object.assign(launch.style, {
+    position: "absolute", right: "6px", bottom: "-3px", display: "inline-flex",
+    alignItems: "center", justifyContent: "center", appearance: "none", border: "0",
+    background: "transparent", cursor: "pointer", color: "var(--text-subtle)",
+    padding: "1px 4px", margin: "0", borderRadius: "999px", zIndex: "2", opacity: ".85",
+  });
+  launch.addEventListener("mouseenter", () => { launch.style.opacity = "1"; launch.style.color = "var(--accent-text,#0F6CBD)"; launch.style.background = "var(--accent-soft,rgba(15,108,189,.08))"; });
+  launch.addEventListener("mouseleave", () => { launch.style.opacity = ".85"; launch.style.color = "var(--text-subtle)"; launch.style.background = "transparent"; });
+  launch.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _rrToggleRecruitingChooser(launch); });
+  group.appendChild(cap);
+  group.appendChild(launch);
 }
-let _rrObRulesQueued = false;
-function _rrForceObRulesSoon() {
-  if (_rrObRulesQueued) return;
-  _rrObRulesQueued = true;
-  setTimeout(() => { _rrObRulesQueued = false; _rrForceObRulesVisible(); }, 200);
+let _rrRecruitingQueued = false;
+function _rrBuildRecruitingFooterSoon() {
+  if (_rrRecruitingQueued) return;
+  _rrRecruitingQueued = true;
+  setTimeout(() => { _rrRecruitingQueued = false; _rrBuildRecruitingFooter(); }, 200);
 }
 if (typeof document !== "undefined") {
-  _rrForceObRulesVisible();
-  setTimeout(_rrForceObRulesVisible, 600);
-  setTimeout(_rrForceObRulesVisible, 1800);
-  try { new MutationObserver(_rrForceObRulesSoon).observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
+  _rrBuildRecruitingFooter();
+  setTimeout(_rrBuildRecruitingFooter, 600);
+  setTimeout(_rrBuildRecruitingFooter, 1800);
+  try { new MutationObserver(_rrBuildRecruitingFooterSoon).observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
 }
 
 let _emailThreadChannel = null;
