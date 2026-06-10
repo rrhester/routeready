@@ -25157,7 +25157,10 @@ body.rr-cmdk-open{ overflow:hidden }
           transition: color var(--rr-motion-fast, 0.12s);
         }
         #view-fleet2 .f2-cmd-tab:hover:not(.active) { color: var(--rr-fg-primary, #242424); }
-        #view-fleet2 .f2-cmd-tab.active { color: var(--rr-brand-primary, #0078D4); }
+        /* Match the Schedule tabs exactly: they use var(--rr-brand-primary) with
+           NO fallback — undefined, so the active tab inherits the normal dark
+           text color (not blue). Same declaration here. */
+        #view-fleet2 .f2-cmd-tab.active { color: var(--rr-brand-primary); }
         #view-fleet2 .f2-cmd-tab.active::after {
           content: "";
           position: absolute;
