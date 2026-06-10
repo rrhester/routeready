@@ -17183,6 +17183,15 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-win{width:42px;height:30px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;color:var(--text-muted)}
       #rr-ivcal-new .rr-ne-win:hover{background:rgba(15,23,42,.07)}
       #rr-ivcal-new .rr-ne-win.close:hover{background:#D13438;color:#fff}
+      /* In the installed app (Window Controls Overlay), the OS minimize /
+         maximize / close buttons sit at the top-right. When the editor is
+         maximized it spans the full width, so its own window buttons land
+         UNDER the OS controls — clicking ✕ then closes the whole app instead
+         of the event. Pad the maximized titlebar on the right so the editor's
+         buttons sit to the LEFT of the native controls and stay clickable. */
+      @media (display-mode: window-controls-overlay){
+        #rr-ivcal-new .rr-ne-card.is-max .rr-ne-titlebar{padding-right:calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px))}
+      }
       #rr-ivcal-new .rr-ne-ribbon{display:flex;align-items:stretch;gap:2px;padding:7px 12px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));flex-wrap:wrap}
       #rr-ivcal-new .rr-ne-vdiv{width:1px;align-self:stretch;background:var(--border);margin:4px 7px}
       #rr-ivcal-new .rr-ne-ico{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:62px;padding:5px 8px 6px;border:0;background:transparent;cursor:pointer;border-radius:7px;color:var(--text);font:inherit;font-size:11px;line-height:1.1}
