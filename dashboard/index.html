@@ -10276,6 +10276,14 @@ body.rr-cmdk-open{ overflow:hidden }
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><polyline points="9 13 11 15 15 11"/></svg></span>
         Onboarding
       </button>
+      <!-- Fleet (new, separate page) · empty scaffold view that reuses
+           the Schedule page chrome (header card + command icon strip +
+           soft-blue ground). Routes to #view-fleet2 via goto('fleet2').
+           Intentionally distinct from the legacy #view-fleet page. -->
+      <button class="nav-item" data-view="fleet2" data-c="schedule" onclick="goto('fleet2')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span>
+        Fleet
+      </button>
       <!-- Workspaces · re-revealed in the sidebar (was hidden so the
            Schedule view's Van Assignments flow could reuse
            loadWorkspacesView internally; that path still works).
@@ -25073,6 +25081,360 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         FLEET (new · #view-fleet2) — a brand-new, separate, empty page.
+         It is NOT the legacy #view-fleet view; it deliberately reuses
+         the Schedule page's chrome (soft-blue ground + header card +
+         command icon strip) and nothing else. The strip tiles are
+         visual placeholders (not wired). All ids that would collide
+         with the Schedule markup were dropped. Every appearance rule
+         lives in the self-contained <style id="rr-fleet2-style"> below,
+         scoped entirely to #view-fleet2 — it does not touch
+         #view-schedule or schedule-rrx.css.
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view rrx-schedule" id="view-fleet2">
+      <style id="rr-fleet2-style">
+        /* ── Self-contained chrome for the new Fleet page ──────────
+           Replicates the Schedule page look (which lives in
+           schedule-rrx.css scoped to #view-schedule.rrx-schedule).
+           Scoped to #view-fleet2 so it can't reach the Schedule view. */
+
+        /* Local token aliases · the --sch-* tokens are defined only
+           inside #view-schedule scopes, so redeclare the few we use
+           here on the view root. */
+        #view-fleet2 {
+          --f2-sch-blue: #0F6CBD;
+          --f2-sch-blue-softer: rgba(15,108,189,.05);
+          --f2-sch-line-subtle: rgba(15,23,42,.07);
+          --f2-sch-radius: 6px;
+          --f2-divider: #C8C6C4;
+        }
+
+        /* Page ground · the soft Google-blue wash. */
+        #view-fleet2.rrx-schedule {
+          background: #EAF2FD;
+          font-family: var(--rr-font-family);
+          color: var(--rr-fg-primary);
+        }
+        #view-fleet2.rrx-schedule > .page {
+          padding: var(--rr-space-200);
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+
+        /* ── Command/header strip card ──────────────────────────── */
+        #view-fleet2 .f2-strip {
+          display: flex;
+          align-items: stretch;
+          flex-wrap: nowrap;
+          gap: 8px;
+          padding: 3px 18px 6px;
+          margin: 0;
+          background: var(--rr-bg-surface-1);
+          border: 1px solid var(--f2-sch-line-subtle);
+          border-radius: var(--f2-sch-radius);
+          box-shadow: 0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
+          min-height: var(--tcp-strip-h, 106px);
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        /* ── Title block (header) ───────────────────────────────── */
+        #view-fleet2 .f2-title {
+          flex: 0 0 240px;
+          align-self: center;
+          margin-right: var(--rr-space-160);
+          padding-right: var(--rr-space-120);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          min-width: 0;
+        }
+        #view-fleet2 .f2-title .page-title {
+          font: var(--rr-font-subtitle);
+          color: var(--rr-fg-primary);
+          margin: 0;
+          letter-spacing: -0.01em;
+          white-space: nowrap;
+          display: flex;
+          align-items: center;
+        }
+        #view-fleet2 .f2-title .page-sub {
+          font: var(--rr-font-caption);
+          color: var(--rr-fg-secondary);
+          margin: 2px 0 0;
+          white-space: nowrap;
+        }
+
+        /* ── Live status pill (green) ───────────────────────────── */
+        #view-fleet2 .f2-status-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: var(--rr-space-40);
+          height: 22px;
+          padding: 0 var(--rr-space-100);
+          border-radius: var(--rr-radius-pill);
+          font: var(--rr-font-caption);
+          font-weight: 600;
+          margin-left: var(--rr-space-80);
+          white-space: nowrap;
+          vertical-align: middle;
+          background: linear-gradient(135deg, #22C55E 0%, #107C41 100%);
+          color: #ffffff;
+          border: 1px solid rgba(13,92,49,.55);
+          transform-origin: center;
+          animation: f2-live-pulse 4s ease-in-out infinite;
+        }
+        @keyframes f2-live-pulse {
+          0%   { transform: scale(1); }
+          10%  { transform: scale(1.03); }
+          20%  { transform: scale(1); }
+          100% { transform: scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          #view-fleet2 .f2-status-pill { animation: none; }
+        }
+        #view-fleet2 .f2-status-pill svg { width: 12px; height: 12px; }
+
+        /* ── Tiles (icon-over-label) ────────────────────────────── */
+        #view-fleet2 .f2-split {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: stretch;
+          flex: 0 0 auto;
+          position: relative;
+        }
+        #view-fleet2 .f2-tile {
+          appearance: none;
+          cursor: pointer;
+          font: inherit;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          min-width: 62px;
+          padding: 6px 10px 7px;
+          background: transparent;
+          border: 0;
+          border-radius: var(--rr-radius-medium);
+          color: var(--rr-fg-secondary);
+          font-size: 13px;
+          font-weight: 500;
+          line-height: 1.2;
+          transition: background 0.12s ease;
+        }
+        #view-fleet2 .f2-tile svg {
+          width: 42px;
+          height: 42px;
+          flex: 0 0 auto;
+          color: #605E5C;
+          stroke-width: 1.9;
+          stroke-linecap: butt;
+          stroke-linejoin: miter;
+        }
+        #view-fleet2 .f2-tile span {
+          white-space: nowrap;
+          font-size: 13px;
+          font-weight: 500;
+        }
+        #view-fleet2 .f2-tile:hover {
+          background: rgba(15,23,42,.04);
+          color: var(--rr-fg-primary);
+        }
+        #view-fleet2 .f2-tile:focus-visible {
+          outline: 2px solid var(--rr-brand-primary);
+          outline-offset: 1px;
+        }
+
+        /* ── Group wrapper + caption + expand launcher ──────────── */
+        #view-fleet2 .f2-viewgroup {
+          display: inline-flex;
+          align-items: stretch;
+          gap: 8px;
+          position: relative;
+          flex: 0 0 auto;
+        }
+        #view-fleet2 .f2-group-label {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: -4px;
+          text-align: center;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: .01em;
+          color: #242424;
+          pointer-events: none;
+          white-space: nowrap;
+        }
+        #view-fleet2 .f2-group-launcher {
+          appearance: none;
+          cursor: pointer;
+          font: inherit;
+          position: absolute;
+          right: -18px;
+          bottom: -3px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1px 4px;
+          margin: 0;
+          background: transparent;
+          border: 0;
+          border-radius: 999px;
+          color: #242424;
+          opacity: 0.85;
+          z-index: 1;
+          transition: opacity .12s, background .12s, color .12s;
+        }
+        #view-fleet2 .f2-viewgroup:hover .f2-group-launcher { opacity: 0.9; }
+        #view-fleet2 .f2-group-launcher:hover,
+        #view-fleet2 .f2-group-launcher:focus-visible {
+          opacity: 1;
+          color: var(--f2-sch-blue);
+          background: var(--f2-sch-blue-softer);
+          outline: none;
+        }
+        #view-fleet2 .f2-group-launcher svg {
+          width: 14px;
+          height: 14px;
+          flex: 0 0 auto;
+          stroke-linecap: butt;
+          stroke-linejoin: miter;
+        }
+
+        /* ── Hairline group dividers · left-border on the first tile
+             of each group, right-border on the trailing tile. ───── */
+        #view-fleet2 .f2-strip .f2-split.f2-divides {
+          margin-left: var(--rr-space-160);
+          padding-left: var(--rr-space-160);
+          border-left: 1px solid var(--f2-divider);
+        }
+        #view-fleet2 .f2-strip .f2-split.f2-divides-end {
+          margin-right: var(--rr-space-160);
+          padding-right: var(--rr-space-160);
+          border-right: 1px solid var(--f2-divider);
+        }
+      </style>
+
+      <div class="page">
+        <!-- Header + command icon strip (Schedule chrome replica).
+             Tiles are visual placeholders; nothing is wired. -->
+        <div class="f2-strip" role="toolbar" aria-label="Fleet ribbon">
+
+          <!-- Header · title + Live pill + subtitle. -->
+          <div class="f2-title">
+            <h1 class="page-title"><span>Fleet</span>
+              <span class="f2-status-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 12 10 16 18 8"/></svg>
+                <span>Live</span>
+              </span>
+            </h1>
+            <p class="page-sub">Fleet overview</p>
+          </div>
+
+          <!-- Go To group · Today / Weekly / Monthly + expand launcher. -->
+          <div class="f2-viewgroup">
+            <div class="f2-split">
+              <button type="button" class="f2-tile" tabindex="-1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><rect x="10" y="13" width="4" height="4" fill="currentColor" stroke="none"/></svg>
+                <span>Today</span>
+              </button>
+            </div>
+            <div class="f2-split">
+              <button type="button" class="f2-tile" tabindex="-1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/></svg>
+                <span>Weekly</span>
+              </button>
+              <span class="f2-group-label" aria-hidden="true">Go To</span>
+            </div>
+            <div class="f2-split">
+              <button type="button" class="f2-tile" tabindex="-1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="3" y1="18" x2="21" y2="18"/><line x1="9" y1="10" x2="9" y2="22"/><line x1="15" y1="10" x2="15" y2="22"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/></svg>
+                <span>Monthly</span>
+              </button>
+            </div>
+            <button type="button" class="f2-group-launcher" tabindex="-1" title="View display options" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
+            </button>
+          </div>
+
+          <!-- Roster / Attendance / Requests group. -->
+          <div class="f2-split f2-divides">
+            <button type="button" class="f2-tile" tabindex="-1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="18" x2="13" y2="18"/></svg>
+              <span>Roster</span>
+            </button>
+          </div>
+          <div class="f2-split">
+            <button type="button" class="f2-tile" tabindex="-1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 15 11 17 16 12"/></svg>
+              <span>Attendance</span>
+            </button>
+          </div>
+          <div class="f2-split">
+            <button type="button" class="f2-tile" tabindex="-1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="2" y="3" width="20" height="18"/><polyline points="2 13 7 13 9 16 15 16 17 13 22 13"/></svg>
+              <span>Requests</span>
+            </button>
+          </div>
+
+          <!-- Rules group · Targets / Smart Fill / Finalize + launcher. -->
+          <div class="f2-viewgroup f2-divides">
+            <div class="f2-split">
+              <button type="button" class="f2-tile" tabindex="-1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><rect x="7" y="7" width="10" height="10"/><rect x="11" y="11" width="2" height="2" fill="currentColor" stroke="none"/></svg>
+                <span>Targets</span>
+              </button>
+            </div>
+            <div class="f2-split">
+              <button type="button" class="f2-tile" tabindex="-1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polygon points="13 2 4 13 11 13 10 22 20 11 13 11"/></svg>
+                <span>Smart Fill</span>
+              </button>
+              <span class="f2-group-label" aria-hidden="true">Rules</span>
+            </div>
+            <div class="f2-split">
+              <button type="button" class="f2-tile" tabindex="-1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><polyline points="7 12 11 16 17 8"/></svg>
+                <span>Finalize</span>
+              </button>
+            </div>
+            <button type="button" class="f2-group-launcher" tabindex="-1" title="Scheduling rules" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
+            </button>
+          </div>
+
+          <!-- Fleet / Unassign group. -->
+          <div class="f2-split f2-divides">
+            <button type="button" class="f2-tile" tabindex="-1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><rect x="6" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="11" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="16" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="6" y="17" width="2" height="2" fill="currentColor" stroke="none"/><rect x="11" y="17" width="2" height="2" fill="currentColor" stroke="none"/></svg>
+              <span>Fleet</span>
+            </button>
+          </div>
+          <div class="f2-split">
+            <button type="button" class="f2-tile" tabindex="-1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="2" y="6" width="13" height="10"/><polygon points="15 8 19 8 22 11 22 16 15 16"/><rect x="5" y="15" width="3" height="3"/><rect x="16" y="15" width="3" height="3"/></svg>
+              <span>Unassign</span>
+            </button>
+          </div>
+
+          <!-- Kudos group (trailing divider). -->
+          <div class="f2-split f2-divides f2-divides-end">
+            <button type="button" class="f2-tile" tabindex="-1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polygon points="12 2 15 9 22 10 17 15 18 22 12 18 6 22 7 15 2 10 9 9"/></svg>
+              <span>Kudos</span>
+            </button>
+          </div>
+
+        </div>
+        <!-- Body intentionally empty. -->
       </div>
     </div>
 
