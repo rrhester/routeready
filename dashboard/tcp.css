@@ -40,14 +40,14 @@
   /* ── Heights ────────────────────────────────────────────── */
   --tcp-topbar-h:      56px;
   --tcp-cmd-tabs-h:    28px;   /* the absolute tab band above the strip card */
-  --tcp-strip-h:       106px;  /* Header+IconStrip card. 96→106 (+~10%) per operator: a taller card with the icon cluster top-aligned. Shared across every TCP view so they stay in lockstep. */
+  --tcp-strip-h:       92px;   /* Header+IconStrip card. 106→92 (enterprise pass: 32px glyphs need less headroom; Outlook-class chrome economy). Shared across every TCP view so they stay in lockstep. */
   /* KPI band content height (excl. borders). Expanded = the default,
      taller state (46 → 51, +~10%). The band grows DOWNWARD only: the
      strip card (--tcp-strip-h) and the strip↔KPI gap (--tcp-strip-gap)
      are both unchanged, so the divider between the icon strip and the
      KPI band holds its Y and the extra height appears below it. */
-  --tcp-kpi-h:           51px;   /* = --tcp-kpi-h-expanded (the live height) */
-  --tcp-kpi-h-expanded:  51px;   /* expanded KPI band — taller, breathing room */
+  --tcp-kpi-h:           44px;   /* = --tcp-kpi-h-expanded · 51→44, enterprise density pass */
+  --tcp-kpi-h-expanded:  44px;   /* expanded KPI band */
   --tcp-kpi-h-collapsed: 30px;   /* compact summary row when collapsed */
   --tcp-kpi-border-h:  2px;    /* 1px top + 1px bottom */
   --tcp-kpi-gap:       8px;    /* between KPI band and body */
@@ -71,7 +71,7 @@
   --tcp-title-w:       240px;  /* hard-locked title-block width */
 
   /* ── Visual rhythm ──────────────────────────────────────── */
-  --tcp-strip-svg:     33px;   /* icon-tile SVG size */
+  --tcp-strip-svg:     32px;   /* icon-tile SVG size (enterprise pass: every strip glyph is 32px) */
   --tcp-strip-tile-min-w: 62px;
   --tcp-strip-tile-pad: 6px 10px 7px;
   --tcp-strip-tile-gap: 4px;

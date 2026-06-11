@@ -170,7 +170,7 @@
      the left, the first hairline divider lands at the SAME X on both
      pages. */
   gap: 8px !important;
-  padding: 3px 18px 6px !important;
+  padding: 8px 18px 6px !important;
   /* Hug the KPI card right below — Schedule's strip uses
      margin-bottom:1px (index.html:18770), not the 12px --tcp-strip-gap. */
   margin: 0 0 1px !important;
@@ -262,7 +262,7 @@
      card below, rgba(15,23,42,.07) hairline edge, 6px radius, no
      shadow. See the .sched-nav-heading block above for the rationale
      and source-line references. */
-  padding: 3px 18px 6px !important;
+  padding: 8px 18px 6px !important;
   margin: 0 0 1px 0 !important;
   background: var(--rr-bg-surface-1) !important;
   border: 1px solid rgba(15, 23, 42, 0.07) !important;
@@ -344,7 +344,7 @@
   border-bottom: 0 !important;
   border-left-width: 1px !important;
   border-left-style: solid !important;
-  border-left-color: #C8C6C4 !important;
+  border-left-color: rgba(15, 23, 42, 0.16) !important;
 }
 
 /* Title-to-first-group divider — hairline between the title
@@ -359,7 +359,7 @@
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions .sched-ribbon-group:first-child {
   margin-left: 32px !important;
   padding-left: var(--rr-space-160) !important;
-  border-left: 1px solid #C8C6C4 !important;
+  border-left: 1px solid rgba(15, 23, 42, 0.16) !important;
 }
 
 /* Kill any legacy ::before fake-divider. */
@@ -509,8 +509,8 @@
   /* Match Schedule strip icon size exactly. Schedule's .sched-v2-tile
      svg renders at 42px (schedule-rrx.css:2013, the +10% bump); the
      33px here read smaller, so bring Onboarding up to the same 42px. */
-  width: 42px !important;
-  height: 42px !important;
+  width: 32px !important;
+  height: 32px !important;
   flex: 0 0 auto !important;
   /* Match Schedule's strip icons exactly — near-black var(--text) (the
      color Schedule's .sched-v2-tile svg is forced to at index.html:18018),
@@ -544,7 +544,7 @@
      schedule-rrx.css:2179): a soft gray inset box + faint gray fill,
      NOT a blue tile. inset box-shadow (not a border) so the tile never
      shifts 1px when selected. Text + icon keep their default gray. */
-  box-shadow: inset 0 0 0 1px #C8C6C4 !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.16) !important;
   background: rgba(15, 23, 42, 0.04) !important;
   border-radius: var(--rr-radius-medium) !important;
 }
@@ -598,8 +598,8 @@
      28px grey view-tabs. Stroke matched EXACTLY to Schedule's
      .sched-v2-tile svg rendered weight — index.html:17514 forces
      1.1 !important there, so 1.6 here read heavier than Schedule. */
-  width: 38px !important;
-  height: 38px !important;
+  width: 32px !important;
+  height: 32px !important;
   color: var(--text) !important;
   stroke-width: 1.1 !important;
   stroke-linecap: square !important;
@@ -1406,7 +1406,7 @@
 #view-onboarding-ops.rrx-onboarding #obsub-documents .doc-row:hover,
 #view-onboarding-ops.rrx-onboarding #obsub-workauth .rr-i9-row:hover {
   background: var(--rr-bg-card-hover, #FAFAFA) !important;
-  border-color: var(--rr-border-primary, #C8C6C4) !important;
+  border-color: var(--rr-border-primary, rgba(15, 23, 42, 0.16)) !important;
 }
 
 /* Buttons inside hosted sub-pages — Fluent neutral by default,
@@ -1421,7 +1421,7 @@
   padding: 6px 12px !important;
   border-radius: var(--rr-radius-medium, 4px) !important;
   background: var(--rr-bg-card, #FFFFFF) !important;
-  border: 1px solid var(--rr-border-primary, #C8C6C4) !important;
+  border: 1px solid var(--rr-border-primary, rgba(15, 23, 42, 0.16)) !important;
   color: var(--rr-fg-primary, #242424) !important;
   box-shadow: none !important;
   transition: background .1s, border-color .1s !important;
@@ -1629,7 +1629,7 @@
 }
 #view-onboarding-ops.rrx-onboarding .ob-mx-focus-btn:hover {
   background: var(--rr-bg-card-hover, #FAFAFA);
-  border-color: var(--rr-border-primary, #C8C6C4);
+  border-color: var(--rr-border-primary, rgba(15, 23, 42, 0.16));
   color: var(--rr-fg-primary, #242424);
 }
 #view-onboarding-ops.rrx-onboarding .ob-mx-focus-btn[aria-pressed="true"] {
