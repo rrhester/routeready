@@ -29,6 +29,46 @@ window.debugDemand = async (weekStart) => {
   return r.data;
 };
 
+// ─── Client error telemetry ────────────────────────────────────────────────
+// Reports uncaught errors + unhandled promise rejections to the
+// client_errors table (migration 0385) so production incidents are
+// visible without waiting for an operator to report them. Hard rules:
+// telemetry must NEVER throw, never loop (its own failures are
+// swallowed), and never spam — max 5 distinct errors per page load,
+// deduped by message. Inserts silently no-op before sign-in (RLS
+// allows authenticated only), which is fine: pre-auth failures
+// redirect to login anyway.
+(() => {
+  const seen = new Set();
+  let sent = 0;
+  async function report(kind, message, stack) {
+    try {
+      if (!message || sent >= 5) return;
+      const key = String(message).slice(0, 300);
+      if (seen.has(key)) return;
+      seen.add(key);
+      sent++;
+      const ver = (document.querySelector('script[src*="live.js?v="]')?.getAttribute("src") || "").match(/v=([\w.-]+)/)?.[1] || null;
+      await sb.from("client_errors").insert({
+        dsp_id: window.RR?.dsp?.id || null,
+        user_id: window.RR?.user?.id || null,
+        page: location.pathname + "#" + (document.querySelector(".view.active")?.id || ""),
+        message: key,
+        stack: String(stack || "").slice(0, 4000),
+        source: kind,
+        user_agent: navigator.userAgent.slice(0, 300),
+        app_version: ver,
+      });
+    } catch (_) { /* telemetry must never throw */ }
+  }
+  window.addEventListener("error", (e) => report("onerror", e?.message, e?.error?.stack));
+  window.addEventListener("unhandledrejection", (e) => {
+    const r = e?.reason;
+    report("unhandledrejection", (r && (r.message || String(r))) || "unhandled rejection", r?.stack);
+  });
+  window._rrReportError = (msg, stack) => report("manual", msg, stack);
+})();
+
 // ─── Auth gate ─────────────────────────────────────────────────────────────
 const { data: { session } } = await sb.auth.getSession();
 if (!session) {
