@@ -336,6 +336,30 @@ function _paintWorkspaceChip() {
 }
 _paintWorkspaceChip();
 
+// ── Header account chip · initials + name/email in the account menu.
+// Companion to _paintWorkspaceChip; ids live in the topbar markup.
+function _paintHeaderAccount() {
+  const display = (profile && profile.full_name) || window.RR?.user?.email || "Operator";
+  const initials = String(display).split(/[\s@.]+/).filter(Boolean).slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() || "").join("") || "U";
+  const av = document.getElementById("rr-hdr-avatar");
+  if (av) av.textContent = initials;
+  const nm = document.getElementById("rr-hdr-account-name");
+  if (nm) nm.textContent = (profile && profile.full_name) || "Operator";
+  const em = document.getElementById("rr-hdr-account-email");
+  if (em) em.textContent = window.RR?.user?.email || "";
+}
+_paintHeaderAccount();
+
+// Sign out from the account menu — ends the Supabase session and
+// returns to the sign-in page.
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest || !e.target.closest("#rr-hdr-signout")) return;
+  e.preventDefault();
+  try { await sb.auth.signOut(); } catch (_) {}
+  location.replace("./login.html");
+});
+
 // ─── Tiny DOM helpers ──────────────────────────────────────────────────────
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
