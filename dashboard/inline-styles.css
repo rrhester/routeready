@@ -22987,3 +22987,17 @@ body.rr-cmdk-open{ overflow:hidden }
 .hdr-account-item svg{color:var(--text-muted);flex:0 0 auto}
 .hdr-account-signout{color:#B91C1C}
 .hdr-account-signout svg{color:#B91C1C}
+
+
+/* Saved narration chip · quiet reassurance left of the bell. Hidden
+   until the first successful save of the session (mock-wiring's
+   _rrMarkSaved); the text ticks to relative time every 30s. */
+.hdr-saved{
+  display:inline-flex;align-items:center;gap:5px;
+  margin-right:2px;padding:0 4px;
+  font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
+  white-space:nowrap;
+}
+.hdr-saved svg{color:#15803D;flex:0 0 auto}
+.hdr-saved[hidden]{display:none}
+@media (max-width:1200px){.hdr-saved{display:none}}
