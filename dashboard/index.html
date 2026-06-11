@@ -2720,6 +2720,12 @@ button.card:focus-visible{
 .rr-firstrun-tile-arrow{width:14px;height:14px;color:var(--text-subtle);flex-shrink:0;
   transition:color var(--t-fast), transform var(--t-fast)}
 .rr-firstrun-tile:hover .rr-firstrun-tile-arrow{color:var(--accent-text);transform:translateX(2px)}
+/* Live progress · steps whose data already exists check themselves off
+   (_initFirstRunZone runs head-count queries on drivers / vehicles /
+   shifts and flips these). */
+.rr-firstrun-tile.done .rr-firstrun-tile-num{background:rgba(34,197,94,.15);color:#15803D}
+.rr-firstrun-tile.done .rr-firstrun-tile-title{color:var(--text-muted)}
+.rr-firstrun-tile.done .rr-firstrun-tile-sub::after{content:" · Done";color:#15803D;font-weight:600}
 
 /* ─────────────────────────────────────────────────────────────
    ONBOARDING WIZARD
@@ -10741,35 +10747,41 @@ body.rr-cmdk-open{ overflow:hidden }
               <p class="section-sub">Each step opens the right page — finish them in any order.</p>
             </div>
             <div class="rr-firstrun-tiles">
-              <button type="button" class="rr-firstrun-tile" onclick="goto('drivers')">
+              <!-- Steps 1–3 carry data-fr-step: _initFirstRunZone checks
+                   the matching table and flips the tile to .done when
+                   real data exists — the checklist tracks actual setup
+                   progress, not clicks. Step 4 has no reliable data
+                   signal (team membership is RLS-scoped), so it stays a
+                   plain link. -->
+              <button type="button" class="rr-firstrun-tile" data-fr-step="drivers" onclick="goto('drivers')">
                 <span class="rr-firstrun-tile-num">1</span>
                 <div class="rr-firstrun-tile-text">
-                  <div class="rr-firstrun-tile-title">Add your first driver</div>
+                  <div class="rr-firstrun-tile-title">Add your drivers</div>
                   <div class="rr-firstrun-tile-sub">Start the roster.  Drivers also self-onboard via the PWA.</div>
                 </div>
                 <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
-              <button type="button" class="rr-firstrun-tile" onclick="goto('schedule')">
+              <button type="button" class="rr-firstrun-tile" data-fr-step="vans" onclick="goto('fleet2')">
                 <span class="rr-firstrun-tile-num">2</span>
                 <div class="rr-firstrun-tile-text">
-                  <div class="rr-firstrun-tile-title">Set scheduling rules</div>
-                  <div class="rr-firstrun-tile-sub">Wave times, lead times, cushion targets.</div>
+                  <div class="rr-firstrun-tile-title">Add your vans</div>
+                  <div class="rr-firstrun-tile-sub">Track service, inspections, and assignments.</div>
+                </div>
+                <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button type="button" class="rr-firstrun-tile" data-fr-step="schedule" onclick="goto('schedule')">
+                <span class="rr-firstrun-tile-num">3</span>
+                <div class="rr-firstrun-tile-text">
+                  <div class="rr-firstrun-tile-title">Build your first week</div>
+                  <div class="rr-firstrun-tile-sub">Assign shifts by hand or let Smart Fill draft it.</div>
                 </div>
                 <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
               <button type="button" class="rr-firstrun-tile" onclick="goto('settings')">
-                <span class="rr-firstrun-tile-num">3</span>
+                <span class="rr-firstrun-tile-num">4</span>
                 <div class="rr-firstrun-tile-text">
                   <div class="rr-firstrun-tile-title">Invite a dispatcher</div>
                   <div class="rr-firstrun-tile-sub">From Settings → Team.  Magic-link invites.</div>
-                </div>
-                <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-              <button type="button" class="rr-firstrun-tile" onclick="goto('workspaces')">
-                <span class="rr-firstrun-tile-num">4</span>
-                <div class="rr-firstrun-tile-text">
-                  <div class="rr-firstrun-tile-title">Set up your first workflow</div>
-                  <div class="rr-firstrun-tile-sub">Operational boards, checklists, custom forms.</div>
                 </div>
                 <svg class="rr-firstrun-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
