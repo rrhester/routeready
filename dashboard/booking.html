@@ -9,30 +9,30 @@
     @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(../app/fonts/inter-var-latin.woff2) format('woff2')}
   :root{
     --accent:#0F6CBD; --accent-d:#0E5FA8; --text:#1B1B1F; --muted:#5A5A66;
-    --subtle:#8A8A95; --border:#E4E4E9; --canvas:#F6F7F9; --surface:#fff; --red:#C4281C; --green:#16A34A;
+    --subtle:#8A8A95; --border:#E4E4E9; --canvas:#F7F8FA; --surface:#fff; --red:#C4281C; --green:#16A34A;
   }
   *{box-sizing:border-box}
   body{margin:0;font:15px/1.45 "Inter","Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);background:var(--canvas)}
   .wrap{max-width:560px;margin:0 auto;padding:24px 18px 64px}
   .hdr{display:flex;align-items:center;gap:12px;margin-bottom:20px}
-  .logo{width:44px;height:44px;border-radius:10px;background:var(--accent);color:#fff;display:flex;
+  .logo{width:44px;height:44px;border-radius:8px;background:var(--accent);color:#fff;display:flex;
     align-items:center;justify-content:center;font-weight:800;font-size:18px;flex:0 0 auto}
   .hdr-t{font-size:18px;font-weight:700;line-height:1.2}
   .hdr-s{font-size:13px;color:var(--muted);margin-top:2px}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:16px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;margin-top:16px}
   .lead{font-size:16px;font-weight:600;margin:0 0 4px}
   .sub{font-size:13px;color:var(--muted);margin:0 0 14px}
   .day{margin-top:18px}
   .day-h{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);margin:0 0 8px}
   .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
   .slot{appearance:none;cursor:pointer;font:inherit;font-weight:600;font-size:14px;color:var(--accent);
-    background:#fff;border:1px solid #BBD3EA;border-radius:9px;padding:11px 8px;transition:.12s}
+    background:#fff;border:1px solid #BBD3EA;border-radius:6px;padding:11px 8px;transition:.12s}
   .slot:hover{background:#F2F8FE;border-color:var(--accent)}
   .slot:disabled{opacity:.5;cursor:default}
   .slot .spots{display:block;font-size:11px;font-weight:600;color:var(--green);margin-top:3px}
   /* Date-first accordion: pick a date, its times drop down. */
   .acc{display:flex;flex-direction:column;gap:8px;margin-top:6px}
-  .day-acc{border:1px solid var(--border);border-radius:11px;overflow:hidden;background:#fff}
+  .day-acc{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff}
   .day-acc.open{border-color:var(--accent);box-shadow:0 1px 3px rgba(15,108,189,.10)}
   .day-toggle{display:flex;align-items:center;gap:10px;width:100%;appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;padding:15px 16px;text-align:left}
   .day-toggle:hover{background:#F7FAFD}
@@ -50,7 +50,7 @@
     border-radius:50%;animation:s .7s linear infinite;margin:24px auto}
   @keyframes s{to{transform:rotate(360deg)}}
   .btn{appearance:none;cursor:pointer;font:inherit;font-weight:600;font-size:14px;color:#fff;
-    background:var(--accent);border:0;border-radius:9px;padding:11px 18px}
+    background:var(--accent);border:0;border-radius:6px;padding:11px 18px}
   .foot{text-align:center;font-size:12px;color:var(--subtle);margin-top:28px}
 </style>
 </head>

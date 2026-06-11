@@ -10,7 +10,7 @@
     @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(../app/fonts/inter-var-latin.woff2) format('woff2')}
   :root {
     --accent:#2563eb; --accent-soft:#dbeafe; --accent-text:#1d4ed8;
-    --bg:#f3f4f6; --surface:#ffffff; --canvas:#f9fafb;
+    --bg:#F7F8FA; --surface:#ffffff; --canvas:#F7F8FA;
     --text:#0f172a; --text-muted:#475569; --text-subtle:#94a3b8;
     --border:#e2e8f0; --green:#16a34a; --amber:#d97706; --red:#dc2626;
     --shadow:0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.06);
@@ -22,12 +22,12 @@
   .brand{font-size:13px;font-weight:700;color:var(--accent-text);letter-spacing:.06em;text-transform:uppercase}
   h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em;font-weight:700}
   .sub{color:var(--text-muted);font-size:14px;margin:0 0 18px}
-  .info-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 22px;box-shadow:var(--shadow);margin-bottom:18px}
+  .info-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px 22px;box-shadow:var(--shadow);margin-bottom:18px}
   .info-card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px}
-  .empty{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:40px 22px;text-align:center;color:var(--text-muted);box-shadow:var(--shadow)}
-  .record{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .empty{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:40px 22px;text-align:center;color:var(--text-muted);box-shadow:var(--shadow)}
+  .record{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 22px;margin-bottom:14px;box-shadow:var(--shadow)}
   .rec-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-  .sev{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:10px}
+  .sev{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:6px}
   .sev-info{background:var(--canvas);color:var(--text-muted)}
   .sev-concern{background:var(--accent-soft);color:var(--accent-text)}
   .sev-warning{background:#fef3c7;color:#b45309}
@@ -47,7 +47,7 @@
   button.primary:hover{background:#1d4ed8;border-color:#1d4ed8}
   button[disabled]{opacity:.5;cursor:not-allowed}
   .sig-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
-  .sig-card{background:var(--surface);border-radius:14px;padding:22px;max-width:480px;width:100%}
+  .sig-card{background:var(--surface);border-radius:8px;padding:22px;max-width:480px;width:100%}
   .sig-canvas-wrap{border:2px dashed var(--border);border-radius:8px;background:var(--canvas);margin:14px 0}
   canvas#sig-canvas{display:block;width:100%;height:180px;cursor:crosshair;touch-action:none}
   .sig-actions{display:flex;justify-content:space-between;gap:8px;margin-top:8px}
