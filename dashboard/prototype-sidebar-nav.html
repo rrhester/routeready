@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<!--
+  RouteReady · Navigation prototype (audit F20 / roadmap Phase 3.7)
+  ----------------------------------------------------------------
+  Static, self-contained mockup. Touches no product code. Loads the
+  REAL design system (../app/rr-system.css) so every .rrx-* element
+  renders exactly as it would in production.
+
+  Demonstrates: moving per-view sub-pages out of the 92px horizontal
+  "command icon strip" and into the existing-but-unused .rrx-sidebar
+  as nested subpages — reclaiming ~132px of vertical height for the
+  work tables on every view.
+
+  Toggle Current ⇄ Proposed inside one fixed-height "viewport" to see
+  the live row-count and reclaimed-pixel difference.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RouteReady · Sidebar-subpages navigation prototype</title>
+<link rel="stylesheet" href="../app/rr-system.css">
+<style>
+  /* ── demo chrome only (scoped .proto-*) — not part of the product ── */
+  :root { --proto-viewport-h: 600px; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: var(--rr-font-body); color: var(--rr-fg-primary);
+    background: #ECEAE8; -webkit-font-smoothing: antialiased;
+  }
+  .proto-wrap { max-width: 1180px; margin: 0 auto; padding: 24px; }
+  .proto-head h1 { font: var(--rr-font-title); margin: 0 0 4px; }
+  .proto-head p  { font: var(--rr-font-body); color: var(--rr-fg-secondary); margin: 0 0 16px; max-width: 70ch; }
+
+  .proto-controls { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; flex-wrap: wrap; }
+  .proto-readout {
+    margin-left: auto; display: flex; gap: 18px; align-items: center;
+    font: var(--rr-font-caption); color: var(--rr-fg-secondary);
+  }
+  .proto-readout b { font: var(--rr-font-body-strong); color: var(--rr-fg-primary); }
+  .proto-readout .delta { color: var(--rr-success); }
+
+  /* the fixed "monitor" we compare inside */
+  .proto-viewport {
+    height: var(--proto-viewport-h);
+    border: 1px solid var(--rr-border-primary);
+    border-radius: var(--rr-radius-large);
+    overflow: hidden; background: var(--rr-bg-canvas);
+    box-shadow: var(--rr-shadow-8);
+    display: grid; grid-template-columns: auto 1fr; /* sidebar | main */
+  }
+  .proto-viewport[data-mode="current"] { grid-template-columns: 1fr; } /* current: no left rail variant */
+
+  /* global topbar (shared, stays in both modes) */
+  .proto-topbar {
+    height: 56px; background: #1A1F47; color: #fff; display: flex; align-items: center;
+    padding: 0 16px; gap: 12px; flex: 0 0 auto;
+  }
+  .proto-topbar .brand { font: var(--rr-font-body-strong); color: #fff; letter-spacing: .2px; }
+  .proto-topbar .ws { font: var(--rr-font-caption); color: #C9CDE8; }
+  .proto-topbar .spacer { flex: 1 1 auto; }
+  .proto-topbar .glyph {
+    width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center;
+    justify-content: center; color: #C9CDE8; background: rgba(255,255,255,.06);
+  }
+
+  .proto-main { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+  /* ── CURRENT mode: the 92px command icon strip + 28px tab band ── */
+  .proto-cmdtabs {
+    height: 28px; flex: 0 0 auto; display: flex; align-items: flex-end; gap: 2px;
+    padding: 0 16px; background: var(--rr-bg-canvas);
+  }
+  .proto-cmdtab {
+    font: var(--rr-font-caption); padding: 4px 10px; border: 1px solid var(--rr-border-primary);
+    border-bottom: none; border-radius: 6px 6px 0 0; background: var(--rr-bg-surface-2);
+    color: var(--rr-fg-secondary);
+  }
+  .proto-cmdtab.active { background: var(--rr-bg-surface-1); color: var(--rr-fg-primary); font-weight: 600; }
+
+  .proto-strip {
+    height: 92px; flex: 0 0 auto; margin: 0 16px; background: var(--rr-bg-surface-1);
+    border: 1px solid var(--rr-border-primary); border-radius: var(--rr-radius-medium);
+    display: flex; align-items: center; gap: 12px; padding: 0 14px;
+  }
+  .proto-strip .title-block { width: 150px; flex: 0 0 auto; }
+  .proto-strip .title-block .t { font: var(--rr-font-subtitle); }
+  .proto-strip .title-block .s { font: var(--rr-font-caption); color: var(--rr-fg-secondary); }
+  .proto-strip .tiles { display: flex; gap: 4px; overflow: hidden; }
+  .proto-tile {
+    width: 62px; height: 64px; border: 1px solid var(--rr-border-secondary); border-radius: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    font: var(--rr-font-caption); color: var(--rr-fg-secondary); background: var(--rr-bg-surface-2);
+    text-align: center; flex: 0 0 auto;
+  }
+  .proto-tile.active { border-color: var(--rr-brand-primary); color: var(--rr-brand-pressed); background: var(--rr-bg-selected); }
+  .proto-tile svg { width: 24px; height: 24px; }
+
+  /* ── PROPOSED mode: command bar replaces the strip (48px vs 120px) ── */
+  .proto-cmdbar-sub { display: flex; gap: 6px; align-items: center; }
+
+  /* KPI band — faithful to the --kpi-* contract, shared by both modes */
+  .proto-kpis {
+    flex: 0 0 auto; margin: 12px 16px 8px; background: var(--kpi-bg);
+    border: 1px solid var(--kpi-border); border-radius: var(--kpi-radius); box-shadow: var(--kpi-shadow);
+    display: flex; flex-wrap: wrap; overflow: hidden; height: 44px;
+  }
+  .proto-kpi {
+    display: inline-flex; align-items: center; gap: var(--kpi-gap); padding: 0 var(--kpi-pad-x);
+    border-right: 1px solid var(--kpi-divider);
+  }
+  .proto-kpi:last-child { border-right: 0; }
+  .proto-kpi .dot { width: var(--kpi-dot-size); height: var(--kpi-dot-size); border-radius: 50%; flex: 0 0 auto; }
+  .proto-kpi .val { font: var(--kpi-value-font); color: var(--kpi-text-primary); font-variant-numeric: tabular-nums; }
+  .proto-kpi .sub { font: var(--kpi-label-font); color: var(--kpi-text-secondary); }
+  .proto-kpi .txt { display: flex; flex-direction: column; line-height: 1.05; }
+
+  /* work area (the table) — flex:1 so it absorbs all reclaimed height */
+  .proto-work { flex: 1 1 auto; overflow: auto; padding: 0 16px 16px; min-height: 0; }
+  .proto-work .rrx-table { background: var(--rr-bg-surface-1); border: 1px solid var(--rr-border-primary); border-radius: var(--rr-radius-medium); overflow: hidden; }
+
+  /* sidebar accordion (proposed) */
+  .proto-sub { display: none; flex-direction: column; gap: 2px; margin: 2px 0 2px 0; }
+  .rrx-sidebar-item--group.is-open + .proto-sub { display: flex; }
+  .proto-subitem {
+    display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px 0 40px;
+    border-radius: var(--rr-radius-medium); font: var(--rr-font-body); color: var(--rr-fg-secondary);
+    cursor: pointer; text-decoration: none;
+  }
+  .proto-subitem:hover { background: var(--rr-bg-hover); }
+  .proto-subitem.active { background: var(--rr-bg-selected); color: var(--rr-brand-pressed); font-weight: 600; }
+  .proto-subitem .pip { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: 0 0 auto; opacity: .55; }
+  .rrx-sidebar-item__chev { margin-left: auto; transition: transform var(--rr-motion-fast); color: var(--rr-fg-disabled); }
+  .rrx-sidebar-item--group.is-open .rrx-sidebar-item__chev { transform: rotate(90deg); }
+  .rrx-sidebar--collapsed .proto-sub,
+  .rrx-sidebar--collapsed .rrx-sidebar-item__chev { display: none; }
+
+  .proto-note { font: var(--rr-font-caption); color: var(--rr-fg-secondary); margin: 12px 2px 0; }
+  .proto-note code { background: var(--rr-bg-surface-2); padding: 1px 5px; border-radius: 4px; }
+  .proto-legend { display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; font: var(--rr-font-caption); color: var(--rr-fg-secondary);}
+  .proto-legend .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:middle;}
+</style>
+</head>
+<body>
+<div class="proto-wrap">
+  <div class="proto-head">
+    <h1>Navigation prototype — sidebar subpages vs. command icon strip</h1>
+    <p>Same Schedule view, same fixed “monitor,” same design system. Toggle the
+       two models and watch the <b>rows visible</b> and <b>reclaimed pixels</b>
+       readouts. Proposed nests sub-pages under the left sidebar (click a group
+       to expand; collapse the rail with the ⟨ button) and deletes the 92px
+       icon strip + 28px tab band.</p>
+  </div>
+
+  <div class="proto-controls">
+    <div class="rrx-segmented" role="tablist" style="display:inline-flex;border:1px solid var(--rr-border-primary);border-radius:6px;overflow:hidden">
+      <button id="btn-current"  class="rrx-btn rrx-btn--subtle" style="border-radius:0">Current · icon strip</button>
+      <button id="btn-proposed" class="rrx-btn rrx-btn--primary" style="border-radius:0">Proposed · sidebar subpages</button>
+    </div>
+    <button id="btn-collapse" class="rrx-btn rrx-btn--default" hidden>⟨ Collapse rail</button>
+
+    <div class="proto-readout">
+      <span>chrome above table: <b id="ro-chrome">—</b></span>
+      <span>table height: <b id="ro-table">—</b></span>
+      <span>rows visible: <b id="ro-rows">—</b></span>
+      <span class="delta" id="ro-delta"></span>
+    </div>
+  </div>
+
+  <div class="proto-viewport" id="viewport" data-mode="proposed">
+    <!-- LEFT SIDEBAR (proposed only) -->
+    <aside class="rrx-sidebar" id="sidebar">
+      <div class="rrx-sidebar__header">
+        <span style="font:var(--rr-font-body-strong)">RouteReady</span>
+      </div>
+      <nav class="rrx-sidebar__nav" id="side-nav"><!-- injected --></nav>
+      <div class="rrx-sidebar__footer">
+        <a class="rrx-sidebar-item"><span class="rrx-sidebar-item__icon">⚙</span><span class="rrx-sidebar-item__label">Settings</span></a>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div class="proto-main">
+      <header class="proto-topbar">
+        <span class="brand">RouteReady</span><span class="ws">· Acme Logistics DSP</span>
+        <span class="spacer"></span>
+        <span class="glyph">⌕</span><span class="glyph">◷</span><span class="glyph">▒</span>
+      </header>
+
+      <!-- CURRENT-only chrome -->
+      <div class="proto-cmdtabs current-only">
+        <span class="proto-cmdtab active">Schedule</span>
+        <span class="proto-cmdtab">Onboarding</span>
+        <span class="proto-cmdtab">Fleet</span>
+      </div>
+      <div class="proto-strip current-only">
+        <div class="title-block"><div class="t">Schedule</div><div class="s">Week of Jun 9</div></div>
+        <div class="tiles" id="strip-tiles"><!-- injected --></div>
+      </div>
+
+      <!-- PROPOSED-only chrome: a slim 48px command bar -->
+      <div class="rrx-command-bar proposed-only">
+        <div class="rrx-command-bar__left">
+          <button id="btn-collapse-inline" class="rrx-icon-btn rrx-icon-btn--sm" title="Collapse rail">⟨</button>
+          <span class="rrx-command-bar__title">Schedule · Week</span>
+          <span class="rrx-command-bar__context">Week of Jun 9</span>
+        </div>
+        <div class="rrx-command-bar__right proto-cmdbar-sub">
+          <button class="rrx-btn rrx-btn--subtle rrx-btn--sm">Filter</button>
+          <button class="rrx-btn rrx-btn--primary rrx-btn--sm">Smart Fill</button>
+        </div>
+      </div>
+
+      <!-- KPI band (shared) -->
+      <div class="proto-kpis">
+        <span class="proto-kpi"><span class="dot" style="background:var(--kpi-dot-neutral)"></span><span class="txt"><span class="val">42 assigned</span><span class="sub">of 48 routes</span></span></span>
+        <span class="proto-kpi"><span class="dot" style="background:var(--kpi-warning)"></span><span class="txt"><span class="val">6 open</span><span class="sub">need coverage</span></span></span>
+        <span class="proto-kpi"><span class="dot" style="background:var(--kpi-success)"></span><span class="txt"><span class="val">0 violations</span><span class="sub">rules clean</span></span></span>
+        <span class="proto-kpi"><span class="dot" style="background:var(--kpi-brand)"></span><span class="txt"><span class="val">3 VTO</span><span class="sub">offered</span></span></span>
+      </div>
+
+      <!-- WORK TABLE (shared) -->
+      <div class="proto-work">
+        <table class="rrx-table rrx-table--dense">
+          <thead><tr><th>Driver</th><th>Route</th><th>Van</th><th>Wave</th><th>Status</th></tr></thead>
+          <tbody id="rows"><!-- injected --></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p class="proto-note">
+    Reclaim math: removing <code>--tcp-cmd-tabs-h 28px</code> +
+    <code>--tcp-strip-h 92px</code> + <code>--tcp-strip-gap 12px</code> and
+    replacing them with a single <code>48px</code> command bar nets
+    <b>~84–132px</b> back to the table on every view. The KPI band and global
+    topbar are unchanged. Sidebar collapses to a <code>48px</code> rail when you
+    want maximum table width.
+  </p>
+  <div class="proto-legend">
+    <span><span class="sw" style="background:#1A1F47"></span>topbar 56px (kept)</span>
+    <span><span class="sw" style="background:#C9A227"></span>removed chrome (strip + tabs)</span>
+    <span><span class="sw" style="background:var(--rr-brand-primary)"></span>reclaimed by table</span>
+  </div>
+</div>
+
+<script>
+  // ── data ──────────────────────────────────────────────────────────
+  const SUBPAGES = ['Week','Today','Requests','Targets','Rotation','Workflows'];
+  const SECTIONS = [
+    { id:'schedule',  label:'Schedule',    icon:'▤', active:true,  subs:SUBPAGES },
+    { id:'onboarding',label:'Onboarding',  icon:'◳', subs:['Funnel','Interview','Calendar','Documents','Templates'] },
+    { id:'fleet',     label:'Fleet',       icon:'▦', subs:['Vehicles','Maintenance','Safety','Issues','Status'] },
+    { id:'drivers',   label:'Drivers',     icon:'◉', subs:['Roster','Licenses','Attendance','Availability','Coaching'] },
+    { id:'messages',  label:'Messages',    icon:'❒', subs:[] },
+    { id:'email',     label:'Fleet Bridge',icon:'✉', subs:[] },
+  ];
+  const ROUTES = ['CX-12','CX-13','CX-14','CX-21','CX-22','CX-30','CX-31','CX-40','CX-41','CX-50','CX-51','CX-60','CX-61','CX-70','CX-71','CX-80'];
+  const NAMES  = ['A. Reyes','B. Okafor','C. Tran','D. Singh','E. Morales','F. Chen','G. Patel','H. Ross','I. Novak','J. Kim','K. Diaz','L. Wu','M. Abara','N. Frost','O. Said','P. Lund'];
+  const WAVES  = ['Wave 1','Wave 2','Wave 1','Wave 3','Wave 2'];
+  const STATUS = [['success','Confirmed'],['warning','Tentative'],['success','Confirmed'],['danger','No-show risk'],['brand','VTO']];
+
+  // ── render rows / tiles / sidebar ─────────────────────────────────
+  document.getElementById('rows').innerHTML = ROUTES.map((r,i)=>{
+    const s = STATUS[i%STATUS.length];
+    return `<tr><td>${NAMES[i%NAMES.length]}</td><td>${r}</td><td>V-${100+i}</td><td class="rrx-table__muted">${WAVES[i%WAVES.length]}</td>
+      <td><span class="rrx-status-chip rrx-status-chip--${s[0]}"><span class="rrx-status-chip__dot"></span>${s[1]}</span></td></tr>`;
+  }).join('');
+
+  document.getElementById('strip-tiles').innerHTML = SUBPAGES.map((s,i)=>
+    `<span class="proto-tile${i===0?' active':''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>${s}</span>`).join('');
+
+  document.getElementById('side-nav').innerHTML = SECTIONS.map(sec=>{
+    const hasSubs = sec.subs.length>0;
+    const grp = `<a class="rrx-sidebar-item${sec.active?' rrx-sidebar-item--active':''}${hasSubs?' rrx-sidebar-item--group':''}${sec.active?' is-open':''}" data-sec="${sec.id}">
+        <span class="rrx-sidebar-item__icon">${sec.icon}</span>
+        <span class="rrx-sidebar-item__label">${sec.label}</span>
+        ${hasSubs?'<span class="rrx-sidebar-item__chev">›</span>':''}</a>`;
+    const subs = hasSubs ? `<div class="proto-sub">${sec.subs.map((s,i)=>
+        `<a class="proto-subitem${sec.active&&i===0?' active':''}"><span class="pip"></span>${s}</a>`).join('')}</div>` : '';
+    return grp+subs;
+  }).join('');
+
+  // accordion: expand active section's children, one open at a time
+  document.getElementById('side-nav').addEventListener('click', e=>{
+    const grp = e.target.closest('.rrx-sidebar-item--group');
+    const sub = e.target.closest('.proto-subitem');
+    if (grp) {
+      document.querySelectorAll('.rrx-sidebar-item--group').forEach(g=>{ if(g!==grp) g.classList.remove('is-open'); });
+      grp.classList.toggle('is-open');
+    } else if (sub) {
+      document.querySelectorAll('.proto-subitem').forEach(s=>s.classList.remove('active'));
+      sub.classList.add('active');
+    }
+  });
+
+  // ── mode toggle + measurement ─────────────────────────────────────
+  const vp = document.getElementById('viewport');
+  const setMode = m => { vp.dataset.mode = m;
+    document.querySelectorAll('.current-only').forEach(el=>el.style.display = m==='current'?'':'none');
+    document.querySelectorAll('.proposed-only').forEach(el=>el.style.display = m==='proposed'?'':'none');
+    document.getElementById('sidebar').style.display = m==='proposed'?'':'none';
+    document.getElementById('btn-collapse').hidden = m!=='proposed';
+    document.getElementById('btn-current').className  = 'rrx-btn '+(m==='current' ?'rrx-btn--primary':'rrx-btn--subtle');
+    document.getElementById('btn-proposed').className = 'rrx-btn '+(m==='proposed'?'rrx-btn--primary':'rrx-btn--subtle');
+    document.getElementById('btn-current').style.borderRadius='0';
+    document.getElementById('btn-proposed').style.borderRadius='0';
+    measure();
+  };
+  const measure = () => {
+    requestAnimationFrame(()=>{
+      const work = document.querySelector('.proto-work');
+      const tableH = work.clientHeight;
+      const vpH = vp.clientHeight;
+      const chrome = vpH - tableH;
+      const rowH = 32; // dense row
+      const rows = Math.max(0, Math.floor((tableH - 36) / rowH)); // minus header
+      document.getElementById('ro-chrome').textContent = chrome + 'px';
+      document.getElementById('ro-table').textContent  = tableH + 'px';
+      document.getElementById('ro-rows').textContent   = rows;
+      vp.dataset.rows = rows;
+    });
+  };
+  // remember both row counts to show the delta
+  let counts = {};
+  const recordAndDelta = m => { setMode(m); setTimeout(()=>{
+      counts[m] = +vp.dataset.rows || 0;
+      if (counts.current!=null && counts.proposed!=null) {
+        const d = counts.proposed - counts.current;
+        document.getElementById('ro-delta').textContent = d>0 ? `+${d} rows · +~132px` : '';
+      }
+    }, 60); };
+
+  document.getElementById('btn-current').onclick  = ()=>recordAndDelta('current');
+  document.getElementById('btn-proposed').onclick = ()=>recordAndDelta('proposed');
+  const collapse = ()=>{ document.getElementById('sidebar').classList.toggle('rrx-sidebar--collapsed'); };
+  document.getElementById('btn-collapse').onclick = collapse;
+  document.getElementById('btn-collapse-inline').onclick = collapse;
+
+  // prime both measurements then land on Proposed
+  setMode('current'); setTimeout(()=>{ counts.current = +vp.dataset.rows||0;
+    recordAndDelta('proposed'); }, 40);
+  window.addEventListener('resize', measure);
+</script>
+</body>
+</html>
