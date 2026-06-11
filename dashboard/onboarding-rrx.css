@@ -516,7 +516,7 @@
      color Schedule's .sched-v2-tile svg is forced to at index.html:18018),
      NOT the lighter var(--text-muted) which read faint by comparison. */
   color: var(--text) !important;
-  stroke-width: 1.1 !important;   /* EXACT match to Schedule .sched-v2-tile svg (index.html:18019 forces 1.1) */
+  stroke-width: 1.35 !important;  /* variant B · matches Schedule strip glyph weight */
   /* Lock cap/join to match Schedule's .sched-v2-tile svg rule.
      Without these, the inline stroke-linecap="square" on the
      Roster SVGs extends each line-end by 0.8px, making the
@@ -601,7 +601,7 @@
   width: 32px !important;
   height: 32px !important;
   color: var(--text) !important;
-  stroke-width: 1.1 !important;
+  stroke-width: 1.35 !important;  /* variant B */
   stroke-linecap: square !important;
   stroke-linejoin: miter !important;
 }

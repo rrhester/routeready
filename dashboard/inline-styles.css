@@ -739,7 +739,7 @@ textarea,
 .view .wf-strip-tile svg,
 .view .ws-strip-tile svg{
   width:32px !important;height:32px !important;flex-shrink:0;
-  stroke-width:1.6 !important;
+  stroke-width:1.35 !important;  /* variant B · 32px glyphs, stronger line */
   stroke-linecap:round !important;stroke-linejoin:round !important;
 }
 
@@ -11966,7 +11966,7 @@ body.rr-cmdk-open{ overflow:hidden }
            No blue anywhere — applies to active + inactive alike. */
         #view-onboarding-ops .ob-v2-roster-actions .subnav-item svg{
           color:#605E5C !important;
-          stroke-width:1.1 !important;
+          stroke-width:1.35 !important;  /* variant B */
         }
         /* Roster + Attendance tiles relocated to the Schedule command
            strip (operator request) — hide them here so they live in one
@@ -14532,7 +14532,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-v2-split svg,
           #view-schedule .sched-week-split svg{
             color:var(--text) !important;
-            stroke-width:1.1 !important;   /* in sync with the global icon weight */
+            stroke-width:1.35 !important;  /* variant B · operator-picked: 32px glyphs with ~25% stronger line */
           }
           #view-schedule .sched-page-btn svg{width:15px;height:15px;flex-shrink:0}
           #view-schedule .sched-page-btn:hover{
@@ -14542,7 +14542,7 @@ body.rr-cmdk-open{ overflow:hidden }
              reads as actively engaged. */
           #view-schedule .sched-page-btn:hover svg,
           #view-schedule .sched-v2-tile:hover svg{
-            stroke-width:1.25 !important;
+            stroke-width:1.5 !important;   /* hover lift stays ABOVE the 1.35 rest weight */
           }
           #view-schedule .sched-page-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 
@@ -19672,7 +19672,7 @@ body.rr-cmdk-open{ overflow:hidden }
           height: 32px;
           flex: 0 0 auto;
           color: var(--text);
-          stroke-width: 1.1 !important;
+          stroke-width: 1.35 !important;  /* variant B */
           stroke-linecap: butt;
           stroke-linejoin: miter;
         }
