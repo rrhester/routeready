@@ -23063,3 +23063,36 @@ body.rr-cmdk-open{ overflow:hidden }
   font:600 10px/1 var(--rr-font-family,'Inter');background:var(--canvas);
   border:1px solid var(--border);border-radius:4px;padding:2px 5px;margin-right:3px;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Header clean pass (operator request 2026-06-11)
+   --------------------------------------------------------------------
+   1. The Ask-AI pill is removed from the topbar. The form element stays
+      in the DOM (display:none) because the Ctrl+K command palette's
+      "Ask RouteReady: …" fallback row submits through
+      #rr-hdr-ask-input / #rr-hdr-ask-form — hiding (not deleting)
+      keeps that path alive. Ctrl+K remains the way to ask.
+   2. The cmd-tab bands (SCHEDULE / WORKFLOWS / PRINT-DOWNLOAD and the
+      per-view mirrors) are removed on every TCP view so all strips
+      stay in lockstep. The tab BUTTONS also stay in the DOM — the
+      palette's "Workflows strip" / "Print / Download" commands drive
+      the same delegated .sched-cmd-tab click path.
+   3. The freed band height (--tcp-cmd-tabs-h → 0 in tcp.css) pulls
+      every command icon strip up the page.
+   ════════════════════════════════════════════════════════════════════ */
+.topbar .hdr-ask{display:none!important}
+/* The Ask pill was the topbar's flex spacer (flex:1; margin:0 auto).
+   With it hidden, right-align the bar and let the QAT (the left
+   cluster) push everything after it to the right edge. Works whether
+   or not individual right-side tools are visible (theme toggle /
+   refresh render conditionally). */
+.topbar{justify-content:flex-end}
+.topbar .rr-qat{margin-right:auto}
+/* Per-view ID selectors included: schedule-rrx.css pins the schedule band
+   with `#view-schedule.rrx-schedule .sched-v2-cmd-tabs{display:inline-flex
+   !important}` (and other views may pin theirs the same way), so the hide
+   rules must match or beat that specificity. */
+#view-schedule.rrx-schedule .sched-v2-cmd-tabs.sched-cmd-tabs,
+.sched-v2-cmd-tabs,.f2-cmd-tabs,.ob-cmd-tabs,.em-cmd-tabs,.wf-cmd-tabs,.ws-cmd-tabs,
+#view-fleet2 .f2-cmd-tabs,#view-onboarding-ops .ob-cmd-tabs,
+#view-email .em-cmd-tabs,#view-forms .wf-cmd-tabs,#view-workspaces .ws-cmd-tabs{display:none!important}

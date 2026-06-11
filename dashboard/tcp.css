@@ -39,7 +39,10 @@
 :root {
   /* ── Heights ────────────────────────────────────────────── */
   --tcp-topbar-h:      56px;
-  --tcp-cmd-tabs-h:    28px;   /* the absolute tab band above the strip card */
+  --tcp-cmd-tabs-h:    0px;    /* tab band removed (header clean pass 2026-06-11);
+                                  the band markup is display:none'd in
+                                  inline-styles.css and the strip rises into
+                                  the freed space. Was 28px. */
   --tcp-strip-h:       92px;   /* Header+IconStrip card. 106→92 (enterprise pass: 32px glyphs need less headroom; Outlook-class chrome economy). Shared across every TCP view so they stay in lockstep. */
   /* KPI band content height (excl. borders). Expanded = the default,
      taller state (46 → 51, +~10%). The band grows DOWNWARD only: the
