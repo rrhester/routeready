@@ -22986,3 +22986,37 @@ body.rr-cmdk-open{ overflow:hidden }
 .hdr-saved svg{color:#15803D;flex:0 0 auto}
 .hdr-saved[hidden]{display:none}
 @media (max-width:1200px){.hdr-saved{display:none}}
+
+
+/* ── Calm sweep · topbar junk drawer emptied (operator: 'super clean').
+   The QAT (chevron + rail) and the refresh button are PARKED, not
+   deleted — code and wiring stay intact; 'Refresh app' lives in the
+   account menu now, and Undo relocated next to the schedule grid's
+   header tools (it undoes schedule edits, so it lives with them). */
+#rr-qat{display:none !important}
+#rr-hdr-refresh{display:none !important}
+/* Undo cluster in the SCHEDULE STRIP (right side, beside the week
+   nav) · icon-only. The strip is visible on every schedule sub-view,
+   so undo stays reachable from Requests/Roster/etc. — all 11
+   _rrPushUndo call sites live within schedule subs (Codex P2). */
+.sched-v2-strip .hdr-undo-wrap{display:inline-flex;align-items:center;position:relative;order:99;margin-left:auto;align-self:center}
+.sched-v2-strip .hdr-undo{
+  width:22px;height:22px;padding:0;border:0;background:transparent;border-radius:var(--r-md);
+  display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;
+}
+.sched-v2-strip .hdr-undo span{display:none}
+.sched-v2-strip .hdr-undo:hover{color:var(--accent);background:var(--accent-soft)}
+.sched-v2-strip .hdr-undo:disabled{opacity:.4;cursor:default}
+.sched-v2-strip .hdr-undo:disabled:hover{color:var(--text-muted);background:transparent}
+.sched-v2-strip .hdr-undo-caret{
+  width:14px;height:22px;padding:0;border:0;background:transparent;
+  display:inline-flex;align-items:center;justify-content:center;color:var(--text-subtle);cursor:pointer;
+}
+.sched-v2-strip .hdr-undo-caret:disabled{opacity:.35;cursor:default}
+.sched-v2-strip .hdr-undo-menu{position:absolute;top:28px;right:0;left:auto;z-index:60}
+
+/* ── Calm sweep · de-border the repeating rows (whitespace separates,
+   not outlines). Hover restores definition where it aids targeting. */
+#view-schedule .pool-driver{border:0 !important;border-radius:var(--r-md);box-shadow:none}
+#view-schedule .pool-driver:hover{background:rgba(15,23,42,.03);box-shadow:none;border:0}
+#view-pipeline .pa-card{border:0}

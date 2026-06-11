@@ -4733,3 +4733,18 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile svg {
   color: #1D4ED8 !important;
 }
+
+
+/* ── Calm sweep · shift chips lose their resting outline. The soft
+   fill + colored left accent carry identity; the border returns on
+   cell hover where it aids click targeting. ─────────────────────── */
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  border-top-color: transparent !important;
+  border-right-color: transparent !important;
+  border-bottom-color: transparent !important;
+}
+#view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  border-top-color: rgba(15, 23, 42, 0.14) !important;
+  border-right-color: rgba(15, 23, 42, 0.14) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.14) !important;
+}
