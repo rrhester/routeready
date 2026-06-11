@@ -85,6 +85,20 @@
 <!-- RouteReady Fluent 2 design system foundation (additive).
      Tokens: --rr-*. Primitives: .rrx-* (see app/rr-system.css). -->
 <link rel="preload" href="../app/fonts/inter-var-latin.woff2" as="font" type="font/woff2" crossorigin>
+<!-- Boot critical path · live.js can't start its auth round-trip until
+     it has downloaded, parsed, and resolved its supabase-js ESM import
+     from jsdelivr. These hints start the TLS handshakes and the module
+     fetches at HTML parse time instead, shaving the serial chain:
+     - preconnect supabase: the auth/session check is the first await
+     - preconnect + modulepreload jsdelivr: supabase-js ESM entry
+     - modulepreload the local module imports live.js pulls in
+       (the ?v= tokens are rewritten by scripts/bust-cache.mjs at build
+       time in BOTH this file and live.js, so the URLs always match) -->
+<link rel="preconnect" href="https://doiwrhkirgblcvuskhno.supabase.co" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm">
+<link rel="modulepreload" href="./scheduling-engine.js?v=20260531-xl-first">
+<link rel="modulepreload" href="./flex-capacity.js?v=20260530-flex2">
 <link rel="stylesheet" href="../app/rr-system.css?v=7">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
