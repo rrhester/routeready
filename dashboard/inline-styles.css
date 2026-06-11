@@ -23096,3 +23096,27 @@ body.rr-cmdk-open{ overflow:hidden }
 .sched-v2-cmd-tabs,.f2-cmd-tabs,.ob-cmd-tabs,.em-cmd-tabs,.wf-cmd-tabs,.ws-cmd-tabs,
 #view-fleet2 .f2-cmd-tabs,#view-onboarding-ops .ob-cmd-tabs,
 #view-email .em-cmd-tabs,#view-forms .wf-cmd-tabs,#view-workspaces .ws-cmd-tabs{display:none!important}
+
+/* ════════════════════════════════════════════════════════════════════
+   Floating header tools (operator request 2026-06-11, follow-on to the
+   header clean pass)
+   --------------------------------------------------------------------
+   The 44px topbar row held only the QAT + bell/settings/account after
+   the Ask pill was removed. Convert it to a compact floating pill
+   pinned to the page's top-right corner: the row leaves the layout
+   flow, so every view's content — including the command icon strip —
+   rises ~44px. Popovers (notifications, account) already anchor
+   fixed top-right, so they open under the pill unchanged.
+   ════════════════════════════════════════════════════════════════════ */
+.topbar{
+  position:fixed;top:8px;right:16px;left:auto;width:auto;height:36px;
+  padding:0 6px;gap:4px;z-index:60;border-radius:9999px;
+  /* soft glass pill so the cluster reads deliberately when content
+     scrolls beneath it */
+  background:rgba(255,255,255,.78);
+  -webkit-backdrop-filter:blur(10px) saturate(1.4);
+  backdrop-filter:blur(10px) saturate(1.4);
+  border:1px solid rgba(15,23,42,.08);
+  box-shadow:0 1px 4px rgba(15,23,42,.06);
+}
+.topbar .rr-qat{margin-right:0}
