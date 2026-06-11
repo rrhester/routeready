@@ -59,7 +59,7 @@
                 </tr>
               </thead>
               <tbody id="rr-recog-up-tbody">
-                <tr><td colspan="5" style="padding:var(--s-6);text-align:center;color:var(--text-subtle)">Loading…</td></tr>
+                <tr><td colspan="5" style="padding:var(--s-4) var(--s-5)" aria-hidden="true"><div class="rrx-skeleton rrx-skeleton--text" style="width:62%"></div><div class="rrx-skeleton rrx-skeleton--text" style="width:48%;margin-top:10px"></div><div class="rrx-skeleton rrx-skeleton--text" style="width:55%;margin-top:10px"></div></td></tr>
               </tbody>
             </table>
           </div>

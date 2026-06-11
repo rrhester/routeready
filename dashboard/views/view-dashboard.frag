@@ -83,7 +83,12 @@
 
         <div id="rr-today-plan-anchor">
           <div id="rr-today-plan-shell">
-            <div class="rr-loading">Loading today's plan</div>
+            <div class="rr-plan-skel" aria-hidden="true" style="padding:var(--s-4) 0">
+              <div class="rrx-skeleton rrx-skeleton--text" style="width:34%"></div>
+              <div class="rrx-skeleton rrx-skeleton--block" style="height:54px;margin-top:12px"></div>
+              <div class="rrx-skeleton rrx-skeleton--block" style="height:54px;margin-top:8px"></div>
+              <div class="rrx-skeleton rrx-skeleton--block" style="height:54px;margin-top:8px"></div>
+            </div>
           </div>
         </div>
 
