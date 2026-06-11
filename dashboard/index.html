@@ -256,21 +256,6 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span>
         Fleet
       </button>
-      <!-- Fleet subpages · audit F20 / Phase 3.7. Off by default; revealed
-           only when the `rr-flag-fleet-subnav` flag is on AND Fleet is the
-           active destination (CSS-gated). Each item drives the SAME
-           window.fleetSub() the (now-hidden) command strip tiles used, so
-           no loader logic changes — the sub-views are just reached from the
-           rail instead of a 92px horizontal icon strip, returning that
-           vertical space to the work table. Toggle with
-           window.rrFleetSidebar(true|false) (persists in localStorage). -->
-      <div class="nav-sub" data-for="fleet2" role="group" aria-label="Fleet sections">
-        <button type="button" class="nav-sub-item active" data-sub="vehicles" onclick="rrFleetSubFromNav('vehicles', this)"><span class="pip"></span>Vehicles</button>
-        <button type="button" class="nav-sub-item" data-sub="calendar" onclick="rrFleetSubFromNav('calendar', this)"><span class="pip"></span>Calendar</button>
-        <button type="button" class="nav-sub-item" data-sub="issues" onclick="rrFleetSubFromNav('issues', this)"><span class="pip"></span>Issues</button>
-        <button type="button" class="nav-sub-item" data-sub="rotation" onclick="rrFleetSubFromNav('rotation', this)"><span class="pip"></span>Van Rotation</button>
-        <button type="button" class="nav-sub-item" data-sub="assign" onclick="rrFleetSubFromNav('assign', this)"><span class="pip"></span>Assignments</button>
-      </div>
       <!-- Workspaces · re-revealed in the sidebar (was hidden so the
            Schedule view's Van Assignments flow could reuse
            loadWorkspacesView internally; that path still works).
@@ -335,38 +320,6 @@
       </button>
     </div>
   </aside>
-
-  <!-- Fleet sidebar-subpages flag · audit F20 / Phase 3.7 ───────────────
-       Off by default. Enable per-browser with rrFleetSidebar(true) (e.g.
-       from the console) — it persists in localStorage and survives reloads.
-       Flag OFF ⇒ none of the F20 CSS applies and the page is unchanged. -->
-  <script>
-    (function () {
-      var KEY = "rr_fleet_subnav";
-      try {
-        if (localStorage.getItem(KEY) === "1")
-          document.documentElement.classList.add("rr-flag-fleet-subnav");
-      } catch (e) {}
-
-      // Console / programmatic toggle. rrFleetSidebar() flips; pass a bool to set.
-      window.rrFleetSidebar = function (on) {
-        if (on === undefined)
-          on = !document.documentElement.classList.contains("rr-flag-fleet-subnav");
-        document.documentElement.classList.toggle("rr-flag-fleet-subnav", !!on);
-        try { localStorage.setItem(KEY, on ? "1" : "0"); } catch (e) {}
-        return !!on;
-      };
-
-      // Sidebar subpage → drive the SAME window.fleetSub() the strip tiles used,
-      // and reflect the active row on the rail (the strip is hidden under the flag).
-      window.rrFleetSubFromNav = function (sub, el) {
-        if (typeof window.fleetSub === "function") window.fleetSub(sub);
-        document
-          .querySelectorAll('.nav-sub[data-for="fleet2"] .nav-sub-item')
-          .forEach(function (b) { b.classList.toggle("active", b === el); });
-      };
-    })();
-  </script>
 
   <!-- ═══════════════════════════════════════════════════════════
        MAIN
