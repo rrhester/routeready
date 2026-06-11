@@ -2,23 +2,6 @@
       <!-- style block 33 (#rr-fleet2-style) extracted to inline-styles.css -->
 
       <div class="page">
-        <!-- Slim command bar · audit F20 / Phase 3.7. Hidden by default;
-             shown only when the `rr-flag-fleet-subnav` flag is on, where it
-             REPLACES the 92px command icon strip below (whose tiles moved to
-             the sidebar). Holds the page title + the primary action. The
-             Add-van button carries data-rr-fleet-add-empty so the existing
-             delegated handler (live.js:58052 → openFleetDrawer(null)) fires
-             unchanged. -->
-        <div class="f2-slim-bar" role="toolbar" aria-label="Fleet command bar">
-          <div class="f2-slim-title">
-            <span class="f2-slim-h">Fleet</span>
-            <span class="f2-slim-sub" id="rr-fleet-slim-sub">Fleet overview</span>
-          </div>
-          <div class="f2-slim-actions">
-            <button type="button" class="rrx-btn rrx-btn--primary rrx-btn--sm" data-rr-fleet-add-empty aria-label="Add van">+ Add van</button>
-          </div>
-        </div>
-
         <!-- Header + command icon strip (Schedule chrome replica).
              Tiles are visual placeholders; nothing is wired. -->
         <div class="f2-strip" role="toolbar" aria-label="Fleet ribbon">
