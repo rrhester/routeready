@@ -3567,7 +3567,11 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   position:absolute;top:8px;right:8px;
   width:22px;height:22px;border:0;background:transparent;
   display:inline-flex;align-items:center;justify-content:center;
-  color:var(--text-subtle);cursor:pointer;border-radius:var(--r-md);
+  /* Rest-visible, not faint: --text-subtle at 13px sat below the
+     perception threshold — operators read these tools as 'hidden
+     until hover'. One step darker keeps them quiet but findable
+     (never let hover be the only door to a feature). */
+  color:var(--text-muted);cursor:pointer;border-radius:var(--r-md);
   transition:color var(--t-fast), background var(--t-fast),
              transform .12s cubic-bezier(.2,.7,.2,1);
 }
@@ -22946,6 +22950,8 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Topbar icon buttons (bell / gear / avatar) share .icon-btn; needs a
    positioning context for the unread dot. */
 .topbar .icon-btn{position:relative;color:var(--text-muted)}
+/* Bell dot stays hidden until _rrLoadNotifications finds real pending items. */
+#rr-hdr-notif .dot{display:none}
 .topbar .icon-btn:hover{color:var(--text)}
 .topbar .topbar-settings{border:0;background:transparent;cursor:pointer}
 .hdr-avatar-btn{padding:0}

@@ -2981,23 +2981,12 @@ Evidence attached:
      ═══════════════════════════════════════════════════════════ -->
 <div class="popover" id="popover-notif" style="position:fixed;top:50px;right:80px;width:340px">
   <div class="popover-head" style="display:flex;justify-content:space-between;align-items:center"><span>Notifications</span><span style="font-size:var(--fs-xs);color:var(--accent-text);font-weight:500;cursor:pointer" onclick="markAllNotifsRead()">Mark all read</span></div>
-  <div>
-    <div class="notif-item" onclick="goto('dashboard');closePopovers()">
-      <div class="notif-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-      <div><div class="notif-title">Short 12 drivers next week</div><div class="notif-msg">Confirmed routes 90, available 78</div><div class="notif-time">3h ago</div></div>
-    </div>
-    <div class="notif-item" onclick="goto('schedule');setTimeout(function(){schedSub('timeoff');},50);closePopovers()">
-      <div class="notif-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></div>
-      <div><div class="notif-title">Devon Patterson · time off request</div><div class="notif-msg">May 15–17 awaiting approval</div><div class="notif-time">2h ago</div></div>
-    </div>
-    <div class="notif-item" onclick="goto('schedule');setTimeout(function(){schedSub('swaps');},50);closePopovers()">
-      <div class="notif-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg></div>
-      <div><div class="notif-title">Tasha ↔ Marcus swap accepted</div><div class="notif-msg">Friday May 4 swap awaiting your approval</div><div class="notif-time">2h ago</div></div>
-    </div>
-    <div class="notif-item" onclick="window._rrGotoSubIntent={view:'schedule',sub:'roster'};goto('schedule');closePopovers()">
-      <div class="notif-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-      <div><div class="notif-title">Trevor Anders hired</div><div class="notif-msg">Welcome SMS sent · onboarding starts Monday</div><div class="notif-time">Yesterday</div></div>
-    </div>
+  <div id="rr-notif-list">
+    <!-- Real notifications are painted here by _rrLoadNotifications()
+         in live.js (pending time-off requests, v1). The old hardcoded
+         mockup items were removed — a signed-in operator must never
+         see fake operational data (same principle as the boot gate). -->
+    <div class="rr-notif-empty" id="rr-notif-empty" style="padding:var(--s-8) 16px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">You're all caught up</div>
   </div>
 </div>
 
