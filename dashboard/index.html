@@ -97,9 +97,9 @@
 <link rel="preconnect" href="https://doiwrhkirgblcvuskhno.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm">
-<link rel="modulepreload" href="./scheduling-engine.js?v=20260531-xl-first">
-<link rel="modulepreload" href="./flex-capacity.js?v=20260530-flex2">
-<link rel="stylesheet" href="../app/rr-system.css?v=7">
+<link rel="modulepreload" href="./scheduling-engine.js?v=7b5b97cd59a5">
+<link rel="modulepreload" href="./flex-capacity.js?v=7b5b97cd59a5">
+<link rel="stylesheet" href="../app/rr-system.css?v=7b5b97cd59a5">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
@@ -108,16 +108,16 @@
      structural classes). Single source of truth for chrome
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
-<link rel="stylesheet" href="tcp.css?v=3">
-<link rel="stylesheet" href="schedule-rrx.css?v=122">
+<link rel="stylesheet" href="tcp.css?v=7b5b97cd59a5">
+<link rel="stylesheet" href="schedule-rrx.css?v=7b5b97cd59a5">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
-<link rel="stylesheet" href="onboarding-rrx.css?v=29">
+<link rel="stylesheet" href="onboarding-rrx.css?v=7b5b97cd59a5">
 <!-- The dashboard's former inline styles · extracted so the no-cache
      HTML shell stops re-shipping ~1.2MB of CSS on every load; this
      file is cacheable and busts via the ?v= token like the rest. -->
-<link rel="stylesheet" href="inline-styles.css?v=1">
+<link rel="stylesheet" href="inline-styles.css?v=7b5b97cd59a5">
 <!-- style block 0 extracted to inline-styles.css -->
 </head>
 <body>
@@ -378,26 +378,114 @@
         </button>
       </form>
       <script>
-        // ⌘K / Ctrl+K focuses the Ask bar from anywhere (cohesion pass).
+        // ⌘K / Ctrl+K · command palette (premium pass). Navigation
+        // commands ride the proven goto()/_rrGotoSubIntent plumbing;
+        // schedule ACTIONS dispatch a real click on the live strip tile
+        // (the same V2 forwarding path an operator's click takes), after
+        // ensuring the schedule view is active. The last row hands the
+        // raw query to the Ask bar, preserving the bar's promise.
         (function () {
           var kbd = document.getElementById('rr-hdr-ask-kbd');
           var mac = /Mac|iP(hone|ad|od)/.test(navigator.platform || '');
           if (kbd && mac) kbd.textContent = '⌘K';
-          document.addEventListener('keydown', function (e) {
-            if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
-              var input = document.getElementById('rr-hdr-ask-input');
-              if (!input) return;
-              e.preventDefault();
-              input.focus();
-              input.select();
-            }
-          });
-          // Hide the hint while typing so it doesn't crowd the text.
           var input = document.getElementById('rr-hdr-ask-input');
           if (input && kbd) {
             input.addEventListener('focus', function () { kbd.style.visibility = 'hidden'; });
             input.addEventListener('blur', function () { if (!input.value) kbd.style.visibility = 'visible'; });
           }
+
+          function go(view) { if (typeof window.goto === 'function') window.goto(view); }
+          function sub(s) { window._rrGotoSubIntent = { view: 'schedule', sub: s }; go('schedule'); }
+          function act(key) {
+            go('schedule');
+            setTimeout(function () {
+              var t = document.querySelector('#view-schedule [data-rr-v2="' + key + '"]');
+              if (t) t.click();
+            }, 180);
+          }
+          var COMMANDS = [
+            { label: 'Go to Schedule',        kw: 'schedule week grid', run: function(){ go('schedule'); } },
+            { label: 'Today view',            kw: 'today day',          run: function(){ sub('today'); } },
+            { label: 'Week view',             kw: 'weekly',             run: function(){ sub('week'); } },
+            { label: 'Month view',            kw: 'monthly calendar',   run: function(){ sub('monthly'); } },
+            { label: 'Roster',                kw: 'drivers roster',     run: function(){ sub('roster'); } },
+            { label: 'Attendance',            kw: 'attendance callout', run: function(){ sub('attendance'); } },
+            { label: 'Requests',              kw: 'time off pto requests swaps', run: function(){ sub('requests'); } },
+            { label: 'Targets',               kw: 'targets okami demand', run: function(){ sub('targets'); } },
+            { label: 'Go to Fleet',           kw: 'fleet vans vehicles', run: function(){ go('fleet2'); } },
+            { label: 'Go to Onboarding',      kw: 'onboarding hiring pipeline funnel interview', run: function(){ go('onboarding-ops'); } },
+            { label: 'Go to Messages',        kw: 'messages chat sms',  run: function(){ go('messages'); } },
+            { label: 'Go to Email',           kw: 'email inbox fleet bridge', run: function(){ go('email'); } },
+            { label: 'Go to Settings',        kw: 'settings workspace team billing', run: function(){ go('settings'); } },
+            { label: 'Run Smart Fill',        kw: 'smart fill auto assign ai', action: true, run: function(){ act('smartfill'); } },
+            { label: 'Finalize week',         kw: 'finalize publish live', action: true, run: function(){ act('finalize'); } },
+            { label: 'Unassign vans',         kw: 'unassign assign vans', action: true, run: function(){ act('unassign'); } },
+            { label: 'Send Kudos',            kw: 'kudos recognition',  action: true, run: function(){ act('kudos'); } },
+            { label: "What's new",            kw: 'whats new changelog updates', run: function(){ if (typeof openModal === 'function') openModal('modal-whats-new'); } },
+            { label: 'Refresh app',           kw: 'refresh reload cache', run: function(){ var b = document.getElementById('rr-hdr-refresh'); if (b) b.click(); } },
+            { label: 'Sign out',              kw: 'sign out log out',   run: function(){ var b = document.getElementById('rr-hdr-signout'); if (b) b.click(); } },
+          ];
+
+          var pal, inp, list, sel = 0, filtered = [];
+          function ensure() {
+            pal = document.getElementById('rr-cmdk');
+            inp = document.getElementById('rr-cmdk-input');
+            list = document.getElementById('rr-cmdk-list');
+          }
+          function open() {
+            ensure(); if (!pal) return;
+            pal.hidden = false; inp.value = ''; sel = 0; render('');
+            inp.focus();
+          }
+          function close() { if (pal) pal.hidden = true; }
+          window._rrCmdkOpen = open;
+          function render(q) {
+            q = q.trim().toLowerCase();
+            filtered = COMMANDS.filter(function (c) {
+              return !q || c.label.toLowerCase().indexOf(q) > -1 || c.kw.indexOf(q) > -1;
+            });
+            if (sel >= filtered.length) sel = Math.max(0, filtered.length - 1);
+            var html = filtered.map(function (c, ix) {
+              return '<div class="rr-cmdk-item' + (ix === sel ? ' sel' : '') + (c.action ? ' is-action' : '') + '" data-ix="' + ix + '">'
+                + '<span class="rr-cmdk-kind">' + (c.action ? 'Action' : 'Go to') + '</span>' + c.label + '</div>';
+            }).join('');
+            if (q) html += '<div class="rr-cmdk-item rr-cmdk-ask' + (filtered.length === 0 ? ' sel' : '') + '" data-ask="1"><span class="rr-cmdk-kind">Ask</span>Ask RouteReady: “' + q.replace(/</g, '&lt;') + '”</div>';
+            list.innerHTML = html || '<div class="rr-cmdk-empty">Nothing matches</div>';
+          }
+          function runSelected() {
+            var q = inp.value.trim();
+            if (sel < filtered.length && filtered[sel]) { close(); filtered[sel].run(); return; }
+            // fall through to Ask
+            if (q) {
+              close();
+              var ask = document.getElementById('rr-hdr-ask-input');
+              var form = document.getElementById('rr-hdr-ask-form');
+              if (ask && form) { ask.value = q; form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); }
+            }
+          }
+          document.addEventListener('keydown', function (e) {
+            if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+              e.preventDefault(); open(); return;
+            }
+            ensure();
+            if (!pal || pal.hidden) return;
+            if (e.key === 'Escape') { e.preventDefault(); close(); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel + 1, Math.max(filtered.length - (inp.value.trim() ? 0 : 1), 0)); render(inp.value); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel - 1, 0); render(inp.value); }
+            else if (e.key === 'Enter') { e.preventDefault(); runSelected(); }
+          });
+          document.addEventListener('input', function (e) {
+            if (e.target && e.target.id === 'rr-cmdk-input') { sel = 0; render(e.target.value); }
+          });
+          document.addEventListener('click', function (e) {
+            ensure(); if (!pal || pal.hidden) return;
+            var item = e.target.closest('.rr-cmdk-item');
+            if (item) {
+              if (item.dataset.ask) { sel = filtered.length; runSelected(); return; }
+              sel = parseInt(item.dataset.ix, 10) || 0; runSelected(); return;
+            }
+            if (!e.target.closest('.rr-cmdk-card')) close();
+          });
         })();
       </script>
       <!-- Header theme toggle · flips the topbar to the same
@@ -444,6 +532,14 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Sign out
           </button>
+        </div>
+      </div>
+      <!-- ⌘K command palette · opened by the keydown handler above. -->
+      <div id="rr-cmdk" hidden>
+        <div class="rr-cmdk-card">
+          <input id="rr-cmdk-input" type="text" placeholder="Type a command — smart fill, roster, settings…" autocomplete="off" spellcheck="false" aria-label="Command palette" />
+          <div id="rr-cmdk-list" class="rr-cmdk-list"></div>
+          <div class="rr-cmdk-foot"><span><kbd>↑↓</kbd> navigate</span><span><kbd>Enter</kbd> run</span><span><kbd>Esc</kbd> close</span></div>
         </div>
       </div>
     </header>
@@ -664,12 +760,12 @@
     </div>
 
     <!-- ─── DASHBOARD VIEW ─── -->
-    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=1">
+    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-dashboard.frag (monolith split phase 2) -->
     </div>
 
     <!-- ─── HIRING PIPELINE VIEW ─── -->
-    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=1">
+    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-pipeline.frag (monolith split phase 2) -->
     </div>
 
@@ -677,28 +773,28 @@
          ONBOARDING (OPERATIONS) VIEW — readiness command center.
          Populated by loadOnboardingOps() in live.js.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=1">
+    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-onboarding-ops.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          DRIVERS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=1">
+    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-drivers.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SETTINGS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=1">
+    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-settings.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SCHEDULE VIEW — full DSP-grade schedule system
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=1">
+    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-schedule.frag (monolith split phase 2) -->
     </div>
 
@@ -707,14 +803,14 @@
          (Amazon's term for DSP route plan horizon)
          ═══════════════════════════════════════════════════════════ -->
     <div id="rr-okami-backdrop" class="rr-okami-backdrop"></div>
-    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=1">
+    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-okami.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          MESSAGES — real-time dispatch ↔ driver comms
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=1">
+    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-messages.frag (monolith split phase 2) -->
     </div>
 
@@ -725,7 +821,7 @@
          Loader functions live in live.js (loadRecognitionView /
          loadRecognitionUpcoming / loadRecognitionHistory / …).
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=1">
+    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-recognition.frag (monolith split phase 2) -->
     </div>
 
@@ -740,7 +836,7 @@
          scoped entirely to #view-fleet2 — it does not touch
          #view-schedule or schedule-rrx.css.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=1">
+    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-fleet2.frag (monolith split phase 2) -->
     </div>
 
@@ -776,7 +872,7 @@
          into [data-co-render="exceptions-table"] and
          [data-co-render="rules-list"].
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=1">
+    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-compliance.frag (monolith split phase 2) -->
     </div>
 
@@ -788,21 +884,21 @@
          row to a driver links the driver profile, surfaces the task in
          the driver app, and logs the accountability trail.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=1">
+    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-workspaces.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          FORMS — DSP-built custom forms drivers fill out
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=1">
+    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-forms.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          CHECKLISTS — recurring task lists (Open / Close / shift)
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=1">
+    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-checklists.frag (monolith split phase 2) -->
     </div>
 
@@ -812,7 +908,7 @@
          audit flows. PDF signing service + driver-side viewer ship in
          later slices.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=1">
+    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-documents.frag (monolith split phase 2) -->
     </div>
 
@@ -824,7 +920,7 @@
          strip and flips the layout: the open-shifts-sized aside sits
          on the LEFT, the calendar-sized main panel on the RIGHT.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=1">
+    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-email.frag (monolith split phase 2) -->
     </div>
 
@@ -837,14 +933,14 @@
          Phase 2 ships header + stats; Phase 3 fills the table area;
          Phase 4 wires the modals.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=1">
+    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-admin.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          BUILD YOUR OWN TOOL
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=1">
+    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=7b5b97cd59a5">
       <!-- markup extracted to views/view-build.frag (monolith split phase 2) -->
     </div>
 
@@ -3854,7 +3950,7 @@ John,Smith,555-0101,john@example.com</code>
     if (!window.__RR_VIEW_LOAD_FAILED) {
       await new Promise(function (resolve) {
         var s = document.createElement('script');
-        s.src = 'mock-wiring.js?v=1';
+        s.src = 'mock-wiring.js?v=7b5b97cd59a5';
         s.onload = function () {
           // These three register DOMContentLoaded callbacks with no
           // already-fired fallback (unlike the rest of the script);
@@ -3871,10 +3967,10 @@ John,Smith,555-0101,john@example.com</code>
   })();
 </script>
 <script src="./config.js"></script>
-<script src="./desktop-connect.js?v=20260607b"></script>
-<script src="./fleet-sync.js?v=20260606d"></script>
-<script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260610-oc54"></script>
+<script src="./desktop-connect.js?v=7b5b97cd59a5"></script>
+<script src="./fleet-sync.js?v=7b5b97cd59a5"></script>
+<script src="./admin-crawl-tasks.js?v=7b5b97cd59a5"></script>
+<script type="module" src="./live.js?v=7b5b97cd59a5"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

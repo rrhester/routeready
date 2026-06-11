@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260531-xl-first";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=20260530-flex2";
+import { planScheduleWeek } from "./scheduling-engine.js?v=7b5b97cd59a5";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=7b5b97cd59a5";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -50422,7 +50422,11 @@ window.goto = function (view) {
     const _intent = window._rrGotoSubIntent;
     if (_intent && _intent.view === view) {
       window._rrGotoSubIntent = null;
-      const target = activeView.querySelector(`.subnav-item[data-sub="${_intent.sub}"]`);
+      // Roster / Attendance live on the V2 strip as [data-rr-v2] tiles,
+      // not .subnav-item tabs — without the second selector their
+      // intents fall through to the first-sub reset and land on Week.
+      const target = activeView.querySelector(`.subnav-item[data-sub="${_intent.sub}"]`)
+        || activeView.querySelector(`.sched-v2-tile[data-rr-v2="${_intent.sub}"]`);
       if (target) { target.click(); return; }
     }
     let firstSub = null;
