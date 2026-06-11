@@ -2101,7 +2101,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    The three view tiles read as one group with a single dialog-
    launcher chevron pinned to the group's bottom-right corner
    (Outlook ribbon style), replacing the per-tile Rules carets. */
-#view-schedule.rrx-schedule .sched-v2-viewgroup:has([data-rr-v2="today"]) {
+#view-schedule.rrx-schedule .sched-v2-viewgroup {
   display: inline-flex;
   /* Stretch so the leading Today divider runs full card height too. */
   align-items: stretch;
@@ -2113,7 +2113,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    dialog-launcher, so hide them inside any view-group. They stay in the DOM
    (display:none still receives .click()) so right-clicking a tile keeps
    opening that tile's own rules popover. */
-#view-schedule.rrx-schedule .sched-v2-viewgroup:has([data-rr-v2="today"]) .sched-v2-rules-foot {
+#view-schedule.rrx-schedule .sched-v2-viewgroup .sched-v2-rules-foot {
   display: none !important;
 }
 /* "Go To" group label · Outlook-style group caption centered on the
@@ -4748,83 +4748,3 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   border-right-color: rgba(15, 23, 42, 0.14) !important;
   border-bottom-color: rgba(15, 23, 42, 0.14) !important;
 }
-
-
-/* ============================================================
-   Calm pass B · strip consolidation
-   ------------------------------------------------------------
-   1. Today/Week/Month collapse into ONE text segmented switcher
-      (Outlook's calendar pattern). Pure CSS restyle of the
-      existing viewgroup markup — the V2 forwarding, right-click
-      rules, and rr-v2-current sync all key off classes/attrs
-      that are preserved.
-   2. Unassign + Kudos live in a ⋯ More menu (their split nodes
-      moved verbatim, so every handler still finds them).
-   ============================================================ */
-
-#view-schedule.rrx-schedule .sched-v2-viewgroup:has([data-rr-v2="today"]) {
-  align-self: center;
-  align-items: stretch;
-  gap: 0;
-  border: 1px solid rgba(15, 23, 42, 0.16);
-  border-radius: 6px;
-  overflow: visible;
-}
-#view-schedule.rrx-schedule .sched-v2-viewgroup:has([data-rr-v2="today"]) .sched-v2-split + .sched-v2-split {
-  border-left: 1px solid rgba(15, 23, 42, 0.12);
-}
-#view-schedule.rrx-schedule .sched-v2-viewgroup:has([data-rr-v2="today"]) .sched-v2-tile {
-  flex-direction: row;
-  min-width: 0;
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 0;
-  font-size: 13px;
-}
-#view-schedule.rrx-schedule .sched-v2-viewgroup:has([data-rr-v2="today"]) .sched-v2-tile svg { display: none !important; }
-#view-schedule.rrx-schedule .sched-v2-viewgroup:has([data-rr-v2="today"]) .sched-v2-tile.rr-v2-current {
-  background: rgba(15, 23, 42, 0.06);
-  box-shadow: none;
-  font-weight: 600;
-}
-#view-schedule.rrx-schedule .sched-v2-viewgroup:has([data-rr-v2="today"]) .sched-v2-group-label { display: none; }
-#view-schedule.rrx-schedule .sched-v2-viewgroup:has([data-rr-v2="today"]) .sched-v2-group-launcher {
-  position: static;
-  align-self: center;
-  margin: 0 4px;
-}
-
-/* ── ⋯ More menu ── */
-#view-schedule.rrx-schedule .sched-v2-more {
-  position: relative;
-  display: inline-flex;
-  flex: 0 0 auto;
-}
-#view-schedule.rrx-schedule .sched-v2-more-menu {
-  top: calc(100% + 4px);
-  right: 0;
-  left: auto;
-  min-width: 210px;
-  padding: 6px;
-}
-#view-schedule.rrx-schedule .sched-v2-more-menu .sched-v2-split {
-  display: flex;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  align-items: center;
-}
-#view-schedule.rrx-schedule .sched-v2-more-menu .sched-v2-tile {
-  flex-direction: row;
-  justify-content: flex-start;
-  gap: 10px;
-  width: 100%;
-  min-width: 0;
-  padding: 8px 10px;
-  box-shadow: none !important;
-  background: transparent;
-  font-size: 13px;
-}
-#view-schedule.rrx-schedule .sched-v2-more-menu .sched-v2-tile:hover { background: rgba(15, 23, 42, 0.04); }
-#view-schedule.rrx-schedule .sched-v2-more-menu .sched-v2-tile svg { width: 16px; height: 16px; }
-#view-schedule.rrx-schedule .sched-v2-more-menu .sched-v2-rules-foot { margin-left: auto; }
