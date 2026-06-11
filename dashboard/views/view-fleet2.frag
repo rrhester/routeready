@@ -33,7 +33,7 @@
                .f2-divides-end on the last one — the same pattern as
                Schedule's dividers (schedule-rrx.css:2318: border-left on
                the group-starting split, border-right on the trailing
-               split, 16px margin+padding, #C8C6C4). The first divider
+               split, 16px margin+padding, var(--border-strong)). The first divider
                lands at the same x as Schedule's first divider because
                both pages hard-lock the title block to 240px. -->
           <div class="f2-split f2-divides">

@@ -983,7 +983,7 @@ html.rr-sidebar-light .nav-item:hover{color:var(--text);background:var(--sidebar
 html.rr-sidebar-light .nav-item:focus-visible{background:var(--sidebar-hover);color:var(--text);box-shadow:inset 0 0 0 1px rgba(0,120,212,.35)}
 html.rr-sidebar-light .sidebar .nav-item.active{
   background:var(--sidebar-active);color:var(--text);
-  box-shadow:inset 3px 0 0 #0078D4;
+  box-shadow:inset 3px 0 0 var(--accent);
 }
 html.rr-sidebar-light .nav-section-label{color:var(--text-subtle)}
 /* Category-colored icons — darkened to read on the light rail. */
@@ -999,7 +999,7 @@ html.rr-sidebar-light .nav-item[data-c="schedule"] {--ni-fg:#0284C7}
 html.rr-sidebar-light .nav-item[data-c="messages"] {--ni-fg:#4F46E5}
 html.rr-sidebar-light .nav-item[data-c="forms"]    {--ni-fg:#9333EA}
 html.rr-sidebar-light .nav-item[data-c="finances"] {--ni-fg:#059669}
-html.rr-sidebar-light .nav-item.active svg{color:#0078D4}
+html.rr-sidebar-light .nav-item.active svg{color:var(--accent)}
 html.rr-sidebar-light .sidebar-collapse-btn,
 html.rr-sidebar-light .sidebar-theme-btn{color:var(--text-subtle)}
 html.rr-sidebar-light .sidebar-collapse-btn:hover,
@@ -4704,11 +4704,11 @@ select.form-input{
 }
 /* Toast — dark slate with brand-tinted accent border (left stripe). */
 .toast{
-  background:linear-gradient(180deg, var(--text) 0%, #0B1220 100%);
+  background:var(--text);
   color:var(--text-inverse);
   padding:var(--s-3) var(--s-4);border-radius:var(--r-md);
   font-size:var(--fs-md);font-weight:500;display:flex;align-items:center;gap:var(--s-2-5);
-  box-shadow:var(--shadow-xl), inset 0 1px 0 rgba(255,255,255,.06);
+  box-shadow:var(--shadow-xl);
   animation:toastSlide .25s cubic-bezier(.34,1.56,.64,1);pointer-events:auto;max-width:380px;
   border-left:3px solid var(--accent);
 }
@@ -4749,7 +4749,7 @@ select.form-input{
 .modal-card{
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:var(--r-xl);
+  border-radius:var(--r-lg); /* enterprise pass: overlays share the 8px card radius */
   width:100%;max-width:480px;max-height:88vh;overflow-y:auto;
   box-shadow:var(--shadow-xl);
   /* Anchored radial scale (grows from center) — 200ms to match the
@@ -7439,7 +7439,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .forecast-svg{width:100%;height:200px;display:block}
 .forecast-grid line{stroke:var(--border);stroke-width:1}
-.forecast-axis text{font-size:var(--fs-xs);fill:var(--text-subtle);font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
+.forecast-axis text{font-size:var(--fs-xs);fill:var(--text-subtle);font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
 .forecast-line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .forecast-line.plan{stroke:var(--accent)}
 .forecast-line.roster{stroke:var(--text-muted)}
@@ -9411,8 +9411,8 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #sched-sub-time-off textarea.form-input:focus,
 #sched-sub-requests textarea.form-input:focus{
-  outline:none;border-color:var(--req-accent, #0078D4);
-  box-shadow:0 0 0 1px var(--req-accent, #0078D4);
+  outline:none;border-color:var(--req-accent, var(--accent));
+  box-shadow:0 0 0 1px var(--req-accent, var(--accent));
 }
 #sched-sub-time-off .to-row-actions,
 #sched-sub-requests .to-row-actions{
@@ -9519,7 +9519,7 @@ body.rr-cmdk-open{ overflow:hidden }
    single quiet panel. Microsoft Fluent restraint: hairline structure,
    typography-led hierarchy, low saturation, calm telemetry. */
 #sched-sub-requests{
-  --req-accent:#0078D4;             /* Microsoft Fluent communication blue */
+  --req-accent:var(--accent);             /* Microsoft Fluent communication blue */
   --req-telemetry:#6E83A6;          /* calm slate-blue · capacity bars */
   --req-below:#AD8A4F;              /* muted ochre · below staffing target */
   --req-track:rgba(15,23,42,.055);  /* bar track */
@@ -10392,7 +10392,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* "Last updated" column · date over time. */
           #view-pipeline .pa-zone-updated{
             display:flex;flex-direction:column;justify-content:center;
-            border-left:1px solid #F3F2F1;
+            border-left:1px solid var(--surface-hover);
           }
           #view-pipeline .pa-upd-date{font-size:12px;font-weight:600;color:var(--text)}
           #view-pipeline .pa-upd-time{font-size:11px;color:var(--text-subtle)}
@@ -10405,7 +10405,7 @@ body.rr-cmdk-open{ overflow:hidden }
              expansion path. */
           #view-pipeline .pa-row-v3 .pa-zone{padding:5px 12px;min-width:0}
           #view-pipeline .pa-row-v3 .pa-zone-timeline{
-            border-left:1px solid #F3F2F1;
+            border-left:1px solid var(--surface-hover);
             display:flex;align-items:center;
           }
           /* A · Identity — single-line dense row: avatar | name | email | pills */
@@ -10481,7 +10481,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-tl-node svg{width:8px;height:8px}
           #view-pipeline .pa-tl-step.is-done .pa-tl-node{background:#DFF6DD;color:#107C41}
           #view-pipeline .pa-tl-step.is-current .pa-tl-node{
-            background:var(--sch-blue-soft,rgba(0,120,212,.08));color:#0078D4;
+            background:var(--sch-blue-soft,rgba(0,120,212,.08));color:var(--accent);
             box-shadow:0 0 0 2px rgba(0,120,212,.12);
           }
           #view-pipeline .pa-tl-pulse{width:5px;height:5px;border-radius:50%;background:currentColor}
@@ -10497,7 +10497,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-tl-step.is-pending{opacity:.5}
           #view-pipeline .pa-tl-time{display:none}
           #view-pipeline .pa-tl-conn{
-            flex:1 1 auto;min-width:12px;height:1px;background:#E1DFDD;margin:0 4px;
+            flex:1 1 auto;min-width:12px;height:1px;background:var(--border);margin:0 4px;
           }
           #view-pipeline .pa-tl-empty{font-size:12px;color:#A19F9D}
           /* C · Action zone — the screening workflow surface.
@@ -10551,10 +10551,10 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
           }
           #view-pipeline .pa-btn-video:hover{
-            background:#F3F8FE;border-color:#0078D4;color:#0078D4;
+            background:#F3F8FE;border-color:var(--accent);color:var(--accent);
           }
           #view-pipeline .pa-btn-video:focus-visible{
-            outline:none;border-color:#0078D4;box-shadow:0 0 0 2px rgba(15,108,189,.30);
+            outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(15,108,189,.30);
           }
           #view-pipeline .pa-btn-video svg{width:11px;height:11px;flex:0 0 auto}
           #view-pipeline .pa-act-more{
@@ -10687,7 +10687,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-pipeline .pa-btn-advance.is-followup .pa-adv-ico{color:var(--text-subtle)}
           #view-pipeline .pa-btn-advance.is-followup:hover{
-            background:#FAFAFA;border-color:#D1D1D1;color:var(--text);
+            background:var(--canvas);border-color:#D1D1D1;color:var(--text);
           }
           /* Decline — a defined Fluent danger button: red-tinted surface
              + red glyph so the disposition action is unmistakable and
@@ -10716,7 +10716,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-pipeline .pa-row-v3{grid-template-columns:1fr}
             #view-pipeline .pa-row-v3 .pa-zone-timeline{
               border-left:0;border-right:0;
-              border-top:1px solid #F3F2F1;border-bottom:1px solid #F3F2F1;
+              border-top:1px solid var(--surface-hover);border-bottom:1px solid var(--surface-hover);
             }
             #view-pipeline .pa-zone-action{
               align-items:flex-start;
@@ -11180,25 +11180,25 @@ body.rr-cmdk-open{ overflow:hidden }
             /* The workspace itself is the scroll container. Native bar recipe
                is a BYTE-FOR-BYTE copy of the Schedule's forced scrollbar
                (schedule-rrx.css §.cal-wrap, 14px / scrollbar-width:auto /
-               #5A5A5A thumb on #E1DFDD) so it's the SAME SIZE as the Schedule
+               #5A5A5A thumb on var(--border)) so it's the SAME SIZE as the Schedule
                page. -webkit-appearance:none defeats Chrome's overlay
                auto-hide; overflow-y:scroll reserves the track at all times. */
             overflow:hidden;
             overflow-y:scroll !important;
             scrollbar-gutter:stable !important;
             scrollbar-width:auto !important;
-            scrollbar-color:#5A5A5A #E1DFDD !important;
+            scrollbar-color:#5A5A5A var(--border) !important;
           }
           #view-pipeline .pa-workspace::-webkit-scrollbar,
           #view-pipeline .pa-workspace::-webkit-scrollbar:vertical,
           #view-pipeline .pa-workspace::-webkit-scrollbar:horizontal{
             -webkit-appearance:none !important;appearance:none !important;
             width:14px !important;height:14px !important;
-            background:#E1DFDD !important;display:block !important;
+            background:var(--border) !important;display:block !important;
             visibility:visible !important;opacity:1 !important;
           }
           #view-pipeline .pa-workspace::-webkit-scrollbar-track{
-            background:#E1DFDD !important;border-left:1px solid rgba(15,23,42,.16) !important;
+            background:var(--border) !important;border-left:1px solid rgba(15,23,42,.16) !important;
           }
           #view-pipeline .pa-workspace::-webkit-scrollbar-thumb,
           #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:vertical,
@@ -11206,7 +11206,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:window-inactive{
             -webkit-appearance:none !important;appearance:none !important;
             background:#5A5A5A !important;background-clip:padding-box !important;
-            border:3px solid #E1DFDD !important;border-radius:8px !important;
+            border:3px solid var(--border) !important;border-radius:8px !important;
             min-height:56px !important;visibility:visible !important;
             opacity:1 !important;transition:none !important;
           }
@@ -11223,7 +11223,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Size + colour the funnel's faux bar to MATCH the Schedule's bar
              (14px track, dark thumb) instead of the thin 9px global default. */
           #view-pipeline .rr-faux-scrollbar{
-            width:14px !important;background:#E1DFDD !important;
+            width:14px !important;background:var(--border) !important;
             border-left:1px solid rgba(15,23,42,.16) !important;border-radius:0 !important;
           }
           #view-pipeline .rr-faux-scrollbar-thumb{
@@ -11271,7 +11271,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .rr-indeed-pull{
             display:flex;align-items:center;justify-content:center;gap:7px;
             width:100%;padding:8px 12px;border-radius:6px;
-            background:#0078D4;color:#fff;border:1px solid #0078D4;cursor:pointer;
+            background:var(--accent);color:#fff;border:1px solid var(--accent);cursor:pointer;
             font-family:inherit;font-size:var(--fs-sm);font-weight:600;
             transition:background var(--t-fast),border-color var(--t-fast);
           }
@@ -11628,7 +11628,7 @@ body.rr-cmdk-open{ overflow:hidden }
             }
             /* Add/Edit calendar dialog */
             .oc-caldlg-back{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.32);display:flex;align-items:center;justify-content:center}
-            .oc-caldlg{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 24px 70px rgba(15,23,42,.36);width:min(380px,94vw);padding:18px 20px;font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
+            .oc-caldlg{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 24px 70px rgba(15,23,42,.36);width:min(380px,94vw);padding:18px 20px;font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,sans-serif}
             .oc-caldlg-h{font-size:16px;font-weight:700;color:var(--text);margin-bottom:14px}
             .oc-caldlg-f{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
             .oc-caldlg-f>span{min-width:54px;font-size:13px;font-weight:600;color:var(--text-subtle);padding-top:7px}
@@ -11746,7 +11746,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-drow a{color:var(--oc-blue);text-decoration:none}
             #rr-ivcal .oc-pane-acts{padding:12px 14px;border-top:1px solid var(--oc-line2);display:flex;flex-wrap:wrap;gap:6px}
             /* context menu + hover */
-            .oc-menu{position:fixed;z-index:10000;background:var(--surface-elevated,#FCFDFE);border:1px solid var(--border);border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.16);padding:4px;min-width:180px;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
+            .oc-menu{position:fixed;z-index:10000;background:var(--surface-elevated,#FCFDFE);border:1px solid var(--border);border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.16);padding:4px;min-width:180px;font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
             .oc-menu button{display:flex;width:100%;align-items:center;gap:9px;appearance:none;background:none;border:0;cursor:pointer;font:inherit;font-size:13px;color:var(--text);text-align:left;padding:7px 10px;border-radius:6px}
             .oc-menu button:hover{background:var(--accent-soft,rgba(15,108,189,.08))}
             .oc-menu button.danger:hover{background:rgba(185,28,28,.10);color:#B91C1C}
@@ -11759,7 +11759,7 @@ body.rr-cmdk-open{ overflow:hidden }
             .oc-hover{position:fixed;z-index:10001;background:var(--surface-elevated,#FCFDFE);border:1px solid var(--border);border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:10px 12px;width:260px;font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;pointer-events:none}
             .oc-hover .hh{font-size:14px;font-weight:600;margin-bottom:2px;color:var(--text)}
             .oc-hover .hr{font-size:12px;color:var(--text-subtle);display:flex;gap:6px;margin-top:3px}
-            .oc-quick{position:fixed;z-index:10000;background:var(--surface-elevated,#FCFDFE);border:1px solid var(--border);border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:10px;width:240px;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
+            .oc-quick{position:fixed;z-index:10000;background:var(--surface-elevated,#FCFDFE);border:1px solid var(--border);border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:10px;width:240px;font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
             .oc-quick input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font:inherit;font-size:13px;margin-bottom:6px}
             .oc-quick .qt{font-size:12px;color:var(--text-subtle);margin-bottom:6px}
             .oc-quick .qa{display:flex;gap:6px;justify-content:flex-end}
@@ -12098,7 +12098,7 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-onboarding-ops .ob-att-rules-popover[hidden]{display:none}
         #view-onboarding-ops .ob-att-rules-head{
           display:flex;align-items:center;gap:9px;
-          background:linear-gradient(135deg,#0078D4,#005A9E);color:#fff;
+          background:linear-gradient(135deg,var(--accent),#005A9E);color:#fff;
           font-size:14px;font-weight:600;letter-spacing:.005em;
           padding:13px 18px;border-radius:8px 8px 0 0;
         }
@@ -12153,7 +12153,7 @@ body.rr-cmdk-open{ overflow:hidden }
           background:#fff;border:1px solid rgba(15,23,42,.18);border-radius:8px;
           box-shadow:0 10px 30px rgba(15,23,42,.20);
           padding:4px;display:flex;flex-direction:column;min-width:204px;
-          font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,sans-serif;
+          font-family:"Inter","Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,sans-serif;
         }
         .rr-ob-rules-chooser button{
           appearance:none;background:transparent;border:0;cursor:pointer;
@@ -12166,7 +12166,7 @@ body.rr-cmdk-open{ overflow:hidden }
         /* Interview-availability rules popover · same Fluent shell as the
            screening-questions popover it sits beside in the chooser. */
         #view-onboarding-ops #rr-iv-rules-popover{
-          font-family:"Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",sans-serif;
+          font-family:"Inter","Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",sans-serif;
           background:rgba(255,255,255,.86);
           -webkit-backdrop-filter:blur(40px) saturate(170%);
           backdrop-filter:blur(40px) saturate(170%);
@@ -12176,7 +12176,7 @@ body.rr-cmdk-open{ overflow:hidden }
         }
         #view-onboarding-ops #rr-iv-rules-popover > :first-child{
           display:flex;align-items:center;gap:9px;
-          background:linear-gradient(135deg,#0078D4,#005A9E);color:#fff;
+          background:linear-gradient(135deg,var(--accent),#005A9E);color:#fff;
           font-size:14px;font-weight:600;letter-spacing:.005em;
           padding:13px 18px;border:0;border-radius:8px 8px 0 0;
         }
@@ -12244,7 +12244,7 @@ body.rr-cmdk-open{ overflow:hidden }
                     #view-schedule #rr-sched-vans-rules-popover,
                     #view-schedule #rr-sched-quick-settings-popover,
                     #view-schedule #rr-sched-milestone-rules-popover{
-                      font-family:"Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",sans-serif;
+                      font-family:"Inter","Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",sans-serif;
                       background:rgba(255,255,255,.82);
                       -webkit-backdrop-filter:blur(40px) saturate(170%);
                       backdrop-filter:blur(40px) saturate(170%);
@@ -12260,7 +12260,7 @@ body.rr-cmdk-open{ overflow:hidden }
                     #view-schedule #rr-sched-quick-settings-popover > :first-child,
                     #view-schedule #rr-sched-milestone-rules-popover > :first-child{
                       display:flex;align-items:center;gap:9px;
-                      background:linear-gradient(135deg,#0078D4,#005A9E);
+                      background:linear-gradient(135deg,var(--accent),#005A9E);
                       color:#fff;font-family:inherit;
                       font-size:14px;font-weight:600;letter-spacing:.005em;
                       padding:13px 18px;border:0;border-radius:8px 8px 0 0;
@@ -12325,14 +12325,14 @@ body.rr-cmdk-open{ overflow:hidden }
                     #view-onboarding-ops #rr-funnel-rules-popover h3{font-family:inherit;color:#242424}
                     #view-onboarding-ops #rr-funnel-rules-popover #rr-screening-sub{color:#605E5C}
                     #view-onboarding-ops #rr-funnel-rules-popover .cal-edit-card{
-                      background:#fff;border:1px solid #E1DFDD;border-radius:6px;
+                      background:#fff;border:1px solid var(--border);border-radius:6px;
                       box-shadow:0 1.6px 3.6px rgba(0,0,0,.10),0 0 2.9px rgba(0,0,0,.07);
                     }
                     #view-onboarding-ops #rr-funnel-rules-popover .question-row{
                       grid-template-columns:auto 1fr auto auto auto auto;
                     }
                     #view-onboarding-ops #rr-funnel-rules-popover [data-rr-add-question]{
-                      background:#0078D4;border-color:#0078D4;color:#fff;
+                      background:var(--accent);border-color:var(--accent);color:#fff;
                     }
                     #view-onboarding-ops #rr-funnel-rules-popover [data-rr-add-question]:hover{
                       background:#106EBE;border-color:#106EBE;
@@ -12343,7 +12343,7 @@ body.rr-cmdk-open{ overflow:hidden }
                       transition:border-color .1s;
                     }
                     #view-onboarding-ops #rr-funnel-rules-popover .cal-edit-input:focus{
-                      outline:none;border-color:#D1D1D1;border-bottom:2px solid #0078D4;
+                      outline:none;border-color:#D1D1D1;border-bottom:2px solid var(--accent);
                     }
                   
 /* ── block 14 · index.html:14106 ── */
@@ -13627,15 +13627,15 @@ body.rr-cmdk-open{ overflow:hidden }
                       .rr-sched-density-fset{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
                       .rr-sched-density-opt{
                         display:flex;align-items:flex-start;gap:10px;
-                        padding:10px 12px;border:1px solid #E1DFDD;border-radius:4px;
+                        padding:10px 12px;border:1px solid var(--border);border-radius:4px;
                         background:#FFFFFF;cursor:pointer;
                         font-family:var(--rr-font-family, 'Segoe UI');
                         transition:border-color .12s, background .12s;
                       }
-                      .rr-sched-density-opt:hover{border-color:rgba(15,23,42,.16);background:#FAFAFA}
-                      .rr-sched-density-opt input[type="radio"]{margin:3px 0 0 0;flex:0 0 auto;accent-color:#0078D4}
-                      .rr-sched-density-opt input[type="radio"]:checked + .rr-sched-density-opt-body .rr-sched-density-opt-title{color:#0078D4}
-                      .rr-sched-density-opt:has(input:checked){border-color:#0078D4;background:rgba(0,120,212,.04)}
+                      .rr-sched-density-opt:hover{border-color:rgba(15,23,42,.16);background:var(--canvas)}
+                      .rr-sched-density-opt input[type="radio"]{margin:3px 0 0 0;flex:0 0 auto;accent-color:var(--accent)}
+                      .rr-sched-density-opt input[type="radio"]:checked + .rr-sched-density-opt-body .rr-sched-density-opt-title{color:var(--accent)}
+                      .rr-sched-density-opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
                       .rr-sched-density-opt-body{display:flex;flex-direction:column;gap:2px;min-width:0}
                       .rr-sched-density-opt-title{font-size:13px;font-weight:600;color:#242424;letter-spacing:-.005em}
                       .rr-sched-density-opt-sub{font-size:12px;color:#605E5C;line-height:1.4}
@@ -13653,7 +13653,7 @@ body.rr-cmdk-open{ overflow:hidden }
                         }
                         .rr-rcp-swatch:hover{ transform:translateY(-1px); box-shadow:0 2px 4px rgba(15,23,42,.12) }
                         .rr-rcp-swatch.is-active{
-                          outline:2px solid #0078D4;
+                          outline:2px solid var(--accent);
                           outline-offset:1px;
                         }
                       
@@ -13682,11 +13682,11 @@ body.rr-cmdk-open{ overflow:hidden }
                       transition:border-color .12s,background .12s,box-shadow .12s;
                     }
                     #rr-sched-smartfill-rules-body .sf2-preset:hover{
-                      border-color:#0078D4;background:rgba(0,120,212,.04);
+                      border-color:var(--accent);background:var(--accent-soft);
                     }
                     #rr-sched-smartfill-rules-body .sf2-preset.is-active{
-                      border-color:#0078D4;background:rgba(0,120,212,.08);
-                      box-shadow:inset 0 0 0 1px #0078D4;
+                      border-color:var(--accent);background:rgba(0,120,212,.08);
+                      box-shadow:inset 0 0 0 1px var(--accent);
                     }
                     #rr-sched-smartfill-rules-body .sf2-preset-secondary{
                       flex:0 0 auto;font-weight:500;color:#605E5C;
@@ -13786,7 +13786,7 @@ body.rr-cmdk-open{ overflow:hidden }
                     #rr-sched-smartfill-rules-body .sf2-section-num{
                       display:inline-flex;align-items:center;justify-content:center;
                       width:26px;height:26px;border-radius:50%;
-                      background:#0078D4;color:#fff;
+                      background:var(--accent);color:#fff;
                       font-size:12px;font-weight:700;
                       flex:0 0 auto;
                     }
@@ -13809,7 +13809,7 @@ body.rr-cmdk-open{ overflow:hidden }
                     }
                     #rr-sched-smartfill-rules-body .sf2-section[open] > summary .sf2-section-chev{
                       transform:rotate(90deg);
-                      color:#0078D4;
+                      color:var(--accent);
                     }
                     #rr-sched-smartfill-rules-body .sf2-section-body{
                       padding:4px 14px 12px;
@@ -13847,7 +13847,7 @@ body.rr-cmdk-open{ overflow:hidden }
                     }
                     #rr-sched-smartfill-rules-body .sf2-select:focus,
                     #rr-sched-smartfill-rules-body .sf2-number:focus{
-                      border-color:#0078D4;outline:1px solid #0078D4;outline-offset:-1px;
+                      border-color:var(--accent);outline:1px solid var(--accent);outline-offset:-1px;
                     }
                     /* Segmented "pill" control — replaces the old dropdowns
                        so every option is visible inline instead of hidden
@@ -13867,13 +13867,13 @@ body.rr-cmdk-open{ overflow:hidden }
                       transition:border-color .12s,background .12s,color .12s;
                     }
                     #rr-sched-smartfill-rules-body .sf2-seg-btn:hover{
-                      border-color:#0078D4;background:rgba(0,120,212,.06);
+                      border-color:var(--accent);background:rgba(0,120,212,.06);
                     }
                     #rr-sched-smartfill-rules-body .sf2-seg-btn.is-active{
-                      border-color:#0078D4;background:#0078D4;color:#fff;
+                      border-color:var(--accent);background:var(--accent);color:#fff;
                     }
                     #rr-sched-smartfill-rules-body .sf2-seg-btn:focus-visible{
-                      outline:2px solid #0078D4;outline-offset:1px;
+                      outline:2px solid var(--accent);outline-offset:1px;
                     }
                     #rr-sched-smartfill-rules-body .sf2-section-body .sched-smartfill-rule{
                       margin:0;
@@ -13885,7 +13885,7 @@ body.rr-cmdk-open{ overflow:hidden }
                     }
                     #rr-sched-smartfill-rules-body .sf2-subrules{
                       margin-left:24px;padding-left:8px;
-                      border-left:2px solid #E1DFDD;
+                      border-left:2px solid var(--border);
                     }
                     #rr-sched-smartfill-rules-body .sf2-diagnostic-warn{
                       font-size:11px;color:#8A6D3B;
@@ -15280,7 +15280,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* 4 · Border + edge parity · Schedule's title card (.sched-v2-strip)
                  uses border rgba(15,23,42,.07) (--sch-line-subtle resolves to
                  .07 under #view-schedule) + a soft floating shadow
-                 (schedule-rrx.css:1883/1887). The roster card was #E1DFDD with
+                 (schedule-rrx.css:1883/1887). The roster card was var(--border) with
                  no shadow, which read as a different (warmer/heavier) edge.
                  Hardcode Schedule's resolved values (the onboarding scope's
                  --sch-line-subtle is .04, so the token can't be reused). */
@@ -16127,7 +16127,7 @@ body.rr-cmdk-open{ overflow:hidden }
             min-width:960px;max-width:calc(100vw - 40px);
             max-height:calc(100vh - 96px);overflow-y:auto;
             padding:4px 0 6px;
-            font-family:"Segoe UI", "Segoe UI Web", system-ui, -apple-system, sans-serif;
+            font-family:"Inter","Segoe UI", "Segoe UI Web", system-ui, -apple-system, sans-serif;
           }
           #view-schedule .sched-smartfill-rules-popover[hidden]{display:none}
           #view-schedule .sched-smartfill-rules-head{
@@ -16339,7 +16339,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-smartfill-rule:hover{background:rgba(15,23,42,.05)}
           #view-schedule .sched-smartfill-rule input[type="checkbox"]{
-            width:15px;height:15px;cursor:pointer;accent-color:#0078d4;
+            width:15px;height:15px;cursor:pointer;accent-color:var(--accent);
             margin:0;flex:0 0 auto;
           }
           #view-schedule .sched-smartfill-rule .sf-rule-name{
@@ -16419,7 +16419,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Preferred Availability Enhancement sub-options. */
           #view-schedule .sf-enh-sub{cursor:pointer}
           #view-schedule .sf-enh-sub input[type="checkbox"]{
-            width:14px;height:14px;cursor:pointer;accent-color:#0078d4;
+            width:14px;height:14px;cursor:pointer;accent-color:var(--accent);
             margin:0;flex:0 0 auto;
           }
           #view-schedule .sf-enh-sub span{line-height:1.3}
@@ -16447,7 +16447,7 @@ body.rr-cmdk-open{ overflow:hidden }
             cursor:pointer;
           }
           #view-schedule .sf-mode-opt input[type="radio"]{
-            width:15px;height:15px;cursor:pointer;accent-color:#0078d4;
+            width:15px;height:15px;cursor:pointer;accent-color:var(--accent);
             margin:1px 0 0;flex:0 0 auto;
           }
           #view-schedule .sf-mode-opt .sf-rule-name{flex:1;line-height:1.3}
@@ -16660,7 +16660,7 @@ body.rr-cmdk-open{ overflow:hidden }
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
           }
           #view-schedule .sf-engine-prio-slider{
-            width:100%;accent-color:#0078d4;cursor:pointer;
+            width:100%;accent-color:var(--accent);cursor:pointer;
             margin:0;
           }
           #view-schedule .sf-engine-prio-ticks{
@@ -16689,7 +16689,7 @@ body.rr-cmdk-open{ overflow:hidden }
             cursor:pointer;padding:4px 0;
           }
           #view-schedule .sf-engine-ds input[type="checkbox"]{
-            width:15px;height:15px;cursor:pointer;accent-color:#0078d4;
+            width:15px;height:15px;cursor:pointer;accent-color:var(--accent);
             margin:0;flex:0 0 auto;
           }
           /* Compute budget — two-column row layout (label / select). */
@@ -16714,7 +16714,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sf-engine-reset{
             background:transparent;border:0;cursor:pointer;
-            font-family:inherit;font-size:12px;color:#0078d4;
+            font-family:inherit;font-size:12px;color:var(--accent);
             padding:4px 6px;border-radius:4px;
             transition:background 80ms linear;
           }
@@ -16870,8 +16870,8 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-quick-setting-input:hover{background:#fff;border-color:rgba(15,23,42,.18)}
           #view-schedule .sched-quick-setting-input:focus{
             outline:none;background:#fff;
-            border-color:#0078d4;
-            box-shadow:0 0 0 1px #0078d4;
+            border-color:var(--accent);
+            box-shadow:0 0 0 1px var(--accent);
           }
           #view-schedule .sched-quick-setting-input[data-rr-saving="1"]{background:rgba(0,120,212,.08)}
           #view-schedule .sched-quick-setting-input[data-rr-saved="1"]{background:rgba(16,124,65,.10);border-color:rgba(16,124,65,.5)}
@@ -16903,7 +16903,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-quick-settings-advanced:hover{
             background:rgba(0,120,212,.08);
-            color:#0078d4;
+            color:var(--accent);
           }
           /* Inline-expand advanced section · revealed when the
              popover gets .is-advanced. Popover width grows so the
@@ -18746,16 +18746,16 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           /* Active view tab uses the Microsoft brand blue. */
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active{
-            color:#0078D4;
+            color:var(--accent);
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active svg{
-            color:#0078D4;
+            color:var(--accent);
           }
 
           /* — Five Microsoft-palette accents (the "colored" icons). — */
           /* Fleet calendar · Microsoft brand blue */
           #view-schedule .sched-nav-heading-actions .subnav-item[data-rr-tile="calendar"] svg{
-            color:#0078D4;
+            color:var(--accent);
           }
           /* Targets · Microsoft green (#107C10) */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-okami-open-h svg{
@@ -19153,7 +19153,7 @@ body.rr-cmdk-open{ overflow:hidden }
             .rr-fc-cell-head.is-today{ color:var(--sch-blue); }
             .rr-fc-cell-head.is-today::after{
               content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
-              background:var(--sch-blue, #0078D4);
+              background:var(--sch-blue, var(--accent));
             }
             .rr-fc-dow{display:block}
             .rr-fc-dnum{
@@ -20031,7 +20031,7 @@ body.rr-cmdk-open{ overflow:hidden }
             background:#F7F8FA;
             --flu-brand:#0F6CBD;
             --flu-brand-hover:#115EA3;
-            --flu-stroke:#E1DFDD;
+            --flu-stroke:var(--border);
             --flu-stroke-strong:#C7C6C4;
             --flu-bg-hover:#F5F5F5;
             --flu-bg-selected:#EBF3FC;
@@ -20303,14 +20303,14 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:var(--s-6);
           }
           .rr-proof-card{
-            background:#fff;border:1px solid #E1DFDD;border-radius:8px;
+            background:#fff;border:1px solid var(--border);border-radius:8px;
             box-shadow:var(--shadow-pop);
             width:780px;max-width:100%;max-height:90vh;
             display:flex;flex-direction:column;overflow:hidden;
           }
           .rr-proof-head{
             display:flex;align-items:center;justify-content:space-between;
-            padding:14px 18px;border-bottom:1px solid #E1DFDD;background:#FAFAFA;
+            padding:14px 18px;border-bottom:1px solid var(--border);background:var(--canvas);
           }
           .rr-proof-head h3{margin:0;font-size:15px;font-weight:600;color:#323130}
           .rr-proof-head-sub{font-size:12px;color:#605E5C;margin-top:2px}
@@ -20318,11 +20318,11 @@ body.rr-cmdk-open{ overflow:hidden }
             background:transparent;border:0;cursor:pointer;color:#605E5C;
             width:28px;height:28px;border-radius:4px;font-size:18px;
           }
-          .rr-proof-close:hover{background:#F3F2F1;color:#323130}
+          .rr-proof-close:hover{background:var(--surface-hover);color:#323130}
           .rr-proof-body{padding:14px 18px;overflow-y:auto;flex:1 1 auto}
           .rr-proof-bar{
             display:flex;align-items:end;gap:10px;flex-wrap:wrap;
-            padding-bottom:12px;border-bottom:1px solid #E1DFDD;margin-bottom:12px;
+            padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:12px;
           }
           .rr-proof-bar label{
             display:flex;flex-direction:column;gap:4px;
@@ -20331,7 +20331,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-proof-bar input,
           .rr-proof-bar select{
             height:30px;padding:0 8px;font:inherit;font-size:13px;color:#323130;
-            border:1px solid #E1DFDD;border-radius:4px;background:#fff;
+            border:1px solid var(--border);border-radius:4px;background:#fff;
           }
           .rr-proof-bar input:focus,
           .rr-proof-bar select:focus{
@@ -20344,7 +20344,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-proof-bar .btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8}
           .rr-proof-result{font-size:13px;color:#323130}
           .rr-proof-summary{
-            background:#FAFAFA;border:1px solid #E1DFDD;border-radius:4px;
+            background:var(--canvas);border:1px solid var(--border);border-radius:4px;
             padding:10px 12px;margin-bottom:10px;
             display:flex;align-items:baseline;justify-content:space-between;gap:10px;
             font-size:13px;
@@ -20355,13 +20355,13 @@ body.rr-cmdk-open{ overflow:hidden }
             vertical-align:top;
           }
           .rr-proof-table thead th{
-            background:#FAFAFA;font-size:12px;font-weight:600;color:#605E5C;
-            border-bottom:1px solid #E1DFDD;
+            background:var(--canvas);font-size:12px;font-weight:600;color:#605E5C;
+            border-bottom:1px solid var(--border);
           }
           .rr-proof-empty{padding:18px;text-align:center;color:#605E5C;font-size:13px}
           .rr-proof-foot{
             display:flex;align-items:center;justify-content:flex-end;gap:8px;
-            padding:12px 18px;border-top:1px solid #E1DFDD;background:#FAFAFA;
+            padding:12px 18px;border-top:1px solid var(--border);background:var(--canvas);
           }
           .rr-proof-foot .btn{
             height:30px;padding:0 12px;font-size:13px;font-weight:600;
@@ -20523,7 +20523,7 @@ body.rr-cmdk-open{ overflow:hidden }
             position:absolute;top:calc(100% + 4px);left:0;right:auto;z-index:60;
             width:460px;max-width:calc(100vw - 48px);
             max-height:calc(100vh - 200px);overflow-y:auto;
-            font-family:"Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",sans-serif;
+            font-family:"Inter","Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",sans-serif;
             background:rgba(255,255,255,.82);
             -webkit-backdrop-filter:blur(40px) saturate(170%);
             backdrop-filter:blur(40px) saturate(170%);
@@ -20534,7 +20534,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Brand-blue Fluent header. */
           #view-fleet2 .sched-vans-rules-popover > .sched-vans-rules-head{
             display:flex;align-items:center;gap:9px;
-            background:linear-gradient(135deg,#0078D4,#005A9E);color:#fff;
+            background:linear-gradient(135deg,var(--accent),#005A9E);color:#fff;
             font-size:14px;font-weight:600;letter-spacing:.005em;
             padding:13px 18px;border:0;border-radius:8px 8px 0 0;margin:0;
           }
@@ -20564,7 +20564,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-fleet2 .sched-smartfill-rule:hover{background:rgba(15,23,42,.05)}
           #view-fleet2 .sched-smartfill-rule input[type="checkbox"]{
-            width:15px;height:15px;cursor:pointer;accent-color:#0078d4;
+            width:15px;height:15px;cursor:pointer;accent-color:var(--accent);
             margin:0;flex:0 0 auto;
           }
           #view-fleet2 .sched-smartfill-rule .sf-rule-name{flex:1;line-height:1.3}
@@ -20725,9 +20725,9 @@ body.rr-cmdk-open{ overflow:hidden }
              cards, no playful gradients.
              ═══════════════════════════════════════════════════════ */
           #view-fleet2{
-            --flu-bg:        #F3F2F1;
+            --flu-bg:        var(--surface-hover);
             --flu-surface:   #FFFFFF;
-            --flu-border:    #E1DFDD;
+            --flu-border:    var(--border);
             --flu-text:      #323130;
             --flu-text-2:    #605E5C;
             --flu-accent:    #2563EB;
@@ -20735,7 +20735,7 @@ body.rr-cmdk-open{ overflow:hidden }
             --flu-green:     #107C10;
             --flu-warning:   #D83B01;
             --flu-critical:  #A4262C;
-            --flu-row-hover: #FAFAFA;
+            --flu-row-hover: var(--canvas);
             /* Card-surface radius matches the schedule page (10px). */
             --flu-radius:    10px;
             color:var(--flu-text);
@@ -20789,7 +20789,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-fleet2 .table thead th{
             position:sticky;top:0;z-index:1;
-            background:#FAFAFA;color:var(--flu-text-2);
+            background:var(--canvas);color:var(--flu-text-2);
             font-size:12px;font-weight:600;letter-spacing:.01em;
             padding:9px 12px;text-transform:none;
             border-bottom:1px solid var(--flu-border);
@@ -20813,7 +20813,7 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:none;
           }
           #view-fleet2 .fl-vandetails-head{
-            background:#FAFAFA;color:var(--flu-text);
+            background:var(--canvas);color:var(--flu-text);
             border-bottom:1px solid var(--flu-border);
             font-size:13px;font-weight:600;letter-spacing:.01em;
           }
@@ -20829,7 +20829,7 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:0 4px 12px rgba(0,0,0,.12);
           }
           #view-fleet2 #rr-fleet-vans-rules-popover > .sched-vans-rules-head{
-            background:#FAFAFA;color:var(--flu-text);
+            background:var(--canvas);color:var(--flu-text);
             border-bottom:1px solid var(--flu-border);
             border-radius:var(--flu-radius) var(--flu-radius) 0 0;
           }
@@ -22421,7 +22421,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--border);border-radius:6px;
             background:#fafbfc;
             display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-            font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
+            font-family:'Inter','Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
             flex:0 0 auto;
           }
           .em-composer-toolbar .emct-group{display:flex;align-items:center;gap:4px}
@@ -22431,13 +22431,13 @@ body.rr-cmdk-open{ overflow:hidden }
             font:inherit;font-size:13px;background:transparent;cursor:pointer;min-width:130px;
           }
           .em-composer-toolbar .emct-font:hover{border-color:#c1c5cb;background:#fff}
-          .em-composer-toolbar .emct-font:focus{outline:none;border-color:#0078d4;background:#fff}
+          .em-composer-toolbar .emct-font:focus{outline:none;border-color:var(--accent);background:#fff}
           .em-composer-toolbar .emct-size{
             width:48px;padding:4px 6px;border:1px solid transparent;border-radius:3px;
             font:inherit;font-size:13px;background:transparent;text-align:center;
           }
           .em-composer-toolbar .emct-size:hover{border-color:#c1c5cb;background:#fff}
-          .em-composer-toolbar .emct-size:focus{outline:none;border-color:#0078d4;background:#fff}
+          .em-composer-toolbar .emct-size:focus{outline:none;border-color:var(--accent);background:#fff}
           .em-composer-toolbar .emct-btn{
             width:28px;height:28px;border:1px solid transparent;border-radius:3px;
             background:transparent;cursor:pointer;font:inherit;font-size:14px;color:var(--text);
@@ -22445,7 +22445,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .em-composer-toolbar .emct-btn:hover{background:#eef3f9;border-color:#cfd8e3}
           .em-composer-toolbar .emct-btn:active,
-          .em-composer-toolbar .emct-btn.is-active{background:#c7e0f4;border-color:#0078d4}
+          .em-composer-toolbar .emct-btn.is-active{background:#c7e0f4;border-color:var(--accent)}
           .em-composer-toolbar .emct-b{font-weight:700}
           .em-composer-toolbar .emct-i{font-style:italic;font-family:'Times New Roman',serif}
           .em-composer-toolbar .emct-u{text-decoration:underline}
@@ -22471,7 +22471,7 @@ body.rr-cmdk-open{ overflow:hidden }
             display:inline-flex;align-items:center;gap:6px;padding:4px 8px;
             background:#eef3f9;border:1px solid #cfd8e3;border-radius:14px;
             font-size:12px;color:var(--text);
-            font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
+            font-family:'Inter','Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
           }
           .em-composer-chip-x{
             display:inline-flex;align-items:center;justify-content:center;
@@ -22507,7 +22507,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-email .em-msg-row.unread .em-msg-who{font-weight:700;color:var(--text)}
           #view-email .em-msg-row.unread::before{
             content:"";position:absolute;left:2px;top:10px;bottom:10px;
-            width:3px;background:#0078d4;border-radius:2px;
+            width:3px;background:var(--accent);border-radius:2px;
           }
           /* Inbox toolbar · sticky row with All/Unread tabs + sort. */
           #view-email .em-inbox-toolbar{
@@ -22524,9 +22524,9 @@ body.rr-cmdk-open{ overflow:hidden }
             display:inline-flex;align-items:center;gap:6px;
           }
           #view-email .em-inbox-tab:hover{background:rgba(15,23,42,.04);color:var(--text)}
-          #view-email .em-inbox-tab.active{background:rgba(0,120,212,.10);color:#0078d4}
+          #view-email .em-inbox-tab.active{background:rgba(0,120,212,.10);color:var(--accent)}
           #view-email .em-tab-count{
-            background:#0078d4;color:#fff;font-size:10px;
+            background:var(--accent);color:#fff;font-size:10px;
             padding:1px 6px;border-radius:9px;min-width:18px;
             text-align:center;line-height:1.4;font-weight:600;
           }
@@ -22569,7 +22569,7 @@ body.rr-cmdk-open{ overflow:hidden }
             align-items:center;justify-content:center;margin-left:auto;
           }
           #view-email .em-folder:hover .em-folder-add{display:inline-flex}
-          #view-email .em-folder-add:hover{background:rgba(15,23,42,.08);color:#0078d4}
+          #view-email .em-folder-add:hover{background:rgba(15,23,42,.08);color:var(--accent)}
           /* Pop-out email icon-strip. */
           .em-popout-card{
             background:var(--canvas);border:1px solid var(--border);
@@ -22598,7 +22598,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .em-popout-ibtn svg{display:block;width:28px;height:28px;stroke-width:1.6}
           /* Microsoft-blue Send button — declared AFTER .em-popout-ibtn
              so the brand color wins over the neutral default. */
-          .em-popout-ibtn.em-composer-send-ibtn{background:#0078d4;color:#fff}
+          .em-popout-ibtn.em-composer-send-ibtn{background:var(--accent);color:#fff}
           .em-popout-ibtn.em-composer-send-ibtn:hover{background:#106ebe;color:#fff}
           .em-popout-ibtn-close{margin-left:auto;min-width:42px;padding:6px 10px}
           .em-popout-ibtn-close span{display:none}
@@ -22623,7 +22623,7 @@ body.rr-cmdk-open{ overflow:hidden }
             font:inherit;font-size:13px;color:var(--text);border-radius:4px;
             text-align:left;width:100%;
           }
-          .em-popout-move-item:hover{background:rgba(0,120,212,.08);color:#0078d4}
+          .em-popout-move-item:hover{background:rgba(0,120,212,.08);color:var(--accent)}
           .em-popout-move-item svg{width:14px;height:14px;flex:0 0 auto}
           .em-popout-move-empty{padding:8px 12px;color:var(--text-subtle);font-size:12px}
           .em-popout-subject{
@@ -22888,7 +22888,7 @@ body.rr-cmdk-open{ overflow:hidden }
   .checkin-row.checkin-suspended{display:none}
   .checkin-row.checkin-suspended-shown{background:#F3F4F6;opacity:.7;display:flex}
   .checkin-row.checkin-suspended-shown .status-row{display:none}
-  tr.row-suspended{background:#FAFAFA}
+  tr.row-suspended{background:var(--canvas)}
   tr.row-suspended .cell-name{color:var(--text-muted);text-decoration:line-through}
   .susp-list-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-2-5);align-items:center;padding:var(--s-2-5) 0;border-bottom:1px solid var(--border)}
   .susp-list-row:last-child{border-bottom:0}

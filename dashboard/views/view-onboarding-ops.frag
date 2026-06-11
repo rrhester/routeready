@@ -77,8 +77,8 @@
                     </div>
                     <div class="ob-att-rules-body">
                       <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Table density">
-                        <legend style="font:600 13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Table density</legend>
-                        <p style="font:13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Pick how many drivers you want on screen at once.</p>
+                        <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Table density</legend>
+                        <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Pick how many drivers you want on screen at once.</p>
 
                         <label class="rr-sched-density-opt">
                           <input type="radio" name="rr-roster-density" value="standard" checked />

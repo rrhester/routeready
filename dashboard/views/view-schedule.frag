@@ -111,7 +111,7 @@
                          Toggles body.rr-sched-cards-blue, persisted in
                          localStorage('rr-sched-card-style'). -->
                     <fieldset class="rr-sched-cardstyle-fset" style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:6px">
-                      <legend style="font:600 13px/18px var(--rr-font-family,'Segoe UI');color:var(--rr-fg-primary,#242424);margin-bottom:6px">Card style</legend>
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary,#242424);margin-bottom:6px">Card style</legend>
                       <label class="rr-sched-density-opt">
                         <input type="radio" name="rr-sched-cardstyle" value="white" />
                         <span class="rr-sched-density-opt-body">
@@ -159,12 +159,12 @@
                          shift chips paint themselves per route_classification:
                          rescue=red, nursery=teal, other=gray.
                          Standard (NULL) keeps the existing brand-blue chip. -->
-                    <fieldset class="rr-sched-routecolor-fset" style="border:0;padding:14px 0 0;margin:14px 0 0;border-top:1px solid #E1DFDD">
-                      <legend style="font:600 13px/18px var(--rr-font-family,'Segoe UI');color:var(--rr-fg-primary,#242424);margin-bottom:6px">Route color coding</legend>
-                      <p style="font:13px/18px var(--rr-font-family,'Segoe UI');color:var(--rr-fg-secondary,#605E5C);margin:0 0 10px">Tint each shift chip by its route type (Rescue, Nursery, etc.) so the schedule reads at a glance. Set a shift's type from its Edit drawer.</p>
+                    <fieldset class="rr-sched-routecolor-fset" style="border:0;padding:14px 0 0;margin:14px 0 0;border-top:1px solid var(--border)">
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary,#242424);margin-bottom:6px">Route color coding</legend>
+                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#605E5C);margin:0 0 10px">Tint each shift chip by its route type (Rescue, Nursery, etc.) so the schedule reads at a glance. Set a shift's type from its Edit drawer.</p>
 
-                      <label class="rr-sched-routecolor-opt" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF;cursor:pointer;font-family:var(--rr-font-family,'Segoe UI')">
-                        <input type="checkbox" id="rr-sched-routecolor-on" style="margin:0;accent-color:#0078D4" />
+                      <label class="rr-sched-routecolor-opt" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:4px;background:#FFF;cursor:pointer;font-family:var(--rr-font-family,'Segoe UI')">
+                        <input type="checkbox" id="rr-sched-routecolor-on" style="margin:0;accent-color:var(--accent)" />
                         <span style="font-size:13px;font-weight:600;color:#242424">Color-code chips by route type</span>
                       </label>
 
@@ -175,42 +175,42 @@
                            ring. No free-form color picker — the DSP can
                            still personalize but only from the on-brand
                            palette. -->
-                      <div id="rr-sched-routecolor-legend" hidden style="display:flex;flex-direction:column;gap:8px;margin-top:10px;font:12px/1.4 var(--rr-font-family,'Segoe UI');color:var(--rr-fg-secondary,#605E5C)">
-                        <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
+                      <div id="rr-sched-routecolor-legend" hidden style="display:flex;flex-direction:column;gap:8px;margin-top:10px;font:12px/1.4 var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#605E5C)">
+                        <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
                           <span style="width:14px;height:14px;border-radius:3px;background:rgba(0,120,212,.22);border:1.5px solid rgba(0,120,212,.55);flex-shrink:0"></span>
                           <span style="flex:1">Standard</span>
                           <span style="color:#9A9A9A;font-size:11px">(no override)</span>
                         </div>
-                        <div class="rr-rcp-row" data-rr-route="rescue"    style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Rescue</span><button type="button" data-rr-route-reset="rescue" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                        <div class="rr-rcp-row" data-rr-route="rescue"    style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Rescue</span><button type="button" data-rr-route-reset="rescue" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="rescue" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
-                        <div class="rr-rcp-row" data-rr-route="nursery"   style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Nursery</span><button type="button" data-rr-route-reset="nursery" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                        <div class="rr-rcp-row" data-rr-route="nursery"   style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Nursery</span><button type="button" data-rr-route-reset="nursery" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="nursery" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
-                        <div class="rr-rcp-row" data-rr-route="other"     style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Other</span><button type="button" data-rr-route-reset="other" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                        <div class="rr-rcp-row" data-rr-route="other"     style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Other</span><button type="button" data-rr-route-reset="other" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="other" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
-                        <div class="rr-rcp-row" data-rr-route="class_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Class training</span><button type="button" data-rr-route-reset="class_training" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                        <div class="rr-rcp-row" data-rr-route="class_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Class training</span><button type="button" data-rr-route-reset="class_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="class_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
-                        <div class="rr-rcp-row" data-rr-route="road_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Road training</span><button type="button" data-rr-route-reset="road_training" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                        <div class="rr-rcp-row" data-rr-route="road_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Road training</span><button type="button" data-rr-route-reset="road_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="road_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
-                        <div class="rr-rcp-row" data-rr-route="pto" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">PTO / time off</span><button type="button" data-rr-route-reset="pto" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                        <div class="rr-rcp-row" data-rr-route="pto" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">PTO / time off</span><button type="button" data-rr-route-reset="pto" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="pto" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
-                        <div class="rr-rcp-row" data-rr-route="xl" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">XL</span><button type="button" data-rr-route-reset="xl" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                        <div class="rr-rcp-row" data-rr-route="xl" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">XL</span><button type="button" data-rr-route-reset="xl" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="xl" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
-                        <div class="rr-rcp-row" data-rr-route="trainer_trainee" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Trainer (trainee riding along)</span><button type="button" data-rr-route-reset="trainer_trainee" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                        <div class="rr-rcp-row" data-rr-route="trainer_trainee" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Trainer (trainee riding along)</span><button type="button" data-rr-route-reset="trainer_trainee" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="trainer_trainee" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                       </div>
@@ -233,7 +233,7 @@
                           { name: "Olive",    hex: "#986F0B" },
                           { name: "Forest",   hex: "#498205" },
                           { name: "Teal",     hex: "#038387" },
-                          { name: "Blue",     hex: "#0078D4" },
+                          { name: "Blue",     hex: "var(--accent)" },
                           { name: "Royal",    hex: "#5C2E91" },
                           { name: "Magenta",  hex: "#881798" },
                           { name: "Berry",    hex: "#C239B3" },
@@ -394,8 +394,8 @@
                   </div>
                   <div class="sched-smartfill-rules-body">
                     <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Grid density">
-                      <legend style="font:600 13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Grid density</legend>
-                      <p style="font:13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Same density choice as the Week view — flipping it here also affects Week and Fleet calendar.</p>
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Grid density</legend>
+                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Same density choice as the Week view — flipping it here also affects Week and Fleet calendar.</p>
 
                       <label class="rr-sched-density-opt">
                         <input type="radio" name="rr-sched-density" value="standard" />
@@ -461,8 +461,8 @@
                   </div>
                   <div class="sched-smartfill-rules-body">
                     <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Grid density">
-                      <legend style="font:600 13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Grid density</legend>
-                      <p style="font:13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Same density choice as the Week view — flipping it here also affects Week and Today.</p>
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Grid density</legend>
+                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Same density choice as the Week view — flipping it here also affects Week and Today.</p>
 
                       <label class="rr-sched-density-opt">
                         <input type="radio" name="rr-sched-density" value="standard" />
