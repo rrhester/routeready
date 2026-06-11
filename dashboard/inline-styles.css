@@ -270,7 +270,13 @@
   /* ── Transitions ──────────────────────────────────────────
      Composed, not snappy. ~250ms with an ease-out curve reads
      as a considered platform instead of a reactive one. */
-  --t-fast: 250ms cubic-bezier(.33,0,.67,1);
+  /* Motion system (premium pass) · two tiers, used consistently:
+     fast = micro feedback (hover, press, color) — crisp, near-instant;
+     smooth = macro movement (overlays, layout) — composed, weighted.
+     fast was 250ms (identical to smooth), which made every hover feel
+     floaty; 120ms is the Linear/Stripe-class micro tier. 332 usages
+     inherit this change. */
+  --t-fast: 120ms cubic-bezier(.33,0,.67,1);
   --t-smooth: 250ms cubic-bezier(.33,0,.67,1);
   --t-spring: 280ms cubic-bezier(.34,1.2,.64,1);
 
@@ -3196,7 +3202,12 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 
 /* Page switching */
 .view{display:none}
-.view.active{display:block}
+.view.active{display:block;animation:rrViewIn 140ms ease-out}
+/* View-switch crossfade · pages arrive instead of snapping. Subtle on
+   purpose — 140ms opacity only, no movement (content must feel
+   anchored, not animated). */
+@keyframes rrViewIn{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){.view.active{animation:none}}
 
 /* Mockup banner */
 .mockup-banner{
