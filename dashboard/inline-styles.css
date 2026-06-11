@@ -22914,3 +22914,59 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Onboarding · PDF upload */
 #view-onboarding-ops [data-rr-tile="ob-pdf-upload"] .subnav-item{box-shadow:inset 0 0 0 1px rgba(15,23,42,.14)}
 #view-onboarding-ops [data-rr-tile="ob-pdf-upload"] .subnav-item:hover{box-shadow:inset 0 0 0 1px rgba(15,23,42,.24)}
+
+
+/* ── Header enterprise pass · workspace identity, slim Ask, account ──
+   The chip ids (#rr-workspace-chip-*) are painted by live.js's
+   existing _paintWorkspaceChip(); the avatar/account ids by
+   _paintHeaderAccount(). */
+.hdr-workspace{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:4px 10px 4px 4px;margin-right:var(--s-3);
+  border-radius:var(--r-md);min-width:0;
+}
+.hdr-workspace-avatar{
+  width:26px;height:26px;border-radius:6px;flex:0 0 auto;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--sidebar-bg,#205285);color:#fff;
+  font-size:11px;font-weight:700;letter-spacing:.02em;
+}
+.hdr-workspace-text{display:flex;flex-direction:column;min-width:0;line-height:1.15}
+.hdr-workspace-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.hdr-workspace-sub{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
+@media (max-width:1100px){.hdr-workspace-text{display:none}}
+
+/* Slim circular Ask submit — Enter submits; the button is a quiet affordance. */
+.hdr-ask-submit{
+  width:28px;height:28px;padding:0 !important;border-radius:50% !important;
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+}
+.hdr-ask-submit svg{width:13px;height:13px}
+
+/* Topbar icon buttons (bell / gear / avatar) share .icon-btn; needs a
+   positioning context for the unread dot. */
+.topbar .icon-btn{position:relative;color:var(--text-muted)}
+.topbar .icon-btn:hover{color:var(--text)}
+.topbar .topbar-settings{border:0;background:transparent;cursor:pointer}
+.hdr-avatar-btn{padding:0}
+.hdr-avatar{
+  width:28px;height:28px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--accent-soft,rgba(37,99,235,.13));color:var(--accent-text,#1D4ED8);
+  font-size:11px;font-weight:700;letter-spacing:.02em;
+}
+/* Account menu */
+#popover-account.open{display:block}
+.hdr-account-head{padding:12px 14px;border-bottom:1px solid var(--border-subtle)}
+.hdr-account-name{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+.hdr-account-email{font-size:var(--fs-xs);color:var(--text-muted);margin-top:1px;word-break:break-all}
+.hdr-account-items{padding:6px}
+.hdr-account-item{
+  display:flex;align-items:center;gap:9px;width:100%;
+  padding:8px 10px;border:0;background:transparent;border-radius:var(--r-md);
+  font:inherit;font-size:var(--fs-sm);color:var(--text);cursor:pointer;text-align:left;
+}
+.hdr-account-item:hover{background:var(--surface-hover,rgba(15,23,42,.04))}
+.hdr-account-item svg{color:var(--text-muted);flex:0 0 auto}
+.hdr-account-signout{color:#B91C1C}
+.hdr-account-signout svg{color:#B91C1C}
