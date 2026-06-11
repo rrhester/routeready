@@ -23120,3 +23120,40 @@ body.rr-cmdk-open{ overflow:hidden }
   box-shadow:0 1px 4px rgba(15,23,42,.06);
 }
 .topbar .rr-qat{margin-right:0}
+
+/* ════════════════════════════════════════════════════════════════════
+   Strip to the top + sidebar tool dock (operator request 2026-06-11,
+   follow-on to #2785)
+   --------------------------------------------------------------------
+   1. Every view's top padding collapses to 6px so the command icon
+      strip (and plain page headers) sit at the top of the page.
+   2. The floating tool cluster moves OFF the canvas entirely: bell /
+      settings / account become a compact vertical dock pinned to the
+      bottom of the sidebar rail (above the theme/collapse foot) —
+      no view content can ever collide with it, in either rail state.
+   3. The QAT is hidden in the dock: its riders stay reachable (Undo
+      lives on the schedule strip; Refresh app is in the account menu).
+   4. The notification/account popovers re-anchor beside the dock
+      (their inline top:50px was tuned to the old topbar).
+   ════════════════════════════════════════════════════════════════════ */
+.view > .page{padding-top:6px!important}
+/* schedule-rrx.css:49 pins `#view-schedule.rrx-schedule > .page{padding:
+   var(--rr-space-200)!important}` — match its specificity to win the top
+   edge (other sides keep their gutter). Onboarding-ops shares the TCP
+   chrome, so it gets the same override. */
+#view-schedule.rrx-schedule > .page,
+#view-onboarding-ops > .page{padding-top:6px!important}
+.sched-v2-strip,.f2-strip{margin-top:0!important}
+.topbar{
+  position:fixed;left:13px;right:auto;top:auto;bottom:64px;
+  width:38px;height:auto;flex-direction:column;align-items:center;
+  gap:2px;padding:8px 0;z-index:60;border-radius:19px;
+  background:rgba(255,255,255,.10);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.14);box-shadow:none;
+}
+.topbar .rr-qat{display:none}
+.topbar .icon-btn{color:rgba(255,255,255,.78)}
+.topbar .icon-btn:hover{color:#fff;background:rgba(255,255,255,.12)}
+#popover-account{top:auto!important;bottom:18px!important;left:60px!important;right:auto!important}
+#popover-notif{top:auto!important;bottom:18px!important;left:60px!important;right:auto!important}
