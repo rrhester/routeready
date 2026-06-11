@@ -22995,22 +22995,25 @@ body.rr-cmdk-open{ overflow:hidden }
    header tools (it undoes schedule edits, so it lives with them). */
 #rr-qat{display:none !important}
 #rr-hdr-refresh{display:none !important}
-/* Undo cluster inside the driver-header tool grid · icon-only. */
-.rr-sched-driver-actions .hdr-undo-wrap{display:inline-flex;align-items:center;position:relative}
-.rr-sched-driver-actions .hdr-undo{
+/* Undo cluster in the SCHEDULE STRIP (right side, beside the week
+   nav) · icon-only. The strip is visible on every schedule sub-view,
+   so undo stays reachable from Requests/Roster/etc. — all 11
+   _rrPushUndo call sites live within schedule subs (Codex P2). */
+.sched-v2-strip .hdr-undo-wrap{display:inline-flex;align-items:center;position:relative;order:99;margin-left:auto;align-self:center}
+.sched-v2-strip .hdr-undo{
   width:22px;height:22px;padding:0;border:0;background:transparent;border-radius:var(--r-md);
   display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;
 }
-.rr-sched-driver-actions .hdr-undo span{display:none}
-.rr-sched-driver-actions .hdr-undo:hover{color:var(--accent);background:var(--accent-soft)}
-.rr-sched-driver-actions .hdr-undo:disabled{opacity:.4;cursor:default}
-.rr-sched-driver-actions .hdr-undo:disabled:hover{color:var(--text-muted);background:transparent}
-.rr-sched-driver-actions .hdr-undo-caret{
+.sched-v2-strip .hdr-undo span{display:none}
+.sched-v2-strip .hdr-undo:hover{color:var(--accent);background:var(--accent-soft)}
+.sched-v2-strip .hdr-undo:disabled{opacity:.4;cursor:default}
+.sched-v2-strip .hdr-undo:disabled:hover{color:var(--text-muted);background:transparent}
+.sched-v2-strip .hdr-undo-caret{
   width:14px;height:22px;padding:0;border:0;background:transparent;
   display:inline-flex;align-items:center;justify-content:center;color:var(--text-subtle);cursor:pointer;
 }
-.rr-sched-driver-actions .hdr-undo-caret:disabled{opacity:.35;cursor:default}
-.rr-sched-driver-actions .hdr-undo-menu{position:absolute;top:24px;left:0;z-index:60}
+.sched-v2-strip .hdr-undo-caret:disabled{opacity:.35;cursor:default}
+.sched-v2-strip .hdr-undo-menu{position:absolute;top:28px;right:0;left:auto;z-index:60}
 
 /* ── Calm sweep · de-border the repeating rows (whitespace separates,
    not outlines). Hover restores definition where it aids targeting. */

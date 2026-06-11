@@ -1437,6 +1437,16 @@
                far right of the V2 strip. All IDs preserved so the
                JS handlers (`rr-sched-week-prev / -today / -next /
                -range / -range-label`) keep working unchanged. -->
+          <div class="hdr-undo-wrap">
+        <button type="button" id="rr-undo-btn" class="hdr-undo" disabled title="Nothing to undo" aria-label="Undo last action">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a6 6 0 0 1 0 12h-4"/></svg>
+          <span>Undo</span>
+        </button>
+        <button type="button" id="rr-undo-caret" class="hdr-undo-caret" disabled aria-label="Undo history" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="rr-undo-menu" class="hdr-undo-menu" hidden></div>
+      </div>
           <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
             <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1585,16 +1595,6 @@
                      5 icons render as 4 on top + 1 on the bottom
                      until more are added. -->
                 <div class="rr-sched-driver-actions" style="display:grid;grid-template-columns:repeat(4, auto);grid-auto-rows:auto;gap:4px;margin-left:auto;align-items:center;justify-items:center">
-                  <div class="hdr-undo-wrap">
-        <button type="button" id="rr-undo-btn" class="hdr-undo" disabled title="Nothing to undo" aria-label="Undo last action">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a6 6 0 0 1 0 12h-4"/></svg>
-          <span>Undo</span>
-        </button>
-        <button type="button" id="rr-undo-caret" class="hdr-undo-caret" disabled aria-label="Undo history" aria-haspopup="true" aria-expanded="false">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div id="rr-undo-menu" class="hdr-undo-menu" hidden></div>
-      </div>
                   <!-- Focus-mode toggle moved to the Quick Access
                        Toolbar (top-left of the topbar); the header-card
                        icon was removed per operator request. -->

@@ -13,6 +13,11 @@ async function prep(page, path) {
   // never load, so the page renders its static markup the same way
   // everywhere (no auth redirect, no data, no flakiness).
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (r) => r.abort());
+  // The schedule "orient flash" highlights today's column for 1.5s on
+  // a setTimeout poll — a timing window that lands differently across
+  // hosts and flipped the schedule baseline (CI failed at 3% vs the 2%
+  // threshold). The script no-ops if its guard flag is already set.
+  await page.addInitScript(() => { window.__rrSchedOrientFlash = true; });
   page.on("pageerror", () => {});
   await page.goto(BASE + path, { waitUntil: "domcontentloaded" });
   await page.addStyleTag({

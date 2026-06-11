@@ -37,5 +37,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: visual-diffs
-          path: tests/visual/test-results/
+          path: test-results/
           retention-days: 14
