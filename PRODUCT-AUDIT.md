@@ -234,6 +234,37 @@ linked from nowhere. Either surface it or document it as link-only.
 Marketing has nav+footer; `login`/`refer`/`rsvp`/`booking` are isolated
 cards with no way back to the product. No breadcrumb/back strategy.
 
+### 🟠 F18 — Iconography: ~994 inline SVGs, 17 stroke-widths, 2 rival registries
+The product runs on one icon family (Lucide/Feather: 24-grid, outline,
+round caps/joins) but it is **pasted inline ~994 times** rather than
+referenced: 326 in `live.js`, 330 in the frags, 191 in `index.html`, 95 in
+`app.js`, 52 in standalone pages. Two **divergent** registries exist —
+`live.js:63682` (`const ICONS`, stroke-width `1.8`) and `app/app.js:4493`
+(`const ICONS`, stroke-width `2`, fixed `18×18`) — and both are defined so
+late/locally that the inline icons elsewhere bypass them. Consequences,
+verified by count:
+- **17 distinct `stroke-width` values** in the dashboard (`1, 1.4, 1.5,
+  1.6, 1.7, 1.8, 1.9, 2, 2.1, 2.2, 2.4, 2.5, 2.6, 3, 3.4, 4, 5`) — the most
+  visible icon defect; icons render at different weights side-by-side.
+- **~10 render sizes** (`11–20px`) with no standard step.
+- viewBox mostly on-grid (`803 × 0 0 24 24`) but **43 off-grid** icons
+  (`12×12`, `16×16`, `12×14`, `50×50`, `10×16`).
+- Style *is* uniformly outline (848 `stroke=`, 0 `fill=`) — the one thing
+  that's consistent. The DS has no icon token; there is no single
+  `icon(name, size)` accessor.
+
+### 🟡 F19 — Page layout: DS shell primitives 100% unused; ~20 title classes
+All 18 views share a `.page` wrapper, so chrome looks aligned — but that's
+incidental, not governed: the design system's layout primitives
+`.rrx-page-shell`, `.rrx-command-bar`, and `.rrx-section` are referenced by
+**zero** dashboard views. Two views bolt on `tcp-shell` (schedule,
+onboarding-ops) and one adds `co-page` (compliance), drifting the wrapper.
+Section/page titles fork into ~20+ class names (`page-title` ×17,
+`page-header` ×10, `dr-section-title`, `settings-section-title`,
+`rules-section-title`, `sf2-section-title`, `pa-detail-section-title`,
+`section-title`, `attn-title`, `cd-coverage-title`, …) with no shared header
+component, so vertical rhythm and title typography vary per view.
+
 ### 🔵 F17 — Asset hygiene
 Duplicate/oversized committed binaries at repo root: `header-bg.png`
 **and** `header-bg.png.png` (identical 922 KB), plus a 922 KB
@@ -280,8 +311,17 @@ Collapse the four brand blues to one.
 One PR per view, in this order (lowest-traffic / least-inline first to build
 confidence, then the heavy hitters): admin → workspaces → checklists →
 forms → documents → recognition* → compliance → okami → fleet2 → messages →
-email → drivers → settings → schedule. Each PR: swap legacy classes for
-`.rrx-*`, delete that view's inline styles, regenerate its baseline.
+email → drivers → settings → schedule. Each PR: adopt `.rrx-page-shell` /
+`.rrx-section` for chrome, collapse that view's bespoke `*-title` classes
+onto one section-header pattern (F19), swap legacy classes for `.rrx-*`,
+delete that view's inline styles, regenerate its baseline.
+
+**Phase 3.5 — Icon unification (F18).** Promote the Lucide/Feather set to a
+single `icon(name, size)` accessor backed by one registry (merge the two
+rival `ICONS` objects), add `--rr-icon-size-*` and one canonical
+`stroke-width` (recommend `1.8`), and codemod the ~994 inline SVGs to call
+it. Add CI lint banning new inline `<svg>` outside the registry. Pixel diffs
+limited to the off-grid/odd-weight icons being corrected.
 
 **Phase 4 — Componentize states + overlays (JS).** Introduce
 `renderEmptyState()`, `renderErrorState()`, `renderSkeleton()`,
@@ -333,6 +373,8 @@ document `coaching.html`, add guest-flow nav continuity (F15–F17).
 | Empty/loading/error | ≥8 variants, no shared component | 🟠 |
 | Guest-flow consistency | per-page reimplementation | 🟠 |
 | Semantic colors | disagree across surfaces | 🟠 |
+| Iconography | ~994 inline SVGs, 17 stroke-widths, 2 rival registries | 🟠 |
+| Page layout / shell | DS shell primitives 0% used, ~20 title classes | 🟡 |
 | Typography | 75+ sizes, 600/700 mixed | 🟡 |
 | Radius/spacing | 6 namespaces, conflicting fallbacks | 🟡 |
 | Dead code | 30 markers + dead view | 🟡 |
