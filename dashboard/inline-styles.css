@@ -23157,3 +23157,28 @@ body.rr-cmdk-open{ overflow:hidden }
 .topbar .icon-btn:hover{color:#fff;background:rgba(255,255,255,.12)}
 #popover-account{top:auto!important;bottom:18px!important;left:60px!important;right:auto!important}
 #popover-notif{top:auto!important;bottom:18px!important;left:60px!important;right:auto!important}
+
+/* ════════════════════════════════════════════════════════════════════
+   Desktop app (WCO) fix — operator report 2026-06-11
+   --------------------------------------------------------------------
+   In the installed app the OS draws its window controls over the
+   top-right corner (Window Controls Overlay). With the strip now flush
+   to the top, the controls collided with the schedule chrome. Scoped to
+   WCO display-mode only — the browser keeps the full-bleed layout:
+   1. Pages reserve exactly the title-bar height, so nothing sits under
+      the OS controls.
+   2. The freed title-bar band becomes the window-drag region again
+      (the old .topbar was the drag handle; it's a bottom dock now).
+   3. The dock is explicitly no-drag so its buttons stay clickable.
+   ════════════════════════════════════════════════════════════════════ */
+@media (display-mode: window-controls-overlay){
+  .view > .page{padding-top:calc(env(titlebar-area-height, 33px) + 4px)!important}
+  #view-schedule.rrx-schedule > .page,
+  #view-onboarding-ops > .page{padding-top:calc(env(titlebar-area-height, 33px) + 4px)!important}
+  body::before{
+    content:"";position:fixed;top:0;left:0;right:0;
+    height:env(titlebar-area-height, 33px);z-index:55;
+    -webkit-app-region:drag;app-region:drag;
+  }
+}
+.topbar{-webkit-app-region:no-drag;app-region:no-drag}
