@@ -373,7 +373,9 @@ async function _rrLoadNotifications() {
     const nameById = new Map((drvRes.data || []).map((d) => [d.id, d.preferred_name || d.full_name || "Driver"]));
     const items = (toRes.data || []);
     const dot = document.querySelector('#rr-hdr-notif .dot');
-    if (dot) dot.style.display = items.length ? "" : "none";
+    // block (not '') — the stylesheet hides the dot by default, so an
+    // empty inline value would fall back to display:none (Codex P2).
+    if (dot) dot.style.display = items.length ? "block" : "none";
     if (!items.length) return; // keep "You're all caught up"
     const fmt = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
     list.innerHTML = items.map((r) => `
