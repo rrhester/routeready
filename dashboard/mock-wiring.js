@@ -1426,7 +1426,7 @@
     if (!(rosterSub && rosterSub.offsetParent !== null)) {
       var driversView = document.getElementById('view-drivers');
       if (driversView && !driversView.classList.contains('active') && typeof goto === 'function') {
-        try { goto('drivers'); } catch (_e) {}
+        try { goto('schedule'); if (typeof schedSub === 'function') schedSub('roster'); } catch (_e) {}
       }
       if (rosterSub && !rosterSub.classList.contains('active') && typeof drSub === 'function') {
         try { drSub('roster'); } catch (_e) {}
@@ -2253,7 +2253,7 @@
       if (notifList) {
         var notif = document.createElement('div');
         notif.className = 'notif-item';
-        notif.onclick = function(){ goto('drivers'); closePopovers(); };
+        notif.onclick = function(){ goto('schedule'); if (typeof schedSub === 'function') schedSub('roster'); closePopovers(); };
         var refLine = (extra && extra.indexOf('referred:') === 0)
           ? ' · $250 referral payout queued for ' + extra.replace('referred:','')
           : '';
@@ -2310,7 +2310,7 @@
     if (notifList) {
       var notif = document.createElement('div');
       notif.className = 'notif-item';
-      notif.onclick = function(){ goto('drivers'); closePopovers(); };
+      notif.onclick = function(){ goto('schedule'); if (typeof schedSub === 'function') schedSub('roster'); closePopovers(); };
       notif.innerHTML = '<div class="notif-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' +
         '<div><div class="notif-title">' + name + ' hired</div><div class="notif-msg">Welcome SMS sent · onboarding starts next cycle</div><div class="notif-time">Just now</div></div>';
       notifList.insertBefore(notif, notifList.firstChild);

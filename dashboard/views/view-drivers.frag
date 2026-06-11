@@ -158,7 +158,12 @@
               <span class="rr-roster-status-filter-label">Active</span>
               <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
-            <!-- duplicate toolbar Add-driver removed (cohesion pass) — the header Add driver menu is the one home for this action -->
+            <!-- This is the PORTABLE Add-driver (travels with #dr-sub-roster into
+                 the Schedule/Onboarding embeds — the page-header copy does not).
+                 With the standalone Drivers page retired from navigation
+                 (IA decision: Schedule is the one home), this is the only
+                 Add-driver an operator sees. -->
+            <button type="button" class="btn btn-sm" data-rr-roster-add-driver data-rr-no-drawer title="Add a new driver" style="text-transform:none;letter-spacing:normal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add driver</button>
           </div>
         </div>
 

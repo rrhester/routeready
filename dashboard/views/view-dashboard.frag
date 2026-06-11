@@ -32,7 +32,7 @@
                    progress, not clicks. Step 4 has no reliable data
                    signal (team membership is RLS-scoped), so it stays a
                    plain link. -->
-              <button type="button" class="rr-firstrun-tile" data-fr-step="drivers" onclick="goto('drivers')">
+              <button type="button" class="rr-firstrun-tile" data-fr-step="drivers" onclick="goto('schedule');if(typeof schedSub==='function')schedSub('roster')">
                 <span class="rr-firstrun-tile-num">1</span>
                 <div class="rr-firstrun-tile-text">
                   <div class="rr-firstrun-tile-title">Add your drivers</div>

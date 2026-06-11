@@ -46591,7 +46591,14 @@ function bindSchedWeekNav() {
       })();
       return;
     }
-    if (e.target.closest("[data-rr-goto-drivers]")) { if (typeof window.goto === "function") window.goto("drivers"); return; }
+    if (e.target.closest("[data-rr-goto-drivers]")) {
+      // IA decision: Schedule's Roster sub-view is the one roster home —
+      // the standalone Drivers page is retired from navigation (its only
+      // remaining internal use is the Availability full-report drill-down).
+      if (typeof window.goto === "function") window.goto("schedule");
+      if (typeof window.schedSub === "function") window.schedSub("roster");
+      return;
+    }
 
     // Click a PTO / time-off chip → offer to remove it. A driver may
     // change their mind; the DSP takes the time off back here, which
