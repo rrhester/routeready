@@ -1585,6 +1585,16 @@
                      5 icons render as 4 on top + 1 on the bottom
                      until more are added. -->
                 <div class="rr-sched-driver-actions" style="display:grid;grid-template-columns:repeat(4, auto);grid-auto-rows:auto;gap:4px;margin-left:auto;align-items:center;justify-items:center">
+                  <div class="hdr-undo-wrap">
+        <button type="button" id="rr-undo-btn" class="hdr-undo" disabled title="Nothing to undo" aria-label="Undo last action">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a6 6 0 0 1 0 12h-4"/></svg>
+          <span>Undo</span>
+        </button>
+        <button type="button" id="rr-undo-caret" class="hdr-undo-caret" disabled aria-label="Undo history" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="rr-undo-menu" class="hdr-undo-menu" hidden></div>
+      </div>
                   <!-- Focus-mode toggle moved to the Quick Access
                        Toolbar (top-left of the topbar); the header-card
                        icon was removed per operator request. -->
@@ -1763,7 +1773,7 @@
             <input class="pool-search" placeholder="Search drivers…" />
 
             <div>
-              <div class="pool-section-label">Available · click to assign</div>
+              <div class="pool-section-label">Available</div>
               <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Sasha Underwood')">
                 <div class="avatar-sm tier-c">SU</div>
                 <div><div class="pool-driver-name">Sasha Underwood</div><div class="pool-driver-meta">KMO2 · 0h scheduled</div></div>

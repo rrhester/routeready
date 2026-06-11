@@ -363,16 +363,7 @@
       </button>
       <!-- Undo · pops the last reversible action (5-deep). The caret
            opens a history of recent actions. -->
-      <div class="hdr-undo-wrap">
-        <button type="button" id="rr-undo-btn" class="hdr-undo" disabled title="Nothing to undo" aria-label="Undo last action">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a6 6 0 0 1 0 12h-4"/></svg>
-          <span>Undo</span>
-        </button>
-        <button type="button" id="rr-undo-caret" class="hdr-undo-caret" disabled aria-label="Undo history" aria-haspopup="true" aria-expanded="false">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div id="rr-undo-menu" class="hdr-undo-menu" hidden></div>
-      </div>
+      <!-- Undo cluster relocated into the schedule grid header tools (calm sweep) -->
       <!-- Workspace identity chip removed per operator request (2026-06-11).
            live.js's _paintWorkspaceChip() null-guards its targets and still
            sets document.title, so no JS change was needed. -->
@@ -440,6 +431,10 @@
           <button type="button" class="hdr-account-item" onclick="goto('settings');if(typeof closePopovers==='function')closePopovers()">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Settings
+          </button>
+          <button type="button" class="hdr-account-item" onclick="document.getElementById('rr-hdr-refresh')?.click()">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Refresh app
           </button>
           <button type="button" class="hdr-account-item" onclick="if(typeof closePopovers==='function')closePopovers();if(typeof openModal==='function')openModal('modal-whats-new')">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg>
@@ -4009,11 +4004,12 @@ John,Smith,555-0101,john@example.com</code>
   // Registry. node() returns the live DOM element the rail should host.
   // Refresh + Undo reuse the existing topbar controls — their click
   // handlers are delegated on `document`, so relocating them is safe.
+  // Calm sweep: the QAT is parked (display:none) and Undo now lives in
+  // the schedule grid header tools — it must NOT be kidnapped into the
+  // hidden rail/park, so it is no longer a QAT-managed control.
   var ITEMS = [
     { id: "refresh", label: "Page Refresh",
       node: function () { return document.getElementById("rr-hdr-refresh"); } },
-    { id: "undo", label: "Undo / Go Back",
-      node: function () { return document.querySelector(".hdr-undo-wrap"); } },
     { id: "focus", label: "Focus Mode", lazy: true, node: ensureFocusBtn },
   ];
 
