@@ -253,6 +253,29 @@ verified by count:
   that's consistent. The DS has no icon token; there is no single
   `icon(name, size)` accessor.
 
+### 🟠 F20 — Navigation: per-view icon strip costs ~132px; sidebar under-used
+RouteReady already has a labeled left sidebar (`.nav`, collapsible to an icon
+rail), but most **sub-destinations were pushed out of it into a per-view
+horizontal "command icon strip"** — the `--tcp-strip-h: 92px` Header+IconStrip
+card plus a `--tcp-cmd-tabs-h: 28px` tab band above it. Total chrome stacked
+above the work table is **~240px** (topbar 56 + tab band 28 + strip 92 + gap
+12 + KPI 44 + gap 8). The sub-pages it hosts (Schedule ▸ week/today/requests/
+targets/rotation/workflows; Onboarding ▸ funnel/interview/calendar/documents;
+Fleet ▸ vehicles/maintenance/safety/issues; Drivers ▸ roster/licenses/
+attendance/availability/coaching; Workflows ▸ forms/checklists/workspaces) are
+driven by five ad-hoc dispatchers (`schedSub`, `obSub`, `fleetSub`, `drSub`,
+`pipeSub`, `live.js:2947…61963`) — the same sub-nav fragmentation as F4.
+
+**Recommendation:** nest these sub-pages under the existing sidebar as
+expandable subpages (accordion, active-section-expanded), backed by the
+already-built-but-unused `.rrx-sidebar` / `.rrx-sidebar-item` / `.rrx-page-shell`
+primitives, then **delete the command icon strip + its tab band**. This
+reclaims **~132px of vertical height for the work tables on every view**
+(~14% more rows at a 940px viewport), advances DS adoption, and collapses the
+five `*Sub` dispatchers + nine `goto` wrappers into one nav registry with a
+single active-state model. Sidebar collapses to a 48px rail when max table
+width is needed; becomes a drawer on mobile.
+
 ### 🟡 F19 — Page layout: DS shell primitives 100% unused; ~20 title classes
 All 18 views share a `.page` wrapper, so chrome looks aligned — but that's
 incidental, not governed: the design system's layout primitives
@@ -323,6 +346,15 @@ rival `ICONS` objects), add `--rr-icon-size-*` and one canonical
 it. Add CI lint banning new inline `<svg>` outside the registry. Pixel diffs
 limited to the off-grid/odd-weight icons being corrected.
 
+**Phase 3.7 — Sidebar subpages, reclaim the icon strip (F20).** Adopt
+`.rrx-page-shell` + `.rrx-sidebar` and nest each view's sub-destinations as
+expandable sidebar subpages (active-section-expanded accordion), bound to the
+existing `*Sub` handlers via one nav registry. Delete the per-view command
+icon strip + tab band → **~132px reclaimed for tables on every view**.
+Collapsible to a 48px rail; drawer on mobile. Ship behind a flag, one view at
+a time, regenerating baselines. Highest single payoff for "more screen for the
+work tables" and folds F4's router/sub-nav cleanup into the same change.
+
 **Phase 4 — Componentize states + overlays (JS).** Introduce
 `renderEmptyState()`, `renderErrorState()`, `renderSkeleton()`,
 `openModal()/openDrawer()` wrappers backed by the `.rrx-` primitives;
@@ -374,6 +406,7 @@ document `coaching.html`, add guest-flow nav continuity (F15–F17).
 | Guest-flow consistency | per-page reimplementation | 🟠 |
 | Semantic colors | disagree across surfaces | 🟠 |
 | Iconography | ~994 inline SVGs, 17 stroke-widths, 2 rival registries | 🟠 |
+| Navigation / chrome | per-view icon strip costs ~132px; DS sidebar unused for subpages | 🟠 |
 | Page layout / shell | DS shell primitives 0% used, ~20 title classes | 🟡 |
 | Typography | 75+ sizes, 600/700 mixed | 🟡 |
 | Radius/spacing | 6 namespaces, conflicting fallbacks | 🟡 |
