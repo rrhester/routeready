@@ -46591,7 +46591,16 @@ function bindSchedWeekNav() {
       })();
       return;
     }
-    if (e.target.closest("[data-rr-goto-drivers]")) { if (typeof window.goto === "function") window.goto("drivers"); return; }
+    if (e.target.closest("[data-rr-goto-drivers]")) {
+      // IA decision: Schedule's Roster sub-view is the one roster home —
+      // the standalone Drivers page is retired from navigation (its only
+      // remaining internal use is the Availability full-report drill-down).
+      // The intent flag is honored by the goto sub-reset wrapper, which
+      // would otherwise bounce the view back to its first sub (Week).
+      window._rrGotoSubIntent = { view: "schedule", sub: "roster" };
+      if (typeof window.goto === "function") window.goto("schedule");
+      return;
+    }
 
     // Click a PTO / time-off chip → offer to remove it. A driver may
     // change their mind; the DSP takes the time off back here, which
@@ -50332,6 +50341,17 @@ window.goto = function (view) {
     // (e.g. the Workspaces icon's Forms / Workflows / Checklists tabs,
     // Schedule's "Plan ↗"), so auto-clicking one would bounce the
     // operator straight back out of the view they just opened.
+    // One-shot navigation intent: entry points that want a SPECIFIC
+    // sub-view (e.g. the first-run checklist / notifications landing on
+    // Schedule -> Roster) set window._rrGotoSubIntent before goto().
+    // Honoring it here — instead of racing this reset with a direct
+    // schedSub() call — means the reset and the intent can never fight.
+    const _intent = window._rrGotoSubIntent;
+    if (_intent && _intent.view === view) {
+      window._rrGotoSubIntent = null;
+      const target = activeView.querySelector(`.subnav-item[data-sub="${_intent.sub}"]`);
+      if (target) { target.click(); return; }
+    }
     let firstSub = null;
     for (const btn of activeView.querySelectorAll(".subnav-item[data-sub], .subnav-item[data-pipesub]")) {
       if (/\bgoto\s*\(/.test(btn.getAttribute("onclick") || "")) continue;
