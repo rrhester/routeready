@@ -10190,17 +10190,66 @@ body.rr-cmdk-open{ overflow:hidden }
   }
   @keyframes rrBootSpin{to{transform:rotate(360deg)}}
   #rr-boot-overlay .rr-boot-text{font-size:13px;font-weight:500;color:#64748B}
+  /* Boot-failure card · shown INSIDE the overlay if live.js never
+     signals __RR_BOOT_OK (script failed, exception, data fetch hung).
+     The overlay never reveals the static mockup on failure — an
+     honest error beats fake data (operator trust). */
+  #rr-boot-overlay .rr-boot-err{display:none;flex-direction:column;align-items:center;gap:10px;max-width:340px;text-align:center}
+  #rr-boot-overlay.rr-failed .rr-boot-err{display:flex}
+  #rr-boot-overlay.rr-failed .rr-boot-spin,
+  #rr-boot-overlay.rr-failed .rr-boot-text{display:none}
+  #rr-boot-overlay .rr-boot-err-title{font-size:16px;font-weight:600;color:#0F172A;font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
+  #rr-boot-overlay .rr-boot-err-sub{font-size:13px;line-height:1.5;color:#475569;font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
+  #rr-boot-overlay .rr-boot-err-actions{display:flex;gap:10px;margin-top:6px}
+  #rr-boot-overlay .rr-boot-err-btn{
+    appearance:none;cursor:pointer;border-radius:6px;padding:9px 16px;
+    font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+    font-size:13px;font-weight:600;border:1px solid transparent;
+    background:#2563EB;color:#fff;text-decoration:none;display:inline-flex;align-items:center;
+  }
+  #rr-boot-overlay .rr-boot-err-btn:hover{background:#1D4ED8}
+  #rr-boot-overlay .rr-boot-err-btn.secondary{
+    background:#fff;color:#0F172A;border-color:rgba(15,23,42,.16);
+  }
+  #rr-boot-overlay .rr-boot-err-btn.secondary:hover{border-color:rgba(15,23,42,.30)}
 </style>
 <div id="rr-boot-overlay" aria-hidden="true">
   <div class="rr-boot-mark">R</div>
   <div class="rr-boot-spin"></div>
   <div class="rr-boot-text">Loading your fleet…</div>
+  <div class="rr-boot-err" role="alert">
+    <div class="rr-boot-err-title">We couldn't load your data</div>
+    <div class="rr-boot-err-sub">Your live schedule and fleet information didn't come through — usually a connection hiccup. Your data is safe; nothing was lost.</div>
+    <div class="rr-boot-err-actions">
+      <button type="button" class="rr-boot-err-btn" onclick="location.reload()">Try again</button>
+      <a class="rr-boot-err-btn secondary" href="./login.html">Sign in again</a>
+    </div>
+  </div>
 </div>
 <script>
-  // Safety cap — reveal the app after 8s even if live.js never signals.
+  // Boot integrity gate. live.js sets window.__RR_BOOT_OK = true once
+  // auth + workspace resolution succeed and the real-data loaders have
+  // been kicked. If that signal hasn't arrived by the 8s cap, we show
+  // an honest failure card INSIDE the overlay instead of revealing the
+  // static mockup beneath (an operator must never mistake placeholder
+  // content for their live operation). If boot completes late (slow
+  // network), the poll below lifts the overlay automatically.
   setTimeout(function(){
     var o = document.getElementById('rr-boot-overlay');
-    if (o) o.classList.add('rr-hide');
+    if (!o) return;
+    if (window.__RR_BOOT_OK) { o.classList.add('rr-hide'); return; }
+    o.classList.remove('rr-hide');
+    o.classList.add('rr-failed');
+    var late = setInterval(function(){
+      var ov = document.getElementById('rr-boot-overlay');
+      if (!ov) { clearInterval(late); return; }
+      if (window.__RR_BOOT_OK) {
+        ov.classList.remove('rr-failed');
+        ov.classList.add('rr-hide');
+        clearInterval(late);
+        setTimeout(function(){ ov.remove(); }, 450);
+      }
+    }, 1000);
   }, 8000);
 </script>
 
