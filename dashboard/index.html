@@ -233,7 +233,7 @@
            to attach to .nav-item[data-view="fleet"] .nav-badge
            silently no-op when the element is absent. -->
 
-      <button class="nav-item active" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
+      <button class="nav-item active" data-view="schedule" data-c="schedule" title="Schedule" onclick="goto('schedule')">
         <!-- Schedule (CORE) · deep-navy frame, recessed inner panel
              for the calendar paper, cool-blue header bar with a 1px
              tonal step at its bottom edge (depth from overlapping
@@ -244,7 +244,7 @@
       </button>
       <!-- Onboarding · standalone sidebar destination (was a tab in the
            Schedule cmd-strip). Routes to the onboarding-ops view. -->
-      <button class="nav-item" data-view="onboarding-ops" data-c="pipeline" onclick="goto('onboarding-ops')">
+      <button class="nav-item" data-view="onboarding-ops" data-c="pipeline" title="Onboarding" onclick="goto('onboarding-ops')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><polyline points="9 13 11 15 15 11"/></svg></span>
         Onboarding
       </button>
@@ -252,7 +252,7 @@
            the Schedule page chrome (header card + command icon strip +
            soft-blue ground). Routes to #view-fleet2 via goto('fleet2').
            Intentionally distinct from the legacy #view-fleet page. -->
-      <button class="nav-item" data-view="fleet2" data-c="schedule" onclick="goto('fleet2')">
+      <button class="nav-item" data-view="fleet2" data-c="schedule" title="Fleet" onclick="goto('fleet2')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span>
         Fleet
       </button>
@@ -269,7 +269,7 @@
       <!-- Workflows sidebar nav-item removed — Workflows now lives
            as a tab in the unified Schedule cmd-strip (mirrored on
            Onboarding-ops + Fleet + Workflows' own strip). -->
-      <button class="nav-item" data-view="messages" data-c="messages" onclick="goto('messages')">
+      <button class="nav-item" data-view="messages" data-c="messages" title="Messages" onclick="goto('messages')">
         <!-- Messages (CORE) · deep-indigo frame, off-white bubble
              with a subtle recessed bottom edge (tonal step, no
              gradient), muted-indigo dots. -->
@@ -277,7 +277,7 @@
         Messages
         <span class="nav-badge">7</span>
       </button>
-      <button class="nav-item nav-item-fleet-bridge" data-view="email" data-c="messages" onclick="goto('email')">
+      <button class="nav-item nav-item-fleet-bridge" data-view="email" data-c="messages" title="Email" onclick="goto('email')">
         <!-- Fleet Bridge (CORE) · deep-navy frame, muted cool-blue
              envelope body, recessed muted-indigo inner tile holding
              an off-white envelope. Saturation pulled back ~35% from
@@ -378,11 +378,35 @@
           <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/><path d="M19 3.5 19.9 5.9 22.3 6.8 19.9 7.7 19 10.1 18.1 7.7 15.7 6.8 18.1 5.9 19 3.5z" opacity=".75"/></svg>
         </span>
         <input id="rr-hdr-ask-input" class="hdr-ask-input" type="text" placeholder="Ask RouteReady · drivers, vans, schedules, compliance…" aria-label="Ask RouteReady">
+        <span class="search-kbd" id="rr-hdr-ask-kbd" aria-hidden="true" style="margin-left:0;margin-right:6px">Ctrl K</span>
         <button type="submit" id="rr-hdr-ask-submit" class="hdr-ask-submit">
           <span>Ask</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
         </button>
       </form>
+      <script>
+        // ⌘K / Ctrl+K focuses the Ask bar from anywhere (cohesion pass).
+        (function () {
+          var kbd = document.getElementById('rr-hdr-ask-kbd');
+          var mac = /Mac|iP(hone|ad|od)/.test(navigator.platform || '');
+          if (kbd && mac) kbd.textContent = '⌘K';
+          document.addEventListener('keydown', function (e) {
+            if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+              var input = document.getElementById('rr-hdr-ask-input');
+              if (!input) return;
+              e.preventDefault();
+              input.focus();
+              input.select();
+            }
+          });
+          // Hide the hint while typing so it doesn't crowd the text.
+          var input = document.getElementById('rr-hdr-ask-input');
+          if (input && kbd) {
+            input.addEventListener('focus', function () { kbd.style.visibility = 'hidden'; });
+            input.addEventListener('blur', function () { if (!input.value) kbd.style.visibility = 'visible'; });
+          }
+        })();
+      </script>
       <!-- Header theme toggle · flips the topbar to the same
            slate-blue (#344154) as the sidebar so the chrome
            reads as one cohesive frame. Persists in

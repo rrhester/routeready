@@ -3615,10 +3615,14 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
      visible.  Tier modifiers and inline backgrounds override this. */
   background:linear-gradient(135deg,#64748B,#475569);
 }
-.avatar-sm.tier-a{background:linear-gradient(135deg,var(--green),var(--green-dark))}
-.avatar-sm.tier-b{background:var(--brand-grad)}
-.avatar-sm.tier-c{background:linear-gradient(135deg, var(--amber), var(--amber-dark))}
-.avatar-sm.tier-d{background:linear-gradient(135deg,var(--red),var(--red-dark))}
+/* Cohesion pass · tier colors keep their MEANING (a=green … d=red)
+   but as calm soft tints with dark text instead of saturated
+   gradients — the avatars stop being the loudest thing on every
+   people-dense screen. */
+.avatar-sm.tier-a{background:rgba(22,128,61,.14);color:#15803D}
+.avatar-sm.tier-b{background:rgba(37,99,235,.13);color:#1D4ED8}
+.avatar-sm.tier-c{background:rgba(180,120,0,.15);color:#92400E}
+.avatar-sm.tier-d{background:rgba(220,38,38,.12);color:#B91C1C}
 /* Final-corrective / At-risk warning · thin red ring around the avatar. */
 .avatar-sm.rr-final-ring{box-shadow:0 0 0 2px #D5392F}
 
@@ -20181,25 +20185,23 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:1 1 auto;min-height:0;
             overflow-y:scroll;overflow-x:auto;
             scrollbar-gutter:stable;
-            scrollbar-width:auto;
-            scrollbar-color:#5A5A5A #E1DFDD;
+            scrollbar-width:thin;
+            scrollbar-color:var(--border-strong) transparent;
           }
-          /* Match Schedule's scrollbar look on the right edge of the
-             fleet table — dark thumb against the muted track, persistent
-             gutter so the bar never disappears. */
+          /* Cohesion pass · thin, quiet scrollbar matching the driver
+             pool and the rest of the app (the old 14px dark-thumb bar
+             read as legacy-Windows chrome). */
           #view-fleet2 .fl-table-scroll::-webkit-scrollbar{
-            -webkit-appearance:none;appearance:none;
-            width:14px;height:14px;background:#E1DFDD;display:block;
+            width:8px;height:8px;background:transparent;
           }
           #view-fleet2 .fl-table-scroll::-webkit-scrollbar-track{
-            background:#E1DFDD;border-left:1px solid #C8C6C4;
+            background:transparent;
           }
           #view-fleet2 .fl-table-scroll::-webkit-scrollbar-thumb{
-            background:#5A5A5A;background-clip:padding-box;
-            border:3px solid #E1DFDD;border-radius:999px;min-height:56px;
+            background:var(--border-strong);border-radius:4px;min-height:48px;
           }
           #view-fleet2 .fl-table-scroll::-webkit-scrollbar-thumb:hover{
-            background:#3B3A39;
+            background:var(--text-subtle);
           }
 
           /* Fleet strip card · locked to the TCP spec so it reads
