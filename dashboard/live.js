@@ -16891,10 +16891,10 @@ function _ivcalCat(ev, kind) {
 // shift-chip colors used across the Schedule and Onboarding surfaces.
 const _IVCAL_CAT_COLOR = { blue:"#0F6CBD", green:"#107C41", orange:"#B45309", gray:"#7C8698", teal:"#0E7C66", red:"#B91C1C" };
 function _ivcalEvKind(ev) { return ev.kind === "orientation" ? "orientation" : (ev.kind === "event" ? "event" : "interview"); }
-// Small blue→purple gradient camera glyph used as the "has video link" marker
-// (replaces the old 🎥 emoji). References #rr-cam-grad, defined once in the
-// calendar container in index.html.
-const _IVCAL_CAM_SVG = '<svg class="ei-cam" viewBox="0 0 24 24" fill="url(#rr-cam-grad)" aria-hidden="true"><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>';
+// Small camera glyph used as the "has video link" marker (replaces the old
+// 🎥 emoji). Flat brand blue — the old #rr-cam-grad gradient paint server was
+// retired in the app-wide gradient sweep.
+const _IVCAL_CAM_SVG = '<svg class="ei-cam" viewBox="0 0 24 24" fill="#2563EB" aria-hidden="true"><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>';
 
 async function loadIvCalendar() {
   const host = document.getElementById("rr-ivcal-body");
