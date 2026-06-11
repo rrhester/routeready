@@ -373,13 +373,9 @@
         </button>
         <div id="rr-undo-menu" class="hdr-undo-menu" hidden></div>
       </div>
-      <div class="hdr-workspace" id="rr-hdr-workspace" title="Your workspace">
-        <span class="hdr-workspace-avatar" id="rr-workspace-chip-avatar" aria-hidden="true">&middot;&middot;</span>
-        <span class="hdr-workspace-text">
-          <span class="hdr-workspace-name" id="rr-workspace-chip-name">RouteReady</span>
-          <span class="hdr-workspace-sub" id="rr-workspace-chip-sub">DSP</span>
-        </span>
-      </div>
+      <!-- Workspace identity chip removed per operator request (2026-06-11).
+           live.js's _paintWorkspaceChip() null-guards its targets and still
+           sets document.title, so no JS change was needed. -->
       <form id="rr-hdr-ask-form" class="hdr-ask" autocomplete="off">
         <span class="hdr-ask-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/><path d="M19 3.5 19.9 5.9 22.3 6.8 19.9 7.7 19 10.1 18.1 7.7 15.7 6.8 18.1 5.9 19 3.5z" opacity=".75"/></svg>
