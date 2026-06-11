@@ -6,7 +6,7 @@
             <div class="page-icon" data-c="pipeline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/><circle cx="17" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="11" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="7" cy="18" r="2" fill="currentColor" stroke="none"/></svg></div>
             <div>
               <h1 class="page-title">Hiring pipeline</h1>
-              <p class="page-sub" id="rr-pipeline-page-sub">Loading…</p>
+              <p class="page-sub" id="rr-pipeline-page-sub">—</p>
             </div>
           </div>
         </div>

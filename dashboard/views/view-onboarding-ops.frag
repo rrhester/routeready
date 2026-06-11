@@ -430,7 +430,7 @@
                     <div class="ob-rules-body">
                       <p style="margin:0 0 12px;font-size:var(--fs-sm);color:var(--text-subtle)">The days, times, capacity, and one-off group sessions applicants see on your RouteReady booking page.</p>
                       <div class="rr-iv-card" id="rr-iv-card">
-                        <div id="rr-iv-body"><div class="rr-loading">Loading…</div></div>
+                        <div id="rr-iv-body"><div aria-hidden="true" style="padding:var(--s-4)"><div class="rrx-skeleton rrx-skeleton--block" style="height:46px"></div><div class="rrx-skeleton rrx-skeleton--block" style="height:46px;margin-top:8px"></div><div class="rrx-skeleton rrx-skeleton--block" style="height:46px;margin-top:8px"></div></div></div>
                       </div>
                     </div>
                   </div>
@@ -569,7 +569,7 @@
             <div id="ob-docs-mount" class="ob-overview-right ob-placeholder-card" aria-label="Documents">
               <div class="ob-placeholder-inner ob-docs-loading">
                 <div class="ob-placeholder-title">Documents</div>
-                <div class="ob-placeholder-sub">Loading…</div>
+                <div class="ob-placeholder-sub">—</div>
               </div>
             </div>
           </div>

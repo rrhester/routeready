@@ -120,7 +120,7 @@
             <span class="fl-kpi-dot green" id="rr-fem-pip"></span>
             <span class="fl-kpi-text">
               <span class="fl-kpi-line"><span class="fl-kpi-value" id="rr-fem-value">—</span><span class="fl-kpi-frac" id="rr-fem-frac"></span><span class="fl-kpi-name">Fleet Execution · 14-day</span></span>
-              <span class="fl-kpi-sub" id="rr-fem-sub">Loading…</span>
+              <span class="fl-kpi-sub" id="rr-fem-sub">—</span>
             </span>
           </div>
           <div class="fl-kpi-pill" id="rr-vorr-card" role="button" tabindex="0"
@@ -128,7 +128,7 @@
             <span class="fl-kpi-dot green" id="rr-vorr-pip"></span>
             <span class="fl-kpi-text">
               <span class="fl-kpi-line"><span class="fl-kpi-value" id="rr-vorr-value">—</span><span class="fl-kpi-frac" id="rr-vorr-frac"></span><span class="fl-kpi-name">Operational Readiness · VORR</span></span>
-              <span class="fl-kpi-sub" id="rr-vorr-sub">Loading…</span>
+              <span class="fl-kpi-sub" id="rr-vorr-sub">—</span>
             </span>
           </div>
         </div>

@@ -441,6 +441,10 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Settings
           </button>
+          <button type="button" class="hdr-account-item" onclick="if(typeof closePopovers==='function')closePopovers();if(typeof openModal==='function')openModal('modal-whats-new')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg>
+            What's new
+          </button>
           <button type="button" class="hdr-account-item hdr-account-signout" id="rr-hdr-signout">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Sign out
@@ -1700,6 +1704,32 @@ Evidence attached:
 <!-- ═══════════════════════════════════════════════════════════
      MAINTENANCE WORK ORDER MODAL
      ═══════════════════════════════════════════════════════════ -->
+<!-- ═══ WHAT'S NEW · update the list when meaningful improvements ship
+     (operator-voiced, no commit-speak). Opened from the account menu. ═══ -->
+<div class="modal-backdrop" id="modal-whats-new" onclick="if(event.target===this)closeModal('modal-whats-new')">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-head">
+      <div>
+        <h2 class="modal-title">What's new in RouteReady</h2>
+        <p class="modal-sub">Recent improvements, newest first</p>
+      </div>
+      <button class="btn btn-sm" onclick="closeModal('modal-whats-new')" aria-label="Close">Close</button>
+    </div>
+    <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-4);max-height:60vh;overflow-y:auto">
+      <div>
+        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:6px">This week</div>
+        <div style="display:flex;flex-direction:column;gap:var(--s-3)">
+          <div><div style="font-weight:600;font-size:var(--fs-sm)">A faster, cleaner dashboard</div><div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:1px">Pages load dramatically lighter, with one consistent design across every screen — including the driver app and sign-in.</div></div>
+          <div><div style="font-weight:600;font-size:var(--fs-sm)">Real notifications</div><div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:1px">The bell now shows your actual pending time-off requests — and nothing else.</div></div>
+          <div><div style="font-weight:600;font-size:var(--fs-sm)">Your account, up top</div><div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:1px">Workspace name on the left, notifications + settings + sign out on the right.</div></div>
+          <div><div style="font-weight:600;font-size:var(--fs-sm)">Quicker hands</div><div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:1px">Ctrl+K jumps to Ask from anywhere, and every click and hover responds faster.</div></div>
+          <div><div style="font-weight:600;font-size:var(--fs-sm)">Honest by design</div><div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:1px">If your data ever can't load, you'll see a clear retry screen — never stale or placeholder information.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="modal-work-order" onclick="if(event.target===this)closeModal('modal-work-order')">
   <div class="modal-card">
     <div class="modal-head">
