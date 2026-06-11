@@ -1917,11 +1917,40 @@
   }
 
   // ─── TOASTS ────────────────────────────────────────────────
+  // ── Saved narration ─────────────────────────────────────────
+  // Success toasts are suppressed (below) per operator request, so
+  // saves were completely SILENT. The quiet topbar chip replaces the
+  // noise with calm reassurance: 'Saved · just now', ticking to
+  // 'Saved · 3m ago'. Driven by the same success signals the toasts
+  // carried, so it's honest by construction.
+  var _rrLastSaved = 0, _rrSavedTimer = null;
+  function _rrPaintSaved(){
+    var el = document.getElementById('rr-hdr-saved-text');
+    if (!el || !_rrLastSaved) return;
+    var s = Math.floor((Date.now() - _rrLastSaved) / 1000);
+    el.textContent = s < 60 ? 'Saved · just now'
+      : s < 3600 ? 'Saved · ' + Math.floor(s / 60) + 'm ago'
+      : 'Saved · ' + Math.floor(s / 3600) + 'h ago';
+  }
+  window._rrMarkSaved = function(){
+    _rrLastSaved = Date.now();
+    var chip = document.getElementById('rr-hdr-saved');
+    if (!chip) return;
+    chip.hidden = false;
+    _rrPaintSaved();
+    if (!_rrSavedTimer) _rrSavedTimer = setInterval(_rrPaintSaved, 30000);
+  };
+
   function toast(msg, kind){
     kind = kind || 'success';
     // Routine success / info confirmations are suppressed per operator
     // request — they were too noisy (e.g. "Shift added" on every action).
     // Warnings and errors still show so failures are never silent.
+    // Success still feeds the topbar 'Saved' chip (clipboard copies
+    // excluded — they're not persistence).
+    if (kind === 'success' && !/copied|clipboard/i.test(String(msg || ''))) {
+      try { window._rrMarkSaved(); } catch (_e) {}
+    }
     if (kind === 'success' || kind === 'info') return;
     const stack = document.getElementById('toast-stack');
     const el = document.createElement('div');

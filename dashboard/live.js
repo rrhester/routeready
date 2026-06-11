@@ -378,10 +378,18 @@ async function _rrLoadNotifications() {
     if (dot) dot.style.display = items.length ? "block" : "none";
     if (!items.length) return; // keep "You're all caught up"
     const fmt = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const _rrRelTime = (ts) => {
+      if (!ts) return "";
+      const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+      if (s < 60) return "just now";
+      if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+      if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+      return `${Math.floor(s / 86400)}d ago`;
+    };
     list.innerHTML = items.map((r) => `
       <div class="notif-item" data-rr-notif-timeoff="1">
         <div class="notif-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-        <div><div class="notif-title">${escapeHtml(nameById.get(r.driver_id) || "Driver")} · time off request</div><div class="notif-msg">${fmt(r.start_date)} – ${fmt(r.end_date)} awaiting approval</div></div>
+        <div><div class="notif-title">${escapeHtml(nameById.get(r.driver_id) || "Driver")} · time off request</div><div class="notif-msg">${fmt(r.start_date)} – ${fmt(r.end_date)} awaiting approval</div><div class="notif-time">${_rrRelTime(r.created_at)}</div></div>
       </div>`).join("");
     list.querySelectorAll("[data-rr-notif-timeoff]").forEach((el) => el.addEventListener("click", () => {
       window._rrGotoSubIntent = { view: "schedule", sub: "requests" };
