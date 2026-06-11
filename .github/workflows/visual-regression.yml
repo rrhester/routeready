@@ -1,0 +1,41 @@
+# Visual regression · screenshots the key pages on every PR and diffs
+# them against the committed baselines in tests/visual/baselines.
+# Fails the build if the chrome drifts; the diff images are uploaded
+# as an artifact for review.
+#
+# To intentionally change the visuals: regenerate baselines locally
+# (see tests/visual/playwright.config.mjs header) and commit the PNGs
+# with your change.
+name: Visual regression
+
+on:
+  pull_request:
+    paths:
+      - "dashboard/**"
+      - "app/**"
+      - "*.html"
+      - "tests/visual/**"
+      - ".github/workflows/visual-regression.yml"
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install test deps
+        run: npm install --no-save @playwright/test http-server
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run visual tests
+        run: npx playwright test --config tests/visual/playwright.config.mjs
+      - name: Upload diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: tests/visual/test-results/
+          retention-days: 14

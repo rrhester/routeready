@@ -11,3 +11,7 @@ solver-service/**/__pycache__/
 solver-service/.venv/
 solver-service/.pytest_cache/
 *.pyc
+
+# Playwright visual-regression artifacts
+tests/visual/test-results/
+test-results/
