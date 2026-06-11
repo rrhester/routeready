@@ -28,11 +28,14 @@
   const inDesktopApp = !!(window.routeready && window.routeready.isDesktop);
 
   async function mintAndOpen(btn) {
-    const reset = (t) => { btn.disabled = false; btn.textContent = t || "Connect desktop app"; };
+    // The button is a quiet sidebar-footer icon — busy/idle is conveyed
+    // via disabled state + title, never textContent (which would wipe
+    // the icon).
+    const reset = () => { btn.disabled = false; btn.title = BTN_TITLE; };
     const tok = accessToken();
     if (!tok) { alert("Please sign in first, then connect the desktop app."); return; }
     try {
-      btn.disabled = true; btn.textContent = "Connecting…";
+      btn.disabled = true; btn.title = "Connecting…";
       const res = await fetch(`${FUNCTIONS_BASE}/desktop-pair`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${tok}` },
@@ -87,6 +90,8 @@
     }));
   }
 
+  const BTN_TITLE = "Connect desktop app — link the installed RouteReady app to this account";
+
   function addButton() {
     if (inDesktopApp) return;
     if (!accessToken()) return;                 // signed-in operators only
@@ -94,16 +99,28 @@
     const btn = document.createElement("button");
     btn.id = "rr-connect-desktop";
     btn.type = "button";
-    btn.textContent = "Connect desktop app";
-    btn.title = "Link the installed RouteReady desktop app to this account";
-    btn.style.cssText = [
-      "position:fixed", "right:16px", "bottom:16px", "z-index:2147483646",
-      "background:#2563eb", "color:#fff", "border:0", "border-radius:10px",
-      "padding:10px 14px", "font:600 13px/1 Inter,system-ui,-apple-system,sans-serif",
-      "box-shadow:0 4px 14px rgba(0,0,0,.25)", "cursor:pointer",
-    ].join(";");
+    btn.title = BTN_TITLE;
+    btn.setAttribute("aria-label", "Connect desktop app");
+    // Cohesion pass · lives in the sidebar footer as a quiet icon
+    // button (reusing the theme/collapse button cosmetics) instead of
+    // a permanent floating pill covering page content bottom-right.
+    const foot = document.querySelector(".sidebar-foot");
+    if (foot) {
+      btn.className = "sidebar-theme-btn";
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
+      foot.insertBefore(btn, foot.firstChild);
+    } else {
+      // Fallback (no sidebar in DOM for some reason): the old pill.
+      btn.textContent = "Connect desktop app";
+      btn.style.cssText = [
+        "position:fixed", "right:16px", "bottom:16px", "z-index:2147483646",
+        "background:#2563eb", "color:#fff", "border:0", "border-radius:8px",
+        "padding:10px 14px", "font:600 13px/1 Inter,system-ui,-apple-system,sans-serif",
+        "box-shadow:0 1px 2px rgba(15,23,42,.15)", "cursor:pointer",
+      ].join(";");
+      document.body.appendChild(btn);
+    }
     btn.addEventListener("click", () => mintAndOpen(btn));
-    document.body.appendChild(btn);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", addButton);

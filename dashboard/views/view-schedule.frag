@@ -1218,7 +1218,7 @@
                    data-state attribute via the click listener in
                    live.js below. On the Monthly (Forecast) view the title
                    reads "Forecast" and this pill is hidden (live.js). -->
-              <span class="sched-v2-status-pill" id="rr-sched-v2-status" data-state="draft">
+              <span class="sched-v2-status-pill" id="rr-sched-v2-status" data-state="draft" title="Draft — changes are only visible to you until you hit Finalize.">
                 <svg class="sched-v2-status-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 12 10 16 18 8"/></svg>
                 <span class="sched-v2-status-label">Draft</span>
               </span>
@@ -1301,7 +1301,7 @@
             <button type="button" class="sched-v2-tile" data-rr-v2="roster" tabindex="-1"
                     title="Driver roster"
                     onclick="if(typeof schedSub==='function')schedSub('roster');">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><defs><linearGradient id="rr-roster-icon-gradient-sched" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A78BFA"/><stop offset="100%" stop-color="#5B21B6"/></linearGradient></defs><rect x="3" y="4" width="18" height="6" fill="url(#rr-roster-icon-gradient-sched)" stroke="none"/><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="18" x2="13" y2="18"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="18" x2="13" y2="18"/></svg>
             <span>Roster</span>
           </button>
             <!-- Rules chevron · opens the Attendance policy builder under
@@ -1376,7 +1376,7 @@
             <span class="sched-v2-group-label" aria-hidden="true">Rules</span>
           </div>
           <div class="sched-v2-split">
-            <button type="button" class="sched-v2-tile" data-rr-v2="finalize" tabindex="-1">
+            <button type="button" class="sched-v2-tile" data-rr-v2="finalize" tabindex="-1" title="Publish this week — the schedule flips from Draft to Live and drivers see it. You can keep editing afterward.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18"/>
               <polyline points="7 12 11 16 17 8"/>
