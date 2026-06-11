@@ -30208,6 +30208,11 @@ if (document.querySelector(".view.active")?.id === "view-dashboard") {
 // Reveal the app · boot has run past the auth + DSP awaits and kicked
 // the active view's loaders, so live data replaces the static mock
 // shortly. Lift the boot overlay after a short settle for that paint.
+// __RR_BOOT_OK is the integrity signal for the index.html boot gate:
+// reaching this line means auth + workspace resolution succeeded. If
+// this flag never flips, the gate shows a failure card instead of
+// revealing the static mockup.
+window.__RR_BOOT_OK = true;
 window._rrHideBootOverlay = function () {
   const o = document.getElementById("rr-boot-overlay");
   if (!o || o._rrHidden) return;
