@@ -188,6 +188,26 @@ function _initFirstRunZone() {
   if (suffix && firstName) suffix.textContent = `, ${firstName}`;
   zone.hidden = false;
 
+  // Live progress · check off steps whose data already exists. Cheap
+  // head-only count queries (RLS scopes them to this DSP); each tile
+  // flips to .done independently as its count lands. Failures are
+  // non-fatal — a step just stays unchecked.
+  const _frChecks = [
+    ["drivers",  "drivers"],
+    ["vans",     "vehicles"],
+    ["schedule", "shifts"],
+  ];
+  for (const [step, table] of _frChecks) {
+    sb.from(table).select("id", { count: "exact", head: true }).then(({ count, error }) => {
+      if (error || !count) return;
+      const tile = zone.querySelector(`[data-fr-step="${step}"]`);
+      if (!tile || tile.classList.contains("done")) return;
+      tile.classList.add("done");
+      const num = tile.querySelector(".rr-firstrun-tile-num");
+      if (num) num.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="20 6 9 17 4 12"/></svg>';
+    }).catch(() => {});
+  }
+
   document.getElementById("rr-firstrun-dismiss")?.addEventListener("click", async () => {
     zone.hidden = true;
     const nowIso = new Date().toISOString();
