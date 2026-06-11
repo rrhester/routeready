@@ -23063,3 +23063,55 @@ body.rr-cmdk-open{ overflow:hidden }
   font:600 10px/1 var(--rr-font-family,'Inter');background:var(--canvas);
   border:1px solid var(--border);border-radius:4px;padding:2px 5px;margin-right:3px;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Fleet sidebar-subpages · audit F20 / roadmap Phase 3.7
+   --------------------------------------------------------------------
+   Moves the Fleet view's sub-page switchers out of the 92px horizontal
+   command icon strip and into the left sidebar as nested subpages,
+   reclaiming ~88–132px of vertical height for the work table.
+
+   GATED behind `.rr-flag-fleet-subnav` on <html> (set from the
+   `rr_fleet_subnav` localStorage key by the boot script in index.html).
+   With the flag OFF every rule below is inert and the page renders
+   pixel-identically to today — so the visual-regression baselines stay
+   valid and need no regeneration for this change.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Sidebar subpage list (hidden until flag on AND Fleet active) */
+.nav-sub{ display:none; flex-direction:column; gap:1px; margin:1px 0 4px; padding:0; }
+.nav-sub-item{
+  display:flex; align-items:center; gap:9px; width:100%;
+  height:30px; padding:0 12px 0 38px; border:0; background:none; cursor:pointer;
+  border-radius:8px; font:inherit; font-size:13px; line-height:1;
+  color:var(--sidebar-icon-idle, rgba(255,255,255,.72)); text-align:left;
+  transition:background-color .12s ease, color .12s ease;
+}
+.nav-sub-item:hover{ background:var(--sidebar-hover); color:var(--text-inverse,#F8FAFC); }
+.nav-sub-item:focus-visible{ outline:none; box-shadow:inset 0 0 0 1px rgba(96,165,250,.45); }
+.nav-sub-item.active{ background:var(--sidebar-active-pill, rgba(255,255,255,.10)); color:var(--text-inverse,#F8FAFC); font-weight:600; }
+.nav-sub-item .pip{ width:5px; height:5px; border-radius:50%; background:currentColor; opacity:.55; flex:0 0 auto; }
+
+/* Reveal subpages only when the flag is on AND Fleet is the active dest */
+.rr-flag-fleet-subnav .nav-item.active[data-view="fleet2"] ~ .nav-sub[data-for="fleet2"]{ display:flex; }
+/* Collapsed icon-rail can't show labels → hide subpages entirely. The rail
+   collapses two ways: the boot class on <html> (pre-paint) and
+   .sidebar.collapsed (after the operator toggles). Cover both. */
+html.rr-sidebar-collapsed-boot .nav-sub,
+.sidebar.collapsed .nav-sub{ display:none !important; }
+
+/* Slim command bar replaces the icon strip when the flag is on. Kept
+   deliberately thin (single-line title) so the table reclaims the strip's
+   height instead of trading it for another tall band. */
+.f2-slim-bar{ display:none; }
+.rr-flag-fleet-subnav #view-fleet2 .f2-strip,
+.rr-flag-fleet-subnav #view-fleet2 .f2-cmd-tabs{ display:none !important; }
+.rr-flag-fleet-subnav #view-fleet2 .f2-slim-bar{
+  display:flex; align-items:center; gap:12px;
+  margin:6px 0 0; padding:0 2px 7px;
+  border-bottom:1px solid var(--rr-border-secondary, #EDEBE9);
+}
+#view-fleet2 .f2-slim-title{ display:flex; align-items:baseline; gap:8px; min-width:0; }
+#view-fleet2 .f2-slim-h{ font:600 16px/1.25 var(--rr-font-family,'Inter'); color:var(--rr-fg-primary,#323130); }
+#view-fleet2 .f2-slim-sub{ font:400 12px/1.25 var(--rr-font-family,'Inter'); color:var(--rr-fg-secondary,#605E5C); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#view-fleet2 .f2-slim-actions{ margin-left:auto; display:flex; align-items:center; gap:8px; flex:0 0 auto; }
