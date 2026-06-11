@@ -17,22 +17,12 @@ on:
       - "tests/visual/**"
       - ".github/workflows/visual-regression.yml"
 
-# TEMP (header clean pass): contents:write so the one-shot baseline
-# regeneration step below can push the CI-rendered PNGs back to the PR
-# branch. Reverted to read-only when the temp step is removed.
-permissions:
-  contents: write
-
 jobs:
   visual:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          # TEMP: check out the PR head branch (not the merge ref) so the
-          # baseline-regen step can commit and push to it.
-          ref: ${{ github.event.pull_request.head.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -41,30 +31,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run visual tests
-        id: vis
         run: npx playwright test --config tests/visual/playwright.config.mjs
-        continue-on-error: true
-      - name: "TEMP · regenerate baselines in CI and push to PR branch"
-        if: steps.vis.outcome == 'failure'
-        run: |
-          # The header clean pass intentionally changes the dashboard chrome.
-          # Local baseline regeneration is not CI-faithful (different fonts /
-          # chromium build), so the baselines are re-rendered HERE, in the
-          # same environment that will validate them, and pushed back to the
-          # branch. GITHUB_TOKEN pushes don't trigger new workflow runs, so a
-          # follow-up commit (removing this temp step) produces the clean,
-          # green validation run.
-          npx playwright test --config tests/visual/playwright.config.mjs --update-snapshots
-          if ! git diff --quiet -- tests/visual/baselines; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add tests/visual/baselines
-            git commit -m "CI: regenerate visual baselines (header clean pass)"
-            git push
-          fi
-      - name: Report original test result
-        if: steps.vis.outcome == 'failure'
-        run: exit 1
       - name: Upload diffs on failure
         if: failure()
         uses: actions/upload-artifact@v4
