@@ -22935,21 +22935,6 @@ body.rr-cmdk-open{ overflow:hidden }
    The chip ids (#rr-workspace-chip-*) are painted by live.js's
    existing _paintWorkspaceChip(); the avatar/account ids by
    _paintHeaderAccount(). */
-.hdr-workspace{
-  display:inline-flex;align-items:center;gap:8px;
-  padding:4px 10px 4px 4px;margin-right:var(--s-3);
-  border-radius:var(--r-md);min-width:0;
-}
-.hdr-workspace-avatar{
-  width:26px;height:26px;border-radius:6px;flex:0 0 auto;
-  display:inline-flex;align-items:center;justify-content:center;
-  background:var(--sidebar-bg,#205285);color:#fff;
-  font-size:11px;font-weight:700;letter-spacing:.02em;
-}
-.hdr-workspace-text{display:flex;flex-direction:column;min-width:0;line-height:1.15}
-.hdr-workspace-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
-.hdr-workspace-sub{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
-@media (max-width:1100px){.hdr-workspace-text{display:none}}
 
 /* Slim circular Ask submit — Enter submits; the button is a quiet affordance. */
 .hdr-ask-submit{
