@@ -22946,6 +22946,8 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Topbar icon buttons (bell / gear / avatar) share .icon-btn; needs a
    positioning context for the unread dot. */
 .topbar .icon-btn{position:relative;color:var(--text-muted)}
+/* Bell dot stays hidden until _rrLoadNotifications finds real pending items. */
+#rr-hdr-notif .dot{display:none}
 .topbar .icon-btn:hover{color:var(--text)}
 .topbar .topbar-settings{border:0;background:transparent;cursor:pointer}
 .hdr-avatar-btn{padding:0}

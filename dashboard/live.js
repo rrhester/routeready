@@ -351,6 +351,45 @@ function _paintHeaderAccount() {
 }
 _paintHeaderAccount();
 
+// ── Real header notifications · v1 ─────────────────────────────────
+// Paints PENDING time-off requests into #rr-notif-list and lights the
+// bell dot. Replaces the retired mockup items — a signed-in operator
+// must never see fake operational data. Swap-offer notifications can
+// join once their query shape is confirmed.
+async function _rrLoadNotifications() {
+  const list = document.getElementById("rr-notif-list");
+  if (!list || !window.RR?.dsp?.id) return;
+  try {
+    const [toRes, drvRes] = await Promise.all([
+      sb.from("time_off_requests")
+        .select("id, driver_id, start_date, end_date, status, created_at")
+        .eq("dsp_id", window.RR.dsp.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(8),
+      sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", window.RR.dsp.id),
+    ]);
+    if (toRes.error) return;   // leave the honest empty state
+    const nameById = new Map((drvRes.data || []).map((d) => [d.id, d.preferred_name || d.full_name || "Driver"]));
+    const items = (toRes.data || []);
+    const dot = document.querySelector('#rr-hdr-notif .dot');
+    if (dot) dot.style.display = items.length ? "" : "none";
+    if (!items.length) return; // keep "You're all caught up"
+    const fmt = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    list.innerHTML = items.map((r) => `
+      <div class="notif-item" data-rr-notif-timeoff="1">
+        <div class="notif-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+        <div><div class="notif-title">${escapeHtml(nameById.get(r.driver_id) || "Driver")} · time off request</div><div class="notif-msg">${fmt(r.start_date)} – ${fmt(r.end_date)} awaiting approval</div></div>
+      </div>`).join("");
+    list.querySelectorAll("[data-rr-notif-timeoff]").forEach((el) => el.addEventListener("click", () => {
+      window._rrGotoSubIntent = { view: "schedule", sub: "requests" };
+      window.goto?.("schedule");
+      window.closePopovers?.();
+    }));
+  } catch (_) { /* honest empty state remains */ }
+}
+_rrLoadNotifications();
+
 // Sign out from the account menu — ends the Supabase session and
 // returns to the sign-in page.
 document.addEventListener("click", async (e) => {
