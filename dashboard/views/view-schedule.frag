@@ -444,7 +444,7 @@
                    live.js → renderSchedMonthlyView. -->
               <button class="subnav-item" data-sub="monthly" data-rr-tile="monthly" onclick="schedSub('monthly')" title="Monthly view — weeks down the left, days across the top">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="3" y1="18" x2="21" y2="18"/><line x1="9" y1="10" x2="9" y2="22"/><line x1="15" y1="10" x2="15" y2="22"/></svg>
-                <span>Monthly</span>
+                <span>Month</span>
               </button>
               <div class="sched-week-split" data-rr-tile="calendar">
                 <button class="subnav-item" data-sub="calendar" data-rr-tile="calendar" onclick="schedSub('calendar')" title="Fleet calendar — schedule events per van">
@@ -1253,7 +1253,7 @@
               <line x1="7" y1="2" x2="7" y2="6"/>
               <line x1="17" y1="2" x2="17" y2="6"/>
             </svg>
-            <span>Weekly</span>
+            <span>Week</span>
           </button>
             <!-- Group label · centered under the Weekly (middle) tile, on
                  the card's bottom line. -->
@@ -1271,7 +1271,7 @@
               <line x1="7" y1="2" x2="7" y2="6"/>
               <line x1="17" y1="2" x2="17" y2="6"/>
             </svg>
-            <span>Monthly</span>
+            <span>Month</span>
           </button>
           </div>
           <!-- Dialog-launcher · box + diagonal arrow, pinned to the
@@ -1412,7 +1412,15 @@
           </button>
             <button type="button" class="sched-v2-rules-foot" tabindex="-1">Rules <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg></button>
           </div>
-          <div class="sched-v2-split">
+          <!-- Unassign moved into the More menu (calm pass B) -->
+          <div class="sched-v2-more popover-anchor">
+            <button type="button" class="sched-v2-tile sched-v2-more-btn" tabindex="-1" title="More actions" aria-haspopup="menu"
+                    onclick="event.stopPropagation();if(typeof window.togglePopover==='function')window.togglePopover('rr-sched-more-menu')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
+              <span>More</span>
+            </button>
+            <div class="popover sched-v2-more-menu" id="rr-sched-more-menu">
+              <div class="sched-v2-split">
             <button type="button" class="sched-v2-tile" data-rr-v2="unassign" tabindex="-1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true">
               <rect x="2" y="6" width="13" height="10"/>
@@ -1424,7 +1432,7 @@
           </button>
             <button type="button" class="sched-v2-rules-foot" tabindex="-1">Rules <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg></button>
           </div>
-          <div class="sched-v2-split">
+              <div class="sched-v2-split">
             <button type="button" class="sched-v2-tile" data-rr-v2="kudos" tabindex="-1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true">
               <polygon points="12 2 15 9 22 10 17 15 18 22 12 18 6 22 7 15 2 10 9 9"/>
@@ -1432,6 +1440,8 @@
             <span>Kudos</span>
           </button>
             <button type="button" class="sched-v2-rules-foot" tabindex="-1">Rules <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg></button>
+          </div>
+            </div>
           </div>
           <!-- Week navigator · relocated from the top ribbon to the
                far right of the V2 strip. All IDs preserved so the
