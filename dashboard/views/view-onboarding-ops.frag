@@ -52,7 +52,7 @@
                          LID (top header band, y=4→10) is filled with the
                          Funnel's purple gradient (#A78BFA → #5B21B6); the
                          body + grid stay dark outline, card untouched. -->
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><defs><linearGradient id="rr-roster-icon-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A78BFA"/><stop offset="100%" stop-color="#5B21B6"/></linearGradient></defs><rect x="3" y="4" width="18" height="6" fill="url(#rr-roster-icon-gradient)" stroke="none"/><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="18" x2="13" y2="18"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="18" x2="13" y2="18"/></svg>
                     <span>Roster</span>
                   </button>
                   <button type="button" class="ob-rules-foot" id="rr-roster-rules-toggle"
@@ -256,13 +256,7 @@
                          lighter top (#A78BFA) to a darker bottom (#5B21B6).
                          Applied as both stroke AND fill so the silhouette
                          reads as a solid purple funnel. -->
-                    <svg viewBox="0 0 24 24" fill="url(#rr-ob-funnel-gradient)" stroke="url(#rr-ob-funnel-gradient)" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">
-                      <defs>
-                        <linearGradient id="rr-ob-funnel-gradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stop-color="#A78BFA"/>
-                          <stop offset="100%" stop-color="#5B21B6"/>
-                        </linearGradient>
-                      </defs>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">
                       <path d="M3 4h18l-7 8.5v6.5l-4 2v-8.5z"/>
                     </svg>
                     <span>Funnel</span>
@@ -442,7 +436,7 @@
                   </div>
                 </div>
                 <button class="subnav-item rr-cal-vtab" data-cal-view="workweek" type="button" onclick="rrIvcalSetView('workweek')" title="Work week (Mon–Fri)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><defs><linearGradient id="rr-workweek-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A78BFA"/><stop offset="100%" stop-color="#5B21B6"/></linearGradient></defs><rect x="3" y="7" width="18" height="5" fill="url(#rr-workweek-gradient)" stroke="none"/><rect x="3" y="7" width="18" height="13"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="7" width="18" height="13"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
                   <span>Work Week</span>
                 </button>
                 <button class="subnav-item rr-cal-vtab" data-cal-view="month" type="button" onclick="rrIvcalSetView('month')" title="Month view">

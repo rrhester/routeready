@@ -10326,10 +10326,11 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-card-body{display:flex;flex-direction:column;gap:6px;min-width:0}
           .pa-card-header{display:flex;align-items:center;gap:var(--s-2-5)}
           .pa-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-sm);color:var(--text-inverse);flex-shrink:0;background:var(--text-subtle)}
-          .pa-card-avatar.tier-a{background:linear-gradient(135deg,var(--green),var(--green-dark))}
-          .pa-card-avatar.tier-b{background:var(--brand-grad)}
-          .pa-card-avatar.tier-c{background:linear-gradient(135deg, var(--amber), var(--amber-dark))}
-          .pa-card-avatar.tier-d{background:linear-gradient(135deg,#6B7280,#4B5563)}
+          /* Cohesion pass · soft tints, matching .avatar-sm tiers. */
+          .pa-card-avatar.tier-a{background:rgba(22,128,61,.14);color:#15803D}
+          .pa-card-avatar.tier-b{background:rgba(37,99,235,.13);color:#1D4ED8}
+          .pa-card-avatar.tier-c{background:rgba(180,120,0,.15);color:#92400E}
+          .pa-card-avatar.tier-d{background:rgba(100,116,139,.16);color:#475569}
           .pa-card-name{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.25}
           .pa-card-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
           .pa-card-tags{display:flex;gap:6px;flex-wrap:wrap}
@@ -22893,3 +22894,19 @@ body.rr-cmdk-open{ overflow:hidden }
   .hr-event-summary{font-weight:600;font-size:var(--fs-md);color:var(--text)}
   .hr-event-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
   .hr-event-detail{font-size:var(--fs-sm);color:var(--text-muted);margin-top:6px;line-height:1.5;background:var(--canvas);border-radius:var(--r-md);padding:var(--s-2) var(--s-2-5);white-space:pre-wrap}
+
+/* ── Command-strip visual grammar · every strip page ─────────────
+   Companion to the Schedule rules in schedule-rrx.css: ACTION
+   tiles (do something) carry a hairline ring; VIEW tiles (go
+   somewhere) stay quiet. */
+/* Fleet · Add van */
+#view-fleet2 .f2-split:has(#rr-fleet-add) .f2-tile{box-shadow:inset 0 0 0 1px rgba(15,23,42,.14)}
+#view-fleet2 .f2-split:has(#rr-fleet-add) .f2-tile:hover{box-shadow:inset 0 0 0 1px rgba(15,23,42,.24)}
+/* Workflows · Import form / Install concerns form */
+#view-forms #rr-forms-import-btn,
+#view-forms [data-rr-install-concerns-form]{box-shadow:inset 0 0 0 1px rgba(15,23,42,.14)}
+#view-forms #rr-forms-import-btn:hover,
+#view-forms [data-rr-install-concerns-form]:hover{box-shadow:inset 0 0 0 1px rgba(15,23,42,.24)}
+/* Onboarding · PDF upload */
+#view-onboarding-ops [data-rr-tile="ob-pdf-upload"] .subnav-item{box-shadow:inset 0 0 0 1px rgba(15,23,42,.14)}
+#view-onboarding-ops [data-rr-tile="ob-pdf-upload"] .subnav-item:hover{box-shadow:inset 0 0 0 1px rgba(15,23,42,.24)}
