@@ -486,7 +486,6 @@
           <!-- style block 8 extracted to inline-styles.css -->
           <div id="rr-ivcal" tabindex="0">
             <!-- Shared gradient for the blue→purple camera "video link" glyph. -->
-            <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0"><defs><linearGradient id="rr-cam-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5B8DEF"/><stop offset="52%" stop-color="#2563EB"/><stop offset="100%" stop-color="#6D28D9"/></linearGradient></defs></svg>
             <div id="rr-ivcal-body"><div class="rr-loading">Loading calendar…</div></div>
           </div>
 

@@ -4702,3 +4702,47 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
    stretching rows to fill the viewport. */
 #view-schedule.rrx-schedule .rr-fc-layout .sched-monthly-shell { height: auto; min-height: 0; }
 #view-schedule.rrx-schedule .rr-fc-layout .sched-monthly-grid { flex: 0 0 auto; overflow: visible; }
+
+/* ============================================================
+   Command-strip visual grammar (UX pass)
+   ------------------------------------------------------------
+   The strip mixes tiles that DO something with tiles that GO
+   somewhere, and they used to look identical:
+   - VIEW tiles (Today/Weekly/Monthly/Roster/Attendance/Requests/
+     Targets/Fleet): quiet, borderless; the gray rr-v2-current
+     box marks where you are.
+   - ACTION tiles (Unassign/Kudos): hairline ring — they read as
+     buttons.
+   - Smart Fill keeps its purple AI tint; FINALIZE gets the
+     primary-blue treatment — it's the publish button, the most
+     consequential click on the page, and now it looks like it.
+   The same grammar is applied to the Fleet / Workflows /
+   Onboarding strips in inline-styles.css.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"]) .sched-v2-tile,
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"]) .sched-v2-tile {
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.14);
+}
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"]) .sched-v2-tile:hover,
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"]) .sched-v2-tile:hover {
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.24);
+}
+
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile {
+  background: rgba(37, 99, 235, 0.08);
+  color: #1D4ED8;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.25);
+}
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile:hover {
+  background: rgba(37, 99, 235, 0.13);
+  color: #1D4ED8;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile:active {
+  background: rgba(37, 99, 235, 0.18);
+}
+/* Out-specifies the global var(--text) !important icon force. */
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile svg {
+  color: #1D4ED8 !important;
+}
