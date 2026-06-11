@@ -4093,8 +4093,10 @@
       + '.cal-row-label{position:relative}'
       // Pool sort toggle
       + '.pool-sort-row{display:flex;gap:var(--s-1);margin:0 var(--s-3) 8px}'
-      + '.pool-sort-btn{flex:1;background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);font:inherit;font-size:var(--fs-xs);font-weight:600;padding:5px 8px;border-radius:var(--r-md);cursor:pointer}'
-      + '.pool-sort-btn.active{background:var(--surface);color:var(--text);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft-strong)}'
+      + '.pool-sort-row{display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}'
+      + '.pool-sort-btn{flex:1;background:var(--canvas);border:0;color:var(--text-muted);font:inherit;font-size:var(--fs-xs);font-weight:600;height:24px;padding:0 8px;cursor:pointer}'
+      + '.pool-sort-btn+.pool-sort-btn{border-left:1px solid var(--border)}'
+      + '.pool-sort-btn.active{background:var(--surface);color:var(--text)}'
       + '.pool-driver .pool-driver-score{display:inline-block;font-size:var(--fs-xs);font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;font-variant-numeric:tabular-nums}'
       // VTO suggestion banner in check-in
       + '#ci-vto-suggest{background:#F0F9FF;border:1px solid var(--accent-border);color:#0C4A6E;border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin:0 0 var(--s-3) 0;font-size:var(--fs-md);display:flex;align-items:center;gap:var(--s-2-5)}'
@@ -4419,8 +4421,8 @@
     var row = document.createElement('div');
     row.className = 'pool-sort-row';
     row.innerHTML = ''
-      + '<button class="pool-sort-btn active" data-sort="score" onclick="poolSort(\'score\')">Score (top first)</button>'
-      + '<button class="pool-sort-btn" data-sort="alpha" onclick="poolSort(\'alpha\')">Alphabetical</button>';
+      + '<button class="pool-sort-btn active" data-sort="score" onclick="poolSort(\'score\')" title="Highest score first">Score</button>'
+      + '<button class="pool-sort-btn" data-sort="alpha" onclick="poolSort(\'alpha\')" title="Alphabetical">A–Z</button>';
     head.parentNode.insertBefore(row, head.nextSibling.nextSibling); // after pool-head + pool-search
 
     // Initial sort

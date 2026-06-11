@@ -738,7 +738,7 @@ textarea,
 .view .fl-ribbon-btn svg,
 .view .wf-strip-tile svg,
 .view .ws-strip-tile svg{
-  width:33px !important;height:33px !important;flex-shrink:0;
+  width:32px !important;height:32px !important;flex-shrink:0;
   stroke-width:1.6 !important;
   stroke-linecap:round !important;stroke-linejoin:round !important;
 }
@@ -7293,10 +7293,12 @@ body.rr-cmdk-open{ overflow:hidden }
 .pool-driver-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3}
 .pool-driver-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
 .pool-driver-hours{
+  /* Enterprise pass · plain right-aligned tabular text, not a pill —
+     pills imply interactivity this badge doesn't have. */
   font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
-  background:var(--canvas);padding:1px 7px;border-radius:var(--r-lg);white-space:nowrap;
+  background:transparent;padding:0;white-space:nowrap;font-variant-numeric:tabular-nums;
 }
-.pool-driver.maxed .pool-driver-hours{color:var(--amber);background:var(--amber-soft)}
+.pool-driver.maxed .pool-driver-hours{color:#B45309;background:transparent}
 .pool-driver.off{opacity:.5;cursor:not-allowed}
 .pool-driver.off:hover{background:transparent;border-color:transparent}
 
@@ -11192,7 +11194,7 @@ body.rr-cmdk-open{ overflow:hidden }
             visibility:visible !important;opacity:1 !important;
           }
           #view-pipeline .pa-workspace::-webkit-scrollbar-track{
-            background:#E1DFDD !important;border-left:1px solid #C8C6C4 !important;
+            background:#E1DFDD !important;border-left:1px solid rgba(15,23,42,.16) !important;
           }
           #view-pipeline .pa-workspace::-webkit-scrollbar-thumb,
           #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:vertical,
@@ -11218,7 +11220,7 @@ body.rr-cmdk-open{ overflow:hidden }
              (14px track, dark thumb) instead of the thin 9px global default. */
           #view-pipeline .rr-faux-scrollbar{
             width:14px !important;background:#E1DFDD !important;
-            border-left:1px solid #C8C6C4 !important;border-radius:0 !important;
+            border-left:1px solid rgba(15,23,42,.16) !important;border-radius:0 !important;
           }
           #view-pipeline .rr-faux-scrollbar-thumb{
             left:3px !important;right:3px !important;
@@ -12345,12 +12347,12 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Hairline divider between Add applicant and PDF Upload — a
              single 1px vertical line. align-self:stretch + zero vertical
              margin makes it run the full card height like the inter-group
-             dividers; #C8C6C4 matches their color so all the hairlines
+             dividers; rgba(15,23,42,.16) matches their color so all the hairlines
              read uniform. */
           #view-onboarding-ops .ob-tab-divider {
             width: 1px;
             align-self: stretch;
-            background: #C8C6C4;
+            background: rgba(15,23,42,.16);
             margin: 0 6px;
           }
           /* The flat strip's only dividers are the explicit .ob-tab-divider
@@ -13626,7 +13628,7 @@ body.rr-cmdk-open{ overflow:hidden }
                         font-family:var(--rr-font-family, 'Segoe UI');
                         transition:border-color .12s, background .12s;
                       }
-                      .rr-sched-density-opt:hover{border-color:#C8C6C4;background:#FAFAFA}
+                      .rr-sched-density-opt:hover{border-color:rgba(15,23,42,.16);background:#FAFAFA}
                       .rr-sched-density-opt input[type="radio"]{margin:3px 0 0 0;flex:0 0 auto;accent-color:#0078D4}
                       .rr-sched-density-opt input[type="radio"]:checked + .rr-sched-density-opt-body .rr-sched-density-opt-title{color:#0078D4}
                       .rr-sched-density-opt:has(input:checked){border-color:#0078D4;background:rgba(0,120,212,.04)}
@@ -18363,17 +18365,19 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:11px;color:var(--text-subtle);
             margin-top:1px;letter-spacing:0;
           }
+          /* Enterprise pass · plain right-aligned tabular text, not a
+             pill — pills imply interactivity this readout doesn't have. */
           #view-schedule .pool-driver-hours{
             font-size:11px;font-weight:600;
             color:var(--text-muted);
-            background:var(--sch-surface-3);
-            padding:1px 7px;border-radius:var(--r-pill);
+            background:transparent;
+            padding:0;
             white-space:nowrap;font-variant-numeric:tabular-nums;
             border:0;
           }
           #view-schedule .pool-driver.maxed{opacity:.55}
           #view-schedule .pool-driver.maxed .pool-driver-hours{
-            background:var(--sch-amber-soft);color:var(--sch-amber);
+            background:transparent;color:#B45309;
           }
           #view-schedule .pool-driver.off{opacity:.5;cursor:default}
           #view-schedule .pool-driver.off:hover{background:transparent}
@@ -19446,7 +19450,7 @@ body.rr-cmdk-open{ overflow:hidden }
           --f2-sch-blue-softer: rgba(15,108,189,.05);
           --f2-sch-line-subtle: rgba(15,23,42,.07);
           --f2-sch-radius: 8px;
-          --f2-divider: #C8C6C4;
+          --f2-divider: rgba(15,23,42,.16);
         }
 
         /* Page ground · neutral near-white canvas (kept in sync with
@@ -19536,7 +19540,7 @@ body.rr-cmdk-open{ overflow:hidden }
           align-items: stretch;
           flex-wrap: nowrap;
           gap: 8px;
-          padding: 3px 18px 6px;
+          padding: 8px 18px 6px;
           margin: 12px 0 0;
           background: var(--rr-bg-surface-1);
           border: 1px solid var(--f2-sch-line-subtle);
@@ -19664,8 +19668,8 @@ body.rr-cmdk-open{ overflow:hidden }
              deliberately NO hover thicken (this also out-specifies the
              global button:hover 1.25 bump; Schedule keeps its hover
              bump, Fleet does not). */
-          width: 42px;
-          height: 42px;
+          width: 32px;
+          height: 32px;
           flex: 0 0 auto;
           color: var(--text);
           stroke-width: 1.1 !important;
@@ -19762,7 +19766,7 @@ body.rr-cmdk-open{ overflow:hidden }
              label-weight bump; the icon keeps var(--text) like every
              other tile. Set by fleetSub() in live.js. ─── */
         #view-fleet2 .f2-tile.active {
-          box-shadow: inset 0 0 0 1px #C8C6C4;
+          box-shadow: inset 0 0 0 1px rgba(15,23,42,.16);
           background: rgba(15, 23, 42, 0.04);
         }
         #view-fleet2 .f2-tile.active:hover {
@@ -20398,7 +20402,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           /* Action ribbon · first hairline divider sits at the same X
              as Schedule's (16px margin + 16px padding + 1px line in
-             #C8C6C4 after a 240px title block + 16px margin-right
+             rgba(15,23,42,.16) after a 240px title block + 16px margin-right
              on the title). */
           #view-fleet2 .fl-ribbon-actions{
             display:flex;align-items:center;
@@ -20406,7 +20410,7 @@ body.rr-cmdk-open{ overflow:hidden }
             gap:6px;flex-wrap:nowrap;min-width:0;
             margin-left:var(--rr-space-160);
             padding-left:var(--rr-space-160);
-            border-left:1px solid #C8C6C4;
+            border-left:1px solid rgba(15,23,42,.16);
           }
           #view-fleet2 .fl-ribbon-tail{
             display:flex;align-items:center;gap:8px;
@@ -21377,7 +21381,7 @@ body.rr-cmdk-open{ overflow:hidden }
             gap:6px;flex-wrap:nowrap;min-width:0;
             margin-left:var(--rr-space-160);
             padding-left:var(--rr-space-160);
-            border-left:1px solid #C8C6C4;
+            border-left:1px solid rgba(15,23,42,.16);
           }
           /* Action tiles · 33×33 svg, 13px label, rounded medium,
              butt/miter cap (same as Schedule .sched-v2-tile). */
@@ -21512,7 +21516,7 @@ body.rr-cmdk-open{ overflow:hidden }
             gap:6px;flex-wrap:nowrap;min-width:0;
             margin-left:var(--rr-space-160);
             padding-left:var(--rr-space-160);
-            border-left:1px solid #C8C6C4;
+            border-left:1px solid rgba(15,23,42,.16);
           }
           #view-forms .wf-strip-group{
             display:flex;align-items:center;gap:6px;flex-wrap:nowrap;
@@ -22058,7 +22062,7 @@ body.rr-cmdk-open{ overflow:hidden }
             flex-wrap:nowrap;min-width:0;
             margin-left:var(--rr-space-160);
             padding-left:var(--rr-space-160);
-            border-left:1px solid #C8C6C4;
+            border-left:1px solid rgba(15,23,42,.16);
           }
           #view-email .em-action{
             appearance:none;cursor:pointer;font:inherit;
@@ -22094,7 +22098,7 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;flex-direction:column;gap:1px;
             margin-left:var(--rr-space-160);
             padding-left:var(--rr-space-160);
-            border-left:1px solid #C8C6C4;
+            border-left:1px solid rgba(15,23,42,.16);
           }
           #view-email .em-action-stack-btn{
             appearance:none;cursor:pointer;font:inherit;

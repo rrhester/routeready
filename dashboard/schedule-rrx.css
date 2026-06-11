@@ -1298,7 +1298,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-track {
   background: #E1DFDD !important;
-  border-left: 1px solid #C8C6C4 !important;
+  border-left: 1px solid rgba(15, 23, 42, 0.16) !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb,
@@ -1432,7 +1432,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   border-bottom: 0 !important;
   border-left-width: 1px !important;
   border-left-style: solid !important;
-  border-left-color: #C8C6C4 !important;  /* one step darker than --rr-border-primary so the line reads at a glance */
+  border-left-color: rgba(15, 23, 42, 0.16) !important;  /* one step darker than --rr-border-primary so the line reads at a glance */
 }
 
 /* ============================================================
@@ -1904,7 +1904,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   /* Tight top + bottom padding so (a) the icons hug the top edge and
      (b) the stretched group dividers run nearly the full card height —
      top ~3px from the top, bottom ~6px from the bottom. */
-  padding: 3px 18px 6px;
+  padding: 8px 18px 6px;
   /* No gap below the card so the schedule grid sits right under it
      (operator request). Schedule-scoped override of --tcp-strip-gap. */
   margin: 0 0 0 0;
@@ -2011,9 +2011,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-v2-tile svg {
   /* Command-strip tile icons (Schedule + Intelligence + Print/Download
-     all scale together). 38px × 1.10 ≈ 42px — operator-requested ~10% bump. */
-  width: 42px;
-  height: 42px;
+     all scale together). 42→32px — enterprise pass: M365-class ribbon
+     glyph size; the strip height compresses with it (tcp.css). */
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
   color: var(--rr-fg-secondary);
   stroke-width: 1.6;
@@ -2179,7 +2180,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    Roster / Attendance / Requests / Targets) gets a soft gray rounded
    box. inset box-shadow (not border) so the tile never shifts 1px. */
 #view-schedule.rrx-schedule .sched-v2-tile.rr-v2-current {
-  box-shadow: inset 0 0 0 1px #C8C6C4;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.16);
   background: rgba(15, 23, 42, 0.04);
 }
 #view-schedule.rrx-schedule .sched-v2-tile.rr-v2-current:hover {
@@ -2255,7 +2256,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
        matches the operator's spec, regardless of DOM order.
      - Hairline dividers are border-left on the group-start
        tiles (Requests, Targets, Calendar, Kudos) using
-       `#C8C6C4` — the same colour the legacy ribbon dividers
+       `rgba(15, 23, 42, 0.16)` — the same colour the legacy ribbon dividers
        use elsewhere in this file.
    ============================================================ */
 
@@ -2324,13 +2325,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"]) {
   margin-left: var(--rr-space-160) !important;
   padding-left: var(--rr-space-160) !important;
-  border-left: 1px solid #C8C6C4 !important;
+  border-left: 1px solid rgba(15, 23, 42, 0.16) !important;
 }
 /* Trailing divider · right border on the last tile (Kudos). */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"]) {
   margin-right: var(--rr-space-160) !important;
   padding-right: var(--rr-space-160) !important;
-  border-right: 1px solid #C8C6C4 !important;
+  border-right: 1px solid rgba(15, 23, 42, 0.16) !important;
 }
 
 /* ============================================================
@@ -2366,22 +2367,21 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
      deep gradient + gloss + glow stack overwhelmed the strip; a quiet
      tint with an inset hairline keeps "this tile is special" while
      letting purple stay the app's single AI accent). */
-  background: rgba(109, 40, 217, 0.10);
-  color: #6D28D9;
-  box-shadow: inset 0 0 0 1px rgba(109, 40, 217, 0.25);
+  /* Enterprise pass · accent budget: the tile itself goes neutral;
+     the purple GLYPH alone is the AI signature. */
+  background: transparent;
+  color: var(--rr-fg-secondary);
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:hover {
-  background: rgba(109, 40, 217, 0.15);
-  color: #6D28D9;
-  box-shadow: inset 0 0 0 1px rgba(109, 40, 217, 0.35);
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--rr-fg-primary);
 }
 
 /* Press / sink — deeper purple tint on click, on top of the base
    tile's translateY/scale sink. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:active {
-  background: rgba(109, 40, 217, 0.20);
-  box-shadow: inset 0 0 0 1px rgba(109, 40, 217, 0.35);
+  background: rgba(15, 23, 42, 0.06);
 }
 
 /* Solid purple bolt (the SVG ships fill="none" stroke-only → hollow
@@ -2401,20 +2401,17 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    icon so it visibly matches the rail. Higher specificity (base
    selector + the class) so it wins over the purple rest-state above. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode {
-  /* Same flat "special tile" treatment as Smart Fill, but in the
-     sidebar steel-blue family so the two modes read as siblings. */
-  background: rgba(32, 82, 133, 0.10);
-  color: #205285;
-  box-shadow: inset 0 0 0 1px rgba(32, 82, 133, 0.28);
+  /* Neutral tile + steel glyph (accent budget; siblings with Smart
+     Fill's neutral-tile/purple-glyph treatment). */
+  background: transparent;
+  color: var(--rr-fg-secondary);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode:hover {
-  background: rgba(32, 82, 133, 0.15);
-  color: #205285;
-  box-shadow: inset 0 0 0 1px rgba(32, 82, 133, 0.38);
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--rr-fg-primary);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode:active {
-  background: rgba(32, 82, 133, 0.20);
-  box-shadow: inset 0 0 0 1px rgba(32, 82, 133, 0.38);
+  background: rgba(15, 23, 42, 0.06);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg {
   color: #205285;
@@ -2710,19 +2707,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    The on-click spin + label flip from PR #1620 is unchanged.
    ============================================================ */
 
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"]) .sched-v2-tile {
-  background: linear-gradient(135deg, rgba(26, 115, 232, 0.10), rgba(26, 115, 232, 0.07));
-  color: #1357B8;
-}
-
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"]) .sched-v2-tile:hover {
-  background: linear-gradient(135deg, rgba(26, 115, 232, 0.18), rgba(26, 115, 232, 0.12));
-  color: #0842A0;
-}
-
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"]) .sched-v2-tile svg {
-  color: #1A73E8;
-}
+/* Enterprise pass · Unassign's resting blue tint retired (accent
+   budget: Finalize is the screen's one blue action). Its action ring
+   from the strip-grammar pass carries the "this is a button" signal. */
 
 /* ============================================================
    Draft / Live status pill next to the Schedule title
@@ -3199,7 +3186,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    ============================================================ */
 
 #view-schedule.rrx-schedule .sched-v2-strip > #rr-sched-week-nav {
-  border-left: 1px solid #C8C6C4 !important;
+  border-left: 1px solid rgba(15, 23, 42, 0.16) !important;
   /* Padding 12 → 8px (--rr-space-80) to free up more horizontal
      room for the smaller nav buttons. */
   padding-left: var(--rr-space-80) !important;
@@ -3396,7 +3383,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 
 #view-schedule.rrx-schedule .pool-openshifts .open-shift,
 #view-schedule.rrx-schedule .open-shift {
-  border: 1.5px solid #C8C6C4 !important;
+  border: 1.5px solid rgba(15, 23, 42, 0.16) !important;
   border-left-width: 3px !important;
   border-left-color: var(--rr-danger) !important;
   box-shadow: var(--rr-shadow-2);
@@ -3974,7 +3961,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
   left: 1px;
   right: 1px;
   top: 0;
-  background: #C8C6C4;
+  background: rgba(15, 23, 42, 0.16);
   border-radius: 4px;
   min-height: 36px;
   cursor: pointer;
