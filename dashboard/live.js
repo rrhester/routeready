@@ -69,6 +69,16 @@ window.debugDemand = async (weekStart) => {
   window._rrReportError = (msg, stack) => report("manual", msg, stack);
 })();
 
+// ─── View partials gate ────────────────────────────────────────────────────
+// The big views' markup is injected from cacheable views/*.frag files
+// by the inline injector in index.html (monolith split phase 2). Wait
+// for injection before anything below touches view DOM. A failed
+// partial is a boot failure: throwing here means __RR_BOOT_OK never
+// flips, so the index.html boot gate shows the honest error card
+// instead of a half-empty app.
+if (window.__RR_VIEWS_READY) await window.__RR_VIEWS_READY;
+if (window.__RR_VIEW_LOAD_FAILED) throw new Error("view partials failed to load");
+
 // ─── Auth gate ─────────────────────────────────────────────────────────────
 const { data: { session } } = await sb.auth.getSession();
 if (!session) {

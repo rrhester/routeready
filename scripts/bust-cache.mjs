@@ -54,10 +54,12 @@ const FILES = [
 ];
 
 // Match any local asset reference with a ?v=... cache-bust. The
-// extension anchor (.js / .mjs / .css) is what limits us to assets
-// we control; everything after `?v=` up to the next quote / space /
-// angle bracket / ampersand is the version we replace.
-const PATTERN = /(\.(?:js|mjs|css))\?v=[^"'\s>&]+/g;
+// extension anchor (.js / .mjs / .css / .frag) is what limits us to
+// assets we control; everything after `?v=` up to the next quote /
+// space / angle bracket / ampersand is the version we replace.
+// (.frag = the view partials under dashboard/views/, fetched by the
+// injector in index.html — monolith split phase 2.)
+const PATTERN = /(\.(?:js|mjs|css|frag))\?v=[^"'\s>&]+/g;
 
 let touched = 0;
 let replacements = 0;

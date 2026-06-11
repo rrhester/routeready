@@ -30,3 +30,9 @@
 /app/manifest.webmanifest
   Cache-Control: no-cache, no-store, must-revalidate
   Content-Type: application/manifest+json
+
+# View partials (monolith split phase 2) · immutable — every reference
+# carries a deploy-unique ?v= token (bust-cache.mjs), so the content at
+# any given URL never changes.
+/dashboard/views/*
+  Cache-Control: public, max-age=31536000, immutable
