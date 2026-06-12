@@ -261,12 +261,12 @@
         <button type="button" class="nav-sub-item" data-key="attendance" onclick="rrSchedNav('attendance',this)">Attendance</button>
         <button type="button" class="nav-sub-item" data-key="requests"  onclick="rrSchedNav('requests',this)">Requests</button>
         <button type="button" class="nav-sub-item" data-key="targets"   onclick="rrSchedNav('targets',this)">Targets</button>
-        <button type="button" class="nav-sub-item" data-key="smartfill" onclick="rrSchedNav('smartfill',this)">Smart Fill</button>
-        <button type="button" class="nav-sub-item" data-key="finalize"  onclick="rrSchedNav('finalize',this)">Finalize</button>
-        <button type="button" class="nav-sub-item" data-key="unassign"  onclick="rrSchedNav('unassign',this)">Unassign</button>
-        <button type="button" class="nav-sub-item" data-key="print"     onclick="rrSchedNav('print',this)">Print</button>
-        <button type="button" class="nav-sub-item" data-key="download"  onclick="rrSchedNav('download',this)">Download Excel</button>
-        <button type="button" class="nav-sub-item" data-key="__fleet"   onclick="goto('fleet2')">Fleet</button>
+        <!-- Smart Fill / Finalize / Unassign / Print / Download Excel /
+             Fleet children removed (operator request 2026-06-12) — the
+             children list is VIEWS only. The actions stay reachable on
+             the schedule page itself (header action bar; rrSchedNav's
+             BTN map is kept intact for those paths), and Fleet keeps
+             its own top-level nav-item. -->
       </div>
       <script>
         // Parent/child sidebar driver for Schedule. Clicks the matching
