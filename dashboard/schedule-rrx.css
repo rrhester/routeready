@@ -3217,12 +3217,15 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    ============================================================ */
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  /* Corporate schedule card (#DBEAFE on #93C5FD — spec surface) with a
+  /* Corporate schedule card (#DBEAFE — spec surface) with a
      service-type-colored LEFT accent bar. The bar color comes from
      --chip-accent (set inline per shift in live.js: the service type's
-     color, or the route classification color). */
+     color, or the route classification color). Borderless (operator
+     request 2026-06-12): the blue ring is gone — the fill alone defines
+     the card. The outline keeps its 1px width (transparent) so the
+     card's size and the grid layout don't shift. */
   background: #DBEAFE !important;
-  border: 1px solid #93C5FD !important;
+  border: 1px solid transparent !important;
   border-left: 3px solid var(--chip-accent, #2563EB) !important;
   box-shadow: none !important;
   color: #111827 !important;
@@ -3240,7 +3243,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    (the colored left accent bar is preserved). */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: #BFDBFE !important;
-  border-color: #93C5FD !important;
+  border-color: transparent !important;
 }
 
 /* ============================================================
@@ -3255,36 +3258,38 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    ============================================================ */
 body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: #DBEAFE !important;
-  border: 1px solid #93C5FD !important;
+  border: 1px solid transparent !important;
   border-left: 3px solid var(--chip-accent, #2563EB) !important;
   color: #111827 !important;
 }
 body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: #BFDBFE !important;
-  border-color: #93C5FD !important;
+  border-color: transparent !important;
   border-left-color: var(--chip-accent, #2563EB) !important;
 }
 body.rr-sched-cards-blue #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: #BFDBFE !important;
-  border: 1px solid #60A5FA !important;
+  border: 1px solid transparent !important;
   color: #111827 !important;
 }
 body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: #93C5FD !important;
-  border-color: #60A5FA !important;
+  border-color: transparent !important;
 }
 
-/* Hover-lift · when the cursor is over an assigned card, raise it 2px,
-   deepen the shadow a step, and firm up the border. Restrained on purpose:
-   the card reads as interactive without the motion calling attention to
-   itself. Settles over 180ms (see the base .shift-chip + .rr-sf-card-in
-   transitions). Scoped under .cal-cell:hover and ending in :hover so it
-   outranks the cell-tint rule above and only lifts the card under the
-   cursor, not every card in the cell. */
+/* Hover-lift · when the cursor is over an assigned card, raise it 2px
+   and deepen the shadow a step. Restrained on purpose: the card reads
+   as interactive without the motion calling attention to itself. The
+   border stays transparent (cards are borderless — operator request
+   2026-06-12); the shadow alone carries the lift. Settles over 180ms
+   (see the base .shift-chip + .rr-sf-card-in transitions). Scoped under
+   .cal-cell:hover and ending in :hover so it outranks the cell-tint
+   rule above and only lifts the card under the cursor, not every card
+   in the cell. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here):hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12) !important;
-  border-color: rgba(37,99,235, 0.62) !important;
+  border-color: transparent !important;
 }
 
 /* Reduced motion · keep the shadow/border feedback but drop the travel. */
@@ -4740,18 +4745,15 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 
 
-/* ── Calm sweep · shift chips lose their resting outline. The soft
-   fill + colored left accent carry identity; the border returns on
-   cell hover where it aids click targeting. ─────────────────────── */
-#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+/* ── Calm sweep · shift chips lose their outline at rest AND on hover
+   (operator request 2026-06-12: fully borderless cards). The soft fill
+   + colored left accent carry identity; hover feedback comes from the
+   background deepen + shadow lift instead of a returning border. ──── */
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here),
+#view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   border-top-color: transparent !important;
   border-right-color: transparent !important;
   border-bottom-color: transparent !important;
-}
-#view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  border-top-color: rgba(15, 23, 42, 0.14) !important;
-  border-right-color: rgba(15, 23, 42, 0.14) !important;
-  border-bottom-color: rgba(15, 23, 42, 0.14) !important;
 }
 
 /* ════════════════════════════════════════════════════════════════════
