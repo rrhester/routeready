@@ -71,14 +71,14 @@
      button stays hidden there but the manifest + apple-touch-icon
      + theme-color still wire up the Dock icon and title bar. -->
 <link rel="manifest" href="manifest.webmanifest">
-<!-- theme-color paints the OS title bar of the installed app — both
-     the standalone title bar (overlay toggled off) and the backdrop
-     behind the native controls in WCO mode (and the browser tab bar
-     tint on mobile). Matched to the sidebar brand blue (--sidebar-bg:
-     #0F6CBD) — the same color the WCO band is painted in
-     inline-styles.css — so the top of the app reads as one deliberate
-     title bar merging with the rail instead of a white strip. -->
-<meta name="theme-color" content="#0F6CBD">
+<!-- theme-color paints the OS title bar of the installed app — the
+     standalone title bar (overlay toggled off) and the native-controls
+     backdrop in WCO mode (and the browser tab bar tint on mobile).
+     Matched to the page canvas (--canvas: #FEFEFF): in WCO mode the
+     band itself is painted two-tone by inline-styles.css (rail blue
+     above the sidebar, canvas above the content), and the OS controls
+     sit on the canvas side, so they blend with the light segment. -->
+<meta name="theme-color" content="#FEFEFF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">

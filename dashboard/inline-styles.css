@@ -23195,11 +23195,21 @@ body.rr-cmdk-open{ overflow:hidden }
     content:"";position:fixed;top:0;left:0;right:0;
     height:env(titlebar-area-height, 33px);z-index:55;
     -webkit-app-region:drag;app-region:drag;
-    /* Paint the title-bar band the rail blue so the app top reads as one
-       deliberate title bar merging with the sidebar (operator
-       report: white strip across the top of the desktop app). */
-    background:var(--sidebar-bg,#0F6CBD);
+    /* Two-tone title-bar band (operator request 2026-06-12: a full-width
+       dark band made the top feel closed off). Rail blue only above the
+       sidebar — so the rail reads as running to the very top of the
+       window — and page canvas above the content. Width tracks the .app
+       grid columns (212px rail / 64px collapsed, see .app rules). */
+    --rr-tb-rail-w:212px;
+    background:linear-gradient(90deg,
+      var(--sidebar-bg,#0F6CBD) 0 var(--rr-tb-rail-w),
+      var(--canvas,#FEFEFF) var(--rr-tb-rail-w));
   }
+  /* Collapsed rail (64px): both signals — the pre-init boot flag on
+     <html> (localStorage echo, see index.html) and the post-init
+     .collapsed class owned by live.js. */
+  body:has(.sidebar.collapsed)::before,
+  html.rr-sidebar-collapsed-boot body::before{--rr-tb-rail-w:64px}
 }
 .topbar{-webkit-app-region:no-drag;app-region:no-drag}
 
