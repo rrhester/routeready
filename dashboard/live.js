@@ -42071,18 +42071,23 @@ async function _rrSetDriverWeekLocks(driverId, locked) {
   if (!dspId || !_schedStart) return 0;
   const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
   try {
+    // Terminal statuses are filtered CLIENT-side — a server-side status
+    // filter 400s on enum values the DB doesn't define (same trap as the
+    // section loader at ~line 21828).
     const { data, error } = await sb.from("shifts")
-      .select("id")
+      .select("id, status")
       .eq("dsp_id", dspId)
       .eq("driver_id", driverId)
       .gte("date", _schedStart).lte("date", weekEndIso)
-      .eq("is_locked", !locked)
-      .not("status", "in", "(no_show,called_off,cancelled)");
-    if (error || !data?.length) return 0;
-    const ids = data.map((r) => r.id);
+      .eq("is_locked", !locked);
+    if (error) { console.warn("driver pin · week-lock select failed:", error.message); return 0; }
+    const SKIP = new Set(["no_show", "called_off", "cancelled"]);
+    const ids = (data || []).filter((r) => !SKIP.has(String(r.status))).map((r) => r.id);
+    if (!ids.length) return 0;
     const { error: wErr } = await sb.from("shifts").update({ is_locked: locked }).in("id", ids);
-    return wErr ? 0 : ids.length;
-  } catch (_) { return 0; }
+    if (wErr) { console.warn("driver pin · week-lock update failed:", wErr.message); return 0; }
+    return ids.length;
+  } catch (e) { console.warn("driver pin · week-lock failed:", e?.message); return 0; }
 }
 
 async function _rrPinDriverWorkedDays(driverId) {
@@ -42123,7 +42128,13 @@ async function _rrPinDriverWorkedDays(driverId) {
   }
   const any = ok > 0 || lockedNow > 0;
   if (typeof toast === "function") {
-    toast(any ? `Pinned ${info.name} to ${ok} day${ok === 1 ? "" : "s"} — repeats weekly` : "Pin failed", any ? "ok" : "warn");
+    if (ok > 0 && lockedNow === 0) {
+      // Rules saved but this week's shifts didn't lock — say so instead
+      // of claiming a full pin (the blue pins won't have appeared).
+      toast(`Pinned ${info.name}'s days going forward, but couldn't lock this week's shifts — check the console`, "warn");
+    } else {
+      toast(any ? `Pinned ${info.name} to ${ok} day${ok === 1 ? "" : "s"} — repeats weekly` : "Pin failed", any ? "ok" : "warn");
+    }
   }
   if (typeof _decorateScheduleChipsWithPins === "function") { try { await _decorateScheduleChipsWithPins(); } catch (_) {} }
   if (any && typeof _rrLoadAdHocConstraintsList === "function") { try { _rrLoadAdHocConstraintsList(); } catch (_) {} }
