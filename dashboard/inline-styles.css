@@ -23214,3 +23214,19 @@ body.rr-cmdk-open{ overflow:hidden }
 .sidebar-foot .sidebar-theme-btn{display:none !important}
 #popover-account{top:56px !important;bottom:auto !important;right:16px !important;left:auto !important}
 #popover-notif{top:56px !important;bottom:auto !important;right:16px !important;left:auto !important}
+/* Schedule grid scrollbar · hidden but still scrollable (operator
+   2026-06-12). Wheel / trackpad / keyboard scrolling all keep working;
+   only the visible bar (and its reserved gutter) goes away. */
+#view-schedule .cal-wrap{
+  overflow-y:auto;
+  scrollbar-width:none;          /* Firefox */
+  -ms-overflow-style:none;       /* legacy Edge */
+  scrollbar-gutter:auto;
+}
+#view-schedule .cal-wrap::-webkit-scrollbar{
+  display:none;width:0;height:0;background:transparent;
+}
+/* The rail-foot install glyph is replaced by the "Download" nav row
+   (#rr-nav-download) — keep the source button in the DOM (it owns the
+   install flow) but never show it in the foot. */
+.sidebar-foot .topbar .hdr-install{display:none !important}
