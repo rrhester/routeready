@@ -38396,6 +38396,7 @@ async function _runSchedVanAssignmentsBackground() {
   const btn = document.getElementById("rr-sched-vans-h");
   if (!btn) return;
   if (btn.dataset.rrBusy === "1") return; // double-fire guard
+  _rrAbBusy("rr-ab-assign");
   const orig = btn.querySelector("svg")?.outerHTML || "";
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
@@ -38475,6 +38476,7 @@ async function _runSchedVanAssignmentsBackground() {
       try { await _decorateScheduleChipsWithVans(); } catch (_) {}
     }
   } finally {
+    _rrAbDone("rr-ab-assign");
     _clearTileBusy(btn);
     if (orig) {
       const cur = btn.querySelector("svg");
@@ -39165,6 +39167,7 @@ async function _runSchedVanUnassignBackground() {
   const btn = document.getElementById("rr-sched-vans-h");
   if (!btn) return;
   if (btn.dataset.rrBusy === "1") return;
+  _rrAbBusy("rr-ab-unassign");
   const orig = btn.querySelector("svg")?.outerHTML || "";
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
@@ -39205,6 +39208,7 @@ async function _runSchedVanUnassignBackground() {
       try { await _decorateScheduleChipsWithVans(); } catch (_) {}
     }
   } finally {
+    _rrAbDone("rr-ab-unassign");
     _clearTileBusy(btn);
     if (orig) {
       const cur = btn.querySelector("svg");
@@ -40747,6 +40751,56 @@ async function _rrResolveRecalcRows(ids, state, note) {
   }, 1000);
 })();
 
+// ── Action-bar busy signal (operator 2026-06-12) ─────────────────────
+// Smart Fill / Assign Fleet runs only animated the LEGACY ribbon tile,
+// which is hidden under the action-bar layout — so long runs looked
+// like nothing was happening and invited double-clicks. While a run is
+// live: the action-bar button gets a small inline spinner and is
+// locked (pointer-events off), and a slim 2px shimmer bar appears
+// under the action bar. Children are NOT replaced (the caret carries a
+// direct listener), only prepended to.
+const _RR_AB_SPIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin" aria-hidden="true"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>';
+const _rrAbBusyIds = new Set();
+function _rrAbProgressBar(on) {
+  const ab = document.getElementById("rr-sched-actionbar");
+  if (!ab) return;
+  let bar = document.getElementById("rr-ab-progress");
+  if (on) {
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "rr-ab-progress";
+      bar.setAttribute("role", "progressbar");
+      bar.setAttribute("aria-label", "Working…");
+      ab.appendChild(bar);
+    }
+    bar.hidden = false;
+  } else if (bar) {
+    bar.hidden = true;
+  }
+}
+function _rrAbBusy(id) {
+  const btn = document.getElementById(id);
+  if (!btn || _rrAbBusyIds.has(id)) return;
+  _rrAbBusyIds.add(id);
+  btn.classList.add("rr-ab-busy");
+  btn.setAttribute("aria-busy", "true");
+  const sp = document.createElement("span");
+  sp.className = "rr-ab-busy-spin";
+  sp.innerHTML = _RR_AB_SPIN_SVG;
+  btn.prepend(sp);
+  _rrAbProgressBar(true);
+}
+function _rrAbDone(id) {
+  const btn = document.getElementById(id);
+  if (btn) {
+    btn.classList.remove("rr-ab-busy");
+    btn.removeAttribute("aria-busy");
+    btn.querySelector(":scope > .rr-ab-busy-spin")?.remove();
+  }
+  _rrAbBusyIds.delete(id);
+  if (_rrAbBusyIds.size === 0) _rrAbProgressBar(false);
+}
+
 window.openAiSchedule = async function () {
   // Manual scheduling — Smart Fill is off; the board is filled by hand.
   try {
@@ -40756,6 +40810,11 @@ window.openAiSchedule = async function () {
       return;
     }
   } catch (_) { /* ignore */ }
+  // Re-entrancy guard — a long solve invites a second click; the
+  // second click must be a no-op, not a second run.
+  if (window._rrSfRunning) return;
+  window._rrSfRunning = true;
+  _rrAbBusy("rr-ab-smartfill");
   // Lock the Smart Fill tile + show a progress toast so the
   // operator gets immediate feedback while the RPC chain runs.
   const btn = document.getElementById("rr-sched-smartfill-h");
@@ -40777,6 +40836,8 @@ window.openAiSchedule = async function () {
     await autoFillScheduleWeek();
   } finally {
     _rrSmartFillStaging = false;
+    window._rrSfRunning = false;
+    _rrAbDone("rr-ab-smartfill");
     if (btn) {
       _clearTileBusy(btn);
       btn.innerHTML = orig;
