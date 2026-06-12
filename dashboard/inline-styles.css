@@ -23144,17 +23144,23 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-schedule.rrx-schedule > .page,
 #view-onboarding-ops > .page{padding-top:6px!important}
 .sched-v2-strip,.f2-strip{margin-top:0!important}
+/* Tool cluster, integrated (tidy-rail pass 2026-06-12): the floating
+   glass pill overlapped the Admin row. The .topbar element is MOVED into
+   the sidebar foot by JS (glue pattern) and laid out as a plain static
+   icon row beside the theme/collapse buttons — in normal flow, so it can
+   never overlap nav items in either rail state. */
 .topbar{
-  position:fixed;left:13px;right:auto;top:auto;bottom:64px;
-  width:38px;height:auto;flex-direction:column;align-items:center;
-  gap:2px;padding:8px 0;z-index:60;border-radius:19px;
-  background:rgba(255,255,255,.10);
-  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
-  border:1px solid rgba(255,255,255,.14);box-shadow:none;
+  position:static;width:auto;height:auto;min-height:0;
+  display:flex;flex-direction:row;align-items:center;gap:2px;
+  padding:0;margin:0;border:0;border-radius:0;background:none;
+  -webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;
 }
+.sidebar-foot .topbar{margin-right:auto} /* tools left, theme/collapse right */
 .topbar .rr-qat{display:none}
-.topbar .icon-btn{color:rgba(255,255,255,.78)}
+.topbar .hdr-refresh{display:none} /* refresh lives in the account menu */
+.topbar .icon-btn{color:rgba(255,255,255,.66);width:28px;height:28px}
 .topbar .icon-btn:hover{color:#fff;background:rgba(255,255,255,.12)}
+.sidebar.collapsed .sidebar-foot .topbar{flex-direction:column}
 #popover-account{top:auto!important;bottom:18px!important;left:60px!important;right:auto!important}
 #popover-notif{top:auto!important;bottom:18px!important;left:60px!important;right:auto!important}
 
