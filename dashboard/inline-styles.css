@@ -23078,15 +23078,18 @@ body.rr-cmdk-open{ overflow:hidden }
     height:env(titlebar-area-height, 33px);z-index:55;
     -webkit-app-region:drag;app-region:drag;
     /* Two-tone title-bar band: rail tone above the sidebar — so the
-       rail reads as running to the very top of the window — and page
-       canvas above the content. With the light canvas rail the two
-       tones are near-identical, which is the point: one continuous
-       chrome surface. Width tracks the .app grid columns (212px rail /
-       64px collapsed, see .app rules). */
+       rail reads as running to the very top of the window — and the
+       page ground above the content. #F7F8FA is the unified neutral
+       canvas (Schedule/Onboarding/Fleet grounds + the topbar — keep in
+       sync; NOT --canvas #FEFEFF, which read as a slightly-off lighter
+       stripe — operator report 2026-06-12). With the light canvas rail
+       (--sidebar-bg, also #F7F8FA) the two segments are identical,
+       which is the point: one continuous chrome surface. Width tracks
+       the .app grid columns (212px rail / 64px collapsed). */
     --rr-tb-rail-w:212px;
     background:linear-gradient(90deg,
       var(--sidebar-bg,#F7F8FA) 0 var(--rr-tb-rail-w),
-      var(--canvas,#FEFEFF) var(--rr-tb-rail-w));
+      #F7F8FA var(--rr-tb-rail-w));
   }
   /* Collapsed rail (64px): both signals — the pre-init boot flag on
      <html> (localStorage echo, see index.html) and the post-init
@@ -23107,8 +23110,13 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Children list — inline under the Schedule parent on the light rail */
 .nav-sub{display:none;flex-direction:column;gap:1px;margin:1px 0 6px;padding:0}
 .nav-sub-item{
-  display:flex;align-items:center;gap:9px;width:100%;
-  height:30px;padding:0 12px 0 40px;border:0;background:none;cursor:pointer;
+  display:flex;align-items:center;width:100%;
+  /* Streamlined (operator request 2026-06-12): no pip bullets, and the
+     label left-aligns with the PARENT ICON's visible glyph. Measured:
+     icon tile sits at 25px from the rail edge, its svg ink starts
+     ≈32px; children begin at the rail's 12px padding, so 20px here
+     lands the label on the same 32px line. */
+  height:30px;padding:0 12px 0 20px;border:0;background:none;cursor:pointer;
   border-radius:8px;font:inherit;font-size:13px;line-height:1;text-align:left;
   color:var(--text-subtle,#566173);
   transition:background-color .12s ease,color .12s ease;
@@ -23116,8 +23124,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .nav-sub-item:hover{background:var(--sidebar-hover,rgba(15,23,42,.05));color:var(--text,#0F172A)}
 .nav-sub-item:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(37,99,235,.35)}
 .nav-sub-item.active{background:var(--sidebar-active-pill,rgba(37,99,235,.08));color:var(--accent-text,#1E40AF);font-weight:600}
-.nav-sub-item .pip{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5;flex:0 0 auto}
-.nav-sub-item.active .pip{opacity:1;background:var(--accent,#2563EB)}
+/* (pip bullets removed — operator request 2026-06-12) */
 
 /* ── Accordion visibility · ONE state (.is-open), ONE rail signal ──────
    Keyed solely on .sidebar.collapsed (live.js owns it and clears the

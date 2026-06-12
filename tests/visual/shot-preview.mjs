@@ -47,7 +47,7 @@ if (process.argv[3] === "wco") {
         --rr-tb-rail-w:212px;
         background:linear-gradient(90deg,
           var(--sidebar-bg,#F7F8FA) 0 var(--rr-tb-rail-w),
-          var(--canvas,#FEFEFF) var(--rr-tb-rail-w));
+          #F7F8FA var(--rr-tb-rail-w));
       }
       body:has(.sidebar.collapsed)::before,
       html.rr-sidebar-collapsed-boot body::before{--rr-tb-rail-w:64px}

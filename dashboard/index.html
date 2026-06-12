@@ -74,11 +74,12 @@
 <!-- theme-color paints the OS title bar of the installed app — the
      standalone title bar (overlay toggled off) and the native-controls
      backdrop in WCO mode (and the browser tab bar tint on mobile).
-     Matched to the page canvas (--canvas: #FEFEFF): in WCO mode the
-     band itself is painted two-tone by inline-styles.css (rail blue
-     above the sidebar, canvas above the content), and the OS controls
-     sit on the canvas side, so they blend with the light segment. -->
-<meta name="theme-color" content="#FEFEFF">
+     Matched to the unified neutral page ground (#F7F8FA — the
+     Schedule/Onboarding/Fleet grounds + topbar; keep in sync): in WCO
+     mode the band itself is painted two-tone by inline-styles.css
+     (rail blue above the sidebar, page ground above the content), and
+     the OS controls sit on the light segment, so they blend. -->
+<meta name="theme-color" content="#F7F8FA">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">
@@ -253,19 +254,19 @@
            goto('fleet2'). Shown only when Schedule is the active parent
            and the rail isn't collapsed. -->
       <div class="nav-sub" data-for="schedule" role="group" aria-label="Schedule sections">
-        <button type="button" class="nav-sub-item" data-key="today"     onclick="rrSchedNav('today',this)"><span class="pip"></span>Today</button>
-        <button type="button" class="nav-sub-item active" data-key="week" onclick="rrSchedNav('week',this)"><span class="pip"></span>Weekly</button>
-        <button type="button" class="nav-sub-item" data-key="monthly"   onclick="rrSchedNav('monthly',this)"><span class="pip"></span>Monthly</button>
-        <button type="button" class="nav-sub-item" data-key="roster"    onclick="rrSchedNav('roster',this)"><span class="pip"></span>Roster</button>
-        <button type="button" class="nav-sub-item" data-key="attendance" onclick="rrSchedNav('attendance',this)"><span class="pip"></span>Attendance</button>
-        <button type="button" class="nav-sub-item" data-key="requests"  onclick="rrSchedNav('requests',this)"><span class="pip"></span>Requests</button>
-        <button type="button" class="nav-sub-item" data-key="targets"   onclick="rrSchedNav('targets',this)"><span class="pip"></span>Targets</button>
-        <button type="button" class="nav-sub-item" data-key="smartfill" onclick="rrSchedNav('smartfill',this)"><span class="pip"></span>Smart Fill</button>
-        <button type="button" class="nav-sub-item" data-key="finalize"  onclick="rrSchedNav('finalize',this)"><span class="pip"></span>Finalize</button>
-        <button type="button" class="nav-sub-item" data-key="unassign"  onclick="rrSchedNav('unassign',this)"><span class="pip"></span>Unassign</button>
-        <button type="button" class="nav-sub-item" data-key="print"     onclick="rrSchedNav('print',this)"><span class="pip"></span>Print</button>
-        <button type="button" class="nav-sub-item" data-key="download"  onclick="rrSchedNav('download',this)"><span class="pip"></span>Download Excel</button>
-        <button type="button" class="nav-sub-item" data-key="__fleet"   onclick="goto('fleet2')"><span class="pip"></span>Fleet</button>
+        <button type="button" class="nav-sub-item" data-key="today"     onclick="rrSchedNav('today',this)">Today</button>
+        <button type="button" class="nav-sub-item active" data-key="week" onclick="rrSchedNav('week',this)">Weekly</button>
+        <button type="button" class="nav-sub-item" data-key="monthly"   onclick="rrSchedNav('monthly',this)">Monthly</button>
+        <button type="button" class="nav-sub-item" data-key="roster"    onclick="rrSchedNav('roster',this)">Roster</button>
+        <button type="button" class="nav-sub-item" data-key="attendance" onclick="rrSchedNav('attendance',this)">Attendance</button>
+        <button type="button" class="nav-sub-item" data-key="requests"  onclick="rrSchedNav('requests',this)">Requests</button>
+        <button type="button" class="nav-sub-item" data-key="targets"   onclick="rrSchedNav('targets',this)">Targets</button>
+        <button type="button" class="nav-sub-item" data-key="smartfill" onclick="rrSchedNav('smartfill',this)">Smart Fill</button>
+        <button type="button" class="nav-sub-item" data-key="finalize"  onclick="rrSchedNav('finalize',this)">Finalize</button>
+        <button type="button" class="nav-sub-item" data-key="unassign"  onclick="rrSchedNav('unassign',this)">Unassign</button>
+        <button type="button" class="nav-sub-item" data-key="print"     onclick="rrSchedNav('print',this)">Print</button>
+        <button type="button" class="nav-sub-item" data-key="download"  onclick="rrSchedNav('download',this)">Download Excel</button>
+        <button type="button" class="nav-sub-item" data-key="__fleet"   onclick="goto('fleet2')">Fleet</button>
       </div>
       <script>
         // Parent/child sidebar driver for Schedule. Clicks the matching
