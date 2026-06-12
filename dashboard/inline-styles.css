@@ -23227,8 +23227,13 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Children list — inline under the Schedule parent on the dark rail */
 .nav-sub{display:none;flex-direction:column;gap:1px;margin:1px 0 6px;padding:0}
 .nav-sub-item{
-  display:flex;align-items:center;gap:9px;width:100%;
-  height:30px;padding:0 12px 0 40px;border:0;background:none;cursor:pointer;
+  display:flex;align-items:center;width:100%;
+  /* Streamlined (operator request 2026-06-12): no pip bullets, and the
+     label left-aligns with the PARENT ICON's visible glyph. Measured:
+     icon tile sits at 25px from the rail edge, its svg ink starts
+     ≈32px; children begin at the rail's 12px padding, so 20px here
+     lands the label on the same 32px line. */
+  height:30px;padding:0 12px 0 20px;border:0;background:none;cursor:pointer;
   border-radius:8px;font:inherit;font-size:13px;line-height:1;text-align:left;
   color:var(--sidebar-icon-idle,rgba(255,255,255,.72));
   transition:background-color .12s ease,color .12s ease;
@@ -23236,8 +23241,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .nav-sub-item:hover{background:var(--sidebar-hover,rgba(255,255,255,.10));color:var(--text-inverse,#F8FAFC)}
 .nav-sub-item:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(96,165,250,.45)}
 .nav-sub-item.active{background:var(--sidebar-active-pill,rgba(255,255,255,.10));color:var(--text-inverse,#F8FAFC);font-weight:600}
-.nav-sub-item .pip{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5;flex:0 0 auto}
-.nav-sub-item.active .pip{opacity:1;background:#5B9DF9}
+/* (pip bullets removed — operator request 2026-06-12) */
 
 /* ── Accordion visibility · ONE state (.is-open), ONE rail signal ──────
    Keyed solely on .sidebar.collapsed (live.js owns it and clears the
