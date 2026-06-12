@@ -33480,7 +33480,6 @@ function _rrPolPaint() {
   const att = saved.attendance_scheduling === true
     ? (["low", "medium", "high"].includes(saved.attendance_weight) ? saved.attendance_weight : "medium")
     : "off";
-  const target = Math.max(0, Math.min(7, parseInt(saved.target_days_per_week, 10) || 4));
   const goal = _rrPolClassifyGoal(saved);
 
   _rrPolSelectValue(document.getElementById("rr-pol-consec"), consec);
@@ -33498,21 +33497,7 @@ function _rrPolPaint() {
   if (corrSel) corrSel.checked = saved.attendance_penalty === true;
   const prefSel = document.getElementById("rr-pol-preferred");
   if (prefSel) prefSel.checked = saved.preferred_days !== false;
-  _rrPolSelectValue(document.getElementById("rr-pol-target"), target);
-  const goalSel = document.getElementById("rr-pol-goal");
-  if (goalSel) {
-    if (goal === "custom" && ![...goalSel.options].some((o) => o.value === "custom")) {
-      const opt = document.createElement("option");
-      opt.value = "custom";
-      opt.textContent = "Custom";
-      opt.dataset.rrPolInjected = "1";
-      goalSel.appendChild(opt);
-    }
-    goalSel.value = goal;
-    if (goal !== "custom") {
-      [...goalSel.options].forEach((o) => { if (o.dataset.rrPolInjected) o.remove(); });
-    }
-  }
+
 
   // Preset select (badge + rules-in-effect digest were removed in the
   // plain-list pass — the select alone reflects the active preset, and
@@ -33619,22 +33604,6 @@ document.addEventListener("change", (e) => {
     case "rr-pol-preferred":
       _rrPolApply((s) => { s.preferred_days = !!el.checked; });
       break;
-    case "rr-pol-target": {
-      const n = parseInt(el.value, 10);
-      if (!Number.isFinite(n)) return;
-      _rrPolApply((s) => { s.target_days_per_week = Math.max(0, Math.min(7, n)); });
-      break;
-    }
-    case "rr-pol-goal": {
-      const sig = _RR_POL_GOALS[el.value];
-      if (!sig) return; // "custom" — display-only
-      _rrPolApply((s) => {
-        if (!s.priorities || typeof s.priorities !== "object") s.priorities = {};
-        Object.assign(s.priorities, sig);
-        s.goal = el.value;
-      });
-      break;
-    }
   }
 });
 
@@ -33648,6 +33617,41 @@ document.addEventListener("change", (e) => {
   if (e.target.id && e.target.id.startsWith("rr-pol-")) return; // own handler painted already
   if (_rrPolPaintTimer) clearTimeout(_rrPolPaintTimer);
   _rrPolPaintTimer = setTimeout(_rrPolPaint, 150);
+});
+
+// ── Rule info popups ──────────────────────────────────────────────────
+// Each policy row carries a small ⓘ (.rr-pol-info with the explanation
+// in data-rr-pol-info). Click → a very small popup near the icon; click
+// the icon again, click elsewhere, or press Escape to dismiss.
+function _rrPolCloseInfoPop() { document.getElementById("rr-pol-info-pop")?.remove(); }
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest(".rr-pol-info");
+  const open = document.getElementById("rr-pol-info-pop");
+  if (!btn) {
+    if (open && !e.target.closest("#rr-pol-info-pop")) _rrPolCloseInfoPop();
+    return;
+  }
+  e.preventDefault();
+  e.stopPropagation();
+  const text = btn.getAttribute("data-rr-pol-info") || "";
+  const wasMine = open && open.dataset.rrFor === text;
+  _rrPolCloseInfoPop();
+  if (wasMine || !text) return; // second click on the same icon = toggle off
+  const pop = document.createElement("div");
+  pop.id = "rr-pol-info-pop";
+  pop.dataset.rrFor = text;
+  pop.setAttribute("role", "tooltip");
+  pop.textContent = text;
+  document.body.appendChild(pop);
+  const r = btn.getBoundingClientRect();
+  const w = Math.min(pop.offsetWidth || 240, 260), M = 8;
+  pop.style.left = Math.max(M, Math.min(r.left - 8, window.innerWidth - w - M)) + "px";
+  pop.style.top = (r.bottom + 6 + (pop.offsetHeight || 0) > window.innerHeight - M
+    ? r.top - (pop.offsetHeight || 0) - 6
+    : r.bottom + 6) + "px";
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") _rrPolCloseInfoPop();
 });
 
 // ── Open snapshot + Cancel / Save / Close ─────────────────────────────
@@ -34476,7 +34480,11 @@ window._rrLoadSfRules = function () {
   {
     const days = Number.isFinite(saved.maxDaysOverride)
       ? Math.max(1, Math.min(7, saved.maxDaysOverride)) : 5;
-    const block = parseFloat(window.RR?.dsp?.metadata?.scheduling?.default_block_hours);
+    // Effective scheduling settings first (the settings drawer writes
+    // scheduling_settings and caches them here), then legacy metadata,
+    // then 10h.
+    const block = parseFloat(window._rrEffectiveSettings?.default_block_hours ??
+      window.RR?.dsp?.metadata?.scheduling?.default_block_hours);
     saved.woc_max_hours = Math.max(1, Math.round(days * ((Number.isFinite(block) && block > 0) ? block : 10)));
     // The advanced override key is retired with the knob — a stale
     // saved value would silently clamp the derived cap via min().
@@ -43066,7 +43074,13 @@ async function autoAssignDriversForWeek() {
         preferred_dows: preferredDowsOf(d),
         final_corrective_action: finalDrivers.has(d.id),
         weekday_affinity: affinityByDriver.get(d.id) || null,
-        fifth_day_ok: d.metadata?.availability?.fifth_day_ok === true,
+        // "5th Day: Required" sets dataSources.fifth_day_optin=false →
+        // every driver is fifth-day-eligible, not just availability-tool
+        // opt-ins (the CP-SAT path reads use_fifth_day_optin; the local
+        // engine only sees this per-driver flag, so map it here too).
+        fifth_day_ok: (sfRules && sfRules.dataSources && sfRules.dataSources.fifth_day_optin === false)
+          ? true
+          : d.metadata?.availability?.fifth_day_ok === true,
       })),
       shifts: engineShifts,
       pto: ptoFlat,
