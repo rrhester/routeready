@@ -45911,14 +45911,9 @@ async function renderScheduleWeek() {
         // not an operational issue and must not paint the board red.
         const uncovered = _tgt > 0 ? c.filled < _tgt : c.filled < c.needed;
         const color = uncovered ? "var(--red)" : "var(--text-subtle)";
-        coverageLine = `<span class="day-coverage" style="color:${color}">${c.filled} / ${c.needed}</span>`;
+        coverageLine = `<span class="day-coverage" style="color:${color}">${c.filled}/${c.needed}</span>`;
       }
-      // Reference header reads "7 / 8" over the word ROUTES (the count
-      // line above carries the numbers); fall back to "Routes N" only
-      // when the day has a target but no coverage line to pair it with.
-      const targetLine = c.needed > 0
-        ? `<span class="day-target">Routes</span>`
-        : (_tgt > 0 ? `<span class="day-target">Routes ${_tgt}</span>` : "");
+      const targetLine = _tgt > 0 ? `<span class="day-target">Routes ${_tgt}</span>` : "";
       cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}${targetLine}`;
     }
   }
@@ -45941,42 +45936,12 @@ async function renderScheduleWeek() {
       abCard.hidden = abNeeded === 0;
       const abMain = document.getElementById("rr-ab-coverage-main");
       const abSub  = document.getElementById("rr-ab-coverage-sub");
-      const abBar  = document.getElementById("rr-ab-coverage-bar");
-      if (abMain) abMain.textContent = `${abFilled} / ${abNeeded} Routes Covered`;
-      if (abBar) {
-        const pctW = abNeeded > 0 ? Math.max(0, Math.min(100, Math.round(abFilled / abNeeded * 100))) : 0;
-        abBar.style.width = pctW + "%";
-      }
+      if (abMain) abMain.textContent = `Coverage: ${abFilled} / ${abNeeded} Routes`;
       if (abSub) {
         abSub.textContent = abOpen > 0 ? `${abOpen} Open Route${abOpen === 1 ? "" : "s"}` : "All routes covered";
         abSub.classList.toggle("is-ok", abOpen === 0);
       }
     }
-    // ── Operational summary strip · quiet counts under the action bar.
-    // Items hide themselves at zero; the Draft/Live chip on the right
-    // is synced from the (hidden) title status pill by frag script.
-    const _strip = (id, txt, show) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.hidden = !show;
-      const t = document.getElementById(id + "-text");
-      if (t) t.textContent = txt;
-    };
-    _strip("rr-strip-open", `${abOpen} Open Route${abOpen === 1 ? "" : "s"}`, abOpen > 0);
-    const _mvCount = driversMissingVan.size;
-    _strip("rr-strip-vans",
-      _mvCount === 1 ? "1 Driver Missing a Van" : `${_mvCount} Drivers Missing Vans`,
-      _mvCount > 0);
-    // Attendance risks ride the cached 90-day no-show signal; async and
-    // silent on failure so the strip never blocks the grid paint.
-    _rrRiskLoad().then((riskMap) => {
-      let n = 0;
-      for (const d of drivers) {
-        const r = riskMap && riskMap[d.id];
-        if (r && (r.label === "high" || r.label === "moderate")) n++;
-      }
-      _strip("rr-strip-att", `${n} Attendance Risk${n === 1 ? "" : "s"}`, n > 0);
-    }).catch(() => {});
   } catch (e) { console.warn("action bar paint:", e); }
 
   // ── Week-range navigator label + Live/Draft pill (page header).
@@ -45985,15 +45950,13 @@ async function renderScheduleWeek() {
   try {
     const lbl = document.getElementById("rr-sched-week-range-label");
     if (lbl) {
-      // Reference navigator format: "July 7 – July 13, 2024" (full month
-      // on both ends). The ISO week number moves to the tooltip so the
-      // payroll cross-reference is still one hover away.
-      const aTxt = weekStart.toLocaleDateString(undefined, { month: "long", day: "numeric" });
-      const bTxt = weekEnd.toLocaleDateString(undefined, { month: "long", day: "numeric" });
+      const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+      const aTxt = weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const bTxt = sameMonth
+        ? weekEnd.toLocaleDateString(undefined, { day: "numeric" })
+        : weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" });
       const wk = isoWeekNumber(weekStart);
-      lbl.textContent = `${aTxt} – ${bTxt}, ${weekEnd.getFullYear()}`;
-      const rangeBtnEl = document.getElementById("rr-sched-week-range");
-      if (rangeBtnEl) rangeBtnEl.title = `Week ${wk} · click to cycle through the next four weeks`;
+      lbl.textContent = `Wk ${wk} · ${aTxt} – ${bTxt}`;
     }
   } catch (e) { /* nothing to do */ }
 
@@ -46714,12 +46677,9 @@ function bindSchedWeekNav() {
     const driverCell = document.querySelector("#view-schedule .cal-wrap .cal-grid.head .cal-cell-head");
     const label = document.getElementById("rr-sched-row-label");
     if (!nav || (abMount && abMount.contains(nav)) || (driverCell && driverCell.contains(nav))) return;
-    // Segmented navigator (reference): [Today] [‹] [July 7 – July 13, 2024] [›].
-    // The range button stays visible — it IS the date readout (and still
-    // cycles the next four weeks on click).
-    if (todayBtn) nav.appendChild(todayBtn);
+    if (rangeBtn) rangeBtn.style.display = "none";
+    if (todayBtn) nav.appendChild(todayBtn);   // reorder → Today, then < , then >
     if (prevBtn)  nav.appendChild(prevBtn);
-    if (rangeBtn) { rangeBtn.style.display = ""; nav.appendChild(rangeBtn); }
     if (nextBtn)  nav.appendChild(nextBtn);
     if (abMount) { abMount.appendChild(nav); return; }
     if (!driverCell) return;
@@ -63245,18 +63205,18 @@ document.addEventListener("click", async (e) => {
       btn.setAttribute("title",      collapsed ? "Expand sidebar" : "Collapse sidebar");
     }
   };
-  // Restore on first paint. Default state is EXPANDED — the grouped
-  // navigation rail (Operations / People / Fleet / System) is part of
-  // the product's first impression, so a fresh dashboard shows it in
-  // full. Once the user toggles, that explicit choice persists in
-  // localStorage and wins on subsequent loads.
+  // Restore on first paint. Default state is COLLAPSED — operators
+  // open many DSP dashboards, and a fresh dashboard should start in
+  // the compact rail so the content area is maximized from the
+  // first frame. Once the user toggles, that explicit choice
+  // persists in localStorage and wins on subsequent loads.
   const restore = () => {
     let saved = null;
     try { saved = localStorage.getItem(KEY); } catch (_) {}
-    // null / missing → expanded (first-time default).
+    // null / missing → collapsed (first-time default).
     // "0" → user explicitly expanded.
     // "1" → user explicitly collapsed.
-    apply(saved === "1");
+    apply(saved !== "0");
   };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", restore);
