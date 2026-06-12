@@ -4796,6 +4796,9 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   gap: 10px;
   flex-wrap: wrap;
   margin: 0 0 12px;
+  /* Positioning context for dropdowns re-parented into the bar (the
+     Smart Fill rules popover anchors top:100% / right:0 here). */
+  position: relative;
 }
 #view-schedule .rr-ab-btn {
   display: inline-flex;
