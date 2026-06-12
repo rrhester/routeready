@@ -3131,15 +3131,22 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
   border-radius: var(--r-sm);
   letter-spacing: .04em;
 }
-/* Pinned-shift marker · small 📌 in the chip's top-right corner. The chip
-   is set position:relative inline when the marker is added. */
-#view-schedule.rrx-schedule .shift-chip .shift-chip-pin {
+/* Pinned-shift marker · small blue pushpin in the chip's top-right
+   corner. The chip is set position:relative inline when the marker is
+   added. */
+#view-schedule.rrx-schedule .shift-chip .shift-chip-pin,
+#view-schedule .shift-chip .shift-chip-pin {
   position: absolute;
   top: 1px;
   right: 2px;
-  font-size: 10px;
   line-height: 1;
+  color: #2563EB;
   pointer-events: none;
+}
+#view-schedule .shift-chip .shift-chip-pin svg {
+  width: 10px;
+  height: 10px;
+  display: block;
 }
 
 /* Restrained, flush chips · the prior blue-tinted lift shadow added

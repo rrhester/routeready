@@ -1938,8 +1938,16 @@
                           style="position:relative;top:0;right:0">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="11" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 8 21 12 17 16"/><line x1="14" y1="12" x2="21" y2="12"/></svg>
                   </button>
-                  <!-- "Show pinned only" pin icon removed from the
-                       header card per operator request. -->
+                  <!-- "Show pinned only" filter · dims everything except
+                       pinned (locked) shifts so the fixed schedule pops.
+                       Toggles via _rrToggleSchedPinnedOnly (live.js);
+                       state persists in localStorage('rr-sched-pinned-only'). -->
+                  <button class="rr-tf-icon" id="rr-sched-pinned-only-btn" type="button"
+                          title="Show pinned only — dim everything except pinned shifts"
+                          aria-label="Show pinned only" aria-pressed="false"
+                          style="position:relative;top:0;right:0">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6"/><path d="M10 4v5.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 6 14.24V15h12v-.76a2 2 0 0 0-1.11-1.8l-1.78-.89A2 2 0 0 1 14 9.76V4"/><line x1="12" y1="15" x2="12" y2="21"/></svg>
+                  </button>
                   <!-- Staff view toggle · flips the grid from "every
                        driver" to "only drivers with at least one
                        assigned shift this week" so the operator can

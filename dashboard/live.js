@@ -39348,13 +39348,21 @@ async function _decorateScheduleChipsWithPins() {
         if (!chip.style.position) chip.style.position = "relative";
         const mk = document.createElement("span");
         mk.className = "shift-chip-pin";
-        mk.textContent = "📌";
+        // Small brand-blue pushpin (was a 📌 emoji — too easy to miss and
+        // off-palette against the chip chrome).
+        mk.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M9 4a2 2 0 0 1 0-4h6a2 2 0 0 1 0 4 1 1 0 0 0-1 1v4.76a2 2 0 0 0 1.11 1.79l1.78.89A2 2 0 0 1 18 14.24V15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-.76a2 2 0 0 1 1.11-1.8l1.78-.89A2 2 0 0 0 10 9.76V5a1 1 0 0 0-1-1z"/>' +
+          '<line x1="12" y1="16" x2="12" y2="22" stroke-width="2"/>' +
+          '</svg>';
         mk.title = "Pinned · Smart Fill won't move this shift";
         chip.appendChild(mk);
       } else {
         chip.removeAttribute("data-rr-pinned");
       }
     });
+    // Re-apply the "Show pinned only" filter + button state after every
+    // render (the header icon re-renders with the grid).
+    try { _rrSchedPinnedOnlySync(); } catch (_) {}
     return;
   }
   /* eslint-disable no-unreachable */
@@ -39863,20 +39871,38 @@ window._rrToggleSchedPinnedOnly = function (force) {
   try { localStorage.setItem("rr-sched-pinned-only", next ? "1" : "0"); } catch (_) {}
   return next;
 };
-// The "Show pinned only" header-card icon was removed per operator
-// request, so there's no longer a UI control to turn the dim-only
-// filter back off. Don't auto-restore a persisted "on" state (it would
-// strand the schedule dimmed with no toggle) — clear the stale flag so
-// the grid always boots un-dimmed. The _rrToggleSchedPinnedOnly() API
-// stays available for programmatic use.
-document.addEventListener("DOMContentLoaded", () => {
-  try { localStorage.removeItem("rr-sched-pinned-only"); } catch (_) {}
-}, { once: true });
+// Header-card pin icon (operator 2026-06-12) — restored to the Driver
+// column icon cluster (view-schedule.frag) now that pins are the fixed-
+// schedule mechanism. Click toggles the filter; saved state re-applies
+// after each grid render via _rrSchedPinnedOnlySync (the view frag may
+// not exist yet at DOMContentLoaded).
+document.addEventListener("click", (e) => {
+  if (e.target && e.target.closest && e.target.closest("#rr-sched-pinned-only-btn")) {
+    window._rrToggleSchedPinnedOnly();
+  }
+});
+function _rrSchedPinnedOnlySync() {
+  let on = false;
+  try { on = localStorage.getItem("rr-sched-pinned-only") === "1"; } catch (_) {}
+  const root = document.getElementById("view-schedule");
+  if (!root) return;
+  if (root.classList.contains("is-pinned-only") !== on) {
+    window._rrToggleSchedPinnedOnly(on);
+  } else {
+    // Class already right — still sync the button chrome (it may have
+    // just been rendered).
+    const btn = document.getElementById("rr-sched-pinned-only-btn");
+    if (btn) {
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.classList.toggle("is-on", on);
+    }
+  }
+}
 
-// Show-pinned-only toggle CSS · the button itself now lives in the
-// Driver column header alongside Focus / Compact / Sort (see
-// index.html ~line 20537), so we only need to ship the dimming
-// rules + the active state for the icon. No JS injection needed.
+// Show-pinned-only CSS · active icon state + the dimming rules. Dimming
+// keys off the live data-rr-pinned chip markers painted by
+// _decorateScheduleChipsWithPins (the old .cal-pin-btn selectors pointed
+// at a disabled recurring-pin experiment and dimmed every cell).
 (function () {
   if (document.getElementById("rr-sched-pinned-only-styles")) return;
   const st = document.createElement("style");
@@ -39884,19 +39910,13 @@ document.addEventListener("DOMContentLoaded", () => {
   st.textContent = `
     /* Active icon state — same brand-blue tint the other rr-tf-icon
        toggles use when pressed. */
-    #rr-sched-pinned-only-btn.is-on{
-      background:#EFF6FC;border-color:#2563EB;color:#2563EB;
-    }
+    #rr-sched-pinned-only-btn.is-on,
     #rr-sched-pinned-only-btn[aria-pressed="true"]{
       background:#EFF6FC;border-color:#2563EB;color:#2563EB;
     }
-    /* Dim cells whose pin button is in the "empty" state. */
-    #view-schedule.is-pinned-only .cal-cell:has(.cal-pin-btn[data-rr-pin-state="empty"]){
-      opacity:.22;
-    }
-    /* Cells with no pin button at all (Off / PTO) also dim out so
-       the eye lands only on pinned coverage. */
-    #view-schedule.is-pinned-only .cal-cell:not(:has(.cal-pin-btn)){
+    /* Dim every cell that doesn't hold a pinned chip so the eye lands
+       only on the fixed schedule. Hover restores for inspection. */
+    #view-schedule.is-pinned-only .cal-cell:not(:has(.shift-chip[data-rr-pinned])){
       opacity:.22;
     }
     #view-schedule.is-pinned-only .cal-cell:hover{opacity:1}`;
