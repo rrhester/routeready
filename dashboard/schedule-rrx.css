@@ -3093,7 +3093,8 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    the service type. */
 #view-schedule.rrx-schedule .shift-chip-st-badge {
   position: absolute;
-  top: 2px;
+  top: auto;
+  bottom: 2px;
   right: 3px;
   font-size: 9px;
   font-weight: 700;
@@ -3105,13 +3106,15 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
 }
 /* Corner-badge wrapper · holds the route-classification tag (SP / RE /
    NU) and, when present, the service-type tag (XL / HUB / …) side by
-   side in the chip's top-right. Absolutely positioned so adding tags
-   never changes the chip's height. The service-type badge sits inside
-   here too, so it flows in the flex row instead of using its own
-   absolute corner. */
+   side in the chip's bottom-right (operator 2026-06-12 — moved down
+   from the top-right corner, which now belongs to the blue pin marker).
+   Absolutely positioned so adding tags never changes the chip's height.
+   The service-type badge sits inside here too, so it flows in the flex
+   row instead of using its own absolute corner. */
 #view-schedule.rrx-schedule .shift-chip-badges {
   position: absolute;
-  top: 2px;
+  top: auto;
+  bottom: 2px;
   right: 3px;
   display: flex;
   gap: 3px;

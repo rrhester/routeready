@@ -42061,14 +42061,54 @@ const _RR_DI_DOWNUM = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
 
 function _rrCloseDriverMenu() { document.getElementById("rr-di-menu")?.remove(); }
 
+// Lock / unlock every shift the driver holds in the visible week.
+// Returns how many rows changed. The is_locked flag is what the engine
+// preserves and what the blue chip pin renders — without this, the
+// menu's pin/unpin had no visible effect on the grid (it only touched
+// the recurring rules below).
+async function _rrSetDriverWeekLocks(driverId, locked) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !_schedStart) return 0;
+  const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
+  try {
+    const { data, error } = await sb.from("shifts")
+      .select("id")
+      .eq("dsp_id", dspId)
+      .eq("driver_id", driverId)
+      .gte("date", _schedStart).lte("date", weekEndIso)
+      .eq("is_locked", !locked)
+      .not("status", "in", "(no_show,called_off,cancelled)");
+    if (error || !data?.length) return 0;
+    const ids = data.map((r) => r.id);
+    const { error: wErr } = await sb.from("shifts").update({ is_locked: locked }).in("id", ids);
+    return wErr ? 0 : ids.length;
+  } catch (_) { return 0; }
+}
+
 async function _rrPinDriverWorkedDays(driverId) {
   const info = window._rrDriverIntel && window._rrDriverIntel.byId.get(driverId);
   const dows = (info && info.workedDows) || [];
   if (!dows.length) { if (typeof toast === "function") toast("No scheduled days to pin for this driver.", "warn"); return; }
+  // 1. Lock this week's shifts so the blue pins show up immediately and
+  //    Smart Fill can't move them.
+  const lockedNow = await _rrSetDriverWeekLocks(driverId, true);
+  // 2. Standing day rules so future Smart Fill runs keep the driver on
+  //    these weekdays (driver_lock_to_day is compiled by the solver).
+  //    Skip days that already carry an active rule — re-pinning
+  //    shouldn't stack duplicates.
+  const existing = new Set();
+  try {
+    const { data } = await sb.from("current_ad_hoc_constraints")
+      .select("id, payload").eq("kind", "driver_lock_to_day").eq("state", "active");
+    for (const r of (data || [])) {
+      if (r.payload?.driver_id === driverId && typeof r.payload?.dow === "number") existing.add(r.payload.dow);
+    }
+  } catch (_) { /* treat as none */ }
   let ok = 0;
   for (const k of [...new Set(dows)]) {
     const dow = _RR_DI_DOWNUM[k];
     if (dow == null) continue;
+    if (existing.has(dow)) { ok += 1; continue; }
     try {
       const { error } = await sb.rpc("create_ad_hoc_constraint", {
         p_name: `${info.name} on ${_RR_DOW_LBL[dow] || "day"}`,
@@ -42081,13 +42121,20 @@ async function _rrPinDriverWorkedDays(driverId) {
       if (!error) ok += 1;
     } catch (_) { /* skip */ }
   }
-  if (typeof toast === "function") toast(ok ? `Pinned ${info.name} to ${ok} day${ok === 1 ? "" : "s"}` : "Pin failed", ok ? "ok" : "warn");
-  if (ok && typeof _rrLoadAdHocConstraintsList === "function") { try { _rrLoadAdHocConstraintsList(); } catch (_) {} }
+  const any = ok > 0 || lockedNow > 0;
+  if (typeof toast === "function") {
+    toast(any ? `Pinned ${info.name} to ${ok} day${ok === 1 ? "" : "s"} — repeats weekly` : "Pin failed", any ? "ok" : "warn");
+  }
+  if (typeof _decorateScheduleChipsWithPins === "function") { try { await _decorateScheduleChipsWithPins(); } catch (_) {} }
+  if (any && typeof _rrLoadAdHocConstraintsList === "function") { try { _rrLoadAdHocConstraintsList(); } catch (_) {} }
 }
 
 async function _rrUnpinDriver(driverId) {
   const info = window._rrDriverIntel && window._rrDriverIntel.byId.get(driverId);
   const name = (info && info.name) || "Driver";
+  // 1. Unlock this week's shifts (clears the blue pins).
+  const unlockedNow = await _rrSetDriverWeekLocks(driverId, false);
+  // 2. Archive the standing day rules.
   let removed = 0;
   try {
     const { data } = await sb.from("current_ad_hoc_constraints")
@@ -42098,7 +42145,11 @@ async function _rrUnpinDriver(driverId) {
       if (!error) removed += 1;
     }
   } catch (_) { /* ignore */ }
-  if (typeof toast === "function") toast(removed ? `Unpinned ${name} (${removed} day${removed === 1 ? "" : "s"})` : `${name} has no pins to remove`, "ok");
+  const total = Math.max(removed, unlockedNow);
+  if (typeof toast === "function") {
+    toast(total ? `Unpinned ${name} (${total} day${total === 1 ? "" : "s"})` : `${name} has no pins to remove`, "ok");
+  }
+  if (typeof _decorateScheduleChipsWithPins === "function") { try { await _decorateScheduleChipsWithPins(); } catch (_) {} }
   if (removed && typeof _rrLoadAdHocConstraintsList === "function") { try { _rrLoadAdHocConstraintsList(); } catch (_) {} }
 }
 
