@@ -23206,10 +23206,11 @@ body.rr-cmdk-open{ overflow:hidden }
 .nav-sub-item .pip{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5;flex:0 0 auto}
 .nav-sub-item.active .pip{opacity:1;background:#5B9DF9}
 /* Reveal only when Schedule is the active parent */
-.nav-item.active[data-view="schedule"] ~ .nav-sub[data-for="schedule"]{display:flex}
+.nav-item.active[data-view="schedule"] ~ .nav-sub[data-for="schedule"],
+.nav-sub[data-for="schedule"].is-open{display:flex}
 /* Collapsed icon-rail can't show labels → hide children (both collapse paths) */
-html.rr-sidebar-collapsed-boot .nav-sub,
-.sidebar.collapsed .nav-sub{display:none!important}
+html.rr-sidebar-collapsed-boot .nav-sub:not(.is-open),
+.sidebar.collapsed .nav-sub:not(.is-open){display:none!important}
 /* Remove the Schedule icon strip's command tiles; keep the title block
    + week navigator (neither is a .sched-v2-split). Every command tile
    lives in a .sched-v2-split — some inside .sched-v2-viewgroup wrappers,
@@ -23230,8 +23231,10 @@ html.rr-sidebar-collapsed-boot .nav-sub,
    ════════════════════════════════════════════════════════════════════ */
 html.rr-sidebar-collapsed-boot .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"],
 html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"]:hover,
+html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"].rr-fly,
 .sidebar.collapsed .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"],
-.sidebar.collapsed .nav-sub[data-for="schedule"]:hover{
+.sidebar.collapsed .nav-sub[data-for="schedule"]:hover,
+.sidebar.collapsed .nav-sub[data-for="schedule"].rr-fly{
   display:flex!important;
   position:fixed;left:64px;top:84px;width:198px;
   flex-direction:column;gap:1px;margin:0;padding:10px 8px 8px;
@@ -23244,8 +23247,10 @@ html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"]:hover,
 /* Panel header — the parent's name, like the reference design */
 html.rr-sidebar-collapsed-boot .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"]::before,
 html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"]:hover::before,
+html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"].rr-fly::before,
 .sidebar.collapsed .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"]::before,
-.sidebar.collapsed .nav-sub[data-for="schedule"]:hover::before{
+.sidebar.collapsed .nav-sub[data-for="schedule"]:hover::before,
+.sidebar.collapsed .nav-sub[data-for="schedule"].rr-fly::before{
   content:"Schedule";display:block;padding:2px 12px 8px;
   font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
   color:rgba(255,255,255,.55);
