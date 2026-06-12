@@ -1335,7 +1335,7 @@ const _RR_MAIL_RIBBON_ICONS = {
   send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
   save:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   invite:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
-  meeting:'<svg viewBox="0 0 24 24" fill="url(#rr-mail-meet-grad)" aria-hidden="true"><defs><linearGradient id="rr-mail-meet-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5B8DEF"/><stop offset="52%" stop-color="#2563EB"/><stop offset="100%" stop-color="#6D28D9"/></linearGradient></defs><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>',
+  meeting:'<svg viewBox="0 0 24 24" fill="url(#rr-mail-meet-grad)" aria-hidden="true"><defs><linearGradient id="rr-mail-meet-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4DA3E8"/><stop offset="52%" stop-color="#0F6CBD"/><stop offset="100%" stop-color="#0B5394"/></linearGradient></defs><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>',
   recur:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
   important:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="14"/><line x1="12" y1="19" x2="12" y2="19.5"/></svg>',
   attach:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
@@ -2168,8 +2168,8 @@ function _rrInjectInsightsPanelCss() {
     .rr-insights-explain-btn {
       padding: 10px 18px;
       border: 1px solid #c4b5fd;
-      background: linear-gradient(135deg, #EDE9FE 0%, #FCE7F3 100%);
-      color: #5B21B6;
+      background: linear-gradient(135deg, #E3F0FA 0%, #FCE7F3 100%);
+      color: #0F548C;
       border-radius: 8px;
       font: 600 13px/1.2 var(--rr-font-family, 'Inter','Segoe UI');
       cursor: pointer;
@@ -14547,7 +14547,7 @@ document.addEventListener("change", async (e) => {
 
 function renderDriverStatusBadge(s) {
   const map = {
-    onboarding: { label: "Onboarding", style: "background:rgba(124,58,237,.14);color:#7C3AED" },
+    onboarding: { label: "Onboarding", style: "background:rgba(15,108,189,.14);color:#0F6CBD" },
     active:     { label: "Active",     style: "background:var(--green-soft);color:var(--green)" },
     leave:      { label: "On leave",   style: "background:var(--amber-soft);color:var(--amber)" },
     inactive:   { label: "Inactive",   style: "background:var(--canvas);color:var(--text-subtle)" },
@@ -14563,7 +14563,7 @@ function renderDriverStatusBadge(s) {
 // full badge pill (reduces the badge clutter in the header).
 function _rrDriverStatusMeta(s) {
   const map = {
-    onboarding: { label: "Onboarding", color: "#7C3AED" },
+    onboarding: { label: "Onboarding", color: "#0F6CBD" },
     active:     { label: "Active",     color: "var(--green)" },
     leave:      { label: "On leave",   color: "var(--amber)" },
     inactive:   { label: "Inactive",   color: "var(--text-subtle)" },
@@ -16967,7 +16967,7 @@ function _ivcalEvKind(ev) { return ev.kind === "orientation" ? "orientation" : (
 // Small camera glyph used as the "has video link" marker (replaces the old
 // 🎥 emoji). Flat brand blue — the old #rr-cam-grad gradient paint server was
 // retired in the app-wide gradient sweep.
-const _IVCAL_CAM_SVG = '<svg class="ei-cam" viewBox="0 0 24 24" fill="#2563EB" aria-hidden="true"><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>';
+const _IVCAL_CAM_SVG = '<svg class="ei-cam" viewBox="0 0 24 24" fill="#0F6CBD" aria-hidden="true"><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>';
 
 async function loadIvCalendar() {
   const host = document.getElementById("rr-ivcal-body");
@@ -17649,7 +17649,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
     save:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
     invite:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
-    meeting:'<svg viewBox="0 0 24 24" fill="url(#rr-ne-meet-grad)" stroke="url(#rr-ne-meet-grad)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="rr-ne-meet-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5B8DEF"/><stop offset="52%" stop-color="#2563EB"/><stop offset="100%" stop-color="#6D28D9"/></linearGradient></defs><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>',
+    meeting:'<svg viewBox="0 0 24 24" fill="url(#rr-ne-meet-grad)" stroke="url(#rr-ne-meet-grad)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="rr-ne-meet-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4DA3E8"/><stop offset="52%" stop-color="#0F6CBD"/><stop offset="100%" stop-color="#0B5394"/></linearGradient></defs><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>',
     recur:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
     important:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="14"/><line x1="12" y1="19" x2="12" y2="19.5"/></svg>',
     attach:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
@@ -18275,7 +18275,7 @@ async function _ivcalLoadEventMessages(eventId, host) {
     const pill = `<span style="font-size:11px;font-weight:600;color:${st.color};background:${st.bg};border-radius:999px;padding:1px 8px;white-space:nowrap">${escapeHtml(st.label)}</span>`;
     // Tag the booking-link invite so it's distinguishable from the confirmation.
     const kindTag = (it.invite && !inbound)
-      ? `<span style="font-size:11px;font-weight:600;color:#7C3AED;background:#EDE9FE;border-radius:999px;padding:1px 8px">Booking invite</span>` : "";
+      ? `<span style="font-size:11px;font-weight:600;color:#0F6CBD;background:#E3F0FA;border-radius:999px;padding:1px 8px">Booking invite</span>` : "";
     const subjLine = it.subject
       ? `<div style="font-weight:600;color:var(--text);margin-top:2px">${escapeHtml(it.subject)}</div>` : "";
     const body = (it.body || "").trim();
@@ -19795,7 +19795,7 @@ async function loadCalBookingsList() {
       const end = r.ends_at ? new Date(r.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
       const a = r.applicants || {};
       const kindBadge = r.kind === "orientation"
-        ? `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:var(--r-md);background:rgba(124,58,237,.12);color:#7C3AED;letter-spacing:.04em;text-transform:uppercase">Orientation</span>`
+        ? `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:var(--r-md);background:rgba(15,23,42,.07);color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Orientation</span>`
         : `<span style="font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:var(--r-md);background:var(--accent-soft);color:var(--accent-text);letter-spacing:.04em;text-transform:uppercase">Interview</span>`;
       const statusBadge = r.status === "rescheduled"
         ? `<span style="font-size:var(--fs-xs);font-weight:600;color:var(--amber-dark);margin-left:6px">rescheduled</span>`
@@ -23377,7 +23377,7 @@ async function openI9Section2Modal(driverId) {
 
   const body = `
     <div style="display:flex;flex-direction:column;gap:var(--s-3-5)">
-      ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red-dark)" : due.days<=1 ? "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)" : "background:var(--accent-soft);border-color:rgba(37,99,235,.22);color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
+      ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red-dark)" : due.days<=1 ? "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)" : "background:var(--accent-soft);border-color:rgba(15,108,189,.22);color:#0F548C"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
 
       <div style="border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-3-5);background:var(--canvas);display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)">
         <label style="display:flex;flex-direction:column;gap:3px;min-width:0">
@@ -25146,7 +25146,7 @@ async function _rrLoadAffinityForDriver(driverId) {
                     border-radius:3px; display:flex; align-items:flex-end;
                     overflow:hidden; }
       .rr-aff-bar-fill { width:100%;
-                         background:linear-gradient(180deg,#3B82F6 0%,#1E40AF 100%);
+                         background:linear-gradient(180deg,#1382DB 0%,#0F548C 100%);
                          transition:height 200ms ease; }
       .rr-aff-pct { font:600 10px/1 var(--rr-font-family, 'Inter','Segoe UI');
                     color:var(--text,#111); font-variant-numeric: tabular-nums; }
@@ -29150,7 +29150,7 @@ function _renderAvailabilityRows() {
         </span>
         ${prevAgo ? `<span>· previous change ${escapeHtml(prevAgo)}</span>` : ""}
         <button type="button" data-rr-avail-history="${escapeHtml(r.driver_id)}" data-rr-avail-history-name="${escapeHtml(r.driver_name || "")}"
-                style="font:inherit;font-size:var(--fs-xs);background:none;border:0;color:var(--accent-text);cursor:pointer;text-decoration:underline;text-decoration-color:rgba(37,99,235,.3);padding:0">
+                style="font:inherit;font-size:var(--fs-xs);background:none;border:0;color:var(--accent-text);cursor:pointer;text-decoration:underline;text-decoration-color:rgba(15,108,189,.3);padding:0">
           view history
         </button>
       </div>`;
@@ -33832,7 +33832,7 @@ function _rrInjectAdHocCss() {
     .sf-adhoc-state-paused { background:rgba(245,158,11,.15); color:#b45309; }
     .sf-adhoc-state-expired { background:rgba(148,163,184,.18); color:#64748b; }
     .sf-adhoc-hardness-hard { background:rgba(220,38,38,.10); color:#b91c1c; }
-    .sf-adhoc-hardness-soft { background:rgba(99,102,241,.12); color:#4338ca; }
+    .sf-adhoc-hardness-soft { background:rgba(15,108,189,.12); color:#0B5394; }
 
     /* Authoring · toolbar + per-row actions + inline form. Sized to
        fit inside the Smart Fill rules popover; everything tracks the
@@ -41504,7 +41504,7 @@ async function _rrShowDriverWhyPopover(driverId, x, y) {
     for (const d of mine) {
       const label = _RR_SFC.shiftLabel(d.shift_id, shiftMeta);
       const score = (d.total_score != null)
-        ? `<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--accent-text,#1d4ed8);background:var(--accent-soft,rgba(37,99,235,.1));padding:2px 8px;border-radius:999px;font-variant-numeric:tabular-nums">${Math.round(d.total_score * 10) / 10}</span>`
+        ? `<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--accent-text,#0B5394);background:var(--accent-soft,rgba(15,108,189,.1));padding:2px 8px;border-radius:999px;font-variant-numeric:tabular-nums">${Math.round(d.total_score * 10) / 10}</span>`
         : "";
       html += '<div style="padding:9px 8px;border-bottom:1px solid var(--sch-line,rgba(15,23,42,.05))">' +
         '<div style="display:flex;align-items:center;gap:8px">' +
@@ -41801,7 +41801,7 @@ async function _rrOpenWhatIfModal() {
     </div>
     <div style="padding:12px 20px;display:flex;gap:8px;justify-content:flex-end">
       <button type="button" data-rr-whatif-cancel style="padding:8px 16px;border:1px solid #d1d5db;background:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Cancel</button>
-      <button type="button" data-rr-whatif-run style="padding:8px 16px;border:none;background:#2563eb;color:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Run simulation</button>
+      <button type="button" data-rr-whatif-run style="padding:8px 16px;border:none;background:#0F6CBD;color:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Run simulation</button>
     </div>
   `;
 
@@ -46417,7 +46417,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
       : "";
     const newTag = sh.virtual
-      ? `<span style="display:inline-block;background:rgba(37,99,235,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em" title="From route plan · open Route planning → Save to build">From plan</span>`
+      ? `<span style="display:inline-block;background:rgba(15,108,189,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em" title="From route plan · open Route planning → Save to build">From plan</span>`
       : "";
     const route = (!sh.virtual && sh.route_code) ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
     const headLine = showDayLabel
@@ -49368,7 +49368,7 @@ function _coverRenderWaiting(offer, driverId) {
   const driverName = (body.querySelector(`[data-rr-cover-offer="${driverId}"]`)
     ?.closest("div")?.parentElement?.querySelector("div div")?.textContent) || "the driver";
   body.innerHTML = `
-    <div style="padding:18px 18px 14px;background:var(--accent-soft);border:1px solid rgba(37,99,235,.18);border-radius:12px">
+    <div style="padding:18px 18px 14px;background:var(--accent-soft);border:1px solid rgba(15,108,189,.18);border-radius:12px">
       <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)">Offer sent</div>
       <div style="margin-top:4px;font-size:var(--fs-md);font-weight:600;color:var(--text)">Waiting on ${escapeHtml(driverName)}</div>
       <div style="margin-top:6px;font-size:var(--fs-sm);color:var(--text-muted)">They'll see an Accept / Pass card on their phone. If they pass or time runs out, you can pick another driver.</div>
@@ -52441,8 +52441,8 @@ async function _docsUploadTemplate(file, kind) {
 // signing event (DocuSign-style "Date Signed" / "Full Name" fields —
 // read-only, the signer never edits them).
 const _DOCS_FIELD_META = {
-  signature: { label: "Signature",      tint: "rgba(96,165,250,.20)",  border: "#2563eb", text: "#1d4ed8", auto: false, fill: false, hint: "Recipient draws or types their signature." },
-  initials:  { label: "Initials (auto)", tint: "rgba(124,58,237,.16)", border: "#7c3aed", text: "#6d28d9", auto: true,  fill: false, hint: "Auto-filled with the recipient's initials." },
+  signature: { label: "Signature",      tint: "rgba(77,163,232,.20)",  border: "#0F6CBD", text: "#0B5394", auto: false, fill: false, hint: "Recipient draws or types their signature." },
+  initials:  { label: "Initials (auto)", tint: "rgba(15,108,189,.16)", border: "#0F6CBD", text: "#0B5394", auto: true,  fill: false, hint: "Auto-filled with the recipient's initials." },
   name:      { label: "Name (auto)",     tint: "rgba(245,158,11,.16)",  border: "#b45309", text: "#92400e", auto: true,  fill: false, hint: "Auto-filled with the recipient's full name." },
   date:      { label: "Date (auto)",     tint: "rgba(16,185,129,.18)",  border: "#059669", text: "#047857", auto: true,  fill: false, hint: "Auto-filled with the signing date." },
   text:      { label: "Text",            tint: "rgba(100,116,139,.16)", border: "#475569", text: "#334155", auto: false, fill: true,  hint: "Recipient types a value (with a label you set)." },
@@ -52481,7 +52481,7 @@ async function _docsOpenFieldEditor(templateId) {
         </div>
         <div style="display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap">
           <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px" title="Who completes the next field placed?">
-            ${[["driver","Driver","#2563eb"],["employer","Employer","#059669"]].map(([r,label,dot],i) => `<button type="button" class="docs-fe-role${i===0?" active":""}" data-role="${r}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 11px;border-radius:var(--r-md);cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"};display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${dot}"></span>${label}</button>`).join("")}
+            ${[["driver","Driver","#0F6CBD"],["employer","Employer","#059669"]].map(([r,label,dot],i) => `<button type="button" class="docs-fe-role${i===0?" active":""}" data-role="${r}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 11px;border-radius:var(--r-md);cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"};display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${dot}"></span>${label}</button>`).join("")}
           </div>
           <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap">
             ${["signature","initials","name","date","text","checkbox"].map((k,i) => `<button type="button" class="docs-fe-kind${i===0?" active":""}" data-kind="${k}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 9px;border-radius:var(--r-md);cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"}">${({signature:"Signature",initials:"Initials",name:"Name",date:"Date",text:"Text",checkbox:"Checkbox"})[k]}</button>`).join("")}
@@ -52547,10 +52547,10 @@ async function _docsOpenFieldEditor(templateId) {
       if (role === "employer") employerN++; else driverN++;
     }
     const roleParts = [];
-    if (driverN)   roleParts.push(`<span style="color:#2563eb;font-weight:600">${driverN} driver</span>`);
+    if (driverN)   roleParts.push(`<span style="color:#0F6CBD;font-weight:600">${driverN} driver</span>`);
     if (employerN) roleParts.push(`<span style="color:#059669;font-weight:600">${employerN} employer</span>`);
     const el = document.getElementById("docs-fe-count");
-    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${roleParts.length ? ` (${roleParts.join(" · ")})` : ""} · placing: <strong>${kindLabelOf(currentKind)}</strong> for <strong style="color:${currentRole==='employer'?'#059669':'#2563eb'}">${roleLabelOf(currentRole)}</strong> — Name / Initials / Date auto-fill; Text / Checkbox are completed by the signer`;
+    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${roleParts.length ? ` (${roleParts.join(" · ")})` : ""} · placing: <strong>${kindLabelOf(currentKind)}</strong> for <strong style="color:${currentRole==='employer'?'#059669':'#0F6CBD'}">${roleLabelOf(currentRole)}</strong> — Name / Initials / Date auto-fill; Text / Checkbox are completed by the signer`;
   };
   updateCount();
 
@@ -52608,7 +52608,7 @@ async function _docsOpenFieldEditor(templateId) {
   const renderFieldDom = (f, overlay, vp) => {
     const meta = _docsFieldMeta(f.kind || "signature");
     const role = f.signer_role === "employer" ? "employer" : "driver";
-    const roleColor = role === "employer" ? "#059669" : "#2563eb";
+    const roleColor = role === "employer" ? "#059669" : "#0F6CBD";
     const node = document.createElement("div");
     node.className = "rr-docs-field";
     node.dataset.role = role;
@@ -52640,7 +52640,7 @@ async function _docsOpenFieldEditor(templateId) {
       startX = e.clientX - r.left; startY = e.clientY - r.top;
       ghost = document.createElement("div");
       const gm = _docsFieldMeta(currentKind);
-      const ghostRoleColor = currentRole === "employer" ? "#059669" : "#2563eb";
+      const ghostRoleColor = currentRole === "employer" ? "#059669" : "#0F6CBD";
       ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:${gm.tint};border:1.5px dashed ${gm.border};border-left:4px solid ${ghostRoleColor};border-radius:var(--r-sm);pointer-events:none`;
       overlay.appendChild(ghost);
     });
@@ -54327,7 +54327,7 @@ async function openDriverAppPreview(driverId) {
   if (body) {
     body.innerHTML = `
       <div class="dapp-statusbar"><span>9:41</span><span>RouteReady · driver view</span></div>
-      <div class="dapp-why" style="padding:7px 12px;background:rgba(99,102,241,.10);border-bottom:1px solid rgba(99,102,241,.20);color:#4338CA;font-size:11px;line-height:1.35">${escapeHtml(_whyNote)}</div>
+      <div class="dapp-why" style="padding:7px 12px;background:rgba(15,108,189,.10);border-bottom:1px solid rgba(15,108,189,.20);color:#0B5394;font-size:11px;line-height:1.35">${escapeHtml(_whyNote)}</div>
       <div class="dapp-topbar"><div class="ttl" id="rr-dapp-ttl">Schedule</div><div class="who" id="rr-dapp-who">Loading…</div></div>
       <div class="dapp-scroll" id="rr-dapp-scroll"><div class="dapp-empty">Loading…</div></div>
       <div class="dapp-bottomnav">

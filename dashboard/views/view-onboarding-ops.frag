@@ -50,7 +50,7 @@
                     <!-- Roster icon · calendar matched to the Attendance
                          icon's height (rect 18 tall + top tabs). Only the
                          LID (top header band, y=4→10) is filled with the
-                         Funnel's purple gradient (#A78BFA → #5B21B6); the
+                         Funnel's blue gradient (#4DA3E8 → #0F548C); the
                          body + grid stay dark outline, card untouched. -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="18" x2="13" y2="18"/></svg>
                     <span>Roster</span>
@@ -253,7 +253,7 @@
                 <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-funnel">
                   <button class="subnav-item ob-funnel-tab" data-obsub="funnel" onclick="obSub('funnel')" title="Hiring funnel">
                     <!-- Microsoft-purple funnel · linear gradient from a
-                         lighter top (#A78BFA) to a darker bottom (#5B21B6).
+                         lighter top (#4DA3E8) to a darker bottom (#0F548C).
                          Applied as both stroke AND fill so the silhouette
                          reads as a solid purple funnel. -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">

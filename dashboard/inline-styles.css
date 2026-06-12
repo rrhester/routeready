@@ -132,30 +132,35 @@
   --text-inverse:#F8FAFC;
   --text-inverse-muted:#94A3B8;
 
-  /* ── Brand (Microsoft 365 blue — operational accent across the
-     workspace.  Solid + soft tokens align with --accent-grad below
-     so primary buttons, focus rings, active tabs, and inline links
-     all sit in one Fluent blue family.) */
-  --accent:#2563EB;
-  --accent-hover:#1D4ED8;
-  --accent-soft:rgba(37,99,235,.08);
-  --accent-soft-strong:rgba(37,99,235,.12);
-  --accent-border:rgba(37,99,235,.22);
-  --accent-text:#1E40AF;
-  --accent-grad:linear-gradient(180deg, #3B82F6 0%, #2563EB 100%);
-  --accent-grad-hover:linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%);
-  --accent-grad-pressed:linear-gradient(180deg, #1D4ED8 0%, #1E40AF 100%);
-  --accent-glow:0 0 0 3px rgba(37,99,235,.18);
+  /* ── Brand (Fluent communication blue #0F6CBD — palette
+     minimization pass 2026-06-12: ONE blue across the whole app.
+     The old parallel #2563EB accent family and the indigo/violet
+     decorative hues were folded into this family, so the rail,
+     primary buttons, focus rings, links, chips, and info/pending
+     states all share a single hue. Color now carries meaning:
+     anything non-blue is a state signal — green = good, red =
+     problem. The opt-in route color-coding + calendar palettes
+     are user-configured and exempt.) */
+  --accent:#0F6CBD;
+  --accent-hover:#0B5394;
+  --accent-soft:rgba(15,108,189,.08);
+  --accent-soft-strong:rgba(15,108,189,.12);
+  --accent-border:rgba(15,108,189,.22);
+  --accent-text:#0F548C;
+  --accent-grad:linear-gradient(180deg, #1382DB 0%, #0F6CBD 100%);
+  --accent-grad-hover:linear-gradient(180deg, #4DA3E8 0%, #1382DB 100%);
+  --accent-grad-pressed:linear-gradient(180deg, #0B5394 0%, #0F548C 100%);
+  --accent-glow:0 0 0 3px rgba(15,108,189,.18);
 
   /* ── Extended brand palette (matches marketing landing) ───── */
-  --blue:#2563EB;
-  --blue-bright:#3B82F6;
-  --blue-dark:#1D4ED8;
-  --indigo:#4F46E5;
-  --indigo-bright:#6366F1;
-  --indigo-dark:#3730A3;
-  --violet:#7C3AED;
-  --violet-bright:#9333EA;
+  --blue:#0F6CBD;
+  --blue-bright:#1382DB;
+  --blue-dark:#0B5394;
+  --indigo:#0F6CBD;
+  --indigo-bright:#0F6CBD;
+  --indigo-dark:#0B5394;
+  --violet:#0F6CBD;
+  --violet-bright:#1382DB;
   --cyan:#0891B2;
   --teal:#0D9488;
   --sky:#0284C7;
@@ -165,8 +170,9 @@
   --brand-grad:linear-gradient(135deg, #2C3170 0%, #1A1F47 100%);
   /* Dark-hero gradient — used on briefing cards, invoice icons, etc. */
   --brand-grad-dark:linear-gradient(135deg, #0F172A 0%, #1A1F47 100%);
-  /* Violet pair — used on referrals, marketing chips, etc. */
-  --violet-grad:linear-gradient(135deg, #7C3AED 0%, #9333EA 100%);
+  /* Former violet pair — folded into the blue family (palette
+     minimization); the token names stay for compatibility. */
+  --violet-grad:linear-gradient(135deg, #0F6CBD 0%, #1382DB 100%);
 
   /* ── Semantic (operational governance — Emerald / Amber / Rose
      / Indigo — pairs with the Primary Azure system).  Per the
@@ -186,16 +192,17 @@
   --green-soft:rgba(16,124,65,.10);
   --green-soft-strong:rgba(16,124,65,.16);
   --green-border:rgba(16,124,65,.24);
-  /* Warning signal in the same brand family — indigo-bright
-     #6366F1 instead of amber. Reserved for "pending / waiting /
-     needs attention soon". */
-  --amber:#6366F1;
-  --amber-bright:#818CF8;
-  --amber-dark:#4338CA;
-  --amber-soft:rgba(99,102,241,.10);
-  --amber-soft-strong:rgba(99,102,241,.14);
-  --amber-border:rgba(99,102,241,.22);
-  --amber-grad:linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+  /* Warning signal in the same brand family — communication blue
+     (was indigo, before that amber). Reserved for "pending /
+     waiting / needs attention soon": informational, not a problem,
+     so it lives in the brand hue. */
+  --amber:#0F6CBD;
+  --amber-bright:#4DA3E8;
+  --amber-dark:#0B5394;
+  --amber-soft:rgba(15,108,189,.10);
+  --amber-soft-strong:rgba(15,108,189,.14);
+  --amber-border:rgba(15,108,189,.22);
+  --amber-grad:linear-gradient(135deg, #1382DB 0%, #4DA3E8 100%);
   --red:#E11D48;            /* issue / risk / critical */
   --red-bright:#F43F5E;
   --red-dark:#9F1239;
@@ -204,10 +211,10 @@
   --red-border:rgba(225,29,72,.22);
   /* Informational / review — for system messages, AI flags,
      non-actionable status.  Indigo per the governance brief. */
-  --info:#6366F1;
-  --info-bright:#818CF8;
-  --info-dark:#4338CA;
-  --info-soft:rgba(99,102,241,.10);
+  --info:#0F6CBD;
+  --info-bright:#4DA3E8;
+  --info-dark:#0B5394;
+  --info-soft:rgba(15,108,189,.10);
 
   /* ── Spacing scale (8px) ──────────────────────────────────── */
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px;
@@ -291,7 +298,7 @@
      every dialog and interactive surface reads the same. */
   --overlay: rgba(15,23,42,.55);
   --overlay-soft: rgba(15,23,42,.32);
-  --ring-focus: 0 0 0 3px rgba(37,99,235,.18);
+  --ring-focus: 0 0 0 3px rgba(15,108,189,.18);
   --z-modal: 10000;
 }
 
@@ -1148,7 +1155,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .rr-qat-opt-check{
   flex:0 0 auto;width:16px;height:16px;
   display:inline-flex;align-items:center;justify-content:center;
-  color:var(--accent,#2563EB);opacity:0;transition:opacity var(--t-fast);
+  color:var(--accent,#0F6CBD);opacity:0;transition:opacity var(--t-fast);
 }
 .rr-qat-opt[aria-checked="true"] .rr-qat-opt-check{opacity:1}
 .rr-qat-opt-lbl{flex:1;min-width:0}
@@ -1181,10 +1188,9 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .hdr-ask-icon{
   display:inline-flex;align-items:center;justify-content:center;
   width:26px;height:26px;border-radius:var(--r-md);flex:0 0 auto;
-  /* AI signature · single flat purple — same accent as the Smart Fill
-     tile (modernization pass: dropped the indigo→pink gradient and
-     ambient glow animation; one quiet purple is the AI marker). */
-  background:#7C3AED;
+  /* AI signature · flat communication blue (palette minimization:
+     the former purple AI marker joins the single brand hue). */
+  background:#0F6CBD;
   color:#fff;
 }
 .hdr-ask-icon svg{width:14px;height:14px}
@@ -1395,10 +1401,10 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   background:var(--accent);
   display:flex;align-items:center;justify-content:center;
   font-size:var(--fs-xs);font-weight:700;color:var(--text-inverse);cursor:pointer;
-  box-shadow:0 1px 2px rgba(37,99,235,.18);
+  box-shadow:0 1px 2px rgba(15,108,189,.18);
   transition:background var(--t-fast), box-shadow var(--t-fast);
 }
-.account:hover{background:var(--accent-hover);box-shadow:0 1px 2px rgba(37,99,235,.22), 0 4px 10px -4px rgba(37,99,235,.24)}
+.account:hover{background:var(--accent-hover);box-shadow:0 1px 2px rgba(15,108,189,.22), 0 4px 10px -4px rgba(15,108,189,.24)}
 .account:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 
 /* Page */
@@ -1565,12 +1571,12 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
      Portal pattern.  Hover deepens to --accent-hover. */
   background:var(--accent);
   color:#fff;border-color:transparent;
-  box-shadow:0 1px 2px rgba(37,99,235,.18);
+  box-shadow:0 1px 2px rgba(15,108,189,.18);
 }
 .btn-primary:hover{
   background:var(--accent-hover);
-  box-shadow:0 1px 2px rgba(37,99,235,.22),
-             0 4px 10px -4px rgba(37,99,235,.24);
+  box-shadow:0 1px 2px rgba(15,108,189,.22),
+             0 4px 10px -4px rgba(15,108,189,.24);
 }
 .btn-primary:active{
   background:var(--accent-hover);
@@ -1959,7 +1965,7 @@ button.card:focus-visible{
   width:34px;height:34px;border-radius:50%;flex:0 0 auto;
   display:flex;align-items:center;justify-content:center;
   background:linear-gradient(135deg,var(--accent-soft),rgba(255,255,255,.86));color:var(--accent-text);
-  border:1px solid rgba(37,99,235,.12);
+  border:1px solid rgba(15,108,189,.12);
   font-size:var(--fs-xs);font-weight:700;
   object-fit:cover;
 }
@@ -2750,7 +2756,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   text-transform:capitalize;
 }
 .rr-admin-cell-plan--growth{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-soft)}
-.rr-admin-cell-plan--enterprise{background:rgba(124,58,237,.10);color:var(--violet);border-color:rgba(124,58,237,.20)}
+.rr-admin-cell-plan--enterprise{background:rgba(15,108,189,.10);color:var(--violet);border-color:rgba(15,108,189,.20)}
 
 /* Row actions · "..." menu */
 .rr-admin-row-actions{position:relative;text-align:right}
@@ -2843,7 +2849,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 }
 .rr-admin-user-row__role:hover{border-color:var(--text-subtle)}
 .rr-admin-user-row__role:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-.rr-admin-user-row__role[data-rr-role="platform_admin"]{background-color:rgba(91,33,182,.10);color:#5B21B6;border-color:rgba(91,33,182,.20)}
+.rr-admin-user-row__role[data-rr-role="platform_admin"]{background-color:rgba(91,33,182,.10);color:#0F548C;border-color:rgba(91,33,182,.20)}
 .rr-admin-user-row__role[data-rr-role="owner"]{background-color:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-soft)}
 
 /* Toggle switch (active flag).  Reused inline so we don't depend on
@@ -2940,7 +2946,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-admin-empty[hidden]{display:none}
 .rr-admin-empty__icon{
   width:56px;height:56px;border-radius:50%;
-  background:rgba(124,58,237,.08);color:var(--violet);
+  background:rgba(15,108,189,.08);color:var(--violet);
   display:grid;place-items:center;
 }
 .rr-admin-empty__icon svg{width:24px;height:24px}
@@ -3390,7 +3396,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
 }
 .cd-pill:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border-strong)}
-.cd-pill.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border);font-weight:600;box-shadow:0 1px 2px rgba(37,99,235,.10)}
+.cd-pill.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border);font-weight:600;box-shadow:0 1px 2px rgba(15,108,189,.10)}
 
 .cd-textarea-wrap{position:relative}
 .cd-textarea{
@@ -3526,7 +3532,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
    gradients — the avatars stop being the loudest thing on every
    people-dense screen. */
 .avatar-sm.tier-a{background:rgba(22,128,61,.14);color:#15803D}
-.avatar-sm.tier-b{background:rgba(37,99,235,.13);color:#1D4ED8}
+.avatar-sm.tier-b{background:rgba(15,108,189,.13);color:#0B5394}
 .avatar-sm.tier-c{background:rgba(180,120,0,.15);color:#92400E}
 .avatar-sm.tier-d{background:rgba(220,38,38,.12);color:#B91C1C}
 /* Final-corrective / At-risk warning · thin red ring around the avatar. */
@@ -4718,7 +4724,7 @@ select.form-input{
   background:var(--brand-grad);
   color:var(--text-inverse);border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);
   margin-bottom:var(--s-4);display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-4);align-items:center;
-  box-shadow:0 4px 16px rgba(59,130,246,.22);
+  box-shadow:0 4px 16px rgba(19,130,219,.22);
 }
 .ai-banner-icon{
   width:40px;height:40px;border-radius:var(--r-lg);background:rgba(255,255,255,.18);
@@ -5535,8 +5541,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
 /* Operational message types — priority + ack-required. Only on
    dispatch-sent bubbles (drivers can't send urgent / require-ack). */
-.rr-mc-bubble.urgent{ box-shadow:inset 3px 0 0 var(--red), 0 1px 2px rgba(37,99,235,.18), 0 4px 10px -4px rgba(225,29,72,.30) }
-.rr-mc-bubble.high  { box-shadow:inset 3px 0 0 var(--amber), 0 1px 2px rgba(37,99,235,.18) }
+.rr-mc-bubble.urgent{ box-shadow:inset 3px 0 0 var(--red), 0 1px 2px rgba(15,108,189,.18), 0 4px 10px -4px rgba(225,29,72,.30) }
+.rr-mc-bubble.high  { box-shadow:inset 3px 0 0 var(--amber), 0 1px 2px rgba(15,108,189,.18) }
 .rr-mc-pri-tag{
   display:inline-block;background:var(--red);color:var(--text-inverse);
   font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;
@@ -5738,7 +5744,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-msg-skeleton-row.right .rr-msg-skeleton-bubble{
   border-bottom-right-radius:5px;
-  background:linear-gradient(90deg, rgba(37,99,235,.10), rgba(99,102,241,.14), rgba(37,99,235,.10));
+  background:linear-gradient(90deg, rgba(15,108,189,.10), rgba(15,108,189,.14), rgba(15,108,189,.10));
   background-size:200% 100%;
 }
 .rr-msg-skeleton-row:not(.right) .rr-msg-skeleton-bubble{ border-bottom-left-radius:5px }
@@ -5879,12 +5885,12 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background:var(--accent);color:#fff;border:0;border-radius:var(--r-md);
   padding:0 var(--s-4);font-weight:600;font-size:var(--fs-md);cursor:pointer;
   min-height:44px;letter-spacing:.005em;
-  box-shadow:0 1px 2px rgba(37,99,235,.14);
+  box-shadow:0 1px 2px rgba(15,108,189,.14);
   transition:background var(--t-fast), box-shadow var(--t-fast), opacity var(--t-fast);
 }
 .rr-mc-send:hover:not(:disabled), .rr-cc-send:hover:not(:disabled){
   background:var(--accent-hover);
-  box-shadow:0 1px 2px rgba(37,99,235,.18), 0 4px 10px -4px rgba(37,99,235,.20);
+  box-shadow:0 1px 2px rgba(15,108,189,.18), 0 4px 10px -4px rgba(15,108,189,.20);
 }
 .rr-mc-send:focus-visible, .rr-cc-send:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .rr-mc-send:active:not(:disabled), .rr-cc-send:active:not(:disabled){
@@ -6264,7 +6270,7 @@ body.rr-cmdk-open{ overflow:hidden }
   font-size:0 !important;
   display:inline-flex !important;align-items:center !important;justify-content:center !important;
   flex:0 0 auto;
-  box-shadow:0 1px 2px rgba(37,99,235,.20) !important;
+  box-shadow:0 1px 2px rgba(15,108,189,.20) !important;
   transition:background var(--t-fast) !important;
 }
 .rr-mc-send:hover:not(:disabled), .rr-cc-send:hover:not(:disabled){
@@ -6424,7 +6430,7 @@ body.rr-cmdk-open{ overflow:hidden }
   display:flex;align-items:center;justify-content:center;
 }
 .forms-kpi-icon svg{width:18px;height:18px;stroke-width:2}
-.forms-kpi-published .forms-kpi-icon{background:rgba(124,58,237,.10);color:var(--violet)}
+.forms-kpi-published .forms-kpi-icon{background:rgba(15,108,189,.10);color:var(--violet)}
 .forms-kpi-subs      .forms-kpi-icon{background:var(--green-soft);color:var(--green)}
 .forms-kpi-rate      .forms-kpi-icon{background:var(--amber-soft);color:var(--amber-dark)}
 .forms-kpi-drivers   .forms-kpi-icon{background:var(--accent-soft);color:var(--accent-text)}
@@ -6473,7 +6479,7 @@ body.rr-cmdk-open{ overflow:hidden }
   display:flex;align-items:center;justify-content:center;
   font-size:10px;font-weight:700;color:var(--accent-text);
   background:linear-gradient(135deg,var(--accent-soft),rgba(255,255,255,.86));
-  border:1px solid rgba(37,99,235,.12);
+  border:1px solid rgba(15,108,189,.12);
 }
 .forms-rail-row-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .forms-rail-row-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.3;margin-top:1px}
@@ -6510,13 +6516,13 @@ body.rr-cmdk-open{ overflow:hidden }
 .forms-rail-delta.flat {display:inline;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border-subtle)}
 
 .forms-rail-help{
-  background:linear-gradient(180deg, rgba(124,58,237,.06), rgba(124,58,237,.02));
-  border:1px solid rgba(124,58,237,.16);border-radius:var(--r-lg);
+  background:linear-gradient(180deg, rgba(15,108,189,.06), rgba(15,108,189,.02));
+  border:1px solid rgba(15,108,189,.16);border-radius:var(--r-lg);
   padding:var(--s-4);display:flex;flex-direction:column;gap:6px;
 }
 .forms-rail-help-icon{
   width:36px;height:36px;border-radius:var(--r-md);flex:0 0 auto;
-  background:rgba(124,58,237,.10);color:var(--violet);
+  background:rgba(15,108,189,.10);color:var(--violet);
   display:flex;align-items:center;justify-content:center;margin-bottom:2px;
 }
 .forms-rail-help-icon svg{width:18px;height:18px}
@@ -6526,11 +6532,11 @@ body.rr-cmdk-open{ overflow:hidden }
   align-self:flex-start;margin-top:var(--s-2);
   appearance:none;border:0;cursor:pointer;font:inherit;
   font-size:var(--fs-sm);font-weight:600;
-  color:var(--violet);background:rgba(124,58,237,.10);
+  color:var(--violet);background:rgba(15,108,189,.10);
   padding:7px var(--s-3);border-radius:var(--r-md);
   transition:background var(--t-fast);
 }
-.forms-rail-help-cta:hover{background:rgba(124,58,237,.18)}
+.forms-rail-help-cta:hover{background:rgba(15,108,189,.18)}
 .forms-side{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   padding:var(--s-2);display:flex;flex-direction:column;gap:1px;
@@ -7085,7 +7091,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .okami-insight-icon.green{background:rgba(16,185,129,.22);color:var(--green-bright)}
 .okami-insight-icon.amber{background:rgba(245,158,11,.22);color:var(--amber-bright)}
 .okami-insight-icon.red{background:rgba(225,29,72,.22);color:var(--red-bright)}
-.okami-insight-icon.blue{background:rgba(37,99,235,.22);color:var(--blue-bright)}
+.okami-insight-icon.blue{background:rgba(15,108,189,.22);color:var(--blue-bright)}
 .okami-insight-title{font-size:var(--fs-sm);font-weight:600;color:var(--text-inverse);margin-bottom:3px}
 .okami-insight-msg{font-size:var(--fs-xs);color:rgba(255,255,255,.7);line-height:1.5}
 .okami-insight-msg strong{color:var(--text-inverse);font-weight:600}
@@ -7120,7 +7126,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .strategy-pill.active.hire{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
 .strategy-pill.active.adw{background:var(--amber-soft);color:var(--amber-dark);border-color:var(--amber-border)}
-.strategy-pill.active.ot{background:var(--info-soft);color:var(--info-dark);border-color:rgba(99,102,241,.22)}
+.strategy-pill.active.ot{background:var(--info-soft);color:var(--info-dark);border-color:rgba(15,108,189,.22)}
 .strategy-pill.active.seasonal{background:var(--green-soft);color:var(--green);border-color:var(--green-border)}
 
 /* Summary cards */
@@ -7308,7 +7314,7 @@ body.rr-cmdk-open{ overflow:hidden }
    OKAMI → SCHEDULE link callout
    ───────────────────────────────────────────────────────────── */
 .okami-source{
-  background:linear-gradient(120deg,rgba(37,99,235,.07),rgba(99,102,241,.07));
+  background:linear-gradient(120deg,rgba(15,108,189,.07),rgba(15,108,189,.07));
   border:1px solid var(--accent-border);border-radius:var(--r-md);
   padding:var(--s-2-5) var(--s-3-5);display:flex;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3);
   font-size:var(--fs-sm);color:var(--text);
@@ -7695,7 +7701,7 @@ body.rr-cmdk-open{ overflow:hidden }
 @keyframes sdSpin{to{transform:rotate(360deg)}}
 
 .sd-result-banner{
-  background:linear-gradient(120deg,rgba(37,99,235,.07),rgba(99,102,241,.07));
+  background:linear-gradient(120deg,rgba(15,108,189,.07),rgba(15,108,189,.07));
   border:1px solid var(--accent-border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3-5);
   display:flex;align-items:center;gap:var(--s-2-5);margin-bottom:var(--s-3);font-size:var(--fs-sm);color:var(--text);
 }
@@ -8418,10 +8424,10 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:7px var(--s-3);border-radius:var(--r-md);
   background:var(--accent);color:#fff;font-size:var(--fs-sm);font-weight:600;
   border:none;cursor:pointer;font-family:inherit;
-  box-shadow:0 1px 2px rgba(37,99,235,.18);
+  box-shadow:0 1px 2px rgba(15,108,189,.18);
   transition:background var(--t-fast), box-shadow var(--t-fast);
 }
-.bb-saved-card-cta:hover{background:var(--accent-hover);box-shadow:0 1px 2px rgba(37,99,235,.22), 0 4px 10px -4px rgba(37,99,235,.24)}
+.bb-saved-card-cta:hover{background:var(--accent-hover);box-shadow:0 1px 2px rgba(15,108,189,.22), 0 4px 10px -4px rgba(15,108,189,.24)}
 .bb-saved-card-cta:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .bb-saved-card-cta svg{width:12px;height:12px;stroke-width:2.5}
 
@@ -8731,7 +8737,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .action-icon.amber{background:var(--amber-soft);color:var(--amber)}
 .action-icon.blue{background:var(--accent-soft);color:var(--accent-text)}
 .action-icon.green{background:var(--green-soft);color:var(--green)}
-.action-icon.purple{background:rgba(124,58,237,.12);color:var(--violet)}
+.action-icon.purple{background:rgba(15,108,189,.12);color:var(--violet)}
 .action-count{
   font-size:var(--fs-xs);font-weight:700;
   padding:2px 7px;border-radius:var(--r-lg);
@@ -10000,13 +10006,13 @@ body.rr-cmdk-open{ overflow:hidden }
   }
   #rr-boot-overlay.rr-hide{opacity:0;pointer-events:none}
   #rr-boot-overlay .rr-boot-mark{
-    width:46px;height:46px;border-radius:12px;background:#2563EB;color:#fff;
+    width:46px;height:46px;border-radius:12px;background:#0F6CBD;color:#fff;
     display:flex;align-items:center;justify-content:center;
     font-size:24px;font-weight:700;font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
   }
   #rr-boot-overlay .rr-boot-spin{
     width:26px;height:26px;border-radius:50%;
-    border:3px solid rgba(15,23,42,.12);border-top-color:#2563EB;
+    border:3px solid rgba(15,23,42,.12);border-top-color:#0F6CBD;
     animation:rrBootSpin .7s linear infinite;
   }
   @keyframes rrBootSpin{to{transform:rotate(360deg)}}
@@ -10026,9 +10032,9 @@ body.rr-cmdk-open{ overflow:hidden }
     appearance:none;cursor:pointer;border-radius:6px;padding:9px 16px;
     font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
     font-size:13px;font-weight:600;border:1px solid transparent;
-    background:#2563EB;color:#fff;text-decoration:none;display:inline-flex;align-items:center;
+    background:#0F6CBD;color:#fff;text-decoration:none;display:inline-flex;align-items:center;
   }
-  #rr-boot-overlay .rr-boot-err-btn:hover{background:#1D4ED8}
+  #rr-boot-overlay .rr-boot-err-btn:hover{background:#0B5394}
   #rr-boot-overlay .rr-boot-err-btn.secondary{
     background:#fff;color:#0F172A;border-color:rgba(15,23,42,.16);
   }
@@ -10236,7 +10242,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-sm);color:var(--text-inverse);flex-shrink:0;background:var(--text-subtle)}
           /* Cohesion pass · soft tints, matching .avatar-sm tiers. */
           .pa-card-avatar.tier-a{background:rgba(22,128,61,.14);color:#15803D}
-          .pa-card-avatar.tier-b{background:rgba(37,99,235,.13);color:#1D4ED8}
+          .pa-card-avatar.tier-b{background:rgba(15,108,189,.13);color:#0B5394}
           .pa-card-avatar.tier-c{background:rgba(180,120,0,.15);color:#92400E}
           .pa-card-avatar.tier-d{background:rgba(100,116,139,.16);color:#475569}
           .pa-card-name{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.25}
@@ -10514,9 +10520,9 @@ body.rr-cmdk-open{ overflow:hidden }
                Noticeable on a look (this is a special "review the video"
                action) without shouting. Calms to a plain outline once the
                video's been watched (.is-watched below). */
-            background:linear-gradient(120deg,#0F6CBD 0%,#3E59CC 55%,#7A4FD4 100%);
+            background:linear-gradient(120deg,#0B5394 0%,#0F6CBD 55%,#1382DB 100%);
             color:#fff;border:1px solid transparent;
-            box-shadow:0 1px 2px rgba(60,40,150,.22);
+            box-shadow:0 1px 2px rgba(11,60,120,.22);
             transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast),filter var(--t-fast);
           }
           #view-pipeline .pa-btn-video:hover{filter:brightness(1.06) saturate(1.05)}
@@ -10692,7 +10698,7 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;align-items:center;justify-content:center;
             color:#fff;cursor:pointer;overflow:hidden;
           }
-          .pa-video::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 20%, rgba(59,130,246,.2), transparent 50%)}
+          .pa-video::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 20%, rgba(19,130,219,.2), transparent 50%)}
           .pa-video-play{
             position:relative;z-index:1;
             width:48px;height:48px;border-radius:50%;
@@ -10737,7 +10743,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .pa-notes-input:focus{
             outline:none;border-color:var(--accent);
-            box-shadow:0 0 0 3px rgba(59,130,246,.12);
+            box-shadow:0 0 0 3px rgba(19,130,219,.12);
           }
           .pa-notes-input:disabled{
             background:var(--canvas);color:var(--text-subtle);cursor:wait;
@@ -10853,7 +10859,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .pa-video-thumb::after{
             content:"";position:absolute;inset:0;
-            background:radial-gradient(circle at 30% 20%, rgba(59,130,246,.2), transparent 50%);
+            background:radial-gradient(circle at 30% 20%, rgba(19,130,219,.2), transparent 50%);
           }
           .pa-video-thumb-play{
             position:relative;z-index:1;width:36px;height:36px;border-radius:50%;
@@ -11209,7 +11215,7 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:0 0 auto;width:34px;height:34px;border-radius:50%;
             display:flex;align-items:center;justify-content:center;
           }
-          #view-pipeline .rr-fn-ico.rr-fn-purple{background:rgba(124,58,237,.12);color:#7C3AED}
+          #view-pipeline .rr-fn-ico.rr-fn-purple{background:rgba(11,83,148,.12);color:#0B5394}
           #view-pipeline .rr-fn-ico.rr-fn-blue{background:rgba(15,108,189,.12);color:var(--accent)}
           #view-pipeline .rr-fn-ico.rr-fn-green{background:rgba(22,163,74,.12);color:#16A34A}
           #view-pipeline .rr-fn-main{flex:1 1 auto;min-width:0}
@@ -11218,7 +11224,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .rr-fn-count{font-size:var(--fs-lg);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
           #view-pipeline .rr-fn-bar{height:6px;border-radius:999px;background:rgba(15,23,42,.06);overflow:hidden}
           #view-pipeline .rr-fn-fill{display:block;height:100%;border-radius:999px;transition:width .35s ease}
-          #view-pipeline .rr-fn-fill.rr-fn-purple{background:linear-gradient(90deg,#7C3AED,#6D28D9)}
+          #view-pipeline .rr-fn-fill.rr-fn-purple{background:linear-gradient(90deg,#0B5394,#0F548C)}
           #view-pipeline .rr-fn-fill.rr-fn-blue{background:var(--accent)}
           #view-pipeline .rr-fn-fill.rr-fn-green{background:#16A34A}
           #view-pipeline .rr-fn-pct{flex:0 0 auto;width:40px;text-align:right;font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums}
@@ -11429,8 +11435,8 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivroom .ivr-top-acts{display:flex;align-items:center;gap:8px}
             #rr-ivroom .ivr-btn{appearance:none;border:1px solid var(--border,#e5e7eb);background:var(--surface,#fff);color:var(--text,#111);cursor:pointer;font:inherit;font-size:13px;font-weight:600;padding:7px 13px;border-radius:8px}
             #rr-ivroom .ivr-btn:hover{background:var(--surface-hover,#f3f4f6)}
-            #rr-ivroom .ivr-end{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
-            #rr-ivroom .ivr-end:hover{background:#1e40af}
+            #rr-ivroom .ivr-end{background:#0B5394;border-color:#0B5394;color:#fff}
+            #rr-ivroom .ivr-end:hover{background:#0F548C}
             /* Notes + Actions live in a left side panel; the video fills the rest. */
             #rr-ivroom .ivr-main{flex:1;min-height:0;display:flex;gap:16px;padding:16px 20px}
             #rr-ivroom .ivr-side{flex:0 0 360px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;padding:2px}
@@ -11596,7 +11602,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .ei-cam{width:13px;height:13px;display:inline-block;vertical-align:-2px}
             /* Camera glyph is a click target that opens the video workspace. */
             #rr-ivcal .oc-ev .ei .ei-cam-hit{display:inline-flex;align-items:center;cursor:pointer;border-radius:4px;padding:1px;opacity:1;transition:transform var(--t-fast),background var(--t-fast)}
-            #rr-ivcal .oc-ev .ei .ei-cam-hit:hover{transform:scale(1.12);background:rgba(37,99,235,.12)}
+            #rr-ivcal .oc-ev .ei .ei-cam-hit:hover{transform:scale(1.12);background:rgba(15,108,189,.12)}
             #rr-ivcal .oc-drow .ei-cam{width:15px;height:15px;display:inline-block;vertical-align:-2px}
             /* Event chips reuse the Schedule shift-chip palette so a booked
                interview reads like a shift on the schedule grid. */
@@ -13481,7 +13487,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 .msg-row-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
                 .msg-channel-pill{font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:var(--r-md);letter-spacing:.04em;text-transform:uppercase;text-align:center}
                 .msg-channel-pill.sms{background:var(--accent-soft);color:var(--accent-text)}
-                .msg-channel-pill.email{background:rgba(124,58,237,.14);color:var(--violet)}
+                .msg-channel-pill.email{background:rgba(15,108,189,.14);color:var(--violet)}
                 .msg-body-preview{font-size:var(--fs-sm);color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
               
 /* ── block 20 · index.html:16228 ── */
@@ -13911,7 +13917,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* "Today" button gets a soft resting tint so it doesn't read
              as floating text inside the pill. */
           #view-schedule .sched-week-nav-today{
-            background:rgba(37,99,235,.06);
+            background:rgba(15,108,189,.06);
           }
 
           /* Icon-toggle (driver sort, KPI mini-toggles) gets a
@@ -14693,7 +14699,7 @@ body.rr-cmdk-open{ overflow:hidden }
              surface — Outlook Calendar density, Teams subnav, Planner
              chips, M365 admin command bar. Quiet hairlines instead of
              shadows, modest 6/8px radii, restrained color, tabular
-             numerics, Fluent blue #2563EB for the operational accent.
+             numerics, Fluent blue #0F6CBD for the operational accent.
              Appended late so it wins source order over the legacy
              scoped rules above without touching the rest of the app.
              ═══════════════════════════════════════════════════════════ */
@@ -14731,10 +14737,10 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-pressed:rgba(15,23,42,.06);
             --border:rgba(15,23,42,.14);
             /* Status colors mirror the driver app: green #107C41,
-               indigo "attention" #6366F1, red #C50F1F. */
-            --sch-amber-soft:rgba(99,102,241,.10);
-            --sch-amber:#6366F1;
-            --sch-amber-dark:#4338CA;
+               blue "attention" #0F6CBD (was indigo), red #C50F1F. */
+            --sch-amber-soft:rgba(15,108,189,.10);
+            --sch-amber:#0F6CBD;
+            --sch-amber-dark:#0B5394;
             --sch-green:#107C41;
             --sch-green-soft:rgba(16,124,65,.10);
             --sch-red:#C50F1F;
@@ -15657,7 +15663,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Van tile · side-view box truck. Default is a clean
              monoline outline. When vans are assigned for the
              visible week the cargo + cab fill with solid color:
-               · cargo box · dark blue (#1E40AF)
+               · cargo box · dark blue (#0F548C)
                · cab       · brand red (#C42B1C)
              Outline stroke flips to white inside the filled
              panels so the body lines stay readable. */
@@ -15674,8 +15680,8 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:fill var(--t-fast,150ms), stroke var(--t-fast,150ms);
           }
           #view-schedule #rr-sched-vans-h[data-rr-assigned="1"] .rr-van-cargo{
-            fill:#1E40AF;
-            stroke:#1E40AF;
+            fill:#0F548C;
+            stroke:#0F548C;
           }
           #view-schedule #rr-sched-vans-h[data-rr-assigned="1"] .rr-van-cab{
             fill:#C42B1C;
@@ -17437,7 +17443,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--sch-line);
           }
           #rr-sched-vans-chain-body .ws-veh-ownership--amazon_owned{
-            background:#EEF4FF;color:#1E40AF;border-color:rgba(30,64,175,.22);
+            background:#EEF4FF;color:#0F548C;border-color:rgba(15,84,140,.22);
           }
           #rr-sched-vans-chain-body .ws-veh-ownership--rental{
             background:#FDF6E3;color:#7A5B14;border-color:rgba(184,137,48,.24);
@@ -18046,7 +18052,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Routine · recede so outliers pop */
           #view-schedule .shift-chip.is-routine{
             background:var(--sch-blue-softer);
-            border-left-color:rgba(37,99,235,.45);
+            border-left-color:rgba(15,108,189,.45);
           }
           #view-schedule .shift-chip.is-routine .shift-chip-route{
             color:color-mix(in srgb, var(--sch-blue-text) 60%, transparent);
@@ -18956,7 +18962,7 @@ body.rr-cmdk-open{ overflow:hidden }
               border:1px solid transparent;border-left:3px solid var(--sch-blue);
               transition:background var(--t-fast),box-shadow var(--t-fast);
             }
-            .rr-fc-prov-chip:hover{background:rgba(37,99,235,.14)}
+            .rr-fc-prov-chip:hover{background:rgba(15,108,189,.14)}
             .rr-fc-prov-chip:active{cursor:grabbing}
             .rr-fc-prov-chip.rr-fc-dragging{opacity:.45}
             .rr-fc-prov-chip-text{
@@ -19122,7 +19128,7 @@ body.rr-cmdk-open{ overflow:hidden }
               color:var(--sch-blue-text);
               transition:background var(--t-fast);
             }
-            .rr-fc-event:hover{background:rgba(37,99,235,.16)}
+            .rr-fc-event:hover{background:rgba(15,108,189,.16)}
             /* Continuous event bar — one element spanning the grid
                columns it covers (multi-day services read as a single
                block, not a copy per day). */
@@ -19224,7 +19230,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule .stf-grid .day-head.today{color:var(--accent-text);background:var(--accent-soft)}
             #view-schedule .stf-grid .stf-cell{border-left:1px solid var(--border);min-height:54px;cursor:pointer;transition:background var(--t-fast);display:flex;flex-direction:column;gap:var(--s-1);align-items:flex-start}
             #view-schedule .stf-grid .stf-cell:hover{background:var(--canvas)}
-            #view-schedule .stf-grid .stf-cell.today{background:rgba(37,99,235,.03)}
+            #view-schedule .stf-grid .stf-cell.today{background:rgba(15,108,189,.03)}
             #view-schedule .stf-grid .stf-cell.today:hover{background:var(--accent-soft)}
             #view-schedule .stf-grid .stf-cell .stf-chip{background:var(--accent-soft);color:var(--accent-text);border:1px solid var(--accent-border);border-radius:var(--r-md);padding:var(--s-1) 8px;font-size:var(--fs-xs);font-weight:600;line-height:1.4;width:100%}
             #view-schedule .stf-grid .stf-cell .stf-chip .stf-chip-time{font-variant-numeric:tabular-nums}
@@ -19330,8 +19336,8 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-recognition .rg-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-sm);overflow:hidden;flex:0 0 auto}
           #view-recognition .rg-avatar img{width:100%;height:100%;object-fit:cover}
 
-          #view-recognition .rg-celebrate-btn{display:inline-flex;align-items:center;gap:6px;padding:5px var(--s-3);border:0;border-radius:var(--r-md);background:var(--accent);color:#fff;font-weight:600;font-size:var(--fs-sm);cursor:pointer;line-height:1.2;box-shadow:0 1px 2px rgba(37,99,235,.18);transition:background var(--t-fast), box-shadow var(--t-fast)}
-          #view-recognition .rg-celebrate-btn:hover{background:var(--accent-hover);box-shadow:0 1px 2px rgba(37,99,235,.22), 0 4px 10px -4px rgba(37,99,235,.24)}
+          #view-recognition .rg-celebrate-btn{display:inline-flex;align-items:center;gap:6px;padding:5px var(--s-3);border:0;border-radius:var(--r-md);background:var(--accent);color:#fff;font-weight:600;font-size:var(--fs-sm);cursor:pointer;line-height:1.2;box-shadow:0 1px 2px rgba(15,108,189,.18);transition:background var(--t-fast), box-shadow var(--t-fast)}
+          #view-recognition .rg-celebrate-btn:hover{background:var(--accent-hover);box-shadow:0 1px 2px rgba(15,108,189,.22), 0 4px 10px -4px rgba(15,108,189,.24)}
           #view-recognition .rg-celebrate-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
           #view-recognition .rg-celebrate-btn[disabled]{opacity:.5;cursor:not-allowed}
           #view-recognition .rg-sent-pill{display:inline-flex;align-items:center;gap:4px;padding:2px var(--s-2);border-radius:var(--r-pill);background:var(--green-soft);color:var(--green-dark);font-size:var(--fs-xs);font-weight:700}
@@ -19747,7 +19753,7 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:border-color var(--t-fast), box-shadow var(--t-fast);
           }
           #view-fleet2 .fl-roster-bar select.fl-filter:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-          #view-fleet2 .fl-roster-bar select.fl-filter.is-set{color:var(--accent-text);border-color:rgba(37,99,235,.30);background-color:var(--accent-soft)}
+          #view-fleet2 .fl-roster-bar select.fl-filter.is-set{color:var(--accent-text);border-color:rgba(15,108,189,.30);background-color:var(--accent-soft)}
           /* Vehicle photo / fallback icon in roster + drawer */
           #view-fleet2 .fl-veh-thumb{width:38px;height:38px;border-radius:var(--r-md);background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
           #view-fleet2 .fl-veh-thumb img{width:100%;height:100%;object-fit:cover}
@@ -20237,13 +20243,13 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .rr-proof-bar input:focus,
           .rr-proof-bar select:focus{
-            outline:none;border-color:#2563EB;box-shadow:0 0 0 1px #2563EB;
+            outline:none;border-color:#0F6CBD;box-shadow:0 0 0 1px #0F6CBD;
           }
           .rr-proof-bar .btn-primary{
             height:30px;padding:0 14px;font-size:13px;font-weight:600;
-            background:#2563EB;color:#fff;border:1px solid #2563EB;border-radius:4px;
+            background:#0F6CBD;color:#fff;border:1px solid #0F6CBD;border-radius:4px;
           }
-          .rr-proof-bar .btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8}
+          .rr-proof-bar .btn-primary:hover{background:#0B5394;border-color:#0B5394}
           .rr-proof-result{font-size:13px;color:#323130}
           .rr-proof-summary{
             background:var(--canvas);border:1px solid var(--border);border-radius:4px;
@@ -20272,9 +20278,9 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .rr-proof-foot .btn:hover{background:#F5F5F5}
           .rr-proof-foot .btn-primary{
-            background:#2563EB;color:#fff;border-color:#2563EB;
+            background:#0F6CBD;color:#fff;border-color:#0F6CBD;
           }
-          .rr-proof-foot .btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8}
+          .rr-proof-foot .btn-primary:hover{background:#0B5394;border-color:#0B5394}
 
           /* Title block · matches Schedule's .sched-v2-title exactly.
              flex 0 0 240px (TCP --tcp-title-w), flex-column with
@@ -20632,7 +20638,7 @@ body.rr-cmdk-open{ overflow:hidden }
             --flu-border:    var(--border);
             --flu-text:      #323130;
             --flu-text-2:    #605E5C;
-            --flu-accent:    #2563EB;
+            --flu-accent:    #0F6CBD;
             --flu-accent-bg: #EFF3FB;
             --flu-green:     #107C10;
             --flu-warning:   #D83B01;
@@ -21182,7 +21188,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--sch-line, var(--border));
           }
           #view-workspaces .ws-veh-ownership--amazon_owned{
-            background:#EEF4FF;color:#1E40AF;border-color:rgba(30,64,175,.22);
+            background:#EEF4FF;color:#0F548C;border-color:rgba(15,84,140,.22);
           }
           #view-workspaces .ws-veh-ownership--rental{
             background:#FDF6E3;color:#7A5B14;border-color:rgba(184,137,48,.24);
@@ -21705,7 +21711,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .docs-empty .ic{
             width:46px;height:46px;border-radius:var(--r-xl);margin:0 auto 14px;
             display:flex;align-items:center;justify-content:center;color:var(--accent);
-            background:var(--accent-soft);border:1px solid rgba(37,99,235,.16);
+            background:var(--accent-soft);border:1px solid rgba(15,108,189,.16);
           }
           .docs-empty .ic svg{ width:22px;height:22px; }
           .docs-empty h3{ margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text); }
@@ -22025,18 +22031,18 @@ body.rr-cmdk-open{ overflow:hidden }
              purple icon + label (not white-on-vibrant). Click still
              triggers the one-shot spin on the sparkle icon. */
           #view-email .em-action.em-action-ai{
-            position:relative;color:#5B21B6;
-            background:linear-gradient(135deg,#EDE9FE 0%,#FCE7F3 100%);
+            position:relative;color:#0F548C;
+            background:linear-gradient(135deg,#E3F0FA 0%,#FCE7F3 100%);
             box-shadow:none;
           }
-          #view-email .em-action.em-action-ai span{color:#5B21B6;font-weight:600}
-          #view-email .em-action.em-action-ai svg{color:#5B21B6;fill:#5B21B6}
+          #view-email .em-action.em-action-ai span{color:#0F548C;font-weight:600}
+          #view-email .em-action.em-action-ai svg{color:#0F548C;fill:#0F548C}
           #view-email .em-action.em-action-ai:hover{
-            color:#4C1D95;filter:brightness(.98);
+            color:#0F548C;filter:brightness(.98);
           }
           #view-email .em-action.em-action-ai:focus-visible{
             outline:none;
-            box-shadow:0 0 0 2px #fff,0 0 0 4px #8B5CF6;
+            box-shadow:0 0 0 2px #fff,0 0 0 4px #1382DB;
           }
           #view-email .em-action.em-action-ai svg{transform-origin:50% 50%}
           #view-email .em-action.em-action-ai.is-spinning svg{
@@ -22579,7 +22585,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Documents pseudo-folder · pinned at top of the System list,
              muted accent so it reads as "different kind of inbox" without
              stealing attention from the email tabs. */
-          #view-email .em-folder.em-folder-docs .em-folder-icon{color:var(--accent-7,#6366f1)}
+          #view-email .em-folder.em-folder-docs .em-folder-icon{color:var(--accent-7,#0F6CBD)}
           #view-email .em-folder.em-folder-docs.active .em-folder-icon{color:#fff}
           /* Upload pill sits in the docs inbox toolbar. */
           #view-email .em-docs-toolbar{
@@ -22591,12 +22597,12 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-email .em-docs-upload{
             display:inline-flex;align-items:center;gap:6px;
             padding:6px 12px;border-radius:6px;cursor:pointer;
-            background:var(--accent-7,#6366f1);color:#fff;
+            background:var(--accent-7,#0F6CBD);color:#fff;
             font-size:var(--fs-xs,12px);font-weight:600;letter-spacing:.01em;
-            border:1px solid var(--accent-7,#6366f1);
+            border:1px solid var(--accent-7,#0F6CBD);
             transition:background .15s ease,border-color .15s ease;
           }
-          #view-email .em-docs-upload:hover{background:var(--accent-8,#4f46e5);border-color:var(--accent-8,#4f46e5)}
+          #view-email .em-docs-upload:hover{background:var(--accent-8,#0F6CBD);border-color:var(--accent-8,#0F6CBD)}
           #view-email .em-docs-upload svg{width:13px;height:13px}
           /* Status pills on the doc row's snippet line. */
           #view-email .em-doc-badge{
@@ -22606,8 +22612,8 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--neutral-2,#f3f4f6);color:var(--text-muted,#6b7280);
           }
           #view-email .em-doc-badge-pending{background:#fef3c7;color:#92400e}
-          #view-email .em-doc-badge-classifying{background:#e0e7ff;color:#3730a3}
-          #view-email .em-doc-badge-classified{background:#dbeafe;color:#1e40af}
+          #view-email .em-doc-badge-classifying{background:#e0e7ff;color:#0B5394}
+          #view-email .em-doc-badge-classified{background:#dbeafe;color:#0F548C}
           #view-email .em-doc-badge-filed{background:#dcfce7;color:#166534}
           #view-email .em-doc-badge-error{background:#fee2e2;color:#991b1b}
           /* AI classification banner / card · sits between the detail
@@ -22618,7 +22624,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border-bottom:1px solid var(--border-subtle,#e5e7eb);
           }
           #view-email .em-doc-ai-banner-pending{background:#fffbeb;color:#92400e}
-          #view-email .em-doc-ai-banner-classifying{background:#eef2ff;color:#3730a3}
+          #view-email .em-doc-ai-banner-classifying{background:#eef2ff;color:#0B5394}
           #view-email .em-doc-ai-banner-error{background:#fef2f2;color:#991b1b}
           #view-email .em-doc-ai-dot{
             width:8px;height:8px;border-radius:50%;
@@ -22640,12 +22646,12 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-bottom:6px;
           }
           #view-email .em-doc-ai-type{
-            font-size:var(--fs-md,14px);font-weight:700;color:#3730a3;
+            font-size:var(--fs-md,14px);font-weight:700;color:#0B5394;
           }
           #view-email .em-doc-ai-conf{
             font-size:11px;font-weight:600;
             padding:2px 8px;border-radius:999px;
-            background:#fff;border:1px solid var(--accent-7,#6366f1);color:#3730a3;
+            background:#fff;border:1px solid var(--accent-7,#0F6CBD);color:#0B5394;
           }
           #view-email .em-doc-ai-model{
             font-size:10px;color:var(--text-subtle,#94a3b8);
@@ -22672,7 +22678,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-email .em-doc-ai-parties{
             display:flex;flex-wrap:wrap;gap:6px;align-items:center;
             margin-top:10px;padding-top:10px;
-            border-top:1px solid rgba(99,102,241,.18);
+            border-top:1px solid rgba(15,108,189,.18);
           }
           #view-email .em-doc-ai-parties-label{
             font-size:10px;font-weight:600;letter-spacing:.04em;
@@ -22687,12 +22693,12 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-email .em-doc-reclassify{
             margin-left:auto;display:inline-flex;align-items:center;gap:5px;
             padding:5px 10px;border-radius:6px;
-            border:1px solid var(--accent-7,#6366f1);background:#fff;color:#3730a3;
+            border:1px solid var(--accent-7,#0F6CBD);background:#fff;color:#0B5394;
             font-size:11px;font-weight:600;cursor:pointer;
             transition:background var(--t-fast),color var(--t-fast);
           }
           #view-email .em-doc-reclassify:hover{
-            background:var(--accent-7,#6366f1);color:#fff;
+            background:var(--accent-7,#0F6CBD);color:#fff;
           }
           /* Documents drill-down ·  the master/detail split that works
              great for emails fights the operator when the "detail" is a
@@ -22744,10 +22750,10 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-email .em-doc-download-btn{
             display:inline-block;margin-top:8px;padding:6px 14px;border-radius:6px;
-            background:var(--accent-7,#6366f1);color:#fff;
+            background:var(--accent-7,#0F6CBD);color:#fff;
             text-decoration:none;font-size:var(--fs-xs,12px);font-weight:600;
           }
-          #view-email .em-doc-download-btn:hover{background:var(--accent-8,#4f46e5)}
+          #view-email .em-doc-download-btn:hover{background:var(--accent-8,#0F6CBD)}
           /* Attachment chips on an email preview · clicking one jumps
              to the Documents folder with the file pre-selected. */
           #view-email .em-msg-attachments{
@@ -22771,11 +22777,11 @@ body.rr-cmdk-open{ overflow:hidden }
             max-width:320px;
           }
           #view-email .em-msg-attachment:hover{
-            border-color:var(--accent-7,#6366f1);
+            border-color:var(--accent-7,#0F6CBD);
             background:#fff;
-            box-shadow:0 1px 3px rgba(99,102,241,.12);
+            box-shadow:0 1px 3px rgba(15,108,189,.12);
           }
-          #view-email .em-msg-attachment svg{width:16px;height:16px;color:var(--accent-7,#6366f1);flex:0 0 auto}
+          #view-email .em-msg-attachment svg{width:16px;height:16px;color:var(--accent-7,#0F6CBD);flex:0 0 auto}
           #view-email .em-msg-attachment-name{
             font-weight:600;font-size:var(--fs-xs,12px);
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -22845,7 +22851,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .hdr-avatar{
   width:28px;height:28px;border-radius:50%;
   display:inline-flex;align-items:center;justify-content:center;
-  background:var(--accent-soft,rgba(37,99,235,.13));color:var(--accent-text,#1D4ED8);
+  background:var(--accent-soft,rgba(15,108,189,.13));color:var(--accent-text,#0B5394);
   font-size:11px;font-weight:700;letter-spacing:.02em;
 }
 /* Account menu */
@@ -22937,14 +22943,14 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:8px 10px;border-radius:var(--r-md);cursor:pointer;
   font-size:var(--fs-sm);color:var(--text);
 }
-.rr-cmdk-item.sel{background:var(--accent-soft,rgba(37,99,235,.10))}
+.rr-cmdk-item.sel{background:var(--accent-soft,rgba(15,108,189,.10))}
 .rr-cmdk-item:hover{background:rgba(15,23,42,.04)}
 .rr-cmdk-kind{
   flex:0 0 52px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   color:var(--text-subtle);
 }
-.rr-cmdk-item.is-action .rr-cmdk-kind{color:#1D4ED8}
-.rr-cmdk-ask .rr-cmdk-kind{color:#6D28D9}
+.rr-cmdk-item.is-action .rr-cmdk-kind{color:#0B5394}
+.rr-cmdk-ask .rr-cmdk-kind{color:#0B5394}
 .rr-cmdk-empty{padding:18px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)}
 .rr-cmdk-foot{
   display:flex;gap:14px;padding:8px 14px;border-top:1px solid var(--border-subtle);

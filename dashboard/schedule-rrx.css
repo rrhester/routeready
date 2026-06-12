@@ -2384,13 +2384,14 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: rgba(15, 23, 42, 0.06);
 }
 
-/* Solid purple bolt (the SVG ships fill="none" stroke-only → hollow
-   outline; fill the polygon so it reads as a filled glyph). */
+/* Solid blue bolt (was purple — palette minimization; the SVG ships
+   fill="none" stroke-only → hollow outline; fill the polygon so it
+   reads as a filled glyph). */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg {
-  color: #6D28D9;
+  color: #0B5394;
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg polygon {
-  fill: #6D28D9;
+  fill: #0B5394;
 }
 
 /* ── Forecast mode (Monthly view) ──────────────────────────────────
@@ -3355,7 +3356,9 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: .04em;
-  color: #B45309 !important;
+  /* Informational tag (rotation-assigned van) — blue family, not the
+     caution amber (palette minimization). */
+  color: #0B5394 !important;
   margin-left: 3px;
 }
 /* Route eyebrow · crisp uppercase label above the time. */
@@ -4007,7 +4010,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #A78BFA;
+  background: #4DA3E8;
   box-shadow: 0 0 0 1.5px #FFFFFF;
   pointer-events: none;
 }
@@ -4717,21 +4720,21 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile {
-  background: rgba(37, 99, 235, 0.08);
-  color: #1D4ED8;
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.25);
+  background: rgba(15, 108, 189, 0.08);
+  color: #0B5394;
+  box-shadow: inset 0 0 0 1px rgba(15, 108, 189, 0.25);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile:hover {
-  background: rgba(37, 99, 235, 0.13);
-  color: #1D4ED8;
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.35);
+  background: rgba(15, 108, 189, 0.13);
+  color: #0B5394;
+  box-shadow: inset 0 0 0 1px rgba(15, 108, 189, 0.35);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile:active {
-  background: rgba(37, 99, 235, 0.18);
+  background: rgba(15, 108, 189, 0.18);
 }
 /* Out-specifies the global var(--text) !important icon force. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile svg {
-  color: #1D4ED8 !important;
+  color: #0B5394 !important;
 }
 
 
