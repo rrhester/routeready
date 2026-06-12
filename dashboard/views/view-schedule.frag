@@ -524,8 +524,8 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 <span class="sf-btn-label">Smart Fill</span>
               </button>
-              <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-smartfill-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover" title="Smart Fill rules — toggle parts of the auto-staff logic on/off">
-                Rules
+              <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-smartfill-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover" title="Staffing Policy — rules used by Smart Fill when building schedules">
+                Policy
                 <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
               </button>
               <!-- What-if simulation · runs Smart Fill with overrides
@@ -536,52 +536,35 @@
                 What if…
                 <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><line x1="6" y1="3.5" x2="6" y2="6.5"/><line x1="6" y1="8" x2="6" y2="8.5"/></svg>
               </button>
-              <!-- Smart Fill rules popover · checkboxes per rule so
-                   the DSP can toggle which rules apply on the next
-                   Smart Fill run. State persists in localStorage. -->
-              <div class="sched-smartfill-rules-popover" id="rr-sched-smartfill-rules-popover" role="dialog" aria-modal="false" aria-label="Smart Fill rules" hidden>
-                <div class="sched-smartfill-rules-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4.5 13.5H11l-1 8.5L19 10.5h-6.5L13 2z"/></svg>Smart Fill rules</div>
+              <!-- Staffing Policy drawer · the Smart Fill rules popover
+                   rebuilt as a compact right-side drawer. Same element id
+                   + body id so every existing rule handler (delegated on
+                   #rr-sched-smartfill-rules-body) keeps working. The main
+                   pane is a dense set of DSP-language policy controls
+                   that read/write the same localStorage rule blob; the
+                   full expert controls live under Advanced / Van Rules.
+                   State persists in localStorage per browser and is
+                   synced to dsps.metadata.staffing_policy on Save. -->
+              <div class="sched-smartfill-rules-popover rr-policy-drawer" id="rr-sched-smartfill-rules-popover" role="dialog" aria-modal="false" aria-label="Staffing Policy" hidden>
+                <div class="sched-smartfill-rules-head rr-pol-head">
+                  <div class="rr-pol-head-text">
+                    <div class="rr-pol-title">Staffing Policy</div>
+                    <div class="rr-pol-subtitle">Rules used by Smart Fill when building schedules.</div>
+                  </div>
+                  <button type="button" class="rr-pol-close" id="rr-pol-close" aria-label="Close Staffing Policy">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
                 <div class="sched-smartfill-rules-body" id="rr-sched-smartfill-rules-body" style="column-count:1;display:flex;flex-direction:column;gap:10px">
                   <!-- Localized styles for the v2 popover. Scoped to the
                        body element so they don't bleed into anything else. -->
                   <!-- style block 24 extracted to inline-styles.css -->
 
-                  <!-- ── PRESET BAR ── one-click bundles of settings.
-                       Buttons set the whole rule blob at once; operators
-                       can still tweak any individual control afterward. -->
-                  <div class="sf2-presets">
-                    <div class="sf2-presets-label">Start from a preset:</div>
-                    <div class="sf2-presets-row">
-                      <button type="button" class="sf2-preset" data-rr-sf-preset="stick_to_last_week" title="Strong historical pattern + driver-affinity polish. Keeps drivers on the days they usually work.">Stick to last week</button>
-                      <button type="button" class="sf2-preset" data-rr-sf-preset="maximize_coverage" title="5th-day fill on, preferred-day enhancement on, every protection still applies.">Maximize coverage</button>
-                      <button type="button" class="sf2-preset" data-rr-sf-preset="conservative" title="Tighter buffers on top of the hard rules: WOC cap 5 consecutive days (vs 6), 7-day license-expiry warning, no 5th-day overtime, no enhancement passes. Hard rules are always enforced regardless of preset.">Conservative</button>
-                      <button type="button" class="sf2-preset" data-rr-sf-preset="balanced" title="The historical defaults — what Smart Fill ships with out of the box.">Balanced</button>
-                      <button type="button" class="sf2-preset sf2-preset-secondary" data-rr-sf-preset="reset" title="Clear every saved rule. Equivalent to a fresh install.">Reset all</button>
-                      <!-- Settings · opens the scheduling-limits panel
-                           below (hard consecutive-days ceiling). The
-                           popover opens compact (presets-only) — see the
-                           rr-sf-compact wiring in the action-bar script. -->
-                      <button type="button" class="sf2-preset sf2-preset-secondary" id="rr-sf-settings-btn" title="Set the hard consecutive-days ceiling Smart Fill must honor" aria-expanded="false">Settings</button>
-                    </div>
-                    <!-- Settings panel · opened by the Settings row. The
-                         picked value persists in
-                         localStorage('rr-sf-consec-days-hard') and is
-                         pinned as a HARD constraint inside
-                         _rrLoadSfRules (live.js) — nothing can override
-                         it. Clicking the selected box again clears it. -->
-                    <div class="sf2-consec-panel" id="rr-sf-consec-panel" hidden>
-                      <div class="sf2-consec-label">Consecutive Days Allowed</div>
-                      <div class="sf2-consec-row">
-                        <button type="button" class="sf2-consec-opt" data-rr-consec="4">4 days</button>
-                        <button type="button" class="sf2-consec-opt" data-rr-consec="5">5 days</button>
-                        <button type="button" class="sf2-consec-opt" data-rr-consec="6">6 days</button>
-                      </div>
-                      <button type="button" class="sf2-consec-all" id="rr-sf-consec-all">All settings…</button>
-                    </div>
-                    <div class="sf2-presets-foot">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                      <span>Hard rules (WOC, license, certs, PTO, min rest) are always enforced. Presets only adjust buffer sizes and soft preferences.</span>
-                    </div>
+                  <!-- ── RULES IN EFFECT ── one-line digest of the active
+                       policy. Repainted live by _rrPolPaint (live.js). -->
+                  <div class="rr-pol-summary" aria-live="polite">
+                    <div class="rr-pol-summary-label">Rules in effect</div>
+                    <div class="rr-pol-summary-line" id="rr-pol-summary">—</div>
                   </div>
 
                   <!-- ── LIVE DIFF STRIP ── shows the effect of your
@@ -603,14 +586,159 @@
                     </div>
                   </div>
 
+                  <!-- ── MAIN POLICY CONTROLS ── compact DSP-language rows.
+                       Each control reads/writes existing rule-blob keys via
+                       the rr-pol module in live.js — no new engine keys.
+                       The expert versions of the same knobs stay available
+                       under Advanced; _restoreSmartFillRules repaints them
+                       after every drawer write so the two views agree. -->
+                  <div class="rr-pol-rows">
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-preset">Preset</label>
+                      <div class="rr-pol-control">
+                        <span class="rr-pol-badge" id="rr-pol-badge" hidden>Custom Policy</span>
+                        <select class="rr-pol-select" id="rr-pol-preset" title="One-click policy bundles — picking one updates the controls below">
+                          <option value="" hidden>Choose…</option>
+                          <option value="balanced">Balanced</option>
+                          <option value="conservative">Conservative</option>
+                          <option value="maximize_coverage">Maximize Coverage</option>
+                          <option value="stick_to_last_week">Stick To Last Week</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rr-pol-row">
+                      <span class="rr-pol-label">Schedule Type</span>
+                      <div class="rr-pol-control"><span class="rr-pol-static">Demand Generated</span></div>
+                    </div>
+                    <p class="rr-pol-note">Weekly shifts are generated from route demand. Saved week templates can still be applied from the Schedule toolbar.</p>
+                  </div>
+
+                  <div class="rr-pol-group-label">Work Limits</div>
+                  <div class="rr-pol-rows">
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-consec">Max Consecutive Days</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-consec" title="Hard ceiling — Smart Fill never schedules a driver past this many days in a row">
+                          <option value="4">4 days</option>
+                          <option value="5">5 days</option>
+                          <option value="6">6 days</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-maxdays">Max Days Per Week</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-maxdays">
+                          <option value="4">4 days</option>
+                          <option value="5">5 days</option>
+                          <option value="6">6 days</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-cap">Weekly Hour Cap</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-cap">
+                          <option value="40">40 hrs</option>
+                          <option value="45">45 hrs</option>
+                          <option value="50">50 hrs</option>
+                          <option value="55">55 hrs</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-rest">Minimum Rest</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-rest">
+                          <option value="8">8 hrs</option>
+                          <option value="10">10 hrs</option>
+                          <option value="12">12 hrs</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="rr-pol-group-label">Extra Days</div>
+                  <div class="rr-pol-rows">
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-fifth">5th Day Fill</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-fifth" title="Whether Smart Fill may give opted-in drivers a 5th workday when coverage needs it">
+                          <option value="off">Off</option>
+                          <option value="allow">Allow If Needed</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="rr-pol-group-label">Scheduling</div>
+                  <div class="rr-pol-rows">
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-stability">Schedule Stability</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-stability" title="How strongly RouteReady keeps drivers on their normal schedules">
+                          <option value="lock">Lock Existing</option>
+                          <option value="strong">Strong</option>
+                          <option value="moderate">Moderate</option>
+                          <option value="flexible">Flexible</option>
+                        </select>
+                      </div>
+                    </div>
+                    <p class="rr-pol-note" id="rr-pol-stability-note">—</p>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-att">Attendance</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-att" title="How strongly attendance history influences driver selection when multiple drivers qualify — a scoring preference, not a hard rule">
+                          <option value="off">Ignore</option>
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-target">Target Days Per Driver</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-target" title="Aim to keep every driver near this many days a week when spreading work across the roster">
+                          <option value="3">3 days</option>
+                          <option value="4">4 days</option>
+                          <option value="5">5 days</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-goal">Goal</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-goal" title="What Smart Fill optimizes for — translated into the engine's objective weights">
+                          <option value="balanced">Balanced</option>
+                          <option value="coverage">Coverage First</option>
+                          <option value="cost">Cost First</option>
+                          <option value="consistency">Consistency First</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ── ADVANCED ── the full expert rule sections, collapsed.
+                       These are the original popover zones, untouched — same
+                       ids + data attributes, same delegated handlers. -->
+                  <details class="sf2-section rr-pol-bucket" id="rr-pol-advanced">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="sf2-section-titles">
+                        <div class="sf2-section-title">Advanced</div>
+                        <div class="sf2-section-sub">License window, same-day policy, lookback, custom rules, engine tuning</div>
+                      </span>
+                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
+                    </div></summary>
+                    <div class="rr-pol-bucket-body">
+
                   <!-- ── 1 · WHO CAN WORK ── eligibility. The license/cert/
                        service-type gates are ALWAYS enforced (the engine
                        never auto-assigns an unqualified driver), so they no
                        longer have on/off toggles — only the genuine choices
                        (include onboarding drivers, license buffer) remain. -->
-                  <details class="sf2-section" data-rr-sf-section="eligibility" open>
+                  <details class="sf2-section" data-rr-sf-section="eligibility">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">1</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Who can work</div>
                         <div class="sf2-section-sub">License, certs &amp; service types — always enforced</div>
@@ -644,7 +772,6 @@
                   <!-- ── 3 · PROTECTIONS ── per-shift / per-driver protections. -->
                   <details class="sf2-section" data-rr-sf-section="protections">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">2</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Limits &amp; compliance</div>
                         <div class="sf2-section-sub">Time off, rest, day &amp; hour caps, WOC</div>
@@ -731,7 +858,6 @@
                   <!-- ── 4 · PREFERENCES ── soft nudges; never block. -->
                   <details class="sf2-section" data-rr-sf-section="prefs">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">3</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Preferences</div>
                         <div class="sf2-section-sub">Soft nudges — who to favor when there's a choice</div>
@@ -770,36 +896,9 @@
                     </div>
                   </details>
 
-                  <!-- ── 5 · VANS ── van-assignment rules. -->
-                  <details class="sf2-section sf-zone--vans" data-rr-sf-section="vans">
-                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">4</span>
-                      <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Vans</div>
-                        <div class="sf2-section-sub">When &amp; how vans are assigned alongside drivers</div>
-                      </span>
-                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </div></summary>
-                    <div class="sf2-section-body">
-                      <div class="sf-vans-subzone-label">When to assign</div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="assign" checked> <span class="sf-rule-name"><strong>Assign vans during Smart Fill</strong> · when off, the van column stays empty for new assignments</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-auto-rescue checked> <span class="sf-rule-name"><strong>Auto-rescue at-risk vans</strong> · run van assignment automatically when FEM flags a van approaching the 14-day rotation rule</span></label>
-                      <div class="sf-vans-subzone-label">Who gets which van</div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="prefer_paired" checked> <span class="sf-rule-name"><strong>Prefer driver's paired van</strong> · use the standing primary / backup chain when possible</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="primary_chain" checked> <span class="sf-rule-name">Each van's primary driver keeps their van when they're scheduled</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="secondary_chain" checked> <span class="sf-rule-name">When the primary is off, the backup driver takes the van</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="pool_fill" checked> <span class="sf-rule-name">Match remaining drivers with any leftover vans</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="branded_first" checked> <span class="sf-rule-name">Assign branded (Amazon-wrapped) vans first</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="fem_priority" checked> <span class="sf-rule-name">Prioritize branded vans approaching the 14-day rotation rule</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Move a backup driver onto an at-risk van to prevent a VERO defect</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Move a primary driver onto an at-risk van as a last resort</span></label>
-                    </div>
-                  </details>
-
                   <!-- ── 6 · CUSTOM RULES ── ad-hoc constraints (preserved). -->
                   <details class="sf2-section sf-zone--adhoc" id="rr-sf-adhoc-disclosure" data-rr-sf-section="custom">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">5</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Custom rules</div>
                         <div class="sf2-section-sub">DSP-specific constraints (pair-forbidden, lock-to-day, blackouts)</div>
@@ -814,12 +913,11 @@
                     </div>
                   </details>
 
-                  <!-- ── 7 · ADVANCED ── CP-SAT controls (preserved). -->
+                  <!-- ── 7 · ENGINE TUNING ── CP-SAT controls (preserved). -->
                   <details class="sf2-section sf-zone--engine" id="rr-sf-engine-expander" data-rr-sf-section="engine">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">6</span>
                       <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Advanced</div>
+                        <div class="sf2-section-title">Engine tuning</div>
                         <div class="sf2-section-sub">Priorities, data sources &amp; compute — fine-tuning</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
@@ -928,6 +1026,89 @@
                     </div>
                   </details>
 
+                  <!-- Reset-all escape hatch · the data-rr-sf-preset
+                       delegation in live.js owns the confirm + wipe. -->
+                  <div class="rr-pol-resetall-row">
+                    <button type="button" class="sf-engine-reset" data-rr-sf-preset="reset" title="Clear every saved rule. Equivalent to a fresh install.">Reset all rules…</button>
+                  </div>
+
+                    </div>
+                  </details>
+
+                  <!-- ── VAN RULES ── van-assignment rules, unchanged wiring:
+                       data-rr-sf-vans / data-rr-van-rule / auto-rescue are
+                       read by the live.js van-assignment heuristic. They
+                       stay out of Staffing Policy proper because they
+                       govern vans, not staffing. -->
+                  <details class="sf2-section rr-pol-bucket sf-zone--vans" data-rr-sf-section="vans">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="sf2-section-titles">
+                        <div class="sf2-section-title">Van Rules</div>
+                        <div class="sf2-section-sub">When &amp; how vans are assigned alongside drivers</div>
+                      </span>
+                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
+                    </div></summary>
+                    <div class="sf2-section-body">
+                      <div class="sf-vans-subzone-label">When to assign</div>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="assign" checked> <span class="sf-rule-name"><strong>Assign vans during Smart Fill</strong> · when off, the van column stays empty for new assignments</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-auto-rescue checked> <span class="sf-rule-name"><strong>Auto-rescue at-risk vans</strong> · run van assignment automatically when FEM flags a van approaching the 14-day rotation rule</span></label>
+                      <div class="sf-vans-subzone-label">Who gets which van</div>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="prefer_paired" checked> <span class="sf-rule-name"><strong>Prefer driver's paired van</strong> · use the standing primary / backup chain when possible</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="primary_chain" checked> <span class="sf-rule-name">Each van's primary driver keeps their van when they're scheduled</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="secondary_chain" checked> <span class="sf-rule-name">When the primary is off, the backup driver takes the van</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="pool_fill" checked> <span class="sf-rule-name">Match remaining drivers with any leftover vans</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="branded_first" checked> <span class="sf-rule-name">Assign branded (Amazon-wrapped) vans first</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="fem_priority" checked> <span class="sf-rule-name">Prioritize branded vans approaching the 14-day rotation rule</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Move a backup driver onto an at-risk van to prevent a VERO defect</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Move a primary driver onto an at-risk van as a last resort</span></label>
+                    </div>
+                  </details>
+
+                  <!-- ── COMPLIANCE RULES ── read-only digest of the
+                       operator-controlled compliance settings currently in
+                       effect. Rendered by _rrPolPaint (live.js) from the
+                       same saved rule blob the controls write. -->
+                  <details class="sf2-section rr-pol-bucket">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="sf2-section-titles">
+                        <div class="sf2-section-title">Compliance Rules</div>
+                        <div class="sf2-section-sub">Active policy — adjustable above and under Advanced</div>
+                      </span>
+                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
+                    </div></summary>
+                    <div class="sf2-section-body">
+                      <ul class="rr-pol-checklist" id="rr-pol-compliance-list"></ul>
+                    </div>
+                  </details>
+
+                  <!-- ── ALWAYS ENFORCED ── rules the engine force-enables at
+                       read time (_rrLoadSfRules + the engine adapter). No
+                       toggles exist for these — they cannot be turned off. -->
+                  <details class="sf2-section rr-pol-bucket">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="sf2-section-titles">
+                        <div class="sf2-section-title">Always Enforced</div>
+                        <div class="sf2-section-sub">System constraints — cannot be turned off</div>
+                      </span>
+                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
+                    </div></summary>
+                    <div class="sf2-section-body">
+                      <ul class="rr-pol-checklist">
+                        <li>Inactive drivers are never scheduled</li>
+                        <li>Certification &amp; service-type matching (DOT / XL / EDV)</li>
+                        <li>Approved PTO blocks assignment</li>
+                        <li>Saved availability days respected</li>
+                        <li>Locked assignments preserved</li>
+                        <li>Completed shifts never touched</li>
+                        <li>PTO counts toward weekly caps</li>
+                      </ul>
+                    </div>
+                  </details>
+
+                </div>
+                <div class="rr-pol-foot">
+                  <button type="button" class="rr-pol-btn" id="rr-pol-cancel" title="Revert every change made since the drawer was opened">Cancel</button>
+                  <button type="button" class="rr-pol-btn rr-pol-btn-primary" id="rr-pol-save" title="Save this policy for your DSP">Save Policy</button>
                 </div>
               </div>
             </div>
@@ -1677,122 +1858,10 @@
               });
               on("rr-ab-smartfill-caret", function (e) {
                 e.stopPropagation();
-                // Open the Smart Fill rules popover as this button's
-                // dropdown: re-parent it into the (position:relative)
-                // action bar so it anchors right under the bar, then
-                // drive the proven legacy toggle.
-                var ab = document.getElementById("rr-sched-actionbar");
-                var pop = document.getElementById("rr-sched-smartfill-rules-popover");
-                if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
-                // Anchor the dropdown's left edge under the Smart Fill
-                // button (CSS reads the var; right:auto override rides
-                // along in inline-styles.css).
-                var sfBtn = document.getElementById("rr-ab-smartfill");
-                if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
+                // Open the Staffing Policy drawer — fixed-position
+                // right drawer, so no re-parenting / anchoring needed.
                 fire("rr-sched-smartfill-rules-toggle");
               });
-              // Smart Fill rules · compact-first (operator 2026-06-12).
-              // The popover opens showing ONLY the preset row (4 presets
-              // + Reset all + Settings); the Settings button toggles the
-              // full rule details. Every fresh open resets to compact.
-              (function () {
-                var pop = document.getElementById("rr-sched-smartfill-rules-popover");
-                var btn = document.getElementById("rr-sf-settings-btn");
-                if (!pop || !btn || pop.dataset.rrCompactWired) return;
-                pop.dataset.rrCompactWired = "1";
-                pop.classList.add("rr-sf-compact");
-                // Settings → the small scheduling-limits panel right under
-                // the row (operator 2026-06-12). The full detail sections
-                // moved behind the panel's "All settings…" link.
-                var panel = document.getElementById("rr-sf-consec-panel");
-                var CONSEC_KEY = "rr-sf-consec-days-hard";
-                function syncConsec() {
-                  if (!panel) return;
-                  var cur = null;
-                  try { cur = parseInt(localStorage.getItem(CONSEC_KEY), 10); } catch (_) {}
-                  panel.querySelectorAll(".sf2-consec-opt").forEach(function (o) {
-                    o.classList.toggle("active", parseInt(o.getAttribute("data-rr-consec"), 10) === cur);
-                  });
-                }
-                btn.addEventListener("click", function (e) {
-                  e.stopPropagation();
-                  if (!panel) return;
-                  panel.hidden = !panel.hidden;
-                  btn.setAttribute("aria-expanded", panel.hidden ? "false" : "true");
-                  if (!panel.hidden) syncConsec();
-                });
-                if (panel) panel.addEventListener("click", function (e) {
-                  e.stopPropagation();
-                  var all = e.target.closest("#rr-sf-consec-all");
-                  if (all) { pop.classList.remove("rr-sf-compact"); return; }
-                  var opt = e.target.closest(".sf2-consec-opt");
-                  if (!opt) return;
-                  var v = parseInt(opt.getAttribute("data-rr-consec"), 10);
-                  var cur = null;
-                  try { cur = parseInt(localStorage.getItem(CONSEC_KEY), 10); } catch (_) {}
-                  try {
-                    if (cur === v) localStorage.removeItem(CONSEC_KEY); // click again = clear
-                    else localStorage.setItem(CONSEC_KEY, String(v));
-                  } catch (_) {}
-                  syncConsec();
-                });
-                new MutationObserver(function () {
-                  if (!pop.hidden) {
-                    pop.classList.add("rr-sf-compact");
-                    btn.setAttribute("aria-expanded", "false");
-                    if (panel) panel.hidden = true;
-                    syncConsec();
-                  }
-                }).observe(pop, { attributes: true, attributeFilter: ["hidden"] });
-                // Row furniture (operator 2026-06-12): each option becomes
-                // [label] [subtle info ⓘ] ........ [✓ when selected]. The
-                // explanation that used to live in the hover title moves
-                // to a click-to-reveal line under the row; the checkmark
-                // replaces the legacy active border. Selection still rides
-                // live.js's data-rr-sf-preset delegation untouched —
-                // stopPropagation on the info icon keeps its click from
-                // applying the preset.
-                pop.querySelectorAll(".sf2-presets-row .sf2-preset").forEach(function (b) {
-                  if (b.querySelector(".sf2-preset-label")) return;
-                  var tip = b.getAttribute("title") || "";
-                  b.removeAttribute("title");
-                  var label = document.createElement("span");
-                  label.className = "sf2-preset-label";
-                  label.textContent = (b.textContent || "").trim();
-                  b.textContent = "";
-                  b.appendChild(label);
-                  if (tip) {
-                    var info = document.createElement("span");
-                    info.className = "sf2-preset-info";
-                    info.setAttribute("role", "button");
-                    info.setAttribute("tabindex", "0");
-                    info.setAttribute("aria-label", "What this option does");
-                    info.innerHTML = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg>';
-                    var reveal = function (e) {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      var d = b.nextElementSibling;
-                      if (!d || !d.classList.contains("sf2-preset-desc")) {
-                        d = document.createElement("div");
-                        d.className = "sf2-preset-desc";
-                        d.textContent = tip;
-                        b.insertAdjacentElement("afterend", d);
-                      }
-                      var open = !d.classList.contains("is-open");
-                      pop.querySelectorAll(".sf2-preset-desc.is-open").forEach(function (x) { x.classList.remove("is-open"); });
-                      if (open) d.classList.add("is-open");
-                    };
-                    info.addEventListener("click", reveal);
-                    info.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") reveal(e); });
-                    b.appendChild(info);
-                  }
-                  var chk = document.createElement("span");
-                  chk.className = "sf2-preset-check";
-                  chk.setAttribute("aria-hidden", "true");
-                  chk.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-                  b.appendChild(chk);
-                });
-              })();
               on("rr-ab-finalize",  function () { fire("rr-sched-finalize-h"); });
               on("rr-ab-assign", function (e) {
                 if (e.target.closest("#rr-ab-assign-caret")) return; // caret owns its click

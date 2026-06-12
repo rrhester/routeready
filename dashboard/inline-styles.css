@@ -23388,3 +23388,139 @@ body.rr-cmdk-open{ overflow:hidden }
   font-size:11px;color:#8A94A4;text-align:left;
 }
 .sf2-consec-all:hover{color:#0F172A;text-decoration:underline}
+
+/* ═══ Staffing Policy drawer (operator 2026-06-12) ═══════════════════
+   The Smart Fill rules popover rebuilt as a compact right-side drawer.
+   Double-id selector outranks the absolute-position popover rules in
+   schedule-rrx.css regardless of where the element sits in the DOM. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover.rr-policy-drawer{
+  position:fixed !important;
+  top:0 !important; right:0 !important; bottom:0 !important; left:auto !important;
+  width:440px !important;
+  min-width:0 !important;
+  max-width:calc(100vw - 48px) !important;
+  height:100vh !important;
+  max-height:100vh !important;
+  margin:0 !important;
+  border:0 !important;
+  border-left:1px solid #E2E8F0 !important;
+  border-radius:0 !important;
+  box-shadow:-16px 0 40px rgba(15,23,42,.14) !important;
+  background:#FFFFFF !important;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden !important;
+  z-index:600 !important;
+  transform:none !important;
+  animation:rrPolSlideIn .16s ease;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover.rr-policy-drawer[hidden]{display:none !important}
+@keyframes rrPolSlideIn{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
+
+/* Header — title + subtitle + X. Quiet white band. */
+.rr-policy-drawer .rr-pol-head{
+  display:flex !important;
+  align-items:flex-start !important;
+  justify-content:space-between !important;
+  gap:10px !important;
+  padding:14px 16px 12px !important;
+  background:#FFFFFF !important;
+  border-bottom:1px solid #EEF0F4 !important;
+  border-radius:0 !important;
+  flex:0 0 auto;
+}
+.rr-pol-title{font-size:14px;font-weight:700;color:#0F172A;line-height:1.2}
+.rr-pol-subtitle{font-size:11.5px;color:#64748B;margin-top:2px}
+.rr-pol-close{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:26px;flex:0 0 auto;
+  border:0;border-radius:6px;background:transparent;color:#64748B;cursor:pointer;
+}
+.rr-pol-close:hover{background:rgba(15,23,42,.06);color:#0F172A}
+.rr-pol-close svg{width:14px;height:14px}
+
+/* Scrollable body. */
+.rr-policy-drawer #rr-sched-smartfill-rules-body{
+  flex:1 1 auto;
+  overflow-y:auto;
+  padding:12px 16px 16px;
+  gap:8px !important;
+}
+
+/* Rules-in-effect digest. */
+.rr-pol-summary{
+  padding:7px 10px;
+  border:1px solid #EEF0F4;border-radius:8px;background:#F8FAFC;
+}
+.rr-pol-summary-label{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:#8A94A4;margin-bottom:2px}
+.rr-pol-summary-line{font-size:11.5px;color:#334155;line-height:1.45}
+
+/* Compact label/control rows. */
+.rr-pol-rows{display:flex;flex-direction:column;gap:2px}
+.rr-pol-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  min-height:30px;padding:1px 0;
+}
+.rr-pol-label{font-size:12.5px;color:#0F172A;flex:1 1 auto;min-width:0}
+.rr-pol-control{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.rr-pol-select{
+  height:26px;min-width:150px;max-width:190px;
+  padding:0 8px;
+  font-size:12px;color:#0F172A;
+  border:1px solid #D8DEE7;border-radius:7px;background:#FFFFFF;
+  cursor:pointer;
+}
+.rr-pol-select:hover{border-color:#B6C0CE}
+.rr-pol-select:focus-visible{outline:2px solid #2563EB;outline-offset:1px}
+.rr-pol-static{font-size:12px;color:#334155}
+.rr-pol-note{font-size:10.5px;color:#8A94A4;line-height:1.45;margin:1px 0 2px}
+.rr-pol-badge{
+  font-size:9.5px;font-weight:600;letter-spacing:.04em;white-space:nowrap;
+  padding:2px 7px;border-radius:999px;
+  background:#EFF6FF;color:#2563EB;border:1px solid #DBEAFE;
+}
+.rr-pol-badge.rr-pol-badge-custom{background:#F8FAFC;color:#64748B;border-color:#E2E8F0}
+.rr-pol-group-label{
+  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:#8A94A4;margin:8px 0 0;padding-top:8px;border-top:1px solid #F1F5F9;
+}
+
+/* Collapsed buckets (Advanced / Van Rules / Compliance / Always Enforced). */
+.rr-pol-bucket{margin-top:2px}
+.rr-pol-bucket-body{display:flex;flex-direction:column;gap:8px;padding:8px 0 2px}
+.rr-pol-resetall-row{padding:0 10px 8px}
+.rr-pol-checklist{list-style:none;margin:0;padding:2px 10px 6px;display:flex;flex-direction:column;gap:5px}
+.rr-pol-checklist li{
+  position:relative;padding-left:18px;
+  font-size:11.5px;color:#334155;line-height:1.4;
+}
+.rr-pol-checklist li::before{
+  content:"✓";position:absolute;left:0;top:0;
+  font-size:11px;font-weight:700;color:#16A34A;
+}
+.rr-pol-checklist li.rr-pol-off{color:#94A3B8}
+.rr-pol-checklist li.rr-pol-off::before{content:"—";color:#CBD5E1}
+
+/* Sticky footer. */
+.rr-pol-foot{
+  display:flex;align-items:center;justify-content:flex-end;gap:8px;
+  padding:10px 16px;
+  border-top:1px solid #EEF0F4;background:#FFFFFF;
+  flex:0 0 auto;
+}
+.rr-pol-btn{
+  height:30px;padding:0 14px;
+  font-size:12.5px;font-weight:600;color:#334155;
+  border:1px solid #D8DEE7;border-radius:8px;background:#FFFFFF;cursor:pointer;
+}
+.rr-pol-btn:hover{background:#F8FAFC}
+.rr-pol-btn-primary{background:#2563EB;border-color:#2563EB;color:#FFFFFF}
+.rr-pol-btn-primary:hover{background:#1D4ED8}
+.rr-pol-btn-primary:disabled{opacity:.6;cursor:default}
+
+/* Narrow screens — drawer takes most of the viewport but never all. */
+@media (max-width: 560px){
+  #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover.rr-policy-drawer{
+    width:calc(100vw - 32px) !important;
+  }
+}

@@ -6171,6 +6171,9 @@ document.addEventListener("click", (e) => {
   const CLOSE_DELAY_MS = 1000;
   function scheduleClose(pop) {
     if (!pop || pop.hidden) return;
+    // The Staffing Policy drawer is side-docked, not anchored — page
+    // scroll / pointer-leave shouldn't dismiss it.
+    if (pop.classList && pop.classList.contains("rr-policy-drawer")) return;
     const prev = _pending.get(pop.id);
     if (prev) clearTimeout(prev);
     const tid = setTimeout(() => {
@@ -33161,6 +33164,7 @@ window._rrApplySfPreset = function (name) {
   document.querySelectorAll("#rr-sched-smartfill-rules-body .sf2-preset")
     .forEach((b) => b.classList.toggle("is-active",
       b.getAttribute("data-rr-sf-preset") === name));
+  if (typeof window._rrPolPaint === "function") window._rrPolPaint();
   _rrSfDiffSchedule();
   if (typeof toast === "function") {
     const labels = {
@@ -33302,6 +33306,449 @@ document.addEventListener("change", (e) => {
   if (!e.target.closest("#rr-sched-smartfill-rules-body")) return;
   if (e.target.closest("[data-rr-sf-preset]")) return; // preset handler already schedules
   _rrSfDiffSchedule();
+});
+
+// ─── Staffing Policy drawer ───────────────────────────────────────────
+// The compact DSP-language pane at the top of the (drawer-shaped) Smart
+// Fill rules popover. Every control reads/writes the SAME saved rule
+// blob the expert controls under Advanced use — the drawer is a second
+// view of that state, not a second store. After every write we call
+// _restoreSmartFillRules() so the Advanced controls repaint, and
+// _rrPolPaint() so the drawer's summary/badge stay live.
+//
+// Persistence: localStorage per browser (as before), plus an explicit
+// Save Policy that copies the blob to dsps.metadata.staffing_policy so
+// the policy follows the DSP across browsers. A fresh browser with no
+// local blob seeds itself from the server copy (see _rrPolSeedFromServer,
+// called from _rrLoadSfRules so even a Smart Fill run without opening
+// the drawer respects the saved policy).
+const _RR_POL_CONSEC_KEY = "rr-sf-consec-days-hard";
+
+function _rrPolReadBlob() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  return (saved && typeof saved === "object") ? saved : {};
+}
+function _rrPolWriteBlob(saved) {
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+}
+
+// Seed the local rule blob from the DSP's saved policy exactly once,
+// and only when this browser has no local blob at all — local tweaks
+// are never clobbered by the server copy.
+let _rrPolSeedTried = false;
+function _rrPolSeedFromServer() {
+  if (_rrPolSeedTried) return;
+  const pol = window.RR && window.RR.dsp && window.RR.dsp.metadata &&
+    window.RR.dsp.metadata.staffing_policy;
+  if (!pol || typeof pol !== "object") return; // metadata may not be loaded yet — retry later
+  _rrPolSeedTried = true;
+  let hasLocal = false;
+  try {
+    const raw = localStorage.getItem(_RR_SF_RULES_KEY);
+    hasLocal = !!raw && raw !== "{}";
+  } catch (_) { return; }
+  if (hasLocal) return;
+  if (pol.rules && typeof pol.rules === "object") _rrPolWriteBlob(pol.rules);
+  try {
+    const hc = parseInt(pol.consec_hard, 10);
+    if (hc === 4 || hc === 5 || hc === 6) localStorage.setItem(_RR_POL_CONSEC_KEY, String(hc));
+  } catch (_) {}
+}
+window._rrPolSeedFromServer = _rrPolSeedFromServer;
+
+// ── Composite mappings ────────────────────────────────────────────────
+// Schedule Stability — one DSP-language control driving the engine's
+// run mode, historical pattern protection, affinity + preferred-day
+// enhancement passes and the CP-SAT stability priority. Classification
+// derives purely from the underlying keys so the dropdown always tells
+// the truth, whichever view last wrote them.
+const _RR_POL_STABILITY = Object.freeze({
+  lock: {
+    label: "Only fill open shifts — existing assignments are never moved.",
+    write: { run_mode: "fill_empty_only", historical_pattern_protection: "high",
+             affinity_enhancement: true, preferred_enhancement: true, prio: 5 },
+  },
+  strong: {
+    label: "Protect normal schedules unless coverage requires changes.",
+    write: { run_mode: "rebuild_unlocked", historical_pattern_protection: "high",
+             affinity_enhancement: true, preferred_enhancement: true, prio: 4 },
+  },
+  moderate: {
+    label: "Allow useful adjustments while keeping most patterns.",
+    write: { run_mode: "full_rebuild", historical_pattern_protection: "medium",
+             affinity_enhancement: true, preferred_enhancement: false, prio: 3 },
+  },
+  flexible: {
+    label: "Optimize coverage first — the engine may reshuffle freely.",
+    write: { run_mode: "full_rebuild", historical_pattern_protection: "off",
+             affinity_enhancement: false, preferred_enhancement: false, prio: 2 },
+  },
+});
+function _rrPolClassifyStability(saved) {
+  if (saved.run_mode === "fill_empty_only") return "lock";
+  const hpp = saved.historical_pattern_protection;
+  if (hpp === "high") return "strong";
+  if (hpp === "medium") return "moderate";
+  return "flexible"; // "low", "off", or unset (the engine default)
+}
+
+// Goal — translation layer onto the CP-SAT priority sliders (1-5, the
+// payload builder multiplies them onto the solver's objective weights).
+// Stability's slider is owned by Schedule Stability above, so Goal only
+// touches coverage / OT / fairness / preferred-days.
+const _RR_POL_GOALS = Object.freeze({
+  balanced:    { coverage: 3, ot_avoidance: 3, fairness: 3, preferred_days: 3 },
+  coverage:    { coverage: 5, ot_avoidance: 2, fairness: 3, preferred_days: 3 },
+  cost:        { coverage: 3, ot_avoidance: 5, fairness: 3, preferred_days: 3 },
+  consistency: { coverage: 2, ot_avoidance: 3, fairness: 2, preferred_days: 4 },
+});
+function _rrPolClassifyGoal(saved) {
+  const prios = (saved.priorities && typeof saved.priorities === "object") ? saved.priorities : {};
+  const cur = {};
+  for (const k of ["coverage", "ot_avoidance", "fairness", "preferred_days"]) {
+    cur[k] = _rrClampPrio(prios[k] ?? 3);
+  }
+  for (const [name, sig] of Object.entries(_RR_POL_GOALS)) {
+    if (Object.keys(sig).every((k) => sig[k] === cur[k])) return name;
+  }
+  return "custom";
+}
+
+// Preset badge — "Using Preset" while the saved blob still contains the
+// preset's keys verbatim; any deviation flips it to "Custom Policy".
+function _rrPolMatchesPreset(saved, name) {
+  const preset = _RR_SF_PRESETS[name];
+  if (!preset) return false;
+  return Object.entries(preset).every(([k, v]) => saved[k] === v);
+}
+
+function _rrPolHardConsec() {
+  try {
+    const n = parseInt(localStorage.getItem(_RR_POL_CONSEC_KEY), 10);
+    if (n === 4 || n === 5 || n === 6) return n;
+  } catch (_) {}
+  return null;
+}
+
+// Ensure a <select> can display `value` even when it isn't one of the
+// standard options (e.g. a 7-day cap set under Advanced) — injects a
+// "(current)" option rather than silently misreporting the policy.
+function _rrPolSelectValue(sel, value) {
+  if (!sel) return;
+  const v = String(value);
+  if (![...sel.options].some((o) => o.value === v)) {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v + " (current)";
+    opt.dataset.rrPolInjected = "1";
+    sel.appendChild(opt);
+  }
+  sel.value = v;
+  // Drop stale injected options that are no longer selected.
+  [...sel.options].forEach((o) => {
+    if (o.dataset.rrPolInjected && o.value !== v) o.remove();
+  });
+}
+
+const _RR_POL_PRESET_LABELS = Object.freeze({
+  balanced: "Balanced", conservative: "Conservative",
+  maximize_coverage: "Max Coverage", stick_to_last_week: "Stick To Last Week",
+});
+const _RR_POL_STABILITY_LABELS = Object.freeze({
+  lock: "Locked", strong: "Strong Stability", moderate: "Moderate Stability",
+  flexible: "Flexible",
+});
+
+/** Repaint every drawer control + the summary line from the saved blob. */
+function _rrPolPaint() {
+  const root = document.getElementById("rr-pol-summary");
+  if (!root) return; // drawer markup not on this page
+  const saved = _rrPolReadBlob();
+
+  const consec = _rrPolHardConsec() ||
+    Math.max(1, Math.min(7, parseInt(saved.woc_max_consecutive_days, 10) || 6));
+  const maxDays = Number.isFinite(saved.maxDaysOverride) ? saved.maxDaysOverride : 5;
+  const cap = Math.max(1, Math.min(168, parseInt(saved.woc_max_hours, 10) || 40));
+  const rest = Math.max(0, Math.min(48, parseInt(saved.min_rest_hours, 10) || 10));
+  const fifth = saved.fifth_day_fill === true ? "allow" : "off";
+  const stability = _rrPolClassifyStability(saved);
+  const att = saved.attendance_scheduling === true
+    ? (["low", "medium", "high"].includes(saved.attendance_weight) ? saved.attendance_weight : "medium")
+    : "off";
+  const target = Math.max(0, Math.min(7, parseInt(saved.target_days_per_week, 10) || 4));
+  const goal = _rrPolClassifyGoal(saved);
+
+  _rrPolSelectValue(document.getElementById("rr-pol-consec"), consec);
+  _rrPolSelectValue(document.getElementById("rr-pol-maxdays"), maxDays);
+  _rrPolSelectValue(document.getElementById("rr-pol-cap"), cap);
+  _rrPolSelectValue(document.getElementById("rr-pol-rest"), rest);
+  const fifthSel = document.getElementById("rr-pol-fifth");
+  if (fifthSel) fifthSel.value = fifth;
+  const stabSel = document.getElementById("rr-pol-stability");
+  if (stabSel) stabSel.value = stability;
+  const stabNote = document.getElementById("rr-pol-stability-note");
+  if (stabNote) stabNote.textContent = _RR_POL_STABILITY[stability].label;
+  const attSel = document.getElementById("rr-pol-att");
+  if (attSel) attSel.value = att;
+  _rrPolSelectValue(document.getElementById("rr-pol-target"), target);
+  const goalSel = document.getElementById("rr-pol-goal");
+  if (goalSel) {
+    if (goal === "custom" && ![...goalSel.options].some((o) => o.value === "custom")) {
+      const opt = document.createElement("option");
+      opt.value = "custom";
+      opt.textContent = "Custom";
+      opt.dataset.rrPolInjected = "1";
+      goalSel.appendChild(opt);
+    }
+    goalSel.value = goal;
+    if (goal !== "custom") {
+      [...goalSel.options].forEach((o) => { if (o.dataset.rrPolInjected) o.remove(); });
+    }
+  }
+
+  // Preset select + badge.
+  const presetSel = document.getElementById("rr-pol-preset");
+  const badge = document.getElementById("rr-pol-badge");
+  const active = typeof saved.active_preset === "string" ? saved.active_preset : "";
+  const matches = active && _rrPolMatchesPreset(saved, active);
+  if (presetSel) presetSel.value = (active && _RR_SF_PRESETS[active]) ? active : "";
+  if (badge) {
+    if (matches) {
+      badge.hidden = false;
+      badge.textContent = "Using Preset";
+      badge.classList.remove("rr-pol-badge-custom");
+    } else if (active || Object.keys(saved).length) {
+      badge.hidden = false;
+      badge.textContent = "Custom Policy";
+      badge.classList.add("rr-pol-badge-custom");
+    } else {
+      badge.hidden = true;
+    }
+  }
+
+  // Rules-in-effect digest.
+  const presetLabel = matches ? _RR_POL_PRESET_LABELS[active] : "Custom";
+  const parts = [
+    presetLabel,
+    "Max " + consec + " Days",
+    maxDays + "/Wk",
+    cap + "h Cap",
+    _RR_POL_STABILITY_LABELS[stability],
+    fifth === "allow" ? "5th Day On" : "5th Day Off",
+  ];
+  root.textContent = parts.join(" • ");
+
+  // Compliance digest — the operator-controlled rules currently active.
+  const list = document.getElementById("rr-pol-compliance-list");
+  if (list) {
+    const dlDays = Math.max(0, Math.min(365, parseInt(saved.dl_protection_days, 10) || 0));
+    const wocOn = saved.woc !== false;
+    const restOn = saved.min_rest !== false;
+    const sameDayBlock = saved.same_day_multi_shift !== "allow";
+    const onboarding = saved.include_onboarding !== false;
+    const items = [
+      { on: saved.dl_valid !== false, label: "Driver license validation" },
+      { on: dlDays > 0, label: "License protection window" + (dlDays > 0 ? " · " + dlDays + " days" : "") },
+      { on: wocOn, label: "Consecutive day limit · " + consec + " days" },
+      { on: wocOn, label: "Weekly hour cap · " + cap + "h" },
+      { on: restOn, label: "Minimum rest between shifts · " + rest + "h" },
+      { on: sameDayBlock, label: "One shift per driver per day" },
+      { on: onboarding, label: "Onboarding drivers included" },
+    ];
+    list.innerHTML = "";
+    for (const it of items) {
+      const li = document.createElement("li");
+      li.textContent = it.label;
+      if (!it.on) li.classList.add("rr-pol-off");
+      list.appendChild(li);
+    }
+  }
+}
+window._rrPolPaint = _rrPolPaint;
+
+/** Write a set of keys into the blob, repaint both views, re-diff. */
+function _rrPolApply(mutate) {
+  const saved = _rrPolReadBlob();
+  mutate(saved);
+  _rrPolWriteBlob(saved);
+  _restoreSmartFillRules();
+  _rrPolPaint();
+  _rrSfDiffSchedule();
+}
+
+// ── Drawer control handlers (delegated, codebase idiom) ───────────────
+document.addEventListener("change", (e) => {
+  const el = e.target;
+  if (!el || !el.id || !el.id.startsWith("rr-pol-")) return;
+  switch (el.id) {
+    case "rr-pol-preset": {
+      const name = el.value;
+      if (!name || !_RR_SF_PRESETS[name]) return;
+      window._rrApplySfPreset(name); // merges keys, repaints Advanced, toasts
+      _rrPolApply((s) => { s.active_preset = name; });
+      break;
+    }
+    case "rr-pol-consec": {
+      const n = parseInt(el.value, 10);
+      if (![4, 5, 6].includes(n)) {
+        // A non-standard injected value (e.g. 7) — keep it on the soft key
+        // only; the hard pin accepts 4/5/6.
+        _rrPolApply((s) => { s.woc = true; s.woc_max_consecutive_days = parseInt(el.value, 10) || 6; });
+        break;
+      }
+      try { localStorage.setItem(_RR_POL_CONSEC_KEY, String(n)); } catch (_) {}
+      _rrPolApply((s) => { s.woc = true; s.woc_max_consecutive_days = n; });
+      break;
+    }
+    case "rr-pol-maxdays": {
+      const n = parseInt(el.value, 10);
+      if (!Number.isFinite(n)) return;
+      _rrPolApply((s) => { s.maxDaysOverride = Math.max(1, Math.min(7, n)); });
+      break;
+    }
+    case "rr-pol-cap": {
+      const n = parseInt(el.value, 10);
+      if (!Number.isFinite(n)) return;
+      _rrPolApply((s) => {
+        s.woc = true;
+        s.woc_max_hours = Math.max(1, Math.min(168, n));
+        // The Advanced compute-budget override may only tighten the WOC
+        // cap (payload takes the min) — clear it so the drawer's value
+        // is authoritative.
+        delete s.weeklyHourCap;
+      });
+      break;
+    }
+    case "rr-pol-rest": {
+      const n = parseInt(el.value, 10);
+      if (!Number.isFinite(n)) return;
+      _rrPolApply((s) => { s.min_rest = true; s.min_rest_hours = Math.max(0, Math.min(48, n)); });
+      break;
+    }
+    case "rr-pol-fifth":
+      _rrPolApply((s) => { s.fifth_day_fill = el.value === "allow"; });
+      break;
+    case "rr-pol-stability": {
+      const spec = _RR_POL_STABILITY[el.value];
+      if (!spec) return;
+      _rrPolApply((s) => {
+        s.run_mode = spec.write.run_mode;
+        s.historical_pattern_protection = spec.write.historical_pattern_protection;
+        s.affinity_enhancement = spec.write.affinity_enhancement;
+        s.preferred_enhancement = spec.write.preferred_enhancement;
+        if (!s.priorities || typeof s.priorities !== "object") s.priorities = {};
+        s.priorities.stability = spec.write.prio;
+      });
+      break;
+    }
+    case "rr-pol-att":
+      _rrPolApply((s) => {
+        if (el.value === "off") {
+          s.attendance_scheduling = false;
+        } else {
+          s.attendance_scheduling = true;
+          s.attendance_weight = el.value;
+        }
+      });
+      break;
+    case "rr-pol-target": {
+      const n = parseInt(el.value, 10);
+      if (!Number.isFinite(n)) return;
+      _rrPolApply((s) => { s.target_days_per_week = Math.max(0, Math.min(7, n)); });
+      break;
+    }
+    case "rr-pol-goal": {
+      const sig = _RR_POL_GOALS[el.value];
+      if (!sig) return; // "custom" — display-only
+      _rrPolApply((s) => {
+        if (!s.priorities || typeof s.priorities !== "object") s.priorities = {};
+        Object.assign(s.priorities, sig);
+        s.goal = el.value;
+      });
+      break;
+    }
+  }
+});
+
+// Edits made through the Advanced controls repaint the drawer (debounced
+// alongside the live-diff). Drawer paints never dispatch events, so this
+// can't loop.
+let _rrPolPaintTimer = null;
+document.addEventListener("change", (e) => {
+  if (!e.target || !e.target.closest) return;
+  if (!e.target.closest("#rr-sched-smartfill-rules-body")) return;
+  if (e.target.id && e.target.id.startsWith("rr-pol-")) return; // own handler painted already
+  if (_rrPolPaintTimer) clearTimeout(_rrPolPaintTimer);
+  _rrPolPaintTimer = setTimeout(_rrPolPaint, 150);
+});
+
+// ── Open snapshot + Cancel / Save / Close ─────────────────────────────
+// Cancel restores the exact rule state from when the drawer opened —
+// covering compact AND Advanced edits (both write the same store). The
+// X and outside interactions just close, keeping changes locally (the
+// popover's historical behavior).
+let _rrPolSnapshot = null;
+function _rrPolTakeSnapshot() {
+  let blob = null, consec = null;
+  try { blob = localStorage.getItem(_RR_SF_RULES_KEY); } catch (_) {}
+  try { consec = localStorage.getItem(_RR_POL_CONSEC_KEY); } catch (_) {}
+  _rrPolSnapshot = { blob, consec };
+}
+window._rrPolTakeSnapshot = _rrPolTakeSnapshot;
+function _rrPolRestoreSnapshot() {
+  if (!_rrPolSnapshot) return;
+  try {
+    if (_rrPolSnapshot.blob === null) localStorage.removeItem(_RR_SF_RULES_KEY);
+    else localStorage.setItem(_RR_SF_RULES_KEY, _rrPolSnapshot.blob);
+    if (_rrPolSnapshot.consec === null) localStorage.removeItem(_RR_POL_CONSEC_KEY);
+    else localStorage.setItem(_RR_POL_CONSEC_KEY, _rrPolSnapshot.consec);
+  } catch (_) {}
+  _restoreSmartFillRules();
+  _rrPolPaint();
+  _rrSfDiffSchedule();
+}
+
+document.addEventListener("click", async (e) => {
+  if (!e.target || !e.target.closest) return;
+  if (e.target.closest("#rr-pol-close")) {
+    _toggleSchedSmartFillRules(false);
+    return;
+  }
+  if (e.target.closest("#rr-pol-cancel")) {
+    _rrPolRestoreSnapshot();
+    _toggleSchedSmartFillRules(false);
+    return;
+  }
+  const saveBtn = e.target.closest("#rr-pol-save");
+  if (!saveBtn) return;
+  // Save Policy — persist the live blob to dsps.metadata.staffing_policy
+  // (read-merge-write, same pattern as the license settings) so the
+  // policy follows the DSP across browsers.
+  saveBtn.disabled = true;
+  try {
+    const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+    if (!dspId) throw new Error("DSP not loaded");
+    const { data: dsp, error: rErr } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+    if (rErr) throw rErr;
+    const md = dsp.metadata || {};
+    md.staffing_policy = {
+      rules: _rrPolReadBlob(),
+      consec_hard: _rrPolHardConsec(),
+      saved_at: new Date().toISOString(),
+    };
+    const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", dspId);
+    if (wErr) throw wErr;
+    window.RR.dsp.metadata = md;
+    if (typeof toast === "function") toast("Staffing policy saved", "success");
+    _toggleSchedSmartFillRules(false);
+  } catch (err) {
+    console.warn("Save staffing policy:", err && err.message);
+    if (typeof toast === "function") toast("Couldn't save policy: " + (err && err.message), "warn");
+  } finally {
+    saveBtn.disabled = false;
+  }
 });
 
 // ─── Ad-hoc constraints list (Optimization Engine · Step 3.5) ─────
@@ -34014,6 +34461,13 @@ window._rrSyncManualMode = _syncManualMode;
 // Public reader so autoAssignDriversForWeek can query the live SF
 // rule state without a DOM read.
 window._rrLoadSfRules = function () {
+  // A fresh browser with no local rules adopts the DSP's saved Staffing
+  // Policy (dsps.metadata.staffing_policy) before the first read, so
+  // Smart Fill respects the shared policy without the drawer ever
+  // being opened on this machine.
+  if (typeof window._rrPolSeedFromServer === "function") {
+    try { window._rrPolSeedFromServer(); } catch (_) {}
+  }
   let saved;
   try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
   catch (_) { saved = {}; }
@@ -34206,10 +34660,23 @@ function _toggleSchedSmartFillRules(force) {
   if (!pop) return false;
   const isOpen = !pop.hidden;
   const next = (typeof force === "boolean") ? force : !isOpen;
+  // The drawer is position:fixed — host it on <body> so it can't be
+  // clipped or hidden by ribbon/action-bar ancestors (its frame styles
+  // use a double-id selector, and the inner styles are scoped to the
+  // body id, so nothing is lost by the move).
+  if (pop.classList.contains("rr-policy-drawer") && pop.parentElement !== document.body) {
+    document.body.appendChild(pop);
+  }
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next) {
+    // Staffing Policy drawer — seed from the DSP's saved policy (no-op
+    // when a local blob exists), snapshot for Cancel, then paint the
+    // compact controls + summary.
+    if (typeof window._rrPolSeedFromServer === "function") window._rrPolSeedFromServer();
+    if (typeof window._rrPolTakeSnapshot === "function") window._rrPolTakeSnapshot();
     _restoreSmartFillRules();
+    if (typeof window._rrPolPaint === "function") window._rrPolPaint();
     // v2 popover · refresh the live-diff strip when the popover opens
     // so it reflects the current saved rule blob immediately.
     if (typeof window._rrSfDiffSchedule === "function") {
@@ -34685,7 +35152,13 @@ window._rrOpenVanRulesExplainer = _openVanRulesExplainer;
 (function bindPopoverAutoClose() {
   const cases = [
     { wrap: ".sched-settings-split",   fn: () => _toggleSchedQuickSettings(false) },
-    { wrap: ".sched-smartfill-split",  fn: () => _toggleSchedSmartFillRules(false) },
+    // Staffing Policy drawer — side-docked, so hover-away must NOT
+    // dismiss it (the cursor has to cross the page to reach it).
+    { wrap: ".sched-smartfill-split",  fn: () => {
+      const pop = document.getElementById("rr-sched-smartfill-rules-popover");
+      if (pop && pop.classList.contains("rr-policy-drawer")) return;
+      _toggleSchedSmartFillRules(false);
+    } },
     { wrap: ".sched-vans-rules-split", fn: () => _toggleSchedVanRules(false) },
   ];
   const wired = new WeakSet();
@@ -34849,12 +35322,26 @@ document.addEventListener("change", (e) => {
   if (!cb) return;
   try { localStorage.setItem(_RR_VAN_AUTO_RESCUE_KEY, cb.checked ? "1" : "0"); } catch (_) {}
 });
-// Outside click closes the popover.
+// Outside click closes the popover. The Staffing Policy drawer is
+// exempt — it's side-docked with explicit Close / Cancel / Save
+// controls, and the operator should be able to inspect the schedule
+// behind it without dismissing it. (Escape still closes it.)
 document.addEventListener("click", (e) => {
   const pop = document.getElementById("rr-sched-smartfill-rules-popover");
   if (pop && !pop.hidden
+      && !pop.classList.contains("rr-policy-drawer")
       && !e.target.closest("#rr-sched-smartfill-rules-popover")
       && !e.target.closest("#rr-sched-smartfill-rules-toggle")) {
+    _toggleSchedSmartFillRules(false);
+  }
+  // Drawer variant: clicks on the schedule behind it are allowed (the
+  // operator can inspect the grid while configuring), but navigating
+  // anywhere outside the Schedule view closes it.
+  if (pop && !pop.hidden
+      && pop.classList.contains("rr-policy-drawer")
+      && !e.target.closest("#rr-sched-smartfill-rules-popover")
+      && !e.target.closest("#rr-sched-smartfill-rules-toggle")
+      && !e.target.closest("#view-schedule")) {
     _toggleSchedSmartFillRules(false);
   }
   const vpop = document.getElementById("rr-sched-vans-rules-popover");
