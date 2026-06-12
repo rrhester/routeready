@@ -23211,9 +23211,12 @@ body.rr-cmdk-open{ overflow:hidden }
    boot flag on init). No measured-width, no boot-flag, no hover, no
    rr-fly — those caused the children to detach/float. */
 /* EXPANDED rail: inline, in normal flow, directly under the parent. */
-.sidebar:not(.collapsed) .nav-item.active[data-view="schedule"] ~ .nav-sub[data-for="schedule"].is-open{display:flex}
+.sidebar:not(.collapsed) .nav-sub[data-for="schedule"].is-open{display:flex}
+/* chevron affordance on the parent; rotates when the children are open */
+.nav-item[data-view="schedule"] .nav-chev{margin-left:auto;display:inline-flex;opacity:.6;transition:transform .15s ease}
+.nav-item[data-view="schedule"]:has(~ .nav-sub.is-open) .nav-chev{transform:rotate(180deg);opacity:.9}
 /* COLLAPSED rail: the same .is-open opens a flyout panel beside the rail. */
-.sidebar.collapsed .nav-item.active[data-view="schedule"] ~ .nav-sub[data-for="schedule"].is-open{
+.sidebar.collapsed .nav-sub[data-for="schedule"].is-open{
   display:flex;position:fixed;left:64px;top:84px;width:198px;
   flex-direction:column;gap:1px;margin:0;padding:10px 8px 8px;
   background:var(--sidebar-bg,#1B2540);
