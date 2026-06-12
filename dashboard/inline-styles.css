@@ -662,7 +662,7 @@ textarea,
 /* ─────────────────────────────────────────────────────────────
    APP SHELL
    ───────────────────────────────────────────────────────────── */
-.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.app{display:grid;grid-template-columns:212px 1fr;min-height:100vh}
 .app:has(.sidebar.collapsed){grid-template-columns:64px 1fr}
 
 /* Dashboard-wide sharpness layer · matches the schedule sharpness
@@ -23191,8 +23191,8 @@ body.rr-cmdk-open{ overflow:hidden }
    Targets/Smart Fill/Finalize/Unassign/Fleet). The strip's two tile rows
    are hidden; the title + week navigator remain as a slim header.
    ════════════════════════════════════════════════════════════════════ */
-/* Children list, styled for the dark rail */
-.nav-sub{display:none;flex-direction:column;gap:1px;margin:2px 0 6px;padding:0}
+/* Children list — inline under the Schedule parent on the dark rail */
+.nav-sub{display:none;flex-direction:column;gap:1px;margin:1px 0 6px;padding:0}
 .nav-sub-item{
   display:flex;align-items:center;gap:9px;width:100%;
   height:30px;padding:0 12px 0 40px;border:0;background:none;cursor:pointer;
@@ -23205,104 +23205,37 @@ body.rr-cmdk-open{ overflow:hidden }
 .nav-sub-item.active{background:var(--sidebar-active-pill,rgba(255,255,255,.10));color:var(--text-inverse,#F8FAFC);font-weight:600}
 .nav-sub-item .pip{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5;flex:0 0 auto}
 .nav-sub-item.active .pip{opacity:1;background:#5B9DF9}
-/* Reveal only when Schedule is the active parent */
-.nav-item.active[data-view="schedule"] ~ .nav-sub[data-for="schedule"],
-.nav-sub[data-for="schedule"].is-open{display:flex}
-/* Collapsed icon-rail can't show labels → hide children (both collapse paths) */
-html.rr-sidebar-collapsed-boot .nav-sub:not(.is-open),
-.sidebar.collapsed .nav-sub:not(.is-open){display:none!important}
-/* Remove the Schedule icon strip's command tiles; keep the title block
-   + week navigator (neither is a .sched-v2-split). Every command tile
-   lives in a .sched-v2-split — some inside .sched-v2-viewgroup wrappers,
-   some bare between them — so hide both. ID specificity matches the
-   schedule-rrx.css rules. */
+
+/* ── Accordion visibility · ONE state (.is-open), ONE rail signal ──────
+   Keyed solely on .sidebar.collapsed (live.js owns it and clears the
+   boot flag on init). No measured-width, no boot-flag, no hover, no
+   rr-fly — those caused the children to detach/float. */
+/* EXPANDED rail: inline, in normal flow, directly under the parent. */
+.sidebar:not(.collapsed) .nav-item.active[data-view="schedule"] ~ .nav-sub[data-for="schedule"].is-open{display:flex}
+/* COLLAPSED rail: the same .is-open opens a flyout panel beside the rail. */
+.sidebar.collapsed .nav-item.active[data-view="schedule"] ~ .nav-sub[data-for="schedule"].is-open{
+  display:flex;position:fixed;left:64px;top:84px;width:198px;
+  flex-direction:column;gap:1px;margin:0;padding:10px 8px 8px;
+  background:var(--sidebar-bg,#1B2540);
+  border:1px solid rgba(255,255,255,.08);border-left:0;border-radius:0 12px 12px 0;
+  box-shadow:10px 6px 28px rgba(2,6,23,.35);z-index:70;
+}
+.sidebar.collapsed .nav-sub[data-for="schedule"].is-open::before{
+  content:"Schedule";display:block;padding:2px 12px 8px;
+  font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.55);
+}
+.sidebar.collapsed .nav-sub[data-for="schedule"] .nav-sub-item{padding-left:12px}
+/* Rail above page content so the collapsed flyout isn't trapped/clipped. */
+.sidebar{z-index:40}
+
+/* Remove the Schedule command strip ENTIRELY (header card + tiles) — the
+   children live in the sidebar now and the grid rises to the top. */
+#view-schedule.rrx-schedule .sched-v2-strip,
 #view-schedule.rrx-schedule .sched-v2-split,
 #view-schedule.rrx-schedule .sched-v2-viewgroup{display:none!important}
 
-/* ════════════════════════════════════════════════════════════════════
-   Collapsed-rail flyout for Schedule children (operator report 2026-06-12)
-   --------------------------------------------------------------------
-   The parent/child sidebar hid the children when the rail is collapsed
-   (no room for labels) — but the operator runs the rail collapsed, so
-   the children were unreachable. Match the reference design (CodeHS):
-   hovering the Schedule parent on the collapsed rail opens a dark
-   flyout panel beside it with the children; the panel stays open while
-   hovered. Expanded-rail behavior is unchanged (inline children).
-   ════════════════════════════════════════════════════════════════════ */
-html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"],
-html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-sub[data-for="schedule"]:hover,
-html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-sub[data-for="schedule"].rr-fly,
-html:not(.rr-rail-expanded) .sidebar.collapsed .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"],
-html:not(.rr-rail-expanded) .sidebar.collapsed .nav-sub[data-for="schedule"]:hover,
-html:not(.rr-rail-expanded) .sidebar.collapsed .nav-sub[data-for="schedule"].rr-fly{
-  display:flex!important;
-  position:fixed;left:64px;top:84px;width:198px;
-  flex-direction:column;gap:1px;margin:0;padding:10px 8px 8px;
-  background:var(--sidebar-bg,#1B2540);
-  border:1px solid rgba(255,255,255,.08);border-left:0;
-  border-radius:0 12px 12px 0;
-  box-shadow:10px 6px 28px rgba(2,6,23,.35);
-  z-index:70;
-}
-/* Panel header — the parent's name, like the reference design */
-html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"]::before,
-html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-sub[data-for="schedule"]:hover::before,
-html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-sub[data-for="schedule"].rr-fly::before,
-html:not(.rr-rail-expanded) .sidebar.collapsed .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"]::before,
-html:not(.rr-rail-expanded) .sidebar.collapsed .nav-sub[data-for="schedule"]:hover::before,
-html:not(.rr-rail-expanded) .sidebar.collapsed .nav-sub[data-for="schedule"].rr-fly::before{
-  content:"Schedule";display:block;padding:2px 12px 8px;
-  font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
-  color:rgba(255,255,255,.55);
-}
-/* Invisible hover bridge so the pointer can cross the rail → panel gap
-   without the flyout closing */
-.nav-sub[data-for="schedule"]::after{content:"";position:absolute;left:-14px;top:0;bottom:0;width:14px}
-/* In the flyout, children lose the inline indent */
-html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"] .nav-sub-item,
-.sidebar.collapsed .nav-sub[data-for="schedule"] .nav-sub-item{padding-left:12px}
-/* The rail needs its own stacking context above page content (tcp chrome
-   sits at z 20; modals at ≥100) or the fixed flyout paints beneath the
-   grid's positioned headers and can't be clicked. */
-.sidebar{z-index:40}
-
-/* ════════════════════════════════════════════════════════════════════
-   Schedule header card removed (operator request 2026-06-12)
-   --------------------------------------------------------------------
-   The last remnant of the command strip — the "Schedule · Live · Week
-   of …" card — goes away entirely; the grid rises into its space. Week
-   navigation lives in the grid header (Today ‹ ›). The Draft/Live pill
-   leaves the page with the card (can be re-homed in the grid header on
-   request).
-   ════════════════════════════════════════════════════════════════════ */
-#view-schedule.rrx-schedule .sched-v2-strip{display:none!important}
-
-/* ════════════════════════════════════════════════════════════════════
-   Parent visibility on a measured-expanded rail + grid to the very top
-   (operator report 2026-06-12, desktop app screenshot)
-   --------------------------------------------------------------------
-   1. The stale collapsed-boot flag applies `font-size:0` (and centers
-      the icon, hides brand + badges) to .nav-item even when the rail is
-      actually wide — so the Schedule parent row painted invisibly above
-      its children. Restore the expanded look whenever the rail's
-      MEASURED state (html.rr-rail-expanded, set by reflectRail) says
-      expanded. Same-specificity rules later in the cascade win.
-   2. The schedule grid had 28px of phantom slack above it: the
-      zero-height .tcp block's 12px margin and the empty intel host's
-      16px margin. With those gone the grid head sits ~7px from the top
-      of the page (the desktop app keeps its OS-titlebar clearance).
-   ════════════════════════════════════════════════════════════════════ */
-html.rr-rail-expanded .sidebar .brand-name{display:block}
-html.rr-rail-expanded .sidebar .nav-item{justify-content:flex-start;gap:var(--s-3);padding:10px var(--s-3);font-size:var(--fs-sm);overflow:visible}
-html.rr-rail-expanded .sidebar .nav-item .nav-icon{margin:0}
-html.rr-rail-expanded .sidebar .nav-badge{display:inline-flex !important}
-/* :not(.collapsed) — a REAL collapse (live.js adds .sidebar.collapsed)
-   must win instantly, or the measured-state class would hold the rail
-   open in a feedback loop. */
-html.rr-rail-expanded .sidebar:not(.collapsed){width:236px;padding-left:var(--s-2);padding-right:var(--s-2)}
-html.rr-rail-expanded .app:not(:has(.sidebar.collapsed)){grid-template-columns:236px 1fr}
+/* Grid to the very top: drop the zero-height .tcp block's 12px margin and
+   the empty intel host's 16px margin (populated intel content self-spaces). */
 #view-schedule .tcp{margin-bottom:0!important}
-/* the host is zero-height when idle but :empty misses whitespace —
-   kill the host margin and let populated intel content space itself */
 #view-schedule .rr-intel-host{margin-bottom:0!important}
 #view-schedule .rr-intel-host > *{margin-bottom:16px}
