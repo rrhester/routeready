@@ -34546,8 +34546,12 @@ window._rrLoadSfRules = function () {
   // at read time so every consumer (engine adapter, CP-SAT payload,
   // manual drag check, Fill Shifts) sees the same number.
   {
-    const days = Number.isFinite(saved.maxDaysOverride)
+    let days = Number.isFinite(saved.maxDaysOverride)
       ? Math.max(1, Math.min(7, saved.maxDaysOverride)) : 5;
+    // The 5th-day allowance adds a day the cap must leave room for —
+    // otherwise a 4-day DSP with 5th Day on derives a 40h cap that
+    // hard-blocks the very overtime shift the policy permits.
+    if (saved.fifth_day_fill === true) days = Math.min(7, days + 1);
     // Effective scheduling settings first (the settings drawer writes
     // scheduling_settings and caches them here), then legacy metadata,
     // then 10h.
