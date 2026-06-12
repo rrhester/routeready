@@ -3316,11 +3316,11 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    modes (compact / ultra / super) already restyle these children,
    so this only paints at normal zoom.
    ============================================================ */
-/* Time range · the dominant text in the chip — the one thing a dispatcher
-   scans for. Reference treatment: dark semibold over the light fill (the
+/* Time range · the first line of the chip. Regular weight (operator
+   2026-06-12: not bold) — the dark ink alone leads the hierarchy (the
    explicit color outranks the chip-wide `* { color }` ink rule). */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
-  font-weight: 600;
+  font-weight: 400;
   font-size: 12px;
   line-height: 1.2;
   letter-spacing: -.005em;
