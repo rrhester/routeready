@@ -1696,6 +1696,54 @@
                     btn.setAttribute("aria-expanded", "false");
                   }
                 }).observe(pop, { attributes: true, attributeFilter: ["hidden"] });
+                // Row furniture (operator 2026-06-12): each option becomes
+                // [label] [subtle info ⓘ] ........ [✓ when selected]. The
+                // explanation that used to live in the hover title moves
+                // to a click-to-reveal line under the row; the checkmark
+                // replaces the legacy active border. Selection still rides
+                // live.js's data-rr-sf-preset delegation untouched —
+                // stopPropagation on the info icon keeps its click from
+                // applying the preset.
+                pop.querySelectorAll(".sf2-presets-row .sf2-preset").forEach(function (b) {
+                  if (b.querySelector(".sf2-preset-label")) return;
+                  var tip = b.getAttribute("title") || "";
+                  b.removeAttribute("title");
+                  var label = document.createElement("span");
+                  label.className = "sf2-preset-label";
+                  label.textContent = (b.textContent || "").trim();
+                  b.textContent = "";
+                  b.appendChild(label);
+                  if (tip) {
+                    var info = document.createElement("span");
+                    info.className = "sf2-preset-info";
+                    info.setAttribute("role", "button");
+                    info.setAttribute("tabindex", "0");
+                    info.setAttribute("aria-label", "What this option does");
+                    info.innerHTML = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg>';
+                    var reveal = function (e) {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      var d = b.nextElementSibling;
+                      if (!d || !d.classList.contains("sf2-preset-desc")) {
+                        d = document.createElement("div");
+                        d.className = "sf2-preset-desc";
+                        d.textContent = tip;
+                        b.insertAdjacentElement("afterend", d);
+                      }
+                      var open = !d.classList.contains("is-open");
+                      pop.querySelectorAll(".sf2-preset-desc.is-open").forEach(function (x) { x.classList.remove("is-open"); });
+                      if (open) d.classList.add("is-open");
+                    };
+                    info.addEventListener("click", reveal);
+                    info.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") reveal(e); });
+                    b.appendChild(info);
+                  }
+                  var chk = document.createElement("span");
+                  chk.className = "sf2-preset-check";
+                  chk.setAttribute("aria-hidden", "true");
+                  chk.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+                  b.appendChild(chk);
+                });
               })();
               on("rr-ab-finalize",  function () { fire("rr-sched-finalize-h"); });
               on("rr-ab-assign", function (e) {
