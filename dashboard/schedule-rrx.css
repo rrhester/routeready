@@ -2397,7 +2397,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    The Smart Fill tile becomes "Forecast" on the Monthly view (the
    _rrSetSmartFillTileMode toggle adds .rr-sf-forecast-mode). Same
    glow/inset "special tile" vibe as Smart Fill, but painted in the
-   actual sidebar steel-blue (--sidebar-bg #205285) with white label +
+   actual sidebar blue (--sidebar-bg) with white label +
    icon so it visibly matches the rail. Higher specificity (base
    selector + the class) so it wins over the purple rest-state above. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode {
@@ -2414,12 +2414,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: rgba(15, 23, 42, 0.06);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg {
-  color: #205285;
+  color: var(--sidebar-bg, #0F6CBD);
 }
 /* Draw the bolt as a solid glyph (the SVG ships fill="none" stroke-only,
    which renders a hollow outline). */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg polygon {
-  fill: #205285;
+  fill: var(--sidebar-bg, #0F6CBD);
 }
 
 /* ── Forecast · progress popover ───────────────────────────────────
@@ -2437,7 +2437,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   max-width: 220px;
   padding: 6px 11px;
   border-radius: 8px;
-  background: #205285;
+  background: var(--sidebar-bg, #0F6CBD);
   color: #FFFFFF;
   font-size: 12px;
   font-weight: 600;
@@ -2455,7 +2455,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   transform: translateX(-50%) rotate(45deg);
   width: 9px;
   height: 9px;
-  background: #205285;
+  background: var(--sidebar-bg, #0F6CBD);
   border-radius: 2px;
 }
 .rr-fc-progress-dot {
@@ -2616,7 +2616,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   bottom: 3px;
   height: 2px;
   border-radius: 2px;
-  background: var(--sidebar-bg, #205285);
+  background: var(--sidebar-bg, #0F6CBD);
 }
 
 /* ============================================================

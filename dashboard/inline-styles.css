@@ -59,8 +59,11 @@
   --sidebar-hover:rgba(255,255,255,.10);
   --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,.04) 100%);
   --sidebar-divider:rgba(255,255,255,0.06);
-  /* Sidebar rail · schedule-card blue family, ~50% darker. */
-  --sidebar-bg:#205285;
+  /* Sidebar rail · brand blue (matches --sidebar / the driver app).
+     Was #205285 (schedule-card family ~50% darker) — operator report
+     2026-06-12: the navy shell read as a cave once the title bar
+     blended into it, so the rail lifted back to the brand blue. */
+  --sidebar-bg:#0F6CBD;
   --sidebar-icon-idle:rgba(255,255,255,0.72);
   --sidebar-icon-hover:rgba(255,255,255,0.95);
   --sidebar-icon-active:#ffffff;
@@ -19535,7 +19538,7 @@ body.rr-cmdk-open{ overflow:hidden }
           bottom: 3px;
           height: 2px;
           border-radius: 2px;
-          background: var(--sidebar-bg, #205285);
+          background: var(--sidebar-bg, #0F6CBD);
         }
 
         /* ── Command/header strip card ──────────────────────────────
@@ -23192,10 +23195,10 @@ body.rr-cmdk-open{ overflow:hidden }
     content:"";position:fixed;top:0;left:0;right:0;
     height:env(titlebar-area-height, 33px);z-index:55;
     -webkit-app-region:drag;app-region:drag;
-    /* Paint the title-bar band the rail navy so the app top reads as one
-       deliberate dark title bar merging with the sidebar (operator
+    /* Paint the title-bar band the rail blue so the app top reads as one
+       deliberate title bar merging with the sidebar (operator
        report: white strip across the top of the desktop app). */
-    background:var(--sidebar-bg,#205285);
+    background:var(--sidebar-bg,#0F6CBD);
   }
 }
 .topbar{-webkit-app-region:no-drag;app-region:no-drag}
