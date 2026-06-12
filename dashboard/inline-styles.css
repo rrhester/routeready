@@ -51,23 +51,22 @@
   --surface-grad:none;
   --surface-hover:rgba(15,23,42,.035);
   --surface-pressed:rgba(15,23,42,.06);
-  /* Sidebar — calendar-material rail (operator request 2026-06-12:
-     "same product as the calendar"). The rail is built from the
-     schedule's own vocabulary: the shift chips' pastel comm-blue tint
-     as the surface, the chips' dark blue (#0F548C) for labels, and
-     the SELECTED item as a solid comm-blue pill — the exact Finalize
-     button treatment. Pastel surface + dark-blue text + solid blue
-     for "the important thing" mirrors the schedule one-for-one. */
-  --sidebar:#E4EEF8;
+  /* Sidebar — quiet premium-SaaS rail (operator request 2026-06-12:
+     "coherent, premium, mature SaaS feel"). The pattern is Stripe /
+     Linear / Notion: the chrome stays silent — page-ground surface,
+     hairline edge, slate-gray type, small light icons — and the brand
+     blue appears ONLY as the selected item's ink (text + icon). No
+     painted slabs or tinted pills; color belongs to the content. */
+  --sidebar:#F7F8FA;
   --sidebar-grad:none;
-  --sidebar-hover:rgba(15,108,189,.10);
-  --sidebar-active:var(--rr-comm-blue);
-  --sidebar-divider:transparent;
-  --sidebar-bg:#E4EEF8;
-  --sidebar-icon-idle:rgba(15,84,140,.78);
-  --sidebar-icon-hover:#0F548C;
-  --sidebar-icon-active:#FFFFFF;
-  --sidebar-active-pill:var(--rr-comm-blue);
+  --sidebar-hover:rgba(15,23,42,.045);
+  --sidebar-active:transparent;
+  --sidebar-divider:rgba(15,23,42,.06);
+  --sidebar-bg:#F7F8FA;
+  --sidebar-icon-idle:#64748B;
+  --sidebar-icon-hover:var(--text);
+  --sidebar-icon-active:var(--rr-comm-blue);
+  --sidebar-active-pill:transparent;
   --sidebar-active-border:transparent;
   /* Fluent communication blue — the driver-app brand blue.  Formerly
      doubled as the sidebar fill; now a standalone token for the
@@ -829,17 +828,17 @@ textarea,
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
-  /* Pastel chip-blue rail — the schedule chips' own tint, so the
-     nav reads as the same material as the calendar. No border: the
-     tint defines its own edge against the white content cards. */
+  /* Quiet rail on the page's own ground, structured by a hairline
+     edge rather than color — same discipline as the content panels. */
   background-color:var(--sidebar-bg);
-  color:#0F548C;
+  color:var(--text);
   display:flex;flex-direction:column;
   padding:var(--s-5) var(--s-3);
   position:sticky;top:0;height:100vh;
+  border-right:1px solid var(--sidebar-divider);
 }
-/* Icons are monoline glyphs driven by currentColor — chip-blue at
-   rest, deeper on hover, white on the solid-blue active pill. */
+/* Icons are monoline glyphs driven by currentColor — slate at rest,
+   ink on hover, brand blue on the selected item. */
 .sidebar .nav-item .nav-icon{color:var(--sidebar-icon-idle)}
 .sidebar .nav-item:hover .nav-icon{color:var(--sidebar-icon-hover)}
 .sidebar .nav-item.active .nav-icon,
@@ -856,11 +855,11 @@ textarea,
   width:30px;height:30px;border-radius:var(--r-md);
   display:flex;align-items:center;justify-content:center;
   overflow:hidden;
-  box-shadow:inset 0 0 0 1px rgba(15,108,189,.15);
+  box-shadow:inset 0 0 0 1px rgba(15,23,42,.08);
 }
 .brand-mark img{width:100%;height:100%;object-fit:cover;display:block}
-.brand-name{font-weight:600;font-size:var(--fs-base);letter-spacing:-.005em;color:#0F548C}
-.brand-name em{font-style:normal;font-weight:400;color:rgba(15,84,140,.65)}
+.brand-name{font-weight:600;font-size:var(--fs-base);letter-spacing:-.005em;color:var(--text)}
+.brand-name em{font-style:normal;font-weight:400;color:var(--text-subtle)}
 
 .nav{display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;overflow-y:auto}
 .nav-item{
@@ -869,8 +868,8 @@ textarea,
   /* Rounded tile language (Linear / Fluent) · a touch more internal
      padding for breathing room. The 1px transparent border reserves
      space so the active tile's edge never shifts the layout. */
-  padding:10px var(--s-3);border-radius:var(--r-md);
-  color:rgba(15,84,140,.85);
+  padding:8px var(--s-3);border-radius:var(--r-md);
+  color:var(--text-muted);
   font-size:var(--fs-md);font-weight:500;letter-spacing:0;
   cursor:pointer;
   transition:background var(--t-smooth), color var(--t-smooth), border-color var(--t-smooth), box-shadow var(--t-smooth);
@@ -878,26 +877,25 @@ textarea,
 }
 .nav-item:hover{
   background:var(--sidebar-hover);
-  color:#0F548C;
+  color:var(--text);
 }
-.nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:#0F548C;box-shadow:inset 0 0 0 1px rgba(15,108,189,.45)}
-/* Active = location state.  A SOLID comm-blue pill with white
-   content — the Finalize-button treatment, so the selected page
-   carries the same "primary" weight the calendar gives its one
-   solid-blue action. */
+.nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text);box-shadow:inset 0 0 0 1px rgba(15,108,189,.40)}
+/* Active = location state, marked by INK not paint (Stripe-style):
+   the item's text + icon take the brand blue, no background pill.
+   The one color in the chrome is the "you are here" signal, which
+   ties straight to the calendar's blue without theming the rail. */
 .nav-item.active{
-  background:var(--sidebar-active-pill);
-  color:#FFFFFF;font-weight:600;
+  background:transparent;
+  color:var(--rr-comm-blue);font-weight:600;
 }
 .nav-item.active .nav-badge{
-  color:var(--rr-comm-blue);background:#fff;
+  color:#fff;background:var(--rr-comm-blue);
 }
 /* Icon strokes — calm operational weight; no glow / drop-shadow.
-   20px monoline glyphs match the content area's icon scale (header
-   buttons, command tabs) so the rail sits in the same density as
-   the page instead of reading icon-forward and heavy. */
+   18px light monoline glyphs beside 13px labels: the refined scale
+   premium navs use, quieter than the content rather than louder. */
 .nav-item svg{
-  width:20px;height:20px;flex-shrink:0;stroke-width:2;
+  width:18px;height:18px;flex-shrink:0;stroke-width:1.75;
   transition:color var(--t-smooth);
 }
 /* Sidebar nav icons are single monochrome line glyphs driven by
@@ -925,13 +923,13 @@ textarea,
   display:inline-flex;align-items:center;justify-content:center;
   width:24px;height:24px;padding:0;border-radius:6px;
   background:transparent;border:0;cursor:pointer;
-  color:rgba(15,84,140,.55);
+  color:var(--text-subtle);
   transition:background var(--t-fast),color var(--t-fast);
 }
 .sidebar-collapse-btn:hover,.sidebar-collapse-btn:focus-visible,
 .sidebar-theme-btn:hover,.sidebar-theme-btn:focus-visible{
-  background:rgba(15,108,189,.10);
-  color:#0F548C;
+  background:rgba(15,23,42,.05);
+  color:var(--text);
   outline:none;
 }
 .sidebar-collapse-btn svg{display:block;transition:transform var(--t-smooth)}
@@ -993,7 +991,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 
 .nav-section-label{
   font-size:var(--fs-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  color:rgba(15,84,140,.60);
+  color:var(--text-subtle);
   padding:var(--s-4) var(--s-3) var(--s-2) var(--s-3);
 }
 
@@ -1007,8 +1005,8 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   display:flex;align-items:center;justify-content:center;
   font-size:var(--fs-xs);font-weight:700;color:var(--text-inverse);
 }
-.workspace-chip-name{font-size:var(--fs-sm);font-weight:600;color:#0F548C;line-height:1.2}
-.workspace-chip-sub{font-size:var(--fs-xs);color:rgba(15,84,140,.65);line-height:1.2;margin-top:2px}
+.workspace-chip-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.2}
+.workspace-chip-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.2;margin-top:2px}
 
 /* Main column */
 .main{display:flex;flex-direction:column;min-width:0;background:transparent}
@@ -23057,22 +23055,22 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Docked tools stack vertically, one icon per row, same column as the
    nav glyphs; the collapse chevron follows underneath them. */
 .sidebar-foot .topbar{flex-direction:column;align-items:flex-start;gap:2px;margin:0}
-/* Saved chip · its own quiet row above the icons, in the rail's
-   chip-blue ink. */
-.sidebar-foot .hdr-saved{color:rgba(15,84,140,.60);margin:0;padding:4px}
-.sidebar-foot .hdr-saved svg{color:rgba(15,84,140,.75)}
+/* Saved chip · its own quiet row above the icons; the green check
+   reads again on the light ground (green = semantic "saved"). */
+.sidebar-foot .hdr-saved{color:var(--text-subtle);margin:0;padding:4px}
 /* Icon-only collapsed rail: no room for the text chip. */
 .sidebar.collapsed .sidebar-foot .hdr-saved{display:none}
-/* Account initials chip · chip-tint treatment to match the rail. */
-.sidebar-foot .hdr-avatar{background:rgba(15,108,189,.15);color:#0F548C}
+/* Account initials chip · quiet neutral, like every other chrome
+   control on the rail. */
+.sidebar-foot .hdr-avatar{background:rgba(15,23,42,.06);color:var(--text-muted)}
 .topbar .rr-qat{display:none}
 /* refresh lives in the account menu — but the PWA install button shares
    the hdr-refresh class, so exempt it (it's the "download the app"
    button, revealed by live.js when the browser allows installing). */
 .topbar .hdr-refresh:not(.hdr-install){display:none}
-.topbar .hdr-install:not([hidden]){display:inline-flex;color:rgba(15,84,140,.78)}
-.topbar .icon-btn{color:rgba(15,84,140,.66);width:28px;height:28px}
-.topbar .icon-btn:hover{color:#0F548C;background:rgba(15,108,189,.10)}
+.topbar .hdr-install:not([hidden]){display:inline-flex;color:var(--text-subtle)}
+.topbar .icon-btn{color:var(--text-subtle);width:28px;height:28px}
+.topbar .icon-btn:hover{color:var(--text);background:rgba(15,23,42,.05)}
 .sidebar.collapsed .sidebar-foot .topbar{align-items:center}
 #popover-account{top:auto!important;bottom:18px!important;left:60px!important;right:auto!important}
 #popover-notif{top:auto!important;bottom:18px!important;left:60px!important;right:auto!important}
@@ -23110,7 +23108,7 @@ body.rr-cmdk-open{ overflow:hidden }
        columns (176px rail / 64px collapsed). */
     --rr-tb-rail-w:176px;
     background:linear-gradient(90deg,
-      var(--sidebar-bg,#E4EEF8) 0 var(--rr-tb-rail-w),
+      var(--sidebar-bg,#F7F8FA) 0 var(--rr-tb-rail-w),
       #F7F8FA var(--rr-tb-rail-w));
   }
   /* Collapsed rail (64px): both signals — the pre-init boot flag on
@@ -23129,9 +23127,8 @@ body.rr-cmdk-open{ overflow:hidden }
    Targets/Smart Fill/Finalize/Unassign/Fleet). The strip's two tile rows
    are hidden; the title + week navigator remain as a slim header.
    ════════════════════════════════════════════════════════════════════ */
-/* Children list — inline under the Schedule parent on the chip-blue
-   rail. Child active = a TINT pill (not solid): solid blue marks the
-   page, tint marks the sub-view, mirroring chip hierarchy. */
+/* Children list — inline under the Schedule parent on the quiet
+   rail. Same ink-not-paint selection language as the parents. */
 .nav-sub{display:none;flex-direction:column;gap:1px;margin:1px 0 6px;padding:0}
 .nav-sub-item{
   display:flex;align-items:center;width:100%;
@@ -23142,12 +23139,12 @@ body.rr-cmdk-open{ overflow:hidden }
      lands the label on the same 32px line. */
   height:30px;padding:0 12px 0 20px;border:0;background:none;cursor:pointer;
   border-radius:8px;font:inherit;font-size:13px;line-height:1;text-align:left;
-  color:rgba(15,84,140,.75);
+  color:var(--text-subtle);
   transition:background-color .12s ease,color .12s ease;
 }
-.nav-sub-item:hover{background:var(--sidebar-hover,rgba(15,108,189,.10));color:#0F548C}
-.nav-sub-item:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(15,108,189,.45)}
-.nav-sub-item.active{background:rgba(15,108,189,.16);color:#0F548C;font-weight:600}
+.nav-sub-item:hover{background:var(--sidebar-hover,rgba(15,23,42,.045));color:var(--text)}
+.nav-sub-item:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(15,108,189,.40)}
+.nav-sub-item.active{background:transparent;color:var(--rr-comm-blue);font-weight:600}
 /* (pip bullets removed — operator request 2026-06-12) */
 
 /* ── Accordion visibility · ONE state (.is-open), ONE rail signal ──────
@@ -23160,16 +23157,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .sidebar.collapsed .nav-sub[data-for="schedule"].is-open{
   display:flex;position:fixed;left:64px;top:84px;width:198px;
   flex-direction:column;gap:1px;margin:0;padding:10px 8px 8px;
-  /* The flyout extends the rail (attached, border-left:0), so it
-     paints the rail's own chip tint — the sub-items keep one styling
-     for both the inline list and this panel. */
-  background:var(--sidebar-bg,#E4EEF8);
-  border:1px solid rgba(15,108,189,.18);border-left:0;border-radius:0 12px 12px 0;
-  box-shadow:10px 6px 28px rgba(2,6,23,.16);z-index:70;
+  /* The flyout is a standard white popover — the same floating-panel
+     language as every other popover in the app. */
+  background:var(--rr-surface,#FFFFFF);
+  border:1px solid var(--border-subtle,rgba(15,23,42,.14));border-left:0;border-radius:0 12px 12px 0;
+  box-shadow:10px 6px 28px rgba(2,6,23,.14);z-index:70;
 }
 .sidebar.collapsed .nav-sub[data-for="schedule"].is-open::before{
   content:"Schedule";display:block;padding:2px 12px 8px;
-  font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(15,84,140,.60);
+  font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-subtle);
 }
 .sidebar.collapsed .nav-sub[data-for="schedule"] .nav-sub-item{padding-left:12px}
 /* Rail above page content so the collapsed flyout isn't trapped/clipped. */
