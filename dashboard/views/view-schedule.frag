@@ -594,21 +594,11 @@
                        after every drawer write so the two views agree. -->
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-preset">Preset</label>
+                      <span class="rr-pol-label">Schedule Type</span>
                       <div class="rr-pol-control">
                         <span class="rr-pol-badge" id="rr-pol-badge" hidden>Custom Policy</span>
-                        <select class="rr-pol-select" id="rr-pol-preset" title="One-click policy bundles — picking one updates the controls below">
-                          <option value="" hidden>Choose…</option>
-                          <option value="balanced">Balanced</option>
-                          <option value="conservative">Conservative</option>
-                          <option value="maximize_coverage">Maximize Coverage</option>
-                          <option value="stick_to_last_week">Stick To Last Week</option>
-                        </select>
+                        <span class="rr-pol-static">Demand Generated</span>
                       </div>
-                    </div>
-                    <div class="rr-pol-row">
-                      <span class="rr-pol-label">Schedule Type</span>
-                      <div class="rr-pol-control"><span class="rr-pol-static">Demand Generated</span></div>
                     </div>
                     <p class="rr-pol-note">Weekly shifts are generated from route demand. Saved week templates can still be applied from the Schedule toolbar.</p>
                   </div>
@@ -643,16 +633,6 @@
                           <option value="45">45 hrs</option>
                           <option value="50">50 hrs</option>
                           <option value="55">55 hrs</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-rest">Minimum Rest</label>
-                      <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-rest">
-                          <option value="8">8 hrs</option>
-                          <option value="10">10 hrs</option>
-                          <option value="12">12 hrs</option>
                         </select>
                       </div>
                     </div>
@@ -697,6 +677,94 @@
                       </div>
                     </div>
                     <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-corrective">Final-Corrective Last</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-corrective" title="Drivers on a Final coaching ladder are scheduled last">
+                          <option value="off">Off</option>
+                          <option value="on">On</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-preferred">Preferred Days</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-preferred" title="Lean toward the days drivers asked for — a soft preference, never a block">
+                          <option value="on">Favor</option>
+                          <option value="off">Ignore</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ── VAN RULES ── van-assignment rules, unchanged wiring:
+                       data-rr-sf-vans / data-rr-van-rule / auto-rescue are
+                       read by the live.js van-assignment heuristic. They
+                       stay out of Staffing Policy proper because they
+                       govern vans, not staffing. -->
+                  <details class="sf2-section rr-pol-bucket sf-zone--vans" data-rr-sf-section="vans">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="sf2-section-titles">
+                        <div class="sf2-section-title">Van Rules</div>
+                        <div class="sf2-section-sub">When &amp; how vans are assigned alongside drivers</div>
+                      </span>
+                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
+                    </div></summary>
+                    <div class="sf2-section-body">
+                      <div class="sf-vans-subzone-label">When to assign</div>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="assign" checked> <span class="sf-rule-name"><strong>Assign vans during Smart Fill</strong> · when off, the van column stays empty for new assignments</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-auto-rescue checked> <span class="sf-rule-name"><strong>Auto-rescue at-risk vans</strong> · run van assignment automatically when FEM flags a van approaching the 14-day rotation rule</span></label>
+                      <div class="sf-vans-subzone-label">Who gets which van</div>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="prefer_paired" checked> <span class="sf-rule-name"><strong>Prefer driver's paired van</strong> · use the standing primary / backup chain when possible</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="primary_chain" checked> <span class="sf-rule-name">Each van's primary driver keeps their van when they're scheduled</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="secondary_chain" checked> <span class="sf-rule-name">When the primary is off, the backup driver takes the van</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="pool_fill" checked> <span class="sf-rule-name">Match remaining drivers with any leftover vans</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="branded_first" checked> <span class="sf-rule-name">Assign branded (Amazon-wrapped) vans first</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="fem_priority" checked> <span class="sf-rule-name">Prioritize branded vans approaching the 14-day rotation rule</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Move a backup driver onto an at-risk van to prevent a VERO defect</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Move a primary driver onto an at-risk van as a last resort</span></label>
+                    </div>
+                  </details>
+
+                  <!-- ── ADVANCED ── the full expert rule sections, collapsed.
+                       These are the original popover zones, untouched — same
+                       ids + data attributes, same delegated handlers. -->
+                  <details class="sf2-section rr-pol-bucket" id="rr-pol-advanced">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="sf2-section-titles">
+                        <div class="sf2-section-title">Advanced</div>
+                        <div class="sf2-section-sub">Presets, rest &amp; targets, license window, custom rules, engine tuning</div>
+                      </span>
+                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
+                    </div></summary>
+                    <div class="rr-pol-bucket-body">
+
+                  <!-- Expert quick-rows (operator 2026-06-12): Preset
+                       bundles, Min Rest, Target Days and Goal were demoted
+                       from the main box — same ids, same rr-pol wiring. -->
+                  <div class="rr-pol-rows" style="padding:0 10px">
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-preset">Preset</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-preset" title="One-click policy bundles — picking one updates the policy controls">
+                          <option value="" hidden>Choose…</option>
+                          <option value="balanced">Balanced</option>
+                          <option value="conservative">Conservative</option>
+                          <option value="maximize_coverage">Maximize Coverage</option>
+                          <option value="stick_to_last_week">Stick To Last Week</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-rest">Minimum Rest</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-rest">
+                          <option value="8">8 hrs</option>
+                          <option value="10">10 hrs</option>
+                          <option value="12">12 hrs</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-target">Target Days Per Driver</label>
                       <div class="rr-pol-control">
                         <select class="rr-pol-select" id="rr-pol-target" title="Aim to keep every driver near this many days a week when spreading work across the roster">
@@ -718,19 +786,6 @@
                       </div>
                     </div>
                   </div>
-
-                  <!-- ── ADVANCED ── the full expert rule sections, collapsed.
-                       These are the original popover zones, untouched — same
-                       ids + data attributes, same delegated handlers. -->
-                  <details class="sf2-section rr-pol-bucket" id="rr-pol-advanced">
-                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Advanced</div>
-                        <div class="sf2-section-sub">License window, same-day policy, lookback, custom rules, engine tuning</div>
-                      </span>
-                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </div></summary>
-                    <div class="rr-pol-bucket-body">
 
                   <!-- ── 1 · WHO CAN WORK ── eligibility. The license/cert/
                        service-type gates are ALWAYS enforced (the engine
@@ -1032,35 +1087,6 @@
                     <button type="button" class="sf-engine-reset" data-rr-sf-preset="reset" title="Clear every saved rule. Equivalent to a fresh install.">Reset all rules…</button>
                   </div>
 
-                    </div>
-                  </details>
-
-                  <!-- ── VAN RULES ── van-assignment rules, unchanged wiring:
-                       data-rr-sf-vans / data-rr-van-rule / auto-rescue are
-                       read by the live.js van-assignment heuristic. They
-                       stay out of Staffing Policy proper because they
-                       govern vans, not staffing. -->
-                  <details class="sf2-section rr-pol-bucket sf-zone--vans" data-rr-sf-section="vans">
-                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Van Rules</div>
-                        <div class="sf2-section-sub">When &amp; how vans are assigned alongside drivers</div>
-                      </span>
-                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </div></summary>
-                    <div class="sf2-section-body">
-                      <div class="sf-vans-subzone-label">When to assign</div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="assign" checked> <span class="sf-rule-name"><strong>Assign vans during Smart Fill</strong> · when off, the van column stays empty for new assignments</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-auto-rescue checked> <span class="sf-rule-name"><strong>Auto-rescue at-risk vans</strong> · run van assignment automatically when FEM flags a van approaching the 14-day rotation rule</span></label>
-                      <div class="sf-vans-subzone-label">Who gets which van</div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="prefer_paired" checked> <span class="sf-rule-name"><strong>Prefer driver's paired van</strong> · use the standing primary / backup chain when possible</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="primary_chain" checked> <span class="sf-rule-name">Each van's primary driver keeps their van when they're scheduled</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="secondary_chain" checked> <span class="sf-rule-name">When the primary is off, the backup driver takes the van</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="pool_fill" checked> <span class="sf-rule-name">Match remaining drivers with any leftover vans</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="branded_first" checked> <span class="sf-rule-name">Assign branded (Amazon-wrapped) vans first</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="fem_priority" checked> <span class="sf-rule-name">Prioritize branded vans approaching the 14-day rotation rule</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Move a backup driver onto an at-risk van to prevent a VERO defect</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Move a primary driver onto an at-risk van as a last resort</span></label>
                     </div>
                   </details>
 
