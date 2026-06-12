@@ -23531,3 +23531,65 @@ body.rr-cmdk-open{ overflow:hidden }
     width:calc(100vw - 32px) !important;
   }
 }
+
+/* ═══ Staffing Policy drawer · plain-list pass (operator 2026-06-12) ═══
+   "Way less cluttered": no cards, no boxes, no subtitles — just text
+   lines with a checkbox or compact input on the right. Scoped to the
+   drawer; the same sf2-* classes keep their card styling elsewhere. */
+
+/* Summary becomes a plain two-line text block. */
+.rr-policy-drawer .rr-pol-summary{
+  border:0;background:transparent;padding:0;
+}
+/* Live-diff strip flattens to a single muted line. */
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-livediff{
+  border:0 !important;background:transparent !important;
+  padding:0 !important;box-shadow:none !important;
+  font-size:11px;color:#8A94A4;
+}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-livediff .sf2-livediff-pulse{display:none}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-livediff-text{font-size:11px;color:#8A94A4}
+
+/* Sections lose the card chrome — they read as text lines with a
+   chevron, exactly like the rows above them. */
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section{
+  border:0;border-radius:0;margin:0;background:transparent;
+}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section + .sf2-section{margin-top:0}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section[open]{box-shadow:none;border:0}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-head-inner{
+  padding:5px 0;min-height:0;gap:6px;
+}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-head:hover .sf2-section-head-inner{
+  background:transparent;
+}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-head:hover .sf2-section-title{color:#2563EB}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-title{font-size:12.5px;font-weight:600;color:#0F172A}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-sub{display:none}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-chev{width:12px;height:12px}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-body{
+  padding:2px 0 6px 12px;border-top:0;
+}
+.rr-policy-drawer .rr-pol-bucket-body{padding:2px 0 4px 12px;gap:2px}
+.rr-policy-drawer .rr-pol-bucket-body .rr-pol-rows{padding:0 !important}
+
+/* Rows: one line of text, control on the right. */
+.rr-policy-drawer .rr-pol-row{min-height:26px;padding:0}
+.rr-policy-drawer .rr-pol-label{font-size:12.5px}
+.rr-policy-drawer .rr-pol-select{
+  height:24px;min-width:0;max-width:160px;padding:0 6px;
+  font-size:12px;border-color:#E2E8F0;
+}
+.rr-policy-drawer .rr-pol-check{
+  width:14px;height:14px;margin:0;accent-color:#2563EB;cursor:pointer;
+}
+.rr-policy-drawer .rr-pol-group-label{
+  border-top:0;margin:6px 0 0;padding-top:4px;
+}
+.rr-policy-drawer .rr-pol-note{margin:0 0 2px}
+
+/* Body breathes less. */
+.rr-policy-drawer #rr-sched-smartfill-rules-body{
+  padding:10px 16px 14px;
+  gap:4px !important;
+}

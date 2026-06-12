@@ -641,12 +641,9 @@
                   <div class="rr-pol-group-label">Extra Days</div>
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-fifth">5th Day Fill</label>
+                      <label class="rr-pol-label" for="rr-pol-fifth">Allow a 5th day when coverage needs it</label>
                       <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-fifth" title="Whether Smart Fill may give opted-in drivers a 5th workday when coverage needs it">
-                          <option value="off">Off</option>
-                          <option value="allow">Allow If Needed</option>
-                        </select>
+                        <input type="checkbox" class="rr-pol-check" id="rr-pol-fifth" title="Opted-in drivers can pick up a 5th workday when coverage needs it">
                       </div>
                     </div>
                   </div>
@@ -677,21 +674,15 @@
                       </div>
                     </div>
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-corrective">Final-Corrective Last</label>
+                      <label class="rr-pol-label" for="rr-pol-corrective">Schedule Final-corrective drivers last</label>
                       <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-corrective" title="Drivers on a Final coaching ladder are scheduled last">
-                          <option value="off">Off</option>
-                          <option value="on">On</option>
-                        </select>
+                        <input type="checkbox" class="rr-pol-check" id="rr-pol-corrective" title="Drivers on a Final coaching ladder are scheduled last">
                       </div>
                     </div>
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-preferred">Preferred Days</label>
+                      <label class="rr-pol-label" for="rr-pol-preferred">Favor drivers' preferred days</label>
                       <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-preferred" title="Lean toward the days drivers asked for — a soft preference, never a block">
-                          <option value="on">Favor</option>
-                          <option value="off">Ignore</option>
-                        </select>
+                        <input type="checkbox" class="rr-pol-check" id="rr-pol-preferred" title="Lean toward the days drivers asked for — a soft preference, never a block">
                       </div>
                     </div>
                   </div>

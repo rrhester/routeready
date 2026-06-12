@@ -33485,7 +33485,7 @@ function _rrPolPaint() {
   _rrPolSelectValue(document.getElementById("rr-pol-cap"), cap);
   _rrPolSelectValue(document.getElementById("rr-pol-rest"), rest);
   const fifthSel = document.getElementById("rr-pol-fifth");
-  if (fifthSel) fifthSel.value = fifth;
+  if (fifthSel) fifthSel.checked = fifth === "allow";
   const stabSel = document.getElementById("rr-pol-stability");
   if (stabSel) stabSel.value = stability;
   const stabNote = document.getElementById("rr-pol-stability-note");
@@ -33493,9 +33493,9 @@ function _rrPolPaint() {
   const attSel = document.getElementById("rr-pol-att");
   if (attSel) attSel.value = att;
   const corrSel = document.getElementById("rr-pol-corrective");
-  if (corrSel) corrSel.value = saved.attendance_penalty === true ? "on" : "off";
+  if (corrSel) corrSel.checked = saved.attendance_penalty === true;
   const prefSel = document.getElementById("rr-pol-preferred");
-  if (prefSel) prefSel.value = saved.preferred_days !== false ? "on" : "off";
+  if (prefSel) prefSel.checked = saved.preferred_days !== false;
   _rrPolSelectValue(document.getElementById("rr-pol-target"), target);
   const goalSel = document.getElementById("rr-pol-goal");
   if (goalSel) {
@@ -33632,7 +33632,7 @@ document.addEventListener("change", (e) => {
       break;
     }
     case "rr-pol-fifth":
-      _rrPolApply((s) => { s.fifth_day_fill = el.value === "allow"; });
+      _rrPolApply((s) => { s.fifth_day_fill = !!el.checked; });
       break;
     case "rr-pol-stability": {
       const spec = _RR_POL_STABILITY[el.value];
@@ -33658,10 +33658,10 @@ document.addEventListener("change", (e) => {
       });
       break;
     case "rr-pol-corrective":
-      _rrPolApply((s) => { s.attendance_penalty = el.value === "on"; });
+      _rrPolApply((s) => { s.attendance_penalty = !!el.checked; });
       break;
     case "rr-pol-preferred":
-      _rrPolApply((s) => { s.preferred_days = el.value === "on"; });
+      _rrPolApply((s) => { s.preferred_days = !!el.checked; });
       break;
     case "rr-pol-target": {
       const n = parseInt(el.value, 10);
