@@ -23229,12 +23229,12 @@ html.rr-sidebar-collapsed-boot .nav-sub:not(.is-open),
    flyout panel beside it with the children; the panel stays open while
    hovered. Expanded-rail behavior is unchanged (inline children).
    ════════════════════════════════════════════════════════════════════ */
-html.rr-sidebar-collapsed-boot .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"],
-html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"]:hover,
-html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"].rr-fly,
-.sidebar.collapsed .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"],
-.sidebar.collapsed .nav-sub[data-for="schedule"]:hover,
-.sidebar.collapsed .nav-sub[data-for="schedule"].rr-fly{
+html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"],
+html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-sub[data-for="schedule"]:hover,
+html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-sub[data-for="schedule"].rr-fly,
+html:not(.rr-rail-expanded) .sidebar.collapsed .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"],
+html:not(.rr-rail-expanded) .sidebar.collapsed .nav-sub[data-for="schedule"]:hover,
+html:not(.rr-rail-expanded) .sidebar.collapsed .nav-sub[data-for="schedule"].rr-fly{
   display:flex!important;
   position:fixed;left:64px;top:84px;width:198px;
   flex-direction:column;gap:1px;margin:0;padding:10px 8px 8px;
@@ -23245,12 +23245,12 @@ html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"].rr-fly,
   z-index:70;
 }
 /* Panel header — the parent's name, like the reference design */
-html.rr-sidebar-collapsed-boot .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"]::before,
-html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"]:hover::before,
-html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"].rr-fly::before,
-.sidebar.collapsed .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"]::before,
-.sidebar.collapsed .nav-sub[data-for="schedule"]:hover::before,
-.sidebar.collapsed .nav-sub[data-for="schedule"].rr-fly::before{
+html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"]::before,
+html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-sub[data-for="schedule"]:hover::before,
+html.rr-sidebar-collapsed-boot:not(.rr-rail-expanded) .nav-sub[data-for="schedule"].rr-fly::before,
+html:not(.rr-rail-expanded) .sidebar.collapsed .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"]::before,
+html:not(.rr-rail-expanded) .sidebar.collapsed .nav-sub[data-for="schedule"]:hover::before,
+html:not(.rr-rail-expanded) .sidebar.collapsed .nav-sub[data-for="schedule"].rr-fly::before{
   content:"Schedule";display:block;padding:2px 12px 8px;
   font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
   color:rgba(255,255,255,.55);
@@ -23265,3 +23265,14 @@ html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"] .nav-sub-item,
    sits at z 20; modals at ≥100) or the fixed flyout paints beneath the
    grid's positioned headers and can't be clicked. */
 .sidebar{z-index:40}
+
+/* ════════════════════════════════════════════════════════════════════
+   Schedule header card removed (operator request 2026-06-12)
+   --------------------------------------------------------------------
+   The last remnant of the command strip — the "Schedule · Live · Week
+   of …" card — goes away entirely; the grid rises into its space. Week
+   navigation lives in the grid header (Today ‹ ›). The Draft/Live pill
+   leaves the page with the card (can be re-homed in the grid header on
+   request).
+   ════════════════════════════════════════════════════════════════════ */
+#view-schedule.rrx-schedule .sched-v2-strip{display:none!important}
