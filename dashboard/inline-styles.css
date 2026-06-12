@@ -23182,3 +23182,38 @@ body.rr-cmdk-open{ overflow:hidden }
   }
 }
 .topbar{-webkit-app-region:no-drag;app-region:no-drag}
+
+/* ════════════════════════════════════════════════════════════════════
+   Parent/child sidebar — Schedule (operator request 2026-06-11)
+   --------------------------------------------------------------------
+   Schedule's command icon strip moves into the sidebar as children under
+   the Schedule parent (Today/Weekly/Monthly/Roster/Attendance/Requests/
+   Targets/Smart Fill/Finalize/Unassign/Fleet). The strip's two tile rows
+   are hidden; the title + week navigator remain as a slim header.
+   ════════════════════════════════════════════════════════════════════ */
+/* Children list, styled for the dark rail */
+.nav-sub{display:none;flex-direction:column;gap:1px;margin:2px 0 6px;padding:0}
+.nav-sub-item{
+  display:flex;align-items:center;gap:9px;width:100%;
+  height:30px;padding:0 12px 0 40px;border:0;background:none;cursor:pointer;
+  border-radius:8px;font:inherit;font-size:13px;line-height:1;text-align:left;
+  color:var(--sidebar-icon-idle,rgba(255,255,255,.72));
+  transition:background-color .12s ease,color .12s ease;
+}
+.nav-sub-item:hover{background:var(--sidebar-hover,rgba(255,255,255,.10));color:var(--text-inverse,#F8FAFC)}
+.nav-sub-item:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(96,165,250,.45)}
+.nav-sub-item.active{background:var(--sidebar-active-pill,rgba(255,255,255,.10));color:var(--text-inverse,#F8FAFC);font-weight:600}
+.nav-sub-item .pip{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5;flex:0 0 auto}
+.nav-sub-item.active .pip{opacity:1;background:#5B9DF9}
+/* Reveal only when Schedule is the active parent */
+.nav-item.active[data-view="schedule"] ~ .nav-sub[data-for="schedule"]{display:flex}
+/* Collapsed icon-rail can't show labels → hide children (both collapse paths) */
+html.rr-sidebar-collapsed-boot .nav-sub,
+.sidebar.collapsed .nav-sub{display:none!important}
+/* Remove the Schedule icon strip's command tiles; keep the title block
+   + week navigator (neither is a .sched-v2-split). Every command tile
+   lives in a .sched-v2-split — some inside .sched-v2-viewgroup wrappers,
+   some bare between them — so hide both. ID specificity matches the
+   schedule-rrx.css rules. */
+#view-schedule.rrx-schedule .sched-v2-split,
+#view-schedule.rrx-schedule .sched-v2-viewgroup{display:none!important}
