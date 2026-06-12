@@ -34033,6 +34033,20 @@ window._rrLoadSfRules = function () {
   saved.pto_block = true;
   saved.availability = true;
   saved.pto_counts_toward_cap = true;
+  // Hard consecutive-days ceiling (operator 2026-06-12) · set from the
+  // Smart Fill dropdown's Settings panel (4 / 5 / 6 days). When present
+  // it is a HARD constraint: WOC is forced on and the max-consecutive-
+  // days value is pinned HERE, at read time — so presets, the advanced
+  // panel, Reset all, or a stale saved blob can never loosen it. Every
+  // consumer (engine adapter, manual drag check, Fill Shifts) reads
+  // through this normalizer.
+  try {
+    const hardConsec = parseInt(localStorage.getItem("rr-sf-consec-days-hard"), 10);
+    if (hardConsec === 4 || hardConsec === 5 || hardConsec === 6) {
+      saved.woc = true;
+      saved.woc_max_consecutive_days = hardConsec;
+    }
+  } catch (_) { /* localStorage unavailable → no pin */ }
   return saved;
 };
 // WOC (Working Hours Compliance) config from the Smart Fill rules store —

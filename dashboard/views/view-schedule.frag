@@ -557,10 +557,26 @@
                       <button type="button" class="sf2-preset" data-rr-sf-preset="conservative" title="Tighter buffers on top of the hard rules: WOC cap 5 consecutive days (vs 6), 7-day license-expiry warning, no 5th-day overtime, no enhancement passes. Hard rules are always enforced regardless of preset.">Conservative</button>
                       <button type="button" class="sf2-preset" data-rr-sf-preset="balanced" title="The historical defaults — what Smart Fill ships with out of the box.">Balanced</button>
                       <button type="button" class="sf2-preset sf2-preset-secondary" data-rr-sf-preset="reset" title="Clear every saved rule. Equivalent to a fresh install.">Reset all</button>
-                      <!-- Settings · expands the full rule details. The
+                      <!-- Settings · opens the scheduling-limits panel
+                           below (hard consecutive-days ceiling). The
                            popover opens compact (presets-only) — see the
                            rr-sf-compact wiring in the action-bar script. -->
-                      <button type="button" class="sf2-preset sf2-preset-secondary" id="rr-sf-settings-btn" title="Show every Smart Fill rule detail" aria-expanded="false">Settings</button>
+                      <button type="button" class="sf2-preset sf2-preset-secondary" id="rr-sf-settings-btn" title="Set the hard consecutive-days ceiling Smart Fill must honor" aria-expanded="false">Settings</button>
+                    </div>
+                    <!-- Settings panel · opened by the Settings row. The
+                         picked value persists in
+                         localStorage('rr-sf-consec-days-hard') and is
+                         pinned as a HARD constraint inside
+                         _rrLoadSfRules (live.js) — nothing can override
+                         it. Clicking the selected box again clears it. -->
+                    <div class="sf2-consec-panel" id="rr-sf-consec-panel" hidden>
+                      <div class="sf2-consec-label">Consecutive Days Allowed</div>
+                      <div class="sf2-consec-row">
+                        <button type="button" class="sf2-consec-opt" data-rr-consec="4">4 days</button>
+                        <button type="button" class="sf2-consec-opt" data-rr-consec="5">5 days</button>
+                        <button type="button" class="sf2-consec-opt" data-rr-consec="6">6 days</button>
+                      </div>
+                      <button type="button" class="sf2-consec-all" id="rr-sf-consec-all">All settings…</button>
                     </div>
                     <div class="sf2-presets-foot">
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -1685,15 +1701,47 @@
                 if (!pop || !btn || pop.dataset.rrCompactWired) return;
                 pop.dataset.rrCompactWired = "1";
                 pop.classList.add("rr-sf-compact");
+                // Settings → the small scheduling-limits panel right under
+                // the row (operator 2026-06-12). The full detail sections
+                // moved behind the panel's "All settings…" link.
+                var panel = document.getElementById("rr-sf-consec-panel");
+                var CONSEC_KEY = "rr-sf-consec-days-hard";
+                function syncConsec() {
+                  if (!panel) return;
+                  var cur = null;
+                  try { cur = parseInt(localStorage.getItem(CONSEC_KEY), 10); } catch (_) {}
+                  panel.querySelectorAll(".sf2-consec-opt").forEach(function (o) {
+                    o.classList.toggle("active", parseInt(o.getAttribute("data-rr-consec"), 10) === cur);
+                  });
+                }
                 btn.addEventListener("click", function (e) {
                   e.stopPropagation();
-                  var compact = pop.classList.toggle("rr-sf-compact");
-                  btn.setAttribute("aria-expanded", compact ? "false" : "true");
+                  if (!panel) return;
+                  panel.hidden = !panel.hidden;
+                  btn.setAttribute("aria-expanded", panel.hidden ? "false" : "true");
+                  if (!panel.hidden) syncConsec();
+                });
+                if (panel) panel.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  var all = e.target.closest("#rr-sf-consec-all");
+                  if (all) { pop.classList.remove("rr-sf-compact"); return; }
+                  var opt = e.target.closest(".sf2-consec-opt");
+                  if (!opt) return;
+                  var v = parseInt(opt.getAttribute("data-rr-consec"), 10);
+                  var cur = null;
+                  try { cur = parseInt(localStorage.getItem(CONSEC_KEY), 10); } catch (_) {}
+                  try {
+                    if (cur === v) localStorage.removeItem(CONSEC_KEY); // click again = clear
+                    else localStorage.setItem(CONSEC_KEY, String(v));
+                  } catch (_) {}
+                  syncConsec();
                 });
                 new MutationObserver(function () {
                   if (!pop.hidden) {
                     pop.classList.add("rr-sf-compact");
                     btn.setAttribute("aria-expanded", "false");
+                    if (panel) panel.hidden = true;
+                    syncConsec();
                   }
                 }).observe(pop, { attributes: true, attributeFilter: ["hidden"] });
                 // Row furniture (operator 2026-06-12): each option becomes
