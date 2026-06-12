@@ -165,17 +165,21 @@
                         // stay on-brand with the dashboard so no DSP can
                         // choose a clashing neon. Every route shows this
                         // same set; default per-route picks one of these.
+                        // Muted rainbow (operator 2026-06-12): every hue
+                        // offered is the soft, desaturated version that sits
+                        // naturally next to the standard soft-blue card —
+                        // distinct hues, one calm lightness family.
                         var PALETTE = [
-                          { name: "Crimson",  hex: "#DC2626" },
-                          { name: "Orange",   hex: "#EA580C" },
-                          { name: "Olive",    hex: "#986F0B" },
-                          { name: "Forest",   hex: "#65A30D" },
-                          { name: "Teal",     hex: "#0D9488" },
-                          { name: "Blue",     hex: "var(--accent)" },
-                          { name: "Royal",    hex: "#7C3AED" },
-                          { name: "Magenta",  hex: "#881798" },
-                          { name: "Berry",    hex: "#DB2777" },
-                          { name: "Slate",    hex: "#6B7280" },
+                          { name: "Red",     hex: "#EFCECD" },
+                          { name: "Orange",  hex: "#EFDCCD" },
+                          { name: "Amber",   hex: "#EFE6CD" },
+                          { name: "Green",   hex: "#DBEFCD" },
+                          { name: "Teal",    hex: "#CDEFE6" },
+                          { name: "Blue",    hex: "#CDDAEF" },
+                          { name: "Violet",  hex: "#D7CDEF" },
+                          { name: "Magenta", hex: "#EFCDEF" },
+                          { name: "Berry",   hex: "#EFCDDB" },
+                          { name: "Slate",   hex: "#D6DAE0" },
                         ];
                         // Defaults map each route to one palette entry so
                         // first-time DSPs see a sensible default. These
@@ -185,14 +189,14 @@
                         // the catch-all; the legacy reduction / cycle_1 /
                         // cycle_2 / backup types were retired from the picker.
                         var DEFAULTS = {
-                          rescue:         "#DC2626",
-                          nursery:        "#0D9488",
-                          other:          "#6B7280",
-                          class_training: "#0D9488",
-                          road_training:  "#EA580C",
-                          pto:            "#EA580C",
-                          xl:             "#EA580C",
-                          trainer_trainee:"#65A30D",
+                          rescue:         "#EFCECD",
+                          nursery:        "#CDEFE6",
+                          other:          "#D6DAE0",
+                          class_training: "#CDEFE6",
+                          road_training:  "#EFDCCD",
+                          pto:            "#EFDCCD",
+                          xl:             "#EFDCCD",
+                          trainer_trainee:"#DBEFCD",
                         };
                         function loadHex() {
                           // Account (dsps.metadata.route_colors) wins so the
