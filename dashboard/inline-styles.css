@@ -23622,18 +23622,102 @@ body.rr-cmdk-open{ overflow:hidden }
    a two-column grid — text takes the left column, the control column
    is a fixed 150px so the controls all line up. Selects fill the
    column; checkboxes sit at its left edge. */
-.rr-policy-drawer .rr-pol-row{
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-row{
   display:grid !important;
-  grid-template-columns:minmax(0,1fr) 150px;
-  align-items:center;
-  column-gap:10px;
+  grid-template-columns:minmax(0,1fr) 165px !important;
+  align-items:center !important;
+  column-gap:10px !important;
+  width:100% !important;
 }
-.rr-policy-drawer .rr-pol-control{
-  display:flex;
-  justify-content:flex-start;
-  align-items:center;
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-control{
+  display:flex !important;
+  justify-content:flex-start !important;
+  align-items:center !important;
+  margin:0 !important;
+  padding:0 !important;
 }
-.rr-policy-drawer .rr-pol-select{
-  width:100%;
-  max-width:none;
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-select{
+  width:100% !important;
+  max-width:none !important;
+  min-width:0 !important;
+}
+/* The rr-pol-rows wrappers must be full-width blocks so every row's
+   165px control column lands on the exact same vertical line. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-rows{
+  display:block !important;
+  width:100% !important;
+  padding:0 !important;
+}
+
+/* ═══ Policy rule info icons + popup (operator 2026-06-12) ═══════════ */
+.rr-pol-info{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;margin-left:4px;padding:0;
+  border:0;border-radius:50%;background:transparent;
+  color:#94A3B8;opacity:.45;cursor:pointer;vertical-align:-2px;
+  transition:opacity .12s ease;
+}
+.rr-pol-info:hover,.rr-pol-info:focus-visible{opacity:1;outline:none}
+.rr-pol-info svg{width:12px;height:12px;display:block}
+#rr-pol-info-pop{
+  position:fixed;z-index:1002;
+  max-width:260px;padding:7px 10px;
+  background:#FFFFFF;border:1px solid var(--sidebar-bg,#0F172A);
+  border-radius:8px;box-shadow:0 8px 24px rgba(15,23,42,.16);
+  font-size:11.5px;line-height:1.5;color:#334155;
+}
+
+/* ═══ Smart Fill Rules header (operator 2026-06-12) ═════════════════
+   Slim navy band matching the sidebar — title + X only. Double-id
+   selector outranks the legacy quiet-white head rules. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-head{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:10px !important;
+  padding:8px 12px !important;
+  background:var(--sidebar-bg, #0F172A) !important;
+  border-bottom:0 !important;
+  border-radius:8px 8px 0 0 !important;
+  flex:0 0 auto;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-title{
+  font-size:12.5px;font-weight:600;letter-spacing:.02em;color:#FFFFFF;line-height:1.2;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-close{
+  color:rgba(255,255,255,.75);
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-close:hover{
+  background:rgba(255,255,255,.14);color:#FFFFFF;
+}
+
+/* ═══ Section rows match the policy rows (operator 2026-06-12) ═══════
+   "Who can work / Limits & compliance / Preferences / Custom rules /
+   Engine tuning" (and the top-level section rows) render exactly like
+   the rule rows: same type, same 26px height, chevron sitting on the
+   same plumb line as the controls. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-section-head-inner{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) 165px !important;
+  column-gap:10px !important;
+  align-items:center !important;
+  padding:0 !important;
+  min-height:26px !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-section-titles{
+  grid-column:1;grid-row:1;min-width:0;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-adhoc-count-pill{
+  grid-column:1;grid-row:1;justify-self:end;margin-right:0 !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-section-chev{
+  grid-column:2;grid-row:1;justify-self:start;
+  width:12px;height:12px;
+}
+/* No hierarchy indent — nested section rows line up with the rule rows. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-bucket-body{
+  padding:2px 0 4px !important;gap:2px;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-section-body{
+  padding:2px 0 6px !important;border-top:0 !important;
 }

@@ -545,13 +545,10 @@
                    full expert controls live under Advanced / Van Rules.
                    State persists in localStorage per browser and is
                    synced to dsps.metadata.staffing_policy on Save. -->
-              <div class="sched-smartfill-rules-popover rr-policy-drawer" id="rr-sched-smartfill-rules-popover" role="dialog" aria-modal="false" aria-label="Staffing Policy" hidden>
+              <div class="sched-smartfill-rules-popover rr-policy-drawer" id="rr-sched-smartfill-rules-popover" role="dialog" aria-modal="false" aria-label="Smart Fill Rules" hidden>
                 <div class="sched-smartfill-rules-head rr-pol-head">
-                  <div class="rr-pol-head-text">
-                    <div class="rr-pol-title">Staffing Policy</div>
-                    <div class="rr-pol-subtitle">Rules used by Smart Fill when building schedules.</div>
-                  </div>
-                  <button type="button" class="rr-pol-close" id="rr-pol-close" aria-label="Close Staffing Policy">
+                  <div class="rr-pol-title">Smart Fill Rules</div>
+                  <button type="button" class="rr-pol-close" id="rr-pol-close" aria-label="Close Smart Fill Rules">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
@@ -568,7 +565,7 @@
                        _restoreSmartFillRules after every write. -->
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-consec">Max Consecutive Days</label>
+                      <label class="rr-pol-label" for="rr-pol-consec">Max Consecutive Days <button type="button" class="rr-pol-info" data-rr-pol-info="Hard ceiling — Smart Fill never schedules a driver more than this many days in a row. Rolling count, so it catches streaks across week boundaries; a day off or approved PTO resets it." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
                         <select class="rr-pol-select" id="rr-pol-consec" title="Hard ceiling — Smart Fill never schedules a driver past this many days in a row">
                           <option value="4">4 days</option>
@@ -578,7 +575,7 @@
                       </div>
                     </div>
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-maxdays">Max Days Per Week</label>
+                      <label class="rr-pol-label" for="rr-pol-maxdays">Max Days Per Week <button type="button" class="rr-pol-info" data-rr-pol-info="How many days a driver can be scheduled in a week. This also sets the weekly hour budget — days × your default block hours." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
                         <select class="rr-pol-select" id="rr-pol-maxdays">
                           <option value="4">4 days</option>
@@ -587,14 +584,16 @@
                         </select>
                       </div>
                     </div>
+                  </div>
+
+                  <div class="rr-pol-rows">
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-cap">Weekly Hour Cap</label>
+                      <label class="rr-pol-label" for="rr-pol-fifth">5th Day <button type="button" class="rr-pol-info" data-rr-pol-info="Off: never. Allow If Needed: drivers who opted in on the availability tool can pick up a 5th day when coverage needs it. Required: Smart Fill aims to give every eligible driver a 5th day — common for DSPs that run 5-day weeks." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-cap">
-                          <option value="40">40 hrs</option>
-                          <option value="45">45 hrs</option>
-                          <option value="50">50 hrs</option>
-                          <option value="55">55 hrs</option>
+                        <select class="rr-pol-select" id="rr-pol-fifth" title="Off: never. Allow If Needed: drivers who opted in via the availability tool can pick up a 5th day when coverage needs it. Required: Smart Fill schedules a 5th day for every eligible driver.">
+                          <option value="off">Off</option>
+                          <option value="allow">Allow If Needed</option>
+                          <option value="require">Required</option>
                         </select>
                       </div>
                     </div>
@@ -602,27 +601,7 @@
 
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-fifth">Allow a 5th day when coverage needs it</label>
-                      <div class="rr-pol-control">
-                        <input type="checkbox" class="rr-pol-check" id="rr-pol-fifth" title="Opted-in drivers can pick up a 5th workday when coverage needs it">
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="rr-pol-rows">
-                    <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-stability">Schedule Stability</label>
-                      <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-stability" title="How strongly RouteReady keeps drivers on their normal schedules">
-                          <option value="lock">Lock Existing</option>
-                          <option value="strong">Strong</option>
-                          <option value="moderate">Moderate</option>
-                          <option value="flexible">Flexible</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-att">Attendance</label>
+                      <label class="rr-pol-label" for="rr-pol-att">Attendance <button type="button" class="rr-pol-info" data-rr-pol-info="After the hard rules pass, drivers with better attendance get picked first. Scoring only — it never blocks anyone." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
                         <select class="rr-pol-select" id="rr-pol-att" title="How strongly attendance history influences driver selection when multiple drivers qualify — a scoring preference, not a hard rule">
                           <option value="off">Ignore</option>
@@ -633,13 +612,13 @@
                       </div>
                     </div>
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-corrective">Schedule Final-corrective drivers last</label>
+                      <label class="rr-pol-label" for="rr-pol-corrective">Schedule Final-corrective drivers last <button type="button" class="rr-pol-info" data-rr-pol-info="Drivers on a Final coaching ladder go to the back of the line when Smart Fill chooses between eligible drivers." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
                         <input type="checkbox" class="rr-pol-check" id="rr-pol-corrective" title="Drivers on a Final coaching ladder are scheduled last">
                       </div>
                     </div>
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-preferred">Favor drivers' preferred days</label>
+                      <label class="rr-pol-label" for="rr-pol-preferred">Favor drivers' preferred days <button type="button" class="rr-pol-info" data-rr-pol-info="Lean toward the days drivers asked for. A soft preference — it never blocks an assignment." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
                         <input type="checkbox" class="rr-pol-check" id="rr-pol-preferred" title="Lean toward the days drivers asked for — a soft preference, never a block">
                       </div>
@@ -664,7 +643,7 @@
                        from the main box — same ids, same rr-pol wiring. -->
                   <div class="rr-pol-rows" style="padding:0 10px">
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-preset">Preset</label>
+                      <label class="rr-pol-label" for="rr-pol-preset">Preset <button type="button" class="rr-pol-info" data-rr-pol-info="One-click rule bundles. Picking one updates the controls; you can still adjust anything afterward." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
                         <select class="rr-pol-select" id="rr-pol-preset" title="One-click policy bundles — picking one updates the policy controls">
                           <option value="" hidden>Choose…</option>
@@ -676,7 +655,7 @@
                       </div>
                     </div>
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-rest">Minimum Rest</label>
+                      <label class="rr-pol-label" for="rr-pol-rest">Minimum Rest <button type="button" class="rr-pol-info" data-rr-pol-info="Minimum hours between the end of one shift and the start of the next." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
                         <select class="rr-pol-select" id="rr-pol-rest">
                           <option value="8">8 hrs</option>
@@ -686,23 +665,13 @@
                       </div>
                     </div>
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-target">Target Days Per Driver</label>
+                      <label class="rr-pol-label" for="rr-pol-stability">Schedule Stability <button type="button" class="rr-pol-info" data-rr-pol-info="How strongly Smart Fill keeps drivers on their usual days. Lock Existing only fills open shifts; Flexible optimizes coverage first. Pinned shifts always stay put regardless." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-target" title="Aim to keep every driver near this many days a week when spreading work across the roster">
-                          <option value="3">3 days</option>
-                          <option value="4">4 days</option>
-                          <option value="5">5 days</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-goal">Goal</label>
-                      <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-goal" title="What Smart Fill optimizes for — translated into the engine's objective weights">
-                          <option value="balanced">Balanced</option>
-                          <option value="coverage">Coverage First</option>
-                          <option value="cost">Cost First</option>
-                          <option value="consistency">Consistency First</option>
+                        <select class="rr-pol-select" id="rr-pol-stability" title="How strongly RouteReady keeps drivers on their normal schedules">
+                          <option value="lock">Lock Existing</option>
+                          <option value="strong">Strong</option>
+                          <option value="moderate">Moderate</option>
+                          <option value="flexible">Flexible</option>
                         </select>
                       </div>
                     </div>
@@ -766,14 +735,6 @@
                       </div>
                       <div class="sf2-group-label">Days &amp; hours caps</div>
                       <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-target-days">Target days per driver</label>
-                        <div class="sf2-row-control">
-                          <input type="number" class="sf2-number" id="rr-sf-target-days" min="0" max="7" step="1" value="4" data-rr-sf-num="target_days_per_week">
-                          <span style="font-size:11px;color:#6B7280">days/week (soft)</span>
-                        </div>
-                        <p class="sf2-row-help">Aim to keep every driver at or below this many days a week. Engine scores against placements past this number, so other drivers fill first. The engine still goes over the target when coverage demands it (the OT escape hatch). 0 disables. Default 4 — fits a 4-day, 10-hour-shift week before OT.</p>
-                      </div>
-                      <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-max-days-window">Max days window</label>
                         <div class="sf2-row-control">
                           <div id="rr-sf-max-days-window" class="sf2-seg" role="radiogroup" aria-label="Max days window" data-rr-sf-select="max_days_window">
@@ -809,13 +770,6 @@
                           <span style="font-size:11px;color:#6B7280">days in a row</span>
                         </div>
                         <p class="sf2-row-help">Day after this run is blocked — rolling, not weekly. A driver who works Wed–Mon (6 days across two calendar weeks) is blocked on the 7th. A day off, approved PTO, or a time-off request <strong>resets</strong> the streak — only worked days count consecutively.</p>
-                      </div>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-set-woc-max-hours">Weekly hour cap</label>
-                        <div class="sf2-row-control">
-                          <input type="number" class="sf2-number" id="rr-set-woc-max-hours" min="1" max="168" step="1" value="40">
-                          <span style="font-size:11px;color:#6B7280">hours</span>
-                        </div>
                       </div>
                       <div class="sf2-group-label">Same-day shifts</div>
                       <div class="sf2-row">
@@ -984,14 +938,6 @@
                               <button type="button" class="sf2-seg-btn is-active" data-val="5" role="radio" aria-checked="true">5</button>
                               <button type="button" class="sf2-seg-btn" data-val="6" role="radio" aria-checked="false">6</button>
                               <button type="button" class="sf2-seg-btn" data-val="7" role="radio" aria-checked="false">7</button>
-                            </div>
-                          </div>
-                          <div class="sf-engine-budget-row">
-                            <span class="sf-engine-budget-label">Weekly hour cap</span>
-                            <div class="sf2-seg" id="rr-sf-weekly-hour-cap" role="radiogroup" aria-label="Weekly hour cap" data-rr-sf-budget="weeklyHourCap">
-                              <button type="button" class="sf2-seg-btn is-active" data-val="40" role="radio" aria-checked="true">40 hours</button>
-                              <button type="button" class="sf2-seg-btn" data-val="45" role="radio" aria-checked="false">45 hours</button>
-                              <button type="button" class="sf2-seg-btn" data-val="50" role="radio" aria-checked="false">50 hours</button>
                             </div>
                           </div>
                         </div>
