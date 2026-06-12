@@ -32789,7 +32789,10 @@ function _rrSfVansRead(saved) {
 }
 function _restoreSfVans(saved) {
   const vals = _rrSfVansRead(saved);
-  document.querySelectorAll("#rr-sched-smartfill-rules-body [data-rr-sf-vans]").forEach((el) => {
+  // Dual scope: these checkboxes moved to the Assign Fleet dropdown
+  // (#rr-sched-vans-rules-popover); the policy-box scope is kept so a
+  // stale frag can't strand them unwired.
+  document.querySelectorAll("#rr-sched-smartfill-rules-body [data-rr-sf-vans], #rr-sched-vans-rules-popover [data-rr-sf-vans]").forEach((el) => {
     const k = el.getAttribute("data-rr-sf-vans");
     el.checked = !!vals[k];
     if (k === "type_match" || k === "skip_inactive") el.disabled = true;
@@ -32802,7 +32805,7 @@ function _restoreSfVans(saved) {
 // stay in sync.
 document.addEventListener("change", (e) => {
   const el = e.target && e.target.closest && e.target.closest(
-    "#rr-sched-smartfill-rules-body [data-rr-sf-vans]");
+    "#rr-sched-smartfill-rules-body [data-rr-sf-vans], #rr-sched-vans-rules-popover [data-rr-sf-vans]");
   if (!el) return;
   const key = el.getAttribute("data-rr-sf-vans");
   if (key === "type_match" || key === "skip_inactive") {
@@ -32830,7 +32833,7 @@ document.addEventListener("change", (e) => {
   const el = e.target && e.target.closest && e.target.closest(
     '#rr-sched-smartfill-rules-body [data-rr-sf-ds="van_pairings"]');
   if (!el) return;
-  const twin = document.querySelector('#rr-sched-smartfill-rules-body [data-rr-sf-vans="prefer_paired"]');
+  const twin = document.querySelector('#rr-sched-smartfill-rules-body [data-rr-sf-vans="prefer_paired"], #rr-sched-vans-rules-popover [data-rr-sf-vans="prefer_paired"]');
   if (twin) twin.checked = !!el.checked;
 });
 
@@ -34683,7 +34686,7 @@ function _toggleSchedSmartFillRules(force) {
 // at a glance that none of them apply.
 function _rrApplyVansMasterGate() {
   const master = document.querySelector('input[data-rr-sf-vans="assign"]');
-  const zone   = document.querySelector('#rr-sched-smartfill-rules-body .sf-zone--vans');
+  const zone   = document.querySelector('#rr-sched-smartfill-rules-body .sf-zone--vans, #rr-sched-vans-rules-popover .sf-zone--vans');
   if (!master || !zone) return;
   zone.classList.toggle('is-vans-off', !master.checked);
 }
@@ -34755,10 +34758,33 @@ function _toggleSchedVanRules(force) {
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next) {
     _restoreSchedVanRules();
+    // The Smart Fill van switches (assign / prefer_paired) + the FEM
+    // auto-rescue toggle live in this dropdown now — restore them and
+    // re-apply the master dimming gate on every open.
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+    catch (_) { saved = {}; }
+    _restoreSfVans(saved && typeof saved === "object" ? saved : {});
+    try {
+      const auto = localStorage.getItem(_RR_VAN_AUTO_RESCUE_KEY);
+      const cb = document.querySelector("[data-rr-van-auto-rescue]");
+      if (cb) cb.checked = auto === null ? true : auto === "1";
+    } catch (_) {}
+    _rrApplyVansMasterGate();
   }
   return next;
 }
 window._rrToggleSchedVanRules = _toggleSchedVanRules;
+
+// Footer link inside the Van rules dropdown → the full van / driver
+// chain editor sub-view (the caret used to open it directly).
+document.addEventListener("click", (e) => {
+  if (!e.target.closest || !e.target.closest("#rr-van-rules-chain-link")) return;
+  e.preventDefault();
+  _toggleSchedVanRules(false);
+  if (typeof _activateSchedSub === "function") _activateSchedSub("vans-chain");
+  if (typeof renderSchedVanAssignmentsBoard === "function") renderSchedVanAssignmentsBoard();
+});
 
 // Twin of the van-rules popover, anchored under the Fleet page's
 // "Fleet assignment" ribbon tile. Shares the localStorage state with
