@@ -23198,12 +23198,15 @@ body.rr-cmdk-open{ overflow:hidden }
     /* Two-tone title-bar band (operator request 2026-06-12: a full-width
        dark band made the top feel closed off). Rail blue only above the
        sidebar — so the rail reads as running to the very top of the
-       window — and page canvas above the content. Width tracks the .app
-       grid columns (212px rail / 64px collapsed, see .app rules). */
+       window — and the page ground above the content. #F7F8FA is the
+       unified neutral canvas (Schedule/Onboarding/Fleet grounds + the
+       topbar — keep in sync; NOT --canvas #FEFEFF, which read as a
+       slightly-off lighter stripe — operator report 2026-06-12). Width
+       tracks the .app grid columns (212px rail / 64px collapsed). */
     --rr-tb-rail-w:212px;
     background:linear-gradient(90deg,
       var(--sidebar-bg,#0F6CBD) 0 var(--rr-tb-rail-w),
-      var(--canvas,#FEFEFF) var(--rr-tb-rail-w));
+      #F7F8FA var(--rr-tb-rail-w));
   }
   /* Collapsed rail (64px): both signals — the pre-init boot flag on
      <html> (localStorage echo, see index.html) and the post-init
