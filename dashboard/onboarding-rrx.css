@@ -32,10 +32,10 @@
 
 #view-onboarding-ops.rrx-onboarding {
   /* Match the Schedule page's canvas exactly. Schedule's ground is a
-     neutral near-white (#F7F8FA — see the modernization note in
+     neutral near-white (#F9FAFB — see the modernization note in
      schedule-rrx.css), so mirror that literal value here instead of
      --canvas. */
-  background: #F7F8FA;
+  background: #F9FAFB;
   font-family: var(--rr-font-family);
   color: var(--rr-fg-primary);
 }
@@ -87,7 +87,7 @@
    #rr-sched-kpis before pills populate it. */
 #view-onboarding-ops.rrx-onboarding > .page > .tcp-kpi {
   margin: 0 0 var(--tcp-kpi-gap, 8px) 0;
-  border: 1px solid var(--rr-border-primary, #E1DFDD);
+  border: 1px solid var(--rr-border-primary, #E5E7EB);
   border-radius: var(--rr-radius-medium, 4px);
   background: var(--rr-bg-surface-1, #FFFFFF);
   box-sizing: border-box;
@@ -393,7 +393,7 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: .01em;
-  color: #242424;
+  color: #111827;
   pointer-events: none;
   white-space: nowrap;
 }
@@ -414,7 +414,7 @@
   background: transparent;
   border: 0;
   border-radius: 999px;
-  color: #242424;
+  color: #111827;
   opacity: 0.85;
   z-index: 1;
   transition: opacity 120ms ease-out, background 120ms ease-out, color 120ms ease-out;
@@ -435,7 +435,7 @@
   cursor: default;
 }
 #view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher[data-rr-rules-stub]:hover {
-  color: #242424;
+  color: #111827;
   background: transparent;
 }
 #view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher svg {
@@ -459,7 +459,7 @@
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot[data-rr-rules-stub]:hover,
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot[data-rr-rules-stub]:focus-visible {
   background: transparent !important;
-  color: var(--rr-fg-tertiary, #605E5C) !important;
+  color: var(--rr-fg-tertiary, #6B7280) !important;
 }
 
 /* ── Ribbon tiles (subnav-item) — Fleet Bridge vertical tile,
@@ -585,7 +585,7 @@
 /* ── Roster ribbon · match the Schedule ribbon icons + no blue ──────────
    The rules above style the whole onboarding strip at 33px with a
    brand-blue active tile. The operator wants the ROSTER strip specifically
-   to mirror the Schedule ribbon — 28px, Fluent grey #605E5C, 1.6 stroke,
+   to mirror the Schedule ribbon — 28px, Fluent grey #6B7280, 1.6 stroke,
    very square (square caps + miter joins) — and the active tile to carry
    NO blue highlight. Scoped to .ob-v2-roster-actions so the Onboarding
    strip keeps its own treatment; placed after the rules above so it wins
@@ -849,7 +849,7 @@
   color: var(--rr-brand-pressed) !important;
   padding: var(--rr-space-120) var(--rr-space-160) !important;
   border: 0 !important;
-  border-bottom: 1px solid rgba(0, 120, 212, 0.20) !important;
+  border-bottom: 1px solid rgba(37,99,235, 0.20) !important;
   border-top-left-radius: var(--rr-radius-large) !important;
   border-top-right-radius: var(--rr-radius-large) !important;
   margin: 0 !important;
@@ -889,7 +889,7 @@
 #view-onboarding-ops.rrx-onboarding .ob-rules-popover {
   scrollbar-gutter: stable !important;
   scrollbar-width: auto !important;
-  scrollbar-color: #8A8886 var(--rr-bg-surface-2) !important;
+  scrollbar-color: #9CA3AF var(--rr-bg-surface-2) !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-rules-popover::-webkit-scrollbar {
@@ -906,7 +906,7 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-rules-popover::-webkit-scrollbar-thumb {
-  background: #8A8886 !important;
+  background: #9CA3AF !important;
   background-clip: padding-box !important;
   border: 3px solid transparent !important;
   border-radius: var(--rr-radius-pill) !important;
@@ -1353,7 +1353,7 @@
 #view-onboarding-ops.rrx-onboarding #obsub-workauth .rr-i9-row,
 #view-onboarding-ops.rrx-onboarding .ob-mx-wrap {
   background: var(--rr-bg-card, #FFFFFF) !important;
-  border: 1px solid var(--rr-border-secondary, #E1DFDD) !important;
+  border: 1px solid var(--rr-border-secondary, #E5E7EB) !important;
   border-radius: var(--rr-radius-medium, 4px) !important;
   box-shadow: none !important;
   font-family: var(--rr-font-family) !important;
@@ -1374,7 +1374,7 @@
 #view-onboarding-ops.rrx-onboarding .ob-mx-head-title {
   font-family: var(--rr-font-family) !important;
   font-weight: 600 !important;
-  color: var(--rr-fg-primary, #242424) !important;
+  color: var(--rr-fg-primary, #111827) !important;
   letter-spacing: -.005em !important;
 }
 
@@ -1384,12 +1384,12 @@
 #view-onboarding-ops.rrx-onboarding #obsub-workauth .rr-i9-sub,
 #view-onboarding-ops.rrx-onboarding #obsub-documents .docs-meta {
   font-family: var(--rr-font-family) !important;
-  color: var(--rr-fg-secondary, #605E5C) !important;
+  color: var(--rr-fg-secondary, #6B7280) !important;
 }
 
 #view-onboarding-ops.rrx-onboarding #obsub-pipeline .hp-stat-value {
   font-family: var(--rr-font-family) !important;
-  color: var(--rr-fg-primary, #242424) !important;
+  color: var(--rr-fg-primary, #111827) !important;
   font-variant-numeric: tabular-nums !important;
 }
 
@@ -1397,7 +1397,7 @@
    --accent → --green; swap to Schedule's brand blue so it
    reads as part of the same surface family. */
 #view-onboarding-ops.rrx-onboarding #obsub-pipeline .hp-stats-progress-fill {
-  background: linear-gradient(90deg, var(--rr-brand-primary, #0078D4), var(--rr-brand-pressed, #005A9E)) !important;
+  background: linear-gradient(90deg, var(--rr-brand-primary, #2563EB), var(--rr-brand-pressed, #1E40AF)) !important;
 }
 
 /* Subtler card hover on hosted rows so the page doesn't feel
@@ -1422,28 +1422,28 @@
   border-radius: var(--rr-radius-medium, 4px) !important;
   background: var(--rr-bg-card, #FFFFFF) !important;
   border: 1px solid var(--rr-border-primary, rgba(15, 23, 42, 0.16)) !important;
-  color: var(--rr-fg-primary, #242424) !important;
+  color: var(--rr-fg-primary, #111827) !important;
   box-shadow: none !important;
   transition: background .1s, border-color .1s !important;
 }
 #view-onboarding-ops.rrx-onboarding #obsub-pipeline .btn:hover,
 #view-onboarding-ops.rrx-onboarding #obsub-documents .btn:hover,
 #view-onboarding-ops.rrx-onboarding #obsub-workauth .btn:hover {
-  background: var(--rr-bg-card-hover, #F5F5F5) !important;
+  background: var(--rr-bg-card-hover, #F3F4F6) !important;
   border-color: var(--rr-border-primary-hover, #B3B0AD) !important;
 }
 #view-onboarding-ops.rrx-onboarding #obsub-pipeline .btn.btn-primary,
 #view-onboarding-ops.rrx-onboarding #obsub-documents .btn.btn-primary,
 #view-onboarding-ops.rrx-onboarding #obsub-workauth .btn.btn-primary {
-  background: var(--rr-brand-primary, #0078D4) !important;
-  border-color: var(--rr-brand-primary, #0078D4) !important;
+  background: var(--rr-brand-primary, #2563EB) !important;
+  border-color: var(--rr-brand-primary, #2563EB) !important;
   color: #fff !important;
 }
 #view-onboarding-ops.rrx-onboarding #obsub-pipeline .btn.btn-primary:hover,
 #view-onboarding-ops.rrx-onboarding #obsub-documents .btn.btn-primary:hover,
 #view-onboarding-ops.rrx-onboarding #obsub-workauth .btn.btn-primary:hover {
-  background: var(--rr-brand-hover, #106EBE) !important;
-  border-color: var(--rr-brand-hover, #106EBE) !important;
+  background: var(--rr-brand-hover, #1D4ED8) !important;
+  border-color: var(--rr-brand-hover, #1D4ED8) !important;
 }
 
 /* ============================================================
@@ -1495,14 +1495,14 @@
   top: 0 !important;
   z-index: 3 !important;
   background: #EAEDF0 !important;
-  color: var(--rr-fg-secondary, #605E5C) !important;
+  color: var(--rr-fg-secondary, #6B7280) !important;
   font-family: var(--rr-font-family) !important;
   font-weight: 600 !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
   padding: 10px 9px !important;
-  border-bottom: 1px solid var(--rr-border-secondary, #E1DFDD) !important;
-  box-shadow: 0 1px 0 var(--rr-border-secondary, #E1DFDD) !important;
+  border-bottom: 1px solid var(--rr-border-secondary, #E5E7EB) !important;
+  box-shadow: 0 1px 0 var(--rr-border-secondary, #E5E7EB) !important;
 }
 
 /* Top-left intersection cell (driver-name column header) must
@@ -1514,8 +1514,8 @@
   z-index: 4 !important;
   background: #EAEDF0 !important;
   box-shadow:
-    1px 0 0 var(--rr-border-secondary, #E1DFDD),
-    0 1px 0 var(--rr-border-secondary, #E1DFDD),
+    1px 0 0 var(--rr-border-secondary, #E5E7EB),
+    0 1px 0 var(--rr-border-secondary, #E5E7EB),
     8px 0 16px -18px rgba(15, 23, 42, .6) !important;
 }
 
@@ -1525,7 +1525,7 @@
 #view-onboarding-ops.rrx-onboarding .ob-matrix td.ob-mx-namecell {
   background: var(--rr-bg-card, #FFFFFF) !important;
   box-shadow:
-    1px 0 0 var(--rr-border-secondary, #E1DFDD),
+    1px 0 0 var(--rr-border-secondary, #E5E7EB),
     8px 0 16px -18px rgba(15, 23, 42, .6) !important;
 }
 
@@ -1533,7 +1533,7 @@
    horizontal + vertical lines read as one consistent grid. */
 #view-onboarding-ops.rrx-onboarding .ob-matrix td {
   background: var(--rr-bg-card, #FFFFFF) !important;
-  border-top: 1px solid var(--rr-border-secondary, #E1DFDD) !important;
+  border-top: 1px solid var(--rr-border-secondary, #E5E7EB) !important;
   font-family: var(--rr-font-family) !important;
   padding: 12px 9px !important;
 }
@@ -1545,25 +1545,25 @@
 }
 
 /* Row hover — Schedule's calm pattern. Drop the heavy blue
-   tint (rgba(15,108,189,.06)) for the much subtler hover surface
+   tint (rgba(37,99,235,.06)) for the much subtler hover surface
    that already powers the Schedule grid. */
 #view-onboarding-ops.rrx-onboarding .ob-matrix tbody tr:hover td,
 #view-onboarding-ops.rrx-onboarding .ob-matrix tbody tr:hover td.ob-mx-namecell {
   /* Operator: row hover on the onboarding matrix should match the
      Schedule grid's row hover exactly — the same soft brand-blue
      scan band Outlook-style rows use. Schedule paints this via
-     `--sch-blue-softer: rgba(15,108,189,.05)`; using the literal so
+     `--sch-blue-softer: rgba(37,99,235,.05)`; using the literal so
      we don't depend on the schedule view's CSS var being in scope. */
-  background: rgba(15,108,189,.05) !important;
+  background: rgba(37,99,235,.05) !important;
 }
 #view-onboarding-ops.rrx-onboarding .ob-matrix tbody tr:hover .ob-mx-name {
-  color: var(--rr-brand-primary, #0078D4) !important;
+  color: var(--rr-brand-primary, #2563EB) !important;
 }
 
 /* Matrix wrap surface — sharp Fluent radius + no shadow so it
    reads as part of the canvas, same as Schedule's grid wrap. */
 #view-onboarding-ops.rrx-onboarding .ob-mx-wrap {
-  border: 1px solid var(--rr-border-secondary, #E1DFDD) !important;
+  border: 1px solid var(--rr-border-secondary, #E5E7EB) !important;
   border-radius: var(--rr-radius-medium, 4px) !important;
   box-shadow: none !important;
 }
@@ -1572,7 +1572,7 @@
    table itself) — pick up Schedule's hairline-only separator
    instead of the legacy thick border. */
 #view-onboarding-ops.rrx-onboarding .ob-mx-head {
-  border-bottom: 1px solid var(--rr-border-secondary, #E1DFDD) !important;
+  border-bottom: 1px solid var(--rr-border-secondary, #E5E7EB) !important;
   background: var(--rr-bg-surface-1, #FAFAFA) !important;
   padding: 14px 18px !important;
 }
@@ -1582,19 +1582,19 @@
   font-weight: 600 !important;
   font-size: 14px !important;
   letter-spacing: -.005em !important;
-  color: var(--rr-fg-primary, #242424) !important;
+  color: var(--rr-fg-primary, #111827) !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-mx-head-sub {
   font-family: var(--rr-font-family) !important;
-  color: var(--rr-fg-secondary, #605E5C) !important;
+  color: var(--rr-fg-secondary, #6B7280) !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-mx-head-chip {
   font-family: var(--rr-font-family) !important;
-  border: 1px solid var(--rr-border-secondary, #E1DFDD) !important;
+  border: 1px solid var(--rr-border-secondary, #E5E7EB) !important;
   background: var(--rr-bg-card, #FFFFFF) !important;
-  color: var(--rr-fg-secondary, #605E5C) !important;
+  color: var(--rr-fg-secondary, #6B7280) !important;
 }
 
 /* ── Matrix head right group + Focus button ─────────────────── */
@@ -1619,23 +1619,23 @@
   gap: 5px;
   appearance: none;
   background: var(--rr-bg-card, #FFFFFF);
-  border: 1px solid var(--rr-border-secondary, #E1DFDD);
+  border: 1px solid var(--rr-border-secondary, #E5E7EB);
   border-radius: var(--rr-radius-medium, 4px);
   padding: 4px 9px;
   font: 600 12px/16px var(--rr-font-family, 'Segoe UI');
-  color: var(--rr-fg-secondary, #605E5C);
+  color: var(--rr-fg-secondary, #6B7280);
   cursor: pointer;
   transition: background .12s, border-color .12s, color .12s;
 }
 #view-onboarding-ops.rrx-onboarding .ob-mx-focus-btn:hover {
   background: var(--rr-bg-card-hover, #FAFAFA);
   border-color: var(--rr-border-primary, rgba(15, 23, 42, 0.16));
-  color: var(--rr-fg-primary, #242424);
+  color: var(--rr-fg-primary, #111827);
 }
 #view-onboarding-ops.rrx-onboarding .ob-mx-focus-btn[aria-pressed="true"] {
-  background: var(--rr-brand-soft, rgba(0,120,212,.10));
-  border-color: var(--rr-brand-primary, #0078D4);
-  color: var(--rr-brand-pressed, #005A9E);
+  background: var(--rr-brand-soft, rgba(37,99,235,.10));
+  border-color: var(--rr-brand-primary, #2563EB);
+  color: var(--rr-brand-pressed, #1E40AF);
 }
 body.rr-ob-focus #rr-ob-focus-toggle .ic-focus-on { display: none !important; }
 body.rr-ob-focus #rr-ob-focus-toggle .ic-focus-off { display: inline !important; }
@@ -1744,7 +1744,7 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
 
 #view-onboarding-ops.rrx-onboarding .ob-matrix th,
 #view-onboarding-ops.rrx-onboarding .ob-matrix td {
-  border-right: 1px solid var(--rr-border-secondary, #E1DFDD) !important;
+  border-right: 1px solid var(--rr-border-secondary, #E5E7EB) !important;
 }
 /* Last column in each row gets no trailing edge — the wrap's own
    right border closes it off. */

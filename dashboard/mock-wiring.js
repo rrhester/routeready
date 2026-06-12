@@ -2128,7 +2128,7 @@
         '<td class="cell-time">Just added</td>' +
         '<td><button class="coach-row-btn" onclick="openCoachDrawer(\'' + fullName + '\',\'behavior\',\'New driver — welcome check-in\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>';
       tbody.insertBefore(tr, tbody.firstChild);
-      tr.style.background = 'rgba(16,185,129,.08)';
+      tr.style.background = 'rgba(22,163,74,.08)';
       setTimeout(function(){ tr.style.transition = 'background .8s'; tr.style.background = ''; }, 50);
     }
     // Reset form
@@ -4131,7 +4131,7 @@
       + '#ci-vto-suggest{background:#F0F9FF;border:1px solid var(--accent-border);color:#0C4A6E;border-radius:8px;padding:var(--s-2-5) var(--s-3-5);margin:0 0 var(--s-3) 0;font-size:var(--fs-md);display:flex;align-items:center;gap:var(--s-2-5)}'
       + '#ci-vto-suggest .vto-chips{display:flex;gap:var(--s-1);flex-wrap:wrap}'
       + '#ci-vto-suggest .vto-chip{display:inline-flex;align-items:center;gap:var(--s-1);background:#fff;border:1px solid var(--accent-border);color:#0369A1;padding:2px 8px;border-radius:var(--r-md);font-size:var(--fs-xs);font-weight:600;cursor:pointer}'
-      + '#ci-vto-suggest .vto-chip:hover{background:#E0F2FE}'
+      + '#ci-vto-suggest .vto-chip:hover{background:#EFF6FF}'
       + '.checkin-row.vto-suggested{box-shadow:inset 4px 0 0 var(--sky)}';
     var s = document.createElement('style');
     s.appendChild(document.createTextNode(css));

@@ -86,7 +86,7 @@
     #rr-ps-banner .rr-ps-b-x { background:transparent; border:0; color:#fff; opacity:.8; font-size:18px; cursor:pointer; align-self:flex-start; }
     /* docked fallback */
     #rr-ps-dock { position:fixed; left:16px; bottom:16px; z-index:2147483646; width:330px; max-width:calc(100vw - 32px); font:13px/1.45 Inter,system-ui,sans-serif; background:#fff; color:#0f172a; border:1px solid #e2e8f0; border-radius:14px; box-shadow:0 10px 30px rgba(2,6,23,.18); overflow:hidden; }
-    #rr-ps-dock .rr-ps-dhead { display:flex; align-items:center; gap:8px; padding:11px 13px; background:linear-gradient(180deg,#0F6CBD,#0B5BA1); color:#fff; cursor:pointer; }
+    #rr-ps-dock .rr-ps-dhead { display:flex; align-items:center; gap:8px; padding:11px 13px; background:linear-gradient(180deg,#2563EB,#0B5BA1); color:#fff; cursor:pointer; }
     #rr-ps-dock .rr-ps-dhead b { flex:1; }
     #rr-ps-dock .rr-ps-body { padding:11px 13px; max-height:46vh; overflow:auto; }
     #rr-ps-dock.rr-collapsed .rr-ps-body { display:none; }

@@ -38,7 +38,7 @@
      white cards; a calm neutral lets the cards define the structure
      with hairline borders alone). Mirrored on the Onboarding ground,
      Fleet ground, topbar, and light sidebar rail — keep in sync. */
-  background: #F7F8FA;
+  background: #F9FAFB;
   font-family: var(--rr-font-family);
   color: var(--rr-fg-primary);
 }
@@ -687,7 +687,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   color: var(--rr-brand-pressed) !important;
   background: var(--rr-brand-soft) !important;
   padding: var(--rr-space-120) var(--rr-space-160) !important;
-  border-bottom: 1px solid rgba(0, 120, 212, 0.20) !important;
+  border-bottom: 1px solid rgba(37,99,235, 0.20) !important;
   display: flex !important;
   align-items: center !important;
   gap: var(--rr-space-80) !important;
@@ -745,7 +745,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-quick-settings-head {
   padding: var(--rr-space-120) var(--rr-space-160) !important;
-  border-bottom: 1px solid rgba(0, 120, 212, 0.20) !important;
+  border-bottom: 1px solid rgba(37,99,235, 0.20) !important;
   background: var(--rr-brand-soft) !important;
   color: var(--rr-brand-pressed) !important;
   border-top-left-radius: var(--rr-radius-large) !important;
@@ -814,7 +814,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: var(--rr-brand-soft) !important;
   color: var(--rr-brand-pressed) !important;
   padding: var(--rr-space-120) var(--rr-space-160) !important;
-  border-bottom: 1px solid rgba(0, 120, 212, 0.20) !important;
+  border-bottom: 1px solid rgba(37,99,235, 0.20) !important;
   border-top-left-radius: var(--rr-radius-large) !important;
   border-top-right-radius: var(--rr-radius-large) !important;
   margin-bottom: 0 !important;
@@ -835,7 +835,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-vans-rules-info:hover,
 #view-schedule.rrx-schedule .sched-vans-rules-info:focus-visible {
-  background: rgba(0, 120, 212, 0.12);
+  background: rgba(37,99,235, 0.12);
   color: var(--rr-brand-primary);
   outline: none;
 }
@@ -867,7 +867,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: var(--rr-brand-soft) !important;
   color: var(--rr-brand-pressed) !important;
   padding: var(--rr-space-120) var(--rr-space-160) !important;
-  border-bottom: 1px solid rgba(0, 120, 212, 0.20) !important;
+  border-bottom: 1px solid rgba(37,99,235, 0.20) !important;
   border-top-left-radius: var(--rr-radius-large) !important;
   border-top-right-radius: var(--rr-radius-large) !important;
   margin-bottom: 0 !important;
@@ -1270,7 +1270,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   overflow-y: scroll !important;
   scrollbar-gutter: stable !important;
   scrollbar-width: auto !important;
-  scrollbar-color: #5A5A5A #E1DFDD !important;
+  scrollbar-color: #6B7280 #E5E7EB !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar,
@@ -1285,7 +1285,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   appearance: none !important;
   width: 14px !important;
   height: 14px !important;
-  background: #E1DFDD !important;
+  background: #E5E7EB !important;
   display: block !important;
 }
 
@@ -1297,7 +1297,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-track {
-  background: #E1DFDD !important;
+  background: #E5E7EB !important;
   border-left: 1px solid rgba(15, 23, 42, 0.16) !important;
 }
 
@@ -1309,9 +1309,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-thumb {
-  background: #5A5A5A !important;  /* dark — unmistakable against the light track */
+  background: #6B7280 !important;  /* dark — unmistakable against the light track */
   background-clip: padding-box !important;
-  border: 3px solid #E1DFDD !important;
+  border: 3px solid #E5E7EB !important;
   border-radius: var(--rr-radius-pill) !important;
   min-height: 56px !important;
 }
@@ -1324,7 +1324,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-thumb:hover {
-  background: #323130 !important;
+  background: #111827 !important;
 }
 
 /* macOS Chrome can still fade the thumb to invisible when idle
@@ -1360,7 +1360,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   appearance: none !important;
   width: 14px !important;
   height: 14px !important;
-  background: #E1DFDD !important;
+  background: #E5E7EB !important;
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -1370,7 +1370,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-corner,
 #view-schedule.rrx-schedule .pool-openshifts-foot::-webkit-scrollbar-corner,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-corner {
-  background: #E1DFDD !important;
+  background: #E5E7EB !important;
 }
 
 /* ============================================================
@@ -2127,7 +2127,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: .01em;
-  color: #242424;
+  color: #111827;
   pointer-events: none;
   white-space: nowrap;
 }
@@ -2150,7 +2150,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: transparent;
   border: 0;
   border-radius: 999px;
-  color: #242424;
+  color: #111827;
   opacity: 0.85;
   z-index: 1;
   transition: opacity var(--rr-motion-fast, 120ms ease-out),
@@ -2220,8 +2220,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(15, 108, 189, .08);
-  color: var(--sch-blue, #0F6CBD);
+  background: rgba(37,99,235, .08);
+  color: var(--sch-blue, #2563EB);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: .01em;
@@ -2233,7 +2233,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   width: 15px;
   height: 15px;
   flex: 0 0 auto;
-  color: var(--sch-blue, #0F6CBD);
+  color: var(--sch-blue, #2563EB);
   stroke-width: 2;
 }
 #view-schedule.rrx-schedule #rr-sched-roster-rules-popover .rr-srr-body {
@@ -2388,10 +2388,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    fill="none" stroke-only → hollow outline; fill the polygon so it
    reads as a filled glyph). */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg {
-  color: #0B5394;
+  color: #1D4ED8;
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg polygon {
-  fill: #0B5394;
+  fill: #1D4ED8;
 }
 
 /* ── Forecast mode (Monthly view) ──────────────────────────────────
@@ -2415,12 +2415,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: rgba(15, 23, 42, 0.06);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg {
-  color: var(--rr-comm-blue, #0F6CBD);
+  color: var(--rr-comm-blue, #2563EB);
 }
 /* Draw the bolt as a solid glyph (the SVG ships fill="none" stroke-only,
    which renders a hollow outline). */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg polygon {
-  fill: var(--rr-comm-blue, #0F6CBD);
+  fill: var(--rr-comm-blue, #2563EB);
 }
 
 /* ── Forecast · progress popover ───────────────────────────────────
@@ -2438,7 +2438,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   max-width: 220px;
   padding: 6px 11px;
   border-radius: 8px;
-  background: var(--rr-comm-blue, #0F6CBD);
+  background: var(--rr-comm-blue, #2563EB);
   color: #FFFFFF;
   font-size: 12px;
   font-weight: 600;
@@ -2456,7 +2456,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   transform: translateX(-50%) rotate(45deg);
   width: 9px;
   height: 9px;
-  background: var(--rr-comm-blue, #0F6CBD);
+  background: var(--rr-comm-blue, #2563EB);
   border-radius: 2px;
 }
 .rr-fc-progress-dot {
@@ -2617,7 +2617,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   bottom: 3px;
   height: 2px;
   border-radius: 2px;
-  background: var(--rr-comm-blue, #0F6CBD);
+  background: var(--rr-comm-blue, #2563EB);
 }
 
 /* ============================================================
@@ -2867,9 +2867,9 @@ body.rr-sched-publishing #view-schedule.rrx-schedule #rr-sched-kpis::after {
   height: 380%;
   transform: translate(-50%, -50%);
   background: radial-gradient(ellipse at center,
-    rgba(16, 124, 65, .38) 0%,
-    rgba(16, 124, 65, .14) 38%,
-    rgba(16, 124, 65, 0) 70%);
+    rgba(22,163,74, .38) 0%,
+    rgba(22,163,74, .14) 38%,
+    rgba(22,163,74, 0) 70%);
   border-radius: 50%;
   z-index: -1;
   pointer-events: none;
@@ -3209,7 +3209,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
 /* ============================================================
    Shift chips · crisp, restrained fill
    ------------------------------------------------------------
-   The prior translucent fill (#0078D4 @ 22%) read as a hazy
+   The prior translucent fill (#2563EB @ 22%) read as a hazy
    blue wash over the canvas. Swapped to a clean OPAQUE light
    blue with a clearer, defined edge and higher-contrast route
    text. The chip still reads unmistakably as an assigned shift,
@@ -3217,29 +3217,30 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    ============================================================ */
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  /* Off-white card with a service-type-colored LEFT accent bar. The bar
-     color comes from --chip-accent (set inline per shift in live.js: the
-     service type's color, or the route classification color). */
-  background: #F7F8FA !important;
-  border: 1px solid rgba(15, 23, 42, 0.10) !important;
-  border-left: 3px solid var(--chip-accent, #0F6CBD) !important;
+  /* Corporate schedule card (#DBEAFE on #93C5FD — spec surface) with a
+     service-type-colored LEFT accent bar. The bar color comes from
+     --chip-accent (set inline per shift in live.js: the service type's
+     color, or the route classification color). */
+  background: #DBEAFE !important;
+  border: 1px solid #93C5FD !important;
+  border-left: 3px solid var(--chip-accent, #2563EB) !important;
   box-shadow: none !important;
-  color: #111111 !important;
+  color: #111827 !important;
 }
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) * {
-  color: #111111 !important;
+  color: #111827 !important;
 }
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111111 !important;
+  color: #111827 !important;
   font-weight: 800 !important;
 }
 
 /* On hover, deepen the off-white a touch so the focused cell registers
    (the colored left accent bar is preserved). */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #EEF0F4 !important;
-  border-color: rgba(15, 23, 42, 0.16) !important;
+  background: #BFDBFE !important;
+  border-color: #93C5FD !important;
 }
 
 /* ============================================================
@@ -3253,24 +3254,24 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    BLUE: solid blue fill, no side bar.
    ============================================================ */
 body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #F7F8FA !important;
-  border: 1px solid rgba(15, 23, 42, 0.10) !important;
-  border-left: 3px solid var(--chip-accent, #0F6CBD) !important;
-  color: #111111 !important;
+  background: #DBEAFE !important;
+  border: 1px solid #93C5FD !important;
+  border-left: 3px solid var(--chip-accent, #2563EB) !important;
+  color: #111827 !important;
 }
 body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #EEF0F4 !important;
-  border-color: rgba(15, 23, 42, 0.16) !important;
-  border-left-color: var(--chip-accent, #0F6CBD) !important;
+  background: #BFDBFE !important;
+  border-color: #93C5FD !important;
+  border-left-color: var(--chip-accent, #2563EB) !important;
 }
 body.rr-sched-cards-blue #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #B4D8F3 !important;
-  border: 1px solid rgba(15, 108, 189, 0.34) !important;
-  color: #111111 !important;
+  background: #BFDBFE !important;
+  border: 1px solid #60A5FA !important;
+  color: #111827 !important;
 }
 body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #B3CFEC !important;
-  border-color: rgba(15, 108, 189, 0.48) !important;
+  background: #93C5FD !important;
+  border-color: #60A5FA !important;
 }
 
 /* Hover-lift · when the cursor is over an assigned card, raise it 2px,
@@ -3283,7 +3284,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here):hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12) !important;
-  border-color: rgba(15, 108, 189, 0.62) !important;
+  border-color: rgba(37,99,235, 0.62) !important;
 }
 
 /* Reduced motion · keep the shadow/border feedback but drop the travel. */
@@ -3358,7 +3359,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   letter-spacing: .04em;
   /* Informational tag (rotation-assigned van) — blue family, not the
      caution amber (palette minimization). */
-  color: #0B5394 !important;
+  color: #1D4ED8 !important;
   margin-left: 3px;
 }
 /* Route eyebrow · crisp uppercase label above the time. */
@@ -3394,7 +3395,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 
 #view-schedule.rrx-schedule .pool-openshifts .open-shift:hover,
 #view-schedule.rrx-schedule .open-shift:hover {
-  border-color: #8A8886 !important;
+  border-color: #9CA3AF !important;
   border-left-color: var(--rr-danger) !important;
   box-shadow: var(--rr-shadow-4);
 }
@@ -3404,7 +3405,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 #view-schedule.rrx-schedule .shift-chip.open {
   border-width: 1.5px !important;
   border-style: dashed !important;
-  border-color: #8A8886 !important;
+  border-color: #9CA3AF !important;
   color: var(--rr-fg-primary) !important;
 }
 
@@ -3459,8 +3460,8 @@ body.rr-sched-focus #rr-sched-focus-toggle .ic-focus-off { display: inline !impo
 
 #view-schedule.rrx-schedule #rr-sched-focus-toggle[aria-pressed="true"],
 #view-schedule.rrx-schedule #rr-sched-compact-toggle[aria-pressed="true"] {
-  background: var(--rr-brand-soft, rgba(15, 108, 189, 0.10));
-  color: var(--rr-brand-pressed, #0E4F86);
+  background: var(--rr-brand-soft, rgba(37,99,235, 0.10));
+  color: var(--rr-brand-pressed, #1E40AF);
 }
 
 /* ── Focus mode ────────────────────────────────────────────── */
@@ -3953,8 +3954,8 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 .rr-faux-scrollbar {
   position: absolute;
   width: 9px;
-  background: #F3F2F1;
-  border-left: 1px solid #E1DFDD;
+  background: #F9FAFB;
+  border-left: 1px solid #E5E7EB;
   border-radius: 0 6px 6px 0;
   z-index: 20;
   pointer-events: auto;
@@ -3972,7 +3973,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 }
 .rr-faux-scrollbar-thumb:hover,
 .rr-faux-scrollbar-thumb:active {
-  background: #A19F9D;
+  background: #9CA3AF;
 }
 
 /* Hide the native scrollbar on faux-attached containers so the
@@ -4010,7 +4011,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #4DA3E8;
+  background: #60A5FA;
   box-shadow: 0 0 0 1.5px #FFFFFF;
   pointer-events: none;
 }
@@ -4091,7 +4092,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 
    The base inline <style> block at index.html:11212 paints every
    Rules popover with a heavy brand-blue gradient header
-   (linear-gradient(135deg,#0078D4,#005A9E)) that overwhelms the
+   (linear-gradient(135deg,#2563EB,#1E40AF)) that overwhelms the
    small density picker. Real Fluent popovers are quiet — white
    surface, hairline border, soft shadow, no color band header.
 
@@ -4107,7 +4108,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 #view-schedule.rrx-schedule #rr-sched-cal-rules-popover {
   /* Reset the inline acrylic / blur and use a clean Fluent card. */
   background: #FFFFFF !important;
-  border: 1px solid #E1DFDD !important;
+  border: 1px solid #E5E7EB !important;
   border-radius: 4px !important;
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.14),
@@ -4128,7 +4129,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
   align-items: center !important;
   gap: 8px !important;
   background: transparent !important;
-  color: #242424 !important;
+  color: #111827 !important;
   font: 600 14px/20px var(--rr-font-family, 'Segoe UI') !important;
   letter-spacing: -.005em !important;
   padding: 14px 16px 10px !important;
@@ -4138,7 +4139,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 #view-schedule.rrx-schedule #rr-sched-week-rules-popover > :first-child *,
 #view-schedule.rrx-schedule #rr-sched-today-rules-popover > :first-child *,
 #view-schedule.rrx-schedule #rr-sched-cal-rules-popover > :first-child * {
-  color: #242424 !important;
+  color: #111827 !important;
 }
 
 /* Body — quiet surface, no card-on-card translucent fill. */
@@ -4147,7 +4148,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 #view-schedule.rrx-schedule #rr-sched-cal-rules-popover > :last-child {
   background: transparent !important;
   padding: 0 16px 16px !important;
-  border-top: 1px solid #F3F2F1 !important;
+  border-top: 1px solid #F9FAFB !important;
 }
 
 /* Density radio rows — tighten padding so the picker fits in the
@@ -4222,7 +4223,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
    (kept in sync with the fill block above; this later rule wins the
    cascade for the assigned-chip border color). */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  border-color: rgba(15, 108, 189, 0.34) !important;
+  border-color: rgba(37,99,235, 0.34) !important;
 }
 
 /* Day-of-week header strip · the SUN/MON/… label text was muted;
@@ -4394,7 +4395,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: var(--surface-elevated, #FCFDFE);
+  background: var(--surface-elevated, #FFFFFF);
   border: 1px solid rgba(15, 23, 42, 0.20);
   border-radius: var(--sch-radius);
 }
@@ -4460,7 +4461,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 /* Driver Gap — the key row: a touch heavier label, very subtle status fills. */
 #view-schedule.rrx-schedule .sched-fc-gaprow.sched-mw-rowlabel,
 #view-schedule.rrx-schedule .sched-fc-gaprow.sched-mw-bodycell { font-weight: 700; }
-#view-schedule.rrx-schedule .sched-mw-bodycell.sched-fc-ok    { background: rgba(16, 124, 65, 0.08);  color: #0B5A30; }
+#view-schedule.rrx-schedule .sched-mw-bodycell.sched-fc-ok    { background: rgba(22,163,74, 0.08);  color: #0B5A30; }
 #view-schedule.rrx-schedule .sched-mw-bodycell.sched-fc-watch { background: rgba(202, 168, 17, 0.16);  color: #7A5E0C; }
 #view-schedule.rrx-schedule .sched-mw-bodycell.sched-fc-bad   { background: rgba(193, 40, 40, 0.09);   color: #9A2D2D; }
 /* Editable rows — Capacity Buffer (%) and OT Budget (hrs). */
@@ -4569,7 +4570,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 
 #view-schedule.rrx-schedule .sched-month-cell {
-  background: var(--surface-elevated, #FCFDFE);
+  background: var(--surface-elevated, #FFFFFF);
   display: flex; flex-direction: column;
   padding: 6px 8px;
   min-height: 0; overflow: hidden;
@@ -4612,7 +4613,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   grid-column: 1 / -1; grid-row: 1 / -1;
   display: flex; align-items: center; justify-content: center;
   color: var(--text-subtle); font-size: var(--fs-sm);
-  background: var(--surface-elevated, #FCFDFE);
+  background: var(--surface-elevated, #FFFFFF);
 }
 
 /* V2 strip view-tile order — REMOVED.
@@ -4672,7 +4673,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .rr-fc-results,
 #view-schedule.rrx-schedule .rr-fc-balanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 #view-schedule.rrx-schedule .rr-fc-stat {
-  background: var(--canvas, #FAFBFC); border: 1px solid rgba(15, 23, 42, 0.10);
+  background: var(--canvas, #F9FAFB); border: 1px solid rgba(15, 23, 42, 0.10);
   border-radius: var(--r-md); padding: 9px 10px;
 }
 #view-schedule.rrx-schedule .rr-fc-stat-val { font-size: 18px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
@@ -4720,21 +4721,21 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile {
-  background: rgba(15, 108, 189, 0.08);
-  color: #0B5394;
-  box-shadow: inset 0 0 0 1px rgba(15, 108, 189, 0.25);
+  background: rgba(37,99,235, 0.08);
+  color: #1D4ED8;
+  box-shadow: inset 0 0 0 1px rgba(37,99,235, 0.25);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile:hover {
-  background: rgba(15, 108, 189, 0.13);
-  color: #0B5394;
-  box-shadow: inset 0 0 0 1px rgba(15, 108, 189, 0.35);
+  background: rgba(37,99,235, 0.13);
+  color: #1D4ED8;
+  box-shadow: inset 0 0 0 1px rgba(37,99,235, 0.35);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile:active {
-  background: rgba(15, 108, 189, 0.18);
+  background: rgba(37,99,235, 0.18);
 }
 /* Out-specifies the global var(--text) !important icon force. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile svg {
-  color: #0B5394 !important;
+  color: #1D4ED8 !important;
 }
 
 
@@ -4774,10 +4775,10 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   gap: 8px;
   height: 40px;
   padding: 0 15px;
-  border: 1.5px solid var(--rr-comm-blue, #0F6CBD);
+  border: 1.5px solid var(--rr-comm-blue, #2563EB);
   border-radius: 9px;
   background: #FFFFFF;
-  color: var(--rr-comm-blue, #0F6CBD);
+  color: var(--rr-comm-blue, #2563EB);
   font: inherit;
   font-size: 13.5px;
   font-weight: 600;
@@ -4786,11 +4787,11 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   white-space: nowrap;
   transition: background-color .12s ease, box-shadow .12s ease;
 }
-#view-schedule .rr-ab-btn:hover { background: rgba(15, 108, 189, .06); }
-#view-schedule .rr-ab-btn:active { background: rgba(15, 108, 189, .12); }
+#view-schedule .rr-ab-btn:hover { background: rgba(37,99,235, .06); }
+#view-schedule .rr-ab-btn:active { background: rgba(37,99,235, .12); }
 #view-schedule .rr-ab-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(15, 108, 189, .25);
+  box-shadow: 0 0 0 3px rgba(37,99,235, .25);
 }
 #view-schedule .rr-ab-btn svg { width: 17px; height: 17px; flex: 0 0 auto; }
 #view-schedule .rr-ab-badge {
@@ -4801,7 +4802,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   height: 20px;
   padding: 0 5px;
   border-radius: 6px;
-  background: var(--rr-comm-blue, #0F6CBD);
+  background: var(--rr-comm-blue, #2563EB);
   color: #FFFFFF;
   font-size: 11.5px;
   font-weight: 700;
@@ -4833,11 +4834,11 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule .rr-ab-coverage-sub.is-ok { color: var(--green, #15803D); }
 /* Primary — solid brand blue, lock glyph. */
 #view-schedule .rr-ab-primary {
-  background: var(--rr-comm-blue, #0F6CBD);
-  border-color: var(--rr-comm-blue, #0F6CBD);
+  background: var(--rr-comm-blue, #2563EB);
+  border-color: var(--rr-comm-blue, #2563EB);
   color: #FFFFFF;
 }
-#view-schedule .rr-ab-primary:hover { background: #0B5394; border-color: #0B5394; }
+#view-schedule .rr-ab-primary:hover { background: #1D4ED8; border-color: #1D4ED8; }
 #view-schedule .rr-ab-primary:active { background: #0A4A85; }
 /* ⋯ overflow — quiet, borderless until hovered. */
 #view-schedule .rr-ab-more-wrap { position: relative; display: flex; }
@@ -4901,8 +4902,8 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   align-self: stretch;
   margin: 0 -7px 0 2px;
   padding: 0 8px;
-  border-left: 1px solid rgba(15, 108, 189, .30);
+  border-left: 1px solid rgba(37,99,235, .30);
   border-radius: 0 7px 7px 0;
 }
-#view-schedule .rr-ab-caret:hover { background: rgba(15, 108, 189, .10); }
+#view-schedule .rr-ab-caret:hover { background: rgba(37,99,235, .10); }
 #view-schedule .rr-ab-caret svg { width: 11px; height: 11px; }

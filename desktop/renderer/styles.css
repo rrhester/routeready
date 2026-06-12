@@ -9,9 +9,9 @@
   --text: #0B1220;
   --text-muted: #475569;
   --text-subtle: #94A3B8;
-  --accent: #0F6CBD;
+  --accent: #2563EB;
   --accent-hover: #0B5BA1;
-  --accent-soft: rgba(15, 108, 189, .1);
+  --accent-soft: rgba(37,99,235, .1);
   --green: #16A34A;
   --green-soft: rgba(22, 163, 74, .12);
   --amber: #D97706;
@@ -174,8 +174,8 @@ main {
 
 /* First-run welcome card — quick-pick a portal and auto-launch sign-in. */
 .welcome {
-  background: linear-gradient(180deg, rgba(15, 108, 189, .04) 0%, rgba(15, 108, 189, .08) 100%);
-  border-color: rgba(15, 108, 189, .25);
+  background: linear-gradient(180deg, rgba(37,99,235, .04) 0%, rgba(37,99,235, .08) 100%);
+  border-color: rgba(37,99,235, .25);
 }
 
 .welcome h2 {
@@ -697,7 +697,7 @@ main {
 /* ── Streamlined shell: AI-agent hero + collapsed Advanced tools ───── */
 .card-hero {
   border-color: var(--accent);
-  box-shadow: 0 1px 2px rgba(15, 108, 189, .06), 0 0 0 1px var(--accent-soft);
+  box-shadow: 0 1px 2px rgba(37,99,235, .06), 0 0 0 1px var(--accent-soft);
 }
 
 details.advanced {

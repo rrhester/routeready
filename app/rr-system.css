@@ -87,34 +87,34 @@
   --rr-radius-pill:   9999px;
 
   /* ─── COLORS ─────────────────────────────────────────────── */
-  --rr-bg-canvas:     #F3F2F1;
+  --rr-bg-canvas:     #F9FAFB;
   --rr-bg-surface-1:  #FFFFFF;
-  --rr-bg-surface-2:  #FAF9F8;
-  --rr-bg-hover:      #F5F5F5;
-  --rr-bg-selected:   #E5F1FB;
+  --rr-bg-surface-2:  #F9FAFB;
+  --rr-bg-hover:      #F3F4F6;
+  --rr-bg-selected:   #EFF6FF;
 
-  --rr-fg-primary:    #323130;
-  --rr-fg-secondary:  #605E5C;
-  --rr-fg-disabled:   #A19F9D;
+  --rr-fg-primary:    #111827;
+  --rr-fg-secondary:  #6B7280;
+  --rr-fg-disabled:   #9CA3AF;
 
-  --rr-border-primary:   #E1DFDD;
-  --rr-border-secondary: #EDEBE9;
-  --rr-border-input:     #8A8886;
+  --rr-border-primary:   #E5E7EB;
+  --rr-border-secondary: #F3F4F6;
+  --rr-border-input:     #9CA3AF;
 
-  --rr-brand-primary: #0078D4;
-  --rr-brand-hover:   #106EBE;
-  --rr-brand-pressed: #005A9E;
+  --rr-brand-primary: #2563EB;
+  --rr-brand-hover:   #1D4ED8;
+  --rr-brand-pressed: #1E40AF;
 
-  --rr-success: #107C41;
-  --rr-warning: #FFB900;
-  --rr-danger:  #D13438;
+  --rr-success: #16A34A;
+  --rr-warning: #F59E0B;
+  --rr-danger:  #DC2626;
 
   /* Soft semantic fills for chips / inline status */
-  --rr-success-soft: rgba(16,124,65,.10);
-  --rr-warning-soft: rgba(255,185,0,.16);
-  --rr-danger-soft:  rgba(209,52,56,.10);
-  --rr-brand-soft:   rgba(0,120,212,.10);
-  --rr-neutral-soft: rgba(50,49,48,.06);
+  --rr-success-soft: rgba(22,163,74,.10);
+  --rr-warning-soft: rgba(245,158,11,.16);
+  --rr-danger-soft:  rgba(220,38,38,.10);
+  --rr-brand-soft:   rgba(37,99,235,.10);
+  --rr-neutral-soft: rgba(17,24,39,.06);
 
   /* ─── ELEVATION ──────────────────────────────────────────── */
   --rr-shadow-2: 0 1px 2px rgba(0,0,0,.08);
@@ -149,17 +149,17 @@
   --kpi-pad-x:          var(--rr-space-240);           /* 24px                          */
   --kpi-gap:            var(--rr-space-100);           /* 10px  dot ↔ text              */
   --kpi-margin-bottom:  var(--rr-space-80);            /* 8px                           */
-  --kpi-text-primary:   var(--rr-fg-primary);          /* #323130  value               */
-  --kpi-text-secondary: var(--rr-fg-secondary);        /* #605E5C  sub / label          */
+  --kpi-text-primary:   var(--rr-fg-primary);          /* #111827  value               */
+  --kpi-text-secondary: var(--rr-fg-secondary);        /* #6B7280  sub / label          */
   --kpi-value-font:     600 14px/1.15 var(--rr-font-family);
   --kpi-label-font:     500 12px/16px var(--rr-font-family);
   --kpi-dot-size:       7px;                           /* status dot                    */
   --kpi-icon-size:      16px;                          /* status icon (replaces dot)    */
-  --kpi-dot-neutral:    #1A1F47;                       /* at-rest navy status dot       */
-  --kpi-success:        var(--rr-success);             /* #107C41                       */
-  --kpi-warning:        var(--rr-warning);             /* #FFB900                       */
-  --kpi-danger:         var(--rr-danger);              /* #D13438                       */
-  --kpi-brand:          var(--rr-brand-primary);       /* #0078D4                       */
+  --kpi-dot-neutral:    #1E293B;                       /* at-rest navy status dot       */
+  --kpi-success:        var(--rr-success);             /* #16A34A                       */
+  --kpi-warning:        var(--rr-warning);             /* #F59E0B                       */
+  --kpi-danger:         var(--rr-danger);              /* #DC2626                       */
+  --kpi-brand:          var(--rr-brand-primary);       /* #2563EB                       */
 }
 
 /* ============================================================
@@ -1378,7 +1378,7 @@ body {
   appearance: none !important;
   width: 14px !important;
   height: 14px !important;
-  background: #E1DFDD !important;  /* visibly darker than surface */
+  background: #E5E7EB !important;  /* visibly darker than surface */
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -1386,7 +1386,7 @@ body {
 
 .app *::-webkit-scrollbar-track,
 .app *::-webkit-scrollbar-track:vertical {
-  background: #E1DFDD !important;
+  background: #E5E7EB !important;
   border-left: 1px solid #C8C6C4 !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -1403,9 +1403,9 @@ body {
 .app *::-webkit-scrollbar-thumb:window-inactive {
   -webkit-appearance: none !important;
   appearance: none !important;
-  background: #5A5A5A !important;  /* dark — unmistakable against the track */
+  background: #6B7280 !important;  /* dark — unmistakable against the track */
   background-clip: padding-box !important;
-  border: 3px solid #E1DFDD !important;
+  border: 3px solid #E5E7EB !important;
   border-radius: var(--rr-radius-pill) !important;
   min-height: 56px !important;
   visibility: visible !important;
@@ -1414,17 +1414,17 @@ body {
 }
 
 .app *::-webkit-scrollbar-thumb:hover {
-  background: #323130 !important;
+  background: #111827 !important;
 }
 
 .app *::-webkit-scrollbar-corner {
-  background: #E1DFDD !important;
+  background: #E5E7EB !important;
 }
 
 /* Firefox: classic non-overlay scrollbar, same contrast. */
 .app * {
   scrollbar-width: auto;
-  scrollbar-color: #5A5A5A #E1DFDD;
+  scrollbar-color: #6B7280 #E5E7EB;
 }
 
 /* Print-table styling used by the PTO report and any future
@@ -1445,15 +1445,15 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 8px 12px;
-  border-bottom: 2px solid #323130;
+  border-bottom: 2px solid #111827;
   background: #FAFAFA;
-  color: #323130;
+  color: #111827;
 }
 
 #rr-ob-print-area .rr-print-pto-table td,
 #rr-sched-print-area .rr-print-pto-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid #E1DFDD;
-  color: #323130;
+  border-bottom: 1px solid #E5E7EB;
+  color: #111827;
   vertical-align: top;
 }

@@ -111,7 +111,7 @@
                          Toggles body.rr-sched-cards-blue, persisted in
                          localStorage('rr-sched-card-style'). -->
                     <fieldset class="rr-sched-cardstyle-fset" style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:6px">
-                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary,#242424);margin-bottom:6px">Card style</legend>
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary,#111827);margin-bottom:6px">Card style</legend>
                       <label class="rr-sched-density-opt">
                         <input type="radio" name="rr-sched-cardstyle" value="white" />
                         <span class="rr-sched-density-opt-body">
@@ -160,12 +160,12 @@
                          rescue=red, nursery=teal, other=gray.
                          Standard (NULL) keeps the existing brand-blue chip. -->
                     <fieldset class="rr-sched-routecolor-fset" style="border:0;padding:14px 0 0;margin:14px 0 0;border-top:1px solid var(--border)">
-                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary,#242424);margin-bottom:6px">Route color coding</legend>
-                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#605E5C);margin:0 0 10px">Tint each shift chip by its route type (Rescue, Nursery, etc.) so the schedule reads at a glance. Set a shift's type from its Edit drawer.</p>
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary,#111827);margin-bottom:6px">Route color coding</legend>
+                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#6B7280);margin:0 0 10px">Tint each shift chip by its route type (Rescue, Nursery, etc.) so the schedule reads at a glance. Set a shift's type from its Edit drawer.</p>
 
                       <label class="rr-sched-routecolor-opt" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:4px;background:#FFF;cursor:pointer;font-family:var(--rr-font-family,'Segoe UI')">
                         <input type="checkbox" id="rr-sched-routecolor-on" style="margin:0;accent-color:var(--accent)" />
-                        <span style="font-size:13px;font-weight:600;color:#242424">Color-code chips by route type</span>
+                        <span style="font-size:13px;font-weight:600;color:#111827">Color-code chips by route type</span>
                       </label>
 
                       <!-- Curated palette · the 8 Fluent-family accents
@@ -175,42 +175,42 @@
                            ring. No free-form color picker — the DSP can
                            still personalize but only from the on-brand
                            palette. -->
-                      <div id="rr-sched-routecolor-legend" hidden style="display:flex;flex-direction:column;gap:8px;margin-top:10px;font:12px/1.4 var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#605E5C)">
+                      <div id="rr-sched-routecolor-legend" hidden style="display:flex;flex-direction:column;gap:8px;margin-top:10px;font:12px/1.4 var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#6B7280)">
                         <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <span style="width:14px;height:14px;border-radius:3px;background:rgba(0,120,212,.22);border:1.5px solid rgba(0,120,212,.55);flex-shrink:0"></span>
+                          <span style="width:14px;height:14px;border-radius:3px;background:rgba(37,99,235,.22);border:1.5px solid rgba(37,99,235,.55);flex-shrink:0"></span>
                           <span style="flex:1">Standard</span>
                           <span style="color:#9A9A9A;font-size:11px">(no override)</span>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="rescue"    style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Rescue</span><button type="button" data-rr-route-reset="rescue" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Rescue</span><button type="button" data-rr-route-reset="rescue" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="rescue" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="nursery"   style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Nursery</span><button type="button" data-rr-route-reset="nursery" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Nursery</span><button type="button" data-rr-route-reset="nursery" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="nursery" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="other"     style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Other</span><button type="button" data-rr-route-reset="other" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Other</span><button type="button" data-rr-route-reset="other" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="other" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="class_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Class training</span><button type="button" data-rr-route-reset="class_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Class training</span><button type="button" data-rr-route-reset="class_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="class_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="road_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Road training</span><button type="button" data-rr-route-reset="road_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Road training</span><button type="button" data-rr-route-reset="road_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="road_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="pto" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">PTO / time off</span><button type="button" data-rr-route-reset="pto" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">PTO / time off</span><button type="button" data-rr-route-reset="pto" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="pto" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="xl" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">XL</span><button type="button" data-rr-route-reset="xl" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">XL</span><button type="button" data-rr-route-reset="xl" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="xl" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="trainer_trainee" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Trainer (trainee riding along)</span><button type="button" data-rr-route-reset="trainer_trainee" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Trainer (trainee riding along)</span><button type="button" data-rr-route-reset="trainer_trainee" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="trainer_trainee" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                       </div>
@@ -228,7 +228,7 @@
                         // choose a clashing neon. Every route shows this
                         // same set; default per-route picks one of these.
                         var PALETTE = [
-                          { name: "Crimson",  hex: "#C50F1F" },
+                          { name: "Crimson",  hex: "#DC2626" },
                           { name: "Orange",   hex: "#CA5010" },
                           { name: "Olive",    hex: "#986F0B" },
                           { name: "Forest",   hex: "#498205" },
@@ -247,7 +247,7 @@
                         // the catch-all; the legacy reduction / cycle_1 /
                         // cycle_2 / backup types were retired from the picker.
                         var DEFAULTS = {
-                          rescue:         "#C50F1F",
+                          rescue:         "#DC2626",
                           nursery:        "#038387",
                           other:          "#5D5A58",
                           class_training: "#038387",
@@ -394,8 +394,8 @@
                   </div>
                   <div class="sched-smartfill-rules-body">
                     <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Grid density">
-                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Grid density</legend>
-                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Same density choice as the Week view — flipping it here also affects Week and Fleet calendar.</p>
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary, #111827);margin-bottom:6px">Grid density</legend>
+                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary, #6B7280);margin:0 0 12px">Same density choice as the Week view — flipping it here also affects Week and Fleet calendar.</p>
 
                       <label class="rr-sched-density-opt">
                         <input type="radio" name="rr-sched-density" value="standard" />
@@ -461,8 +461,8 @@
                   </div>
                   <div class="sched-smartfill-rules-body">
                     <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Grid density">
-                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Grid density</legend>
-                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Same density choice as the Week view — flipping it here also affects Week and Today.</p>
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary, #111827);margin-bottom:6px">Grid density</legend>
+                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary, #6B7280);margin:0 0 12px">Same density choice as the Week view — flipping it here also affects Week and Today.</p>
 
                       <label class="rr-sched-density-opt">
                         <input type="radio" name="rr-sched-density" value="standard" />
@@ -605,7 +605,7 @@
                         <label class="sf2-row-label" for="rr-set-dl-protection-days">License protection window</label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-set-dl-protection-days" min="0" max="365" step="1" value="0">
-                          <span style="font-size:11px;color:#605E5C">days before expiry</span>
+                          <span style="font-size:11px;color:#6B7280">days before expiry</span>
                         </div>
                         <p class="sf2-row-help">Block drivers within N days of their license expiring (0 = only block once expired). Catches expirations before they bite.</p>
                       </div>
@@ -614,7 +614,7 @@
                         <label class="sf2-row-label" for="rr-sf-dl-msg-days">Message window</label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-sf-dl-msg-days" min="1" max="365" step="1" value="30">
-                          <span style="font-size:11px;color:#605E5C">days before expiry</span>
+                          <span style="font-size:11px;color:#6B7280">days before expiry</span>
                         </div>
                         <p class="sf2-row-help">How many days before expiry a driver gets a message. Also sets the “DL” flag window on driver cards.</p>
                       </div>
@@ -638,7 +638,7 @@
                         <label class="sf2-row-label" for="rr-sf-min-rest-hours">Min rest hours</label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-sf-min-rest-hours" min="0" max="48" step="1" value="10" data-rr-sf-num="min_rest_hours">
-                          <span style="font-size:11px;color:#605E5C">hours</span>
+                          <span style="font-size:11px;color:#6B7280">hours</span>
                         </div>
                       </div>
                       <div class="sf2-group-label">Days &amp; hours caps</div>
@@ -646,7 +646,7 @@
                         <label class="sf2-row-label" for="rr-sf-target-days">Target days per driver</label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-sf-target-days" min="0" max="7" step="1" value="4" data-rr-sf-num="target_days_per_week">
-                          <span style="font-size:11px;color:#605E5C">days/week (soft)</span>
+                          <span style="font-size:11px;color:#6B7280">days/week (soft)</span>
                         </div>
                         <p class="sf2-row-help">Aim to keep every driver at or below this many days a week. Engine scores against placements past this number, so other drivers fill first. The engine still goes over the target when coverage demands it (the OT escape hatch). 0 disables. Default 4 — fits a 4-day, 10-hour-shift week before OT.</p>
                       </div>
@@ -673,7 +673,7 @@
                         <label class="sf2-row-label" for="rr-sf-pto-default-hours">PTO hours per day</label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-sf-pto-default-hours" min="0" max="24" step="1" value="10" data-rr-sf-num="pto_default_hours">
-                          <span style="font-size:11px;color:#605E5C">hours</span>
+                          <span style="font-size:11px;color:#6B7280">hours</span>
                         </div>
                         <p class="sf2-row-help">How many hours an approved-PTO day counts as when the cap is being calculated.</p>
                       </div>
@@ -683,7 +683,7 @@
                         <label class="sf2-row-label" for="rr-set-woc-max-days">Max consecutive days</label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-set-woc-max-days" min="1" max="7" step="1" value="6">
-                          <span style="font-size:11px;color:#605E5C">days in a row</span>
+                          <span style="font-size:11px;color:#6B7280">days in a row</span>
                         </div>
                         <p class="sf2-row-help">Day after this run is blocked — rolling, not weekly. A driver who works Wed–Mon (6 days across two calendar weeks) is blocked on the 7th. A day off, approved PTO, or a time-off request <strong>resets</strong> the streak — only worked days count consecutively.</p>
                       </div>
@@ -691,7 +691,7 @@
                         <label class="sf2-row-label" for="rr-set-woc-max-hours">Weekly hour cap</label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-set-woc-max-hours" min="1" max="168" step="1" value="40">
-                          <span style="font-size:11px;color:#605E5C">hours</span>
+                          <span style="font-size:11px;color:#6B7280">hours</span>
                         </div>
                       </div>
                       <div class="sf2-group-label">Same-day shifts</div>

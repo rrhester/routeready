@@ -1238,7 +1238,7 @@ function _rrToggleRecruitingChooser(anchor) {
       border: "0", background: "transparent", cursor: "pointer", font: "inherit",
       fontSize: "13px", color: "var(--text,#1b1b1f)", padding: "8px 12px", borderRadius: "6px",
     });
-    b.addEventListener("mouseenter", () => { b.style.background = "rgba(15,108,189,.08)"; b.style.color = "#0F6CBD"; });
+    b.addEventListener("mouseenter", () => { b.style.background = "rgba(37,99,235,.08)"; b.style.color = "#2563EB"; });
     b.addEventListener("mouseleave", () => { b.style.background = "transparent"; b.style.color = "var(--text,#1b1b1f)"; });
     b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _rrCloseRecruitingChooser(); fn(); });
     return b;
@@ -1300,7 +1300,7 @@ function _rrBuildRecruitingFooter() {
     background: "transparent", cursor: "pointer", color: "var(--text-subtle)",
     padding: "1px 4px", margin: "0", borderRadius: "999px", zIndex: "2", opacity: ".85",
   });
-  launch.addEventListener("mouseenter", () => { launch.style.opacity = "1"; launch.style.color = "var(--accent-text,#0F6CBD)"; launch.style.background = "var(--accent-soft,rgba(15,108,189,.08))"; });
+  launch.addEventListener("mouseenter", () => { launch.style.opacity = "1"; launch.style.color = "var(--accent-text,#2563EB)"; launch.style.background = "var(--accent-soft,rgba(37,99,235,.08))"; });
   launch.addEventListener("mouseleave", () => { launch.style.opacity = ".85"; launch.style.color = "var(--text-subtle)"; launch.style.background = "transparent"; });
   launch.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _rrToggleRecruitingChooser(launch); });
   group.appendChild(cap);
@@ -1335,7 +1335,7 @@ const _RR_MAIL_RIBBON_ICONS = {
   send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
   save:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   invite:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
-  meeting:'<svg viewBox="0 0 24 24" fill="url(#rr-mail-meet-grad)" aria-hidden="true"><defs><linearGradient id="rr-mail-meet-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4DA3E8"/><stop offset="52%" stop-color="#0F6CBD"/><stop offset="100%" stop-color="#0B5394"/></linearGradient></defs><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>',
+  meeting:'<svg viewBox="0 0 24 24" fill="url(#rr-mail-meet-grad)" aria-hidden="true"><defs><linearGradient id="rr-mail-meet-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#60A5FA"/><stop offset="52%" stop-color="#2563EB"/><stop offset="100%" stop-color="#1D4ED8"/></linearGradient></defs><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>',
   recur:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
   important:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="14"/><line x1="12" y1="19" x2="12" y2="19.5"/></svg>',
   attach:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
@@ -1351,7 +1351,7 @@ function _rrMailRibbonStyle(rootId) {
     #${rootId} .rr-mail-ico:hover{background:rgba(15,23,42,.05);color:var(--text)}
     #${rootId} .rr-mail-ico:active{transform:translateY(1px) scale(.97)}
     #${rootId} .rr-mail-ico.active{color:var(--accent-text);background:var(--accent-soft)}
-    #${rootId} .rr-mail-ico.danger:hover{background:rgba(209,52,56,.12);color:#C4281C}
+    #${rootId} .rr-mail-ico.danger:hover{background:rgba(220,38,38,.12);color:#DC2626}
     #${rootId} .rr-mail-ico.send{color:#fff;background:var(--accent);font-weight:600}
     #${rootId} .rr-mail-ico.send:hover{background:var(--accent-hover)}
     #${rootId} .rr-mail-ico svg{width:33px;height:33px;stroke-linecap:round;stroke-linejoin:round}
@@ -2169,7 +2169,7 @@ function _rrInjectInsightsPanelCss() {
       padding: 10px 18px;
       border: 1px solid #c4b5fd;
       background: linear-gradient(135deg, #E3F0FA 0%, #FCE7F3 100%);
-      color: #0F548C;
+      color: #1E40AF;
       border-radius: 8px;
       font: 600 13px/1.2 var(--rr-font-family, 'Inter','Segoe UI');
       cursor: pointer;
@@ -4547,7 +4547,7 @@ async function _submitBulkDrivers() {
   if (resEl) {
     const failedRows = rows.filter((r) => !r.ok);
     resEl.innerHTML = `
-      <div style="background:${inserted > 0 ? "var(--green-soft)" : "var(--canvas)"};border:1px solid ${inserted > 0 ? "rgba(16,185,129,.20)" : "var(--border)"};border-radius:var(--r-md);padding:var(--s-3) var(--s-4);font-size:var(--fs-sm);line-height:1.5">
+      <div style="background:${inserted > 0 ? "var(--green-soft)" : "var(--canvas)"};border:1px solid ${inserted > 0 ? "rgba(22,163,74,.20)" : "var(--border)"};border-radius:var(--r-md);padding:var(--s-3) var(--s-4);font-size:var(--fs-sm);line-height:1.5">
         <div style="font-weight:700;color:${inserted > 0 ? "var(--green-dark)" : "var(--text)"};margin-bottom:6px">Import complete</div>
         <div class="u-muted">
           ✅ ${inserted} created
@@ -5077,7 +5077,7 @@ function _rosterEmpty({ icon, title, body, error }) {
   const ic = error
     ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
     : (icon || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>');
-  return `<div class="dr-empty"><div class="ic"${error ? ' style="color:var(--red);background:var(--red-soft);border-color:rgba(225,29,72,.20)"' : ""}>${ic}</div><h3>${escapeHtml(title)}</h3><p>${body}</p></div>`;
+  return `<div class="dr-empty"><div class="ic"${error ? ' style="color:var(--red);background:var(--red-soft);border-color:rgba(220,38,38,.20)"' : ""}>${ic}</div><h3>${escapeHtml(title)}</h3><p>${body}</p></div>`;
 }
 
 // Generic card/list skeleton for the Drivers sub-views (Licenses,
@@ -5473,7 +5473,7 @@ function _obPill(label, tone) {
   const T = tone === "green" ? "background:var(--green-soft);color:var(--green-dark)"
     : tone === "red"   ? "background:var(--red-soft);color:var(--red-dark)"
     : tone === "amber" ? "background:var(--amber-soft);color:var(--amber-dark)"
-    : tone === "blue"  ? "background:var(--accent-soft);color:#075985"
+    : tone === "blue"  ? "background:var(--accent-soft);color:#1E40AF"
     : "background:var(--canvas);color:var(--text-muted)";
   return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:var(--r-pill);white-space:nowrap;${T}">${escapeHtml(label)}</span>`;
 }
@@ -5613,9 +5613,9 @@ function _obMxStylesOnce() {
     ".ob-matrix td.ob-mx-namecell{padding-left:18px;text-align:left;min-width:264px;position:sticky;left:0;background:var(--surface-elevated);z-index:1;box-shadow:8px 0 16px -18px rgba(15,23,42,.6)}" +
     ".ob-mx-namecell .avatar-sm{width:30px;height:30px;font-size:12px;flex:0 0 auto}" +
     ".ob-matrix td.ob-mx-statuscell{text-align:left}" +
-    ".ob-matrix tr:hover td{background:rgba(15,108,189,.06)}" +
-    ".ob-matrix tr:hover td.ob-mx-namecell{background:rgba(15,108,189,.06)}" +
-    ".ob-matrix tr:hover .ob-mx-name{color:#0078D4}" +
+    ".ob-matrix tr:hover td{background:rgba(37,99,235,.06)}" +
+    ".ob-matrix tr:hover td.ob-mx-namecell{background:rgba(37,99,235,.06)}" +
+    ".ob-matrix tr:hover .ob-mx-name{color:#2563EB}" +
     /* Trailing utility toolbar — condensed row actions, quiet until hover. */
     ".ob-mx-toolcol{text-align:right;padding-right:16px}" +
     ".ob-mx-toolcell{text-align:right;white-space:nowrap}" +
@@ -5626,7 +5626,7 @@ function _obMxStylesOnce() {
        still read as sharp clear shapes. */
     ".ob-mx-toolbar{display:inline-flex;align-items:center;gap:2px}" +
     ".ob-tb-btn{position:relative;appearance:none;background:transparent;border:0;border-radius:4px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;flex:0 0 auto;transition:color var(--t-fast),background var(--t-fast)}" +
-    ".ob-tb-btn:hover{color:#0078D4;background:#F3F2F1}" +
+    ".ob-tb-btn:hover{color:#2563EB;background:#F9FAFB}" +
     ".ob-tb-btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft)}" +
     ".ob-tb-btn.ob-tb-remove:hover{color:var(--red);background:var(--red-soft)}" +
     ".ob-tb-btn svg{width:22px;height:22px}" +
@@ -5645,7 +5645,7 @@ function _obMxStylesOnce() {
     ".ob-mxdot[disabled]{cursor:not-allowed;opacity:.5}" +
     ".ob-mx-action{appearance:none;background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:var(--sch-radius,6px);width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color var(--t-fast),border-color .12s,background .12s,transform .12s,box-shadow .12s;line-height:0}" +
     ".ob-mx-action:hover{color:var(--accent-text);border-color:var(--accent-border);background:var(--surface);transform:translateY(-1px);box-shadow:0 10px 18px -16px rgba(15,23,42,.65)}" +
-    ".ob-mx-action.ob-mx-remove:hover{color:var(--red);border-color:rgba(225,29,72,.40);background:var(--red-soft)}" +
+    ".ob-mx-action.ob-mx-remove:hover{color:var(--red);border-color:rgba(220,38,38,.40);background:var(--red-soft)}" +
     /* ── Onboarding builder ──────────────────────────────────── */
     ".ob-bld-list{display:flex;flex-direction:column;gap:6px}" +
     ".ob-bld-card{display:flex;align-items:center;gap:10px;background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:6px;padding:8px 12px;transition:opacity var(--t-fast),border-color .12s}" +
@@ -5697,13 +5697,13 @@ function _obMxStylesOnce() {
     ".ob-bld-card:hover .ob-bld-trash,.ob-bld-card:focus-within .ob-bld-trash{opacity:1;transform:none}" +
     ".ob-bld-trash:hover{color:var(--red);background:var(--red-soft)}" +
     ".ob-bld-trash:focus-visible{opacity:1;transform:none;outline:none;box-shadow:0 0 0 3px var(--accent-soft)}" +
-    ".ob-bld-card.confirming{border-color:rgba(225,29,72,.45);background:var(--red-soft);align-items:center}" +
+    ".ob-bld-card.confirming{border-color:rgba(220,38,38,.45);background:var(--red-soft);align-items:center}" +
     ".ob-bld-confirm{display:flex;align-items:center;gap:var(--s-3-5);flex-wrap:wrap;width:100%}" +
     ".ob-bld-confirm-txt{font-size:var(--fs-sm);color:var(--text);line-height:1.4}" +
     ".ob-bld-confirm-txt strong{font-weight:700}" +
     ".ob-bld-confirm-actions{display:flex;gap:var(--s-2);margin-left:auto}" +
     /* Add-a-step picker · compact Fluent option rows */
-    ".rr-addtype{text-align:left;border:1px solid var(--sch-line,var(--border));border-radius:6px;padding:9px 12px;cursor:pointer;background:var(--surface-elevated,#FCFDFE);transition:border-color .12s,background .12s}" +
+    ".rr-addtype{text-align:left;border:1px solid var(--sch-line,var(--border));border-radius:6px;padding:9px 12px;cursor:pointer;background:var(--surface-elevated,#FFFFFF);transition:border-color .12s,background .12s}" +
     ".rr-addtype:hover{border-color:var(--accent-border);background:var(--canvas)}" +
     ".rr-addtype:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
     ".rr-addtype-t{font-size:13px;font-weight:600;color:var(--text)}" +
@@ -6497,7 +6497,7 @@ function _obAddStepPicker() {
   m.id = "rr-ob-addstep";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
   m.innerHTML = `
-    <div style="background:var(--surface-elevated,#FCFDFE);border:1px solid var(--sch-line,rgba(15,23,42,.10));border-radius:8px;max-width:460px;width:100%;box-shadow:0 12px 32px rgba(15,23,42,.16)">
+    <div style="background:var(--surface-elevated,#FFFFFF);border:1px solid var(--sch-line,rgba(15,23,42,.10));border-radius:8px;max-width:460px;width:100%;box-shadow:0 12px 32px rgba(15,23,42,.16)">
       <div style="padding:13px 16px 11px;border-bottom:1px solid var(--sch-line-subtle,rgba(15,23,42,.06))"><div style="font-size:13px;font-weight:600;color:var(--text)">Add a step</div><div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Pick a type — rename and configure it after.</div></div>
       <div style="padding:10px 14px;display:flex;flex-direction:column;gap:5px;max-height:60vh;overflow-y:auto">
         ${_OB_ADD_TYPES.map((t, idx) => `<button type="button" class="rr-addtype" data-picker-idx="${idx}"><div class="rr-addtype-t">${escapeHtml(t.label)}</div><div class="rr-addtype-b">${escapeHtml(t.blurb)}</div></button>`).join("")}
@@ -6756,7 +6756,7 @@ async function loadOnboardingOps(opts) {
   _rosterPairings = new Map((Array.isArray(pairRes?.data) ? pairRes.data : []).map((r) => [r.trainee_id, r]));
   _obBlueprint = (bpRes && Array.isArray(bpRes.data) && bpRes.data.length) ? bpRes.data : null;
   if (error) {
-    body.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red);background:var(--red-soft);border-color:rgba(225,29,72,.20)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><h3>Couldn't load onboarding</h3><p>${escapeHtml(error.message || "")}</p></div>`;
+    body.innerHTML = `<div class="dr-empty"><div class="ic" style="color:var(--red);background:var(--red-soft);border-color:rgba(220,38,38,.20)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><h3>Couldn't load onboarding</h3><p>${escapeHtml(error.message || "")}</p></div>`;
     return;
   }
   const rows = Array.isArray(drv) ? drv : [];
@@ -7109,7 +7109,7 @@ function _onbNotesStylesOnce() {
     ".onb-notes-empty{font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5;padding:var(--s-2) 2px}" +
     ".onb-note{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);padding:var(--s-3) var(--s-3) 9px;transition:border-color var(--t-smooth),background var(--t-smooth),box-shadow var(--t-smooth);position:relative}" +
     ".onb-note:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
-    ".onb-note.confirming{border-color:rgba(225,29,72,.45);background:var(--red-soft)}" +
+    ".onb-note.confirming{border-color:rgba(220,38,38,.45);background:var(--red-soft)}" +
     ".onb-note textarea{width:100%;border:0;background:transparent;font:inherit;font-size:var(--fs-sm);color:var(--text);line-height:1.5;resize:none;outline:none;display:block;min-height:44px;overflow:hidden}" +
     ".onb-note textarea::placeholder{color:var(--text-subtle)}" +
     ".onb-note-meta{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:10px;color:var(--text-subtle);letter-spacing:.01em}" +
@@ -7295,7 +7295,7 @@ function _obRemovePicker(driverId, driverName) {
   m.id = "rr-ob-remove-modal";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10004;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:60px 16px";
   m.innerHTML = `
-    <div style="background:var(--surface-elevated,#FCFDFE);border:1px solid var(--sch-line,rgba(15,23,42,.10));border-radius:8px;max-width:380px;width:100%;box-shadow:0 12px 32px rgba(15,23,42,.16)">
+    <div style="background:var(--surface-elevated,#FFFFFF);border:1px solid var(--sch-line,rgba(15,23,42,.10));border-radius:8px;max-width:380px;width:100%;box-shadow:0 12px 32px rgba(15,23,42,.16)">
       <div style="padding:13px 16px 11px;border-bottom:1px solid var(--sch-line-subtle,rgba(15,23,42,.06))">
         <div style="font-size:13px;font-weight:600;color:var(--text)">Remove from onboarding</div>
         <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Why is ${escapeHtml(driverName)} being removed?</div>
@@ -8548,7 +8548,7 @@ function _sepOptList(name, opts, type) {
   ).join("");
 }
 function _sepFindingRow(ok, label, detail) {
-  const mark = ok ? `<span style="color:#137C43;font-weight:700">✓</span>`
+  const mark = ok ? `<span style="color:#16A34A;font-weight:700">✓</span>`
                   : `<span style="color:var(--text-subtle)">—</span>`;
   return `<div class="sep-finding"><span class="sep-finding-mark">${mark}</span>`
     + `<span class="sep-finding-label">${escapeHtml(label)}</span>`
@@ -8846,7 +8846,7 @@ function _riskCell(driverId) {
   // A filled flag carries the signal — red = At Risk (final), amber = Watch
   // (written). No label; the color + hover title do the work.
   const flag = (color, title) => `<span class="rr-risk-flag" title="${title}" aria-label="${title}" style="display:inline-flex;align-items:center;color:${color}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" fill="currentColor"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>`;
-  if (r === "atrisk") return flag("#D5392F", "At risk · on a final corrective action");
+  if (r === "atrisk") return flag("#DC2626", "At risk · on a final corrective action");
   if (r === "watch")  return flag("#B45309", "Watch · on a written corrective action");
   return '<span class="u-subtle">—</span>';
 }
@@ -10316,8 +10316,8 @@ async function loadWeatherRadar() {
 
     // 2hr drive ring (~120 mi at typical highway speeds)
     const ring = L.circle([lat, lon], {
-      radius: 193121, color: '#0F6CBD', weight: 1.5, dashArray: '6 4',
-      fillColor: '#0F6CBD', fillOpacity: 0.04,
+      radius: 193121, color: '#2563EB', weight: 1.5, dashArray: '6 4',
+      fillColor: '#2563EB', fillOpacity: 0.04,
     }).addTo(map).bindTooltip('2hr drive zone (~120 mi)', { permanent: false });
 
     _weatherRadarState = {
@@ -13162,7 +13162,7 @@ function _renderTpMeta(attData, rosterData) {
   const extras = rows.filter(r => r.is_cushion).length;
   const flagged = rows.filter(r => ["tardy","ncns","missed_reported"].includes(r.computed_outcome) && !r.decision).length;
   const checkedIn = rows.filter(r => ["checked_in", "checked_out"].includes(r.computed_outcome)).length;
-  const navy = "#1A1F47";
+  const navy = "#1E293B";
   const pct = rows.length ? Math.round((checkedIn / rows.length) * 100) : 0;
   const summary = {
     scheduled:  { value: rows.length, sub: `${waves.size} wave${waves.size === 1 ? "" : "s"}`,    tone: "navy" },
@@ -14019,7 +14019,7 @@ const _RR_OUTCOME_TONE = {
   checked_out:      { bg: "rgba(22,163,74,.10)",      fg: "var(--green)" },
   missed_reported:  { bg: "rgba(180,83,9,.15)",       fg: "var(--amber)" },
   tardy:            { bg: "rgba(180,83,9,.20)",       fg: "var(--amber)" },
-  ncns:             { bg: "rgba(225,29,72,.15)",      fg: "var(--red)" },
+  ncns:             { bg: "rgba(220,38,38,.15)",      fg: "var(--red)" },
 };
 
 let _todayAttPollTimer = null;
@@ -14547,7 +14547,7 @@ document.addEventListener("change", async (e) => {
 
 function renderDriverStatusBadge(s) {
   const map = {
-    onboarding: { label: "Onboarding", style: "background:rgba(15,108,189,.14);color:#0F6CBD" },
+    onboarding: { label: "Onboarding", style: "background:rgba(37,99,235,.14);color:#2563EB" },
     active:     { label: "Active",     style: "background:var(--green-soft);color:var(--green)" },
     leave:      { label: "On leave",   style: "background:var(--amber-soft);color:var(--amber)" },
     inactive:   { label: "Inactive",   style: "background:var(--canvas);color:var(--text-subtle)" },
@@ -14563,7 +14563,7 @@ function renderDriverStatusBadge(s) {
 // full badge pill (reduces the badge clutter in the header).
 function _rrDriverStatusMeta(s) {
   const map = {
-    onboarding: { label: "Onboarding", color: "#0F6CBD" },
+    onboarding: { label: "Onboarding", color: "#2563EB" },
     active:     { label: "Active",     color: "var(--green)" },
     leave:      { label: "On leave",   color: "var(--amber)" },
     inactive:   { label: "Inactive",   color: "var(--text-subtle)" },
@@ -14738,7 +14738,7 @@ async function refreshDriverStatRow(rows) {
   //   2. The "Roster" cmd-tab on view-onboarding-ops → that page's
   //      #rr-ob-kpis strip, the only KPI bar visible on screen.
   // Both hosts get painted; the hidden one is invisible.
-  const navy = "#1A1F47";
+  const navy = "#1E293B";
   const amber = "#C7860B";
   const rosterPill = (key, color, label, sub, clickable, iconHtml) => {
     const cl = clickable ? ' data-clickable="true"' : "";
@@ -14805,7 +14805,7 @@ async function refreshDriverStatRow(rows) {
     rosterPill("loa",    (counts.leave || 0) > 0 ? amber : navy,
       `${counts.leave || 0} on LOA`,
       (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
-    rosterPill("finalca", finalCaCount > 0 ? "#D5392F" : navy, finalCaLabel, finalCaSub, false, finalCaIcon) +
+    rosterPill("finalca", finalCaCount > 0 ? "#DC2626" : navy, finalCaLabel, finalCaSub, false, finalCaIcon) +
     rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
     rosterPill("tenured", navy, tenuredLabel, tenuredSub, false) +
     rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, true);
@@ -16328,7 +16328,7 @@ function renderInterviewCard(r) {
   const outcome = r.outcome;
   const sourceColors = {
     hired:   "background:rgba(22,163,74,.12);color:var(--green)",
-    no_hire: "background:rgba(225,29,72,.12);color:var(--red)",
+    no_hire: "background:rgba(220,38,38,.12);color:var(--red)",
     no_show: "background:rgba(245,158,11,.18);color:var(--amber-dark)",
   };
   const badge = outcome
@@ -16686,10 +16686,10 @@ function _ivcalSaveToggles() {
 }
 // Legend swatch per built-in calendar (events keep their status-based color;
 // these are just the dots shown next to each built-in in My Calendars).
-const _IVCAL_KIND_COLOR = { interview:"#0F6CBD", orientation:"#B45309", event:"#0E7C66", session:"#7C3AED" };
+const _IVCAL_KIND_COLOR = { interview:"#2563EB", orientation:"#B45309", event:"#0E7C66", session:"#7C3AED" };
 const _IVCAL_KIND_LABEL = { interview:"Interviews", orientation:"Orientations", event:"Events", session:"Group sessions" };
 // Swatches offered in the Add/Edit calendar dialog.
-const _IVCAL_PALETTE = ["#0F6CBD","#107C41","#B45309","#B91C1C","#0E7C66","#7C3AED","#C2410C","#0891B2","#BE185D","#4338CA","#65A30D","#475569"];
+const _IVCAL_PALETTE = ["#2563EB","#16A34A","#B45309","#B91C1C","#0E7C66","#7C3AED","#C2410C","#0891B2","#BE185D","#4338CA","#65A30D","#475569"];
 // Resolve a custom calendar's color for an event (null if none / not custom).
 function _ivcalCalColor(ev) {
   if (!ev || !ev.calendar_id || !_ivcalCache || !_ivcalCache.calendars) return null;
@@ -16709,7 +16709,7 @@ function _ivcalMyCalendars() {
   ).join("");
   const custom = cals.map(c => {
     const on = _ivcalCalVis[c.id] !== false;
-    return `<div class="oc-cal-row"><label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="${escapeHtml(c.id)}"${on?" checked":""}><span class="oc-cal-dot" style="background:${escapeHtml(c.color||'#0F6CBD')}"></span><span class="oc-cal-name">${escapeHtml(c.name)}</span></label><button class="oc-cal-menu" data-ivcal-calmenu="${escapeHtml(c.id)}" title="Calendar options" aria-label="Calendar options">⋯</button></div>`;
+    return `<div class="oc-cal-row"><label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="${escapeHtml(c.id)}"${on?" checked":""}><span class="oc-cal-dot" style="background:${escapeHtml(c.color||'#2563EB')}"></span><span class="oc-cal-name">${escapeHtml(c.name)}</span></label><button class="oc-cal-menu" data-ivcal-calmenu="${escapeHtml(c.id)}" title="Calendar options" aria-label="Calendar options">⋯</button></div>`;
   }).join("");
   return `<div class="oc-cals">
     <div class="oc-cals-h"><span>My Calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
@@ -16962,12 +16962,12 @@ function _ivcalCat(ev, kind) {
 }
 // Schedule-aligned palette so the calendar's category dots/tags match the
 // shift-chip colors used across the Schedule and Onboarding surfaces.
-const _IVCAL_CAT_COLOR = { blue:"#0F6CBD", green:"#107C41", orange:"#B45309", gray:"#7C8698", teal:"#0E7C66", red:"#B91C1C" };
+const _IVCAL_CAT_COLOR = { blue:"#2563EB", green:"#16A34A", orange:"#B45309", gray:"#7C8698", teal:"#0E7C66", red:"#B91C1C" };
 function _ivcalEvKind(ev) { return ev.kind === "orientation" ? "orientation" : (ev.kind === "event" ? "event" : "interview"); }
 // Small camera glyph used as the "has video link" marker (replaces the old
 // 🎥 emoji). Flat brand blue — the old #rr-cam-grad gradient paint server was
 // retired in the app-wide gradient sweep.
-const _IVCAL_CAM_SVG = '<svg class="ei-cam" viewBox="0 0 24 24" fill="#0F6CBD" aria-hidden="true"><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>';
+const _IVCAL_CAM_SVG = '<svg class="ei-cam" viewBox="0 0 24 24" fill="#2563EB" aria-hidden="true"><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>';
 
 async function loadIvCalendar() {
   const host = document.getElementById("rr-ivcal-body");
@@ -17559,7 +17559,7 @@ function _rrInviteEmail(o) {
   const esc = (s) => escapeHtml(s == null ? "" : String(s));
   const btn = (href, label, bg) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:15px;line-height:1;padding:13px 28px;border-radius:8px">${label}</a>`;
   const detail = (icon, html) => `<tr><td style="padding:5px 12px 5px 0;font-size:18px;vertical-align:top;width:22px">${icon}</td><td style="padding:5px 0;font-size:15px;color:#1b1b1f;vertical-align:top">${html}</td></tr>`;
-  const join = o.joinUrl ? detail("🎥", `<a href="${esc(o.joinUrl)}" style="color:#0F6CBD;font-weight:600;text-decoration:none">Join the video meeting</a>`) : "";
+  const join = o.joinUrl ? detail("🎥", `<a href="${esc(o.joinUrl)}" style="color:#2563EB;font-weight:600;text-decoration:none">Join the video meeting</a>`) : "";
   const loc = (o.location && o.location.trim()) ? detail("📍", esc(o.location.trim())) : "";
   const msg = (o.message && o.message.trim())
     ? `<div style="margin:18px 0 0;padding:14px 16px;background:#f6f8fb;border-radius:10px;font-size:15px;line-height:1.5;color:#3a3a45;white-space:pre-wrap">${esc(o.message.trim())}</div>` : "";
@@ -17567,7 +17567,7 @@ function _rrInviteEmail(o) {
 `<div style="background:#eef1f5;padding:24px 12px;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
   <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
-    <tr><td style="background:#0F6CBD;border-radius:14px 14px 0 0;padding:22px 28px">
+    <tr><td style="background:#2563EB;border-radius:14px 14px 0 0;padding:22px 28px">
       <div style="color:#ffffff;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.85">${esc(o.dspName || "RouteReady")}</div>
       <div style="color:#ffffff;font-size:22px;font-weight:800;margin-top:5px">You're invited</div>
     </td></tr>
@@ -17579,8 +17579,8 @@ function _rrInviteEmail(o) {
         ${join}
       </table>
       ${msg}
-      <div style="margin-top:26px">${btn(o.acceptUrl, "✓ Accept", "#16A34A")}&nbsp;&nbsp;${btn(o.declineUrl, "✗ Decline", "#C4281C")}</div>
-      <div style="margin-top:16px"><a href="${esc(o.gcalUrl)}" style="color:#0F6CBD;font-weight:600;font-size:14px;text-decoration:none">📅 Add to Google Calendar</a></div>
+      <div style="margin-top:26px">${btn(o.acceptUrl, "✓ Accept", "#16A34A")}&nbsp;&nbsp;${btn(o.declineUrl, "✗ Decline", "#DC2626")}</div>
+      <div style="margin-top:16px"><a href="${esc(o.gcalUrl)}" style="color:#2563EB;font-weight:600;font-size:14px;text-decoration:none">📅 Add to Google Calendar</a></div>
     </td></tr>
     <tr><td style="text-align:center;padding:16px 0;color:#9aa0ab;font-size:12px">Powered by RouteReady</td></tr>
   </table>
@@ -17649,7 +17649,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
     save:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
     invite:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
-    meeting:'<svg viewBox="0 0 24 24" fill="url(#rr-ne-meet-grad)" stroke="url(#rr-ne-meet-grad)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="rr-ne-meet-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4DA3E8"/><stop offset="52%" stop-color="#0F6CBD"/><stop offset="100%" stop-color="#0B5394"/></linearGradient></defs><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>',
+    meeting:'<svg viewBox="0 0 24 24" fill="url(#rr-ne-meet-grad)" stroke="url(#rr-ne-meet-grad)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="rr-ne-meet-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#60A5FA"/><stop offset="52%" stop-color="#2563EB"/><stop offset="100%" stop-color="#1D4ED8"/></linearGradient></defs><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>',
     recur:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
     important:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="14"/><line x1="12" y1="19" x2="12" y2="19.5"/></svg>',
     attach:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
@@ -17686,12 +17686,12 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-card.is-min{left:16px;right:auto;top:auto;bottom:0;transform:none;width:300px;height:auto;border-radius:10px 10px 0 0}
       #rr-ivcal-new .rr-ne-card.is-min .rr-ne-ribbon,#rr-ivcal-new .rr-ne-card.is-min .rr-ne-fields{display:none}
       #rr-ivcal-new .rr-ne-card.is-min .rr-ne-titlebar{cursor:pointer}
-      #rr-ivcal-new .rr-ne-titlebar{display:flex;align-items:center;height:38px;padding:0 4px 0 12px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));background:var(--surface-secondary,#F2F3F6);cursor:move;user-select:none}
+      #rr-ivcal-new .rr-ne-titlebar{display:flex;align-items:center;height:38px;padding:0 4px 0 12px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));background:var(--surface-secondary,#F3F4F6);cursor:move;user-select:none}
       #rr-ivcal-new .rr-ne-tt{flex:1;font-size:12px;font-weight:600;color:var(--text-subtle);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
       #rr-ivcal-new .rr-ne-wins{display:flex;gap:1px}
       #rr-ivcal-new .rr-ne-win{width:42px;height:30px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;color:var(--text-muted)}
       #rr-ivcal-new .rr-ne-win:hover{background:rgba(15,23,42,.07)}
-      #rr-ivcal-new .rr-ne-win.close:hover{background:#D13438;color:#fff}
+      #rr-ivcal-new .rr-ne-win.close:hover{background:#DC2626;color:#fff}
       /* In the installed app (Window Controls Overlay), the OS minimize /
          maximize / close buttons sit at the top-right. When the editor is
          maximized it spans the full width, so its own window buttons land
@@ -17707,7 +17707,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-ico span{white-space:nowrap}
       #rr-ivcal-new .rr-ne-ico:hover{background:rgba(15,23,42,.05);color:var(--text)}
       #rr-ivcal-new .rr-ne-ico.active{color:var(--accent-text);background:var(--accent-soft)}
-      #rr-ivcal-new .rr-ne-ico.danger:hover{background:rgba(209,52,56,.12);color:#C4281C}
+      #rr-ivcal-new .rr-ne-ico.danger:hover{background:rgba(220,38,38,.12);color:#DC2626}
       #rr-ivcal-new .rr-ne-ico.send{color:#fff;background:var(--accent);font-weight:600}
       #rr-ivcal-new .rr-ne-ico.send:hover{background:var(--accent-hover)}
       /* Match the main page strip icons exactly: 33px, 1.6 stroke, round caps, var(--text). */
@@ -17715,12 +17715,12 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-ico,#rr-ivcal-new .rr-ne-win{transition:background var(--t-fast),color var(--t-fast),transform .12s cubic-bezier(.2,.7,.2,1)}
       #rr-ivcal-new .rr-ne-ico:active,#rr-ivcal-new .rr-ne-win:active{transform:translateY(1px) scale(.97)}
       #rr-ivcal-new .rr-ne-fields{flex:1;min-height:0;display:flex;flex-direction:column;gap:11px;padding:16px 22px;box-sizing:border-box;overflow-y:auto}
-      #rr-ivcal-new .rr-ne-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-secondary,#F2F3F6);border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12px}
+      #rr-ivcal-new .rr-ne-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-secondary,#F3F4F6);border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12px}
       #rr-ivcal-new .rr-ne-chip button{border:0;background:none;cursor:pointer;color:var(--text-subtle);font-size:14px;line-height:1}
       #rr-ivcal-new .rr-ne-recsum{font-size:12px;color:var(--accent-text);background:var(--accent-soft);border-radius:6px;padding:6px 10px;display:none}
       /* Recurrence popover · anchored, no backdrop. */
       #rr-ivcal-new .rr-ne-pop{position:absolute;z-index:5;top:96px;left:18px;width:340px;background:var(--surface);border:1px solid var(--border-strong,rgba(15,23,42,.26));border-radius:10px;box-shadow:0 18px 44px rgba(15,23,42,.28);overflow:hidden}
-      #rr-ivcal-new .rr-ne-pop-h{padding:11px 14px;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,#0F6CBD,#115EA3)}
+      #rr-ivcal-new .rr-ne-pop-h{padding:11px 14px;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,#2563EB,#1D4ED8)}
       #rr-ivcal-new .rr-ne-pop-b{padding:12px 14px;display:flex;flex-direction:column;gap:14px;max-height:60vh;overflow-y:auto}
       #rr-ivcal-new .rr-ne-pop-sec{display:flex;flex-direction:column;gap:6px}
       #rr-ivcal-new .rr-ne-pop-t{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)}
@@ -18214,8 +18214,8 @@ function _ivcalEditEvent(kind, id) {
 const _IVCAL_MSG_STATUS = {
   queued:    { label: "Queued",    color: "#B45309", bg: "#FEF3C7" },
   sending:   { label: "Sending",   color: "#B45309", bg: "#FEF3C7" },
-  sent:      { label: "Sent",      color: "#0F6CBD", bg: "#DBEAFE" },
-  delivered: { label: "Delivered", color: "#107C41", bg: "#DCFCE7" },
+  sent:      { label: "Sent",      color: "#2563EB", bg: "#DBEAFE" },
+  delivered: { label: "Delivered", color: "#16A34A", bg: "#DCFCE7" },
   failed:    { label: "Failed",    color: "#B91C1C", bg: "#FEE2E2" },
   received:  { label: "Received",  color: "#0E7C66", bg: "#CCFBF1" },
 };
@@ -18268,14 +18268,14 @@ async function _ivcalLoadEventMessages(eventId, host) {
   }
 
   const rowsHtml = items.map(it => {
-    const st = _IVCAL_MSG_STATUS[it.status] || { label: it.status || "—", color: "#7C8698", bg: "#F2F3F6" };
+    const st = _IVCAL_MSG_STATUS[it.status] || { label: it.status || "—", color: "#7C8698", bg: "#F3F4F6" };
     const icon = it.ch === "email" ? "✉" : "💬";
     const inbound = it.direction === "inbound";
     const dirLabel = inbound ? "Reply from" : "To";
     const pill = `<span style="font-size:11px;font-weight:600;color:${st.color};background:${st.bg};border-radius:999px;padding:1px 8px;white-space:nowrap">${escapeHtml(st.label)}</span>`;
     // Tag the booking-link invite so it's distinguishable from the confirmation.
     const kindTag = (it.invite && !inbound)
-      ? `<span style="font-size:11px;font-weight:600;color:#0F6CBD;background:#E3F0FA;border-radius:999px;padding:1px 8px">Booking invite</span>` : "";
+      ? `<span style="font-size:11px;font-weight:600;color:#2563EB;background:#E3F0FA;border-radius:999px;padding:1px 8px">Booking invite</span>` : "";
     const subjLine = it.subject
       ? `<div style="font-weight:600;color:var(--text);margin-top:2px">${escapeHtml(it.subject)}</div>` : "";
     const body = (it.body || "").trim();
@@ -18286,13 +18286,13 @@ async function _ivcalLoadEventMessages(eventId, host) {
     const inviteNote = (it.ch === "email" && !inbound)
       ? (it.invite
           ? `<div style="font-size:12px;color:var(--text-subtle);margin-top:4px">🔗 Booking link included</div>`
-          : `<div style="font-size:12px;color:var(--green,#107C41);margin-top:4px">📅 Calendar invite (.ics) included</div>`)
+          : `<div style="font-size:12px;color:var(--green,#16A34A);margin-top:4px">📅 Calendar invite (.ics) included</div>`)
       : "";
     const errNote = it.error
       ? `<div style="font-size:12px;color:var(--red,#B91C1C);margin-top:4px">⚠ ${escapeHtml(it.error)}</div>` : "";
     const bodyBlock = body
-      ? `<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:var(--accent-text,#0F6CBD)">View message</summary>
-           <div style="white-space:pre-wrap;font-size:13px;color:#3a3a45;background:var(--surface-secondary,#F2F3F6);border-radius:6px;padding:8px 10px;margin-top:4px">${escapeHtml(body)}</div></details>`
+      ? `<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:var(--accent-text,#2563EB)">View message</summary>
+           <div style="white-space:pre-wrap;font-size:13px;color:#3a3a45;background:var(--surface-secondary,#F3F4F6);border-radius:6px;padding:8px 10px;margin-top:4px">${escapeHtml(body)}</div></details>`
       : "";
     return `<div style="border:1px solid var(--border);border-radius:8px;padding:9px 11px;background:var(--surface)">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -20598,7 +20598,7 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-drawer.rr-dd-inline.rr-dd-open #rr-dd-panel{transform:translateX(0)}
       /* Compact summary header — smaller avatar, tighter padding, and the
          same surface tint as the roster table header. */
-      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-3-5) 20px;background:#C5DBF1;border-bottom:1px solid rgba(15, 108, 189, 0.34)}
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-3-5) 20px;background:#C5DBF1;border-bottom:1px solid rgba(37,99,235, 0.34)}
       #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-base)}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:40px!important;height:40px!important;font-size:var(--fs-md)!important}
       #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
@@ -21172,7 +21172,7 @@ function renderAvailabilityTab(body, d, record) {
     const chips = dayKey.map(k => {
       const on = overrideDays.has(k);
       const bg = on ? "var(--green-soft)" : "transparent";
-      const border = on ? "1px solid rgba(16,185,129,.5)" : "1px dashed var(--border)";
+      const border = on ? "1px solid rgba(22,163,74,.5)" : "1px dashed var(--border)";
       const color = on ? "var(--green)" : "var(--text-subtle)";
       const fontWeight = on ? "700" : "500";
       return `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:48px;padding:6px 10px;border-radius:var(--r-md);background:${bg};border:${border};color:${color};font-size:var(--fs-md);font-weight:${fontWeight}">${dayLabel[k]}</span>`;
@@ -21210,7 +21210,7 @@ function renderAvailabilityTab(body, d, record) {
   } else if (activeOverride) {
     // Currently in effect — banner + dim+disable + effective strip below.
     stateBanner = `
-      <div style="margin-bottom:var(--s-3);padding:var(--s-2) var(--s-3);border-radius:var(--r-md);background:var(--green-soft);border:1px solid rgba(16,185,129,.2);font-size:var(--fs-sm);color:var(--green);line-height:1.5">
+      <div style="margin-bottom:var(--s-3);padding:var(--s-2) var(--s-3);border-radius:var(--r-md);background:var(--green-soft);border:1px solid rgba(22,163,74,.2);font-size:var(--fs-sm);color:var(--green);line-height:1.5">
         Current availability is from an approved request, in effect through ${escapeHtml(_fmtAvailDateShort(latest.effective_until))}. The default below is dimmed because it doesn't apply this week.
       </div>`;
   }
@@ -21267,7 +21267,7 @@ function _ddVal(name, fallback) {
 function _ddActivityEvents(dd) {
   const d = (dd && dd.driver) || {};
   const events = [];
-  if (d.hire_date) events.push({ at: d.hire_date + "T00:00:00", title: "Hired", dot: "#0284c7", filter: "onb" });
+  if (d.hire_date) events.push({ at: d.hire_date + "T00:00:00", title: "Hired", dot: "#3B82F6", filter: "onb" });
   const prog = (dd && dd.prog) || {};
   const progPairs = [
     ["welcome_email_sent_at",   "Welcome email sent"],
@@ -21280,7 +21280,7 @@ function _ddActivityEvents(dd) {
     ["job_offer_completed_at",  "Job offer signed"],
     ["scheduled_at",            "Driver scheduled"],
   ];
-  for (const [k, label] of progPairs) if (prog[k]) events.push({ at: prog[k], title: label, dot: "#0284c7", filter: "onb" });
+  for (const [k, label] of progPairs) if (prog[k]) events.push({ at: prog[k], title: label, dot: "#3B82F6", filter: "onb" });
   if (d.background_check_completed_at) events.push({ at: d.background_check_completed_at, title: "Background check cleared", dot: "#16a34a", filter: "onb" });
   if (d.drug_test_completed_at)        events.push({ at: d.drug_test_completed_at,        title: "Drug test cleared",        dot: "#16a34a", filter: "onb" });
   for (const c of ((dd && dd.coachings) || [])) {
@@ -22275,12 +22275,12 @@ function _sawDiagnostic(st) {
   const dateRows = Object.keys(byDate).sort().map(d => `${d} (${byDate[d]})`).join(", ");
   const d = st._genDiag || {};
   const genLine = (d.cells != null)
-    ? `Route targets (OKAMI) in that week: <b>${d.cells || 0}</b> day-stations; your available days with demand: <b>${d.eligibleDays != null ? d.eligibleDays : "—"}</b>; seats generated: <b>${d.generated != null ? d.generated : "—"}</b>${d.okamiErr ? ` <span style="color:#B8281E">(targets error: ${escapeHtml(String(d.okamiErr))})</span>` : ""}.<br>`
+    ? `Route targets (OKAMI) in that week: <b>${d.cells || 0}</b> day-stations; your available days with demand: <b>${d.eligibleDays != null ? d.eligibleDays : "—"}</b>; seats generated: <b>${d.generated != null ? d.generated : "—"}</b>${d.okamiErr ? ` <span style="color:#B91C1C">(targets error: ${escapeHtml(String(d.okamiErr))})</span>` : ""}.<br>`
     : "";
   const seatErrs = Array.isArray(st._seatDiag) ? st._seatDiag : [];
   const seatLine = seatErrs.length
     ? `<div style="margin-top:4px;color:#8A5D00">Seat-creator trace:${seatErrs.map(e => `<div style="padding-left:10px">· ${escapeHtml(String(e))}</div>`).join("")}</div>`
-    : `<div style="margin-top:4px;color:#B8281E">Seat-creator did not run (fallback not reached).</div>`;
+    : `<div style="margin-top:4px;color:#B91C1C">Seat-creator did not run (fallback not reached).</div>`;
   return `<div class="saw-empty" style="text-align:left;font-size:11px;line-height:1.65;color:var(--text)">
     <strong>Smart Fill placed nothing — here's exactly what it sees:</strong><br>
     Window: <b>${escapeHtml(st.firstDate)} → ${escapeHtml(st.endDate)}</b> (${escapeHtml(name)} can't work before this — training/ride-along runs through ${escapeHtml(st.rideDate || "—")}).<br>
@@ -22302,7 +22302,7 @@ function _sawShiftRow(sh) {
   const staged = st.staged.has(sh.id);
   const dow = _SAW_DOW[_sawDow(sh.date)];
   const time = sh.starts_at ? fmtTimeShort(sh.starts_at) : "—";
-  const tone = sc.score >= 80 ? "#137C43" : sc.score >= 60 ? "#8A5D00" : "#566173";
+  const tone = sc.score >= 80 ? "#16A34A" : sc.score >= 60 ? "#8A5D00" : "#566173";
   return `<div class="saw-row${staged ? " is-staged" : ""}">
     <div class="saw-row-main">
       <div class="saw-row-top"><strong>${dow} ${escapeHtml(sh.date)}</strong> · ${escapeHtml(_sawStLabel(sh))}${sh.route_code ? " · " + escapeHtml(sh.route_code) : ""}</div>
@@ -22360,7 +22360,7 @@ function _sawSectionHtml() {
   const loaded = !!st.loaded;
   const maxDays = st.maxDays || 5;
   const imp = loaded ? _sawImpact() : { filled: 0, routes: 0, otHours: 0, savings: 0, days: 0, val: { ok: true, violations: [] } };
-  const compTone = imp.val.ok ? "#137C43" : "#B8281E";
+  const compTone = imp.val.ok ? "#16A34A" : "#B91C1C";
 
   let recList, manualBlock = "";
   if (loaded) {
@@ -22384,7 +22384,7 @@ function _sawSectionHtml() {
 
   return `<div class="saw-sched">
     <h4 class="saw-h">Schedule placement</h4>
-    <div class="saw-status"><div><span class="saw-k">First available work date</span><span class="saw-v" style="color:#137C43;font-weight:700">${ready ? escapeHtml(st.firstDate) : "—"}</span></div></div>
+    <div class="saw-status"><div><span class="saw-k">First available work date</span><span class="saw-v" style="color:#16A34A;font-weight:700">${ready ? escapeHtml(st.firstDate) : "—"}</span></div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
       <button type="button" class="btn btn-sm btn-primary" data-saw-smartfill ${(!ready || st.running) ? "disabled" : ""} title="${ready ? "" : "Set the ride-along day first"}">${st.running ? "Running…" : "⚡ Smart Fill"}</button>
       <button type="button" class="btn btn-sm" data-saw-manual-toggle ${!ready ? "disabled" : ""}>${st.manualOpen ? "Hide manual" : "Add manually"}</button>
@@ -23145,9 +23145,9 @@ function _i9EventMeta(ev) {
   const who = ev.actor_kind === "driver" ? "Employee" : ev.actor_kind === "system" ? "System" : (ev.actor_name || "Dispatcher");
   const K = {
     created:            { dot: "#94a3b8", t: "I-9 record created" },
-    first_day_set:      { dot: "#0284c7", t: "First day of employment set" },
+    first_day_set:      { dot: "#3B82F6", t: "First day of employment set" },
     section1_saved:     { dot: "#cbd5e1", t: "Section 1 draft saved" },
-    section1_consent:   { dot: "#0284c7", t: "Section 1 e-signature consent accepted" },
+    section1_consent:   { dot: "#3B82F6", t: "Section 1 e-signature consent accepted" },
     section1_completed: { dot: "#16a34a", t: "Section 1 completed & signed" },
     section2_completed: { dot: "#16a34a", t: "Section 2 completed & attested" },
     reopened:           { dot: "#dc2626", t: "Reopened for correction" },
@@ -23377,7 +23377,7 @@ async function openI9Section2Modal(driverId) {
 
   const body = `
     <div style="display:flex;flex-direction:column;gap:var(--s-3-5)">
-      ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red-dark)" : due.days<=1 ? "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)" : "background:var(--accent-soft);border-color:rgba(15,108,189,.22);color:#0F548C"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
+      ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:var(--red-soft);border-color:rgba(220,38,38,.22);color:var(--red-dark)" : due.days<=1 ? "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)" : "background:var(--accent-soft);border-color:rgba(37,99,235,.22);color:#1E40AF"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
 
       <div style="border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-3-5);background:var(--canvas);display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)">
         <label style="display:flex;flex-direction:column;gap:3px;min-width:0">
@@ -23903,7 +23903,7 @@ function _i9StatusPill(d) {
   const T = (d.attention === "overdue" || d.key === "needs_correction") ? { bg: "#fee2e2", fg: "#991b1b", dot: "#dc2626" }
     : (d.attention === "due_soon" || d.attention === "blocked")          ? { bg: "#fef3c7", fg: "#92400e", dot: "#d97706" }
     : d.phase === "done"                                                ? { bg: "#dcfce7", fg: "#166534", dot: "#16a34a" }
-    : d.phase === "employer"                                            ? { bg: "#e0f2fe", fg: "#075985", dot: "#0284c7" }
+    : d.phase === "employer"                                            ? { bg: "#EFF6FF", fg: "#1E40AF", dot: "#3B82F6" }
     : /* employee / system / none */                                      { bg: "#f1f5f9", fg: "#475569", dot: "#94a3b8" };
   return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;line-height:1.3;padding:2px 9px 2px 7px;border-radius:var(--r-pill);white-space:nowrap;background:${T.bg};color:${T.fg}"><span style="width:6px;height:6px;border-radius:50%;background:${T.dot};flex:0 0 auto"></span>${escapeHtml(d.chipLabel)}</span>`;
 }
@@ -24038,7 +24038,7 @@ function _i9SetRosterBanner(t) {
   if (!el) return;
   if (!t || !t.attention) { el.style.display = "none"; el.innerHTML = ""; return; }
   const urgent = t.s2_overdue || t.needs_correction;
-  const tone = urgent ? "background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red-dark)" : "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)";
+  const tone = urgent ? "background:var(--red-soft);border-color:rgba(220,38,38,.22);color:var(--red-dark)" : "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)";
   const parts = [];
   if (t.s2_overdue) parts.push(`${t.s2_overdue} overdue`);
   if (t.needs_correction) parts.push(`${t.needs_correction} need correction`);
@@ -24307,7 +24307,7 @@ function _erEmpStylesOnce() {
       font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
       color:#1E3A8A;margin-bottom:4px;
     }
-    #rr-emp-report-modal .er-event-cat.warn{color:#9F1239}
+    #rr-emp-report-modal .er-event-cat.warn{color:#991B1B}
     #rr-emp-report-modal .er-event-cat.sys{color:#475569}
     #rr-emp-report-modal .er-event-desc{
       font-size:12px;color:#0F172A;line-height:1.55;font-weight:500;
@@ -25146,7 +25146,7 @@ async function _rrLoadAffinityForDriver(driverId) {
                     border-radius:3px; display:flex; align-items:flex-end;
                     overflow:hidden; }
       .rr-aff-bar-fill { width:100%;
-                         background:linear-gradient(180deg,#1382DB 0%,#0F548C 100%);
+                         background:linear-gradient(180deg,#3B82F6 0%,#1E40AF 100%);
                          transition:height 200ms ease; }
       .rr-aff-pct { font:600 10px/1 var(--rr-font-family, 'Inter','Segoe UI');
                     color:var(--text,#111); font-variant-numeric: tabular-nums; }
@@ -29109,7 +29109,7 @@ function _renderAvailabilityRows() {
         const dropChips = im.drops.map(d => {
           const before = (d.after + 1); // pre-change supply
           const tight  = d.tight;
-          return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(225,29,72,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(225,29,72,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:var(--r-lg);font-size:var(--fs-xs);font-weight:600">
+          return `<span style="display:inline-flex;align-items:center;gap:6px;background:${tight ? "rgba(220,38,38,.10)" : "var(--canvas)"};border:1px solid ${tight ? "rgba(220,38,38,.4)" : "var(--border)"};color:${tight ? "var(--red)" : "var(--text-muted)"};padding:3px 9px;border-radius:var(--r-lg);font-size:var(--fs-xs);font-weight:600">
             <span>−${escapeHtml(d.label)}</span>
             <span style="font-weight:500">${arrow(before, d.after)}</span>
           </span>`;
@@ -29150,7 +29150,7 @@ function _renderAvailabilityRows() {
         </span>
         ${prevAgo ? `<span>· previous change ${escapeHtml(prevAgo)}</span>` : ""}
         <button type="button" data-rr-avail-history="${escapeHtml(r.driver_id)}" data-rr-avail-history-name="${escapeHtml(r.driver_name || "")}"
-                style="font:inherit;font-size:var(--fs-xs);background:none;border:0;color:var(--accent-text);cursor:pointer;text-decoration:underline;text-decoration-color:rgba(15,108,189,.3);padding:0">
+                style="font:inherit;font-size:var(--fs-xs);background:none;border:0;color:var(--accent-text);cursor:pointer;text-decoration:underline;text-decoration-color:rgba(37,99,235,.3);padding:0">
           view history
         </button>
       </div>`;
@@ -31463,7 +31463,7 @@ async function _renderOkamiDailyPanelImpl(weekIdx, targetContainerId) {
   }
   const activeTypes = _okamiServiceTypes.filter(t => t.active);
   if (activeTypes.length === 0) {
-    activeTypes.push({ id: null, code: "SP", label: "Standard Parcel", color: "#0F6CBD" });
+    activeTypes.push({ id: null, code: "SP", label: "Standard Parcel", color: "#2563EB" });
   }
   const showTypeLabel = activeTypes.length > 1;
 
@@ -33832,7 +33832,7 @@ function _rrInjectAdHocCss() {
     .sf-adhoc-state-paused { background:rgba(245,158,11,.15); color:#b45309; }
     .sf-adhoc-state-expired { background:rgba(148,163,184,.18); color:#64748b; }
     .sf-adhoc-hardness-hard { background:rgba(220,38,38,.10); color:#b91c1c; }
-    .sf-adhoc-hardness-soft { background:rgba(15,108,189,.12); color:#0B5394; }
+    .sf-adhoc-hardness-soft { background:rgba(37,99,235,.12); color:#1D4ED8; }
 
     /* Authoring · toolbar + per-row actions + inline form. Sized to
        fit inside the Smart Fill rules popover; everything tracks the
@@ -33842,10 +33842,10 @@ function _rrInjectAdHocCss() {
       display:inline-flex; align-items:center; gap:5px;
       font:600 12px/1.2 var(--rr-font-family, 'Inter','Segoe UI');
       padding:4px 10px; border-radius:6px;
-      background:var(--accent, #0F6CBD); color:#fff; border:1px solid var(--accent, #0F6CBD);
+      background:var(--accent, #2563EB); color:#fff; border:1px solid var(--accent, #2563EB);
       cursor:pointer; transition:background var(--t-fast,160ms);
     }
-    .sf-adhoc-add:hover { background:#115EA3; border-color:#115EA3; }
+    .sf-adhoc-add:hover { background:#1D4ED8; border-color:#1D4ED8; }
     .sf-adhoc-add[aria-expanded="true"] { background:var(--text-muted,#475569); border-color:var(--text-muted,#475569); }
     .sf-adhoc-rows { display:flex; flex-direction:column; gap:4px; }
     .sf-adhoc-row { flex-wrap:wrap; }
@@ -33856,7 +33856,7 @@ function _rrInjectAdHocCss() {
     .sf-adhoc-row-actions button {
       font:500 11px/1.2 var(--rr-font-family, 'Inter','Segoe UI');
       padding:3px 8px; border-radius:5px;
-      background:var(--canvas,#F8F9FB); color:var(--text-muted,#475569);
+      background:var(--canvas,#F9FAFB); color:var(--text-muted,#475569);
       border:1px solid var(--border,#e5e7eb); cursor:pointer;
       transition:background var(--t-fast,160ms);
     }
@@ -33864,7 +33864,7 @@ function _rrInjectAdHocCss() {
     .sf-adhoc-row-actions button.is-danger:hover { background:rgba(220,38,38,.08); color:#b91c1c; border-color:rgba(220,38,38,.30); }
 
     .sf-adhoc-form {
-      background:var(--canvas,#F8F9FB);
+      background:var(--canvas,#F9FAFB);
       border:1px solid var(--border,#e5e7eb);
       border-radius:8px;
       padding:10px 12px;
@@ -33887,8 +33887,8 @@ function _rrInjectAdHocCss() {
       min-width:0;
     }
     .sf-adhoc-fld input:focus, .sf-adhoc-fld select:focus {
-      outline:0; border-color:var(--accent,#0F6CBD);
-      box-shadow:0 0 0 2px rgba(15,108,189,.18);
+      outline:0; border-color:var(--accent,#2563EB);
+      box-shadow:0 0 0 2px rgba(37,99,235,.18);
     }
     .sf-adhoc-fld-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     .sf-adhoc-fld-hint {
@@ -33913,10 +33913,10 @@ function _rrInjectAdHocCss() {
     }
     .sf-adhoc-form-actions .btn-ghost:hover { background:rgba(15,23,42,.05); }
     .sf-adhoc-form-actions .btn-primary {
-      background:var(--accent,#0F6CBD); color:#fff;
-      border:1px solid var(--accent,#0F6CBD);
+      background:var(--accent,#2563EB); color:#fff;
+      border:1px solid var(--accent,#2563EB);
     }
-    .sf-adhoc-form-actions .btn-primary:hover { background:#115EA3; border-color:#115EA3; }
+    .sf-adhoc-form-actions .btn-primary:hover { background:#1D4ED8; border-color:#1D4ED8; }
     .sf-adhoc-form-actions .btn-primary[disabled] { opacity:.6; cursor:default; }
   `;
   document.head.appendChild(css);
@@ -35041,7 +35041,7 @@ function _updateFinalizeButton() {
       if (!pill) {
         pill = document.createElement("span");
         pill.id = "rr-sched-page-title-live";
-        pill.style.cssText = "display:inline-flex;align-items:center;gap:5px;background:rgba(16,124,65,.10);color:#3F7E5C;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-pill);margin-left:10px;vertical-align:middle;line-height:1.4;position:relative;top:-3px";
+        pill.style.cssText = "display:inline-flex;align-items:center;gap:5px;background:rgba(22,163,74,.10);color:#3F7E5C;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-pill);margin-left:10px;vertical-align:middle;line-height:1.4;position:relative;top:-3px";
         pill.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0"></span>Live`;
         pageTitle.appendChild(pill);
       }
@@ -35104,15 +35104,15 @@ function _rrConfirmDialog(opts) {
     m.style.cssText =
       "position:fixed;left:50%;top:84px;transform:translateX(-50%);width:380px;" +
       "max-width:calc(100vw - 24px);background:var(--surface,#fff);" +
-      "border:1px solid var(--border,#E1DFDD);border-radius:12px;" +
+      "border:1px solid var(--border,#E5E7EB);border-radius:12px;" +
       "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:10001;opacity:0;" +
       "transition:opacity 120ms ease-out;overflow:hidden";
     m.innerHTML =
       '<div style="padding:16px 18px 14px">' +
         (opts.title ? '<div style="font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text,#201F1E)">' + escapeHtml(opts.title) + '</div>' : '') +
-        '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#605E5C)">' + escapeHtml(opts.body || '') + '</div>' +
+        '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#6B7280)">' + escapeHtml(opts.body || '') + '</div>' +
       '</div>' +
-      '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#E1DFDD);background:var(--canvas,#FAF9F8)">' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#E5E7EB);background:var(--canvas,#F9FAFB)">' +
         '<button type="button" class="btn btn-sm" data-rr-confirm-cancel>' + escapeHtml(opts.cancelLabel || "Cancel") + '</button>' +
         '<button type="button" class="btn btn-sm btn-primary" data-rr-confirm-ok>' + escapeHtml(opts.confirmLabel || "Confirm") + '</button>' +
       '</div>';
@@ -35811,7 +35811,7 @@ function _openFleetProviderModal(vendorId) {
           <span style="font-size:var(--fs-sm);font-weight:600">Notes <span style="color:var(--text-subtle);font-weight:500">(optional)</span></span>
           <textarea id="rr-fc-prov-notes" class="form-input" rows="2" maxlength="500" placeholder="Anything useful for the team">${escapeHtml(existing && existing.notes || "")}</textarea>
         </label>
-        <div id="rr-fc-prov-status" style="font-size:var(--fs-xs);color:var(--sch-red,#C42B1C);min-height:14px"></div>
+        <div id="rr-fc-prov-status" style="font-size:var(--fs-xs);color:var(--sch-red,#DC2626);min-height:14px"></div>
       </div>
       <div style="padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-3)">
         <button type="button" class="btn btn-sm" id="rr-fc-prov-cancel">Cancel</button>
@@ -36079,10 +36079,10 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
           <span style="font-size:var(--fs-sm);font-weight:600">Notes</span>
           <textarea id="rr-fc-f-notes" class="form-input" rows="3" maxlength="500" placeholder="Optional">${escapeHtml(ev.notes || "")}</textarea>
         </label>
-        <div id="rr-fc-f-status" style="font-size:var(--fs-xs);color:var(--sch-red, #C42B1C);min-height:14px"></div>
+        <div id="rr-fc-f-status" style="font-size:var(--fs-xs);color:var(--sch-red, #DC2626);min-height:14px"></div>
       </div>
       <div style="padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);display:flex;align-items:center;gap:var(--s-3)">
-        ${existing ? `<button type="button" class="btn btn-sm" id="rr-fc-delete" style="color:var(--sch-red,#C42B1C)">Delete</button>` : ""}
+        ${existing ? `<button type="button" class="btn btn-sm" id="rr-fc-delete" style="color:var(--sch-red,#DC2626)">Delete</button>` : ""}
         <div style="flex:1"></div>
         <button type="button" class="btn btn-sm" id="rr-fc-cancel">Cancel</button>
         <button type="button" class="btn btn-sm btn-primary" id="rr-fc-save">${existing ? "Save" : "Add event"}</button>
@@ -36950,7 +36950,7 @@ async function _obPrintPtoReport() {
   area.appendChild(head);
   if (rows.length === 0) {
     const empty = document.createElement("div");
-    empty.style.cssText = "font-size:14px;color:#605E5C;padding:24px 0;";
+    empty.style.cssText = "font-size:14px;color:#6B7280;padding:24px 0;";
     empty.textContent = "No PTO or time-off requests in the report window.";
     area.appendChild(empty);
   } else {
@@ -37680,7 +37680,7 @@ function _rrDecorateChainEditorRescues(body, ctx) {
     const tierLbl = tier === "violation" ? "Violation · 14+d idle"
                   : tier === "critical"  ? `Critical · ${days}d idle, ${Math.max(0, 14 - days)}d to defect`
                   : `Risk · ${days}d idle`;
-    const tierColor = tier === "risk" ? "#B45309" : "#C42B1C";
+    const tierColor = tier === "risk" ? "#B45309" : "#DC2626";
     let recHtml;
     if (best) {
       const fromLbl = `${escapeHtml(best.from_role === "primary" ? "primary" : "secondary")} of Van ${escapeHtml(best.from_van)}`;
@@ -38945,16 +38945,16 @@ async function _decorateScheduleChipsWithPins() {
         opacity:1;
       }
       #view-schedule .cal-pin-btn:hover{
-        background:rgba(0,120,212,.10);color:#0078D4;
+        background:rgba(37,99,235,.10);color:#2563EB;
       }
       #view-schedule .cal-pin-btn[data-rr-pin-state="active"]{
-        color:#0078D4;
+        color:#2563EB;
       }
       #view-schedule .cal-pin-btn[data-rr-pin-state="active"] svg{
-        fill:#0078D4;fill-opacity:.20;
+        fill:#2563EB;fill-opacity:.20;
       }
       #view-schedule .cal-pin-btn[data-rr-pin-state="held"]{
-        color:#0078D4;opacity:.55;
+        color:#2563EB;opacity:.55;
       }
       #view-schedule .cal-pin-btn[data-rr-pin-state="held"] svg{
         stroke-dasharray:2.2 2.2;
@@ -39138,7 +39138,7 @@ function _rrShowPinConflictModal(driverName, dow, conflicts) {
         }
         #rr-pin-conflict-modal .rr-pin-conflict-list li{
           display:flex;align-items:flex-start;gap:8px;
-          font-size:12px;color:#323130;line-height:1.4;
+          font-size:12px;color:#111827;line-height:1.4;
           padding:8px 10px;background:#FFF8E6;border:1px solid #F5C97E;
           border-radius:4px;
         }
@@ -39153,7 +39153,7 @@ function _rrShowPinConflictModal(driverName, dow, conflicts) {
         }
         #rr-pin-conflict-modal .rr-pin-conflict-more{
           background:transparent !important;border:0 !important;
-          color:#605E5C;padding:2px 10px !important;font-style:italic;
+          color:#6B7280;padding:2px 10px !important;font-style:italic;
         }`;
       document.head.appendChild(st);
     }
@@ -39237,7 +39237,7 @@ function _rrShowPinContextMenu(x, y, driverId) {
     "background:#fff;border:1px solid rgba(15,23,42,.12);border-radius:6px;" +
     "box-shadow:0 8px 20px rgba(15,23,42,.18);padding:4px 0;" +
     "min-width:240px;font-family:'Inter','Segoe UI',system-ui,sans-serif;" +
-    "font-size:13px;color:#1F1F1F;";
+    "font-size:13px;color:#111827;";
   const items = [];
   if (anyUnpinned) {
     items.push(`<button type="button" class="rr-pin-ctx-item" data-rr-pin-ctx="pin-all">📌 Pin all of ${escapeHtml(driverName)}'s shifts this week</button>`);
@@ -39259,8 +39259,8 @@ function _rrShowPinContextMenu(x, y, driverId) {
         background:transparent;border:0;cursor:pointer;
         padding:8px 14px;font:inherit;color:inherit;
       }
-      .rr-pin-ctx-item:hover{background:rgba(0,120,212,.08)}
-      .rr-pin-ctx-cancel{color:#605E5C}
+      .rr-pin-ctx-item:hover{background:rgba(37,99,235,.08)}
+      .rr-pin-ctx-cancel{color:#6B7280}
       .rr-pin-ctx-sep{height:1px;background:rgba(15,23,42,.08);margin:4px 0}`;
     document.head.appendChild(st);
   }
@@ -39384,10 +39384,10 @@ document.addEventListener("DOMContentLoaded", () => {
     /* Active icon state — same brand-blue tint the other rr-tf-icon
        toggles use when pressed. */
     #rr-sched-pinned-only-btn.is-on{
-      background:#EFF6FC;border-color:#0078D4;color:#0078D4;
+      background:#EFF6FC;border-color:#2563EB;color:#2563EB;
     }
     #rr-sched-pinned-only-btn[aria-pressed="true"]{
-      background:#EFF6FC;border-color:#0078D4;color:#0078D4;
+      background:#EFF6FC;border-color:#2563EB;color:#2563EB;
     }
     /* Dim cells whose pin button is in the "empty" state. */
     #view-schedule.is-pinned-only .cal-cell:has(.cal-pin-btn[data-rr-pin-state="empty"]){
@@ -41451,10 +41451,10 @@ async function _rrShowDriverWhyPopover(driverId, x, y) {
   pop.style.cssText = [
     "position:fixed", "z-index:100000", "width:344px", "max-width:calc(100vw - 24px)",
     "max-height:62vh", "overflow:auto",
-    "background:var(--surface-elevated,#FCFDFE)", "border:1px solid var(--sch-line,rgba(15,23,42,.12))",
+    "background:var(--surface-elevated,#FFFFFF)", "border:1px solid var(--sch-line,rgba(15,23,42,.12))",
     "border-radius:12px", "box-shadow:0 2px 6px rgba(15,23,42,.05),0 14px 34px rgba(15,23,42,.16)",
     "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
-    "color:var(--text,#242424)", "padding:0",
+    "color:var(--text,#111827)", "padding:0",
   ].join(";");
   const px = Math.max(12, Math.min(x, window.innerWidth - 356));
   const py = Math.max(12, Math.min(y, window.innerHeight - 90));
@@ -41486,7 +41486,7 @@ async function _rrShowDriverWhyPopover(driverId, x, y) {
 
   const initials = (prof.full || prof.name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "?";
   let html =
-    '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--sch-line,rgba(15,23,42,.08));position:sticky;top:0;background:var(--surface-elevated,#FCFDFE)">' +
+    '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--sch-line,rgba(15,23,42,.08));position:sticky;top:0;background:var(--surface-elevated,#FFFFFF)">' +
       `<div class="avatar-sm" data-rr-driver-id="${esc(driverId)}">${esc(initials)}</div>` +
       '<div style="min-width:0">' +
         `<div style="font-weight:700;font-size:13.5px;line-height:1.2">${esc(prof.name)}</div>` +
@@ -41504,7 +41504,7 @@ async function _rrShowDriverWhyPopover(driverId, x, y) {
     for (const d of mine) {
       const label = _RR_SFC.shiftLabel(d.shift_id, shiftMeta);
       const score = (d.total_score != null)
-        ? `<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--accent-text,#0B5394);background:var(--accent-soft,rgba(15,108,189,.1));padding:2px 8px;border-radius:999px;font-variant-numeric:tabular-nums">${Math.round(d.total_score * 10) / 10}</span>`
+        ? `<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--accent-text,#1D4ED8);background:var(--accent-soft,rgba(37,99,235,.1));padding:2px 8px;border-radius:999px;font-variant-numeric:tabular-nums">${Math.round(d.total_score * 10) / 10}</span>`
         : "";
       html += '<div style="padding:9px 8px;border-bottom:1px solid var(--sch-line,rgba(15,23,42,.05))">' +
         '<div style="display:flex;align-items:center;gap:8px">' +
@@ -41801,7 +41801,7 @@ async function _rrOpenWhatIfModal() {
     </div>
     <div style="padding:12px 20px;display:flex;gap:8px;justify-content:flex-end">
       <button type="button" data-rr-whatif-cancel style="padding:8px 16px;border:1px solid #d1d5db;background:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Cancel</button>
-      <button type="button" data-rr-whatif-run style="padding:8px 16px;border:none;background:#0F6CBD;color:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Run simulation</button>
+      <button type="button" data-rr-whatif-run style="padding:8px 16px;border:none;background:#2563EB;color:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Run simulation</button>
     </div>
   `;
 
@@ -43053,9 +43053,9 @@ async function openShiftEditModal(arg) {
       ? `<button class="btn btn-sm" data-rr-shift-edit-pin="0" title="Smart Fill won't move a pinned shift">📌 Unpin</button>`
       : `<button class="btn btn-sm" data-rr-shift-edit-pin="1" title="Pin so Smart Fill won't move this driver">📌 Pin</button>`;
   const destructiveButtons = isTimeOff
-    ? `<button class="btn btn-sm" data-rr-timeoff-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Remove ${escapeHtml(timeOff.rrPtoLabel || "time off")}</button>`
+    ? `<button class="btn btn-sm" data-rr-timeoff-delete style="color:var(--red);border-color:rgba(220,38,38,.3)">Remove ${escapeHtml(timeOff.rrPtoLabel || "time off")}</button>`
     : isAdd ? ""
-    : `${pinButton}<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Delete shift</button>`;
+    : `${pinButton}<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(220,38,38,.3)">Delete shift</button>`;
   const primaryBtnLabel = isAdd ? "Add shift" : "Save";
   // Time off has no Save/Add — just Remove (left) + Cancel.
   const primaryBtn = isTimeOff ? ""
@@ -44020,7 +44020,7 @@ function _schedShiftChip(sh, extras) {
   // shift is visually distinguishable. SP shifts (the default) get no
   // badge to keep the chip clean for single-type DSPs.
   const stCode = sh.service_type_code;
-  const stColor = sh.service_type_color || "#0F6CBD";
+  const stColor = sh.service_type_color || "#2563EB";
   // Service-type badge is pinned to the chip's top-right corner (absolute,
   // see CSS .shift-chip-st-badge) rather than sitting inline in the route
   // eyebrow — inline made XL/HUB/ASU chips taller than other routes and
@@ -44040,9 +44040,9 @@ function _schedShiftChip(sh, extras) {
   const _rc = String(sh.route_classification || "").toLowerCase();
   const _isTrainingChip = sh.shift_kind === "training" || sh.shift_kind === "ride_along";
   const RC_BADGE = {
-    "":       { t: "SP", c: "#0F6CBD", label: "Standard Parcel" },
-    standard: { t: "SP", c: "#0F6CBD", label: "Standard Parcel" },
-    rescue:   { t: "RE", c: "#C50F1F", label: "Rescue" },
+    "":       { t: "SP", c: "#2563EB", label: "Standard Parcel" },
+    standard: { t: "SP", c: "#2563EB", label: "Standard Parcel" },
+    rescue:   { t: "RE", c: "#DC2626", label: "Rescue" },
     nursery:  { t: "NU", c: "#038387", label: "Nursery" },
   };
   let _rcDef = _isTrainingChip ? null : RC_BADGE[_rc];
@@ -44110,7 +44110,7 @@ function _schedShiftChip(sh, extras) {
   // --chip-accent so the off-white chip's left bar is keyed per service type.
   const accentColor = (stCode && stCode !== "SP")
     ? stColor
-    : ((RC_BADGE[_rc] && RC_BADGE[_rc].c) || "#0F6CBD");
+    : ((RC_BADGE[_rc] && RC_BADGE[_rc].c) || "#2563EB");
   const routineCls = extras?.routine ? ' is-routine' : '';
   const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
   return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;--chip-accent:${accentColor};${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}${cornerBadges}</div>`;
@@ -44473,12 +44473,12 @@ const RR_KPI_SOFT_BG   = { green: "#EDF3EE", yellow: "#FBEAB8", red: "#F8D3CF" }
 // Status-icon palette — every tier wears the schedule Draft pill's vibe:
 // a 135° gradient (light → saturated hue) and a warm translucent edge,
 // with a white glyph on top. Yellow IS the Draft pill (Google Meet gold);
-// green echoes the Live pill's #107C41; red the alert red — rendered in
+// green echoes the Live pill's #16A34A; red the alert red — rendered in
 // the same glossy idiom so the three read as one family.
 const RR_KPI_ICON_PALETTE = {
-  green:  { from: "#84CF9B", to: "#137C43", edge: "rgba(16,124,65,0.55)" },
+  green:  { from: "#84CF9B", to: "#16A34A", edge: "rgba(22,163,74,0.55)" },
   yellow: { from: "#FFC528", to: "#FFA000", edge: "rgba(214,140,0,0.55)" },
-  red:    { from: "#FF978F", to: "#D5392F", edge: "rgba(184,40,30,0.55)" },
+  red:    { from: "#FF978F", to: "#DC2626", edge: "rgba(184,40,30,0.55)" },
 };
 // One status-icon set, reused by both KPIs so they read identically.
 // green → thumbs-up, yellow/red → exclamation dot. All three share the
@@ -45628,7 +45628,7 @@ async function renderScheduleWeek() {
     // Status is communicated by a 1.5px left accent border (no dots /
     // icons / badges). Three colours only, borrowed from the Live/Draft
     // pill palette: green = healthy, yellow = attention, red = action.
-    const TIER_COLOR = { green: "#107C41", yellow: "#FFA000", red: "#D13438" };
+    const TIER_COLOR = { green: "#16A34A", yellow: "#FFA000", red: "#DC2626" };
     const pill = (key, tier, label, sub, clickable, title) => {
       const cl = clickable ? ' data-clickable="true"' : "";
       // Title attribute intentionally omitted — the native browser tooltip
@@ -46412,12 +46412,12 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em">EX</span>`
       : "";
     const stCode = sh.service_type_code;
-    const stColor = sh.service_type_color || "#0F6CBD";
+    const stColor = sh.service_type_color || "#2563EB";
     const stBadge = (!sh.virtual && stCode && stCode !== "SP")
       ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
       : "";
     const newTag = sh.virtual
-      ? `<span style="display:inline-block;background:rgba(15,108,189,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em" title="From route plan · open Route planning → Save to build">From plan</span>`
+      ? `<span style="display:inline-block;background:rgba(37,99,235,.12);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em" title="From route plan · open Route planning → Save to build">From plan</span>`
       : "";
     const route = (!sh.virtual && sh.route_code) ? `<span style="font-weight:600">${escapeHtml(sh.route_code)}</span>` : "";
     const headLine = showDayLabel
@@ -46842,15 +46842,15 @@ function bindSchedWeekNav() {
         .rr-pref-rec-metrics{margin:6px 0 8px;display:flex;flex-direction:column;gap:3px}
         .rr-pref-metric{display:flex;align-items:baseline;font-size:var(--fs-md);font-weight:700;color:var(--text)}
         .rr-pref-metric-label{flex:0 0 76px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)}
-        .rr-pref-metric strong{color:#0078d4}
-        .rr-pref-metric strong.rr-pref-down{color:#D13438}
+        .rr-pref-metric strong{color:#2563EB}
+        .rr-pref-metric strong.rr-pref-down{color:#DC2626}
         .rr-pref-arrow{color:var(--text-subtle);font-weight:400;margin:0 6px}
         .rr-pref-rec-trade{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.45;margin-bottom:10px}
         .rr-pref-trade-label{font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;font-size:10px;margin-right:5px}
         .rr-pref-empty{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;margin:0}
         .rr-pref-regen{padding:22px 4px;text-align:center}
         .rr-pref-regen-bar{height:6px;border-radius:3px;background:var(--canvas);overflow:hidden;margin-bottom:13px}
-        .rr-pref-regen-bar span{display:block;height:100%;width:40%;border-radius:3px;background:#0078d4;animation:rrPrefRegen 1.1s ease-in-out infinite}
+        .rr-pref-regen-bar span{display:block;height:100%;width:40%;border-radius:3px;background:#2563EB;animation:rrPrefRegen 1.1s ease-in-out infinite}
         @keyframes rrPrefRegen{0%{margin-left:-40%}100%{margin-left:100%}}
         .rr-pref-regen-label{font-size:var(--fs-sm);color:var(--text-muted)}`;
       document.head.appendChild(st);
@@ -47116,14 +47116,14 @@ function bindSchedWeekNav() {
         .rr-cov-rec-title{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
         .rr-cov-rec-metric{margin:6px 0 8px;display:flex;align-items:baseline;font-size:var(--fs-md);font-weight:700;color:var(--text)}
         .rr-cov-metric-label{flex:0 0 76px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)}
-        .rr-cov-rec-metric strong{color:#0078d4}
+        .rr-cov-rec-metric strong{color:#2563EB}
         .rr-cov-arrow{color:var(--text-subtle);font-weight:400;margin:0 6px}
         .rr-cov-rec-trade{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.45;margin-bottom:10px}
         .rr-cov-trade-label{font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;font-size:10px;margin-right:5px}
         .rr-cov-empty{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;margin:0}
         .rr-cov-regen{padding:22px 4px;text-align:center}
         .rr-cov-regen-bar{height:6px;border-radius:3px;background:var(--canvas);overflow:hidden;margin-bottom:13px}
-        .rr-cov-regen-bar span{display:block;height:100%;width:40%;border-radius:3px;background:#0078d4;animation:rrCovRegen 1.1s ease-in-out infinite}
+        .rr-cov-regen-bar span{display:block;height:100%;width:40%;border-radius:3px;background:#2563EB;animation:rrCovRegen 1.1s ease-in-out infinite}
         @keyframes rrCovRegen{0%{margin-left:-40%}100%{margin-left:100%}}
         .rr-cov-regen-label{font-size:var(--fs-sm);color:var(--text-muted)}`;
       document.head.appendChild(st);
@@ -47450,13 +47450,13 @@ function bindSchedWeekNav() {
             ${escalateHtml}
             <style>
               .rr-cov-fifth-modes{display:flex;flex-direction:column;gap:6px;margin:10px 0 12px}
-              .rr-cov-fifth-mode{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid #E1DFDD;border-radius:4px;background:#FFFFFF;cursor:pointer;transition:border-color .12s, background .12s}
+              .rr-cov-fifth-mode{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid #E5E7EB;border-radius:4px;background:#FFFFFF;cursor:pointer;transition:border-color .12s, background .12s}
               .rr-cov-fifth-mode:hover{border-color:#C8C6C4;background:#FAFAFA}
-              .rr-cov-fifth-mode:has(input:checked){border-color:#0078D4;background:rgba(0,120,212,.04)}
-              .rr-cov-fifth-mode input[type="checkbox"]{margin:3px 0 0;flex:0 0 auto;accent-color:#0078D4}
+              .rr-cov-fifth-mode:has(input:checked){border-color:#2563EB;background:rgba(37,99,235,.04)}
+              .rr-cov-fifth-mode input[type="checkbox"]{margin:3px 0 0;flex:0 0 auto;accent-color:#2563EB}
               .rr-cov-fifth-mode-body{display:flex;flex-direction:column;gap:2px;min-width:0}
-              .rr-cov-fifth-mode-title{font-size:13px;font-weight:600;color:#242424}
-              .rr-cov-fifth-mode-sub{font-size:12px;color:#605E5C;line-height:1.4}
+              .rr-cov-fifth-mode-title{font-size:13px;font-weight:600;color:#111827}
+              .rr-cov-fifth-mode-sub{font-size:12px;color:#6B7280;line-height:1.4}
             </style>`;
         }
         // The dead-end "staffing shortfall" line only shows when there
@@ -48026,7 +48026,7 @@ function bindSchedWeekNav() {
           .rr-di-card{overflow-y:auto;max-height:80vh;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:14px 15px;box-shadow:0 18px 44px rgba(0,0,0,.18)}
           .rr-di-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
           .rr-di-id{display:flex;gap:10px;align-items:center}
-          .rr-di-av{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#1A1F47;color:#fff;font-size:12px;font-weight:700;flex:0 0 auto}
+          .rr-di-av{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#1E293B;color:#fff;font-size:12px;font-weight:700;flex:0 0 auto}
           .rr-di-name{font-size:14px;font-weight:700;color:var(--text)}
           .rr-di-sub{font-size:12px;color:var(--text-muted)}
           .rr-di-x{border:0;background:transparent;color:var(--text-muted);cursor:pointer;font-size:13px;padding:2px 4px}
@@ -49047,7 +49047,7 @@ function _rrRiskPill(driverId) {
   const r = _rrRiskCache[driverId];
   if (!r || (r.label !== "high" && r.label !== "moderate")) return "";
   const tone = r.label === "high"
-    ? { fg: "var(--red)",        bg: "var(--red-soft)",   border: "rgba(225,29,72,.20)" }
+    ? { fg: "var(--red)",        bg: "var(--red-soft)",   border: "rgba(220,38,38,.20)" }
     : { fg: "var(--amber-dark)", bg: "var(--amber-soft)", border: "rgba(245,158,11,.20)" };
   const label = r.label === "high" ? "High no-show risk" : "Watch list";
   const title = `${r.incidents} incident${r.incidents === 1 ? "" : "s"} in last ${r.total} shifts (${r.rate_pct}%)`;
@@ -49368,7 +49368,7 @@ function _coverRenderWaiting(offer, driverId) {
   const driverName = (body.querySelector(`[data-rr-cover-offer="${driverId}"]`)
     ?.closest("div")?.parentElement?.querySelector("div div")?.textContent) || "the driver";
   body.innerHTML = `
-    <div style="padding:18px 18px 14px;background:var(--accent-soft);border:1px solid rgba(15,108,189,.18);border-radius:12px">
+    <div style="padding:18px 18px 14px;background:var(--accent-soft);border:1px solid rgba(37,99,235,.18);border-radius:12px">
       <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)">Offer sent</div>
       <div style="margin-top:4px;font-size:var(--fs-md);font-weight:600;color:var(--text)">Waiting on ${escapeHtml(driverName)}</div>
       <div style="margin-top:6px;font-size:var(--fs-sm);color:var(--text-muted)">They'll see an Accept / Pass card on their phone. If they pass or time runs out, you can pick another driver.</div>
@@ -49435,7 +49435,7 @@ function _coverHandleOutcome(outcome) {
 
   if (outcome === "accepted") {
     body.innerHTML = `
-      <div style="padding:28px 24px;background:var(--green-soft);border:1px solid rgba(16,185,129,.20);border-radius:12px;text-align:center">
+      <div style="padding:28px 24px;background:var(--green-soft);border:1px solid rgba(22,163,74,.20);border-radius:12px;text-align:center">
         <div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:var(--r-xl);background:var(--green);color:#fff;margin-bottom:10px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);margin-bottom:4px">Shift covered</div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);max-width:380px;margin:0 auto;line-height:1.55">The schedule has been updated. The driver received a confirmation push with their route details.</div>
@@ -51432,7 +51432,7 @@ function _builderFieldHtml(f, idx, selected, last) {
       body = `<div class="builder-field-img-placeholder">File upload</div>`;
       break;
     case "signature":
-      body = `<div class="builder-field-img-placeholder" style="background:repeating-linear-gradient(135deg,#FAFBFC 0,#FAFBFC 8px,#F1F5F9 8px,#F1F5F9 16px)">Tap to sign</div>`;
+      body = `<div class="builder-field-img-placeholder" style="background:repeating-linear-gradient(135deg,#F9FAFB 0,#F9FAFB 8px,#F1F5F9 8px,#F1F5F9 16px)">Tap to sign</div>`;
       break;
     case "gps":
       body = `<div class="builder-field-img-placeholder">GPS location · auto-captured on submit</div>`;
@@ -52441,10 +52441,10 @@ async function _docsUploadTemplate(file, kind) {
 // signing event (DocuSign-style "Date Signed" / "Full Name" fields —
 // read-only, the signer never edits them).
 const _DOCS_FIELD_META = {
-  signature: { label: "Signature",      tint: "rgba(77,163,232,.20)",  border: "#0F6CBD", text: "#0B5394", auto: false, fill: false, hint: "Recipient draws or types their signature." },
-  initials:  { label: "Initials (auto)", tint: "rgba(15,108,189,.16)", border: "#0F6CBD", text: "#0B5394", auto: true,  fill: false, hint: "Auto-filled with the recipient's initials." },
+  signature: { label: "Signature",      tint: "rgba(77,163,232,.20)",  border: "#2563EB", text: "#1D4ED8", auto: false, fill: false, hint: "Recipient draws or types their signature." },
+  initials:  { label: "Initials (auto)", tint: "rgba(37,99,235,.16)", border: "#2563EB", text: "#1D4ED8", auto: true,  fill: false, hint: "Auto-filled with the recipient's initials." },
   name:      { label: "Name (auto)",     tint: "rgba(245,158,11,.16)",  border: "#b45309", text: "#92400e", auto: true,  fill: false, hint: "Auto-filled with the recipient's full name." },
-  date:      { label: "Date (auto)",     tint: "rgba(16,185,129,.18)",  border: "#059669", text: "#047857", auto: true,  fill: false, hint: "Auto-filled with the signing date." },
+  date:      { label: "Date (auto)",     tint: "rgba(22,163,74,.18)",  border: "#16A34A", text: "#15803D", auto: true,  fill: false, hint: "Auto-filled with the signing date." },
   text:      { label: "Text",            tint: "rgba(100,116,139,.16)", border: "#475569", text: "#334155", auto: false, fill: true,  hint: "Recipient types a value (with a label you set)." },
   checkbox:  { label: "Checkbox",        tint: "rgba(100,116,139,.16)", border: "#475569", text: "#334155", auto: false, fill: true,  hint: "Recipient checks a box (with a label you set)." },
 };
@@ -52481,7 +52481,7 @@ async function _docsOpenFieldEditor(templateId) {
         </div>
         <div style="display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap">
           <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px" title="Who completes the next field placed?">
-            ${[["driver","Driver","#0F6CBD"],["employer","Employer","#059669"]].map(([r,label,dot],i) => `<button type="button" class="docs-fe-role${i===0?" active":""}" data-role="${r}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 11px;border-radius:var(--r-md);cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"};display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${dot}"></span>${label}</button>`).join("")}
+            ${[["driver","Driver","#2563EB"],["employer","Employer","#16A34A"]].map(([r,label,dot],i) => `<button type="button" class="docs-fe-role${i===0?" active":""}" data-role="${r}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 11px;border-radius:var(--r-md);cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"};display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${dot}"></span>${label}</button>`).join("")}
           </div>
           <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap">
             ${["signature","initials","name","date","text","checkbox"].map((k,i) => `<button type="button" class="docs-fe-kind${i===0?" active":""}" data-kind="${k}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 9px;border-radius:var(--r-md);cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"}">${({signature:"Signature",initials:"Initials",name:"Name",date:"Date",text:"Text",checkbox:"Checkbox"})[k]}</button>`).join("")}
@@ -52547,10 +52547,10 @@ async function _docsOpenFieldEditor(templateId) {
       if (role === "employer") employerN++; else driverN++;
     }
     const roleParts = [];
-    if (driverN)   roleParts.push(`<span style="color:#0F6CBD;font-weight:600">${driverN} driver</span>`);
-    if (employerN) roleParts.push(`<span style="color:#059669;font-weight:600">${employerN} employer</span>`);
+    if (driverN)   roleParts.push(`<span style="color:#2563EB;font-weight:600">${driverN} driver</span>`);
+    if (employerN) roleParts.push(`<span style="color:#16A34A;font-weight:600">${employerN} employer</span>`);
     const el = document.getElementById("docs-fe-count");
-    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${roleParts.length ? ` (${roleParts.join(" · ")})` : ""} · placing: <strong>${kindLabelOf(currentKind)}</strong> for <strong style="color:${currentRole==='employer'?'#059669':'#0F6CBD'}">${roleLabelOf(currentRole)}</strong> — Name / Initials / Date auto-fill; Text / Checkbox are completed by the signer`;
+    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${roleParts.length ? ` (${roleParts.join(" · ")})` : ""} · placing: <strong>${kindLabelOf(currentKind)}</strong> for <strong style="color:${currentRole==='employer'?'#16A34A':'#2563EB'}">${roleLabelOf(currentRole)}</strong> — Name / Initials / Date auto-fill; Text / Checkbox are completed by the signer`;
   };
   updateCount();
 
@@ -52608,7 +52608,7 @@ async function _docsOpenFieldEditor(templateId) {
   const renderFieldDom = (f, overlay, vp) => {
     const meta = _docsFieldMeta(f.kind || "signature");
     const role = f.signer_role === "employer" ? "employer" : "driver";
-    const roleColor = role === "employer" ? "#059669" : "#0F6CBD";
+    const roleColor = role === "employer" ? "#16A34A" : "#2563EB";
     const node = document.createElement("div");
     node.className = "rr-docs-field";
     node.dataset.role = role;
@@ -52640,7 +52640,7 @@ async function _docsOpenFieldEditor(templateId) {
       startX = e.clientX - r.left; startY = e.clientY - r.top;
       ghost = document.createElement("div");
       const gm = _docsFieldMeta(currentKind);
-      const ghostRoleColor = currentRole === "employer" ? "#059669" : "#0F6CBD";
+      const ghostRoleColor = currentRole === "employer" ? "#16A34A" : "#2563EB";
       ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:${gm.tint};border:1.5px dashed ${gm.border};border-left:4px solid ${ghostRoleColor};border-radius:var(--r-sm);pointer-events:none`;
       overlay.appendChild(ghost);
     });
@@ -54327,7 +54327,7 @@ async function openDriverAppPreview(driverId) {
   if (body) {
     body.innerHTML = `
       <div class="dapp-statusbar"><span>9:41</span><span>RouteReady · driver view</span></div>
-      <div class="dapp-why" style="padding:7px 12px;background:rgba(15,108,189,.10);border-bottom:1px solid rgba(15,108,189,.20);color:#0B5394;font-size:11px;line-height:1.35">${escapeHtml(_whyNote)}</div>
+      <div class="dapp-why" style="padding:7px 12px;background:rgba(37,99,235,.10);border-bottom:1px solid rgba(37,99,235,.20);color:#1D4ED8;font-size:11px;line-height:1.35">${escapeHtml(_whyNote)}</div>
       <div class="dapp-topbar"><div class="ttl" id="rr-dapp-ttl">Schedule</div><div class="who" id="rr-dapp-who">Loading…</div></div>
       <div class="dapp-scroll" id="rr-dapp-scroll"><div class="dapp-empty">Loading…</div></div>
       <div class="dapp-bottomnav">
@@ -59485,10 +59485,10 @@ function _dvicAiBlock(cur) {
   const summary = cur?.ai_review_summary || "";
   const findings = Array.isArray(cur?.ai_review_findings) ? cur.ai_review_findings : [];
   const pillBg = status === "flagged" ? "rgba(159,18,57,.10)"
-               : status === "clean"   ? "rgba(16,185,129,.10)"
+               : status === "clean"   ? "rgba(22,163,74,.10)"
                : status === "error"   ? "var(--amber-soft)"
                :                        "var(--accent-soft)";
-  const pillFg = status === "flagged" ? "#9F1239"
+  const pillFg = status === "flagged" ? "#991B1B"
                : status === "clean"   ? "#15803D"
                : status === "error"   ? "var(--amber-dark)"
                :                        "var(--accent-text)";
@@ -61009,7 +61009,7 @@ document.addEventListener("click", async (e) => {
     const sevPillBg = risk.severity === "critical" ? "rgba(159,18,57,.10)"
                     : risk.severity === "high"     ? "var(--amber-soft)"
                     :                                "var(--accent-soft)";
-    const sevPillFg = risk.severity === "critical" ? "#9F1239"
+    const sevPillFg = risk.severity === "critical" ? "#991B1B"
                     : risk.severity === "high"     ? "var(--amber-dark)"
                     :                                "var(--accent-text)";
     const specifics = (typeof rules.specifics === "function" ? rules.specifics(risk) : []) || [];
@@ -61299,7 +61299,7 @@ async function _renderSchedRequestsKpis() {
   const kpis = (typeof _computeAvailKpis === "function") ? _computeAvailKpis() : null;
   if (!kpis) { host.innerHTML = `<span class="sched-kpi-pill" style="opacity:.6"><span class="sched-kpi-text">Availability data unavailable.</span></span>`; return; }
 
-  const navy = "#1A1F47";
+  const navy = "#1E293B";
   // Tone the dot when a KPI surfaces an issue: least-covered day
   // under 60% supply reads red; weekend coverage under 35% reads red.
   const leastDot = (typeof kpis.leastCovered.minPct === "number" && kpis.leastCovered.minPct < 60) ? "var(--red)" : navy;
@@ -64749,7 +64749,7 @@ document.addEventListener("click", (e) => {
       <div class="em-composer-card" style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-xl);width:95vw;height:90vh;max-width:1400px;display:flex;flex-direction:column;overflow:hidden">
         <div class="em-popout-iconbar">
           <div class="em-popout-title" style="display:inline-flex;align-items:center;gap:8px;flex:1">${mode === "forward" ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>' : ''}${escapeHtmlLocal(titles[mode] || "New email")}</div>
-          ${onCancel ? `<button type="button" class="em-popout-ibtn" id="rr-em-composer-cancel-event" title="Cancel this meeting and notify attendees" aria-label="Cancel event" style="color:#C4281C"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="8" x2="16" y2="16"/><line x1="16" y1="8" x2="8" y2="16"/></svg><span>Cancel event</span></button>` : ""}
+          ${onCancel ? `<button type="button" class="em-popout-ibtn" id="rr-em-composer-cancel-event" title="Cancel this meeting and notify attendees" aria-label="Cancel event" style="color:#DC2626"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="8" x2="16" y2="16"/><line x1="16" y1="8" x2="8" y2="16"/></svg><span>Cancel event</span></button>` : ""}
           <button type="button" class="em-popout-ibtn em-popout-ibtn-close" data-rr-composer-close title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         ${_rrMailRibbonHtml("Send")}
@@ -64774,8 +64774,8 @@ document.addEventListener("click", (e) => {
             </label>
             <label class="emct-color" title="Font color">
               <span class="emct-color-icon emct-color-A" aria-hidden="true">A</span>
-              <input type="color" id="rr-em-composer-color" value="#c42b1c" aria-label="Font color">
-              <span class="emct-color-swatch" id="rr-em-composer-color-sw" style="background:#c42b1c"></span>
+              <input type="color" id="rr-em-composer-color" value="#DC2626" aria-label="Font color">
+              <span class="emct-color-swatch" id="rr-em-composer-color-sw" style="background:#DC2626"></span>
             </label>
           </div>
           <div class="emct-divider" aria-hidden="true"></div>
@@ -64794,7 +64794,7 @@ document.addEventListener("click", (e) => {
               <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;min-width:48px">To</span>
               <input id="rr-em-composer-to" type="email" required value="${escapeHtmlLocal(to)}" placeholder="vendor@example.com" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
             </label>
-            <button id="rr-em-composer-send" type="button" class="rr-msft-blue" style="background:#0078D4;color:#fff;border:0;border-radius:6px;padding:8px 22px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;flex:0 0 auto">Send</button>
+            <button id="rr-em-composer-send" type="button" class="rr-msft-blue" style="background:#2563EB;color:#fff;border:0;border-radius:6px;padding:8px 22px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;flex:0 0 auto">Send</button>
           </div>
           <label style="display:flex;align-items:center;gap:8px">
             <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;min-width:48px">Cc</span>

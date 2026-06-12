@@ -251,7 +251,7 @@ function buildPickerScript() {
   const BAR_ID = "__rr_recorder_bar";
   const bar = document.createElement("div");
   bar.id = BAR_ID;
-  bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:2147483647;background:linear-gradient(180deg,#0F6CBD,#0B5BA1);color:#fff;padding:14px 18px;font:14px/1.4 system-ui,-apple-system,sans-serif;display:flex;align-items:center;gap:12px;box-shadow:0 4px 18px rgba(0,0,0,.35);box-sizing:border-box;";
+  bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:2147483647;background:linear-gradient(180deg,#2563EB,#0B5BA1);color:#fff;padding:14px 18px;font:14px/1.4 system-ui,-apple-system,sans-serif;display:flex;align-items:center;gap:12px;box-shadow:0 4px 18px rgba(0,0,0,.35);box-sizing:border-box;";
   document.documentElement.appendChild(bar);
 
   // Reserve space at top of page so the bar doesn't cover navigation
