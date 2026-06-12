@@ -42,7 +42,7 @@
     #rr-ct .rr-ct-btn.danger { background:#fee2e2; color:#991b1b; }
     #rr-ct .rr-ct-actions { display:flex; gap:8px; margin-top:14px; }
     #rr-ct .rr-ct-list { margin:6px 0 16px; }
-    #rr-ct .rr-ct-item { border:1px solid #eef2f7; border-radius:10px; padding:10px 12px; margin-bottom:8px; display:flex; align-items:flex-start; gap:10px; }
+    #rr-ct .rr-ct-item { border:1px solid #F3F4F6; border-radius:10px; padding:10px 12px; margin-bottom:8px; display:flex; align-items:flex-start; gap:10px; }
     #rr-ct .rr-ct-item .rr-ct-it-main { flex:1; }
     #rr-ct .rr-ct-it-name { font-weight:600; }
     #rr-ct .rr-ct-it-meta { color:#64748b; font-size:12px; margin-top:2px; }
@@ -50,7 +50,7 @@
     #rr-ct .rr-ct-pill.on { background:#dcfce7; color:#166534; }
     #rr-ct .rr-ct-pill.off { background:#f1f5f9; color:#64748b; }
     #rr-ct .rr-ct-note { font-size:12.5px; margin-top:8px; min-height:16px; }
-    #rr-ct .rr-ct-divider { border:0; border-top:1px solid #eef2f7; margin:16px 0; }
+    #rr-ct .rr-ct-divider { border:0; border-top:1px solid #F3F4F6; margin:16px 0; }
     `;
     const el = document.createElement("style");
     el.id = "rr-ct-style"; el.textContent = css;

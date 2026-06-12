@@ -1405,7 +1405,7 @@
 #view-onboarding-ops.rrx-onboarding #obsub-pipeline .hp-week-cell:hover,
 #view-onboarding-ops.rrx-onboarding #obsub-documents .doc-row:hover,
 #view-onboarding-ops.rrx-onboarding #obsub-workauth .rr-i9-row:hover {
-  background: var(--rr-bg-card-hover, #FAFAFA) !important;
+  background: var(--rr-bg-card-hover, #F9FAFB) !important;
   border-color: var(--rr-border-primary, rgba(15, 23, 42, 0.16)) !important;
 }
 
@@ -1456,7 +1456,7 @@
      - row hover (heavy blue tint)
    What it was missing vs the Schedule grid:
      - sticky HEADER (thead pinned to top during vertical scroll)
-     - header row with a neutral background (Schedule uses #EAEDF0)
+     - header row with a neutral background (Schedule uses #F3F4F6)
      - quiet hover (Schedule rows feel calm; matrix was loud)
      - vertical scroll on the matrix wrapper (was h-only)
 
@@ -1488,13 +1488,13 @@
 
 /* Sticky header row — every <th> in the matrix head pins to
    the top of the scroll viewport. Header background matches
-   Schedule's calendar head (#EAEDF0 — the neutral gray, not the
+   Schedule's calendar head (#F3F4F6 — the neutral gray, not the
    canvas blue) so the row reads as a distinct band. */
 #view-onboarding-ops.rrx-onboarding .ob-matrix thead th {
   position: sticky !important;
   top: 0 !important;
   z-index: 3 !important;
-  background: #EAEDF0 !important;
+  background: #F3F4F6 !important;
   color: var(--rr-fg-secondary, #6B7280) !important;
   font-family: var(--rr-font-family) !important;
   font-weight: 600 !important;
@@ -1512,7 +1512,7 @@
   top: 0 !important;
   left: 0 !important;
   z-index: 4 !important;
-  background: #EAEDF0 !important;
+  background: #F3F4F6 !important;
   box-shadow:
     1px 0 0 var(--rr-border-secondary, #E5E7EB),
     0 1px 0 var(--rr-border-secondary, #E5E7EB),
@@ -1573,7 +1573,7 @@
    instead of the legacy thick border. */
 #view-onboarding-ops.rrx-onboarding .ob-mx-head {
   border-bottom: 1px solid var(--rr-border-secondary, #E5E7EB) !important;
-  background: var(--rr-bg-surface-1, #FAFAFA) !important;
+  background: var(--rr-bg-surface-1, #F9FAFB) !important;
   padding: 14px 18px !important;
 }
 
@@ -1628,7 +1628,7 @@
   transition: background .12s, border-color .12s, color .12s;
 }
 #view-onboarding-ops.rrx-onboarding .ob-mx-focus-btn:hover {
-  background: var(--rr-bg-card-hover, #FAFAFA);
+  background: var(--rr-bg-card-hover, #F9FAFB);
   border-color: var(--rr-border-primary, rgba(15, 23, 42, 0.16));
   color: var(--rr-fg-primary, #111827);
 }

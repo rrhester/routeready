@@ -278,7 +278,7 @@ function renderInviteHtml(ctx: InviteCtx): string {
   const stepsBlock = ctx.isOwnerOnboarding ? `
     <table cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 8px 0;width:100%">
       <tr><td style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:13px;color:#475569;line-height:1.6">
-        <strong style="color:#0B1220">What happens next:</strong><br>
+        <strong style="color:#111827">What happens next:</strong><br>
         1. Confirm your company details and primary contact<br>
         2. Set up billing (you can pause anytime during the trial period)<br>
         3. Land in your live dashboard with your routes, drivers, and dispatch tools ready to use
@@ -300,13 +300,13 @@ function renderInviteHtml(ctx: InviteCtx): string {
         <table cellpadding="0" cellspacing="0" border="0" width="100%">
           <tr>
             <td style="vertical-align:top;padding-right:14px">
-              <div style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:13px;font-weight:700;color:#0B1220;letter-spacing:-.005em">Prefer a desktop app?</div>
+              <div style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:13px;font-weight:700;color:#111827;letter-spacing:-.005em">Prefer a desktop app?</div>
               <div style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:12px;color:#475569;line-height:1.5;margin-top:4px">
                 RouteReady Desktop is the same workspace, packaged as a native app for Mac, Windows, and Linux.&nbsp;Always-on background sync with your Amazon DSP portal.
               </div>
             </td>
             <td style="vertical-align:top;text-align:right;white-space:nowrap">
-              <a href="https://gorouteready.com/download" target="_blank" rel="noopener" style="display:inline-block;background:#ffffff;color:#0B1220;text-decoration:none;font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:12px;font-weight:600;padding:8px 14px;border-radius:6px;border:1px solid rgba(15,23,42,.16);letter-spacing:.005em">
+              <a href="https://gorouteready.com/download" target="_blank" rel="noopener" style="display:inline-block;background:#ffffff;color:#111827;text-decoration:none;font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:12px;font-weight:600;padding:8px 14px;border-radius:6px;border:1px solid rgba(15,23,42,.16);letter-spacing:.005em">
                 Get the app →
               </a>
             </td>
@@ -323,8 +323,8 @@ function renderInviteHtml(ctx: InviteCtx): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(ctx.isOwnerOnboarding ? "Welcome to RouteReady" : "You're invited to RouteReady")}</title>
 </head>
-<body style="margin:0;padding:0;background:#F5F7FA;font-family:-apple-system,'Segoe UI',Inter,sans-serif;color:#0B1220">
-  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#F5F7FA;padding:32px 16px">
+<body style="margin:0;padding:0;background:#F9FAFB;font-family:-apple-system,'Segoe UI',Inter,sans-serif;color:#111827">
+  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#F9FAFB;padding:32px 16px">
     <tr><td align="center">
 
       <table cellpadding="0" cellspacing="0" border="0" width="560" style="max-width:560px;background:#ffffff;border:1px solid rgba(15,23,42,.10);border-radius:14px;overflow:hidden">
@@ -334,10 +334,10 @@ function renderInviteHtml(ctx: InviteCtx): string {
           <table cellpadding="0" cellspacing="0" border="0">
             <tr>
               <td style="padding-right:12px;vertical-align:middle">
-                <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#0F6CBD 0%,#4F46E5 100%);color:#fff;text-align:center;line-height:40px;font-weight:700;font-size:14px;letter-spacing:.04em">RR</div>
+                <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#2563EB 0%,#2563EB 100%);color:#fff;text-align:center;line-height:40px;font-weight:700;font-size:14px;letter-spacing:.04em">RR</div>
               </td>
               <td style="vertical-align:middle">
-                <div style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:15px;font-weight:700;letter-spacing:-.005em;color:#0B1220">RouteReady</div>
+                <div style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:15px;font-weight:700;letter-spacing:-.005em;color:#111827">RouteReady</div>
                 <div style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:11px;font-weight:500;color:#94A3B8;letter-spacing:.04em;text-transform:uppercase;margin-top:1px">Operations platform for Amazon DSPs</div>
               </td>
             </tr>
@@ -346,7 +346,7 @@ function renderInviteHtml(ctx: InviteCtx): string {
 
         <!-- Body -->
         <tr><td style="padding:28px 32px">
-          <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:18px;font-weight:700;color:#0B1220;margin:0 0 8px 0;letter-spacing:-.005em">
+          <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:18px;font-weight:700;color:#111827;margin:0 0 8px 0;letter-spacing:-.005em">
             ${greeting}
           </p>
           <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:14px;color:#475569;line-height:1.6;margin:0">
@@ -356,7 +356,7 @@ function renderInviteHtml(ctx: InviteCtx): string {
           <!-- CTA button -->
           <table cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px 0">
             <tr><td>
-              <a href="${escapeHtml(ctx.actionLink)}" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#0F6CBD 0%,#4F46E5 100%);color:#ffffff;text-decoration:none;font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:14px;font-weight:600;padding:11px 22px;border-radius:8px;letter-spacing:.005em">
+              <a href="${escapeHtml(ctx.actionLink)}" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#2563EB 0%,#2563EB 100%);color:#ffffff;text-decoration:none;font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:14px;font-weight:600;padding:11px 22px;border-radius:8px;letter-spacing:.005em">
                 ${buttonLabel} →
               </a>
             </td></tr>
@@ -375,7 +375,7 @@ function renderInviteHtml(ctx: InviteCtx): string {
         <tr><td style="padding:18px 32px 24px 32px;border-top:1px solid rgba(15,23,42,.05)">
           <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:12px;color:#94A3B8;line-height:1.6;margin:0">
             If you have questions before you sign in, reply to this email or reach us at
-            <a href="mailto:support@gorouteready.com" style="color:#0B5BA1;text-decoration:none">support@gorouteready.com</a>.
+            <a href="mailto:support@gorouteready.com" style="color:#1D4ED8;text-decoration:none">support@gorouteready.com</a>.
           </p>
           <p style="font-family:-apple-system,'Segoe UI',Inter,sans-serif;font-size:12px;color:#94A3B8;line-height:1.6;margin:8px 0 0 0">
             — The RouteReady team

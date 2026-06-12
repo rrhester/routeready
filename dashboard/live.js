@@ -1236,10 +1236,10 @@ function _rrToggleRecruitingChooser(anchor) {
     Object.assign(b.style, {
       display: "block", width: "100%", textAlign: "left", appearance: "none",
       border: "0", background: "transparent", cursor: "pointer", font: "inherit",
-      fontSize: "13px", color: "var(--text,#1b1b1f)", padding: "8px 12px", borderRadius: "6px",
+      fontSize: "13px", color: "var(--text,#111827)", padding: "8px 12px", borderRadius: "6px",
     });
     b.addEventListener("mouseenter", () => { b.style.background = "rgba(37,99,235,.08)"; b.style.color = "#2563EB"; });
-    b.addEventListener("mouseleave", () => { b.style.background = "transparent"; b.style.color = "var(--text,#1b1b1f)"; });
+    b.addEventListener("mouseleave", () => { b.style.background = "transparent"; b.style.color = "var(--text,#111827)"; });
     b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _rrCloseRecruitingChooser(); fn(); });
     return b;
   };
@@ -5931,14 +5931,14 @@ function _fillObMatrixSkeletonRows(body) {
     #view-onboarding-ops .ob-sk-row {
       display: flex; align-items: center; gap: 12px;
     }
-    /* Skeleton fills · explicit cool gray (#DDE3EB) instead of
+    /* Skeleton fills · explicit cool gray (#E5E7EB) instead of
        --canvas. The canvas was brightened to a near-white #F2F7FC
        cool tint, which made canvas-tinted skeletons disappear
        against the white card background. Pin to a fixed gray so
        the ghost rows are always visible. */
     #view-onboarding-ops .ob-sk-avatar {
       width: 28px; height: 28px; border-radius: 50%;
-      background: #DDE3EB;
+      background: #E5E7EB;
       display: inline-block;
     }
     #view-onboarding-ops .ob-sk-text {
@@ -5946,7 +5946,7 @@ function _fillObMatrixSkeletonRows(body) {
     }
     #view-onboarding-ops .ob-sk-line {
       display: inline-block;
-      background: #DDE3EB;
+      background: #E5E7EB;
       border-radius: 4px;
       height: 9px;
     }
@@ -5968,7 +5968,7 @@ function _fillObMatrixSkeletonRows(body) {
       display: inline-block;
       width: 16px; height: 16px;
       border-radius: 3px;
-      background: #DDE3EB;
+      background: #E5E7EB;
       opacity: .8;
     }
   `;
@@ -16686,10 +16686,10 @@ function _ivcalSaveToggles() {
 }
 // Legend swatch per built-in calendar (events keep their status-based color;
 // these are just the dots shown next to each built-in in My Calendars).
-const _IVCAL_KIND_COLOR = { interview:"#2563EB", orientation:"#B45309", event:"#0E7C66", session:"#7C3AED" };
+const _IVCAL_KIND_COLOR = { interview:"#2563EB", orientation:"#B45309", event:"#0D9488", session:"#7C3AED" };
 const _IVCAL_KIND_LABEL = { interview:"Interviews", orientation:"Orientations", event:"Events", session:"Group sessions" };
 // Swatches offered in the Add/Edit calendar dialog.
-const _IVCAL_PALETTE = ["#2563EB","#16A34A","#B45309","#B91C1C","#0E7C66","#7C3AED","#C2410C","#0891B2","#BE185D","#4338CA","#65A30D","#475569"];
+const _IVCAL_PALETTE = ["#2563EB","#16A34A","#B45309","#B91C1C","#0D9488","#7C3AED","#C2410C","#0891B2","#BE185D","#4338CA","#65A30D","#475569"];
 // Resolve a custom calendar's color for an event (null if none / not custom).
 function _ivcalCalColor(ev) {
   if (!ev || !ev.calendar_id || !_ivcalCache || !_ivcalCache.calendars) return null;
@@ -16962,7 +16962,7 @@ function _ivcalCat(ev, kind) {
 }
 // Schedule-aligned palette so the calendar's category dots/tags match the
 // shift-chip colors used across the Schedule and Onboarding surfaces.
-const _IVCAL_CAT_COLOR = { blue:"#2563EB", green:"#16A34A", orange:"#B45309", gray:"#7C8698", teal:"#0E7C66", red:"#B91C1C" };
+const _IVCAL_CAT_COLOR = { blue:"#2563EB", green:"#16A34A", orange:"#B45309", gray:"#6B7280", teal:"#0D9488", red:"#B91C1C" };
 function _ivcalEvKind(ev) { return ev.kind === "orientation" ? "orientation" : (ev.kind === "event" ? "event" : "interview"); }
 // Small camera glyph used as the "has video link" marker (replaces the old
 // 🎥 emoji). Flat brand blue — the old #rr-cam-grad gradient paint server was
@@ -17558,13 +17558,13 @@ function _rrGcalUrl(title, startISO, endISO, details, location) {
 function _rrInviteEmail(o) {
   const esc = (s) => escapeHtml(s == null ? "" : String(s));
   const btn = (href, label, bg) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:15px;line-height:1;padding:13px 28px;border-radius:8px">${label}</a>`;
-  const detail = (icon, html) => `<tr><td style="padding:5px 12px 5px 0;font-size:18px;vertical-align:top;width:22px">${icon}</td><td style="padding:5px 0;font-size:15px;color:#1b1b1f;vertical-align:top">${html}</td></tr>`;
+  const detail = (icon, html) => `<tr><td style="padding:5px 12px 5px 0;font-size:18px;vertical-align:top;width:22px">${icon}</td><td style="padding:5px 0;font-size:15px;color:#111827;vertical-align:top">${html}</td></tr>`;
   const join = o.joinUrl ? detail("🎥", `<a href="${esc(o.joinUrl)}" style="color:#2563EB;font-weight:600;text-decoration:none">Join the video meeting</a>`) : "";
   const loc = (o.location && o.location.trim()) ? detail("📍", esc(o.location.trim())) : "";
   const msg = (o.message && o.message.trim())
     ? `<div style="margin:18px 0 0;padding:14px 16px;background:#f6f8fb;border-radius:10px;font-size:15px;line-height:1.5;color:#3a3a45;white-space:pre-wrap">${esc(o.message.trim())}</div>` : "";
   const html =
-`<div style="background:#eef1f5;padding:24px 12px;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
+`<div style="background:#F3F4F6;padding:24px 12px;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
   <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
     <tr><td style="background:#2563EB;border-radius:14px 14px 0 0;padding:22px 28px">
@@ -17574,7 +17574,7 @@ function _rrInviteEmail(o) {
     <tr><td style="background:#ffffff;border:1px solid #e4e4e9;border-top:0;border-radius:0 0 14px 14px;padding:26px 28px">
       <div style="font-size:21px;font-weight:700;color:#16181d;margin-bottom:16px">${esc(o.title || "Interview")}</div>
       <table role="presentation" cellpadding="0" cellspacing="0">
-        ${detail("🗓️", `<strong>${esc(o.dateStr)}</strong>${o.timeStr ? `<br><span style="color:#5a5a66">${esc(o.timeStr)}</span>` : ""}`)}
+        ${detail("🗓️", `<strong>${esc(o.dateStr)}</strong>${o.timeStr ? `<br><span style="color:#6B7280">${esc(o.timeStr)}</span>` : ""}`)}
         ${loc}
         ${join}
       </table>
@@ -18217,7 +18217,7 @@ const _IVCAL_MSG_STATUS = {
   sent:      { label: "Sent",      color: "#2563EB", bg: "#DBEAFE" },
   delivered: { label: "Delivered", color: "#16A34A", bg: "#DCFCE7" },
   failed:    { label: "Failed",    color: "#B91C1C", bg: "#FEE2E2" },
-  received:  { label: "Received",  color: "#0E7C66", bg: "#CCFBF1" },
+  received:  { label: "Received",  color: "#0D9488", bg: "#CCFBF1" },
 };
 function _ivcalMsgWhen(ts) {
   if (!ts) return "";
@@ -18268,7 +18268,7 @@ async function _ivcalLoadEventMessages(eventId, host) {
   }
 
   const rowsHtml = items.map(it => {
-    const st = _IVCAL_MSG_STATUS[it.status] || { label: it.status || "—", color: "#7C8698", bg: "#F3F4F6" };
+    const st = _IVCAL_MSG_STATUS[it.status] || { label: it.status || "—", color: "#6B7280", bg: "#F3F4F6" };
     const icon = it.ch === "email" ? "✉" : "💬";
     const inbound = it.direction === "inbound";
     const dirLabel = inbound ? "Reply from" : "To";
@@ -35109,7 +35109,7 @@ function _rrConfirmDialog(opts) {
       "transition:opacity 120ms ease-out;overflow:hidden";
     m.innerHTML =
       '<div style="padding:16px 18px 14px">' +
-        (opts.title ? '<div style="font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text,#201F1E)">' + escapeHtml(opts.title) + '</div>' : '') +
+        (opts.title ? '<div style="font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text,#111827)">' + escapeHtml(opts.title) + '</div>' : '') +
         '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#6B7280)">' + escapeHtml(opts.body || '') + '</div>' +
       '</div>' +
       '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#E5E7EB);background:var(--canvas,#F9FAFB)">' +
@@ -38784,7 +38784,7 @@ async function _decorateScheduleChipsWithVans() {
     const vehId = byKeyVeh.get(key);
     if (vehId && window._rrVanUnavail && window._rrVanUnavail.has(`${vehId}|${key.split("|")[1]}`)) {
       el.classList.add("shift-chip-van-out");
-      el.style.background = "var(--red-soft, #FDE7E7)";
+      el.style.background = "var(--red-soft, #FEE2E2)";
       el.style.color = "var(--red, #C0322B)";
       el.style.fontWeight = "700";
       chip.setAttribute("title", "Van unavailable this day — in service or grounded");
@@ -39139,13 +39139,13 @@ function _rrShowPinConflictModal(driverName, dow, conflicts) {
         #rr-pin-conflict-modal .rr-pin-conflict-list li{
           display:flex;align-items:flex-start;gap:8px;
           font-size:12px;color:#111827;line-height:1.4;
-          padding:8px 10px;background:#FFF8E6;border:1px solid #F5C97E;
+          padding:8px 10px;background:#FEF3C7;border:1px solid #FDE68A;
           border-radius:4px;
         }
         #rr-pin-conflict-modal .rr-pin-conflict-rule{
           flex:0 0 auto;
           font-size:10px;font-weight:700;letter-spacing:.04em;
-          color:#7A5A0F;background:#fff;border:1px solid #F5C97E;
+          color:#92400E;background:#fff;border:1px solid #FDE68A;
           padding:2px 6px;border-radius:3px;
         }
         #rr-pin-conflict-modal .rr-pin-conflict-msg{
@@ -43349,7 +43349,7 @@ async function openShiftEditModal(arg) {
         const _delStatus = document.getElementById("rr-shift-edit-status");
         if (_delStatus) {
           _delStatus.innerHTML =
-            '<div style="background:var(--red-soft,#FDE7E7);border:1px solid var(--red-border,#F3B5B5);'
+            '<div style="background:var(--red-soft,#FEE2E2);border:1px solid var(--red-border,#FECACA);'
             + 'border-radius:8px;padding:8px 10px;color:var(--red-dark,#B42318);font-size:12px;line-height:1.45;text-align:left">'
             + '<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px">'
             + '<span aria-hidden="true">&#9888;</span>Delete this shift?</div>'
@@ -43482,7 +43482,7 @@ async function openShiftEditModal(arg) {
               ? ("Rule violation" + (_violations.length > 1 ? "s" : ""))
               : "Heads up";
             status.innerHTML =
-              '<div style="background:var(--red-soft,#FDE7E7);border:1px solid var(--red-border,#F3B5B5);'
+              '<div style="background:var(--red-soft,#FEE2E2);border:1px solid var(--red-border,#FECACA);'
               + 'border-radius:8px;padding:8px 10px;color:var(--red-dark,#B42318);font-size:12px;line-height:1.45;text-align:left">'
               + '<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px">'
               + '<span aria-hidden="true">&#9888;</span>' + _head + '</div>'
@@ -43588,7 +43588,7 @@ async function openShiftEditModal(arg) {
         if (_ackedViolationsKey !== "live-edit") {
           _ackedViolationsKey = "live-edit";
           status.innerHTML =
-            '<div style="background:var(--red-soft,#FDE7E7);border:1px solid var(--red-border,#F3B5B5);'
+            '<div style="background:var(--red-soft,#FEE2E2);border:1px solid var(--red-border,#FECACA);'
             + 'border-radius:8px;padding:8px 10px;color:var(--red-dark,#B42318);font-size:12px;line-height:1.45;text-align:left">'
             + '<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px">'
             + '<span aria-hidden="true">&#9888;</span>Schedule is live</div>'
@@ -44043,7 +44043,7 @@ function _schedShiftChip(sh, extras) {
     "":       { t: "SP", c: "#2563EB", label: "Standard Parcel" },
     standard: { t: "SP", c: "#2563EB", label: "Standard Parcel" },
     rescue:   { t: "RE", c: "#DC2626", label: "Rescue" },
-    nursery:  { t: "NU", c: "#038387", label: "Nursery" },
+    nursery:  { t: "NU", c: "#0D9488", label: "Nursery" },
   };
   let _rcDef = _isTrainingChip ? null : RC_BADGE[_rc];
   // A service-type badge (XL / HUB / …) already marks the route, so the
@@ -47451,7 +47451,7 @@ function bindSchedWeekNav() {
             <style>
               .rr-cov-fifth-modes{display:flex;flex-direction:column;gap:6px;margin:10px 0 12px}
               .rr-cov-fifth-mode{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid #E5E7EB;border-radius:4px;background:#FFFFFF;cursor:pointer;transition:border-color .12s, background .12s}
-              .rr-cov-fifth-mode:hover{border-color:#C8C6C4;background:#FAFAFA}
+              .rr-cov-fifth-mode:hover{border-color:#C8C6C4;background:#F9FAFB}
               .rr-cov-fifth-mode:has(input:checked){border-color:#2563EB;background:rgba(37,99,235,.04)}
               .rr-cov-fifth-mode input[type="checkbox"]{margin:3px 0 0;flex:0 0 auto;accent-color:#2563EB}
               .rr-cov-fifth-mode-body{display:flex;flex-direction:column;gap:2px;min-width:0}
