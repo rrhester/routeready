@@ -23410,6 +23410,10 @@ body.rr-cmdk-open{ overflow:hidden }
   height:auto !important;
   max-height:min(680px, calc(100vh - 140px)) !important;
   margin:0 !important;
+  /* The legacy flyout rule pads the popover (4px 0 6px) — that painted
+     a white strip above the navy header. The frame owns no padding;
+     overflow:hidden + the frame radius clip the header corners. */
+  padding:0 !important;
   border:1.5px solid var(--sidebar-bg, #0F172A) !important;
   border-radius:10px !important;
   box-shadow:0 14px 36px rgba(15,23,42,.16) !important;
@@ -23684,7 +23688,7 @@ body.rr-cmdk-open{ overflow:hidden }
   background:var(--sidebar-bg, #0F172A) !important;
   color:#FFFFFF !important;
   border-bottom:0 !important;
-  border-radius:8px 8px 0 0 !important;
+  border-radius:0 !important;
   flex:0 0 auto;
 }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover.rr-policy-drawer .rr-pol-head .rr-pol-close svg{
