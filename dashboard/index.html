@@ -427,6 +427,43 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg></span>
         Fleet Bridge
       </button>
+      <!-- Download · sidebar form of the app install button (operator
+           request 2026-06-12 — the small download glyph in the rail
+           foot becomes a normal nav row labeled "Download"). Visibility
+           mirrors #rr-hdr-install (revealed by beforeinstallprompt,
+           hidden once installed) and the click forwards to it, so the
+           existing install flow stays the single source of truth. -->
+      <button class="nav-item" id="rr-nav-download" title="Download the RouteReady app" hidden
+              onclick="document.getElementById('rr-hdr-install')?.click()">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></span>
+        Download
+      </button>
+      <script>
+        // Mirror the install button's visibility onto the Download nav
+        // row. The source button keeps its hidden-attr lifecycle
+        // (beforeinstallprompt reveals, appinstalled hides); we just
+        // reflect it — and glue the row after Fleet Bridge so the
+        // drag-reorder re-appends can't strand it.
+        (function () {
+          function wire() {
+            var src = document.getElementById('rr-hdr-install');
+            var dst = document.getElementById('rr-nav-download');
+            if (!src || !dst) { setTimeout(wire, 500); return; }
+            function sync() { dst.hidden = src.hidden; }
+            new MutationObserver(sync).observe(src, { attributes: true, attributeFilter: ['hidden'] });
+            sync();
+            var nav = document.querySelector('.sidebar .nav') || document.querySelector('.sidebar nav');
+            function glue() {
+              var anchor = document.querySelector('.sidebar .nav-item[data-view="email"]');
+              if (anchor && anchor.nextElementSibling !== dst) anchor.insertAdjacentElement('afterend', dst);
+            }
+            if (nav) new MutationObserver(glue).observe(nav, { childList: true });
+            glue();
+          }
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
+          else wire();
+        })();
+      </script>
       <!-- Documents · moved into the Onboarding ribbon. Sidebar entry
            hidden so the operator reaches it from Onboarding only.
            Keeping the button in the DOM (hidden) so any legacy
