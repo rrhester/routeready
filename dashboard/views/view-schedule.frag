@@ -1620,7 +1620,9 @@
               Unassign Fleet
             </button>
             <div class="rr-ab-coverage" id="rr-ab-coverage" hidden>
+              <span class="rr-ab-coverage-label">Coverage</span>
               <span class="rr-ab-coverage-main" id="rr-ab-coverage-main"></span>
+              <span class="rr-ab-coverage-track" aria-hidden="true"><span class="rr-ab-coverage-bar" id="rr-ab-coverage-bar"></span></span>
               <span class="rr-ab-coverage-sub" id="rr-ab-coverage-sub"></span>
             </div>
             <button type="button" class="rr-ab-btn rr-ab-primary" id="rr-ab-finalize" title="Push this week's schedule to drivers">
@@ -1681,6 +1683,56 @@
                   if (!menu.hidden && !e.target.closest(".rr-ab-more-wrap")) menu.hidden = true;
                 });
               }
+            })();
+          </script>
+
+          <!-- ── Operational summary strip · thin, quiet status band
+               under the action bar: open routes, attendance risks,
+               drivers missing vans, and the Draft/Live state. Counts
+               are painted by renderScheduleWeek (same data as the
+               coverage card); each item hides itself at zero. The
+               status chip mirrors the legacy title pill
+               (#rr-sched-v2-status) so the Finalize flow keeps a
+               single source of truth. -->
+          <div class="rr-opstrip" id="rr-sched-opstrip" role="status" aria-label="Operational summary">
+            <span class="rr-opstrip-item rr-opstrip-open" id="rr-strip-open" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/></svg>
+              <span id="rr-strip-open-text"></span>
+            </span>
+            <span class="rr-opstrip-item rr-opstrip-att" id="rr-strip-att" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span id="rr-strip-att-text"></span>
+            </span>
+            <span class="rr-opstrip-item rr-opstrip-vans" id="rr-strip-vans" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="13" height="10" rx="1.2"/><path d="M15 8h4l3 3v4h-7z"/><circle cx="6.5" cy="17" r="1.7"/><circle cx="17.5" cy="17" r="1.7"/></svg>
+              <span id="rr-strip-vans-text"></span>
+            </span>
+            <span class="rr-opstrip-status" id="rr-strip-status" data-state="draft">Schedule Draft</span>
+          </div>
+          <script>
+            // Mirror the legacy Draft/Live pill into the strip's status
+            // chip. The pill (#rr-sched-v2-status) is still the element
+            // the Finalize flow updates; it's hidden by CSS, and this
+            // observer keeps the visible chip truthful.
+            (function () {
+              if (window.__rrOpstripStatusWired) return;
+              window.__rrOpstripStatusWired = true;
+              function sync() {
+                var pill = document.getElementById("rr-sched-v2-status");
+                var chip = document.getElementById("rr-strip-status");
+                if (!pill || !chip) return;
+                var state = pill.getAttribute("data-state") === "live" ? "live" : "draft";
+                chip.setAttribute("data-state", state);
+                chip.textContent = state === "live" ? "Schedule Live" : "Schedule Draft";
+              }
+              function wire() {
+                var pill = document.getElementById("rr-sched-v2-status");
+                if (!pill) { setTimeout(wire, 600); return; }
+                new MutationObserver(sync).observe(pill, { attributes: true, attributeFilter: ["data-state"] });
+                sync();
+              }
+              if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
+              else wire();
             })();
           </script>
 
