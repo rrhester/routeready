@@ -3262,12 +3262,16 @@ body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .cal-cell:hover .shif
   border-color: transparent !important;
 }
 body.rr-sched-cards-blue #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #BFDBFE !important;
+  /* The Blue card style renders the same reference card as White now
+     (operator 2026-06-12: the picked look applies regardless of the
+     legacy Card-style toggle — operators with "Blue" saved in
+     localStorage must see it too). */
+  background: #EFF6FF !important;
   border: 1px solid transparent !important;
   color: #111827 !important;
 }
 body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #93C5FD !important;
+  background: #E4EFFE !important;
   border-color: transparent !important;
 }
 
