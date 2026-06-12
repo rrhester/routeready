@@ -23238,10 +23238,12 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-sched-smartfill-rules-popover.rr-sf-compact #rr-sched-smartfill-rules-body > :not(.sf2-presets){display:none !important}
 #rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-presets-foot{display:none !important}
 #rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-presets-label{margin-bottom:6px}
-/* Compact popover hugs its content instead of the full-width panel. */
+/* Compact popover is a small fixed-width menu (operator: smaller box);
+   the click-to-reveal info lines wrap inside it. */
 #view-schedule.rrx-schedule .sched-smartfill-rules-popover.rr-sf-compact{
   min-width:0 !important;
-  width:max-content !important;
+  width:248px !important;
+  max-width:248px !important;
 }
 /* Smart Fill rules dropdown · operator pass 2026-06-12 (2):
    - opens with its left edge under the Smart Fill button (the caret
@@ -23293,4 +23295,54 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #view-schedule.rrx-schedule #rr-sched-smartfill-rules-popover .sched-smartfill-rules-head svg{
   color:var(--text-muted,#64748B) !important;
+}
+/* Smart Fill rules dropdown · operator pass 2026-06-12 (4):
+   smaller all-white box; rows are left-justified text with a subtle
+   click-for-info icon beside the label and a right-justified checkmark
+   on the selected preset (replacing the legacy active border). */
+#rr-sched-smartfill-rules-popover.rr-sf-compact #rr-sched-smartfill-rules-body,
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-presets{
+  background:#FFFFFF !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-presets{padding:8px 8px 10px}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-presets-label{
+  font-size:10px;letter-spacing:.07em;color:#8A94A4;margin:0 2px 5px;text-align:left;
+}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset{
+  height:30px !important;
+  gap:7px !important;
+  font-size:12px !important;
+}
+/* Selected = checkmark, never a border/box. */
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset.active{
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  font-weight:400 !important;
+}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset.active:hover{background:rgba(15,23,42,.05) !important}
+.sf2-preset-label{flex:0 1 auto;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sf2-preset-info{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;flex:0 0 auto;border-radius:50%;
+  color:#94A3B8;opacity:.4;cursor:pointer;
+  transition:opacity .12s ease;
+}
+.sf2-preset-info:hover,.sf2-preset-info:focus-visible{opacity:1;outline:none}
+.sf2-preset-info svg{width:12px;height:12px;display:block}
+.sf2-preset-check{
+  display:none;margin-left:auto;flex:0 0 auto;
+  width:14px;height:14px;color:#0F172A;
+  align-items:center;justify-content:center;
+}
+.sf2-preset-check svg{width:13px;height:13px;display:block}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset.active .sf2-preset-check{display:inline-flex}
+/* Click-to-reveal explanation line under a row (compact only). */
+.sf2-preset-desc{display:none}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset-desc.is-open{
+  display:block;
+  padding:1px 10px 7px;
+  font-size:11px;line-height:1.45;color:#64748B;text-align:left;
 }
