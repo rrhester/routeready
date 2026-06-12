@@ -58,7 +58,9 @@
   --sidebar:#0F172A;
   --sidebar-grad:none;
   --sidebar-hover:#1E293B;
-  --sidebar-active:#2563EB;
+  /* Selection pill: deep blue-800 — visible but calm on the navy rail
+     (operator 2026-06-12: #2563EB read too bright in the chrome). */
+  --sidebar-active:#1E40AF;
   --sidebar-divider:rgba(255,255,255,.08);
   --sidebar-bg:#0F172A;
   --sidebar-ink:#E2E8F0;
@@ -66,7 +68,7 @@
   --sidebar-icon-idle:#94A3B8;
   --sidebar-icon-hover:var(--sidebar-ink);
   --sidebar-icon-active:#FFFFFF;
-  --sidebar-active-pill:#2563EB;
+  --sidebar-active-pill:#1E40AF;
   --sidebar-active-border:transparent;
   /* Corporate brand blue — shared by the driver app and the
      content-area elements that key off it (Finalize button, action
