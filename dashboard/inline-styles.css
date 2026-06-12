@@ -23591,3 +23591,49 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:10px 16px 14px;
   gap:4px !important;
 }
+
+/* ═══ Van rules dropdown under Assign Fleet (operator 2026-06-12) ═══ */
+/* Anchored under the action bar with its left edge under the Assign
+   Fleet button (the caret sets --rr-sf-pop-left), same navy frame as
+   the Staffing Policy box. */
+#view-schedule #rr-sched-vans-rules-popover{
+  position:absolute;
+  top:calc(100% + 8px);
+  left:var(--rr-sf-pop-left, auto);
+  right:auto;
+  width:420px;
+  max-width:calc(100vw - 48px);
+  max-height:min(560px, calc(100vh - 160px));
+  overflow-y:auto;
+  background:#FFFFFF;
+  border:1.5px solid var(--sidebar-bg, #0F172A);
+  border-radius:10px;
+  box-shadow:0 14px 36px rgba(15,23,42,.16);
+  z-index:600;
+}
+#view-schedule #rr-sched-vans-rules-popover .sched-vans-rules-head{
+  padding:10px 14px 8px;
+  font-size:13px;font-weight:600;color:#0F172A;
+  border-bottom:1px solid #EEF0F4;
+}
+
+/* ═══ Staffing Policy · plumb-line alignment (operator 2026-06-12) ═══
+   Every checkbox / dropdown starts on the same vertical line: rows are
+   a two-column grid — text takes the left column, the control column
+   is a fixed 150px so the controls all line up. Selects fill the
+   column; checkboxes sit at its left edge. */
+.rr-policy-drawer .rr-pol-row{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) 150px;
+  align-items:center;
+  column-gap:10px;
+}
+.rr-policy-drawer .rr-pol-control{
+  display:flex;
+  justify-content:flex-start;
+  align-items:center;
+}
+.rr-policy-drawer .rr-pol-select{
+  width:100%;
+  max-width:none;
+}
