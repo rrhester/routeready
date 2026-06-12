@@ -23393,33 +23393,34 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .sf2-consec-all:hover{color:#0F172A;text-decoration:underline}
 
-/* ═══ Staffing Policy drawer (operator 2026-06-12) ═══════════════════
-   The Smart Fill rules popover rebuilt as a compact right-side drawer.
-   Double-id selector outranks the absolute-position popover rules in
-   schedule-rrx.css regardless of where the element sits in the DOM. */
+/* ═══ Staffing Policy box (operator 2026-06-12) ═══════════════════════
+   Anchored dropdown panel — opens under the button that launched it
+   (the .sched-smartfill-split anchor, or the action bar after the
+   caret re-parents it). Navy border matches the sidebar chrome.
+   Double-id selector outranks the legacy popover frame rules. */
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover.rr-policy-drawer{
-  position:fixed !important;
-  top:0 !important; right:0 !important; bottom:0 !important; left:auto !important;
+  position:absolute !important;
+  top:calc(100% + 8px) !important;
+  right:0 !important;
+  left:auto !important;
+  bottom:auto !important;
   width:440px !important;
   min-width:0 !important;
   max-width:calc(100vw - 48px) !important;
-  height:100vh !important;
-  max-height:100vh !important;
+  height:auto !important;
+  max-height:min(680px, calc(100vh - 140px)) !important;
   margin:0 !important;
-  border:0 !important;
-  border-left:1px solid #E2E8F0 !important;
-  border-radius:0 !important;
-  box-shadow:-16px 0 40px rgba(15,23,42,.14) !important;
+  border:1.5px solid var(--sidebar-bg, #0F172A) !important;
+  border-radius:10px !important;
+  box-shadow:0 14px 36px rgba(15,23,42,.16) !important;
   background:#FFFFFF !important;
   display:flex;
   flex-direction:column;
   overflow:hidden !important;
   z-index:600 !important;
   transform:none !important;
-  animation:rrPolSlideIn .16s ease;
 }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover.rr-policy-drawer[hidden]{display:none !important}
-@keyframes rrPolSlideIn{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
 
 /* Header — title + subtitle + X. Quiet white band. */
 .rr-policy-drawer .rr-pol-head{
@@ -23427,10 +23428,7 @@ body.rr-cmdk-open{ overflow:hidden }
   align-items:flex-start !important;
   justify-content:space-between !important;
   gap:10px !important;
-  /* In the desktop shell the OS window controls overlay the top-right
-     corner — env(titlebar-area-height) pushes the header content below
-     them; browsers without the env fall back to the normal 14px. */
-  padding:max(14px, env(titlebar-area-height, 14px)) 16px 12px !important;
+  padding:12px 16px 10px !important;
   background:#FFFFFF !important;
   border-bottom:1px solid #EEF0F4 !important;
   border-radius:0 !important;
@@ -23564,7 +23562,7 @@ body.rr-cmdk-open{ overflow:hidden }
   background:transparent;
 }
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-head:hover .sf2-section-title{color:#2563EB}
-#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-title{font-size:12.5px;font-weight:600;color:#0F172A}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-title{font-size:12.5px;font-weight:400;color:#0F172A}
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-sub{display:none}
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-chev{width:12px;height:12px}
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-body{
