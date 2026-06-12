@@ -4873,3 +4873,33 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   cursor: pointer;
 }
 #view-schedule .rr-ab-menu button:hover { background: rgba(15, 23, 42, .05); }
+
+/* — Action bar · mockup fidelity pass (operator: "just like the
+   picture") — DRIVER label + week nav lead the bar; Assign Fleet
+   gains a split caret that opens the van/driver chain editor. — */
+#view-schedule .rr-ab-driver {
+  align-self: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text, #0F172A);
+  margin-right: 2px;
+}
+#view-schedule .rr-ab-weeknav { display: flex; align-items: center; margin-right: 4px; }
+#view-schedule .rr-ab-weeknav:empty { display: none; }
+/* The corner cell's Driver label is redundant once the bar leads with
+   it (live.js also moves the week nav out of the corner cell). */
+#view-schedule #rr-sched-actionbar ~ .builder-shell .cal-grid.head .cal-cell-head > #rr-sched-row-label { display: none; }
+/* Assign Fleet split caret. */
+#view-schedule .rr-ab-caret {
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch;
+  margin: 0 -7px 0 2px;
+  padding: 0 8px;
+  border-left: 1px solid rgba(15, 108, 189, .30);
+  border-radius: 0 7px 7px 0;
+}
+#view-schedule .rr-ab-caret:hover { background: rgba(15, 108, 189, .10); }
+#view-schedule .rr-ab-caret svg { width: 11px; height: 11px; }

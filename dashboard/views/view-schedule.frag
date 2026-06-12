@@ -1596,6 +1596,13 @@
                renderScheduleWeek (live.js) alongside the day-header
                coverage pass, from the same fillByDate data. -->
           <div class="rr-ab" id="rr-sched-actionbar" role="toolbar" aria-label="Schedule actions">
+            <!-- DRIVER label + week navigator lead the bar (mockup). The
+                 Today / prev / next buttons are live nodes — live.js
+                 re-parents #rr-sched-week-nav into #rr-ab-weeknav (its
+                 bound listeners ride along), the same relocation it
+                 previously did into the grid's corner cell. -->
+            <span class="rr-ab-driver">Driver</span>
+            <span class="rr-ab-weeknav" id="rr-ab-weeknav"></span>
             <button type="button" class="rr-ab-btn" id="rr-ab-smartfill" title="Auto-staff this week from your rules + OKAMI demand">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.95 2.55L22.5 18.5l-2.55.95L19 22l-.95-2.55L15.5 18.5l2.55-.95z"/></svg>
               Smart Fill
@@ -1604,6 +1611,9 @@
             <button type="button" class="rr-ab-btn" id="rr-ab-assign" title="Auto-assign vans for this week using the standing primary / backup chain">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="13" height="10" rx="1.2"/><path d="M15 8h4l3 3v4h-7z"/><line x1="2" y1="15" x2="22" y2="15"/><circle cx="6.5" cy="16.5" r="1.6"/><circle cx="17.5" cy="16.5" r="1.6"/></svg>
               Assign Fleet
+              <span class="rr-ab-caret" id="rr-ab-assign-caret" role="button" tabindex="0" title="Open the van / driver chain editor" aria-haspopup="true">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+              </span>
             </button>
             <button type="button" class="rr-ab-btn" id="rr-ab-unassign" title="Clear this week's van assignments">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="13" height="10" rx="1.2"/><path d="M15 8h4l3 3v4h-7z"/><line x1="2" y1="15" x2="22" y2="15"/><circle cx="6.5" cy="16.5" r="1.6"/><circle cx="17.5" cy="16.5" r="1.6"/></svg>
@@ -1638,10 +1648,15 @@
               var on   = function (id, fn) { var b = document.getElementById(id); if (b) b.addEventListener("click", fn); };
               on("rr-ab-smartfill", function () { fire("rr-sched-smartfill-h"); });
               on("rr-ab-finalize",  function () { fire("rr-sched-finalize-h"); });
-              on("rr-ab-assign", function () {
+              on("rr-ab-assign", function (e) {
+                if (e.target.closest("#rr-ab-assign-caret")) return; // caret owns its click
                 var v = document.getElementById("rr-sched-vans-h");
                 if (v && v.dataset.rrAssigned === "1") { say("Fleet is already assigned this week — use Unassign Fleet first."); return; }
                 fire("rr-sched-vans-h");
+              });
+              on("rr-ab-assign-caret", function (e) {
+                e.stopPropagation();
+                fire("rr-sched-vans-chain-toggle");
               });
               on("rr-ab-unassign", function () {
                 var v = document.getElementById("rr-sched-vans-h");
