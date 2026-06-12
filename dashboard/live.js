@@ -45913,6 +45913,32 @@ async function renderScheduleWeek() {
     }
   }
 
+  // ── Header action bar (operator mockup 2026-06-12) · coverage card +
+  // Smart Fill open-routes badge, fed from the same fillByDate data as
+  // the day headers above. The bar's markup lives in view-schedule.frag;
+  // absent elements (older cached frag) make this a no-op.
+  try {
+    let abFilled = 0, abNeeded = 0;
+    for (const iso of days) {
+      const c = fillByDate.get(iso) || { needed: 0, filled: 0 };
+      abFilled += c.filled; abNeeded += c.needed;
+    }
+    const abOpen = window._rrOpenShiftsCount || 0;
+    const abBadge = document.getElementById("rr-ab-sf-badge");
+    if (abBadge) { abBadge.hidden = abOpen === 0; abBadge.textContent = String(abOpen); }
+    const abCard = document.getElementById("rr-ab-coverage");
+    if (abCard) {
+      abCard.hidden = abNeeded === 0;
+      const abMain = document.getElementById("rr-ab-coverage-main");
+      const abSub  = document.getElementById("rr-ab-coverage-sub");
+      if (abMain) abMain.textContent = `Coverage: ${abFilled} / ${abNeeded} Routes`;
+      if (abSub) {
+        abSub.textContent = abOpen > 0 ? `${abOpen} Open Route${abOpen === 1 ? "" : "s"}` : "All routes covered";
+        abSub.classList.toggle("is-ok", abOpen === 0);
+      }
+    }
+  } catch (e) { console.warn("action bar paint:", e); }
+
   // ── Week-range navigator label + Live/Draft pill (page header).
   // Operators asked for the ISO week number alongside the date range
   // so they can match against payroll exports / Amazon scorecard rows.
@@ -46631,21 +46657,27 @@ function bindSchedWeekNav() {
   });
   setTimeout(_syncNavButtons, 0);
 
-  // ── Operator request · relocate the week navigator INTO the grid's
-  // DRIVER header cell, restructured as [Today] [<] [>]. We move the same
-  // button nodes, so the click listeners bound above stay attached; the
-  // DRIVER cell is static (renderScheduleWeek skips header cell 0), so this
-  // runs once and persists across week re-renders. The "This week" range
-  // button is dropped per the request (Today + chevrons only).
+  // ── Operator request · relocate the week navigator, restructured as
+  // [Today] [<] [>]. Destination: the header action bar's #rr-ab-weeknav
+  // mount (operator mockup 2026-06-12 — DRIVER label + week nav lead the
+  // bar), falling back to the grid's DRIVER corner cell for an older
+  // cached frag without the bar. We move the same button nodes, so the
+  // click listeners bound above stay attached; both destinations are
+  // static (renderScheduleWeek skips header cell 0), so this runs once
+  // and persists across week re-renders. The "This week" range button is
+  // dropped per the request (Today + chevrons only).
   (() => {
     const nav = document.getElementById("rr-sched-week-nav");
+    const abMount = document.getElementById("rr-ab-weeknav");
     const driverCell = document.querySelector("#view-schedule .cal-wrap .cal-grid.head .cal-cell-head");
     const label = document.getElementById("rr-sched-row-label");
-    if (!nav || !driverCell || driverCell.contains(nav)) return;
+    if (!nav || (abMount && abMount.contains(nav)) || (driverCell && driverCell.contains(nav))) return;
     if (rangeBtn) rangeBtn.style.display = "none";
     if (todayBtn) nav.appendChild(todayBtn);   // reorder → Today, then < , then >
     if (prevBtn)  nav.appendChild(prevBtn);
     if (nextBtn)  nav.appendChild(nextBtn);
+    if (abMount) { abMount.appendChild(nav); return; }
+    if (!driverCell) return;
     driverCell.classList.add("rr-has-week-nav");
     if (label && label.nextSibling) driverCell.insertBefore(nav, label.nextSibling);
     else driverCell.appendChild(nav);
