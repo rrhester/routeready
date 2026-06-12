@@ -65,7 +65,7 @@
   --sidebar-ink-idle:#94A3B8;
   --sidebar-icon-idle:#94A3B8;
   --sidebar-icon-hover:var(--sidebar-ink);
-  --sidebar-icon-active:#FFFFFF;
+  --sidebar-icon-active:#CBD5E1;
   --sidebar-active-pill:#2563EB;
   --sidebar-active-border:transparent;
   /* Corporate brand blue — shared by the driver app and the
@@ -879,18 +879,19 @@ textarea,
   color:var(--sidebar-ink);
 }
 .nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--sidebar-ink);box-shadow:inset 0 0 0 1px rgba(96,165,250,.55)}
-/* Active = location state: one solid corporate-blue pill in the
-   navy chrome (Azure / Teams rail pattern) — white ink on #2563EB. */
+/* Active = location state: a very muted slate tint on the navy rail
+   (operator request 2026-06-12 — no bright blue pill). Selection reads
+   through the soft tint + brighter ink + weight, not paint. */
 .nav-item.active{
-  background:var(--sidebar-active);
-  color:#FFFFFF;font-weight:600;
+  background:rgba(148,163,184,.10);
+  color:#F1F5F9;font-weight:600;
 }
 .nav-item.active:hover{
-  background:var(--sidebar-active);
+  background:rgba(148,163,184,.14);
   color:#FFFFFF;
 }
 .nav-item.active .nav-badge{
-  color:var(--sidebar-active);background:#fff;
+  color:#E2E8F0;background:rgba(255,255,255,.12);
 }
 /* Icon strokes — calm operational weight; no glow / drop-shadow.
    18px light monoline glyphs beside 13px labels: the refined scale
