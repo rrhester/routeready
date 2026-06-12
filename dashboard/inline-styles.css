@@ -23193,3 +23193,24 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-schedule .tcp{margin-bottom:0!important}
 #view-schedule .rr-intel-host{margin-bottom:0!important}
 #view-schedule .rr-intel-host > *{margin-bottom:16px}
+
+/* ════════════════════════════════════════════════════════════════════
+   Chrome tidy pass (operator requests 2026-06-12)
+   --------------------------------------------------------------------
+   - Sidebar type rides the exact same Inter stack as the page content.
+   - The collapse chevron and the "Connect desktop app" footer button
+     retire from the bottom-left.
+   - The bell + account buttons relocate to the schedule action bar's
+     far right (dockTopRight in index.html); their popovers anchor
+     top-right to match.
+   ════════════════════════════════════════════════════════════════════ */
+.sidebar,
+.sidebar .nav-item,
+.sidebar .nav-sub-item,
+.sidebar .brand-name{
+  font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+}
+.sidebar-foot .sidebar-collapse-btn{display:none !important}
+.sidebar-foot .sidebar-theme-btn{display:none !important}
+#popover-account{top:56px !important;bottom:auto !important;right:16px !important;left:auto !important}
+#popover-notif{top:56px !important;bottom:auto !important;right:16px !important;left:auto !important}

@@ -351,6 +351,21 @@
             var foot = document.querySelector('.sidebar-foot');
             var bar = document.querySelector('.topbar');
             if (foot && bar && bar.parentElement !== foot) foot.insertBefore(bar, foot.firstChild);
+            dockTopRight();
+          }
+          // Bell + account ride the schedule action bar's far right,
+          // next to the ⋯ overflow (operator request 2026-06-12 — they
+          // were stranded bottom-left in the rail foot). The action bar
+          // lives in the async-loaded schedule frag, so this retries
+          // until the mount exists; the same listeners ride along with
+          // the moved nodes.
+          function dockTopRight() {
+            var ab = document.getElementById('rr-sched-actionbar');
+            if (!ab) { setTimeout(dockTopRight, 600); return; }
+            var bell = document.getElementById('rr-hdr-notif');
+            var acct = document.getElementById('rr-hdr-avatar-btn');
+            if (bell && bell.parentElement !== ab) ab.appendChild(bell);
+            if (acct && acct.parentElement !== ab) ab.appendChild(acct);
           }
           dockTools();
           document.addEventListener('DOMContentLoaded', dockTools);
@@ -426,7 +441,7 @@
            after the auth gate completes (see _revealPlatformAdminNav). -->
       <button class="nav-item" data-view="admin" data-c="admin"
               data-rr-platform-admin-only="1"
-              style="display:none;margin-top:auto"
+              style="display:none"
               onclick="goto('admin')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></span>
         Admin

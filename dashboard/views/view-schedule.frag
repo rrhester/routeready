@@ -1601,7 +1601,9 @@
                  re-parents #rr-sched-week-nav into #rr-ab-weeknav (its
                  bound listeners ride along), the same relocation it
                  previously did into the grid's corner cell. -->
-            <span class="rr-ab-driver">Driver</span>
+            <!-- DRIVER label removed (operator request 2026-06-12) — the
+                 bar leads with the week navigator, all controls
+                 left-justified. -->
             <span class="rr-ab-weeknav" id="rr-ab-weeknav"></span>
             <button type="button" class="rr-ab-btn" id="rr-ab-smartfill" title="Auto-staff this week from your rules + OKAMI demand">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.95 2.55L22.5 18.5l-2.55.95L19 22l-.95-2.55L15.5 18.5l2.55-.95z"/></svg>
