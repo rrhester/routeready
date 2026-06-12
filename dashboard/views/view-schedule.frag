@@ -692,19 +692,19 @@
                     </div></summary>
                     <div class="sf2-section-body">
                       <p class="sf2-row-help" style="margin:2px 10px 6px">The right certs (DOT / XL / EDV) for each route's service type and an active service type are always required — the engine never auto-assigns a driver who doesn't qualify.</p>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="include_onboarding" checked> <span class="sf-rule-name"><strong>Include onboarding drivers</strong> · activated trainees can take regular shifts</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name"><strong>DL valid required</strong> · skip drivers with an expired license</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="include_onboarding" checked> <span class="sf-rule-name">Include onboarding drivers <button type="button" class="rr-pol-info" data-rr-pol-info="activated trainees can take regular shifts" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name">DL valid required <button type="button" class="rr-pol-info" data-rr-pol-info="skip drivers with an expired license" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
                       <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-set-dl-protection-days">License protection window</label>
+                        <label class="sf2-row-label" for="rr-set-dl-protection-days">License protection window <button type="button" class="rr-pol-info" data-rr-pol-info="Block drivers within N days of their license expiring (0 = only block once expired). Catches expirations before they bite." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-set-dl-protection-days" min="0" max="365" step="1" value="0">
                           <span style="font-size:11px;color:#6B7280">days before expiry</span>
                         </div>
                         <p class="sf2-row-help">Block drivers within N days of their license expiring (0 = only block once expired). Catches expirations before they bite.</p>
                       </div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" id="rr-sf-dl-msg-enable"> <span class="sf-rule-name"><strong>Message drivers before expiry</strong> · text / notify drivers ahead of their license renewal</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" id="rr-sf-dl-msg-enable"> <span class="sf-rule-name">Message drivers before expiry <button type="button" class="rr-pol-info" data-rr-pol-info="text / notify drivers ahead of their license renewal" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
                       <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-dl-msg-days">Message window</label>
+                        <label class="sf2-row-label" for="rr-sf-dl-msg-days">Message window <button type="button" class="rr-pol-info" data-rr-pol-info="How many days before expiry a driver gets a message. Also sets the “DL” flag window on driver cards." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-sf-dl-msg-days" min="1" max="365" step="1" value="30">
                           <span style="font-size:11px;color:#6B7280">days before expiry</span>
@@ -725,9 +725,9 @@
                     </div></summary>
                     <div class="sf2-section-body">
                       <p class="sf2-row-help" style="margin:2px 10px 6px">Approved PTO and each driver's saved availability are always respected — the engine never auto-assigns a driver on a day they're off or marked unavailable.</p>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="min_rest" checked> <span class="sf-rule-name"><strong>Min rest between shifts</strong> · enforce a minimum gap between two consecutive shifts</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="min_rest" checked> <span class="sf-rule-name">Min rest between shifts <button type="button" class="rr-pol-info" data-rr-pol-info="enforce a minimum gap between two consecutive shifts" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
                       <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-min-rest-hours">Min rest hours</label>
+                        <label class="sf2-row-label" for="rr-sf-min-rest-hours">Min rest hours <button type="button" class="rr-pol-info" data-rr-pol-info="Rolling counts every shift within 7 days of the candidate — catches &quot;Sat → Sun → Mon&quot; 3-in-a-row spans week boundaries." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-sf-min-rest-hours" min="0" max="48" step="1" value="10" data-rr-sf-num="min_rest_hours">
                           <span style="font-size:11px;color:#6B7280">hours</span>
@@ -745,7 +745,7 @@
                         <p class="sf2-row-help">Rolling counts every shift within 7 days of the candidate — catches "Sat → Sun → Mon" 3-in-a-row spans week boundaries.</p>
                       </div>
                       <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-weekly-hour-window">Weekly hour window</label>
+                        <label class="sf2-row-label" for="rr-sf-weekly-hour-window">Weekly hour window <button type="button" class="rr-pol-info" data-rr-pol-info="How many hours an approved-PTO day counts as when the cap is being calculated." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                         <div class="sf2-row-control">
                           <div id="rr-sf-weekly-hour-window" class="sf2-seg" role="radiogroup" aria-label="Weekly hour window" data-rr-sf-select="weekly_hour_window">
                             <button type="button" class="sf2-seg-btn is-active" data-val="schedule_week" role="radio" aria-checked="true">This schedule week</button>
@@ -762,9 +762,9 @@
                         <p class="sf2-row-help">How many hours an approved-PTO day counts as when the cap is being calculated.</p>
                       </div>
                       <div class="sf2-group-label">Working Hours Compliance (WOC)</div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="woc" checked> <span class="sf-rule-name"><strong>Enforce WOC</strong> · cap consecutive working days + weekly hours</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="woc" checked> <span class="sf-rule-name">Enforce WOC <button type="button" class="rr-pol-info" data-rr-pol-info="cap consecutive working days + weekly hours" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
                       <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-set-woc-max-days">Max consecutive days</label>
+                        <label class="sf2-row-label" for="rr-set-woc-max-days">Max consecutive days <button type="button" class="rr-pol-info" data-rr-pol-info="Day after this run is blocked — rolling, not weekly. A driver who works Wed–Mon (6 days across two calendar weeks) is blocked on the 7th. A day off, approved PTO, or a time-off request resets the streak — only worked days count consecutively." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-set-woc-max-days" min="1" max="7" step="1" value="6">
                           <span style="font-size:11px;color:#6B7280">days in a row</span>
@@ -773,7 +773,7 @@
                       </div>
                       <div class="sf2-group-label">Same-day shifts</div>
                       <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-same-day">Same-day policy</label>
+                        <label class="sf2-row-label" for="rr-sf-same-day">Same-day policy <button type="button" class="rr-pol-info" data-rr-pol-info="Block = one shift per driver per day. Allow = a driver can work two shifts the same day." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                         <div class="sf2-row-control">
                           <div id="rr-sf-same-day" class="sf2-seg" role="radiogroup" aria-label="Same-day policy" data-rr-sf-select="same_day_multi_shift">
                             <button type="button" class="sf2-seg-btn is-active" data-val="block" role="radio" aria-checked="true">Block</button>
@@ -795,8 +795,8 @@
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
                     <div class="sf2-section-body">
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_days" checked> <span class="sf-rule-name"><strong>Favor preferred days</strong> · lean toward the days drivers asked for</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="attendance_penalty"> <span class="sf-rule-name"><strong>Schedule Final-corrective drivers last</strong> · drivers on a Final coaching ladder go to the back</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_days" checked> <span class="sf-rule-name">Favor preferred days <button type="button" class="rr-pol-info" data-rr-pol-info="lean toward the days drivers asked for" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="attendance_penalty"> <span class="sf-rule-name">Schedule Final-corrective drivers last <button type="button" class="rr-pol-info" data-rr-pol-info="drivers on a Final coaching ladder go to the back" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-att-scheduling">Reward good attendance</label>
                         <div class="sf2-row-control">
@@ -818,7 +818,7 @@
                           </div>
                         </div>
                       </div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="fifth_day_fill"> <span class="sf-rule-name"><strong>Allow a 5th day</strong> · give opted-in drivers one extra shift if coverage needs it</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="fifth_day_fill"> <span class="sf-rule-name">Allow a 5th day <button type="button" class="rr-pol-info" data-rr-pol-info="give opted-in drivers one extra shift if coverage needs it" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
                       <div class="sf2-subrules">
                         <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_override_availability"> <span class="sf-rule-name">Let the 5th day land on any day — WOC + license still apply</span></label>
                         <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_notify"> <span class="sf-rule-name">Message each driver who picks up a 5th day</span></label>
@@ -1004,10 +1004,10 @@
                 </div>
                 <div class="sched-smartfill-rules-body sf-zone--vans" style="column-count:1;display:flex;flex-direction:column;gap:8px;padding:12px 14px">
                   <div class="sf-vans-subzone-label">When to assign</div>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="assign" checked> <span class="sf-rule-name"><strong>Assign vans during Smart Fill</strong> · when off, the van column stays empty for new assignments</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-auto-rescue checked> <span class="sf-rule-name"><strong>Auto-rescue at-risk vans</strong> · run van assignment automatically when FEM flags a van approaching the 14-day rotation rule</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="assign" checked> <span class="sf-rule-name">Assign vans during Smart Fill <button type="button" class="rr-pol-info" data-rr-pol-info="when off, the van column stays empty for new assignments" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-auto-rescue checked> <span class="sf-rule-name">Auto-rescue at-risk vans <button type="button" class="rr-pol-info" data-rr-pol-info="run van assignment automatically when FEM flags a van approaching the 14-day rotation rule" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
                   <div class="sf-vans-subzone-label">Who gets which van</div>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="prefer_paired" checked> <span class="sf-rule-name"><strong>Prefer driver's paired van</strong> · use the standing primary / backup chain when possible</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="prefer_paired" checked> <span class="sf-rule-name">Prefer driver's paired van <button type="button" class="rr-pol-info" data-rr-pol-info="use the standing primary / backup chain when possible" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="primary_chain" checked> <span class="sf-rule-name">Each van's primary driver keeps their van when they're scheduled</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="secondary_chain" checked> <span class="sf-rule-name">When the primary is off, the backup driver takes the van</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="pool_fill" checked> <span class="sf-rule-name">Match remaining drivers with any leftover vans</span></label>

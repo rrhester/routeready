@@ -23789,3 +23789,56 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-subrules{
   margin:0 !important;padding:0 !important;border:0 !important;background:transparent !important;
 }
+
+/* ═══ Engine tuning matches the plain list (operator 2026-06-12) ═════
+   Priority sliders, data sources and compute budget render as plain
+   rows: short label + ⓘ left, control on the 165px plumb line. The
+   long help paragraphs and slider tick captions are replaced by the
+   ⓘ popups. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-prio-row{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) 165px !important;
+  column-gap:10px !important;align-items:center !important;
+  min-height:26px !important;margin:0 !important;padding:0 !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-prio-name{
+  font-size:12.5px !important;font-weight:400 !important;color:#0F172A !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-prio-slider{
+  grid-column:2;width:100% !important;margin:0 !important;accent-color:#2563EB;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-prio-ticks,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-prio-help{
+  display:none !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-ds{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) 165px !important;
+  column-gap:10px !important;align-items:center !important;
+  min-height:26px !important;margin:0 !important;padding:0 !important;
+  font-size:12.5px !important;color:#0F172A !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-ds > input{
+  grid-column:2;grid-row:1;justify-self:start;
+  width:14px;height:14px;margin:0;accent-color:#2563EB;cursor:pointer;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-ds > span{
+  grid-column:1;grid-row:1;min-width:0;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-budget-row{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) 165px !important;
+  column-gap:10px !important;align-items:center !important;
+  min-height:26px !important;margin:0 !important;padding:0 !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-budget-label{
+  font-size:12.5px !important;font-weight:400 !important;color:#0F172A !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-group-label{
+  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:#8A94A4;margin:6px 0 0;padding:0;border:0;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sched-smartfill-engine-body{
+  padding:2px 0 6px !important;border:0 !important;background:transparent !important;
+  display:flex;flex-direction:column;gap:2px;
+}
