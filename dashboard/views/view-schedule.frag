@@ -1609,6 +1609,9 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.95 2.55L22.5 18.5l-2.55.95L19 22l-.95-2.55L15.5 18.5l2.55-.95z"/></svg>
               Smart Fill
               <span class="rr-ab-badge" id="rr-ab-sf-badge" hidden>0</span>
+              <span class="rr-ab-caret" id="rr-ab-smartfill-caret" role="button" tabindex="0" title="Smart Fill rules" aria-haspopup="dialog">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+              </span>
             </button>
             <button type="button" class="rr-ab-btn" id="rr-ab-assign" title="Auto-assign vans for this week using the standing primary / backup chain">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="13" height="10" rx="1.2"/><path d="M15 8h4l3 3v4h-7z"/><line x1="2" y1="15" x2="22" y2="15"/><circle cx="6.5" cy="16.5" r="1.6"/><circle cx="17.5" cy="16.5" r="1.6"/></svg>
@@ -1648,7 +1651,21 @@
               var fire = function (id) { var b = document.getElementById(id); if (b) b.click(); };
               var say  = function (msg) { if (typeof window.toast === "function") window.toast(msg); };
               var on   = function (id, fn) { var b = document.getElementById(id); if (b) b.addEventListener("click", fn); };
-              on("rr-ab-smartfill", function () { fire("rr-sched-smartfill-h"); });
+              on("rr-ab-smartfill", function (e) {
+                if (e.target.closest("#rr-ab-smartfill-caret")) return; // caret owns its click
+                fire("rr-sched-smartfill-h");
+              });
+              on("rr-ab-smartfill-caret", function (e) {
+                e.stopPropagation();
+                // Open the Smart Fill rules popover as this button's
+                // dropdown: re-parent it into the (position:relative)
+                // action bar so it anchors right under the bar, then
+                // drive the proven legacy toggle.
+                var ab = document.getElementById("rr-sched-actionbar");
+                var pop = document.getElementById("rr-sched-smartfill-rules-popover");
+                if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
+                fire("rr-sched-smartfill-rules-toggle");
+              });
               on("rr-ab-finalize",  function () { fire("rr-sched-finalize-h"); });
               on("rr-ab-assign", function (e) {
                 if (e.target.closest("#rr-ab-assign-caret")) return; // caret owns its click
