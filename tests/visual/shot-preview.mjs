@@ -44,7 +44,7 @@ if (process.argv[3] === "wco") {
       .view > .page{padding-top:37px!important}
       body::before{
         content:"";position:fixed;top:0;left:0;right:0;height:33px;z-index:55;
-        --rr-tb-rail-w:212px;
+        --rr-tb-rail-w:176px;
         background:linear-gradient(90deg,
           var(--sidebar-bg,#0F6CBD) 0 var(--rr-tb-rail-w),
           #F7F8FA var(--rr-tb-rail-w));
