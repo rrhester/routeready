@@ -6171,9 +6171,6 @@ document.addEventListener("click", (e) => {
   const CLOSE_DELAY_MS = 1000;
   function scheduleClose(pop) {
     if (!pop || pop.hidden) return;
-    // The Staffing Policy drawer is side-docked, not anchored — page
-    // scroll / pointer-leave shouldn't dismiss it.
-    if (pop.classList && pop.classList.contains("rr-policy-drawer")) return;
     const prev = _pending.get(pop.id);
     if (prev) clearTimeout(prev);
     const tid = setTimeout(() => {
@@ -33463,8 +33460,7 @@ const _RR_POL_STABILITY_LABELS = Object.freeze({
 
 /** Repaint every drawer control + the summary line from the saved blob. */
 function _rrPolPaint() {
-  const root = document.getElementById("rr-pol-summary");
-  if (!root) return; // drawer markup not on this page
+  if (!document.getElementById("rr-pol-consec")) return; // box markup not on this page
   const saved = _rrPolReadBlob();
 
   const consec = _rrPolHardConsec() ||
@@ -33512,37 +33508,13 @@ function _rrPolPaint() {
     }
   }
 
-  // Preset select + badge.
+  // Preset select (badge + rules-in-effect digest were removed in the
+  // plain-list pass — the select alone reflects the active preset, and
+  // it blanks when the blob no longer matches one).
   const presetSel = document.getElementById("rr-pol-preset");
-  const badge = document.getElementById("rr-pol-badge");
   const active = typeof saved.active_preset === "string" ? saved.active_preset : "";
   const matches = active && _rrPolMatchesPreset(saved, active);
-  if (presetSel) presetSel.value = (active && _RR_SF_PRESETS[active]) ? active : "";
-  if (badge) {
-    if (matches) {
-      badge.hidden = false;
-      badge.textContent = "Using Preset";
-      badge.classList.remove("rr-pol-badge-custom");
-    } else if (active || Object.keys(saved).length) {
-      badge.hidden = false;
-      badge.textContent = "Custom Policy";
-      badge.classList.add("rr-pol-badge-custom");
-    } else {
-      badge.hidden = true;
-    }
-  }
-
-  // Rules-in-effect digest.
-  const presetLabel = matches ? _RR_POL_PRESET_LABELS[active] : "Custom";
-  const parts = [
-    presetLabel,
-    "Max " + consec + " Days",
-    maxDays + "/Wk",
-    cap + "h Cap",
-    _RR_POL_STABILITY_LABELS[stability],
-    fifth === "allow" ? "5th Day On" : "5th Day Off",
-  ];
-  root.textContent = parts.join(" • ");
+  if (presetSel) presetSel.value = matches && _RR_SF_PRESETS[active] ? active : "";
 
   // Compliance digest — the operator-controlled rules currently active.
   const list = document.getElementById("rr-pol-compliance-list");
@@ -34670,19 +34642,12 @@ function _toggleSchedSmartFillRules(force) {
   if (!pop) return false;
   const isOpen = !pop.hidden;
   const next = (typeof force === "boolean") ? force : !isOpen;
-  // The drawer is position:fixed — host it on <body> so it can't be
-  // clipped or hidden by ribbon/action-bar ancestors (its frame styles
-  // use a double-id selector, and the inner styles are scoped to the
-  // body id, so nothing is lost by the move).
-  if (pop.classList.contains("rr-policy-drawer") && pop.parentElement !== document.body) {
-    document.body.appendChild(pop);
-  }
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next) {
-    // Staffing Policy drawer — seed from the DSP's saved policy (no-op
+    // Staffing Policy box — seed from the DSP's saved policy (no-op
     // when a local blob exists), snapshot for Cancel, then paint the
-    // compact controls + summary.
+    // compact controls.
     if (typeof window._rrPolSeedFromServer === "function") window._rrPolSeedFromServer();
     if (typeof window._rrPolTakeSnapshot === "function") window._rrPolTakeSnapshot();
     _restoreSmartFillRules();
@@ -35162,13 +35127,7 @@ window._rrOpenVanRulesExplainer = _openVanRulesExplainer;
 (function bindPopoverAutoClose() {
   const cases = [
     { wrap: ".sched-settings-split",   fn: () => _toggleSchedQuickSettings(false) },
-    // Staffing Policy drawer — side-docked, so hover-away must NOT
-    // dismiss it (the cursor has to cross the page to reach it).
-    { wrap: ".sched-smartfill-split",  fn: () => {
-      const pop = document.getElementById("rr-sched-smartfill-rules-popover");
-      if (pop && pop.classList.contains("rr-policy-drawer")) return;
-      _toggleSchedSmartFillRules(false);
-    } },
+    { wrap: ".sched-smartfill-split",  fn: () => _toggleSchedSmartFillRules(false) },
     { wrap: ".sched-vans-rules-split", fn: () => _toggleSchedVanRules(false) },
   ];
   const wired = new WeakSet();
@@ -35332,26 +35291,14 @@ document.addEventListener("change", (e) => {
   if (!cb) return;
   try { localStorage.setItem(_RR_VAN_AUTO_RESCUE_KEY, cb.checked ? "1" : "0"); } catch (_) {}
 });
-// Outside click closes the popover. The Staffing Policy drawer is
-// exempt — it's side-docked with explicit Close / Cancel / Save
-// controls, and the operator should be able to inspect the schedule
-// behind it without dismissing it. (Escape still closes it.)
+// Outside click closes the popover (anchored box — standard dropdown
+// semantics; Cancel still reverts, X / Save / Escape still close).
 document.addEventListener("click", (e) => {
   const pop = document.getElementById("rr-sched-smartfill-rules-popover");
   if (pop && !pop.hidden
-      && !pop.classList.contains("rr-policy-drawer")
-      && !e.target.closest("#rr-sched-smartfill-rules-popover")
-      && !e.target.closest("#rr-sched-smartfill-rules-toggle")) {
-    _toggleSchedSmartFillRules(false);
-  }
-  // Drawer variant: clicks on the schedule behind it are allowed (the
-  // operator can inspect the grid while configuring), but navigating
-  // anywhere outside the Schedule view closes it.
-  if (pop && !pop.hidden
-      && pop.classList.contains("rr-policy-drawer")
       && !e.target.closest("#rr-sched-smartfill-rules-popover")
       && !e.target.closest("#rr-sched-smartfill-rules-toggle")
-      && !e.target.closest("#view-schedule")) {
+      && !e.target.closest("#rr-ab-smartfill-caret")) {
     _toggleSchedSmartFillRules(false);
   }
   const vpop = document.getElementById("rr-sched-vans-rules-popover");
@@ -37579,10 +37526,18 @@ document.addEventListener("click", (e) => {
   }
   // Chevron split-toggle on the Smart Fill tile → open the rules
   // popover. Sits on top of the main tile click so the chevron
-  // wins when targeted.
+  // wins when targeted. Re-anchor the box back under this button
+  // first — the action-bar caret re-parents it into the action bar,
+  // and it should always open under whichever launcher was clicked.
   if (e.target.closest("#rr-sched-smartfill-rules-toggle")) {
     e.preventDefault();
     e.stopPropagation();
+    const polPop = document.getElementById("rr-sched-smartfill-rules-popover");
+    const polHome = document.querySelector(".sched-smartfill-split");
+    if (polPop && polHome && polPop.parentElement !== polHome) {
+      polHome.appendChild(polPop);
+      polPop.style.removeProperty("--rr-sf-pop-left");
+    }
     _toggleSchedSmartFillRules();
     return;
   }

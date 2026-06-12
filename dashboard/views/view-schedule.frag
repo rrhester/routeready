@@ -560,50 +560,12 @@
                        body element so they don't bleed into anything else. -->
                   <!-- style block 24 extracted to inline-styles.css -->
 
-                  <!-- ── RULES IN EFFECT ── one-line digest of the active
-                       policy. Repainted live by _rrPolPaint (live.js). -->
-                  <div class="rr-pol-summary" aria-live="polite">
-                    <div class="rr-pol-summary-label">Rules in effect</div>
-                    <div class="rr-pol-summary-line" id="rr-pol-summary">—</div>
-                  </div>
-
-                  <!-- ── LIVE DIFF STRIP ── shows the effect of your
-                       in-progress edits without committing them. Powered
-                       by a debounced in-browser planScheduleWeek dry-run. -->
-                  <div class="sf2-livediff" id="sf2-livediff" data-state="idle">
-                    <div class="sf2-livediff-pulse" aria-hidden="true"></div>
-                    <div class="sf2-livediff-text" id="sf2-livediff-text">Run Smart Fill once to enable live preview of rule changes.</div>
-                  </div>
-                  <!-- Visible only when .is-manual is on the body. Tells
-                       the operator they're in Manual scheduling mode and
-                       gives them a one-click path back to Smart Fill. -->
-                  <div class="sf2-manual-banner" id="sf2-manual-banner">
-                    <div class="sf2-manual-banner-icon" aria-hidden="true">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12" y2="16"/></svg>
-                    </div>
-                    <div class="sf2-manual-banner-text">
-                      <strong>You're in Manual scheduling mode.</strong> Smart Fill is off and the auto-staffing rules don't run. Switch back below to use rules-driven fill.
-                    </div>
-                  </div>
-
-                  <!-- ── MAIN POLICY CONTROLS ── compact DSP-language rows.
-                       Each control reads/writes existing rule-blob keys via
-                       the rr-pol module in live.js — no new engine keys.
-                       The expert versions of the same knobs stay available
-                       under Advanced; _restoreSmartFillRules repaints them
-                       after every drawer write so the two views agree. -->
-                  <div class="rr-pol-rows">
-                    <div class="rr-pol-row">
-                      <span class="rr-pol-label">Schedule Type</span>
-                      <div class="rr-pol-control">
-                        <span class="rr-pol-badge" id="rr-pol-badge" hidden>Custom Policy</span>
-                        <span class="rr-pol-static">Demand Generated</span>
-                      </div>
-                    </div>
-                    <p class="rr-pol-note">Weekly shifts are generated from route demand. Saved week templates can still be applied from the Schedule toolbar.</p>
-                  </div>
-
-                  <div class="rr-pol-group-label">Work Limits</div>
+                  <!-- ── MAIN POLICY CONTROLS ── one plain text line per
+                       rule, checkbox or compact input on the right. Each
+                       control reads/writes existing rule-blob keys via the
+                       rr-pol module in live.js; the expert versions of the
+                       same knobs stay under Advanced and repaint via
+                       _restoreSmartFillRules after every write. -->
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-consec">Max Consecutive Days</label>
@@ -638,7 +600,6 @@
                     </div>
                   </div>
 
-                  <div class="rr-pol-group-label">Extra Days</div>
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-fifth">Allow a 5th day when coverage needs it</label>
@@ -648,7 +609,6 @@
                     </div>
                   </div>
 
-                  <div class="rr-pol-group-label">Scheduling</div>
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-stability">Schedule Stability</label>
@@ -661,7 +621,6 @@
                         </select>
                       </div>
                     </div>
-                    <p class="rr-pol-note" id="rr-pol-stability-note">—</p>
                     <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-att">Attendance</label>
                       <div class="rr-pol-control">
@@ -1875,8 +1834,15 @@
               });
               on("rr-ab-smartfill-caret", function (e) {
                 e.stopPropagation();
-                // Open the Staffing Policy drawer — fixed-position
-                // right drawer, so no re-parenting / anchoring needed.
+                // Open the Staffing Policy box as this button's dropdown:
+                // re-parent it into the (position:relative) action bar so
+                // it anchors right under the bar, with its left edge under
+                // the Smart Fill button (CSS reads the var).
+                var ab = document.getElementById("rr-sched-actionbar");
+                var pop = document.getElementById("rr-sched-smartfill-rules-popover");
+                if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
+                var sfBtn = document.getElementById("rr-ab-smartfill");
+                if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
                 fire("rr-sched-smartfill-rules-toggle");
               });
               on("rr-ab-finalize",  function () { fire("rr-sched-finalize-h"); });
