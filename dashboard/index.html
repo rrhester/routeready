@@ -74,17 +74,17 @@
 <!-- theme-color paints the OS title bar of the installed app — the
      standalone title bar (overlay toggled off) and the native-controls
      backdrop in WCO mode (and the browser tab bar tint on mobile).
-     Matched to the unified neutral page ground (#F7F8FA — the
+     Matched to the unified neutral page ground (#F9FAFB — the
      Schedule/Onboarding/Fleet grounds + topbar; keep in sync): in WCO
      mode the band itself is painted two-tone by inline-styles.css
      (rail blue above the sidebar, page ground above the content), and
      the OS controls sit on the light segment, so they blend. -->
-<meta name="theme-color" content="#F7F8FA">
+<meta name="theme-color" content="#F9FAFB">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">
 <meta name="application-name" content="RouteReady Dispatch">
-<meta name="msapplication-TileColor" content="#0F6CBD">
+<meta name="msapplication-TileColor" content="#2563EB">
 <meta name="msapplication-TileImage" content="../app/Icon.png">
 <!-- RouteReady Fluent 2 design system foundation (additive).
      Tokens: --rr-*. Primitives: .rrx-* (see app/rr-system.css). -->
@@ -3425,7 +3425,7 @@ John,Smith,555-0101,john@example.com</code>
         Paste rows from any spreadsheet (comma or tab separated).  Column order doesn't matter — we read the header row (or sniff the data when there's no header) and pick out <strong>name · phone · email · station · hire date</strong>.  Extra columns are ignored.  Phones get normalized to E.164.  Existing drivers (matched by phone or email) are skipped.
       </div>
       <textarea id="bd-paste" placeholder="name,phone,email,station,hire date&#10;Marcus Davidson,+1 417 555 0142,marcus@example.com,KMO1,2023-11-04&#10;Camille Foster,4175550341,camille@example.com,KMO1,2022-12-15" style="width:100%;min-height:160px;padding:var(--s-3);border:1px solid var(--border);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:var(--fs-xs);color:var(--text);resize:vertical;outline:none;background:var(--canvas);line-height:1.5"></textarea>
-      <div id="bd-preview" style="display:none;margin-top:10px;padding:var(--s-2-5) var(--s-3);background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;font-size:var(--fs-sm);color:var(--green);font-weight:500"></div>
+      <div id="bd-preview" style="display:none;margin-top:10px;padding:var(--s-2-5) var(--s-3);background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.3);border-radius:8px;font-size:var(--fs-sm);color:var(--green);font-weight:500"></div>
       <div id="bd-errors" style="display:none;margin-top:10px;padding:var(--s-2-5) var(--s-3);background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:8px;font-size:var(--fs-xs);color:var(--amber-dark);line-height:1.5"></div>
     </div>
     <div class="modal-foot">

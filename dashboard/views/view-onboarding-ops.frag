@@ -50,7 +50,7 @@
                     <!-- Roster icon · calendar matched to the Attendance
                          icon's height (rect 18 tall + top tabs). Only the
                          LID (top header band, y=4→10) is filled with the
-                         Funnel's blue gradient (#4DA3E8 → #0F548C); the
+                         Funnel's blue gradient (#60A5FA → #1E40AF); the
                          body + grid stay dark outline, card untouched. -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="18" x2="13" y2="18"/></svg>
                     <span>Roster</span>
@@ -77,8 +77,8 @@
                     </div>
                     <div class="ob-att-rules-body">
                       <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Table density">
-                        <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Table density</legend>
-                        <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Pick how many drivers you want on screen at once.</p>
+                        <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary, #111827);margin-bottom:6px">Table density</legend>
+                        <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary, #6B7280);margin:0 0 12px">Pick how many drivers you want on screen at once.</p>
 
                         <label class="rr-sched-density-opt">
                           <input type="radio" name="rr-roster-density" value="standard" checked />
@@ -164,7 +164,7 @@
                       <span class="ob-att-rules-head-title">License renewals</span>
                     </div>
                     <div class="ob-att-rules-body">
-                      <div style="font-size:var(--fs-sm,13px);color:var(--text-subtle,#605E5C);margin:0 0 4px;line-height:1.5">
+                      <div style="font-size:var(--fs-sm,13px);color:var(--text-subtle,#6B7280);margin:0 0 4px;line-height:1.5">
                         Auto-remind drivers before their license expires. A daily job checks every driver against your reminder schedule and fires once per threshold per renewal cycle.
                       </div>
 
@@ -253,7 +253,7 @@
                 <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-funnel">
                   <button class="subnav-item ob-funnel-tab" data-obsub="funnel" onclick="obSub('funnel')" title="Hiring funnel">
                     <!-- Microsoft-purple funnel · linear gradient from a
-                         lighter top (#4DA3E8) to a darker bottom (#0F548C).
+                         lighter top (#60A5FA) to a darker bottom (#1E40AF).
                          Applied as both stroke AND fill so the silhouette
                          reads as a solid purple funnel. -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">

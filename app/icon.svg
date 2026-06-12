@@ -7,9 +7,9 @@
     </linearGradient>
     <!-- Brand-blue pin gradient (cyan top → deeper blue bottom) -->
     <linearGradient id="rr-icon-pin" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3FA0E5"/>
-      <stop offset="55%" stop-color="#0F6CBD"/>
-      <stop offset="100%" stop-color="#0B5BA1"/>
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="55%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
     </linearGradient>
     <!-- Soft inner highlight for the 3D-ish depth on the pin -->
     <radialGradient id="rr-icon-glow" cx="35%" cy="25%" r="60%">
@@ -38,7 +38,7 @@
 
   <!-- Subtle horizon band suggesting a road / landscape -->
   <path d="M0 380 C140 330 280 360 380 350 C440 344 500 360 512 364 L512 512 L0 512 Z"
-        fill="rgba(15,108,189,.12)"/>
+        fill="rgba(37,99,235,.12)"/>
 
   <!-- White path / road curving under the pin -->
   <path d="M256 460 C290 430 330 410 380 400 C430 390 470 392 512 396 L512 460 C470 456 430 454 388 462 C346 470 302 478 256 484 C210 478 166 470 124 462 C80 454 40 456 0 460 L0 396 C40 392 80 390 132 400 C182 410 222 430 256 460 Z"

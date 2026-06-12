@@ -7,7 +7,7 @@
   "scope": "/app/",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#0F6CBD",
+  "theme_color": "#2563EB",
   "background_color": "#CFE0F2",
   "categories": ["productivity", "business"],
   "icons": [

@@ -37,8 +37,8 @@ content-sized cells, each cell = `status dot/icon` + `bold headline` +
 ### Typography
 | Element | Font | Token |
 |---|---|---|
-| Value / headline (`.sched-kpi-val`) | `600 14px/1.15` Segoe UI Variable, `tabular-nums`, `#323130` | `--kpi-value-font` + `--kpi-text-primary` |
-| Sub / label (`.sched-kpi-sub`) | `500 12px/16px`, `#605E5C`, no transform, no tracking | `--kpi-label-font` + `--kpi-text-secondary` |
+| Value / headline (`.sched-kpi-val`) | `600 14px/1.15` Segoe UI Variable, `tabular-nums`, `#111827` | `--kpi-value-font` + `--kpi-text-primary` |
+| Sub / label (`.sched-kpi-sub`) | `500 12px/16px`, `#6B7280`, no transform, no tracking | `--kpi-label-font` + `--kpi-text-secondary` |
 | Font family | `'Segoe UI Variable','Segoe UI',-apple-system,…` | `--rr-font-family` |
 
 ### Color system
@@ -47,13 +47,13 @@ content-sized cells, each cell = `status dot/icon` + `bold headline` +
 | Surface | `#FFFFFF` | `--kpi-bg` |
 | Outer border | `rgba(15,23,42,.22)` | `--kpi-border` |
 | Inter-cell divider | `rgba(15,23,42,.18)` | `--kpi-divider` |
-| Primary text | `#323130` | `--kpi-text-primary` |
-| Secondary text | `#605E5C` | `--kpi-text-secondary` |
-| Neutral status dot | `#1A1F47` (navy) | `--kpi-dot-neutral` |
-| Success | `#107C41` | `--kpi-success` |
-| Warning | `#FFB900` | `--kpi-warning` |
-| Danger | `#D13438` | `--kpi-danger` |
-| Brand | `#0078D4` | `--kpi-brand` |
+| Primary text | `#111827` | `--kpi-text-primary` |
+| Secondary text | `#6B7280` | `--kpi-text-secondary` |
+| Neutral status dot | `#1E293B` (navy) | `--kpi-dot-neutral` |
+| Success | `#16A34A` | `--kpi-success` |
+| Warning | `#F59E0B` | `--kpi-warning` |
+| Danger | `#DC2626` | `--kpi-danger` |
+| Brand | `#2563EB` | `--kpi-brand` |
 
 ### Icon / status-indicator system
 | Property | Value | Token |
@@ -67,7 +67,7 @@ content-sized cells, each cell = `status dot/icon` + `bold headline` +
 - **Eye flow:** left→right; within a cell, the colored dot grabs status first, the bold headline confirms, the muted sub supplies the number.
 - **Information hierarchy:** status color (dot) > headline (14/600 dark ink) > sub (12/500 gray).
 - **Scan speed:** uniform 46px cells, hairline dividers, and `tabular-nums` give an Outlook command-bar rhythm — the eye lands on a fixed grid.
-- **Contrast hierarchy:** one white surface, two ink levels (`#323130` / `#605E5C`), color spent only on meaning → low-noise, "calm, operational."
+- **Contrast hierarchy:** one white surface, two ink levels (`#111827` / `#6B7280`), color spent only on meaning → low-noise, "calm, operational."
 
 ---
 
@@ -87,17 +87,17 @@ Defined once in `app/rr-system.css :root` and consumed everywhere:
 --kpi-pad-x:          24px;
 --kpi-gap:            10px;                    /* dot ↔ text */
 --kpi-margin-bottom:  8px;
---kpi-text-primary:   #323130;                /* value */
---kpi-text-secondary: #605E5C;                /* sub / label */
+--kpi-text-primary:   #111827;                /* value */
+--kpi-text-secondary: #6B7280;                /* sub / label */
 --kpi-value-font:     600 14px/1.15 var(--rr-font-family);
 --kpi-label-font:     500 12px/16px var(--rr-font-family);
 --kpi-dot-size:       7px;
 --kpi-icon-size:      16px;
---kpi-dot-neutral:    #1A1F47;
---kpi-success:        #107C41;
---kpi-warning:        #FFB900;
---kpi-danger:         #D13438;
---kpi-brand:          #0078D4;
+--kpi-dot-neutral:    #1E293B;
+--kpi-success:        #16A34A;
+--kpi-warning:        #F59E0B;
+--kpi-danger:         #DC2626;
+--kpi-brand:          #2563EB;
 ```
 
 **Anatomy (markup the contract expects):**
@@ -132,7 +132,7 @@ Defined once in `app/rr-system.css :root` and consumed everywhere:
 | Onboarding (Steps / Funnel) | `#rr-ob-kpis` | `.sched-kpi-*` | ✅ canonical (shared selector) |
 | Roster (Drivers) | `#rr-roster-kpis` | `.sched-kpi-*` | ✅ canonical (shared selector) |
 | Today (mirror) | `#rr-tp-kpis` → schedule host | `.tp-kpi-*` | ✅ canonical on-page (rrx selector forces 7px dot, contract type) |
-| **Fleet** | `#rr-fleet-exec-strip` | `.fl-kpi-*` | ⚠️ **drifted → standardized** (was: no shadow, `#E1DFDD` border, 8px dot, `--fs-sm` value) |
+| **Fleet** | `#rr-fleet-exec-strip` | `.fl-kpi-*` | ⚠️ **drifted → standardized** (was: no shadow, `#E5E7EB` border, 8px dot, `--fs-sm` value) |
 | **Workspaces** | `#rr-ws-kpis` | `.ws-kpis` | ⚠️ **drifted → standardized** (was: no shadow, 16px top+bottom margin) |
 | Schedule Targets | `#rr-sched-targets-kpis` | `.rr-tgt-kpi-*` | ◑ input-bearing variant — already on the master **container**; cells host numeric inputs (functional, left as-is) |
 | Legacy base (`index.html`) | — | `.sched-kpi-*`, `.tp-kpi-*` | ◑ superseded on every canonical page by the rrx rules; left in place to avoid touching non-KPI surfaces |
@@ -182,8 +182,8 @@ stylesheets in a headless browser. Computed styles match exactly:
 
 | | container h / radius / shadow | cell pad / gap / h | value | sub | dot |
 |---|---|---|---|---|---|
-| Master | 46px / 4px / *2-layer* | 12·24 / 10 / 46 | 14/600/#323130 | 12/500/#605E5C | 7px |
-| Fleet  | 46px / 4px / *2-layer* | 12·24 / 10 / 46 | 14/600/#323130 | 12/500/#605E5C | 7px |
+| Master | 46px / 4px / *2-layer* | 12·24 / 10 / 46 | 14/600/#111827 | 12/500/#6B7280 | 7px |
+| Fleet  | 46px / 4px / *2-layer* | 12·24 / 10 / 46 | 14/600/#111827 | 12/500/#6B7280 | 7px |
 
 ---
 
