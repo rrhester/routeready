@@ -23185,6 +23185,10 @@ body.rr-cmdk-open{ overflow:hidden }
     content:"";position:fixed;top:0;left:0;right:0;
     height:env(titlebar-area-height, 33px);z-index:55;
     -webkit-app-region:drag;app-region:drag;
+    /* Paint the title-bar band the rail navy so the app top reads as one
+       deliberate dark title bar merging with the sidebar (operator
+       report: white strip across the top of the desktop app). */
+    background:var(--sidebar-bg,#205285);
   }
 }
 .topbar{-webkit-app-region:no-drag;app-region:no-drag}
