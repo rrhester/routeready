@@ -23276,3 +23276,33 @@ html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"] .nav-sub-item,
    request).
    ════════════════════════════════════════════════════════════════════ */
 #view-schedule.rrx-schedule .sched-v2-strip{display:none!important}
+
+/* ════════════════════════════════════════════════════════════════════
+   Parent visibility on a measured-expanded rail + grid to the very top
+   (operator report 2026-06-12, desktop app screenshot)
+   --------------------------------------------------------------------
+   1. The stale collapsed-boot flag applies `font-size:0` (and centers
+      the icon, hides brand + badges) to .nav-item even when the rail is
+      actually wide — so the Schedule parent row painted invisibly above
+      its children. Restore the expanded look whenever the rail's
+      MEASURED state (html.rr-rail-expanded, set by reflectRail) says
+      expanded. Same-specificity rules later in the cascade win.
+   2. The schedule grid had 28px of phantom slack above it: the
+      zero-height .tcp block's 12px margin and the empty intel host's
+      16px margin. With those gone the grid head sits ~7px from the top
+      of the page (the desktop app keeps its OS-titlebar clearance).
+   ════════════════════════════════════════════════════════════════════ */
+html.rr-rail-expanded .sidebar .brand-name{display:block}
+html.rr-rail-expanded .sidebar .nav-item{justify-content:flex-start;gap:var(--s-3);padding:10px var(--s-3);font-size:var(--fs-sm);overflow:visible}
+html.rr-rail-expanded .sidebar .nav-item .nav-icon{margin:0}
+html.rr-rail-expanded .sidebar .nav-badge{display:inline-flex !important}
+/* :not(.collapsed) — a REAL collapse (live.js adds .sidebar.collapsed)
+   must win instantly, or the measured-state class would hold the rail
+   open in a feedback loop. */
+html.rr-rail-expanded .sidebar:not(.collapsed){width:236px;padding-left:var(--s-2);padding-right:var(--s-2)}
+html.rr-rail-expanded .app:not(:has(.sidebar.collapsed)){grid-template-columns:236px 1fr}
+#view-schedule .tcp{margin-bottom:0!important}
+/* the host is zero-height when idle but :empty misses whitespace —
+   kill the host margin and let populated intel content space itself */
+#view-schedule .rr-intel-host{margin-bottom:0!important}
+#view-schedule .rr-intel-host > *{margin-bottom:16px}
