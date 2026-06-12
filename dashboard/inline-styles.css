@@ -23178,6 +23178,9 @@ body.rr-cmdk-open{ overflow:hidden }
    3. The dock is explicitly no-drag so its buttons stay clickable.
    ════════════════════════════════════════════════════════════════════ */
 @media (display-mode: window-controls-overlay){
+  /* The sidebar's brand row must clear the painted title-bar band too —
+     without this the navy band covers the top of the logo. */
+  .sidebar{padding-top:env(titlebar-area-height, 33px)}
   .view > .page{padding-top:calc(env(titlebar-area-height, 33px) + 4px)!important}
   #view-schedule.rrx-schedule > .page,
   #view-onboarding-ops > .page{padding-top:calc(env(titlebar-area-height, 33px) + 4px)!important}
