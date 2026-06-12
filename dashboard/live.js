@@ -45900,14 +45900,19 @@ async function renderScheduleWeek() {
       const c = fillByDate.get(iso) || { needed: 0, filled: 0 };
       cellHead.classList.toggle("today", iso === todayIso);
       let coverageLine = "";
-      if (c.needed > 0) {
-        const color = c.filled >= c.needed ? "var(--green)" : "var(--red)";
-        coverageLine = `<span class="day-coverage" style="color:${color}">${c.filled}/${c.needed}</span>`;
-      }
       // Actual routes planned for the day in the Targets tool (raw
       // target_routes, BEFORE cushion — distinct from the cushion-inflated
-      // X/Y coverage denominator above).
+      // X/Y coverage denominator).
       const _tgt = targetByDate.get(iso) || 0;
+      if (c.needed > 0) {
+        // Quiet-by-default (operator 2026-06-12): the count is neutral
+        // gray ink; red is reserved for a GENUINE gap — fewer drivers
+        // than actual planned routes. A cushion seat going unfilled is
+        // not an operational issue and must not paint the board red.
+        const uncovered = _tgt > 0 ? c.filled < _tgt : c.filled < c.needed;
+        const color = uncovered ? "var(--red)" : "var(--text-subtle)";
+        coverageLine = `<span class="day-coverage" style="color:${color}">${c.filled}/${c.needed}</span>`;
+      }
       const targetLine = _tgt > 0 ? `<span class="day-target">Routes ${_tgt}</span>` : "";
       cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}${targetLine}`;
     }

@@ -3840,8 +3840,9 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-milestone {
 /* ── Day-coverage completion · the header's hero number ───────
    The filled/needed count is the largest, boldest element so the eye
    instantly reads coverage across the week. Its colour is set inline —
-   green (var(--green), the same Microsoft-Fluent green as the "Live"
-   pill) when the day is fully staffed, red when short. */
+   neutral gray ink by default; red ONLY when the day has fewer drivers
+   than actual planned routes (a cushion seat going unfilled is not an
+   operational issue — operator 2026-06-12). */
 #view-schedule.rrx-schedule .cal-cell-head .day-coverage {
   display: block;
   font-size: 23px !important;
