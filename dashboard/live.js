@@ -42071,18 +42071,34 @@ async function _rrSetDriverWeekLocks(driverId, locked) {
   if (!dspId || !_schedStart) return 0;
   const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
   try {
+    // Terminal statuses are filtered CLIENT-side — a server-side status
+    // filter 400s on enum values the DB doesn't define (same trap as the
+    // section loader at ~line 21828). Completed shifts are skipped too:
+    // they're history Smart Fill never touches, so locking them would
+    // only paint meaningless pins.
     const { data, error } = await sb.from("shifts")
-      .select("id")
+      .select("id, status")
       .eq("dsp_id", dspId)
       .eq("driver_id", driverId)
       .gte("date", _schedStart).lte("date", weekEndIso)
-      .eq("is_locked", !locked)
-      .not("status", "in", "(no_show,called_off,cancelled)");
-    if (error || !data?.length) return 0;
-    const ids = data.map((r) => r.id);
+      .eq("is_locked", !locked);
+    if (error) {
+      console.warn("driver pin · week-lock select failed:", error.message);
+      return { changed: 0, failed: true };
+    }
+    const SKIP = new Set(["no_show", "called_off", "cancelled", "completed"]);
+    const ids = (data || []).filter((r) => !SKIP.has(String(r.status))).map((r) => r.id);
+    if (!ids.length) return { changed: 0, failed: false }; // nothing to flip (e.g. re-pin)
     const { error: wErr } = await sb.from("shifts").update({ is_locked: locked }).in("id", ids);
-    return wErr ? 0 : ids.length;
-  } catch (_) { return 0; }
+    if (wErr) {
+      console.warn("driver pin · week-lock update failed:", wErr.message);
+      return { changed: 0, failed: true };
+    }
+    return { changed: ids.length, failed: false };
+  } catch (e) {
+    console.warn("driver pin · week-lock failed:", e?.message);
+    return { changed: 0, failed: true };
+  }
 }
 
 async function _rrPinDriverWorkedDays(driverId) {
@@ -42091,7 +42107,7 @@ async function _rrPinDriverWorkedDays(driverId) {
   if (!dows.length) { if (typeof toast === "function") toast("No scheduled days to pin for this driver.", "warn"); return; }
   // 1. Lock this week's shifts so the blue pins show up immediately and
   //    Smart Fill can't move them.
-  const lockedNow = await _rrSetDriverWeekLocks(driverId, true);
+  const lockRes = await _rrSetDriverWeekLocks(driverId, true);
   // 2. Standing day rules so future Smart Fill runs keep the driver on
   //    these weekdays (driver_lock_to_day is compiled by the solver).
   //    Skip days that already carry an active rule — re-pinning
@@ -42121,9 +42137,19 @@ async function _rrPinDriverWorkedDays(driverId) {
       if (!error) ok += 1;
     } catch (_) { /* skip */ }
   }
-  const any = ok > 0 || lockedNow > 0;
+  const any = ok > 0 || lockRes.changed > 0;
   if (typeof toast === "function") {
-    toast(any ? `Pinned ${info.name} to ${ok} day${ok === 1 ? "" : "s"} — repeats weekly` : "Pin failed", any ? "ok" : "warn");
+    if (ok > 0 && lockRes.failed) {
+      // Standing rules saved but this week's shifts didn't lock — say so
+      // instead of claiming a full pin (the blue pins won't have appeared).
+      toast(`Pinned ${info.name}'s days going forward, but couldn't lock this week's shifts — check the console`, "warn");
+    } else if (ok === 0 && lockRes.changed > 0) {
+      // Week locked but the recurring rules failed — future Smart Fill
+      // runs won't preserve these days, so don't say "repeats weekly".
+      toast(`Pinned ${info.name}'s shifts this week, but couldn't save the repeating days — check the console`, "warn");
+    } else {
+      toast(any ? `Pinned ${info.name} to ${ok} day${ok === 1 ? "" : "s"} — repeats weekly` : "Pin failed", any ? "ok" : "warn");
+    }
   }
   if (typeof _decorateScheduleChipsWithPins === "function") { try { await _decorateScheduleChipsWithPins(); } catch (_) {} }
   if (any && typeof _rrLoadAdHocConstraintsList === "function") { try { _rrLoadAdHocConstraintsList(); } catch (_) {} }
@@ -42133,7 +42159,7 @@ async function _rrUnpinDriver(driverId) {
   const info = window._rrDriverIntel && window._rrDriverIntel.byId.get(driverId);
   const name = (info && info.name) || "Driver";
   // 1. Unlock this week's shifts (clears the blue pins).
-  const unlockedNow = await _rrSetDriverWeekLocks(driverId, false);
+  const lockRes = await _rrSetDriverWeekLocks(driverId, false);
   // 2. Archive the standing day rules.
   let removed = 0;
   try {
@@ -42145,7 +42171,7 @@ async function _rrUnpinDriver(driverId) {
       if (!error) removed += 1;
     }
   } catch (_) { /* ignore */ }
-  const total = Math.max(removed, unlockedNow);
+  const total = Math.max(removed, lockRes.changed);
   if (typeof toast === "function") {
     toast(total ? `Unpinned ${name} (${total} day${total === 1 ? "" : "s"})` : `${name} has no pins to remove`, "ok");
   }
