@@ -37526,17 +37526,22 @@ document.addEventListener("click", (e) => {
   }
   // Chevron split-toggle on the Smart Fill tile → open the rules
   // popover. Sits on top of the main tile click so the chevron
-  // wins when targeted. Re-anchor the box back under this button
-  // first — the action-bar caret re-parents it into the action bar,
-  // and it should always open under whichever launcher was clicked.
+  // wins when targeted. A REAL ribbon click re-anchors the box back
+  // under this button (the action-bar caret re-parents it into the
+  // bar). The caret opens via a synthetic toggle.click() — that one
+  // must NOT re-anchor (isTrusted=false) or the box lands back in
+  // the ribbon, which is hidden under the action-bar layout, and
+  // nothing visibly opens.
   if (e.target.closest("#rr-sched-smartfill-rules-toggle")) {
     e.preventDefault();
     e.stopPropagation();
-    const polPop = document.getElementById("rr-sched-smartfill-rules-popover");
-    const polHome = document.querySelector(".sched-smartfill-split");
-    if (polPop && polHome && polPop.parentElement !== polHome) {
-      polHome.appendChild(polPop);
-      polPop.style.removeProperty("--rr-sf-pop-left");
+    if (e.isTrusted) {
+      const polPop = document.getElementById("rr-sched-smartfill-rules-popover");
+      const polHome = document.querySelector(".sched-smartfill-split");
+      if (polPop && polHome && polPop.parentElement !== polHome) {
+        polHome.appendChild(polPop);
+        polPop.style.removeProperty("--rr-sf-pop-left");
+      }
     }
     _toggleSchedSmartFillRules();
     return;
