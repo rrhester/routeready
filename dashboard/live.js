@@ -33492,6 +33492,10 @@ function _rrPolPaint() {
   if (stabNote) stabNote.textContent = _RR_POL_STABILITY[stability].label;
   const attSel = document.getElementById("rr-pol-att");
   if (attSel) attSel.value = att;
+  const corrSel = document.getElementById("rr-pol-corrective");
+  if (corrSel) corrSel.value = saved.attendance_penalty === true ? "on" : "off";
+  const prefSel = document.getElementById("rr-pol-preferred");
+  if (prefSel) prefSel.value = saved.preferred_days !== false ? "on" : "off";
   _rrPolSelectValue(document.getElementById("rr-pol-target"), target);
   const goalSel = document.getElementById("rr-pol-goal");
   if (goalSel) {
@@ -33652,6 +33656,12 @@ document.addEventListener("change", (e) => {
           s.attendance_weight = el.value;
         }
       });
+      break;
+    case "rr-pol-corrective":
+      _rrPolApply((s) => { s.attendance_penalty = el.value === "on"; });
+      break;
+    case "rr-pol-preferred":
+      _rrPolApply((s) => { s.preferred_days = el.value === "on"; });
       break;
     case "rr-pol-target": {
       const n = parseInt(el.value, 10);
