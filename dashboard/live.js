@@ -33499,13 +33499,6 @@ function _rrPolPaint() {
   if (prefSel) prefSel.checked = saved.preferred_days !== false;
 
 
-  // Preset select (badge + rules-in-effect digest were removed in the
-  // plain-list pass — the select alone reflects the active preset, and
-  // it blanks when the blob no longer matches one).
-  const presetSel = document.getElementById("rr-pol-preset");
-  const active = typeof saved.active_preset === "string" ? saved.active_preset : "";
-  const matches = active && _rrPolMatchesPreset(saved, active);
-  if (presetSel) presetSel.value = matches && _RR_SF_PRESETS[active] ? active : "";
 
 }
 window._rrPolPaint = _rrPolPaint;
@@ -33525,13 +33518,6 @@ document.addEventListener("change", (e) => {
   const el = e.target;
   if (!el || !el.id || !el.id.startsWith("rr-pol-")) return;
   switch (el.id) {
-    case "rr-pol-preset": {
-      const name = el.value;
-      if (!name || !_RR_SF_PRESETS[name]) return;
-      window._rrApplySfPreset(name); // merges keys, repaints Advanced, toasts
-      _rrPolApply((s) => { s.active_preset = name; });
-      break;
-    }
     case "rr-pol-consec": {
       const n = parseInt(el.value, 10);
       if (![4, 5, 6].includes(n)) {

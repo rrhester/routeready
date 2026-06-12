@@ -657,18 +657,6 @@
                        from the main box — same ids, same rr-pol wiring. -->
                   <div class="rr-pol-rows" style="padding:0 10px">
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-preset">Preset <button type="button" class="rr-pol-info" data-rr-pol-info="One-click rule bundles. Picking one updates the controls; you can still adjust anything afterward." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
-                      <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-preset" title="One-click policy bundles — picking one updates the policy controls">
-                          <option value="" hidden>Choose…</option>
-                          <option value="balanced">Balanced</option>
-                          <option value="conservative">Conservative</option>
-                          <option value="maximize_coverage">Maximize Coverage</option>
-                          <option value="stick_to_last_week">Stick To Last Week</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-rest">Minimum Rest <button type="button" class="rr-pol-info" data-rr-pol-info="Minimum hours between the end of one shift and the start of the next." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
                         <select class="rr-pol-select" id="rr-pol-rest">
