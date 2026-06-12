@@ -23217,3 +23217,46 @@ html.rr-sidebar-collapsed-boot .nav-sub,
    schedule-rrx.css rules. */
 #view-schedule.rrx-schedule .sched-v2-split,
 #view-schedule.rrx-schedule .sched-v2-viewgroup{display:none!important}
+
+/* ════════════════════════════════════════════════════════════════════
+   Collapsed-rail flyout for Schedule children (operator report 2026-06-12)
+   --------------------------------------------------------------------
+   The parent/child sidebar hid the children when the rail is collapsed
+   (no room for labels) — but the operator runs the rail collapsed, so
+   the children were unreachable. Match the reference design (CodeHS):
+   hovering the Schedule parent on the collapsed rail opens a dark
+   flyout panel beside it with the children; the panel stays open while
+   hovered. Expanded-rail behavior is unchanged (inline children).
+   ════════════════════════════════════════════════════════════════════ */
+html.rr-sidebar-collapsed-boot .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"],
+html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"]:hover,
+.sidebar.collapsed .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"],
+.sidebar.collapsed .nav-sub[data-for="schedule"]:hover{
+  display:flex!important;
+  position:fixed;left:64px;top:84px;width:198px;
+  flex-direction:column;gap:1px;margin:0;padding:10px 8px 8px;
+  background:var(--sidebar-bg,#1B2540);
+  border:1px solid rgba(255,255,255,.08);border-left:0;
+  border-radius:0 12px 12px 0;
+  box-shadow:10px 6px 28px rgba(2,6,23,.35);
+  z-index:70;
+}
+/* Panel header — the parent's name, like the reference design */
+html.rr-sidebar-collapsed-boot .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"]::before,
+html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"]:hover::before,
+.sidebar.collapsed .nav-item[data-view="schedule"]:hover ~ .nav-sub[data-for="schedule"]::before,
+.sidebar.collapsed .nav-sub[data-for="schedule"]:hover::before{
+  content:"Schedule";display:block;padding:2px 12px 8px;
+  font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  color:rgba(255,255,255,.55);
+}
+/* Invisible hover bridge so the pointer can cross the rail → panel gap
+   without the flyout closing */
+.nav-sub[data-for="schedule"]::after{content:"";position:absolute;left:-14px;top:0;bottom:0;width:14px}
+/* In the flyout, children lose the inline indent */
+html.rr-sidebar-collapsed-boot .nav-sub[data-for="schedule"] .nav-sub-item,
+.sidebar.collapsed .nav-sub[data-for="schedule"] .nav-sub-item{padding-left:12px}
+/* The rail needs its own stacking context above page content (tcp chrome
+   sits at z 20; modals at ≥100) or the fixed flyout paints beneath the
+   grid's positioned headers and can't be clicked. */
+.sidebar{z-index:40}
