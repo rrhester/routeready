@@ -97,9 +97,9 @@
 <link rel="preconnect" href="https://doiwrhkirgblcvuskhno.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm">
-<link rel="modulepreload" href="./scheduling-engine.js?v=7f4c0e677687">
-<link rel="modulepreload" href="./flex-capacity.js?v=7f4c0e677687">
-<link rel="stylesheet" href="../app/rr-system.css?v=7f4c0e677687">
+<link rel="modulepreload" href="./scheduling-engine.js?v=02c284faebb6">
+<link rel="modulepreload" href="./flex-capacity.js?v=02c284faebb6">
+<link rel="stylesheet" href="../app/rr-system.css?v=02c284faebb6">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
@@ -108,16 +108,16 @@
      structural classes). Single source of truth for chrome
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
-<link rel="stylesheet" href="tcp.css?v=7f4c0e677687">
-<link rel="stylesheet" href="schedule-rrx.css?v=7f4c0e677687">
+<link rel="stylesheet" href="tcp.css?v=02c284faebb6">
+<link rel="stylesheet" href="schedule-rrx.css?v=02c284faebb6">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
-<link rel="stylesheet" href="onboarding-rrx.css?v=7f4c0e677687">
+<link rel="stylesheet" href="onboarding-rrx.css?v=02c284faebb6">
 <!-- The dashboard's former inline styles · extracted so the no-cache
      HTML shell stops re-shipping ~1.2MB of CSS on every load; this
      file is cacheable and busts via the ?v= token like the rest. -->
-<link rel="stylesheet" href="inline-styles.css?v=7f4c0e677687">
+<link rel="stylesheet" href="inline-styles.css?v=02c284faebb6">
 <!-- style block 0 extracted to inline-styles.css -->
 </head>
 <body>
@@ -286,6 +286,8 @@
             onSched ? run() : setTimeout(run, 220);
             document.querySelectorAll('.nav-sub[data-for="schedule"] .nav-sub-item')
               .forEach(function (b) { b.classList.toggle('active', b === el); });
+            // a child click always dismisses the collapsed-rail flyout
+            document.querySelector('.nav-sub[data-for="schedule"]')?.classList.remove('rr-fly');
           };
           // Keep the sidebar child in sync with whatever the live strip
           // marks current (week-nav, programmatic changes, first paint),
@@ -308,6 +310,44 @@
           }
           if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
           else watch();
+
+          // ── Visibility, keyed on the rail's MEASURED width ─────────
+          // The collapsed-boot flag on <html> can linger after the
+          // operator expands the rail, which (before this fix) kept the
+          // children suppressed forever. Truth = actual rail width:
+          // expanded → inline children (.is-open); collapsed → flyout
+          // on hover or click (.rr-fly).
+          function railExpanded() {
+            var sb = document.getElementById('rr-sidebar');
+            return !!sb && sb.offsetWidth > 120;
+          }
+          function reflectRail() {
+            var sub = document.querySelector('.nav-sub[data-for="schedule"]');
+            var parent = document.querySelector('.nav-item[data-view="schedule"]');
+            if (!sub || !parent) return;
+            var open = railExpanded() && parent.classList.contains('active');
+            sub.classList.toggle('is-open', open);
+            if (open) sub.classList.remove('rr-fly');
+          }
+          var sb = document.getElementById('rr-sidebar');
+          if (sb) new MutationObserver(reflectRail).observe(sb, { attributes: true, attributeFilter: ['class'] });
+          var par = document.querySelector('.nav-item[data-view="schedule"]');
+          if (par) new MutationObserver(reflectRail).observe(par, { attributes: true, attributeFilter: ['class'] });
+          window.addEventListener('resize', reflectRail);
+          document.addEventListener('DOMContentLoaded', reflectRail);
+          setTimeout(reflectRail, 0); setTimeout(reflectRail, 800); setTimeout(reflectRail, 2500);
+
+          // Click-to-open flyout on the collapsed rail (hover also works,
+          // via CSS). Outside click or a child click closes it.
+          document.addEventListener('click', function (e) {
+            var sub = document.querySelector('.nav-sub[data-for="schedule"]');
+            if (!sub) return;
+            if (e.target.closest('.nav-item[data-view="schedule"]') && !railExpanded()) {
+              sub.classList.toggle('rr-fly');
+            } else if (!e.target.closest('.nav-sub[data-for="schedule"]')) {
+              sub.classList.remove('rr-fly');
+            }
+          });
         })();
       </script>
       <!-- Onboarding · standalone sidebar destination (was a tab in the
@@ -833,12 +873,12 @@
     </div>
 
     <!-- ─── DASHBOARD VIEW ─── -->
-    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=7f4c0e677687">
+    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-dashboard.frag (monolith split phase 2) -->
     </div>
 
     <!-- ─── HIRING PIPELINE VIEW ─── -->
-    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=7f4c0e677687">
+    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-pipeline.frag (monolith split phase 2) -->
     </div>
 
@@ -846,28 +886,28 @@
          ONBOARDING (OPERATIONS) VIEW — readiness command center.
          Populated by loadOnboardingOps() in live.js.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=7f4c0e677687">
+    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-onboarding-ops.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          DRIVERS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=7f4c0e677687">
+    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-drivers.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SETTINGS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=7f4c0e677687">
+    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-settings.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SCHEDULE VIEW — full DSP-grade schedule system
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=7f4c0e677687">
+    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-schedule.frag (monolith split phase 2) -->
     </div>
 
@@ -876,14 +916,14 @@
          (Amazon's term for DSP route plan horizon)
          ═══════════════════════════════════════════════════════════ -->
     <div id="rr-okami-backdrop" class="rr-okami-backdrop"></div>
-    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=7f4c0e677687">
+    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-okami.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          MESSAGES — real-time dispatch ↔ driver comms
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=7f4c0e677687">
+    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-messages.frag (monolith split phase 2) -->
     </div>
 
@@ -894,7 +934,7 @@
          Loader functions live in live.js (loadRecognitionView /
          loadRecognitionUpcoming / loadRecognitionHistory / …).
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=7f4c0e677687">
+    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-recognition.frag (monolith split phase 2) -->
     </div>
 
@@ -909,7 +949,7 @@
          scoped entirely to #view-fleet2 — it does not touch
          #view-schedule or schedule-rrx.css.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=7f4c0e677687">
+    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-fleet2.frag (monolith split phase 2) -->
     </div>
 
@@ -945,7 +985,7 @@
          into [data-co-render="exceptions-table"] and
          [data-co-render="rules-list"].
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=7f4c0e677687">
+    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-compliance.frag (monolith split phase 2) -->
     </div>
 
@@ -957,21 +997,21 @@
          row to a driver links the driver profile, surfaces the task in
          the driver app, and logs the accountability trail.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=7f4c0e677687">
+    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-workspaces.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          FORMS — DSP-built custom forms drivers fill out
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=7f4c0e677687">
+    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-forms.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          CHECKLISTS — recurring task lists (Open / Close / shift)
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=7f4c0e677687">
+    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-checklists.frag (monolith split phase 2) -->
     </div>
 
@@ -981,7 +1021,7 @@
          audit flows. PDF signing service + driver-side viewer ship in
          later slices.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=7f4c0e677687">
+    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-documents.frag (monolith split phase 2) -->
     </div>
 
@@ -993,7 +1033,7 @@
          strip and flips the layout: the open-shifts-sized aside sits
          on the LEFT, the calendar-sized main panel on the RIGHT.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=7f4c0e677687">
+    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-email.frag (monolith split phase 2) -->
     </div>
 
@@ -1006,14 +1046,14 @@
          Phase 2 ships header + stats; Phase 3 fills the table area;
          Phase 4 wires the modals.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=7f4c0e677687">
+    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-admin.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          BUILD YOUR OWN TOOL
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=7f4c0e677687">
+    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=02c284faebb6">
       <!-- markup extracted to views/view-build.frag (monolith split phase 2) -->
     </div>
 
@@ -4023,7 +4063,7 @@ John,Smith,555-0101,john@example.com</code>
     if (!window.__RR_VIEW_LOAD_FAILED) {
       await new Promise(function (resolve) {
         var s = document.createElement('script');
-        s.src = 'mock-wiring.js?v=7f4c0e677687';
+        s.src = 'mock-wiring.js?v=02c284faebb6';
         s.onload = function () {
           // These three register DOMContentLoaded callbacks with no
           // already-fired fallback (unlike the rest of the script);
@@ -4040,10 +4080,10 @@ John,Smith,555-0101,john@example.com</code>
   })();
 </script>
 <script src="./config.js"></script>
-<script src="./desktop-connect.js?v=7f4c0e677687"></script>
-<script src="./fleet-sync.js?v=7f4c0e677687"></script>
-<script src="./admin-crawl-tasks.js?v=7f4c0e677687"></script>
-<script type="module" src="./live.js?v=7f4c0e677687"></script>
+<script src="./desktop-connect.js?v=02c284faebb6"></script>
+<script src="./fleet-sync.js?v=02c284faebb6"></script>
+<script src="./admin-crawl-tasks.js?v=02c284faebb6"></script>
+<script type="module" src="./live.js?v=02c284faebb6"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
