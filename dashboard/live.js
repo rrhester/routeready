@@ -33469,9 +33469,13 @@ function _rrPolPaint() {
   const consec = _rrPolHardConsec() ||
     Math.max(1, Math.min(7, parseInt(saved.woc_max_consecutive_days, 10) || 6));
   const maxDays = Number.isFinite(saved.maxDaysOverride) ? saved.maxDaysOverride : 5;
-  const cap = Math.max(1, Math.min(168, parseInt(saved.woc_max_hours, 10) || 40));
   const rest = Math.max(0, Math.min(48, parseInt(saved.min_rest_hours, 10) || 10));
-  const fifth = saved.fifth_day_fill === true ? "allow" : "off";
+  // 5th day: required = fill on + any-day override + 5-day target (the
+  // mapping the rr-pol-fifth handler writes); allow = fill on for
+  // opted-in drivers only; off = never.
+  const fifth = saved.fifth_day_fill !== true ? "off"
+    : (saved.fifth_day_override_availability === true &&
+       parseInt(saved.target_days_per_week, 10) === 5) ? "require" : "allow";
   const stability = _rrPolClassifyStability(saved);
   const att = saved.attendance_scheduling === true
     ? (["low", "medium", "high"].includes(saved.attendance_weight) ? saved.attendance_weight : "medium")
@@ -33481,10 +33485,9 @@ function _rrPolPaint() {
 
   _rrPolSelectValue(document.getElementById("rr-pol-consec"), consec);
   _rrPolSelectValue(document.getElementById("rr-pol-maxdays"), maxDays);
-  _rrPolSelectValue(document.getElementById("rr-pol-cap"), cap);
   _rrPolSelectValue(document.getElementById("rr-pol-rest"), rest);
   const fifthSel = document.getElementById("rr-pol-fifth");
-  if (fifthSel) fifthSel.checked = fifth === "allow";
+  if (fifthSel) fifthSel.value = fifth;
   const stabSel = document.getElementById("rr-pol-stability");
   if (stabSel) stabSel.value = stability;
   const stabNote = document.getElementById("rr-pol-stability-note");
@@ -33519,31 +33522,6 @@ function _rrPolPaint() {
   const matches = active && _rrPolMatchesPreset(saved, active);
   if (presetSel) presetSel.value = matches && _RR_SF_PRESETS[active] ? active : "";
 
-  // Compliance digest — the operator-controlled rules currently active.
-  const list = document.getElementById("rr-pol-compliance-list");
-  if (list) {
-    const dlDays = Math.max(0, Math.min(365, parseInt(saved.dl_protection_days, 10) || 0));
-    const wocOn = saved.woc !== false;
-    const restOn = saved.min_rest !== false;
-    const sameDayBlock = saved.same_day_multi_shift !== "allow";
-    const onboarding = saved.include_onboarding !== false;
-    const items = [
-      { on: saved.dl_valid !== false, label: "Driver license validation" },
-      { on: dlDays > 0, label: "License protection window" + (dlDays > 0 ? " · " + dlDays + " days" : "") },
-      { on: wocOn, label: "Consecutive day limit · " + consec + " days" },
-      { on: wocOn, label: "Weekly hour cap · " + cap + "h" },
-      { on: restOn, label: "Minimum rest between shifts · " + rest + "h" },
-      { on: sameDayBlock, label: "One shift per driver per day" },
-      { on: onboarding, label: "Onboarding drivers included" },
-    ];
-    list.innerHTML = "";
-    for (const it of items) {
-      const li = document.createElement("li");
-      li.textContent = it.label;
-      if (!it.on) li.classList.add("rr-pol-off");
-      list.appendChild(li);
-    }
-  }
 }
 window._rrPolPaint = _rrPolPaint;
 
@@ -33587,19 +33565,6 @@ document.addEventListener("change", (e) => {
       _rrPolApply((s) => { s.maxDaysOverride = Math.max(1, Math.min(7, n)); });
       break;
     }
-    case "rr-pol-cap": {
-      const n = parseInt(el.value, 10);
-      if (!Number.isFinite(n)) return;
-      _rrPolApply((s) => {
-        s.woc = true;
-        s.woc_max_hours = Math.max(1, Math.min(168, n));
-        // The Advanced compute-budget override may only tighten the WOC
-        // cap (payload takes the min) — clear it so the drawer's value
-        // is authoritative.
-        delete s.weeklyHourCap;
-      });
-      break;
-    }
     case "rr-pol-rest": {
       const n = parseInt(el.value, 10);
       if (!Number.isFinite(n)) return;
@@ -33607,7 +33572,23 @@ document.addEventListener("change", (e) => {
       break;
     }
     case "rr-pol-fifth":
-      _rrPolApply((s) => { s.fifth_day_fill = !!el.checked; });
+      _rrPolApply((s) => {
+        if (el.value === "off") {
+          s.fifth_day_fill = false;
+          s.fifth_day_override_availability = false;
+        } else if (el.value === "allow") {
+          s.fifth_day_fill = true;
+          s.fifth_day_override_availability = false;
+          if (!s.dataSources || typeof s.dataSources !== "object") s.dataSources = {};
+          s.dataSources.fifth_day_optin = true; // opted-in drivers only
+        } else { // require — DSPs that mandate a 5th workday
+          s.fifth_day_fill = true;
+          s.fifth_day_override_availability = true; // may land on any day
+          s.target_days_per_week = 5;               // engine aims for 5 days
+          if (!s.dataSources || typeof s.dataSources !== "object") s.dataSources = {};
+          s.dataSources.fifth_day_optin = false;    // applies to everyone, not just opt-ins
+        }
+      });
       break;
     case "rr-pol-stability": {
       const spec = _RR_POL_STABILITY[el.value];
@@ -34486,6 +34467,21 @@ window._rrLoadSfRules = function () {
       saved.woc_max_consecutive_days = hardConsec;
     }
   } catch (_) { /* localStorage unavailable → no pin */ }
+  // Weekly hour cap is DERIVED (operator 2026-06-12): max days/week ×
+  // the DSP's default block hours. Days are the operator's control —
+  // the hour cap exists only to bound stacked/double/rescue shifts, so
+  // it scales with Max Days instead of being its own knob. Pinned here
+  // at read time so every consumer (engine adapter, CP-SAT payload,
+  // manual drag check, Fill Shifts) sees the same number.
+  {
+    const days = Number.isFinite(saved.maxDaysOverride)
+      ? Math.max(1, Math.min(7, saved.maxDaysOverride)) : 5;
+    const block = parseFloat(window.RR?.dsp?.metadata?.scheduling?.default_block_hours);
+    saved.woc_max_hours = Math.max(1, Math.round(days * ((Number.isFinite(block) && block > 0) ? block : 10)));
+    // The advanced override key is retired with the knob — a stale
+    // saved value would silently clamp the derived cap via min().
+    delete saved.weeklyHourCap;
+  }
   return saved;
 };
 // WOC (Working Hours Compliance) config from the Smart Fill rules store —

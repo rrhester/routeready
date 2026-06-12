@@ -587,40 +587,22 @@
                         </select>
                       </div>
                     </div>
+                  </div>
+
+                  <div class="rr-pol-rows">
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-cap">Weekly Hour Cap</label>
+                      <label class="rr-pol-label" for="rr-pol-fifth">5th Day</label>
                       <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-cap">
-                          <option value="40">40 hrs</option>
-                          <option value="45">45 hrs</option>
-                          <option value="50">50 hrs</option>
-                          <option value="55">55 hrs</option>
+                        <select class="rr-pol-select" id="rr-pol-fifth" title="Off: never. Allow If Needed: drivers who opted in via the availability tool can pick up a 5th day when coverage needs it. Required: Smart Fill schedules a 5th day for every eligible driver.">
+                          <option value="off">Off</option>
+                          <option value="allow">Allow If Needed</option>
+                          <option value="require">Required</option>
                         </select>
                       </div>
                     </div>
                   </div>
 
                   <div class="rr-pol-rows">
-                    <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-fifth">Allow a 5th day when coverage needs it</label>
-                      <div class="rr-pol-control">
-                        <input type="checkbox" class="rr-pol-check" id="rr-pol-fifth" title="Opted-in drivers can pick up a 5th workday when coverage needs it">
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="rr-pol-rows">
-                    <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-stability">Schedule Stability</label>
-                      <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-stability" title="How strongly RouteReady keeps drivers on their normal schedules">
-                          <option value="lock">Lock Existing</option>
-                          <option value="strong">Strong</option>
-                          <option value="moderate">Moderate</option>
-                          <option value="flexible">Flexible</option>
-                        </select>
-                      </div>
-                    </div>
                     <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-att">Attendance</label>
                       <div class="rr-pol-control">
@@ -692,6 +674,17 @@
                           <option value="3">3 days</option>
                           <option value="4">4 days</option>
                           <option value="5">5 days</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-stability">Schedule Stability</label>
+                      <div class="rr-pol-control">
+                        <select class="rr-pol-select" id="rr-pol-stability" title="How strongly RouteReady keeps drivers on their normal schedules">
+                          <option value="lock">Lock Existing</option>
+                          <option value="strong">Strong</option>
+                          <option value="moderate">Moderate</option>
+                          <option value="flexible">Flexible</option>
                         </select>
                       </div>
                     </div>
@@ -809,13 +802,6 @@
                           <span style="font-size:11px;color:#6B7280">days in a row</span>
                         </div>
                         <p class="sf2-row-help">Day after this run is blocked — rolling, not weekly. A driver who works Wed–Mon (6 days across two calendar weeks) is blocked on the 7th. A day off, approved PTO, or a time-off request <strong>resets</strong> the streak — only worked days count consecutively.</p>
-                      </div>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-set-woc-max-hours">Weekly hour cap</label>
-                        <div class="sf2-row-control">
-                          <input type="number" class="sf2-number" id="rr-set-woc-max-hours" min="1" max="168" step="1" value="40">
-                          <span style="font-size:11px;color:#6B7280">hours</span>
-                        </div>
                       </div>
                       <div class="sf2-group-label">Same-day shifts</div>
                       <div class="sf2-row">
@@ -984,14 +970,6 @@
                               <button type="button" class="sf2-seg-btn is-active" data-val="5" role="radio" aria-checked="true">5</button>
                               <button type="button" class="sf2-seg-btn" data-val="6" role="radio" aria-checked="false">6</button>
                               <button type="button" class="sf2-seg-btn" data-val="7" role="radio" aria-checked="false">7</button>
-                            </div>
-                          </div>
-                          <div class="sf-engine-budget-row">
-                            <span class="sf-engine-budget-label">Weekly hour cap</span>
-                            <div class="sf2-seg" id="rr-sf-weekly-hour-cap" role="radiogroup" aria-label="Weekly hour cap" data-rr-sf-budget="weeklyHourCap">
-                              <button type="button" class="sf2-seg-btn is-active" data-val="40" role="radio" aria-checked="true">40 hours</button>
-                              <button type="button" class="sf2-seg-btn" data-val="45" role="radio" aria-checked="false">45 hours</button>
-                              <button type="button" class="sf2-seg-btn" data-val="50" role="radio" aria-checked="false">50 hours</button>
                             </div>
                           </div>
                         </div>
