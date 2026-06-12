@@ -23157,7 +23157,11 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .sidebar-foot .topbar{margin-right:auto} /* tools left, theme/collapse right */
 .topbar .rr-qat{display:none}
-.topbar .hdr-refresh{display:none} /* refresh lives in the account menu */
+/* refresh lives in the account menu — but the PWA install button shares
+   the hdr-refresh class, so exempt it (it's the "download the app"
+   button, revealed by live.js when the browser allows installing). */
+.topbar .hdr-refresh:not(.hdr-install){display:none}
+.topbar .hdr-install:not([hidden]){display:inline-flex;color:rgba(255,255,255,.78)}
 .topbar .icon-btn{color:rgba(255,255,255,.66);width:28px;height:28px}
 .topbar .icon-btn:hover{color:#fff;background:rgba(255,255,255,.12)}
 .sidebar.collapsed .sidebar-foot .topbar{flex-direction:column}
