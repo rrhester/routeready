@@ -179,7 +179,7 @@
                         <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
                           <span style="width:14px;height:14px;border-radius:3px;background:rgba(37,99,235,.22);border:1.5px solid rgba(37,99,235,.55);flex-shrink:0"></span>
                           <span style="flex:1">Standard</span>
-                          <span style="color:#9A9A9A;font-size:11px">(no override)</span>
+                          <span style="color:#9CA3AF;font-size:11px">(no override)</span>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="rescue"    style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Rescue</span><button type="button" data-rr-route-reset="rescue" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
@@ -229,15 +229,15 @@
                         // same set; default per-route picks one of these.
                         var PALETTE = [
                           { name: "Crimson",  hex: "#DC2626" },
-                          { name: "Orange",   hex: "#CA5010" },
+                          { name: "Orange",   hex: "#EA580C" },
                           { name: "Olive",    hex: "#986F0B" },
-                          { name: "Forest",   hex: "#498205" },
-                          { name: "Teal",     hex: "#038387" },
+                          { name: "Forest",   hex: "#65A30D" },
+                          { name: "Teal",     hex: "#0D9488" },
                           { name: "Blue",     hex: "var(--accent)" },
-                          { name: "Royal",    hex: "#5C2E91" },
+                          { name: "Royal",    hex: "#7C3AED" },
                           { name: "Magenta",  hex: "#881798" },
-                          { name: "Berry",    hex: "#C239B3" },
-                          { name: "Slate",    hex: "#5D5A58" },
+                          { name: "Berry",    hex: "#DB2777" },
+                          { name: "Slate",    hex: "#6B7280" },
                         ];
                         // Defaults map each route to one palette entry so
                         // first-time DSPs see a sensible default. These
@@ -248,13 +248,13 @@
                         // cycle_2 / backup types were retired from the picker.
                         var DEFAULTS = {
                           rescue:         "#DC2626",
-                          nursery:        "#038387",
-                          other:          "#5D5A58",
-                          class_training: "#038387",
-                          road_training:  "#CA5010",
-                          pto:            "#CA5010",
-                          xl:             "#CA5010",
-                          trainer_trainee:"#498205",
+                          nursery:        "#0D9488",
+                          other:          "#6B7280",
+                          class_training: "#0D9488",
+                          road_training:  "#EA580C",
+                          pto:            "#EA580C",
+                          xl:             "#EA580C",
+                          trainer_trainee:"#65A30D",
                         };
                         function loadHex() {
                           // Account (dsps.metadata.route_colors) wins so the

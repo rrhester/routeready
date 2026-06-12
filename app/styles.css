@@ -62,7 +62,7 @@
   /* ── Semantic — corporate governance palette (matches dashboard):
      green = confirmed success · amber = warning / attention ·
      red = genuine operational issue · blue = informational. */
-  --green: #16A34A; --green-bright: #22C55E; --green-dark: #15803D; --green-soft: rgba(22,163,74,.10);
+  --green: #16A34A; --green-bright: #22C55E; --green-dark: #166534; --green-soft: rgba(22,163,74,.10);
   --amber: #D97706; --amber-bright: #F59E0B; --amber-dark: #B45309; --amber-soft: rgba(245,158,11,.12);
   --red:   #DC2626; --red-bright:   #EF4444; --red-dark:   #B91C1C; --red-soft:   rgba(220,38,38,.10);
   --info:  #2563EB; --info-bright:  #60A5FA; --info-dark:  #1D4ED8; --info-soft:  rgba(37,99,235,.10);
@@ -759,9 +759,9 @@ select.field{
 .skel{
   background:linear-gradient(
     90deg,
-    var(--surface-hover, #F4F6FA) 0%,
+    var(--surface-hover, #F3F4F6) 0%,
     var(--surface-pressed, #ECF0F5) 50%,
-    var(--surface-hover, #F4F6FA) 100%);
+    var(--surface-hover, #F3F4F6) 100%);
   background-size:200% 100%;
   animation: rrSkel 1.2s ease-in-out infinite;
   border-radius:var(--r-sm);
@@ -838,7 +838,7 @@ select.field{
   border-left:3px solid var(--accent);
 }
 .toast.show{opacity:1}
-.toast.success,.toast.ok{background:var(--green);color:#fff;border-left-color:var(--green)}
+.toast.success,.toast.ok{background:var(--green-dark);color:#fff;border-left-color:var(--green-dark)}
 .toast.warn{background:var(--amber);color:#fff;border-left-color:var(--amber)}
 .toast.error,.toast.danger{background:var(--red);color:#fff;border-left-color:var(--red)}
 .toast.info{border-left-color:var(--accent)}
@@ -990,10 +990,10 @@ select.field{
   height:240px;
   object-fit:cover;
   display:block;
-  background:var(--surface-hover, #F4F6FA);
+  background:var(--surface-hover, #F3F4F6);
   /* Loading shimmer — visible until the image's `load` event fires
      and JS (_rrSignChatAttachments) sets data-rr-loaded="1". */
-  background-image:linear-gradient(110deg, var(--surface-hover, #F4F6FA) 30%, var(--surface, #FFF) 50%, var(--surface-hover, #F4F6FA) 70%);
+  background-image:linear-gradient(110deg, var(--surface-hover, #F3F4F6) 30%, var(--surface, #FFF) 50%, var(--surface-hover, #F3F4F6) 70%);
   background-size:200% 100%;
   animation:chat-img-shimmer 1.4s ease-in-out infinite;
 }
@@ -1260,7 +1260,7 @@ select.field{
 .chat-skeleton-row.right{justify-content:flex-end}
 .chat-skeleton-bubble{
   height:36px;border-radius:var(--r-2xl);
-  background:linear-gradient(90deg, var(--surface-hover, #F4F6FA) 0%, var(--surface-pressed, #ECF0F5) 50%, var(--surface-hover, #F4F6FA) 100%);
+  background:linear-gradient(90deg, var(--surface-hover, #F3F4F6) 0%, var(--surface-pressed, #ECF0F5) 50%, var(--surface-hover, #F3F4F6) 100%);
   background-size:200% 100%;
   animation:chat-shimmer 1.2s ease-in-out infinite;
 }
@@ -2182,7 +2182,7 @@ main[data-page-enter][data-nav-dir="back"] > *{
    other routes stay on their own tokens. Fluent neutralBackground-2
    for the workspace; the hero supplies the brand color. */
 body.is-home{
-  background:#FAFAFA;
+  background:#F9FAFB;
 }
 body.is-home .app-head{ display:none }
 body.is-home main{

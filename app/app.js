@@ -5629,7 +5629,7 @@ function _initSignaturePad(canvasId, clearBtnId) {
   ctx.scale(ratio, ratio);
   ctx.lineWidth = 2;
   ctx.lineCap = "round";
-  ctx.strokeStyle = "#0B1220";
+  ctx.strokeStyle = "#111827";
   ctx.fillStyle = "#FFFFFF";
   ctx.fillRect(0, 0, cssW, cssH);
   canvas._rrHasInk = false;
