@@ -23231,3 +23231,15 @@ body.rr-cmdk-open{ overflow:hidden }
    (#rr-nav-download) — keep the source button in the DOM (it owns the
    install flow) but never show it in the foot. */
 .sidebar-foot .topbar .hdr-install{display:none !important}
+/* Smart Fill rules · compact-first (operator 2026-06-12). On open, the
+   popover shows only the preset row — 4 presets + Reset all + Settings.
+   The Settings button (#rr-sf-settings-btn) toggles the full detail
+   sections back in; every fresh open resets to compact (frag script). */
+#rr-sched-smartfill-rules-popover.rr-sf-compact #rr-sched-smartfill-rules-body > :not(.sf2-presets){display:none !important}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-presets-foot{display:none !important}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-presets-label{margin-bottom:6px}
+/* Compact popover hugs its content instead of the full-width panel. */
+#view-schedule.rrx-schedule .sched-smartfill-rules-popover.rr-sf-compact{
+  min-width:0 !important;
+  width:max-content !important;
+}
