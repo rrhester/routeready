@@ -899,12 +899,17 @@ textarea,
 .nav-item .nav-icon-color{display:none}
 .nav-badge{ display:none }
 
-/* Sidebar footer · subtle theme toggle + collapse button. */
+/* Sidebar footer · the docked tool cluster (bell / settings / account —
+   the .topbar element live.js moves here) stacks VERTICALLY under the
+   nav icons (operator request 2026-06-12: the horizontal row read as
+   clutter), with the collapse chevron as the last row. The 12px inset
+   lines the 28px buttons up with the nav rows' icon column. */
 .sidebar-foot{
   margin-top:var(--s-3);
-  display:flex;align-items:center;justify-content:flex-end;gap:4px;
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  padding-left:var(--s-3);
 }
-.sidebar.collapsed .sidebar-foot{justify-content:center;flex-direction:column;gap:6px}
+.sidebar.collapsed .sidebar-foot{align-items:center;padding-left:0;gap:6px}
 .sidebar-collapse-btn,
 .sidebar-theme-btn{
   position:relative;
@@ -23041,7 +23046,18 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:0;margin:0;border:0;border-radius:0;background:none;
   -webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;
 }
-.sidebar-foot .topbar{margin-right:auto} /* tools left, theme/collapse right */
+/* Docked tools stack vertically, one icon per row, same column as the
+   nav glyphs; the collapse chevron follows underneath them. */
+.sidebar-foot .topbar{flex-direction:column;align-items:flex-start;gap:2px;margin:0}
+/* Saved chip · its own quiet row above the icons. The white-topbar
+   palette (slate text / green check) didn't read on the blue rail. */
+.sidebar-foot .hdr-saved{color:rgba(255,255,255,.60);margin:0;padding:4px}
+.sidebar-foot .hdr-saved svg{color:rgba(255,255,255,.75)}
+/* Icon-only collapsed rail: no room for the text chip. */
+.sidebar.collapsed .sidebar-foot .hdr-saved{display:none}
+/* Account initials chip · on-blue treatment (was accent-soft/indigo,
+   tuned for the old white topbar). */
+.sidebar-foot .hdr-avatar{background:rgba(255,255,255,.16);color:#fff}
 .topbar .rr-qat{display:none}
 /* refresh lives in the account menu — but the PWA install button shares
    the hdr-refresh class, so exempt it (it's the "download the app"
@@ -23050,7 +23066,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .topbar .hdr-install:not([hidden]){display:inline-flex;color:rgba(255,255,255,.78)}
 .topbar .icon-btn{color:rgba(255,255,255,.66);width:28px;height:28px}
 .topbar .icon-btn:hover{color:#fff;background:rgba(255,255,255,.12)}
-.sidebar.collapsed .sidebar-foot .topbar{flex-direction:column}
+.sidebar.collapsed .sidebar-foot .topbar{align-items:center}
 #popover-account{top:auto!important;bottom:18px!important;left:60px!important;right:auto!important}
 #popover-notif{top:auto!important;bottom:18px!important;left:60px!important;right:auto!important}
 
