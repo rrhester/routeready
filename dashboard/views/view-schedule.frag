@@ -1668,6 +1668,11 @@
                 var ab = document.getElementById("rr-sched-actionbar");
                 var pop = document.getElementById("rr-sched-smartfill-rules-popover");
                 if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
+                // Anchor the dropdown's left edge under the Smart Fill
+                // button (CSS reads the var; right:auto override rides
+                // along in inline-styles.css).
+                var sfBtn = document.getElementById("rr-ab-smartfill");
+                if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
                 fire("rr-sched-smartfill-rules-toggle");
               });
               // Smart Fill rules · compact-first (operator 2026-06-12).

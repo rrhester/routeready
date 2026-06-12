@@ -23243,3 +23243,39 @@ body.rr-cmdk-open{ overflow:hidden }
   min-width:0 !important;
   width:max-content !important;
 }
+/* Smart Fill rules dropdown · operator pass 2026-06-12 (2):
+   - opens with its left edge under the Smart Fill button (the caret
+     handler sets --rr-sf-pop-left to the button's offset in the bar)
+   - navy outline matching the sidebar / action-button chrome
+   - compact mode stacks the preset options vertically, each shaped
+     exactly like the Smart Fill button. */
+#view-schedule.rrx-schedule #rr-sched-actionbar .sched-smartfill-rules-popover{
+  left:var(--rr-sf-pop-left, 0px) !important;
+  right:auto !important;
+  border:1.5px solid var(--sidebar-bg,#0F172A) !important;
+}
+#rr-sched-smartfill-rules-popover.rr-sf-compact{min-width:250px !important}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-presets{padding:12px 14px 14px}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-presets-row{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  gap:8px !important;
+}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  height:36px !important;
+  padding:0 13px !important;
+  border:1.5px solid var(--sidebar-bg,#0F172A) !important;
+  border-radius:8px !important;
+  background:#FFFFFF !important;
+  color:var(--sidebar-bg,#0F172A) !important;
+  font-size:12.5px !important;
+  font-weight:600 !important;
+  line-height:1 !important;
+  cursor:pointer;
+}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset:hover{background:rgba(15,23,42,.05) !important}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset.active{background:rgba(15,23,42,.08) !important}
