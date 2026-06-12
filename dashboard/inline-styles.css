@@ -23670,6 +23670,11 @@ body.rr-cmdk-open{ overflow:hidden }
 /* ═══ Smart Fill Rules header (operator 2026-06-12) ═════════════════
    Slim navy band matching the sidebar — title + X only. Double-id
    selector outranks the legacy quiet-white head rules. */
+/* The legacy quiet-band rule (#view-schedule.rrx-schedule #pop
+   .sched-smartfill-rules-head, specificity 2-2-0) forced this band
+   white, leaving the white title invisible — match its class chain and
+   win on cascade order. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sched-smartfill-rules-head.rr-pol-head,
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-head{
   display:flex !important;
   align-items:center !important;
@@ -23677,9 +23682,13 @@ body.rr-cmdk-open{ overflow:hidden }
   gap:10px !important;
   padding:8px 12px !important;
   background:var(--sidebar-bg, #0F172A) !important;
+  color:#FFFFFF !important;
   border-bottom:0 !important;
   border-radius:8px 8px 0 0 !important;
   flex:0 0 auto;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover.rr-policy-drawer .rr-pol-head .rr-pol-close svg{
+  color:rgba(255,255,255,.8) !important;
 }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-title{
   font-size:12.5px;font-weight:600;letter-spacing:.02em;color:#FFFFFF;line-height:1.2;
@@ -23916,3 +23925,31 @@ body.rr-cmdk-open{ overflow:hidden }
   grid-column:2;grid-row:1;display:flex !important;gap:2px !important;flex-wrap:nowrap !important;
 }
 #rr-sched-colors-popover .rr-rcp-swatch{width:14px !important;height:14px !important}
+
+/* ═══ Action-bar busy signal (operator 2026-06-12) ══════════════════
+   Understated working state for Smart Fill / Assign Fleet: inline
+   spinner, button locked, slim shimmer bar under the action bar. */
+.rr-ab-busy{
+  pointer-events:none !important;
+  opacity:.78;
+}
+.rr-ab-busy-spin{display:inline-flex;align-items:center;margin-right:6px}
+.rr-ab-busy-spin svg{width:13px;height:13px}
+.rr-sf-spin{animation:rrSfSpin 1s linear infinite;transform-origin:50% 50%}
+@keyframes rrSfSpin{to{transform:rotate(360deg)}}
+#rr-ab-progress{
+  position:absolute;left:0;right:0;bottom:-6px;height:2px;
+  border-radius:2px;overflow:hidden;pointer-events:none;
+  background:rgba(37,99,235,.15);
+}
+#rr-ab-progress::after{
+  content:"";position:absolute;top:0;bottom:0;width:36%;
+  border-radius:2px;
+  background:var(--sidebar-bg, #0F172A);
+  animation:rrAbProgress 1.2s ease-in-out infinite;
+}
+#rr-ab-progress[hidden]{display:none}
+@keyframes rrAbProgress{
+  0%{left:-36%}
+  100%{left:100%}
+}

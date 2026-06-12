@@ -514,35 +514,35 @@
                           <span style="color:#9CA3AF;font-size:11px">(no override)</span>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="rescue"    style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Rescue</span><button type="button" data-rr-route-reset="rescue" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Rescue</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="rescue" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="nursery"   style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Nursery</span><button type="button" data-rr-route-reset="nursery" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Nursery</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="nursery" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="other"     style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Other</span><button type="button" data-rr-route-reset="other" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Other</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="other" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="class_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Class training</span><button type="button" data-rr-route-reset="class_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Class training</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="class_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="road_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Road training</span><button type="button" data-rr-route-reset="road_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Road training</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="road_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="pto" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">PTO / time off</span><button type="button" data-rr-route-reset="pto" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">PTO / time off</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="pto" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="xl" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">XL</span><button type="button" data-rr-route-reset="xl" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">XL</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="xl" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="trainer_trainee" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Trainer (trainee riding along)</span><button type="button" data-rr-route-reset="trainer_trainee" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Trainer (trainee riding along)</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="trainer_trainee" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                       </div>
@@ -656,18 +656,6 @@
                        bundles, Min Rest, Target Days and Goal were demoted
                        from the main box — same ids, same rr-pol wiring. -->
                   <div class="rr-pol-rows" style="padding:0 10px">
-                    <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-preset">Preset <button type="button" class="rr-pol-info" data-rr-pol-info="One-click rule bundles. Picking one updates the controls; you can still adjust anything afterward." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
-                      <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-preset" title="One-click policy bundles — picking one updates the policy controls">
-                          <option value="" hidden>Choose…</option>
-                          <option value="balanced">Balanced</option>
-                          <option value="conservative">Conservative</option>
-                          <option value="maximize_coverage">Maximize Coverage</option>
-                          <option value="stick_to_last_week">Stick To Last Week</option>
-                        </select>
-                      </div>
-                    </div>
                     <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-rest">Minimum Rest <button type="button" class="rr-pol-info" data-rr-pol-info="Minimum hours between the end of one shift and the start of the next." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
