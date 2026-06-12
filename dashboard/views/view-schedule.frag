@@ -165,18 +165,46 @@
                         // stay on-brand with the dashboard so no DSP can
                         // choose a clashing neon. Every route shows this
                         // same set; default per-route picks one of these.
-                        var PALETTE = [
-                          { name: "Crimson",  hex: "#DC2626" },
-                          { name: "Orange",   hex: "#EA580C" },
-                          { name: "Olive",    hex: "#986F0B" },
-                          { name: "Forest",   hex: "#65A30D" },
-                          { name: "Teal",     hex: "#0D9488" },
-                          { name: "Blue",     hex: "var(--accent)" },
-                          { name: "Royal",    hex: "#7C3AED" },
-                          { name: "Magenta",  hex: "#881798" },
-                          { name: "Berry",    hex: "#DB2777" },
-                          { name: "Slate",    hex: "#6B7280" },
-                        ];
+                        // Per-route family palette (operator 2026-06-12):
+                        // every swatch offered is a tint/shade of THAT
+                        // route's preset color, so the picker personalizes
+                        // intensity without leaving the color family.
+                        function hexToHsl(hex) {
+                          var m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+                          if (!m) return { h: 220, s: 60, l: 50 };
+                          var n = parseInt(m[1], 16);
+                          var r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+                          var max = Math.max(r, g, b), min = Math.min(r, g, b);
+                          var h = 0, s = 0, l = (max + min) / 2, d = max - min;
+                          if (d) {
+                            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                            if (max === r) h = ((g - b) / d + (g < b ? 6 : 0));
+                            else if (max === g) h = (b - r) / d + 2;
+                            else h = (r - g) / d + 4;
+                            h *= 60;
+                          }
+                          return { h: h, s: s * 100, l: l * 100 };
+                        }
+                        function hslToHex(h, s, l) {
+                          s /= 100; l /= 100;
+                          var k = function (n) { return (n + h / 30) % 12; };
+                          var a = s * Math.min(l, 1 - l);
+                          var f = function (n) {
+                            var c = l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+                            return Math.round(255 * c).toString(16).padStart(2, "0");
+                          };
+                          return "#" + f(0) + f(8) + f(4);
+                        }
+                        function familyFor(route) {
+                          var base = DEFAULTS[route] || "#6B7280";
+                          var hsl = hexToHsl(base);
+                          var offs = [24, 16, 8, 0, -8, -16, -24];
+                          return offs.map(function (d) {
+                            if (d === 0) return { name: "Default", hex: base };
+                            var l = Math.max(14, Math.min(86, hsl.l + d));
+                            return { name: d > 0 ? "Lighter" : "Darker", hex: hslToHex(hsl.h, hsl.s, l) };
+                          });
+                        }
                         // Defaults map each route to one palette entry so
                         // first-time DSPs see a sensible default. These
                         // also override the :root --rr-route-c-* vars so
@@ -236,7 +264,7 @@
                           var host = document.querySelector('[data-rr-route-swatches="' + route + '"]');
                           if (!host) return;
                           host.innerHTML = "";
-                          PALETTE.forEach(function (entry) {
+                          familyFor(route).forEach(function (entry) {
                             var b = document.createElement("button");
                             b.type = "button";
                             b.className = "rr-rcp-swatch";
