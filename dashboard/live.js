@@ -46720,8 +46720,13 @@ async function renderScheduleWeek() {
       const abSub  = document.getElementById("rr-ab-coverage-sub");
       if (abMain) abMain.textContent = `Coverage: ${abFilled} / ${abNeeded} Routes`;
       if (abSub) {
-        abSub.textContent = abOpen > 0 ? `${abOpen} Open Route${abOpen === 1 ? "" : "s"}` : "All routes covered";
-        abSub.classList.toggle("is-ok", abOpen === 0);
+        // Derive the subtitle from the SAME filled/needed numbers as the
+        // main line — it previously keyed off the open-shifts pool count,
+        // which can be 0/stale while the week still shows 54/61, producing
+        // a contradictory "All routes covered".
+        const abGap = Math.max(0, abNeeded - abFilled);
+        abSub.textContent = abGap > 0 ? `${abGap} Open Route${abGap === 1 ? "" : "s"}` : "All routes covered";
+        abSub.classList.toggle("is-ok", abGap === 0);
       }
     }
   } catch (e) { console.warn("action bar paint:", e); }
