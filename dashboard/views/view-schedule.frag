@@ -155,68 +155,6 @@
                       })();
                     </script>
 
-                    <!-- Route color coding · master toggle. When ON,
-                         shift chips paint themselves per route_classification:
-                         rescue=red, nursery=teal, other=gray.
-                         Standard (NULL) keeps the existing brand-blue chip. -->
-                    <fieldset class="rr-sched-routecolor-fset" style="border:0;padding:14px 0 0;margin:14px 0 0;border-top:1px solid var(--border)">
-                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary,#111827);margin-bottom:6px">Route color coding</legend>
-                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#6B7280);margin:0 0 10px">Tint each shift chip by its route type (Rescue, Nursery, etc.) so the schedule reads at a glance. Set a shift's type from its Edit drawer.</p>
-
-                      <label class="rr-sched-routecolor-opt" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:4px;background:#FFF;cursor:pointer;font-family:var(--rr-font-family,'Segoe UI')">
-                        <input type="checkbox" id="rr-sched-routecolor-on" style="margin:0;accent-color:var(--accent)" />
-                        <span style="font-size:13px;font-weight:600;color:#111827">Color-code chips by route type</span>
-                      </label>
-
-                      <!-- Curated palette · the 8 Fluent-family accents
-                           below cover the dashboard's tonal range without
-                           clashing. Each route row shows the route name +
-                           the same 8 swatches; the active one gets a
-                           ring. No free-form color picker — the DSP can
-                           still personalize but only from the on-brand
-                           palette. -->
-                      <div id="rr-sched-routecolor-legend" hidden style="display:flex;flex-direction:column;gap:8px;margin-top:10px;font:12px/1.4 var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#6B7280)">
-                        <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <span style="width:14px;height:14px;border-radius:3px;background:rgba(37,99,235,.22);border:1.5px solid rgba(37,99,235,.55);flex-shrink:0"></span>
-                          <span style="flex:1">Standard</span>
-                          <span style="color:#9CA3AF;font-size:11px">(no override)</span>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="rescue"    style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Rescue</span><button type="button" data-rr-route-reset="rescue" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="rescue" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="nursery"   style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Nursery</span><button type="button" data-rr-route-reset="nursery" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="nursery" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="other"     style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Other</span><button type="button" data-rr-route-reset="other" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="other" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="class_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Class training</span><button type="button" data-rr-route-reset="class_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="class_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="road_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Road training</span><button type="button" data-rr-route-reset="road_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="road_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="pto" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">PTO / time off</span><button type="button" data-rr-route-reset="pto" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="pto" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="xl" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">XL</span><button type="button" data-rr-route-reset="xl" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="xl" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="trainer_trainee" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Trainer (trainee riding along)</span><button type="button" data-rr-route-reset="trainer_trainee" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="trainer_trainee" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                      </div>
-                      <!-- style block 23 extracted to inline-styles.css -->
-                    </fieldset>
-
                     <script>
                       (function () {
                         if (window.__rrRouteColorWired) return;
@@ -536,6 +474,82 @@
                 What if…
                 <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><line x1="6" y1="3.5" x2="6" y2="6.5"/><line x1="6" y1="8" x2="6" y2="8.5"/></svg>
               </button>
+              <!-- Schedule Colors popover (operator 2026-06-12) · the route
+                   color-coding rules, moved out of the Week display popover.
+                   Opened from the Smart Fill caret menu. All wiring is
+                   document-delegated / id-based, so the rows work unchanged
+                   in their new home. -->
+              <div class="rr-colors-popover" id="rr-sched-colors-popover" role="dialog" aria-modal="false" aria-label="Schedule Colors" hidden>
+                <div class="rr-pol-head">
+                  <div class="rr-pol-title">Schedule Colors</div>
+                  <button type="button" class="rr-pol-close" id="rr-colors-close" aria-label="Close Schedule Colors">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div class="rr-colors-body">
+                    <!-- Route color coding · master toggle. When ON,
+                         shift chips paint themselves per route_classification:
+                         rescue=red, nursery=teal, other=gray.
+                         Standard (NULL) keeps the existing brand-blue chip. -->
+                    <fieldset class="rr-sched-routecolor-fset" style="border:0;padding:14px 0 0;margin:14px 0 0;border-top:1px solid var(--border)">
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-primary,#111827);margin-bottom:6px">Route color coding</legend>
+                      <p style="font:13px/18px var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#6B7280);margin:0 0 10px">Tint each shift chip by its route type (Rescue, Nursery, etc.) so the schedule reads at a glance. Set a shift's type from its Edit drawer.</p>
+
+                      <label class="rr-sched-routecolor-opt" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:4px;background:#FFF;cursor:pointer;font-family:var(--rr-font-family,'Segoe UI')">
+                        <input type="checkbox" id="rr-sched-routecolor-on" style="margin:0;accent-color:var(--accent)" />
+                        <span style="font-size:13px;font-weight:600;color:#111827">Color-code chips by route type</span>
+                      </label>
+
+                      <!-- Curated palette · the 8 Fluent-family accents
+                           below cover the dashboard's tonal range without
+                           clashing. Each route row shows the route name +
+                           the same 8 swatches; the active one gets a
+                           ring. No free-form color picker — the DSP can
+                           still personalize but only from the on-brand
+                           palette. -->
+                      <div id="rr-sched-routecolor-legend" hidden style="display:flex;flex-direction:column;gap:8px;margin-top:10px;font:12px/1.4 var(--rr-font-family, 'Inter','Segoe UI');color:var(--rr-fg-secondary,#6B7280)">
+                        <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <span style="width:14px;height:14px;border-radius:3px;background:rgba(37,99,235,.22);border:1.5px solid rgba(37,99,235,.55);flex-shrink:0"></span>
+                          <span style="flex:1">Standard</span>
+                          <span style="color:#9CA3AF;font-size:11px">(no override)</span>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="rescue"    style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Rescue</span><button type="button" data-rr-route-reset="rescue" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="rescue" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="nursery"   style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Nursery</span><button type="button" data-rr-route-reset="nursery" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="nursery" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="other"     style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Other</span><button type="button" data-rr-route-reset="other" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="other" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="class_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Class training</span><button type="button" data-rr-route-reset="class_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="class_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="road_training" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Road training</span><button type="button" data-rr-route-reset="road_training" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="road_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="pto" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">PTO / time off</span><button type="button" data-rr-route-reset="pto" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="pto" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="xl" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">XL</span><button type="button" data-rr-route-reset="xl" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="xl" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="trainer_trainee" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Trainer (trainee riding along)</span><button type="button" data-rr-route-reset="trainer_trainee" style="background:none;border:0;color:var(--accent);font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="trainer_trainee" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
+                      </div>
+                      <!-- style block 23 extracted to inline-styles.css -->
+                    </fieldset>
+                </div>
+              </div>
               <!-- Staffing Policy drawer · the Smart Fill rules popover
                    rebuilt as a compact right-side drawer. Same element id
                    + body id so every existing rule handler (delegated on
@@ -1735,16 +1749,10 @@
               });
               on("rr-ab-smartfill-caret", function (e) {
                 e.stopPropagation();
-                // Open the Staffing Policy box as this button's dropdown:
-                // re-parent it into the (position:relative) action bar so
-                // it anchors right under the bar, with its left edge under
-                // the Smart Fill button (CSS reads the var).
-                var ab = document.getElementById("rr-sched-actionbar");
-                var pop = document.getElementById("rr-sched-smartfill-rules-popover");
-                if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
-                var sfBtn = document.getElementById("rr-ab-smartfill");
-                if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
-                fire("rr-sched-smartfill-rules-toggle");
+                // Small menu first (Smart Rules / Schedule Colors); each
+                // entry re-parents its box under the action bar and opens
+                // it anchored to the Smart Fill button.
+                if (window._rrShowSfMenu) window._rrShowSfMenu(document.getElementById("rr-ab-smartfill"));
               });
               on("rr-ab-finalize",  function () { fire("rr-sched-finalize-h"); });
               on("rr-ab-assign", function (e) {

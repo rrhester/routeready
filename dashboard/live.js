@@ -33619,6 +33619,88 @@ document.addEventListener("change", (e) => {
   _rrPolPaintTimer = setTimeout(_rrPolPaint, 150);
 });
 
+// ── Smart Fill caret menu + Schedule Colors popover ──────────────────
+// The caret opens a small two-entry menu (Smart Rules / Schedule
+// Colors). Each entry re-parents its box into the action bar and opens
+// it anchored under the Smart Fill button.
+function _rrCloseSfMenu() { document.getElementById("rr-sf-menu")?.remove(); }
+window._rrShowSfMenu = function (anchorBtn) {
+  const existing = document.getElementById("rr-sf-menu");
+  _rrCloseSfMenu();
+  if (existing) return; // second caret click = toggle off
+  const m = document.createElement("div");
+  m.id = "rr-sf-menu";
+  m.innerHTML = `
+    <button type="button" class="rr-sf-menu-i" data-act="rules">Smart Rules</button>
+    <button type="button" class="rr-sf-menu-i" data-act="colors">Schedule Colors</button>
+    <style>
+      #rr-sf-menu{position:fixed;z-index:1001;min-width:190px;background:#fff;
+        border:1px solid #E5E8ED;border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.12);
+        padding:6px;font-size:13px}
+      #rr-sf-menu .rr-sf-menu-i{display:block;width:100%;text-align:left;background:transparent;
+        border:0;border-radius:6px;padding:9px 11px;cursor:pointer;color:#0F172A;font-size:13px}
+      #rr-sf-menu .rr-sf-menu-i:hover{background:rgba(15,23,42,.05)}
+    </style>`;
+  document.body.appendChild(m);
+  const r = anchorBtn ? anchorBtn.getBoundingClientRect() : { left: 80, bottom: 80 };
+  const w = m.offsetWidth || 190, M = 8;
+  m.style.left = Math.min(r.left, window.innerWidth - w - M) + "px";
+  m.style.top = (r.bottom + 6) + "px";
+  m.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const act = ev.target.closest("[data-act]")?.getAttribute("data-act");
+    if (!act) return;
+    _rrCloseSfMenu();
+    const ab = document.getElementById("rr-sched-actionbar");
+    const sfBtn = document.getElementById("rr-ab-smartfill");
+    if (act === "rules") {
+      const pop = document.getElementById("rr-sched-smartfill-rules-popover");
+      if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
+      if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
+      _rrToggleSchedColors(false);
+      _toggleSchedSmartFillRules(true);
+    } else {
+      const pop = document.getElementById("rr-sched-colors-popover");
+      if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
+      if (pop && sfBtn) pop.style.setProperty("--rr-sf-pop-left", sfBtn.offsetLeft + "px");
+      _toggleSchedSmartFillRules(false);
+      _rrToggleSchedColors(true);
+    }
+  });
+};
+document.addEventListener("click", (e) => {
+  if (document.getElementById("rr-sf-menu")
+      && !e.target.closest?.("#rr-sf-menu")
+      && !e.target.closest?.("#rr-ab-smartfill-caret")) {
+    _rrCloseSfMenu();
+  }
+});
+
+function _rrToggleSchedColors(force) {
+  const pop = document.getElementById("rr-sched-colors-popover");
+  if (!pop) return false;
+  const next = (typeof force === "boolean") ? force : pop.hidden;
+  pop.hidden = !next;
+  if (next && typeof window._rrReapplyRouteColors === "function") {
+    try { window._rrReapplyRouteColors(); } catch (_) {}
+  }
+  return next;
+}
+window._rrToggleSchedColors = _rrToggleSchedColors;
+document.addEventListener("click", (e) => {
+  if (e.target.closest?.("#rr-colors-close")) { _rrToggleSchedColors(false); return; }
+  const pop = document.getElementById("rr-sched-colors-popover");
+  if (pop && !pop.hidden
+      && !e.target.closest("#rr-sched-colors-popover")
+      && !e.target.closest("#rr-ab-smartfill-caret")
+      && !e.target.closest("#rr-sf-menu")) {
+    _rrToggleSchedColors(false);
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { _rrCloseSfMenu(); _rrToggleSchedColors(false); }
+});
+
 // ── Rule info popups ──────────────────────────────────────────────────
 // Each policy row carries a small ⓘ (.rr-pol-info with the explanation
 // in data-rr-pol-info). Click → a very small popup near the icon; click
