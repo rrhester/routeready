@@ -37526,10 +37526,18 @@ document.addEventListener("click", (e) => {
   }
   // Chevron split-toggle on the Smart Fill tile → open the rules
   // popover. Sits on top of the main tile click so the chevron
-  // wins when targeted.
+  // wins when targeted. Re-anchor the box back under this button
+  // first — the action-bar caret re-parents it into the action bar,
+  // and it should always open under whichever launcher was clicked.
   if (e.target.closest("#rr-sched-smartfill-rules-toggle")) {
     e.preventDefault();
     e.stopPropagation();
+    const polPop = document.getElementById("rr-sched-smartfill-rules-popover");
+    const polHome = document.querySelector(".sched-smartfill-split");
+    if (polPop && polHome && polPop.parentElement !== polHome) {
+      polHome.appendChild(polPop);
+      polPop.style.removeProperty("--rr-sf-pop-left");
+    }
     _toggleSchedSmartFillRules();
     return;
   }
