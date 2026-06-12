@@ -13683,9 +13683,13 @@ body.rr-cmdk-open{ overflow:hidden }
                     }
                     #rr-sched-smartfill-rules-body .sf2-section-head::-webkit-details-marker{display:none}
                     #rr-sched-smartfill-rules-body .sf2-section-head::marker{display:none;content:""}
+                    /* Columns: titles · (optional count pill) · chevron.
+                       The leading 28px number-badge column was removed
+                       with the sf2-section-num badges — leaving it made
+                       every title wrap one word per line in the drawer. */
                     #rr-sched-smartfill-rules-body .sf2-section-head-inner{
                       display:grid;
-                      grid-template-columns:28px 1fr auto;
+                      grid-template-columns:minmax(0,1fr) auto auto;
                       align-items:center;
                       gap:10px;
                       padding:12px 14px;
@@ -23423,7 +23427,10 @@ body.rr-cmdk-open{ overflow:hidden }
   align-items:flex-start !important;
   justify-content:space-between !important;
   gap:10px !important;
-  padding:14px 16px 12px !important;
+  /* In the desktop shell the OS window controls overlay the top-right
+     corner — env(titlebar-area-height) pushes the header content below
+     them; browsers without the env fall back to the normal 14px. */
+  padding:max(14px, env(titlebar-area-height, 14px)) 16px 12px !important;
   background:#FFFFFF !important;
   border-bottom:1px solid #EEF0F4 !important;
   border-radius:0 !important;
