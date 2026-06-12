@@ -184,7 +184,7 @@
      gray = structure. */
   --green:#16A34A;
   --green-bright:#22C55E;
-  --green-dark:#15803D;
+  --green-dark:#166534;  /* AA on white text when used as a fill (Codex P2, PR #2814) */
   --green-soft:rgba(22,163,74,.10);
   --green-soft-strong:rgba(22,163,74,.16);
   --green-border:rgba(22,163,74,.24);
@@ -587,9 +587,9 @@ textarea,
 .rr-modal-foot .rr-modal-btn:active{transform:translateY(.5px)}
 .rr-modal-foot .rr-modal-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .rr-modal-foot .rr-modal-btn.primary{
-  border-color:transparent;background:var(--green);color:var(--text-inverse);
+  border-color:transparent;background:var(--green-dark);color:var(--text-inverse);
 }
-.rr-modal-foot .rr-modal-btn.primary:hover{background:var(--green-dark)}
+.rr-modal-foot .rr-modal-btn.primary:hover{background:#14532D}
 .rr-modal-foot .rr-modal-btn.danger{
   border-color:transparent;background:var(--red);color:var(--text-inverse);
 }
@@ -3929,7 +3929,7 @@ select.form-input{
   font-size:var(--fs-base);color:var(--text-muted);transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
 }
 .status-btn:hover{background:var(--canvas);border-color:var(--border-strong)}
-.status-btn.active.s-present{background:var(--green);border-color:var(--green);color:var(--text-inverse)}
+.status-btn.active.s-present{background:var(--green-dark);border-color:var(--green-dark);color:var(--text-inverse)}
 .status-btn.active.s-late{background:var(--amber);border-color:var(--amber);color:var(--text-inverse)}
 .status-btn.active.s-callout{background:var(--red);border-color:var(--red);color:var(--text-inverse)}
 .status-btn.active.s-noshow{background:var(--text);border-color:var(--text);color:var(--text-inverse)}
@@ -4178,7 +4178,7 @@ select.form-input{
      on the saturated background; Draft state below keeps its
      soft-amber tint since amber-on-amber doesn't have a paired
      medallion to align to. */
-  background:var(--green);color:#fff;
+  background:var(--green-dark);color:#fff;
 }
 .sched-status-pill.draft{background:var(--amber-soft);color:var(--amber)}
 .sched-status-pill .status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}

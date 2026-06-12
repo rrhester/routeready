@@ -62,7 +62,7 @@
   /* ── Semantic — corporate governance palette (matches dashboard):
      green = confirmed success · amber = warning / attention ·
      red = genuine operational issue · blue = informational. */
-  --green: #16A34A; --green-bright: #22C55E; --green-dark: #15803D; --green-soft: rgba(22,163,74,.10);
+  --green: #16A34A; --green-bright: #22C55E; --green-dark: #166534; --green-soft: rgba(22,163,74,.10);
   --amber: #D97706; --amber-bright: #F59E0B; --amber-dark: #B45309; --amber-soft: rgba(245,158,11,.12);
   --red:   #DC2626; --red-bright:   #EF4444; --red-dark:   #B91C1C; --red-soft:   rgba(220,38,38,.10);
   --info:  #2563EB; --info-bright:  #60A5FA; --info-dark:  #1D4ED8; --info-soft:  rgba(37,99,235,.10);
@@ -838,7 +838,7 @@ select.field{
   border-left:3px solid var(--accent);
 }
 .toast.show{opacity:1}
-.toast.success,.toast.ok{background:var(--green);color:#fff;border-left-color:var(--green)}
+.toast.success,.toast.ok{background:var(--green-dark);color:#fff;border-left-color:var(--green-dark)}
 .toast.warn{background:var(--amber);color:#fff;border-left-color:var(--amber)}
 .toast.error,.toast.danger{background:var(--red);color:#fff;border-left-color:var(--red)}
 .toast.info{border-left-color:var(--accent)}
