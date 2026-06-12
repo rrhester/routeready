@@ -51,22 +51,22 @@
   --surface-grad:none;
   --surface-hover:rgba(15,23,42,.035);
   --surface-pressed:rgba(15,23,42,.06);
-  /* Sidebar — light canvas rail.  The rail paints the same chrome
-     tone as the topbar + schedule ground (#F7F8FA) so the nav reads
-     as part of the page rather than a separate shell.  Blue is
-     reserved for the active row, using the same accent-soft pill
-     language the schedule chips and primary actions use. */
-  --sidebar:#F7F8FA;
+  /* Sidebar — painted in the SAME blue as the Finalize Schedule
+     button (--rr-comm-blue, operator request 2026-06-12): one shared
+     token, so the rail and the page's primary action can never drift
+     apart. On-blue content is white-alpha; the active row is a soft
+     white pill (same pill geometry the light rail used). */
+  --sidebar:var(--rr-comm-blue);
   --sidebar-grad:none;
-  --sidebar-hover:rgba(15,23,42,.05);
-  --sidebar-active:var(--accent-soft);
+  --sidebar-hover:rgba(255,255,255,.10);
+  --sidebar-active:rgba(255,255,255,.16);
   --sidebar-divider:transparent;
-  --sidebar-bg:#F7F8FA;
-  --sidebar-icon-idle:var(--text-subtle);
-  --sidebar-icon-hover:var(--text);
-  --sidebar-icon-active:var(--accent);
-  --sidebar-active-pill:var(--accent-soft);
-  --sidebar-active-border:var(--accent-border);
+  --sidebar-bg:var(--rr-comm-blue);
+  --sidebar-icon-idle:rgba(255,255,255,.78);
+  --sidebar-icon-hover:#ffffff;
+  --sidebar-icon-active:#ffffff;
+  --sidebar-active-pill:rgba(255,255,255,.16);
+  --sidebar-active-border:rgba(255,255,255,.18);
   /* Fluent communication blue — the driver-app brand blue.  Formerly
      doubled as the sidebar fill; now a standalone token for the
      content-area elements that key off it (Finalize button, action
@@ -820,17 +820,18 @@ textarea,
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
-  /* Light canvas rail — the same ground tone as the topbar and the
-     schedule page, with no dividing border, so the rail and the
-     content read as one continuous surface (cards float on it). */
+  /* Communication-blue rail — the exact color of the Finalize
+     Schedule button (one shared --rr-comm-blue token), so the rail
+     and the page's primary action read as one brand system. No
+     border: the blue defines its own edge. */
   background-color:var(--sidebar-bg);
-  color:var(--text);
+  color:#FFFFFF;
   display:flex;flex-direction:column;
   padding:var(--s-5) var(--s-3);
   position:sticky;top:0;height:100vh;
 }
-/* Icons are monoline glyphs driven by currentColor — slate at rest,
-   ink on hover, accent blue on the active row. */
+/* Icons are monoline glyphs driven by currentColor — soft white at
+   rest, solid white on hover and on the active row. */
 .sidebar .nav-item .nav-icon{color:var(--sidebar-icon-idle)}
 .sidebar .nav-item:hover .nav-icon{color:var(--sidebar-icon-hover)}
 .sidebar .nav-item.active .nav-icon,
@@ -847,11 +848,11 @@ textarea,
   width:30px;height:30px;border-radius:var(--r-md);
   display:flex;align-items:center;justify-content:center;
   overflow:hidden;
-  box-shadow:inset 0 0 0 1px rgba(15,23,42,.08);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
 }
 .brand-mark img{width:100%;height:100%;object-fit:cover;display:block}
-.brand-name{font-weight:600;font-size:var(--fs-base);letter-spacing:-.005em;color:var(--text)}
-.brand-name em{font-style:normal;font-weight:400;color:var(--text-subtle)}
+.brand-name{font-weight:600;font-size:var(--fs-base);letter-spacing:-.005em;color:#FFFFFF}
+.brand-name em{font-style:normal;font-weight:400;color:rgba(255,255,255,.70)}
 
 .nav{display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;overflow-y:auto}
 .nav-item{
@@ -861,7 +862,7 @@ textarea,
      padding for breathing room. The 1px transparent border reserves
      space so the active tile's edge never shifts the layout. */
   padding:10px var(--s-3);border-radius:var(--r-md);
-  color:var(--text-muted);
+  color:rgba(255,255,255,.85);
   font-size:var(--fs-md);font-weight:500;letter-spacing:0;
   cursor:pointer;
   transition:background var(--t-smooth), color var(--t-smooth), border-color var(--t-smooth), box-shadow var(--t-smooth);
@@ -869,19 +870,18 @@ textarea,
 }
 .nav-item:hover{
   background:var(--sidebar-hover);
-  color:var(--text);
+  color:#FFFFFF;
 }
-.nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text);box-shadow:inset 0 0 0 1px rgba(37,99,235,.35)}
-/* Active = location state.  The same soft blue pill language the
-   schedule chips and accent buttons use — accent-tinted fill with
-   accent text + icon.  No edge rail, no gradient, no border: the
-   selection and the content grid share one component voice. */
+.nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)}
+/* Active = location state.  A soft white pill on the blue rail —
+   same pill geometry as the schedule chips, inverted for the
+   on-color surface.  No edge rail, no gradient, no border. */
 .nav-item.active{
   background:var(--sidebar-active-pill);
-  color:var(--accent-text);font-weight:600;
+  color:#FFFFFF;font-weight:600;
 }
 .nav-item.active .nav-badge{
-  color:var(--accent);background:#fff;
+  color:var(--rr-comm-blue);background:#fff;
 }
 /* Icon strokes — calm operational weight; no glow / drop-shadow.
    20px monoline glyphs match the content area's icon scale (header
@@ -911,22 +911,23 @@ textarea,
   display:inline-flex;align-items:center;justify-content:center;
   width:24px;height:24px;padding:0;border-radius:6px;
   background:transparent;border:0;cursor:pointer;
-  color:var(--text-subtle);
+  color:rgba(255,255,255,.55);
   transition:background var(--t-fast),color var(--t-fast);
 }
 .sidebar-collapse-btn:hover,.sidebar-collapse-btn:focus-visible,
 .sidebar-theme-btn:hover,.sidebar-theme-btn:focus-visible{
-  background:rgba(15,23,42,.05);
-  color:var(--text);
+  background:rgba(255,255,255,.12);
+  color:#FFFFFF;
   outline:none;
 }
 .sidebar-collapse-btn svg{display:block;transition:transform var(--t-smooth)}
 .sidebar-theme-btn svg{display:block}
 .sidebar.collapsed .sidebar-collapse-btn svg{transform:rotate(180deg)}
 
-/* The toggleable light/dark sidebar theme is retired — the light
-   canvas rail above IS the design now (the old html.rr-sidebar-light
-   override block and the footer theme button are gone). */
+/* The toggleable light/dark sidebar theme is retired — the
+   communication-blue rail above IS the design now (the old
+   html.rr-sidebar-light override block and the footer theme button
+   are gone). */
 
 /* Collapsed rail · icon-only mode. Hide labels (the text node sits
    directly inside <button>, so we zero its font-size and reset on
@@ -978,7 +979,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 
 .nav-section-label{
   font-size:var(--fs-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--text-subtle);
+  color:rgba(255,255,255,.60);
   padding:var(--s-4) var(--s-3) var(--s-2) var(--s-3);
 }
 
@@ -992,8 +993,8 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   display:flex;align-items:center;justify-content:center;
   font-size:var(--fs-xs);font-weight:700;color:var(--text-inverse);
 }
-.workspace-chip-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.2}
-.workspace-chip-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.2;margin-top:2px}
+.workspace-chip-name{font-size:var(--fs-sm);font-weight:600;color:#FFFFFF;line-height:1.2}
+.workspace-chip-sub{font-size:var(--fs-xs);color:rgba(255,255,255,.65);line-height:1.2;margin-top:2px}
 
 /* Main column */
 .main{display:flex;flex-direction:column;min-width:0;background:transparent}
@@ -23077,18 +23078,16 @@ body.rr-cmdk-open{ overflow:hidden }
     content:"";position:fixed;top:0;left:0;right:0;
     height:env(titlebar-area-height, 33px);z-index:55;
     -webkit-app-region:drag;app-region:drag;
-    /* Two-tone title-bar band: rail tone above the sidebar — so the
+    /* Two-tone title-bar band: rail blue above the sidebar — so the
        rail reads as running to the very top of the window — and the
        page ground above the content. #F7F8FA is the unified neutral
        canvas (Schedule/Onboarding/Fleet grounds + the topbar — keep in
        sync; NOT --canvas #FEFEFF, which read as a slightly-off lighter
-       stripe — operator report 2026-06-12). With the light canvas rail
-       (--sidebar-bg, also #F7F8FA) the two segments are identical,
-       which is the point: one continuous chrome surface. Width tracks
-       the .app grid columns (212px rail / 64px collapsed). */
+       stripe — operator report 2026-06-12). Width tracks the .app grid
+       columns (212px rail / 64px collapsed). */
     --rr-tb-rail-w:212px;
     background:linear-gradient(90deg,
-      var(--sidebar-bg,#F7F8FA) 0 var(--rr-tb-rail-w),
+      var(--sidebar-bg,#0F6CBD) 0 var(--rr-tb-rail-w),
       #F7F8FA var(--rr-tb-rail-w));
   }
   /* Collapsed rail (64px): both signals — the pre-init boot flag on
@@ -23107,7 +23106,7 @@ body.rr-cmdk-open{ overflow:hidden }
    Targets/Smart Fill/Finalize/Unassign/Fleet). The strip's two tile rows
    are hidden; the title + week navigator remain as a slim header.
    ════════════════════════════════════════════════════════════════════ */
-/* Children list — inline under the Schedule parent on the light rail */
+/* Children list — inline under the Schedule parent on the blue rail */
 .nav-sub{display:none;flex-direction:column;gap:1px;margin:1px 0 6px;padding:0}
 .nav-sub-item{
   display:flex;align-items:center;width:100%;
@@ -23118,12 +23117,12 @@ body.rr-cmdk-open{ overflow:hidden }
      lands the label on the same 32px line. */
   height:30px;padding:0 12px 0 20px;border:0;background:none;cursor:pointer;
   border-radius:8px;font:inherit;font-size:13px;line-height:1;text-align:left;
-  color:var(--text-subtle,#566173);
+  color:rgba(255,255,255,.75);
   transition:background-color .12s ease,color .12s ease;
 }
-.nav-sub-item:hover{background:var(--sidebar-hover,rgba(15,23,42,.05));color:var(--text,#0F172A)}
-.nav-sub-item:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(37,99,235,.35)}
-.nav-sub-item.active{background:var(--sidebar-active-pill,rgba(37,99,235,.08));color:var(--accent-text,#1E40AF);font-weight:600}
+.nav-sub-item:hover{background:var(--sidebar-hover,rgba(255,255,255,.10));color:#FFFFFF}
+.nav-sub-item:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)}
+.nav-sub-item.active{background:var(--sidebar-active-pill,rgba(255,255,255,.16));color:#FFFFFF;font-weight:600}
 /* (pip bullets removed — operator request 2026-06-12) */
 
 /* ── Accordion visibility · ONE state (.is-open), ONE rail signal ──────
@@ -23136,13 +23135,16 @@ body.rr-cmdk-open{ overflow:hidden }
 .sidebar.collapsed .nav-sub[data-for="schedule"].is-open{
   display:flex;position:fixed;left:64px;top:84px;width:198px;
   flex-direction:column;gap:1px;margin:0;padding:10px 8px 8px;
-  background:var(--rr-surface,#FFFFFF);
-  border:1px solid var(--border-subtle,rgba(15,23,42,.14));border-left:0;border-radius:0 12px 12px 0;
-  box-shadow:10px 6px 28px rgba(2,6,23,.14);z-index:70;
+  /* The flyout extends the blue rail (attached, border-left:0), so it
+     paints the rail's own blue — the white-on-blue sub-items keep one
+     styling for both the inline list and this panel. */
+  background:var(--sidebar-bg,#0F6CBD);
+  border:1px solid rgba(255,255,255,.10);border-left:0;border-radius:0 12px 12px 0;
+  box-shadow:10px 6px 28px rgba(2,6,23,.30);z-index:70;
 }
 .sidebar.collapsed .nav-sub[data-for="schedule"].is-open::before{
   content:"Schedule";display:block;padding:2px 12px 8px;
-  font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-subtle,#566173);
+  font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.60);
 }
 .sidebar.collapsed .nav-sub[data-for="schedule"] .nav-sub-item{padding-left:12px}
 /* Rail above page content so the collapsed flyout isn't trapped/clipped. */

@@ -63228,9 +63228,10 @@ document.addEventListener("click", async (e) => {
     apply(next);
     try { localStorage.setItem(KEY, next ? "1" : "0"); } catch (_) {}
   });
-  // (The sidebar light/dark theme toggle is retired — the light canvas
-  // rail is the one design now. The #rr-sidebar-theme button is gone
-  // from index.html and the rr-sidebar-light CSS override was removed.)
+  // (The sidebar light/dark theme toggle is retired — the
+  // communication-blue rail is the one design now. The #rr-sidebar-theme
+  // button is gone from index.html and the rr-sidebar-light CSS override
+  // was removed.)
 })();
 
 // ── Schedule Recognition Layer · Kudos quick-send ──────────────────
