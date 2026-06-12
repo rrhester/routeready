@@ -3709,7 +3709,7 @@ select.form-input{
   appearance:none;-webkit-appearance:none;-moz-appearance:none;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%2394A3B8' stroke-width='1.5' stroke-linecap='round'><polyline points='2 4 6 8 10 4'/></svg>");
   background-repeat:no-repeat;background-position:right 10px center;background-size:12px;
-  padding-right:30px;
+  padding-right:26px;
 }
 
 .toggle{
@@ -23192,3 +23192,304 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-schedule .tcp{margin-bottom:0!important}
 #view-schedule .rr-intel-host{margin-bottom:0!important}
 #view-schedule .rr-intel-host > *{margin-bottom:16px}
+
+/* ════════════════════════════════════════════════════════════════════
+   SCHEDULE REFERENCE REDESIGN — enterprise visual pass (2026-06-12)
+   --------------------------------------------------------------------
+   Single source for the reference-mockup reskin: grouped navy sidebar,
+   slim "Schedule" title row, segmented date navigator, neutral action
+   bar with one primary, coverage card with progress bar, operational
+   summary strip, and the calm full-width week grid. This section is
+   appended LAST on purpose — it wins every cascade tie against
+   schedule-rrx.css and the rules above.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Sidebar · brand monogram — flat RR in a thin outlined square ──── */
+.brand{padding-bottom:18px}
+.brand-mark{
+  background:transparent;
+  border:1px solid rgba(255,255,255,.38);
+  border-radius:8px;
+  box-shadow:none;
+  width:30px;height:30px;
+}
+.brand-rr{
+  font-size:12px;font-weight:700;letter-spacing:.04em;color:#FFFFFF;
+  line-height:1;
+}
+.brand-name{font-weight:600;color:#FFFFFF}
+.brand-name em{color:#FFFFFF;font-weight:600}
+
+/* ── Sidebar · grouped sections ────────────────────────────────────── */
+.nav-group-label{
+  padding:16px 12px 5px;
+  font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:#64748B;
+  user-select:none;
+}
+.nav .nav-group-label:first-child{padding-top:4px}
+.sidebar.collapsed .nav-group-label,
+html.rr-sidebar-collapsed-boot .sidebar .nav-group-label{display:none}
+
+/* Thin, consistent monoline icons. */
+.nav-item svg{stroke-width:1.6 !important}
+
+/* Schedule children visible whenever Schedule is the active section
+   (reference rail) — no extra click needed to reveal them. */
+.sidebar:not(.collapsed) .nav-item[data-view="schedule"].active + .nav-sub[data-for="schedule"]{display:flex}
+/* Active child = the same clean blue pill as the active parent. */
+.nav-sub-item{height:30px;padding-left:38px;font-size:13px}
+.nav-sub-item.active{background:var(--sidebar-active);color:#FFFFFF;font-weight:600}
+.nav-sub-item.active:hover{background:var(--sidebar-active);color:#FFFFFF}
+
+/* ── Sidebar · footer account row ("RS · Renee S.") ───────────────── */
+.sidebar-foot .hdr-avatar-btn{
+  width:auto;height:auto;
+  display:flex;align-items:center;gap:8px;
+  padding:5px 8px;border-radius:8px;
+}
+.sidebar-foot .hdr-avatar-btn:hover{background:var(--sidebar-hover)}
+.hdr-avatar-name{
+  font-size:13px;font-weight:500;color:var(--sidebar-ink);
+  white-space:nowrap;
+}
+.hdr-avatar-name:empty{display:none}
+.hdr-avatar-caret{color:var(--sidebar-ink-idle);flex-shrink:0}
+.hdr-avatar-name:empty + .hdr-avatar-caret{display:none}
+.sidebar.collapsed .hdr-avatar-name,
+.sidebar.collapsed .hdr-avatar-caret{display:none}
+
+/* ── Schedule page ground ──────────────────────────────────────────── */
+#view-schedule.rrx-schedule{background:#F7F8FA}
+#view-schedule.rrx-schedule > .page{padding-top:8px !important}
+
+/* ── Title row · restore the strip as a slim transparent header ────── */
+#view-schedule.rrx-schedule .sched-v2-strip{
+  display:flex !important;
+  height:auto !important;min-height:0 !important;max-height:none !important;
+  align-items:center !important;
+  background:transparent !important;
+  border:0 !important;box-shadow:none !important;
+  padding:8px 2px 10px !important;margin:0 !important;
+  overflow:visible !important;
+}
+/* Tile rows / launchers / cmd-tabs stay retired (rules above hide the
+   splits + viewgroups); the title is the strip's content now. */
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-cmd-tabs{display:none !important}
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-group-launcher{display:none !important}
+#view-schedule.rrx-schedule .sched-v2-title{
+  flex:0 0 auto !important;
+  width:auto !important;min-width:0 !important;max-width:none !important;
+  margin:0 !important;padding:0 !important;
+}
+#view-schedule.rrx-schedule .sched-v2-title .page-title{
+  display:flex;align-items:center;gap:10px;
+  font-size:24px;font-weight:700;letter-spacing:-.015em;color:#111827;
+  margin:0;
+}
+/* Draft/Live moved to the summary strip; subtitle retired (the date
+   lives in the navigator). Elements stay in the DOM — JS still reads
+   and updates them. */
+#view-schedule.rrx-schedule .sched-v2-title .sched-v2-status-pill{display:none !important}
+#view-schedule.rrx-schedule .sched-v2-title .page-sub{display:none !important}
+/* Undo keeps its home at the far right of the title row. */
+#view-schedule.rrx-schedule .sched-v2-strip .hdr-undo-wrap{margin-left:auto;align-self:center}
+
+/* ── KPI band retired on Schedule (the summary strip + coverage card
+   carry the same signal). Element stays for its dataset consumers. ── */
+#view-schedule.rrx-schedule #rr-sched-kpis{display:none !important}
+
+/* ── Action bar · neutral buttons, one primary, segmented date nav ── */
+#view-schedule .rr-ab{align-items:center;gap:8px;margin:2px 0 10px}
+#view-schedule .rr-ab-driver{display:none !important}
+/* The grid corner cell owns the DRIVER label again. */
+#view-schedule #rr-sched-actionbar ~ .builder-shell .cal-grid.head .cal-cell-head > #rr-sched-row-label{display:inline !important}
+
+#view-schedule .rr-ab-btn{
+  height:38px;
+  padding:0 14px;
+  border:1px solid #D7DCE5;
+  border-radius:8px;
+  background:#FFFFFF;
+  color:#3A4250;
+  font-size:13px;font-weight:600;
+}
+#view-schedule .rr-ab-btn:hover{background:#F8FAFC}
+#view-schedule .rr-ab-btn:active{background:#F1F5F9}
+#view-schedule .rr-ab-btn svg{width:16px;height:16px;color:#6B7280}
+/* Smart Fill — the one blue-outline secondary. */
+#view-schedule #rr-ab-smartfill{border-color:rgba(37,99,235,.5);color:#2563EB}
+#view-schedule #rr-ab-smartfill svg{color:#2563EB}
+#view-schedule #rr-ab-smartfill:hover{background:rgba(37,99,235,.05)}
+/* Finalize — the only strong primary. */
+#view-schedule .rr-ab-primary{background:#2563EB;border-color:#2563EB;color:#FFFFFF}
+#view-schedule .rr-ab-primary svg{color:#FFFFFF}
+#view-schedule .rr-ab-primary:hover{background:#1D4ED8;border-color:#1D4ED8}
+/* Assign Fleet split caret — neutral divider. */
+#view-schedule .rr-ab-caret{border-left:1px solid #E2E6ED;color:#6B7280}
+#view-schedule .rr-ab-caret:hover{background:#F1F5F9}
+/* ⋯ overflow — quiet ghost. */
+#view-schedule .rr-ab-more{width:38px;border-color:transparent;color:#6B7280}
+#view-schedule .rr-ab-more:hover{border-color:#D7DCE5;background:#F8FAFC}
+
+/* Segmented week navigator · [Today][‹][July 7 – July 13, 2024][›]. */
+#view-schedule .rr-ab-weeknav{margin-right:2px}
+#view-schedule .rr-ab-weeknav .sched-week-nav{
+  display:inline-flex;align-items:stretch;height:38px;
+  background:#FFFFFF;border:1px solid #D7DCE5;border-radius:8px;
+  overflow:hidden;box-shadow:none;padding:0;gap:0;
+}
+#view-schedule .rr-ab-weeknav .sched-week-nav-btn,
+#view-schedule .rr-ab-weeknav .sched-week-nav-today,
+#view-schedule .rr-ab-weeknav .sched-week-nav-range{
+  border:0;border-radius:0;background:transparent;margin:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  cursor:pointer;height:auto;box-shadow:none;
+}
+#view-schedule .rr-ab-weeknav .sched-week-nav-btn{width:34px;color:#5B6472;padding:0}
+#view-schedule .rr-ab-weeknav .sched-week-nav-btn svg{width:14px;height:14px}
+#view-schedule .rr-ab-weeknav .sched-week-nav-btn:hover{background:#F4F6F9}
+#view-schedule .rr-ab-weeknav .sched-week-nav-today{
+  padding:0 12px;font-size:12.5px;font-weight:600;color:#5B6472;
+  border-right:1px solid #E7EAF0;
+}
+#view-schedule .rr-ab-weeknav .sched-week-nav-today:hover{background:#F4F6F9}
+#view-schedule .rr-ab-weeknav .sched-week-nav-range{
+  padding:0 14px;font-size:13.5px;font-weight:600;color:#1F2937;
+  border-left:1px solid #E7EAF0;border-right:1px solid #E7EAF0;
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+#view-schedule .rr-ab-weeknav .sched-week-nav-range:hover{background:#F4F6F9}
+#view-schedule .rr-ab-weeknav .sched-week-nav-range svg{display:none}
+
+/* Coverage card · label / count / progress / open routes. */
+#view-schedule .rr-ab-coverage{
+  flex-direction:column;align-items:flex-start;gap:1px;
+  min-width:200px;
+  padding:9px 14px 10px;
+  border:1px solid #E3E7EE;border-radius:10px;
+  background:#FFFFFF;
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
+  line-height:1.25;
+}
+#view-schedule .rr-ab-coverage-label{
+  font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:#6B7280;
+}
+#view-schedule .rr-ab-coverage-main{font-size:14px;font-weight:700;color:#111827}
+#view-schedule .rr-ab-coverage-track{
+  display:block;width:100%;height:4px;margin:4px 0 3px;
+  border-radius:999px;background:#E8EBF1;overflow:hidden;
+}
+#view-schedule .rr-ab-coverage-bar{
+  display:block;height:100%;width:0;border-radius:999px;
+  background:#16A34A;
+  transition:width .3s ease;
+}
+#view-schedule .rr-ab-coverage-sub{font-size:11.5px;font-weight:600;color:#C2570B}
+#view-schedule .rr-ab-coverage-sub.is-ok{color:#15803D}
+
+/* ── Operational summary strip ─────────────────────────────────────── */
+#view-schedule .rr-opstrip{
+  display:flex;align-items:center;gap:24px;
+  margin:0 0 12px;padding:8px 14px;
+  background:#FFFFFF;border:1px solid #E8EBF0;border-radius:10px;
+  font-size:12.5px;color:#4B5563;
+}
+#view-schedule .rr-opstrip-item{
+  display:inline-flex;align-items:center;gap:7px;font-weight:600;
+  white-space:nowrap;
+}
+#view-schedule .rr-opstrip-item[hidden]{display:none}
+#view-schedule .rr-opstrip-item svg{width:14px;height:14px;flex-shrink:0}
+#view-schedule .rr-opstrip-open{color:#B45309}
+#view-schedule .rr-opstrip-att{color:#B91C1C}
+#view-schedule .rr-opstrip-vans{color:#4B5563}
+#view-schedule .rr-opstrip-status{
+  margin-left:auto;
+  display:inline-flex;align-items:center;
+  padding:3px 10px;border-radius:6px;
+  font-size:11.5px;font-weight:600;
+  background:#F1F5F9;color:#475569;border:1px solid #E2E8F0;
+  white-space:nowrap;
+}
+#view-schedule .rr-opstrip-status[data-state="live"]{
+  background:#ECFDF5;color:#047857;border-color:#A7F3D0;
+}
+
+/* ── Week grid · the page's dominant surface ───────────────────────── */
+/* Full-width grid — the right rail (Driver pool / Operations Health)
+   retires so the calendar dominates like the reference. */
+#view-schedule #sched-sub-week .builder-shell{display:block}
+#view-schedule #sched-sub-week .builder-shell .sched-right-rail,
+#view-schedule #sched-sub-week .builder-shell aside.driver-pool{display:none !important}
+
+.cal-wrap{
+  border:1px solid #E5E8EE;
+  border-radius:12px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
+}
+.cal-grid{border-bottom:1px solid #EEF1F5}
+.cal-grid.head{border-bottom:1px solid #E8EBF0}
+.cal-cell{border-right:1px solid #F1F3F7}
+.cal-cell-head{border-right:1px solid #F1F3F7;padding:11px 8px 12px;color:#6B7280}
+.cal-row-label{border-right:1px solid #EEF1F5}
+
+/* Day headers · SUN / 7 / 7-8 / ROUTES. Specificity + !important match
+   the schedule-rrx "hero number" rules these replace. */
+.cal-cell-head .day-num{font-size:20px;font-weight:700;letter-spacing:-.02em;margin-top:3px}
+#view-schedule.rrx-schedule .cal-cell-head .day-coverage{
+  display:block;margin-top:4px !important;
+  font-size:12.5px !important;font-weight:600 !important;line-height:1.2 !important;
+  letter-spacing:0;text-transform:none;
+  font-variant-numeric:tabular-nums;
+}
+#view-schedule.rrx-schedule .cal-cell-head .day-target{
+  display:block;margin-top:1px !important;
+  font-size:8.5px !important;font-weight:700 !important;
+  letter-spacing:.09em;text-transform:uppercase;
+  color:#9AA3B2 !important;
+}
+/* Corner header tools reveal on hover — the resting corner reads as a
+   clean DRIVER label like the reference. */
+#view-schedule .rr-sched-driver-actions{opacity:0;transition:opacity .15s ease}
+#view-schedule .cal-grid.head .cal-cell-head:hover .rr-sched-driver-actions,
+#view-schedule .rr-sched-driver-actions:focus-within{opacity:1}
+
+/* Driver column · calmer rows. */
+#view-schedule .cal-row-label .avatar-sm{border-radius:50%}
+#view-schedule .cal-row-label-name{font-size:13px;font-weight:600;color:#111827}
+#view-schedule .cal-row-label-meta{font-size:12px;color:#6B7280;margin-top:1px}
+/* "DCA1 · 40h" — drop the trailing word (the density modes already
+   reuse this hook). */
+#view-schedule .cal-row-label-hours-word{display:none}
+
+/* ── Shift cards · very light blue, thin blue border, small radius ── */
+body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here){
+  background:#EFF6FF !important;
+  border:1px solid #BFDBFE !important;
+  border-radius:6px;
+  box-shadow:none !important;
+}
+body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here){
+  background:#E4EFFE !important;
+  border-color:#93C5FD !important;
+}
+body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here):hover{
+  border-color:#60A5FA !important;
+  box-shadow:0 3px 8px rgba(15,23,42,.10) !important;
+}
+/* Card text hierarchy · time leads, wave + van stay quiet. */
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary{
+  font-weight:600;font-size:12px;color:#1F2937 !important;letter-spacing:-.005em;
+}
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-secondary,
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-van{
+  font-size:10.5px;color:#64748B !important;font-weight:500;
+}
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code{
+  font-weight:700;font-size:9px;color:#3B5675 !important;opacity:.9;
+}
+/* Reserve room for the corner SP/XL badge so it never overlaps the
+   time line (cards without badges keep their full width). */
+#view-schedule.rrx-schedule .shift-chip:has(> .shift-chip-badges){padding-right:26px}
