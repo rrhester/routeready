@@ -39873,14 +39873,113 @@ window._rrToggleSchedPinnedOnly = function (force) {
 };
 // Header-card pin icon (operator 2026-06-12) — restored to the Driver
 // column icon cluster (view-schedule.frag) now that pins are the fixed-
-// schedule mechanism. Click toggles the filter; saved state re-applies
-// after each grid render via _rrSchedPinnedOnlySync (the view frag may
-// not exist yet at DOMContentLoaded).
+// schedule mechanism. Click toggles the filter; click-and-HOLD (~500ms)
+// opens a quiet two-action menu: Pin All Shifts / Un-Pin All Shifts for
+// the visible week. Saved filter state re-applies after each grid
+// render via _rrSchedPinnedOnlySync (the view frag may not exist yet at
+// DOMContentLoaded).
 document.addEventListener("click", (e) => {
-  if (e.target && e.target.closest && e.target.closest("#rr-sched-pinned-only-btn")) {
-    window._rrToggleSchedPinnedOnly();
+  const btn = e.target && e.target.closest && e.target.closest("#rr-sched-pinned-only-btn");
+  if (!btn) return;
+  // A long-press just opened the bulk menu — swallow the click that
+  // fires on release so the filter doesn't also toggle.
+  if (btn.dataset.rrPinHoldFired === "1") { delete btn.dataset.rrPinHoldFired; return; }
+  window._rrToggleSchedPinnedOnly();
+});
+
+// ── Long-press → bulk pin menu ────────────────────────────────────────
+let _rrPinHoldTimer = null;
+function _rrPinHoldCancel() {
+  if (_rrPinHoldTimer) { clearTimeout(_rrPinHoldTimer); _rrPinHoldTimer = null; }
+}
+document.addEventListener("pointerdown", (e) => {
+  const btn = e.target && e.target.closest && e.target.closest("#rr-sched-pinned-only-btn");
+  if (!btn) return;
+  _rrPinHoldCancel();
+  _rrPinHoldTimer = setTimeout(() => {
+    _rrPinHoldTimer = null;
+    btn.dataset.rrPinHoldFired = "1";
+    _rrShowPinBulkMenu(btn);
+  }, 500);
+});
+document.addEventListener("pointerup", _rrPinHoldCancel);
+document.addEventListener("pointercancel", _rrPinHoldCancel);
+
+function _rrClosePinBulkMenu() { document.getElementById("rr-pin-bulk-menu")?.remove(); }
+
+function _rrShowPinBulkMenu(anchor) {
+  _rrClosePinBulkMenu();
+  const m = document.createElement("div");
+  m.id = "rr-pin-bulk-menu";
+  m.innerHTML = `
+    <button type="button" class="rr-pin-bulk-i" data-act="pin">Pin All Shifts</button>
+    <button type="button" class="rr-pin-bulk-i" data-act="unpin">Un-Pin All Shifts</button>
+    <style>
+      #rr-pin-bulk-menu{position:fixed;z-index:1001;min-width:150px;background:#fff;
+        border:1px solid #E5E8ED;border-radius:7px;box-shadow:0 6px 20px rgba(15,23,42,.10);
+        padding:3px;font-size:12px}
+      #rr-pin-bulk-menu .rr-pin-bulk-i{display:block;width:100%;text-align:left;background:transparent;
+        border:0;border-radius:5px;padding:6px 9px;cursor:pointer;color:#334155;font-size:12px}
+      #rr-pin-bulk-menu .rr-pin-bulk-i:hover{background:rgba(15,23,42,.05);color:#0F172A}
+    </style>`;
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect();
+  const w = m.offsetWidth || 150, h = m.offsetHeight || 64, M = 8;
+  m.style.left = Math.min(r.left, window.innerWidth - w - M) + "px";
+  m.style.top = Math.min(r.bottom + 4, window.innerHeight - h - M) + "px";
+  m.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const act = ev.target.closest("[data-act]")?.getAttribute("data-act");
+    if (!act) return;
+    _rrClosePinBulkMenu();
+    _rrBulkSetWeekLocks(act === "pin");
+  });
+}
+document.addEventListener("click", (e) => {
+  if (document.getElementById("rr-pin-bulk-menu") && !e.target.closest?.("#rr-pin-bulk-menu")) {
+    _rrClosePinBulkMenu();
   }
 });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") _rrClosePinBulkMenu();
+});
+
+// Lock / unlock every assigned shift in the visible week. Terminal +
+// completed statuses are filtered CLIENT-side (a server-side status
+// filter 400s on enum values the DB doesn't define — see the section
+// loader at ~line 21828), and completed history never gets touched.
+async function _rrBulkSetWeekLocks(locked) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !_schedStart) return;
+  const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
+  let changed = 0, failed = false;
+  try {
+    const { data, error } = await sb.from("shifts")
+      .select("id, status")
+      .eq("dsp_id", dspId)
+      .not("driver_id", "is", null)
+      .gte("date", _schedStart).lte("date", weekEndIso)
+      .eq("is_locked", !locked);
+    if (error) throw error;
+    const SKIP = new Set(["no_show", "called_off", "cancelled", "completed"]);
+    const ids = (data || []).filter((r) => !SKIP.has(String(r.status))).map((r) => r.id);
+    if (ids.length) {
+      const { error: wErr } = await sb.from("shifts").update({ is_locked: locked }).in("id", ids);
+      if (wErr) throw wErr;
+      changed = ids.length;
+    }
+  } catch (e) {
+    failed = true;
+    console.warn("bulk pin · week", locked ? "lock" : "unlock", "failed:", e?.message);
+  }
+  if (typeof toast === "function") {
+    if (failed) toast(`Couldn't ${locked ? "pin" : "un-pin"} this week's shifts — check the console`, "warn");
+    else if (!changed) toast(locked ? "Every assigned shift this week is already pinned" : "No pinned shifts to un-pin this week", "ok");
+    else toast(`${locked ? "Pinned" : "Un-pinned"} ${changed} shift${changed === 1 ? "" : "s"} this week`, "success");
+  }
+  if (typeof _decorateScheduleChipsWithPins === "function") { try { await _decorateScheduleChipsWithPins(); } catch (_) {} }
+}
+
 function _rrSchedPinnedOnlySync() {
   let on = false;
   try { on = localStorage.getItem("rr-sched-pinned-only") === "1"; } catch (_) {}
