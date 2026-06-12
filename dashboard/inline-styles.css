@@ -668,7 +668,7 @@ textarea,
 /* ─────────────────────────────────────────────────────────────
    APP SHELL
    ───────────────────────────────────────────────────────────── */
-.app{display:grid;grid-template-columns:212px 1fr;min-height:100vh}
+.app{display:grid;grid-template-columns:176px 1fr;min-height:100vh}
 .app:has(.sidebar.collapsed){grid-template-columns:64px 1fr}
 
 /* Dashboard-wide sharpness layer · matches the schedule sharpness
@@ -23084,8 +23084,8 @@ body.rr-cmdk-open{ overflow:hidden }
        canvas (Schedule/Onboarding/Fleet grounds + the topbar — keep in
        sync; NOT --canvas #FEFEFF, which read as a slightly-off lighter
        stripe — operator report 2026-06-12). Width tracks the .app grid
-       columns (212px rail / 64px collapsed). */
-    --rr-tb-rail-w:212px;
+       columns (176px rail / 64px collapsed). */
+    --rr-tb-rail-w:176px;
     background:linear-gradient(90deg,
       var(--sidebar-bg,#0F6CBD) 0 var(--rr-tb-rail-w),
       #F7F8FA var(--rr-tb-rail-w));
