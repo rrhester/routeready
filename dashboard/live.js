@@ -39882,8 +39882,13 @@ document.addEventListener("click", (e) => {
   const btn = e.target && e.target.closest && e.target.closest("#rr-sched-pinned-only-btn");
   if (!btn) return;
   // A long-press just opened the bulk menu — swallow the click that
-  // fires on release so the filter doesn't also toggle.
+  // fires on release so the filter doesn't also toggle. (The outside-
+  // click closer below also exempts the button, so the menu survives
+  // the release.)
   if (btn.dataset.rrPinHoldFired === "1") { delete btn.dataset.rrPinHoldFired; return; }
+  // A plain click while the menu is open dismisses it instead of
+  // toggling the filter underneath it.
+  if (document.getElementById("rr-pin-bulk-menu")) { _rrClosePinBulkMenu(); return; }
   window._rrToggleSchedPinnedOnly();
 });
 
@@ -39936,7 +39941,13 @@ function _rrShowPinBulkMenu(anchor) {
   });
 }
 document.addEventListener("click", (e) => {
-  if (document.getElementById("rr-pin-bulk-menu") && !e.target.closest?.("#rr-pin-bulk-menu")) {
+  // The pin button itself is exempt: the release-click after a
+  // long-press lands on it in the same event cycle the menu opened in,
+  // and closing here would dismiss the menu before it's usable. The
+  // button's own click handler decides what to do instead.
+  if (document.getElementById("rr-pin-bulk-menu")
+      && !e.target.closest?.("#rr-pin-bulk-menu")
+      && !e.target.closest?.("#rr-sched-pinned-only-btn")) {
     _rrClosePinBulkMenu();
   }
 });
