@@ -557,6 +557,10 @@
                       <button type="button" class="sf2-preset" data-rr-sf-preset="conservative" title="Tighter buffers on top of the hard rules: WOC cap 5 consecutive days (vs 6), 7-day license-expiry warning, no 5th-day overtime, no enhancement passes. Hard rules are always enforced regardless of preset.">Conservative</button>
                       <button type="button" class="sf2-preset" data-rr-sf-preset="balanced" title="The historical defaults — what Smart Fill ships with out of the box.">Balanced</button>
                       <button type="button" class="sf2-preset sf2-preset-secondary" data-rr-sf-preset="reset" title="Clear every saved rule. Equivalent to a fresh install.">Reset all</button>
+                      <!-- Settings · expands the full rule details. The
+                           popover opens compact (presets-only) — see the
+                           rr-sf-compact wiring in the action-bar script. -->
+                      <button type="button" class="sf2-preset sf2-preset-secondary" id="rr-sf-settings-btn" title="Show every Smart Fill rule detail" aria-expanded="false">Settings</button>
                     </div>
                     <div class="sf2-presets-foot">
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -1666,6 +1670,28 @@
                 if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
                 fire("rr-sched-smartfill-rules-toggle");
               });
+              // Smart Fill rules · compact-first (operator 2026-06-12).
+              // The popover opens showing ONLY the preset row (4 presets
+              // + Reset all + Settings); the Settings button toggles the
+              // full rule details. Every fresh open resets to compact.
+              (function () {
+                var pop = document.getElementById("rr-sched-smartfill-rules-popover");
+                var btn = document.getElementById("rr-sf-settings-btn");
+                if (!pop || !btn || pop.dataset.rrCompactWired) return;
+                pop.dataset.rrCompactWired = "1";
+                pop.classList.add("rr-sf-compact");
+                btn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  var compact = pop.classList.toggle("rr-sf-compact");
+                  btn.setAttribute("aria-expanded", compact ? "false" : "true");
+                });
+                new MutationObserver(function () {
+                  if (!pop.hidden) {
+                    pop.classList.add("rr-sf-compact");
+                    btn.setAttribute("aria-expanded", "false");
+                  }
+                }).observe(pop, { attributes: true, attributeFilter: ["hidden"] });
+              })();
               on("rr-ab-finalize",  function () { fire("rr-sched-finalize-h"); });
               on("rr-ab-assign", function (e) {
                 if (e.target.closest("#rr-ab-assign-caret")) return; // caret owns its click
