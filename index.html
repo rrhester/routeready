@@ -9,14 +9,14 @@
 <link rel="apple-touch-icon" href="/app/Icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<meta name="theme-color" content="#0F6CBD">
+<meta name="theme-color" content="#2563EB">
 <style>
   @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(app/fonts/inter-var-latin.woff2) format('woff2')}
   /* ─────────────────────────────────────────────────────────────
    RouteReady marketing site · Microsoft Fluent 2 / M365 surface
    ────────────────────────────────────────────────────────────
    Same brand language as the dashboard + driver app:
-   - communicationBlue chrome (#0F6CBD), communicationGreen,
+   - communicationBlue chrome (#2563EB), communicationGreen,
      indigo for warnings, communicationRed semantics
    - Segoe UI Variable type stack (Inter as web fallback)
    - Fluent functional radii + Fluent depth-4 / depth-8 shadow
@@ -37,7 +37,7 @@ body{
      uses (loaded above), then platform UI fonts after that. */
   font-family:"Inter","Segoe UI Variable Text","Segoe UI Variable","Segoe UI",
     system-ui,-apple-system,sans-serif;
-  background:#FAFAFA;color:#242424;line-height:1.6;overflow-x:hidden;
+  background:#FAFAFA;color:#111827;line-height:1.6;overflow-x:hidden;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
   font-feature-settings:"ss01","cv11";
 }
@@ -49,33 +49,33 @@ img{max-width:100%;display:block}
   /* Surfaces — Fluent 2 neutrals (matches the driver app :root) */
   --canvas:#FAFAFA;
   --surface:#FFFFFF;
-  --surface-soft:#F5F5F5;
+  --surface-soft:#F3F4F6;
   --border:rgba(15,23,42,.07);
   --border-strong:rgba(15,23,42,.12);
-  --text:#242424;
+  --text:#111827;
   --text-muted:#424242;
-  --text-subtle:#616161;
+  --text-subtle:#6B7280;
 
   /* Brand — Microsoft Fluent communicationBlue ramp */
-  --blue:#0F6CBD;
-  --blue-hover:#115EA3;      /* communicationBlueShade10 */
-  --blue-strong:#0F548C;     /* communicationBlueShade20 */
-  --blue-pressed:#0C3B5E;    /* communicationBlueShade30 */
+  --blue:#2563EB;
+  --blue-hover:#1D4ED8;      /* communicationBlueShade10 */
+  --blue-strong:#1E40AF;     /* communicationBlueShade20 */
+  --blue-pressed:#1E3A8A;    /* communicationBlueShade30 */
   --blue-tint:#479EF5;       /* communicationBlueTint20 */
   --blue-tint-soft:#CFE4FA;  /* communicationBlueTint40 */
-  --blue-soft:rgba(15,108,189,.08);
-  --blue-border:rgba(15,108,189,.24);
+  --blue-soft:rgba(37,99,235,.08);
+  --blue-border:rgba(37,99,235,.24);
 
   /* Semantic — same Fluent palette as the product */
-  --green:#107C41;           /* communicationGreen */
-  --green-dark:#0E6837;
-  --green-soft:rgba(16,124,65,.10);
+  --green:#16A34A;           /* communicationGreen */
+  --green-dark:#15803D;
+  --green-soft:rgba(22,163,74,.10);
   --indigo:#6366F1;          /* used for warnings + secondary accents */
   --indigo-dark:#4338CA;
   --indigo-soft:rgba(99,102,241,.10);
-  --red:#C50F1F;             /* communicationRed */
-  --red-dark:#A4262C;
-  --red-soft:rgba(197,15,31,.10);
+  --red:#DC2626;             /* communicationRed */
+  --red-dark:#B91C1C;
+  --red-soft:rgba(220,38,38,.10);
 
   /* Fluent functional radii (tightened from the iOS-ish defaults) */
   --r-sm:4px;
@@ -155,7 +155,7 @@ nav{
     radial-gradient(120% 60% at 50% -20%, rgba(255,255,255,.18) 0%, rgba(255,255,255,0) 60%),
     /* Brand surface — same ramp as the driver app's home hero
        and the dashboard sidebar */
-    linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
+    linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
   color:#fff;
   isolation:isolate;
 }
@@ -192,7 +192,7 @@ nav{
   font-size:12px;font-weight:600;color:#fff;letter-spacing:.04em;
   margin-bottom:1.75rem;
 }
-.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:#13A10E;box-shadow:0 0 0 2px rgba(19,161,14,.22);animation:pulse 2.4s ease-in-out infinite}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:#22C55E;box-shadow:0 0 0 2px rgba(19,161,14,.22);animation:pulse 2.4s ease-in-out infinite}
 .hero-h{
   position:relative;z-index:1;
   font-family:'Inter Tight',sans-serif;font-weight:600;
@@ -208,7 +208,7 @@ nav{
 /* Primary CTA on the dark brand surface — flip to a white
    filled button (Microsoft's standard inverse primary). */
 .hero .btn-primary{background:#FFFFFF;color:var(--blue-strong);border-color:#FFFFFF}
-.hero .btn-primary:hover{background:#F5F5F5;border-color:#F5F5F5}
+.hero .btn-primary:hover{background:#F3F4F6;border-color:#F3F4F6}
 .hero .btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.30)}
 .hero .btn-ghost:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.50)}
 .hero-trust{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;font-size:13px;color:rgba(255,255,255,.78);font-weight:500}
@@ -229,7 +229,7 @@ nav{
    product dashboard.  This is the moment the marketing visual
    and the product visual become indistinguishable. */
 .hp-side{
-  background:linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
+  background:linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
   color:#fff;
   padding:18px 14px;
   display:flex;flex-direction:column;gap:14px;
@@ -317,11 +317,11 @@ section.first-after-hero{padding-top:180px}
 }
 .feat[data-c="teal"] .feat-icon,
 .feat[data-c="emerald"] .feat-icon{
-  background:var(--green-soft);color:var(--green-dark);border-color:rgba(16,124,65,.24);
+  background:var(--green-soft);color:var(--green-dark);border-color:rgba(22,163,74,.24);
 }
 .feat[data-c="pink"] .feat-icon,
 .feat[data-c="amber"] .feat-icon{
-  background:var(--red-soft);color:var(--red-dark);border-color:rgba(197,15,31,.20);
+  background:var(--red-soft);color:var(--red-dark);border-color:rgba(220,38,38,.20);
 }
 
 /* Pull-quote inside an AI feature — Fluent soft callout */
@@ -343,7 +343,7 @@ section.first-after-hero{padding-top:180px}
    product's brand color top-and-bottom. */
 .cta-strip{
   padding:0;
-  background:linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
+  background:linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
   position:relative;overflow:hidden;color:#fff;
   isolation:isolate;
 }
@@ -360,14 +360,14 @@ section.first-after-hero{padding-top:180px}
 .cta-h .grad{color:#CFE4FA}
 .cta-sub{font-size:17px;color:rgba(255,255,255,.86);margin-bottom:2rem;line-height:1.6}
 .btn-on-dark{background:#fff;color:var(--blue-strong);border-color:#fff}
-.btn-on-dark:hover{background:#F5F5F5;border-color:#F5F5F5}
+.btn-on-dark:hover{background:#F3F4F6;border-color:#F3F4F6}
 .btn-on-dark-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.30)}
 .btn-on-dark-ghost:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.50)}
 
 /* ── FOOTER — Fluent dark surface ──────────────────────────
    Microsoft's neutralBackground-Dark instead of indigo navy.
    Brand mark stays Fluent communicationBlue. */
-footer{background:#1F1F1F;color:rgba(255,255,255,.65);padding:60px 0 40px;font-size:14px}
+footer{background:#111827;color:rgba(255,255,255,.65);padding:60px 0 40px;font-size:14px}
 .footer-in{max-width:var(--max);margin:0 auto;padding:0 1.5rem;display:grid;grid-template-columns:1fr;gap:2rem}
 @media(min-width:768px){.footer-in{padding:0 2.5rem;grid-template-columns:1.4fr 1fr 1fr 1fr}}
 .footer-brand{display:flex;flex-direction:column;gap:14px;max-width:280px}

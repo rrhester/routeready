@@ -7,9 +7,9 @@
     </linearGradient>
     <!-- Brand-blue pin gradient (cyan top → deeper blue bottom) -->
     <linearGradient id="rr-icon-pin" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#3FA0E5"/>
+      <stop offset="0%" stop-color="#60A5FA"/>
       <stop offset="55%" stop-color="#2563EB"/>
-      <stop offset="100%" stop-color="#0B5BA1"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
     </linearGradient>
     <!-- Soft inner highlight for the 3D-ish depth on the pin -->
     <radialGradient id="rr-icon-glow" cx="35%" cy="25%" r="60%">
