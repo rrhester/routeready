@@ -3038,7 +3038,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff {
   border-color: color-mix(in srgb, var(--rr-route-c-pto) 65%, transparent) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 
 /* Full-card color fill (operator 2026-06-12): with the chip painted
@@ -3049,7 +3049,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-r
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-route-class="rescue"],[data-rr-route-class="nursery"],[data-rr-service-code="XL"],[data-rr-route-class="other"],[data-rr-route-class="reduction"],[data-rr-route-class="cycle_1"],[data-rr-route-class="cycle_2"],[data-rr-route-class="backup"],[data-rr-shift-kind="training"],[data-rr-shift-kind="ride_along"],.shift-chip-training):not(.swap):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 
 /* ============================================================
@@ -5053,141 +5053,141 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
    ============================================================ */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-rescue) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-rescue) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-rescue) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-rescue) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-rescue) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-nursery) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-nursery) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-nursery) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-nursery) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-nursery) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-other) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-other) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-other) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-other) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-other) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-reduction) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-reduction) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-reduction) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-reduction) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-reduction) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-cycle_1) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-cycle_1) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-cycle_1) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-cycle_1) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-cycle_1) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-cycle_2) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-cycle_2) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-cycle_2) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-cycle_2) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-cycle_2) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-backup) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-backup) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-backup) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-backup) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-backup) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-xl) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-xl) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-xl) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-xl) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-xl) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-class_training) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-class_training) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-class_training) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-class_training) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-class_training) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="ride_along"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-road_training) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-road_training) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-road_training) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="ride_along"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="ride_along"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-shift-kind="ride_along"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-road_training) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-road_training) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id].shift-chip-training[data-rr-shift-kind="regular"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-trainer_trainee) 70%, #000000) !important;
-  color: #FFFFFF !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-trainer_trainee) 60%, #94A3B8) !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id].shift-chip-training[data-rr-shift-kind="regular"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id].shift-chip-training[data-rr-shift-kind="regular"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id].shift-chip-training[data-rr-shift-kind="regular"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 100%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 88%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff {
   background: color-mix(in srgb, var(--rr-route-c-pto) 92%, #FFFFFF) !important;
-  border-color: color-mix(in srgb, var(--rr-route-c-pto) 70%, #000000) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-pto) 60%, #94A3B8) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
-  color: #FFFFFF !important;
+  color: #111827 !important;
 }
