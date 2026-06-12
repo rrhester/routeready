@@ -23262,20 +23262,35 @@ body.rr-cmdk-open{ overflow:hidden }
   align-items:stretch !important;
   gap:8px !important;
 }
+/* Plain text rows (operator 2026-06-12): no per-option border, left-
+   justified, regular weight — hover tint alone marks the row. */
 #rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset{
-  display:inline-flex !important;
+  display:flex !important;
   align-items:center !important;
-  justify-content:center !important;
-  height:36px !important;
-  padding:0 13px !important;
-  border:1.5px solid var(--sidebar-bg,#0F172A) !important;
-  border-radius:8px !important;
-  background:#FFFFFF !important;
+  justify-content:flex-start !important;
+  text-align:left !important;
+  height:34px !important;
+  padding:0 10px !important;
+  border:0 !important;
+  border-radius:7px !important;
+  background:transparent !important;
   color:var(--sidebar-bg,#0F172A) !important;
   font-size:12.5px !important;
-  font-weight:600 !important;
+  font-weight:400 !important;
   line-height:1 !important;
   cursor:pointer;
 }
 #rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset:hover{background:rgba(15,23,42,.05) !important}
-#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset.active{background:rgba(15,23,42,.08) !important}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-preset.active{background:rgba(15,23,42,.07) !important}
+#rr-sched-smartfill-rules-popover.rr-sf-compact .sf2-presets-row{gap:2px !important}
+/* Quiet header band — no fill, plain ink (operator 2026-06-12). The
+   double-id selector outranks the rrx brand-soft band. */
+#view-schedule.rrx-schedule #rr-sched-smartfill-rules-popover .sched-smartfill-rules-head,
+#rr-sched-smartfill-rules-popover .sched-smartfill-rules-head{
+  background:#FFFFFF !important;
+  color:var(--text,#0F172A) !important;
+  border-bottom:1px solid #EEF0F4 !important;
+}
+#view-schedule.rrx-schedule #rr-sched-smartfill-rules-popover .sched-smartfill-rules-head svg{
+  color:var(--text-muted,#64748B) !important;
+}
