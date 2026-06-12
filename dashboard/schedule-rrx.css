@@ -2397,8 +2397,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    The Smart Fill tile becomes "Forecast" on the Monthly view (the
    _rrSetSmartFillTileMode toggle adds .rr-sf-forecast-mode). Same
    glow/inset "special tile" vibe as Smart Fill, but painted in the
-   actual sidebar blue (--sidebar-bg) with white label +
-   icon so it visibly matches the rail. Higher specificity (base
+   communication blue (--rr-comm-blue, the driver-app brand blue)
+   with white label + icon. Higher specificity (base
    selector + the class) so it wins over the purple rest-state above. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode {
   /* Neutral tile + steel glyph (accent budget; siblings with Smart
@@ -2414,12 +2414,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: rgba(15, 23, 42, 0.06);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg {
-  color: var(--sidebar-bg, #0F6CBD);
+  color: var(--rr-comm-blue, #0F6CBD);
 }
 /* Draw the bolt as a solid glyph (the SVG ships fill="none" stroke-only,
    which renders a hollow outline). */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg polygon {
-  fill: var(--sidebar-bg, #0F6CBD);
+  fill: var(--rr-comm-blue, #0F6CBD);
 }
 
 /* ── Forecast · progress popover ───────────────────────────────────
@@ -2437,7 +2437,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   max-width: 220px;
   padding: 6px 11px;
   border-radius: 8px;
-  background: var(--sidebar-bg, #0F6CBD);
+  background: var(--rr-comm-blue, #0F6CBD);
   color: #FFFFFF;
   font-size: 12px;
   font-weight: 600;
@@ -2455,7 +2455,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   transform: translateX(-50%) rotate(45deg);
   width: 9px;
   height: 9px;
-  background: var(--sidebar-bg, #0F6CBD);
+  background: var(--rr-comm-blue, #0F6CBD);
   border-radius: 2px;
 }
 .rr-fc-progress-dot {
@@ -2616,7 +2616,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   bottom: 3px;
   height: 2px;
   border-radius: 2px;
-  background: var(--sidebar-bg, #0F6CBD);
+  background: var(--rr-comm-blue, #0F6CBD);
 }
 
 /* ============================================================
@@ -4771,10 +4771,10 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   gap: 8px;
   height: 40px;
   padding: 0 15px;
-  border: 1.5px solid var(--sidebar-bg, #0F6CBD);
+  border: 1.5px solid var(--rr-comm-blue, #0F6CBD);
   border-radius: 9px;
   background: #FFFFFF;
-  color: var(--sidebar-bg, #0F6CBD);
+  color: var(--rr-comm-blue, #0F6CBD);
   font: inherit;
   font-size: 13.5px;
   font-weight: 600;
@@ -4798,7 +4798,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   height: 20px;
   padding: 0 5px;
   border-radius: 6px;
-  background: var(--sidebar-bg, #0F6CBD);
+  background: var(--rr-comm-blue, #0F6CBD);
   color: #FFFFFF;
   font-size: 11.5px;
   font-weight: 700;
@@ -4830,8 +4830,8 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule .rr-ab-coverage-sub.is-ok { color: var(--green, #15803D); }
 /* Primary — solid brand blue, lock glyph. */
 #view-schedule .rr-ab-primary {
-  background: var(--sidebar-bg, #0F6CBD);
-  border-color: var(--sidebar-bg, #0F6CBD);
+  background: var(--rr-comm-blue, #0F6CBD);
+  border-color: var(--rr-comm-blue, #0F6CBD);
   color: #FFFFFF;
 }
 #view-schedule .rr-ab-primary:hover { background: #0B5394; border-color: #0B5394; }

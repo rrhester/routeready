@@ -186,8 +186,8 @@
         if (saved !== "0") {
           document.documentElement.classList.add("rr-sidebar-collapsed-boot");
         }
-        // Sidebar uses the driver-app communication-blue rail (white
-        // text/icons) — the dark base theme, not the light canvas rail.
+        // Sidebar is the light canvas rail (same ground as the page
+        // chrome) — the old blue/dark rail and its toggle are retired.
       } catch (_) {}
     })();
   </script>
@@ -436,9 +436,10 @@
          compact rail). State persists in localStorage so the
          operator's preference sticks across reloads. -->
     <div class="sidebar-foot">
-      <button type="button" class="sidebar-theme-btn" id="rr-sidebar-theme" aria-label="Toggle sidebar theme" title="Switch sidebar theme">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none"/></svg>
-      </button>
+      <!-- The light/dark sidebar theme toggle is retired — the light
+           canvas rail is the one design now. The .sidebar-theme-btn
+           class itself stays in CSS: desktop-connect.js reuses it for
+           the "Connect desktop app" footer button. -->
       <button type="button" class="sidebar-collapse-btn" id="rr-sidebar-collapse" aria-label="Collapse sidebar" aria-pressed="false" title="Collapse sidebar">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline class="rr-collapse-chev" points="15 18 9 12 15 6"/></svg>
       </button>

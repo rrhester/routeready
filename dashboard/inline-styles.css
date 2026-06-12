@@ -51,24 +51,27 @@
   --surface-grad:none;
   --surface-hover:rgba(15,23,42,.035);
   --surface-pressed:rgba(15,23,42,.06);
-  /* Sidebar — calm graphite/navy operational surface.  Tuned to
-     support the white workspace rather than dominate it.  Active
-     state is a soft translucent layer, not a saturated glow. */
-  --sidebar:#0F6CBD;
-  --sidebar-grad:linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
-  --sidebar-hover:rgba(255,255,255,.10);
-  --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,.04) 100%);
-  --sidebar-divider:rgba(255,255,255,0.06);
-  /* Sidebar rail · brand blue (matches --sidebar / the driver app).
-     Was #205285 (schedule-card family ~50% darker) — operator report
-     2026-06-12: the navy shell read as a cave once the title bar
-     blended into it, so the rail lifted back to the brand blue. */
-  --sidebar-bg:#0F6CBD;
-  --sidebar-icon-idle:rgba(255,255,255,0.72);
-  --sidebar-icon-hover:rgba(255,255,255,0.95);
-  --sidebar-icon-active:#ffffff;
-  --sidebar-active-pill:rgba(255,255,255,0.08);
-  --sidebar-active-border:rgba(255,255,255,0.12);
+  /* Sidebar — light canvas rail.  The rail paints the same chrome
+     tone as the topbar + schedule ground (#F7F8FA) so the nav reads
+     as part of the page rather than a separate shell.  Blue is
+     reserved for the active row, using the same accent-soft pill
+     language the schedule chips and primary actions use. */
+  --sidebar:#F7F8FA;
+  --sidebar-grad:none;
+  --sidebar-hover:rgba(15,23,42,.05);
+  --sidebar-active:var(--accent-soft);
+  --sidebar-divider:transparent;
+  --sidebar-bg:#F7F8FA;
+  --sidebar-icon-idle:var(--text-subtle);
+  --sidebar-icon-hover:var(--text);
+  --sidebar-icon-active:var(--accent);
+  --sidebar-active-pill:var(--accent-soft);
+  --sidebar-active-border:var(--accent-border);
+  /* Fluent communication blue — the driver-app brand blue.  Formerly
+     doubled as the sidebar fill; now a standalone token for the
+     content-area elements that key off it (Finalize button, action
+     badges, command-tab underlines in schedule-rrx.css / fleet2). */
+  --rr-comm-blue:#0F6CBD;
   --glass:rgba(255,255,255,.80);
   --glass-strong:rgba(255,255,255,.90);
 
@@ -817,55 +820,24 @@ textarea,
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
-  /* Slate navy sidebar · flat #0F172A with a blue selected state.
-     Operator-specified palette (Tailwind slate / blue family). */
-  --sidebar:#0F172A;
-  --sidebar-grad:none;
-  --sidebar-hover:rgba(255,255,255,0.04);
-  --sidebar-active:#2563EB;
-  /* divider inherits the :root --sidebar-divider hairline (rgba white .06) */
-
+  /* Light canvas rail — the same ground tone as the topbar and the
+     schedule page, with no dividing border, so the rail and the
+     content read as one continuous surface (cards float on it). */
   background-color:var(--sidebar-bg);
-  background-image:var(--sidebar-grad);
-  color:var(--text-inverse);
+  color:var(--text);
   display:flex;flex-direction:column;
   padding:var(--s-5) var(--s-3);
   position:sticky;top:0;height:100vh;
-  border-right:1px solid var(--sidebar-divider);
 }
-/* Force every nav-item's icon tile to render white on the blue
-   sidebar — override the per-category --ni-fg / --ni-bg palette so
-   no item shows its old purple/teal/pink/etc. tint. */
-.sidebar .nav-item[data-c]{
-  --ni-fg:#fff;
-  --ni-bg:rgba(255,255,255,.12);
-  --ni-bg-strong:rgba(255,255,255,.22);
-}
-/* Resting nav icons read as slate-300 (#CBD5E1) — a step quieter than
-   the #E2E8F0 label. The active row swaps to the white .nav-icon-color
-   span, so selected icons stay bright on the blue active background.
-   Scoped to the default (dark) sidebar so the light-theme toggle keeps
-   its own category icon colors. */
-html:not(.rr-sidebar-light) .sidebar .nav-item .nav-icon{color:var(--sidebar-icon-idle)}
-/* Hover brightens the idle icon to solid white; the active/current icon
-   stays white. Scoped to the dark rail so the light-theme toggle keeps
-   its own icon palette. */
-html:not(.rr-sidebar-light) .sidebar .nav-item:hover .nav-icon{color:var(--sidebar-icon-hover)}
-html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon,
-html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon-color{
+/* Icons are monoline glyphs driven by currentColor — slate at rest,
+   ink on hover, accent blue on the active row. */
+.sidebar .nav-item .nav-icon{color:var(--sidebar-icon-idle)}
+.sidebar .nav-item:hover .nav-icon{color:var(--sidebar-icon-hover)}
+.sidebar .nav-item.active .nav-icon,
+.sidebar .nav-item.active .nav-icon-color{
   color:var(--sidebar-icon-active);
   background:transparent;
 }
-/* Active = location state. A restrained elevated tile — faint white
-   fill + a hairline white edge, with a white icon. No selection bar, no
-   glow / gradient / colour accent: the navy ground and white content do
-   the work. The light-theme toggle keeps its own active row below. */
-.sidebar .nav-item.active{
-  background:var(--sidebar-active-pill);
-  border-color:var(--sidebar-active-border);
-  box-shadow:none;
-}
-.sidebar .nav-item.active .nav-badge{color:var(--accent);background:#fff}
 .brand{
   position:relative;
   display:flex;align-items:center;gap:var(--s-2-5);
@@ -875,11 +847,11 @@ html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon-color{
   width:30px;height:30px;border-radius:var(--r-md);
   display:flex;align-items:center;justify-content:center;
   overflow:hidden;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
+  box-shadow:inset 0 0 0 1px rgba(15,23,42,.08);
 }
 .brand-mark img{width:100%;height:100%;object-fit:cover;display:block}
-.brand-name{font-weight:600;font-size:var(--fs-base);letter-spacing:-.005em;color:var(--text-inverse)}
-.brand-name em{font-style:normal;font-weight:400;color:var(--text-inverse-muted)}
+.brand-name{font-weight:600;font-size:var(--fs-base);letter-spacing:-.005em;color:var(--text)}
+.brand-name em{font-style:normal;font-weight:400;color:var(--text-subtle)}
 
 .nav{display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;overflow-y:auto}
 .nav-item{
@@ -889,53 +861,34 @@ html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon-color{
      padding for breathing room. The 1px transparent border reserves
      space so the active tile's edge never shifts the layout. */
   padding:10px var(--s-3);border-radius:var(--r-md);
-  color:#E2E8F0;
-  font-size:var(--fs-sm);font-weight:500;letter-spacing:0;
+  color:var(--text-muted);
+  font-size:var(--fs-md);font-weight:500;letter-spacing:0;
   cursor:pointer;
   transition:background var(--t-smooth), color var(--t-smooth), border-color var(--t-smooth), box-shadow var(--t-smooth);
   border:1px solid transparent;background:transparent;text-align:left;width:100%;
 }
 .nav-item:hover{
   background:var(--sidebar-hover);
-  color:var(--text-inverse);
+  color:var(--text);
 }
-.nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text-inverse);box-shadow:inset 0 0 0 1px rgba(96,165,250,.35)}
-/* Active state — calm dimensional treatment with a bright accent
-   rail on the left.  Background stays close to the sidebar so the
-   row doesn't compete with the icon, and the rail + tinted icon
-   tile together carry the "which page" signal.  No trailing dot —
-   the rail is enough, and a dot would fight any nav-badge that
-   shares the right edge. */
+.nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text);box-shadow:inset 0 0 0 1px rgba(37,99,235,.35)}
+/* Active = location state.  The same soft blue pill language the
+   schedule chips and accent buttons use — accent-tinted fill with
+   accent text + icon.  No edge rail, no gradient, no border: the
+   selection and the content grid share one component voice. */
 .nav-item.active{
-  /* Tint the active row in the item's category colour so the rail,
-     background, and ring all match the icon.  --ni-fg / --ni-bg-strong
-     come from the [data-c="..."] block lower in this file; if missing,
-     we fall back to the blue accent. */
-  background:linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 12%, transparent) 0%,
-    color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 3%,  transparent) 100%
-  );
-  color:var(--text-inverse);font-weight:600;
-  box-shadow:
-    inset 3px 0 0 var(--ni-fg, var(--blue-bright)),
-    inset 0 0 0 1px color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 18%, transparent);
+  background:var(--sidebar-active-pill);
+  color:var(--accent-text);font-weight:600;
 }
 .nav-item.active .nav-badge{
-  color:var(--ni-fg, var(--blue-bright));background:#fff;
-}
-.nav-item.active svg{stroke-width:2}
-.nav-item.active .nav-icon{
-  background:var(--ni-bg-strong, rgba(255,255,255,.20));
-  color:var(--ni-fg, #fff);
+  color:var(--accent);background:#fff;
 }
 /* Icon strokes — calm operational weight; no glow / drop-shadow.
-   Sized for the Outlook icon-forward rail: 26 px monoline glyphs
-   sit in a transparent container so the icon reads as the primary
-   signal, with a quieter label next to it (instead of a tinted
-   tile competing with the glyph). */
+   20px monoline glyphs match the content area's icon scale (header
+   buttons, command tabs) so the rail sits in the same density as
+   the page instead of reading icon-forward and heavy. */
 .nav-item svg{
-  width:30px;height:30px;flex-shrink:0;stroke-width:1.8;
+  width:20px;height:20px;flex-shrink:0;stroke-width:2;
   transition:color var(--t-smooth);
 }
 /* Sidebar nav icons are single monochrome line glyphs driven by
@@ -958,63 +911,22 @@ html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon-color{
   display:inline-flex;align-items:center;justify-content:center;
   width:24px;height:24px;padding:0;border-radius:6px;
   background:transparent;border:0;cursor:pointer;
-  color:rgba(255,255,255,.42);
+  color:var(--text-subtle);
   transition:background var(--t-fast),color var(--t-fast);
 }
 .sidebar-collapse-btn:hover,.sidebar-collapse-btn:focus-visible,
 .sidebar-theme-btn:hover,.sidebar-theme-btn:focus-visible{
-  background:rgba(255,255,255,.08);
-  color:rgba(255,255,255,.82);
+  background:rgba(15,23,42,.05);
+  color:var(--text);
   outline:none;
 }
 .sidebar-collapse-btn svg{display:block;transition:transform var(--t-smooth)}
 .sidebar-theme-btn svg{display:block}
 .sidebar.collapsed .sidebar-collapse-btn svg{transform:rotate(180deg)}
 
-/* ── Light sidebar theme (toggleable) ───────────────────────────
-   A calm Microsoft light nav rail — white surface, dark text,
-   category-colored icons. Toggled via the footer theme button;
-   the choice persists in localStorage (rr-sidebar-theme). */
-html.rr-sidebar-light .sidebar{
-  --sidebar-hover:rgba(15,23,42,.05);
-  --sidebar-active:rgba(0,120,212,.10);
-  --sidebar-divider:transparent;
-  /* Light-mode rail blends with the page ground (#F7F8FA) — same
-     neutral canvas as the schedule background + header card. */
-  background:#F7F8FA;background-image:none;
-  color:var(--text);
-  border-right:0;
-}
-html.rr-sidebar-light .sidebar .brand-name{color:var(--text)}
-html.rr-sidebar-light .sidebar .brand-name em{color:var(--text-subtle)}
-html.rr-sidebar-light .nav-item{color:var(--text-muted)}
-html.rr-sidebar-light .nav-item:hover{color:var(--text);background:var(--sidebar-hover)}
-html.rr-sidebar-light .nav-item:focus-visible{background:var(--sidebar-hover);color:var(--text);box-shadow:inset 0 0 0 1px rgba(0,120,212,.35)}
-html.rr-sidebar-light .sidebar .nav-item.active{
-  background:var(--sidebar-active);color:var(--text);
-  box-shadow:inset 3px 0 0 var(--accent);
-}
-html.rr-sidebar-light .nav-section-label{color:var(--text-subtle)}
-/* Category-colored icons — darkened to read on the light rail. */
-html.rr-sidebar-light .sidebar .nav-item[data-c]{--ni-fg:#64748B}
-html.rr-sidebar-light .nav-item[data-c="dashboard"]{--ni-fg:#2563EB}
-html.rr-sidebar-light .nav-item[data-c="pipeline"] {--ni-fg:#7C3AED}
-html.rr-sidebar-light .nav-item[data-c="drivers"]  {--ni-fg:#0D9488}
-/* Drivers nav icon · Microsoft Fluent teal in the light sidebar. */
-html.rr-sidebar-light .nav-item[data-c="drivers"] .nav-icon{color:#038387}
-html.rr-sidebar-light .nav-item[data-c="staffing"] {--ni-fg:#DB2777}
-html.rr-sidebar-light .nav-item[data-c="fleet"]    {--ni-fg:#D97706}
-html.rr-sidebar-light .nav-item[data-c="schedule"] {--ni-fg:#0284C7}
-html.rr-sidebar-light .nav-item[data-c="messages"] {--ni-fg:#4F46E5}
-html.rr-sidebar-light .nav-item[data-c="forms"]    {--ni-fg:#9333EA}
-html.rr-sidebar-light .nav-item[data-c="finances"] {--ni-fg:#059669}
-html.rr-sidebar-light .nav-item.active svg{color:var(--accent)}
-html.rr-sidebar-light .sidebar-collapse-btn,
-html.rr-sidebar-light .sidebar-theme-btn{color:var(--text-subtle)}
-html.rr-sidebar-light .sidebar-collapse-btn:hover,
-html.rr-sidebar-light .sidebar-theme-btn:hover{background:rgba(15,23,42,.05);color:var(--text)}
-/* The theme button's half-filled disc flips to mark the active mode. */
-html.rr-sidebar-light .sidebar-theme-btn svg{transform:scaleX(-1)}
+/* The toggleable light/dark sidebar theme is retired — the light
+   canvas rail above IS the design now (the old html.rr-sidebar-light
+   override block and the footer theme button are gone). */
 
 /* Collapsed rail · icon-only mode. Hide labels (the text node sits
    directly inside <button>, so we zero its font-size and reset on
@@ -1052,51 +964,21 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 }
 .sidebar.collapsed .nav-badge{display:none !important}
 
-/* Transparent icon container — no tile background by default.
-   Active rows still get a subtle tinted background on the
-   container so the operator can see which row is selected at a
-   glance, but inactive rows are pure icon-on-rail. */
-/* Every glyph is bottom-aligned inside a fixed-height box, so all
-   icons share one footer baseline and read as level with each
-   other regardless of how their viewBox content sits. */
+/* Transparent icon container — no tile background, no per-category
+   tint.  The page's whole personality is calm slate + one accent
+   blue, so the rail follows: slate glyph at rest, accent when
+   active (see the .sidebar .nav-item rules above).  Centered in a
+   compact box sized to the 20px glyphs. */
 .nav-icon{
-  display:inline-flex;align-items:flex-end;justify-content:center;
-  width:37px;height:37px;border-radius:var(--r-md);flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:var(--r-md);flex-shrink:0;
   background:transparent;
-  color:var(--ni-fg, var(--text-inverse));
   transition:background var(--t-smooth), color var(--t-smooth);
 }
-/* Active icon: lean on the category's `--ni-bg-strong` (defined per
-   data-c below) + keep the category foreground colour so the icon
-   reads as itself, not as a generic white tile. */
-.nav-item.active .nav-icon{
-  background:var(--ni-bg-strong, rgba(255,255,255,.20));
-  color:var(--ni-fg, #fff);
-}
-
-/* Calibrated category palette · 10-15% less saturated than the
-   previous neon-leaning set.  Container alphas trimmed so the
-   icon tile blends with the graphite/navy sidebar atmosphere. */
-/* Each category owns a hue family — FG and BG share the same hue so
-   the icon tile reads as one material, and no two adjacent items
-   share a color (Schedule → sky · Messages → indigo, distinct from
-   Dashboard → blue). */
-.nav-item[data-c="dashboard"]  {--ni-fg:#60A5FA;--ni-bg:rgba(59,130,246,.10);--ni-bg-strong:rgba(59,130,246,.18)}
-.nav-item[data-c="pipeline"]   {--ni-fg:#A78BFA;--ni-bg:rgba(139,92,246,.10);--ni-bg-strong:rgba(139,92,246,.18)}
-.nav-item[data-c="drivers"]    {--ni-fg:#2DD4BF;--ni-bg:rgba(20,184,166,.10);--ni-bg-strong:rgba(20,184,166,.18)}
-.nav-item[data-c="staffing"]   {--ni-fg:#F472B6;--ni-bg:rgba(236,72,153,.10);--ni-bg-strong:rgba(236,72,153,.18)}
-.nav-item[data-c="fleet"]      {--ni-fg:#FBBF24;--ni-bg:rgba(245,158,11,.10);--ni-bg-strong:rgba(245,158,11,.18)}
-.nav-item[data-c="compliance"] {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.10);--ni-bg-strong:rgba(148,163,184,.18)}
-.nav-item[data-c="schedule"]   {--ni-fg:#38BDF8;--ni-bg:rgba(14,165,233,.10);--ni-bg-strong:rgba(14,165,233,.18)}
-.nav-item[data-c="messages"]   {--ni-fg:#818CF8;--ni-bg:rgba(99,102,241,.10);--ni-bg-strong:rgba(99,102,241,.18)}
-.nav-item[data-c="forms"]      {--ni-fg:#C084FC;--ni-bg:rgba(168,85,247,.10);--ni-bg-strong:rgba(168,85,247,.18)}
-.nav-item[data-c="finances"]   {--ni-fg:#34D399;--ni-bg:rgba(16,185,129,.10);--ni-bg-strong:rgba(16,185,129,.18)}
-.nav-item[data-c="settings"]   {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.10);--ni-bg-strong:rgba(148,163,184,.18)}
-.nav-item[data-c="admin"]      {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.10);--ni-bg-strong:rgba(148,163,184,.18)}
 
 .nav-section-label{
   font-size:var(--fs-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--text-inverse-muted);
+  color:var(--text-subtle);
   padding:var(--s-4) var(--s-3) var(--s-2) var(--s-3);
 }
 
@@ -1110,8 +992,8 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   display:flex;align-items:center;justify-content:center;
   font-size:var(--fs-xs);font-weight:700;color:var(--text-inverse);
 }
-.workspace-chip-name{font-size:var(--fs-sm);font-weight:600;color:var(--text-inverse);line-height:1.2}
-.workspace-chip-sub{font-size:var(--fs-xs);color:var(--text-inverse-muted);line-height:1.2;margin-top:2px}
+.workspace-chip-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.2}
+.workspace-chip-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.2;margin-top:2px}
 
 /* Main column */
 .main{display:flex;flex-direction:column;min-width:0;background:transparent}
@@ -19538,7 +19420,7 @@ body.rr-cmdk-open{ overflow:hidden }
           bottom: 3px;
           height: 2px;
           border-radius: 2px;
-          background: var(--sidebar-bg, #0F6CBD);
+          background: var(--rr-comm-blue, #0F6CBD);
         }
 
         /* ── Command/header strip card ──────────────────────────────
@@ -23195,14 +23077,15 @@ body.rr-cmdk-open{ overflow:hidden }
     content:"";position:fixed;top:0;left:0;right:0;
     height:env(titlebar-area-height, 33px);z-index:55;
     -webkit-app-region:drag;app-region:drag;
-    /* Two-tone title-bar band (operator request 2026-06-12: a full-width
-       dark band made the top feel closed off). Rail blue only above the
-       sidebar — so the rail reads as running to the very top of the
-       window — and page canvas above the content. Width tracks the .app
-       grid columns (212px rail / 64px collapsed, see .app rules). */
+    /* Two-tone title-bar band: rail tone above the sidebar — so the
+       rail reads as running to the very top of the window — and page
+       canvas above the content. With the light canvas rail the two
+       tones are near-identical, which is the point: one continuous
+       chrome surface. Width tracks the .app grid columns (212px rail /
+       64px collapsed, see .app rules). */
     --rr-tb-rail-w:212px;
     background:linear-gradient(90deg,
-      var(--sidebar-bg,#0F6CBD) 0 var(--rr-tb-rail-w),
+      var(--sidebar-bg,#F7F8FA) 0 var(--rr-tb-rail-w),
       var(--canvas,#FEFEFF) var(--rr-tb-rail-w));
   }
   /* Collapsed rail (64px): both signals — the pre-init boot flag on
@@ -23221,20 +23104,20 @@ body.rr-cmdk-open{ overflow:hidden }
    Targets/Smart Fill/Finalize/Unassign/Fleet). The strip's two tile rows
    are hidden; the title + week navigator remain as a slim header.
    ════════════════════════════════════════════════════════════════════ */
-/* Children list — inline under the Schedule parent on the dark rail */
+/* Children list — inline under the Schedule parent on the light rail */
 .nav-sub{display:none;flex-direction:column;gap:1px;margin:1px 0 6px;padding:0}
 .nav-sub-item{
   display:flex;align-items:center;gap:9px;width:100%;
   height:30px;padding:0 12px 0 40px;border:0;background:none;cursor:pointer;
   border-radius:8px;font:inherit;font-size:13px;line-height:1;text-align:left;
-  color:var(--sidebar-icon-idle,rgba(255,255,255,.72));
+  color:var(--text-subtle,#566173);
   transition:background-color .12s ease,color .12s ease;
 }
-.nav-sub-item:hover{background:var(--sidebar-hover,rgba(255,255,255,.10));color:var(--text-inverse,#F8FAFC)}
-.nav-sub-item:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(96,165,250,.45)}
-.nav-sub-item.active{background:var(--sidebar-active-pill,rgba(255,255,255,.10));color:var(--text-inverse,#F8FAFC);font-weight:600}
+.nav-sub-item:hover{background:var(--sidebar-hover,rgba(15,23,42,.05));color:var(--text,#0F172A)}
+.nav-sub-item:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(37,99,235,.35)}
+.nav-sub-item.active{background:var(--sidebar-active-pill,rgba(37,99,235,.08));color:var(--accent-text,#1E40AF);font-weight:600}
 .nav-sub-item .pip{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5;flex:0 0 auto}
-.nav-sub-item.active .pip{opacity:1;background:#5B9DF9}
+.nav-sub-item.active .pip{opacity:1;background:var(--accent,#2563EB)}
 
 /* ── Accordion visibility · ONE state (.is-open), ONE rail signal ──────
    Keyed solely on .sidebar.collapsed (live.js owns it and clears the
@@ -23246,13 +23129,13 @@ body.rr-cmdk-open{ overflow:hidden }
 .sidebar.collapsed .nav-sub[data-for="schedule"].is-open{
   display:flex;position:fixed;left:64px;top:84px;width:198px;
   flex-direction:column;gap:1px;margin:0;padding:10px 8px 8px;
-  background:var(--sidebar-bg,#1B2540);
-  border:1px solid rgba(255,255,255,.08);border-left:0;border-radius:0 12px 12px 0;
-  box-shadow:10px 6px 28px rgba(2,6,23,.35);z-index:70;
+  background:var(--rr-surface,#FFFFFF);
+  border:1px solid var(--border-subtle,rgba(15,23,42,.14));border-left:0;border-radius:0 12px 12px 0;
+  box-shadow:10px 6px 28px rgba(2,6,23,.14);z-index:70;
 }
 .sidebar.collapsed .nav-sub[data-for="schedule"].is-open::before{
   content:"Schedule";display:block;padding:2px 12px 8px;
-  font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.55);
+  font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-subtle,#566173);
 }
 .sidebar.collapsed .nav-sub[data-for="schedule"] .nav-sub-item{padding-left:12px}
 /* Rail above page content so the collapsed flyout isn't trapped/clipped. */

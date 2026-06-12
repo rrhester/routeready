@@ -46,7 +46,7 @@ if (process.argv[3] === "wco") {
         content:"";position:fixed;top:0;left:0;right:0;height:33px;z-index:55;
         --rr-tb-rail-w:212px;
         background:linear-gradient(90deg,
-          var(--sidebar-bg,#0F6CBD) 0 var(--rr-tb-rail-w),
+          var(--sidebar-bg,#F7F8FA) 0 var(--rr-tb-rail-w),
           var(--canvas,#FEFEFF) var(--rr-tb-rail-w));
       }
       body:has(.sidebar.collapsed)::before,
