@@ -23622,18 +23622,29 @@ body.rr-cmdk-open{ overflow:hidden }
    a two-column grid — text takes the left column, the control column
    is a fixed 150px so the controls all line up. Selects fill the
    column; checkboxes sit at its left edge. */
-.rr-policy-drawer .rr-pol-row{
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-row{
   display:grid !important;
-  grid-template-columns:minmax(0,1fr) 150px;
-  align-items:center;
-  column-gap:10px;
+  grid-template-columns:minmax(0,1fr) 165px !important;
+  align-items:center !important;
+  column-gap:10px !important;
+  width:100% !important;
 }
-.rr-policy-drawer .rr-pol-control{
-  display:flex;
-  justify-content:flex-start;
-  align-items:center;
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-control{
+  display:flex !important;
+  justify-content:flex-start !important;
+  align-items:center !important;
+  margin:0 !important;
+  padding:0 !important;
 }
-.rr-policy-drawer .rr-pol-select{
-  width:100%;
-  max-width:none;
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-select{
+  width:100% !important;
+  max-width:none !important;
+  min-width:0 !important;
+}
+/* The rr-pol-rows wrappers must be full-width blocks so every row's
+   165px control column lands on the exact same vertical line. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-rows{
+  display:block !important;
+  width:100% !important;
+  padding:0 !important;
 }
