@@ -4748,3 +4748,128 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   border-right-color: rgba(15, 23, 42, 0.14) !important;
   border-bottom-color: rgba(15, 23, 42, 0.14) !important;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Header action bar — Schedule weekly (operator mockup 2026-06-12)
+   --------------------------------------------------------------------
+   Pill actions above the week grid: outlined brand-blue secondaries
+   (Smart Fill with an open-routes badge, Assign / Unassign Fleet), a
+   coverage stat card, a solid-blue Finalize Schedule primary, and a
+   quiet ⋯ overflow (Print / Download). Markup + wiring live in
+   view-schedule.frag; the numbers are painted by renderScheduleWeek.
+   ════════════════════════════════════════════════════════════════════ */
+#view-schedule .rr-ab {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+#view-schedule .rr-ab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 15px;
+  border: 1.5px solid var(--sidebar-bg, #0F6CBD);
+  border-radius: 9px;
+  background: #FFFFFF;
+  color: var(--sidebar-bg, #0F6CBD);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color .12s ease, box-shadow .12s ease;
+}
+#view-schedule .rr-ab-btn:hover { background: rgba(15, 108, 189, .06); }
+#view-schedule .rr-ab-btn:active { background: rgba(15, 108, 189, .12); }
+#view-schedule .rr-ab-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(15, 108, 189, .25);
+}
+#view-schedule .rr-ab-btn svg { width: 17px; height: 17px; flex: 0 0 auto; }
+#view-schedule .rr-ab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--sidebar-bg, #0F6CBD);
+  color: #FFFFFF;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+#view-schedule .rr-ab-badge[hidden] { display: none; }
+/* Coverage stat card — pushed right so it sits beside Finalize. */
+#view-schedule .rr-ab-coverage {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin-left: auto;
+  padding: 4px 14px;
+  border: 1px solid var(--border, rgba(15, 23, 42, .20));
+  border-radius: 9px;
+  background: #FFFFFF;
+  line-height: 1.3;
+}
+#view-schedule .rr-ab-coverage[hidden] { display: none; }
+#view-schedule .rr-ab-coverage-main {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text, #0F172A);
+}
+#view-schedule .rr-ab-coverage-sub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--red, #DC2626);
+}
+#view-schedule .rr-ab-coverage-sub.is-ok { color: var(--green, #15803D); }
+/* Primary — solid brand blue, lock glyph. */
+#view-schedule .rr-ab-primary {
+  background: var(--sidebar-bg, #0F6CBD);
+  border-color: var(--sidebar-bg, #0F6CBD);
+  color: #FFFFFF;
+}
+#view-schedule .rr-ab-primary:hover { background: #0B5394; border-color: #0B5394; }
+#view-schedule .rr-ab-primary:active { background: #0A4A85; }
+/* ⋯ overflow — quiet, borderless until hovered. */
+#view-schedule .rr-ab-more-wrap { position: relative; display: flex; }
+#view-schedule .rr-ab-more {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+  border-color: transparent;
+  color: var(--text-muted, #64748B);
+}
+#view-schedule .rr-ab-more:hover { border-color: var(--border, rgba(15, 23, 42, .20)); }
+#view-schedule .rr-ab-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 80;
+  min-width: 170px;
+  padding: 6px;
+  border: 1px solid var(--border, rgba(15, 23, 42, .20));
+  border-radius: 10px;
+  background: #FFFFFF;
+  box-shadow: 0 10px 28px rgba(2, 6, 23, .14);
+}
+#view-schedule .rr-ab-menu[hidden] { display: none; }
+#view-schedule .rr-ab-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--text, #0F172A);
+  cursor: pointer;
+}
+#view-schedule .rr-ab-menu button:hover { background: rgba(15, 23, 42, .05); }

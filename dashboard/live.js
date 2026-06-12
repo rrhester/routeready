@@ -45913,6 +45913,32 @@ async function renderScheduleWeek() {
     }
   }
 
+  // ── Header action bar (operator mockup 2026-06-12) · coverage card +
+  // Smart Fill open-routes badge, fed from the same fillByDate data as
+  // the day headers above. The bar's markup lives in view-schedule.frag;
+  // absent elements (older cached frag) make this a no-op.
+  try {
+    let abFilled = 0, abNeeded = 0;
+    for (const iso of days) {
+      const c = fillByDate.get(iso) || { needed: 0, filled: 0 };
+      abFilled += c.filled; abNeeded += c.needed;
+    }
+    const abOpen = window._rrOpenShiftsCount || 0;
+    const abBadge = document.getElementById("rr-ab-sf-badge");
+    if (abBadge) { abBadge.hidden = abOpen === 0; abBadge.textContent = String(abOpen); }
+    const abCard = document.getElementById("rr-ab-coverage");
+    if (abCard) {
+      abCard.hidden = abNeeded === 0;
+      const abMain = document.getElementById("rr-ab-coverage-main");
+      const abSub  = document.getElementById("rr-ab-coverage-sub");
+      if (abMain) abMain.textContent = `Coverage: ${abFilled} / ${abNeeded} Routes`;
+      if (abSub) {
+        abSub.textContent = abOpen > 0 ? `${abOpen} Open Route${abOpen === 1 ? "" : "s"}` : "All routes covered";
+        abSub.classList.toggle("is-ok", abOpen === 0);
+      }
+    }
+  } catch (e) { console.warn("action bar paint:", e); }
+
   // ── Week-range navigator label + Live/Draft pill (page header).
   // Operators asked for the ISO week number alongside the date range
   // so they can match against payroll exports / Amazon scorecard rows.
