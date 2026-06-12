@@ -3217,16 +3217,13 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    ============================================================ */
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  /* Corporate schedule card (#DBEAFE — spec surface) with a
-     service-type-colored LEFT accent bar. The bar color comes from
-     --chip-accent (set inline per shift in live.js: the service type's
-     color, or the route classification color). Borderless (operator
-     request 2026-06-12): the blue ring is gone — the fill alone defines
-     the card. The outline keeps its 1px width (transparent) so the
-     card's size and the grid layout don't shift. */
-  background: #DBEAFE !important;
+  /* Reference card (operator 2026-06-12): very light blue fill
+     (#EFF6FF), fully borderless — no ring, no colored left accent
+     bar — with a quiet text hierarchy (time leads, Wave/Van muted).
+     The outline keeps a uniform 1px width (transparent) so the card's
+     size and the grid layout don't shift. */
+  background: #EFF6FF !important;
   border: 1px solid transparent !important;
-  border-left: 3px solid var(--chip-accent, #2563EB) !important;
   box-shadow: none !important;
   color: #111827 !important;
 }
@@ -3239,33 +3236,30 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
   font-weight: 800 !important;
 }
 
-/* On hover, deepen the off-white a touch so the focused cell registers
-   (the colored left accent bar is preserved). */
+/* On hover, deepen the light blue a touch so the focused cell registers. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #BFDBFE !important;
+  background: #E4EFFE !important;
   border-color: transparent !important;
 }
 
 /* ============================================================
    Card style toggle (Week rules popover · body.rr-sched-cards-blue)
    ------------------------------------------------------------
-   WHITE (default): every assigned chip is off-white with only its
-   service-type-colored LEFT bar — even when Route color coding is on,
-   so the per-type FULL fills are suppressed in favor of the bar. The
+   WHITE (default): every assigned chip is the very light reference
+   blue (#EFF6FF), borderless, no side bar — even when Route color
+   coding is on, so the per-type FULL fills are suppressed. The
    [data-rr-shift-id] qualifier + source order (this block sits AFTER
    the body.rr-sched-color-routes fills) wins the specificity tie.
-   BLUE: solid blue fill, no side bar.
+   BLUE: solid blue fill.
    ============================================================ */
 body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #DBEAFE !important;
+  background: #EFF6FF !important;
   border: 1px solid transparent !important;
-  border-left: 3px solid var(--chip-accent, #2563EB) !important;
   color: #111827 !important;
 }
 body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #BFDBFE !important;
+  background: #E4EFFE !important;
   border-color: transparent !important;
-  border-left-color: var(--chip-accent, #2563EB) !important;
 }
 body.rr-sched-cards-blue #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: #BFDBFE !important;
@@ -3319,30 +3313,38 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    so this only paints at normal zoom.
    ============================================================ */
 /* Time range · the dominant text in the chip — the one thing a dispatcher
-   scans for. Bumped a step over the secondary metadata below it. */
+   scans for. Reference treatment: dark semibold over the light fill (the
+   explicit color outranks the chip-wide `* { color }` ink rule). */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
-  font-weight: 900;
-  font-size: 12.5px;
+  font-weight: 600;
+  font-size: 12px;
   line-height: 1.2;
-  letter-spacing: -.01em;
+  letter-spacing: -.005em;
+  color: #1F2937 !important;
   font-variant-numeric: tabular-nums;
+  /* Narrow cells truncate gracefully instead of hard-clipping into the
+     corner badge. */
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-/* Wave · supporting metadata — normal weight so only the schedule time
-   reads bold (operator request). */
+/* Wave · supporting metadata — quiet muted gray under the time. */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-secondary {
   margin-top: 2px;
-  font-size: 10px;
-  font-weight: 400;
+  font-size: 10.5px;
+  font-weight: 500;
   line-height: 1.3;
+  color: #64748B !important;
   font-variant-numeric: tabular-nums;
 }
-/* Van · supporting metadata — normal weight (operator request: only the
-   schedule time is bold). */
+/* Van · supporting metadata — same muted gray as the Wave line. */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-van {
   margin-top: 2px;
-  font-size: 10px;
-  font-weight: 400;
+  font-size: 10.5px;
+  font-weight: 500;
   line-height: 1.3;
+  color: #64748B !important;
   font-variant-numeric: tabular-nums;
 }
 /* Van-unavailable · the one meaningful exception keeps a contained red
@@ -3367,19 +3369,23 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   color: #1D4ED8 !important;
   margin-left: 3px;
 }
-/* Route eyebrow · crisp uppercase label above the time. */
+/* Route eyebrow · crisp uppercase label above the time — softened to sit
+   inside the quiet reference hierarchy. */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code {
   font-size: 9.5px;
-  font-weight: 900;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .05em;
-  opacity: .82;
+  color: #3B5675 !important;
+  opacity: .9;
   line-height: 1.3;
 }
 /* Open-shift + today-view mini chips reuse Rpt / Wave spans — keep them as
    quiet inline labels so every shift surface speaks one calm language. */
 #view-schedule.rrx-schedule .shift-chip .shift-chip-rpt { margin-right: 4px; font-weight: 700; }
 #view-schedule.rrx-schedule .shift-chip .shift-chip-wave { font-weight: 600; }
+/* Corner SP/XL badge clearance · keep the badge off the time line. */
+#view-schedule.rrx-schedule .shift-chip:has(> .shift-chip-badges) { padding-right: 26px; }
 
 /* ============================================================
    Open shifts box · more defined outline on each unfilled row
