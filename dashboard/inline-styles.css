@@ -24315,3 +24315,15 @@ body.rr-cmdk-open{ overflow:hidden }
   border:1px solid #D7DCE3 !important; border-radius:8px !important;
   padding:0 12px !important; font-size:13px !important; text-align:left !important;
 }
+/* Root cause of the narrow top rows: the editor body is a flex column that
+   sizes children to content, so a row holding only a small dropdown collapsed
+   (~152px) while nested sections with wide content stayed wide. Stretch every
+   child to full width so all rows — and their dropdowns — span the panel. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body{
+  align-items:stretch !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-rows,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row{
+  width:100% !important; align-self:stretch !important; box-sizing:border-box !important;
+}
