@@ -2503,12 +2503,177 @@
             <button type="button" class="rr-sf-page-done" onclick="window._rrCloseSmartFillPage && window._rrCloseSmartFillPage()">Done</button>
           </div>
           <div class="rr-sf-page-body" id="rr-smartfill-page-body">
-            <!-- Auto-generated plain-English summary of the current policy.
-                 Populated by _rrRenderSmartFillSummary() each time the page
-                 opens; the re-homed Rules + Colors cards are appended after. -->
+
+            <!-- 1 · Policy Summary — auto-generated plain-English readout of
+                 the active policy. Populated by _rrRenderSmartFillSummary()
+                 whenever the page opens or any control changes. -->
             <div class="rr-sf-card rr-sf-summary" id="rr-sf-summary-card" hidden></div>
+
+            <!-- 2 · Preset cards. Each control is a thin facade over the same
+                 policy blob the detailed editor writes (new rr-sfp-* ids, wired
+                 in live.js _rrPaintSmartFillCards + its change handler). -->
+            <div class="rr-sf-cards3">
+
+              <!-- Work Limits -->
+              <div class="rr-sf-card rr-sf-mini">
+                <div class="rr-sf-mini-head">
+                  <span class="rr-sf-mini-ic rr-sf-ic-limits" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="14" height="12.5" rx="2"/><line x1="3" y1="8" x2="17" y2="8"/><line x1="7" y1="2.5" x2="7" y2="6"/><line x1="13" y1="2.5" x2="13" y2="6"/></svg></span>
+                  <div class="rr-sf-mini-titles">
+                    <div class="rr-sf-mini-title">Work Limits</div>
+                    <div class="rr-sf-mini-sub">Set the boundaries for driver work schedules.</div>
+                  </div>
+                </div>
+                <div class="rr-sf-field">
+                  <label for="rr-sfp-maxdays">Max Days Per Week</label>
+                  <select id="rr-sfp-maxdays" class="rr-sf-input">
+                    <option value="4">4 days</option>
+                    <option value="5">5 days</option>
+                    <option value="6">6 days</option>
+                  </select>
+                </div>
+                <div class="rr-sf-field">
+                  <label for="rr-sfp-consec">Max Consecutive Days</label>
+                  <select id="rr-sfp-consec" class="rr-sf-input">
+                    <option value="4">4 days</option>
+                    <option value="5">5 days</option>
+                    <option value="6">6 days</option>
+                  </select>
+                </div>
+                <div class="rr-sf-field">
+                  <label for="rr-sfp-fifth">5th Day Overtime</label>
+                  <select id="rr-sfp-fifth" class="rr-sf-input">
+                    <option value="off">Off</option>
+                    <option value="allow">Allow If Needed</option>
+                    <option value="require">Required</option>
+                  </select>
+                </div>
+                <button type="button" class="rr-sf-edit" data-rr-sf-edit="limits">Edit <span aria-hidden="true">›</span></button>
+              </div>
+
+              <!-- Driver Preferences -->
+              <div class="rr-sf-card rr-sf-mini">
+                <div class="rr-sf-mini-head">
+                  <span class="rr-sf-mini-ic rr-sf-ic-prefs" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.6"/><path d="M2.5 16c0-2.5 2-4.2 4.5-4.2S11.5 13.5 11.5 16"/><path d="M13 5.2a2.4 2.4 0 0 1 0 4.4"/><path d="M14 11.9c1.9.3 3.5 1.8 3.5 4.1"/></svg></span>
+                  <div class="rr-sf-mini-titles">
+                    <div class="rr-sf-mini-title">Driver Preferences</div>
+                    <div class="rr-sf-mini-sub">Control how strongly Smart Fill respects requests.</div>
+                  </div>
+                </div>
+                <div class="rr-sf-field">
+                  <label for="rr-sfp-availability">Availability</label>
+                  <select id="rr-sfp-availability" class="rr-sf-input">
+                    <option value="require">Require</option>
+                    <option value="prefer">Prefer</option>
+                    <option value="ignore">Ignore</option>
+                  </select>
+                </div>
+                <div class="rr-sf-field">
+                  <label for="rr-sfp-preferred">Preferred Days Off</label>
+                  <select id="rr-sfp-preferred" class="rr-sf-input">
+                    <option value="prefer">Prefer</option>
+                    <option value="ignore">Ignore</option>
+                  </select>
+                </div>
+                <button type="button" class="rr-sf-edit" data-rr-sf-edit="prefs">Edit <span aria-hidden="true">›</span></button>
+              </div>
+
+              <!-- Safety & Compliance -->
+              <div class="rr-sf-card rr-sf-mini">
+                <div class="rr-sf-mini-head">
+                  <span class="rr-sf-mini-ic rr-sf-ic-safety" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5l6 2.3v4.4c0 3.9-2.5 6.6-6 8.3-3.5-1.7-6-4.4-6-8.3V4.8z"/><path d="M7.4 10l1.8 1.8L13 8"/></svg></span>
+                  <div class="rr-sf-mini-titles">
+                    <div class="rr-sf-mini-title">Safety &amp; Compliance</div>
+                    <div class="rr-sf-mini-sub">Ensure schedules follow safety and policy rules.</div>
+                  </div>
+                </div>
+                <div class="rr-sf-field">
+                  <label for="rr-sfp-rest">Minimum Rest Between Shifts</label>
+                  <select id="rr-sfp-rest" class="rr-sf-input">
+                    <option value="8">8 hours</option>
+                    <option value="10">10 hours</option>
+                    <option value="12">12 hours</option>
+                  </select>
+                </div>
+                <div class="rr-sf-field">
+                  <label for="rr-sfp-breaks">Break Compliance</label>
+                  <select id="rr-sfp-breaks" class="rr-sf-input">
+                    <option value="enforce">Enforce</option>
+                    <option value="off">Off</option>
+                  </select>
+                </div>
+                <div class="rr-sf-field">
+                  <label for="rr-sfp-meal">Meal Break Placement</label>
+                  <select id="rr-sfp-meal" class="rr-sf-input">
+                    <option value="optimize">Optimize</option>
+                    <option value="off">Off</option>
+                  </select>
+                </div>
+                <button type="button" class="rr-sf-edit" data-rr-sf-edit="safety">Edit <span aria-hidden="true">›</span></button>
+              </div>
+
+            </div><!-- /rr-sf-cards3 -->
+
+            <!-- 3 · Advanced Rules — entry points into the detailed editor,
+                 grouped. Active counts come from _rrSfAdvCounts() (real blob
+                 reads). "View all" reveals the full re-homed editor below. -->
+            <div class="rr-sf-card rr-sf-advanced" id="rr-sf-advanced-card">
+              <div class="rr-sf-adv-head">
+                <span class="rr-sf-mini-ic rr-sf-ic-adv" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="2.4"/><path d="M10 2.5v2.2M10 15.3v2.2M17.5 10h-2.2M4.7 10H2.5M15.3 4.7l-1.6 1.6M6.3 13.7l-1.6 1.6M15.3 15.3l-1.6-1.6M6.3 6.3 4.7 4.7"/></svg></span>
+                <div class="rr-sf-adv-headings">
+                  <div class="rr-sf-mini-title">Advanced Rules</div>
+                  <div class="rr-sf-mini-sub">Fine-tune how Smart Fill optimizes your schedule.</div>
+                </div>
+                <span class="rr-sf-badge rr-sf-badge-count" id="rr-sf-adv-total">0 active</span>
+                <button type="button" class="rr-sf-adv-toggle" id="rr-sf-adv-toggle" aria-expanded="true" aria-label="Collapse advanced rules"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 8 6 4 10 8"/></svg></button>
+              </div>
+              <div class="rr-sf-adv-body" id="rr-sf-adv-body">
+                <div class="rr-sf-adv-grid">
+                  <button type="button" class="rr-sf-adv-group" data-rr-sf-edit="quality">
+                    <span class="rr-sf-adv-ic" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.2l1.9 3.9 4.3.6-3.1 3 .7 4.2L9 11.9l-3.8 2 .7-4.2-3.1-3 4.3-.6z"/></svg></span>
+                    <span class="rr-sf-adv-grouptext">
+                      <span class="rr-sf-adv-name">Schedule Quality</span>
+                      <span class="rr-sf-adv-count" data-rr-sf-count="quality">0 active</span>
+                    </span>
+                  </button>
+                  <button type="button" class="rr-sf-adv-group" data-rr-sf-edit="route">
+                    <span class="rr-sf-adv-ic" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15c-1.4 0-2.5-1.1-2.5-2.5S3.6 10 5 10h8c1.4 0 2.5-1.1 2.5-2.5S14.4 5 13 5H4"/><circle cx="4" cy="5" r="1.6"/><circle cx="14" cy="13" r="1.6"/></svg></span>
+                    <span class="rr-sf-adv-grouptext">
+                      <span class="rr-sf-adv-name">Route Assignment</span>
+                      <span class="rr-sf-adv-count" data-rr-sf-count="route">0 active</span>
+                    </span>
+                  </button>
+                  <button type="button" class="rr-sf-adv-group" data-rr-sf-edit="optimization">
+                    <span class="rr-sf-adv-ic" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 9a6.5 6.5 0 1 1-2-4.7"/><polyline points="15.5 3 15.5 6 12.5 6"/></svg></span>
+                    <span class="rr-sf-adv-grouptext">
+                      <span class="rr-sf-adv-name">Optimization</span>
+                      <span class="rr-sf-adv-count" data-rr-sf-count="optimization">0 active</span>
+                    </span>
+                  </button>
+                </div>
+                <button type="button" class="rr-sf-viewall" data-rr-sf-edit="all">View all advanced rules <span aria-hidden="true">›</span></button>
+              </div>
+            </div>
+
+            <!-- Detailed editor — the existing Rules + Schedule Colors
+                 popovers are re-homed here (live.js _rrOpenSmartFillPage) and
+                 stay hidden until an Edit / View-all link reveals them. -->
+            <div class="rr-sf-detail" id="rr-sf-detail" hidden></div>
+
+          </div><!-- /rr-sf-page-body -->
+
+          <!-- Sticky footer — save state + actions. -->
+          <div class="rr-sf-page-foot">
+            <div class="rr-sf-foot-saved">
+              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="7"/><polyline points="5.8 9.2 8 11.4 12.4 6.6"/></svg>
+              <span id="rr-sf-saved-label">All changes saved locally</span>
+            </div>
+            <div class="rr-sf-foot-actions">
+              <button type="button" class="rr-sf-foot-reset" id="rr-sf-reset">Reset to Default</button>
+              <button type="button" class="rr-sf-foot-save" id="rr-sf-save">Save Policy</button>
+            </div>
           </div>
         </div>
+
 
         <!-- TODAY VIEW — single-day roster.  Left-justified vertical
              list of every driver scheduled for the selected day.  No
