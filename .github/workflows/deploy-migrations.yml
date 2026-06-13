@@ -76,7 +76,7 @@ jobs:
         run: |
           set +e
           failed=()
-          for fn in send-driver-push cal-availability invite-team-member admin-delete-dsp google-oauth-start google-calendar-disconnect google-calendar-events; do
+          for fn in send-driver-push cal-availability invite-team-member admin-delete-dsp google-oauth-start google-calendar-disconnect google-calendar-events dispatch-optimization-run; do
             echo "▶ deploying $fn (auth required)"
             if ! supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"; then
               echo "::error::deploy failed for $fn"
