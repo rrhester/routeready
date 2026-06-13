@@ -39338,7 +39338,7 @@ async function _decorateScheduleChipsWithVans() {
     if (!van) return;
     // Replace any prior decoration.
     chip.querySelector(".shift-chip-van")?.remove();
-    const el = document.createElement("div");
+    const el = document.createElement("span");
     el.className = "shift-chip-van";
     // When the reasons[] index says this assignment came from a
     // FEM-rescue phase, append a small uppercase eyebrow so the
@@ -39349,10 +39349,10 @@ async function _decorateScheduleChipsWithVans() {
     const isRescue = reason && typeof reason.phase === "string" && reason.phase.startsWith("rescue-");
     if (isRescue) {
       el.classList.add("is-rotation");
-      el.innerHTML = `Van ${escapeHtml(van)} <span class="shift-chip-van-tag">Rotation</span>`;
+      el.innerHTML = `V${escapeHtml(van)} <span class="shift-chip-van-tag">Rotation</span>`;
       chip.setAttribute("title", reason.reason || "FEM rotation pick");
     } else {
-      el.textContent = `Van ${van}`;
+      el.textContent = `V${van}`;
     }
     // Van unavailable that day (grounded or booked for service on the Fleet
     // calendar) → paint the pill red so the operator sees the van can't run
@@ -39366,7 +39366,15 @@ async function _decorateScheduleChipsWithVans() {
       el.style.fontWeight = "700";
       chip.setAttribute("title", "Van unavailable this day — in service or grounded");
     }
-    chip.appendChild(el);
+    // The van rides the secondary "W11:20 • V5" line (density format);
+    // create the line if the chip rendered without a wave.
+    let sec = chip.querySelector(".shift-chip-secondary");
+    if (!sec) {
+      sec = document.createElement("div");
+      sec.className = "shift-chip-secondary";
+      chip.insertBefore(sec, chip.querySelector(".shift-chip-badges"));
+    }
+    sec.appendChild(el);
   });
 }
 window._rrDecorateScheduleChipsWithVans = _decorateScheduleChipsWithVans;
@@ -44931,14 +44939,18 @@ function _schedShiftChip(sh, extras) {
   // Van # (the last appended later by the post-Assign-Vans
   // decorator). All on one line each, no wrapping, no extra
   // padding — the calendar cell needs to stay short.
+  // Density format (operator 2026-06-13): "10:50–9:20" over
+  // "W11:20 • V5" — am/pm dropped, true en dash, wave + van share the
+  // secondary line (separator drawn by CSS between spans).
+  const _noAmPm = (t) => String(t || "").replace(/\s*(am|pm)$/i, "");
   const range = (reportStr && endStr)
-    ? `${reportStr} – ${endStr}`
-    : (reportStr || endStr || "");
+    ? `${_noAmPm(reportStr)}–${_noAmPm(endStr)}`
+    : _noAmPm(reportStr || endStr || "");
   const startLine = range
     ? `<div class="shift-chip-primary">${range}</div>`
     : "";
-  const waveLine = waveStr
-    ? `<div class="shift-chip-secondary">Wave ${waveStr}</div>`
+  const waveSpan = waveStr
+    ? `<span class="shift-chip-wave">W${_noAmPm(waveStr)}</span>`
     : "";
   // Van line, rendered INLINE (synchronously) from the van name passed in
   // via extras.van. It used to be appended ~150ms after paint by the async
@@ -44947,8 +44959,11 @@ function _schedShiftChip(sh, extras) {
   // it here means the chip is full height at first paint; the async
   // decorator still runs to add rotation / van-unavailable styling, but the
   // line (and its height) is already present, so it no longer reflows.
-  const vanLine = (extras && extras.van)
-    ? `<div class="shift-chip-van">Van ${escapeHtml(String(extras.van))}</div>`
+  const vanSpan = (extras && extras.van)
+    ? `<span class="shift-chip-van">V${escapeHtml(String(extras.van))}</span>`
+    : "";
+  const secondLine = (waveSpan || vanSpan)
+    ? `<div class="shift-chip-secondary">${waveSpan}${vanSpan}</div>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   // Left accent-bar color · the service type's own color when the shift
@@ -44960,7 +44975,7 @@ function _schedShiftChip(sh, extras) {
     : ((RC_BADGE[_rc] && RC_BADGE[_rc].c) || "#2563EB");
   const routineCls = extras?.routine ? ' is-routine' : '';
   const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
-  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;--chip-accent:${accentColor};${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}${cornerBadges}</div>`;
+  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;--chip-accent:${accentColor};${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${secondLine}${cornerBadges}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -46152,6 +46167,15 @@ async function renderScheduleWeek() {
     const DOWK = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const weekIsos = [];
     for (let i = 0; i < 7; i++) weekIsos.push(fmtIsoDate(addDays(weekStart, i)));
+    // Work-authorization state for the hard-blocker check below (same
+    // i9_list RPC the roster uses; session-cached, best-effort — a
+    // fetch failure just means the card can't mention the I-9).
+    if (!window._rrSchedI9) {
+      try {
+        const r = await sb.rpc("i9_list");
+        window._rrSchedI9 = new Map(((r && r.data) || []).map((x) => [x.driver_id, x]));
+      } catch (_) { window._rrSchedI9 = null; }
+    }
     // Seniority rank: earliest hire_date = #1 (drivers without a date last).
     const ranked = [...drivers].filter(d => d.hire_date)
       .sort((a, b) => String(a.hire_date).localeCompare(String(b.hire_date)));
@@ -46191,6 +46215,49 @@ async function renderScheduleWeek() {
         seniority: seniorityRank.get(d.id) || null,
         finalCorrective: (window._rrLastFinalCorrective instanceof Set) && window._rrLastFinalCorrective.has(d.id),
         fifthDayOk: av.fifth_day_ok === true,
+        // HARD BLOCKERS — facts that stop the engine from scheduling
+        // this driver at all. The explanation card leads with these
+        // instead of rationalizing a 0-shift week with rotation prose.
+        blockers: (() => {
+          const out = [];
+          const sfR = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
+          // Work authorization: I-9 done = Section 2 completed.
+          const i9 = window._rrSchedI9 ? window._rrSchedI9.get(d.id) : undefined;
+          if (window._rrSchedI9 && (!i9 || !i9.section2_completed_at)) {
+            out.push({
+              why: "Form I-9 (work authorization) isn't complete — drivers aren't schedulable until onboarding gates are done.",
+              tip: "Complete the Form I-9 — Documents tab on the driver profile, or the Work authorization step in Onboarding.",
+            });
+          }
+          // License: missing data fails safe (blocks like an expired DL).
+          if (sfR.dl_valid !== false) {
+            const dlWin = Math.max(0, Math.min(365, parseInt(sfR.dl_protection_days, 10) || 0));
+            if (!d.dl_expires_on) {
+              out.push({
+                why: "No driver's-license expiration on file — the license rule blocks scheduling when the date is missing (fail-safe).",
+                tip: "Enter the license expiration on the Credentials tab.",
+              });
+            } else {
+              const exp = new Date(String(d.dl_expires_on) + "T12:00:00");
+              const lim = new Date(); lim.setDate(lim.getDate() + dlWin);
+              if (exp < lim) {
+                out.push({
+                  why: dlWin > 0 && exp >= new Date()
+                    ? `License expires ${d.dl_expires_on} — inside the ${dlWin}-day protection window, so scheduling is blocked.`
+                    : `License expired ${d.dl_expires_on} — scheduling is blocked until it's renewed.`,
+                  tip: "Update the license expiration on the Credentials tab once renewed.",
+                });
+              }
+            }
+          }
+          if (available.length === 0) {
+            out.push({
+              why: "No availability days are set, so the engine can't place this driver on any day.",
+              tip: "Set available days on the Availability tab.",
+            });
+          }
+          return out;
+        })(),
       });
     }
     // Over-staffing context for the "why these hours" explanation.
@@ -48831,8 +48898,13 @@ function bindSchedWeekNav() {
       const overStaffed = covP != null && covP >= 100;
 
       // WHY you got these shifts (lead with a low total honestly).
+      // Hard blockers FIRST: a 0-shift week caused by a missing I-9 /
+      // license / availability must say so — never rotation prose.
+      const hardBlocks = Array.isArray(info.blockers) ? info.blockers : [];
       let why;
-      if (info.days === 0) {
+      if (info.days === 0 && hardBlocks.length) {
+        why = "Blocked from scheduling: " + hardBlocks.map((b) => b.why).join(" ");
+      } else if (info.days === 0) {
         why = info.available.length === 0
           ? "You have no availability set, so the engine can't place you on any day."
           : `No shifts this week. ${overStaffed ? `The week is over-staffed (${covP}% coverage) — more available drivers than routes — and ` : ""}under "${pickLabel}" higher-priority drivers filled every route before you.`;
@@ -48859,8 +48931,12 @@ function bindSchedWeekNav() {
         why += ` Because this week is set to schedule by attendance first, drivers with a stronger attendance record were placed ahead of you.`;
       }
 
-      // HOW to get more — only levers the DRIVER controls.
+      // HOW to get more — only levers the DRIVER controls (or, for a
+      // hard-blocked driver, the unblock steps).
       const tips = [];
+      if (info.days === 0 && hardBlocks.length) {
+        for (const b of hardBlocks) tips.push(b.tip);
+      }
       if (attFinal) tips.push(`Improve your attendance — clearing your Final attendance standing moves you back up the priority list for more shifts.`);
       else if (attPickHurt) tips.push(`Improve your attendance — with “Attendance first” scheduling, a stronger attendance record moves you up the list for more shifts.`);
       const unavail = ORD.filter(d => !info.available.includes(d));

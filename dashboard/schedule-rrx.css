@@ -5191,3 +5191,92 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   color: #111827 !important;
 }
+
+/* ============================================================
+   Density pass (operator 2026-06-13) · two-line shift cards +
+   Smart Fill as the page's primary action.
+   ------------------------------------------------------------
+   Cards read "10:50–9:20" over "W11:20 • V5" — time prominent,
+   wave/van secondary, badges stay lower-right. End-of-sheet so
+   these win the cascade at equal specificity.
+   ============================================================ */
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  padding: 4px 6px !important;
+  line-height: 1.2 !important;
+}
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  letter-spacing: .01em;
+  font-variant-numeric: tabular-nums;
+}
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-secondary {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  font-size: 10.5px !important;
+  font-weight: 500 !important;
+  color: #64748B !important;
+  margin-top: 1px;
+}
+/* Wave + van share the line; the dot separator is drawn between spans. */
+#view-schedule.rrx-schedule .shift-chip .shift-chip-secondary > .shift-chip-van {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+#view-schedule.rrx-schedule .shift-chip .shift-chip-secondary > .shift-chip-van:not(:first-child)::before {
+  content: "•";
+  color: #B6C0CE;
+  margin-right: 1px;
+}
+/* Denser rows — chips are two short lines now. */
+body:not(.rr-sched-compact):not(.rr-sched-ultra-compact):not(.rr-sched-super-compact)
+  #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label) {
+  min-height: 56px !important;
+}
+
+/* Smart Fill · the page's primary workflow. Same size as its
+   neighbors — emphasis comes from the navy outline, slightly
+   heavier label and the brand-blue sparkle. Calm, Linear-style. */
+#view-schedule .rr-ab-btn#rr-ab-smartfill {
+  border: 1.5px solid var(--sidebar-bg, #0F172A);
+  font-weight: 650;
+}
+#view-schedule .rr-ab-btn#rr-ab-smartfill > svg:first-child {
+  color: #2563EB;
+}
+#view-schedule .rr-ab-btn#rr-ab-smartfill:hover {
+  background: #EFF6FF;
+}
+
+/* ============================================================
+   Quiet grid + human roster (operator 2026-06-13)
+   ------------------------------------------------------------
+   1. Row/column dividers lightened ~50% (.14 → .07, header .18
+      → .09) — the shift cards define the structure, whitespace
+      over borders.
+   2. Driver avatars 28–30px → 40px so the roster reads human.
+   End-of-sheet so these win the earlier hardcoded rules.
+   ============================================================ */
+#view-schedule.rrx-schedule .cal-cell {
+  border-right-color: rgba(15, 23, 42, 0.07) !important;
+}
+#view-schedule.rrx-schedule .cal-cell-head:not(.today) {
+  border-right-color: rgba(15, 23, 42, 0.07) !important;
+}
+#view-schedule.rrx-schedule .cal-grid {
+  border-bottom-color: rgba(15, 23, 42, 0.07) !important;
+}
+#view-schedule.rrx-schedule .cal-grid.head {
+  border-bottom-color: rgba(15, 23, 42, 0.09) !important;
+}
+
+#view-schedule.rrx-schedule .cal-row-label .avatar-sm,
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
+  width: 40px !important;
+  height: 40px !important;
+  font-size: 14px !important;
+}
