@@ -23856,6 +23856,76 @@ body.rr-cmdk-open{ overflow:hidden }
   display:flex;flex-direction:column;gap:2px;
 }
 
+/* ═══ Plumb-line alignment for the ENTIRE Smart Fill Rules box ════════
+   Operator: every checkbox on one plumb line; every dropdown the same size
+   and on that line — across the main rules AND every Advanced sub-section.
+   The per-section rules above mostly do this, but nested <details> bodies
+   were picking up a horizontal inset that pushed the Advanced rows ~30px
+   left of the main rows (and let the Advanced dropdowns render wider). This
+   block is the single source of truth: strip horizontal padding/margin from
+   every wrapper at every depth, force every rule row onto the same
+   label | 165px-control grid, and make every control fill that 165px column
+   — so dropdowns, checkboxes and number inputs all land on the exact same
+   line and the dropdowns are all the same width. Double-id + !important so
+   it wins over everything above regardless of nesting depth. */
+
+/* 1 · No wrapper adds a horizontal inset at any depth. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-rows,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-bucket,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-bucket-body,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-section,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-section-body,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover details{
+  padding-left:0 !important;  padding-right:0 !important;
+  margin-left:0 !important;   margin-right:0 !important;
+  width:auto !important;
+}
+
+/* 2 · Every rule row → the same label | 165px-control grid, full width. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-row,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sched-smartfill-rule,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-row{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) 165px !important;
+  column-gap:10px !important;
+  align-items:center !important;
+  width:100% !important;
+  box-sizing:border-box !important;
+  margin-left:0 !important;   margin-right:0 !important;
+  padding-left:0 !important;  padding-right:0 !important;
+}
+
+/* 3 · The control column (grid col 2) — same position + width for all. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-control,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-row-control{
+  grid-column:2 !important;
+  justify-self:stretch !important;
+  display:flex !important;
+  flex-wrap:wrap !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:2px 6px !important;
+  min-width:0 !important;
+  margin:0 !important;  padding:0 !important;
+}
+
+/* 4 · Dropdowns + number inputs fill the column → all the same size. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-control .rr-pol-select,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-row-control .rr-pol-select,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-row-control .sf2-number{
+  width:100% !important; max-width:none !important; min-width:0 !important;
+  box-sizing:border-box !important; margin:0 !important;
+}
+
+/* 5 · Every checkbox pinned to the left edge of the control column = the
+   shared plumb line (matching the dropdowns' left edge). */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-control .rr-pol-check,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sched-smartfill-rule > input[type="checkbox"]{
+  grid-column:2 !important;
+  justify-self:start !important;
+  margin:0 !important;
+}
+
 /* ═══ Schedule Colors popover (operator 2026-06-12) ═════════════════
    Same chrome as the Smart Fill Rules box: navy header, plain rows,
    swatches on the control plumb line. Inline styles on the legacy
