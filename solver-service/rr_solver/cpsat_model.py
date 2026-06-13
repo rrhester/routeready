@@ -72,7 +72,13 @@ def _is_eligible(
     if shift.date in pto_dates_by_driver.get(driver.id, set()):
         return False
     # Availability gate.
-    if driver.available_dows is not None and len(driver.available_dows) > 0:
+    #   None → caller provided no availability constraint → unconstrained.
+    #   []   → driver has NO availability on file → not schedulable at all
+    #          (operator policy: no availability means no shifts).
+    #   [..] → schedulable only on those weekdays.
+    if driver.available_dows is not None:
+        if len(driver.available_dows) == 0:
+            return False
         if _dow(shift.date) not in driver.available_dows:
             return False
     # Cert match per route_type.
