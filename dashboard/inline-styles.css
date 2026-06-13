@@ -23667,6 +23667,54 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:0 !important;
 }
 
+/* ═══ Rules box · ONE plumb line for EVERY control (operator request) ════
+   Right-justify every dropdown, number box and checkbox to a single right
+   edge — top rows AND every advanced section. Supersedes the grid above
+   (which left checkboxes at the left of the control column and never touched
+   the section rows). */
+/* Flatten container indents so every row shares the same right edge. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-section-body,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-bucket-body{
+  padding-left:0 !important; padding-right:0 !important;
+}
+/* All control rows → flex: label fills the left, control hugs the right. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-row,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-row{
+  display:flex !important; grid-template-columns:none !important;
+  align-items:center !important; gap:12px !important; width:100% !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-label,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-row-label{
+  flex:1 1 auto !important; min-width:0 !important; margin:0 !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-control,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-row-control{
+  flex:0 0 auto !important; margin-left:auto !important;
+  display:flex !important; align-items:center !important;
+  justify-content:flex-end !important; flex-wrap:wrap !important; gap:6px !important;
+}
+/* Uniform box width so the right edges line up exactly. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-select,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-select,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-number{
+  width:160px !important; min-width:160px !important; max-width:160px !important;
+  box-sizing:border-box !important;
+}
+/* A unit suffix ("hours" / "days before expiry") drops below its box, right-aligned. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-row-control > span{
+  width:100% !important; text-align:right !important; margin:0 !important;
+}
+/* Checkbox rule rows: name on the left, checkbox pinned to the same plumb line. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sched-smartfill-rule{
+  display:flex !important; align-items:center !important; width:100% !important; gap:0 !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sched-smartfill-rule .sf-rule-name{
+  order:1 !important; flex:1 1 auto !important; min-width:0 !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sched-smartfill-rule > input[type="checkbox"]{
+  order:2 !important; flex:0 0 auto !important; margin-left:auto !important;
+}
+
 /* ═══ Policy rule info icons + popup (operator 2026-06-12) ═══════════ */
 .rr-pol-info{
   display:inline-flex;align-items:center;justify-content:center;
