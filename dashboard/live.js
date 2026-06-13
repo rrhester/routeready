@@ -46167,6 +46167,15 @@ async function renderScheduleWeek() {
     const DOWK = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const weekIsos = [];
     for (let i = 0; i < 7; i++) weekIsos.push(fmtIsoDate(addDays(weekStart, i)));
+    // Work-authorization state for the hard-blocker check below (same
+    // i9_list RPC the roster uses; session-cached, best-effort — a
+    // fetch failure just means the card can't mention the I-9).
+    if (!window._rrSchedI9) {
+      try {
+        const r = await sb.rpc("i9_list");
+        window._rrSchedI9 = new Map(((r && r.data) || []).map((x) => [x.driver_id, x]));
+      } catch (_) { window._rrSchedI9 = null; }
+    }
     // Seniority rank: earliest hire_date = #1 (drivers without a date last).
     const ranked = [...drivers].filter(d => d.hire_date)
       .sort((a, b) => String(a.hire_date).localeCompare(String(b.hire_date)));
@@ -46206,6 +46215,49 @@ async function renderScheduleWeek() {
         seniority: seniorityRank.get(d.id) || null,
         finalCorrective: (window._rrLastFinalCorrective instanceof Set) && window._rrLastFinalCorrective.has(d.id),
         fifthDayOk: av.fifth_day_ok === true,
+        // HARD BLOCKERS — facts that stop the engine from scheduling
+        // this driver at all. The explanation card leads with these
+        // instead of rationalizing a 0-shift week with rotation prose.
+        blockers: (() => {
+          const out = [];
+          const sfR = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
+          // Work authorization: I-9 done = Section 2 completed.
+          const i9 = window._rrSchedI9 ? window._rrSchedI9.get(d.id) : undefined;
+          if (window._rrSchedI9 && (!i9 || !i9.section2_completed_at)) {
+            out.push({
+              why: "Form I-9 (work authorization) isn't complete — drivers aren't schedulable until onboarding gates are done.",
+              tip: "Complete the Form I-9 — Documents tab on the driver profile, or the Work authorization step in Onboarding.",
+            });
+          }
+          // License: missing data fails safe (blocks like an expired DL).
+          if (sfR.dl_valid !== false) {
+            const dlWin = Math.max(0, Math.min(365, parseInt(sfR.dl_protection_days, 10) || 0));
+            if (!d.dl_expires_on) {
+              out.push({
+                why: "No driver's-license expiration on file — the license rule blocks scheduling when the date is missing (fail-safe).",
+                tip: "Enter the license expiration on the Credentials tab.",
+              });
+            } else {
+              const exp = new Date(String(d.dl_expires_on) + "T12:00:00");
+              const lim = new Date(); lim.setDate(lim.getDate() + dlWin);
+              if (exp < lim) {
+                out.push({
+                  why: dlWin > 0 && exp >= new Date()
+                    ? `License expires ${d.dl_expires_on} — inside the ${dlWin}-day protection window, so scheduling is blocked.`
+                    : `License expired ${d.dl_expires_on} — scheduling is blocked until it's renewed.`,
+                  tip: "Update the license expiration on the Credentials tab once renewed.",
+                });
+              }
+            }
+          }
+          if (available.length === 0) {
+            out.push({
+              why: "No availability days are set, so the engine can't place this driver on any day.",
+              tip: "Set available days on the Availability tab.",
+            });
+          }
+          return out;
+        })(),
       });
     }
     // Over-staffing context for the "why these hours" explanation.
@@ -48846,8 +48898,13 @@ function bindSchedWeekNav() {
       const overStaffed = covP != null && covP >= 100;
 
       // WHY you got these shifts (lead with a low total honestly).
+      // Hard blockers FIRST: a 0-shift week caused by a missing I-9 /
+      // license / availability must say so — never rotation prose.
+      const hardBlocks = Array.isArray(info.blockers) ? info.blockers : [];
       let why;
-      if (info.days === 0) {
+      if (info.days === 0 && hardBlocks.length) {
+        why = "Blocked from scheduling: " + hardBlocks.map((b) => b.why).join(" ");
+      } else if (info.days === 0) {
         why = info.available.length === 0
           ? "You have no availability set, so the engine can't place you on any day."
           : `No shifts this week. ${overStaffed ? `The week is over-staffed (${covP}% coverage) — more available drivers than routes — and ` : ""}under "${pickLabel}" higher-priority drivers filled every route before you.`;
@@ -48874,8 +48931,12 @@ function bindSchedWeekNav() {
         why += ` Because this week is set to schedule by attendance first, drivers with a stronger attendance record were placed ahead of you.`;
       }
 
-      // HOW to get more — only levers the DRIVER controls.
+      // HOW to get more — only levers the DRIVER controls (or, for a
+      // hard-blocked driver, the unblock steps).
       const tips = [];
+      if (info.days === 0 && hardBlocks.length) {
+        for (const b of hardBlocks) tips.push(b.tip);
+      }
       if (attFinal) tips.push(`Improve your attendance — clearing your Final attendance standing moves you back up the priority list for more shifts.`);
       else if (attPickHurt) tips.push(`Improve your attendance — with “Attendance first” scheduling, a stronger attendance record moves you up the list for more shifts.`);
       const unavail = ORD.filter(d => !info.available.includes(d));
