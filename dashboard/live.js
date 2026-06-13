@@ -46167,15 +46167,6 @@ async function renderScheduleWeek() {
     const DOWK = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const weekIsos = [];
     for (let i = 0; i < 7; i++) weekIsos.push(fmtIsoDate(addDays(weekStart, i)));
-    // Work-authorization state for the hard-blocker check below (same
-    // i9_list RPC the roster uses; session-cached, best-effort — a
-    // fetch failure just means the card can't mention the I-9).
-    if (!window._rrSchedI9) {
-      try {
-        const r = await sb.rpc("i9_list");
-        window._rrSchedI9 = new Map(((r && r.data) || []).map((x) => [x.driver_id, x]));
-      } catch (_) { window._rrSchedI9 = null; }
-    }
     // Seniority rank: earliest hire_date = #1 (drivers without a date last).
     const ranked = [...drivers].filter(d => d.hire_date)
       .sort((a, b) => String(a.hire_date).localeCompare(String(b.hire_date)));
@@ -46219,16 +46210,14 @@ async function renderScheduleWeek() {
         // this driver at all. The explanation card leads with these
         // instead of rationalizing a 0-shift week with rotation prose.
         blockers: (() => {
+          // Only HARD gates the engine actually enforces — license (R003)
+          // and availability (R006). NOTE: an incomplete I-9 is NOT a
+          // scheduling gate for active drivers anywhere in the engine or
+          // solver, so it is deliberately not listed here (claiming it
+          // blocks scheduling would be a false reason — see the I-9 gate
+          // decision in the Smart Fill rules if/when that becomes real).
           const out = [];
           const sfR = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
-          // Work authorization: I-9 done = Section 2 completed.
-          const i9 = window._rrSchedI9 ? window._rrSchedI9.get(d.id) : undefined;
-          if (window._rrSchedI9 && (!i9 || !i9.section2_completed_at)) {
-            out.push({
-              why: "Form I-9 (work authorization) isn't complete — drivers aren't schedulable until onboarding gates are done.",
-              tip: "Complete the Form I-9 — Documents tab on the driver profile, or the Work authorization step in Onboarding.",
-            });
-          }
           // License: missing data fails safe (blocks like an expired DL).
           if (sfR.dl_valid !== false) {
             const dlWin = Math.max(0, Math.min(365, parseInt(sfR.dl_protection_days, 10) || 0));
@@ -46862,12 +46851,17 @@ async function renderScheduleWeek() {
         // remain, say so quietly instead of crying "Open Routes" at
         // planned slack.
         const abCushionOpen = Math.max(0, (abNeeded - abFilled) - abRouteGap);
-        abSub.textContent = abRouteGap > 0
-          ? `${abRouteGap} Open Route${abRouteGap === 1 ? "" : "s"}`
-          : (abCushionOpen > 0
-            ? `All routes covered · ${abCushionOpen} cushion seat${abCushionOpen === 1 ? "" : "s"} open`
-            : "All routes covered");
-        abSub.classList.toggle("is-ok", abRouteGap === 0);
+        // Open counts (real routes OR cushion seats) paint red so an
+        // operator never reads "all clear" while seats sit open; only a
+        // fully-filled week (routes + cushion) is the calm ok-state.
+        if (abRouteGap > 0) {
+          abSub.innerHTML = `<span class="rr-ab-open">${abRouteGap} Open Route${abRouteGap === 1 ? "" : "s"}</span>`;
+        } else if (abCushionOpen > 0) {
+          abSub.innerHTML = `All routes covered · <span class="rr-ab-open">${abCushionOpen} cushion seat${abCushionOpen === 1 ? "" : "s"} open</span>`;
+        } else {
+          abSub.textContent = "All routes covered";
+        }
+        abSub.classList.toggle("is-ok", abRouteGap === 0 && abCushionOpen === 0);
       }
     }
   } catch (e) { console.warn("action bar paint:", e); }
@@ -47052,7 +47046,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}${prefCls}" ${data}>${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta"><span class="cal-row-label-station">${escapeHtml(station)}</span><span class="cal-row-label-sep"> · </span>${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div>${otIcon}${rightCluster}</div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}" title="${escapeHtml(display)}${station ? " · " + escapeHtml(station) : ""}">${escapeHtml(display)}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta" title="${escapeHtml(station)}">${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div>${otIcon}${rightCluster}</div>
       ${cells}
     </div>`;
   }).join("");
