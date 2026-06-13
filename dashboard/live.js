@@ -33555,9 +33555,6 @@ function _rrPolPaint() {
     : (saved.fifth_day_override_availability === true &&
        parseInt(saved.target_days_per_week, 10) === 5) ? "require" : "allow";
   const stability = _rrPolClassifyStability(saved);
-  const att = saved.attendance_scheduling === true
-    ? (["low", "medium", "high"].includes(saved.attendance_weight) ? saved.attendance_weight : "medium")
-    : "off";
   const goal = _rrPolClassifyGoal(saved);
 
   _rrPolSelectValue(document.getElementById("rr-pol-consec"), consec);
@@ -33569,8 +33566,6 @@ function _rrPolPaint() {
   if (stabSel) stabSel.value = stability;
   const stabNote = document.getElementById("rr-pol-stability-note");
   if (stabNote) stabNote.textContent = _RR_POL_STABILITY[stability].label;
-  const attSel = document.getElementById("rr-pol-att");
-  if (attSel) attSel.value = att;
   const corrSel = document.getElementById("rr-pol-corrective");
   if (corrSel) corrSel.checked = saved.attendance_penalty === true;
   const prefSel = document.getElementById("rr-pol-preferred");
@@ -33652,16 +33647,6 @@ document.addEventListener("change", (e) => {
       });
       break;
     }
-    case "rr-pol-att":
-      _rrPolApply((s) => {
-        if (el.value === "off") {
-          s.attendance_scheduling = false;
-        } else {
-          s.attendance_scheduling = true;
-          s.attendance_weight = el.value;
-        }
-      });
-      break;
     case "rr-pol-corrective":
       _rrPolApply((s) => { s.attendance_penalty = !!el.checked; });
       break;

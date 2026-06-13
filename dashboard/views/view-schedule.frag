@@ -624,17 +624,6 @@
 
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-att">Attendance <button type="button" class="rr-pol-info" data-rr-pol-info="After the hard rules pass, drivers with better attendance get picked first. Scoring only — it never blocks anyone." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
-                      <div class="rr-pol-control">
-                        <select class="rr-pol-select" id="rr-pol-att" title="How strongly attendance history influences driver selection when multiple drivers qualify — a scoring preference, not a hard rule">
-                          <option value="off">Ignore</option>
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-corrective">Schedule Final-corrective drivers last <button type="button" class="rr-pol-info" data-rr-pol-info="Drivers on a Final coaching ladder go to the back of the line when Smart Fill chooses between eligible drivers." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
                         <input type="checkbox" class="rr-pol-check" id="rr-pol-corrective" title="Drivers on a Final coaching ladder are scheduled last">
