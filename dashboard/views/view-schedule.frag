@@ -2489,6 +2489,19 @@
              that still target #sched-sub-time-off don't throw.) -->
         <div class="sched-subview" id="sched-sub-time-off" style="display:none"></div>
 
+        <!-- Smart Fill · full-page settings view. Hidden until the
+             "Smart Fill" sidebar item opens it (live.js _rrOpenSmartFillPage).
+             The Rules + Schedule Colors popovers are re-homed into
+             #rr-smartfill-page-body as inline sections (.rr-as-page) and
+             returned to the action bar when the page closes. -->
+        <div id="rr-smartfill-page" class="rr-smartfill-page" hidden>
+          <div class="rr-sf-page-head">
+            <div class="rr-sf-page-title">Smart Fill</div>
+            <button type="button" class="rr-sf-page-done" onclick="window._rrCloseSmartFillPage && window._rrCloseSmartFillPage()">Done</button>
+          </div>
+          <div class="rr-sf-page-body" id="rr-smartfill-page-body"></div>
+        </div>
+
         <!-- TODAY VIEW — single-day roster.  Left-justified vertical
              list of every driver scheduled for the selected day.  No
              right rail / open-shifts panel.  Populated by

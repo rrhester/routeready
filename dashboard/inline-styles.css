@@ -24027,3 +24027,52 @@ body.rr-cmdk-open{ overflow:hidden }
   0%{left:-36%}
   100%{left:100%}
 }
+
+/* ═══ Smart Fill · full-page settings view (operator 2026-06-13) ═══════
+   The "Smart Fill" sidebar item opens this roomy page over the schedule
+   grid. The Rules + Schedule Colors popovers are re-homed into it and
+   styled inline via .rr-as-page (see live.js _rrOpenSmartFillPage). Only
+   #view-schedule is covered, so the sidebar stays reachable to navigate
+   back out. */
+#view-schedule { position: relative; }
+.rr-smartfill-page{
+  position:absolute; inset:0; z-index:60;
+  background:var(--canvas, #F4F6FA);
+  overflow:auto; display:flex; flex-direction:column;
+}
+.rr-smartfill-page[hidden]{ display:none; }
+.rr-sf-page-head{
+  position:sticky; top:0; z-index:2;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:13px 20px; background:var(--sidebar-bg, #0F172A); color:#fff;
+}
+.rr-sf-page-title{ font-size:15px; font-weight:600; letter-spacing:.01em; }
+.rr-sf-page-done{
+  background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:8px;
+  padding:7px 18px; font-size:13px; font-weight:600; cursor:pointer;
+}
+.rr-sf-page-done:hover{ background:rgba(255,255,255,.28); }
+.rr-sf-page-body{
+  flex:1 1 auto; width:100%; max-width:860px; margin:0 auto;
+  padding:22px 20px 48px; display:flex; flex-direction:column; gap:22px;
+}
+/* Re-homed Rules + Colors boxes render as inline page cards, not drawers. */
+.rr-smartfill-page .rr-as-page{
+  position:static !important; inset:auto !important; transform:none !important;
+  display:flex !important; flex-direction:column !important;
+  width:100% !important; max-width:none !important; min-width:0 !important;
+  height:auto !important; max-height:none !important; margin:0 !important;
+  border:1px solid #E5E8ED !important; border-radius:14px !important;
+  box-shadow:0 1px 3px rgba(15,23,42,.06) !important; overflow:visible !important;
+}
+.rr-smartfill-page .rr-as-page[hidden]{ display:flex !important; }
+/* The boxes keep their own header; drop the popover close X — the page's
+   Done button + the Rules box's Save/Cancel handle exit. */
+.rr-smartfill-page .rr-as-page .rr-pol-close,
+.rr-smartfill-page .rr-as-page #rr-colors-close{ display:none !important; }
+/* Inner bodies grow with the page rather than scrolling internally. */
+.rr-smartfill-page .rr-as-page #rr-sched-smartfill-rules-body,
+.rr-smartfill-page .rr-as-page .sched-smartfill-rules-body,
+.rr-smartfill-page .rr-as-page .rr-colors-body{
+  max-height:none !important; height:auto !important; overflow:visible !important;
+}

@@ -34784,6 +34784,9 @@ function _toggleSchedSmartFillRules(force) {
   if (!pop) return false;
   const isOpen = !pop.hidden;
   const next = (typeof force === "boolean") ? force : !isOpen;
+  // Smart Fill PAGE mode: any close path (Save / Cancel / X / Esc) exits the
+  // full-page Smart Fill view rather than just hiding the inline drawer.
+  if (!next && window._rrSmartFillPageMode) { _rrCloseSmartFillPage(); return false; }
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next) {
@@ -34842,6 +34845,66 @@ document.addEventListener("change", (e) => {
   }
 });
 window._rrToggleSchedSmartFillRules = _toggleSchedSmartFillRules;
+
+// ── Smart Fill · full-page settings view ─────────────────────────────
+// The "Smart Fill" sidebar item opens a roomy page that houses the Rules
+// box + the Schedule Colors box as inline sections. We RE-HOME the existing
+// popovers into the page — the Smart Fill caret menu already re-parents
+// them into the action bar, so moving the DOM nodes is an established
+// pattern here — and add .rr-as-page so they render inline instead of as
+// floating drawers. Every existing handler keeps working because the
+// element ids are untouched. Closing (the page's Done button, or
+// Save/Cancel inside the Rules box) returns the boxes to the action bar so
+// the Smart Fill caret still opens them as popovers exactly as before.
+// All of this is gated on window._rrSmartFillPageMode, so the normal
+// caret/popover path is completely unaffected when the page isn't open.
+function _rrOpenSmartFillPage() {
+  const overlay = document.getElementById("rr-smartfill-page");
+  if (!overlay) return;
+  const onSched = document.getElementById("view-schedule")?.classList.contains("active");
+  if (!onSched && typeof window.goto === "function") window.goto("schedule");
+  const open = () => {
+    const body = document.getElementById("rr-smartfill-page-body");
+    const rules = document.getElementById("rr-sched-smartfill-rules-popover");
+    const colors = document.getElementById("rr-sched-colors-popover");
+    if (body && rules && rules.parentElement !== body) body.appendChild(rules);
+    if (body && colors && colors.parentElement !== body) body.appendChild(colors);
+    rules && rules.classList.add("rr-as-page");
+    colors && colors.classList.add("rr-as-page");
+    window._rrSmartFillPageMode = true;
+    overlay.hidden = false;
+    document.body.classList.add("rr-sf-page-open");
+    // Seed + paint both boxes (un-hides them; .rr-as-page makes them inline).
+    try { _toggleSchedSmartFillRules(true); } catch (_) {}
+    try { _rrToggleSchedColors(true); } catch (_) {}
+    // Reflect the active child in the sidebar.
+    document.querySelectorAll('.nav-sub[data-for="schedule"] .nav-sub-item')
+      .forEach((b) => b.classList.toggle("active", b.dataset.key === "smartfill"));
+  };
+  onSched ? open() : setTimeout(open, 240);
+}
+window._rrOpenSmartFillPage = _rrOpenSmartFillPage;
+
+function _rrCloseSmartFillPage() {
+  // Clear page mode FIRST so the toggle calls below hide the boxes normally
+  // instead of recursing back into this function.
+  window._rrSmartFillPageMode = false;
+  const overlay = document.getElementById("rr-smartfill-page");
+  const ab = document.getElementById("rr-sched-actionbar");
+  const rules = document.getElementById("rr-sched-smartfill-rules-popover");
+  const colors = document.getElementById("rr-sched-colors-popover");
+  try { _toggleSchedSmartFillRules(false); } catch (_) {}
+  try { _rrToggleSchedColors(false); } catch (_) {}
+  rules && rules.classList.remove("rr-as-page");
+  colors && colors.classList.remove("rr-as-page");
+  // Return the boxes to the action bar so the Smart Fill caret reopens them
+  // as popovers exactly as before.
+  if (ab && rules && rules.parentElement !== ab) ab.appendChild(rules);
+  if (ab && colors && colors.parentElement !== ab) ab.appendChild(colors);
+  if (overlay) overlay.hidden = true;
+  document.body.classList.remove("rr-sf-page-open");
+}
+window._rrCloseSmartFillPage = _rrCloseSmartFillPage;
 
 // Refresh derived rule visibility (incl. the standalone Assign Vans
 // button) on initial load, not just when the popover is opened — the
