@@ -42760,7 +42760,7 @@ async function autoAssignDriversForWeek() {
   // service_type_id so we can check cert requirements), the active
   // service types (which carry requires_dot / requires_xl / requires_edv),
   // and any approved PTO inside the week.
-  const [driversRes, ptoRes, shiftsRes, svcRes, pairRes] = await Promise.all([
+  const [driversRes, ptoRes, shiftsRes, svcRes, pairRes, i9Res] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, status, role")
       .eq("dsp_id", dspId)
