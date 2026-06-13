@@ -12163,6 +12163,13 @@ body.rr-cmdk-open{ overflow:hidden }
                       border-radius:8px;
                       box-shadow:0 14px 32px rgba(0,0,0,.20),0 0 10px rgba(0,0,0,.12);
                     }
+                    /* Smart Fill rules popover matches the rest of the schedule
+                       page's font (operator request) — the same --rr-font-family
+                       the schedule UI uses, not the popover's Inter default. */
+                    #view-schedule #rr-sched-smartfill-rules-popover,
+                    #view-schedule #rr-sched-smartfill-rules-popover *{
+                      font-family:var(--rr-font-family,"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif) !important;
+                    }
                     /* Brand-blue Fluent header — the first child of each popover. */
                     #view-onboarding-ops #rr-ob-rules-popover > :first-child,
                     #view-onboarding-ops #rr-funnel-rules-popover > :first-child,
