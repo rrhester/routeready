@@ -620,6 +620,12 @@
                         </select>
                       </div>
                     </div>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label">Message each driver who picks up a 5th day</label>
+                      <div class="rr-pol-control">
+                        <input type="checkbox" class="rr-pol-check" data-rr-sf-rule="fifth_day_notify">
+                      </div>
+                    </div>
                   </div>
 
                   <div class="rr-pol-rows">
@@ -783,11 +789,6 @@
                             <button type="button" class="sf2-seg-btn" data-val="8" role="radio" aria-checked="false">8 weeks</button>
                           </div>
                         </div>
-                      </div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="fifth_day_fill"> <span class="sf-rule-name">Allow a 5th day <button type="button" class="rr-pol-info" data-rr-pol-info="give opted-in drivers one extra shift if coverage needs it" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
-                      <div class="sf2-subrules">
-                        <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_override_availability"> <span class="sf-rule-name">Let the 5th day land on any day — WOC + license still apply</span></label>
-                        <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_notify"> <span class="sf-rule-name">Message each driver who picks up a 5th day</span></label>
                       </div>
                     </div>
                   </details>
@@ -1666,10 +1667,6 @@
                 <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
               </span>
             </button>
-            <button type="button" class="rr-ab-btn" id="rr-ab-unassign" title="Clear this week's van assignments">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="13" height="10" rx="1.2"/><path d="M15 8h4l3 3v4h-7z"/><line x1="2" y1="15" x2="22" y2="15"/><circle cx="6.5" cy="16.5" r="1.6"/><circle cx="17.5" cy="16.5" r="1.6"/></svg>
-              Unassign Fleet
-            </button>
             <div class="rr-ab-coverage" id="rr-ab-coverage" hidden>
               <span class="rr-ab-coverage-main" id="rr-ab-coverage-main"></span>
               <span class="rr-ab-coverage-sub" id="rr-ab-coverage-sub"></span>
@@ -1711,8 +1708,10 @@
               on("rr-ab-finalize",  function () { fire("rr-sched-finalize-h"); });
               on("rr-ab-assign", function (e) {
                 if (e.target.closest("#rr-ab-assign-caret")) return; // caret owns its click
-                var v = document.getElementById("rr-sched-vans-h");
-                if (v && v.dataset.rrAssigned === "1") { say("Fleet is already assigned this week — use Unassign Fleet first."); return; }
+                // Single toggle: #rr-sched-vans-h assigns when the week is clear
+                // and unassigns when vans are already assigned. The pill label
+                // (Assign / Unassign Fleet) is kept in sync by
+                // _refreshAssignVansLabel in live.js.
                 fire("rr-sched-vans-h");
               });
               on("rr-ab-assign-caret", function (e) {
@@ -1725,11 +1724,6 @@
                 var anchorBtn = document.getElementById("rr-ab-assign");
                 if (pop && anchorBtn) pop.style.setProperty("--rr-sf-pop-left", anchorBtn.offsetLeft + "px");
                 if (window._rrToggleSchedVanRules) window._rrToggleSchedVanRules();
-              });
-              on("rr-ab-unassign", function () {
-                var v = document.getElementById("rr-sched-vans-h");
-                if (!v || v.dataset.rrAssigned !== "1") { say("No van assignments to clear this week."); return; }
-                fire("rr-sched-vans-h");
               });
               var more = document.getElementById("rr-ab-more");
               var menu = document.getElementById("rr-ab-menu");

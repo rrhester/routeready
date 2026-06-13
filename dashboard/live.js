@@ -35993,6 +35993,22 @@ function _updateFinalizeButton() {
     }
   }
 
+  // Action-bar pill (#rr-ab-finalize) — reads "Live" and turns green once the
+  // week is finalized; back to "Finalize" (lock) when in draft.
+  const abFin = document.getElementById("rr-ab-finalize");
+  if (abFin) {
+    const lockIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+    abFin.dataset.rrStage = isFinal ? "live" : "finalize";
+    abFin.classList.toggle("rr-ab-live", isFinal);
+    if (isFinal) {
+      abFin.innerHTML = `${finalIcon} Live`;
+      abFin.title = "This week is live · drivers see it. Click to take it back to draft.";
+    } else {
+      abFin.innerHTML = `${lockIcon} Finalize`;
+      abFin.title = "Push this week's schedule to drivers";
+    }
+  }
+
   // Mirror finalize state onto the Assign-Vans tile so its van
   // silhouette can flip color (CSS reads data-rr-finalized).
   const vansBtn = document.getElementById("rr-sched-vans-h");
@@ -39583,7 +39599,7 @@ async function _runSchedVanUnassignBackground() {
   const btn = document.getElementById("rr-sched-vans-h");
   if (!btn) return;
   if (btn.dataset.rrBusy === "1") return;
-  _rrAbBusy("rr-ab-unassign");
+  _rrAbBusy("rr-ab-assign");
   const orig = btn.querySelector("svg")?.outerHTML || "";
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
@@ -39624,7 +39640,7 @@ async function _runSchedVanUnassignBackground() {
       try { await _decorateScheduleChipsWithVans(); } catch (_) {}
     }
   } finally {
-    _rrAbDone("rr-ab-unassign");
+    _rrAbDone("rr-ab-assign");
     _clearTileBusy(btn);
     if (orig) {
       const cur = btn.querySelector("svg");
@@ -39655,6 +39671,17 @@ async function _refreshAssignVansLabel() {
   } catch (_) { return; }
   const assigned = count > 0;
   btn.dataset.rrAssigned = assigned ? "1" : "0";
+  // Mirror the state onto the merged action-bar pill (single Assign/Unassign
+  // toggle): the label flips to "Unassign Fleet" when vans are assigned, back
+  // to "Assign Fleet" when the week is clear.
+  const abAssign = document.getElementById("rr-ab-assign");
+  if (abAssign) {
+    const t = Array.from(abAssign.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+    if (t) t.textContent = assigned ? " Unassign Fleet " : " Assign Fleet ";
+    abAssign.title = assigned
+      ? "Clear this week's van assignments"
+      : "Auto-assign vans for this week using the standing primary / backup chain";
+  }
   // Update the label robustly. We re-find the trailing text node
   // every call (the SVG swap during spinner runs can briefly
   // change the child order). If no text node is found we append

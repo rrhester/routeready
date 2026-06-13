@@ -4900,6 +4900,16 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 #view-schedule .rr-ab-primary:hover { background: #1D4ED8; border-color: #1D4ED8; }
 #view-schedule .rr-ab-primary:active { background: #0A4A85; }
+/* Finalize pill turns green + reads "Live" once the week is finalized
+   (toggled by _updateFinalizeButton in live.js). */
+#view-schedule .rr-ab-btn.rr-ab-live,
+#view-schedule .rr-ab-primary.rr-ab-live {
+  background: var(--rr-green, #16A34A);
+  border-color: var(--rr-green, #16A34A);
+  color: #FFFFFF;
+}
+#view-schedule .rr-ab-btn.rr-ab-live:hover,
+#view-schedule .rr-ab-primary.rr-ab-live:hover { background: #15803D; border-color: #15803D; }
 /* ⋯ overflow — quiet, borderless until hovered. */
 #view-schedule .rr-ab-more-wrap { position: relative; display: flex; }
 #view-schedule .rr-ab-more {
