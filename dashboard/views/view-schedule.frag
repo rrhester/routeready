@@ -737,25 +737,6 @@
                       </div>
                       <div class="sf2-group-label">Days &amp; hours caps</div>
                       <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-max-days-window">Max days window</label>
-                        <div class="sf2-row-control">
-                          <select class="rr-pol-select" id="rr-sf-max-days-window" data-rr-sf-select="max_days_window" aria-label="Max days window">
-                            <option value="schedule_week">This schedule week</option>
-                            <option value="rolling_7_days">Rolling 7 days</option>
-                          </select>
-                        </div>
-                        <p class="sf2-row-help">Rolling counts every shift within 7 days of the candidate — catches "Sat → Sun → Mon" 3-in-a-row spans week boundaries.</p>
-                      </div>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-weekly-hour-window">Weekly hour window <button type="button" class="rr-pol-info" data-rr-pol-info="How many hours an approved-PTO day counts as when the cap is being calculated." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
-                        <div class="sf2-row-control">
-                          <select class="rr-pol-select" id="rr-sf-weekly-hour-window" data-rr-sf-select="weekly_hour_window" aria-label="Weekly hour window">
-                            <option value="schedule_week">This schedule week</option>
-                            <option value="rolling_7_days">Rolling 7 days</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-pto-default-hours">PTO hours per day</label>
                         <div class="sf2-row-control">
                           <input type="number" class="sf2-number" id="rr-sf-pto-default-hours" min="0" max="24" step="1" value="10" data-rr-sf-num="pto_default_hours">
