@@ -8423,6 +8423,84 @@ function _downloadBlob(filename, blob) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// ─── Smart Fill · Diagnostic Trace Mode ─────────────────────────────────
+// Re-runs the LAST Smart Fill payload through the CP-SAT solver with
+// `trace: true` and surfaces the solver's complete decision report: why
+// each driver got 0 shifts, why each shift stayed open, which drivers were
+// excluded BEFORE the solver vs considered-but-not-selected, and the exact
+// PASS/FAIL eligibility result for every driver/shift pair.
+//
+// This NEVER changes the schedule. The solver's trace pass is pure
+// observability and this helper re-solves the cached payload read-only —
+// it does not write any assignment back. Safe to run any time after a
+// Smart Fill run.
+//
+// Usage (dashboard console, after a Smart Fill run):
+//   await _rrSmartFillDiagnostics()             // download .txt + .json, log report
+//   const t = await _rrSmartFillDiagnostics()   // also returns the structured trace
+async function _rrSmartFillDiagnostics(opts = {}) {
+  const payload = window._rrLastSmartFillPayload;
+  if (!payload || typeof payload !== "object") {
+    const m = "No Smart Fill payload cached yet — run Smart Fill first, then re-run diagnostics.";
+    if (typeof toast === "function") toast(m, "warn");
+    console.warn("[Smart Fill diagnostics]", m);
+    return null;
+  }
+  // Opt into the trace and echo identifiers so the saved report ties back
+  // to the run. The dispatcher forwards these to the solver service.
+  const tracedPayload = {
+    ...payload,
+    trace: true,
+    run_id: window._rrLastOptimizationRunId || payload.run_id || null,
+    dsp_id: window.RR?.dsp?.id || payload.dsp_id || null,
+  };
+  if (typeof toast === "function") toast("Running Smart Fill diagnostics…", "info");
+  let result;
+  try {
+    const { data, error } = await sb.functions.invoke(
+      "dispatch-optimization-run",
+      { body: { payload: tracedPayload } },
+    );
+    if (error) throw error;
+    result = data;
+  } catch (e) {
+    const m = "Diagnostics failed: " + ((e && e.message) || "dispatch error");
+    if (typeof toast === "function") toast(m, "warn");
+    console.warn("[Smart Fill diagnostics]", e);
+    return null;
+  }
+  const trace = result && result.trace;
+  if (!trace) {
+    const m = "Solver returned no trace — is the solver service deployed with Trace Mode?";
+    if (typeof toast === "function") toast(m, "warn");
+    console.warn("[Smart Fill diagnostics]", m, result);
+    return result;
+  }
+  if (trace.error) console.warn("[Smart Fill diagnostics] trace builder error:", trace.error);
+
+  const week = payload.schedule_week_start || "week";
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const report = trace.report || "(no report)";
+  if (opts.log !== false) {
+    console.log("%c[Smart Fill diagnostics]", "font-weight:bold", "\n" + report);
+  }
+  try {
+    _downloadBlob(`smart-fill-trace-${week}-${stamp}.txt`,
+      new Blob([report], { type: "text/plain" }));
+    _downloadBlob(`smart-fill-trace-${week}-${stamp}.json`,
+      new Blob([JSON.stringify(trace, null, 2)], { type: "application/json" }));
+  } catch (e) {
+    console.warn("[Smart Fill diagnostics] download failed:", e);
+  }
+  if (typeof toast === "function") {
+    const c = (trace.run_summary && trace.run_summary.counts) || {};
+    toast(`Diagnostics ready — ${c.drivers_excluded ?? "?"} drivers excluded, ` +
+          `${c.shifts_unfilled ?? "?"} shifts open. Report downloaded.`, "success");
+  }
+  return trace;
+}
+window._rrSmartFillDiagnostics = _rrSmartFillDiagnostics;
+
 // Lazily pull pdf-lib from the same CDN the doc tools already use, so
 // the bundle isn't loaded until an operator actually downloads a report.
 let _pdfLibPromise = null;
@@ -43085,6 +43163,11 @@ async function autoAssignDriversForWeek() {
       duration_hours: durationOf(sh),
       route_type: routeTypeOf(sh),
       assigned_driver_id: assignedDriverId, is_locked: isLocked,
+      // Cushion-seat marker. The engine fills cushion seats like any other
+      // open shift (planned capacity, not over-staffing), so this is
+      // observability only — it lets the solver's Diagnostic Trace Mode
+      // report cushion-seat fill/open counts apart from regular routes.
+      is_cushion: sh.is_cushion === true,
       // station_id + route_code aren't used by the engine itself,
       // but the 5th-day pass confirm flow downstream looks them up
       // from payload.shifts to build a complete proposed_shift for
