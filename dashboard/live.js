@@ -43472,12 +43472,24 @@ async function autoAssignDriversForWeek() {
     .sort((a, b) => b[1] - a[1])
     .map(([did, n]) => `  • ${nameById.get(did) || did}: ${n} (${(engineDatesByDriver.get(did) || []).sort().join(", ")})`);
 
-  // Which days are still open after the writes? Used to point out when a
-  // driver with matching availability was somehow not assigned.
-  const openShiftDows = new Set(
-    engineShifts.filter(es => !es.is_locked && !assignedShiftIds.has(es.id))
-      .map(es => new Date(es.date + "T12:00:00").getDay())
-  );
+  // Open shifts still unfilled after the writes, indexed by day-of-week
+  // WITH their route types — so the unscheduled-driver readout can tell
+  // a genuine miss (an open shift the driver could actually run, on a day
+  // they're available) apart from a cert block (the open shifts on their
+  // available days are XL/EDV/DOT routes the driver isn't certified for).
+  const openByDow = new Map(); // dow -> Set(route_type)
+  for (const es of engineShifts) {
+    if (es.is_locked || assignedShiftIds.has(es.id)) continue;
+    const dow = new Date(es.date + "T12:00:00").getDay();
+    if (!openByDow.has(dow)) openByDow.set(dow, new Set());
+    openByDow.get(dow).add(es.route_type || "standard");
+  }
+  const _canRunRouteType = (dp, rt) =>
+    rt === "xl"       ? !!dp?.xl_certified
+    : rt === "edv"      ? !!dp?.edv_certified
+    : rt === "step_van" ? !!dp?.dot_certified
+    : true; // standard route — no cert required
+  const _RT_CERT_LABEL = { xl: "XL", edv: "EDV", step_van: "DOT" };
 
   const diagnostics = {
     failedWrites,
@@ -43498,15 +43510,30 @@ async function autoAssignDriversForWeek() {
       const avail = availDows && availDows.length > 0
         ? availDows.map(i => DOW_LBL[i]).join("/")
         : (availDows === null ? "(no availability set)" : "(none)");
-      const matchOpen = availDows ? availDows.filter(d => openShiftDows.has(d)).map(d => DOW_LBL[d]) : [];
+      // Available days that still have OPEN shifts.
+      const matchDows = availDows ? availDows.filter(d => openByDow.has(d)) : [];
+      // Of those, days with at least one open shift this driver could
+      // actually run (cert-compatible) — a genuine miss if any exist.
+      const doableDows = matchDows.filter(d =>
+        [...openByDow.get(d)].some(rt => _canRunRouteType(dp, rt)));
       let reason;
       if (blocks.length > 0) {
         reason = "blocked from the open shifts — " +
           blocks.map(b => b.message).join("; ");
-      } else if (matchOpen.length > 0) {
-        // This is the bug case: driver IS available on a day with an open
-        // shift, but the engine didn't assign them. Surface it loudly.
-        reason = `⚠ available on ${matchOpen.join("/")} which has open shifts — engine still skipped them (BUG)`;
+      } else if (doableDows.length > 0) {
+        // Genuine miss: an open shift this driver IS certified to run, on
+        // a day they're available, went unassigned. Worth surfacing.
+        reason = `⚠ available on ${doableDows.map(d => DOW_LBL[d]).join("/")} with open shifts they can run — engine skipped them`;
+      } else if (matchDows.length > 0) {
+        // Not a bug: the open shifts on this driver's available days need a
+        // certification they don't have on file. Name the cert(s).
+        const certs = new Set();
+        for (const d of matchDows) {
+          for (const rt of openByDow.get(d)) {
+            if (!_canRunRouteType(dp, rt) && _RT_CERT_LABEL[rt]) certs.add(_RT_CERT_LABEL[rt]);
+          }
+        }
+        reason = `available on ${matchDows.map(d => DOW_LBL[d]).join("/")}, but the open shifts those days require ${[...certs].join("/") || "a"} certification — not on file for this driver`;
       } else if (u.eligible_somewhere) {
         reason = "eligible, but every shift was filled by another driver " +
           "(turn on “Spread work evenly” to give everyone a turn)";
