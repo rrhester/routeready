@@ -42816,14 +42816,32 @@ async function autoAssignDriversForWeek() {
   // typically has no I-9s on file yet, and that must never keep their
   // drivers off the schedule (operator 2026-06-13). The engine has never
   // gated on work authorization; we keep it that way.
+  // Why a roster driver was kept OUT of the scheduling pool, keyed by id.
+  // The board renders every driver, but the engine only ever sees the
+  // pool — so an excluded driver shows 0 shifts with no engine reason and
+  // the operator is left guessing. Capture the reason here and surface it
+  // on the driver card (a 0-shift driver who was never even a candidate is
+  // the single most common "available driver got nothing" cause).
+  const _poolExcludedById = new Map(); // driver_id -> reason string
   const drivers = (driversRes.data || []).filter(d => {
-    if (_whatIfDropIds && _whatIfDropIds.has(d.id)) return false;
+    if (_whatIfDropIds && _whatIfDropIds.has(d.id)) {
+      _poolExcludedById.set(d.id, "held out of this what-if simulation");
+      return false;
+    }
     // Staff rows (dispatcher/ops/owner) live in the drivers table since
     // migration 0221 — never put them in the scheduling pool. role is
-    // null/'driver' for real drivers.
+    // null/'driver' for real drivers. Not surfaced: they aren't drivers.
     if (d.role && d.role !== "driver") return false;
     if (d.status === "active") return true;
-    if (d.status === "onboarding") return activatedTrainees.has(d.id);
+    if (d.status === "onboarding") {
+      if (activatedTrainees.has(d.id)) return true;
+      _poolExcludedById.set(d.id,
+        "still in onboarding — not yet activated for regular routes, so Smart Fill can't place them (finish their training pairing to release them)");
+      return false;
+    }
+    // inactive / terminated / suspended / anything non-active
+    _poolExcludedById.set(d.id,
+      `not scheduled — driver status is “${d.status || "unknown"}”; only Active drivers are put on routes`);
     return false;
   });
   const pto     = ptoRes.data     || [];
@@ -43657,6 +43675,15 @@ async function autoAssignDriversForWeek() {
       return ids.size;
     })(),
   };
+  // Fold in drivers the engine NEVER SAW because the pool filter dropped
+  // them (onboarding-not-activated, inactive, what-if held out). These
+  // aren't in result.unscheduled_drivers — the solver had no row for them —
+  // so without this their 0-shift card falls back to a generic heuristic
+  // and the operator can't tell they were excluded outright. The pool
+  // reason wins over any stale engine reason for the same driver.
+  for (const [did, reason] of _poolExcludedById) {
+    _whyById.set(did, reason);
+  }
   // Publish this run's real per-driver reasons for the hover card. Also
   // record the schedule week so the card only trusts them for this week.
   window._rrDriverWhyById = _whyById;
