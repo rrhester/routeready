@@ -42901,6 +42901,60 @@ async function autoAssignDriversForWeek() {
         effAvail.set(`${row.driver_id}:${row.on_date}`, row.days || []);
       }
     }
+
+    // ── Panel-parity availability (authoritative override) ────────────
+    // The RPC above resolves effective days server-side, but its deployed
+    // definition can LAG the dashboard: notably an older
+    // driver_effective_days_on honors OPEN-ENDED approved requests (null
+    // effective_until) that the Availability panel deliberately IGNORES
+    // (panel rule: an override is active only when effective_until is set
+    // AND still in the future — see renderAvailabilityTab activeOverride).
+    // When the RPC honors such a request the engine schedules a driver on
+    // FEWER days than the operator sees in the panel — the "available N
+    // days but Smart Fill only used M, seats left open" defect. Recompute
+    // effective availability HERE, in the dashboard, with the panel's exact
+    // rule, and override the RPC result. This makes the engine read exactly
+    // what the panel shows no matter which migration is live on the DB — no
+    // SQL and no solver redeploy required.
+    try {
+      const { data: reqRows, error: reqErr } = await sb
+        .from("driver_availability_requests")
+        .select("driver_id, days, effective_from, effective_until, decided_at")
+        .eq("dsp_id", dspId)
+        .eq("status", "approved")
+        .in("driver_id", drivers.map(d => d.id))
+        .not("effective_until", "is", null)   // open-ended ≠ active override (panel rule)
+        .gte("effective_until", _schedStart);  // could be in effect during this week
+      if (reqErr) {
+        console.warn("panel-parity availability: request load failed:", reqErr);
+      } else {
+        // The single latest approved request per driver — matches the
+        // panel's `availability_latest` (most recently decided wins).
+        const latestReqByDriver = new Map();
+        for (const r of (reqRows || [])) {
+          if (!Array.isArray(r.days)) continue;
+          const cur = latestReqByDriver.get(r.driver_id);
+          if (!cur || String(r.decided_at || "") > String(cur.decided_at || "")) {
+            latestReqByDriver.set(r.driver_id, r);
+          }
+        }
+        for (const d of drivers) {
+          const req = latestReqByDriver.get(d.id);
+          const metaDays = Array.isArray(d.metadata?.availability?.days)
+            ? d.metadata.availability.days : [];
+          for (const iso of datesIso) {
+            // Panel's active-override test, evaluated for THIS shift date:
+            // started (or open start) AND a real end date still ahead.
+            const overrideActive = !!req
+              && (!req.effective_from || req.effective_from <= iso)
+              && req.effective_until >= iso;
+            effAvail.set(`${d.id}:${iso}`, overrideActive ? req.days : metaDays);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("panel-parity availability override threw:", e);
+    }
   }
   const driverDaysOn = (driverId, iso) => {
     const v = effAvail.get(`${driverId}:${iso}`);
