@@ -46199,7 +46199,7 @@ async function renderScheduleWeek() {
   // (and a fully-staffed over-plan day reads 9/8) instead of hiding the
   // extra as "8/8".
   const coverageByDate = new Map();
-  const get = (d) => { let a = coverageByDate.get(d); if (!a) { a = { planned: 0, rows: 0, filled: 0 }; coverageByDate.set(d, a); } return a; };
+  const get = (d) => { let a = coverageByDate.get(d); if (!a) { a = { planned: 0, rows: 0, filled: 0, cushionRows: 0 }; coverageByDate.set(d, a); } return a; };
   for (const sh of (grid.shifts || [])) {
     if (!["scheduled", "completed"].includes(sh.status)) continue;
     // Training + ride-along shifts aren't staffing a route — they're
@@ -46208,6 +46208,9 @@ async function renderScheduleWeek() {
     if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
     const a = get(sh.date);
     a.rows += 1;
+    // Track cushion rows separately so the coverage denominator can count the
+    // buffer seats that ACTUALLY exist (see the honest-needed note below).
+    if (sh.is_cushion === true) a.cushionRows += 1;
     const isFilled =
       sh.status === "completed" ||
       (sh.driver_id && visibleDriverIds.has(sh.driver_id));
@@ -46217,13 +46220,24 @@ async function renderScheduleWeek() {
   // then read 0/N). Denominator = the plan; on a day with shifts but no
   // recorded plan, fall back to the row count so it still reads sensibly.
   for (const [date, denom] of denomByDate) get(date).planned = denom;
-  for (const a of coverageByDate.values()) {
-    // Denominator = the day's route target + cushion (denomByDate =
-    // ceil(target_routes × (1 + cushion%))). It is FIXED to that plan:
-    // adding or deleting shift rows must NOT change it, so the day always
-    // reads X/(routes+cushion) where X is the number of shifts actually
-    // scheduled. Falls back to the row count only on days with no plan.
-    a.needed = a.planned > 0 ? a.planned : a.rows;
+  for (const [date, a] of coverageByDate) {
+    // HONEST coverage denominator = the day's keyed route target + the cushion
+    // seats that ACTUALLY exist as rows. apply_cushion_to_week is the authority
+    // on how many cushion seats get created — it rounds per (station, wave,
+    // service-type) bucket (migration 0077 "round not ceil"; 0347 per-bucket).
+    // The display previously used ceil(target_routes × (1 + cushion%)) at the
+    // DAY level, which over-counts vs what the creator actually builds (e.g.
+    // the board shows 2 cushion/day but only 1/day ever gets made), surfacing
+    // phantom "cushion seats open" that can never be filled. Counting the real
+    // cushion rows keeps the coverage card + day headers honest: a fully
+    // staffed week reads X/X with 0 open. Route under/over-staffing is still
+    // visible because the route portion stays the keyed target.
+    //
+    // DISPLAY-ONLY: denomByDate / _rrSchedPlanByDate keeps the ceil plan
+    // ceiling for the shift-creation guard (materializeVirtualShiftToDriver),
+    // so this does NOT change what gets scheduled or created.
+    const honest = (targetByDate.get(date) || 0) + (a.cushionRows || 0);
+    a.needed = honest > 0 ? honest : a.rows;
   }
   let totalNeeded = 0, totalFilled = 0;
   for (const a of coverageByDate.values()) { totalNeeded += a.needed; totalFilled += a.filled; }
