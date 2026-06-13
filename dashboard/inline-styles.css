@@ -24076,3 +24076,17 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-smartfill-page .rr-as-page .rr-colors-body{
   max-height:none !important; height:auto !important; overflow:visible !important;
 }
+
+/* The Rules box is a .rr-policy-drawer positioned by high-specificity
+   #id#id !important rules, so the .rr-as-page override above (a class
+   selector) loses to them and the box renders position:absolute → out of
+   flow → invisible in the page (only Colors showed). Re-assert the inline
+   layout with a matching #id#id specificity so it flows as a page card. */
+.rr-smartfill-page #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover.rr-as-page{
+  position:static !important; inset:auto !important;
+  top:auto !important; right:auto !important; bottom:auto !important; left:auto !important;
+  transform:none !important;
+  display:flex !important; flex-direction:column !important;
+  width:100% !important; max-width:none !important; min-width:0 !important;
+  height:auto !important; max-height:none !important; margin:0 !important;
+}
