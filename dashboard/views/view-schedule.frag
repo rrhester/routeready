@@ -2591,22 +2591,11 @@
 
             </div><!-- /rr-sf-cards3 -->
 
-            <!-- Advanced Rules — a section header + three cards in the same
-                 preset-card style as the row above. Active counts come from
-                 _rrSfAdvCounts() (real blob reads); each card's Edit opens that
-                 section of the re-homed editor, View-all reveals the full one. -->
-            <div class="rr-sf-advanced" id="rr-sf-advanced-card">
-              <div class="rr-sf-adv-head">
-                <span class="rr-sf-mini-ic rr-sf-ic-adv" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="2.4"/><path d="M10 2.5v2.2M10 15.3v2.2M17.5 10h-2.2M4.7 10H2.5M15.3 4.7l-1.6 1.6M6.3 13.7l-1.6 1.6M15.3 15.3l-1.6-1.6M6.3 6.3 4.7 4.7"/></svg></span>
-                <div class="rr-sf-adv-headings">
-                  <div class="rr-sf-mini-title">Advanced Rules</div>
-                  <div class="rr-sf-mini-sub">Fine-tune how Smart Fill optimizes your schedule.</div>
-                </div>
-                <span class="rr-sf-badge-count" id="rr-sf-adv-total">0 active</span>
-                <button type="button" class="rr-sf-adv-toggle" id="rr-sf-adv-toggle" aria-expanded="true" aria-label="Collapse advanced rules"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 8 6 4 10 8"/></svg></button>
-              </div>
-              <div class="rr-sf-adv-body" id="rr-sf-adv-body">
-                <div class="rr-sf-cards3">
+            <!-- Advanced rule cards — promoted onto the page at the same level
+                 and card style as the preset row above (no "Advanced Rules"
+                 box). Per-card "N active" counts come from _rrSfAdvCounts();
+                 each card's Edit opens that section's settings inline. -->
+            <div class="rr-sf-cards3">
 
                   <!-- Schedule Quality -->
                   <div class="rr-sf-card rr-sf-mini">
@@ -2647,10 +2636,7 @@
                     <button type="button" class="rr-sf-edit" data-rr-sf-edit="optimization">Edit <span aria-hidden="true">›</span></button>
                   </div>
 
-                </div>
-                <button type="button" class="rr-sf-viewall" data-rr-sf-edit="all">View all advanced rules <span aria-hidden="true">›</span></button>
-              </div>
-            </div>
+            </div><!-- /rr-sf-cards3 (advanced) -->
 
             <!-- Detailed editor — the existing Rules + Schedule Colors
                  popovers are re-homed here (live.js _rrOpenSmartFillPage) and
