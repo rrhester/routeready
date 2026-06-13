@@ -42760,7 +42760,7 @@ async function autoAssignDriversForWeek() {
   // service_type_id so we can check cert requirements), the active
   // service types (which carry requires_dot / requires_xl / requires_edv),
   // and any approved PTO inside the week.
-  const [driversRes, ptoRes, shiftsRes, svcRes, pairRes, i9Res] = await Promise.all([
+  const [driversRes, ptoRes, shiftsRes, svcRes, pairRes] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, status, role")
       .eq("dsp_id", dspId)
@@ -42789,10 +42789,6 @@ async function autoAssignDriversForWeek() {
       .select("trainee_id, status")
       .eq("dsp_id", dspId)
       .eq("status", "materialized"),
-    // Work-authorization (Form I-9) state — used as a HARD scheduling
-    // gate below. Best-effort: a fetch failure means the gate can't be
-    // applied (fail open) rather than blocking the whole roster.
-    sb.rpc("i9_list").then((r) => r, () => ({ data: [] })),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
@@ -42816,7 +42812,11 @@ async function autoAssignDriversForWeek() {
   const _whatIfDropIds = _rrWhatIfOptions?.unavailableDriverIds instanceof Set
     ? _rrWhatIfOptions.unavailableDriverIds
     : null;
-  const _candidates = (driversRes.data || []).filter(d => {
+  // I-9 is deliberately NOT a scheduling gate: a freshly-onboarded DSP
+  // typically has no I-9s on file yet, and that must never keep their
+  // drivers off the schedule (operator 2026-06-13). The engine has never
+  // gated on work authorization; we keep it that way.
+  const drivers = (driversRes.data || []).filter(d => {
     if (_whatIfDropIds && _whatIfDropIds.has(d.id)) return false;
     // Staff rows (dispatcher/ops/owner) live in the drivers table since
     // migration 0221 — never put them in the scheduling pool. role is
@@ -42826,36 +42826,6 @@ async function autoAssignDriversForWeek() {
     if (d.status === "onboarding") return activatedTrainees.has(d.id);
     return false;
   });
-  // ── Work-authorization HARD gate (Form I-9) ──────────────────────────
-  // A driver who isn't work-authorized must never be auto-scheduled —
-  // same standing as an expired license. "Authorized" = Form I-9
-  // Section 2 complete.
-  //
-  // CRITICAL: i9_list returns one row PER non-terminated driver via a
-  // LEFT JOIN (status 'no_record' when there's no I-9), so row count is
-  // NOT a module-usage signal. We treat the DSP as I-9-enabled only when
-  // at least one driver shows real I-9 activity (status past 'no_record',
-  // or any section timestamp). A DSP that doesn't track I-9 (everyone
-  // 'no_record') fails OPEN — no roster is ever stranded. Excluding here,
-  // before the payload, means BOTH engines never see the driver.
-  const _i9Rows = Array.isArray(i9Res?.data) ? i9Res.data : [];
-  const _i9UsesModule = _i9Rows.some(r =>
-    (r.status && r.status !== "no_record") || r.section1_completed_at || r.section2_completed_at);
-  const _i9AuthById = new Map(_i9Rows.map(r => [r.driver_id, !!r.section2_completed_at]));
-  const _unauthorizedIds = new Set();
-  const drivers = _candidates.filter(d => {
-    if (!_i9UsesModule) return true;            // DSP not tracking I-9 → don't gate
-    if (_i9AuthById.get(d.id) === true) return true; // Section 2 complete → authorized
-    _unauthorizedIds.add(d.id);
-    return false;                                // not work-authorized → excluded
-  });
-  // Surface the excluded set so the schedule render + the driver
-  // explanation card can report work-authorization as the real reason
-  // these drivers got zero shifts.
-  window._rrSchedWorkAuthBlocked = _unauthorizedIds;
-  if (_unauthorizedIds.size) {
-    console.info(`[Smart Fill] ${_unauthorizedIds.size} driver(s) excluded — Form I-9 not complete (not work-authorized).`);
-  }
   const pto     = ptoRes.data     || [];
   // Map service_type_id → { requires_dot, requires_xl, requires_edv }
   // so we can gate driver eligibility per shift.
@@ -46201,22 +46171,6 @@ async function renderScheduleWeek() {
     const DOWK = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const weekIsos = [];
     for (let i = 0; i < 7; i++) weekIsos.push(fmtIsoDate(addDays(weekStart, i)));
-    // Work-authorization (Form I-9) state for the hard-blocker readout.
-    // Mirrors the Smart Fill gate EXACTLY: i9_list returns a row per
-    // driver (no_record via left join), so module usage = at least one
-    // driver with real I-9 activity (status past no_record / any section
-    // timestamp). No activity anywhere → DSP doesn't track I-9 → no gate,
-    // no I-9 blocker on the card. authorized = Section 2 complete.
-    if (window._rrSchedI9 === undefined) {
-      try {
-        const r = await sb.rpc("i9_list");
-        const rows = (r && Array.isArray(r.data)) ? r.data : [];
-        const usesModule = rows.some(x =>
-          (x.status && x.status !== "no_record") || x.section1_completed_at || x.section2_completed_at);
-        window._rrSchedI9 = { usesModule, authById: new Map(rows.map((x) => [x.driver_id, !!x.section2_completed_at])) };
-      } catch (_) { window._rrSchedI9 = { usesModule: false, authById: new Map() }; }
-    }
-    const _i9 = window._rrSchedI9 || { usesModule: false, authById: new Map() };
     // Seniority rank: earliest hire_date = #1 (drivers without a date last).
     const ranked = [...drivers].filter(d => d.hire_date)
       .sort((a, b) => String(a.hire_date).localeCompare(String(b.hire_date)));
@@ -46261,17 +46215,11 @@ async function renderScheduleWeek() {
         // instead of rationalizing a 0-shift week with rotation prose.
         blockers: (() => {
           // HARD gates that genuinely keep this driver out of Smart Fill.
+          // (Form I-9 is intentionally NOT here — it never blocks
+          // scheduling; a new DSP won't have I-9s yet and that mustn't
+          // keep drivers off the board.)
           const out = [];
           const sfR = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
-          // Work authorization (Form I-9) — a real gate: Smart Fill
-          // excludes un-authorized drivers from the candidate pool when
-          // the DSP tracks I-9. "Authorized" = Section 2 complete.
-          if (_i9.usesModule && _i9.authById.get(d.id) !== true) {
-            out.push({
-              why: "Not work-authorized — Form I-9 Section 2 isn't complete, so Smart Fill can't schedule this driver.",
-              tip: "Complete the Form I-9 (Work authorization step in Onboarding, or the Documents tab on the driver profile). Once verified, the driver is schedulable.",
-            });
-          }
           // License: missing data fails safe (blocks like an expired DL).
           if (sfR.dl_valid !== false) {
             const dlWin = Math.max(0, Math.min(365, parseInt(sfR.dl_protection_days, 10) || 0));
