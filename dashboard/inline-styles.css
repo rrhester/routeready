@@ -24365,14 +24365,35 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section-chev{
   display:none !important;
 }
-/* Section title → a plain uppercase group label; description below it. */
+/* Section title → bold title-case heading (matches the mockup). */
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-title{
-  font-size:11px !important; font-weight:700 !important; color:#64748B !important;
-  text-transform:uppercase !important; letter-spacing:.06em !important;
+  font-size:15px !important; font-weight:700 !important; color:#0F172A !important;
+  text-transform:none !important; letter-spacing:0 !important;
 }
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-sub{
   display:none !important;
 }
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-body{
   border-top:0 !important; padding:6px 0 0 !important;
+}
+
+/* ── Toggle switches — every on/off rule renders as a switch (mockup) ──── */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body input[type="checkbox"]{
+  appearance:none !important; -webkit-appearance:none !important;
+  width:40px !important; height:22px !important; border-radius:999px !important;
+  background:#CBD5E1 !important; border:0 !important; position:relative !important;
+  cursor:pointer !important; flex:0 0 auto !important; margin:0 !important; padding:0 !important;
+  transition:background .15s !important; vertical-align:middle !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body input[type="checkbox"]::before{
+  content:"" !important; position:absolute !important; top:2px !important; left:2px !important;
+  width:18px !important; height:18px !important; border-radius:50% !important;
+  background:#fff !important; box-shadow:0 1px 2px rgba(0,0,0,.25) !important;
+  transition:transform .15s !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body input[type="checkbox"]:checked{
+  background:#2563EB !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body input[type="checkbox"]:checked::before{
+  transform:translateX(18px) !important;
 }
