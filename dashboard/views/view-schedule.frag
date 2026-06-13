@@ -620,6 +620,12 @@
                         </select>
                       </div>
                     </div>
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label">Message each driver who picks up a 5th day</label>
+                      <div class="rr-pol-control">
+                        <input type="checkbox" class="rr-pol-check" data-rr-sf-rule="fifth_day_notify">
+                      </div>
+                    </div>
                   </div>
 
                   <div class="rr-pol-rows">
@@ -783,11 +789,6 @@
                             <button type="button" class="sf2-seg-btn" data-val="8" role="radio" aria-checked="false">8 weeks</button>
                           </div>
                         </div>
-                      </div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="fifth_day_fill"> <span class="sf-rule-name">Allow a 5th day <button type="button" class="rr-pol-info" data-rr-pol-info="give opted-in drivers one extra shift if coverage needs it" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
-                      <div class="sf2-subrules">
-                        <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_override_availability"> <span class="sf-rule-name">Let the 5th day land on any day — WOC + license still apply</span></label>
-                        <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_notify"> <span class="sf-rule-name">Message each driver who picks up a 5th day</span></label>
                       </div>
                     </div>
                   </details>
