@@ -5249,3 +5249,34 @@ body:not(.rr-sched-compact):not(.rr-sched-ultra-compact):not(.rr-sched-super-com
 #view-schedule .rr-ab-btn#rr-ab-smartfill:hover {
   background: #EFF6FF;
 }
+
+/* ============================================================
+   Quiet grid + human roster (operator 2026-06-13)
+   ------------------------------------------------------------
+   1. Row/column dividers lightened ~50% (.14 → .07, header .18
+      → .09) — the shift cards define the structure, whitespace
+      over borders.
+   2. Driver avatars 28–30px → 40px so the roster reads human.
+   End-of-sheet so these win the earlier hardcoded rules.
+   ============================================================ */
+#view-schedule.rrx-schedule .cal-cell {
+  border-right-color: rgba(15, 23, 42, 0.07) !important;
+}
+#view-schedule.rrx-schedule .cal-cell-head:not(.today) {
+  border-right-color: rgba(15, 23, 42, 0.07) !important;
+}
+#view-schedule.rrx-schedule .cal-grid {
+  border-bottom-color: rgba(15, 23, 42, 0.07) !important;
+}
+#view-schedule.rrx-schedule .cal-grid.head {
+  border-bottom-color: rgba(15, 23, 42, 0.09) !important;
+}
+
+#view-schedule.rrx-schedule .cal-row-label .avatar-sm,
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
+  width: 40px !important;
+  height: 40px !important;
+  font-size: 14px !important;
+}
