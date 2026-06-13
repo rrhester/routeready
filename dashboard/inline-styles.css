@@ -24349,3 +24349,41 @@ body.rr-cmdk-open{ overflow:hidden }
   display:none !important;
 }
 #rr-smartfill-page #rr-sf-detail{ margin-top:2px; }
+
+/* ── Advanced sections → match the preset cards ─────────────────────────
+   Each leaf section (Who can work, Limits & compliance, Preferences, Custom
+   rules, Engine tuning) now reads as its own card: icon badge + title +
+   description header, same chrome as Work Limits / Driver Preferences. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section]{
+  border:1px solid #E5E8ED !important; border-radius:14px !important;
+  background:#fff !important; box-shadow:0 1px 3px rgba(15,23,42,.06) !important;
+  margin:0 0 16px !important; overflow:hidden;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] > .sf2-section-head{
+  padding:16px 18px !important; background:#fff !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] > .sf2-section-head .sf2-section-head-inner{
+  display:flex !important; align-items:center !important; gap:12px !important; width:100%;
+}
+/* The icon badge uses the same .rr-sf-mini-ic chrome as the cards. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .rr-sf-sec-ic{
+  flex:0 0 auto !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-titles{
+  flex:1 1 auto !important; min-width:0 !important;
+  display:flex !important; flex-direction:column !important; gap:2px !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-title{
+  font-size:14px !important; font-weight:600 !important; color:#0F172A !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-sub{
+  font-size:12px !important; color:#64748B !important; line-height:1.35 !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-chev{
+  flex:0 0 auto !important; width:13px !important; height:13px !important; color:#94A3B8 !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-body{
+  border-top:1px solid #EEF1F5 !important; padding:12px 18px 16px !important;
+}
+/* Custom-rules badge tint (amber), to round out the icon set. */
+.rr-sf-ic-custom{ background:rgba(217,119,6,.12); color:#D97706; }

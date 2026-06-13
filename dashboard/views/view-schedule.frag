@@ -684,6 +684,7 @@
                        (include onboarding drivers, license buffer) remain. -->
                   <details class="sf2-section" data-rr-sf-section="eligibility">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="rr-sf-mini-ic rr-sf-ic-safety rr-sf-sec-ic" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5l6 2.3v4.4c0 3.9-2.5 6.6-6 8.3-3.5-1.7-6-4.4-6-8.3V4.8z"/><path d="M7.4 10l1.8 1.8L13 8"/></svg></span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Who can work</div>
                         <div class="sf2-section-sub">License, certs &amp; service types — always enforced</div>
@@ -717,6 +718,7 @@
                   <!-- ── 3 · PROTECTIONS ── per-shift / per-driver protections. -->
                   <details class="sf2-section" data-rr-sf-section="protections">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="rr-sf-mini-ic rr-sf-ic-limits rr-sf-sec-ic" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l2.8 1.6"/></svg></span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Limits &amp; compliance</div>
                         <div class="sf2-section-sub">Time off, rest, day &amp; hour caps, WOC</div>
@@ -788,6 +790,7 @@
                   <!-- ── 4 · PREFERENCES ── soft nudges; never block. -->
                   <details class="sf2-section" data-rr-sf-section="prefs">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="rr-sf-mini-ic rr-sf-ic-prefs rr-sf-sec-ic" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.6"/><path d="M2.5 16c0-2.5 2-4.2 4.5-4.2S11.5 13.5 11.5 16"/><path d="M13 5.2a2.4 2.4 0 0 1 0 4.4"/><path d="M14 11.9c1.9.3 3.5 1.8 3.5 4.1"/></svg></span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Preferences</div>
                         <div class="sf2-section-sub">Soft nudges — who to favor when there's a choice</div>
@@ -829,6 +832,7 @@
                   <!-- ── 6 · CUSTOM RULES ── ad-hoc constraints (preserved). -->
                   <details class="sf2-section sf-zone--adhoc" id="rr-sf-adhoc-disclosure" data-rr-sf-section="custom">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="rr-sf-mini-ic rr-sf-ic-custom rr-sf-sec-ic" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6.5" x2="16" y2="6.5"/><circle cx="8" cy="6.5" r="2.1"/><line x1="4" y1="13.5" x2="16" y2="13.5"/><circle cx="13" cy="13.5" r="2.1"/></svg></span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Custom rules</div>
                         <div class="sf2-section-sub">DSP-specific constraints (pair-forbidden, lock-to-day, blackouts)</div>
@@ -846,6 +850,7 @@
                   <!-- ── 7 · ENGINE TUNING ── CP-SAT controls (preserved). -->
                   <details class="sf2-section sf-zone--engine" id="rr-sf-engine-expander" data-rr-sf-section="engine">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
+                      <span class="rr-sf-mini-ic rr-sf-ic-optimization rr-sf-sec-ic" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="2.4"/><path d="M10 2.5v2.2M10 15.3v2.2M17.5 10h-2.2M4.7 10H2.5M15.3 4.7l-1.6 1.6M6.3 13.7l-1.6 1.6M15.3 15.3l-1.6-1.6M6.3 6.3 4.7 4.7"/></svg></span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Engine tuning</div>
                         <div class="sf2-section-sub">Priorities, data sources &amp; compute — fine-tuning</div>
