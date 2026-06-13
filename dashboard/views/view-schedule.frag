@@ -2504,12 +2504,7 @@
           </div>
           <div class="rr-sf-page-body" id="rr-smartfill-page-body">
 
-            <!-- 1 · Policy Summary — auto-generated plain-English readout of
-                 the active policy. Populated by _rrRenderSmartFillSummary()
-                 whenever the page opens or any control changes. -->
-            <div class="rr-sf-card rr-sf-summary" id="rr-sf-summary-card" hidden></div>
-
-            <!-- 2 · Preset cards. Each control is a thin facade over the same
+            <!-- 1 · Preset cards. Each control is a thin facade over the same
                  policy blob the detailed editor writes (new rr-sfp-* ids, wired
                  in live.js _rrPaintSmartFillCards + its change handler). -->
             <div class="rr-sf-cards3">
@@ -2613,42 +2608,62 @@
 
             </div><!-- /rr-sf-cards3 -->
 
-            <!-- 3 · Advanced Rules — entry points into the detailed editor,
-                 grouped. Active counts come from _rrSfAdvCounts() (real blob
-                 reads). "View all" reveals the full re-homed editor below. -->
-            <div class="rr-sf-card rr-sf-advanced" id="rr-sf-advanced-card">
+            <!-- Advanced Rules — a section header + three cards in the same
+                 preset-card style as the row above. Active counts come from
+                 _rrSfAdvCounts() (real blob reads); each card's Edit opens that
+                 section of the re-homed editor, View-all reveals the full one. -->
+            <div class="rr-sf-advanced" id="rr-sf-advanced-card">
               <div class="rr-sf-adv-head">
                 <span class="rr-sf-mini-ic rr-sf-ic-adv" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="2.4"/><path d="M10 2.5v2.2M10 15.3v2.2M17.5 10h-2.2M4.7 10H2.5M15.3 4.7l-1.6 1.6M6.3 13.7l-1.6 1.6M15.3 15.3l-1.6-1.6M6.3 6.3 4.7 4.7"/></svg></span>
                 <div class="rr-sf-adv-headings">
                   <div class="rr-sf-mini-title">Advanced Rules</div>
                   <div class="rr-sf-mini-sub">Fine-tune how Smart Fill optimizes your schedule.</div>
                 </div>
-                <span class="rr-sf-badge rr-sf-badge-count" id="rr-sf-adv-total">0 active</span>
+                <span class="rr-sf-badge-count" id="rr-sf-adv-total">0 active</span>
                 <button type="button" class="rr-sf-adv-toggle" id="rr-sf-adv-toggle" aria-expanded="true" aria-label="Collapse advanced rules"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 8 6 4 10 8"/></svg></button>
               </div>
               <div class="rr-sf-adv-body" id="rr-sf-adv-body">
-                <div class="rr-sf-adv-grid">
-                  <button type="button" class="rr-sf-adv-group" data-rr-sf-edit="quality">
-                    <span class="rr-sf-adv-ic" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.2l1.9 3.9 4.3.6-3.1 3 .7 4.2L9 11.9l-3.8 2 .7-4.2-3.1-3 4.3-.6z"/></svg></span>
-                    <span class="rr-sf-adv-grouptext">
-                      <span class="rr-sf-adv-name">Schedule Quality</span>
-                      <span class="rr-sf-adv-count" data-rr-sf-count="quality">0 active</span>
-                    </span>
-                  </button>
-                  <button type="button" class="rr-sf-adv-group" data-rr-sf-edit="route">
-                    <span class="rr-sf-adv-ic" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15c-1.4 0-2.5-1.1-2.5-2.5S3.6 10 5 10h8c1.4 0 2.5-1.1 2.5-2.5S14.4 5 13 5H4"/><circle cx="4" cy="5" r="1.6"/><circle cx="14" cy="13" r="1.6"/></svg></span>
-                    <span class="rr-sf-adv-grouptext">
-                      <span class="rr-sf-adv-name">Route Assignment</span>
-                      <span class="rr-sf-adv-count" data-rr-sf-count="route">0 active</span>
-                    </span>
-                  </button>
-                  <button type="button" class="rr-sf-adv-group" data-rr-sf-edit="optimization">
-                    <span class="rr-sf-adv-ic" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 9a6.5 6.5 0 1 1-2-4.7"/><polyline points="15.5 3 15.5 6 12.5 6"/></svg></span>
-                    <span class="rr-sf-adv-grouptext">
-                      <span class="rr-sf-adv-name">Optimization</span>
-                      <span class="rr-sf-adv-count" data-rr-sf-count="optimization">0 active</span>
-                    </span>
-                  </button>
+                <div class="rr-sf-cards3">
+
+                  <!-- Schedule Quality -->
+                  <div class="rr-sf-card rr-sf-mini">
+                    <div class="rr-sf-mini-head">
+                      <span class="rr-sf-mini-ic rr-sf-ic-quality" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5l2.2 4.4 4.8.7-3.5 3.4.8 4.8L10 13.9l-4.3 2.3.8-4.8L3 8l4.8-.7z"/></svg></span>
+                      <div class="rr-sf-mini-titles">
+                        <div class="rr-sf-mini-title">Schedule Quality</div>
+                        <div class="rr-sf-mini-sub">Stability, preferred days, and corrective-driver ordering.</div>
+                      </div>
+                    </div>
+                    <span class="rr-sf-active-pill" data-rr-sf-count="quality">0 active</span>
+                    <button type="button" class="rr-sf-edit" data-rr-sf-edit="quality">Edit <span aria-hidden="true">›</span></button>
+                  </div>
+
+                  <!-- Route Assignment -->
+                  <div class="rr-sf-card rr-sf-mini">
+                    <div class="rr-sf-mini-head">
+                      <span class="rr-sf-mini-ic rr-sf-ic-route" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16c-1.7 0-3-1.3-3-3s1.3-3 3-3h8c1.7 0 3-1.3 3-3s-1.3-3-3-3H5"/><circle cx="5" cy="5" r="1.9"/><circle cx="15" cy="15" r="1.9"/></svg></span>
+                      <div class="rr-sf-mini-titles">
+                        <div class="rr-sf-mini-title">Route Assignment</div>
+                        <div class="rr-sf-mini-sub">Driver eligibility and van-assignment gates.</div>
+                      </div>
+                    </div>
+                    <span class="rr-sf-active-pill" data-rr-sf-count="route">0 active</span>
+                    <button type="button" class="rr-sf-edit" data-rr-sf-edit="route">Edit <span aria-hidden="true">›</span></button>
+                  </div>
+
+                  <!-- Optimization -->
+                  <div class="rr-sf-card rr-sf-mini">
+                    <div class="rr-sf-mini-head">
+                      <span class="rr-sf-mini-ic rr-sf-ic-optimization" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10a7 7 0 1 1-2.2-5.1"/><polyline points="17 3 17 7 13 7"/></svg></span>
+                      <div class="rr-sf-mini-titles">
+                        <div class="rr-sf-mini-title">Optimization</div>
+                        <div class="rr-sf-mini-sub">Engine priorities and overtime balance.</div>
+                      </div>
+                    </div>
+                    <span class="rr-sf-active-pill" data-rr-sf-count="optimization">0 active</span>
+                    <button type="button" class="rr-sf-edit" data-rr-sf-edit="optimization">Edit <span aria-hidden="true">›</span></button>
+                  </div>
+
                 </div>
                 <button type="button" class="rr-sf-viewall" data-rr-sf-edit="all">View all advanced rules <span aria-hidden="true">›</span></button>
               </div>
