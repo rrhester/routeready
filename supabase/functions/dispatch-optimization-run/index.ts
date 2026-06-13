@@ -94,6 +94,13 @@ Deno.serve(async (req) => {
       : [],
     solver_seed: payload.solver_seed ?? 0,
     time_budget_ms: payload.time_budget_ms ?? 8000,
+    // Diagnostic Trace Mode (opt-in). When the dashboard sets `trace: true`
+    // the solver attaches a full decision report to the response. Pure
+    // observability — never changes the schedule. run_id / dsp_id are echoed
+    // into the trace's run summary so a saved report is traceable.
+    trace: payload.trace === true,
+    run_id: payload.run_id ?? null,
+    dsp_id: payload.dsp_id ?? null,
   };
 
   const startedAt = Date.now();

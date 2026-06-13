@@ -58,6 +58,77 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
+## Diagnostic Trace Mode
+
+Smart Fill used to be a black box: when a driver got 0 shifts, a shift
+stayed open, a cushion seat went unfilled, or OT showed up, there was no
+way to see *why*. Trace Mode makes the solver self-explaining.
+
+**Opt in** by setting `"trace": true` on the `/solve` request. The solver
+then attaches a `trace` object to the response — a complete, structured
+decision report **plus** a pre-rendered human-readable `report` string.
+It is **pure observability**: enabling it never changes a single
+scheduling decision (the trace is derived *after* the schedule is final).
+It's opt-in because the trace can be large (every driver, every shift,
+every evaluated pair), so normal runs stay lean.
+
+```bash
+curl -s -X POST http://localhost:8080/solve \
+  -H "Authorization: Bearer local-dev-token" \
+  -H "Content-Type: application/json" \
+  -d '{"schedule_week_start":"2026-06-01","max_days":4,"weekly_hour_cap":40,
+       "trace":true,"run_id":"run-123","dsp_id":"dsp-9",
+       "rules":{}, "drivers":[...], "shifts":[...], "pto":[]}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['trace']['report'])"
+```
+
+The trace answers six questions instantly:
+
+1. **Why did this driver get 0 shifts?** → `driver_trace[].why`,
+   `zero_shift_report[]`
+2. **Why did this shift remain open?** → `shift_trace[].why`,
+   `unfilled_shift_report[]`
+3. **Was the driver excluded before the solver?** →
+   `driver_trace[].considered_by_solver == false`
+4. **Was the driver considered by the solver?** →
+   `driver_trace[].considered_by_solver == true`
+5. **Was the shift sent to the solver?** → `shift_trace[].sent_to_solver`
+   (locked rows are honored verbatim, never sent)
+6. **Did scoring or eligibility cause the result?** →
+   `driver_trace[].cause` / `shift_trace[].cause`
+   (`eligibility` | `scoring` | `capacity` | `solver_status`)
+
+### Structured sections
+
+| Key | Spec section | Contents |
+|---|---|---|
+| `run_summary` | 1 | run id, timestamp, DSP, date range, **settings used**, counts (drivers received/eligible/excluded, shifts assigned/unfilled, cushion seats filled/open) |
+| `driver_trace` | 2 | per driver: pool entry, disposition, availability, certs, status, assigned shifts/hours/OT, and the exact 0-shift reason |
+| `shift_trace` | 3 | per shift: date/type/route, regular-vs-cushion, required certs, eligible-driver count, assigned driver, and the exact unfilled reason |
+| `eligibility_trace` | 4 | per (driver, shift) pair: PASS/FAIL with the **first-failure** reason code (`AVAILABILITY_FAIL`, `PTO_FAIL`, `LICENSE_FAIL`, `DOT_FAIL`, `XL_FAIL`, `EDV_FAIL`, …) |
+| `solver_input` | 5 | the payload as the solver saw it — counts + per-driver/per-shift echo |
+| `solver_output` | 6 | assignments returned, unfilled, warnings, solver diagnostics, and per-driver disposition buckets (assigned / considered-but-not-selected / never-considered) |
+| `zero_shift_report` | 7 | one definitive sentence per 0-shift driver |
+| `unfilled_shift_report` | 8 | one definitive sentence per open shift |
+| `report` | — | the whole thing rendered as plain text |
+
+### A note on reason codes
+
+The per-pair **first-failure** codes in `eligibility_trace` come from
+`eligibility.py`, which is the single source of truth the model's
+`_is_eligible` also uses — so the trace can never drift from the rules the
+solver actually applied. Capacity limits (max days, consecutive days,
+weekly hours, min rest) are *global* CP-SAT constraints, not per-pair
+gates, so they surface at the driver/shift layer (`cause: "capacity"`)
+rather than as a per-pair code.
+
+### From the dashboard
+
+The dashboard's edge dispatcher forwards `trace` / `run_id` / `dsp_id` to
+the solver. After a Smart Fill run, call `_rrSmartFillDiagnostics()` from
+the browser console: it re-solves the cached payload read-only with
+`trace: true` and downloads the `.txt` report + `.json` trace.
+
 ## Deploy to Fly.io
 
 Recommended target — cheap, Docker-native, regions match Supabase.
@@ -114,11 +185,19 @@ solver-service/
 ├── rr_solver/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI app + endpoints + auth
-│   ├── models.py         # Pydantic request/response shapes
-│   ├── solver.py         # CP-SAT model (stub now, real in v2)
+│   ├── models.py         # Pydantic request/response shapes (+ trace)
+│   ├── cpsat_model.py    # real CP-SAT model (default engine)
+│   ├── solver.py         # heuristic stub engine (RR_SOLVER_ENGINE=stub)
+│   ├── eligibility.py    # single-source per-pair hard gate + reason codes
+│   ├── trace.py          # Diagnostic Trace Mode (structured + report)
+│   ├── ad_hoc.py         # operator ad-hoc constraint compiler
 │   └── validators.py     # hard-rule pre-checks
 ├── tests/
-│   └── test_solve.py
+│   ├── test_solve.py
+│   ├── test_cpsat.py
+│   ├── test_eligibility.py   # locks gate order + reason codes
+│   ├── test_trace.py         # Trace Mode behavior + the six questions
+│   └── …
 ├── Dockerfile
 ├── fly.toml
 ├── requirements.txt

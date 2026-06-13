@@ -48,17 +48,14 @@ from .models import (
     UnscheduledDriver,
     VanPairingIn,
 )
+from .eligibility import _dow, is_eligible
+from .trace import SolveArtifacts, build_trace
 
 SOLVER_VERSION = "rr-solver-cpsat-v3-strict-hierarchy"
 
 # Default WOC max-consecutive-days if the operator hasn't set one. The
 # in-browser engine defaults to 6 (matches the popover).
 DEFAULT_WOC_MAX_CONSECUTIVE_DAYS = 6
-
-
-def _dow(iso: str) -> int:
-    """Sun=0..Sat=6 to match the dashboard."""
-    return datetime.strptime(iso, "%Y-%m-%d").date().isoweekday() % 7
 
 
 def _is_eligible(
@@ -68,36 +65,14 @@ def _is_eligible(
 ) -> bool:
     """Static hard-rule check. If this returns False, the solver never
     even creates the assign variable for this (driver, shift) pair —
-    that's how we keep the model size sane."""
-    if shift.date in pto_dates_by_driver.get(driver.id, set()):
-        return False
-    # Availability gate.
-    #   None → caller provided no availability constraint → unconstrained.
-    #   []   → driver has NO availability on file → not schedulable at all
-    #          (operator policy: no availability means no shifts).
-    #   [..] → schedulable only on those weekdays.
-    if driver.available_dows is not None:
-        if len(driver.available_dows) == 0:
-            return False
-        if _dow(shift.date) not in driver.available_dows:
-            return False
-    # Cert match per route_type.
-    if shift.route_type == "step_van" and not driver.dot_certified:
-        return False
-    if shift.route_type == "xl" and not driver.xl_certified:
-        return False
-    if shift.route_type == "edv" and not driver.edv_certified:
-        return False
-    # License valid on shift date.
-    if driver.dl_expires_on:
-        try:
-            exp = datetime.strptime(driver.dl_expires_on, "%Y-%m-%d").date()
-            sd = datetime.strptime(shift.date, "%Y-%m-%d").date()
-            if exp < sd:
-                return False
-        except ValueError:
-            pass  # malformed → skip the gate, let other rules catch it
-    return True
+    that's how we keep the model size sane.
+
+    The gate logic now lives in `eligibility.py` so the diagnostic Trace
+    Mode can name the *first* rule that blocked a pair without re-deriving
+    (and drifting from) the order applied here. This is a thin, behavior-
+    preserving delegation: `is_eligible(...)` is exactly the old decision.
+    """
+    return is_eligible(driver, shift, pto_dates_by_driver)
 
 
 def _is_van_type_compatible(route_type: str, van_type: str) -> bool:
@@ -840,7 +815,7 @@ def solve(req: SolveRequest) -> SolveResponse:
     else:
         response_status = "error"
 
-    return SolveResponse(
+    resp = SolveResponse(
         status=response_status,
         solver_version=SOLVER_VERSION,
         assigned_shifts=assigned_out,
@@ -857,3 +832,60 @@ def solve(req: SolveRequest) -> SolveResponse:
             solver_status=status_name,
         ),
     )
+
+    # ── Diagnostic Trace Mode (opt-in) ────────────────────────────────
+    # Pure observability: re-derives "why" from the structures the model
+    # already built and attaches a full decision trace. Wrapped so a bug
+    # in diagnostics can NEVER break a real solve — the schedule above is
+    # already final and unaffected by anything below.
+    if getattr(req, "trace", False):
+        try:
+            from .validators import quick_validate
+            settings_used = {
+                "max_days": max_days,
+                "weekly_hour_cap": weekly_cap,
+                "weekly_hour_cap_enforcement": weekly_cap_hard,
+                "woc": woc_on,
+                "woc_max_consecutive_days": woc_max_consec,
+                "pto_counts_toward_cap": pto_counts_toward_cap,
+                "pto_hours_per_day": pto_hours_per_day,
+                "min_rest": min_rest_on,
+                "min_rest_hours": min_rest_hours,
+                "target_days_per_week": target_days,
+                "use_pto": use_pto,
+                "use_affinity": use_affinity,
+                "use_van_pairings": use_van_pairings,
+                "use_attendance": use_attendance,
+                "use_ad_hoc_rules": use_ad_hoc_rules,
+                "weights": {
+                    "coverage": W_COV,
+                    "coverage_xl_multiplier": W_COV_XL_MULT,
+                    "affinity": W_AFF,
+                    "preferred_days": W_PREF,
+                    "ot_risk": W_OT,
+                    "fairness": W_FAIR,
+                    "attendance": W_ATT,
+                    "target_days": W_TARGET,
+                },
+            }
+            art = SolveArtifacts(
+                pto_dates_by_driver=pto_dates_by_driver,
+                locked_dates_by_driver=locked_dates_by_driver,
+                open_shifts=open_shifts,
+                locked_shifts=locked_shifts,
+                eligible_drivers_per_shift=eligible_drivers_per_shift,
+                eligible_shifts_per_driver=eligible_shifts_per_driver,
+                shift_hours=shift_hours,
+                settings_used=settings_used,
+                assigned_out=assigned_out,
+                uncovered_out=uncovered_out,
+                status_name=status_name,
+                response_status=response_status,
+                solver_wall_ms=elapsed_ms,
+                structural_issues=quick_validate(req),
+            )
+            resp.trace = build_trace(req, art)
+        except Exception as exc:  # noqa: BLE001 — diagnostics must never break a solve
+            resp.trace = {"error": f"{type(exc).__name__}: {exc}"}
+
+    return resp

@@ -100,6 +100,18 @@ class SolveRequest(BaseModel):
     solver_seed: int = 0
     time_budget_ms: int = 8000
 
+    # ── Diagnostics ───────────────────────────────────────────────────────
+    # When true, the solver attaches a full decision trace to the response
+    # (see SolveResponse.trace + trace.py). Opt-in because the trace can be
+    # large (every driver, every shift, every evaluated pair). Pure
+    # observability — enabling it NEVER changes a scheduling decision.
+    trace: bool = False
+    # Optional identifiers echoed verbatim into the trace's Run Summary
+    # (Section 1). The dashboard can pass its optimization_runs row id and
+    # the DSP id so a saved trace is traceable back to the run that made it.
+    run_id: Optional[str] = None
+    dsp_id: Optional[str] = None
+
 
 # ── Outputs ───────────────────────────────────────────────────────────────
 
@@ -174,3 +186,7 @@ class SolveResponse(BaseModel):
     unscheduled_drivers: list[UnscheduledDriver] = Field(default_factory=list)
     metrics: SolveMetrics = Field(default_factory=SolveMetrics)
     error_message: Optional[str] = None
+    # Diagnostic decision trace (Sections 1–8). Populated only when the
+    # request set `trace: true`; otherwise None. Includes both the
+    # structured sections and a pre-rendered human-readable `report` string.
+    trace: Optional[dict[str, Any]] = None
