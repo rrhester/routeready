@@ -727,14 +727,6 @@
                     </div></summary>
                     <div class="sf2-section-body">
                       <p class="sf2-row-help" style="margin:2px 10px 6px">Approved PTO and each driver's saved availability are always respected — the engine never auto-assigns a driver on a day they're off or marked unavailable.</p>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="min_rest" checked> <span class="sf-rule-name">Min rest between shifts <button type="button" class="rr-pol-info" data-rr-pol-info="enforce a minimum gap between two consecutive shifts" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-min-rest-hours">Min rest hours <button type="button" class="rr-pol-info" data-rr-pol-info="Rolling counts every shift within 7 days of the candidate — catches &quot;Sat → Sun → Mon&quot; 3-in-a-row spans week boundaries." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
-                        <div class="sf2-row-control">
-                          <input type="number" class="sf2-number" id="rr-sf-min-rest-hours" min="0" max="48" step="1" value="10" data-rr-sf-num="min_rest_hours">
-                          <span style="font-size:11px;color:#6B7280">hours</span>
-                        </div>
-                      </div>
                       <div class="sf2-group-label">Days &amp; hours caps</div>
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-pto-default-hours">PTO hours per day</label>
@@ -746,14 +738,6 @@
                       </div>
                       <div class="sf2-group-label">Working Hours Compliance (WOC)</div>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="woc" checked> <span class="sf-rule-name">Enforce WOC <button type="button" class="rr-pol-info" data-rr-pol-info="cap consecutive working days + weekly hours" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-set-woc-max-days">Max consecutive days <button type="button" class="rr-pol-info" data-rr-pol-info="Day after this run is blocked — rolling, not weekly. A driver who works Wed–Mon (6 days across two calendar weeks) is blocked on the 7th. A day off, approved PTO, or a time-off request resets the streak — only worked days count consecutively." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
-                        <div class="sf2-row-control">
-                          <input type="number" class="sf2-number" id="rr-set-woc-max-days" min="1" max="7" step="1" value="6">
-                          <span style="font-size:11px;color:#6B7280">days in a row</span>
-                        </div>
-                        <p class="sf2-row-help">Day after this run is blocked — rolling, not weekly. A driver who works Wed–Mon (6 days across two calendar weeks) is blocked on the 7th. A day off, approved PTO, or a time-off request <strong>resets</strong> the streak — only worked days count consecutively.</p>
-                      </div>
                       <div class="sf2-group-label">Same-day shifts</div>
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-same-day">Same-day policy <button type="button" class="rr-pol-info" data-rr-pol-info="Block = one shift per driver per day. Allow = a driver can work two shifts the same day." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
@@ -779,8 +763,6 @@
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
                     <div class="sf2-section-body">
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_days" checked> <span class="sf-rule-name">Favor preferred days <button type="button" class="rr-pol-info" data-rr-pol-info="lean toward the days drivers asked for" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="attendance_penalty"> <span class="sf-rule-name">Schedule Final-corrective drivers last <button type="button" class="rr-pol-info" data-rr-pol-info="drivers on a Final coaching ladder go to the back" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-att-scheduling">Reward good attendance</label>
                         <div class="sf2-row-control">
