@@ -24328,62 +24328,42 @@ body.rr-cmdk-open{ overflow:hidden }
   width:100% !important; align-self:stretch !important; box-sizing:border-box !important;
 }
 
-/* ── Cards-only · deep-settings accordion ──────────────────────────────
-   Each card's Edit drops the panel inline below the card's row, scoped to that
-   card's section. Controls already shown on the cards are hidden here so the
-   panel never repeats them; the editor's own "Smart Fill Rules" header, the
-   Colors box, and the Advanced wrapper's summary are hidden so the remaining
-   sections read as a flat accordion. (Schedule Stability stays — it isn't on a
-   card.) */
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(#rr-pol-consec),
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(#rr-pol-maxdays),
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(#rr-pol-fifth),
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(#rr-pol-corrective),
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(#rr-pol-preferred),
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(#rr-pol-rest){
-  display:none !important;
-}
+/* ═══ Smart Fill page · FLAT RULE LIST (no cards, no popouts) ═══════════
+   Every rule is a plain text row on the page: hide the cards, show the full
+   editor inline, and render each section as a plain text group (no card
+   chrome, no icon badge, no chevron). The editor's own header + the Colors
+   box stay hidden. Sections are forced open in JS so every rule is visible. */
+#view-schedule #rr-smartfill-page .rr-sf-cards3{ display:none !important; }
+#view-schedule #rr-smartfill-page #rr-sf-detail{ display:block !important; margin:0 !important; }
+/* Hide the editor's own "Smart Fill Rules" header + the Colors box. */
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-popover > :first-child,
-#rr-smartfill-page #rr-sf-detail #rr-sched-colors-popover,
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body #rr-pol-advanced > summary{
+#rr-smartfill-page #rr-sf-detail #rr-sched-colors-popover{
   display:none !important;
 }
-#rr-smartfill-page #rr-sf-detail{ margin-top:2px; }
-
-/* ── Advanced sections → match the preset cards ─────────────────────────
-   Each leaf section (Who can work, Limits & compliance, Preferences, Custom
-   rules, Engine tuning) now reads as its own card: icon badge + title +
-   description header, same chrome as Work Limits / Driver Preferences. */
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section]{
-  border:1px solid #E5E8ED !important; border-radius:14px !important;
-  background:#fff !important; box-shadow:0 1px 3px rgba(15,23,42,.06) !important;
-  margin:0 0 16px !important; overflow:hidden;
+/* Sections + the Advanced wrapper → plain text groups (no card chrome). */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section],
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body #rr-pol-advanced{
+  border:0 !important; border-radius:0 !important; box-shadow:none !important;
+  background:transparent !important; margin:20px 0 0 !important; overflow:visible !important;
 }
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] > .sf2-section-head{
-  padding:16px 18px !important; background:#fff !important;
+  padding:0 0 7px !important; margin-bottom:8px !important;
+  border-bottom:1px solid #E5E8ED !important; background:transparent !important;
 }
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] > .sf2-section-head .sf2-section-head-inner{
-  display:flex !important; align-items:center !important; gap:12px !important; width:100%;
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body #rr-pol-advanced > summary{ display:none !important; }
+/* No icon badges, no collapse chevrons in flat mode. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-sf-sec-ic,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section-chev{
+  display:none !important;
 }
-/* The icon badge uses the same .rr-sf-mini-ic chrome as the cards. */
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .rr-sf-sec-ic{
-  flex:0 0 auto !important;
-}
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-titles{
-  flex:1 1 auto !important; min-width:0 !important;
-  display:flex !important; flex-direction:column !important; gap:2px !important;
-}
+/* Section title → a plain uppercase group label; description below it. */
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-title{
-  font-size:14px !important; font-weight:600 !important; color:#0F172A !important;
+  font-size:11px !important; font-weight:700 !important; color:#64748B !important;
+  text-transform:uppercase !important; letter-spacing:.06em !important;
 }
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-sub{
-  font-size:12px !important; color:#64748B !important; line-height:1.35 !important;
-}
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-chev{
-  flex:0 0 auto !important; width:13px !important; height:13px !important; color:#94A3B8 !important;
+  display:none !important;
 }
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-body{
-  border-top:1px solid #EEF1F5 !important; padding:12px 18px 16px !important;
+  border-top:0 !important; padding:6px 0 0 !important;
 }
-/* Custom-rules badge tint (amber), to round out the icon set. */
-.rr-sf-ic-custom{ background:rgba(217,119,6,.12); color:#D97706; }
