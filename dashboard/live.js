@@ -34846,9 +34846,8 @@ function _rrOpenSmartFillPage() {
   const onSched = document.getElementById("view-schedule")?.classList.contains("active");
   if (!onSched && typeof window.goto === "function") window.goto("schedule");
   const open = () => {
-    // The detailed Rules + Colors editors are re-homed into a hidden detail
-    // host. The polished cards/summary above are the primary surface; the
-    // editor only reveals when an Edit / View-all link asks for it.
+    // Cards-free: the full rule list (the re-homed editor) is shown flat on the
+    // page with every section expanded. No cards, no reveal popout.
     const detail = document.getElementById("rr-sf-detail");
     const rules = document.getElementById("rr-sched-smartfill-rules-popover");
     const colors = document.getElementById("rr-sched-colors-popover");
@@ -34858,17 +34857,15 @@ function _rrOpenSmartFillPage() {
     colors && colors.classList.add("rr-as-page");
     window._rrSmartFillPageMode = true;
     overlay.hidden = false;
-    if (detail) detail.hidden = true; // collapsed until an Edit link opens it
+    if (detail) detail.hidden = false; // always visible — no popout
     document.body.classList.add("rr-sf-page-open");
-    document.getElementById("rr-sf-advanced-card")?.classList.remove("rr-collapsed");
-    // Seed + paint the editor boxes (populates their controls from the blob).
+    // Seed + paint the editor (populates every control from the blob).
     try { _toggleSchedSmartFillRules(true); } catch (_) {}
     try { _rrToggleSchedColors(true); } catch (_) {}
     try { _rrPolSeedFromServer(); } catch (_) {}
-    // Paint the page's own overview surfaces from the same blob.
-    try { _rrPaintSmartFillCards(); } catch (_) {}
-    try { _rrUpdateAdvCounts(); } catch (_) {}
     try { _rrSfSavedLabel(); } catch (_) {}
+    // Expand every section so every rule is visible as plain text.
+    if (detail) detail.querySelectorAll("details").forEach((d) => { d.open = true; });
     // Reflect the active child in the sidebar.
     document.querySelectorAll('.nav-sub[data-for="schedule"] .nav-sub-item')
       .forEach((b) => b.classList.toggle("active", b.dataset.key === "smartfill"));
