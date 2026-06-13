@@ -24420,3 +24420,22 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(#rr-pol-preferred){
   display:none !important;
 }
+
+/* ── Multi-column section bodies (mockup) ─────────────────────────────── */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section="eligibility"] .sf2-section-body,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section="prefs"] .sf2-section-body{
+  display:block !important; column-count:2 !important; column-gap:48px !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section="protections"] .sf2-section-body{
+  display:block !important; column-count:3 !important; column-gap:32px !important;
+}
+/* Keep each rule (and its sub-group label) intact within a column. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section="eligibility"] .sf2-section-body > *,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section="protections"] .sf2-section-body > *,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section="prefs"] .sf2-section-body > *{
+  break-inside:avoid !important; -webkit-column-break-inside:avoid !important;
+}
+/* The full-width help paragraph at the top of a section spans all columns. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-body > .sf2-row-help{
+  column-span:all !important;
+}
