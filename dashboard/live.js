@@ -42926,26 +42926,39 @@ async function autoAssignDriversForWeek() {
     while (cur <= end) { weekDates.push(fmtIsoDate(cur)); cur = addDays(cur, 1); }
   }
 
-  // Available / preferred day-of-week indices per driver. availableDows
-  // is null only when the driver has no availability info at all (no
-  // effective-availability row and no metadata.days): null = no
-  // constraint; an explicit empty list means "no days available".
+  // Available day-of-week indices per driver. Return semantics (consumed
+  // by the engine's availability gate):
+  //   • non-empty array → schedulable ONLY on those weekdays.
+  //   • empty array []  → driver has NO availability on file → NOT
+  //     schedulable at all (operator policy 2026-06-13: no availability
+  //     means no shifts).
+  //
+  // The effective-days RPC coalesces a missing result to an EMPTY array
+  // ('{}'), never null — so a driver with no approved request arrives here
+  // as `[]`, not a missing key. An empty RPC array therefore can't be
+  // trusted as "available no days" on its own; treat it as "no signal" and
+  // fall back to the driver's profile metadata (what the Availability panel
+  // shows). Only when BOTH the RPC and metadata are empty does the driver
+  // truly have no availability on file — and then we return [] so the
+  // engine leaves them unscheduled. This is what keeps the panel and the
+  // engine in agreement: a driver the panel shows as available (metadata
+  // days set) is scheduled on those days even if the RPC returned nothing.
   const availableDowsOf = (driver) => {
-    let hasData = false;
     const dows = new Set();
     for (const iso of weekDates) {
       const eff = effAvail.get(`${driver.id}:${iso}`);
-      let codes = Array.isArray(eff) ? eff : null;
+      // Empty array == "no signal" → fall through to metadata below.
+      let codes = (Array.isArray(eff) && eff.length > 0) ? eff : null;
       if (codes === null) {
         const meta = driver.metadata?.availability?.days;
-        codes = Array.isArray(meta) ? meta : null;
+        codes = (Array.isArray(meta) && meta.length > 0) ? meta : null;
       }
       if (codes === null) continue;
-      hasData = true;
       const dow = new Date(iso + "T12:00:00").getDay();
       if (codes.includes(DOW[dow])) dows.add(dow);
     }
-    return hasData ? Array.from(dows).sort((a, b) => a - b) : null;
+    // Empty set ⇒ no availability on file ⇒ [] (engine: not schedulable).
+    return Array.from(dows).sort((a, b) => a - b);
   };
   const preferredDowsOf = (driver) => {
     const pref = driver.metadata?.availability?.preferred_days;
@@ -43430,8 +43443,19 @@ async function autoAssignDriversForWeek() {
   // assignments on the same date, and the second one silently no-ops).
   const assignedShiftIds = new Set((result.assigned_shifts || []).map(a => a.shift_id));
   const writtenShiftIds = new Set(toWrite.map(t => t.id));
+  // What's actually FILLED in the DB after this run = locked rows (kept
+  // their driver) + the rows we wrote back. NOT the engine's full
+  // assigned_shifts list: that also contains "preserved"/"locked"-tagged
+  // assignments and same-day collisions that the write-back deliberately
+  // skips, so measuring open seats against it makes the diagnostic claim a
+  // seat is filled when it's still open on the board. Measure against what
+  // we persisted so "still open" reflects DB reality, not engine intent.
+  const filledShiftIds = new Set([
+    ...writtenShiftIds,
+    ...engineShifts.filter(es => es.is_locked).map(es => es.id),
+  ]);
   const stillOpen = engineShifts
-    .filter(es => !es.is_locked && !assignedShiftIds.has(es.id))
+    .filter(es => !filledShiftIds.has(es.id))
     .map(es => `${es.date} ${es.starts_at ? new Date(es.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : ""}`.trim());
   const engineUncoveredCount = (result.uncovered_shifts || []).length;
   const engineAssignedCount = (result.assigned_shifts || []).filter(a => a.source !== "locked" && a.source !== "preserved").length;
@@ -43479,7 +43503,11 @@ async function autoAssignDriversForWeek() {
   // available days are XL/EDV/DOT routes the driver isn't certified for).
   const openByDow = new Map(); // dow -> Set(route_type)
   for (const es of engineShifts) {
-    if (es.is_locked || assignedShiftIds.has(es.id)) continue;
+    // Open == not actually filled in the DB (see filledShiftIds). Using
+    // the engine's claimed assignments here would hide seats the
+    // write-back skipped, so the card would wrongly tell an unscheduled
+    // driver "every shift was filled" while seats sit open on the board.
+    if (filledShiftIds.has(es.id)) continue;
     const dow = new Date(es.date + "T12:00:00").getDay();
     if (!openByDow.has(dow)) openByDow.set(dow, new Set());
     openByDow.get(dow).add(es.route_type || "standard");
@@ -43490,6 +43518,23 @@ async function autoAssignDriversForWeek() {
     : rt === "step_van" ? !!dp?.dot_certified
     : true; // standard route — no cert required
   const _RT_CERT_LABEL = { xl: "XL", edv: "EDV", step_van: "DOT" };
+  // This week's date for each day-of-week, so a DOW-keyed open-shift match
+  // can be cross-checked against date-specific blocks (PTO, license expiry).
+  const _dowToIso = {};
+  for (const iso of weekDates) _dowToIso[new Date(iso + "T12:00:00").getDay()] = iso;
+  // Approved PTO dates per driver this week (date-specific block).
+  const _ptoDatesByDriver = new Map();
+  for (const p of ptoFlat) {
+    if (!_ptoDatesByDriver.has(p.driver_id)) _ptoDatesByDriver.set(p.driver_id, new Set());
+    _ptoDatesByDriver.get(p.driver_id).add(p.date);
+  }
+  // Is the driver's license valid on `iso`? Engine gate: expired (< date)
+  // blocks that day. Missing/blank expiry → no gate.
+  const _licenseValidOn = (dp, iso) => {
+    const exp = (typeof dp?.dl_expires_on === "string" && dp.dl_expires_on.length >= 10)
+      ? dp.dl_expires_on.slice(0, 10) : null;
+    return exp === null || exp >= iso;
+  };
 
   // Per-driver "why unscheduled" reasons from THIS run, keyed by id, so
   // the hover driver card reflects the engine's actual decision.
@@ -43509,19 +43554,32 @@ async function autoAssignDriversForWeek() {
       const name = nameById.get(u.driver_id) || u.driver_id;
       const blocks = u.block_reasons || [];
       const dp = driverPayloadById.get(u.driver_id);
+      // available_dows: [] = no availability on file (not schedulable);
+      // non-empty = only those weekdays; null = no constraint sent.
       const availDows = Array.isArray(dp?.available_dows) ? dp.available_dows : null;
+      const noAvailOnFile = Array.isArray(availDows) && availDows.length === 0;
       const avail = availDows && availDows.length > 0
         ? availDows.map(i => DOW_LBL[i]).join("/")
-        : (availDows === null ? "(no availability set)" : "(none)");
-      // Days this driver is treated as available. A null/empty
-      // available_dows means the engine has NO availability constraint
-      // for them (the solver treats that as "available every day"), so
-      // for the open-shift match we consider every day with an open
-      // shift — otherwise the cert reason below is wrongly skipped and we
-      // fall through to the vague "every shift filled" line.
+        : (availDows === null ? "(unconstrained)" : "(none on file)");
+      const ptoDays = _ptoDatesByDriver.get(u.driver_id) || new Set();
+      // License expiry — the silent, panel-invisible block.
+      const licIso = (typeof dp?.dl_expires_on === "string" && dp.dl_expires_on.length >= 10)
+        ? dp.dl_expires_on.slice(0, 10) : null;
+      const licExpiredBeforeWeek = licIso !== null && licIso < _schedStart;
+
+      // Days this driver could actually be considered for an open shift:
+      // a weekday with an open shift, where they're available (null = every
+      // day), NOT on PTO that date, and license-valid that date.
       const _availForMatch = (availDows && availDows.length > 0)
-        ? availDows : [...openByDow.keys()];
-      const matchDows = _availForMatch.filter(d => openByDow.has(d));
+        ? availDows
+        : (availDows === null ? [...openByDow.keys()] : []); // [] avail → no days
+      const matchDows = _availForMatch.filter(d => {
+        if (!openByDow.has(d)) return false;
+        const iso = _dowToIso[d];
+        if (iso && ptoDays.has(iso)) return false;          // PTO that date
+        if (iso && !_licenseValidOn(dp, iso)) return false; // license expired
+        return true;
+      });
       // Of those, days with at least one open shift this driver could
       // actually run (cert-compatible) — a genuine miss if any exist.
       const doableDows = matchDows.filter(d =>
@@ -43530,9 +43588,17 @@ async function autoAssignDriversForWeek() {
       if (blocks.length > 0) {
         reason = "blocked from the open shifts — " +
           blocks.map(b => b.message).join("; ");
+      } else if (noAvailOnFile) {
+        // No availability on file → engine policy is "don't schedule."
+        reason = "no availability on file — set this driver's available days so the engine can schedule them";
+      } else if (licExpiredBeforeWeek) {
+        // License lapsed before the week even starts → ineligible all week.
+        // This is the block that never shows on the Availability panel.
+        reason = `driver's license expired ${licIso} — not eligible any day this week (update the license on file)`;
       } else if (doableDows.length > 0) {
-        // Genuine miss: an open shift this driver IS certified to run, on
-        // a day they're available, went unassigned. Worth surfacing.
+        // Genuine miss: an open shift this driver IS certified to run, on a
+        // day they're available (and not PTO/license-blocked), went
+        // unassigned. Worth surfacing as a possible engine bug.
         reason = `⚠ available on ${doableDows.map(d => DOW_LBL[d]).join("/")} with open shifts they can run — engine skipped them`;
       } else if (matchDows.length > 0) {
         // Not a bug: the open shifts on this driver's available days need a
@@ -43544,6 +43610,12 @@ async function autoAssignDriversForWeek() {
           }
         }
         reason = `available on ${matchDows.map(d => DOW_LBL[d]).join("/")}, but the open shifts those days require ${[...certs].join("/") || "a"} certification — not on file for this driver`;
+      } else if (licIso !== null && licIso <= weekEndIso) {
+        // License expires mid-week: eligible only on the days before it.
+        reason = `driver's license expires ${licIso} this week — only eligible before that date`;
+      } else if (ptoDays.size > 0) {
+        // Their available open-shift days are all covered by approved PTO.
+        reason = `on approved time off (${[...ptoDays].sort().join(", ")}) on the days with open shifts`;
       } else if (u.eligible_somewhere) {
         reason = "eligible, but every shift was filled by another driver " +
           "(turn on “Spread work evenly” to give everyone a turn)";
