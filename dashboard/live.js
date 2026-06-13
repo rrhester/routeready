@@ -33824,32 +33824,11 @@ document.addEventListener("click", async (e) => {
   }
   const saveBtn = e.target.closest("#rr-pol-save");
   if (!saveBtn) return;
-  // Save Policy — persist the live blob to dsps.metadata.staffing_policy
-  // (read-merge-write, same pattern as the license settings) so the
-  // policy follows the DSP across browsers.
-  saveBtn.disabled = true;
-  try {
-    const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
-    if (!dspId) throw new Error("DSP not loaded");
-    const { data: dsp, error: rErr } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
-    if (rErr) throw rErr;
-    const md = dsp.metadata || {};
-    md.staffing_policy = {
-      rules: _rrPolReadBlob(),
-      consec_hard: _rrPolHardConsec(),
-      saved_at: new Date().toISOString(),
-    };
-    const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", dspId);
-    if (wErr) throw wErr;
-    window.RR.dsp.metadata = md;
-    if (typeof toast === "function") toast("Staffing policy saved", "success");
-    _toggleSchedSmartFillRules(false);
-  } catch (err) {
-    console.warn("Save staffing policy:", err && err.message);
-    if (typeof toast === "function") toast("Couldn't save policy: " + (err && err.message), "warn");
-  } finally {
-    saveBtn.disabled = false;
-  }
+  // Save Policy — persist the live blob to dsps.metadata.staffing_policy via
+  // the shared helper (same path the page footer's Save Policy uses). On the
+  // popover path we also close the drawer once the save lands.
+  const ok = await _rrPolSaveToServer(saveBtn);
+  if (ok && !window._rrSmartFillPageMode) _toggleSchedSmartFillRules(false);
 });
 
 // ─── Ad-hoc constraints list (Optimization Engine · Step 3.5) ─────
@@ -34864,20 +34843,31 @@ function _rrOpenSmartFillPage() {
   const onSched = document.getElementById("view-schedule")?.classList.contains("active");
   if (!onSched && typeof window.goto === "function") window.goto("schedule");
   const open = () => {
-    const body = document.getElementById("rr-smartfill-page-body");
+    // The detailed Rules + Colors editors are re-homed into a hidden detail
+    // host. The polished cards/summary above are the primary surface; the
+    // editor only reveals when an Edit / View-all link asks for it.
+    const detail = document.getElementById("rr-sf-detail");
     const rules = document.getElementById("rr-sched-smartfill-rules-popover");
     const colors = document.getElementById("rr-sched-colors-popover");
-    if (body && rules && rules.parentElement !== body) body.appendChild(rules);
-    if (body && colors && colors.parentElement !== body) body.appendChild(colors);
+    if (detail && rules && rules.parentElement !== detail) detail.appendChild(rules);
+    if (detail && colors && colors.parentElement !== detail) detail.appendChild(colors);
     rules && rules.classList.add("rr-as-page");
     colors && colors.classList.add("rr-as-page");
     window._rrSmartFillPageMode = true;
     overlay.hidden = false;
+    if (detail) detail.hidden = true; // collapsed until an Edit link opens it
     document.body.classList.add("rr-sf-page-open");
-    // Seed + paint both boxes (un-hides them; .rr-as-page makes them inline).
+    document.getElementById("rr-sf-summary-card")?.classList.remove("rr-collapsed");
+    document.getElementById("rr-sf-advanced-card")?.classList.remove("rr-collapsed");
+    // Seed + paint the editor boxes (populates their controls from the blob).
     try { _toggleSchedSmartFillRules(true); } catch (_) {}
     try { _rrToggleSchedColors(true); } catch (_) {}
+    try { _rrPolSeedFromServer(); } catch (_) {}
+    // Paint the page's own overview surfaces from the same blob.
     try { _rrRenderSmartFillSummary(); } catch (_) {}
+    try { _rrPaintSmartFillCards(); } catch (_) {}
+    try { _rrUpdateAdvCounts(); } catch (_) {}
+    try { _rrSfSavedLabel(); } catch (_) {}
     // Reflect the active child in the sidebar.
     document.querySelectorAll('.nav-sub[data-for="schedule"] .nav-sub-item')
       .forEach((b) => b.classList.toggle("active", b.dataset.key === "smartfill"));
@@ -34892,6 +34882,7 @@ function _rrCloseSmartFillPage() {
   window._rrSmartFillPageMode = false;
   const overlay = document.getElementById("rr-smartfill-page");
   const ab = document.getElementById("rr-sched-actionbar");
+  const detail = document.getElementById("rr-sf-detail");
   const rules = document.getElementById("rr-sched-smartfill-rules-popover");
   const colors = document.getElementById("rr-sched-colors-popover");
   try { _toggleSchedSmartFillRules(false); } catch (_) {}
@@ -34902,17 +34893,27 @@ function _rrCloseSmartFillPage() {
   // as popovers exactly as before.
   if (ab && rules && rules.parentElement !== ab) ab.appendChild(rules);
   if (ab && colors && colors.parentElement !== ab) ab.appendChild(colors);
+  if (detail) detail.hidden = true;
   if (overlay) overlay.hidden = true;
   document.body.classList.remove("rr-sf-page-open");
 }
 window._rrCloseSmartFillPage = _rrCloseSmartFillPage;
 
-// Auto-generated plain-English summary of the active policy — the card at
-// the top of the Smart Fill page. Pure read of the saved rule blob (no
-// scheduling side effects); it just narrates what the engine will do on the
-// next run so the operator can sanity-check the policy at a glance. Reuses
-// the same classifier/label helpers the Advanced drawer paints from, so the
-// summary always matches the controls below it.
+// ── Smart Fill page · overview painters ──────────────────────────────
+// Everything below READS the saved policy blob and renders the page's
+// overview surfaces (summary card, preset-card dropdowns, advanced counts).
+// The dropdowns write back through _rrPolApply — the exact same mutation
+// path the detailed editor uses — so the page never invents a second source
+// of truth and never changes scheduling behavior on its own.
+
+const _RR_SF_STAB_SHORT = Object.freeze({
+  lock: "Only fill open shifts — never move existing assignments",
+  strong: "Protect existing schedules unless coverage requires changes",
+  moderate: "Balance schedule stability with coverage",
+  flexible: "Optimize coverage first",
+});
+
+// Auto-generated plain-English summary of the active policy.
 function _rrRenderSmartFillSummary() {
   const host = document.getElementById("rr-sf-summary-card");
   if (!host) return;
@@ -34928,42 +34929,298 @@ function _rrRenderSmartFillSummary() {
       ? "require" : "allow";
   const stab = (typeof _rrPolClassifyStability === "function")
     ? _rrPolClassifyStability(s) : "flexible";
-  const stabLabel = (typeof _RR_POL_STABILITY !== "undefined" &&
-    _RR_POL_STABILITY[stab] && _RR_POL_STABILITY[stab].label) || "";
 
   const items = [];
-  items.push(`Schedule drivers up to <b>${maxDays} ${maxDays === 1 ? "day" : "days"}</b> per week`);
-  items.push(`Allow up to <b>${consec} consecutive ${consec === 1 ? "day" : "days"}</b> before a required day off`);
-  if (fifth === "require") items.push(`A <b>5th workday is required</b> — Smart Fill targets five days for every driver`);
-  else if (fifth === "allow") items.push(`Offer a <b>5th overtime day</b> to drivers who opt in`);
+  items.push(`Schedule up to <b>${maxDays} ${maxDays === 1 ? "day" : "days"}</b> per week`);
+  items.push(`Allow up to <b>${consec} consecutive ${consec === 1 ? "day" : "days"}</b>`);
+  if (fifth === "require") items.push(`Require a <b>5th workday</b> for every driver`);
+  else if (fifth === "allow") items.push(`Offer a <b>5th overtime day</b> when needed`);
   else items.push(`<b>Never</b> schedule a 5th overtime day`);
-  items.push(`Keep at least <b>${rest} ${rest === 1 ? "hour" : "hours"}</b> of rest between shifts`);
-  if (stabLabel) items.push(stabLabel);
+  items.push(`Keep at least <b>${rest} ${rest === 1 ? "hour" : "hours"}</b> rest between shifts`);
   items.push(s.preferred_days !== false
-    ? `<b>Honor</b> drivers' requested days off when possible`
-    : `<b>Ignore</b> requested days off — coverage comes first`);
+    ? `Honor drivers' <b>requested days off</b>`
+    : `<b>Ignore</b> requested days off`);
+  items.push(_RR_SF_STAB_SHORT[stab] || _RR_SF_STAB_SHORT.flexible);
   if (s.attendance_penalty === true) items.push(`Schedule <b>corrective-action drivers last</b>`);
 
   const check = '<svg viewBox="0 0 20 20" class="rr-sf-check" aria-hidden="true">' +
-    '<path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+    '<circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/>' +
+    '<path d="M6 10.3l2.7 2.7L14.2 7.3" fill="none" stroke="currentColor" stroke-width="1.8" ' +
     'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const badge = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10.5l3.2 3.2L15 7" ' +
+    'fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   host.innerHTML =
-    '<div class="rr-sf-card-head"><div class="rr-sf-card-title">Smart Fill summary</div>' +
-    '<div class="rr-sf-card-sub">What the engine will do on the next run, in plain English.</div></div>' +
+    '<div class="rr-sf-sum-top">' +
+      '<span class="rr-sf-sum-icon">' + badge + '</span>' +
+      '<div class="rr-sf-sum-titles">' +
+        '<div class="rr-sf-sum-title">Policy Summary</div>' +
+        '<div class="rr-sf-sum-sub">Here’s what Smart Fill will do on the next run.</div>' +
+      '</div>' +
+      '<span class="rr-sf-sum-live">Live</span>' +
+    '</div>' +
     '<div class="rr-sf-summary-grid">' +
-    items.map((t) => `<div class="rr-sf-summary-item">${check}<span>${t}</span></div>`).join("") +
-    '</div>';
+      items.map((t) => `<div class="rr-sf-summary-item">${check}<span>${t}</span></div>`).join("") +
+    '</div>' +
+    '<button type="button" class="rr-sf-showless" data-rr-sf-showless>' +
+      '<span class="rr-sf-showless-text">Show less</span>' +
+      '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 8 6 4 10 8"/></svg>' +
+    '</button>';
   host.hidden = false;
 }
 window._rrRenderSmartFillSummary = _rrRenderSmartFillSummary;
 
-// Keep the summary card in sync when the operator tweaks any rule control
-// while the Smart Fill page is open. Read-only repaint — no scheduling impact.
+// Paint the preset-card dropdowns from the blob (no events dispatched).
+function _rrPaintSmartFillCards() {
+  if (!document.getElementById("rr-sfp-maxdays")) return; // page markup absent
+  const s = (typeof _rrPolReadBlob === "function") ? (_rrPolReadBlob() || {}) : {};
+  const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
+  const maxDays = Number.isFinite(s.maxDaysOverride) ? s.maxDaysOverride : 5;
+  const consec = (typeof _rrPolHardConsec === "function" && _rrPolHardConsec()) ||
+    Math.max(1, Math.min(7, int(s.woc_max_consecutive_days, 6)));
+  const rest = Math.max(0, Math.min(48, int(s.min_rest_hours, 10)));
+  const fifth = s.fifth_day_fill !== true ? "off"
+    : (s.fifth_day_override_availability === true && int(s.target_days_per_week, 0) === 5)
+      ? "require" : "allow";
+  const num = (id, v) => { const el = document.getElementById(id); if (el && typeof _rrPolSelectValue === "function") _rrPolSelectValue(el, v); };
+  const val = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  num("rr-sfp-maxdays", maxDays);
+  num("rr-sfp-consec", consec);
+  num("rr-sfp-rest", rest);
+  val("rr-sfp-fifth", fifth);
+  val("rr-sfp-preferred", s.preferred_days !== false ? "prefer" : "ignore");
+  val("rr-sfp-availability", (s.availability_mode === "prefer" || s.availability_mode === "ignore") ? s.availability_mode : "require");
+  val("rr-sfp-breaks", s.break_compliance === "off" ? "off" : "enforce");
+  val("rr-sfp-meal", s.meal_break_placement === "off" ? "off" : "optimize");
+}
+window._rrPaintSmartFillCards = _rrPaintSmartFillCards;
+
+// Count "active" advanced rules per group. Honest reads of real toggles —
+// each contributes at most what it can actually turn on.
+function _rrSfAdvCounts() {
+  const s = (typeof _rrPolReadBlob === "function") ? (_rrPolReadBlob() || {}) : {};
+  const intEq = (v, n) => { const p = parseInt(v, 10); return Number.isFinite(p) && p !== n; };
+  let quality = 0;
+  if (s.preferred_days !== false) quality++;
+  if (s.attendance_penalty === true) quality++;
+  const stab = (typeof _rrPolClassifyStability === "function") ? _rrPolClassifyStability(s) : "flexible";
+  if (stab === "lock" || stab === "strong") quality++;
+  let route = 0;
+  if (s.include_onboarding !== false) route++;
+  try {
+    const vr = JSON.parse(localStorage.getItem("rr-sched-van-rules") || "{}");
+    if (vr && typeof vr === "object" && Object.values(vr).some(Boolean)) route++;
+  } catch (_) {}
+  let optimization = 0;
+  const prios = (s.priorities && typeof s.priorities === "object") ? s.priorities : {};
+  if (["coverage", "ot_avoidance", "fairness", "preferred_days"].some((k) => intEq(prios[k], 3))) optimization++;
+  if (s.fifth_day_fill === true) optimization++;
+  return { quality, route, optimization, total: quality + route + optimization };
+}
+function _rrUpdateAdvCounts() {
+  const c = _rrSfAdvCounts();
+  const set = (sel, n) => { const el = document.querySelector(sel); if (el) el.textContent = n + " active"; };
+  set('[data-rr-sf-count="quality"]', c.quality);
+  set('[data-rr-sf-count="route"]', c.route);
+  set('[data-rr-sf-count="optimization"]', c.optimization);
+  const tot = document.getElementById("rr-sf-adv-total");
+  if (tot) tot.textContent = c.total + " active";
+}
+
+// "Last saved" footer label, read from the server-persisted policy.
+function _rrSfFmtWhen(d) {
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return "today at " + time;
+  return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " at " + time;
+}
+function _rrSfSavedLabel() {
+  const el = document.getElementById("rr-sf-saved-label");
+  if (!el) return;
+  const pol = window.RR && window.RR.dsp && window.RR.dsp.metadata && window.RR.dsp.metadata.staffing_policy;
+  const ts = pol && pol.saved_at;
+  if (ts) { const d = new Date(ts); if (!isNaN(d.getTime())) { el.textContent = "Last saved " + _rrSfFmtWhen(d); return; } }
+  el.textContent = "All changes saved locally";
+}
+function _rrSfMarkUnsaved() {
+  const el = document.getElementById("rr-sf-saved-label");
+  if (el) el.textContent = "Unsaved changes";
+}
+
+// Persist the live blob to dsps.metadata.staffing_policy (shared by the
+// footer Save Policy button and the detailed editor's own Save).
+async function _rrPolSaveToServer(btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+    if (!dspId) throw new Error("DSP not loaded");
+    const { data: dsp, error: rErr } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+    if (rErr) throw rErr;
+    const md = dsp.metadata || {};
+    md.staffing_policy = {
+      rules: _rrPolReadBlob(),
+      consec_hard: _rrPolHardConsec(),
+      saved_at: new Date().toISOString(),
+    };
+    const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", dspId);
+    if (wErr) throw wErr;
+    window.RR.dsp.metadata = md;
+    if (typeof toast === "function") toast("Staffing policy saved", "success");
+    try { _rrSfSavedLabel(); } catch (_) {}
+    return true;
+  } catch (err) {
+    console.warn("Save staffing policy:", err && err.message);
+    if (typeof toast === "function") toast("Couldn't save policy: " + (err && err.message), "warn");
+    return false;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+window._rrPolSaveToServer = _rrPolSaveToServer;
+
+// Reset to defaults — clears the local policy entirely, then repaints.
+function _rrSfResetPolicy() {
+  if (!window.confirm("Reset Smart Fill policy to defaults? This clears every rule on this page. Click Save Policy afterward to apply it for your DSP.")) return;
+  try { localStorage.removeItem(_RR_SF_RULES_KEY); } catch (_) {}
+  try { localStorage.removeItem(_RR_POL_CONSEC_KEY); } catch (_) {}
+  try { _restoreSmartFillRules(); } catch (_) {}
+  try { _rrPolPaint(); } catch (_) {}
+  try { _rrSfDiffSchedule(); } catch (_) {}
+  try { _rrRenderSmartFillSummary(); } catch (_) {}
+  try { _rrPaintSmartFillCards(); } catch (_) {}
+  try { _rrUpdateAdvCounts(); } catch (_) {}
+  const el = document.getElementById("rr-sf-saved-label");
+  if (el) el.textContent = "Reset to defaults — Save Policy to apply";
+}
+
+// Reveal the detailed editor, optionally opening the relevant section.
+const _RR_SF_EDIT_SECTIONS = Object.freeze({
+  limits: [],
+  prefs: ['[data-rr-sf-section="prefs"]'],
+  safety: ['[data-rr-sf-section="protections"]'],
+  quality: ['[data-rr-sf-section="prefs"]', '[data-rr-sf-section="protections"]'],
+  route: ['[data-rr-sf-section="eligibility"]'],
+  optimization: ['[data-rr-sf-section="engine"]'],
+  all: [],
+});
+function _rrSfRevealDetail(which) {
+  const detail = document.getElementById("rr-sf-detail");
+  if (!detail) return;
+  detail.hidden = false;
+  const sels = _RR_SF_EDIT_SECTIONS[which] || [];
+  if (which !== "limits") {
+    const adv = detail.querySelector("#rr-pol-advanced");
+    if (adv && adv.tagName === "DETAILS") adv.open = true;
+  }
+  sels.forEach((sel) => { const d = detail.querySelector(sel); if (d && d.tagName === "DETAILS") d.open = true; });
+  try { detail.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (_) {}
+}
+
+// ── Smart Fill page · the preset-card dropdown handler ────────────────
+// Mirrors the rr-pol-* handler exactly (same _rrPolApply mutations) so the
+// cards and the detailed editor stay one source of truth. The three keys
+// without an engine consumer yet (availability_mode, break_compliance,
+// meal_break_placement) persist on the blob but the solver ignores unknown
+// keys, so selecting them changes nothing about scheduling today.
+document.addEventListener("change", (e) => {
+  const el = e.target;
+  if (!el || !el.id || !el.id.startsWith("rr-sfp-")) return;
+  switch (el.id) {
+    case "rr-sfp-maxdays": {
+      const n = parseInt(el.value, 10);
+      if (!Number.isFinite(n)) return;
+      _rrPolApply((s) => { s.maxDaysOverride = Math.max(1, Math.min(7, n)); });
+      break;
+    }
+    case "rr-sfp-consec": {
+      const n = parseInt(el.value, 10);
+      if (!Number.isFinite(n)) return;
+      if ([4, 5, 6].includes(n)) { try { localStorage.setItem(_RR_POL_CONSEC_KEY, String(n)); } catch (_) {} }
+      _rrPolApply((s) => { s.woc = true; s.woc_max_consecutive_days = n; });
+      break;
+    }
+    case "rr-sfp-rest": {
+      const n = parseInt(el.value, 10);
+      if (!Number.isFinite(n)) return;
+      _rrPolApply((s) => { s.min_rest = true; s.min_rest_hours = Math.max(0, Math.min(48, n)); });
+      break;
+    }
+    case "rr-sfp-fifth":
+      _rrPolApply((s) => {
+        if (el.value === "off") { s.fifth_day_fill = false; s.fifth_day_override_availability = false; }
+        else if (el.value === "allow") {
+          s.fifth_day_fill = true; s.fifth_day_override_availability = false;
+          if (!s.dataSources || typeof s.dataSources !== "object") s.dataSources = {};
+          s.dataSources.fifth_day_optin = true;
+        } else {
+          s.fifth_day_fill = true; s.fifth_day_override_availability = true; s.target_days_per_week = 5;
+          if (!s.dataSources || typeof s.dataSources !== "object") s.dataSources = {};
+          s.dataSources.fifth_day_optin = false;
+        }
+      });
+      break;
+    case "rr-sfp-preferred":
+      _rrPolApply((s) => { s.preferred_days = (el.value === "prefer"); });
+      break;
+    case "rr-sfp-availability":
+      _rrPolApply((s) => { s.availability_mode = el.value; });
+      break;
+    case "rr-sfp-breaks":
+      _rrPolApply((s) => { s.break_compliance = el.value; });
+      break;
+    case "rr-sfp-meal":
+      _rrPolApply((s) => { s.meal_break_placement = el.value; });
+      break;
+    default: return;
+  }
+  try { _rrRenderSmartFillSummary(); } catch (_) {}
+  try { _rrPaintSmartFillCards(); } catch (_) {}
+  try { _rrUpdateAdvCounts(); } catch (_) {}
+  try { _rrSfMarkUnsaved(); } catch (_) {}
+});
+
+// Page-level clicks: Edit / View-all reveal the editor; collapse toggles;
+// footer Save / Reset.
+document.addEventListener("click", (e) => {
+  if (!window._rrSmartFillPageMode) return;
+  const t = e.target;
+  if (!t || !t.closest) return;
+  const editBtn = t.closest("[data-rr-sf-edit]");
+  if (editBtn) { e.preventDefault(); _rrSfRevealDetail(editBtn.getAttribute("data-rr-sf-edit")); return; }
+  if (t.closest("#rr-sf-adv-toggle")) {
+    const card = document.getElementById("rr-sf-advanced-card");
+    if (card) {
+      const collapsed = card.classList.toggle("rr-collapsed");
+      const tg = document.getElementById("rr-sf-adv-toggle");
+      if (tg) { tg.setAttribute("aria-expanded", String(!collapsed)); tg.setAttribute("aria-label", collapsed ? "Expand advanced rules" : "Collapse advanced rules"); }
+    }
+    return;
+  }
+  if (t.closest(".rr-sf-showless")) {
+    const card = document.getElementById("rr-sf-summary-card");
+    if (card) {
+      const collapsed = card.classList.toggle("rr-collapsed");
+      const lbl = card.querySelector(".rr-sf-showless-text");
+      if (lbl) lbl.textContent = collapsed ? "Show more" : "Show less";
+    }
+    return;
+  }
+  const saveBtn = t.closest("#rr-sf-save");
+  if (saveBtn) { e.preventDefault(); _rrPolSaveToServer(saveBtn); return; }
+  if (t.closest("#rr-sf-reset")) { e.preventDefault(); _rrSfResetPolicy(); return; }
+});
+
+// Keep the overview surfaces in sync when the operator edits in the detailed
+// editor while the page is open. Read-only repaint of the cards/summary —
+// the edits themselves already went through the editor's own handlers.
 document.addEventListener("change", (e) => {
   if (!window._rrSmartFillPageMode) return;
   if (!e.target || !e.target.closest) return;
-  if (!e.target.closest("#rr-sched-smartfill-rules-popover")) return;
+  if (e.target.id && e.target.id.startsWith("rr-sfp-")) return; // own handler painted already
+  if (!e.target.closest("#rr-sf-detail")) return;
   try { _rrRenderSmartFillSummary(); } catch (_) {}
+  try { _rrPaintSmartFillCards(); } catch (_) {}
+  try { _rrUpdateAdvCounts(); } catch (_) {}
+  try { _rrSfMarkUnsaved(); } catch (_) {}
 });
 
 // Robust binding for the sidebar "Smart Fill" item. A delegated listener

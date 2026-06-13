@@ -24056,30 +24056,149 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .rr-sf-page-done:hover{ background:rgba(255,255,255,.28); }
 
-/* Plain-English summary card — first thing on the page. Same chrome as the
-   re-homed Rules/Colors cards (.rr-as-page) so the page reads as one set of
-   stacked cards. Populated by _rrRenderSmartFillSummary(). */
+/* ── Shared card chrome ─────────────────────────────────────────────── */
 .rr-sf-card{
   background:#fff; border:1px solid #E5E8ED; border-radius:14px;
   box-shadow:0 1px 3px rgba(15,23,42,.06); padding:18px 20px;
 }
 .rr-sf-card[hidden]{ display:none; }
-.rr-sf-card-head{ margin-bottom:14px; }
-.rr-sf-card-title{ font-size:14px; font-weight:600; color:#0F172A; letter-spacing:.01em; }
-.rr-sf-card-sub{ font-size:12.5px; color:#64748B; margin-top:3px; }
-.rr-sf-summary-grid{ display:grid; grid-template-columns:1fr 1fr; gap:11px 22px; }
+
+/* ── 1 · Policy Summary card ─────────────────────────────────────────── */
+.rr-sf-summary{ background:#FBFDFF; }
+.rr-sf-sum-top{ display:flex; align-items:flex-start; gap:12px; margin-bottom:15px; }
+.rr-sf-sum-icon{
+  flex:0 0 auto; width:36px; height:36px; border-radius:10px;
+  background:#16A34A; color:#fff; display:flex; align-items:center; justify-content:center;
+}
+.rr-sf-sum-icon svg{ width:20px; height:20px; }
+.rr-sf-sum-titles{ flex:1 1 auto; min-width:0; }
+.rr-sf-sum-title{ font-size:15px; font-weight:600; color:#0F172A; }
+.rr-sf-sum-sub{ font-size:12.5px; color:#64748B; margin-top:2px; }
+.rr-sf-sum-live{
+  flex:0 0 auto; font-size:11.5px; font-weight:600; color:#16A34A;
+  background:rgba(22,163,74,.12); border-radius:999px; padding:3px 11px;
+}
+.rr-sf-summary-grid{ display:grid; grid-template-columns:1fr 1fr; gap:11px 26px; }
 @media (max-width:640px){ .rr-sf-summary-grid{ grid-template-columns:1fr; } }
 .rr-sf-summary-item{
   display:flex; align-items:flex-start; gap:9px;
-  font-size:13px; line-height:1.4; color:#1E293B;
+  font-size:13px; line-height:1.45; color:#1E293B;
 }
 .rr-sf-summary-item b{ font-weight:600; color:#0F172A; }
 .rr-sf-check{
-  flex:0 0 auto; width:18px; height:18px; margin-top:1px;
-  color:#16A34A; border-radius:50%; background:rgba(22,163,74,.12);
+  flex:0 0 auto; width:18px; height:18px; margin-top:1px; color:#16A34A;
 }
+.rr-sf-showless{
+  margin-top:14px; background:transparent; border:0; padding:0; cursor:pointer;
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:12.5px; font-weight:600; color:#2563EB;
+}
+.rr-sf-showless svg{ width:11px; height:11px; transition:transform .15s; }
+.rr-sf-summary.rr-collapsed .rr-sf-summary-grid{ display:none; }
+.rr-sf-summary.rr-collapsed .rr-sf-showless svg{ transform:rotate(180deg); }
+
+/* ── 2 · Preset cards row ────────────────────────────────────────────── */
+.rr-sf-cards3{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+@media (max-width:880px){ .rr-sf-cards3{ grid-template-columns:1fr; } }
+.rr-sf-mini{ display:flex; flex-direction:column; gap:14px; }
+.rr-sf-mini-head{ display:flex; align-items:flex-start; gap:11px; }
+.rr-sf-mini-ic{
+  flex:0 0 auto; width:34px; height:34px; border-radius:9px;
+  display:flex; align-items:center; justify-content:center;
+}
+.rr-sf-mini-ic svg{ width:19px; height:19px; }
+.rr-sf-ic-limits{ background:rgba(37,99,235,.10); color:#2563EB; }
+.rr-sf-ic-prefs{ background:rgba(124,58,237,.11); color:#7C3AED; }
+.rr-sf-ic-safety{ background:rgba(22,163,74,.11); color:#16A34A; }
+.rr-sf-ic-adv{ background:rgba(100,116,139,.13); color:#475569; }
+.rr-sf-mini-titles{ min-width:0; }
+.rr-sf-mini-title{ font-size:14px; font-weight:600; color:#0F172A; }
+.rr-sf-mini-sub{ font-size:12px; color:#64748B; margin-top:2px; line-height:1.35; }
+.rr-sf-field{ display:flex; flex-direction:column; gap:5px; }
+.rr-sf-field > label{ font-size:12px; font-weight:500; color:#475569; }
+.rr-sf-input{
+  width:100%; box-sizing:border-box; appearance:auto;
+  padding:8px 11px; font-size:13px; color:#0F172A; background:#fff;
+  border:1px solid #D7DCE3; border-radius:8px; cursor:pointer;
+}
+.rr-sf-input:hover{ border-color:#B9C2CE; }
+.rr-sf-input:focus{ outline:0; border-color:#2563EB; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+.rr-sf-edit{
+  margin-top:auto; align-self:flex-start; background:transparent; border:0; padding:2px 0;
+  font-size:13px; font-weight:600; color:#2563EB; cursor:pointer;
+  display:inline-flex; align-items:center; gap:4px;
+}
+.rr-sf-edit:hover{ color:#1D4ED8; }
+.rr-sf-edit span{ font-size:15px; line-height:1; }
+
+/* ── 3 · Advanced Rules card ─────────────────────────────────────────── */
+.rr-sf-adv-head{ display:flex; align-items:flex-start; gap:11px; }
+.rr-sf-adv-headings{ flex:1 1 auto; min-width:0; }
+.rr-sf-badge-count{
+  flex:0 0 auto; align-self:center; font-size:12px; font-weight:600; color:#2563EB;
+  background:rgba(37,99,235,.10); border-radius:999px; padding:3px 11px;
+}
+.rr-sf-adv-toggle{
+  flex:0 0 auto; align-self:center; width:28px; height:28px; border:0; border-radius:7px;
+  background:transparent; color:#64748B; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.rr-sf-adv-toggle:hover{ background:rgba(15,23,42,.05); }
+.rr-sf-adv-toggle svg{ width:12px; height:12px; transition:transform .15s; }
+.rr-sf-advanced.rr-collapsed .rr-sf-adv-toggle svg{ transform:rotate(180deg); }
+.rr-sf-advanced.rr-collapsed .rr-sf-adv-body{ display:none; }
+.rr-sf-adv-body{ margin-top:16px; }
+.rr-sf-adv-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+@media (max-width:880px){ .rr-sf-adv-grid{ grid-template-columns:1fr; } }
+.rr-sf-adv-group{
+  display:flex; align-items:center; gap:11px; text-align:left;
+  padding:12px 13px; background:#fff; border:1px solid #E5E8ED; border-radius:10px;
+  cursor:pointer; transition:border-color .12s, background .12s;
+}
+.rr-sf-adv-group:hover{ border-color:#C7D0DC; background:#FAFBFC; }
+.rr-sf-adv-ic{
+  flex:0 0 auto; width:30px; height:30px; border-radius:8px;
+  background:rgba(100,116,139,.12); color:#475569;
+  display:flex; align-items:center; justify-content:center;
+}
+.rr-sf-adv-ic svg{ width:17px; height:17px; }
+.rr-sf-adv-grouptext{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+.rr-sf-adv-name{ font-size:13px; font-weight:600; color:#0F172A; }
+.rr-sf-adv-count{ font-size:12px; color:#64748B; }
+.rr-sf-viewall{
+  margin-top:14px; background:transparent; border:0; padding:2px 0;
+  font-size:13px; font-weight:600; color:#2563EB; cursor:pointer;
+  display:inline-flex; align-items:center; gap:4px;
+}
+.rr-sf-viewall:hover{ color:#1D4ED8; }
+.rr-sf-viewall span{ font-size:15px; line-height:1; }
+
+/* Detailed editor host — re-homed Rules + Colors boxes stack here. */
+.rr-sf-detail{ display:flex; flex-direction:column; gap:22px; }
+.rr-sf-detail[hidden]{ display:none; }
+
+/* ── Sticky footer ───────────────────────────────────────────────────── */
+.rr-sf-page-foot{
+  position:sticky; bottom:0; z-index:3;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:12px 20px; background:#fff; border-top:1px solid #E5E8ED;
+}
+.rr-sf-foot-saved{ display:flex; align-items:center; gap:8px; font-size:13px; color:#475569; }
+.rr-sf-foot-saved svg{ width:17px; height:17px; color:#16A34A; flex:0 0 auto; }
+.rr-sf-foot-actions{ display:flex; align-items:center; gap:10px; }
+.rr-sf-foot-reset{
+  background:#fff; color:#334155; border:1px solid #D7DCE3; border-radius:8px;
+  padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer;
+}
+.rr-sf-foot-reset:hover{ background:#F8FAFC; border-color:#C7D0DC; }
+.rr-sf-foot-save{
+  background:#2563EB; color:#fff; border:0; border-radius:8px;
+  padding:8px 18px; font-size:13px; font-weight:600; cursor:pointer;
+}
+.rr-sf-foot-save:hover{ background:#1D4ED8; }
+.rr-sf-foot-save:disabled{ opacity:.6; cursor:default; }
 .rr-sf-page-body{
-  flex:1 1 auto; width:100%; max-width:860px; margin:0 auto;
+  flex:1 1 auto; width:100%; max-width:1080px; margin:0 auto;
   padding:22px 20px 48px; display:flex; flex-direction:column; gap:22px;
 }
 /* Re-homed Rules + Colors boxes render as inline page cards, not drawers. */
