@@ -75,6 +75,21 @@ fly secrets set RR_SOLVER_TOKEN="$(openssl rand -hex 32)"
 fly deploy
 ```
 
+### Automated deploys (CI)
+
+`.github/workflows/deploy-solver-service.yml` redeploys this service on
+every push to `main` that touches `solver-service/**` (and via the manual
+"Run workflow" button). It runs `flyctl deploy --remote-only` and requires
+one GitHub **repo secret**:
+
+- **`FLY_API_TOKEN`** — a Fly.io deploy token for this app
+  (`fly tokens create deploy -a rr-solve-ready`, or the Fly dashboard →
+  app → Tokens). Without it the job fails immediately with
+  *"no access token available"* and the live service silently stays on
+  its last manually-deployed build — so dashboard-side changes to the
+  payload contract can drift ahead of the deployed solver. Confirm a
+  green run after any solver change.
+
 Recommended initial sizing:
 - 2 vCPU / 2 GB RAM (`shared-cpu-2x` on Fly.io ≈ $10/mo)
 - Single region matching your Supabase project's region
