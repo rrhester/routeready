@@ -5280,3 +5280,48 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-s
   height: 40px !important;
   font-size: 14px !important;
 }
+
+/* ============================================================
+   Polish pass (operator 2026-06-13)
+   ------------------------------------------------------------
+   · Hide the grid scrollbar (still scrolls).
+   · Open-count text (routes / cushion seats) paints red.
+   · Compressed driver rows stay two clean lines (no wrap).
+   End-of-sheet so these win at equal specificity.
+   ============================================================ */
+/* Scrollbar invisible, scrolling intact — overrides the visible
+   14px bar defined earlier for .cal-wrap. */
+#view-schedule.rrx-schedule .cal-wrap {
+  overflow-y: auto !important;
+  scrollbar-width: none !important;          /* Firefox */
+  scrollbar-gutter: auto !important;
+  -ms-overflow-style: none !important;       /* old Edge */
+}
+#view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;                  /* Chromium / desktop shell */
+}
+
+/* Open-count emphasis on the coverage card (the sub line lives in
+   #rr-ab-coverage-sub; .rr-ab-open is the injected count span). */
+#rr-ab-coverage .rr-ab-open,
+#rr-ab-coverage-sub .rr-ab-open {
+  color: #DC2626 !important;
+  font-weight: 600;
+}
+
+/* Compressed driver row — name + "50h scheduled" each one tidy line. */
+#view-schedule.rrx-schedule .cal-row-label .cal-row-label-body {
+  min-width: 0;
+}
+#view-schedule.rrx-schedule .cal-row-label .cal-row-label-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#view-schedule.rrx-schedule .cal-row-label .cal-row-label-meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
