@@ -35027,26 +35027,43 @@ function _rrSfResetPolicy() {
 }
 
 // Reveal the detailed editor, optionally opening the relevant section.
+// Each card's Edit opens this deep-settings accordion inline, with the card's
+// own section auto-expanded. (Cards-only model: no separate editor box, and
+// the controls already on the cards are hidden in the panel as duplicates.)
 const _RR_SF_EDIT_SECTIONS = Object.freeze({
-  limits: [],
-  prefs: ['[data-rr-sf-section="prefs"]'],
-  safety: ['[data-rr-sf-section="protections"]'],
-  quality: ['[data-rr-sf-section="prefs"]', '[data-rr-sf-section="protections"]'],
-  route: ['[data-rr-sf-section="eligibility"]'],
+  limits:       ['[data-rr-sf-section="protections"]'],
+  prefs:        ['[data-rr-sf-section="prefs"]'],
+  safety:       ['[data-rr-sf-section="eligibility"]'],
+  quality:      ['[data-rr-sf-section="prefs"]'],
+  route:        ['[data-rr-sf-section="custom"]'],
   optimization: ['[data-rr-sf-section="engine"]'],
-  all: [],
+  all:          [],
 });
-function _rrSfRevealDetail(which) {
+function _rrSfRevealDetail(which, anchor) {
   const detail = document.getElementById("rr-sf-detail");
   if (!detail) return;
-  detail.hidden = false;
-  const sels = _RR_SF_EDIT_SECTIONS[which] || [];
-  if (which !== "limits") {
-    const adv = detail.querySelector("#rr-pol-advanced");
-    if (adv && adv.tagName === "DETAILS") adv.open = true;
+  // Re-clicking the same card's Edit collapses the panel.
+  if (!detail.hidden && detail.dataset.rrFor === which) {
+    detail.hidden = true;
+    detail.dataset.rrFor = "";
+    return;
   }
-  sels.forEach((sel) => { const d = detail.querySelector(sel); if (d && d.tagName === "DETAILS") d.open = true; });
-  try { detail.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (_) {}
+  // Drop the panel directly beneath the card (its row), full-width.
+  if (anchor && anchor.parentElement) anchor.insertAdjacentElement("afterend", detail);
+  detail.hidden = false;
+  detail.dataset.rrFor = which;
+  // The Advanced wrapper holds the sections — keep it open; its own summary is
+  // hidden by CSS so the sections read as a flat accordion.
+  const adv = detail.querySelector("#rr-pol-advanced");
+  if (adv && adv.tagName === "DETAILS") adv.open = true;
+  // Collapse every section, then open the one(s) this card maps to.
+  const sections = [...detail.querySelectorAll('[data-rr-sf-section]')];
+  sections.forEach((d) => { if (d.tagName === "DETAILS") d.open = false; });
+  const open = (which === "all")
+    ? sections
+    : (_RR_SF_EDIT_SECTIONS[which] || []).map((sel) => detail.querySelector(sel)).filter(Boolean);
+  open.forEach((d) => { if (d && d.tagName === "DETAILS") d.open = true; });
+  try { detail.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (_) {}
 }
 
 // ── Smart Fill page · the preset-card dropdown handler ────────────────
@@ -35107,7 +35124,16 @@ document.addEventListener("click", (e) => {
   const t = e.target;
   if (!t || !t.closest) return;
   const editBtn = t.closest("[data-rr-sf-edit]");
-  if (editBtn) { e.preventDefault(); _rrSfRevealDetail(editBtn.getAttribute("data-rr-sf-edit")); return; }
+  if (editBtn) {
+    e.preventDefault();
+    // Anchor the inline panel below the card's row (advanced card uses its own
+    // container) so it never lands inside the 3-column grid.
+    const anchor = editBtn.closest("#rr-sf-advanced-card")
+      || editBtn.closest(".rr-sf-cards3")
+      || editBtn.closest(".rr-sf-card");
+    _rrSfRevealDetail(editBtn.getAttribute("data-rr-sf-edit"), anchor);
+    return;
+  }
   if (t.closest("#rr-sf-adv-toggle")) {
     const card = document.getElementById("rr-sf-advanced-card");
     if (card) {
