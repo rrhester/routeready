@@ -42789,6 +42789,10 @@ async function autoAssignDriversForWeek() {
       .select("trainee_id, status")
       .eq("dsp_id", dspId)
       .eq("status", "materialized"),
+    // Work-authorization (Form I-9) state — used as a HARD scheduling
+    // gate below. Best-effort: a fetch failure means the gate can't be
+    // applied (fail open) rather than blocking the whole roster.
+    sb.rpc("i9_list").then((r) => r, () => ({ data: [] })),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
@@ -42812,7 +42816,7 @@ async function autoAssignDriversForWeek() {
   const _whatIfDropIds = _rrWhatIfOptions?.unavailableDriverIds instanceof Set
     ? _rrWhatIfOptions.unavailableDriverIds
     : null;
-  const drivers = (driversRes.data || []).filter(d => {
+  const _candidates = (driversRes.data || []).filter(d => {
     if (_whatIfDropIds && _whatIfDropIds.has(d.id)) return false;
     // Staff rows (dispatcher/ops/owner) live in the drivers table since
     // migration 0221 — never put them in the scheduling pool. role is
@@ -42822,6 +42826,31 @@ async function autoAssignDriversForWeek() {
     if (d.status === "onboarding") return activatedTrainees.has(d.id);
     return false;
   });
+  // ── Work-authorization HARD gate (Form I-9) ──────────────────────────
+  // A driver who isn't work-authorized must never be auto-scheduled —
+  // same standing as an expired license. "Authorized" = Form I-9
+  // Section 2 complete. We only gate when the DSP actually uses the I-9
+  // module (i9_list returns ≥1 row); a DSP not tracking I-9 fails open so
+  // we never strand an entire roster on missing data. Excluding here —
+  // before the payload is built — means BOTH engines (CP-SAT solver and
+  // the in-browser planner) simply never see the driver.
+  const _i9Rows = Array.isArray(i9Res?.data) ? i9Res.data : [];
+  const _i9UsesModule = _i9Rows.length > 0;
+  const _i9AuthById = new Map(_i9Rows.map(r => [r.driver_id, !!r.section2_completed_at]));
+  const _unauthorizedIds = new Set();
+  const drivers = _candidates.filter(d => {
+    if (!_i9UsesModule) return true;            // DSP not tracking I-9 → don't gate
+    if (_i9AuthById.get(d.id) === true) return true; // Section 2 complete → authorized
+    _unauthorizedIds.add(d.id);
+    return false;                                // not work-authorized → excluded
+  });
+  // Surface the excluded set so the schedule render + the driver
+  // explanation card can report work-authorization as the real reason
+  // these drivers got zero shifts.
+  window._rrSchedWorkAuthBlocked = _unauthorizedIds;
+  if (_unauthorizedIds.size) {
+    console.info(`[Smart Fill] ${_unauthorizedIds.size} driver(s) excluded — Form I-9 not complete (not work-authorized).`);
+  }
   const pto     = ptoRes.data     || [];
   // Map service_type_id → { requires_dot, requires_xl, requires_edv }
   // so we can gate driver eligibility per shift.
@@ -46167,6 +46196,18 @@ async function renderScheduleWeek() {
     const DOWK = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const weekIsos = [];
     for (let i = 0; i < 7; i++) weekIsos.push(fmtIsoDate(addDays(weekStart, i)));
+    // Work-authorization (Form I-9) state for the hard-blocker readout.
+    // Same gate Smart Fill enforces: only meaningful when the DSP uses
+    // the I-9 module (≥1 row); cached for the session. authorized =
+    // Section 2 complete.
+    if (window._rrSchedI9 === undefined) {
+      try {
+        const r = await sb.rpc("i9_list");
+        const rows = (r && Array.isArray(r.data)) ? r.data : [];
+        window._rrSchedI9 = { usesModule: rows.length > 0, authById: new Map(rows.map((x) => [x.driver_id, !!x.section2_completed_at])) };
+      } catch (_) { window._rrSchedI9 = { usesModule: false, authById: new Map() }; }
+    }
+    const _i9 = window._rrSchedI9 || { usesModule: false, authById: new Map() };
     // Seniority rank: earliest hire_date = #1 (drivers without a date last).
     const ranked = [...drivers].filter(d => d.hire_date)
       .sort((a, b) => String(a.hire_date).localeCompare(String(b.hire_date)));
@@ -46210,14 +46251,18 @@ async function renderScheduleWeek() {
         // this driver at all. The explanation card leads with these
         // instead of rationalizing a 0-shift week with rotation prose.
         blockers: (() => {
-          // Only HARD gates the engine actually enforces — license (R003)
-          // and availability (R006). NOTE: an incomplete I-9 is NOT a
-          // scheduling gate for active drivers anywhere in the engine or
-          // solver, so it is deliberately not listed here (claiming it
-          // blocks scheduling would be a false reason — see the I-9 gate
-          // decision in the Smart Fill rules if/when that becomes real).
+          // HARD gates that genuinely keep this driver out of Smart Fill.
           const out = [];
           const sfR = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
+          // Work authorization (Form I-9) — a real gate: Smart Fill
+          // excludes un-authorized drivers from the candidate pool when
+          // the DSP tracks I-9. "Authorized" = Section 2 complete.
+          if (_i9.usesModule && _i9.authById.get(d.id) !== true) {
+            out.push({
+              why: "Not work-authorized — Form I-9 Section 2 isn't complete, so Smart Fill can't schedule this driver.",
+              tip: "Complete the Form I-9 (Work authorization step in Onboarding, or the Documents tab on the driver profile). Once verified, the driver is schedulable.",
+            });
+          }
           // License: missing data fails safe (blocks like an expired DL).
           if (sfR.dl_valid !== false) {
             const dlWin = Math.max(0, Math.min(365, parseInt(sfR.dl_protection_days, 10) || 0));
@@ -46808,11 +46853,12 @@ async function renderScheduleWeek() {
       // X/Y coverage denominator).
       const _tgt = targetByDate.get(iso) || 0;
       if (c.needed > 0) {
-        // Quiet-by-default (operator 2026-06-12): the count is neutral
-        // gray ink; red is reserved for a GENUINE gap — fewer drivers
-        // than actual planned routes. A cushion seat going unfilled is
-        // not an operational issue and must not paint the board red.
-        const uncovered = _tgt > 0 ? c.filled < _tgt : c.filled < c.needed;
+        // The X/Y count is red until the day meets its FULL plan
+        // (routes + cushion) — operator 2026-06-13: anything short of
+        // the planned seat count isn't "met" yet, so it reads red to
+        // match the red open-seat count on the coverage card. Only a
+        // fully-filled day (filled ≥ needed) goes neutral gray.
+        const uncovered = c.filled < c.needed;
         const color = uncovered ? "var(--red)" : "var(--text-subtle)";
         coverageLine = `<span class="day-coverage" style="color:${color}">${c.filled}/${c.needed}</span>`;
       }

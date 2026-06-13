@@ -196,6 +196,7 @@
                           road_training:  "#EFDCCD",
                           pto:            "#EFDCCD",
                           xl:             "#EFDCCD",
+                          hub:            "#D7CDEF",
                           trainer_trainee:"#DBEFCD",
                         };
                         function loadHex() {
@@ -544,6 +545,10 @@
                         <div class="rr-rcp-row" data-rr-route="xl" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">XL</span></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="xl" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
+                        <div class="rr-rcp-row" data-rr-route="hub" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">HUB</span></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="hub" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                         <div class="rr-rcp-row" data-rr-route="trainer_trainee" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#FFF">
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#111827">Trainer (trainee riding along)</span></div>
