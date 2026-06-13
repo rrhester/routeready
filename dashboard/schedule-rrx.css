@@ -5325,3 +5325,28 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-s
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ============================================================
+   HUB service-type coloring (operator 2026-06-13)
+   ------------------------------------------------------------
+   HUB is a service type like XL — keyed on data-rr-service-code.
+   Mirrors the XL rules; var fallback covers first paint before
+   the route-color JS sets --rr-route-c-hub from DEFAULTS.
+   ============================================================ */
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 92%, #FFFFFF) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 92%, #FFFFFF) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 92%, #FFFFFF) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 60%, #94A3B8) !important;
+  color: #111827 !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
+  color: #111827 !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 88%, #94A3B8) !important;
+}
