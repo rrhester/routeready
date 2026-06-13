@@ -34866,6 +34866,27 @@ function _rrOpenSmartFillPage() {
     try { _rrSfSavedLabel(); } catch (_) {}
     // Expand every section so every rule is visible as plain text.
     if (detail) detail.querySelectorAll("details").forEach((d) => { d.open = true; });
+    // Build the "Work Limits" 5-across row from the otherwise-scattered
+    // dropdowns (Max consecutive / Max days / 5th day are top rows; Min rest +
+    // Stability live in the Advanced bucket). Idempotent — only gathers once.
+    try {
+      const body = document.getElementById("rr-sched-smartfill-rules-body");
+      if (body && !document.getElementById("rr-sf-worklimits")) {
+        const head = document.createElement("div");
+        head.className = "rr-sf-wl-head";
+        head.textContent = "Work Limits";
+        const grid = document.createElement("div");
+        grid.id = "rr-sf-worklimits";
+        grid.className = "rr-sf-wl-grid";
+        body.insertBefore(grid, body.firstChild);
+        body.insertBefore(head, grid);
+        ["rr-pol-consec", "rr-pol-maxdays", "rr-pol-fifth", "rr-pol-rest", "rr-pol-stability"]
+          .forEach((id) => {
+            const row = document.getElementById(id)?.closest(".rr-pol-row");
+            if (row) grid.appendChild(row);
+          });
+      }
+    } catch (_) {}
     // Reflect the active child in the sidebar.
     document.querySelectorAll('.nav-sub[data-for="schedule"] .nav-sub-item')
       .forEach((b) => b.classList.toggle("active", b.dataset.key === "smartfill"));

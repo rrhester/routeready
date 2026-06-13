@@ -24397,3 +24397,26 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body input[type="checkbox"]:checked::before{
   transform:translateX(18px) !important;
 }
+
+/* ── Work Limits · 5-across row (mockup) ──────────────────────────────── */
+.rr-smartfill-page .rr-sf-wl-head{
+  font-size:15px !important; font-weight:700 !important; color:#0F172A !important;
+  margin:0 0 12px !important;
+}
+.rr-smartfill-page .rr-sf-wl-grid{
+  display:grid !important; grid-template-columns:repeat(5,1fr) !important;
+  gap:16px !important; margin-bottom:6px !important;
+}
+@media (max-width:920px){
+  .rr-smartfill-page .rr-sf-wl-grid{ grid-template-columns:repeat(2,1fr) !important; }
+}
+/* Grid cells are plain (no list-row borders/padding). */
+.rr-smartfill-page .rr-sf-wl-grid .rr-pol-row{
+  border-bottom:0 !important; padding:0 !important; margin:0 !important;
+}
+/* The corrective / preferred toggles already live in Preferences — hide the
+   duplicate top copies. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(#rr-pol-corrective),
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(#rr-pol-preferred){
+  display:none !important;
+}
