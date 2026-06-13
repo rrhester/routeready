@@ -42929,16 +42929,31 @@ async function autoAssignDriversForWeek() {
   // Available / preferred day-of-week indices per driver. availableDows
   // is null only when the driver has no availability info at all (no
   // effective-availability row and no metadata.days): null = no
-  // constraint; an explicit empty list means "no days available".
+  // constraint (the engine treats that as available every day); a
+  // non-empty list means "only these days."
+  //
+  // CRITICAL: the effective-days RPC coalesces a missing result to an
+  // EMPTY array ('{}'), never null — so "no availability signal for this
+  // driver" arrives here as `[]`, not as a missing key. Treating that `[]`
+  // as "available no days" silently locks the driver out of EVERY shift
+  // while the Availability panel (which reads metadata directly) still
+  // shows them available — the "available driver, open seats, zero shifts"
+  // defect. So an empty array is treated the same as no signal: fall back
+  // to profile metadata, and if that's empty too, return null (no
+  // constraint) rather than an empty day-set. We never synthesize an
+  // explicit "available zero days" here — a driver with no data on file
+  // must not be blocked from scheduling (operator policy: missing data
+  // never gates a shift).
   const availableDowsOf = (driver) => {
     let hasData = false;
     const dows = new Set();
     for (const iso of weekDates) {
       const eff = effAvail.get(`${driver.id}:${iso}`);
-      let codes = Array.isArray(eff) ? eff : null;
+      // Empty array == "no signal" → fall through to metadata below.
+      let codes = (Array.isArray(eff) && eff.length > 0) ? eff : null;
       if (codes === null) {
         const meta = driver.metadata?.availability?.days;
-        codes = Array.isArray(meta) ? meta : null;
+        codes = (Array.isArray(meta) && meta.length > 0) ? meta : null;
       }
       if (codes === null) continue;
       hasData = true;
