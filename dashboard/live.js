@@ -43491,6 +43491,9 @@ async function autoAssignDriversForWeek() {
     : true; // standard route — no cert required
   const _RT_CERT_LABEL = { xl: "XL", edv: "EDV", step_van: "DOT" };
 
+  // Per-driver "why unscheduled" reasons from THIS run, keyed by id, so
+  // the hover driver card reflects the engine's actual decision.
+  const _whyById = new Map();
   const diagnostics = {
     failedWrites,
     writeError,
@@ -43540,6 +43543,9 @@ async function autoAssignDriversForWeek() {
       } else {
         reason = "no eligible shift this week";
       }
+      // Stash the engine's REAL reason per driver so the hover "Why you
+      // got this" card can show it instead of re-deriving a heuristic.
+      _whyById.set(u.driver_id, reason);
       return `${name} [avail: ${avail}] — ${reason}`;
     }),
     // Pin yields · operator-pinned (driver_lock_to_day) rules that
@@ -43572,6 +43578,10 @@ async function autoAssignDriversForWeek() {
       return ids.size;
     })(),
   };
+  // Publish this run's real per-driver reasons for the hover card. Also
+  // record the schedule week so the card only trusts them for this week.
+  window._rrDriverWhyById = _whyById;
+  window._rrDriverWhyWeek = _schedStart;
   // Audit: record the final result. Best-effort — wrapped so an audit
   // failure never disrupts the operator's flow. Decision rows + metrics
   // make this run fully queryable post-hoc.
@@ -48921,17 +48931,24 @@ function bindSchedWeekNav() {
       const covP = dctx.coveragePct;
       const overStaffed = covP != null && covP >= 100;
 
-      // WHY you got these shifts (lead with a low total honestly).
-      // Hard blockers FIRST: a 0-shift week caused by a missing I-9 /
-      // license / availability must say so — never rotation prose.
+      // WHY you got these shifts.
+      // TRUTH FIRST: if the last Smart Fill run recorded a real reason
+      // for this driver (cert block, genuine miss, every-shift-taken,
+      // etc.), show THAT — it's what the engine actually decided, not a
+      // heuristic. Only valid for the week that run covered.
+      const engineWhy = (window._rrDriverWhyById instanceof Map
+        && window._rrDriverWhyWeek === _schedStart)
+        ? window._rrDriverWhyById.get(info.id) : null;
       const hardBlocks = Array.isArray(info.blockers) ? info.blockers : [];
       let why;
-      if (info.days === 0 && hardBlocks.length) {
+      if (info.days === 0 && engineWhy) {
+        why = engineWhy.charAt(0).toUpperCase() + engineWhy.slice(1);
+      } else if (info.days === 0 && hardBlocks.length) {
         why = "Blocked from scheduling: " + hardBlocks.map((b) => b.why).join(" ");
       } else if (info.days === 0) {
         why = info.available.length === 0
           ? "You have no availability set, so the engine can't place you on any day."
-          : `No shifts this week. ${overStaffed ? `The week is over-staffed (${covP}% coverage) — more available drivers than routes — and ` : ""}under "${pickLabel}" higher-priority drivers filled every route before you.`;
+          : `No shifts this week. ${overStaffed ? `The week is over-staffed (${covP}% coverage) — more available drivers than routes — and ` : ""}under "${pickLabel}" higher-priority drivers took the contested routes first.`;
       } else if (avgD && info.days + 0.5 < avgD) {
         why = `You got ${info.days} day${info.days === 1 ? "" : "s"} (${info.hours}h), below the team average of ${avgD}. ${overStaffed ? `The week is over-staffed (${covP}% coverage), and ` : ""}under "${pickLabel}" fuller / higher-priority drivers took the contested days first.`;
       } else {
