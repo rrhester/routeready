@@ -42829,13 +42829,18 @@ async function autoAssignDriversForWeek() {
   // ── Work-authorization HARD gate (Form I-9) ──────────────────────────
   // A driver who isn't work-authorized must never be auto-scheduled —
   // same standing as an expired license. "Authorized" = Form I-9
-  // Section 2 complete. We only gate when the DSP actually uses the I-9
-  // module (i9_list returns ≥1 row); a DSP not tracking I-9 fails open so
-  // we never strand an entire roster on missing data. Excluding here —
-  // before the payload is built — means BOTH engines (CP-SAT solver and
-  // the in-browser planner) simply never see the driver.
+  // Section 2 complete.
+  //
+  // CRITICAL: i9_list returns one row PER non-terminated driver via a
+  // LEFT JOIN (status 'no_record' when there's no I-9), so row count is
+  // NOT a module-usage signal. We treat the DSP as I-9-enabled only when
+  // at least one driver shows real I-9 activity (status past 'no_record',
+  // or any section timestamp). A DSP that doesn't track I-9 (everyone
+  // 'no_record') fails OPEN — no roster is ever stranded. Excluding here,
+  // before the payload, means BOTH engines never see the driver.
   const _i9Rows = Array.isArray(i9Res?.data) ? i9Res.data : [];
-  const _i9UsesModule = _i9Rows.length > 0;
+  const _i9UsesModule = _i9Rows.some(r =>
+    (r.status && r.status !== "no_record") || r.section1_completed_at || r.section2_completed_at);
   const _i9AuthById = new Map(_i9Rows.map(r => [r.driver_id, !!r.section2_completed_at]));
   const _unauthorizedIds = new Set();
   const drivers = _candidates.filter(d => {
@@ -46197,14 +46202,18 @@ async function renderScheduleWeek() {
     const weekIsos = [];
     for (let i = 0; i < 7; i++) weekIsos.push(fmtIsoDate(addDays(weekStart, i)));
     // Work-authorization (Form I-9) state for the hard-blocker readout.
-    // Same gate Smart Fill enforces: only meaningful when the DSP uses
-    // the I-9 module (≥1 row); cached for the session. authorized =
-    // Section 2 complete.
+    // Mirrors the Smart Fill gate EXACTLY: i9_list returns a row per
+    // driver (no_record via left join), so module usage = at least one
+    // driver with real I-9 activity (status past no_record / any section
+    // timestamp). No activity anywhere → DSP doesn't track I-9 → no gate,
+    // no I-9 blocker on the card. authorized = Section 2 complete.
     if (window._rrSchedI9 === undefined) {
       try {
         const r = await sb.rpc("i9_list");
         const rows = (r && Array.isArray(r.data)) ? r.data : [];
-        window._rrSchedI9 = { usesModule: rows.length > 0, authById: new Map(rows.map((x) => [x.driver_id, !!x.section2_completed_at])) };
+        const usesModule = rows.some(x =>
+          (x.status && x.status !== "no_record") || x.section1_completed_at || x.section2_completed_at);
+        window._rrSchedI9 = { usesModule, authById: new Map(rows.map((x) => [x.driver_id, !!x.section2_completed_at])) };
       } catch (_) { window._rrSchedI9 = { usesModule: false, authById: new Map() }; }
     }
     const _i9 = window._rrSchedI9 || { usesModule: false, authById: new Map() };
