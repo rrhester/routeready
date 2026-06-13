@@ -2555,14 +2555,6 @@
                   </div>
                 </div>
                 <div class="rr-sf-field">
-                  <label for="rr-sfp-availability">Availability</label>
-                  <select id="rr-sfp-availability" class="rr-sf-input">
-                    <option value="require">Require</option>
-                    <option value="prefer">Prefer</option>
-                    <option value="ignore">Ignore</option>
-                  </select>
-                </div>
-                <div class="rr-sf-field">
                   <label for="rr-sfp-preferred">Preferred Days Off</label>
                   <select id="rr-sfp-preferred" class="rr-sf-input">
                     <option value="prefer">Prefer</option>
@@ -2587,20 +2579,6 @@
                     <option value="8">8 hours</option>
                     <option value="10">10 hours</option>
                     <option value="12">12 hours</option>
-                  </select>
-                </div>
-                <div class="rr-sf-field">
-                  <label for="rr-sfp-breaks">Break Compliance</label>
-                  <select id="rr-sfp-breaks" class="rr-sf-input">
-                    <option value="enforce">Enforce</option>
-                    <option value="off">Off</option>
-                  </select>
-                </div>
-                <div class="rr-sf-field">
-                  <label for="rr-sfp-meal">Meal Break Placement</label>
-                  <select id="rr-sfp-meal" class="rr-sf-input">
-                    <option value="optimize">Optimize</option>
-                    <option value="off">Off</option>
                   </select>
                 </div>
                 <button type="button" class="rr-sf-edit" data-rr-sf-edit="safety">Edit <span aria-hidden="true">›</span></button>
