@@ -43016,6 +43016,7 @@ async function autoAssignDriversForWeek() {
   // engine in agreement: a driver the panel shows as available (metadata
   // days set) is scheduled on those days even if the RPC returned nothing.
   const availableDowsOf = (driver) => {
+    let hasData = false;
     const dows = new Set();
     for (const iso of weekDates) {
       const eff = effAvail.get(`${driver.id}:${iso}`);
@@ -43026,10 +43027,24 @@ async function autoAssignDriversForWeek() {
         codes = (Array.isArray(meta) && meta.length > 0) ? meta : null;
       }
       if (codes === null) continue;
+      hasData = true;
       const dow = new Date(iso + "T12:00:00").getDay();
       if (codes.includes(DOW[dow])) dows.add(dow);
     }
-    // Empty set ⇒ no availability on file ⇒ [] (engine: not schedulable).
+    // No availability signal anywhere — no effective-days row AND no profile
+    // metadata days. How we treat that depends on the driver:
+    //   • ACTIVE driver → null (no constraint = available every day). This
+    //     is the operator's real roster; most DSPs never set per-driver
+    //     days and expect "no restriction" to mean "any day". Returning []
+    //     here (the 2026-06-13 "no availability = no shifts" policy) silently
+    //     benched active drivers the operator considers available and left
+    //     open seats — the defect this restores.
+    //   • non-active pool member (e.g. activated-onboarding) → [] (not
+    //     schedulable until explicit days are set). Keeps the "set
+    //     availability first" guard where that's the intended behavior.
+    // A driver WITH availability data keeps the exact day-set computed above
+    // (empty only in the degenerate case their days fall outside this week).
+    if (!hasData) return driver.status === "active" ? null : [];
     return Array.from(dows).sort((a, b) => a - b);
   };
   const preferredDowsOf = (driver) => {
