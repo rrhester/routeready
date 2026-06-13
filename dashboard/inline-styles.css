@@ -24193,3 +24193,35 @@ body.rr-cmdk-open{ overflow:hidden }
   width:100% !important; max-width:none !important; min-width:0 !important;
   height:auto !important; max-height:none !important; margin:0 !important;
 }
+
+/* ── Modern-panel re-theme · Stage 1 ───────────────────────────────────
+   In the page the revealed editor should read as light panels, not the
+   dark / brand-blue floating popovers. Page-scoped (#rr-smartfill-page) so
+   the caret-menu popovers elsewhere keep their original chrome. The card
+   border/radius/shadow already come from .rr-as-page; here we light the
+   header bars + container surface and darken their text. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-popover,
+#view-schedule #rr-smartfill-page #rr-sched-colors-popover{
+  background:#fff !important;
+  -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-popover > :first-child,
+#view-schedule #rr-smartfill-page #rr-sched-colors-popover .rr-pol-head{
+  background:#fff !important; background-image:none !important;
+  border-bottom:1px solid #EEF1F5 !important;
+  border-radius:14px 14px 0 0 !important;
+  padding:15px 18px !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-popover > :first-child *,
+#view-schedule #rr-smartfill-page #rr-sched-colors-popover .rr-pol-head,
+#view-schedule #rr-smartfill-page #rr-sched-colors-popover .rr-pol-title{
+  color:#0F172A !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-popover > :first-child{
+  font-size:14px !important; font-weight:600 !important; letter-spacing:0 !important;
+}
+/* Body surface → solid white so the inner section cards sit on a clean panel. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-popover > :last-child,
+#view-schedule #rr-smartfill-page #rr-sched-colors-popover .rr-colors-body{
+  background:#fff !important;
+}
