@@ -43513,8 +43513,15 @@ async function autoAssignDriversForWeek() {
       const avail = availDows && availDows.length > 0
         ? availDows.map(i => DOW_LBL[i]).join("/")
         : (availDows === null ? "(no availability set)" : "(none)");
-      // Available days that still have OPEN shifts.
-      const matchDows = availDows ? availDows.filter(d => openByDow.has(d)) : [];
+      // Days this driver is treated as available. A null/empty
+      // available_dows means the engine has NO availability constraint
+      // for them (the solver treats that as "available every day"), so
+      // for the open-shift match we consider every day with an open
+      // shift — otherwise the cert reason below is wrongly skipped and we
+      // fall through to the vague "every shift filled" line.
+      const _availForMatch = (availDows && availDows.length > 0)
+        ? availDows : [...openByDow.keys()];
+      const matchDows = _availForMatch.filter(d => openByDow.has(d));
       // Of those, days with at least one open shift this driver could
       // actually run (cert-compatible) — a genuine miss if any exist.
       const doableDows = matchDows.filter(d =>
