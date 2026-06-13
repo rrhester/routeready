@@ -2496,10 +2496,18 @@
              returned to the action bar when the page closes. -->
         <div id="rr-smartfill-page" class="rr-smartfill-page" hidden>
           <div class="rr-sf-page-head">
-            <div class="rr-sf-page-title">Smart Fill</div>
+            <div class="rr-sf-page-headings">
+              <div class="rr-sf-page-title">Smart Fill Policy</div>
+              <div class="rr-sf-page-sub">Tell Smart Fill how to build the best schedules for your DSP.</div>
+            </div>
             <button type="button" class="rr-sf-page-done" onclick="window._rrCloseSmartFillPage && window._rrCloseSmartFillPage()">Done</button>
           </div>
-          <div class="rr-sf-page-body" id="rr-smartfill-page-body"></div>
+          <div class="rr-sf-page-body" id="rr-smartfill-page-body">
+            <!-- Auto-generated plain-English summary of the current policy.
+                 Populated by _rrRenderSmartFillSummary() each time the page
+                 opens; the re-homed Rules + Colors cards are appended after. -->
+            <div class="rr-sf-card rr-sf-summary" id="rr-sf-summary-card" hidden></div>
+          </div>
         </div>
 
         <!-- TODAY VIEW — single-day roster.  Left-justified vertical
