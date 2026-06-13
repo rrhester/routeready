@@ -24274,3 +24274,44 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-seg-btn{
   border-radius:8px !important;
 }
+
+/* ── Modern-panel rebuild · Stage 3 · stacked, full-width controls ──────
+   The dense editor's dropdown/number rows now stack like the preset-card
+   fields: small label on top, full-width control below. Checkbox toggle rows
+   stay horizontal (they have no <select>, so :has(select) skips them). The
+   visible dropdowns are class .rr-pol-select (Stage 2 missed them by aiming
+   at .sf2-select, which isn't used here). Page-scoped. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(select),
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row:has(select),
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row:has(input[type="number"]){
+  display:flex !important; flex-direction:column !important;
+  align-items:stretch !important; justify-content:flex-start !important;
+  gap:6px !important; grid-template-columns:none !important;
+  min-height:0 !important; padding:8px 0 !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(select) .rr-pol-label,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row:has(select) .sf2-row-label,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row:has(input[type="number"]) .sf2-row-label{
+  font-size:12px !important; font-weight:500 !important; color:#475569 !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-row:has(select) .rr-pol-control,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row:has(select) .sf2-row-control,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row:has(input[type="number"]) .sf2-row-control{
+  width:100% !important; justify-content:flex-start !important;
+}
+/* Dropdowns → full-width rounded, matching the card fields. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .rr-pol-select,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-select{
+  width:100% !important; min-width:0 !important; max-width:none !important;
+  box-sizing:border-box !important; height:40px !important;
+  border:1px solid #D7DCE3 !important; border-radius:8px !important;
+  padding:0 12px !important; font-size:13px !important;
+  color:#0F172A !important; background:#fff !important;
+}
+/* Number inputs → taller rounded, modest width with their unit inline after. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-number{
+  width:96px !important; min-width:0 !important; max-width:96px !important;
+  height:40px !important; box-sizing:border-box !important;
+  border:1px solid #D7DCE3 !important; border-radius:8px !important;
+  padding:0 12px !important; font-size:13px !important; text-align:left !important;
+}
