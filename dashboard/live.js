@@ -33739,7 +33739,10 @@ window._rrToggleSchedColors = _rrToggleSchedColors;
 document.addEventListener("click", (e) => {
   if (e.target.closest?.("#rr-colors-close")) { _rrToggleSchedColors(false); return; }
   const pop = document.getElementById("rr-sched-colors-popover");
-  if (pop && !pop.hidden
+  // Same page-mode caveat as the rules popover: keep the re-homed Colors box
+  // available while the Smart Fill page is open instead of dismissing it on
+  // the first card click.
+  if (!window._rrSmartFillPageMode && pop && !pop.hidden
       && !e.target.closest("#rr-sched-colors-popover")
       && !e.target.closest("#rr-ab-smartfill-caret")
       && !e.target.closest("#rr-sf-menu")) {
@@ -35702,7 +35705,10 @@ window._rrOpenVanRulesExplainer = _openVanRulesExplainer;
     wired.add(host);
     let timer = null;
     const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
-    const arm    = () => { cancel(); timer = setTimeout(closeFn, 280); };
+    // Never let a hover-out auto-close fire while the Smart Fill page is open —
+    // that path also routes through _toggleSchedSmartFillRules(false) and would
+    // close the page out from under the operator.
+    const arm    = () => { cancel(); timer = setTimeout(() => { if (window._rrSmartFillPageMode) return; closeFn(); }, 280); };
     host.addEventListener("mouseleave", arm);
     host.addEventListener("mouseenter", cancel);
     // Touch devices don't fire mouseleave reliably — rely on the
@@ -35861,7 +35867,12 @@ document.addEventListener("change", (e) => {
 // semantics; Cancel still reverts, X / Save / Escape still close).
 document.addEventListener("click", (e) => {
   const pop = document.getElementById("rr-sched-smartfill-rules-popover");
-  if (pop && !pop.hidden
+  // In Smart Fill PAGE mode the rules popover is re-homed (un-hidden) inside
+  // the hidden detail host, so a click on any page card/button reads as
+  // "outside the popover" and would dismiss it — which (via the page-mode
+  // guard in _toggleSchedSmartFillRules) closes the whole page. Suppress the
+  // outside-click auto-dismiss on the page; Done / Save / Escape still exit.
+  if (!window._rrSmartFillPageMode && pop && !pop.hidden
       && !e.target.closest("#rr-sched-smartfill-rules-popover")
       && !e.target.closest("#rr-sched-smartfill-rules-toggle")
       && !e.target.closest("#rr-ab-smartfill-caret")) {
