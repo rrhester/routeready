@@ -39338,7 +39338,7 @@ async function _decorateScheduleChipsWithVans() {
     if (!van) return;
     // Replace any prior decoration.
     chip.querySelector(".shift-chip-van")?.remove();
-    const el = document.createElement("div");
+    const el = document.createElement("span");
     el.className = "shift-chip-van";
     // When the reasons[] index says this assignment came from a
     // FEM-rescue phase, append a small uppercase eyebrow so the
@@ -39349,10 +39349,10 @@ async function _decorateScheduleChipsWithVans() {
     const isRescue = reason && typeof reason.phase === "string" && reason.phase.startsWith("rescue-");
     if (isRescue) {
       el.classList.add("is-rotation");
-      el.innerHTML = `Van ${escapeHtml(van)} <span class="shift-chip-van-tag">Rotation</span>`;
+      el.innerHTML = `V${escapeHtml(van)} <span class="shift-chip-van-tag">Rotation</span>`;
       chip.setAttribute("title", reason.reason || "FEM rotation pick");
     } else {
-      el.textContent = `Van ${van}`;
+      el.textContent = `V${van}`;
     }
     // Van unavailable that day (grounded or booked for service on the Fleet
     // calendar) → paint the pill red so the operator sees the van can't run
@@ -39366,7 +39366,15 @@ async function _decorateScheduleChipsWithVans() {
       el.style.fontWeight = "700";
       chip.setAttribute("title", "Van unavailable this day — in service or grounded");
     }
-    chip.appendChild(el);
+    // The van rides the secondary "W11:20 • V5" line (density format);
+    // create the line if the chip rendered without a wave.
+    let sec = chip.querySelector(".shift-chip-secondary");
+    if (!sec) {
+      sec = document.createElement("div");
+      sec.className = "shift-chip-secondary";
+      chip.insertBefore(sec, chip.querySelector(".shift-chip-badges"));
+    }
+    sec.appendChild(el);
   });
 }
 window._rrDecorateScheduleChipsWithVans = _decorateScheduleChipsWithVans;
@@ -44931,14 +44939,18 @@ function _schedShiftChip(sh, extras) {
   // Van # (the last appended later by the post-Assign-Vans
   // decorator). All on one line each, no wrapping, no extra
   // padding — the calendar cell needs to stay short.
+  // Density format (operator 2026-06-13): "10:50–9:20" over
+  // "W11:20 • V5" — am/pm dropped, true en dash, wave + van share the
+  // secondary line (separator drawn by CSS between spans).
+  const _noAmPm = (t) => String(t || "").replace(/\s*(am|pm)$/i, "");
   const range = (reportStr && endStr)
-    ? `${reportStr} – ${endStr}`
-    : (reportStr || endStr || "");
+    ? `${_noAmPm(reportStr)}–${_noAmPm(endStr)}`
+    : _noAmPm(reportStr || endStr || "");
   const startLine = range
     ? `<div class="shift-chip-primary">${range}</div>`
     : "";
-  const waveLine = waveStr
-    ? `<div class="shift-chip-secondary">Wave ${waveStr}</div>`
+  const waveSpan = waveStr
+    ? `<span class="shift-chip-wave">W${_noAmPm(waveStr)}</span>`
     : "";
   // Van line, rendered INLINE (synchronously) from the van name passed in
   // via extras.van. It used to be appended ~150ms after paint by the async
@@ -44947,8 +44959,11 @@ function _schedShiftChip(sh, extras) {
   // it here means the chip is full height at first paint; the async
   // decorator still runs to add rotation / van-unavailable styling, but the
   // line (and its height) is already present, so it no longer reflows.
-  const vanLine = (extras && extras.van)
-    ? `<div class="shift-chip-van">Van ${escapeHtml(String(extras.van))}</div>`
+  const vanSpan = (extras && extras.van)
+    ? `<span class="shift-chip-van">V${escapeHtml(String(extras.van))}</span>`
+    : "";
+  const secondLine = (waveSpan || vanSpan)
+    ? `<div class="shift-chip-secondary">${waveSpan}${vanSpan}</div>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   // Left accent-bar color · the service type's own color when the shift
@@ -44960,7 +44975,7 @@ function _schedShiftChip(sh, extras) {
     : ((RC_BADGE[_rc] && RC_BADGE[_rc].c) || "#2563EB");
   const routineCls = extras?.routine ? ' is-routine' : '';
   const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
-  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;--chip-accent:${accentColor};${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}${cornerBadges}</div>`;
+  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;--chip-accent:${accentColor};${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${secondLine}${cornerBadges}</div>`;
 }
 
 function _schedDriverInitials(name) {
