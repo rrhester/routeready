@@ -262,7 +262,6 @@
         <button type="button" class="nav-sub-item" data-key="attendance" onclick="rrSchedNav('attendance',this)">Attendance</button>
         <button type="button" class="nav-sub-item" data-key="requests"  onclick="rrSchedNav('requests',this)">Requests</button>
         <button type="button" class="nav-sub-item" data-key="targets"   onclick="rrSchedNav('targets',this)">Targets</button>
-        <button type="button" class="nav-sub-item" data-key="smartfill"  onclick="rrSchedNav('smartfill',this)">Smart Fill</button>
         <!-- Smart Fill / Finalize / Unassign / Print / Download Excel /
              Fleet children removed (operator request 2026-06-12) — the
              children list is VIEWS only. The actions stay reachable on
@@ -285,20 +284,7 @@
           var SUBS = { today:'today', week:'week', monthly:'monthly', roster:'roster', attendance:'attendance', requests:'requests' };
           var BTN  = { targets:'rr-sched-okami-open-h', smartfill:'rr-sched-smartfill-h', finalize:'rr-sched-finalize-h', unassign:'rr-sched-vans-h', print:'rr-sched-print-btn', download:'rr-sched-download-btn' };
           window.rrSchedNav = function (key, el) {
-            // Navigating to any other Schedule view closes the Smart Fill page.
-            if (key !== 'smartfill' && window._rrCloseSmartFillPage) { try { window._rrCloseSmartFillPage(); } catch (e) {} }
             var onSched = document.getElementById('view-schedule')?.classList.contains('active');
-            // Smart Fill is an ACTION sub — it opens the full-page settings
-            // view, not a grid view. Handle it here (the same entry point every
-            // working sidebar item uses) so it fires no matter how the click
-            // reaches us, then stop before the SUBS/BTN grid routing.
-            if (key === 'smartfill') {
-              var openSF = function () { if (window._rrOpenSmartFillPage) window._rrOpenSmartFillPage(); };
-              onSched ? openSF() : setTimeout(openSF, 260);
-              document.querySelectorAll('.nav-sub[data-for="schedule"] .nav-sub-item')
-                .forEach(function (b) { b.classList.toggle('active', el ? (b === el) : (b.dataset.key === 'smartfill')); });
-              return;
-            }
             if (!onSched && typeof window.goto === 'function') window.goto('schedule');
             var run = function () {
               if (SUBS[key] && typeof window.schedSub === 'function') window.schedSub(SUBS[key]);

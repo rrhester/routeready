@@ -35179,22 +35179,6 @@ document.addEventListener("change", (e) => {
   try { _rrSfMarkUnsaved(); } catch (_) {}
 });
 
-// Robust binding for the sidebar "Smart Fill" item. A delegated listener
-// (matches via closest) survives nav re-renders / clones and doesn't depend
-// on the inline onclick attribute being honored — which it wasn't, so the
-// button did nothing. This is the canonical open path now.
-// CAPTURE phase: the sidebar's own click handling stopPropagation()'s the
-// event before it bubbles to document, so a bubble-phase listener never
-// fired (the button did nothing). Capture runs first, so we reliably catch
-// the click and open the page.
-document.addEventListener("click", (e) => {
-  const it = e.target && e.target.closest && e.target.closest('.nav-sub-item[data-key="smartfill"]');
-  if (!it) return;
-  e.preventDefault();
-  e.stopPropagation();
-  try { _rrOpenSmartFillPage(); } catch (err) { console.warn("Smart Fill page open failed:", err); }
-}, true);
-
 // Refresh derived rule visibility (incl. the standalone Assign Vans
 // button) on initial load, not just when the popover is opened — the
 // engine-hides-vans logic needs to fire before the operator even
