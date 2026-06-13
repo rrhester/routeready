@@ -42834,6 +42834,35 @@ async function autoAssignDriversForWeek() {
   const sfEdvRequired  = sfRules.edv_required  !== false;
   const sfServiceTypes = sfRules.service_types !== false;
 
+  // Materialize cushion shifts to match the week's plan BEFORE loading the
+  // shift rows, so Smart Fill staffs the FULL planned coverage (routes +
+  // cushion), not just the base routes. The coverage number the operator sees
+  // is ceil(routes × (1 + cushion%)) — a PLAN figure computed independently of
+  // how many shift rows exist (see renderScheduleWeek's denomByDate). If the
+  // cushion rows were never materialized (or were orphan-pruned), those
+  // "cushion seats" have NO fillable row: the solver never receives them, can
+  // never close them, and eligible idle drivers sit unused while the board
+  // reads "N cushion seats open". apply_cushion_to_week reconciles cushion per
+  // demand bucket — adding missing rows that inherit the bucket's own (active)
+  // service type, trimming surplus — so the new rows pass the eligibility
+  // filters and get staffed. It honors the DSP's cushion_pct (0 ⇒ no-op), so
+  // this only creates seats the operator actually planned for. Skipped in
+  // what-if mode (a simulation must not mutate the shift table). Best-effort:
+  // a failure here must never block Smart Fill.
+  if (!_rrWhatIfOptions) {
+    try {
+      const { data: _cushionAdded, error: _cushionErr } =
+        await sb.rpc("apply_cushion_to_week", { p_week_start: _schedStart });
+      if (_cushionErr) {
+        console.warn("[Smart Fill] apply_cushion_to_week failed (continuing without it):", _cushionErr);
+      } else if (_cushionAdded) {
+        console.info("[Smart Fill] materialized", _cushionAdded, "cushion shift(s) to match the plan");
+      }
+    } catch (e) {
+      console.warn("[Smart Fill] apply_cushion_to_week threw (continuing without it):", e);
+    }
+  }
+
   // Pull drivers + their cert flags, the per-week shifts (with their
   // service_type_id so we can check cert requirements), the active
   // service types (which carry requires_dot / requires_xl / requires_edv),
