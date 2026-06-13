@@ -47519,7 +47519,7 @@ async function renderScheduleWeek() {
   // the day headers above. The bar's markup lives in view-schedule.frag;
   // absent elements (older cached frag) make this a no-op.
   try {
-    let abFilled = 0, abNeeded = 0, abRouteGap = 0;
+    let abFilled = 0, abNeeded = 0, abRouteGap = 0, abAllGap = 0;
     for (const iso of days) {
       const c = fillByDate.get(iso) || { needed: 0, filled: 0 };
       abFilled += c.filled; abNeeded += c.needed;
@@ -47528,8 +47528,13 @@ async function renderScheduleWeek() {
       // CUSHION seat is planned slack, not an open route.
       const t = targetByDate.get(iso) || 0;
       abRouteGap += Math.max(0, (t > 0 ? t : c.needed) - c.filled);
+      // Full open count INCLUDING buffer/cushion seats (operator request): every
+      // planned seat (routes + cushion = c.needed) not yet filled, per-day
+      // clamped so an over-staffed day can't mask another day's gap.
+      abAllGap += Math.max(0, c.needed - c.filled);
     }
-    const abOpen = window._rrOpenShiftsCount || 0;
+    // Smart Fill badge counts every open planned seat — buffer/cushion included.
+    const abOpen = abAllGap;
     const abBadge = document.getElementById("rr-ab-sf-badge");
     if (abBadge) { abBadge.hidden = abOpen === 0; abBadge.textContent = String(abOpen); }
     const abCard = document.getElementById("rr-ab-coverage");
