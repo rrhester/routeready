@@ -34877,6 +34877,7 @@ function _rrOpenSmartFillPage() {
     // Seed + paint both boxes (un-hides them; .rr-as-page makes them inline).
     try { _toggleSchedSmartFillRules(true); } catch (_) {}
     try { _rrToggleSchedColors(true); } catch (_) {}
+    try { _rrRenderSmartFillSummary(); } catch (_) {}
     // Reflect the active child in the sidebar.
     document.querySelectorAll('.nav-sub[data-for="schedule"] .nav-sub-item')
       .forEach((b) => b.classList.toggle("active", b.dataset.key === "smartfill"));
@@ -34905,6 +34906,65 @@ function _rrCloseSmartFillPage() {
   document.body.classList.remove("rr-sf-page-open");
 }
 window._rrCloseSmartFillPage = _rrCloseSmartFillPage;
+
+// Auto-generated plain-English summary of the active policy — the card at
+// the top of the Smart Fill page. Pure read of the saved rule blob (no
+// scheduling side effects); it just narrates what the engine will do on the
+// next run so the operator can sanity-check the policy at a glance. Reuses
+// the same classifier/label helpers the Advanced drawer paints from, so the
+// summary always matches the controls below it.
+function _rrRenderSmartFillSummary() {
+  const host = document.getElementById("rr-sf-summary-card");
+  if (!host) return;
+  const s = (typeof _rrPolReadBlob === "function") ? (_rrPolReadBlob() || {}) : {};
+  const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
+
+  const maxDays = Number.isFinite(s.maxDaysOverride) ? s.maxDaysOverride : 5;
+  const consec = (typeof _rrPolHardConsec === "function" && _rrPolHardConsec()) ||
+    Math.max(1, Math.min(7, int(s.woc_max_consecutive_days, 6)));
+  const rest = Math.max(0, Math.min(48, int(s.min_rest_hours, 10)));
+  const fifth = s.fifth_day_fill !== true ? "off"
+    : (s.fifth_day_override_availability === true && int(s.target_days_per_week, 0) === 5)
+      ? "require" : "allow";
+  const stab = (typeof _rrPolClassifyStability === "function")
+    ? _rrPolClassifyStability(s) : "flexible";
+  const stabLabel = (typeof _RR_POL_STABILITY !== "undefined" &&
+    _RR_POL_STABILITY[stab] && _RR_POL_STABILITY[stab].label) || "";
+
+  const items = [];
+  items.push(`Schedule drivers up to <b>${maxDays} ${maxDays === 1 ? "day" : "days"}</b> per week`);
+  items.push(`Allow up to <b>${consec} consecutive ${consec === 1 ? "day" : "days"}</b> before a required day off`);
+  if (fifth === "require") items.push(`A <b>5th workday is required</b> — Smart Fill targets five days for every driver`);
+  else if (fifth === "allow") items.push(`Offer a <b>5th overtime day</b> to drivers who opt in`);
+  else items.push(`<b>Never</b> schedule a 5th overtime day`);
+  items.push(`Keep at least <b>${rest} ${rest === 1 ? "hour" : "hours"}</b> of rest between shifts`);
+  if (stabLabel) items.push(stabLabel);
+  items.push(s.preferred_days !== false
+    ? `<b>Honor</b> drivers' requested days off when possible`
+    : `<b>Ignore</b> requested days off — coverage comes first`);
+  if (s.attendance_penalty === true) items.push(`Schedule <b>corrective-action drivers last</b>`);
+
+  const check = '<svg viewBox="0 0 20 20" class="rr-sf-check" aria-hidden="true">' +
+    '<path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+    'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  host.innerHTML =
+    '<div class="rr-sf-card-head"><div class="rr-sf-card-title">Smart Fill summary</div>' +
+    '<div class="rr-sf-card-sub">What the engine will do on the next run, in plain English.</div></div>' +
+    '<div class="rr-sf-summary-grid">' +
+    items.map((t) => `<div class="rr-sf-summary-item">${check}<span>${t}</span></div>`).join("") +
+    '</div>';
+  host.hidden = false;
+}
+window._rrRenderSmartFillSummary = _rrRenderSmartFillSummary;
+
+// Keep the summary card in sync when the operator tweaks any rule control
+// while the Smart Fill page is open. Read-only repaint — no scheduling impact.
+document.addEventListener("change", (e) => {
+  if (!window._rrSmartFillPageMode) return;
+  if (!e.target || !e.target.closest) return;
+  if (!e.target.closest("#rr-sched-smartfill-rules-popover")) return;
+  try { _rrRenderSmartFillSummary(); } catch (_) {}
+});
 
 // Robust binding for the sidebar "Smart Fill" item. A delegated listener
 // (matches via closest) survives nav re-renders / clones and doesn't depend

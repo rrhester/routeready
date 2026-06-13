@@ -24046,12 +24046,38 @@ body.rr-cmdk-open{ overflow:hidden }
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   padding:13px 20px; background:var(--sidebar-bg, #0F172A); color:#fff;
 }
-.rr-sf-page-title{ font-size:15px; font-weight:600; letter-spacing:.01em; }
+.rr-sf-page-headings{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.rr-sf-page-title{ font-size:16px; font-weight:600; letter-spacing:.01em; }
+.rr-sf-page-sub{ font-size:12.5px; font-weight:400; color:rgba(255,255,255,.72); }
 .rr-sf-page-done{
   background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:8px;
   padding:7px 18px; font-size:13px; font-weight:600; cursor:pointer;
+  flex:0 0 auto;
 }
 .rr-sf-page-done:hover{ background:rgba(255,255,255,.28); }
+
+/* Plain-English summary card — first thing on the page. Same chrome as the
+   re-homed Rules/Colors cards (.rr-as-page) so the page reads as one set of
+   stacked cards. Populated by _rrRenderSmartFillSummary(). */
+.rr-sf-card{
+  background:#fff; border:1px solid #E5E8ED; border-radius:14px;
+  box-shadow:0 1px 3px rgba(15,23,42,.06); padding:18px 20px;
+}
+.rr-sf-card[hidden]{ display:none; }
+.rr-sf-card-head{ margin-bottom:14px; }
+.rr-sf-card-title{ font-size:14px; font-weight:600; color:#0F172A; letter-spacing:.01em; }
+.rr-sf-card-sub{ font-size:12.5px; color:#64748B; margin-top:3px; }
+.rr-sf-summary-grid{ display:grid; grid-template-columns:1fr 1fr; gap:11px 22px; }
+@media (max-width:640px){ .rr-sf-summary-grid{ grid-template-columns:1fr; } }
+.rr-sf-summary-item{
+  display:flex; align-items:flex-start; gap:9px;
+  font-size:13px; line-height:1.4; color:#1E293B;
+}
+.rr-sf-summary-item b{ font-weight:600; color:#0F172A; }
+.rr-sf-check{
+  flex:0 0 auto; width:18px; height:18px; margin-top:1px;
+  color:#16A34A; border-radius:50%; background:rgba(22,163,74,.12);
+}
 .rr-sf-page-body{
   flex:1 1 auto; width:100%; max-width:860px; margin:0 auto;
   padding:22px 20px 48px; display:flex; flex-direction:column; gap:22px;
