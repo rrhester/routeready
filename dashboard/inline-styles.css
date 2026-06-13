@@ -24335,6 +24335,15 @@ body.rr-cmdk-open{ overflow:hidden }
    box stay hidden. Sections are forced open in JS so every rule is visible. */
 #view-schedule #rr-smartfill-page .rr-sf-cards3{ display:none !important; }
 #view-schedule #rr-smartfill-page #rr-sf-detail{ display:block !important; margin:0 !important; }
+/* No box around the rules — strip the editor container's card chrome so the
+   rules sit directly on the page surface. */
+#view-schedule #rr-smartfill-page #rr-sf-detail .rr-as-page,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-popover.rr-as-page,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-popover{
+  border:0 !important; border-radius:0 !important; box-shadow:none !important;
+  background:transparent !important; padding:0 !important;
+  -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+}
 /* Hide the editor's own "Smart Fill Rules" header + the Colors box. */
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-popover > :first-child,
 #rr-smartfill-page #rr-sf-detail #rr-sched-colors-popover{
