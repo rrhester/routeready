@@ -34860,14 +34860,12 @@ function _rrOpenSmartFillPage() {
     overlay.hidden = false;
     if (detail) detail.hidden = true; // collapsed until an Edit link opens it
     document.body.classList.add("rr-sf-page-open");
-    document.getElementById("rr-sf-summary-card")?.classList.remove("rr-collapsed");
     document.getElementById("rr-sf-advanced-card")?.classList.remove("rr-collapsed");
     // Seed + paint the editor boxes (populates their controls from the blob).
     try { _toggleSchedSmartFillRules(true); } catch (_) {}
     try { _rrToggleSchedColors(true); } catch (_) {}
     try { _rrPolSeedFromServer(); } catch (_) {}
     // Paint the page's own overview surfaces from the same blob.
-    try { _rrRenderSmartFillSummary(); } catch (_) {}
     try { _rrPaintSmartFillCards(); } catch (_) {}
     try { _rrUpdateAdvCounts(); } catch (_) {}
     try { _rrSfSavedLabel(); } catch (_) {}
@@ -34904,73 +34902,10 @@ window._rrCloseSmartFillPage = _rrCloseSmartFillPage;
 
 // ── Smart Fill page · overview painters ──────────────────────────────
 // Everything below READS the saved policy blob and renders the page's
-// overview surfaces (summary card, preset-card dropdowns, advanced counts).
-// The dropdowns write back through _rrPolApply — the exact same mutation
-// path the detailed editor uses — so the page never invents a second source
-// of truth and never changes scheduling behavior on its own.
-
-const _RR_SF_STAB_SHORT = Object.freeze({
-  lock: "Only fill open shifts — never move existing assignments",
-  strong: "Protect existing schedules unless coverage requires changes",
-  moderate: "Balance schedule stability with coverage",
-  flexible: "Optimize coverage first",
-});
-
-// Auto-generated plain-English summary of the active policy.
-function _rrRenderSmartFillSummary() {
-  const host = document.getElementById("rr-sf-summary-card");
-  if (!host) return;
-  const s = (typeof _rrPolReadBlob === "function") ? (_rrPolReadBlob() || {}) : {};
-  const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
-
-  const maxDays = Number.isFinite(s.maxDaysOverride) ? s.maxDaysOverride : 5;
-  const consec = (typeof _rrPolHardConsec === "function" && _rrPolHardConsec()) ||
-    Math.max(1, Math.min(7, int(s.woc_max_consecutive_days, 6)));
-  const rest = Math.max(0, Math.min(48, int(s.min_rest_hours, 10)));
-  const fifth = s.fifth_day_fill !== true ? "off"
-    : (s.fifth_day_override_availability === true && int(s.target_days_per_week, 0) === 5)
-      ? "require" : "allow";
-  const stab = (typeof _rrPolClassifyStability === "function")
-    ? _rrPolClassifyStability(s) : "flexible";
-
-  const items = [];
-  items.push(`Schedule up to <b>${maxDays} ${maxDays === 1 ? "day" : "days"}</b> per week`);
-  items.push(`Allow up to <b>${consec} consecutive ${consec === 1 ? "day" : "days"}</b>`);
-  if (fifth === "require") items.push(`Require a <b>5th workday</b> for every driver`);
-  else if (fifth === "allow") items.push(`Offer a <b>5th overtime day</b> when needed`);
-  else items.push(`<b>Never</b> schedule a 5th overtime day`);
-  items.push(`Keep at least <b>${rest} ${rest === 1 ? "hour" : "hours"}</b> rest between shifts`);
-  items.push(s.preferred_days !== false
-    ? `Honor drivers' <b>requested days off</b>`
-    : `<b>Ignore</b> requested days off`);
-  items.push(_RR_SF_STAB_SHORT[stab] || _RR_SF_STAB_SHORT.flexible);
-  if (s.attendance_penalty === true) items.push(`Schedule <b>corrective-action drivers last</b>`);
-
-  const check = '<svg viewBox="0 0 20 20" class="rr-sf-check" aria-hidden="true">' +
-    '<circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/>' +
-    '<path d="M6 10.3l2.7 2.7L14.2 7.3" fill="none" stroke="currentColor" stroke-width="1.8" ' +
-    'stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const badge = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10.5l3.2 3.2L15 7" ' +
-    'fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  host.innerHTML =
-    '<div class="rr-sf-sum-top">' +
-      '<span class="rr-sf-sum-icon">' + badge + '</span>' +
-      '<div class="rr-sf-sum-titles">' +
-        '<div class="rr-sf-sum-title">Policy Summary</div>' +
-        '<div class="rr-sf-sum-sub">Here’s what Smart Fill will do on the next run.</div>' +
-      '</div>' +
-      '<span class="rr-sf-sum-live">Live</span>' +
-    '</div>' +
-    '<div class="rr-sf-summary-grid">' +
-      items.map((t) => `<div class="rr-sf-summary-item">${check}<span>${t}</span></div>`).join("") +
-    '</div>' +
-    '<button type="button" class="rr-sf-showless" data-rr-sf-showless>' +
-      '<span class="rr-sf-showless-text">Show less</span>' +
-      '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 8 6 4 10 8"/></svg>' +
-    '</button>';
-  host.hidden = false;
-}
-window._rrRenderSmartFillSummary = _rrRenderSmartFillSummary;
+// overview surfaces (preset-card dropdowns, advanced counts). The dropdowns
+// write back through _rrPolApply — the exact same mutation path the detailed
+// editor uses — so the page never invents a second source of truth and never
+// changes scheduling behavior on its own.
 
 // Paint the preset-card dropdowns from the blob (no events dispatched).
 function _rrPaintSmartFillCards() {
@@ -35088,7 +35023,6 @@ function _rrSfResetPolicy() {
   try { _restoreSmartFillRules(); } catch (_) {}
   try { _rrPolPaint(); } catch (_) {}
   try { _rrSfDiffSchedule(); } catch (_) {}
-  try { _rrRenderSmartFillSummary(); } catch (_) {}
   try { _rrPaintSmartFillCards(); } catch (_) {}
   try { _rrUpdateAdvCounts(); } catch (_) {}
   const el = document.getElementById("rr-sf-saved-label");
@@ -35175,7 +35109,6 @@ document.addEventListener("change", (e) => {
       break;
     default: return;
   }
-  try { _rrRenderSmartFillSummary(); } catch (_) {}
   try { _rrPaintSmartFillCards(); } catch (_) {}
   try { _rrUpdateAdvCounts(); } catch (_) {}
   try { _rrSfMarkUnsaved(); } catch (_) {}
@@ -35198,15 +35131,6 @@ document.addEventListener("click", (e) => {
     }
     return;
   }
-  if (t.closest(".rr-sf-showless")) {
-    const card = document.getElementById("rr-sf-summary-card");
-    if (card) {
-      const collapsed = card.classList.toggle("rr-collapsed");
-      const lbl = card.querySelector(".rr-sf-showless-text");
-      if (lbl) lbl.textContent = collapsed ? "Show more" : "Show less";
-    }
-    return;
-  }
   const saveBtn = t.closest("#rr-sf-save");
   if (saveBtn) { e.preventDefault(); _rrPolSaveToServer(saveBtn); return; }
   if (t.closest("#rr-sf-reset")) { e.preventDefault(); _rrSfResetPolicy(); return; }
@@ -35220,7 +35144,6 @@ document.addEventListener("change", (e) => {
   if (!e.target || !e.target.closest) return;
   if (e.target.id && e.target.id.startsWith("rr-sfp-")) return; // own handler painted already
   if (!e.target.closest("#rr-sf-detail")) return;
-  try { _rrRenderSmartFillSummary(); } catch (_) {}
   try { _rrPaintSmartFillCards(); } catch (_) {}
   try { _rrUpdateAdvCounts(); } catch (_) {}
   try { _rrSfMarkUnsaved(); } catch (_) {}
