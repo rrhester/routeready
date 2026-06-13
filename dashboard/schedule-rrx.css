@@ -4910,6 +4910,9 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 #view-schedule .rr-ab-btn.rr-ab-live:hover,
 #view-schedule .rr-ab-primary.rr-ab-live:hover { background: #15803D; border-color: #15803D; }
+/* Hold a constant width so the pill doesn't shrink when "Finalize" flips to
+   the shorter "Live" — both states render at the same size, centered. */
+#view-schedule #rr-ab-finalize { min-width: 108px; justify-content: center; }
 /* ⋯ overflow — quiet, borderless until hovered. */
 #view-schedule .rr-ab-more-wrap { position: relative; display: flex; }
 #view-schedule .rr-ab-more {
