@@ -23777,10 +23777,10 @@ body.rr-cmdk-open{ overflow:hidden }
   grid-column:1;font-size:12.5px;color:#0F172A;
 }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-row-control{
-  grid-column:2;display:flex;align-items:center;gap:6px;
+  grid-column:2;display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;
 }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-row-control .sf2-number{
-  height:24px;width:64px;padding:0 6px;
+  height:24px;width:100%;padding:0 6px;
   font-size:12px;color:#0F172A;
   border:1px solid #D8DEE7;border-radius:7px;background:#fff;
 }
