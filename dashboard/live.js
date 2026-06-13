@@ -46214,13 +46214,18 @@ async function renderScheduleWeek() {
     targetByDate.set(cell.date, (targetByDate.get(cell.date) || 0) + (cell.target_routes || 0));
   }
   // Coverage denominator per date = route target PLUS the cushion:
-  // ceil(target_routes × (1 + cushion%)). e.g. 10 routes @ 20% → 12.
-  // This is the FIXED plan ceiling — it is computed from the keyed target
-  // and the cushion %, never from the live shift-row count, so it does NOT
-  // change as shifts are added or deleted.
+  // round(target_routes × (1 + cushion%)). e.g. 7 routes @ 20% → round(8.4)
+  // = 8. ROUND, not ceil: the function that actually CREATES cushion seats
+  // (apply_cushion_to_week) rounds — "round not ceil" since migration 0077 —
+  // so a ceil here over-counts vs what gets built (7 @ 20% → ceil = 9, but
+  // only 8 are ever created), and that surplus showed as phantom "cushion
+  // seats open" the engine could never fill (schedule rounds up, engine rounds
+  // down). Rounding keeps the planned denominator in lockstep with the seats
+  // the engine materializes. Still the FIXED plan ceiling — computed from the
+  // keyed target + cushion %, never from the live shift-row count.
   const denomByDate = new Map();
   for (const [date, tgt] of targetByDate) {
-    denomByDate.set(date, Math.ceil(tgt * (1 + _cushionPct / 100)));
+    denomByDate.set(date, Math.round(tgt * (1 + _cushionPct / 100)));
   }
   // Count scheduled shift ROWS and FILLED rows per date separately, so the
   // denominator can stay the PLAN (not the row count). This makes overage
@@ -46248,7 +46253,7 @@ async function renderScheduleWeek() {
   for (const [date, denom] of denomByDate) get(date).planned = denom;
   for (const a of coverageByDate.values()) {
     // Denominator = the day's route target + cushion (denomByDate =
-    // ceil(target_routes × (1 + cushion%))). It is FIXED to that plan:
+    // round(target_routes × (1 + cushion%))). It is FIXED to that plan:
     // adding or deleting shift rows must NOT change it, so the day always
     // reads X/(routes+cushion) where X is the number of shifts actually
     // scheduled. Falls back to the row count only on days with no plan.
