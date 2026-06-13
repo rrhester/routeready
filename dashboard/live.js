@@ -34787,6 +34787,11 @@ function _toggleSchedSmartFillRules(force) {
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next) {
+    // Always reopen with the Advanced section (and its sub-sections)
+    // collapsed. The popover DOM persists between opens, so a <details>
+    // the operator expanded last time would otherwise stay open — operator
+    // preference is for the rules box to start tidy on every open.
+    pop.querySelectorAll("details[open]").forEach((d) => d.removeAttribute("open"));
     // Staffing Policy box — seed from the DSP's saved policy (no-op
     // when a local blob exists), snapshot for Cancel, then paint the
     // compact controls.
