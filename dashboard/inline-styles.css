@@ -24225,3 +24225,52 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-schedule #rr-smartfill-page #rr-sched-colors-popover .rr-colors-body{
   background:#fff !important;
 }
+
+/* ── Modern-panel rebuild · Stage 2 · consistent advanced formatting ────
+   Normalize the advanced sub-sections (sf2-*) so they read like the clean
+   cards/rows elsewhere on the page, not the dense legacy layout. Page-scoped
+   so the floating caret popover keeps its compact styling. */
+/* Leaf sub-sections (Who can work, Limits & compliance, …) → light cards. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section]{
+  border:1px solid #E5E8ED !important; border-radius:12px !important;
+  background:#fff !important; margin:0 0 10px !important; overflow:hidden;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] > .sf2-section-head{
+  padding:13px 16px !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-body{
+  border-top:1px solid #EEF1F5 !important; padding:8px 16px 14px !important;
+}
+/* Rows: normal-weight label, control right-aligned on a plumb line. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row{
+  align-items:center !important; min-height:34px !important; padding:3px 0 !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row-label{
+  font-size:12.5px !important; font-weight:400 !important; color:#0F172A !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row-control{
+  justify-self:end !important; justify-content:flex-end !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-row-help{
+  font-size:11px !important; color:#64748B !important;
+}
+/* Inputs → rounded light chrome, matching the top rows + cards. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-select,
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-number{
+  height:32px !important; border:1px solid #D7DCE3 !important; border-radius:8px !important;
+  font-size:13px !important; color:#0F172A !important; background:#fff !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-select{
+  min-width:160px !important; padding:0 10px !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-number{
+  width:88px !important; min-width:0 !important; max-width:88px !important;
+  text-align:right !important; padding:0 10px !important;
+}
+/* Checkbox + segmented controls: consistent type + rounded pills. */
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sched-smartfill-rule{
+  font-size:12.5px !important; color:#0F172A !important;
+}
+#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-seg-btn{
+  border-radius:8px !important;
+}
