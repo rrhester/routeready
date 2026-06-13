@@ -47679,6 +47679,12 @@ async function renderScheduleWeek() {
       ? `<span class="cal-row-label-warns" style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0">${otWarnIcon}${dlWarnIcon}${vanWarnIcon}</span>`
       : "";
     const prefSet = _prefByDriver.get(d.id) || null;
+    // The driver's available weekdays (drivers.metadata.availability.days,
+    // e.g. ["mon","tue",…]). null ⇒ not configured, so we never flag N/A.
+    const _avDays = d.metadata?.availability?.days;
+    const availSet = (Array.isArray(_avDays) && _avDays.length)
+      ? new Set(_avDays.map(x => String(x).slice(0, 3).toLowerCase()))
+      : null;
     // Row-default time pattern — when most of this driver's shifts share
     // one start/end, mute the matching chips so the eye glides past the
     // repetition and lands on outliers. Only mutes when ≥2 shifts share
@@ -47724,8 +47730,13 @@ async function renderScheduleWeek() {
       // floating glyph. Met (scheduled on a preferred day) reads calm;
       // wanted (preferred but unscheduled) reads as a gentle prompt.
       const prefCls = isPref ? (busy ? " cal-cell--pref-met" : " cal-cell--pref-want") : "";
-      if (!busy)
+      if (!busy) {
+        // Very subtle "N/A" on an empty day the driver isn't available to work
+        // (their saved weekly availability excludes this weekday).
+        if (availSet && !availSet.has(_dowKey(iso)))
+          return `<div class="${cls}${prefCls} cal-cell--na" ${data} title="Driver isn't available this day"><span class="cal-cell-na">N/A</span></div>`;
         return `<div class="${cls}${prefCls}" ${data}><div class="shift-chip off">Off</div></div>`;
+      }
       const traineeName = traineeByTrainerDate.get(`${d.id}|${iso}`) || null;
       const chips = list.map(sh => {
         const key = sh.starts_at && sh.ends_at
