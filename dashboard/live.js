@@ -34926,9 +34926,6 @@ function _rrPaintSmartFillCards() {
   num("rr-sfp-rest", rest);
   val("rr-sfp-fifth", fifth);
   val("rr-sfp-preferred", s.preferred_days !== false ? "prefer" : "ignore");
-  val("rr-sfp-availability", (s.availability_mode === "prefer" || s.availability_mode === "ignore") ? s.availability_mode : "require");
-  val("rr-sfp-breaks", s.break_compliance === "off" ? "off" : "enforce");
-  val("rr-sfp-meal", s.meal_break_placement === "off" ? "off" : "optimize");
 }
 window._rrPaintSmartFillCards = _rrPaintSmartFillCards;
 
@@ -35054,10 +35051,8 @@ function _rrSfRevealDetail(which) {
 
 // ── Smart Fill page · the preset-card dropdown handler ────────────────
 // Mirrors the rr-pol-* handler exactly (same _rrPolApply mutations) so the
-// cards and the detailed editor stay one source of truth. The three keys
-// without an engine consumer yet (availability_mode, break_compliance,
-// meal_break_placement) persist on the blob but the solver ignores unknown
-// keys, so selecting them changes nothing about scheduling today.
+// cards and the detailed editor stay one source of truth. Every control here
+// maps to a real policy key the engine consumes.
 document.addEventListener("change", (e) => {
   const el = e.target;
   if (!el || !el.id || !el.id.startsWith("rr-sfp-")) return;
@@ -35097,15 +35092,6 @@ document.addEventListener("change", (e) => {
       break;
     case "rr-sfp-preferred":
       _rrPolApply((s) => { s.preferred_days = (el.value === "prefer"); });
-      break;
-    case "rr-sfp-availability":
-      _rrPolApply((s) => { s.availability_mode = el.value; });
-      break;
-    case "rr-sfp-breaks":
-      _rrPolApply((s) => { s.break_compliance = el.value; });
-      break;
-    case "rr-sfp-meal":
-      _rrPolApply((s) => { s.meal_break_placement = el.value; });
       break;
     default: return;
   }
