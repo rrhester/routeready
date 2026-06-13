@@ -46770,10 +46770,15 @@ async function renderScheduleWeek() {
   // the day headers above. The bar's markup lives in view-schedule.frag;
   // absent elements (older cached frag) make this a no-op.
   try {
-    let abFilled = 0, abNeeded = 0;
+    let abFilled = 0, abNeeded = 0, abRouteGap = 0;
     for (const iso of days) {
       const c = fillByDate.get(iso) || { needed: 0, filled: 0 };
       abFilled += c.filled; abNeeded += c.needed;
+      // Real-route gap, like the day headers: compare against the day's
+      // planned target routes (pre-cushion) when one exists; an unfilled
+      // CUSHION seat is planned slack, not an open route.
+      const t = targetByDate.get(iso) || 0;
+      abRouteGap += Math.max(0, (t > 0 ? t : c.needed) - c.filled);
     }
     const abOpen = window._rrOpenShiftsCount || 0;
     const abBadge = document.getElementById("rr-ab-sf-badge");
@@ -46785,13 +46790,17 @@ async function renderScheduleWeek() {
       const abSub  = document.getElementById("rr-ab-coverage-sub");
       if (abMain) abMain.textContent = `Coverage: ${abFilled} / ${abNeeded} Routes`;
       if (abSub) {
-        // Derive the subtitle from the SAME filled/needed numbers as the
-        // main line — it previously keyed off the open-shifts pool count,
-        // which can be 0/stale while the week still shows 54/61, producing
-        // a contradictory "All routes covered".
-        const abGap = Math.max(0, abNeeded - abFilled);
-        abSub.textContent = abGap > 0 ? `${abGap} Open Route${abGap === 1 ? "" : "s"}` : "All routes covered";
-        abSub.classList.toggle("is-ok", abGap === 0);
+        // Real routes vs cushion: abRouteGap counts unfilled PLANNED
+        // routes only. When the routes are covered but cushion seats
+        // remain, say so quietly instead of crying "Open Routes" at
+        // planned slack.
+        const abCushionOpen = Math.max(0, (abNeeded - abFilled) - abRouteGap);
+        abSub.textContent = abRouteGap > 0
+          ? `${abRouteGap} Open Route${abRouteGap === 1 ? "" : "s"}`
+          : (abCushionOpen > 0
+            ? `All routes covered · ${abCushionOpen} cushion seat${abCushionOpen === 1 ? "" : "s"} open`
+            : "All routes covered");
+        abSub.classList.toggle("is-ok", abRouteGap === 0);
       }
     }
   } catch (e) { console.warn("action bar paint:", e); }
