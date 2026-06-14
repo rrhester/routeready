@@ -31072,11 +31072,14 @@ function _okamiRecomputeFromCache(padPct) {
       gapEl.classList.toggle("rr-tgt-gap-pos", gap >= 0);
     }
   }
+  try { _rrRefreshTargetsGapCard(); } catch (_) { /* gap card is optional */ }
 }
 let _okamiCushionPct = 10;
 
 async function renderOkamiLive() {
-  return _renderOkamiLiveImpl();
+  const r = await _renderOkamiLiveImpl();
+  try { _rrRefreshTargetsGapCard(); } catch (_) { /* gap card is optional */ }
+  return r;
 }
 // Attach to window at module load so the mockup recalcOkami stub can
 // always find it. Same pattern as renderOkamiDailyPanel.
@@ -32496,6 +32499,7 @@ window.goto = function (view) {
   // to the quick-settings popover so the popover is intact next time it opens
   // (schedSub handles placement while staying within the schedule view).
   if (view !== "schedule" && typeof _rrReturnSchedDemandHome === "function") _rrReturnSchedDemandHome();
+  if (view !== "schedule" && typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
   if (typeof _origGotoForOkamiOverlay === "function") _origGotoForOkamiOverlay(view);
   if (view !== "schedule" && view !== "okami") closeOkamiOverlay();
 };
@@ -32575,6 +32579,65 @@ function _rrMoveSchedDemandToTargets() {
 }
 window._rrReturnSchedDemandHome    = _rrReturnSchedDemandHome;
 window._rrMoveSchedDemandToTargets = _rrMoveSchedDemandToTargets;
+
+// ─── Targets toolbar · Gap status card + Save Plan + relocated chrome ──────
+// Gap card mirrors the Schedule Coverage card: shows the largest weekly driver
+// shortfall across the 13-week plan (worst = most-negative gap), red when short
+// and green when covered. Reads the rendered gap cells so it stays in lockstep
+// with the table without re-deriving the math.
+function _rrRefreshTargetsGapCard() {
+  const card = document.getElementById("rr-tgt-gap-card");
+  if (!card) return;
+  const tbody = document.getElementById("okami-tbody");
+  let worst = null;
+  if (tbody) {
+    tbody.querySelectorAll("tr:not(.okami-detail) .plan-gap").forEach((el) => {
+      const v = parseInt(String(el.textContent).replace(/[^\-\d]/g, ""), 10);
+      if (Number.isFinite(v)) worst = (worst == null) ? v : Math.min(worst, v);
+    });
+  }
+  if (worst == null) { card.hidden = true; return; }
+  card.hidden = false;
+  const mainEl = document.getElementById("rr-tgt-gap-card-main");
+  if (mainEl) mainEl.textContent = `Gap: ${worst > 0 ? "+" : ""}${worst} driver${Math.abs(worst) === 1 ? "" : "s"}`;
+  card.classList.toggle("rr-tgt-gap-card--pos", worst >= 0);
+}
+window._rrRefreshTargetsGapCard = _rrRefreshTargetsGapCard;
+
+// Save Plan · Targets auto-saves per week as you type, so this re-commits the
+// plan settings (block / cushion / report / waves) and confirms.
+document.addEventListener("click", (e) => {
+  if (!e.target.closest || !e.target.closest("#rr-tgt-save-plan")) return;
+  e.preventDefault();
+  if (typeof _saveScheduleSettings === "function") _saveScheduleSettings({ source: "nav" });
+  if (typeof toast === "function") toast("Plan saved", "success");
+});
+
+// The shared top-right chrome (⋯ overflow menu + bell + avatar) lives in the
+// Schedule action bar; relocate it into the Targets toolbar on entry (and back
+// on exit) so Targets shows the same header controls.
+function _rrMoveChromeToTargets() {
+  const host = document.getElementById("rr-tgt-chrome-host");
+  if (!host) return;
+  const more = document.querySelector(".rr-ab-more-wrap");
+  const bell = document.getElementById("rr-hdr-notif");
+  const acct = document.getElementById("rr-hdr-avatar-btn");
+  if (more && !host.contains(more)) host.appendChild(more);
+  if (bell && !host.contains(bell)) host.appendChild(bell);
+  if (acct && !host.contains(acct)) host.appendChild(acct);
+}
+function _rrReturnChromeHome() {
+  const ab = document.getElementById("rr-sched-actionbar");
+  if (!ab) return;
+  const more = document.querySelector(".rr-ab-more-wrap");
+  const bell = document.getElementById("rr-hdr-notif");
+  const acct = document.getElementById("rr-hdr-avatar-btn");
+  if (more && more.parentElement !== ab) ab.appendChild(more);
+  if (bell && bell.parentElement !== ab) ab.appendChild(bell);
+  if (acct && acct.parentElement !== ab) ab.appendChild(acct);
+}
+window._rrMoveChromeToTargets = _rrMoveChromeToTargets;
+window._rrReturnChromeHome    = _rrReturnChromeHome;
 
 // Targets · Wave times / Service types pill dropdowns. Each pill toggles its
 // own menu (closing the other); a click anywhere outside both closes them.
@@ -36380,6 +36443,10 @@ window.schedSub = function (sub) {
       _rrMoveOkami13WeekToTargets();
       // Bring the wave/service-type editor onto the Targets page too.
       _rrMoveSchedDemandToTargets();
+      // Relocate the shared ⋯/bell/avatar chrome into the Targets toolbar.
+      _rrMoveChromeToTargets();
+      // Paint the toolbar Gap card from the (about-to-refresh) table.
+      _rrRefreshTargetsGapCard();
       // Refresh the 13-week table against live data so the numbers
       // reflect the actual DSP's drivers / route grid, not the
       // hard-coded seed values in the markup. Anchored to the
@@ -36399,6 +36466,7 @@ window.schedSub = function (sub) {
     // service-type editor to the quick-settings popover too.
     _rrReturnOkami13WeekHome();
     _rrReturnSchedDemandHome();
+    _rrReturnChromeHome();
   }
   // Restore the default "Schedule / Week of ..." title block when
   // leaving Today view — renderSchedTodayView overwrites it.

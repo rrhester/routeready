@@ -1551,6 +1551,20 @@
               </div>
             </div>
           </div>
+          <!-- Right side · Gap status card + Save Plan, then the shared
+               top-right chrome (⋯ / bell / avatar) which is moved in from the
+               Schedule action bar on Targets entry by _rrMoveChromeToTargets. -->
+          <div class="rr-tgt-toolbar-right">
+            <div class="rr-tgt-gap-card" id="rr-tgt-gap-card" hidden title="Largest weekly driver shortfall across the plan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span class="rr-tgt-gap-card-text">
+                <span class="rr-tgt-gap-card-main" id="rr-tgt-gap-card-main">Gap: —</span>
+                <span class="rr-tgt-gap-card-sub">vs. needed</span>
+              </span>
+            </div>
+            <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan">Save Plan</button>
+            <span class="rr-tgt-chrome-host" id="rr-tgt-chrome-host"></span>
+          </div>
         </div><!-- /#rr-sched-targets-kpis -->
 
         <!-- TCP body · everything below this point is body content
