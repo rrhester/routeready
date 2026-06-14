@@ -2960,7 +2960,7 @@ window.goto = function (view) {
   }
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadTodayPlan(); _toFetchPendingCount(); }
-  if (view === "messages")  { _msgInboxTab = "drivers"; _msgInboxMode = "direct"; _msgSyncTabStrip("drivers"); loadDriverChatInbox(); }
+  if (view === "messages")  { _msgInboxTab = "drivers"; _msgInboxMode = "direct"; _msgChannelKind = "broadcast"; _msgSyncTabStrip("drivers"); loadDriverChatInbox(); }
   if (view === "workspaces") loadWorkspacesView();
   if (view === "forms")     loadFormsList();
   if (view === "admin")     { loadPlatformAdmin(); loadAdminSupportInbox(); }
@@ -25539,10 +25539,9 @@ let _msgInboxList = [];
 let _msgInboxSelectedId = null;
 let _msgInboxListTimer = null;
 let _msgInboxThreadTimer = null;
-// Active inbox segment — splits the list into Drivers (driver-ops chats),
-// HR (people / employee-relations chats) and Broadcasts (channels).  Pure
-// client-side filtering over the existing inbox + channel data; no schema
-// change.  See _classifyDriverThread / _threadInInboxTab.
+// Active inbox segment.  Drivers = 1:1 driver chats (direct mode); HR =
+// HR group channels; Broadcasts = broadcast channels.  HR + Broadcasts are
+// the same channel system split by `kind` (see _msgChannelKind).
 let _msgInboxTab = "drivers"; // "drivers" | "hr" | "broadcasts"
 // Per-compose state for the operator's next outbound dispatch message:
 // priority (normal/high/urgent) and whether driver must acknowledge.
@@ -25550,25 +25549,6 @@ let _msgInboxTab = "drivers"; // "drivers" | "hr" | "broadcasts"
 let _dispatchPriority    = "normal";
 let _dispatchRequiresAck = false;
 
-// ── Inbox segmentation (Drivers / HR / Broadcasts) ─────────────────
-// RouteReady's message schema has no per-conversation category, so the
-// Drivers ↔ HR split is derived client-side from the latest message text —
-// the same content bucketing Gmail's inbox tabs use.  Deliberately
-// conservative: a thread only lands in HR on a strong people-ops keyword
-// hit (PTO, availability, coaching, recognition, hiring, employee
-// relations…); everything else stays in the primary Drivers inbox so no
-// operational chatter is ever hidden from dispatch.  Broadcasts is a
-// separate surface (channels), handled by refreshChannelList.  Tune the
-// keyword set here — nothing else needs to change.
-const _RR_HR_KEYWORDS = /\b(pto|time[\s-]?off|vacation|sick[\s-]?(?:day|leave|call)|availability|coach(?:ing|ed|es)?|recogni[sz]\w*|kudos|shout[\s-]?out|hiring|interview|offer\s+letter|onboarding|employee\s+relations|grievance|disciplin\w*|write[\s-]?up|benefits|payroll)\b/i;
-function _classifyDriverThread(t) {
-  const body = (t && t.last_message && t.last_message.body) || "";
-  return _RR_HR_KEYWORDS.test(body) ? "hr" : "drivers";
-}
-function _threadInInboxTab(t) {
-  if (_msgInboxTab === "hr") return _classifyDriverThread(t) === "hr";
-  return _classifyDriverThread(t) !== "hr"; // "drivers" = everything not HR
-}
 // Reflect the active tab id onto the strip buttons (active class + aria),
 // without triggering a data load.
 function _msgSyncTabStrip(tab) {
@@ -25767,12 +25747,6 @@ async function refreshDriverChatList(autoSelect) {
     if (a.last_at) return -1;
     return (a.name || "").localeCompare(b.name || "");
   });
-  // Segment the inbox for the active tab.  Drivers (default) shows
-  // everything that isn't people-ops; HR shows the people-ops subset.  The
-  // full _msgInboxList stays intact for the AI / analytics helpers that
-  // read it elsewhere.
-  const tabList = _msgInboxList.filter(_threadInInboxTab);
-  const showSupport = _msgInboxTab === "drivers";
   const fmtRelative = (iso) => {
     if (!iso) return "—";
     const d = new Date(iso);
@@ -25797,13 +25771,13 @@ async function refreshDriverChatList(autoSelect) {
     : "We’re here to help with anything operational — open this to start the conversation.";
   const supLastTrunc = supLastBody.length > 60 ? supLastBody.slice(0, 57) + "…" : supLastBody;
   const supActive = _msgInboxSelectedId === "__support__";
-  const supportRow = showSupport ? `<div class="msg-item ${supActive ? "active" : ""}" data-rr-support-thread style="border-bottom:1px solid var(--border)">
+  const supportRow = `<div class="msg-item ${supActive ? "active" : ""}" data-rr-support-thread style="border-bottom:1px solid var(--border)">
       <div class="msg-item-avatar"><div class="avatar-sm" data-rr-no-photo="1" style="background:var(--accent);color:#fff;font-weight:700;border-radius:8px" aria-hidden="true">R</div></div>
       <div><div class="msg-item-name">RouteReady Support<span style="margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-text);text-transform:uppercase;vertical-align:1px">Support</span></div><div class="msg-item-preview">${escapeHtml(supLastTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(supLastAt ? fmtRelative(supLastAt) : "")}</div>${supUnread > 0 ? `<div class="msg-item-unread">${supUnread}</div>` : ""}</div>
-    </div>` : "";
+    </div>`;
 
-  const rows = tabList.map((t) => {
+  list.innerHTML = supportRow + _msgInboxList.map((t) => {
     const initials = (t.name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
     const lastBody = t.last_message?.body
       ? (t.last_message.sender_kind === "dispatch" ? "You: " : "") + t.last_message.body
@@ -25816,10 +25790,6 @@ async function refreshDriverChatList(autoSelect) {
       <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${t.unread > 0 ? `<div class="msg-item-unread">${t.unread}</div>` : ""}</div>
     </div>`;
   }).join("");
-  const emptyState = (!showSupport && tabList.length === 0)
-    ? `<div class="rr-empty-inline">No HR conversations in this view yet.</div>`
-    : "";
-  list.innerHTML = supportRow + rows + emptyState;
   // Paint the green dot after the rows mount.  Presence state may have
   // already populated by the time the list first renders.
   _presencePaintList();
@@ -25842,9 +25812,9 @@ async function refreshDriverChatList(autoSelect) {
   // Auto-open the support thread if there's an unread support reply and
   // nothing else is selected; otherwise the first unread driver chat.
   if (autoSelect && !_msgInboxSelectedId) {
-    if (showSupport && supUnread > 0) openSupportThread();
-    else if (tabList.length > 0) {
-      const target = tabList.find(t => t.unread > 0) || tabList[0];
+    if (supUnread > 0) openSupportThread();
+    else if (_msgInboxList.length > 0) {
+      const target = _msgInboxList.find(t => t.unread > 0) || _msgInboxList[0];
       openDriverChatThread(target.driver_id);
     }
   }
@@ -26926,25 +26896,27 @@ function _rrMcInstallAnchorEnforcer(thread) {
 // the trigger in migration 0073.  Dispatchers see every channel in
 // their DSP and can post / manage members from this same Messages view.
 let _msgInboxMode        = "direct"; // "direct" | "channels"
+let _msgChannelKind      = "broadcast"; // which channel kind the list shows: "broadcast" | "hr"
 let _msgChannelList      = [];
 let _msgChannelSelectedId = null;
 let _msgChannelListTimer  = null;
 let _msgChannelThreadTimer = null;
 
 // Override the static msgListTab handler.  Three inbox segments:
-//   Drivers     → driver-ops direct chats          (direct mode, non-HR)
-//   HR          → people / employee-relations chats (direct mode, HR only)
-//   Broadcasts  → station / group channels          (channels mode)
-// Drivers and HR share the "direct" data source, so flipping between them
-// just re-filters the list in place (no timer churn).  Only crossing the
-// direct ⇆ channels boundary swaps the list source + its polling timer.
+//   Drivers     → 1:1 driver chats                 (direct mode)
+//   HR          → HR group channels                (channels mode, kind=hr)
+//   Broadcasts  → broadcast channels               (channels mode, kind=broadcast)
+// HR and Broadcasts share the channel system (split by kind), so flipping
+// between them just re-filters the list in place (no timer churn).  Only
+// crossing the direct ⇆ channels boundary swaps the list source + its poll.
 window.msgListTab = function (btn) {
   const label = (btn.dataset.tab || btn.textContent || "").trim().toLowerCase();
   const tab = label === "hr" ? "hr" : label === "broadcasts" ? "broadcasts" : "drivers";
   _msgSyncTabStrip(tab);
   if (tab === _msgInboxTab) return;
   _msgInboxTab = tab;
-  const mode = tab === "broadcasts" ? "channels" : "direct";
+  const mode = tab === "drivers" ? "direct" : "channels";
+  _msgChannelKind = tab === "hr" ? "hr" : "broadcast";
 
   // A new tab means the open conversation may no longer be in view — drop
   // the selection and reset the conversation pane to its empty prompt.
@@ -26953,18 +26925,18 @@ window.msgListTab = function (btn) {
   const conv = document.getElementById("rr-msg-conv");
   if (conv) {
     conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px">${
-      tab === "broadcasts" ? "Pick a broadcast channel from the list — or create one."
-      : tab === "hr"       ? "Pick an HR conversation from the list to open the thread."
-      :                      "Pick a driver from the list to open their thread."
+      tab === "hr"           ? "Pick an HR group from the list — or create one."
+      : tab === "broadcasts" ? "Pick a broadcast channel from the list — or create one."
+      :                        "Pick a driver from the list to open their thread."
     }</div>`;
     delete conv.dataset.rrDriverId;
     delete conv.dataset.rrChannelId;
   }
 
-  // Drivers ⇄ HR — same direct inbox, just re-filter in place.  Leave the
-  // list poll running so we don't churn timers on every tab tap.
-  if (mode === "direct" && _msgInboxMode === "direct") {
-    refreshDriverChatList(true);
+  // HR ⇄ Broadcasts — same channel system, different kind.  Re-filter the
+  // list in place; the channels poll is already running so no timer churn.
+  if (mode === "channels" && _msgInboxMode === "channels") {
+    refreshChannelList(true);
     return;
   }
 
@@ -26996,11 +26968,17 @@ window.msgListTab = function (btn) {
 async function refreshChannelList(autoSelect) {
   const list = document.getElementById("rr-msg-driver-list");
   if (!list) return;
+  // Broadcasts and HR are the same channel system split by `kind`; render
+  // only the active tab's kind.
+  const isHr = _msgChannelKind === "hr";
+  const newLabel = isHr ? "New HR group" : "New channel";
+  const emptyMsg = isHr ? "No HR groups yet.<br>Create one and add drivers."
+                        : "No channels yet.<br>Create one to start group comms.";
   const { data, error } = await sb.rpc("dispatch_channels_list");
   if (error) {
     list.innerHTML = `
       <div style="padding:var(--s-3-5)">
-        <button class="btn btn-primary btn-sm" data-rr-channel-new style="width:100%;margin-bottom:10px">+ New channel</button>
+        <button class="btn btn-primary btn-sm" data-rr-channel-new style="width:100%;margin-bottom:10px">+ ${newLabel}</button>
         <div style="color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message)}</div>
       </div>`;
     list.querySelector("[data-rr-channel-new]")?.addEventListener("click", openChannelCreateModal);
@@ -27022,15 +27000,16 @@ async function refreshChannelList(autoSelect) {
     <div style="padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border)">
       <button class="btn btn-primary btn-sm" data-rr-channel-new style="width:100%">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        New channel
+        ${newLabel}
       </button>
     </div>`;
-  if (_msgChannelList.length === 0) {
-    list.innerHTML = headerBtn + `<div class="rr-empty-inline">No channels yet.<br>Create one to start group comms.</div>`;
+  const kindList = _msgChannelList.filter(c => (c.kind || "broadcast") === _msgChannelKind);
+  if (kindList.length === 0) {
+    list.innerHTML = headerBtn + `<div class="rr-empty-inline">${emptyMsg}</div>`;
     list.querySelector("[data-rr-channel-new]")?.addEventListener("click", openChannelCreateModal);
     return;
   }
-  list.innerHTML = headerBtn + _msgChannelList.map((c) => {
+  list.innerHTML = headerBtn + kindList.map((c) => {
     const isActive = _msgChannelSelectedId === c.id;
     const archChip = c.archived_at
       ? `<span class="status-pill status-pill-neutral" style="margin-left:6px">Archived</span>`
@@ -27052,8 +27031,8 @@ async function refreshChannelList(autoSelect) {
   list.querySelectorAll("[data-rr-channel]").forEach((el) => {
     el.addEventListener("click", () => openChannelThread(el.dataset.rrChannel));
   });
-  if (autoSelect && !_msgChannelSelectedId && _msgChannelList.length > 0) {
-    openChannelThread(_msgChannelList[0].id);
+  if (autoSelect && !_msgChannelSelectedId && kindList.length > 0) {
+    openChannelThread(kindList[0].id);
   }
 }
 
@@ -27350,6 +27329,7 @@ document.addEventListener("click", async (e) => {
 
 // ── Create channel modal ──
 function openChannelCreateModal() {
+  const isHr = _msgChannelKind === "hr";
   // Pull active stations for the dropdown.  All stations under the
   // current DSP — operator can leave it blank for an org-wide channel.
   const stationsPromise = sb.from("stations").select("id, code, name").order("code");
@@ -27361,8 +27341,8 @@ function openChannelCreateModal() {
     <form id="rr-channel-create-form" class="modal-card" style="max-width:440px">
       <div class="modal-head">
         <div>
-          <p class="modal-title">New channel</p>
-          <p class="modal-sub">Group room for drivers + dispatch</p>
+          <p class="modal-title">${isHr ? "New HR group" : "New channel"}</p>
+          <p class="modal-sub">${isHr ? "HR room for drivers + dispatch" : "Group room for drivers + dispatch"}</p>
         </div>
         <button type="button" class="modal-close" id="rr-cc-new-close" aria-label="Close">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -27370,7 +27350,7 @@ function openChannelCreateModal() {
       </div>
       <div class="modal-body">
         <label class="modal-field-label" for="rr-cc-new-name">Name</label>
-        <input id="rr-cc-new-name" class="form-input form-input-block" required maxlength="80" placeholder="morning-wave">
+        <input id="rr-cc-new-name" class="form-input form-input-block" required maxlength="80" placeholder="${isHr ? "pto-requests" : "morning-wave"}">
         <label class="modal-field-label" for="rr-cc-new-desc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-subtle)">(optional)</span></label>
         <input id="rr-cc-new-desc" class="form-input form-input-block" maxlength="280" placeholder="What this channel is for">
         <label class="modal-field-label" for="rr-cc-new-station">Station scope</label>
@@ -27406,12 +27386,16 @@ function openChannelCreateModal() {
     const desc = document.getElementById("rr-cc-new-desc").value.trim();
     const sid  = document.getElementById("rr-cc-new-station").value || null;
     if (!name) return;
-    const { data, error } = await sb.rpc("dispatch_channel_create", {
-      p_name: name, p_description: desc || null, p_station_id: sid,
-    });
+    const params = { p_name: name, p_description: desc || null, p_station_id: sid };
+    // Only send p_kind for HR groups so broadcast creation still works
+    // against the pre-migration 3-arg function — i.e. the code deploy can
+    // safely land before migration 0388 is applied; HR just stays inert
+    // until then.
+    if (isHr) params.p_kind = "hr";
+    const { data, error } = await sb.rpc("dispatch_channel_create", params);
     if (error) { toast("Create failed: " + error.message, "warn"); return; }
     wrap.remove();
-    toast("Channel created", "good");
+    toast(isHr ? "HR group created" : "Channel created", "good");
     await refreshChannelList(false);
     if (data?.id) openChannelThread(data.id);
   });
