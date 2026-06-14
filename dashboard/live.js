@@ -41588,7 +41588,10 @@ function _rrRenderForecastKpis(gaps) {
     + `<span class="sched-kpi-sub">${sub ? escapeHtml(sub) : "&nbsp;"}</span></span></span>`;
 
   const valid = gaps.map((g, i) => ({ g, i })).filter((x) => x.g != null);
-  if (!valid.length) { host.innerHTML = pill("fc-empty", "green", "No forecast", "Set OKAMI route targets"); return; }
+  // No forecast data yet (no OKAMI route targets, or the forecast hasn't been
+  // run): leave the KPI strip empty so it collapses entirely — the CSS hides
+  // #rr-sched-kpis when it has no pills — instead of showing a placeholder box.
+  if (!valid.length) { host.innerHTML = ""; return; }
 
   const LOCK = Math.max(0, Math.min(_rrForecastLockWeeks, gaps.length));
   let worst = valid[0];
