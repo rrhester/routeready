@@ -31066,10 +31066,9 @@ function _okamiRecomputeFromCache(padPct) {
     if (gapEl) {
       gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
       gapEl.classList.remove("ok", "warn", "bad");
-      // Sign class drives the soft red / green gap pill on the Targets page
-      // (scoped CSS; the standalone OKAMI page leaves the gap unstyled).
-      gapEl.classList.toggle("rr-tgt-gap-neg", gap < 0);
-      gapEl.classList.toggle("rr-tgt-gap-pos", gap >= 0);
+      // Severity class drives the graduated red (or green) gap pill on the
+      // Targets page (scoped CSS; standalone OKAMI leaves the gap unstyled).
+      _rrApplyGapClass(gapEl, gap);
     }
   }
   try { _rrRefreshTargetsGapCard(); } catch (_) { /* gap card is optional */ }
@@ -31218,10 +31217,9 @@ async function _renderOkamiLiveImpl() {
     if (gapEl) {
       gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
       gapEl.classList.remove("ok", "warn", "bad");
-      // Sign class drives the soft red / green gap pill on the Targets page
-      // (scoped CSS; the standalone OKAMI page leaves the gap unstyled).
-      gapEl.classList.toggle("rr-tgt-gap-neg", gap < 0);
-      gapEl.classList.toggle("rr-tgt-gap-pos", gap >= 0);
+      // Severity class drives the graduated red (or green) gap pill on the
+      // Targets page (scoped CSS; standalone OKAMI leaves the gap unstyled).
+      _rrApplyGapClass(gapEl, gap);
     }
 
     const stratEl = tdCells[5]?.querySelector(".strategy-pills");
@@ -32599,10 +32597,20 @@ function _rrRefreshTargetsGapCard() {
   if (worst == null) { card.hidden = true; return; }
   card.hidden = false;
   const mainEl = document.getElementById("rr-tgt-gap-card-main");
-  if (mainEl) mainEl.textContent = `Gap: ${worst > 0 ? "+" : ""}${worst} driver${Math.abs(worst) === 1 ? "" : "s"}`;
+  if (mainEl) mainEl.textContent = `${worst > 0 ? "+" : ""}${worst} Driver${Math.abs(worst) === 1 ? "" : "s"}`;
   card.classList.toggle("rr-tgt-gap-card--pos", worst >= 0);
 }
 window._rrRefreshTargetsGapCard = _rrRefreshTargetsGapCard;
+
+// Graduated gap severity for the Targets gap pill: positive = covered (green);
+// negative scales light → medium → dark red with the size of the shortfall.
+function _rrApplyGapClass(gapEl, gap) {
+  if (!gapEl) return;
+  gapEl.classList.remove("rr-tgt-gap-pos", "rr-tgt-gap-s1", "rr-tgt-gap-s2", "rr-tgt-gap-s3");
+  if (gap >= 0) { gapEl.classList.add("rr-tgt-gap-pos"); return; }
+  const m = Math.abs(gap);
+  gapEl.classList.add(m <= 10 ? "rr-tgt-gap-s1" : m <= 40 ? "rr-tgt-gap-s2" : "rr-tgt-gap-s3");
+}
 
 // Save Plan · Targets auto-saves per week as you type, so this re-commits the
 // plan settings (block / cushion / report / waves) and confirms.

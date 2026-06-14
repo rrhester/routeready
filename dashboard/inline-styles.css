@@ -14813,42 +14813,45 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:none !important;
             border-radius:0 !important;
           }
+          /* Tighter, lighter toolbar controls (enterprise feel) — a hairline
+             neutral border instead of the navy outline, slightly shorter. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi{
             display:inline-flex;align-items:center;gap:7px;
-            height:36px;padding:0 13px;
-            border:1.5px solid var(--sidebar-bg, #0F172A);
+            height:33px;padding:0 12px;
+            border:1px solid #E3E7ED;
             border-radius:8px;
             background:#FFFFFF;
-            color:var(--sidebar-bg, #0F172A);
+            color:#1F2937;
             font-size:12.5px;font-weight:600;line-height:1;
             min-width:0;
           }
-          /* Re-assert a full outline over the old inter-cell divider +
-             first-child reset from the card layout. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi,
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi:first-child{
-            border-left:1.5px solid var(--sidebar-bg, #0F172A);
+            border-left:1px solid #E3E7ED;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi:hover{
+            border-color:#CDD3DC;
           }
           /* Label + value inline inside the pill (e.g. "Block 10 h"). */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-text{
             flex-direction:row;align-items:center;gap:6px;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-label{
-            font-size:12.5px;font-weight:600;color:var(--sidebar-bg, #0F172A);
+            font-size:12.5px;font-weight:600;color:#374151;
             text-transform:none;letter-spacing:0;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-val{
             margin-top:0;align-items:center;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-input{
-            color:var(--sidebar-bg, #0F172A);font-weight:700;
+            color:#111827;font-weight:700;
             width:32px;text-align:left;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-input:focus{
             color:var(--accent-text, #2563EB);
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-unit{
-            color:var(--sidebar-bg, #0F172A);opacity:.6;font-weight:600;
+            color:#6B7280;opacity:1;font-weight:500;
           }
           /* Status reads as quiet inline text after the pills, not a pill. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi:has(.rr-tgt-kpi-status){
@@ -14867,7 +14870,7 @@ body.rr-cmdk-open{ overflow:hidden }
             cursor:pointer;gap:7px;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn .rr-tgt-kpi-label{
-            color:var(--sidebar-bg, #0F172A);
+            color:#374151;
           }
           /* Dropdown caret · split from the label by a full-height divider,
              matching the schedule action-bar pills (.rr-ab-caret). The
@@ -14875,9 +14878,9 @@ body.rr-cmdk-open{ overflow:hidden }
              caret zone reaches the rounded edge. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-caret{
             display:inline-flex;align-items:center;align-self:stretch;
-            margin:0 -13px 0 0;
+            margin:0 -12px 0 0;
             padding:0 11px;
-            border-left:1px solid rgba(15,23,42,.25);
+            border-left:1px solid #E3E7ED;
             border-radius:0 8px 8px 0;
             transition:background-color .12s ease;
           }
@@ -14913,25 +14916,29 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-toolbar-right{
             display:inline-flex;align-items:center;gap:10px;margin-left:auto;
           }
-          /* Gap card · soft, compact, like the Schedule Coverage card (not an
-             alert). Red when short, green when covered. */
+          /* Forecast Gap · compact KPI card — small caption over a dominant
+             number, soft red (green when covered). Not an alert. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card{
-            display:inline-flex;align-items:center;gap:9px;
-            height:38px;padding:0 14px;border-radius:10px;
-            border:1px solid #F3D2D2;background:#FEF2F2;color:#B91C1C;
+            display:inline-flex;flex-direction:column;justify-content:center;align-items:flex-start;
+            gap:1px;min-height:42px;padding:5px 14px;border-radius:10px;
+            border:1px solid #F2D7D7;background:#FCF1F1;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card[hidden]{display:none}
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card svg{width:18px;height:18px;flex:0 0 auto;opacity:.9}
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-text{display:flex;flex-direction:column;line-height:1.15}
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-main{font-size:12.5px;font-weight:700}
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-sub{font-size:10.5px;font-weight:500;opacity:.75}
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.rr-tgt-gap-card--pos{
-            border-color:#CDEAD6;background:#EDF8F0;color:#065F46;
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-label{
+            font-size:9.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#B4524C;
           }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-value{
+            font-size:17px;font-weight:700;line-height:1.05;color:#B42318;font-variant-numeric:tabular-nums;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.rr-tgt-gap-card--pos{
+            border-color:#CFE9D6;background:#F0F8F2;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.rr-tgt-gap-card--pos .rr-tgt-gap-card-label{color:#3F7B5A}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.rr-tgt-gap-card--pos .rr-tgt-gap-card-value{color:#067647}
           /* Save Plan · primary button matching the Schedule Finalize. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan{
             display:inline-flex;align-items:center;justify-content:center;
-            height:38px;padding:0 18px;border:0;border-radius:9px;
+            height:34px;padding:0 16px;border:0;border-radius:8px;
             background:#2563EB;color:#FFFFFF;font:inherit;font-size:13px;font-weight:600;
             cursor:pointer;white-space:nowrap;transition:background-color .12s ease;
           }
@@ -19085,11 +19092,49 @@ body.rr-cmdk-open{ overflow:hidden }
               font-size:var(--fs-sm);font-weight:700;
               font-variant-numeric:tabular-nums;line-height:1;
             }
-            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-neg{
-              background:#FEEEEE !important;color:#B91C1C !important;
+            /* Graduated severity (restrained): small shortfall → light red,
+               medium → medium, large → darker. No icons, no harsh tones. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s1{
+              background:#FCEFEF !important;color:#C25B53 !important;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s2{
+              background:#FAE2E2 !important;color:#B42318 !important;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s3{
+              background:#F6D2D2 !important;color:#911D14 !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-pos{
-              background:#EDF8F0 !important;color:#065F46 !important;
+              background:#EFF8F1 !important;color:#067647 !important;
+            }
+            /* Available · subtly positive (restrained green, no badge). The
+               4th visible column is AVAILABLE; Drivers Needed (col 3) stays
+               neutral. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail) > td:nth-child(4) .plan-calc{
+              color:#15803D;
+            }
+            /* Lighter headers + row borders (low-contrast, premium). */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table thead th{
+              font-size:10.5px;color:#97A1B0;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail) > td{
+              border-color:#EEF1F5 !important;
+            }
+            /* Expanded week · soft blue left accent + faint tint + slight lift
+               so the selected week owns its block (targeted via :has on the
+               expand button, which okamiToggleDaily marks .expanded). */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail):has(.okami-expand-btn.expanded) > td{
+              background:#F5F8FE !important;border-color:#DBE5F7 !important;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail):has(.okami-expand-btn.expanded) > td:first-child{
+              border-left:3px solid #2563EB !important;
+            }
+            /* The open daily-detail panel continues the selected block: same
+               tint + blue accent, rounded, tighter than the default. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tr.okami-detail.open > td{
+              background:#F7FAFE !important;
+              border:1px solid #DBE5F7 !important;border-left:3px solid #2563EB !important;
+              border-radius:10px;padding:4px 12px 8px !important;
+              margin:0 !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .strategy-pills{
               gap:2px;
