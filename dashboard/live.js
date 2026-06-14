@@ -26897,6 +26897,8 @@ function _rrMcInstallAnchorEnforcer(thread) {
 // their DSP and can post / manage members from this same Messages view.
 let _msgInboxMode        = "direct"; // "direct" | "channels"
 let _msgChannelKind      = "broadcast"; // which channel kind the list shows: "broadcast" | "hr"
+let _hrSpaceId           = null;        // primary HR channel id — HR is treated as one space
+let _hrActiveMemberId    = null;        // highlighted member row in the HR roster
 let _msgChannelList      = [];
 let _msgChannelSelectedId = null;
 let _msgChannelListTimer  = null;
@@ -26922,6 +26924,7 @@ window.msgListTab = function (btn) {
   // the selection and reset the conversation pane to its empty prompt.
   _msgInboxSelectedId  = null;
   _msgChannelSelectedId = null;
+  _hrActiveMemberId    = null;
   const conv = document.getElementById("rr-msg-conv");
   if (conv) {
     conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px">${
@@ -26968,8 +26971,10 @@ window.msgListTab = function (btn) {
 async function refreshChannelList(autoSelect) {
   const list = document.getElementById("rr-msg-driver-list");
   if (!list) return;
-  // Broadcasts and HR are the same channel system split by `kind`; render
-  // only the active tab's kind.
+  // HR renders as a flat member roster (mirrors the Drivers list), not a
+  // channel list — see refreshHrRoster.  Broadcasts keeps the channel list.
+  if (_msgChannelKind === "hr") { await refreshHrRoster(autoSelect); return; }
+  // Broadcasts are the channel system with kind='broadcast'.
   const isHr = _msgChannelKind === "hr";
   const newLabel = isHr ? "New HR group" : "New channel";
   const emptyMsg = isHr ? "No HR groups yet.<br>Create one and add drivers."
@@ -27034,6 +27039,90 @@ async function refreshChannelList(autoSelect) {
   if (autoSelect && !_msgChannelSelectedId && kindList.length > 0) {
     openChannelThread(kindList[0].id);
   }
+}
+
+// HR roster · the HR tab shows a flat list of the HR space's members
+// (mirrors the Drivers list) rather than a list of groups.  HR is treated
+// as a single space (the first kind='hr' channel); clicking any member
+// opens the shared HR thread, and add/remove runs through the existing
+// members modal.  No new schema — reuses the channel + membership RPCs.
+async function refreshHrRoster(autoSelect) {
+  const list = document.getElementById("rr-msg-driver-list");
+  if (!list) return;
+  const { data, error } = await sb.rpc("dispatch_channels_list");
+  if (error) {
+    list.innerHTML = `<div style="padding:var(--s-6);color:var(--red);font-size:var(--fs-sm)">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  _msgChannelList = data?.channels || [];
+  const hrSpaces = _msgChannelList.filter(c => (c.kind || "broadcast") === "hr" && !c.archived_at);
+
+  // No HR space yet — offer to create one.
+  if (hrSpaces.length === 0) {
+    _hrSpaceId = null;
+    list.innerHTML = `
+      <div style="padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border)">
+        <button class="btn btn-primary btn-sm" data-rr-hr-create style="width:100%">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Create HR space
+        </button>
+      </div>
+      <div class="rr-empty-inline">No HR space yet.<br>Create one, then add drivers.</div>`;
+    list.querySelector("[data-rr-hr-create]")?.addEventListener("click", _createHrSpace);
+    return;
+  }
+
+  const space = hrSpaces[0];
+  _hrSpaceId = space.id;
+  const { data: memData, error: memErr } = await sb.rpc("dispatch_channel_members", { p_channel_id: space.id });
+  const members = memErr ? [] : (memData?.members || []);
+
+  const addBtn = `
+    <div style="padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border)">
+      <button class="btn btn-primary btn-sm" data-rr-hr-add style="width:100%">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add or remove people
+      </button>
+    </div>`;
+
+  if (members.length === 0) {
+    list.innerHTML = addBtn + `<div class="rr-empty-inline">No one in HR yet — add drivers.</div>`;
+    list.querySelector("[data-rr-hr-add]")?.addEventListener("click", () => openChannelMembersModal(space.id));
+    return;
+  }
+
+  const rows = members.map((m) => {
+    const initials = (m.full_name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+    const statusLabel = m.status ? m.status.charAt(0).toUpperCase() + m.status.slice(1) : "";
+    const isActive = _hrActiveMemberId === m.driver_id;
+    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-hr-member="${escapeHtml(m.driver_id)}" data-rr-driver-id="${escapeHtml(m.driver_id)}">
+      <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="msg-item-presence"></span></div>
+      <div><div class="msg-item-name">${escapeHtml(m.full_name || "")}${m.station_code ? ` <span style="color:var(--text-subtle);font-weight:400">· ${escapeHtml(m.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(statusLabel)}</div></div>
+      <div></div>
+    </div>`;
+  }).join("");
+
+  list.innerHTML = addBtn + rows;
+  _presencePaintList();
+  list.querySelector("[data-rr-hr-add]")?.addEventListener("click", () => openChannelMembersModal(space.id));
+  list.querySelectorAll("[data-rr-hr-member]").forEach((el) => {
+    el.addEventListener("click", () => {
+      _hrActiveMemberId = el.dataset.rrHrMember;
+      list.querySelectorAll("[data-rr-hr-member]").forEach(r => r.classList.toggle("active", r === el));
+      openChannelThread(space.id);
+    });
+  });
+  if (autoSelect && !_msgChannelSelectedId) {
+    openChannelThread(space.id);
+  }
+}
+
+// Create the single HR space (a kind='hr' channel) and show its roster.
+async function _createHrSpace() {
+  const { data, error } = await sb.rpc("dispatch_channel_create", { p_name: "HR", p_kind: "hr" });
+  if (error) { toast("Couldn't create HR space: " + error.message, "warn"); return; }
+  toast("HR space created", "good");
+  await refreshHrRoster(true);
 }
 
 async function openChannelThread(channelId) {
