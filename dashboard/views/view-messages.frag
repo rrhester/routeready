@@ -13,15 +13,19 @@
               <span class="msg-list-title">Conversations</span>
               <button class="icon-btn" title="New direct message" onclick="renderNewDmList('');openModal('modal-new-dm')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
             </div>
+            <!-- Inbox segments · Drivers (driver-ops chats) / HR (people
+                 chats) / Broadcasts (channels).  Sits directly under the
+                 Conversations heading, above search — switching a tab only
+                 re-filters the list (see msgListTab in live.js); the viewer,
+                 composer, and URL are untouched. -->
+            <div class="msg-list-tabs" role="tablist" aria-label="Inbox segments">
+              <button class="msg-list-tab active" data-tab="drivers" role="tab" aria-selected="true" onclick="msgListTab(this)">Drivers</button>
+              <button class="msg-list-tab" data-tab="hr" role="tab" aria-selected="false" onclick="msgListTab(this)">HR</button>
+              <button class="msg-list-tab" data-tab="broadcasts" role="tab" aria-selected="false" onclick="msgListTab(this)">Broadcasts</button>
+            </div>
             <div class="msg-list-search">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input placeholder="Search drivers, channels…" />
-            </div>
-            <div class="msg-list-tabs">
-              <button class="msg-list-tab active" onclick="msgListTab(this)">All</button>
-              <button class="msg-list-tab" onclick="msgListTab(this)">Direct</button>
-              <button class="msg-list-tab" onclick="msgListTab(this)">Channels</button>
-              <button class="msg-list-tab" onclick="msgListTab(this)">Broadcasts</button>
+              <input placeholder="Search conversations…" />
             </div>
             <div class="msg-list-items" id="rr-msg-driver-list">
               <!-- Conversation list skeleton — matches the .msg-item
