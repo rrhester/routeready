@@ -15415,7 +15415,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--sidebar-bg) !important;
             border-radius:6px !important;
             box-shadow:0 1px 2px rgba(15,23,42,.04) !important;
-            padding:8px 12px !important;
+            padding:10px 12px !important;
             font-size:var(--fs-md) !important;
           }
           /* KPI value text matches the Schedule ribbon pill EXACTLY
@@ -15446,6 +15446,10 @@ body.rr-cmdk-open{ overflow:hidden }
              only the chevron side is the click target (handler in live.js). */
           .sched-kpi-pill .rr-kpi-chev{
             display:inline-flex;align-items:center;align-self:stretch;
+            /* Negative vertical margins cancel the pill's 10px vertical padding
+               so the divider runs edge-to-edge — top border to bottom border —
+               like a true split-button. Keep in sync with the pill padding. */
+            margin-top:-10px;margin-bottom:-10px;
             padding-left:10px;cursor:pointer;
             border-left:1px solid var(--sidebar-bg);
             color:var(--text-subtle);
