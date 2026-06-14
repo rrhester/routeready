@@ -3512,6 +3512,40 @@ document.addEventListener("click", async (e) => {
     _setChatLike(btn, cur, !turningOn); // revert on failure
   }
 });
+// Press-and-hold a bubble to reveal its Like button (mobile reaction
+// gesture).  Existing like counts (.has) show regardless; this just gates
+// the tap-to-like affordance behind a long-press so it isn't always on.
+(function _wireChatLongPress() {
+  let timer = null, sx = 0, sy = 0;
+  const clearReveals = (keep) => document.querySelectorAll(".chat-bubble.reveal-like")
+    .forEach((b) => { if (b !== keep) b.classList.remove("reveal-like"); });
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  document.addEventListener("touchstart", (e) => {
+    const bubble = e.target.closest && e.target.closest(".chat-bubble");
+    if (!bubble || (e.target.closest && e.target.closest("[data-rr-like], a, button"))) return;
+    const t = (e.touches && e.touches[0]) || e;
+    sx = t.clientX; sy = t.clientY;
+    cancel();
+    timer = setTimeout(() => {
+      timer = null;
+      clearReveals(bubble);
+      bubble.classList.add("reveal-like");
+      try { navigator.vibrate && navigator.vibrate(8); } catch (_) {}
+    }, 420);
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!timer) return;
+    const t = (e.touches && e.touches[0]) || e;
+    if (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10) cancel();
+  }, { passive: true });
+  document.addEventListener("touchend", cancel, { passive: true });
+  document.addEventListener("touchcancel", cancel, { passive: true });
+  // A tap anywhere that isn't the Like button collapses a revealed bubble.
+  document.addEventListener("click", (e) => {
+    if (e.target.closest && e.target.closest("[data-rr-like]")) return;
+    clearReveals(null);
+  });
+})();
 
 // Resolve attachment paths to short-lived signed URLs after each
 // chat render, then swap them into the <img>/<a> tags.  We do this
