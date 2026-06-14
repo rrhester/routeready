@@ -7931,6 +7931,9 @@ document.addEventListener("click", (e) => {
     if (!stage || stage === _driverStage) return;
     _driverStage = stage;
     if (typeof renderDriverTable === "function") renderDriverTable(_rosterRows, null);
+    // Re-render the KPI strip too so the Active-pill status filter label +
+    // count reflect the new stage.
+    if (typeof refreshDriverStatRow === "function") refreshDriverStatRow(_rosterRows);
     return;
   }
   // Outside click → close.
@@ -14885,12 +14888,29 @@ async function refreshDriverStatRow(rows) {
     ? undefined
     : _rrKpiStatusIcon(finalCaCount > 0 ? "red" : "green", `${finalCaPct}% on a final corrective action`);
 
+  // The "Active drivers" pill doubles as the roster status filter (operator
+  // request): it shows the count for the current stage and opens the status
+  // menu (All / Active / Seasonal / On leave / Inactive / Terminated). The
+  // separate far-right toolbar filter is removed.
+  const _rsStageLabel = _rrRosterStatusFilterLabel();
+  let _rsStageCount;
+  try { _rsStageCount = _rowsForStage(_rosterRows, _driverStage).length; }
+  catch (_) { _rsStageCount = counts.active; }
+  const _rsPlural = _rsStageCount === 1 ? "" : "s";
+  const statusFilterLabel = _driverStage === "active"
+    ? `${_rsStageCount} Active driver${_rsPlural}`
+    : _driverStage === "all"
+      ? `${_rsStageCount} driver${_rsPlural} · all`
+      : `${_rsStageCount} ${_rsStageLabel}`;
+  const activeFilterPill =
+    `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-statusfilter" data-rr-roster-status-filter aria-haspopup="menu" aria-expanded="false" title="Filter the roster by status">`
+    + `<span class="sched-kpi-text"><span class="sched-kpi-val">${statusFilterLabel}</span></span>`
+    + `<span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span>`
+    + `</button>`;
   const rosterKpisHtml =
-    rosterPill("active", navy, `${counts.active} Active driver${counts.active === 1 ? "" : "s"}`,
-      counts.onboarding ? `${counts.onboarding} onboarding` : "&nbsp;", false) +
+    activeFilterPill +
     `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>` +
     rosterPill("finalca", finalCaCount > 0 ? "#DC2626" : navy, finalCaLabel, finalCaSub, false, finalCaIcon) +
-    rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
     rosterPill("tenured", navy, tenuredLabel, tenuredSub, false) +
     rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, true);
 
