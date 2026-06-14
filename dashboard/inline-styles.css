@@ -15377,11 +15377,11 @@ body.rr-cmdk-open{ overflow:hidden }
           /* KPI card: pure white, crisp — drop the blue edge and the
              diffuse gray haze, and pull it tight to the grid below. */
           #view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills{
-            background:transparent !important;
-            border:0 !important;
-            border-radius:0 !important;
-            box-shadow:none !important;
-            margin-bottom:1px !important;
+            background:var(--surface-elevated) !important;
+            border:1px solid rgba(15,23,42,.07) !important;
+            border-radius:var(--r-lg) !important;
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04) !important;
+            margin-bottom:var(--s-4) !important;
           }
           /* Roster + Onboarding KPI strips inherit Schedule's crisp, flat
              treatment exactly. The "byte-identical strips" intent above was
@@ -15394,14 +15394,14 @@ body.rr-cmdk-open{ overflow:hidden }
              pure-white + hairline-border + no-shadow recipe here. */
           #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills,
           #view-drivers #rr-roster-kpis.sched-kpi-pills{
-            background:transparent !important;
-            border:0 !important;
-            border-radius:0 !important;
-            box-shadow:none !important;
-            /* Hug the content below with the same 1px gap Schedule's
-               #rr-sched-kpis uses (index.html:18631), so the KPI strip
-               sits at the same Y and the strip→body rhythm matches. */
-            margin-bottom:1px !important;
+            background:var(--surface-elevated) !important;
+            border:1px solid rgba(15,23,42,.07) !important;
+            border-radius:var(--r-lg) !important;
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04) !important;
+            /* Match the Schedule command-ribbon card (.sched-nav-heading)
+               so the Roster's top KPI strip reads as the same elevated
+               surface — same border, radius, soft shadow + breathing room. */
+            margin-bottom:var(--s-4) !important;
           }
           /* Pill sizing · use Schedule's intrinsic sizing exactly. Schedule's
              week-view KPI cells size from their own content and pack to the
