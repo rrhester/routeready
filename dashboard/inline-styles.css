@@ -5336,12 +5336,15 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   grid-template-rows: auto minmax(0, 1fr) auto auto;
   overflow:hidden;
 }
-/* Operational context header — a pinned strip under the driver-chat head
+/* Operational context header — a pinned strip at the top of the driver chat
    (driver 1:1 chat only): identity + today / tomorrow shift + 30-day
-   attendance.  Scoped via :has so the support / channel shells keep their
-   4-row layout.  Schedule-page language: white cards, subtle borders, light
-   fill, ~11px radius, no gradients or bright colour. */
-.rr-mc-shell:has(> .rr-mc-context){ grid-template-rows:auto auto minmax(0,1fr) auto auto }
+   attendance.  It supersedes the original chat head, so where a context strip
+   is present we hide .rr-mc-head (its identity lives here now) — the head DOM
+   stays for the presence/status painters, just not shown — and the shell keeps
+   its base 4-row grid.  Scoped via :has so support / channel shells are
+   untouched.  Schedule-page language: white cards, subtle borders, light fill,
+   ~11px radius, no gradients or bright colour. */
+.rr-mc-shell:has(> .rr-mc-context) > .rr-mc-head{ display:none }
 .rr-mc-context{
   display:flex;align-items:stretch;gap:var(--s-3);min-width:0;overflow:hidden;
   padding:var(--s-2-5) var(--s-5);
