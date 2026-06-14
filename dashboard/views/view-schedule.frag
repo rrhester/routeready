@@ -2656,10 +2656,10 @@
             <div class="rr-tgt-13w-head">
               <div>
                 <div class="rr-tgt-13w-title">
-                  Route planner
+                  Targets
                   <span class="rr-tgt-13w-badge" title="Amazon's term for the 13-week DSP route plan horizon">13-week plan</span>
                 </div>
-                <p class="rr-tgt-13w-sub">Routes vs. staffing vs. risk · drawn from your real history. Edit any week to recalc downstream coverage.</p>
+                <p class="rr-tgt-13w-sub">Set weekly targets for routes and drivers.</p>
               </div>
             </div>
             <div id="rr-sched-targets-13week-host">
