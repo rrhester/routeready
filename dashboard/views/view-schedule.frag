@@ -1549,7 +1549,7 @@
           <div class="rr-tgt-kpi-menu-wrap">
             <button type="button" class="rr-tgt-kpi rr-tgt-kpi-btn" id="rr-tgt-waves-btn" aria-haspopup="true" aria-expanded="false" title="Adjust dispatch wave start times">
               <span class="rr-tgt-kpi-label">Wave times</span>
-              <svg class="rr-tgt-kpi-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+              <span class="rr-tgt-kpi-caret" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span>
             </button>
             <div class="rr-tgt-kpi-menu" id="rr-tgt-waves-menu" role="group" aria-label="Wave start times" hidden>
               <div id="rr-sched-targets-waves-host"></div>
@@ -1560,7 +1560,7 @@
           <div class="rr-tgt-kpi-menu-wrap">
             <button type="button" class="rr-tgt-kpi rr-tgt-kpi-btn" id="rr-tgt-st-btn" aria-haspopup="true" aria-expanded="false" title="Activate and rename the service types your DSP runs">
               <span class="rr-tgt-kpi-label">Service types</span>
-              <svg class="rr-tgt-kpi-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+              <span class="rr-tgt-kpi-caret" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span>
             </button>
             <div class="rr-tgt-kpi-menu" id="rr-tgt-st-menu" role="group" aria-label="Service types" hidden>
               <div id="rr-sched-targets-st-host"></div>

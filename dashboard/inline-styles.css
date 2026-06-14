@@ -14864,19 +14864,34 @@ body.rr-cmdk-open{ overflow:hidden }
             position:relative;display:inline-flex;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn{
-            cursor:pointer;gap:8px;
+            cursor:pointer;gap:7px;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn .rr-tgt-kpi-label{
             color:var(--sidebar-bg, #0F172A);
           }
+          /* Dropdown caret · split from the label by a full-height divider,
+             matching the schedule action-bar pills (.rr-ab-caret). The
+             negative right margin cancels the pill's 13px right padding so the
+             caret zone reaches the rounded edge. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-caret{
-            width:11px;height:11px;flex:0 0 auto;opacity:.75;
+            display:inline-flex;align-items:center;align-self:stretch;
+            margin:0 -13px 0 0;
+            padding:0 11px;
+            border-left:1px solid rgba(15,23,42,.25);
+            border-radius:0 8px 8px 0;
+            transition:background-color .12s ease;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-caret svg{
+            width:11px;height:11px;flex:0 0 auto;
             transition:transform .15s ease;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn:hover .rr-tgt-kpi-caret{
+            background:rgba(15,23,42,.05);
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn[aria-expanded="true"]{
             background:rgba(15,23,42,.05);
           }
-          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn[aria-expanded="true"] .rr-tgt-kpi-caret{
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn[aria-expanded="true"] .rr-tgt-kpi-caret svg{
             transform:rotate(180deg);
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-menu{
