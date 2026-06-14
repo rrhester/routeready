@@ -18775,6 +18775,28 @@ body.rr-cmdk-open{ overflow:hidden }
               overflow:hidden;
               display:flex;flex-direction:column;
             }
+            /* Route-demand card · same chrome as the 13-week planner card.
+               Houses the wave/service-type editor moved in from the
+               quick-settings popover. */
+            #view-schedule #sched-sub-targets .rr-tgt-demand{
+              background:#FFFFFF;
+              border:1px solid rgba(15,23,42,.08);
+              border-radius:16px;
+              box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.07);
+              padding:10px 14px 12px;
+              margin-bottom:var(--s-3);
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-demand-sub{
+              font-size:var(--fs-sm);color:var(--text-muted);
+              margin:0 0 10px 0;line-height:1.35;
+            }
+            /* The editor (.sched-quick-advanced) is hidden-by-default and
+               scroll-capped for its popover home; on the Targets page it
+               sits as a flat, fully-visible region (no popover chrome). */
+            #view-schedule #rr-sched-targets-demand-host .sched-quick-advanced{
+              display:block;border-top:none;border-radius:0;
+              padding:0;max-height:none;overflow:visible;background:transparent;
+            }
             /* Scrollable host · the 13-week table can outgrow the
                viewport, so cap the table area and let it scroll inside
                the card. Scrollbar styled to mirror .cal-wrap on the

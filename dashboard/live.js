@@ -32479,6 +32479,10 @@ window.goto = function (view) {
   // Pull the OKAMI 13-week table back into #view-okami before any
   // okami / schedule navigation — both surfaces need it home.
   if (view === "okami") _rrReturnOkami13WeekHome();
+  // Leaving the schedule view entirely · return the wave/service-type editor
+  // to the quick-settings popover so the popover is intact next time it opens
+  // (schedSub handles placement while staying within the schedule view).
+  if (view !== "schedule" && typeof _rrReturnSchedDemandHome === "function") _rrReturnSchedDemandHome();
   if (typeof _origGotoForOkamiOverlay === "function") _origGotoForOkamiOverlay(view);
   if (view !== "schedule" && view !== "okami") closeOkamiOverlay();
 };
@@ -32512,6 +32516,32 @@ function _rrMoveOkami13WeekToTargets() {
 }
 window._rrReturnOkami13WeekHome      = _rrReturnOkami13WeekHome;
 window._rrMoveOkami13WeekToTargets   = _rrMoveOkami13WeekToTargets;
+
+// ─── Route-demand editor · shared between the quick-settings popover and
+//     the Schedule → Targets sub-view. Same single-source-of-truth move as
+//     the 13-week table: relocate the live `.sched-quick-advanced` node (wave
+//     start times + service types + Save) between the two surfaces instead of
+//     cloning it, so every existing handler (add/remove wave, service
+//     toggle/rename, Save) keeps working — the DOM is identical, only its
+//     parent changes. Save reads the block/cushion/report twins (kept in sync
+//     by the three-surface mirror) plus #rr-set-waves by id, so it persists
+//     correctly from either home.
+function _rrReturnSchedDemandHome() {
+  const pop = document.getElementById("rr-sched-quick-settings-popover");
+  if (!pop) return;
+  const adv = document.querySelector(".sched-quick-advanced");
+  if (!adv || pop.contains(adv)) return;   // missing, or already home
+  pop.appendChild(adv);                     // restores it as the popover's last child
+}
+function _rrMoveSchedDemandToTargets() {
+  const host = document.getElementById("rr-sched-targets-demand-host");
+  if (!host) return;
+  const adv = document.querySelector(".sched-quick-advanced");
+  if (!adv || host.contains(adv)) return;
+  host.appendChild(adv);
+}
+window._rrReturnSchedDemandHome    = _rrReturnSchedDemandHome;
+window._rrMoveSchedDemandToTargets = _rrMoveSchedDemandToTargets;
 
 // Ensure the OKAMI 13-week table is back inside #view-okami before
 // the overlay shows — the overlay CSS hides everything except
@@ -36282,6 +36312,8 @@ window.schedSub = function (sub) {
     // Defer one tick so the sub-view is laid out before the move.
     setTimeout(() => {
       _rrMoveOkami13WeekToTargets();
+      // Bring the wave/service-type editor onto the Targets page too.
+      _rrMoveSchedDemandToTargets();
       // Refresh the 13-week table against live data so the numbers
       // reflect the actual DSP's drivers / route grid, not the
       // hard-coded seed values in the markup. Anchored to the
@@ -36297,8 +36329,10 @@ window.schedSub = function (sub) {
   } else {
     // Leaving Targets — put the 13-week table back in #view-okami so
     // the standalone OKAMI page + the Route-planning overlay can use
-    // it next time the operator opens either one.
+    // it next time the operator opens either one. Return the wave/
+    // service-type editor to the quick-settings popover too.
     _rrReturnOkami13WeekHome();
+    _rrReturnSchedDemandHome();
   }
   // Restore the default "Schedule / Week of ..." title block when
   // leaving Today view — renderSchedTodayView overwrites it.
