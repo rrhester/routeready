@@ -14820,17 +14820,25 @@ async function refreshDriverStatRow(rows) {
   const amber = "#C7860B";
   const rosterPill = (key, color, label, sub, clickable, iconHtml) => {
     const cl = clickable ? ' data-clickable="true"' : "";
-    const subHtml = `<span class="sched-kpi-sub">${sub || "&nbsp;"}</span>`;
     // An iconHtml (a status icon) replaces the plain status dot — same
     // pattern the Schedule KPI strip uses.
     const marker = iconHtml
       ? `<span class="sched-kpi-icon">${iconHtml}</span>`
       : `<span class="sched-kpi-dot" style="background:${color}"></span>`;
+    // Clickable KPIs open a pop-out drilldown report — flag them with a
+    // divider line + down chevron (the Schedule split-button affordance).
+    const chev = clickable
+      ? `<span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span>`
+      : "";
+    // Single-line pill — value only (subtext dropped per operator) so each
+    // pill matches the compact Schedule pill size.
     return `<span class="sched-kpi-pill" data-rr-roster-kpi="${key}"${cl}>`
       + marker
       + `<span class="sched-kpi-text">`
-      + `<span class="sched-kpi-val">${label}</span>${subHtml}`
-      + `</span></span>`;
+      + `<span class="sched-kpi-val">${label}</span>`
+      + `</span>`
+      + chev
+      + `</span>`;
   };
   const tenureLabel = avgTenure == null ? "— Avg tenure" : `${avgTenure.toFixed(1)} mo Avg tenure`;
   const tenureSub = avgTenure == null
