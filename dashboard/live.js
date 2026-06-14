@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=c0a001acf932";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=c0a001acf932";
+import { planScheduleWeek } from "./scheduling-engine.js?v=d5986e651fd4";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=d5986e651fd4";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -11796,7 +11796,9 @@ document.addEventListener("click", (e) => {
   if (!coachBtn) return;
   e.preventDefault();
   const d = _ddDriver && _ddDriver.driver;
-  if (!d || !d.id) { toast("Save the driver record first, then you can coach them.", "warn"); return; }
+  // The button now lives in the top bar, so guard on a driver record actually
+  // being open (inline pane) — otherwise prompt to pick one.
+  if (!d || !d.id || !_ddOpenDriverId) { toast("Open a driver from the roster first, then coach them.", "warn"); return; }
   _openSendCoachingModal({
     source:      "record",
     event_id:    null,
@@ -14910,6 +14912,7 @@ async function refreshDriverStatRow(rows) {
   const rosterKpisHtml =
     activeFilterPill +
     `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>` +
+    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-dd-coach title="Coach the driver whose record is open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="sched-kpi-val">Coach driver</span></button>` +
     rosterPill("finalca", finalCaCount > 0 ? "#DC2626" : navy, finalCaLabel, finalCaSub, false, finalCaIcon) +
     rosterPill("tenured", navy, tenuredLabel, tenuredSub, false) +
     rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, true);
@@ -20813,7 +20816,7 @@ async function openDriverDrawer(driverId, opts) {
           </div>
         </div>
         <div class="dd-head-actions">
-          <button type="button" class="dd-act" data-rr-dd-coach aria-label="Coach this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Coach Driver</button>
+          <!-- Coach Driver moved to the top bar (KPI strip) per operator. -->
           <button type="button" id="rr-dd-close" class="dd-act" data-rr-dd-close aria-label="Close record"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Close</button>
         </div>
       </div>
