@@ -15374,13 +15374,15 @@ body.rr-cmdk-open{ overflow:hidden }
              icons; the ribbon items just go invisible so the card never
              changes size between the two modes. */
           #view-schedule .sched-cmd-shell{position:relative;display:block;margin-bottom:17px}
-          /* KPI card: pure white, crisp — drop the blue edge and the
-             diffuse gray haze, and pull it tight to the grid below. */
+          /* KPI strip = a transparent flex row; each metric is its own
+             pill (rule below), like the Schedule ribbon's per-action pills. */
           #view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills{
-            background:var(--surface-elevated) !important;
-            border:1px solid rgba(15,23,42,.12) !important;
-            border-radius:var(--r-lg) !important;
-            box-shadow:0 1px 3px rgba(15,23,42,.06), 0 6px 16px rgba(15,23,42,.08) !important;
+            background:transparent !important;
+            border:0 !important;
+            border-radius:0 !important;
+            box-shadow:none !important;
+            gap:var(--s-2-5) !important;
+            overflow:visible !important;
             margin-bottom:var(--s-4) !important;
           }
           /* Roster + Onboarding KPI strips inherit Schedule's crisp, flat
@@ -15394,14 +15396,26 @@ body.rr-cmdk-open{ overflow:hidden }
              pure-white + hairline-border + no-shadow recipe here. */
           #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills,
           #view-drivers #rr-roster-kpis.sched-kpi-pills{
-            background:var(--surface-elevated) !important;
+            background:transparent !important;
+            border:0 !important;
+            border-radius:0 !important;
+            box-shadow:none !important;
+            gap:var(--s-2-5) !important;
+            overflow:visible !important;
+            margin-bottom:var(--s-4) !important;
+          }
+          /* Individual KPI pills — one rounded white card per metric, like
+             the Schedule ribbon's per-action pills (operator request). The
+             per-pill border replaces the old shared-container card + the
+             vertical dividers between cells. */
+          #view-schedule #rr-sched-kpis.sched-kpi-pills .sched-kpi-pill,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill,
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill{
+            background:var(--surface) !important;
             border:1px solid rgba(15,23,42,.12) !important;
             border-radius:var(--r-lg) !important;
-            box-shadow:0 1px 3px rgba(15,23,42,.06), 0 6px 16px rgba(15,23,42,.08) !important;
-            /* Elevated card, like the Schedule command ribbon
-               (.sched-nav-heading) but with a slightly more defined edge +
-               lift so it reads clearly on the Roster's lighter background. */
-            margin-bottom:var(--s-4) !important;
+            box-shadow:0 1px 2px rgba(15,23,42,.04) !important;
+            padding:11px 16px !important;
           }
           /* Pill sizing · use Schedule's intrinsic sizing exactly. Schedule's
              week-view KPI cells size from their own content and pack to the
