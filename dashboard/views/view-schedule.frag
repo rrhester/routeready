@@ -1543,14 +1543,9 @@
               <div id="rr-sched-targets-st-host"></div>
             </div>
           </div>
-          <div class="rr-tgt-kpi">
-            <div class="rr-tgt-kpi-text">
-              <div class="rr-tgt-kpi-label">Status</div>
-              <div class="rr-tgt-kpi-val">
-                <span class="rr-tgt-kpi-status" id="rr-sched-targets-rules-status" aria-live="polite">—</span>
-              </div>
-            </div>
-          </div>
+          <!-- Status pill removed per operator. The per-week save status still
+               surfaces via toasts / the Save Plan flow. -->
+          <span id="rr-sched-targets-rules-status" aria-live="polite" hidden></span>
           <!-- Right side · Gap status card + Save Plan, then the shared
                top-right chrome (⋯ / bell / avatar) which is moved in from the
                Schedule action bar on Targets entry by _rrMoveChromeToTargets. -->
