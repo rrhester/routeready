@@ -5336,6 +5336,37 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   grid-template-rows: auto minmax(0, 1fr) auto auto;
   overflow:hidden;
 }
+/* Operational context header — a pinned strip under the driver-chat head
+   (driver 1:1 chat only): identity + today / tomorrow shift + 30-day
+   attendance.  Scoped via :has so the support / channel shells keep their
+   4-row layout.  Schedule-page language: white cards, subtle borders, light
+   fill, ~11px radius, no gradients or bright colour. */
+.rr-mc-shell:has(> .rr-mc-context){ grid-template-rows:auto auto minmax(0,1fr) auto auto }
+.rr-mc-context{
+  display:flex;align-items:stretch;gap:var(--s-3);min-width:0;overflow:hidden;
+  padding:var(--s-2-5) var(--s-5);
+  background:var(--canvas);
+  border-bottom:1px solid rgba(15,23,42,.07);
+}
+.rr-mc-ctx-id{
+  display:flex;align-items:center;gap:var(--s-2);min-width:0;flex:0 0 auto;
+  max-width:200px;padding-right:var(--s-3);border-right:1px solid rgba(15,23,42,.08);
+}
+.rr-mc-ctx-id .avatar-sm{width:30px;height:30px;flex:0 0 auto}
+.rr-mc-ctx-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.2;letter-spacing:-.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-mc-ctx-meta{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.3;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-mc-ctx-cards{display:flex;gap:var(--s-2);flex:1;min-width:0}
+.rr-mc-ctx-card{
+  flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px;
+  padding:7px 11px;
+  background:var(--surface);
+  border:1px solid rgba(15,23,42,.10);
+  border-radius:11px;
+}
+.rr-mc-ctx-card-label{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);line-height:1.2}
+.rr-mc-ctx-card-label svg{width:11px;height:11px;flex:0 0 auto;opacity:.75}
+.rr-mc-ctx-card-value{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rr-mc-ctx-card-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rr-mc-head,  .rr-cc-head{
   padding:var(--s-3) var(--s-5);border-bottom:1px solid var(--border);
   display:flex;align-items:center;gap:var(--s-3);
