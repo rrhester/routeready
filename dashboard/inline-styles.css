@@ -1467,7 +1467,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   background:var(--canvas);color:var(--text-muted);
   border:1px solid var(--border);white-space:nowrap;align-self:flex-start;
 }
-.att-coach-chip.pending{background:var(--amber-soft);color:var(--amber);border-color:transparent}
+.att-coach-chip.pending{background:transparent;color:#B45309;border-color:transparent}
 .att-coach-chip.done   {background:var(--green-soft);color:var(--green);border-color:transparent}
 .status-pill-pending,
 .status-pill-warning{background:var(--amber-soft);color:var(--amber)}
@@ -1494,6 +1494,24 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .rr-dstatus-leave{background:#FBEAB8;color:#8A5D00}
 .rr-dstatus-inactive{background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
 .rr-dstatus-terminated{background:#F8D3CF;color:#B91C1C}
+/* ── Driver Roster polish · restraint over decoration; borders use the
+   sidebar navy family at low opacity. ─────────────────────────────────── */
+/* Risk · small muted status dot (replaces the saturated flag). */
+.rr-risk-dot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle}
+.rr-risk-dot.rr-risk-high{background:rgba(220,38,38,.55)}
+.rr-risk-dot.rr-risk-med{background:rgba(180,131,9,.6)}
+.rr-risk-dot.rr-risk-low{background:rgba(15,23,42,.20)}
+/* Status pills · white fill, thin navy border, colour in the text only
+   (green reserved for Active) — one consistent treatment. */
+#view-drivers .status-pill.rr-dstatus-active{background:#fff;color:#16A34A;border-color:rgba(15,23,42,.16)}
+#view-drivers .status-pill.rr-dstatus-onboarding{background:#fff;color:#334155;border-color:rgba(15,23,42,.16)}
+#view-drivers .status-pill.rr-dstatus-seasonal{background:#fff;color:#0F766E;border-color:rgba(15,23,42,.16)}
+#view-drivers .status-pill.rr-dstatus-leave{background:#fff;color:#8A5D00;border-color:rgba(15,23,42,.16)}
+#view-drivers .status-pill.rr-dstatus-inactive{background:#fff;color:var(--text-muted);border-color:rgba(15,23,42,.16)}
+#view-drivers .status-pill.rr-dstatus-terminated{background:#fff;color:#B91C1C;border-color:rgba(15,23,42,.16)}
+/* Sub-nav tabs · restrained — dark active text, thin blue indicator. */
+#view-drivers .subnav-item.active{color:var(--text)}
+#view-drivers .subnav-item.active::after{height:2px}
 
 .status-dot{
   display:inline-block;width:8px;height:8px;border-radius:50%;
@@ -8069,7 +8087,7 @@ body.rr-cmdk-open{ overflow:hidden }
    painted with inset box-shadow so it never shifts the cell layout, and
    the first cell rounds with the table edge. */
 .roster-split #drivers-tbody tr.is-record-open > td{background:var(--accent-soft)}
-.roster-split #drivers-tbody tr.is-record-open > td:first-child{box-shadow:inset 4px 0 0 var(--accent)}
+.roster-split #drivers-tbody tr.is-record-open > td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .roster-split #drivers-tbody tr.is-record-open:hover > td{background:var(--accent-soft)}
 /* Neutralise the fixed-overlay drawer styling when the record lives
    in the inline mount, so it reads as a static workspace card that
@@ -8087,7 +8105,7 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Only the record body scrolls; the page shell + chrome stay put. */
 #driver-record-mount .detail-body{overflow-y:auto;padding:var(--s-4);gap:var(--s-3-5)}
 /* Compact summary header — smaller avatar, tighter padding. */
-#driver-record-mount .detail-head{padding:var(--s-3-5) var(--s-4)}
+#driver-record-mount .detail-head{padding:var(--s-3-5) var(--s-4);background:#F1F5F9;border-bottom:1px solid rgba(15,23,42,.10)}
 #driver-record-mount .detail-avatar{width:40px;height:40px;font-size:var(--fs-base)}
 #driver-record-mount .detail-name{font-size:var(--fs-base);margin-bottom:2px}
 #driver-record-mount .detail-meta{font-size:var(--fs-xs)}
@@ -13438,7 +13456,7 @@ body.rr-cmdk-open{ overflow:hidden }
              screen at the same readability (Standard density only —
              Compact / Ultra-compact keep their own !important overrides). */
           #dr-sub-roster .table tbody td{
-            padding-top:9.5px;padding-bottom:9.5px;
+            padding-top:11px;padding-bottom:11px;border-bottom-color:rgba(15,23,42,.07);
           }
           /* Driver identity · match Schedule's .cal-row-label-name exactly
              (13px / 600 / 1.2) so the driver name carries the same weight

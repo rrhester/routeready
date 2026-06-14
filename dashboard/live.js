@@ -8923,10 +8923,12 @@ function _riskCell(driverId) {
   const r = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(driverId) : null;
   // A filled flag carries the signal — red = At Risk (final), amber = Watch
   // (written). No label; the color + hover title do the work.
-  const flag = (color, title) => `<span class="rr-risk-flag" title="${title}" aria-label="${title}" style="display:inline-flex;align-items:center;color:${color}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" fill="currentColor"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>`;
-  if (r === "atrisk") return flag("#DC2626", "At risk · on a final corrective action");
-  if (r === "watch")  return flag("#B45309", "Watch · on a written corrective action");
-  return '<span class="u-subtle">—</span>';
+  // A small muted status dot carries the signal — red = At Risk (final),
+  // amber = Watch (written), gray = clear.  No flag; colour + hover do the work.
+  const dot = (cls, title) => `<span class="rr-risk-dot ${cls}" title="${title}" aria-label="${title}"></span>`;
+  if (r === "atrisk") return dot("rr-risk-high", "At risk · on a final corrective action");
+  if (r === "watch")  return dot("rr-risk-med", "Watch · on a written corrective action");
+  return dot("rr-risk-low", "Clear · no active corrective action");
 }
 
 // "Last coached" — pulled from the per-driver latest coaching loaded
