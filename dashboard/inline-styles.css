@@ -15426,13 +15426,19 @@ body.rr-cmdk-open{ overflow:hidden }
           .sched-kpi-pill[data-rr-roster-kpi] .sched-kpi-val{
             font-size:var(--fs-md) !important;font-weight:500 !important;line-height:1.2 !important;
           }
-          /* The KPI band is a fixed-height TCP strip with align-items:stretch,
-             which was inflating every roster pill to the full band height
-             (~51px) regardless of font/padding. Stop roster pills from
-             stretching so they sit at their natural compact height, centered
-             in the band. Scoped to [data-rr-roster-kpi] so Schedule's own
-             pills keep their band-fill behavior. */
-          .sched-kpi-pill[data-rr-roster-kpi]{align-self:center !important}
+          /* The real height floor: schedule-rrx.css gives every KPI pill
+             min-height:var(--kpi-height) (51px) AND the band uses
+             align-items:stretch — together they pinned each roster pill at
+             ~51px no matter the font/padding. Lift the min-height floor and
+             stop the stretch so roster pills collapse to their natural
+             compact height, centered in the band. !important + this
+             specificity beat the (non-important) schedule-rrx rule. Scoped to
+             [data-rr-roster-kpi] so Schedule's own pills keep band-fill. */
+          .sched-kpi-pill[data-rr-roster-kpi]{
+            align-self:center !important;
+            min-height:0 !important;
+            height:auto !important;
+          }
           /* Pop-out affordance · clickable KPI pills (those that open a
              drilldown report) get a divider + down chevron on the value
              line, matching the Schedule split-button. The divider is the
