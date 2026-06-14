@@ -1139,24 +1139,31 @@ select.field{
   border:1px solid var(--border);border-bottom-left-radius:5px;
   box-shadow:var(--shadow-xs), var(--highlight-top);
 }
-/* Like (👍) pill — tap to like.  Faintly visible by default (no hover on
-   touch), solid once a message has likes, RouteReady blue when you've liked
-   it.  A translucent-white variant keeps it legible on your own blue bubbles. */
+/* Like (👍) reaction — bare thumb + count, no chip/box (Facebook / Slack
+   style).  Hidden by default; press and hold a bubble to reveal it
+   (.reveal-like).  A message that already has likes keeps its count visible.
+   Liked = the count turns RouteReady blue and the thumb nudges up. */
 .chat-like{
-  display:inline-flex;align-items:center;gap:3px;
-  margin-top:5px;padding:1px 8px;
-  font-family:inherit;font-size:12px;line-height:1.5;
-  background:var(--surface);border:1px solid var(--border);border-radius:999px;
+  display:none;align-items:center;gap:4px;
+  margin-top:4px;padding:0;
+  background:transparent;border:0;
+  font-family:inherit;font-size:14px;line-height:1.1;
   color:var(--text-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;
-  transition:opacity .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
-  opacity:.55;
+  transition:color .12s ease, transform .12s ease;
 }
-.chat-like.has{opacity:1}
-.chat-like.on{background:rgba(37,99,235,.10);border-color:rgba(37,99,235,.35);color:var(--accent)}
-.chat-like-icon{font-size:12px}
+.chat-bubble.reveal-like .chat-like,
+.chat-like.has{display:inline-flex}
+.chat-bubble.reveal-like .chat-like{animation:chat-like-pop 140ms cubic-bezier(.2,.7,.2,1)}
+@keyframes chat-like-pop{0%{opacity:0;transform:scale(.82)}100%{opacity:1;transform:scale(1)}}
+.chat-like.on{color:var(--accent)}
+.chat-like.on .chat-like-icon{transform:scale(1.15)}
+.chat-like-icon{font-size:14px;line-height:1;transition:transform .12s ease}
 .chat-like-n{font-weight:700;font-variant-numeric:tabular-nums}
-.chat-bubble.mine .chat-like{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.30);color:#fff}
-.chat-bubble.mine .chat-like.on{background:#fff;border-color:#fff;color:var(--accent)}
+/* Suppress the iOS long-press callout so press-and-hold reveals the Like
+   instead of the system menu. */
+.chat-bubble{-webkit-touch-callout:none}
+.chat-bubble.mine .chat-like{color:rgba(255,255,255,.85)}
+.chat-bubble.mine .chat-like.on{color:#fff}
 /* Channel sender label — sits above the body inside theirs-bubbles
    in the channels view.  Tight, all-caps tracking gives it the
    "speaker name" voice without screaming.  Only renders when
