@@ -32518,30 +32518,83 @@ window._rrReturnOkami13WeekHome      = _rrReturnOkami13WeekHome;
 window._rrMoveOkami13WeekToTargets   = _rrMoveOkami13WeekToTargets;
 
 // ─── Route-demand editor · shared between the quick-settings popover and
-//     the Schedule → Targets sub-view. Same single-source-of-truth move as
-//     the 13-week table: relocate the live `.sched-quick-advanced` node (wave
-//     start times + service types + Save) between the two surfaces instead of
-//     cloning it, so every existing handler (add/remove wave, service
-//     toggle/rename, Save) keeps working — the DOM is identical, only its
-//     parent changes. Save reads the block/cushion/report twins (kept in sync
-//     by the three-surface mirror) plus #rr-set-waves by id, so it persists
-//     correctly from either home.
+//     the Schedule → Targets sub-view's "Wave times" / "Service types" pill
+//     dropdowns. Same single-source-of-truth move as the 13-week table: we
+//     relocate the LIVE editor sections instead of cloning them, so every
+//     existing handler (add/remove wave, service toggle/rename, Save) keeps
+//     working — the DOM is identical, only its parent changes. The wave
+//     section + Save foot go into the Wave-times dropdown; the service-type
+//     section goes into the Service-types dropdown. On exit they're
+//     re-assembled into `.sched-quick-advanced` (the popover's home wrapper)
+//     in their original order. Save reads the block/cushion/report twins
+//     (kept in sync by the three-surface mirror) plus #rr-set-waves by id, so
+//     it persists correctly from either home.
+function _rrSchedDemandParts() {
+  const waveSec = document.getElementById("rr-set-waves")?.closest(".rr-drawer-section") || null;
+  const stSec   = document.getElementById("rr-set-service-types")?.closest(".rr-drawer-section") || null;
+  const foot    = document.querySelector(".sched-quick-advanced-foot") || null;
+  return { waveSec, stSec, foot };
+}
 function _rrReturnSchedDemandHome() {
-  const pop = document.getElementById("rr-sched-quick-settings-popover");
-  if (!pop) return;
   const adv = document.querySelector(".sched-quick-advanced");
-  if (!adv || pop.contains(adv)) return;   // missing, or already home
-  pop.appendChild(adv);                     // restores it as the popover's last child
+  if (!adv) return;
+  const { waveSec, stSec, foot } = _rrSchedDemandParts();
+  // Re-assemble in the popover's original child order: waves, service types, foot.
+  if (waveSec && waveSec.parentElement !== adv) adv.appendChild(waveSec);
+  if (stSec   && stSec.parentElement   !== adv) adv.appendChild(stSec);
+  if (foot    && foot.parentElement    !== adv) adv.appendChild(foot);
+  // Collapse the Targets dropdowns so they don't reopen stale next visit.
+  for (const id of ["rr-tgt-waves-menu", "rr-tgt-st-menu"]) {
+    const m = document.getElementById(id); if (m) m.hidden = true;
+  }
+  for (const id of ["rr-tgt-waves-btn", "rr-tgt-st-btn"]) {
+    const b = document.getElementById(id); if (b) b.setAttribute("aria-expanded", "false");
+  }
 }
 function _rrMoveSchedDemandToTargets() {
-  const host = document.getElementById("rr-sched-targets-demand-host");
-  if (!host) return;
-  const adv = document.querySelector(".sched-quick-advanced");
-  if (!adv || host.contains(adv)) return;
-  host.appendChild(adv);
+  const wavesHost = document.getElementById("rr-sched-targets-waves-host");
+  const stHost    = document.getElementById("rr-sched-targets-st-host");
+  if (!wavesHost || !stHost) return;
+  const { waveSec, stSec, foot } = _rrSchedDemandParts();
+  if (waveSec && !wavesHost.contains(waveSec)) wavesHost.appendChild(waveSec);
+  if (foot    && !wavesHost.contains(foot))    wavesHost.appendChild(foot);   // Save under the waves
+  if (stSec   && !stHost.contains(stSec))       stHost.appendChild(stSec);
 }
 window._rrReturnSchedDemandHome    = _rrReturnSchedDemandHome;
 window._rrMoveSchedDemandToTargets = _rrMoveSchedDemandToTargets;
+
+// Targets · Wave times / Service types pill dropdowns. Each pill toggles its
+// own menu (closing the other); a click anywhere outside both closes them.
+// The editors inside are the live popover nodes, so their handlers (add/remove
+// wave, service toggle/rename, Save) keep working — clicks inside a menu stay
+// "inside" so editing never dismisses the dropdown.
+document.addEventListener("click", (e) => {
+  const toggle = e.target.closest && e.target.closest("#rr-tgt-waves-btn, #rr-tgt-st-btn");
+  if (toggle) {
+    e.preventDefault();
+    const isWaves   = toggle.id === "rr-tgt-waves-btn";
+    const menu      = document.getElementById(isWaves ? "rr-tgt-waves-menu" : "rr-tgt-st-menu");
+    const otherMenu = document.getElementById(isWaves ? "rr-tgt-st-menu"    : "rr-tgt-waves-menu");
+    const otherBtn  = document.getElementById(isWaves ? "rr-tgt-st-btn"     : "rr-tgt-waves-btn");
+    if (otherMenu) otherMenu.hidden = true;
+    if (otherBtn)  otherBtn.setAttribute("aria-expanded", "false");
+    if (menu) {
+      const willOpen = menu.hidden;
+      menu.hidden = !willOpen;
+      toggle.setAttribute("aria-expanded", String(willOpen));
+    }
+    return;
+  }
+  // Click outside the menus (and not on a pill toggle) closes any open one.
+  if (!e.target.closest || !e.target.closest(".rr-tgt-kpi-menu-wrap")) {
+    for (const id of ["rr-tgt-waves-menu", "rr-tgt-st-menu"]) {
+      const m = document.getElementById(id); if (m && !m.hidden) m.hidden = true;
+    }
+    for (const id of ["rr-tgt-waves-btn", "rr-tgt-st-btn"]) {
+      const b = document.getElementById(id); if (b) b.setAttribute("aria-expanded", "false");
+    }
+  }
+});
 
 // Ensure the OKAMI 13-week table is back inside #view-okami before
 // the overlay shows — the overlay CSS hides everything except
