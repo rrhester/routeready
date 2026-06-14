@@ -14888,9 +14888,7 @@ async function refreshDriverStatRow(rows) {
   const rosterKpisHtml =
     rosterPill("active", navy, `${counts.active} Active driver${counts.active === 1 ? "" : "s"}`,
       counts.onboarding ? `${counts.onboarding} onboarding` : "&nbsp;", false) +
-    rosterPill("loa",    (counts.leave || 0) > 0 ? amber : navy,
-      `${counts.leave || 0} on LOA`,
-      (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
+    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>` +
     rosterPill("finalca", finalCaCount > 0 ? "#DC2626" : navy, finalCaLabel, finalCaSub, false, finalCaIcon) +
     rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
     rosterPill("tenured", navy, tenuredLabel, tenuredSub, false) +
