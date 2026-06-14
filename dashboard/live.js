@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=d937b432ceda";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=d937b432ceda";
+import { planScheduleWeek } from "./scheduling-engine.js?v=94fc56b05bb0";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=94fc56b05bb0";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -15271,9 +15271,13 @@ document.addEventListener("click", (e) => {
       && !e.target.closest("[data-rr-roster-kpi]")) {
     _closeRosterKpiDetail();
   }
-  // KPI tile click → open / toggle drilldown.
+  // KPI tile click → open / toggle drilldown. The pop-out opens ONLY from
+  // the chevron side of the pill (the split-button affordance), not the
+  // whole pill body. Non-clickable pills have no chevron, so they never
+  // open a drilldown.
   const card = e.target.closest("[data-rr-roster-kpi]");
   if (!card) return;
+  if (!e.target.closest(".rr-kpi-chev")) return;
   const kpi = card.dataset.rrRosterKpi;
   _rosterKpiDetail = (_rosterKpiDetail === kpi) ? null : kpi;
   _renderRosterKpiDetail();

@@ -15415,17 +15415,21 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--sidebar-bg) !important;
             border-radius:var(--r-lg) !important;
             box-shadow:0 1px 2px rgba(15,23,42,.04) !important;
-            padding:11px 16px !important;
+            padding:7px 14px !important;
           }
           /* Pop-out affordance · clickable KPI pills (those that open a
-             drilldown report) get a divider line + down chevron on the same
-             line as the value, matching the Schedule split-button pattern. */
+             drilldown report) get a divider + down chevron on the value
+             line, matching the Schedule split-button. The divider is the
+             same sidebar navy as the pill border so it reads as one box;
+             only the chevron side is the click target (handler in live.js). */
           .sched-kpi-pill .rr-kpi-chev{
             display:inline-flex;align-items:center;align-self:stretch;
-            padding-left:10px;
-            border-left:1px solid rgba(15,23,42,.16);
+            padding-left:10px;cursor:pointer;
+            border-left:1px solid var(--sidebar-bg);
             color:var(--text-subtle);
+            transition:color var(--t-fast);
           }
+          .sched-kpi-pill .rr-kpi-chev:hover{color:var(--text)}
           .sched-kpi-pill .rr-kpi-chev svg{width:12px;height:12px;display:block}
           /* Pill sizing · use Schedule's intrinsic sizing exactly. Schedule's
              week-view KPI cells size from their own content and pack to the
