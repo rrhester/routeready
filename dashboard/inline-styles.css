@@ -13462,7 +13462,10 @@ body.rr-cmdk-open{ overflow:hidden }
              screen at the same readability (Standard density only —
              Compact / Ultra-compact keep their own !important overrides). */
           #dr-sub-roster .table tbody td{
-            padding-top:11px;padding-bottom:11px;border-bottom-color:rgba(15,23,42,.07);
+            /* Match the Targets week-row height (operator) — taller rows so the
+               driver list reads at the same rhythm as the 13-week plan table
+               (.okami-table rows). */
+            padding-top:var(--s-4);padding-bottom:var(--s-4);border-bottom-color:rgba(15,23,42,.07);
           }
           /* Driver identity · match Schedule's .cal-row-label-name exactly
              (13px / 600 / 1.2) so the driver name carries the same weight
