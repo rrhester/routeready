@@ -5346,29 +5346,38 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    ~11px radius, no gradients or bright colour. */
 .rr-mc-shell:has(> .rr-mc-context) > .rr-mc-head{ display:none }
 .rr-mc-context{
-  display:flex;align-items:stretch;gap:var(--s-3);min-width:0;overflow:hidden;
-  padding:var(--s-2-5) var(--s-5);
-  background:var(--canvas);
-  border-bottom:1px solid rgba(15,23,42,.07);
+  display:flex;align-items:center;gap:var(--s-5);min-width:0;overflow:hidden;
+  padding:var(--s-4) var(--s-5);
+  background:var(--surface);
+  border-bottom:1px solid rgba(15,23,42,.08);
 }
 .rr-mc-ctx-id{
-  display:flex;align-items:center;gap:var(--s-2);min-width:0;flex:0 0 auto;
-  max-width:200px;padding-right:var(--s-3);border-right:1px solid rgba(15,23,42,.08);
+  display:flex;align-items:center;gap:var(--s-3);min-width:0;flex:0 0 auto;
+  max-width:248px;padding-right:var(--s-4);border-right:1px solid rgba(15,23,42,.07);
 }
-.rr-mc-ctx-id .avatar-sm{width:30px;height:30px;flex:0 0 auto}
-.rr-mc-ctx-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.2;letter-spacing:-.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rr-mc-ctx-meta{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.3;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rr-mc-ctx-cards{display:flex;gap:var(--s-2);flex:1;min-width:0}
+.rr-mc-ctx-avatar{position:relative;flex:0 0 auto}
+.rr-mc-ctx-avatar .avatar-sm{width:46px;height:46px;font-size:var(--fs-base)}
+.rr-mc-ctx-dot{display:none}
+.rr-mc-ctx-avatar.online .rr-mc-ctx-dot{display:block;position:absolute;bottom:1px;right:1px;width:11px;height:11px;border-radius:50%;background:var(--green);border:2px solid var(--surface)}
+.rr-mc-ctx-idtext{min-width:0;display:flex;flex-direction:column;gap:2px}
+.rr-mc-ctx-name{font-size:var(--fs-base);font-weight:700;color:var(--text);line-height:1.2;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-mc-ctx-meta{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-mc-ctx-badge{align-self:flex-start;margin-top:4px;display:inline-flex;align-items:center;padding:2px 9px;border-radius:var(--r-pill);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:rgba(15,23,42,.06);color:var(--text-muted)}
+.rr-mc-ctx-badge:empty{display:none}
+.rr-mc-ctx-badge.on{background:var(--green-soft);color:#15803D}
+.rr-mc-ctx-cards{display:flex;gap:var(--s-3);flex:1;min-width:0}
 .rr-mc-ctx-card{
-  flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px;
-  padding:7px 11px;
-  background:var(--surface);
+  flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px;
+  padding:10px 14px;
+  background:var(--canvas);
   border:1px solid rgba(15,23,42,.10);
-  border-radius:11px;
+  border-radius:12px;
 }
-.rr-mc-ctx-card-label{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);line-height:1.2}
-.rr-mc-ctx-card-label svg{width:11px;height:11px;flex:0 0 auto;opacity:.75}
-.rr-mc-ctx-card-value{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rr-mc-ctx-card-label{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);line-height:1.2}
+.rr-mc-ctx-card-label svg{width:12px;height:12px;flex:0 0 auto;opacity:.7}
+.rr-mc-ctx-card-value{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rr-mc-ctx-att-q{margin-left:6px;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)}
+.rr-mc-ctx-att-q.good{color:#15803D}
 .rr-mc-ctx-card-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rr-mc-head,  .rr-cc-head{
   padding:var(--s-3) var(--s-5);border-bottom:1px solid var(--border);

@@ -25833,14 +25833,16 @@ function _mcContextHtml(driverId, drv) {
   const station = meta.station_code ? escapeHtml(meta.station_code) : "";
   const status = meta.status ? meta.status.charAt(0).toUpperCase() + meta.status.slice(1) : "";
   const metaLine = [station, status].filter(Boolean).join(" • ") || "Driver";
+  const isActive = String(meta.status || "").toLowerCase() === "active";
   const cal = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
   const chart = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>`;
   return `<div class="rr-mc-context" id="rr-mc-context">
       <div class="rr-mc-ctx-id">
-        <div class="avatar-sm">${escapeHtml(initials)}</div>
-        <div style="min-width:0">
+        <div class="rr-mc-ctx-avatar${isActive ? " online" : ""}"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="rr-mc-ctx-dot"></span></div>
+        <div class="rr-mc-ctx-idtext">
           <div class="rr-mc-ctx-name">${escapeHtml(name)}</div>
           <div class="rr-mc-ctx-meta">${metaLine}</div>
+          <span class="rr-mc-ctx-badge" id="rr-mc-ctx-badge"></span>
         </div>
       </div>
       <div class="rr-mc-ctx-cards">
@@ -25856,7 +25858,7 @@ function _mcContextHtml(driverId, drv) {
         </div>
         <div class="rr-mc-ctx-card">
           <div class="rr-mc-ctx-card-label">${chart}Attendance</div>
-          <div class="rr-mc-ctx-card-value" id="rr-mc-ctx-att-v">—</div>
+          <div class="rr-mc-ctx-card-value"><span id="rr-mc-ctx-att-v">—</span><span class="rr-mc-ctx-att-q" id="rr-mc-ctx-att-q"></span></div>
           <div class="rr-mc-ctx-card-sub">Last 30 days</div>
         </div>
       </div>
@@ -25887,17 +25889,35 @@ async function _loadMcContextSchedule(driverId) {
     v.textContent = shift.route_code ? `Route ${shift.route_code}` : (cap(shift.status) || "Scheduled");
     if (s) s.textContent = shift.starts_at ? `${fmtTime(shift.starts_at)} Start` : "";
   };
-  setCard("rr-mc-ctx-today-v", "rr-mc-ctx-today-s", rows.find((r) => r.date === todayStr));
+  const todayShift = rows.find((r) => r.date === todayStr);
+  setCard("rr-mc-ctx-today-v", "rr-mc-ctx-today-s", todayShift);
   setCard("rr-mc-ctx-tom-v", "rr-mc-ctx-tom-s", rows.find((r) => r.date === tomStr));
+
+  // Status badge — green "Scheduled today" when there's a live shift today.
+  const badge = document.getElementById("rr-mc-ctx-badge");
+  if (badge) {
+    const scheduledToday = !!todayShift && todayShift.status !== "no_show" && todayShift.status !== "called_off";
+    badge.textContent = scheduledToday ? "Scheduled today" : "Off today";
+    badge.classList.toggle("on", scheduledToday);
+  }
+
   // Attendance: of the driver's resolved (past) shifts in the window, the
-  // share that weren't a no-show or call-off.
+  // share that weren't a no-show or call-off; the qualifier accents 95%+.
   const past = rows.filter((r) => r.date < todayStr);
   const att = document.getElementById("rr-mc-ctx-att-v");
+  const attQ = document.getElementById("rr-mc-ctx-att-q");
   if (att) {
-    if (past.length === 0) { att.textContent = "—"; }
-    else {
+    if (past.length === 0) {
+      att.textContent = "—";
+      if (attQ) { attQ.textContent = ""; attQ.classList.remove("good"); }
+    } else {
       const missed = past.filter((r) => r.status === "no_show" || r.status === "called_off").length;
-      att.textContent = Math.round(((past.length - missed) / past.length) * 100) + "%";
+      const pct = Math.round(((past.length - missed) / past.length) * 100);
+      att.textContent = pct + "%";
+      if (attQ) {
+        attQ.textContent = pct >= 95 ? "Excellent" : pct >= 85 ? "Good" : "Low";
+        attQ.classList.toggle("good", pct >= 95);
+      }
     }
   }
 }
