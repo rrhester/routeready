@@ -1139,6 +1139,24 @@ select.field{
   border:1px solid var(--border);border-bottom-left-radius:5px;
   box-shadow:var(--shadow-xs), var(--highlight-top);
 }
+/* Like (👍) pill — tap to like.  Faintly visible by default (no hover on
+   touch), solid once a message has likes, RouteReady blue when you've liked
+   it.  A translucent-white variant keeps it legible on your own blue bubbles. */
+.chat-like{
+  display:inline-flex;align-items:center;gap:3px;
+  margin-top:5px;padding:1px 8px;
+  font-family:inherit;font-size:12px;line-height:1.5;
+  background:var(--surface);border:1px solid var(--border);border-radius:999px;
+  color:var(--text-subtle);cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:opacity .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
+  opacity:.55;
+}
+.chat-like.has{opacity:1}
+.chat-like.on{background:rgba(37,99,235,.10);border-color:rgba(37,99,235,.35);color:var(--accent)}
+.chat-like-icon{font-size:12px}
+.chat-like-n{font-weight:700;font-variant-numeric:tabular-nums}
+.chat-bubble.mine .chat-like{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.30);color:#fff}
+.chat-bubble.mine .chat-like.on{background:#fff;border-color:#fff;color:var(--accent)}
 /* Channel sender label — sits above the body inside theirs-bubbles
    in the channels view.  Tight, all-caps tracking gives it the
    "speaker name" voice without screaming.  Only renders when

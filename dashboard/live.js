@@ -26183,7 +26183,11 @@ async function refreshDriverChatThread(scrollToBottom) {
   // shell, so the skeleton only fires on initial open.
   const isFirstPaint = conv.dataset.rrDriverId !== driverId;
 
-  const { data, error } = await sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 200 });
+  const [{ data, error }, _reactRes] = await Promise.all([
+    sb.rpc("dispatch_chat_thread", { p_driver_id: driverId, p_limit: 200 }),
+    sb.rpc("dispatch_chat_reactions", { p_driver_id: driverId }).then((r) => r, () => ({ data: null })),
+  ]);
+  const _reactions = _reactRes?.data?.reactions || [];
   if (error) {
     if (_isAuthError(error)) {
       conv.innerHTML = `<div style="margin:auto;text-align:center;padding:40px"><div style="font-weight:600;color:var(--text);margin-bottom:6px">Your session expired</div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-bottom:14px">Sign in again to load this conversation.</div><button type="button" data-rr-relogin style="background:var(--accent);color:#fff;border:0;border-radius:var(--r-md);padding:var(--s-2) 14px;cursor:pointer;font-size:var(--fs-sm);font-weight:600">Sign in again</button></div>`;
@@ -26603,10 +26607,12 @@ async function refreshDriverChatThread(scrollToBottom) {
             ? `<div class="rr-mc-ack acked">✓ Acknowledged · ${escapeHtml(new Date(m.acked_at).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }))}</div>`
             : `<div class="rr-mc-ack pending">Awaiting acknowledgement</div>`)
         : "";
+      const likeBtn = isDeleted ? "" : `<button type="button" class="rr-mc-like" data-rr-mc-like="${escapeHtml(m.id)}" aria-label="Like" title="Like"><span class="rr-mc-like-icon" aria-hidden="true">👍</span><span class="rr-mc-like-n"></span></button>`;
       html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
         ${actions}
         ${priTag}${attach}${bodyHtml}${ackChip}
         <div class="rr-mc-time">${escapeHtml(time)}${editedTag}</div>
+        ${likeBtn}
       </div>`;
       // Drop the read-receipt pill immediately after the last
       // dispatcher-sent message that's been read.  Single placement
@@ -26645,6 +26651,7 @@ async function refreshDriverChatThread(scrollToBottom) {
   // (image loads, padding changes, content additions) WITHOUT a
   // JS-driven re-pin — that is what eliminates the visible glitch.
   thread.innerHTML = html + liveStubs + jumpPillHtml + sentinelHtml;
+  _applyMcReactions(_reactions);
   // Install the MutationObserver-based anchor enforcer.  Idempotent —
   // bound once per thread element.  This is the safety net that
   // re-pins to bottom whenever ANY descendant mutates while the
@@ -26754,6 +26761,44 @@ async function refreshDriverChatThread(scrollToBottom) {
   // "Last active 3m ago" stat ticks forward as time passes.
   _paintMsgHeadStats(driverId);
 }
+
+// ─── Message likes (👍) ──────────────────────────────────────────────────
+// Two-way reactions on the 1:1 chat.  Counts come from a separate
+// reactions RPC (the message-fetch RPCs are untouched); the realtime
+// subscription on driver_message_reactions keeps both ends live.
+function _setMcLike(btn, count, mine) {
+  if (!btn) return;
+  btn.classList.toggle("on", !!mine);
+  btn.classList.toggle("has", (count || 0) > 0);
+  const ns = btn.querySelector(".rr-mc-like-n");
+  if (ns) ns.textContent = (count || 0) > 0 ? String(count) : "";
+}
+function _applyMcReactions(entries) {
+  const thread = document.getElementById("rr-mc-thread");
+  if (!thread) return;
+  const map = new Map((entries || []).map((e) => [String(e.message_id), e]));
+  thread.querySelectorAll("[data-rr-mc-like]").forEach((btn) => {
+    const e = map.get(String(btn.getAttribute("data-rr-mc-like")));
+    _setMcLike(btn, e ? (e.like_count || 0) : 0, !!(e && e.liked_by_me));
+  });
+}
+// Delegated so it survives the thread's re-render on every poll.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-rr-mc-like]");
+  if (!btn) return;
+  const id = btn.getAttribute("data-rr-mc-like");
+  const turningOn = !btn.classList.contains("on");
+  const ns = btn.querySelector(".rr-mc-like-n");
+  const cur = parseInt((ns && ns.textContent) || "0", 10) || 0;
+  _setMcLike(btn, Math.max(0, cur + (turningOn ? 1 : -1)), turningOn); // optimistic
+  try {
+    const { data, error } = await sb.rpc("dispatch_message_react", { p_message_id: id, p_on: turningOn });
+    if (error) throw error;
+    if (data) _setMcLike(btn, data.like_count || 0, !!data.liked_by_me);
+  } catch (_) {
+    _setMcLike(btn, cur, !turningOn); // revert on failure
+  }
+});
 
 // ─── Edit / delete on dispatcher's own bubbles ───────────────────────────
 //
@@ -30457,6 +30502,7 @@ sb.channel("rr-dashboard")
   .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_messages" },         scheduleChatRealtime)
   .on("postgres_changes", { event: "UPDATE", schema: "public", table: "driver_messages" },         scheduleChatRealtime)
   .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_channel_messages" }, scheduleChatRealtime)
+  .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_reactions" }, scheduleChatRealtime)
   .subscribe();
 
 window.addEventListener("focus", refreshActiveView);
