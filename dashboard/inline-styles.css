@@ -14794,6 +14794,69 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--rr-border-soft) !important;
             box-shadow:none !important;
           }
+          /* ── Targets · Block / Cushion / Report time as pill buttons ──
+             Operator wants these styled like the schedule action-bar pills
+             (.rr-ab-btn): a transparent, left-justified row of navy-outlined
+             white pills instead of an enclosed KPI card. Scoped to
+             #rr-sched-targets-kpis so the schedule's own #rr-sched-kpis strip
+             is untouched. `display` is left non-!important so mock-wiring's
+             show/hide (inline display:none off-Targets) still works. */
+          #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{
+            display:flex;
+            flex-wrap:wrap;
+            align-items:center;
+            justify-content:flex-start;
+            gap:10px;
+            padding:0 !important;
+            background:transparent !important;
+            border:0 !important;
+            box-shadow:none !important;
+            border-radius:0 !important;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi{
+            display:inline-flex;align-items:center;gap:7px;
+            height:36px;padding:0 13px;
+            border:1.5px solid var(--sidebar-bg, #0F172A);
+            border-radius:8px;
+            background:#FFFFFF;
+            color:var(--sidebar-bg, #0F172A);
+            font-size:12.5px;font-weight:600;line-height:1;
+            min-width:0;
+          }
+          /* Re-assert a full outline over the old inter-cell divider +
+             first-child reset from the card layout. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi,
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi:first-child{
+            border-left:1.5px solid var(--sidebar-bg, #0F172A);
+          }
+          /* Label + value inline inside the pill (e.g. "Block 10 h"). */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-text{
+            flex-direction:row;align-items:center;gap:6px;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-label{
+            font-size:12.5px;font-weight:600;color:var(--sidebar-bg, #0F172A);
+            text-transform:none;letter-spacing:0;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-val{
+            margin-top:0;align-items:center;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-input{
+            color:var(--sidebar-bg, #0F172A);font-weight:700;
+            width:32px;text-align:left;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-input:focus{
+            color:var(--accent-text, #2563EB);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-unit{
+            color:var(--sidebar-bg, #0F172A);opacity:.6;font-weight:600;
+          }
+          /* Status reads as quiet inline text after the pills, not a pill. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi:has(.rr-tgt-kpi-status){
+            border:0;background:transparent;height:auto;padding:0 2px;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi:has(.rr-tgt-kpi-status) .rr-tgt-kpi-label{
+            color:var(--text-subtle);font-weight:500;
+          }
           /* No shadows on any schedule card (flat, crisp). */
           #view-schedule.rrx-schedule .sched-v2-strip,
           #view-schedule .cal-wrap,
