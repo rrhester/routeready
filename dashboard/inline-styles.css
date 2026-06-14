@@ -7217,6 +7217,7 @@ body.rr-cmdk-open{ overflow:hidden }
   background:var(--canvas);border-bottom:1px solid var(--border);
 }
 .okami-table thead th.center{text-align:center}
+.okami-table tbody td.center{text-align:center}
 .okami-table tbody td{
   padding:var(--s-3);border-bottom:1px solid var(--border);font-size:var(--fs-md);color:var(--text);vertical-align:middle;
 }
@@ -14921,7 +14922,7 @@ body.rr-cmdk-open{ overflow:hidden }
              12.5/600 navy type — one shared system across both pages. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi{
             display:inline-flex;align-items:center;gap:7px;
-            height:36px;padding:0 13px;
+            height:32px;padding:0 13px;
             border:1.5px solid var(--sidebar-bg, #0F172A);
             border-radius:8px;
             background:#FFFFFF;
@@ -15052,7 +15053,7 @@ body.rr-cmdk-open{ overflow:hidden }
              number carries color: red when short, green when covered. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card{
             display:inline-flex;flex-direction:column;justify-content:center;align-items:flex-start;
-            gap:1px;min-height:42px;padding:5px 14px;border-radius:8px;
+            gap:1px;min-height:38px;padding:5px 14px;border-radius:8px;
             border:1.5px solid var(--sidebar-bg, #0F172A);background:#FFFFFF;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card[hidden]{display:none}
@@ -15060,7 +15061,7 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:9.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-value{
-            font-size:17px;font-weight:700;line-height:1.05;color:#B42318;font-variant-numeric:tabular-nums;
+            font-size:17px;font-weight:700;line-height:1.05;color:#B23A2E;font-variant-numeric:tabular-nums;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.rr-tgt-gap-card--pos .rr-tgt-gap-card-value{color:#15803D}
           /* Save Plan · primary button matching the Schedule Finalize. */
@@ -19140,7 +19141,7 @@ body.rr-cmdk-open{ overflow:hidden }
               background:#FFFFFF !important;
               border:0 !important;border-bottom:1px solid #ECEFF3 !important;
               color:#374151;font-weight:700;
-              padding:12px 18px;font-size:13px;letter-spacing:.02em;
+              padding:9px 18px;font-size:13px;letter-spacing:.02em;
               text-transform:uppercase;
             }
             /* Card rows · the table becomes a stack of soft planning cards.
@@ -19161,13 +19162,13 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail) > td{
               background:transparent !important;
               border:0 !important;border-bottom:1px solid #EEF1F5 !important;
-              padding:9px 18px;font-size:var(--fs-sm);line-height:1.3;
+              padding:8px 18px;font-size:var(--fs-sm);line-height:1.3;
               vertical-align:middle;
               transition:background-color .12s ease;
             }
             /* Row hover · the same soft blue as the Schedule shift-chip cards. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail):hover > td{
-              background:#EFF6FF !important;
+              background:#F3F7FF !important;
             }
             /* The row's editable Route input · same pale blue as the Schedule
                shift-chip cards (#EFF6FF fill + soft blue edge). */
@@ -19226,13 +19227,13 @@ body.rr-cmdk-open{ overflow:hidden }
               font-variant-numeric:tabular-nums;line-height:1;letter-spacing:0;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s1{
-              background:transparent !important;color:#C0564E !important;
+              background:transparent !important;color:#BD5A50 !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s2{
-              background:transparent !important;color:#B11D12 !important;
+              background:transparent !important;color:#B23A2E !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s3{
-              background:transparent !important;color:#8E1B10 !important;
+              background:transparent !important;color:#8C2A1F !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-pos{
               background:transparent !important;color:#15803D !important;
