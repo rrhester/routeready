@@ -25820,6 +25820,88 @@ async function refreshDriverChatList(autoSelect) {
   }
 }
 
+// ─── Operational context header (driver chat) ───────────────────────────
+// A pinned strip under the chat head showing the driver's identity + today /
+// tomorrow shift + 30-day attendance, all from existing RouteReady records
+// (drivers list for identity, the shifts table for schedule + attendance).
+// Rendered into the rr-mc shell on open; values filled async by
+// _loadMcContextSchedule so a slow shifts query never blocks the thread.
+function _mcContextHtml(driverId, drv) {
+  const meta = (_msgInboxList || []).find((t) => String(t.driver_id) === String(driverId)) || {};
+  const name = (drv && drv.name) || meta.name || "";
+  const initials = (name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+  const station = meta.station_code ? escapeHtml(meta.station_code) : "";
+  const status = meta.status ? meta.status.charAt(0).toUpperCase() + meta.status.slice(1) : "";
+  const metaLine = [station, status].filter(Boolean).join(" • ") || "Driver";
+  const cal = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+  const chart = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>`;
+  return `<div class="rr-mc-context" id="rr-mc-context">
+      <div class="rr-mc-ctx-id">
+        <div class="avatar-sm">${escapeHtml(initials)}</div>
+        <div style="min-width:0">
+          <div class="rr-mc-ctx-name">${escapeHtml(name)}</div>
+          <div class="rr-mc-ctx-meta">${metaLine}</div>
+        </div>
+      </div>
+      <div class="rr-mc-ctx-cards">
+        <div class="rr-mc-ctx-card">
+          <div class="rr-mc-ctx-card-label">${cal}Today</div>
+          <div class="rr-mc-ctx-card-value" id="rr-mc-ctx-today-v">—</div>
+          <div class="rr-mc-ctx-card-sub" id="rr-mc-ctx-today-s"></div>
+        </div>
+        <div class="rr-mc-ctx-card">
+          <div class="rr-mc-ctx-card-label">${cal}Tomorrow</div>
+          <div class="rr-mc-ctx-card-value" id="rr-mc-ctx-tom-v">—</div>
+          <div class="rr-mc-ctx-card-sub" id="rr-mc-ctx-tom-s"></div>
+        </div>
+        <div class="rr-mc-ctx-card">
+          <div class="rr-mc-ctx-card-label">${chart}Attendance</div>
+          <div class="rr-mc-ctx-card-value" id="rr-mc-ctx-att-v">—</div>
+          <div class="rr-mc-ctx-card-sub">Last 30 days</div>
+        </div>
+      </div>
+    </div>`;
+}
+async function _loadMcContextSchedule(driverId) {
+  const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+  if (!dspId || !document.getElementById("rr-mc-context")) return;
+  const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = fmtDate(today);
+  const tom = new Date(today); tom.setDate(tom.getDate() + 1); const tomStr = fmtDate(tom);
+  const from = new Date(today); from.setDate(from.getDate() - 30); const fromStr = fmtDate(from);
+  const { data, error } = await sb.from("shifts")
+    .select("date, starts_at, route_code, status")
+    .eq("dsp_id", dspId).eq("driver_id", driverId)
+    .gte("date", fromStr).lte("date", tomStr)
+    .order("date");
+  // Bail if the operator moved to a different conversation while we waited.
+  if (error || _msgInboxSelectedId !== driverId || !document.getElementById("rr-mc-context")) return;
+  const rows = data || [];
+  const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+  const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+  const setCard = (vId, sId, shift) => {
+    const v = document.getElementById(vId), s = document.getElementById(sId);
+    if (!v) return;
+    if (!shift) { v.textContent = "No shift"; if (s) s.textContent = "Off"; return; }
+    v.textContent = shift.route_code ? `Route ${shift.route_code}` : (cap(shift.status) || "Scheduled");
+    if (s) s.textContent = shift.starts_at ? `${fmtTime(shift.starts_at)} Start` : "";
+  };
+  setCard("rr-mc-ctx-today-v", "rr-mc-ctx-today-s", rows.find((r) => r.date === todayStr));
+  setCard("rr-mc-ctx-tom-v", "rr-mc-ctx-tom-s", rows.find((r) => r.date === tomStr));
+  // Attendance: of the driver's resolved (past) shifts in the window, the
+  // share that weren't a no-show or call-off.
+  const past = rows.filter((r) => r.date < todayStr);
+  const att = document.getElementById("rr-mc-ctx-att-v");
+  if (att) {
+    if (past.length === 0) { att.textContent = "—"; }
+    else {
+      const missed = past.filter((r) => r.status === "no_show" || r.status === "called_off").length;
+      att.textContent = Math.round(((past.length - missed) / past.length) * 100) + "%";
+    }
+  }
+}
+
 async function openDriverChatThread(driverId) {
   _msgInboxSelectedId = driverId;
   document.querySelectorAll("#rr-msg-driver-list [data-rr-thread]").forEach((el) => {
@@ -25827,6 +25909,7 @@ async function openDriverChatThread(driverId) {
   });
   document.querySelector("#rr-msg-driver-list [data-rr-support-thread]")?.classList.remove("active");
   await refreshDriverChatThread(true);
+  _loadMcContextSchedule(driverId);
   if (_msgInboxThreadTimer) clearInterval(_msgInboxThreadTimer);
   // Realtime (postgres_changes on driver_messages) is the primary
   // delivery path now; this interval is just a safety net for missed
@@ -26221,6 +26304,7 @@ async function refreshDriverChatThread(scrollToBottom) {
             <!-- App status + Last active chips painted by _paintMsgHeadStats -->
           </div>
         </div>
+        ${_mcContextHtml(driverId, drv)}
         <div class="rr-mc-thread" id="rr-mc-thread" data-rr-anchor="1">
           <div class="rr-msg-skeleton">
             <div class="rr-msg-skeleton-row"><div class="rr-msg-skeleton-bubble" style="width:62%"></div></div>
