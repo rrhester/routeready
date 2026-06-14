@@ -15417,6 +15417,16 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:0 1px 2px rgba(15,23,42,.04) !important;
             padding:11px 16px !important;
           }
+          /* Pop-out affordance · clickable KPI pills (those that open a
+             drilldown report) get a divider line + down chevron on the same
+             line as the value, matching the Schedule split-button pattern. */
+          .sched-kpi-pill .rr-kpi-chev{
+            display:inline-flex;align-items:center;align-self:stretch;
+            padding-left:10px;
+            border-left:1px solid rgba(15,23,42,.16);
+            color:var(--text-subtle);
+          }
+          .sched-kpi-pill .rr-kpi-chev svg{width:12px;height:12px;display:block}
           /* Pill sizing · use Schedule's intrinsic sizing exactly. Schedule's
              week-view KPI cells size from their own content and pack to the
              left (live.js:40164 — "no dots / icons / badges"); the shared
