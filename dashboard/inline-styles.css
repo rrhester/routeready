@@ -8086,9 +8086,9 @@ body.rr-cmdk-open{ overflow:hidden }
    Hover behavior is untouched; this layers on top of it. The accent is
    painted with inset box-shadow so it never shifts the cell layout, and
    the first cell rounds with the table edge. */
-.roster-split #drivers-tbody tr.is-record-open > td{background:var(--accent-soft)}
+.roster-split #drivers-tbody tr.is-record-open > td{background:rgba(37,99,235,.04)}
 .roster-split #drivers-tbody tr.is-record-open > td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
-.roster-split #drivers-tbody tr.is-record-open:hover > td{background:var(--accent-soft)}
+.roster-split #drivers-tbody tr.is-record-open:hover > td{background:rgba(37,99,235,.06)}
 /* Neutralise the fixed-overlay drawer styling when the record lives
    in the inline mount, so it reads as a static workspace card that
    matches the Schedule / roster cards — no backdrop, no blur, no
@@ -13101,13 +13101,19 @@ body.rr-cmdk-open{ overflow:hidden }
                labels, a single bottom hairline. Controls now live in the
                toolbar above, so the header only identifies columns. */
             background:var(--surface) !important;
-            border-bottom:1px solid var(--border) !important;
+            border-bottom:1px solid var(--border-subtle) !important;
             color:var(--text-subtle) !important;
             font-size:var(--fs-xs) !important;font-weight:600 !important;
             letter-spacing:.06em !important;text-transform:uppercase !important;
             padding:0 var(--s-4) !important;
             height:38px !important;
             vertical-align:middle !important;
+          }
+          /* Slightly roomier rows + a softer hairline between them so the
+             roster reads calmer and scans more easily (Schedule density). */
+          #dr-sub-roster .table tbody td{
+            padding-top:var(--s-4);padding-bottom:var(--s-4);
+            border-bottom-color:var(--border-subtle);
           }
           /* ── Roster toolbar · search (left) + status filter & Add driver
              (right). Lightweight enterprise strip above the table. ── */
@@ -13134,7 +13140,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-roster-toolbar .rr-roster-status-filter-btn{
             display:inline-flex;align-items:center;gap:2px;
             height:32px;padding:0 12px;
-            border:1px solid var(--border-strong);border-radius:var(--r-md);
+            border:1px solid var(--border);border-radius:var(--r-md);
             background:var(--surface);color:var(--text);
             font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;
             transition:background var(--t-fast),border-color var(--t-fast);
@@ -15371,8 +15377,9 @@ body.rr-cmdk-open{ overflow:hidden }
           /* KPI card: pure white, crisp — drop the blue edge and the
              diffuse gray haze, and pull it tight to the grid below. */
           #view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills{
-            background:#FFFFFF !important;
-            border-color:rgba(15,23,42,.10) !important;
+            background:transparent !important;
+            border:0 !important;
+            border-radius:0 !important;
             box-shadow:none !important;
             margin-bottom:1px !important;
           }
@@ -15387,8 +15394,9 @@ body.rr-cmdk-open{ overflow:hidden }
              pure-white + hairline-border + no-shadow recipe here. */
           #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills,
           #view-drivers #rr-roster-kpis.sched-kpi-pills{
-            background:#FFFFFF !important;
-            border-color:rgba(15,23,42,.10) !important;
+            background:transparent !important;
+            border:0 !important;
+            border-radius:0 !important;
             box-shadow:none !important;
             /* Hug the content below with the same 1px gap Schedule's
                #rr-sched-kpis uses (index.html:18631), so the KPI strip

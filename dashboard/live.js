@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=e1fe21950839";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=e1fe21950839";
+import { planScheduleWeek } from "./scheduling-engine.js?v=a6c44d83baef";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=a6c44d83baef";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -4733,13 +4733,11 @@ async function loadDriversRoster() {
   _populateRosterStationFilter(_rosterRows);
   renderDriverTable(_rosterRows, error);
 
-  // Page sub-line: live count of active drivers only — station and
-  // on-app rollups dropped per direction; those facts live in the table.
+  // Page sub-line: a steady descriptive subtitle (matches the Schedule
+  // page's header hierarchy). Live counts live in the KPI strip + table.
   const sub = document.getElementById("rr-drivers-page-sub");
   if (sub) {
-    const all = rows || [];
-    const active = all.filter(r => r.status === "active").length;
-    sub.textContent = `${active} active driver${active === 1 ? "" : "s"}`;
+    sub.textContent = "Manage drivers, attendance, credentials and employment records.";
   }
 }
 
@@ -20678,7 +20676,7 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-drawer.rr-dd-inline.rr-dd-open #rr-dd-panel{transform:translateX(0)}
       /* Compact summary header — smaller avatar, tighter padding, and the
          same surface tint as the roster table header. */
-      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-3-5) 20px;background:#C5DBF1;border-bottom:1px solid rgba(37,99,235, 0.34)}
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-3-5) 20px;background:var(--surface);border-bottom:1px solid var(--border)}
       #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-base)}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:40px!important;height:40px!important;font-size:var(--fs-md)!important}
       #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
@@ -20711,11 +20709,11 @@ async function openDriverDrawer(driverId, opts) {
       .dd-act{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer;line-height:1;white-space:nowrap;transition:color var(--t-fast),border-color .12s,background .12s}
       .dd-act:hover{color:var(--text);border-color:var(--text-subtle);background:var(--canvas)}
       .dd-act svg{flex:0 0 auto}
-      .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:var(--r-lg);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
+      .dd-tabs{display:flex;gap:4px;background:transparent;padding:0;border-bottom:1px solid var(--border);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
       .dd-tabs::-webkit-scrollbar{display:none}
-      .dd-tab{flex:0 0 auto;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:var(--s-2) 14px;border-radius:var(--r-md);cursor:pointer;transition:background var(--t-fast),color var(--t-fast);white-space:nowrap}
+      .dd-tab{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:var(--s-2) 10px;cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast);white-space:nowrap}
       .dd-tab:hover{color:var(--text)}
-      .dd-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+      .dd-tab.active{background:transparent;color:var(--accent-text);border-bottom-color:var(--accent);box-shadow:none}
       .dd-tab-note{margin:9px 28px 0;font-size:var(--fs-xs);color:var(--text-subtle);display:none;align-items:center;gap:6px}
       .dd-tab-note .dn-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
       .dd-tab-note.show{display:flex}
@@ -25331,12 +25329,12 @@ async function renderAttendanceTab(body, d) {
     <style>
       /* A quiet history table — Type pill · Date · one-click document. No
          progression ladder, no checklist; clarity and doc access only. */
-      #rr-dd-body .att-ev-tbl{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+      #rr-dd-body .att-ev-tbl{display:flex;flex-direction:column}
       #rr-dd-body .att-ev-head,
-      #rr-dd-body .att-ev-row{display:grid;grid-template-columns:1fr 116px 80px;gap:14px;align-items:center;width:100%;text-align:left;padding:11px 15px;font:inherit;margin:0}
-      #rr-dd-body .att-ev-head{background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle)}
+      #rr-dd-body .att-ev-row{display:grid;grid-template-columns:1fr 116px 80px;gap:14px;align-items:center;width:100%;text-align:left;padding:13px 2px;font:inherit;margin:0}
+      #rr-dd-body .att-ev-head{background:transparent;border-bottom:1px solid var(--border-subtle);padding-top:0;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle)}
       #rr-dd-body .att-ev-head span:last-child{text-align:center}
-      #rr-dd-body button.att-ev-row{background:var(--surface);border:0;border-top:1px solid var(--border-subtle);cursor:pointer;transition:background var(--t-fast)}
+      #rr-dd-body button.att-ev-row{background:transparent;border:0;border-top:1px solid var(--border-subtle);cursor:pointer;transition:background var(--t-fast)}
       #rr-dd-body .att-ev-row:first-of-type{border-top:0}
       #rr-dd-body .att-ev-row:hover{background:var(--canvas)}
       /* Step pills escalate by severity (the dashboard's --amber token is
