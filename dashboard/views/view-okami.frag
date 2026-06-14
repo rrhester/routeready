@@ -63,7 +63,7 @@
             <thead>
               <tr>
                 <th>Week</th>
-                <th class="center">Routes (max)</th>
+                <th class="center">Routes</th>
                 <th class="center">Drivers needed</th>
                 <th class="center">Available</th>
                 <th class="center">Gap</th>
