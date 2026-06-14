@@ -2645,6 +2645,20 @@
              on schedSub('targets'). -->
         <div class="sched-subview" id="sched-sub-targets" style="display:none">
           <!-- style block 28 extracted to inline-styles.css -->
+          <!-- Route demand · wave start times + active service types.
+               The live editor (.sched-quick-advanced — waves, "+ Add wave",
+               service types, Save) is MOVED here from the quick-settings
+               popover on entry by _rrMoveSchedDemandToTargets() and returned
+               on exit, so there's a single source of truth and every existing
+               handler (add/remove wave, service toggle/rename, Save) keeps
+               working unchanged. -->
+          <section class="rr-tgt-demand" id="rr-sched-targets-demand" aria-label="Route demand">
+            <div class="rr-tgt-13w-head">
+              <div class="rr-tgt-13w-title">Route demand</div>
+            </div>
+            <p class="rr-tgt-demand-sub">Set your dispatch wave start times and the service types your DSP runs — these shape every week's route plan below.</p>
+            <div id="rr-sched-targets-demand-host"></div>
+          </section>
           <!-- 13-week OKAMI planner host · the live OKAMI table is
                moved here at runtime by _rrMoveOkami13Week() on entry
                and returned to #view-okami on exit. -->
