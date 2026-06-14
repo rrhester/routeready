@@ -1543,6 +1543,29 @@
               </div>
             </div>
           </div>
+          <!-- Wave times · pill button opening a dropdown with the wave
+               start-times editor (the live node moved here from the
+               quick-settings popover by _rrMoveSchedDemandToTargets). -->
+          <div class="rr-tgt-kpi-menu-wrap">
+            <button type="button" class="rr-tgt-kpi rr-tgt-kpi-btn" id="rr-tgt-waves-btn" aria-haspopup="true" aria-expanded="false" title="Adjust dispatch wave start times">
+              <span class="rr-tgt-kpi-label">Wave times</span>
+              <svg class="rr-tgt-kpi-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+            </button>
+            <div class="rr-tgt-kpi-menu" id="rr-tgt-waves-menu" role="group" aria-label="Wave start times" hidden>
+              <div id="rr-sched-targets-waves-host"></div>
+            </div>
+          </div>
+          <!-- Service types · pill button opening a dropdown with the
+               service-type editor (also the live node from the popover). -->
+          <div class="rr-tgt-kpi-menu-wrap">
+            <button type="button" class="rr-tgt-kpi rr-tgt-kpi-btn" id="rr-tgt-st-btn" aria-haspopup="true" aria-expanded="false" title="Activate and rename the service types your DSP runs">
+              <span class="rr-tgt-kpi-label">Service types</span>
+              <svg class="rr-tgt-kpi-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+            </button>
+            <div class="rr-tgt-kpi-menu" id="rr-tgt-st-menu" role="group" aria-label="Service types" hidden>
+              <div id="rr-sched-targets-st-host"></div>
+            </div>
+          </div>
           <div class="rr-tgt-kpi">
             <div class="rr-tgt-kpi-text">
               <div class="rr-tgt-kpi-label">Status</div>
@@ -2645,20 +2668,10 @@
              on schedSub('targets'). -->
         <div class="sched-subview" id="sched-sub-targets" style="display:none">
           <!-- style block 28 extracted to inline-styles.css -->
-          <!-- Route demand · wave start times + active service types.
-               The live editor (.sched-quick-advanced — waves, "+ Add wave",
-               service types, Save) is MOVED here from the quick-settings
-               popover on entry by _rrMoveSchedDemandToTargets() and returned
-               on exit, so there's a single source of truth and every existing
-               handler (add/remove wave, service toggle/rename, Save) keeps
-               working unchanged. -->
-          <section class="rr-tgt-demand" id="rr-sched-targets-demand" aria-label="Route demand">
-            <div class="rr-tgt-13w-head">
-              <div class="rr-tgt-13w-title">Route demand</div>
-            </div>
-            <p class="rr-tgt-demand-sub">Set your dispatch wave start times and the service types your DSP runs — these shape every week's route plan below.</p>
-            <div id="rr-sched-targets-demand-host"></div>
-          </section>
+          <!-- The wave start-times + service-type editors live in the
+               "Wave times" / "Service types" pill dropdowns up in the
+               #rr-sched-targets-kpis strip (moved there from the
+               quick-settings popover by _rrMoveSchedDemandToTargets). -->
           <!-- 13-week OKAMI planner host · the live OKAMI table is
                moved here at runtime by _rrMoveOkami13Week() on entry
                and returned to #view-okami on exit. -->

@@ -14857,6 +14857,42 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi:has(.rr-tgt-kpi-status) .rr-tgt-kpi-label{
             color:var(--text-subtle);font-weight:500;
           }
+          /* ── Wave times / Service types · pill buttons that open a dropdown
+             editor, sitting in the same Targets pill strip. The dropdown holds
+             the live wave / service-type editor moved from the popover. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-menu-wrap{
+            position:relative;display:inline-flex;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn{
+            cursor:pointer;gap:8px;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn .rr-tgt-kpi-label{
+            color:var(--sidebar-bg, #0F172A);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-caret{
+            width:11px;height:11px;flex:0 0 auto;opacity:.75;
+            transition:transform .15s ease;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn[aria-expanded="true"]{
+            background:rgba(15,23,42,.05);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-btn[aria-expanded="true"] .rr-tgt-kpi-caret{
+            transform:rotate(180deg);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-menu{
+            position:absolute;top:calc(100% + 6px);left:0;z-index:60;
+            min-width:340px;max-width:min(560px, 92vw);
+            background:#FFFFFF;border:1px solid rgba(15,23,42,.12);
+            border-radius:12px;
+            box-shadow:0 10px 30px rgba(15,23,42,.16), 0 2px 6px rgba(15,23,42,.08);
+            padding:14px 16px;
+            max-height:min(70vh, 520px);overflow-y:auto;
+            text-align:left;
+            font-weight:400;color:var(--text);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-menu[hidden]{display:none}
+          /* Service types carry rename inputs · give them more room. */
+          #view-schedule #rr-sched-targets-kpis #rr-tgt-st-menu{min-width:420px}
           /* No shadows on any schedule card (flat, crisp). */
           #view-schedule.rrx-schedule .sched-v2-strip,
           #view-schedule .cal-wrap,
@@ -18837,28 +18873,6 @@ body.rr-cmdk-open{ overflow:hidden }
               margin-bottom:var(--s-3);
               overflow:hidden;
               display:flex;flex-direction:column;
-            }
-            /* Route-demand card · same chrome as the 13-week planner card.
-               Houses the wave/service-type editor moved in from the
-               quick-settings popover. */
-            #view-schedule #sched-sub-targets .rr-tgt-demand{
-              background:#FFFFFF;
-              border:1px solid rgba(15,23,42,.08);
-              border-radius:16px;
-              box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.07);
-              padding:10px 14px 12px;
-              margin-bottom:var(--s-3);
-            }
-            #view-schedule #sched-sub-targets .rr-tgt-demand-sub{
-              font-size:var(--fs-sm);color:var(--text-muted);
-              margin:0 0 10px 0;line-height:1.35;
-            }
-            /* The editor (.sched-quick-advanced) is hidden-by-default and
-               scroll-capped for its popover home; on the Targets page it
-               sits as a flat, fully-visible region (no popover chrome). */
-            #view-schedule #rr-sched-targets-demand-host .sched-quick-advanced{
-              display:block;border-top:none;border-radius:0;
-              padding:0;max-height:none;overflow:visible;background:transparent;
             }
             /* Scrollable host · the 13-week table can outgrow the
                viewport, so cap the table area and let it scroll inside
