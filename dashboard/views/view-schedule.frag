@@ -2685,6 +2685,16 @@
              sized to fill the viewport without scrolling — cells
              flex evenly within the available row height. -->
         <div class="sched-subview" id="sched-sub-monthly" style="display:none">
+          <!-- Forecast action bar — same pill style/size as the Schedule view's
+               action bar (.rr-ab / .rr-ab-btn). The Forecast button runs the
+               staffing forecast (sizes Required Drivers / Driver Gap); wired by
+               a delegated handler on #rr-fc-run in live.js. -->
+          <div class="rr-ab" role="toolbar" aria-label="Forecast actions">
+            <button type="button" class="rr-ab-btn" id="rr-fc-run" title="Run the staffing forecast to size required drivers">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>
+              Forecast
+            </button>
+          </div>
           <!-- Workforce planner: the 13-week table with the Driver Gap chart. -->
           <div class="rr-fc-layout" id="rr-fc-layout">
             <div class="sched-monthly-shell" id="rr-sched-monthly-shell">

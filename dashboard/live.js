@@ -38124,6 +38124,17 @@ document.addEventListener("click", (e) => {
       }
     });
   }
+  // Forecast view's dedicated "Forecast" pill (matches the Schedule
+  // action bar). Runs the 13-week staffing forecast that sizes Required
+  // Drivers / the Driver Gap — same engine the repurposed Smart Fill tile
+  // triggers on this view. Delegated so it survives the monthly re-render.
+  if (e.target.closest("#rr-fc-run")) {
+    e.preventDefault();
+    if (typeof _rrRunRequiredDrivers === "function") {
+      _rrRunRequiredDrivers(e.target.closest("#rr-fc-run"));
+    }
+    return;
+  }
   // Main Smart Fill tile (anywhere outside the chevron) → run
   // auto-staff. We route the click through here instead of an
   // inline `onclick="openAiSchedule()"` on the button itself so
@@ -42245,7 +42256,10 @@ async function _rrForecastMonthCoverage(btn) {
 const _rrForecastProgress = {
   _el: null, _onMove: null,
   _anchor() {
-    return document.querySelector('#view-schedule [data-rr-v2="smartfill"]')
+    // Prefer the Forecast view's own "Forecast" pill so the popover sits
+    // right beneath it; fall back to the Smart Fill tiles when it's absent.
+    return document.getElementById("rr-fc-run")
+      || document.querySelector('#view-schedule [data-rr-v2="smartfill"]')
       || document.getElementById("rr-sched-smartfill-h");
   },
   _place() {
