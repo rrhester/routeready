@@ -15271,9 +15271,13 @@ document.addEventListener("click", (e) => {
       && !e.target.closest("[data-rr-roster-kpi]")) {
     _closeRosterKpiDetail();
   }
-  // KPI tile click → open / toggle drilldown.
+  // KPI tile click → open / toggle drilldown. The pop-out opens ONLY from
+  // the chevron side of the pill (the split-button affordance), not the
+  // whole pill body. Non-clickable pills have no chevron, so they never
+  // open a drilldown.
   const card = e.target.closest("[data-rr-roster-kpi]");
   if (!card) return;
+  if (!e.target.closest(".rr-kpi-chev")) return;
   const kpi = card.dataset.rrRosterKpi;
   _rosterKpiDetail = (_rosterKpiDetail === kpi) ? null : kpi;
   _renderRosterKpiDetail();
