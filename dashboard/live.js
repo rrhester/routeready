@@ -25786,7 +25786,7 @@ async function refreshDriverChatList(autoSelect) {
     const isActive = _msgInboxSelectedId === t.driver_id;
     return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${t.driver_id}" data-rr-driver-id="${t.driver_id}">
       <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="msg-item-presence"></span></div>
-      <div><div class="msg-item-name">${escapeHtml(t.name)}${t.station_code ? ` <span style="color:var(--text-subtle);font-weight:400">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
+      <div><div class="msg-item-name">${escapeHtml(t.name)}${t.station_code ? ` <span class="msg-item-station">· ${escapeHtml(t.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(lastBodyTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${t.unread > 0 ? `<div class="msg-item-unread">${t.unread}</div>` : ""}</div>
     </div>`;
   }).join("");
