@@ -26714,7 +26714,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       const likeBtn = isDeleted ? "" : `<button type="button" class="rr-mc-like" data-rr-mc-like="${escapeHtml(m.id)}" aria-label="Like" title="Like"><span class="rr-mc-like-icon" aria-hidden="true">👍</span><span class="rr-mc-like-n"></span></button>`;
       html += `<div class="rr-mc-bubble ${m.sender_kind}${deletedClass}${priCls}" data-group-pos="${pos}" data-rr-mc-msg="${escapeHtml(m.id)}">
         ${actions}
-        ${priTag}${attach}${bodyHtml}${ackChip}
+        ${priTag}${attach}${m.is_auto ? '<span class="rr-mc-auto" title="Automated message">Auto</span>' : ''}${bodyHtml}${ackChip}
         <div class="rr-mc-time">${escapeHtml(time)}${editedTag}</div>
         ${likeBtn}
       </div>`;
