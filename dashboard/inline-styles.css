@@ -15415,7 +15415,15 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--sidebar-bg) !important;
             border-radius:var(--r-lg) !important;
             box-shadow:0 1px 2px rgba(15,23,42,.04) !important;
-            padding:7px 14px !important;
+            padding:5px 12px !important;
+            font-size:var(--fs-sm) !important;
+          }
+          /* KPI value text matches the Schedule pill text — fs-sm (12px),
+             medium weight. It was reading heavier/larger at weight 600.
+             Scoped to roster pills so Schedule's bold Coverage metric is
+             untouched. */
+          .sched-kpi-pill[data-rr-roster-kpi] .sched-kpi-val{
+            font-size:var(--fs-sm) !important;font-weight:500 !important;
           }
           /* Pop-out affordance · clickable KPI pills (those that open a
              drilldown report) get a divider + down chevron on the value
