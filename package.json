@@ -4,6 +4,7 @@
   "description": "Local dev tooling. Run `npm install` once, then `npm run smoke` before every push.",
   "scripts": {
     "smoke": "node scripts/smoke-check-live.mjs",
+    "build": "node scripts/bust-cache.mjs",
     "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
