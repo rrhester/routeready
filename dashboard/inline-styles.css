@@ -5674,6 +5674,25 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-bubble-actions button[data-rr-mc-delete]:hover{
   background:rgba(220,38,38,.08);color:var(--red);border-color:rgba(220,38,38,.30);
 }
+/* Like (👍) pill — sits at the bottom of a bubble.  Hidden until the bubble
+   is hovered (affordance), persistent once a message has any likes, and
+   filled RouteReady blue when you've liked it.  Stays on-palette — no new
+   accent colour. */
+.rr-mc-like{
+  display:inline-flex;align-items:center;gap:3px;
+  margin-top:5px;padding:1px 7px;
+  font-family:inherit;font-size:11px;line-height:1.5;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);
+  color:var(--text-muted);cursor:pointer;
+  transition:opacity var(--t-fast), background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  opacity:0;
+}
+.rr-mc-bubble:hover .rr-mc-like{opacity:.6}
+.rr-mc-like:hover{opacity:1;border-color:var(--border-strong);color:var(--text)}
+.rr-mc-like.has{opacity:1}
+.rr-mc-like.on{background:var(--accent-soft);border-color:rgba(37,99,235,.30);color:var(--accent-text)}
+.rr-mc-like-icon{font-size:11px}
+.rr-mc-like-n{font-weight:600;font-variant-numeric:tabular-nums}
 /* Edited / deleted markers. */
 .rr-mc-edited{
   margin-left:6px;font-size:9px;font-weight:600;letter-spacing:.04em;

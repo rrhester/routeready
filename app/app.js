@@ -3233,7 +3233,10 @@ async function refreshChat(scrollToBottom) {
     <div class="chat-bottom-sentinel" aria-hidden="true"></div>`;
   }
 
-  const { data, error } = await sb.rpc("driver_chat_list", { p_token: session.token, p_limit: 200 });
+  const [{ data, error }, _reactRes] = await Promise.all([
+    sb.rpc("driver_chat_list", { p_token: session.token, p_limit: 200 }),
+    sb.rpc("driver_chat_reactions", { p_token: session.token }).then((r) => r, () => ({ data: null })),
+  ]);
   if (error) {
     if (/unauthorized|revoked|inactive/.test(error.message || "")) {
       writeSession(null); render(); return;
@@ -3244,6 +3247,7 @@ async function refreshChat(scrollToBottom) {
   const messages = data?.messages || [];
   const peerReadAt = data?.peer_last_read_at ? new Date(data.peer_last_read_at).getTime() : 0;
   wrap.dataset.rrMsgCount = String(messages.length);
+  const _chatReactions = _reactRes?.data?.reactions || [];
 
   // Strip optimistic stubs whose body now appears in the canonical set.
   const stubBodies = new Set(
@@ -3336,6 +3340,7 @@ async function refreshChat(scrollToBottom) {
       </button>
       <div class="chat-bottom-sentinel" aria-hidden="true"></div>`;
     _rrSignChatAttachments();
+    _applyChatReactions(_chatReactions);
   }
   // Wire the smart anchor-release: on scroll-up, flip data-rr-anchor="0"
   // on .chat-msgs which switches the sentinel's overflow-anchor to none
@@ -3456,15 +3461,57 @@ function chatBubbleHtml(m, pos) {
     }
   }
 
+  const likeBtn = m.deleted_at ? "" : `<button type="button" class="chat-like" data-rr-like="${escapeHtml(m.id)}" aria-label="Like"><span class="chat-like-icon" aria-hidden="true">👍</span><span class="chat-like-n"></span></button>`;
   return `
-    <div class="chat-bubble ${mine ? "mine" : "theirs"}${priCls}"${groupAttr}>
+    <div class="chat-bubble ${mine ? "mine" : "theirs"}${priCls}"${groupAttr} data-rr-msg-id="${escapeHtml(m.id)}">
       ${showUrgentTag ? `<div class="chat-pri-tag">Urgent</div>` : ""}
       ${attachment}
       ${body ? `<div class="chat-body">${body}</div>` : ""}
       ${ack}
       <div class="chat-time">${escapeHtml(time)}</div>
+      ${likeBtn}
     </div>`;
 }
+
+// ─── Message likes (👍) ──────────────────────────────────────────────────
+// Driver side of the two-way reaction.  Counts come from
+// driver_chat_reactions (the message-fetch RPC is untouched); the driver's
+// own tap is optimistic, and dispatch's likes land on the next chat refresh.
+function _setChatLike(btn, count, mine) {
+  if (!btn) return;
+  btn.classList.toggle("on", !!mine);
+  btn.classList.toggle("has", (count || 0) > 0);
+  const ns = btn.querySelector(".chat-like-n");
+  if (ns) ns.textContent = (count || 0) > 0 ? String(count) : "";
+}
+function _applyChatReactions(entries) {
+  const wrap = document.getElementById("chat-msgs");
+  if (!wrap) return;
+  const map = new Map((entries || []).map((e) => [String(e.message_id), e]));
+  wrap.querySelectorAll("[data-rr-like]").forEach((btn) => {
+    const e = map.get(String(btn.getAttribute("data-rr-like")));
+    _setChatLike(btn, e ? (e.like_count || 0) : 0, !!(e && e.liked_by_me));
+  });
+}
+// Tap to like — delegated so it survives the chat's re-render.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-rr-like]");
+  if (!btn) return;
+  const session = readSession();
+  if (!session?.token) return;
+  const id = btn.getAttribute("data-rr-like");
+  const turningOn = !btn.classList.contains("on");
+  const ns = btn.querySelector(".chat-like-n");
+  const cur = parseInt((ns && ns.textContent) || "0", 10) || 0;
+  _setChatLike(btn, Math.max(0, cur + (turningOn ? 1 : -1)), turningOn); // optimistic
+  try {
+    const { data, error } = await sb.rpc("driver_message_react", { p_token: session.token, p_message_id: id, p_on: turningOn });
+    if (error) throw error;
+    if (data) _setChatLike(btn, data.like_count || 0, !!data.liked_by_me);
+  } catch (_) {
+    _setChatLike(btn, cur, !turningOn); // revert on failure
+  }
+});
 
 // Resolve attachment paths to short-lived signed URLs after each
 // chat render, then swap them into the <img>/<a> tags.  We do this
