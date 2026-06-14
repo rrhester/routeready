@@ -14908,6 +14908,38 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-menu[hidden]{display:none}
           /* Service types carry rename inputs · give them more room. */
           #view-schedule #rr-sched-targets-kpis #rr-tgt-st-menu{min-width:420px}
+          /* ── Targets toolbar · right side (Gap status card + Save Plan +
+             the moved ⋯/bell/avatar chrome), mirroring the Schedule header. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-toolbar-right{
+            display:inline-flex;align-items:center;gap:10px;margin-left:auto;
+          }
+          /* Gap card · soft, compact, like the Schedule Coverage card (not an
+             alert). Red when short, green when covered. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card{
+            display:inline-flex;align-items:center;gap:9px;
+            height:38px;padding:0 14px;border-radius:10px;
+            border:1px solid #F3D2D2;background:#FEF2F2;color:#B91C1C;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card[hidden]{display:none}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card svg{width:18px;height:18px;flex:0 0 auto;opacity:.9}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-text{display:flex;flex-direction:column;line-height:1.15}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-main{font-size:12.5px;font-weight:700}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-sub{font-size:10.5px;font-weight:500;opacity:.75}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.rr-tgt-gap-card--pos{
+            border-color:#CDEAD6;background:#EDF8F0;color:#065F46;
+          }
+          /* Save Plan · primary button matching the Schedule Finalize. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan{
+            display:inline-flex;align-items:center;justify-content:center;
+            height:38px;padding:0 18px;border:0;border-radius:9px;
+            background:#2563EB;color:#FFFFFF;font:inherit;font-size:13px;font-weight:600;
+            cursor:pointer;white-space:nowrap;transition:background-color .12s ease;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan:hover{background:#1D4ED8}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan:active{background:#1E40AF}
+          /* Chrome host · the ⋯ / bell / avatar relocated from the action bar. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-chrome-host{display:inline-flex;align-items:center;gap:6px}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-chrome-host:empty{display:none}
           /* No shadows on any schedule card (flat, crisp). */
           #view-schedule.rrx-schedule .sched-v2-strip,
           #view-schedule .cal-wrap,
@@ -18901,7 +18933,7 @@ body.rr-cmdk-open{ overflow:hidden }
                track) so both surfaces feel like one product. */
             #view-schedule #sched-sub-targets #rr-sched-targets-13week-host{
               flex:1;min-height:0;
-              max-height:calc(100vh - 232px);
+              max-height:calc(100vh - 196px);
               overflow-y:auto;
               scrollbar-width:thin;
               scrollbar-color:var(--border-strong) transparent;
@@ -18910,10 +18942,10 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar-track{background:transparent}
             #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:var(--r-sm)}
             #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
+            /* Title block removed per operator — the toolbar is the header;
+               the column captions lead the content. */
             #view-schedule #sched-sub-targets .rr-tgt-13w-head{
-              display:flex;align-items:flex-start;justify-content:space-between;
-              gap:var(--s-2);flex-wrap:wrap;
-              margin:2px 0 16px 0;
+              display:none;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w-title{
               display:flex;align-items:baseline;gap:var(--s-2-5);
@@ -18958,13 +18990,15 @@ body.rr-cmdk-open{ overflow:hidden }
                minimum line-height that still keeps the route input
                + status pill readable. Scoped to the Targets host so
                the standalone #view-okami page keeps its airier layout. */
-            /* Column headers · light floating labels above the cards (no
-               fill, no rule) — they read as captions, not a table header. */
+            /* Column headers · light uppercase captions, pinned to the top of
+               the scroll area so they stay visible while the rows scroll. The
+               opaque background covers the rows passing underneath. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table thead th{
-              background:transparent !important;
-              border:0 !important;
+              position:sticky;top:0;z-index:6;
+              background:#FFFFFF !important;
+              border:0 !important;border-bottom:1px solid #ECEFF3 !important;
               color:var(--text-subtle);font-weight:600;
-              padding:0 18px 12px;font-size:11px;letter-spacing:.05em;
+              padding:12px 18px;font-size:11px;letter-spacing:.05em;
               text-transform:uppercase;
             }
             /* Card rows · the table becomes a stack of soft planning cards.
@@ -18977,7 +19011,7 @@ body.rr-cmdk-open{ overflow:hidden }
               width:100%;background:transparent;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail) > td{
-              background:#FFFFFF !important;
+              background:#F6F7F9 !important;
               border-top:1px solid #ECEFF3 !important;
               border-bottom:1px solid #ECEFF3 !important;
               border-left:0;border-right:0;
@@ -18995,7 +19029,12 @@ body.rr-cmdk-open{ overflow:hidden }
               border-top-right-radius:12px;border-bottom-right-radius:12px;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail):hover > td{
-              border-color:#D7DCE3 !important;background:#FCFCFD !important;
+              border-color:#D7DCE3 !important;background:#F1F3F6 !important;
+            }
+            /* The row's editable Route input stays white so it pops on the
+               soft-gray card. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-route-input{
+              background:#FFFFFF !important;
             }
             /* Expanded daily-detail row · blends in (it's sub-content, not a card). */
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr.okami-detail > td{
