@@ -2670,7 +2670,7 @@
                   Targets
                   <span class="rr-tgt-13w-badge" title="Amazon's term for the 13-week DSP route plan horizon">13-week plan</span>
                 </div>
-                <p class="rr-tgt-13w-sub">Set weekly targets for routes and drivers.</p>
+                <p class="rr-tgt-13w-sub">Model route demand and staffing requirements.</p>
               </div>
             </div>
             <div id="rr-sched-targets-13week-host">
