@@ -31187,7 +31187,12 @@ async function _renderOkamiLiveImpl() {
     // looks like a display value, not an input.
     const input = row.querySelector(".plan-route-input");
     if (input) {
-      input.value = routesMax;
+      // Don't clobber a value the operator is mid-edit. This render runs after
+      // the debounced save's own refresh (and after any settings save), so
+      // overwriting a FOCUSED field resets the number they just typed — the
+      // "Routes (max) keeps changing as I type" bug. Only sync the displayed
+      // peak when the field isn't focused.
+      if (document.activeElement !== input) input.value = routesMax;
       input.readOnly = false;
       input.style.background = "";
       input.style.border = "";
