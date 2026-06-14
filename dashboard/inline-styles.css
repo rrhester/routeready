@@ -18938,12 +18938,12 @@ body.rr-cmdk-open{ overflow:hidden }
                the card. Scrollbar styled to mirror .cal-wrap on the
                main schedule grid (thin, hairline thumb, transparent
                track) so both surfaces feel like one product. */
+            /* No inner scroller here — .tcp-body is the schedule's single
+               scroll container, so the sticky column header pins to it. An
+               overflow:auto on this host would steal the sticky (the header
+               would scroll with the host) and double-scroll the page. */
             #view-schedule #sched-sub-targets #rr-sched-targets-13week-host{
-              flex:1;min-height:0;
-              max-height:calc(100vh - 196px);
-              overflow-y:auto;
-              scrollbar-width:thin;
-              scrollbar-color:var(--border-strong) transparent;
+              min-height:0;
             }
             #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar{width:8px}
             #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar-track{background:transparent}
@@ -19004,8 +19004,8 @@ body.rr-cmdk-open{ overflow:hidden }
               position:sticky;top:0;z-index:6;
               background:#FFFFFF !important;
               border:0 !important;border-bottom:1px solid #ECEFF3 !important;
-              color:var(--text-subtle);font-weight:600;
-              padding:12px 18px;font-size:11px;letter-spacing:.05em;
+              color:#374151;font-weight:700;
+              padding:14px 18px;font-size:16px;letter-spacing:.01em;
               text-transform:uppercase;
             }
             /* Card rows · the table becomes a stack of soft planning cards.
@@ -19112,9 +19112,9 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail) > td:nth-child(4) .plan-calc{
               color:#15803D;
             }
-            /* Lighter headers + row borders (low-contrast, premium). */
+            /* Header ~50% larger + bold (operator); rows stay low-contrast. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table thead th{
-              font-size:10.5px;color:#97A1B0;
+              font-size:16px;color:#374151;font-weight:700;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail) > td{
               border-color:#EEF1F5 !important;
