@@ -1159,9 +1159,11 @@ select.field{
 .chat-like.on .chat-like-icon{transform:scale(1.15)}
 .chat-like-icon{font-size:14px;line-height:1;transition:transform .12s ease}
 .chat-like-n{font-weight:700;font-variant-numeric:tabular-nums}
-/* Suppress the iOS long-press callout so press-and-hold reveals the Like
-   instead of the system menu. */
-.chat-bubble{-webkit-touch-callout:none}
+/* Suppress the iOS long-press callout AND text selection so press-and-hold
+   reveals the Like instead of starting a copy/selection.  Trade-off: bubble
+   text can't be selected to copy on the app — the long-press is dedicated to
+   reacting. */
+.chat-bubble{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .chat-bubble.mine .chat-like{color:rgba(255,255,255,.85)}
 .chat-bubble.mine .chat-like.on{color:#fff}
 /* Channel sender label — sits above the body inside theirs-bubbles
