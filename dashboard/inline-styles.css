@@ -18879,21 +18879,21 @@ body.rr-cmdk-open{ overflow:hidden }
                treatment matches the schedule page's "driver-app vibe"
                — soft white surface, rounded corners, gentle elevation,
                hairline borders — instead of OKAMI's flatter chrome. */
+            /* Planning surface · the container is just a wrapper now — each
+               week renders as its own soft card row (Schedule-View visual
+               language), so the outer card chrome is removed and the rows
+               carry the borders. */
             #view-schedule #sched-sub-targets .rr-tgt-13w{
-              background:#FFFFFF;
-              border:1px solid rgba(15,23,42,.06);
-              border-radius:12px;
-              box-shadow:0 1px 2px rgba(15,23,42,.04);
-              /* Minimal side padding so the table spans the card; the
-                 column breathing room lives in the cell padding instead. */
-              padding:6px 8px 14px;
+              background:transparent;
+              border:0;
+              border-radius:0;
+              box-shadow:none;
+              padding:0;
               margin-bottom:var(--s-3);
-              overflow:hidden;
+              overflow:visible;
               display:flex;flex-direction:column;
             }
-            /* Align the title row with the table's first-column text
-               (cell padding is 16px). */
-            #view-schedule #sched-sub-targets .rr-tgt-13w-head{padding:0 16px}
+            #view-schedule #sched-sub-targets .rr-tgt-13w-head{padding:0 4px}
             /* Scrollable host · the 13-week table can outgrow the
                viewport, so cap the table area and let it scroll inside
                the card. Scrollbar styled to mirror .cal-wrap on the
@@ -18911,14 +18911,14 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:var(--r-sm)}
             #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
             #view-schedule #sched-sub-targets .rr-tgt-13w-head{
-              display:flex;align-items:center;justify-content:space-between;
+              display:flex;align-items:flex-start;justify-content:space-between;
               gap:var(--s-2);flex-wrap:wrap;
-              margin:8px 0 14px 0;
+              margin:2px 0 16px 0;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w-title{
               display:flex;align-items:baseline;gap:var(--s-2-5);
-              font-size:var(--fs-lg);font-weight:700;color:var(--text);
-              letter-spacing:-.01em;line-height:1.2;
+              font-size:var(--fs-xl);font-weight:700;color:var(--text);
+              letter-spacing:-.015em;line-height:1.2;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w-badge{
               font-size:10px;font-weight:500;color:var(--text-subtle);
@@ -18927,7 +18927,8 @@ body.rr-cmdk-open{ overflow:hidden }
               letter-spacing:0;text-transform:none;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w-sub{
-              display:none;
+              display:block;margin:5px 0 0;
+              font-size:var(--fs-sm);color:var(--text-muted);line-height:1.4;
             }
             /* Sim avail annotation under each week's Available cell · only
                rendered after the simulate run completes. Placed inline so
@@ -18957,54 +18958,99 @@ body.rr-cmdk-open{ overflow:hidden }
                minimum line-height that still keeps the route input
                + status pill readable. Scoped to the Targets host so
                the standalone #view-okami page keeps its airier layout. */
+            /* Column headers · light floating labels above the cards (no
+               fill, no rule) — they read as captions, not a table header. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table thead th{
-              background:transparent;
-              border-bottom:1px solid rgba(15,23,42,.12);
-              color:#334155;font-weight:600;
-              padding:11px 16px;font-size:11px;letter-spacing:.04em;
+              background:transparent !important;
+              border:0 !important;
+              color:var(--text-subtle);font-weight:600;
+              padding:0 18px 12px;font-size:11px;letter-spacing:.05em;
+              text-transform:uppercase;
             }
-            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody td{
-              border-bottom:1px solid rgba(15,23,42,.05);
-              padding:10px 16px;font-size:var(--fs-sm);line-height:1.3;
+            /* Card rows · the table becomes a stack of soft planning cards.
+               border-spacing supplies the gaps; each visible cell shares the
+               top/bottom border and the first + Gap (last visible) cells
+               round the ends. Higher specificity + !important overrides the
+               global injected okami style, Targets-scoped only. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table{
+              border-collapse:separate !important;border-spacing:0 10px;
+              width:100%;background:transparent;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail) > td{
+              background:#FFFFFF !important;
+              border-top:1px solid #ECEFF3 !important;
+              border-bottom:1px solid #ECEFF3 !important;
+              border-left:0;border-right:0;
+              padding:11px 18px;font-size:var(--fs-sm);line-height:1.3;
               vertical-align:middle;
+              transition:border-color .12s ease, background-color .12s ease;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail) > td:first-child{
+              border-left:1px solid #ECEFF3 !important;
+              border-top-left-radius:12px;border-bottom-left-radius:12px;
+            }
+            /* Gap is the last VISIBLE column (cols 6-8 are display:none). */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail) > td:nth-child(5){
+              border-right:1px solid #ECEFF3 !important;
+              border-top-right-radius:12px;border-bottom-right-radius:12px;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail):hover > td{
+              border-color:#D7DCE3 !important;background:#FCFCFD !important;
+            }
+            /* Expanded daily-detail row · blends in (it's sub-content, not a card). */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr.okami-detail > td{
+              background:transparent !important;border:0 !important;padding:0 6px;
             }
             /* Week label · keep the W## visible but inline the dates
                on the same line so each row only takes one text line. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-week-label{
-              font-size:var(--fs-sm);font-weight:700;display:inline-block;
-              vertical-align:middle;margin-right:6px;
+              font-size:var(--fs-md);font-weight:700;color:var(--text);display:inline-block;
+              vertical-align:middle;margin-right:8px;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-week-dates{
-              font-size:11px;color:var(--text-subtle);display:inline-block;
+              font-size:var(--fs-sm);color:var(--text-subtle);display:inline-block;
               vertical-align:middle;margin:0;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-week-tag{
               font-size:9px;padding:1px 4px;margin-top:0;margin-left:4px;
               vertical-align:middle;
             }
-            /* Routes (max) · the page's primary editable field — give it a
-               defined box + bolder value so it reads as the interaction
-               point, distinct from the read-only calc values beside it. */
+            /* Routes (max) · the primary control in each row — a RouteReady
+               pill the same height as the toolbar controls, centered value. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-route-input{
-              width:60px;padding:5px 8px;font-size:var(--fs-md);font-weight:700;
-              text-align:center;border-radius:7px;
-              border:1.5px solid rgba(15,23,42,.18);background:#FFFFFF;color:var(--text);
+              width:78px;height:38px;padding:0 12px;
+              font-size:var(--fs-md);font-weight:600;text-align:center;
+              border-radius:8px;border:1px solid #D7DCE3;
+              background:#FFFFFF;color:var(--text);
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-route-input:hover{
-              border-color:rgba(15,23,42,.30);
+              border-color:#B8C0CC;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-route-input:focus{
               outline:none;border-color:var(--accent);
               box-shadow:0 0 0 3px rgba(37,99,235,.12);
             }
+            /* Drivers needed / Available · clean, bold operational figures. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-calc{
-              font-size:var(--fs-md);line-height:1.2;
+              font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.2;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-calc-sub{
               font-size:10px;color:var(--text-subtle);margin-top:0;line-height:1.2;
             }
+            /* Gap · soft status pill (restrained red / green); the sign class
+               comes from the render. Overrides the global injected
+               `.plan-gap{color:muted!important}` via higher specificity. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap{
-              font-size:var(--fs-md);font-weight:700;
+              display:inline-flex;align-items:center;justify-content:center;
+              min-width:46px;padding:5px 12px;border-radius:999px;
+              font-size:var(--fs-sm);font-weight:700;
+              font-variant-numeric:tabular-nums;line-height:1;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-neg{
+              background:#FEEEEE !important;color:#B91C1C !important;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-pos{
+              background:#EDF8F0 !important;color:#065F46 !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .strategy-pills{
               gap:2px;

@@ -31066,6 +31066,10 @@ function _okamiRecomputeFromCache(padPct) {
     if (gapEl) {
       gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
       gapEl.classList.remove("ok", "warn", "bad");
+      // Sign class drives the soft red / green gap pill on the Targets page
+      // (scoped CSS; the standalone OKAMI page leaves the gap unstyled).
+      gapEl.classList.toggle("rr-tgt-gap-neg", gap < 0);
+      gapEl.classList.toggle("rr-tgt-gap-pos", gap >= 0);
     }
   }
 }
@@ -31211,6 +31215,10 @@ async function _renderOkamiLiveImpl() {
     if (gapEl) {
       gapEl.textContent = (gap >= 0 ? "+" : "") + gap;
       gapEl.classList.remove("ok", "warn", "bad");
+      // Sign class drives the soft red / green gap pill on the Targets page
+      // (scoped CSS; the standalone OKAMI page leaves the gap unstyled).
+      gapEl.classList.toggle("rr-tgt-gap-neg", gap < 0);
+      gapEl.classList.toggle("rr-tgt-gap-pos", gap >= 0);
     }
 
     const stratEl = tdCells[5]?.querySelector(".strategy-pills");
