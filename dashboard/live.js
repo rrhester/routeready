@@ -2960,7 +2960,7 @@ window.goto = function (view) {
   }
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadTodayPlan(); _toFetchPendingCount(); }
-  if (view === "messages")  loadDriverChatInbox();
+  if (view === "messages")  { _msgInboxTab = "drivers"; _msgInboxMode = "direct"; _msgSyncTabStrip("drivers"); loadDriverChatInbox(); }
   if (view === "workspaces") loadWorkspacesView();
   if (view === "forms")     loadFormsList();
   if (view === "admin")     { loadPlatformAdmin(); loadAdminSupportInbox(); }
@@ -25539,11 +25539,45 @@ let _msgInboxList = [];
 let _msgInboxSelectedId = null;
 let _msgInboxListTimer = null;
 let _msgInboxThreadTimer = null;
+// Active inbox segment — splits the list into Drivers (driver-ops chats),
+// HR (people / employee-relations chats) and Broadcasts (channels).  Pure
+// client-side filtering over the existing inbox + channel data; no schema
+// change.  See _classifyDriverThread / _threadInInboxTab.
+let _msgInboxTab = "drivers"; // "drivers" | "hr" | "broadcasts"
 // Per-compose state for the operator's next outbound dispatch message:
 // priority (normal/high/urgent) and whether driver must acknowledge.
 // Reset to defaults after each send so an "urgent" doesn't stick around.
 let _dispatchPriority    = "normal";
 let _dispatchRequiresAck = false;
+
+// ── Inbox segmentation (Drivers / HR / Broadcasts) ─────────────────
+// RouteReady's message schema has no per-conversation category, so the
+// Drivers ↔ HR split is derived client-side from the latest message text —
+// the same content bucketing Gmail's inbox tabs use.  Deliberately
+// conservative: a thread only lands in HR on a strong people-ops keyword
+// hit (PTO, availability, coaching, recognition, hiring, employee
+// relations…); everything else stays in the primary Drivers inbox so no
+// operational chatter is ever hidden from dispatch.  Broadcasts is a
+// separate surface (channels), handled by refreshChannelList.  Tune the
+// keyword set here — nothing else needs to change.
+const _RR_HR_KEYWORDS = /\b(pto|time[\s-]?off|vacation|sick[\s-]?(?:day|leave|call)|availability|coach(?:ing|ed|es)?|recogni[sz]\w*|kudos|shout[\s-]?out|hiring|interview|offer\s+letter|onboarding|employee\s+relations|grievance|disciplin\w*|write[\s-]?up|benefits|payroll)\b/i;
+function _classifyDriverThread(t) {
+  const body = (t && t.last_message && t.last_message.body) || "";
+  return _RR_HR_KEYWORDS.test(body) ? "hr" : "drivers";
+}
+function _threadInInboxTab(t) {
+  if (_msgInboxTab === "hr") return _classifyDriverThread(t) === "hr";
+  return _classifyDriverThread(t) !== "hr"; // "drivers" = everything not HR
+}
+// Reflect the active tab id onto the strip buttons (active class + aria),
+// without triggering a data load.
+function _msgSyncTabStrip(tab) {
+  document.querySelectorAll(".msg-list-tab").forEach((b) => {
+    const on = (b.dataset.tab || b.textContent || "").trim().toLowerCase() === tab;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+}
 
 async function loadDriverChatInbox() {
   // Kick a presence load in parallel so the chat head's App status /
@@ -25733,6 +25767,12 @@ async function refreshDriverChatList(autoSelect) {
     if (a.last_at) return -1;
     return (a.name || "").localeCompare(b.name || "");
   });
+  // Segment the inbox for the active tab.  Drivers (default) shows
+  // everything that isn't people-ops; HR shows the people-ops subset.  The
+  // full _msgInboxList stays intact for the AI / analytics helpers that
+  // read it elsewhere.
+  const tabList = _msgInboxList.filter(_threadInInboxTab);
+  const showSupport = _msgInboxTab === "drivers";
   const fmtRelative = (iso) => {
     if (!iso) return "—";
     const d = new Date(iso);
@@ -25757,13 +25797,13 @@ async function refreshDriverChatList(autoSelect) {
     : "We’re here to help with anything operational — open this to start the conversation.";
   const supLastTrunc = supLastBody.length > 60 ? supLastBody.slice(0, 57) + "…" : supLastBody;
   const supActive = _msgInboxSelectedId === "__support__";
-  const supportRow = `<div class="msg-item ${supActive ? "active" : ""}" data-rr-support-thread style="border-bottom:1px solid var(--border)">
+  const supportRow = showSupport ? `<div class="msg-item ${supActive ? "active" : ""}" data-rr-support-thread style="border-bottom:1px solid var(--border)">
       <div class="msg-item-avatar"><div class="avatar-sm" data-rr-no-photo="1" style="background:var(--accent);color:#fff;font-weight:700;border-radius:8px" aria-hidden="true">R</div></div>
       <div><div class="msg-item-name">RouteReady Support<span style="margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-text);text-transform:uppercase;vertical-align:1px">Support</span></div><div class="msg-item-preview">${escapeHtml(supLastTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(supLastAt ? fmtRelative(supLastAt) : "")}</div>${supUnread > 0 ? `<div class="msg-item-unread">${supUnread}</div>` : ""}</div>
-    </div>`;
+    </div>` : "";
 
-  list.innerHTML = supportRow + _msgInboxList.map((t) => {
+  const rows = tabList.map((t) => {
     const initials = (t.name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
     const lastBody = t.last_message?.body
       ? (t.last_message.sender_kind === "dispatch" ? "You: " : "") + t.last_message.body
@@ -25776,6 +25816,10 @@ async function refreshDriverChatList(autoSelect) {
       <div><div class="msg-item-time">${escapeHtml(fmtRelative(t.last_at))}</div>${t.unread > 0 ? `<div class="msg-item-unread">${t.unread}</div>` : ""}</div>
     </div>`;
   }).join("");
+  const emptyState = (!showSupport && tabList.length === 0)
+    ? `<div class="rr-empty-inline">No HR conversations in this view yet.</div>`
+    : "";
+  list.innerHTML = supportRow + rows + emptyState;
   // Paint the green dot after the rows mount.  Presence state may have
   // already populated by the time the list first renders.
   _presencePaintList();
@@ -25798,9 +25842,9 @@ async function refreshDriverChatList(autoSelect) {
   // Auto-open the support thread if there's an unread support reply and
   // nothing else is selected; otherwise the first unread driver chat.
   if (autoSelect && !_msgInboxSelectedId) {
-    if (supUnread > 0) openSupportThread();
-    else if (_msgInboxList.length > 0) {
-      const target = _msgInboxList.find(t => t.unread > 0) || _msgInboxList[0];
+    if (showSupport && supUnread > 0) openSupportThread();
+    else if (tabList.length > 0) {
+      const target = tabList.find(t => t.unread > 0) || tabList[0];
       openDriverChatThread(target.driver_id);
     }
   }
@@ -26887,36 +26931,51 @@ let _msgChannelSelectedId = null;
 let _msgChannelListTimer  = null;
 let _msgChannelThreadTimer = null;
 
-// Override the static msgListTab handler so clicking Channels actually
-// loads channel data.  All / Direct / Broadcasts still fall through to
-// the existing driver-chat list for now.
+// Override the static msgListTab handler.  Three inbox segments:
+//   Drivers     → driver-ops direct chats          (direct mode, non-HR)
+//   HR          → people / employee-relations chats (direct mode, HR only)
+//   Broadcasts  → station / group channels          (channels mode)
+// Drivers and HR share the "direct" data source, so flipping between them
+// just re-filters the list in place (no timer churn).  Only crossing the
+// direct ⇆ channels boundary swaps the list source + its polling timer.
 window.msgListTab = function (btn) {
-  document.querySelectorAll(".msg-list-tab").forEach(b => b.classList.remove("active"));
-  btn.classList.add("active");
-  const label = (btn.textContent || "").trim().toLowerCase();
-  const mode = label === "channels" ? "channels" : "direct";
-  if (mode === _msgInboxMode) return;
-  _msgInboxMode = mode;
-  // Drop any open thread when switching modes — the conv pane would
-  // render the wrong shape otherwise.
+  const label = (btn.dataset.tab || btn.textContent || "").trim().toLowerCase();
+  const tab = label === "hr" ? "hr" : label === "broadcasts" ? "broadcasts" : "drivers";
+  _msgSyncTabStrip(tab);
+  if (tab === _msgInboxTab) return;
+  _msgInboxTab = tab;
+  const mode = tab === "broadcasts" ? "channels" : "direct";
+
+  // A new tab means the open conversation may no longer be in view — drop
+  // the selection and reset the conversation pane to its empty prompt.
   _msgInboxSelectedId  = null;
   _msgChannelSelectedId = null;
-  // Stop EVERY mode-specific timer before starting the new one.  The
-  // direct-chat list timer was previously left running when the operator
-  // switched to Channels, so 8 seconds later it overwrote the list with
-  // direct chats and bounced them out of the Channels view.
-  if (_msgInboxThreadTimer)   { clearInterval(_msgInboxThreadTimer);   _msgInboxThreadTimer = null; }
-  if (_msgChannelThreadTimer) { clearInterval(_msgChannelThreadTimer); _msgChannelThreadTimer = null; }
-  if (_msgInboxListTimer)     { clearInterval(_msgInboxListTimer);     _msgInboxListTimer = null; }
-  if (_msgChannelListTimer)   { clearInterval(_msgChannelListTimer);   _msgChannelListTimer = null; }
   const conv = document.getElementById("rr-msg-conv");
   if (conv) {
     conv.innerHTML = `<div style="margin:auto;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);padding:40px">${
-      mode === "channels" ? "Pick a channel from the list — or create one." : "Pick a driver from the list to open their thread."
+      tab === "broadcasts" ? "Pick a broadcast channel from the list — or create one."
+      : tab === "hr"       ? "Pick an HR conversation from the list to open the thread."
+      :                      "Pick a driver from the list to open their thread."
     }</div>`;
     delete conv.dataset.rrDriverId;
     delete conv.dataset.rrChannelId;
   }
+
+  // Drivers ⇄ HR — same direct inbox, just re-filter in place.  Leave the
+  // list poll running so we don't churn timers on every tab tap.
+  if (mode === "direct" && _msgInboxMode === "direct") {
+    refreshDriverChatList(true);
+    return;
+  }
+
+  // Crossing direct ⇆ channels — flip the mode and swap the polling timers.
+  // Stop EVERY mode-specific timer before starting the new one so a stale
+  // poll can't overwrite the list 8s later and bounce the operator out.
+  _msgInboxMode = mode;
+  if (_msgInboxThreadTimer)   { clearInterval(_msgInboxThreadTimer);   _msgInboxThreadTimer = null; }
+  if (_msgChannelThreadTimer) { clearInterval(_msgChannelThreadTimer); _msgChannelThreadTimer = null; }
+  if (_msgInboxListTimer)     { clearInterval(_msgInboxListTimer);     _msgInboxListTimer = null; }
+  if (_msgChannelListTimer)   { clearInterval(_msgChannelListTimer);   _msgChannelListTimer = null; }
   if (mode === "channels") {
     refreshChannelList(true);
     _msgChannelListTimer = setInterval(() => {
@@ -26929,7 +26988,7 @@ window.msgListTab = function (btn) {
   } else {
     // loadDriverChatInbox restores both the list and its 8-second poll.
     // Without re-arming the poll, the direct list would never refresh
-    // again after the operator's first Channels → Direct round-trip.
+    // again after the operator's first Broadcasts → direct round-trip.
     loadDriverChatInbox();
   }
 };
