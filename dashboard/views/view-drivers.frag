@@ -154,10 +154,8 @@
         <div class="rr-roster-toolbar" id="rr-roster-toolbar" data-rr-no-drawer>
           <div class="rr-roster-toolbar-search"></div>
           <div class="rr-roster-toolbar-actions">
-            <button type="button" class="rr-roster-status-filter-btn" data-rr-roster-status-filter data-rr-no-drawer aria-haspopup="menu" aria-expanded="false" title="Filter by status">
-              <span class="rr-roster-status-filter-label">Active</span>
-              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
+            <!-- Status filter moved into the top KPI strip (the Active-drivers
+                 pill is now the status filter); the far-right filter is gone. -->
             <!-- This is the PORTABLE Add-driver (travels with #dr-sub-roster into
                  the Schedule/Onboarding embeds — the page-header copy does not).
                  With the standalone Drivers page retired from navigation
