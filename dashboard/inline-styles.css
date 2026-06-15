@@ -1497,10 +1497,10 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* ── Driver Roster polish · restraint over decoration; borders use the
    sidebar navy family at low opacity. ─────────────────────────────────── */
 /* Risk · small muted status dot (replaces the saturated flag). */
-.rr-risk-dot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle}
-.rr-risk-dot.rr-risk-high{background:rgba(220,38,38,.55)}
-.rr-risk-dot.rr-risk-med{background:rgba(180,131,9,.6)}
-.rr-risk-dot.rr-risk-low{background:rgba(15,23,42,.20)}
+.rr-risk-dot{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:middle}
+.rr-risk-dot.rr-risk-high{background:rgba(220,38,38,.48)}
+.rr-risk-dot.rr-risk-med{background:rgba(180,131,9,.5)}
+.rr-risk-dot.rr-risk-low{background:rgba(15,23,42,.16)}
 /* Status pills · white fill, thin navy border, colour in the text only
    (green reserved for Active) — one consistent treatment. */
 #view-drivers .status-pill.rr-dstatus-active{background:#fff;color:#16A34A;border-color:rgba(15,23,42,.16)}
@@ -13195,8 +13195,8 @@ body.rr-cmdk-open{ overflow:hidden }
              accent. rgba(37,99,235,.08) is the Schedule's --accent-soft. */
           #dr-sub-roster .table tbody tr:hover,
           #dr-sub-roster .table-clickable tbody tr:hover{
-            background:rgba(37,99,235, 0.08) !important;
-            box-shadow:inset 3px 0 0 #2563EB !important;
+            background:rgba(37,99,235, 0.05) !important;
+            box-shadow:inset 3px 0 0 rgba(37,99,235,.6) !important;
           }
 
           /* Density modes · Standard / Compact / Ultra-compact.
@@ -13467,7 +13467,7 @@ body.rr-cmdk-open{ overflow:hidden }
             /* Match the Targets week-row height (operator) — taller rows so the
                driver list reads at the same rhythm as the 13-week plan table
                (.okami-table rows). */
-            padding-top:var(--s-4);padding-bottom:var(--s-4);border-bottom-color:rgba(15,23,42,.07);
+            padding-top:var(--s-4);padding-bottom:var(--s-4);border-bottom-color:rgba(15,23,42,.05);
           }
           /* Driver identity · match Schedule's .cal-row-label-name exactly
              (13px / 600 / 1.2) so the driver name carries the same weight

@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=5b71e492f390";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=5b71e492f390";
+import { planScheduleWeek } from "./scheduling-engine.js?v=be1ae4f25cc2";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=be1ae4f25cc2";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -20713,11 +20713,23 @@ async function openDriverDrawer(driverId, opts) {
         transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1);
       }
       #rr-dd-drawer.rr-dd-inline.rr-dd-open #rr-dd-panel{transform:translateX(0)}
-      /* Compact summary header — smaller avatar, tighter padding, and the
-         same surface tint as the roster table header. */
-      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-3-5) 20px;background:var(--surface);border-bottom:1px solid var(--border)}
-      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-base)}
-      #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:40px!important;height:40px!important;font-size:var(--fs-md)!important}
+      /* Profile header — generous breathing room, a strong name anchor, and
+         quiet metadata (Schedule design standard). */
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-4) 20px var(--s-3);background:var(--surface);border-bottom:0}
+      #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:var(--s-3)}
+      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em}
+      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:4px}
+      #rr-dd-drawer.rr-dd-inline .dd-meta-sub{margin-top:2px;opacity:.85}
+      #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:42px!important;height:42px!important;font-size:var(--fs-md)!important}
+      /* Quiet KPI row under the profile header — small labels + slightly
+         stronger values, thin vertical dividers. No cards / shadows / icons /
+         colored fills, mirroring the Schedule KPI treatment. */
+      #rr-dd-drawer.rr-dd-inline .dd-kpis{display:flex;align-items:center;flex-wrap:wrap;padding:11px 20px;border-bottom:1px solid var(--border-subtle)}
+      #rr-dd-drawer .dd-kpi{display:flex;flex-direction:column;gap:2px;padding:0 16px;border-left:1px solid var(--border-subtle)}
+      #rr-dd-drawer .dd-kpi:first-child{border-left:0;padding-left:0}
+      #rr-dd-drawer .dd-kpi-label{font-size:var(--fs-xs);color:var(--text-subtle);letter-spacing:.02em;white-space:nowrap}
+      #rr-dd-drawer .dd-kpi-val{font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap}
+      #rr-dd-drawer .dd-kpis:empty{display:none}
       #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-tab-note{margin:8px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-body{padding:18px 20px}
@@ -20748,11 +20760,11 @@ async function openDriverDrawer(driverId, opts) {
       .dd-act{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer;line-height:1;white-space:nowrap;transition:color var(--t-fast),border-color .12s,background .12s}
       .dd-act:hover{color:var(--text);border-color:var(--text-subtle);background:var(--canvas)}
       .dd-act svg{flex:0 0 auto}
-      .dd-tabs{display:flex;gap:4px;background:transparent;padding:0;border-bottom:1px solid var(--border);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
+      .dd-tabs{display:flex;gap:var(--s-1);background:transparent;padding:0;border-bottom:1px solid var(--border-subtle);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
       .dd-tabs::-webkit-scrollbar{display:none}
-      .dd-tab{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:var(--s-2) 10px;cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast);white-space:nowrap}
+      .dd-tab{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-subtle);padding:var(--s-2-5) 12px;cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast);white-space:nowrap}
       .dd-tab:hover{color:var(--text)}
-      .dd-tab.active{background:transparent;color:var(--accent-text);border-bottom-color:var(--accent);box-shadow:none}
+      .dd-tab.active{background:transparent;color:var(--text);font-weight:600;border-bottom-color:var(--accent);box-shadow:none}
       .dd-tab-note{margin:9px 28px 0;font-size:var(--fs-xs);color:var(--text-subtle);display:none;align-items:center;gap:6px}
       .dd-tab-note .dn-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
       .dd-tab-note.show{display:flex}
@@ -20826,6 +20838,9 @@ async function openDriverDrawer(driverId, opts) {
           <button type="button" id="rr-dd-close" class="dd-act" data-rr-dd-close aria-label="Close record"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Close</button>
         </div>
       </div>
+      <!-- Quiet KPI row under the profile header (Attendance · Risk · Tenure ·
+           Last event) — populated in loadDriverDrawer. -->
+      <div class="dd-kpis" id="rr-dd-kpis"></div>
       <!-- Tabs grouped by what they hold: identity → employment record →
            credentials → availability → docs → attendance history.
            Overview + Activity were dashboard-flavored and are dropped —
@@ -21022,6 +21037,27 @@ async function loadDriverDrawer(driverId) {
     sub2El.textContent = daysSinceHire == null
       ? "Hire date not set"
       : daysSinceHire === 0 ? "Hired today" : `Hired ${daysSinceHire} day${daysSinceHire === 1 ? "" : "s"} ago`;
+  }
+
+  // Quiet KPI row under the header · Attendance · Risk · Tenure · Last event.
+  const ddKpis = document.getElementById("rr-dd-kpis");
+  if (ddKpis) {
+    const riskLevel = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(drv.id) : null;
+    const riskStr = riskLevel === "atrisk" ? "At risk" : riskLevel === "watch" ? "Watch" : "Clear";
+    const pts = (_rosterAttPoints && _rosterAttPoints.get) ? _rosterAttPoints.get(drv.id) : null;
+    const attStr = (pts == null) ? "—" : `${pts} pt${pts === 1 ? "" : "s"}`;
+    const tenureStr = daysSinceHire == null ? "—"
+      : daysSinceHire < 30 ? `${daysSinceHire}d`
+      : `${Math.round(daysSinceHire / 30)} mo`;
+    const coachings = Array.isArray(data.coachings) ? data.coachings : [];
+    const lastEv = coachings.length
+      ? coachings.slice().sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at))[0]
+      : null;
+    const lastStr = lastEv
+      ? (typeof _relTimeAgo === "function" ? _relTimeAgo(lastEv.occurred_at) : "Recent")
+      : "None";
+    const kpi = (label, val) => `<div class="dd-kpi"><span class="dd-kpi-label">${label}</span><span class="dd-kpi-val">${escapeHtml(String(val))}</span></div>`;
+    ddKpis.innerHTML = kpi("Attendance", attStr) + kpi("Risk", riskStr) + kpi("Tenure", tenureStr) + kpi("Last event", lastStr);
   }
 
   // Avatar in the drawer header — initials by default; the photo
