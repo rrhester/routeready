@@ -8039,18 +8039,22 @@ body.rr-cmdk-open{ overflow:hidden }
    scrolls internally instead, which keeps the roster column header and the
    record card header/tabs pinned in place. */
 .roster-split{display:flex;gap:var(--s-4);align-items:stretch;overflow:hidden;max-height:calc(100vh - 360px)}
-.roster-split-list{flex:1 1 58%;min-width:0;min-height:0;display:flex;flex-direction:column}
+.roster-split-list{flex:1 1 100%;min-width:0;min-height:0;display:flex;flex-direction:column}
+/* When a record is docked the list condenses to ~58% beside the card. */
+.roster-split.has-record .roster-split-list{flex:1 1 58%}
 /* The table-wrap fills the list pane and scrolls internally (override its
    own inline max-height so the split's cap governs the height). */
 .roster-split-list .table-wrap{flex:1;min-height:0;max-height:none !important;overflow:auto}
 /* Roster column header stays pinned while the rows scroll under it. */
 .roster-split #rr-roster-table-wrap thead th{position:sticky;top:0;z-index:3}
-/* Persistent master–detail: the record pane is ALWAYS present so it never
-   collapses; the roster list condenses to ~58% alongside it. */
+/* The record pane is hidden until a driver row is clicked — the roster list
+   fills the full width. Clicking a row docks the record (mount gets
+   .is-filled, the split gets .has-record) and the card emerges alongside. */
 #driver-record-mount{
-  display:flex;flex-direction:column;flex:0 0 42%;min-width:340px;min-height:0;
+  display:none;flex-direction:column;flex:0 0 42%;min-width:340px;min-height:0;
   container-type:inline-size;
 }
+#driver-record-mount.is-filled{display:flex}
 /* "Select a driver" placeholder — shown until a record is docked. */
 #rr-dd-empty{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -13497,7 +13501,11 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Active status reads in black, not green, in the roster STATUS
              column (operator request). Scoped to the roster table so the KPI
              dashboard / onboarding "active = green" status pills are unchanged. */
-          #dr-sub-roster .status-pill.rr-dstatus-active{color:var(--text)}
+          /* Active status reads black, not green, on the roster status button
+             — keyed on .rr-status-trigger (only the clickable roster pills carry
+             it) so it applies in the Drivers view AND the Schedule / Onboarding
+             embeds, while the KPI dashboard's bare status pills stay green. */
+          .rr-status-trigger.rr-dstatus-active{color:var(--text) !important}
           /* Driver identity · match Schedule's .cal-row-label exactly so the
              roster cell reads as the same component language: name at
              fs-md / 700 / 1.25 / -.005em (cal-row-label-name), phone/email

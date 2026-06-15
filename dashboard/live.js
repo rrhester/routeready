@@ -5063,6 +5063,10 @@ window.addEventListener("resize", () => { try { _rrSizeRosterSplit(); } catch (_
 // in-session close.
 let _rrLastDriverRestored = false;
 function _rrMaybeRestoreLastDriver(rows) {
+  // The record card is hidden by default now — it only opens on an explicit
+  // row click, so we no longer auto-restore the last-viewed driver.
+  return;
+  // eslint-disable-next-line no-unreachable
   if (_rrLastDriverRestored) return;
   const mount = document.getElementById("driver-record-mount");
   if (!mount || mount.offsetParent === null) return;          // roster pane not visible yet
@@ -14791,14 +14795,15 @@ function renderDriverStatusBadge(s) {
 // metadata line ("DCA1 • Active") so the status keeps its color without a
 // full badge pill (reduces the badge clutter in the header).
 function _rrDriverStatusMeta(s) {
+  // Tints chosen to read on the dark, sidebar-colored record header.
   const map = {
-    onboarding: { label: "Onboarding", color: "#2563EB" },
-    active:     { label: "Active",     color: "#188038" },
-    leave:      { label: "On leave",   color: "var(--amber)" },
-    inactive:   { label: "Inactive",   color: "var(--text-subtle)" },
-    terminated: { label: "Terminated", color: "var(--red)" },
+    onboarding: { label: "Onboarding", color: "#60A5FA" },
+    active:     { label: "Active",     color: "#4ADE80" },
+    leave:      { label: "On leave",   color: "#FBBF24" },
+    inactive:   { label: "Inactive",   color: "#94A3B8" },
+    terminated: { label: "Terminated", color: "#F87171" },
   };
-  return map[s] || { label: s ? String(s) : "—", color: "var(--text-muted)" };
+  return map[s] || { label: s ? String(s) : "—", color: "#94A3B8" };
 }
 
 // Roster turnover window — operator can switch via the small clock
@@ -20860,17 +20865,19 @@ async function openDriverDrawer(driverId, opts) {
          page scrollbar. Only the panel body scrolls internally. */
       #rr-dd-drawer.rr-dd-inline #rr-dd-panel{
         width:100%;max-width:none;height:auto;flex:1;min-height:0;
-        border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-md);
+        border:1px solid var(--sidebar);border-radius:var(--r-lg);box-shadow:var(--shadow-md);
         transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1);
       }
       #rr-dd-drawer.rr-dd-inline.rr-dd-open #rr-dd-panel{transform:translateX(0)}
-      /* Record header — a compact, calm HR identity band: light gray, a
-         strong name anchor, and quiet "STATION • Status" metadata. No KPIs. */
-      #rr-dd-drawer.rr-dd-inline .dd-head{padding:18px 20px;background:#F8FAFC;border-bottom:1px solid var(--border)}
+      /* Record header — a sidebar-colored identity band (dark), a strong white
+         name anchor, and quiet light metadata. Header + card border share the
+         sidebar color so the card matches the other popouts. */
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:18px 20px;background:var(--sidebar);border-bottom:0}
       #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:13px}
-      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:19px;font-weight:700;letter-spacing:-.01em}
-      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:4px}
-      #rr-dd-drawer.rr-dd-inline .dd-meta-sub{display:inline-flex;align-items:center;gap:5px;margin-top:4px;color:var(--text-subtle);opacity:1}
+      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:19px;font-weight:700;letter-spacing:-.01em;color:#fff}
+      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--sidebar-ink-idle);margin-top:4px}
+      #rr-dd-drawer.rr-dd-inline .dd-meta-sub{display:inline-flex;align-items:center;gap:5px;margin-top:4px;color:var(--sidebar-ink-idle);opacity:1}
+      #rr-dd-drawer.rr-dd-inline .dd-meta-sub svg{color:var(--sidebar-ink-idle)}
       #rr-dd-drawer .dd-meta-sub svg{width:13px;height:13px;flex:0 0 auto;color:var(--text-disabled)}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:42px!important;height:42px!important;font-size:var(--fs-md)!important}
       /* Quiet KPI row under the profile header — small labels + slightly
