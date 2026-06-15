@@ -154,14 +154,12 @@
         <div class="rr-roster-toolbar" id="rr-roster-toolbar" data-rr-no-drawer>
           <div class="rr-roster-toolbar-search"></div>
           <div class="rr-roster-toolbar-actions">
-            <!-- Status filter moved into the top KPI strip (the Active-drivers
-                 pill is now the status filter); the far-right filter is gone. -->
-            <!-- This is the PORTABLE Add-driver (travels with #dr-sub-roster into
-                 the Schedule/Onboarding embeds — the page-header copy does not).
-                 With the standalone Drivers page retired from navigation
-                 (IA decision: Schedule is the one home), this is the only
-                 Add-driver an operator sees. -->
-            <button type="button" class="btn btn-sm" data-rr-roster-add-driver data-rr-no-drawer title="Add a new driver" style="text-transform:none;letter-spacing:normal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add driver</button>
+            <!-- Status filter + Add driver now live in the top KPI strip.
+                 This slot hosts the shared top-right chrome (⋯ overflow /
+                 bell / avatar), relocated here from the Schedule action bar by
+                 _rrMoveChromeToRoster() whenever the Roster sub-view shows, and
+                 returned by _rrReturnChromeHome() on exit. -->
+            <span class="rr-roster-chrome-host" id="rr-roster-chrome-host"></span>
           </div>
         </div>
 

@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=d5986e651fd4";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=d5986e651fd4";
+import { planScheduleWeek } from "./scheduling-engine.js?v=b7f9d72abb4d";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=b7f9d72abb4d";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -14912,10 +14912,10 @@ async function refreshDriverStatRow(rows) {
   const rosterKpisHtml =
     activeFilterPill +
     `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>` +
-    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-dd-coach title="Coach the driver whose record is open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="sched-kpi-val">Coach driver</span></button>` +
-    rosterPill("finalca", finalCaCount > 0 ? "#DC2626" : navy, finalCaLabel, finalCaSub, false, finalCaIcon) +
-    rosterPill("tenured", navy, tenuredLabel, tenuredSub, false) +
-    rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, true);
+    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-dd-coach title="Coach the driver whose record is open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="sched-kpi-val">Coach driver</span></button>`;
+    // Metric pills (Final corrective / >30 days / DL expiring) removed per
+    // operator — the top bar is now status filter + Add/Coach actions, with
+    // the shared ⋯/bell/avatar chrome relocated into the roster toolbar.
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
@@ -32962,6 +32962,22 @@ function _rrReturnChromeHome() {
 window._rrMoveChromeToTargets = _rrMoveChromeToTargets;
 window._rrReturnChromeHome    = _rrReturnChromeHome;
 
+// Same shared chrome (⋯ overflow + bell + avatar), relocated into the roster
+// toolbar when the Schedule-embedded Roster sub-view is showing (operator
+// request). _rrReturnChromeHome() (already called on every exit from the
+// roster sub) puts them back in the Schedule action bar.
+function _rrMoveChromeToRoster() {
+  const host = document.getElementById("rr-roster-chrome-host");
+  if (!host) return;
+  const more = document.querySelector(".rr-ab-more-wrap");
+  const bell = document.getElementById("rr-hdr-notif");
+  const acct = document.getElementById("rr-hdr-avatar-btn");
+  if (more && !host.contains(more)) host.appendChild(more);
+  if (bell && !host.contains(bell)) host.appendChild(bell);
+  if (acct && !host.contains(acct)) host.appendChild(acct);
+}
+window._rrMoveChromeToRoster = _rrMoveChromeToRoster;
+
 // Targets · Wave times / Service types pill dropdowns. Each pill toggles its
 // own menu (closing the other); a click anywhere outside both closes them.
 // The editors inside are the live popover nodes, so their handlers (add/remove
@@ -38205,6 +38221,12 @@ function _schedMountRosterSub(subKey) {
   requestAnimationFrame(function () {
     requestAnimationFrame(_schedSizeEmbeddedRosterTable);
   });
+  // Relocate the shared ⋯/bell/avatar chrome into the roster toolbar so the
+  // Roster shows the same header controls as Schedule. Deferred so the roster
+  // DOM (incl. #rr-roster-chrome-host) is laid out first.
+  if (subKey === "roster") {
+    setTimeout(function () { if (typeof _rrMoveChromeToRoster === "function") _rrMoveChromeToRoster(); }, 0);
+  }
 }
 // Measure the available height below the embedded roster/attendance table
 // and publish it as --rr-embed-table-maxh on #view-schedule. The CSS caps
@@ -38247,6 +38269,9 @@ window._schedRosterKpiActive = function () {
 // and parks #ob-roster-mount back in its Onboarding home so onboarding
 // roster mode finds it where it expects.
 function _schedUnmountRosterSub() {
+  // Always return the shared ⋯/bell/avatar chrome to the Schedule action bar
+  // when leaving the roster sub-view (idempotent — no-op if already home).
+  if (typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
   const mount = document.getElementById("ob-roster-mount");
   if (!mount) return;
   // Only act when the mount is currently borrowed BY a Schedule host —
