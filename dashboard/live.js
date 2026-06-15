@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=a4fc6797bb31";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=a4fc6797bb31";
+import { planScheduleWeek } from "./scheduling-engine.js?v=e29e44c78dc2";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=e29e44c78dc2";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -8823,6 +8823,7 @@ async function _openSeparationReview(driver) {
         <button class="modal-close" data-sep-close aria-label="Cancel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body sep-body" style="overflow:auto;padding:var(--s-4) var(--s-5)">
+        <div id="sep-step-form">
         <p class="sep-intro">Before RouteReady generates separation records, please answer the following. This will also set the driver's status to <strong>Terminated</strong>.</p>
 
         <h4 class="sep-section">Separation Details</h4>
@@ -8865,10 +8866,16 @@ async function _openSeparationReview(driver) {
         </div>
 
         <label class="sep-certify"><input type="checkbox" id="sep-certify"><span>I certify that the information provided above is accurate to the best of my knowledge and based on company records.</span></label>
+        </div>
+        <div id="sep-step-readiness" class="sep-readiness" style="display:none"></div>
       </div>
-      <div class="modal-foot" style="display:flex;justify-content:space-between;align-items:center;gap:var(--s-2)">
+      <div class="modal-foot" id="sep-foot-form" style="display:flex;justify-content:space-between;align-items:center;gap:var(--s-2)">
         <button class="btn btn-sm" data-sep-close>Cancel</button>
-        <button class="btn btn-sm btn-primary" data-sep-generate disabled title="Complete the certification to enable">Generate Packet</button>
+        <button class="btn btn-sm btn-primary" data-sep-readiness-go disabled title="Complete the certification to continue">Review Readiness →</button>
+      </div>
+      <div class="modal-foot" id="sep-foot-readiness" style="display:none;justify-content:space-between;align-items:center;gap:var(--s-2)">
+        <button class="btn btn-sm" data-sep-back>← Back to review</button>
+        <button class="btn btn-sm btn-primary" data-sep-generate>Generate Packet</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
@@ -8881,12 +8888,14 @@ async function _openSeparationReview(driver) {
     } else if (t.name === "sep-meeting") {
       modal.querySelector("#sep-attendees-wrap").style.display = t.value === "Yes" ? "block" : "none";
     } else if (t.id === "sep-certify") {
-      modal.querySelector("[data-sep-generate]").disabled = !t.checked;
+      modal.querySelector("[data-sep-readiness-go]").disabled = !t.checked;
     }
   });
   modal.addEventListener("click", (ev) => {
     if (ev.target === modal || ev.target.closest("[data-sep-close]")) { modal.remove(); return; }
-    if (ev.target.closest("[data-sep-generate]")) { _submitSeparationReview(driver, modal, findings); }
+    if (ev.target.closest("[data-sep-readiness-go]")) { _enterSeparationReadiness(driver, modal, findings); return; }
+    if (ev.target.closest("[data-sep-back]")) { _exitSeparationReadiness(modal); return; }
+    if (ev.target.closest("[data-sep-generate]")) { _generateSeparationPacket(driver, modal, findings); }
   });
 }
 
@@ -8983,7 +8992,10 @@ function _buildSeparationCoverText(driver, sep, findings) {
   return L.join("\n");
 }
 
-async function _submitSeparationReview(driver, modal, findings) {
+// Read + validate the review form. Returns the separation record (with a
+// transient _files array for later upload) or null after toasting what's
+// missing. Shared by the readiness step and packet generation.
+function _gatherSepForm(modal) {
   const radio = (n) => { const el = modal.querySelector(`input[name="${n}"]:checked`); return el ? el.value : ""; };
   const checks = (n) => Array.from(modal.querySelectorAll(`input[name="${n}"]:checked`)).map((e) => e.value);
   const type = radio("sep-type");
@@ -8999,33 +9011,77 @@ async function _submitSeparationReview(driver, modal, findings) {
   if (!reason) missing.push("primary reason");
   if (!statement) missing.push("employer statement");
   if (!certified) missing.push("certification");
-  if (missing.length) { toast("Please complete: " + missing.join(", "), "warn"); return; }
+  if (missing.length) { toast("Please complete: " + missing.join(", "), "warn"); return null; }
 
+  const additional = radio("sep-additional") === "Yes";
+  const files = additional ? Array.from(modal.querySelector("#sep-files").files || []) : [];
+  return {
+    type, effective_date: eff, last_day_worked: last || null, primary_reason: reason,
+    policies_violated: checks("sep-policy"), additional_docs: additional, _files: files, uploaded_docs: [],
+    protected_leave: checks("sep-protected"), consistency: radio("sep-consistency"),
+    statement, meeting_conducted: radio("sep-meeting") === "Yes",
+    meeting_attendees: checks("sep-attendee"), certified: true, certified_at: new Date().toISOString(),
+  };
+}
+
+// Step the modal from the review form into the Separation Readiness
+// Review — runs the analysis and renders the assessment. Non-blocking:
+// the operator can always go Back or Generate the packet from here.
+async function _enterSeparationReadiness(driver, modal, findings) {
+  const sep = _gatherSepForm(modal);
+  if (!sep) return;
+  modal._sepData = sep;
+  const panel = modal.querySelector("#sep-step-readiness");
+  panel.innerHTML = `<div class="rdy-loading">Analyzing employee records…</div>`;
+  modal.querySelector("#sep-step-form").style.display = "none";
+  panel.style.display = "block";
+  modal.querySelector("#sep-foot-form").style.display = "none";
+  modal.querySelector("#sep-foot-readiness").style.display = "flex";
+  const body = modal.querySelector(".sep-body"); if (body) body.scrollTop = 0;
+  let analysis = null;
+  try { analysis = await _separationReadiness(driver, sep); }
+  catch (e) { console.warn("readiness analysis failed:", e); }
+  modal._sepAnalysis = analysis;
+  panel.innerHTML = analysis ? _renderSeparationReadiness(analysis)
+    : `<div class="rdy-loading">The readiness analysis is unavailable, but you can still generate the packet.</div>`;
+}
+
+// Step back from the readiness review to the editable form.
+function _exitSeparationReadiness(modal) {
+  modal.querySelector("#sep-step-readiness").style.display = "none";
+  modal.querySelector("#sep-step-form").style.display = "block";
+  modal.querySelector("#sep-foot-readiness").style.display = "none";
+  modal.querySelector("#sep-foot-form").style.display = "flex";
+  const body = modal.querySelector(".sep-body"); if (body) body.scrollTop = 0;
+}
+
+// Final action: persist the separation, attach a readiness snapshot to the
+// record, and generate the packet. The packet output itself is unchanged —
+// the readiness assessment is advisory and kept on the employee record only.
+async function _generateSeparationPacket(driver, modal, findings) {
+  const sep = modal._sepData || _gatherSepForm(modal);
+  if (!sep) { toast("Please complete the review first", "warn"); return; }
   const btn = modal.querySelector("[data-sep-generate]");
   if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
   try {
-    const additional = radio("sep-additional") === "Yes";
-    const files = additional ? Array.from(modal.querySelector("#sep-files").files || []) : [];
+    const files = sep._files || [];
     const uploaded = files.length ? await _uploadSeparationFiles(driver, files) : [];
-    const sep = {
-      type, effective_date: eff, last_day_worked: last || null, primary_reason: reason,
-      policies_violated: checks("sep-policy"), additional_docs: additional, uploaded_docs: uploaded,
-      protected_leave: checks("sep-protected"), consistency: radio("sep-consistency"),
-      statement, meeting_conducted: radio("sep-meeting") === "Yes",
-      meeting_attendees: checks("sep-attendee"), certified: true, certified_at: new Date().toISOString(),
-    };
+    const sepRec = Object.assign({}, sep, { uploaded_docs: uploaded });
+    delete sepRec._files;
     const meta = Object.assign({}, driver.metadata || {});
-    meta.separation = sep;
-    meta.separation_date = eff;
-    meta.separation_note = statement;
-    meta.last_day_worked = last || null;
+    meta.separation = sepRec;
+    meta.separation_date = sepRec.effective_date;
+    meta.separation_note = sepRec.statement;
+    meta.last_day_worked = sepRec.last_day_worked;
+    const snap = _readinessSnapshot(modal._sepAnalysis);
+    if (snap) meta.separation_readiness = snap;
     const { error: upErr } = await sb.from("drivers").update({ status: "terminated", metadata: meta }).eq("id", driver.id);
     if (upErr) throw upErr;
     driver.status = "terminated"; driver.metadata = meta;
 
     const data = await _fetchTerminationReportData(driver);
     const packet = [
-      _buildSeparationCoverText(driver, sep, findings), "\f",
+      _buildSeparationCoverText(driver, sepRec, findings), "\f",
       _buildUnemploymentReportText(driver, data), "\f",
       _buildAttendanceReportText(driver, data),
     ].join("\n");
@@ -9047,6 +9103,371 @@ async function _submitSeparationReview(driver, modal, findings) {
     toast("Could not complete separation: " + (e.message || ""), "error");
     if (btn) { btn.disabled = false; btn.textContent = "Generate Packet"; }
   }
+}
+
+// ── Separation Readiness Review · intelligence layer ────────────────
+// Sits between the review form and packet generation. It reads every
+// record already in RouteReady, scores the strength of the supporting
+// documentation against the selected reason, flags contradictions /
+// risks / a timeline, and lets the DSP proceed with full context. It is
+// advisory only — it never blocks or alters the separation itself.
+
+// Protected-status selections that count as a real protected activity
+// (everything in _SEP_PROTECTED except the "None of the Above" opt-out).
+const _SEP_PROTECTED_REAL = ["FMLA", "ADA Accommodation", "Military Leave",
+  "Jury Duty", "Workers Compensation", "Protected Medical Leave"];
+
+// Bucket the selected reason so the analysis can weight evidence the way a
+// reviewer would: an attendance case leans on occurrences, a performance
+// case on coaching, an integrity case on uploaded proof, etc.
+function _sepReasonClass(reason, type) {
+  const r = (reason || "").toLowerCase();
+  if (/attendance|no[\s-]*call|no[\s-]*show|abandon/.test(r)) return "attendance";
+  if (/performance/.test(r)) return "performance";
+  if (/conduct|behav|safety|compliance/.test(r)) return "conduct";
+  if (/theft|dishonest|drug|background/.test(r)) return "integrity";
+  if (/resign|layoff|business|seasonal|mutual/.test(r)) return "nofault";
+  const t = (type || "").toLowerCase();
+  if (/resignation|layoff|seasonal|mutual/.test(t)) return "nofault";
+  return "other";
+}
+
+const _sepClamp = (n, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
+function _sepScoreLabel(n) {
+  return n >= 85 ? "Strong" : n >= 70 ? "Moderate" : n >= 55 ? "Limited" : "Weak";
+}
+// Color tiers mirror the roster score pill: green ≥85, amber 70–84, red <70.
+function _sepScoreColors(n) {
+  return n >= 85 ? { fg: "var(--green-dark)", bar: "var(--green)", pill: "strong" }
+       : n >= 70 ? { fg: "var(--amber-dark)", bar: "var(--amber)", pill: "moderate" }
+       :           { fg: "var(--red-dark)",   bar: "var(--red)",   pill: "weak" };
+}
+
+// Reduce a weighted factor list to a 0–100 score. Keeping the factors on
+// the result lets the breakdown panel show exactly how it was reached.
+function _sepScore(factors) {
+  let wSum = 0, got = 0;
+  for (const f of factors) { wSum += f.weight; got += f.weight * Math.max(0, Math.min(1, f.got)); }
+  return { score: wSum > 0 ? Math.round((got / wSum) * 100) : 0, factors };
+}
+
+// Compact snapshot persisted to drivers.metadata.separation_readiness so
+// the assessment that informed the decision stays on the record.
+function _readinessSnapshot(a) {
+  if (!a) return null;
+  return {
+    overall: a.scores.overall, level: a.riskLevel, scores: a.scores,
+    risk_count: a.risks.length, contradiction_count: a.contradictions.length,
+    generated_at: new Date().toISOString(),
+  };
+}
+
+// Pull every relevant record for the driver and compute the readiness
+// assessment. No additional operator input is required.
+async function _separationReadiness(driver, sep) {
+  const dspId = window.RR.dsp.id;
+  const did = driver.id;
+  const policy = (typeof _evalPolicy === "function") ? _evalPolicy() : null;
+  const safe = (p) => p.then((r) => r, () => ({ data: [] }));
+  const [shiftsRes, denyRes, coachRes, envRes] = await Promise.all([
+    safe(sb.from("shifts").select("id, status, date").eq("dsp_id", dspId).eq("driver_id", did)
+      .in("status", ["late", "called_off", "no_show"]).order("date", { ascending: true })),
+    safe(sb.from("attendance_decisions").select("shift_id, decision").eq("dsp_id", dspId).eq("driver_id", did)),
+    safe(sb.from("coachings").select("id, severity, topic, occurred_at, summary").eq("dsp_id", dspId)
+      .eq("driver_id", did).is("archived_at", null).order("occurred_at", { ascending: true })),
+    safe(sb.from("document_envelopes").select("id, status, signed_at, document_templates(title)")
+      .eq("recipient_driver_id", did)),
+  ]);
+
+  // ── Attendance occurrences + points (excused decisions don't count) ──
+  const excused = new Set((denyRes.data || []).filter((x) => x.decision === "deny").map((x) => x.shift_id));
+  const ptFor = (st) => {
+    if (!policy) return 0;
+    const k = st === "no_show" ? "no_show" : st === "called_off" ? "callout" : st === "late" ? "late" : null;
+    return k && policy.events[k] ? Number(policy.events[k].points) || 0 : 0;
+  };
+  const occ = (shiftsRes.data || []).filter((s) => !excused.has(s.id));
+  const attCount = occ.length;
+  let attPoints = 0; for (const s of occ) attPoints += ptFor(s.status);
+
+  // ── Coaching / progressive discipline ──
+  const coachings = coachRes.data || [];
+  const sevCount = (arr) => coachings.filter((c) => arr.includes(c.severity)).length;
+  const nVerbal = sevCount(["verbal"]);
+  const nWritten = sevCount(["written", "warning"]);
+  const nFinal = sevCount(["final"]);
+  const nTerm = sevCount(["termination"]);
+  const coachingTotal = coachings.length;
+  const corrective = nWritten + nFinal + nTerm;
+  const hasVerbal = nVerbal > 0, hasWritten = nWritten > 0, hasFinal = nFinal > 0 || nTerm > 0;
+
+  // ── Acknowledgements (signed envelopes) ──
+  const envs = (envRes.data || []).filter((e) => e.status === "signed" || e.signed_at);
+  const titleOf = (e) => (e.document_templates && e.document_templates.title) || "";
+  const isHandbook = (e) => /handbook/i.test(titleOf(e));
+  const handbook = envs.filter(isHandbook).length;
+  const policyEnvs = envs.filter((e) => !isHandbook(e));
+  const policyAck = policyEnvs.length;
+  const attendancePolicyAck = policyEnvs.some((e) => /attend/i.test(titleOf(e)));
+
+  // ── Reason classification ──
+  const reason = sep.primary_reason || "";
+  const cls = _sepReasonClass(reason, sep.type);
+  const fault = cls === "attendance" || cls === "performance" || cls === "conduct";
+  const policyReferenced = (sep.policies_violated && sep.policies_violated.length > 0) || fault;
+  const referencedAck = cls === "attendance"
+    ? (attendancePolicyAck || handbook > 0 || policyAck > 0)
+    : (handbook > 0 || policyAck > 0);
+
+  // ── Protected status ──
+  const prot = (sep.protected_leave || []).filter((p) => _SEP_PROTECTED_REAL.includes(p));
+  const onLeaveNow = driver.status === "leave";
+  const hadLeave = !!(driver.metadata && (driver.metadata.leave_date || driver.metadata.leave_start));
+  const protectedDetected = prot.length > 0 || onLeaveNow || hadLeave;
+  const adaDetected = prot.includes("ADA Accommodation");
+  const fmlaDetected = prot.includes("FMLA");
+  const wcDetected = prot.includes("Workers Compensation");
+
+  // ── Normalized signals (0..1) ──
+  const stmtLen = (sep.statement || "").length;
+  const sStmt = _sepClamp(stmtLen / 220, 0, 1);
+  const sOcc = _sepClamp(attCount / 4, 0, 1);
+  let ptsTarget = 8;
+  if (policy && Array.isArray(policy.ladder)) {
+    const term = policy.ladder.find((l) => l.severity === "termination") || policy.ladder.find((l) => l.severity === "final");
+    if (term && Number(term.threshold) > 0) ptsTarget = Number(term.threshold);
+  }
+  const sPts = _sepClamp(attPoints / Math.max(1, ptsTarget), 0, 1);
+  const sCoach = _sepClamp(coachingTotal / 3, 0, 1);
+  const sLadder = (hasVerbal ? 0.34 : 0) + (hasWritten ? 0.33 : 0) + (hasFinal ? 0.33 : 0);
+  const uploadsN = (sep.additional_docs && sep._files && sep._files.length) ? sep._files.length : 0;
+  const sUploads = uploadsN > 0 ? 1 : 0;
+
+  // Evidence weights per reason class (a value of 0 drops the factor).
+  const W = {
+    attendance:  { occ: 3,   pts: 2, coach: 1,   ladder: 3,   uploads: 1 },
+    performance: { occ: 0.5, pts: 0, coach: 3,   ladder: 3,   uploads: 1 },
+    conduct:     { occ: 0.5, pts: 0, coach: 2,   ladder: 3,   uploads: 2 },
+    integrity:   { occ: 0,   pts: 0, coach: 1,   ladder: 1,   uploads: 3 },
+    nofault:     { occ: 0,   pts: 0, coach: 0.5, ladder: 0.5, uploads: 1 },
+    other:       { occ: 1,   pts: 0.5, coach: 1.5, ladder: 2, uploads: 1 },
+  }[cls];
+
+  // ── Documentation Quality — breadth of records on file ──
+  const docDim = _sepScore([
+    { label: "Employee handbook acknowledged", got: handbook > 0 ? 1 : 0, weight: 1.5, val: handbook > 0 ? `${handbook} signed` : "None on file" },
+    { label: "Policy acknowledgment on file",  got: policyAck > 0 ? 1 : 0, weight: 1.5, val: policyAck > 0 ? `${policyAck} signed` : "None on file" },
+    { label: "Attendance records",             got: attCount > 0 ? 1 : 0, weight: cls === "attendance" ? 2 : 1, val: attCount > 0 ? `${attCount} occurrence(s)` : "None on file" },
+    { label: "Coaching records",               got: coachingTotal > 0 ? 1 : 0, weight: (cls === "performance" || cls === "conduct") ? 2 : 1, val: coachingTotal > 0 ? `${coachingTotal} record(s)` : "None on file" },
+    { label: "Corrective actions",             got: corrective > 0 ? 1 : 0, weight: fault ? 1.5 : 0.5, val: corrective > 0 ? `${corrective} on file` : "None on file" },
+    { label: "Employer statement",             got: sStmt, weight: 1, val: stmtLen >= 40 ? "Provided" : stmtLen > 0 ? "Brief" : "Missing" },
+  ]);
+
+  // ── Evidence Strength — depth/volume for the selected reason ──
+  const evDim = _sepScore([
+    { label: "Attendance occurrences", got: sOcc, weight: W.occ, val: `${attCount} on file` },
+    { label: "Attendance points",      got: sPts, weight: W.pts, val: `${attPoints} pt(s)` },
+    { label: "Coaching volume",        got: sCoach, weight: W.coach, val: `${coachingTotal} record(s)` },
+    { label: "Progressive discipline", got: sLadder, weight: W.ladder, val: [hasVerbal ? "verbal" : null, hasWritten ? "written" : null, hasFinal ? "final" : null].filter(Boolean).join(" → ") || "none on file" },
+    { label: "Supporting documents",   got: sUploads, weight: W.uploads, val: uploadsN > 0 ? `${uploadsN} attached` : "none attached" },
+    { label: "Statement specificity",  got: sStmt, weight: cls === "nofault" ? 3 : 1.5, val: stmtLen >= 120 ? "Detailed" : stmtLen >= 40 ? "Adequate" : "Limited" },
+  ].filter((f) => f.weight > 0));
+
+  // ── Policy Support ──
+  const polDim = _sepScore([
+    { label: "Policy / expectation identified", got: policyReferenced ? 1 : 0, weight: 1.5, val: (sep.policies_violated && sep.policies_violated.length) ? sep.policies_violated.join(", ") : (policyReferenced ? "Implied by reason" : "Not specified") },
+    { label: "Referenced policy acknowledged",  got: referencedAck ? 1 : 0, weight: 3, val: referencedAck ? "Signed acknowledgment on file" : "No acknowledgment on file" },
+    { label: "Handbook acknowledged",           got: handbook > 0 ? 1 : 0, weight: 1.5, val: handbook > 0 ? "On file" : "None on file" },
+  ]);
+
+  // ── Contradictions (selected reason vs. records on file) ──
+  const contradictions = [];
+  if (cls === "attendance" && attCount === 0 && attPoints === 0)
+    contradictions.push({ title: "No attendance documentation found", body: `The selected reason — ${reason} — is attendance-based, but no attendance occurrences or points are on file to support it.` });
+  if (cls === "performance" && coachingTotal === 0)
+    contradictions.push({ title: "No coaching documentation found", body: "A performance-based separation is typically supported by coaching history. No coaching records were found." });
+  if (cls === "conduct" && coachingTotal === 0 && corrective === 0 && uploadsN === 0)
+    contradictions.push({ title: "No conduct documentation found", body: "No coaching, corrective action, or supporting documents were found to support a conduct- or safety-based separation." });
+  if (policyReferenced && !referencedAck)
+    contradictions.push({ title: "Referenced policy not acknowledged", body: "The employee has no signed acknowledgment on file for the referenced policy." });
+
+  // ── Consistency ──
+  const consAns = sep.consistency === "Yes" ? 1 : sep.consistency === "Unsure" ? 0.55 : sep.consistency === "No" ? 0.2 : 0.6;
+  const consDim = _sepScore([
+    { label: "Policy applied consistently (attested)", got: consAns, weight: 3, val: sep.consistency || "Not answered" },
+    { label: "Reason matches records on file",         got: contradictions.length ? 0.2 : 1, weight: 2, val: contradictions.length ? "Gaps detected" : "Aligned" },
+    { label: "Progressive discipline applied",         got: sLadder, weight: 1, val: hasFinal ? "Through final" : hasWritten ? "Through written" : hasVerbal ? "Verbal only" : "None" },
+    { label: "No protected-status conflict",           got: (protectedDetected && fault) ? 0.3 : 1, weight: 1.5, val: protectedDetected ? "Protected status present" : "None detected" },
+  ]);
+
+  const documentation = docDim.score, evidence = evDim.score, policyS = polDim.score, consistency = consDim.score;
+  // No-fault separations (resignation, layoff, seasonal) don't hinge on an
+  // evidence trail, so lean the blend toward documentation + consistency.
+  const overall = cls === "nofault"
+    ? Math.round(0.35 * documentation + 0.15 * evidence + 0.20 * policyS + 0.30 * consistency)
+    : Math.round(0.30 * documentation + 0.30 * evidence + 0.20 * policyS + 0.20 * consistency);
+
+  // ── Risk indicators (informational) ──
+  const risks = [];
+  const totalDocsNone = attCount === 0 && coachingTotal === 0 && corrective === 0 && handbook === 0 && policyAck === 0;
+  if (totalDocsNone) risks.push("No supporting documentation found");
+  if (fault && !hasWritten && !hasFinal) risks.push("No progressive discipline history");
+  if (policyReferenced && !referencedAck) risks.push("Policy not acknowledged");
+  if (protectedDetected) risks.push("Protected leave activity detected");
+  if (adaDetected) risks.push("ADA accommodation detected");
+  if (contradictions.length) risks.push("Separation reason inconsistent with available records");
+  if (documentation < 50 && !totalDocsNone) risks.push("Documentation appears limited");
+  const risksU = [...new Set(risks)];
+
+  // ── Supporting documentation strengths ──
+  const strengths = [];
+  if (handbook > 0) strengths.push("Employee Handbook Acknowledged");
+  if (attendancePolicyAck) strengths.push("Attendance Policy Signed");
+  if (policyAck > 0 && !attendancePolicyAck) strengths.push(`Policy Acknowledgment${policyAck > 1 ? "s" : ""} (${policyAck})`);
+  if (attCount > 0) strengths.push(`Attendance Occurrences (${attCount}${attPoints ? `, ${attPoints} pts` : ""})`);
+  if (coachingTotal > 0) strengths.push(`Coaching Records (${coachingTotal})`);
+  if (nWritten > 0) strengths.push(nWritten > 1 ? `Written Warnings (${nWritten})` : "Written Warning");
+  if (nFinal > 0) strengths.push(nFinal > 1 ? `Final Warnings (${nFinal})` : "Final Warning");
+  if (corrective > 0) strengths.push(`Corrective Actions (${corrective})`);
+  if (uploadsN > 0) strengths.push(`Additional Supporting Documents (${uploadsN})`);
+  if (stmtLen >= 40) strengths.push("Employer Statement Provided");
+
+  // ── Risk level + recommendation ──
+  // Risk level reflects decision/legal exposure, not documentation volume:
+  // a contradiction or a protected-status flag is elevated on any reason,
+  // but a thin evidence trail only elevates a fault-based separation.
+  let riskLevel = "Low";
+  if (contradictions.length || protectedDetected || (fault && overall < 60)) riskLevel = "Elevated";
+  else if (risksU.length >= 2 || (fault && overall < 80)) riskLevel = "Moderate";
+
+  let recommendation;
+  if (contradictions.length) recommendation = "Potential gaps were detected between the selected reason and the records on file. Review the warnings below — you may still proceed.";
+  else if (overall >= 85) recommendation = "Documentation appears sufficient to support the selected separation reason.";
+  else if (overall >= 70) recommendation = "Documentation generally supports the selected reason. Review the noted items before proceeding.";
+  else if (overall >= 55) recommendation = "Documentation is limited for the selected reason. Consider strengthening the record before proceeding.";
+  else recommendation = "Limited documentation was found to support the selected reason. Review the risks below carefully before proceeding.";
+
+  // ── Employment timeline ──
+  const labelForOcc = (st) => st === "no_show" ? "No-call / no-show" : st === "called_off" ? "Call-out / absence" : st === "late" ? "Late / tardy" : st;
+  const sevTl = (c) => {
+    const m = { written: ["Written Warning", "warn"], warning: ["Written Warning", "warn"], final: ["Final Warning", "bad"], termination: ["Termination Notice", "bad"], verbal: ["Verbal Warning", "warn"] };
+    return m[c.severity] ? { label: m[c.severity][0], kind: m[c.severity][1] } : { label: (c.topic ? `${c.topic} Coaching` : "Coaching"), kind: "warn" };
+  };
+  const tl = [];
+  if (driver.hire_date) tl.push({ date: driver.hire_date, label: "Hired", kind: "hire" });
+  for (const e of envs) if (e.signed_at) tl.push({ date: e.signed_at, label: isHandbook(e) ? "Handbook Acknowledged" : (titleOf(e) ? `${titleOf(e)} Acknowledged` : "Policy Acknowledged"), kind: "ack" });
+  for (const s of occ) tl.push({ date: s.date, label: labelForOcc(s.status), kind: "warn", detail: "Attendance occurrence" });
+  for (const c of coachings) { const t = sevTl(c); tl.push({ date: c.occurred_at, label: t.label, kind: t.kind, detail: (c.topic && !/coaching/i.test(t.label)) ? c.topic : "" }); }
+  if (driver.metadata && driver.metadata.leave_date) tl.push({ date: driver.metadata.leave_date, label: "Placed on Leave", kind: "warn" });
+  if (sep.effective_date) tl.push({ date: sep.effective_date, label: "Separation Initiated", kind: "bad" });
+  const tParse = (x) => new Date(/T/.test(x) ? x : x + "T12:00:00");
+  const timeline = tl.filter((x) => x.date && !isNaN(tParse(x.date))).sort((a, b) => tParse(a.date) - tParse(b.date));
+
+  return {
+    scores: { documentation, evidence, policy: policyS, consistency, overall },
+    breakdown: { documentation: docDim, evidence: evDim, policy: polDim, consistency: consDim },
+    recommendation, riskLevel, contradictions, risks: risksU, strengths, timeline,
+    counts: { attCount, attPoints, coachingTotal, nVerbal, nWritten, nFinal, nTerm, corrective, handbook, policyAck },
+    flags: { protectedDetected, adaDetected, fmlaDetected, wcDetected, onLeaveNow, fault, cls },
+    protectedList: prot,
+    driver: { name: displayDriverName(driver), hire_date: driver.hire_date, status: driver.status },
+  };
+}
+
+// Render the readiness assessment into the modal step. Pure string build;
+// the breakdown uses native <details> so no extra wiring is needed.
+function _renderSeparationReadiness(a) {
+  const esc = (s) => escapeHtml(s == null ? "" : String(s));
+  const fmtFull = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+  const fmtTl = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+  const sc = a.scores;
+  const oc = _sepScoreColors(sc.overall);
+
+  const sub = (label, val) => {
+    const c = _sepScoreColors(val);
+    return `<div class="rdy-sub"><div class="rdy-sub-top"><span class="rdy-sub-label">${esc(label)}</span>`
+      + `<span class="rdy-sub-tag" style="color:${c.fg}">${_sepScoreLabel(val)} · ${val}</span></div>`
+      + `<div class="rdy-bar"><span style="width:${val}%;background:${c.bar}"></span></div></div>`;
+  };
+
+  let html = `<p class="rdy-intro">RouteReady analyzed every record on file for this employee. This assessment is advisory — the final employment decision remains yours.</p>`;
+
+  // Readiness score
+  html += `<h4 class="sep-section">Separation Readiness Score</h4>`;
+  html += `<div class="rdy-head">`
+    + `<div class="rdy-score-big"><span class="rdy-score-num" style="color:${oc.fg}">${sc.overall}</span><span class="rdy-score-den">/100</span></div>`
+    + `<div class="rdy-score-meta"><span class="rdy-pill rdy-pill-${oc.pill}">Overall Readiness · ${_sepScoreLabel(sc.overall)}</span>`
+    + `<p class="rdy-rec">${esc(a.recommendation)}</p></div></div>`;
+  html += `<div class="rdy-subgrid">${sub("Documentation Strength", sc.documentation)}${sub("Evidence Strength", sc.evidence)}${sub("Policy Support", sc.policy)}${sub("Consistency", sc.consistency)}</div>`;
+
+  // Contradictions
+  if (a.contradictions.length) {
+    html += `<h4 class="sep-section">Contradiction Detection</h4>`;
+    html += a.contradictions.map((c) =>
+      `<div class="rdy-warn"><span class="rdy-warn-ic">⚠</span><div><div class="rdy-warn-title">${esc(c.title)}</div>`
+      + `<div class="rdy-warn-body">${esc(c.body)}</div>`
+      + `<div class="rdy-warn-note">Informational only — you may proceed anyway.</div></div></div>`).join("");
+  }
+
+  // Supporting documentation
+  html += `<h4 class="sep-section">Supporting Documentation Found</h4>`;
+  html += a.strengths.length
+    ? `<div class="rdy-list">${a.strengths.map((s) => `<div class="rdy-row ok"><span class="rdy-row-ic">✓</span><span>${esc(s)}</span></div>`).join("")}</div>`
+    : `<div class="rdy-list"><div class="rdy-empty">No supporting documentation was found in RouteReady for this employee.</div></div>`;
+
+  // Risk indicators
+  html += `<h4 class="sep-section">Risk Indicators</h4>`;
+  html += a.risks.length
+    ? `<div class="rdy-list">${a.risks.map((r) => `<div class="rdy-row warn"><span class="rdy-row-ic">⚠</span><span>${esc(r)}</span></div>`).join("")}</div>`
+    : `<div class="rdy-list"><div class="rdy-row ok"><span class="rdy-row-ic">✓</span><span>No elevated risk indicators were identified.</span></div></div>`;
+
+  // Timeline
+  html += `<h4 class="sep-section">Employment Timeline</h4>`;
+  html += a.timeline.length
+    ? `<div class="rdy-timeline">${a.timeline.map((t) => {
+        const cls = t.kind === "hire" ? "hire" : t.kind === "ack" ? "ack" : t.kind === "bad" ? "bad" : "warn";
+        return `<div class="rdy-tl ${cls}"><div class="rdy-tl-date">${fmtTl(t.date)}</div><div class="rdy-tl-label">${esc(t.label)}</div>${t.detail ? `<div class="rdy-tl-detail">${esc(t.detail)}</div>` : ""}</div>`;
+      }).join("")}</div>`
+    : `<div class="rdy-list"><div class="rdy-empty">No dated events are available to build a timeline.</div></div>`;
+
+  // Packet quality breakdown (expandable)
+  html += `<h4 class="sep-section">Packet Quality Breakdown</h4>`;
+  const det = (name, dim) => {
+    const c = _sepScoreColors(dim.score);
+    const rows = dim.factors.map((f) => `<div class="rdy-factor"><span class="rdy-factor-label">${esc(f.label)}</span><span class="rdy-factor-val">${esc(f.val)}</span></div>`).join("");
+    return `<details class="rdy-detail"><summary><span class="rdy-detail-name">${esc(name)}</span>`
+      + `<span class="rdy-detail-score" style="color:${c.fg}">${dim.score} · ${_sepScoreLabel(dim.score)}</span></summary>`
+      + `<div class="rdy-detail-body">${rows}</div></details>`;
+  };
+  html += det("Documentation Quality", a.breakdown.documentation);
+  html += det("Evidence Strength", a.breakdown.evidence);
+  html += det("Policy Support", a.breakdown.policy);
+  html += det("Consistency", a.breakdown.consistency);
+
+  // Executive summary
+  const tenure = a.driver.hire_date ? tenureLabel(a.driver.hire_date) : "—";
+  const statusLabel = (a.driver.status ? a.driver.status.charAt(0).toUpperCase() + a.driver.status.slice(1) : "—") + " → Terminating";
+  const prot = a.flags.protectedDetected
+    ? (a.protectedList.length ? a.protectedList.join(", ") : (a.flags.onLeaveNow ? "On leave" : "Leave on record"))
+    : "None indicated";
+  const cell = (k, v) => `<div class="rdy-exec-cell"><div class="rdy-exec-k">${esc(k)}</div><div class="rdy-exec-v">${esc(v)}</div></div>`;
+  html += `<h4 class="sep-section">Executive Summary</h4>`;
+  html += `<div class="rdy-exec">`
+    + cell("Employee", a.driver.name)
+    + cell("Hire date", fmtFull(a.driver.hire_date))
+    + cell("Tenure", tenure)
+    + cell("Current status", statusLabel)
+    + cell("Attendance events", `${a.counts.attCount}${a.counts.attPoints ? ` · ${a.counts.attPoints} pts` : ""}`)
+    + cell("Coaching events", String(a.counts.coachingTotal))
+    + cell("Corrective actions", String(a.counts.corrective))
+    + cell("Policies acknowledged", String(a.counts.handbook + a.counts.policyAck))
+    + cell("Protected leave", prot)
+    + cell("Documentation strength", _sepScoreLabel(sc.documentation))
+    + cell("Risk level", a.riskLevel)
+    + cell("Readiness score", `${sc.overall}/100`)
+    + `</div>`;
+
+  return html;
 }
 
 // Driver score → small colored pill (red < 70, amber 70–84, green 85+).
