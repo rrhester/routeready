@@ -13125,6 +13125,8 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .rr-roster-toolbar .rr-roster-toolbar-search{flex:1 1 auto;min-width:0}
           .rr-roster-toolbar .rr-roster-toolbar-actions{display:flex;align-items:center;gap:var(--s-2-5);flex:0 0 auto}
+          /* Host for the relocated ⋯/bell/avatar chrome on the roster. */
+          .rr-roster-chrome-host{display:inline-flex;align-items:center;gap:6px}
           .rr-roster-toolbar .dr-search{position:relative;width:min(360px,100%)}
           .rr-roster-toolbar .dr-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-subtle);pointer-events:none}
           .rr-roster-toolbar .dr-search input{
