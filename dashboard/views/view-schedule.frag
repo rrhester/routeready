@@ -1728,7 +1728,17 @@
                 var pop = document.getElementById("rr-sched-vans-rules-popover");
                 if (ab && pop && pop.parentElement !== ab) ab.appendChild(pop);
                 var anchorBtn = document.getElementById("rr-ab-assign");
-                if (pop && anchorBtn) pop.style.setProperty("--rr-sf-pop-left", anchorBtn.offsetLeft + "px");
+                if (pop && anchorBtn) {
+                  // Anchor the popout directly under the Assign/Unassign Fleet
+                  // button. Fixed coords set with !important so they beat the
+                  // stylesheet's `right:0 !important`, which otherwise pinned
+                  // the popout to the far right of the action bar.
+                  var r = anchorBtn.getBoundingClientRect();
+                  pop.style.setProperty("position", "fixed", "important");
+                  pop.style.setProperty("top", (r.bottom + 6) + "px", "important");
+                  pop.style.setProperty("left", r.left + "px", "important");
+                  pop.style.setProperty("right", "auto", "important");
+                }
                 if (window._rrToggleSchedVanRules) window._rrToggleSchedVanRules();
               });
               var more = document.getElementById("rr-ab-more");
