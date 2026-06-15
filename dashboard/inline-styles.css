@@ -8080,11 +8080,16 @@ body.rr-cmdk-open{ overflow:hidden }
    dividers, and shrink the avatar a notch — no color/token changes. */
 .roster-split #rr-roster-table-wrap tbody td{padding-top:12px;padding-bottom:12px}
 .roster-split #rr-roster-table-wrap tbody td{border-bottom-color:rgba(15,23,42,.08)}
-/* Driver avatar matches the Schedule grid's .cal-row-label avatar: 30px,
-   12px initials, subtle inner ring, never shrinks. The at-risk ring keeps
-   its own treatment. */
-.roster-split #rr-roster-table-wrap .avatar-sm{width:30px;height:30px;font-size:12px;flex:0 0 auto}
+/* Driver avatar sized to the Schedule "Today" strip (36px) — larger and more
+   prominent than the 30px calendar-row avatar, per the user's request. 13px
+   initials, subtle inner ring, never shrinks. The at-risk ring keeps its own
+   treatment. */
+.roster-split #rr-roster-table-wrap .avatar-sm{width:36px;height:36px;font-size:13px;flex:0 0 auto}
 .roster-split #rr-roster-table-wrap .avatar-sm:not(.rr-final-ring){box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
+/* Force the 36px avatar even under the compact/ultra density overrides
+   (which set ~26px / 20px !important and out-rank the rule above). Two IDs
+   beat the density selector's single ID, so this wins regardless of mode. */
+#dr-sub-roster #rr-roster-table-wrap .cell-driver .avatar-sm{width:36px !important;height:36px !important;font-size:13px !important}
 /* ── Selected driver row — 4px primary-blue left accent + a slightly
    darker row tint so the open driver feels tied to the detail panel.
    Hover behavior is untouched; this layers on top of it. The accent is
