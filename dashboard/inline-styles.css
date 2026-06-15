@@ -1498,9 +1498,9 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
    sidebar navy family at low opacity. ─────────────────────────────────── */
 /* Risk · small muted status dot (replaces the saturated flag). */
 .rr-risk-dot{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:middle}
-.rr-risk-dot.rr-risk-high{background:rgba(220,38,38,.48)}
-.rr-risk-dot.rr-risk-med{background:rgba(180,131,9,.5)}
-.rr-risk-dot.rr-risk-low{background:rgba(15,23,42,.16)}
+.rr-risk-dot.rr-risk-high{background:#DC2626}
+.rr-risk-dot.rr-risk-med{background:#C7860B}
+.rr-risk-dot.rr-risk-low{background:rgba(15,23,42,.22)}
 /* Status pills · white fill, thin navy border, colour in the text only
    (green reserved for Active) — one consistent treatment. */
 #view-drivers .status-pill.rr-dstatus-active{background:#fff;color:#16A34A;border-color:rgba(15,23,42,.16)}
@@ -13505,11 +13505,17 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Active status reads in black, not green, in the roster STATUS
              column (operator request). Scoped to the roster table so the KPI
              dashboard / onboarding "active = green" status pills are unchanged. */
-          /* Active status reads black, not green, on the roster status button
-             — keyed on .rr-status-trigger (only the clickable roster pills carry
-             it) so it applies in the Drivers view AND the Schedule / Onboarding
-             embeds, while the KPI dashboard's bare status pills stay green. */
-          .rr-status-trigger.rr-dstatus-active{color:var(--text) !important}
+          /* Roster status reads as plain text (no pill) — colour flags
+             exceptions only; normal states stay neutral dark gray. Keyed on
+             .rr-status-trigger so the KPI dashboard's status pills are unchanged.
+             The status picker still opens on click. */
+          .status-pill.rr-status-trigger{background:transparent !important;border-color:transparent !important;padding:2px 0 !important}
+          .rr-status-trigger.rr-dstatus-active,
+          .rr-status-trigger.rr-dstatus-onboarding,
+          .rr-status-trigger.rr-dstatus-seasonal{color:var(--text-muted) !important}
+          .rr-status-trigger.rr-dstatus-leave{color:#2563EB !important}
+          .rr-status-trigger.rr-dstatus-inactive{color:var(--text-subtle) !important}
+          .rr-status-trigger.rr-dstatus-terminated{color:#B42318 !important}
           /* Driver identity · match Schedule's .cal-row-label exactly so the
              roster cell reads as the same component language: name at
              fs-md / 700 / 1.25 / -.005em (cal-row-label-name), phone/email
