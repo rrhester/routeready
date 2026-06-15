@@ -20852,9 +20852,9 @@ async function openDriverDrawer(driverId, opts) {
       /* Backdrop fades; panel slides in from the right. Start state is
          the un-.open form; .open (added a frame after append) animates
          it in. Close reverses it before the node is removed. */
-      #rr-dd-drawer{position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;justify-content:flex-end;opacity:0;transition:opacity 220ms ease-out}
+      #rr-dd-drawer{position:fixed;inset:0;background:rgba(15,23,42,.06);z-index:9999;display:flex;justify-content:flex-end;opacity:0;transition:opacity 220ms ease-out}
       #rr-dd-drawer.rr-dd-open{opacity:1}
-      #rr-dd-panel{width:760px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
+      #rr-dd-panel{width:540px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);box-shadow:-14px 0 36px rgba(15,23,42,.13);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
       #rr-dd-drawer.rr-dd-open #rr-dd-panel{transform:translateX(0)}
       @media (prefers-reduced-motion: reduce){#rr-dd-drawer,#rr-dd-panel{transition:none}}
       /* ── Inline workspace mode ──────────────────────────────────
@@ -20918,7 +20918,7 @@ async function openDriverDrawer(driverId, opts) {
       }
       .dd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
       .dd-head{padding:var(--s-5) 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:var(--s-3)}
-      .dd-head h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
+      .dd-head h3{margin:0;font-size:20px;font-weight:700;letter-spacing:-.01em}
       .dd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
       /* Identity block — avatar + name/health/metadata. Name is the strongest
          element; the two metadata lines read as quiet secondary text. */
@@ -21057,23 +21057,13 @@ async function openDriverDrawer(driverId, opts) {
   // pane is actually visible.
   const _ddSplit = document.getElementById("rr-roster-split");
   const _ddMount = document.getElementById("driver-record-mount");
-  const _ddInline = !!(_ddSplit && _ddMount && _ddSplit.offsetParent !== null);
-  if (_ddInline) {
-    drawer.classList.add("rr-dd-inline");
-    _ddMount.appendChild(drawer);
-    // The record pane is persistent (always visible); `is-filled` just hides
-    // the "select a driver" placeholder while a record is docked.
-    _ddMount.classList.add("is-filled");
-    _ddSplit.classList.add("has-record");
-    // Remember the last driver viewed on the roster so we can restore it
-    // (instead of the placeholder) next time the roster is shown.
-    if (driverId) { try { localStorage.setItem("rr-roster-last-driver", driverId); } catch (_) {} }
-    // Accent the selected roster row so it reads as connected to the panel.
-    _rrMarkActiveRosterRow(driverId);
-  } else {
-    document.body.appendChild(drawer);
-    if (_ddMount) _ddMount.classList.remove("is-filled"); // roster pane (if any) shows its placeholder
-  }
+  // The driver record opens as a right-side slide-out overlay (Slack / Linear
+  // style): the roster stays full-width and is the primary object. The old
+  // docked-into-the-split mode is retired — always body-append the slide-over.
+  document.body.appendChild(drawer);
+  if (_ddMount) _ddMount.classList.remove("is-filled");
+  if (_ddSplit) _ddSplit.classList.remove("has-record");
+  if (driverId) _rrMarkActiveRosterRow(driverId);   // accent the selected row
   // Slide in (overlay) / fade in (inline) · the panel is appended in its
   // un-.open form; adding .rr-dd-open on the next frame triggers the
   // transition so it glides/fades in instead of popping. Reduced-motion
@@ -21212,22 +21202,23 @@ async function loadDriverDrawer(driverId) {
   const sm = _rrDriverStatusMeta(drv.status);
   const ROLE_LABELS = { driver: "Driver", dispatcher: "Dispatcher", fleet_manager: "Fleet manager", hr: "HR", ops_manager: "Ops manager", other: "Other" };
   const roleLabel = drv.role ? (ROLE_LABELS[drv.role] || null) : null;
-  const metaParts = [
-    escapeHtml(stationCode || (drv.station_id ? "Station assigned" : "No station")),
-    `<span style="color:${sm.color};font-weight:500">${escapeHtml(sm.label)}</span>`,
-  ];
-  if (roleLabel) metaParts.push(escapeHtml(roleLabel));
-  const subEl = document.getElementById("rr-dd-sub");
-  if (subEl) subEl.innerHTML = metaParts.join(' <span style="opacity:.5">•</span> ');
-  // Line 2 — tenure with a small calendar glyph.
   const daysSinceHire = drv.hire_date
     ? Math.max(0, Math.floor((Date.now() - new Date(drv.hire_date).getTime()) / 86400000))
     : null;
-  const hireStr = daysSinceHire == null ? "Hire date not set"
-    : daysSinceHire === 0 ? "Hired today"
-    : `Hired ${daysSinceHire} day${daysSinceHire === 1 ? "" : "s"} ago`;
+  // Single quiet metadata line: STATION • Status • Role • Hired Nd ago. Status
+  // colour flags exceptions only (leave/inactive/terminated); normal states
+  // read neutral — no green emphasis.
+  const _stColor = { leave: "#2563EB", inactive: "#6B7280", terminated: "#B42318" }[drv.status] || null;
+  const metaParts = [
+    escapeHtml(stationCode || (drv.station_id ? "Station assigned" : "No station")),
+    _stColor ? `<span style="color:${_stColor};font-weight:600">${escapeHtml(sm.label)}</span>` : escapeHtml(sm.label),
+  ];
+  if (roleLabel) metaParts.push(escapeHtml(roleLabel));
+  if (daysSinceHire != null) metaParts.push(escapeHtml(daysSinceHire === 0 ? "Hired today" : `Hired ${daysSinceHire}d ago`));
+  const subEl = document.getElementById("rr-dd-sub");
+  if (subEl) subEl.innerHTML = metaParts.join(' <span style="opacity:.45">•</span> ');
   const sub2El = document.getElementById("rr-dd-sub2");
-  if (sub2El) sub2El.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>${escapeHtml(hireStr)}</span>`;
+  if (sub2El) sub2El.textContent = "";
 
   // KPI row removed — this is an HR personnel file, not an operations
   // dashboard. #rr-dd-kpis stays in the template but is left empty, so
@@ -25553,7 +25544,7 @@ async function renderAttendanceTab(body, d) {
     { key: "verbal",      label: "Verbal Coaching"    },
     { key: "written",     label: "Written Warning"    },
     { key: "final",       label: "Final Warning"      },
-    { key: "termination", label: "Termination Review" },
+    { key: "termination", label: "Termination" },
   ];
   const SEV_STAGE  = { verbal: 0, concern: 0, written: 1, warning: 1, final: 2, termination: 3 };
   const stageIdx   = (sev) => (sev in SEV_STAGE ? SEV_STAGE[sev] : -1);
@@ -25592,19 +25583,21 @@ async function renderAttendanceTab(body, d) {
       </div>
     </div>`;
 
-  // Section 2 · progression workflow (current stage highlighted, rest gray).
+  // Section 2 · stage — a simple vertical list, current stage filled + bold.
   const progression = `
-    <div class="att2-label">Progression</div>
+    <div class="att2-label">Stage</div>
     <div class="att2-prog">${STAGES.map((s, i) =>
-      `<div class="att2-prog-stage${i === curIdx ? " is-current" : ""}"><span class="att2-prog-dot"></span><span class="att2-prog-label">${escapeHtml(s.label)}</span></div>${i < STAGES.length - 1 ? `<span class="att2-prog-line"></span>` : ""}`
+      `<div class="att2-prog-stage${i === curIdx ? " is-current" : ""}"><span class="att2-prog-marker"></span><span class="att2-prog-label">${escapeHtml(s.label)}</span></div>`
     ).join("")}</div>`;
 
-  // Section 3 · history timeline (works for one event or many).
+  // Section 3 · history — collapsible, default closed ("History (N)").
   const timeline = `
-    <div class="att2-label">History</div>
-    <div class="att2-timeline">${coachings.map((c, i) =>
-      `<div class="att2-tl-item${i === 0 ? " is-latest" : ""}"><span class="att2-tl-dot"></span><div class="att2-tl-body"><div class="att2-tl-top"><span class="att2-tl-title">${escapeHtml(stageLabel(c.severity))}</span><button type="button" class="att2-tl-doc" data-rr-coaching-record="${escapeHtml(c.id)}">View document</button></div><div class="att2-tl-date">${escapeHtml(fmtDate(c.occurred_at))}</div>${isAwaiting(c) ? `<div class="att2-tl-ack">Awaiting acknowledgment</div>` : ""}</div></div>`
-    ).join("")}</div>`;
+    <details class="att2-history">
+      <summary class="att2-label att2-history-summary">History (${coachings.length})</summary>
+      <div class="att2-timeline">${coachings.map((c, i) =>
+        `<div class="att2-tl-item${i === 0 ? " is-latest" : ""}"><span class="att2-tl-dot"></span><div class="att2-tl-body"><div class="att2-tl-top"><span class="att2-tl-title">${escapeHtml(stageLabel(c.severity))}</span><button type="button" class="att2-tl-doc" data-rr-coaching-record="${escapeHtml(c.id)}">View document</button></div><div class="att2-tl-date">${escapeHtml(fmtDate(c.occurred_at))}</div>${isAwaiting(c) ? `<div class="att2-tl-ack">Awaiting acknowledgment</div>` : ""}</div></div>`
+      ).join("")}</div>
+    </details>`;
 
   body.innerHTML = `
     <style>
@@ -25620,27 +25613,31 @@ async function renderAttendanceTab(body, d) {
       #rr-dd-body .att2-done{color:var(--text-subtle);font-weight:500}
       #rr-dd-body .att2-status-meta{font-size:var(--fs-sm);color:var(--text-subtle)}
       #rr-dd-body .att2-badge{flex:0 0 auto;align-self:center;font-size:10px;font-weight:600;letter-spacing:.02em;padding:3px 10px;border-radius:var(--r-pill);background:rgba(220,38,38,.08);color:#B42318}
-      /* Tone tints — very soft, enterprise. Red = final/termination. */
-      #rr-dd-body .att2-red{background:rgba(220,38,38,.05);border-color:rgba(220,38,38,.18)}
+      /* Tone tints — very soft fill only; the card border stays neutral (no
+         heavy red border on the warning), the icon carries the colour. */
+      #rr-dd-body .att2-red{background:rgba(220,38,38,.04)}
       #rr-dd-body .att2-red .att2-status-icon{color:#B42318;background:rgba(220,38,38,.08)}
-      #rr-dd-body .att2-amber{background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.22)}
+      #rr-dd-body .att2-amber{background:rgba(245,158,11,.05)}
       #rr-dd-body .att2-amber .att2-status-icon{color:#B45309;background:rgba(245,158,11,.10)}
-      #rr-dd-body .att2-slate{background:rgba(100,116,139,.05);border-color:rgba(100,116,139,.18)}
+      #rr-dd-body .att2-slate{background:rgba(100,116,139,.04)}
       #rr-dd-body .att2-slate .att2-status-icon{color:#475569;background:rgba(100,116,139,.10)}
       #rr-dd-body .att2-clear{background:var(--canvas)}
       #rr-dd-body .att2-clear .att2-status-icon{color:#188038;background:rgba(22,163,74,.08)}
       /* Small section labels (Schedule pattern). */
       #rr-dd-body .att2-label{font-size:var(--fs-xs);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:30px 2px 14px}
-      /* Progression — horizontal workflow, only the current stage highlighted. */
-      #rr-dd-body .att2-prog{display:flex;align-items:center;padding:0 2px;overflow-x:auto;scrollbar-width:none}
-      #rr-dd-body .att2-prog::-webkit-scrollbar{display:none}
-      #rr-dd-body .att2-prog-stage{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}
-      #rr-dd-body .att2-prog-dot{width:9px;height:9px;border-radius:50%;background:var(--surface);border:1.5px solid var(--text-disabled);box-sizing:border-box}
-      #rr-dd-body .att2-prog-label{font-size:var(--fs-sm);font-weight:500;color:var(--text-disabled);white-space:nowrap}
-      #rr-dd-body .att2-prog-stage.is-current .att2-prog-dot{background:var(--text);border-color:var(--text)}
+      /* Stage — a simple vertical list; current stage filled (●) + bold, rest ○. */
+      #rr-dd-body .att2-prog{display:flex;flex-direction:column;gap:11px;padding:0 2px}
+      #rr-dd-body .att2-prog-stage{display:flex;align-items:center;gap:10px}
+      #rr-dd-body .att2-prog-marker{flex:0 0 auto;width:11px;height:11px;border-radius:50%;border:1.5px solid var(--text-disabled);background:transparent;box-sizing:border-box}
+      #rr-dd-body .att2-prog-label{font-size:var(--fs-sm);font-weight:500;color:var(--text-subtle)}
+      #rr-dd-body .att2-prog-stage.is-current .att2-prog-marker{background:var(--text);border-color:var(--text)}
       #rr-dd-body .att2-prog-stage.is-current .att2-prog-label{color:var(--text);font-weight:600}
-      #rr-dd-body .att2-prog-line{flex:1 1 auto;min-width:18px;height:1px;background:var(--border);margin:0 10px}
-      /* History — vertical timeline; renders cleanly for one event or many. */
+      /* History — collapsible (default closed), then a vertical timeline. */
+      #rr-dd-body .att2-history{margin-top:30px}
+      #rr-dd-body .att2-history-summary{margin:0 2px 14px;cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:6px}
+      #rr-dd-body .att2-history-summary::-webkit-details-marker{display:none}
+      #rr-dd-body .att2-history-summary::after{content:"";width:6px;height:6px;border-right:1.6px solid var(--text-subtle);border-bottom:1.6px solid var(--text-subtle);transform:rotate(-45deg);transition:transform var(--t-fast)}
+      #rr-dd-body .att2-history[open] .att2-history-summary::after{transform:rotate(45deg)}
       #rr-dd-body .att2-timeline{padding:0 2px}
       #rr-dd-body .att2-tl-item{position:relative;display:flex;gap:14px;padding-bottom:20px}
       #rr-dd-body .att2-tl-item:last-child{padding-bottom:0}
