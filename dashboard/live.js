@@ -20721,29 +20721,30 @@ async function openDriverDrawer(driverId, opts) {
         transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1);
       }
       #rr-dd-drawer.rr-dd-inline.rr-dd-open #rr-dd-panel{transform:translateX(0)}
-      /* Profile header — generous breathing room, a strong name anchor, and
-         quiet metadata (Schedule design standard). */
-      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-4) 20px var(--s-3);background:var(--surface);border-bottom:0}
-      #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:var(--s-3)}
+      /* Profile header — compact vertical rhythm, a strong name anchor, and
+         quiet single-line metadata (Schedule design standard). */
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:13px 20px 10px;background:var(--surface);border-bottom:0}
+      #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:var(--s-2-5)}
       #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em}
-      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:4px}
+      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px}
       #rr-dd-drawer.rr-dd-inline .dd-meta-sub{margin-top:2px;opacity:.85}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:42px!important;height:42px!important;font-size:var(--fs-md)!important}
       /* Quiet KPI row under the profile header — small labels + slightly
          stronger values, thin vertical dividers. No cards / shadows / icons /
          colored fills, mirroring the Schedule KPI treatment. */
-      #rr-dd-drawer.rr-dd-inline .dd-kpis{display:flex;align-items:center;flex-wrap:wrap;padding:11px 20px;border-bottom:1px solid var(--border-subtle)}
-      #rr-dd-drawer .dd-kpi{display:flex;flex-direction:column;gap:2px;padding:0 16px;border-left:1px solid var(--border-subtle)}
+      #rr-dd-drawer.rr-dd-inline .dd-kpis{display:flex;align-items:stretch;flex-wrap:wrap;padding:9px 20px;border-bottom:1px solid var(--border-subtle)}
+      #rr-dd-drawer .dd-kpi{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;padding:0 16px;border-left:1px solid var(--border-subtle)}
       #rr-dd-drawer .dd-kpi:first-child{border-left:0;padding-left:0}
-      #rr-dd-drawer .dd-kpi-label{font-size:var(--fs-xs);color:var(--text-subtle);letter-spacing:.02em;white-space:nowrap}
-      #rr-dd-drawer .dd-kpi-val{font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap}
+      #rr-dd-drawer .dd-kpi-label{font-size:var(--fs-xs);font-weight:500;text-transform:uppercase;color:var(--text-subtle);letter-spacing:.04em;white-space:nowrap}
+      #rr-dd-drawer .dd-kpi-val{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap}
       #rr-dd-drawer .dd-kpis:empty{display:none}
       #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-tab-note{margin:8px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-body{padding:18px 20px}
-      /* Lighter section rhythm — slimmer separators + less vertical waste. */
-      #rr-dd-drawer.rr-dd-inline .dd-section{margin:0 0 14px}
-      #rr-dd-drawer.rr-dd-inline .dd-section + .dd-section{margin-top:16px;padding-top:14px}
+      /* Lighter section rhythm — each section header carries its own
+         hairline rule, so groups are separated by whitespace, not lines. */
+      #rr-dd-drawer.rr-dd-inline .dd-section{margin:0 0 16px}
+      #rr-dd-drawer.rr-dd-inline .dd-section + .dd-section{margin-top:20px;padding-top:0}
       #rr-dd-drawer.rr-dd-inline .dd-row{grid-template-columns:130px 1fr;gap:var(--s-2-5);padding:8px 0}
       #rr-dd-drawer.rr-dd-inline .dd-foot{padding:var(--s-3) 20px}
       /* Tablet / mobile — the pane stacks full width beneath the roster
@@ -20768,9 +20769,9 @@ async function openDriverDrawer(driverId, opts) {
       .dd-act{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer;line-height:1;white-space:nowrap;transition:color var(--t-fast),border-color .12s,background .12s}
       .dd-act:hover{color:var(--text);border-color:var(--text-subtle);background:var(--canvas)}
       .dd-act svg{flex:0 0 auto}
-      .dd-tabs{display:flex;gap:var(--s-1);background:transparent;padding:0;border-bottom:1px solid var(--border-subtle);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
+      .dd-tabs{display:flex;gap:var(--s-2);background:transparent;padding:0;border-bottom:1px solid var(--border-subtle);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
       .dd-tabs::-webkit-scrollbar{display:none}
-      .dd-tab{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-subtle);padding:var(--s-2-5) 12px;cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast);white-space:nowrap}
+      .dd-tab{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-subtle);padding:var(--s-2) 12px;cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast);white-space:nowrap}
       .dd-tab:hover{color:var(--text)}
       .dd-tab.active{background:transparent;color:var(--text);font-weight:600;border-bottom-color:var(--accent);box-shadow:none}
       .dd-tab-note{margin:9px 28px 0;font-size:var(--fs-xs);color:var(--text-subtle);display:none;align-items:center;gap:6px}
@@ -20793,20 +20794,30 @@ async function openDriverDrawer(driverId, opts) {
          carries the self-serve vs DSP-only contract for the upcoming
          driver-app integration. */
       .dd-section{margin:0 0 18px;padding:0}
-      .dd-section + .dd-section{margin-top:24px;padding-top:18px;border-top:1px solid var(--border)}
-      .dd-section-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);margin-bottom:10px}
-      .dd-section-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em}
-      .dd-section-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.4}
+      .dd-section + .dd-section{margin-top:22px}
+      .dd-section-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-subtle)}
+      .dd-section-title{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase}
+      .dd-section-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.4;text-transform:none;letter-spacing:normal}
       .dd-badge{display:inline-flex;align-items:center;gap:var(--s-1);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-lg);white-space:nowrap}
       .dd-badge.driver{background:var(--green-soft);color:var(--green)}
       .dd-badge.dsp{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
-      .dd-row{display:grid;grid-template-columns:160px 1fr;gap:var(--s-3-5);align-items:center;padding:11px 0;border-top:1px solid var(--border)}
+      .dd-row{display:grid;grid-template-columns:160px 1fr;gap:var(--s-3-5);align-items:center;padding:9px 0}
       .dd-row:first-of-type{border-top:0}
       .dd-row label{font-size:var(--fs-sm);color:var(--text-muted);font-weight:500}
-      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2) var(--s-2-5);font:inherit;font-size:var(--fs-md);color:var(--text)}
+      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:7px var(--s-2-5);font:inherit;font-size:var(--fs-md);color:var(--text)}
       .dd-row input:focus,.dd-row select:focus,.dd-row textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+      /* Weekday selectors (Availability tab) — match Schedule's day controls:
+         hairline border, --r-md radius, accent-tinted selected state, quiet hover. */
+      .dd-day{display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:7px var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);cursor:pointer;user-select:none;transition:border-color var(--t-fast),background var(--t-fast),color var(--t-fast)}
+      .dd-day span{font-weight:500}
+      .dd-day:hover{border-color:var(--text-subtle);background:var(--surface)}
+      .dd-day:has(input:checked){border-color:var(--accent-border);background:var(--accent-soft);color:var(--accent-text)}
+      .dd-day:has(input:checked) span{font-weight:600}
+      .dd-day[data-dim]{opacity:.45;pointer-events:none}
+      .dd-day.is-off{opacity:.4;cursor:not-allowed}
+      .dd-day.is-off:hover{border-color:var(--border);background:var(--canvas);color:var(--text)}
       .dd-foot{padding:var(--s-3-5) 28px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-2);background:var(--surface);position:sticky;bottom:0}
-      .dd-list-row{display:grid;grid-template-columns:1fr auto;gap:var(--s-3);padding:var(--s-3) 0;border-top:1px solid var(--border)}
+      .dd-list-row{display:grid;grid-template-columns:1fr auto;gap:var(--s-3);align-items:center;padding:var(--s-3) 0;border-top:1px solid var(--border-subtle)}
       .dd-list-row:first-of-type{border-top:0}
       .dd-list-title{font-size:var(--fs-md);font-weight:600}
       .dd-list-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
@@ -21024,9 +21035,8 @@ async function loadDriverDrawer(driverId) {
   titleEl.textContent = displayDriverName(drv) || "—";
 
   // ── Header rebuild — name (above) is the anchor; everything else reads as
-  // quiet secondary metadata. Line 1: "STATION • Status" (status keeps its
-  // palette color); line 2: "Hired N days ago". A driver-health pill sits
-  // beside the name, and a compact Quick Facts strip sits below.
+  // quiet secondary metadata on a single line: "STATION • Status • Hired N
+  // days ago" (status keeps its palette color). The KPI row sits below.
   const stationCode = (_driverStationsCache || []).find(s => s.id === drv.station_id)?.code;
   const daysSinceHire = drv.hire_date
     ? Math.max(0, Math.floor((Date.now() - new Date(drv.hire_date).getTime()) / 86400000))
@@ -21036,14 +21046,17 @@ async function loadDriverDrawer(driverId) {
   metaParts.push(escapeHtml(stationCode || (drv.station_id ? "Station assigned" : "No station")));
   metaParts.push(`<span style="color:${sm.color};font-weight:600">${escapeHtml(sm.label)}</span>`);
   if (drv.tier) metaParts.push(`Tier ${escapeHtml(String(drv.tier))}`);
+  metaParts.push(escapeHtml(
+    daysSinceHire == null ? "Hire date not set"
+    : daysSinceHire === 0 ? "Hired today"
+    : `Hired ${daysSinceHire} day${daysSinceHire === 1 ? "" : "s"} ago`
+  ));
   const subEl = document.getElementById("rr-dd-sub");
   if (subEl) subEl.innerHTML = metaParts.join(' <span style="opacity:.5">•</span> ');
+  // Metadata is consolidated onto the single line above; clear the second
+  // line so it collapses.
   const sub2El = document.getElementById("rr-dd-sub2");
-  if (sub2El) {
-    sub2El.textContent = daysSinceHire == null
-      ? "Hire date not set"
-      : daysSinceHire === 0 ? "Hired today" : `Hired ${daysSinceHire} day${daysSinceHire === 1 ? "" : "s"} ago`;
-  }
+  if (sub2El) sub2El.textContent = "";
 
   // Quiet KPI row under the header · Attendance · Risk · Tenure · Last event.
   const ddKpis = document.getElementById("rr-dd-kpis");
@@ -21313,14 +21326,14 @@ function renderAvailabilityTab(body, d, record) {
   const dimStyle = activeOverride ? "opacity:.45;pointer-events:none;" : "";
 
   const availBoxes = dayKey.map(k => `
-    <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:6px var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;background:var(--canvas);user-select:none;${dimStyle}">
+    <label class="dd-day"${activeOverride ? ' data-dim="1"' : ''}>
       <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""} ${activeOverride ? "disabled" : ""}/>
-      <span style="font-weight:600">${dayLabel[k]}</span>
+      <span>${dayLabel[k]}</span>
     </label>`).join("");
   const prefBoxes = dayKey.map(k => `
-    <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:6px var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);cursor:${isAvail(k) ? "pointer" : "not-allowed"};background:var(--canvas);user-select:none;${isAvail(k) ? "" : "opacity:.4"}${activeOverride ? dimStyle : ""}">
+    <label class="dd-day${isAvail(k) ? "" : " is-off"}"${activeOverride ? ' data-dim="1"' : ''}>
       <input type="checkbox" data-rr-avail-pref="${k}" ${preferred.has(k) ? "checked" : ""} ${isAvail(k) && !activeOverride ? "" : "disabled"}/>
-      <span style="font-weight:600">${dayLabel[k]}</span>
+      <span>${dayLabel[k]}</span>
     </label>`).join("");
 
   // Effective-right-now strip: read-only chips showing the days the
@@ -25188,8 +25201,8 @@ async function renderLicenseTab(body, d) {
           ${expiryPill}
         </div>
       </div>
-      <div style="margin-top:14px">
-        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:var(--s-2)">License images</div>
+      <div style="margin-top:18px">
+        <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:var(--s-2)">License images</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)">
           ${renderDlSlot("front", "Front", imgUrl)}
           ${renderDlSlot("back",  "Back",  backUrl)}
@@ -27983,12 +27996,12 @@ function renderDocumentsTab(docs, envelopes) {
           <div class="dd-section-sub">Licenses, MVR, DOT medical, I-9/W-4, and other HR files you upload here.</div>
         </div>
       </div>
-      <div style="display:flex;gap:var(--s-2);margin-bottom:14px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:var(--s-2);margin-bottom:16px;flex-wrap:wrap">
         <select id="rr-doc-kind" class="dd-row-input" style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:7px 10px;font:inherit;font-size:var(--fs-md)">
           ${["drivers_license","mvr","dot_medical","background_check","social_security","i9","w4","direct_deposit","vehicle_registration","insurance","other"].map(k => `<option value="${k}">${k.replace(/_/g," ")}</option>`).join("")}
         </select>
-        <input type="file" id="rr-doc-file" />
-        <button class="btn btn-primary" data-rr-doc-upload>Upload</button>
+        <input type="file" id="rr-doc-file" style="font-size:var(--fs-sm);color:var(--text-muted)" />
+        <button class="btn btn-sm btn-primary" data-rr-doc-upload>Upload</button>
       </div>
       <div>${list || `<div class="rr-empty-inline">No personnel-file documents on file.</div>`}</div>
     </div>`;
