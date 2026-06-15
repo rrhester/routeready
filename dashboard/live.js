@@ -37025,8 +37025,22 @@ document.addEventListener("click", async (e) => {
 });
 
 // Wrap the mockup schedSub so the new Insights tab loads live data.
+// Close (remove) any docked driver record instantly. Called when navigating
+// between sub-views so the card never persists when you leave the roster and
+// come back — clicking a row re-opens it fresh.
+function _rrCloseDriverRecord() {
+  const d = document.getElementById("rr-dd-drawer");
+  if (d) { d.dataset.rrClosing = "1"; d.remove(); }
+  document.getElementById("driver-record-mount")?.classList.remove("is-filled");
+  document.getElementById("rr-roster-split")?.classList.remove("has-record");
+  _ddOpenDriverId = null;
+  try { if (typeof _rrMarkActiveRosterRow === "function") _rrMarkActiveRosterRow(null); } catch (_) {}
+}
+window._rrCloseDriverRecord = _rrCloseDriverRecord;
+
 const _legacySchedSub = window.schedSub;
 window.schedSub = function (sub) {
+  _rrCloseDriverRecord();
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
   // The Smart Fill command tile doubles as "Forecast" on the Monthly view.
   if (typeof _rrSetSmartFillTileMode === "function") _rrSetSmartFillTileMode(sub === "monthly");
@@ -52952,6 +52966,7 @@ window.goto = function (view) {
 const _origDrSubForSubReset = window.drSub;
 if (typeof _origDrSubForSubReset === "function") {
   window.drSub = function (sub) {
+    if (typeof _rrCloseDriverRecord === "function") _rrCloseDriverRecord();
     const r = _origDrSubForSubReset(sub);
     if (sub === "attendance") {
       setTimeout(() => {
