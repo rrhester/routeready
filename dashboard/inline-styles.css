@@ -13494,6 +13494,10 @@ body.rr-cmdk-open{ overflow:hidden }
                (.okami-table rows). */
             padding-top:var(--s-4);padding-bottom:var(--s-4);border-bottom-color:rgba(15,23,42,.05);
           }
+          /* Active status reads in black, not green, in the roster STATUS
+             column (operator request). Scoped to the roster table so the KPI
+             dashboard / onboarding "active = green" status pills are unchanged. */
+          #dr-sub-roster .status-pill.rr-dstatus-active{color:var(--text)}
           /* Driver identity · match Schedule's .cal-row-label exactly so the
              roster cell reads as the same component language: name at
              fs-md / 700 / 1.25 / -.005em (cal-row-label-name), phone/email
