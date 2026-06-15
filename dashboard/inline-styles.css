@@ -13103,8 +13103,8 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--surface) !important;
             border-bottom:1px solid var(--border-subtle) !important;
             color:var(--text-subtle) !important;
-            font-size:var(--fs-xs) !important;font-weight:600 !important;
-            letter-spacing:.06em !important;text-transform:uppercase !important;
+            font-size:15px !important;font-weight:700 !important;
+            letter-spacing:.04em !important;text-transform:uppercase !important;
             padding:0 var(--s-4) !important;
             height:38px !important;
             vertical-align:middle !important;
@@ -15467,7 +15467,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Coach driver = a normal white pill with just its ICON tinted the
              Smart Fill blue→purple (the full-gradient button read as too much).
              The icon stroke uses currentColor, so this color drives it. */
-          .sched-kpi-pill[data-rr-dd-coach] svg{color:#6D4AE6 !important}
+          .sched-kpi-pill[data-rr-dd-coach] svg{color:#4285F4 !important}
           /* Roster search relocated into the KPI strip — styled as a pill that
              matches the action buttons (white, navy border, rounded), on the
              left of the row. */
