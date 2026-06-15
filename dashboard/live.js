@@ -8010,7 +8010,7 @@ document.addEventListener("click", (e) => {
     const where = pick.getAttribute("data-rr-att-go");
     _rrCloseRosterAttendance();
     if (where === "policy") {
-      if (typeof gotoSettingsScheduling === "function") gotoSettingsScheduling();
+      _rrOpenAttendancePolicyModal();
     } else if (where === "report") {
       if (typeof window.rrSchedNav === "function") window.rrSchedNav("attendance");
     }
@@ -8025,6 +8025,73 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRosterAttendance(); });
 window.addEventListener("scroll", _rrCloseRosterAttendance, true);
 window.addEventListener("resize", _rrCloseRosterAttendance);
+
+// "Attendance policy" → open the real policy BUILDER in a centered modal.
+// The builder DOM (#att-pane-policy, in view-schedule) plus its loader
+// (loadAttendancePolicy) and document-delegated save handler are reused by
+// relocating the live node into the modal while it's open and returning it
+// home on close — so there's no duplicate form and all wiring keeps working.
+// Falls back to Settings → Scheduling when the builder DOM isn't on the page.
+let _rrAttPolicyHome = null;
+function _rrOpenAttendancePolicyModal() {
+  const pane = document.getElementById("att-pane-policy");
+  if (!pane) {
+    if (typeof gotoSettingsScheduling === "function") gotoSettingsScheduling();
+    return;
+  }
+  let back = document.getElementById("rr-att-policy-modal");
+  if (!back) {
+    back = document.createElement("div");
+    back.id = "rr-att-policy-modal";
+    back.className = "modal-backdrop";
+    back.innerHTML =
+      `<div class="modal-card" role="dialog" aria-modal="true" aria-label="Attendance policy" style="max-width:600px">`
+      + `<div class="modal-head"><div>`
+      + `<h3 class="modal-title">Attendance policy</h3>`
+      + `<p class="modal-sub">Occurrence rules, thresholds, and the auto-coaching ladder.</p>`
+      + `</div><button type="button" class="modal-close" data-rr-att-policy-close aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`
+      + `<div class="modal-body" id="rr-att-policy-modal-body"></div>`
+      + `</div>`;
+    document.body.appendChild(back);
+  }
+  // Remember the builder's home so we can return it on close.
+  if (!_rrAttPolicyHome) _rrAttPolicyHome = { parent: pane.parentNode, next: pane.nextSibling };
+  document.getElementById("rr-att-policy-modal-body").appendChild(pane);
+  back.classList.add("open");
+  if (typeof loadAttendancePolicy === "function") {
+    try { loadAttendancePolicy(); } catch (err) { console.warn("loadAttendancePolicy:", err); }
+  }
+}
+function _rrCloseAttendancePolicyModal() {
+  const back = document.getElementById("rr-att-policy-modal");
+  if (!back || !back.classList.contains("open")) return;
+  const pane = document.getElementById("att-pane-policy");
+  if (pane && _rrAttPolicyHome && _rrAttPolicyHome.parent) {
+    _rrAttPolicyHome.parent.insertBefore(pane, _rrAttPolicyHome.next || null);
+  }
+  back.classList.remove("open");
+}
+window._rrOpenAttendancePolicyModal = _rrOpenAttendancePolicyModal;
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("[data-rr-att-policy-close]")) {
+    e.preventDefault();
+    _rrCloseAttendancePolicyModal();
+    return;
+  }
+  // Backdrop click (outside the card) closes.
+  const back = document.getElementById("rr-att-policy-modal");
+  if (back && back.classList.contains("open") && e.target === back) _rrCloseAttendancePolicyModal();
+});
+// Capture-phase Escape so it closes THIS modal (the topmost layer) and stops
+// the driver-record / other Escape handlers from also firing on the keypress.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const back = document.getElementById("rr-att-policy-modal");
+  if (back && back.classList.contains("open")) {
+    e.stopImmediatePropagation();
+    _rrCloseAttendancePolicyModal();
+  }
+}, true);
 
 // Compact status helpers for the dr-app-btn — paints the small
 // indicator dot on the phone-shaped button + sets a useful title
