@@ -780,7 +780,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-vans-rules-popover {
   background: var(--rr-bg-surface-1) !important;
-  border: 1px solid var(--rr-border-primary) !important;
+  border: 1.5px solid var(--sidebar) !important;
   border-radius: var(--rr-radius-large) !important;
   box-shadow: var(--rr-shadow-8) !important;
   position: absolute !important;
@@ -811,10 +811,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-vans-rules-head {
-  background: var(--rr-brand-soft) !important;
-  color: var(--rr-brand-pressed) !important;
-  padding: var(--rr-space-120) var(--rr-space-160) !important;
-  border-bottom: 1px solid rgba(37,99,235, 0.20) !important;
+  background: var(--sidebar) !important;
+  color: var(--sidebar-ink) !important;
+  padding: var(--rr-space-100) var(--rr-space-160) !important;
+  border-bottom: 0 !important;
   border-top-left-radius: var(--rr-radius-large) !important;
   border-top-right-radius: var(--rr-radius-large) !important;
   margin-bottom: 0 !important;
@@ -826,11 +826,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-vans-rules-head-title {
   font: var(--rr-font-body-strong) !important;
-  color: var(--rr-brand-pressed) !important;
+  color: var(--sidebar-ink) !important;
 }
 
 #view-schedule.rrx-schedule .sched-vans-rules-info {
-  color: var(--rr-brand-pressed);
+  color: var(--sidebar-ink);
 }
 
 #view-schedule.rrx-schedule .sched-vans-rules-info:hover,

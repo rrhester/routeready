@@ -35981,6 +35981,9 @@ function _toggleSchedVanRules(force) {
   const isOpen = !pop.hidden;
   const next = (typeof force === "boolean") ? force : !isOpen;
   pop.hidden = !next;
+  // Clear any inline anchor coords on close so the next opener starts from the
+  // stylesheet position (the caret opener sets fixed coords under its button).
+  if (!next) ["position", "top", "left", "right"].forEach((p) => pop.style.removeProperty(p));
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next) {
     _restoreSchedVanRules();
