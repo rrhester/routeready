@@ -4724,6 +4724,17 @@ select.form-input{
 .modal-field-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:var(--s-1)}
 .modal-row-2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
 
+/* Attendance policy popout (Roster → Attendance ▾ → Attendance policy) ·
+   floats without the navy page dim, with a slim sidebar-colored title bar
+   and a matching sidebar-colored card border. Scoped to this modal only so
+   the standard centered modals keep their dimmed backdrop + light header. */
+#rr-att-policy-modal{background:transparent}
+#rr-att-policy-modal .modal-card{border:1px solid var(--sidebar)}
+#rr-att-policy-modal .modal-head{background:var(--sidebar);border-bottom:0;align-items:center;padding:11px 18px}
+#rr-att-policy-modal .modal-title{color:var(--sidebar-ink);font-size:var(--fs-base);font-weight:600;margin:0}
+#rr-att-policy-modal .modal-close{color:var(--sidebar-ink-idle)}
+#rr-att-policy-modal .modal-close:hover{color:var(--sidebar-ink);background:rgba(255,255,255,.12)}
+
 /* ─────────────────────────────────────────────────────────────
    PREMIUM SCHEDULE — AI, conflicts, forecast, rules, live panel
    ───────────────────────────────────────────────────────────── */

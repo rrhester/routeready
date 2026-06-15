@@ -8046,10 +8046,9 @@ function _rrOpenAttendancePolicyModal() {
     back.className = "modal-backdrop";
     back.innerHTML =
       `<div class="modal-card" role="dialog" aria-modal="true" aria-label="Attendance policy" style="max-width:600px">`
-      + `<div class="modal-head"><div>`
+      + `<div class="modal-head">`
       + `<h3 class="modal-title">Attendance policy</h3>`
-      + `<p class="modal-sub">Occurrence rules, thresholds, and the auto-coaching ladder.</p>`
-      + `</div><button type="button" class="modal-close" data-rr-att-policy-close aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`
+      + `<button type="button" class="modal-close" data-rr-att-policy-close aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`
       + `<div class="modal-body" id="rr-att-policy-modal-body"></div>`
       + `</div>`;
     document.body.appendChild(back);
