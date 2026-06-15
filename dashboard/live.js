@@ -4641,7 +4641,7 @@ async function loadDriversRoster() {
   const tbody = document.getElementById("drivers-tbody");
   if (!tbody) return;
   // Paint skeleton rows immediately so the page feels instant.
-  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 7 : 6);
+  tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 7 : 10);
 
   const [{ data: rows, error }, { data: appStatus }, { data: coachRows }, { data: i9Rows }] = await Promise.all([
     sb.from("drivers")
@@ -4815,6 +4815,9 @@ function _applyRosterFiltersAndSort(rows) {
   // Risk rank from the map the roster loader fills: At Risk (2) > Watch (1)
   // > none (0). Drives the Risk column sort.
   const riskRank = (r) => { const v = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(r.id) : null; return v === "atrisk" ? 2 : v === "watch" ? 1 : 0; };
+  // Attendance points + last-coaching date drive their roster columns' sorts.
+  const ptsVal = (r) => (_rosterAttPoints && _rosterAttPoints.get) ? (_rosterAttPoints.get(r.id) || 0) : 0;
+  const lastCoachMs = (r) => { const iso = (_rosterLastCoached && _rosterLastCoached.get) ? _rosterLastCoached.get(r.id) : null; return iso ? new Date(iso).getTime() : null; };
   switch (f.sort) {
     case "score-asc":      out = [...out].sort((a, b) => (a.score ?? 999) - (b.score ?? 999)); break;
     case "score-desc":     out = [...out].sort((a, b) => (b.score ?? -1)  - (a.score ?? -1));  break;
@@ -4828,6 +4831,10 @@ function _applyRosterFiltersAndSort(rows) {
     case "status-desc":    out = [...out].sort((a, b) => statusRank(b) - statusRank(a)); break;
     case "lastactive-desc": out = [...out].sort((a, b) => (lastActiveMs(b) ?? -Infinity) - (lastActiveMs(a) ?? -Infinity)); break;
     case "lastactive-asc":  out = [...out].sort((a, b) => (lastActiveMs(a) ?? Infinity)  - (lastActiveMs(b) ?? Infinity));  break;
+    case "points-desc":     out = [...out].sort((a, b) => ptsVal(b) - ptsVal(a)); break;
+    case "points-asc":      out = [...out].sort((a, b) => ptsVal(a) - ptsVal(b)); break;
+    case "lastcoach-desc":  out = [...out].sort((a, b) => (lastCoachMs(b) ?? -Infinity) - (lastCoachMs(a) ?? -Infinity)); break;
+    case "lastcoach-asc":   out = [...out].sort((a, b) => (lastCoachMs(a) ?? Infinity)  - (lastCoachMs(b) ?? Infinity));  break;
   }
   return out;
 }
@@ -4892,6 +4899,8 @@ document.addEventListener("click", (e) => {
   else if (col === "risk")       next = cur === "risk-desc" ? "risk-asc" : "risk-desc";
   else if (col === "status")     next = cur === "status-asc"  ? "status-desc": "status-asc";
   else if (col === "lastactive") next = cur === "lastactive-desc" ? "lastactive-asc" : "lastactive-desc";
+  else if (col === "points")     next = cur === "points-desc" ? "points-asc" : "points-desc";
+  else if (col === "lastcoach")  next = cur === "lastcoach-desc" ? "lastcoach-asc" : "lastcoach-desc";
   if (!next) return;
   _rosterFilters = { ..._rosterFilters, sort: next };
   renderDriverTable(_rosterRows, null);
@@ -4949,12 +4958,14 @@ function renderDriverTable(rows, error) {
     thead.innerHTML = cbHeader + `
       <th class="rr-roster-th-driver"><span class="rr-roster-th-driver-label" data-rr-roster-sort="name" style="cursor:pointer;user-select:none">Driver${caret("name")}</span></th>
       <th class="rr-roster-th-attpoints" data-rr-roster-sort="risk" style="cursor:pointer;user-select:none" title="Drivers on a corrective action: Watch (Written) or At Risk (Final)">Risk${caret("risk")}</th>
+      <th class="rr-attpts-col" data-rr-roster-sort="points" style="cursor:pointer;user-select:none" title="Active attendance points in the policy window">Points${caret("points")}</th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
       <th class="rr-roster-th-status"><span class="rr-roster-th-status-sort" data-rr-roster-sort="status" style="cursor:pointer;user-select:none">Status${caret("status")}</span></th>
+      <th class="rr-lastcoach-col" data-rr-roster-sort="lastcoach" style="cursor:pointer;user-select:none" title="Most recent coaching of any topic">Last coaching${caret("lastcoach")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th class="rr-roster-th-app">App</th>
       <th class="rr-roster-th-actions"></th>`;
-    thead.dataset.rrColCount = "8";
+    thead.dataset.rrColCount = "10";
   }
 
   // Roster toolbar · search + status filter + Add driver live here, not in the
@@ -4980,7 +4991,7 @@ function renderDriverTable(rows, error) {
 
   _obSetStrip(error ? null : rows);
 
-  const colspan = _driverStage === "onboarding" ? 7 : 9;
+  const colspan = _driverStage === "onboarding" ? 7 : 11;
   if (error) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty({
       error: true, title: "Couldn't load drivers", body: escapeHtml(error.message),
@@ -7983,8 +7994,9 @@ function _rrOpenRosterAttendance(trigger) {
   const pop = _rrEnsureRosterAttendancePop();
   const reportIcon = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
   const policyIcon = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+  // The standalone attendance report page was retired (its points + last
+  // coaching now live on the roster), so this menu just reaches the policy.
   pop.innerHTML =
-    `<button type="button" role="menuitem" class="rr-status-picker-item" data-rr-att-go="report">${reportIcon}<span class="rr-status-picker-label">Attendance report</span></button>` +
     `<button type="button" role="menuitem" class="rr-status-picker-item" data-rr-att-go="policy">${policyIcon}<span class="rr-status-picker-label">Attendance policy</span></button>`;
   const r = trigger.getBoundingClientRect();
   pop.style.position = "fixed";
@@ -8015,8 +8027,6 @@ document.addEventListener("click", (e) => {
     _rrCloseRosterAttendance();
     if (where === "policy") {
       _rrOpenAttendancePolicyModal();
-    } else if (where === "report") {
-      if (typeof window.rrSchedNav === "function") window.rrSchedNav("attendance");
     }
     return;
   }
@@ -8166,8 +8176,10 @@ function renderDriverRow(d) {
         <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(display)}</span>${badges}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
+      <td class="rr-attpts-col">${_attPointsCell(d.id)}</td>
       <td>${tenure}</td>
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
+      <td class="rr-lastcoach-col">${_lastCoachedCell(d.id)}</td>
       <td class="rr-lastactive-cell">${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer class="u-center rr-app-cell"></td>
       <td data-rr-no-drawer class="rr-row-actions">${actions}</td>

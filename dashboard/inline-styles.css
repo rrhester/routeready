@@ -8076,6 +8076,10 @@ body.rr-cmdk-open{ overflow:hidden }
 .roster-split .rr-lastactive-cell,
 .roster-split .rr-roster-th-app,
 .roster-split .rr-app-cell{display:none}
+/* Points + Last-coaching show on the full-width roster; once a record is
+   open the list condenses, so hide them then (the card carries that detail). */
+.roster-split.has-record .rr-attpts-col,
+.roster-split.has-record .rr-lastcoach-col{display:none}
 /* Attendance Points header is too wide for the condensed split pane and
    clips behind the open driver drawer — show the short "Points" label
    there instead. The full label shows in the wide roster; the th's
