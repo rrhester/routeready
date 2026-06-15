@@ -12924,19 +12924,22 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Sort caret · idle (clickable but not the active sort)
              is a faded dual-arrow; active is a solid up/down. */
           #rr-roster-thead .rr-sort-caret{
-            display:inline-block;margin-left:3px;
-            font-size:10px;line-height:1;vertical-align:1px;
+            display:inline-block;margin-left:2px;
+            font-size:9px;line-height:1;vertical-align:1px;
             font-variant-numeric:tabular-nums;
           }
           #rr-roster-thead .rr-sort-caret-idle{
-            color:var(--text-subtle);opacity:.45;
+            color:var(--text-subtle);opacity:.3;
             transition:opacity var(--t-fast);
           }
           #rr-roster-thead th[data-rr-roster-sort]:hover .rr-sort-caret-idle{
-            opacity:.9;
+            opacity:.6;
           }
+          /* Active sort arrow stays monochrome (no accent color) — it reads as
+             "on" purely by being a solid single arrow against the faint idle
+             carets, keeping the header quiet and enterprise-restrained. */
           #rr-roster-thead .rr-sort-caret-active{
-            color:var(--accent);font-weight:700;
+            color:#374151;font-weight:700;
           }
           #rr-roster-thead th[data-rr-roster-sort]:hover,
           #rr-roster-thead [data-rr-roster-sort]:hover{
@@ -13024,13 +13027,14 @@ body.rr-cmdk-open{ overflow:hidden }
              .dr-search node (with its change/input handlers) into
              the .rr-roster-th-search-slot span here. */
           #rr-roster-thead th.rr-roster-th-driver{
-            padding-top:6px !important;padding-bottom:6px !important;
+            padding-top:0 !important;padding-bottom:0 !important;
           }
-          /* Stack the search under the Driver label, left-aligned to the
-             column edge (operator wanted the search bar further left). */
+          /* The header search slot moved to the toolbar strip, so the Driver
+             label is now a plain inline label that vertically centers with the
+             other columns (no bottom margin reserving room for a search field). */
           #rr-roster-thead .rr-roster-th-driver-label{
-            display:flex;align-items:center;gap:4px;
-            margin-right:0;margin-bottom:5px;
+            display:inline-flex;align-items:center;gap:4px;
+            margin-right:0;margin-bottom:0;
           }
           #rr-roster-thead .rr-roster-th-search-slot{
             display:flex;align-items:center;
@@ -13106,16 +13110,17 @@ body.rr-cmdk-open{ overflow:hidden }
             position:sticky !important;top:0 !important;z-index:3 !important;
           }
           #rr-roster-thead th{
-            /* Calm enterprise data-grid header — white fill, muted uppercase
-               labels, a single bottom hairline. Controls now live in the
+            /* Matches the Schedule Targets table header exactly — dark charcoal
+               (#374151) uppercase labels at 13px/700 with tight .02em tracking,
+               white fill, and a single #ECEFF3 hairline. Controls live in the
                toolbar above, so the header only identifies columns. */
             background:var(--surface) !important;
-            border-bottom:1px solid var(--border-subtle) !important;
-            color:var(--text-subtle) !important;
-            font-size:15px !important;font-weight:700 !important;
-            letter-spacing:.04em !important;text-transform:uppercase !important;
+            border-bottom:1px solid #ECEFF3 !important;
+            color:#374151 !important;
+            font-size:13px !important;font-weight:700 !important;
+            letter-spacing:.02em !important;text-transform:uppercase !important;
             padding:0 var(--s-4) !important;
-            height:38px !important;
+            height:36px !important;
             vertical-align:middle !important;
           }
           /* Slightly roomier rows + a softer hairline between them so the
