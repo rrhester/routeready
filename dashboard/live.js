@@ -14651,7 +14651,7 @@ function renderDriverStatusBadge(s) {
 function _rrDriverStatusMeta(s) {
   const map = {
     onboarding: { label: "Onboarding", color: "#2563EB" },
-    active:     { label: "Active",     color: "var(--green)" },
+    active:     { label: "Active",     color: "#188038" },
     leave:      { label: "On leave",   color: "var(--amber)" },
     inactive:   { label: "Inactive",   color: "var(--text-subtle)" },
     terminated: { label: "Terminated", color: "var(--red)" },
@@ -20724,8 +20724,8 @@ async function openDriverDrawer(driverId, opts) {
       /* Profile header — compact vertical rhythm, a strong name anchor, and
          quiet single-line metadata (Schedule design standard). */
       #rr-dd-drawer.rr-dd-inline .dd-head{padding:13px 20px 10px;background:var(--surface);border-bottom:0}
-      #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:var(--s-2-5)}
-      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em}
+      #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:13px}
+      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:17px;font-weight:700;letter-spacing:-.01em}
       #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px}
       #rr-dd-drawer.rr-dd-inline .dd-meta-sub{margin-top:2px;opacity:.85}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:42px!important;height:42px!important;font-size:var(--fs-md)!important}
@@ -20735,12 +20735,12 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-drawer.rr-dd-inline .dd-kpis{display:flex;align-items:stretch;flex-wrap:wrap;padding:9px 20px;border-bottom:1px solid var(--border-subtle)}
       #rr-dd-drawer .dd-kpi{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;padding:0 16px;border-left:1px solid var(--border-subtle)}
       #rr-dd-drawer .dd-kpi:first-child{border-left:0;padding-left:0}
-      #rr-dd-drawer .dd-kpi-label{font-size:var(--fs-xs);font-weight:500;text-transform:uppercase;color:var(--text-subtle);letter-spacing:.04em;white-space:nowrap}
-      #rr-dd-drawer .dd-kpi-val{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap}
+      #rr-dd-drawer .dd-kpi-label{font-size:10px;font-weight:500;text-transform:uppercase;color:var(--text-subtle);letter-spacing:.05em;white-space:nowrap}
+      #rr-dd-drawer .dd-kpi-val{font-size:15px;font-weight:650;color:var(--text);white-space:nowrap}
       #rr-dd-drawer .dd-kpis:empty{display:none}
       #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-tab-note{margin:8px 20px 0}
-      #rr-dd-drawer.rr-dd-inline .dd-body{padding:18px 20px}
+      #rr-dd-drawer.rr-dd-inline .dd-body{padding:14px 20px 18px}
       /* Lighter section rhythm — each section header carries its own
          hairline rule, so groups are separated by whitespace, not lines. */
       #rr-dd-drawer.rr-dd-inline .dd-section{margin:0 0 16px}
@@ -20771,7 +20771,7 @@ async function openDriverDrawer(driverId, opts) {
       .dd-act svg{flex:0 0 auto}
       .dd-tabs{display:flex;gap:var(--s-2);background:transparent;padding:0;border-bottom:1px solid var(--border-subtle);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
       .dd-tabs::-webkit-scrollbar{display:none}
-      .dd-tab{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-subtle);padding:var(--s-2) 12px;cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast);white-space:nowrap}
+      .dd-tab{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);padding:var(--s-2) 12px;cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast);white-space:nowrap}
       .dd-tab:hover{color:var(--text)}
       .dd-tab.active{background:transparent;color:var(--text);font-weight:600;border-bottom-color:var(--accent);box-shadow:none}
       .dd-tab-note{margin:9px 28px 0;font-size:var(--fs-xs);color:var(--text-subtle);display:none;align-items:center;gap:6px}
@@ -21044,7 +21044,7 @@ async function loadDriverDrawer(driverId) {
   const sm = _rrDriverStatusMeta(drv.status);
   const metaParts = [];
   metaParts.push(escapeHtml(stationCode || (drv.station_id ? "Station assigned" : "No station")));
-  metaParts.push(`<span style="color:${sm.color};font-weight:600">${escapeHtml(sm.label)}</span>`);
+  metaParts.push(`<span style="color:${sm.color};font-weight:500">${escapeHtml(sm.label)}</span>`);
   if (drv.tier) metaParts.push(`Tier ${escapeHtml(String(drv.tier))}`);
   metaParts.push(escapeHtml(
     daysSinceHire == null ? "Hire date not set"
@@ -21075,8 +21075,12 @@ async function loadDriverDrawer(driverId) {
     const lastStr = lastEv
       ? (typeof _relTimeAgo === "function" ? _relTimeAgo(lastEv.occurred_at) : "Recent")
       : "None";
-    const kpi = (label, val) => `<div class="dd-kpi"><span class="dd-kpi-label">${label}</span><span class="dd-kpi-val">${escapeHtml(String(val))}</span></div>`;
-    ddKpis.innerHTML = kpi("Attendance", attStr) + kpi("Risk", riskStr) + kpi("Tenure", tenureStr) + kpi("Last event", lastStr);
+    // "At risk" carries a dark, professional red — typography only, no
+    // badge/background (per the enterprise-restraint pass). Watch/Clear stay
+    // in the default dark value color.
+    const riskColor = riskLevel === "atrisk" ? "#B42318" : null;
+    const kpi = (label, val, color) => `<div class="dd-kpi"><span class="dd-kpi-label">${label}</span><span class="dd-kpi-val"${color ? ` style="color:${color}"` : ""}>${escapeHtml(String(val))}</span></div>`;
+    ddKpis.innerHTML = kpi("Attendance", attStr) + kpi("Risk", riskStr, riskColor) + kpi("Tenure", tenureStr) + kpi("Last event", lastStr);
   }
 
   // Avatar in the drawer header — initials by default; the photo
@@ -25425,25 +25429,26 @@ async function renderAttendanceTab(body, d) {
          progression ladder, no checklist; clarity and doc access only. */
       #rr-dd-body .att-ev-tbl{display:flex;flex-direction:column}
       #rr-dd-body .att-ev-head,
-      #rr-dd-body .att-ev-row{display:grid;grid-template-columns:1fr 116px 80px;gap:14px;align-items:center;width:100%;text-align:left;padding:13px 2px;font:inherit;margin:0}
-      #rr-dd-body .att-ev-head{background:transparent;border-bottom:1px solid var(--border-subtle);padding-top:0;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle)}
+      #rr-dd-body .att-ev-row{display:grid;grid-template-columns:1fr 116px 80px;gap:14px;align-items:center;width:100%;text-align:left;padding:11px 2px;font:inherit;margin:0}
+      #rr-dd-body .att-ev-head{background:transparent;border-bottom:1px solid var(--border-subtle);padding-top:0;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}
       #rr-dd-body .att-ev-head span:last-child{text-align:center}
       #rr-dd-body button.att-ev-row{background:transparent;border:0;border-top:1px solid var(--border-subtle);cursor:pointer;transition:background var(--t-fast)}
       #rr-dd-body .att-ev-row:first-of-type{border-top:0}
       #rr-dd-body .att-ev-row:hover{background:var(--canvas)}
       /* Step pills escalate by severity (the dashboard's --amber token is
          indigo, so real amber/orange hex is used here). Final / Termination
-         use the brand red. */
+         use a deep, restrained red — soft fill, dark text, never bright. */
       #rr-dd-body .att-ev-typecell{justify-self:start;display:inline-flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
-      #rr-dd-body .att-ev-pill{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:3px 11px;border-radius:var(--r-pill)}
-      /* "Awaiting acknowledgement" — quiet amber note under the step pill on
-         coachings the driver hasn't acknowledged or signed yet. */
-      #rr-dd-body .att-ev-await{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;letter-spacing:.02em;color:#B45309;line-height:1.1}
+      #rr-dd-body .att-ev-pill{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:2px 9px;border-radius:var(--r-pill)}
+      /* "Awaiting acknowledgement" — a quiet, low-saturation note under the
+         step pill on coachings the driver hasn't acknowledged/signed yet.
+         Informational, not alarming. */
+      #rr-dd-body .att-ev-await{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;letter-spacing:.02em;color:#8A6D3B;line-height:1.1}
       #rr-dd-body .att-ev-await svg{flex:0 0 auto}
       #rr-dd-body .att-ev-note{background:rgba(100,116,139,.14);color:#475569}
       #rr-dd-body .att-ev-verbal{background:rgba(245,158,11,.14);color:#B45309}
       #rr-dd-body .att-ev-written{background:rgba(234,88,12,.13);color:#C2410C}
-      #rr-dd-body .att-ev-final{background:var(--red-soft);color:var(--red)}
+      #rr-dd-body .att-ev-final{background:rgba(220,38,38,.08);color:#B42318}
       #rr-dd-body .att-ev-termination{background:var(--red-soft-strong);color:var(--red-dark)}
       #rr-dd-body .att-ev-date{font-size:var(--fs-sm);color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
       #rr-dd-body .att-ev-doc{justify-self:center;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted)}
