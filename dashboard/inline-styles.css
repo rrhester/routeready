@@ -24189,16 +24189,20 @@ body.rr-cmdk-open{ overflow:hidden }
   }
 }
 
-/* ═══ Staffing Policy drawer · plain-list pass (operator 2026-06-12) ═══
-   "Way less cluttered": no cards, no boxes, no subtitles — just text
-   lines with a checkbox or compact input on the right. Scoped to the
-   drawer; the same sf2-* classes keep their card styling elsewhere. */
+/* ═══ Staffing Policy drawer · titled-card parity pass (operator 2026-06-15) ═══
+   Reverses the earlier plain-list look so this drawer reads like the
+   Attendance / coaching policy popout: every zone is a roomy card with a
+   bold title and a visible one-line description. The expert zones stay
+   collapsible <details> (the "jump to a rule zone" focus feature and the
+   per-section open-state persistence both set .open on them), but now render
+   as cards with the description shown right in the header. Scoped to the
+   drawer; the same sf2-* classes keep their own styling elsewhere. */
 
-/* Summary becomes a plain two-line text block. */
+/* The rules-in-effect digest / live-diff stay quiet text — the policy popout
+   has no equivalent, so they don't take card chrome. */
 .rr-policy-drawer .rr-pol-summary{
   border:0;background:transparent;padding:0;
 }
-/* Live-diff strip flattens to a single muted line. */
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-livediff{
   border:0 !important;background:transparent !important;
   padding:0 !important;box-shadow:none !important;
@@ -24207,48 +24211,72 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-livediff .sf2-livediff-pulse{display:none}
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-livediff-text{font-size:11px;color:#8A94A4}
 
-/* Sections lose the card chrome — they read as text lines with a
-   chevron, exactly like the rows above them. */
+/* Each zone is a card, matching .pol-section in the policy popout. */
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section{
-  border:0;border-radius:0;margin:0;background:transparent;
+  border:1px solid var(--border);border-radius:var(--r-lg);
+  margin:0;background:var(--surface);overflow:hidden;
 }
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section + .sf2-section{margin-top:0}
-#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section[open]{box-shadow:none;border:0}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section[open]{
+  box-shadow:0 1px 3px rgba(15,23,42,.06);border-color:rgba(37,99,235,.30);
+}
+/* Header: bold title + visible description + chevron, comfortable hit area. */
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-head-inner{
-  padding:5px 0;min-height:0;gap:6px;
+  padding:12px 14px;min-height:0;gap:10px;
 }
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-head:hover .sf2-section-head-inner{
-  background:transparent;
+  background:rgba(15,23,42,.02);
 }
 #rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-head:hover .sf2-section-title{color:#2563EB}
-#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-title{font-size:12.5px;font-weight:400;color:#0F172A}
-#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-sub{display:none}
-#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-chev{width:12px;height:12px}
-#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-body{
-  padding:2px 0 6px 12px;border-top:0;
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-title{
+  font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.3;
 }
-.rr-policy-drawer .rr-pol-bucket-body{padding:2px 0 4px 12px;gap:2px}
+/* The description — hidden in the old dense pass — is the point of parity. */
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-sub{
+  display:block;font-size:var(--fs-xs);color:var(--text-subtle);
+  line-height:1.4;margin-top:2px;
+}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-chev{width:14px;height:14px}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-body{
+  padding:6px 14px 12px;border-top:1px solid var(--border);
+}
+
+/* The "Advanced" disclosure is a plain expander (not a card) so the expert
+   zone cards inside it don't read as cards within a card. */
+#rr-sched-smartfill-rules-popover.rr-policy-drawer #rr-pol-advanced{
+  border:0;border-radius:0;background:transparent;overflow:visible;
+}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer #rr-pol-advanced[open]{
+  box-shadow:none;border:0;
+}
+#rr-sched-smartfill-rules-popover.rr-policy-drawer #rr-pol-advanced > summary .sf2-section-head-inner{
+  padding:10px 2px;
+}
+.rr-policy-drawer .rr-pol-bucket-body{
+  display:flex;flex-direction:column;gap:10px;padding:8px 0 4px 10px;
+}
 .rr-policy-drawer .rr-pol-bucket-body .rr-pol-rows{padding:0 !important}
 
-/* Rows: one line of text, control on the right. */
-.rr-policy-drawer .rr-pol-row{min-height:26px;padding:0}
+/* Rows sit inside the cards with a little breathing room. */
+.rr-policy-drawer .rr-pol-row{min-height:30px;padding:2px 0}
 .rr-policy-drawer .rr-pol-label{font-size:12.5px}
 .rr-policy-drawer .rr-pol-select{
-  height:24px;min-width:0;max-width:160px;padding:0 6px;
+  height:26px;min-width:0;max-width:170px;padding:0 8px;
   font-size:12px;border-color:#E2E8F0;
 }
 .rr-policy-drawer .rr-pol-check{
-  width:14px;height:14px;margin:0;accent-color:#2563EB;cursor:pointer;
+  width:15px;height:15px;margin:0;accent-color:#2563EB;cursor:pointer;
 }
 .rr-policy-drawer .rr-pol-group-label{
   border-top:0;margin:6px 0 0;padding-top:4px;
 }
 .rr-policy-drawer .rr-pol-note{margin:0 0 2px}
 
-/* Body breathes less. */
+/* Cards stack with the same rhythm as the policy popout's section list. */
+.rr-policy-drawer .pol-section{margin-bottom:0}
 .rr-policy-drawer #rr-sched-smartfill-rules-body{
-  padding:10px 16px 14px;
-  gap:4px !important;
+  padding:14px 16px 16px;
+  gap:10px !important;
 }
 
 /* ═══ Van rules dropdown under Assign Fleet (operator 2026-06-12) ═══ */

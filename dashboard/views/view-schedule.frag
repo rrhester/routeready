@@ -578,6 +578,9 @@
                        rr-pol module in live.js; the expert versions of the
                        same knobs stay under Advanced and repaint via
                        _restoreSmartFillRules after every write. -->
+                  <div class="pol-section">
+                  <h3 class="pol-section-title">Workload limits</h3>
+                  <p class="pol-section-sub">The hard ceilings Smart Fill never crosses when it builds a week — a driver is never scheduled past these.</p>
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-consec">Max Consecutive Days <button type="button" class="rr-pol-info" data-rr-pol-info="Hard ceiling — Smart Fill never schedules a driver more than this many days in a row. Rolling count, so it catches streaks across week boundaries; a day off or approved PTO resets it." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
@@ -600,7 +603,11 @@
                       </div>
                     </div>
                   </div>
+                  </div>
 
+                  <div class="pol-section">
+                  <h3 class="pol-section-title">Fifth day</h3>
+                  <p class="pol-section-sub">Whether Smart Fill hands out a fifth day, and who gets a heads-up when it does.</p>
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-fifth">5th Day <button type="button" class="rr-pol-info" data-rr-pol-info="Off: never. Allow If Needed: drivers who opted in on the availability tool can pick up a 5th day when coverage needs it. Required: Smart Fill aims to give every eligible driver a 5th day — common for DSPs that run 5-day weeks." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
@@ -619,7 +626,11 @@
                       </div>
                     </div>
                   </div>
+                  </div>
 
+                  <div class="pol-section">
+                  <h3 class="pol-section-title">Scheduling order</h3>
+                  <p class="pol-section-sub">Soft nudges that steer who Smart Fill picks when more than one driver fits.</p>
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-corrective">Schedule Final-corrective drivers last <button type="button" class="rr-pol-info" data-rr-pol-info="Drivers on a Final coaching ladder go to the back of the line when Smart Fill chooses between eligible drivers." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
@@ -633,6 +644,7 @@
                         <input type="checkbox" class="rr-pol-check" id="rr-pol-preferred" title="Lean toward the days drivers asked for — a soft preference, never a block">
                       </div>
                     </div>
+                  </div>
                   </div>
 
                   <!-- ── ADVANCED ── the full expert rule sections, collapsed.
@@ -651,6 +663,9 @@
                   <!-- Expert quick-rows (operator 2026-06-12): Preset
                        bundles, Min Rest, Target Days and Goal were demoted
                        from the main box — same ids, same rr-pol wiring. -->
+                  <div class="pol-section">
+                  <h3 class="pol-section-title">Rest &amp; stability</h3>
+                  <p class="pol-section-sub">Recovery time between shifts and how hard Smart Fill sticks to each driver's usual days.</p>
                   <div class="rr-pol-rows" style="padding:0 10px">
                     <div class="rr-pol-row">
                       <label class="rr-pol-label" for="rr-pol-rest">Minimum Rest <button type="button" class="rr-pol-info" data-rr-pol-info="Minimum hours between the end of one shift and the start of the next." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
@@ -673,6 +688,7 @@
                         </select>
                       </div>
                     </div>
+                  </div>
                   </div>
 
                   <!-- ── 1 · WHO CAN WORK ── eligibility. The license/cert/
