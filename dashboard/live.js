@@ -20725,9 +20725,10 @@ async function openDriverDrawer(driverId, opts) {
          strong name anchor, and quiet "STATION • Status" metadata. No KPIs. */
       #rr-dd-drawer.rr-dd-inline .dd-head{padding:18px 20px;background:#F8FAFC;border-bottom:1px solid var(--border)}
       #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:13px}
-      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:17px;font-weight:700;letter-spacing:-.01em}
-      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px}
-      #rr-dd-drawer.rr-dd-inline .dd-meta-sub{margin-top:2px;opacity:.85}
+      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:19px;font-weight:700;letter-spacing:-.01em}
+      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:4px}
+      #rr-dd-drawer.rr-dd-inline .dd-meta-sub{display:inline-flex;align-items:center;gap:5px;margin-top:4px;color:var(--text-subtle);opacity:1}
+      #rr-dd-drawer .dd-meta-sub svg{width:13px;height:13px;flex:0 0 auto;color:var(--text-disabled)}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:42px!important;height:42px!important;font-size:var(--fs-md)!important}
       /* Quiet KPI row under the profile header — small labels + slightly
          stronger values, thin vertical dividers. No cards / shadows / icons /
@@ -20738,13 +20739,13 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-drawer .dd-kpi-label{font-size:10px;font-weight:500;text-transform:uppercase;color:var(--text-subtle);letter-spacing:.05em;white-space:nowrap}
       #rr-dd-drawer .dd-kpi-val{font-size:15px;font-weight:650;color:var(--text);white-space:nowrap}
       #rr-dd-drawer .dd-kpis:empty{display:none}
-      #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
+      #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:6px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-tab-note{margin:8px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-body{padding:14px 20px 18px}
       /* Lighter section rhythm — each section header carries its own
          hairline rule, so groups are separated by whitespace, not lines. */
       #rr-dd-drawer.rr-dd-inline .dd-section{margin:0 0 16px}
-      #rr-dd-drawer.rr-dd-inline .dd-section + .dd-section{margin-top:20px;padding-top:0}
+      #rr-dd-drawer.rr-dd-inline .dd-section + .dd-section{margin-top:28px;padding-top:0}
       #rr-dd-drawer.rr-dd-inline .dd-row{grid-template-columns:130px 1fr;gap:var(--s-2-5);padding:8px 0}
       #rr-dd-drawer.rr-dd-inline .dd-foot{padding:var(--s-3) 20px}
       /* Tablet / mobile — the pane stacks full width beneath the roster
@@ -20803,9 +20804,9 @@ async function openDriverDrawer(driverId, opts) {
       .dd-badge.dsp{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
       .dd-row{display:grid;grid-template-columns:160px 1fr;gap:var(--s-3-5);align-items:center;padding:9px 0}
       .dd-row:first-of-type{border-top:0}
-      .dd-row label{font-size:var(--fs-sm);color:var(--text-muted);font-weight:500}
-      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:7px var(--s-2-5);font:inherit;font-size:var(--fs-md);color:var(--text)}
-      .dd-row input:focus,.dd-row select:focus,.dd-row textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+      .dd-row label{font-size:var(--fs-sm);color:var(--text-subtle);font-weight:500}
+      .dd-row input,.dd-row select,.dd-row textarea{width:100%;background:#FAFBFC;border:1px solid #E6E9EE;border-radius:var(--r-md);padding:10px var(--s-2-5);font:inherit;font-size:var(--fs-md);color:var(--text)}
+      .dd-row input:focus,.dd-row select:focus,.dd-row textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
       /* Weekday selectors (Availability tab) — match Schedule's day controls:
          hairline border, --r-md radius, accent-tinted selected state, quiet hover. */
       .dd-day{display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:7px var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);cursor:pointer;user-select:none;transition:border-color var(--t-fast),background var(--t-fast),color var(--t-fast)}
@@ -20816,7 +20817,11 @@ async function openDriverDrawer(driverId, opts) {
       .dd-day[data-dim]{opacity:.45;pointer-events:none}
       .dd-day.is-off{opacity:.4;cursor:not-allowed}
       .dd-day.is-off:hover{border-color:var(--border);background:var(--canvas);color:var(--text)}
-      .dd-foot{padding:var(--s-3-5) 28px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-2);background:var(--surface);position:sticky;bottom:0}
+      .dd-foot{padding:var(--s-3-5) 28px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:flex-end;gap:var(--s-2);background:#F8FAFC;position:sticky;bottom:0}
+      .dd-foot-status{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text-subtle)}
+      .dd-foot-status .dd-foot-check{flex:0 0 auto;color:#188038;display:none}
+      .dd-foot-status.is-saved .dd-foot-check{display:inline-flex}
+      .dd-foot-status.is-error{color:var(--red)}
       .dd-list-row{display:grid;grid-template-columns:1fr auto;gap:var(--s-3);align-items:center;padding:var(--s-3) 0;border-top:1px solid var(--border-subtle)}
       .dd-list-row:first-of-type{border-top:0}
       .dd-list-title{font-size:var(--fs-md);font-weight:600}
@@ -21034,21 +21039,29 @@ async function loadDriverDrawer(driverId) {
   if (!titleEl) return;
   titleEl.textContent = displayDriverName(drv) || "—";
 
-  // ── Header rebuild — the name is the anchor; metadata is a single quiet
-  // line, "STATION • Status" (status shown as simple colored text, not a
-  // badge). No tier / tenure / metrics — this is an HR record, not a dashboard.
+  // ── Header rebuild — the name is the anchor; line 1 is quiet metadata
+  // "STATION • Status • Role" (status as simple colored text, not a pill);
+  // line 2 is a calendar-marked "Hired N days ago". HR record, not a dashboard.
   const stationCode = (_driverStationsCache || []).find(s => s.id === drv.station_id)?.code;
   const sm = _rrDriverStatusMeta(drv.status);
+  const ROLE_LABELS = { driver: "Driver", dispatcher: "Dispatcher", fleet_manager: "Fleet manager", hr: "HR", ops_manager: "Ops manager", other: "Other" };
+  const roleLabel = drv.role ? (ROLE_LABELS[drv.role] || null) : null;
   const metaParts = [
     escapeHtml(stationCode || (drv.station_id ? "Station assigned" : "No station")),
     `<span style="color:${sm.color};font-weight:500">${escapeHtml(sm.label)}</span>`,
   ];
+  if (roleLabel) metaParts.push(escapeHtml(roleLabel));
   const subEl = document.getElementById("rr-dd-sub");
   if (subEl) subEl.innerHTML = metaParts.join(' <span style="opacity:.5">•</span> ');
-  // Metadata is consolidated onto the single line above; clear the second
-  // line so it collapses.
+  // Line 2 — tenure with a small calendar glyph.
+  const daysSinceHire = drv.hire_date
+    ? Math.max(0, Math.floor((Date.now() - new Date(drv.hire_date).getTime()) / 86400000))
+    : null;
+  const hireStr = daysSinceHire == null ? "Hire date not set"
+    : daysSinceHire === 0 ? "Hired today"
+    : `Hired ${daysSinceHire} day${daysSinceHire === 1 ? "" : "s"} ago`;
   const sub2El = document.getElementById("rr-dd-sub2");
-  if (sub2El) sub2El.textContent = "";
+  if (sub2El) sub2El.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>${escapeHtml(hireStr)}</span>`;
 
   // KPI row removed — this is an HR personnel file, not an operations
   // dashboard. #rr-dd-kpis stays in the template but is left empty, so
@@ -21140,12 +21153,12 @@ function setDriverDrawerFoot() {
     // autosaves as you edit, so the footer just shows the save status.
     foot.innerHTML = isCreate
       ? `<button class="btn btn-primary" data-rr-dd-save>Save record</button>`
-      : `<span data-rr-dd-autosave-status style="font-size:var(--fs-sm);color:var(--text-subtle)">All changes saved</span>`;
+      : `<span data-rr-dd-autosave-status class="dd-foot-status is-saved"><span class="dd-foot-status-text">All changes saved</span><svg class="dd-foot-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>`;
   } else if (_ddTab === "availability") {
     foot.style.display = "";
     foot.innerHTML = isCreate
       ? `<span style="font-size:var(--fs-sm);color:var(--text-subtle)">Save the driver first to set availability</span>`
-      : `<span data-rr-dd-autosave-status style="font-size:var(--fs-sm);color:var(--text-subtle)">All changes saved</span>`;
+      : `<span data-rr-dd-autosave-status class="dd-foot-status is-saved"><span class="dd-foot-status-text">All changes saved</span><svg class="dd-foot-check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>`;
   } else {
     // Read-only tabs have no footer action — the header Close already
     // dismisses the record, so the redundant footer Close is dropped and the
@@ -21165,9 +21178,11 @@ let _ddAutosaveQueued = false;
 function _ddSetAutosaveStatus(state, msg) {
   const el = document.querySelector("#rr-dd-foot [data-rr-dd-autosave-status]");
   if (!el) return;
-  if (state === "saving")     { el.textContent = "Saving…";           el.style.color = "var(--text-subtle)"; }
-  else if (state === "saved") { el.textContent = "All changes saved"; el.style.color = "var(--text-subtle)"; }
-  else if (state === "error") { el.textContent = "Couldn't save" + (msg ? " — " + msg : ""); el.style.color = "var(--red)"; }
+  const txt = el.querySelector(".dd-foot-status-text") || el;
+  el.classList.remove("is-saving", "is-saved", "is-error");
+  if (state === "saving")     { txt.textContent = "Saving…";           el.classList.add("is-saving"); }
+  else if (state === "saved") { txt.textContent = "All changes saved"; el.classList.add("is-saved"); }
+  else if (state === "error") { txt.textContent = "Couldn't save" + (msg ? " — " + msg : ""); el.classList.add("is-error"); }
 }
 async function _ddAutosaveCommit() {
   const drv = _ddDriver?.driver;
@@ -22817,7 +22832,6 @@ function renderProfileTab(body, d) {
       <div class="dd-section-head">
         <div>
           <div class="dd-section-title">Identity</div>
-          <div class="dd-section-sub">Name and personal details shown across the dashboard and driver app.</div>
         </div>
       </div>
       <div class="dd-row"><label>Full name</label><input data-rr-dd-field="full_name" data-rr-capitalize autocapitalize="words" value="${v(_ddVal("full_name", d.full_name))}"/></div>
@@ -22832,7 +22846,6 @@ function renderProfileTab(body, d) {
       <div class="dd-section-head">
         <div>
           <div class="dd-section-title">Contact</div>
-          <div class="dd-section-sub">How RouteReady reaches the driver — phone for SMS, email for magic-link sign-in.</div>
         </div>
       </div>
       <div class="dd-row"><label>Phone</label><input data-rr-dd-field="phone" value="${v(_ddVal("phone", d.phone))}"/></div>
@@ -22844,7 +22857,6 @@ function renderProfileTab(body, d) {
       <div class="dd-section-head">
         <div>
           <div class="dd-section-title">Emergency contact</div>
-          <div class="dd-section-sub">Who to call if the driver is in an accident or medical emergency.</div>
         </div>
       </div>
       <div class="dd-row"><label>Contact name</label><input data-rr-dd-field="emergency_contact_name" placeholder="Name" value="${v(_ddVal("emergency_contact_name", d.emergency_contact_name))}"/></div>
