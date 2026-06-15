@@ -20865,19 +20865,19 @@ async function openDriverDrawer(driverId, opts) {
          page scrollbar. Only the panel body scrolls internally. */
       #rr-dd-drawer.rr-dd-inline #rr-dd-panel{
         width:100%;max-width:none;height:auto;flex:1;min-height:0;
-        border:1px solid var(--sidebar);border-radius:var(--r-lg);box-shadow:var(--shadow-md);
+        border:1px solid #334155;border-radius:var(--r-lg);box-shadow:var(--shadow-md);
         transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1);
       }
       #rr-dd-drawer.rr-dd-inline.rr-dd-open #rr-dd-panel{transform:translateX(0)}
       /* Record header — a sidebar-colored identity band (dark), a strong white
          name anchor, and quiet light metadata. Header + card border share the
          sidebar color so the card matches the other popouts. */
-      #rr-dd-drawer.rr-dd-inline .dd-head{padding:18px 20px;background:var(--sidebar);border-bottom:0}
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:18px 20px;background:#334155;border-bottom:0}
       #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:13px}
       #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:19px;font-weight:700;letter-spacing:-.01em;color:#fff}
-      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--sidebar-ink-idle);margin-top:4px}
-      #rr-dd-drawer.rr-dd-inline .dd-meta-sub{display:inline-flex;align-items:center;gap:5px;margin-top:4px;color:var(--sidebar-ink-idle);opacity:1}
-      #rr-dd-drawer.rr-dd-inline .dd-meta-sub svg{color:var(--sidebar-ink-idle)}
+      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:#CBD5E1;margin-top:4px}
+      #rr-dd-drawer.rr-dd-inline .dd-meta-sub{display:inline-flex;align-items:center;gap:5px;margin-top:4px;color:#CBD5E1;opacity:1}
+      #rr-dd-drawer.rr-dd-inline .dd-meta-sub svg{color:#CBD5E1}
       #rr-dd-drawer .dd-meta-sub svg{width:13px;height:13px;flex:0 0 auto;color:var(--text-disabled)}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:42px!important;height:42px!important;font-size:var(--fs-md)!important}
       /* Quiet KPI row under the profile header — small labels + slightly
@@ -20916,7 +20916,12 @@ async function openDriverDrawer(driverId, opts) {
       .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.35}
       .dd-meta-sub{font-size:var(--fs-xs);margin-top:1px}
       .dd-head-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}
-      /* Header action button — quiet ghost icon+label (Close). */
+      /* Close (X) — quiet icon button, top-right of the record header. Light
+         on the dark inline header; muted on the light slide-over fallback. */
+      .dd-head-x{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;flex:0 0 auto;width:30px;height:30px;border-radius:var(--r-md);background:transparent;border:0;color:var(--text-subtle);cursor:pointer;transition:background var(--t-fast),color var(--t-fast)}
+      .dd-head-x:hover{background:var(--canvas);color:var(--text)}
+      #rr-dd-drawer.rr-dd-inline .dd-head-x{color:var(--sidebar-ink-idle)}
+      #rr-dd-drawer.rr-dd-inline .dd-head-x:hover{background:rgba(255,255,255,.14);color:#fff}
       .dd-act{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer;line-height:1;white-space:nowrap;transition:color var(--t-fast),border-color .12s,background .12s}
       .dd-act:hover{color:var(--text);border-color:var(--text-subtle);background:var(--canvas)}
       .dd-act svg{flex:0 0 auto}
@@ -21007,8 +21012,7 @@ async function openDriverDrawer(driverId, opts) {
             <div class="dd-meta dd-meta-sub" id="rr-dd-sub2"></div>
           </div>
         </div>
-        <!-- Close button removed per operator (Coach Driver lives in the top
-             bar; the record pane is persistent / Esc still closes). -->
+        <button type="button" class="dd-head-x" data-rr-dd-close aria-label="Close record" title="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <!-- Quiet KPI row under the profile header (Attendance · Risk · Tenure ·
            Last event) — populated in loadDriverDrawer. -->
