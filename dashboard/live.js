@@ -20721,9 +20721,9 @@ async function openDriverDrawer(driverId, opts) {
         transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1);
       }
       #rr-dd-drawer.rr-dd-inline.rr-dd-open #rr-dd-panel{transform:translateX(0)}
-      /* Profile header — compact vertical rhythm, a strong name anchor, and
-         quiet single-line metadata (Schedule design standard). */
-      #rr-dd-drawer.rr-dd-inline .dd-head{padding:13px 20px 10px;background:var(--surface);border-bottom:0}
+      /* Record header — a compact, calm HR identity band: light gray, a
+         strong name anchor, and quiet "STATION • Status" metadata. No KPIs. */
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:18px 20px;background:#F8FAFC;border-bottom:1px solid var(--border)}
       #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:13px}
       #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:17px;font-weight:700;letter-spacing:-.01em}
       #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px}
@@ -20769,9 +20769,9 @@ async function openDriverDrawer(driverId, opts) {
       .dd-act{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer;line-height:1;white-space:nowrap;transition:color var(--t-fast),border-color .12s,background .12s}
       .dd-act:hover{color:var(--text);border-color:var(--text-subtle);background:var(--canvas)}
       .dd-act svg{flex:0 0 auto}
-      .dd-tabs{display:flex;gap:var(--s-2);background:transparent;padding:0;border-bottom:1px solid var(--border-subtle);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
+      .dd-tabs{display:flex;gap:var(--s-3-5);background:transparent;padding:0;border-bottom:1px solid var(--border-subtle);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
       .dd-tabs::-webkit-scrollbar{display:none}
-      .dd-tab{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);padding:var(--s-2) 12px;cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast);white-space:nowrap}
+      .dd-tab{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);padding:var(--s-2-5) 12px;cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast);white-space:nowrap}
       .dd-tab:hover{color:var(--text)}
       .dd-tab.active{background:transparent;color:var(--text);font-weight:600;border-bottom-color:var(--accent);box-shadow:none}
       .dd-tab-note{margin:9px 28px 0;font-size:var(--fs-xs);color:var(--text-subtle);display:none;align-items:center;gap:6px}
@@ -21034,23 +21034,15 @@ async function loadDriverDrawer(driverId) {
   if (!titleEl) return;
   titleEl.textContent = displayDriverName(drv) || "—";
 
-  // ── Header rebuild — name (above) is the anchor; everything else reads as
-  // quiet secondary metadata on a single line: "STATION • Status • Hired N
-  // days ago" (status keeps its palette color). The KPI row sits below.
+  // ── Header rebuild — the name is the anchor; metadata is a single quiet
+  // line, "STATION • Status" (status shown as simple colored text, not a
+  // badge). No tier / tenure / metrics — this is an HR record, not a dashboard.
   const stationCode = (_driverStationsCache || []).find(s => s.id === drv.station_id)?.code;
-  const daysSinceHire = drv.hire_date
-    ? Math.max(0, Math.floor((Date.now() - new Date(drv.hire_date).getTime()) / 86400000))
-    : null;
   const sm = _rrDriverStatusMeta(drv.status);
-  const metaParts = [];
-  metaParts.push(escapeHtml(stationCode || (drv.station_id ? "Station assigned" : "No station")));
-  metaParts.push(`<span style="color:${sm.color};font-weight:500">${escapeHtml(sm.label)}</span>`);
-  if (drv.tier) metaParts.push(`Tier ${escapeHtml(String(drv.tier))}`);
-  metaParts.push(escapeHtml(
-    daysSinceHire == null ? "Hire date not set"
-    : daysSinceHire === 0 ? "Hired today"
-    : `Hired ${daysSinceHire} day${daysSinceHire === 1 ? "" : "s"} ago`
-  ));
+  const metaParts = [
+    escapeHtml(stationCode || (drv.station_id ? "Station assigned" : "No station")),
+    `<span style="color:${sm.color};font-weight:500">${escapeHtml(sm.label)}</span>`,
+  ];
   const subEl = document.getElementById("rr-dd-sub");
   if (subEl) subEl.innerHTML = metaParts.join(' <span style="opacity:.5">•</span> ');
   // Metadata is consolidated onto the single line above; clear the second
@@ -21058,30 +21050,10 @@ async function loadDriverDrawer(driverId) {
   const sub2El = document.getElementById("rr-dd-sub2");
   if (sub2El) sub2El.textContent = "";
 
-  // Quiet KPI row under the header · Attendance · Risk · Tenure · Last event.
-  const ddKpis = document.getElementById("rr-dd-kpis");
-  if (ddKpis) {
-    const riskLevel = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(drv.id) : null;
-    const riskStr = riskLevel === "atrisk" ? "At risk" : riskLevel === "watch" ? "Watch" : "Clear";
-    const pts = (_rosterAttPoints && _rosterAttPoints.get) ? _rosterAttPoints.get(drv.id) : null;
-    const attStr = (pts == null) ? "—" : `${pts} pt${pts === 1 ? "" : "s"}`;
-    const tenureStr = daysSinceHire == null ? "—"
-      : daysSinceHire < 30 ? `${daysSinceHire}d`
-      : `${Math.round(daysSinceHire / 30)} mo`;
-    const coachings = Array.isArray(data.coachings) ? data.coachings : [];
-    const lastEv = coachings.length
-      ? coachings.slice().sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at))[0]
-      : null;
-    const lastStr = lastEv
-      ? (typeof _relTimeAgo === "function" ? _relTimeAgo(lastEv.occurred_at) : "Recent")
-      : "None";
-    // "At risk" carries a dark, professional red — typography only, no
-    // badge/background (per the enterprise-restraint pass). Watch/Clear stay
-    // in the default dark value color.
-    const riskColor = riskLevel === "atrisk" ? "#B42318" : null;
-    const kpi = (label, val, color) => `<div class="dd-kpi"><span class="dd-kpi-label">${label}</span><span class="dd-kpi-val"${color ? ` style="color:${color}"` : ""}>${escapeHtml(String(val))}</span></div>`;
-    ddKpis.innerHTML = kpi("Attendance", attStr) + kpi("Risk", riskStr, riskColor) + kpi("Tenure", tenureStr) + kpi("Last event", lastStr);
-  }
+  // KPI row removed — this is an HR personnel file, not an operations
+  // dashboard. #rr-dd-kpis stays in the template but is left empty, so
+  // `.dd-kpis:empty{display:none}` collapses it. Attendance standing now
+  // lives on the Attendance tab (status card + progression + timeline).
 
   // Avatar in the drawer header — initials by default; the photo
   // painter (boot-time MutationObserver) replaces them with the
@@ -25395,82 +25367,118 @@ async function renderAttendanceTab(body, d) {
     pts: { called_off: ptsCallout, no_show: ptsNoshow, late: ptsLate },
   };
 
-  const docSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
-  const checkCircleSvg = `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+  // ── Disciplinary progression model ─────────────────────────────────────
+  // Attendance coachings escalate Verbal → Written → Final → Termination.
+  // The newest coaching is the driver's current standing; the same model
+  // feeds the status card, the progression strip, and the history timeline.
+  const STAGES = [
+    { key: "verbal",      label: "Verbal Coaching"    },
+    { key: "written",     label: "Written Warning"    },
+    { key: "final",       label: "Final Warning"      },
+    { key: "termination", label: "Termination Review" },
+  ];
+  const SEV_STAGE  = { verbal: 0, concern: 0, written: 1, warning: 1, final: 2, termination: 3 };
+  const stageIdx   = (sev) => (sev in SEV_STAGE ? SEV_STAGE[sev] : -1);
+  const stageLabel = (sev) => { const i = stageIdx(sev); return i >= 0 ? STAGES[i].label : "Coaching Note"; };
+  const fmtDate    = (iso) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const daysAgo    = (iso) => {
+    const n = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+    return n === 0 ? "Today" : n === 1 ? "1 day ago" : `${n} days ago`;
+  };
+  const isAwaiting = (c) => !(c.signed_at || c.acknowledged_at) && c.delivery_required && c.delivery_required !== "none";
 
-  // ── Attendance Events ──
-  // One row per attendance coaching record (already newest-first). The Type
-  // column shows the disciplinary step from the coaching's severity
-  // (Verbal / Written / Final / Termination). The doc icon opens that
-  // coaching's documentation (slide-over).
-  const SEV_CLS = { Note: "note", Verbal: "verbal", Written: "written", Final: "final", Termination: "termination" };
-  const evRows = coachings.map(c => {
-    const label = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity || "Coaching";
-    const cls = SEV_CLS[label] || "note";
-    const dateStr = new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-    // Flag coachings the driver still owes an acknowledgement on — not yet
-    // acknowledged or signed, and acknowledgement is required (mirrors the
-    // status logic in the coaching slide-over).
-    const acked = !!(c.signed_at || c.acknowledged_at);
-    const awaiting = !acked && c.delivery_required && c.delivery_required !== "none";
-    const awaitChip = awaiting
-      ? `<span class="att-ev-await" title="Driver hasn't acknowledged this coaching yet"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>Awaiting acknowledgement</span>`
-      : "";
-    return `<button type="button" class="att-ev-row" data-rr-coaching-record="${escapeHtml(c.id)}" title="View coaching">
-      <span class="att-ev-typecell"><span class="att-ev-pill att-ev-${cls}">${escapeHtml(label)}</span>${awaitChip}</span>
-      <span class="att-ev-date">${dateStr}</span>
-      <span class="att-ev-doc" aria-label="View coaching">${docSvg}</span>
-    </button>`;
-  }).join("");
+  const fileIcon  = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
+  const checkIcon = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+
+  const current = coachings[0] || null;
+  const curIdx  = current ? stageIdx(current.severity) : -1;
+  const tone    = curIdx >= 2 ? "red" : curIdx === 1 ? "amber" : "slate";
+  const atRisk  = curIdx >= 2;
+
+  // Section 1 · current standing card (or a calm "good standing" state).
+  const statusCard = current ? `
+    <div class="att2-status att2-${tone}">
+      <div class="att2-status-icon">${fileIcon}</div>
+      <div class="att2-status-main">
+        <div class="att2-status-title">${escapeHtml(stageLabel(current.severity))}</div>
+        <div class="att2-status-ack ${isAwaiting(current) ? "att2-await" : "att2-done"}">${isAwaiting(current) ? "Awaiting acknowledgment" : "Acknowledged"}</div>
+        <div class="att2-status-meta">Issued ${escapeHtml(fmtDate(current.occurred_at))} · ${escapeHtml(daysAgo(current.occurred_at))}</div>
+      </div>
+      ${atRisk ? `<div class="att2-badge">At Risk</div>` : ""}
+    </div>` : `
+    <div class="att2-status att2-clear">
+      <div class="att2-status-icon">${checkIcon}</div>
+      <div class="att2-status-main">
+        <div class="att2-status-title">Good standing</div>
+        <div class="att2-status-meta">No attendance warnings on file.</div>
+      </div>
+    </div>`;
+
+  // Section 2 · progression workflow (current stage highlighted, rest gray).
+  const progression = `
+    <div class="att2-label">Progression</div>
+    <div class="att2-prog">${STAGES.map((s, i) =>
+      `<div class="att2-prog-stage${i === curIdx ? " is-current" : ""}"><span class="att2-prog-dot"></span><span class="att2-prog-label">${escapeHtml(s.label)}</span></div>${i < STAGES.length - 1 ? `<span class="att2-prog-line"></span>` : ""}`
+    ).join("")}</div>`;
+
+  // Section 3 · history timeline (works for one event or many).
+  const timeline = `
+    <div class="att2-label">History</div>
+    <div class="att2-timeline">${coachings.map((c, i) =>
+      `<div class="att2-tl-item${i === 0 ? " is-latest" : ""}"><span class="att2-tl-dot"></span><div class="att2-tl-body"><div class="att2-tl-top"><span class="att2-tl-title">${escapeHtml(stageLabel(c.severity))}</span><button type="button" class="att2-tl-doc" data-rr-coaching-record="${escapeHtml(c.id)}">View document</button></div><div class="att2-tl-date">${escapeHtml(fmtDate(c.occurred_at))}</div>${isAwaiting(c) ? `<div class="att2-tl-ack">Awaiting acknowledgment</div>` : ""}</div></div>`
+    ).join("")}</div>`;
 
   body.innerHTML = `
     <style>
-      /* A quiet history table — Type pill · Date · one-click document. No
-         progression ladder, no checklist; clarity and doc access only. */
-      #rr-dd-body .att-ev-tbl{display:flex;flex-direction:column}
-      #rr-dd-body .att-ev-head,
-      #rr-dd-body .att-ev-row{display:grid;grid-template-columns:1fr 116px 80px;gap:14px;align-items:center;width:100%;text-align:left;padding:11px 2px;font:inherit;margin:0}
-      #rr-dd-body .att-ev-head{background:transparent;border-bottom:1px solid var(--border-subtle);padding-top:0;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}
-      #rr-dd-body .att-ev-head span:last-child{text-align:center}
-      #rr-dd-body button.att-ev-row{background:transparent;border:0;border-top:1px solid var(--border-subtle);cursor:pointer;transition:background var(--t-fast)}
-      #rr-dd-body .att-ev-row:first-of-type{border-top:0}
-      #rr-dd-body .att-ev-row:hover{background:var(--canvas)}
-      /* Step pills escalate by severity (the dashboard's --amber token is
-         indigo, so real amber/orange hex is used here). Final / Termination
-         use a deep, restrained red — soft fill, dark text, never bright. */
-      #rr-dd-body .att-ev-typecell{justify-self:start;display:inline-flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
-      #rr-dd-body .att-ev-pill{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:2px 9px;border-radius:var(--r-pill)}
-      /* "Awaiting acknowledgement" — a quiet, low-saturation note under the
-         step pill on coachings the driver hasn't acknowledged/signed yet.
-         Informational, not alarming. */
-      #rr-dd-body .att-ev-await{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;letter-spacing:.02em;color:#8A6D3B;line-height:1.1}
-      #rr-dd-body .att-ev-await svg{flex:0 0 auto}
-      #rr-dd-body .att-ev-note{background:rgba(100,116,139,.14);color:#475569}
-      #rr-dd-body .att-ev-verbal{background:rgba(245,158,11,.14);color:#B45309}
-      #rr-dd-body .att-ev-written{background:rgba(234,88,12,.13);color:#C2410C}
-      #rr-dd-body .att-ev-final{background:rgba(220,38,38,.08);color:#B42318}
-      #rr-dd-body .att-ev-termination{background:var(--red-soft-strong);color:var(--red-dark)}
-      #rr-dd-body .att-ev-date{font-size:var(--fs-sm);color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-      #rr-dd-body .att-ev-doc{justify-self:center;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted)}
-      #rr-dd-body .att-ev-row:hover .att-ev-doc{color:var(--accent-text)}
-      /* Empty state — positive, centered, standard dashed-panel styling. */
-      #rr-dd-body .att-ev-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:36px 24px;border:1px dashed var(--border-strong);border-radius:var(--r-lg);background:var(--canvas)}
-      #rr-dd-body .att-ev-empty-icon{color:var(--green)}
-      #rr-dd-body .att-ev-empty-title{font-size:var(--fs-md);font-weight:700;color:var(--text)}
-      #rr-dd-body .att-ev-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);max-width:280px;line-height:1.45}
+      /* Status-first attendance — a calm HR personnel view: current standing,
+         a quiet progression strip, and a vertical history timeline. No table,
+         no dashboard chrome; whitespace carries the layout. */
+      #rr-dd-body .att2-status{display:flex;align-items:flex-start;gap:16px;padding:18px 20px;border:1px solid var(--border);border-radius:var(--r-lg)}
+      #rr-dd-body .att2-status-icon{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:var(--r-md);background:var(--surface);color:var(--text-subtle)}
+      #rr-dd-body .att2-status-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+      #rr-dd-body .att2-status-title{font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em}
+      #rr-dd-body .att2-status-ack{font-size:var(--fs-sm);font-weight:600}
+      #rr-dd-body .att2-await{color:#8A6D3B}
+      #rr-dd-body .att2-done{color:var(--text-subtle);font-weight:500}
+      #rr-dd-body .att2-status-meta{font-size:var(--fs-sm);color:var(--text-subtle)}
+      #rr-dd-body .att2-badge{flex:0 0 auto;align-self:center;font-size:10px;font-weight:600;letter-spacing:.02em;padding:3px 10px;border-radius:var(--r-pill);background:rgba(220,38,38,.08);color:#B42318}
+      /* Tone tints — very soft, enterprise. Red = final/termination. */
+      #rr-dd-body .att2-red{background:rgba(220,38,38,.05);border-color:rgba(220,38,38,.18)}
+      #rr-dd-body .att2-red .att2-status-icon{color:#B42318;background:rgba(220,38,38,.08)}
+      #rr-dd-body .att2-amber{background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.22)}
+      #rr-dd-body .att2-amber .att2-status-icon{color:#B45309;background:rgba(245,158,11,.10)}
+      #rr-dd-body .att2-slate{background:rgba(100,116,139,.05);border-color:rgba(100,116,139,.18)}
+      #rr-dd-body .att2-slate .att2-status-icon{color:#475569;background:rgba(100,116,139,.10)}
+      #rr-dd-body .att2-clear{background:var(--canvas)}
+      #rr-dd-body .att2-clear .att2-status-icon{color:#188038;background:rgba(22,163,74,.08)}
+      /* Small section labels (Schedule pattern). */
+      #rr-dd-body .att2-label{font-size:var(--fs-xs);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:30px 2px 14px}
+      /* Progression — horizontal workflow, only the current stage highlighted. */
+      #rr-dd-body .att2-prog{display:flex;align-items:center;padding:0 2px;overflow-x:auto;scrollbar-width:none}
+      #rr-dd-body .att2-prog::-webkit-scrollbar{display:none}
+      #rr-dd-body .att2-prog-stage{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}
+      #rr-dd-body .att2-prog-dot{width:9px;height:9px;border-radius:50%;background:var(--surface);border:1.5px solid var(--text-disabled);box-sizing:border-box}
+      #rr-dd-body .att2-prog-label{font-size:var(--fs-sm);font-weight:500;color:var(--text-disabled);white-space:nowrap}
+      #rr-dd-body .att2-prog-stage.is-current .att2-prog-dot{background:var(--text);border-color:var(--text)}
+      #rr-dd-body .att2-prog-stage.is-current .att2-prog-label{color:var(--text);font-weight:600}
+      #rr-dd-body .att2-prog-line{flex:1 1 auto;min-width:18px;height:1px;background:var(--border);margin:0 10px}
+      /* History — vertical timeline; renders cleanly for one event or many. */
+      #rr-dd-body .att2-timeline{padding:0 2px}
+      #rr-dd-body .att2-tl-item{position:relative;display:flex;gap:14px;padding-bottom:20px}
+      #rr-dd-body .att2-tl-item:last-child{padding-bottom:0}
+      #rr-dd-body .att2-tl-item:not(:last-child)::before{content:"";position:absolute;left:5px;top:16px;bottom:0;width:1px;background:var(--border)}
+      #rr-dd-body .att2-tl-dot{position:relative;z-index:1;flex:0 0 auto;width:11px;height:11px;margin-top:4px;border-radius:50%;background:var(--text-disabled)}
+      #rr-dd-body .att2-tl-item.is-latest .att2-tl-dot{background:var(--text)}
+      #rr-dd-body .att2-tl-body{flex:1;min-width:0}
+      #rr-dd-body .att2-tl-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+      #rr-dd-body .att2-tl-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
+      #rr-dd-body .att2-tl-date{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
+      #rr-dd-body .att2-tl-ack{font-size:var(--fs-xs);font-weight:600;color:#8A6D3B;margin-top:5px}
+      #rr-dd-body .att2-tl-doc{flex:0 0 auto;background:none;border:0;padding:0;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--accent-text);cursor:pointer;white-space:nowrap}
+      #rr-dd-body .att2-tl-doc:hover{text-decoration:underline}
     </style>
-
-    <div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">Attendance Events</div><div class="dd-section-sub">Track attendance-related coaching records and documentation.</div></div></div>
-      ${coachings.length ? `<div class="att-ev-tbl">
-        <div class="att-ev-head"><span>Type</span><span>Date</span><span>Document</span></div>
-        ${evRows}
-      </div>` : `<div class="att-ev-empty">
-        <span class="att-ev-empty-icon">${checkCircleSvg}</span>
-        <div class="att-ev-empty-title">Perfect Attendance</div>
-        <div class="att-ev-empty-sub">No attendance coaching events have been recorded for this driver.</div>
-      </div>`}
-    </div>`;
+    ${statusCard}
+    ${current ? progression + timeline : ""}`;
 }
 
 // ── Coaching record slide-over ────────────────────────────────────────────
