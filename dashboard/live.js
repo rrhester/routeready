@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=8644026bde6d";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=8644026bde6d";
+import { planScheduleWeek } from "./scheduling-engine.js?v=5e62dea863df";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=5e62dea863df";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -20841,10 +20841,8 @@ async function openDriverDrawer(driverId, opts) {
             <div class="dd-meta dd-meta-sub" id="rr-dd-sub2"></div>
           </div>
         </div>
-        <div class="dd-head-actions">
-          <!-- Coach Driver moved to the top bar (KPI strip) per operator. -->
-          <button type="button" id="rr-dd-close" class="dd-act" data-rr-dd-close aria-label="Close record"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Close</button>
-        </div>
+        <!-- Close button removed per operator (Coach Driver lives in the top
+             bar; the record pane is persistent / Esc still closes). -->
       </div>
       <!-- Quiet KPI row under the profile header (Attendance · Risk · Tenure ·
            Last event) — populated in loadDriverDrawer. -->
