@@ -15454,26 +15454,20 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .sched-kpi-pill.sched-kpi-action svg{width:14px;height:14px;flex:0 0 auto;color:var(--text-muted)}
           .sched-kpi-pill.sched-kpi-action:hover{background:var(--canvas) !important}
-          /* Add driver = solid blue (Schedule Finalize button); Coach driver =
-             blue→purple gradient + glow (Schedule Smart Fill button). Per
-             operator. Strip-scoped so they beat the base pill chrome's
-             !important fills (incl. the action :hover above). */
+          /* Add driver = solid blue (Schedule Finalize button). Strip-scoped so
+             it beats the base pill chrome's !important fills. */
           #view-schedule #rr-sched-kpis.sched-kpi-pills .sched-kpi-pill[data-rr-roster-add-driver],
           #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill[data-rr-roster-add-driver],
           #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill[data-rr-roster-add-driver]{
             background:var(--accent) !important;border:1px solid var(--accent) !important;color:#fff !important;box-shadow:none !important;
           }
-          #view-schedule #rr-sched-kpis.sched-kpi-pills .sched-kpi-pill[data-rr-dd-coach],
-          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill[data-rr-dd-coach],
-          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill[data-rr-dd-coach]{
-            background:linear-gradient(135deg,#4285F4 0%,#9334E6 100%) !important;border:1px solid transparent !important;color:#fff !important;box-shadow:0 1px 4px rgba(147,52,230,.35) !important;
-          }
           .sched-kpi-pill[data-rr-roster-add-driver] .sched-kpi-val,
-          .sched-kpi-pill[data-rr-roster-add-driver] svg,
-          .sched-kpi-pill[data-rr-dd-coach] .sched-kpi-val,
-          .sched-kpi-pill[data-rr-dd-coach] svg{color:#fff !important}
-          .sched-kpi-pill[data-rr-roster-add-driver]:hover,
-          .sched-kpi-pill[data-rr-dd-coach]:hover{filter:brightness(1.06)}
+          .sched-kpi-pill[data-rr-roster-add-driver] svg{color:#fff !important}
+          .sched-kpi-pill[data-rr-roster-add-driver]:hover{filter:brightness(1.06)}
+          /* Coach driver = a normal white pill with just its ICON tinted the
+             Smart Fill blue→purple (the full-gradient button read as too much).
+             The icon stroke uses currentColor, so this color drives it. */
+          .sched-kpi-pill[data-rr-dd-coach] svg{color:#6D4AE6 !important}
           /* Pop-out affordance · clickable KPI pills (those that open a
              drilldown report) get a divider + down chevron on the value
              line, matching the Schedule split-button. The divider is the
