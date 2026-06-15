@@ -20854,7 +20854,7 @@ async function openDriverDrawer(driverId, opts) {
          it in. Close reverses it before the node is removed. */
       #rr-dd-drawer{position:fixed;inset:0;background:rgba(15,23,42,.06);z-index:9999;display:flex;justify-content:flex-end;opacity:0;transition:opacity 220ms ease-out}
       #rr-dd-drawer.rr-dd-open{opacity:1}
-      #rr-dd-panel{width:540px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);box-shadow:-14px 0 36px rgba(15,23,42,.13);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
+      #rr-dd-panel{width:460px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);box-shadow:-14px 0 36px rgba(15,23,42,.13);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
       #rr-dd-drawer.rr-dd-open #rr-dd-panel{transform:translateX(0)}
       @media (prefers-reduced-motion: reduce){#rr-dd-drawer,#rr-dd-panel{transition:none}}
       /* ── Inline workspace mode ──────────────────────────────────
@@ -21214,11 +21214,13 @@ async function loadDriverDrawer(driverId) {
     _stColor ? `<span style="color:${_stColor};font-weight:600">${escapeHtml(sm.label)}</span>` : escapeHtml(sm.label),
   ];
   if (roleLabel) metaParts.push(escapeHtml(roleLabel));
-  if (daysSinceHire != null) metaParts.push(escapeHtml(daysSinceHire === 0 ? "Hired today" : `Hired ${daysSinceHire}d ago`));
   const subEl = document.getElementById("rr-dd-sub");
   if (subEl) subEl.innerHTML = metaParts.join(' <span style="opacity:.45">•</span> ');
+  // Line 2 — tenure on its own quiet line ("Hired N days ago").
   const sub2El = document.getElementById("rr-dd-sub2");
-  if (sub2El) sub2El.textContent = "";
+  if (sub2El) sub2El.textContent = daysSinceHire == null ? ""
+    : daysSinceHire === 0 ? "Hired today"
+    : `Hired ${daysSinceHire} day${daysSinceHire === 1 ? "" : "s"} ago`;
 
   // KPI row removed — this is an HR personnel file, not an operations
   // dashboard. #rr-dd-kpis stays in the template but is left empty, so
