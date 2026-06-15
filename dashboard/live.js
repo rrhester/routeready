@@ -7950,6 +7950,82 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRo
 window.addEventListener("scroll", _rrCloseRosterStatusFilter, true);
 window.addEventListener("resize", _rrCloseRosterStatusFilter);
 
+// ─── Roster top-strip "Attendance" pill · chevron dropdown ───────────────
+// Quick access from the Roster header to the attendance report and the
+// attendance policy (which otherwise lives buried in Settings → Scheduling).
+// Same fixed-popover mechanism + .rr-status-picker chrome as the status
+// filter above, so it looks and behaves like the other top-strip controls.
+function _rrEnsureRosterAttendancePop() {
+  let pop = document.getElementById("rr-roster-attendance-pop");
+  if (pop) return pop;
+  pop = document.createElement("div");
+  pop.id = "rr-roster-attendance-pop";
+  pop.className = "rr-status-picker";
+  pop.setAttribute("role", "menu");
+  pop.hidden = true;
+  document.body.appendChild(pop);
+  return pop;
+}
+function _rrCloseRosterAttendance() {
+  const pop = document.getElementById("rr-roster-attendance-pop");
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  pop.innerHTML = "";
+  const t = document.querySelector('[data-rr-roster-attendance][aria-expanded="true"]');
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+function _rrOpenRosterAttendance(trigger) {
+  if (!trigger) return;
+  const pop = _rrEnsureRosterAttendancePop();
+  const reportIcon = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
+  const policyIcon = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+  pop.innerHTML =
+    `<button type="button" role="menuitem" class="rr-status-picker-item" data-rr-att-go="report">${reportIcon}<span class="rr-status-picker-label">Attendance report</span></button>` +
+    `<button type="button" role="menuitem" class="rr-status-picker-item" data-rr-att-go="policy">${policyIcon}<span class="rr-status-picker-label">Attendance policy</span></button>`;
+  const r = trigger.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.left = `${Math.max(8, r.left)}px`;
+  pop.style.top  = `${r.bottom + 6}px`;
+  pop.style.minWidth = `${Math.max(190, r.width)}px`;
+  pop.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+}
+document.addEventListener("click", (e) => {
+  // Toggle on the Attendance pill.
+  const trigger = e.target.closest("[data-rr-roster-attendance]");
+  if (trigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    const pop = document.getElementById("rr-roster-attendance-pop");
+    const isOpen = pop && !pop.hidden && trigger.getAttribute("aria-expanded") === "true";
+    _rrCloseRosterAttendance();
+    if (!isOpen) _rrOpenRosterAttendance(trigger);
+    return;
+  }
+  // Pick an item → navigate, then close.
+  const pick = e.target.closest("[data-rr-att-go]");
+  if (pick) {
+    e.preventDefault();
+    e.stopPropagation();
+    const where = pick.getAttribute("data-rr-att-go");
+    _rrCloseRosterAttendance();
+    if (where === "policy") {
+      if (typeof gotoSettingsScheduling === "function") gotoSettingsScheduling();
+    } else if (where === "report") {
+      if (typeof window.rrSchedNav === "function") window.rrSchedNav("attendance");
+    }
+    return;
+  }
+  // Outside click → close.
+  const pop = document.getElementById("rr-roster-attendance-pop");
+  if (pop && !pop.hidden && !e.target.closest("#rr-roster-attendance-pop")) {
+    _rrCloseRosterAttendance();
+  }
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRosterAttendance(); });
+window.addEventListener("scroll", _rrCloseRosterAttendance, true);
+window.addEventListener("resize", _rrCloseRosterAttendance);
+
 // Compact status helpers for the dr-app-btn — paints the small
 // indicator dot on the phone-shaped button + sets a useful title
 // tooltip so the button doesn't read as a stray icon.
@@ -14916,6 +14992,7 @@ async function refreshDriverStatRow(rows) {
   const rosterKpisHtml =
     activeFilterPill +
     `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-dd-coach title="Coach the driver whose record is open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="sched-kpi-val">Coach driver</span></button>` +
+    `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-attendance" data-rr-roster-attendance aria-haspopup="menu" aria-expanded="false" title="Attendance report &amp; policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span class="sched-kpi-val">Attendance</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>` +
     `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>`;
     // Metric pills (Final corrective / >30 days / DL expiring) removed per
     // operator — the top bar is now status filter + Add/Coach actions, with
