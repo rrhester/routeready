@@ -45717,7 +45717,7 @@ async function openShiftEditModal(arg) {
   m.style.cssText =
     "position:fixed;top:0;left:0;width:340px;max-width:calc(100vw - 16px);" +
     "max-height:calc(100vh - 16px);background:var(--surface);" +
-    "border:1px solid var(--border);border-radius:12px;" +
+    "border:1px solid var(--sidebar);border-radius:12px;" +
     "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:9999;display:flex;" +
     "flex-direction:column;opacity:0;transform:scale(0.92);" +
     "transition:opacity 200ms ease-out, transform 200ms cubic-bezier(0.2,0.8,0.25,1);";
