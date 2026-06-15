@@ -24279,6 +24279,11 @@ body.rr-cmdk-open{ overflow:hidden }
   gap:10px !important;
 }
 
+/* Section icons removed from the drawer (operator 2026-06-15) — the expert
+   section headers read as title + description only, matching the icon-less
+   "Advanced" row and the top cards (the coaching policy popout has none). */
+#rr-sched-smartfill-rules-popover.rr-policy-drawer .sf2-section-head .rr-sf-sec-ic{display:none !important}
+
 /* ═══ Van rules dropdown under Assign Fleet (operator 2026-06-12) ═══ */
 /* Anchored under the action bar with its left edge under the Assign
    Fleet button (the caret sets --rr-sf-pop-left), same navy frame as
