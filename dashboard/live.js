@@ -21275,7 +21275,7 @@ async function openDriverDrawer(driverId, opts) {
          it in. Close reverses it before the node is removed. */
       #rr-dd-drawer{position:fixed;inset:0;background:rgba(15,23,42,.06);z-index:9999;display:flex;justify-content:flex-end;opacity:0;transition:opacity 220ms ease-out}
       #rr-dd-drawer.rr-dd-open{opacity:1}
-      #rr-dd-panel{width:460px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);box-shadow:-14px 0 36px rgba(15,23,42,.13);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
+      #rr-dd-panel{width:520px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);box-shadow:-14px 0 36px rgba(15,23,42,.13);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
       #rr-dd-drawer.rr-dd-open #rr-dd-panel{transform:translateX(0)}
       @media (prefers-reduced-motion: reduce){#rr-dd-drawer,#rr-dd-panel{transition:none}}
       /* ── Inline workspace mode ──────────────────────────────────
