@@ -17,6 +17,25 @@
   Pragma: no-cache
   Expires: 0
 
+# Directory / clean-path index requests (/, /dashboard/, /app/) don't end in
+# .html, so the *.html rules above never match them — CF would then edge-cache
+# the app shell and pin operators to a stale ?v= token even across deploys (a
+# hard-reload doesn't bypass the edge cache). Force-revalidate the index docs.
+/
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+/dashboard/
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+/app/
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
 /dashboard/sw.js
   Cache-Control: no-cache, no-store, must-revalidate
 
