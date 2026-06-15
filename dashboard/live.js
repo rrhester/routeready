@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=b7f9d72abb4d";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=b7f9d72abb4d";
+import { planScheduleWeek } from "./scheduling-engine.js?v=5b71e492f390";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=5b71e492f390";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -14938,7 +14938,13 @@ async function refreshDriverStatRow(rows) {
     const schedHost = document.getElementById("rr-sched-kpis");
     if (schedHost) {
       if (window._schedKpiSavedHtml == null) window._schedKpiSavedHtml = schedHost.innerHTML;
-      schedHost.innerHTML = rosterKpisHtml;
+      // Park the relocated chrome (bell/avatar) back home BEFORE wiping the
+      // strip so it isn't detached, then re-attach it into the fresh top-right
+      // host appended to the strip (margin-left:auto pushes it to the corner).
+      if (typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
+      schedHost.innerHTML = rosterKpisHtml
+        + `<span class="rr-roster-chrome-host" id="rr-roster-chrome-host" style="margin-left:auto"></span>`;
+      if (typeof _rrMoveChromeToRoster === "function") _rrMoveChromeToRoster();
     }
   }
 
@@ -32969,10 +32975,10 @@ window._rrReturnChromeHome    = _rrReturnChromeHome;
 function _rrMoveChromeToRoster() {
   const host = document.getElementById("rr-roster-chrome-host");
   if (!host) return;
-  const more = document.querySelector(".rr-ab-more-wrap");
+  // Only the global bell + avatar — NOT the Schedule-specific ⋯ (Show & Order
+  // KPIs) menu, which is irrelevant on the roster (operator request).
   const bell = document.getElementById("rr-hdr-notif");
   const acct = document.getElementById("rr-hdr-avatar-btn");
-  if (more && !host.contains(more)) host.appendChild(more);
   if (bell && !host.contains(bell)) host.appendChild(bell);
   if (acct && !host.contains(acct)) host.appendChild(acct);
 }
