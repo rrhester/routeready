@@ -8080,7 +8080,11 @@ body.rr-cmdk-open{ overflow:hidden }
    dividers, and shrink the avatar a notch — no color/token changes. */
 .roster-split #rr-roster-table-wrap tbody td{padding-top:12px;padding-bottom:12px}
 .roster-split #rr-roster-table-wrap tbody td{border-bottom-color:rgba(15,23,42,.08)}
-.roster-split #rr-roster-table-wrap .avatar-sm{width:24px;height:24px}
+/* Driver avatar matches the Schedule grid's .cal-row-label avatar: 30px,
+   12px initials, subtle inner ring, never shrinks. The at-risk ring keeps
+   its own treatment. */
+.roster-split #rr-roster-table-wrap .avatar-sm{width:30px;height:30px;font-size:12px;flex:0 0 auto}
+.roster-split #rr-roster-table-wrap .avatar-sm:not(.rr-final-ring){box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
 /* ── Selected driver row — 4px primary-blue left accent + a slightly
    darker row tint so the open driver feels tied to the detail panel.
    Hover behavior is untouched; this layers on top of it. The accent is
@@ -13469,17 +13473,22 @@ body.rr-cmdk-open{ overflow:hidden }
                (.okami-table rows). */
             padding-top:var(--s-4);padding-bottom:var(--s-4);border-bottom-color:rgba(15,23,42,.05);
           }
-          /* Driver identity · match Schedule's .cal-row-label-name exactly
-             (13px / 600 / 1.2) so the driver name carries the same weight
-             and scale as the Schedule grid's row label. The secondary
-             phone/email line (.cell-name-sub) stays muted (--text-subtle),
-             mirroring Schedule's .cal-row-label-meta, so the name/detail
-             hierarchy is identical across both screens. */
+          /* Driver identity · match Schedule's .cal-row-label exactly so the
+             roster cell reads as the same component language: name at
+             fs-md / 700 / 1.25 / -.005em (cal-row-label-name), phone/email
+             meta at 10px / --text-subtle (cal-row-label-meta). Long names
+             truncate with an ellipsis only when the column is narrow (the
+             min-width:0 chain lets the column shrink); badges stay visible. */
+          #dr-sub-roster .cell-driver{min-width:0}
           #dr-sub-roster .cell-name{
-            font-size:var(--fs-md);font-weight:600;line-height:1.2;color:var(--text);
+            display:flex;align-items:center;gap:6px;min-width:0;
+            font-size:var(--fs-md);font-weight:700;line-height:1.25;letter-spacing:-.005em;color:var(--text);
           }
+          #dr-sub-roster .cell-name-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          #dr-sub-roster .cell-name .rr-row-badge{flex:0 0 auto}
           #dr-sub-roster .cell-name-sub{
-            color:var(--text-subtle);
+            font-size:10px;color:var(--text-subtle);
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
           }
           /* Hover · the blue left-edge accent bar (inset box-shadow) was
              snapping in because only background was transitioned. Add
