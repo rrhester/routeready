@@ -13177,6 +13177,11 @@ body.rr-cmdk-open{ overflow:hidden }
              missing chrome). Force overflow-y:scroll so the track is
              always reserved, and style the webkit scrollbar so it
              reads as a quiet rail rather than the chunky OS default. */
+          /* Roster column-header row ~20% taller (operator 2026-06-15) — more
+             vertical room; label text size unchanged. */
+          #rr-roster-table-wrap thead th{
+            padding-top:var(--s-3-5);padding-bottom:var(--s-3-5);
+          }
           #rr-roster-table-wrap{
             overflow-x:auto;overflow-y:scroll !important;
             scrollbar-gutter:stable;
@@ -15597,7 +15602,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Coach driver = a normal white pill with just its ICON tinted the
              Smart Fill blue→purple (the full-gradient button read as too much).
              The icon stroke uses currentColor, so this color drives it. */
-          .sched-kpi-pill[data-rr-dd-coach] svg{color:#4285F4 !important}
+          .sched-kpi-pill[data-rr-dd-coach] svg{color:#2563EB !important}
           /* Roster search relocated into the KPI strip — styled as a pill that
              matches the action buttons (white, navy border, rounded), on the
              left of the row. */
@@ -19941,7 +19946,7 @@ body.rr-cmdk-open{ overflow:hidden }
             /* Shift modal — also reuses the modal pattern */
             #rr-staff-shift-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:none;align-items:flex-start;justify-content:center;padding:60px 20px}
             #rr-staff-shift-modal.open{display:flex}
-            #rr-staff-shift-modal .card{background:var(--surface);border-radius:var(--r-xl);width:100%;max-width:480px;box-shadow:0 24px 64px rgba(0,0,0,.24);display:flex;flex-direction:column}
+            #rr-staff-shift-modal .card{background:var(--surface);border:1px solid var(--sidebar, #0F172A);border-radius:var(--r-xl);width:100%;max-width:480px;box-shadow:0 24px 64px rgba(0,0,0,.24);display:flex;flex-direction:column}
             #rr-staff-shift-modal .h{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border)}
             #rr-staff-shift-modal .h h3{margin:0;font-size:17px;font-weight:600}
             #rr-staff-shift-modal .h button{background:none;border:0;font-size:22px;color:var(--text-subtle);cursor:pointer;line-height:1;padding:0 4px}
