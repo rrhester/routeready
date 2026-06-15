@@ -154,12 +154,9 @@
         <div class="rr-roster-toolbar" id="rr-roster-toolbar" data-rr-no-drawer>
           <div class="rr-roster-toolbar-search"></div>
           <div class="rr-roster-toolbar-actions">
-            <!-- Status filter + Add driver now live in the top KPI strip.
-                 This slot hosts the shared top-right chrome (⋯ overflow /
-                 bell / avatar), relocated here from the Schedule action bar by
-                 _rrMoveChromeToRoster() whenever the Roster sub-view shows, and
-                 returned by _rrReturnChromeHome() on exit. -->
-            <span class="rr-roster-chrome-host" id="rr-roster-chrome-host"></span>
+            <!-- Status filter + Add driver live in the top KPI strip; the
+                 bell + avatar chrome is appended to the KPI strip's top-right
+                 corner (by refreshDriverStatRow / _rrMoveChromeToRoster). -->
           </div>
         </div>
 

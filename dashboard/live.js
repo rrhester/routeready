@@ -14938,7 +14938,13 @@ async function refreshDriverStatRow(rows) {
     const schedHost = document.getElementById("rr-sched-kpis");
     if (schedHost) {
       if (window._schedKpiSavedHtml == null) window._schedKpiSavedHtml = schedHost.innerHTML;
-      schedHost.innerHTML = rosterKpisHtml;
+      // Park the relocated chrome (bell/avatar) back home BEFORE wiping the
+      // strip so it isn't detached, then re-attach it into the fresh top-right
+      // host appended to the strip (margin-left:auto pushes it to the corner).
+      if (typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
+      schedHost.innerHTML = rosterKpisHtml
+        + `<span class="rr-roster-chrome-host" id="rr-roster-chrome-host" style="margin-left:auto"></span>`;
+      if (typeof _rrMoveChromeToRoster === "function") _rrMoveChromeToRoster();
     }
   }
 
@@ -32969,10 +32975,10 @@ window._rrReturnChromeHome    = _rrReturnChromeHome;
 function _rrMoveChromeToRoster() {
   const host = document.getElementById("rr-roster-chrome-host");
   if (!host) return;
-  const more = document.querySelector(".rr-ab-more-wrap");
+  // Only the global bell + avatar — NOT the Schedule-specific ⋯ (Show & Order
+  // KPIs) menu, which is irrelevant on the roster (operator request).
   const bell = document.getElementById("rr-hdr-notif");
   const acct = document.getElementById("rr-hdr-avatar-btn");
-  if (more && !host.contains(more)) host.appendChild(more);
   if (bell && !host.contains(bell)) host.appendChild(bell);
   if (acct && !host.contains(acct)) host.appendChild(acct);
 }
