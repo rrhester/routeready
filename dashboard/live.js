@@ -4967,7 +4967,11 @@ function renderDriverTable(rows, error) {
     const _searchSlot  = _rosterToolbar.querySelector(".rr-roster-toolbar-search");
     const _searchInput = document.getElementById("rr-roster-search");
     const _searchWrap  = _searchInput ? _searchInput.closest(".dr-search") : null;
-    if (_searchSlot && _searchWrap && _searchWrap.parentNode !== _searchSlot) _searchSlot.appendChild(_searchWrap);
+    // Prefer the top KPI-strip search host (operator: search lives up top with
+    // the action pills); fall back to the toolbar slot when the strip host
+    // isn't present (e.g. the standalone Drivers view).
+    const _searchDest  = document.getElementById("rr-kpi-search-host") || _searchSlot;
+    if (_searchDest && _searchWrap && _searchWrap.parentNode !== _searchDest) _searchDest.appendChild(_searchWrap);
     const _filtLabel = _rosterToolbar.querySelector(".rr-roster-status-filter-label");
     if (_filtLabel) _filtLabel.textContent = _rrRosterStatusFilterLabel();
     const _filtBtn = _rosterToolbar.querySelector("[data-rr-roster-status-filter]");
@@ -14938,12 +14942,16 @@ async function refreshDriverStatRow(rows) {
     const schedHost = document.getElementById("rr-sched-kpis");
     if (schedHost) {
       if (window._schedKpiSavedHtml == null) window._schedKpiSavedHtml = schedHost.innerHTML;
-      // Park the relocated chrome (bell/avatar) back home BEFORE wiping the
-      // strip so it isn't detached, then re-attach it into the fresh top-right
-      // host appended to the strip (margin-left:auto pushes it to the corner).
+      // Park the relocated chrome (bell/avatar) + the live search input out of
+      // the strip BEFORE wiping it so neither is detached, then re-attach both
+      // into the fresh strip: search pill on the left, chrome on the right.
       if (typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
-      schedHost.innerHTML = rosterKpisHtml
+      if (typeof _rrParkRosterSearch === "function") _rrParkRosterSearch();
+      schedHost.innerHTML =
+        `<span class="rr-kpi-search-host" id="rr-kpi-search-host"></span>`
+        + rosterKpisHtml
         + `<span class="rr-roster-chrome-host" id="rr-roster-chrome-host" style="margin-left:auto"></span>`;
+      if (typeof _rrMoveRosterSearchToStrip === "function") _rrMoveRosterSearchToStrip();
       if (typeof _rrMoveChromeToRoster === "function") _rrMoveChromeToRoster();
     }
   }
@@ -33019,6 +33027,25 @@ function _rrMoveChromeToRoster() {
   if (acct && !host.contains(acct)) host.appendChild(acct);
 }
 window._rrMoveChromeToRoster = _rrMoveChromeToRoster;
+
+// Roster search · relocate the live search input (keeping its listeners) into
+// the top KPI strip beside the action pills, styled as a pill. Parked back in
+// the toolbar slot before each strip rebuild so it's never detached.
+function _rrRosterSearchWrap() {
+  const inp = document.getElementById("rr-roster-search");
+  return inp ? inp.closest(".dr-search") : null;
+}
+function _rrParkRosterSearch() {
+  const w = _rrRosterSearchWrap();
+  const slot = document.querySelector(".rr-roster-toolbar-search");
+  if (w && slot && w.parentNode !== slot) slot.appendChild(w);
+}
+function _rrMoveRosterSearchToStrip() {
+  const w = _rrRosterSearchWrap();
+  const host = document.getElementById("rr-kpi-search-host");
+  if (w && host && w.parentNode !== host) host.appendChild(w);
+}
+window._rrMoveRosterSearchToStrip = _rrMoveRosterSearchToStrip;
 
 // Targets · Wave times / Service types pill dropdowns. Each pill toggles its
 // own menu (closing the other); a click anywhere outside both closes them.
