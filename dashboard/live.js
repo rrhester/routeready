@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=6c0ce5064505";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=6c0ce5064505";
+import { planScheduleWeek } from "./scheduling-engine.js?v=8644026bde6d";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=8644026bde6d";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -14915,8 +14915,8 @@ async function refreshDriverStatRow(rows) {
     + `</button>`;
   const rosterKpisHtml =
     activeFilterPill +
-    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>` +
-    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-dd-coach title="Coach the driver whose record is open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="sched-kpi-val">Coach driver</span></button>`;
+    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-dd-coach title="Coach the driver whose record is open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="sched-kpi-val">Coach driver</span></button>` +
+    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>`;
     // Metric pills (Final corrective / >30 days / DL expiring) removed per
     // operator — the top bar is now status filter + Add/Coach actions, with
     // the shared ⋯/bell/avatar chrome relocated into the roster toolbar.
@@ -14950,7 +14950,7 @@ async function refreshDriverStatRow(rows) {
       schedHost.innerHTML =
         `<span class="rr-kpi-search-host" id="rr-kpi-search-host"></span>`
         + rosterKpisHtml
-        + `<span class="rr-roster-chrome-host" id="rr-roster-chrome-host" style="margin-left:auto"></span>`;
+        + `<span class="rr-roster-chrome-host" id="rr-roster-chrome-host"></span>`;
       if (typeof _rrMoveRosterSearchToStrip === "function") _rrMoveRosterSearchToStrip();
       if (typeof _rrMoveChromeToRoster === "function") _rrMoveChromeToRoster();
     }
