@@ -8017,7 +8017,7 @@ function renderDriverRow(d) {
     <tr data-driver-id="${d.id}" data-rr-open-driver class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
       <td class="dr-cb" data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}${(_rosterRisk && _rosterRisk.get && _rosterRisk.get(d.id) === "atrisk") ? " rr-final-ring" : ""}"${(_rosterRisk && _rosterRisk.get && _rosterRisk.get(d.id) === "atrisk") ? ' title="At risk · on a final corrective action"' : ""}>${initials}</div>
-        <div class="cell-driver-text"><div class="cell-name">${escapeHtml(display)}${badges}</div>
+        <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(display)}</span>${badges}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
       <td>${tenure}</td>
