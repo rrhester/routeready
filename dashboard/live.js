@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=06a3067e65e5";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=06a3067e65e5";
+import { planScheduleWeek } from "./scheduling-engine.js?v=6d995e05a6b1";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=6d995e05a6b1";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -21313,9 +21313,17 @@ async function openDriverDrawer(driverId, opts) {
       /* Backdrop fades; panel slides in from the right. Start state is
          the un-.open form; .open (added a frame after append) animates
          it in. Close reverses it before the node is removed. */
-      #rr-dd-drawer{position:fixed;inset:0;background:rgba(15,23,42,.06);z-index:9999;display:flex;justify-content:flex-end;opacity:0;transition:opacity 220ms ease-out}
+      /* The faint backdrop is cosmetic only — it must NOT capture clicks,
+         or it covers the whole viewport (incl. the z-10 topbar) and steals
+         every toolbar click while a record is open. In particular the
+         "Coach driver" pill ("coach the driver whose record is open") became
+         unreachable. pointer-events:none lets clicks fall through to the
+         toolbar / roster underneath; the panel re-enables them for itself.
+         Click-outside-to-close is intentionally dropped in favor of a live
+         app behind the slide-over — close via the ✕ or Escape. */
+      #rr-dd-drawer{position:fixed;inset:0;background:rgba(15,23,42,.06);z-index:9999;display:flex;justify-content:flex-end;opacity:0;transition:opacity 220ms ease-out;pointer-events:none}
       #rr-dd-drawer.rr-dd-open{opacity:1}
-      #rr-dd-panel{width:640px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);box-shadow:-14px 0 36px rgba(15,23,42,.13);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
+      #rr-dd-panel{width:640px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);box-shadow:-14px 0 36px rgba(15,23,42,.13);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1);pointer-events:auto}
       #rr-dd-drawer.rr-dd-open #rr-dd-panel{transform:translateX(0)}
       @media (prefers-reduced-motion: reduce){#rr-dd-drawer,#rr-dd-panel{transition:none}}
       /* ── Inline workspace mode ──────────────────────────────────
