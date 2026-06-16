@@ -21405,6 +21405,20 @@ async function openDriverDrawer(driverId, opts) {
       .dd-day[data-dim]{opacity:.45;pointer-events:none}
       .dd-day.is-off{opacity:.4;cursor:not-allowed}
       .dd-day.is-off:hover{border-color:var(--border);background:var(--canvas);color:var(--text)}
+      /* Compact day pills (Availability + Preferred days) — same accent-soft
+         selected state used elsewhere; the checkbox is visually hidden. */
+      .dd-pill-row{display:flex;flex-wrap:wrap;gap:var(--s-2)}
+      .dd-daypill{position:relative;display:inline-flex;align-items:center;justify-content:center;min-width:46px;padding:6px 13px;border:1px solid var(--border);border-radius:999px;background:var(--canvas);color:var(--text-muted);font-size:var(--fs-sm);font-weight:600;cursor:pointer;user-select:none;transition:border-color var(--t-fast),background var(--t-fast),color var(--t-fast)}
+      .dd-daypill input{position:absolute;opacity:0;width:0;height:0;margin:0;pointer-events:none}
+      .dd-daypill:hover{border-color:var(--text-subtle);color:var(--text)}
+      .dd-daypill:has(input:checked){border-color:var(--accent-border);background:var(--accent-soft);color:var(--accent-text)}
+      .dd-daypill.is-off{opacity:.4;cursor:not-allowed}
+      .dd-daypill.is-off:hover{border-color:var(--border);color:var(--text-muted)}
+      .dd-daypill[data-dim]{opacity:.45;pointer-events:none}
+      .dd-pref-row{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);padding:2px 0}
+      .dd-pref-row .dd-pref-label{font-size:var(--fs-md);font-weight:600;color:var(--text)}
+      .dd-tab-foot-note{display:inline-flex;align-items:center;gap:7px;margin-top:var(--s-5);font-size:var(--fs-xs);color:var(--text-subtle)}
+      .dd-tab-foot-note .dn-dot{width:6px;height:6px;border-radius:50%;background:var(--text-subtle);opacity:.6;flex:0 0 auto}
       .dd-foot{padding:var(--s-3-5) 28px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:flex-end;gap:var(--s-2);background:#F8FAFC;position:sticky;bottom:0}
       .dd-foot-status{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text-subtle)}
       .dd-foot-status .dd-foot-check{flex:0 0 auto;color:#188038;display:none}
@@ -21691,7 +21705,6 @@ function renderDriverDrawerTab() {
   if (note) {
     const NOTES = {
       license:      { cls: "",       txt: "DSP only — license & certifications recorded by the dispatcher" },
-      availability: { cls: "driver", txt: "Driver self-serve — the driver sets their own availability in the app" },
     };
     const n = NOTES[_ddTab];
     if (n) {
@@ -21896,16 +21909,20 @@ function renderAvailabilityTab(body, d, record) {
   const overrideDays = activeOverride ? new Set(latest.days) : null;
   const dimStyle = activeOverride ? "opacity:.45;pointer-events:none;" : "";
 
-  const availBoxes = dayKey.map(k => `
-    <label class="dd-day"${activeOverride ? ' data-dim="1"' : ''}>
+  const availPills = dayKey.map(k => `
+    <label class="dd-daypill"${activeOverride ? ' data-dim="1"' : ''}>
       <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""} ${activeOverride ? "disabled" : ""}/>
       <span>${dayLabel[k]}</span>
     </label>`).join("");
-  const prefBoxes = dayKey.map(k => `
-    <label class="dd-day${isAvail(k) ? "" : " is-off"}"${activeOverride ? ' data-dim="1"' : ''}>
-      <input type="checkbox" data-rr-avail-pref="${k}" ${preferred.has(k) ? "checked" : ""} ${isAvail(k) && !activeOverride ? "" : "disabled"}/>
+  // Preferred days lists only the days within the driver's available set.
+  const availList = dayKey.filter(isAvail);
+  const prefPills = availList.length
+    ? availList.map(k => `
+    <label class="dd-daypill"${activeOverride ? ' data-dim="1"' : ''}>
+      <input type="checkbox" data-rr-avail-pref="${k}" ${preferred.has(k) ? "checked" : ""} ${activeOverride ? "disabled" : ""}/>
       <span>${dayLabel[k]}</span>
-    </label>`).join("");
+    </label>`).join("")
+    : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Set available days first.</span>`;
 
   // Effective-right-now strip: read-only chips showing the days the
   // engine actually sees for this driver while the active request is
@@ -21961,34 +21978,30 @@ function renderAvailabilityTab(body, d, record) {
   body.innerHTML = `
     ${stateBanner}
     ${effectiveStrip}
-    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
-      <label style="${activeOverride ? "color:var(--text-subtle)" : ""}">Available days${activeOverride ? '<div style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);margin-top:2px">default (after request)</div>' : ''}</label>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2)">${availBoxes}</div>
+    <div class="dd-section">
+      <div class="dd-section-head"><div class="dd-section-title">Availability</div></div>
+      <div class="dd-pill-row">${availPills}</div>
     </div>
-    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:center">
-      <label style="${activeOverride ? "color:var(--text-subtle)" : ""}">Earliest start</label>
-      <div style="display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;${dimStyle}">
-        <select data-rr-avail-start ${activeOverride ? "disabled" : ""} style="font:inherit;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text)">${_availStartOptionsHtml(earliest)}</select>
-        <span class="u-xs-subtle">Earliest time of day this driver can begin a shift.</span>
+    <div class="dd-section">
+      <div class="dd-section-head"><div class="dd-section-title">Preferred Days</div></div>
+      <div class="dd-pill-row">${prefPills}</div>
+    </div>
+    <div class="dd-section">
+      <div class="dd-section-head"><div class="dd-section-title">Scheduling Preferences</div></div>
+      <div class="dd-row" style="grid-template-columns:130px 1fr;align-items:center;padding:6px 0">
+        <label style="${activeOverride ? "color:var(--text-subtle)" : ""}">Earliest start</label>
+        <div><select data-rr-avail-start ${activeOverride ? "disabled" : ""} style="max-width:200px;${dimStyle}">${_availStartOptionsHtml(earliest)}</select></div>
       </div>
     </div>
-    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
-      <label style="${activeOverride ? "color:var(--text-subtle)" : ""}">Preferred days</label>
-      <div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2)">${prefBoxes}</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Days the driver most wants to work. Only days in their available set can be preferred.</div>
+    <div class="dd-section">
+      <div class="dd-section-head"><div class="dd-section-title">Overtime</div></div>
+      <div class="dd-pref-row">
+        <span class="dd-pref-label">Open to 5th day</span>
+        <label class="toggle"><input type="checkbox" data-rr-avail-fifth ${avail.fifth_day_ok ? "checked" : ""} ${activeOverride ? "disabled" : ""}/><span class="toggle-slider"></span></label>
       </div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">Willing to work a 5th day when coverage needs it.</div>
     </div>
-    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
-      <label>Overtime</label>
-      <div>
-        <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);cursor:pointer;user-select:none">
-          <input type="checkbox" data-rr-avail-fifth ${avail.fifth_day_ok ? "checked" : ""}/>
-          <span style="font-weight:600">Open to a 5th day</span>
-        </label>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Driver is willing to work a 5th day when coverage needs it. The coverage drill-down lists everyone who's opted in.</div>
-      </div>
-    </div>`;
+    <div class="dd-tab-foot-note"><span class="dn-dot"></span>Availability managed by driver in the mobile app.</div>`;
 }
 
 // _ddVal — read a field's display value, preferring an unsaved edit
