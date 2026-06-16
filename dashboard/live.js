@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=27d8a12c67c5";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=27d8a12c67c5";
+import { planScheduleWeek } from "./scheduling-engine.js?v=a6b7a6e2d1cf";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=a6b7a6e2d1cf";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -10099,24 +10099,21 @@ const _COACHING_SEV_LABEL = {
   final: "Final",
   termination: "Termination",
 };
-// Attendance infraction (shift status) → short reason label for coaching
-// severity lines: "Final — No Call/No Show", "Verbal — Late", etc.
+// Attendance infraction (shift status) → short reason label. The reason
+// rides in the coaching SUMMARY (it prefills the composer), not the severity
+// label — this map is what the composers use to prefill that summary.
 const _COACHING_ATT_REASON_LABEL = {
   no_show: "No Call/No Show",
   called_off: "Call-Out",
   late: "Late",
 };
 // Coaching severity → display label. Attendance coachings (topic =
-// 'attendance', whether auto-fired by the policy or sent manually) name the
-// specific infraction when it's known ("Final — No Call/No Show") and fall
-// back to a plain "-Attendance" tag otherwise; other accountability stays
-// plain ("Verbal"). `reason` is the triggering shift status (no_show /
-// called_off / late), carried on coaching metadata.attendance_reason.
-function _coachingSevLabel(severity, topic, reason) {
+// 'attendance', whether auto-fired by the policy or sent manually) read
+// "Verbal-Attendance" etc.; other accountability stays plain ("Verbal").
+// The specific infraction stays in the summary, not the label.
+function _coachingSevLabel(severity, topic, _reason) {
   const base = _COACHING_SEV_LABEL[severity] || severity || "Coaching";
-  if (topic !== "attendance") return base;
-  const rl = _COACHING_ATT_REASON_LABEL[reason];
-  return rl ? `${base} — ${rl}` : `${base}-Attendance`;
+  return topic === "attendance" ? `${base}-Attendance` : base;
 }
 
 // Compact "1d ago" / "3h ago" / "just now" helper.
@@ -12495,6 +12492,17 @@ function _openSendCoachingModal(ctx) {
   m.addEventListener("click", (e) => { if (e.target === m) close(); });
   document.getElementById("rr-coach-close").addEventListener("click", close);
   document.getElementById("rr-coach-cancel").addEventListener("click", close);
+
+  // Reason picker prefills the headline — the infraction lives in the
+  // summary, not the severity label — until the operator types their own.
+  const _scSum = document.getElementById("rr-coach-summary");
+  const _scReason = document.getElementById("rr-coach-reason");
+  let _scSumTouched = false;
+  _scSum?.addEventListener("input", () => { _scSumTouched = true; });
+  _scReason?.addEventListener("change", () => {
+    const lbl = _COACHING_ATT_REASON_LABEL[_scReason.value];
+    if (lbl && !_scSumTouched) _scSum.value = lbl;
+  });
 
   document.getElementById("rr-coach-send").addEventListener("click", async () => {
     const sev      = document.getElementById("rr-coach-sev").value;
@@ -28474,8 +28482,8 @@ async function openChannelMembersModal(channelId) {
 
 function _coachSeverityChip(sev, level, topic, reason) {
   // Prefer the precise ladder step in metadata.level, fall back to the
-  // severity enum. Attendance coachings read "Verbal-Attendance" /
-  // "Final — No Call/No Show" depending on whether a reason is known.
+  // severity enum. Attendance coachings read "Verbal-Attendance" etc.; the
+  // specific infraction lives in the summary, not this chip.
   const key = String(level || sev || "").replace("_attendance", "");
   const label = _coachingSevLabel(key, topic, reason);
   // Neutral chip — no stoplight tints on the coaching log.
@@ -29287,6 +29295,17 @@ async function openCoachingForm(driverId) {
   };
   m.querySelector("#rr-coach-topic").addEventListener("change", _applyReasonVisibility);
   _applyReasonVisibility();
+
+  // Reason picker prefills the summary — the infraction lives in the summary,
+  // not the severity label — until the operator types their own headline.
+  const _ddSum = m.querySelector("#rr-coach-summary");
+  const _ddReason = m.querySelector("#rr-coach-reason");
+  let _ddSumTouched = false;
+  _ddSum?.addEventListener("input", () => { _ddSumTouched = true; });
+  _ddReason?.addEventListener("change", () => {
+    const lbl = _COACHING_ATT_REASON_LABEL[_ddReason.value];
+    if (lbl && !_ddSumTouched) _ddSum.value = lbl;
+  });
 
   // Cmd/Ctrl + Enter saves.
   m.addEventListener("keydown", (e) => {

@@ -1,32 +1,21 @@
--- 0391_attendance_coaching_reason.sql
--- "Final — No Call/No Show": attendance coachings name the specific
--- infraction (no-call/no-show, call-out, late) rather than a generic
--- "-Attendance" tag, everywhere a coaching is shown — operator dashboard,
--- driver app, the signed public record, and the Web Push notification.
+-- 0392_attendance_reason_in_summary.sql
+-- Adjusts the attendance-reason work from 0391: the specific infraction
+-- (No Call/No Show, Call-Out, Late) now rides in the coaching SUMMARY text,
+-- and the severity label stays the generic "-Attendance" tag. So the push
+-- should NOT also fold the reason into the severity wording (that would
+-- double it against the summary).
 --
--- The infraction is the status of the coaching's triggering shift
--- (no_show / called_off / late), stamped onto coachings.metadata.
--- attendance_reason. This migration:
---   1. A BEFORE INSERT trigger stamps attendance_reason from the triggering
---      shift's status when the topic is attendance and a reason isn't
---      already set. This covers every server path that links a shift —
---      auto-accrual (att_autocoach), the Report / event-log "Send coaching"
---      (send_coaching), attendance_decide — with no per-path code. A reason
---      the operator picked by hand is respected (only fills when absent).
---   2. Backfills existing attendance coachings the same way.
---   3. send_coaching passes metadata through so a hand-picked reason (with
---      no shift attached) is stored.
---   4. fire_coaching_push speaks the reason: "New written warning for No
---      Call/No Show from {DSP}: …". Reason-less attendance coachings keep
---      the "attendance <severity>" wording; other topics stay plain.
---   5. coaching_for_driver_token and driver_list_coachings return the reason
---      so the signed record and the driver app can label it.
+-- Net change vs 0391: fire_coaching_push drops the reason wording and goes
+-- back to the generic "attendance <severity>" flavor. The reason is still
+-- stored on coachings.metadata.attendance_reason (stamping trigger +
+-- send_coaching metadata passthrough + backfill are kept) so it's on the
+-- record, and the driver RPCs still return it — but display now reads it
+-- from the summary, so those fields are harmless if unused.
 --
--- Idempotent: create or replace + drop trigger if exists. Safe to re-run.
+-- Self-contained + idempotent: run THIS instead of 0391 (it create-or-
+-- replaces everything 0391 touched). Safe to re-run.
 
 -- ── 1. Reason-stamping trigger (BEFORE INSERT) ────────────────────────
--- BEFORE INSERT so the reason is on metadata by the time the AFTER INSERT
--- push trigger (fire_coaching_push) reads it.
 create or replace function private.coaching_stamp_attendance_reason()
 returns trigger
 language plpgsql
@@ -124,7 +113,9 @@ end;
 $$;
 grant execute on function public.send_coaching(jsonb) to authenticated;
 
--- ── 4. fire_coaching_push — speak the reason ──────────────────────────
+-- ── 4. fire_coaching_push — generic "attendance <severity>" wording ───
+-- The reason lives in the summary (v_headline), so the push reads it from
+-- there. No reason in the severity wording (would double it).
 create or replace function private.fire_coaching_push()
 returns trigger
 language plpgsql
@@ -134,8 +125,6 @@ as $$
 declare
   v_level    text;
   v_sevword  text;
-  v_reason   text;
-  v_reasonwd text;
   v_headline text;
   v_dspname  text;
   v_base     text;
@@ -173,23 +162,11 @@ begin
       'New coaching'
     );
 
-    -- Attendance coachings name the infraction when known ("written warning
-    -- for No Call/No Show"); otherwise keep the generic "attendance" tag.
-    -- Applied after the headline fallback above so the topic word there
-    -- isn't doubled.
+    -- Attendance coachings read "attendance <severity>" to match the
+    -- "-Attendance" label; the specific reason is in the summary above.
+    -- Applied after the headline fallback so the topic word isn't doubled.
     if new.topic::text = 'attendance' then
-      v_reason   := new.metadata->>'attendance_reason';
-      v_reasonwd := case v_reason
-        when 'no_show'    then 'No Call/No Show'
-        when 'called_off' then 'Call-Out'
-        when 'late'       then 'Late'
-        else null
-      end;
-      if v_reasonwd is not null then
-        v_sevword := v_sevword || ' for ' || v_reasonwd;
-      else
-        v_sevword := 'attendance ' || v_sevword;
-      end if;
+      v_sevword := 'attendance ' || v_sevword;
     end if;
 
     select nullif(dr.coaching_view_token::text, '')
@@ -225,7 +202,7 @@ create trigger trg_coachings_fire_push
   after insert on public.coachings
   for each row execute function private.fire_coaching_push();
 
--- ── 5a. coaching_for_driver_token — return the reason (signed record) ──
+-- ── 5a. coaching_for_driver_token — keep returning the reason ─────────
 drop function if exists public.coaching_for_driver_token(text);
 create or replace function public.coaching_for_driver_token(p_token text)
 returns table (
@@ -274,7 +251,7 @@ end $$;
 
 grant execute on function public.coaching_for_driver_token(text) to anon, authenticated;
 
--- ── 5b. driver_list_coachings — return the reason (driver app feed) ────
+-- ── 5b. driver_list_coachings — keep returning the reason ─────────────
 create or replace function public.driver_list_coachings(p_token text)
 returns jsonb
 language plpgsql
