@@ -5540,11 +5540,17 @@ const _COACHING_LABELS = {
   severity: { note: "Note", info: "Note", verbal: "Verbal", concern: "Verbal",
               written: "Written", warning: "Written", final: "Final", termination: "Termination" },
 };
-// Attendance coachings (topic = 'attendance', manual or auto) read
-// "Verbal-Attendance" etc.; other accountability stays plain.
+// Attendance coachings (topic = 'attendance', manual or auto) name the
+// specific infraction when it's known ("Final — No Call/No Show") and fall
+// back to a plain "-Attendance" tag otherwise; other accountability stays
+// plain. attendance_reason (the triggering shift status) rides on the
+// coaching feed RPC.
+const _COACHING_ATT_REASON = { no_show: "No Call/No Show", called_off: "Call-Out", late: "Late" };
 const _coachSevLabel = (c) => {
   const base = _COACHING_LABELS.severity[c.severity] || c.severity;
-  return c && c.topic === "attendance" ? `${base}-Attendance` : base;
+  if (!c || c.topic !== "attendance") return base;
+  const rl = _COACHING_ATT_REASON[c.attendance_reason];
+  return rl ? `${base} — ${rl}` : `${base}-Attendance`;
 };
 
 async function renderCoachingFeed() {

@@ -84,7 +84,14 @@ const sub  = document.getElementById("page-sub");
 const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const sevClass = (s) => ({info:"sev-info",concern:"sev-concern",warning:"sev-warning",final:"sev-final"}[s] || "sev-concern");
 const sevLabel = (s) => ({info:"Info",concern:"Concern",warning:"Warning",final:"Final",note:"Note",verbal:"Verbal",written:"Written",termination:"Termination"}[s] || s);
-const sevSuffix = (r) => (r && r.topic === "attendance" ? "-Attendance" : "");
+const _ATT_REASON = { no_show: "No Call/No Show", called_off: "Call-Out", late: "Late" };
+// Attendance records name the infraction ("Final — No Call/No Show") when the
+// reason is known, else fall back to a plain "-Attendance" tag.
+const sevSuffix = (r) => {
+  if (!r || r.topic !== "attendance") return "";
+  const rl = _ATT_REASON[r.attendance_reason];
+  return rl ? ` — ${rl}` : "-Attendance";
+};
 const fmtDate = (iso) => new Date(iso).toLocaleString([], { dateStyle: "long", timeStyle: "short" });
 const ACTION_LABELS = { verbal:"Verbal warning", written:"Written warning", retraining:"Retraining", route_change:"Route change", suspension:"Suspension", no_action:"No action" };
 

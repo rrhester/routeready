@@ -10025,7 +10025,7 @@ function _renderAttReportTbody() {
     let lastCoachCell = `<span class="u-subtle">—</span>`;
     if (r.lastCoach) {
       const lc       = r.lastCoach;
-      const sevLabel = _coachingSevLabel(lc.severity, lc.topic || "attendance");
+      const sevLabel = _coachingSevLabel(lc.severity, lc.topic || "attendance", lc.metadata?.attendance_reason);
       const when     = lc.occurred_at ? _relTimeAgo(lc.occurred_at) : "";
       let ackChip;
       if (lc.acknowledged_at) {
@@ -10099,12 +10099,24 @@ const _COACHING_SEV_LABEL = {
   final: "Final",
   termination: "Termination",
 };
+// Attendance infraction (shift status) → short reason label for coaching
+// severity lines: "Final — No Call/No Show", "Verbal — Late", etc.
+const _COACHING_ATT_REASON_LABEL = {
+  no_show: "No Call/No Show",
+  called_off: "Call-Out",
+  late: "Late",
+};
 // Coaching severity → display label. Attendance coachings (topic =
-// 'attendance', whether auto-fired by the policy or sent manually) read
-// "Verbal-Attendance" etc.; other accountability stays plain ("Verbal").
-function _coachingSevLabel(severity, topic) {
+// 'attendance', whether auto-fired by the policy or sent manually) name the
+// specific infraction when it's known ("Final — No Call/No Show") and fall
+// back to a plain "-Attendance" tag otherwise; other accountability stays
+// plain ("Verbal"). `reason` is the triggering shift status (no_show /
+// called_off / late), carried on coaching metadata.attendance_reason.
+function _coachingSevLabel(severity, topic, reason) {
   const base = _COACHING_SEV_LABEL[severity] || severity || "Coaching";
-  return topic === "attendance" ? `${base}-Attendance` : base;
+  if (topic !== "attendance") return base;
+  const rl = _COACHING_ATT_REASON_LABEL[reason];
+  return rl ? `${base} — ${rl}` : `${base}-Attendance`;
 }
 
 // Compact "1d ago" / "3h ago" / "just now" helper.
@@ -12179,7 +12191,7 @@ async function loadAttendanceEventLog() {
   if (sinceIso) shiftsQ = shiftsQ.gte("date", sinceIso);
 
   let coachQ = sb.from("coachings")
-    .select("id, severity, triggering_shift_id, occurred_at, acknowledged_at, signed_at")
+    .select("id, severity, triggering_shift_id, occurred_at, acknowledged_at, signed_at, metadata")
     .eq("dsp_id", dspId)
     .eq("topic", "attendance")
     .eq("driver_visible", true)
@@ -12279,7 +12291,7 @@ async function loadAttendanceEventLog() {
           const c = coachByShift.get(ev.id);
           let coachCell;
           if (c) {
-            const sevLabel = _coachingSevLabel(c.severity, c.topic || "attendance");
+            const sevLabel = _coachingSevLabel(c.severity, c.topic || "attendance", c.metadata?.attendance_reason);
             const ackState = c.acknowledged_at ? (c.signed_at ? "Signed" : "Acknowledged") : "Awaiting ack";
             const chipCls  = ackState === "Awaiting ack" ? "pending" : "done";
             coachCell = `<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-start"><span style="font-size:var(--fs-sm);font-weight:600">${escapeHtml(sevLabel)} <span style="color:var(--text-subtle);font-weight:500">· ${escapeHtml(_relTimeAgo(c.occurred_at))}</span></span><span class="att-coach-chip ${chipCls}">✓ ${escapeHtml(ackState)}</span></div>`;
@@ -12290,8 +12302,8 @@ async function loadAttendanceEventLog() {
           let actionCell = "";
           if (!policyOn) {
             const sendBtn = c
-              ? `<button class="btn btn-sm btn-ghost" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}" title="Already coached. Send another only if needed.">Send another</button>`
-              : `<button class="btn btn-sm" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}">Send coaching</button>`;
+              ? `<button class="btn btn-sm btn-ghost" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}" data-rr-coach-reason="${escapeHtml(ev.status || "")}" title="Already coached. Send another only if needed.">Send another</button>`
+              : `<button class="btn btn-sm" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}" data-rr-coach-reason="${escapeHtml(ev.status || "")}">Send coaching</button>`;
             actionCell = `<td class="u-right">${sendBtn}</td>`;
           }
 
@@ -12344,6 +12356,7 @@ document.addEventListener("click", (e) => {
       driver_name: evBtn.getAttribute("data-rr-coach-driver-name") || "Driver",
       event_label: evBtn.getAttribute("data-rr-coach-event-label") || "Event",
       event_date:  evBtn.getAttribute("data-rr-coach-event-date") || "",
+      reason:      evBtn.getAttribute("data-rr-coach-reason") || null,
       topic:       "attendance",
     };
     _openSendCoachingModal(_coachCtx);
@@ -12428,6 +12441,7 @@ function _openSendCoachingModal(ctx) {
 
   const sel = (v) => v === sevDefault ? "selected" : "";
   const dsel = (v) => v === delDefault ? "selected" : "";
+  const rsel = (v) => v === (ctx.reason || "") ? "selected" : "";
 
   m.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:520px;max-width:100%;max-height:90vh;overflow-y:auto;padding:22px 24px;box-shadow:var(--shadow-lg)">
@@ -12446,6 +12460,14 @@ function _openSendCoachingModal(ctx) {
         <option value="written"     ${sel("written")}>Written${attnSfx} · documented warning</option>
         <option value="final"       ${sel("final")}>Final${attnSfx} · last warning before termination</option>
         <option value="termination" ${sel("termination")}>Termination${attnSfx} · separation</option>
+      </select>
+
+      <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Attendance reason</label>
+      <select id="rr-coach-reason" style="width:100%;padding:var(--s-2-5) var(--s-3);border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);margin-bottom:14px">
+        <option value=""           ${rsel("")}>General / not specified</option>
+        <option value="no_show"    ${rsel("no_show")}>No Call/No Show</option>
+        <option value="called_off" ${rsel("called_off")}>Call-Out</option>
+        <option value="late"       ${rsel("late")}>Late</option>
       </select>
 
       <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Driver must${fromReport ? ' <span style="color:var(--accent);font-weight:600;text-transform:none;letter-spacing:0">· policy default</span>' : ''}</label>
@@ -12482,6 +12504,7 @@ function _openSendCoachingModal(ctx) {
     if (!summary && !notes) { toast("Add a headline or message", "warn"); return; }
     const sendBtn = document.getElementById("rr-coach-send");
     sendBtn.disabled = true; sendBtn.textContent = "Sending…";
+    const reason = document.getElementById("rr-coach-reason")?.value || null;
     const payload = {
       driver_id:           ctx.driver_id,
       topic:               ctx.topic || "attendance",
@@ -12491,6 +12514,7 @@ function _openSendCoachingModal(ctx) {
       notes,
       triggering_shift_id: ctx.event_id || null,
       incident_date:       ctx.event_date || null,
+      metadata:            reason ? { attendance_reason: reason } : {},
     };
     const { error } = await sb.rpc("send_coaching", { p_payload: payload });
     if (error) {
@@ -25954,7 +25978,7 @@ async function renderAttendanceTab(body, d) {
       .lte("date", todayIso)
       .order("date", { ascending: false }),
     sb.from("coachings")
-      .select("id, severity, occurred_at, acknowledged_at, signed_at, delivery_required, summary, notes, triggering_shift_id")
+      .select("id, severity, occurred_at, acknowledged_at, signed_at, delivery_required, summary, notes, triggering_shift_id, metadata")
       .eq("dsp_id", dspId)
       .eq("driver_id", d.id)
       .eq("topic", "attendance")
@@ -26109,7 +26133,7 @@ function _rrOpenCoachingRecord(coachingId) {
   if (!st) return;
   const c = (st.coachings || []).find(x => x.id === coachingId);
   if (!c) return;
-  const level = _coachingSevLabel(c.severity, c.topic);
+  const level = _coachingSevLabel(c.severity, c.topic, c.metadata?.attendance_reason);
   const cTime = new Date(c.occurred_at).getTime();
   // Previous coaching (older) → the trigger window for THIS coaching.
   let prevTime = 0;
@@ -28448,11 +28472,12 @@ async function openChannelMembersModal(channelId) {
   });
 }
 
-function _coachSeverityChip(sev, level, topic) {
+function _coachSeverityChip(sev, level, topic, reason) {
   // Prefer the precise ladder step in metadata.level, fall back to the
-  // severity enum. Attendance coachings read "Verbal-Attendance" etc.
+  // severity enum. Attendance coachings read "Verbal-Attendance" /
+  // "Final — No Call/No Show" depending on whether a reason is known.
   const key = String(level || sev || "").replace("_attendance", "");
-  const label = _coachingSevLabel(key, topic);
+  const label = _coachingSevLabel(key, topic, reason);
   // Neutral chip — no stoplight tints on the coaching log.
   return `<span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:var(--r-lg);background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">${escapeHtml(label)}</span>`;
 }
@@ -28517,7 +28542,7 @@ function renderCoachingTab(coachings, driver) {
     return `
     <div class="dd-list-row" data-rr-coaching-id="${c.id}" style="display:block;padding:var(--s-3) var(--s-3-5)">
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
-        ${_coachSeverityChip(c.severity, c.metadata?.level, c.topic)}
+        ${_coachSeverityChip(c.severity, c.metadata?.level, c.topic, c.metadata?.attendance_reason)}
         ${originBadge}
         <span class="u-xs-subtle">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${escapeHtml(occurred)}</span>
         ${followBadge} ${ackChip} ${privBadge}
@@ -28652,7 +28677,7 @@ function renderTimelineTab(record) {
   // Coachings (all topics) — severity drives the tone.
   for (const c of (record.coachings || [])) {
     if (c.archived_at) continue;
-    const lvl = _coachingSevLabel(c.severity, c.topic);
+    const lvl = _coachingSevLabel(c.severity, c.topic, c.metadata?.attendance_reason);
     const sev = String(c.severity || "").toLowerCase();
     const tone = (sev === "final" || sev === "termination") ? "red" : "amber";
     const topic = c.topic ? c.topic.replace(/_/g, " ") : "";
@@ -29127,6 +29152,15 @@ async function openCoachingForm(driverId) {
               </select>
             </div>
           </div>
+          <div id="rr-coach-reason-wrap" style="margin-bottom:10px;display:none">
+            <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Attendance reason</label>
+            <select id="rr-coach-reason" class="form-input" style="width:100%">
+              <option value="">General / not specified</option>
+              <option value="no_show">No Call/No Show</option>
+              <option value="called_off">Call-Out</option>
+              <option value="late">Late</option>
+            </select>
+          </div>
           <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Summary</label>
           <input id="rr-coach-summary" class="form-input" style="width:100%;margin-bottom:10px" placeholder="One-line headline" autofocus/>
           <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Notes</label>
@@ -29244,6 +29278,16 @@ async function openCoachingForm(driverId) {
   m.querySelector("#rr-coach-severity").addEventListener("change", _applyConfirmationLock);
   _applyConfirmationLock();
 
+  // Attendance reason picker is only meaningful for the attendance topic —
+  // show it only there so the coaching can read "Final — No Call/No Show".
+  const _applyReasonVisibility = () => {
+    const topic = m.querySelector("#rr-coach-topic")?.value;
+    const wrap  = m.querySelector("#rr-coach-reason-wrap");
+    if (wrap) wrap.style.display = topic === "attendance" ? "" : "none";
+  };
+  m.querySelector("#rr-coach-topic").addEventListener("change", _applyReasonVisibility);
+  _applyReasonVisibility();
+
   // Cmd/Ctrl + Enter saves.
   m.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
@@ -29274,6 +29318,12 @@ async function openCoachingForm(driverId) {
     // ladder step in metadata.level so downstream rendering can show
     // "Verbal — Attendance" vs. "Verbal" with no migration needed.
     const level = document.getElementById("rr-coach-severity").value;
+    // Attendance reason (no_show / called_off / late) rides on metadata so the
+    // coaching reads "Final — No Call/No Show" everywhere. Attendance only.
+    const _coachTopic  = document.getElementById("rr-coach-topic").value;
+    const _coachReason = _coachTopic === "attendance"
+      ? (document.getElementById("rr-coach-reason")?.value || null)
+      : null;
     const levelToSeverity = {
       verbal:             "concern",
       verbal_attendance:  "concern",
@@ -29289,7 +29339,7 @@ async function openCoachingForm(driverId) {
       topic:         document.getElementById("rr-coach-topic").value,
       type:          document.getElementById("rr-coach-type")?.value || "in_person",
       severity:      levelToSeverity[level] || "concern",
-      metadata:      { level },
+      metadata:      _coachReason ? { level, attendance_reason: _coachReason } : { level },
       summary:       document.getElementById("rr-coach-summary").value.trim() || null,
       notes:         document.getElementById("rr-coach-notes").value.trim() || null,
       incident_date: document.getElementById("rr-coach-incident-date")?.value || null,
