@@ -13177,10 +13177,11 @@ body.rr-cmdk-open{ overflow:hidden }
              missing chrome). Force overflow-y:scroll so the track is
              always reserved, and style the webkit scrollbar so it
              reads as a quiet rail rather than the chunky OS default. */
-          /* Roster column-header row ~20% taller (operator 2026-06-15) — more
-             vertical room; label text size unchanged. */
+          /* Roster column-header row · taller + ~25% larger labels
+             (operator 2026-06-15/16). 11px -> 14px. */
           #rr-roster-table-wrap thead th{
             padding-top:var(--s-3-5);padding-bottom:var(--s-3-5);
+            font-size:14px;
           }
           #rr-roster-table-wrap{
             overflow-x:auto;overflow-y:scroll !important;
