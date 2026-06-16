@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=6adbcfeb4f33";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=6adbcfeb4f33";
+import { planScheduleWeek } from "./scheduling-engine.js?v=e9b1c0f1e010";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=e9b1c0f1e010";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -29186,16 +29186,6 @@ async function openCoachingForm(driverId) {
   let m = document.getElementById("rr-coach-modal");
   if (m) m.remove();
 
-  // Pull the last 30d of coaching for this driver to drive the pattern strip.
-  const since = new Date(); since.setDate(since.getDate() - 30);
-  const { data: recent } = await sb.from("coachings")
-    .select("id, severity, topic, occurred_at")
-    .eq("driver_id", driverId)
-    .is("archived_at", null)
-    .gte("occurred_at", since.toISOString());
-  const recent30 = (recent || []).length;
-  const sameTopic = (recent || []).filter(r => r.topic === "safety").length;
-
   m = document.createElement("div");
   m.id = "rr-coach-modal";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6);overflow-y:auto";
@@ -29206,15 +29196,8 @@ async function openCoachingForm(driverId) {
 
       <!-- Header -->
       <div style="padding:var(--s-5) 24px 14px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
-          <div>
-            <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Log a coaching</h3>
-            <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">Cmd / Ctrl + Enter to save</div>
-          </div>
-          ${recent30 >= 3
-            ? `<div style="font-size:var(--fs-xs);color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:6px var(--s-2-5);border-radius:var(--r-md);line-height:1.4;max-width:240px"><strong>${recent30}</strong> coachings in the last 30 days · consider escalating.</div>`
-            : ""}
-        </div>
+        <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Log a coaching</h3>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">Cmd / Ctrl + Enter to save</div>
       </div>
 
       <!-- Body -->
@@ -29246,6 +29229,12 @@ async function openCoachingForm(driverId) {
               </select>
             </div>
           </div>
+          <!-- Attendance ladder · text-based mini-status, derived from the selected level -->
+          <div id="rr-coach-ladder" style="margin-bottom:10px;display:none">
+            <label class="dd-eyebrow" style="display:block;margin-bottom:5px">Attendance ladder</label>
+            <div id="rr-coach-ladder-rungs" style="font-size:var(--fs-sm);line-height:1.5"></div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.5">Driver acknowledgement required for Written and Final attendance coachings.</div>
+          </div>
           <div id="rr-coach-reason-wrap" style="margin-bottom:10px;display:none">
             <label class="dd-eyebrow" style="display:block;margin-bottom:6px">Attendance reason</label>
             <select id="rr-coach-reason" class="form-input" style="width:100%">
@@ -29261,22 +29250,7 @@ async function openCoachingForm(driverId) {
           <textarea id="rr-coach-notes" class="form-input" style="width:100%;min-height:88px" placeholder="What happened, what was discussed, what's next."></textarea>
         </div>
 
-        <!-- Section 2: Driver acknowledgment -->
-        <div style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-3-5)">
-          <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Driver acknowledgment</div>
-          <label style="font-size:var(--fs-md);cursor:pointer;display:flex;align-items:flex-start;gap:var(--s-2-5)">
-            <input id="rr-coach-driver-visible" type="checkbox" style="margin-top:3px"/>
-            <span style="flex:1">
-              <strong>Request Confirmation</strong>
-              <div id="rr-coach-rc-help" style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400;margin-top:3px;line-height:1.5">When ON, the coaching shows up on the driver's record in their RouteReady app and they get a tappable link to read and sign-acknowledge.  When OFF, the coaching is logged on your side only — useful for sensitive notes or when you've already coached in person.</div>
-            </span>
-          </label>
-          <div id="rr-coach-rc-locked" style="display:none;font-size:var(--fs-xs);color:var(--text-muted);background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--r-md);padding:var(--s-2) var(--s-2-5);margin-top:var(--s-2);line-height:1.4">
-            <strong>Required at this level.</strong>  Written and Final coachings always Request Confirmation so the driver's signature is on file before the next escalation.
-          </div>
-        </div>
-
-        <!-- Section 3: Details (collapsible) -->
+        <!-- Section 2: Details (collapsible) -->
         <button type="button" id="rr-coach-more-toggle" style="font-size:var(--fs-sm);font-weight:600;color:var(--accent-text);background:transparent;border:0;cursor:pointer;padding:0;align-self:flex-start">+ More details (type, incident date, witness, privacy, attachments)</button>
 
         <div id="rr-coach-more" style="display:none;display:flex;flex-direction:column;gap:var(--s-3-5)">
@@ -29341,36 +29315,41 @@ async function openCoachingForm(driverId) {
     }
   });
 
-  // Severity → Request Confirmation lock.  Written and Final coachings
-  // (both attendance and conduct ladders) always need a signed
-  // acknowledgment so the next escalation has a paper trail.  When
-  // one of those levels is selected, force the toggle on and disable
-  // it so the operator can't accidentally skip the signature step.
+  // Written and Final coachings (attendance + conduct ladders) always require
+  // a signed driver acknowledgment so the next escalation has a paper trail.
+  // The toggle/card was retired for a single helper line under the ladder;
+  // driver_visible is now derived from the level at save time.
   const SERIOUS_LEVELS = new Set([
     "written_attendance",
     "final_attendance",
     "written",
     "final",
   ]);
-  const _applyConfirmationLock = () => {
-    const sev = m.querySelector("#rr-coach-severity")?.value;
-    const cb  = m.querySelector("#rr-coach-driver-visible");
-    const lock= m.querySelector("#rr-coach-rc-locked");
-    const help= m.querySelector("#rr-coach-rc-help");
-    if (!cb) return;
-    if (SERIOUS_LEVELS.has(sev)) {
-      cb.checked = true;
-      cb.disabled = true;
-      if (lock) lock.style.display = "";
-      if (help) help.style.display = "none";
-    } else {
-      cb.disabled = false;
-      if (lock) lock.style.display = "none";
-      if (help) help.style.display = "";
-    }
+
+  // Attendance ladder mini-status under the Coaching level. Derived purely
+  // from the selected level: rungs before it read Completed, the selected one
+  // Current, later ones Pending. Shown only when an attendance level is picked.
+  const ATT_RUNGS = [
+    { key: "verbal_attendance",  name: "Verbal"  },
+    { key: "written_attendance", name: "Written" },
+    { key: "final_attendance",   name: "Final"   },
+  ];
+  const _renderLadder = () => {
+    const sev     = m.querySelector("#rr-coach-severity")?.value;
+    const wrap    = m.querySelector("#rr-coach-ladder");
+    const rungsEl = m.querySelector("#rr-coach-ladder-rungs");
+    if (!wrap || !rungsEl) return;
+    const sel = ATT_RUNGS.findIndex(r => r.key === sev);
+    if (sel < 0) { wrap.style.display = "none"; return; }
+    rungsEl.innerHTML = ATT_RUNGS.map((r, i) => {
+      if (i <  sel)  return `<span style="color:var(--text-subtle)">${r.name} <span style="color:var(--green)">✓</span> Completed</span>`;
+      if (i === sel) return `<span style="color:var(--text);font-weight:600">${r.name}</span> <span style="color:var(--text-subtle)">Current</span>`;
+      return `<span style="color:var(--text-disabled)">${r.name} Pending</span>`;
+    }).join(`<span style="color:var(--text-disabled);margin:0 7px">·</span>`);
+    wrap.style.display = "";
   };
-  m.querySelector("#rr-coach-severity").addEventListener("change", _applyConfirmationLock);
-  _applyConfirmationLock();
+  m.querySelector("#rr-coach-severity").addEventListener("change", _renderLadder);
+  _renderLadder();
 
   // Attendance reason picker is only meaningful for the attendance topic —
   // show it only there so the coaching can read "Final — No Call/No Show".
@@ -29398,17 +29377,6 @@ async function openCoachingForm(driverId) {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
       m.querySelector("[data-rr-coach-save]")?.click();
-    }
-  });
-
-  // HR-only forces driver-visible off.
-  m.querySelector("#rr-coach-privacy").addEventListener("change", (e) => {
-    if (e.target.value === "hr_only") {
-      const dv = m.querySelector("#rr-coach-driver-visible");
-      if (dv) { dv.checked = false; dv.disabled = true; }
-    } else {
-      const dv = m.querySelector("#rr-coach-driver-visible");
-      if (dv) dv.disabled = false;
     }
   });
 
@@ -29450,7 +29418,9 @@ async function openCoachingForm(driverId) {
       incident_date: document.getElementById("rr-coach-incident-date")?.value || null,
       witness_name:  document.getElementById("rr-coach-witness-name")?.value.trim() || null,
       witness_role:  document.getElementById("rr-coach-witness-role")?.value.trim() || null,
-      driver_visible: !!document.getElementById("rr-coach-driver-visible")?.checked,
+      // Written/Final require the driver's signed acknowledgment, so they go
+      // to the driver app (unless HR-only). Lighter levels stay an internal log.
+      driver_visible: SERIOUS_LEVELS.has(level) && (document.getElementById("rr-coach-privacy")?.value || "standard") !== "hr_only",
       privacy_tier:   document.getElementById("rr-coach-privacy")?.value || "standard",
     };
     if (!payload.summary && !payload.notes) { toast("Add a summary or notes", "warn"); return; }
