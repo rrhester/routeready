@@ -15603,8 +15603,9 @@ body.rr-cmdk-open{ overflow:hidden }
           .sched-kpi-pill[data-rr-roster-add-driver]:hover{filter:brightness(1.06)}
           /* Coach driver = a normal white pill with just its ICON tinted the
              Smart Fill blue→purple (the full-gradient button read as too much).
-             The icon stroke uses currentColor, so this color drives it. */
-          .sched-kpi-pill[data-rr-dd-coach] svg{color:#2563EB !important}
+             The icon stroke uses currentColor, so this color drives it. Direct
+             child only, so the dropdown chevron keeps the muted pill color. */
+          .sched-kpi-pill[data-rr-roster-coach-menu] > svg{color:#2563EB !important}
           /* Roster search relocated into the KPI strip — styled as a pill that
              matches the action buttons (white, navy border, rounded), on the
              left of the row. */

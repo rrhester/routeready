@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=6d995e05a6b1";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=6d995e05a6b1";
+import { planScheduleWeek } from "./scheduling-engine.js?v=6adbcfeb4f33";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=6adbcfeb4f33";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -8037,6 +8037,102 @@ document.addEventListener("click", (e) => {
   }
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRosterAttendance(); });
+
+// ─── Roster top-strip "Coach driver" pill · chevron dropdown ─────────────
+// Two paths off one button (operator request): a quick Attendance coaching
+// (send-to-driver) and the full general "Log a coaching" form (all topics +
+// witnesses / attachments / privacy). Both act on the driver whose record is
+// open; same fixed-popover chrome as the other top-strip pills.
+function _rrCoachOpenDriver(mode) {
+  const d = _ddDriver && _ddDriver.driver;
+  // Both paths coach the open record — guard on one actually being open.
+  if (!d || !d.id || !_ddOpenDriverId) { toast("Open a driver from the roster first, then coach them.", "warn"); return; }
+  if (mode === "general") {
+    if (typeof openCoachingForm === "function") openCoachingForm(d.id);
+    return;
+  }
+  _openSendCoachingModal({
+    source:      "record",
+    event_id:    null,
+    driver_id:   d.id,
+    driver_name: displayDriverName(d) || "Driver",
+    event_label: "Manual coaching",
+    event_date:  "",
+    topic:       "attendance",
+  });
+}
+function _rrEnsureRosterCoachPop() {
+  let pop = document.getElementById("rr-roster-coach-pop");
+  if (pop) return pop;
+  pop = document.createElement("div");
+  pop.id = "rr-roster-coach-pop";
+  pop.className = "rr-status-picker";
+  pop.setAttribute("role", "menu");
+  pop.hidden = true;
+  document.body.appendChild(pop);
+  return pop;
+}
+function _rrCloseRosterCoach() {
+  const pop = document.getElementById("rr-roster-coach-pop");
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  pop.innerHTML = "";
+  const t = document.querySelector('[data-rr-roster-coach-menu][aria-expanded="true"]');
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+function _rrOpenRosterCoach(trigger) {
+  if (!trigger) return;
+  const pop = _rrEnsureRosterCoachPop();
+  const attIcon = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+  const genIcon = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
+  pop.innerHTML =
+    `<button type="button" role="menuitem" class="rr-status-picker-item" data-rr-coach-go="attendance">${attIcon}<span class="rr-status-picker-label">Attendance coaching</span></button>` +
+    `<button type="button" role="menuitem" class="rr-status-picker-item" data-rr-coach-go="general">${genIcon}<span class="rr-status-picker-label">General coaching</span></button>`;
+  const r = trigger.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.left = `${Math.max(8, r.left)}px`;
+  pop.style.top  = `${r.bottom + 6}px`;
+  pop.style.minWidth = `${Math.max(200, r.width)}px`;
+  pop.style.zIndex = "10000";   // above the (click-through) driver-record overlay
+  pop.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+}
+document.addEventListener("click", (e) => {
+  // Toggle on the Coach driver pill.
+  const trigger = e.target.closest("[data-rr-roster-coach-menu]");
+  if (trigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    // Both paths need an open record — prompt up front rather than opening
+    // a menu whose every item would just toast.
+    if (!_ddOpenDriverId || !(_ddDriver && _ddDriver.driver && _ddDriver.driver.id)) {
+      _rrCloseRosterCoach();
+      toast("Open a driver from the roster first, then coach them.", "warn");
+      return;
+    }
+    const pop = document.getElementById("rr-roster-coach-pop");
+    const isOpen = pop && !pop.hidden && trigger.getAttribute("aria-expanded") === "true";
+    _rrCloseRosterCoach();
+    if (!isOpen) _rrOpenRosterCoach(trigger);
+    return;
+  }
+  // Pick a path → open the matching composer, then close.
+  const pick = e.target.closest("[data-rr-coach-go]");
+  if (pick) {
+    e.preventDefault();
+    e.stopPropagation();
+    const mode = pick.getAttribute("data-rr-coach-go");
+    _rrCloseRosterCoach();
+    _rrCoachOpenDriver(mode);
+    return;
+  }
+  // Outside click → close.
+  const pop = document.getElementById("rr-roster-coach-pop");
+  if (pop && !pop.hidden && !e.target.closest("#rr-roster-coach-pop")) {
+    _rrCloseRosterCoach();
+  }
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRosterCoach(); });
 window.addEventListener("scroll", _rrCloseRosterAttendance, true);
 window.addEventListener("resize", _rrCloseRosterAttendance);
 
@@ -12388,27 +12484,9 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// Driver-record header "Coach Driver" — open the coaching composer for the
-// currently-open record. Ad-hoc (no specific event); severity defaults to
-// Verbal and the operator fills in the rest in the modal.
-document.addEventListener("click", (e) => {
-  const coachBtn = e.target.closest && e.target.closest("[data-rr-dd-coach]");
-  if (!coachBtn) return;
-  e.preventDefault();
-  const d = _ddDriver && _ddDriver.driver;
-  // The button now lives in the top bar, so guard on a driver record actually
-  // being open (inline pane) — otherwise prompt to pick one.
-  if (!d || !d.id || !_ddOpenDriverId) { toast("Open a driver from the roster first, then coach them.", "warn"); return; }
-  _openSendCoachingModal({
-    source:      "record",
-    event_id:    null,
-    driver_id:   d.id,
-    driver_name: displayDriverName(d) || "Driver",
-    event_label: "Manual coaching",
-    event_date:  "",
-    topic:       "attendance",
-  });
-});
+// The top-bar "Coach driver" pill is now a dropdown (Attendance coaching /
+// General coaching) — see _rrCoachOpenDriver + the data-rr-roster-coach-menu
+// handler in the roster top-strip section. Both paths coach the open record.
 
 function _openSendCoachingModal(ctx) {
   let m = document.getElementById("rr-send-coach-modal");
@@ -15535,7 +15613,7 @@ async function refreshDriverStatRow(rows) {
     + `</button>`;
   const rosterKpisHtml =
     activeFilterPill +
-    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-dd-coach title="Coach the driver whose record is open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="sched-kpi-val">Coach driver</span></button>` +
+    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-coach-menu aria-haspopup="menu" aria-expanded="false" title="Coach the driver whose record is open — attendance or general"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="sched-kpi-val">Coach driver</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>` +
     `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-attendance" data-rr-roster-attendance aria-haspopup="menu" aria-expanded="false" title="Attendance report &amp; policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span class="sched-kpi-val">Attendance</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>` +
     `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>`;
     // Metric pills (Final corrective / >30 days / DL expiring) removed per
