@@ -83,7 +83,8 @@ const sub  = document.getElementById("page-sub");
 
 const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const sevClass = (s) => ({info:"sev-info",concern:"sev-concern",warning:"sev-warning",final:"sev-final"}[s] || "sev-concern");
-const sevLabel = (s) => ({info:"Info",concern:"Concern",warning:"Warning",final:"Final"}[s] || s);
+const sevLabel = (s) => ({info:"Info",concern:"Concern",warning:"Warning",final:"Final",note:"Note",verbal:"Verbal",written:"Written",termination:"Termination"}[s] || s);
+const sevSuffix = (r) => (r && r.topic === "attendance" ? "-Attendance" : "");
 const fmtDate = (iso) => new Date(iso).toLocaleString([], { dateStyle: "long", timeStyle: "short" });
 const ACTION_LABELS = { verbal:"Verbal warning", written:"Written warning", retraining:"Retraining", route_change:"Route change", suspension:"Suspension", no_action:"No action" };
 
@@ -128,7 +129,7 @@ async function load() {
     return `
     <div class="record" id="rec-${r.id}">
       <div class="rec-head">
-        <span class="sev ${sevClass(r.severity)}">${sevLabel(r.severity)}</span>
+        <span class="sev ${sevClass(r.severity)}">${sevLabel(r.severity)}${sevSuffix(r)}</span>
         <span class="topic">${escapeHtml(r.topic)} · ${escapeHtml((r.type || "").replace(/_/g," "))}</span>
       </div>
       <div class="summary">${escapeHtml(r.summary || "(no summary)")}</div>

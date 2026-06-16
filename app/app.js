@@ -5540,6 +5540,12 @@ const _COACHING_LABELS = {
   severity: { note: "Note", info: "Note", verbal: "Verbal", concern: "Verbal",
               written: "Written", warning: "Written", final: "Final", termination: "Termination" },
 };
+// Attendance coachings (topic = 'attendance', manual or auto) read
+// "Verbal-Attendance" etc.; other accountability stays plain.
+const _coachSevLabel = (c) => {
+  const base = _COACHING_LABELS.severity[c.severity] || c.severity;
+  return c && c.topic === "attendance" ? `${base}-Attendance` : base;
+};
 
 async function renderCoachingFeed() {
   const main = document.getElementById("main");
@@ -5569,7 +5575,7 @@ async function renderCoachingFeed() {
 
 function _coachingRowHtml(c) {
   const topic    = _COACHING_LABELS.topic[c.topic] || c.topic;
-  const severity = _COACHING_LABELS.severity[c.severity] || c.severity;
+  const severity = _coachSevLabel(c);
   const date     = c.occurred_at ? new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
   const needsAction = c.delivery_required && c.delivery_required !== "none" && !c.acknowledged_at;
   const cls = `coaching-row${needsAction ? " coaching-row-pending" : ""}`;
@@ -5613,7 +5619,7 @@ async function renderCoachingDetail() {
   if (!coaching) { navigate("/tasks/coaching"); return; }
 
   const topic    = _COACHING_LABELS.topic[coaching.topic] || coaching.topic;
-  const severity = _COACHING_LABELS.severity[coaching.severity] || coaching.severity;
+  const severity = _coachSevLabel(coaching);
   const date     = coaching.occurred_at ? new Date(coaching.occurred_at).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
 
   const needsAck  = coaching.delivery_required === "ack" || coaching.delivery_required === "ack_and_sign";

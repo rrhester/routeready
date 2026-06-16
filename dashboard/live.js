@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=517c6665a499";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=517c6665a499";
+import { planScheduleWeek } from "./scheduling-engine.js?v=daacd9fe4624";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=daacd9fe4624";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -10025,7 +10025,7 @@ function _renderAttReportTbody() {
     let lastCoachCell = `<span class="u-subtle">—</span>`;
     if (r.lastCoach) {
       const lc       = r.lastCoach;
-      const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[lc.severity]) || lc.severity;
+      const sevLabel = _coachingSevLabel(lc.severity, lc.topic || "attendance");
       const when     = lc.occurred_at ? _relTimeAgo(lc.occurred_at) : "";
       let ackChip;
       if (lc.acknowledged_at) {
@@ -10099,6 +10099,13 @@ const _COACHING_SEV_LABEL = {
   final: "Final",
   termination: "Termination",
 };
+// Coaching severity → display label. Attendance coachings (topic =
+// 'attendance', whether auto-fired by the policy or sent manually) read
+// "Verbal-Attendance" etc.; other accountability stays plain ("Verbal").
+function _coachingSevLabel(severity, topic) {
+  const base = _COACHING_SEV_LABEL[severity] || severity || "Coaching";
+  return topic === "attendance" ? `${base}-Attendance` : base;
+}
 
 // Compact "1d ago" / "3h ago" / "just now" helper.
 function _relTimeAgo(iso) {
@@ -12272,7 +12279,7 @@ async function loadAttendanceEventLog() {
           const c = coachByShift.get(ev.id);
           let coachCell;
           if (c) {
-            const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity;
+            const sevLabel = _coachingSevLabel(c.severity, c.topic || "attendance");
             const ackState = c.acknowledged_at ? (c.signed_at ? "Signed" : "Acknowledged") : "Awaiting ack";
             const chipCls  = ackState === "Awaiting ack" ? "pending" : "done";
             coachCell = `<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-start"><span style="font-size:var(--fs-sm);font-weight:600">${escapeHtml(sevLabel)} <span style="color:var(--text-subtle);font-weight:500">· ${escapeHtml(_relTimeAgo(c.occurred_at))}</span></span><span class="att-coach-chip ${chipCls}">✓ ${escapeHtml(ackState)}</span></div>`;
@@ -12416,7 +12423,8 @@ function _openSendCoachingModal(ctx) {
 
   // Note severity is hidden when launched from the Report — that path
   // is for ladder-tracking, and Note doesn't advance the ladder.
-  const noteOption = fromReport ? "" : `<option value="note">Note · informational, no ladder advancement</option>`;
+  const attnSfx = ctx.topic === "attendance" ? "-Attendance" : "";
+  const noteOption = fromReport ? "" : `<option value="note">Note${attnSfx} · informational, no ladder advancement</option>`;
 
   const sel = (v) => v === sevDefault ? "selected" : "";
   const dsel = (v) => v === delDefault ? "selected" : "";
@@ -12434,10 +12442,10 @@ function _openSendCoachingModal(ctx) {
       <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Severity${fromReport ? ' <span style="color:var(--accent);font-weight:600;text-transform:none;letter-spacing:0">· ladder recommendation</span>' : ''}</label>
       <select id="rr-coach-sev" style="width:100%;padding:var(--s-2-5) var(--s-3);border:1px solid var(--border);border-radius:8px;background:var(--canvas);color:var(--text);font-size:var(--fs-md);margin-bottom:14px">
         ${noteOption}
-        <option value="verbal"      ${sel("verbal")}>Verbal · soft warning</option>
-        <option value="written"     ${sel("written")}>Written · documented warning</option>
-        <option value="final"       ${sel("final")}>Final · last warning before termination</option>
-        <option value="termination" ${sel("termination")}>Termination · separation</option>
+        <option value="verbal"      ${sel("verbal")}>Verbal${attnSfx} · soft warning</option>
+        <option value="written"     ${sel("written")}>Written${attnSfx} · documented warning</option>
+        <option value="final"       ${sel("final")}>Final${attnSfx} · last warning before termination</option>
+        <option value="termination" ${sel("termination")}>Termination${attnSfx} · separation</option>
       </select>
 
       <label style="display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Driver must${fromReport ? ' <span style="color:var(--accent);font-weight:600;text-transform:none;letter-spacing:0">· policy default</span>' : ''}</label>
@@ -26101,7 +26109,7 @@ function _rrOpenCoachingRecord(coachingId) {
   if (!st) return;
   const c = (st.coachings || []).find(x => x.id === coachingId);
   if (!c) return;
-  const level = (_COACHING_SEV_LABEL?.[c.severity] || c.severity);
+  const level = _coachingSevLabel(c.severity, c.topic);
   const cTime = new Date(c.occurred_at).getTime();
   // Previous coaching (older) → the trigger window for THIS coaching.
   let prevTime = 0;
@@ -28440,20 +28448,11 @@ async function openChannelMembersModal(channelId) {
   });
 }
 
-function _coachSeverityChip(sev, level) {
-  // Prefer the precise ladder step stored in metadata.level — falls
-  // back to the legacy severity enum (info/concern/warning/final)
-  // for older rows that don't carry a level.
-  const LEVEL_LABEL = {
-    verbal:             "Verbal",
-    verbal_attendance:  "Verbal · Attendance",
-    written:            "Written",
-    written_attendance: "Written · Attendance",
-    final_attendance:   "Final · Attendance",
-    termination:        "Termination",
-  };
-  const SEV_LABEL = { info: "Info", concern: "Concern", warning: "Warning", final: "Final" };
-  const label = LEVEL_LABEL[level] || SEV_LABEL[sev] || sev || "Coaching";
+function _coachSeverityChip(sev, level, topic) {
+  // Prefer the precise ladder step in metadata.level, fall back to the
+  // severity enum. Attendance coachings read "Verbal-Attendance" etc.
+  const key = String(level || sev || "").replace("_attendance", "");
+  const label = _coachingSevLabel(key, topic);
   // Neutral chip — no stoplight tints on the coaching log.
   return `<span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:var(--r-lg);background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">${escapeHtml(label)}</span>`;
 }
@@ -28518,7 +28517,7 @@ function renderCoachingTab(coachings, driver) {
     return `
     <div class="dd-list-row" data-rr-coaching-id="${c.id}" style="display:block;padding:var(--s-3) var(--s-3-5)">
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
-        ${_coachSeverityChip(c.severity, c.metadata?.level)}
+        ${_coachSeverityChip(c.severity, c.metadata?.level, c.topic)}
         ${originBadge}
         <span class="u-xs-subtle">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${escapeHtml(occurred)}</span>
         ${followBadge} ${ackChip} ${privBadge}
@@ -28653,7 +28652,7 @@ function renderTimelineTab(record) {
   // Coachings (all topics) — severity drives the tone.
   for (const c of (record.coachings || [])) {
     if (c.archived_at) continue;
-    const lvl = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity || "Coaching";
+    const lvl = _coachingSevLabel(c.severity, c.topic);
     const sev = String(c.severity || "").toLowerCase();
     const tone = (sev === "final" || sev === "termination") ? "red" : "amber";
     const topic = c.topic ? c.topic.replace(/_/g, " ") : "";
