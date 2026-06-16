@@ -13592,8 +13592,9 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Roster status reads as plain text (no pill) — colour flags
              exceptions only; normal states stay neutral dark gray. Keyed on
              .rr-status-trigger so the KPI dashboard's status pills are unchanged.
-             The status picker still opens on click. */
-          .status-pill.rr-status-trigger{background:transparent !important;border-color:transparent !important;padding:2px 0 !important}
+             The status picker still opens on click. font-weight is re-asserted
+             because .rr-status-trigger{font:inherit} resets the base pill's 700. */
+          .status-pill.rr-status-trigger{background:transparent !important;border-color:transparent !important;padding:2px 0 !important;font-weight:700 !important}
           .rr-status-trigger.rr-dstatus-active,
           .rr-status-trigger.rr-dstatus-onboarding,
           .rr-status-trigger.rr-dstatus-seasonal{color:var(--text-muted) !important}
