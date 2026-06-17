@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=7a9a2bed68dd";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=7a9a2bed68dd";
+import { planScheduleWeek } from "./scheduling-engine.js?v=8912082b1f6b";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=8912082b1f6b";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -4631,6 +4631,7 @@ let _rosterRows = [];
 
 let _rosterAppStatus = new Map();   // driver_id -> { invited, signed_in_at, last_seen_at, has_push }
 let _rosterAttPoints = new Map();   // driver_id -> active attendance points within the policy window
+let _rosterAttCounts = new Map();   // driver_id -> { worked, eligible, pct } over the recent window
 let _rosterRisk = new Map();        // driver_id -> "atrisk" | "watch" (highest active corrective action)
 let _rosterAttnCoached = new Set(); // driver_ids with ≥1 active attendance-topic coaching (any level)
 let _rosterI9 = new Map();          // driver_id -> i9_list row (status, first_day_of_employment, …)
@@ -4643,7 +4644,11 @@ async function loadDriversRoster() {
   // Paint skeleton rows immediately so the page feels instant.
   tbody.innerHTML = _rosterSkeleton(_driverStage === "onboarding" ? 7 : 10);
 
-  const [{ data: rows, error }, { data: appStatus }, { data: coachRows }, { data: i9Rows }] = await Promise.all([
+  // Recent attendance (worked vs eligible) for the Attendance column and the
+  // driver-line %. 30-day rolling window, same worked/eligible model as the
+  // driver record (worked = completed+late, eligible = +no_show+called_off).
+  const _att30 = new Date(); _att30.setDate(_att30.getDate() - 30);
+  const [{ data: rows, error }, { data: appStatus }, { data: coachRows }, { data: i9Rows }, { data: attCountRows }] = await Promise.all([
     sb.from("drivers")
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, score, updated_at, metadata,
                background_check_completed_at, drug_test_completed_at,
@@ -4661,10 +4666,32 @@ async function loadDriversRoster() {
       .order("occurred_at", { ascending: false })
       .limit(2000),
     sb.rpc("i9_list").then((r) => r, () => ({ data: [] })),
+    sb.from("shifts").select("driver_id, status")
+      .eq("dsp_id", window.RR.dsp.id)
+      .in("status", ["completed", "late", "no_show", "called_off"])
+      .gte("date", fmtIsoDate(_att30))
+      .limit(20000).then((r) => r, () => ({ data: [] })),
   ]);
 
   _rosterAppStatus = new Map((appStatus ?? []).map((s) => [s.driver_id, s]));
   _rosterI9 = new Map((Array.isArray(i9Rows) ? i9Rows : []).map((r) => [r.driver_id, r]));
+
+  // Aggregate recent attendance per driver → worked / eligible / pct.
+  _rosterAttCounts = new Map();
+  {
+    const agg = new Map();
+    for (const sh of (attCountRows || [])) {
+      if (!sh.driver_id) continue;
+      const a = agg.get(sh.driver_id) || { worked: 0, eligible: 0 };
+      if (sh.status === "completed" || sh.status === "late") a.worked++;
+      a.eligible++;
+      agg.set(sh.driver_id, a);
+    }
+    for (const [id, a] of agg) {
+      a.pct = a.eligible ? Math.round((a.worked / a.eligible) * 100) : null;
+      _rosterAttCounts.set(id, a);
+    }
+  }
 
   // Active attendance points per driver — same math as the Attendance
   // report: count called_off / no_show / late shifts in the policy decay
@@ -4959,8 +4986,8 @@ function renderDriverTable(rows, error) {
     thead.innerHTML = `
       <th class="rr-roster-th-driver"><span class="rr-roster-th-driver-label" data-rr-roster-sort="name" style="cursor:pointer;user-select:none">Driver${caret("name")}</span></th>
       <th class="rr-roster-th-attpoints" data-rr-roster-sort="risk" style="cursor:pointer;user-select:none" title="Drivers on a corrective action: Watch (Written) or At Risk (Final)">Risk${caret("risk")}</th>
+      <th class="rr-att-col" title="Recent attendance — worked vs eligible shifts (last 30 days)">Attendance</th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
-      <th class="rr-roster-th-status"><span class="rr-roster-th-status-sort" data-rr-roster-sort="status" style="cursor:pointer;user-select:none">Status${caret("status")}</span></th>
       <th class="rr-lastcoach-col" data-rr-roster-sort="lastcoach" style="cursor:pointer;user-select:none" title="Most recent coaching of any topic">Last coaching${caret("lastcoach")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th class="rr-roster-th-app">App</th>
@@ -8273,8 +8300,8 @@ function renderDriverRow(d) {
         <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(display)}</span>${badges}</div>
         ${meta ? `<div class="cell-name-sub">${meta}</div>` : ""}</div></div></td>
       <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
+      <td class="rr-att-col">${_attendanceCell(d.id)}</td>
       <td class="rr-tenure-cell">${escapeHtml(tenure)}${isNew ? ` <span class="rr-row-badge rr-badge-new" title="Hired within the last 30 days">New</span>` : ""}</td>
-      <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
       <td class="rr-lastcoach-col">${_lastCoachedCell(d.id)}</td>
       <td class="rr-lastactive-cell">${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer class="u-center rr-app-cell"></td>
@@ -8289,16 +8316,37 @@ function renderDriverRow(d) {
 // then contact, so the line is never empty for a driver with no flags. Risk
 // is intentionally left to the Risk column to avoid double-signalling.
 function _driverMetaLine(d) {
-  const items = [];
-  if (d.dot_certified) items.push("DOT");
-  if (d.xl_certified)  items.push("XL");
-  if (d.edv_certified) items.push("EDV");
-  if (d.is_trainer)    items.push("Trainer");
+  const parts = [];
+  // Lead with attendance — the roster's primary operational signal.
+  const att = _rosterAttCounts && _rosterAttCounts.get ? _rosterAttCounts.get(d.id) : null;
+  if (att && att.pct != null) parts.push(`${att.pct}% Attendance`);
+  // Capability + role context. Vehicle type is a per-vehicle field (assigned
+  // per shift, not a driver attribute), so cert capability (XL / DOT / EDV)
+  // stands in for it. Then trainer, top-performer, station — capped tight.
+  const tags = [];
+  if (d.xl_certified)       tags.push("XL");
+  else if (d.dot_certified) tags.push("DOT");
+  if (d.edv_certified)      tags.push("EDV");
+  if (d.is_trainer)         tags.push("Trainer");
   const topTier = d.tier && String(d.tier).toLowerCase() === "a";
-  if ((topTier || (d.score != null && d.score >= 90)) && items.length < 3) items.push("Top Performer");
-  let line = items.slice(0, 3).join(" • ");
-  if (!line) line = (d.station && d.station.code) || d.phone || d.email || "";
-  return line ? escapeHtml(line) : "";
+  if (topTier || (d.score != null && d.score >= 90)) tags.push("Top Performer");
+  if (d.station && d.station.code) tags.push(d.station.code);
+  for (const t of tags) { if (parts.length >= 3) break; parts.push(t); }
+  if (!parts.length) { const f = d.phone || d.email; if (f) parts.push(f); }
+  return parts.length ? escapeHtml(parts.join(" • ")) : "";
+}
+
+// Recent attendance — % + a thin, subtle progress bar + "X of Y shifts". The
+// bar is neutral (its length carries the signal); risk colour stays in the
+// Risk pill so the Attendance column reads calm. "—" when no eligible shifts.
+function _attendanceCell(driverId) {
+  const c = _rosterAttCounts && _rosterAttCounts.get ? _rosterAttCounts.get(driverId) : null;
+  if (!c || c.pct == null || !c.eligible) return '<span class="u-subtle">—</span>';
+  return `<div class="rr-att" title="${c.worked} of ${c.eligible} eligible shifts worked (last 30 days)">`
+    + `<div class="rr-att-pct">${c.pct}%</div>`
+    + `<div class="rr-att-bar"><span class="rr-att-bar-fill" style="width:${c.pct}%"></span></div>`
+    + `<div class="rr-att-sub">${c.worked} of ${c.eligible} shifts</div>`
+    + `</div>`;
 }
 
 // Saved-view chip click → apply the preset filter combo. Toggling
@@ -9620,16 +9668,23 @@ function _attPointsCell(driverId) {
 // the schedule driver-card warning circle so the signal reads consistently.
 function _riskCell(driverId) {
   const r = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(driverId) : null;
-  // A filled flag carries the signal — red = At Risk (final), amber = Watch
-  // (written). No label; the color + hover title do the work.
-  // A small muted status dot carries the signal — red = At Risk (final),
-  // amber = Watch (written), gray = clear.  No flag; colour + hover do the work.
-  // Descriptive risk badge — subtle background pills (not bright dots): High =
-  // on a final corrective action, Medium = on a written one, Low = clear.
-  const badge = (cls, label, title) => `<span class="rr-risk-badge ${cls}" title="${title}" aria-label="${title}">${label}</span>`;
-  if (r === "atrisk") return badge("rr-risk-high", "High",   "High · on a final corrective action");
-  if (r === "watch")  return badge("rr-risk-med",  "Medium", "Medium · on a written corrective action");
-  return badge("rr-risk-low", "Low", "Low · no active corrective action");
+  const attn = !!(_rosterAttnCoached && _rosterAttnCoached.has && _rosterAttnCoached.has(driverId));
+  // Descriptive risk pill + a muted support line so a glance reads the level
+  // AND why: High = on a final corrective action, Medium = on a written one
+  // (coaching due), Low = clear (healthy). Subtle pills, no bright fills.
+  let cls, label, sub, title;
+  if (r === "atrisk") {
+    cls = "rr-risk-high"; label = "High";
+    sub = attn ? "Attendance Risk" : "Corrective Action";
+    title = "High · on a final corrective action";
+  } else if (r === "watch") {
+    cls = "rr-risk-med"; label = "Medium"; sub = "Coaching Due";
+    title = "Medium · on a written corrective action";
+  } else {
+    cls = "rr-risk-low"; label = "Low"; sub = "Healthy";
+    title = "Low · no active corrective action";
+  }
+  return `<div class="rr-risk-cell"><span class="rr-risk-badge ${cls}" title="${title}" aria-label="${title}">${label}</span><span class="rr-risk-sub">${sub}</span></div>`;
 }
 
 // "Last coached" — pulled from the per-driver latest coaching loaded

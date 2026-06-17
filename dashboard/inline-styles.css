@@ -1496,14 +1496,24 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .rr-dstatus-terminated{background:#F8D3CF;color:#B91C1C}
 /* ── Driver Roster polish · restraint over decoration; borders use the
    sidebar navy family at low opacity. ─────────────────────────────────── */
-/* Risk · small muted status dot (replaces the saturated flag). */
 /* Descriptive risk badge — subtle background pills (High / Medium / Low),
    not bright dots. Tones borrow the att2 status palette so risk reads the
-   same restrained way it does elsewhere in the product. */
+   same restrained way it does elsewhere. A muted support line sits beneath
+   the pill (why: Attendance Risk / Coaching Due / Healthy). */
+.rr-risk-cell{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
 .rr-risk-badge{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;padding:2px 9px;border-radius:var(--r-pill);white-space:nowrap}
 .rr-risk-badge.rr-risk-high{background:rgba(220,38,38,.10);color:#B42318}
 .rr-risk-badge.rr-risk-med{background:rgba(245,158,11,.13);color:#B45309}
 .rr-risk-badge.rr-risk-low{background:rgba(15,23,42,.05);color:var(--text-subtle)}
+.rr-risk-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.2}
+/* Attendance column — % over a thin neutral bar over "X of Y shifts".
+   Deliberately subtle: the fill is a single muted slate (its LENGTH carries
+   the signal); attendance-risk colour lives in the Risk pill, not here. */
+.rr-att{min-width:88px;max-width:124px}
+.rr-att-pct{font-size:var(--fs-sm);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.2}
+.rr-att-bar{margin:3px 0;height:3px;border-radius:2px;background:rgba(15,23,42,.08);overflow:hidden}
+.rr-att-bar-fill{display:block;height:100%;border-radius:2px;background:rgba(15,23,42,.40)}
+.rr-att-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.2}
 /* Status pills · white fill, thin navy border, colour in the text only
    (green reserved for Active) — one consistent treatment. */
 #view-drivers .status-pill.rr-dstatus-active{background:#fff;color:#16A34A;border-color:rgba(15,23,42,.16)}
@@ -8079,8 +8089,9 @@ body.rr-cmdk-open{ overflow:hidden }
 .roster-split .rr-lastactive-cell,
 .roster-split .rr-roster-th-app,
 .roster-split .rr-app-cell{display:none}
-/* Last-coaching shows on the full-width roster; once a record is open the
-   list condenses, so hide it then (the open card carries that detail). */
+/* Attendance + Last-coaching show on the full-width roster; once a record is
+   open the list condenses, so hide them then (the open card carries detail). */
+.roster-split.has-record .rr-att-col,
 .roster-split.has-record .rr-lastcoach-col{display:none}
 /* Attendance Points header is too wide for the condensed split pane and
    clips behind the open driver drawer — show the short "Points" label
@@ -8122,9 +8133,9 @@ body.rr-cmdk-open{ overflow:hidden }
    Hover behavior is untouched; this layers on top of it. The accent is
    painted with inset box-shadow so it never shifts the cell layout, and
    the first cell rounds with the table edge. */
-.roster-split #drivers-tbody tr.is-record-open > td{background:rgba(15,23,42,.035)}
-.roster-split #drivers-tbody tr.is-record-open > td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
-.roster-split #drivers-tbody tr.is-record-open:hover > td{background:rgba(15,23,42,.05)}
+.roster-split #drivers-tbody tr.is-record-open > td{background:rgba(15,23,42,.05)}
+.roster-split #drivers-tbody tr.is-record-open > td:first-child{box-shadow:inset 4px 0 0 var(--accent)}
+.roster-split #drivers-tbody tr.is-record-open:hover > td{background:rgba(15,23,42,.065)}
 .roster-split #drivers-tbody tr.is-record-open .cell-name-text{font-weight:700}
 /* Neutralise the fixed-overlay drawer styling when the record lives
    in the inline mount, so it reads as a static workspace card that
