@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=588e8eda1c2c";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=588e8eda1c2c";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20ef2f9af9cb";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=20ef2f9af9cb";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -64550,58 +64550,48 @@ async function _renderSchedRequestsKpis() {
     return true;
   };
   host.classList.add("sched-kpi-pills");
-  host.innerHTML = `<span class="sched-kpi-pill" style="opacity:.5"><span class="sched-kpi-dot" style="background:#94A3B8"></span><span class="sched-kpi-text">Loading availability KPIs…</span></span>`;
+  host.innerHTML = `<span class="sched-kpi-pill" style="opacity:.5"><span class="sched-kpi-dot" style="background:#94A3B8"></span><span class="sched-kpi-text">Loading request KPIs…</span></span>`;
 
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) { host.innerHTML = ""; return; }
-  const today = new Date();
-  const monday = (typeof startOfWeekMonday === "function") ? startOfWeekMonday(today) : today;
-  const startIso = fmtIsoDate(monday);
-  // Reuse the same two endpoints loadAvailabilityRequests reads so
-  // the strip shows the same numbers the Drivers page would. Both
-  // are scoped to the active DSP.
-  const [drvRes, gridRes] = await Promise.allSettled([
-    sb.from("drivers")
-      .select("id, status, score, metadata")
-      .eq("dsp_id", dspId)
-      .in("status", ["active", "onboarding"]),
-    sb.rpc("okami_grid", { p_start: startIso, p_weeks: 4 }),
+  // Operational request KPIs (replaces the old availability stats): how many
+  // requests await review, how many were approved / denied this week, and how
+  // many approved changes take effect inside the next 14 days. Reads the same
+  // two request lists the stream uses.
+  const [avRes, toRes] = await Promise.allSettled([
+    sb.rpc("availability_request_list"),
+    sb.rpc("dispatch_time_off_list"),
   ]);
-  // Bail if the operator left the Requests sub-view (or fired a
-  // newer KPI render) while the RPCs were in flight.
   if (!stillCurrent()) return;
-  const drivers = (drvRes.status === "fulfilled" && Array.isArray(drvRes.value.data)) ? drvRes.value.data : [];
-  const grid    = (gridRes.status === "fulfilled" && Array.isArray(gridRes.value.data)) ? gridRes.value.data : [];
-  // Build the impact context the Drivers → Availability page uses,
-  // then compute the same KPIs.
-  if (typeof _buildAvailImpactCtx === "function") {
-    _availImpactCtx = _buildAvailImpactCtx(drivers, grid);
-  }
-  const kpis = (typeof _computeAvailKpis === "function") ? _computeAvailKpis() : null;
-  if (!kpis) { host.innerHTML = `<span class="sched-kpi-pill" style="opacity:.6"><span class="sched-kpi-text">Availability data unavailable.</span></span>`; return; }
+  const avRows = (avRes.status === "fulfilled" && Array.isArray(avRes.value?.data)) ? avRes.value.data : [];
+  const toRows = (toRes.status === "fulfilled" && Array.isArray(toRes.value?.data)) ? toRes.value.data : [];
+
+  const items = [
+    ...avRows.map((r) => ({ status: r.status || "pending", decidedAt: r.decided_at || null, effective: r.effective_on || r.effective_from || null })),
+    ...toRows.map((r) => ({ status: r.status || "pending", decidedAt: r.decided_at || null, effective: r.start_date || null })),
+  ];
+  const now = new Date();
+  const monday = (typeof startOfWeekMonday === "function") ? startOfWeekMonday(now) : now;
+  const weekStart = new Date(monday); weekStart.setHours(0, 0, 0, 0);
+  const in14 = new Date(now.getTime() + 14 * 86400000);
+  const isPending = (s) => s === "pending" || !s;
+  const haveDecidedAt = items.some((it) => it.decidedAt);
+  const thisWeek = (st) => items.filter((it) => it.status === st && it.decidedAt && new Date(it.decidedAt) >= weekStart).length;
+  const countStatus = (st) => haveDecidedAt ? thisWeek(st) : items.filter((it) => it.status === st).length;
+  const pending  = items.filter((it) => isPending(it.status)).length;
+  const approved = countStatus("approved");
+  const denied   = countStatus("denied");
+  const upcoming = items.filter((it) => it.status === "approved" && it.effective
+    && new Date(it.effective + "T12:00:00") >= now && new Date(it.effective + "T12:00:00") <= in14).length;
 
   const navy = "#1E293B";
-  // Tone the dot when a KPI surfaces an issue: least-covered day
-  // under 60% supply reads red; weekend coverage under 35% reads red.
-  const leastDot = (typeof kpis.leastCovered.minPct === "number" && kpis.leastCovered.minPct < 60) ? "var(--red)" : navy;
-  const wkDot    = (typeof kpis.weekend.weekendCount === "number" && _availImpactCtx?.totalActive
-                    && Math.round(kpis.weekend.weekendCount / _availImpactCtx.totalActive * 100) < 35) ? "var(--red)" : navy;
-
-  const pill = (key, dot, label, sub) => {
-    const subHtml = sub ? `<span class="sched-kpi-sub">${escapeHtml(sub)}</span>` : "";
-    return `<span class="sched-kpi-pill" data-rr-req-kpi="${key}" data-clickable="true" tabindex="0" role="button"><span class="sched-kpi-dot" style="background:${dot}"></span><span class="sched-kpi-text">${escapeHtml(label)}${subHtml}</span></span>`;
-  };
+  const pill = (dot, val, sub) =>
+    `<span class="sched-kpi-pill"><span class="sched-kpi-dot" style="background:${dot}"></span>`
+    + `<span class="sched-kpi-text"><span class="sched-kpi-val">${escapeHtml(val)}</span><span class="sched-kpi-sub">${escapeHtml(sub)}</span></span></span>`;
+  const weekSub = haveDecidedAt ? "This week" : "Total";
   host.innerHTML =
-      pill("leastCovered", leastDot, `${kpis.leastCovered.display} Least covered`, kpis.leastCovered.sub)
-    + pill("ftpt",         navy,     `${kpis.ftpt.display} Full-time drivers`,    kpis.ftpt.sub)
-    + pill("avgDays",      navy,     `${kpis.avgDays.display} Avg days / driver`, kpis.avgDays.sub)
-    + pill("weekend",      wkDot,    `${kpis.weekend.display} Weekend coverage`,  kpis.weekend.sub);
-
-  // Re-render any currently-open drill-down so its counts stay fresh.
-  const dd = document.getElementById("rr-sched-req-drilldown");
-  if (dd && dd.dataset.rrOpenKpi) {
-    _renderSchedReqDrilldown(dd.dataset.rrOpenKpi);
-  }
+      pill(pending ? "#B45309" : navy, `${pending} Pending`,  "Awaiting review")
+    + pill("#15803D",                  `${approved} Approved`, weekSub)
+    + pill(denied ? "#B42318" : navy,  `${denied} Denied`,     weekSub)
+    + pill(navy,                       `${upcoming} Upcoming`, "Effective within 14 days");
 }
 
 // Inline preview mirroring the Drivers → Availability drill-down for
