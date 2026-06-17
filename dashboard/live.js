@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=306aaa4c1350";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=306aaa4c1350";
+import { planScheduleWeek } from "./scheduling-engine.js?v=588e8eda1c2c";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=588e8eda1c2c";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -8349,6 +8349,177 @@ function _attendanceCell(driverId) {
     + `</div>`;
 }
 
+// ─── Driver Metrics drawer ──────────────────────────────────────────────────
+// Optional right-side slide-out (Outlook reading-pane style) summarising the
+// roster. Lives inside #view-drivers so it auto-hides when you navigate away
+// and its open state survives the round-trip; localStorage backs full reloads.
+// No blocking backdrop — the roster stays interactive behind it.
+const _RR_METRICS_KEY = "rr-metrics-drawer-open";
+
+// The 8 headline counts, from the already-loaded roster + its maps. `loc`
+// filters by station code (""/null = all). Point-in-time against the live
+// snapshot; the windowed ones (attendance / coaching) use the windows the
+// roster already loaded.
+function _rrComputeMetrics(loc) {
+  const rows = (Array.isArray(_rosterRows) ? _rosterRows : [])
+    .filter((d) => !loc || (d.station && d.station.code === loc));
+  const riskOf = (id) => (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(id) : null;
+  const pts = (id) => (_rosterAttPoints && _rosterAttPoints.get) ? (_rosterAttPoints.get(id) || 0) : 0;
+  const coached = (id) => !!(_rosterAttnCoached && _rosterAttnCoached.has && _rosterAttnCoached.has(id));
+  const active = rows.filter((d) => d.status === "active");
+  const high = active.filter((d) => riskOf(d.id) === "atrisk").length;
+  const med  = active.filter((d) => riskOf(d.id) === "watch").length;
+  const now = Date.now();
+  const dlNotice = (typeof _rrDlNoticeDays === "function") ? _rrDlNoticeDays() : 30;
+  return {
+    active: active.length, high, med,
+    healthy: Math.max(0, active.length - high - med),
+    newHires: rows.filter((d) => d.status !== "terminated" && d.hire_date
+      && (now - new Date(d.hire_date).getTime()) < 30 * 86400000).length,
+    coachingOverdue: active.filter((d) => pts(d.id) > 0 && !coached(d.id)).length,
+    attIssues: active.filter((d) => pts(d.id) > 0).length,
+    certExp: active.filter((d) => {
+      if (!d.dl_expires_on) return false;
+      const days = Math.floor((new Date(d.dl_expires_on + "T12:00:00").getTime() - now) / 86400000);
+      return days <= dlNotice;
+    }).length,
+  };
+}
+
+function _rrMetricCardsHtml(m) {
+  const I = {
+    users:  '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    alertT: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    alertC: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+    check:  '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+    userP:  '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>',
+    clip:   '<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',
+    calX:   '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="14.5" y1="14.5" x2="9.5" y2="19.5"/><line x1="9.5" y1="14.5" x2="14.5" y2="19.5"/>',
+    badge:  '<circle cx="12" cy="9" r="5"/><path d="M8.5 13 7 22l5-3 5 3-1.5-9"/>',
+  };
+  const defs = [
+    ["active",          "Active Drivers",          "slate",  I.users],
+    ["high",            "High Risk",               "red",    I.alertT],
+    ["med",             "Medium Risk",             "amber",  I.alertC],
+    ["healthy",         "Healthy",                 "green",  I.check],
+    ["newHires",        "New Hires (30d)",         "blue",   I.userP],
+    ["coachingOverdue", "Coaching Overdue",        "purple", I.clip],
+    ["attIssues",       "Attendance Issues",       "orange", I.calX],
+    ["certExp",         "Certifications Expiring", "teal",   I.badge],
+  ];
+  return defs.map(([k, label, accent, path]) =>
+    `<div class="rrm-card rrm-${accent}">`
+    + `<span class="rrm-ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg></span>`
+    + `<span class="rrm-count">${m[k]}</span>`
+    + `<span class="rrm-label">${label}</span>`
+    + `</div>`).join("");
+}
+
+function _rrEnsureMetricsDrawer() {
+  let d = document.getElementById("rr-metrics-drawer");
+  if (d) return d;
+  const host = document.getElementById("view-drivers") || document.body;
+  d = document.createElement("div");
+  d.id = "rr-metrics-drawer";
+  d.className = "rrm-drawer";
+  d.setAttribute("role", "dialog");
+  d.setAttribute("aria-label", "Driver Metrics");
+  const stations = Array.from(new Set((Array.isArray(_rosterRows) ? _rosterRows : [])
+    .map((r) => r.station && r.station.code).filter(Boolean))).sort();
+  const locOpts = `<option value="">All locations</option>`
+    + stations.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+  d.innerHTML =
+    `<aside class="rrm-panel" role="document">`
+    + `<header class="rrm-head"><div class="rrm-head-text"><div class="rrm-title">Driver Metrics</div>`
+    +   `<div class="rrm-sub">Live overview of your roster</div></div>`
+    +   `<button type="button" class="rrm-x" data-rrm-close aria-label="Close metrics"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></header>`
+    + `<div class="rrm-filters">`
+    +   `<label class="rrm-field"><span>Location</span><select id="rrm-loc" class="rrm-select">${locOpts}</select></label>`
+    +   `<label class="rrm-field"><span>Date range</span><select id="rrm-range" class="rrm-select"><option value="month">This Month</option><option value="30d">Last 30 Days</option><option value="quarter">Last Quarter</option></select></label>`
+    + `</div>`
+    + `<div class="rrm-cards" id="rrm-cards"></div>`
+    + `<footer class="rrm-foot"><button type="button" class="btn rrm-insights" data-rrm-insights>View Full Insights</button></footer>`
+    + `</aside>`;
+  host.appendChild(d);
+  d.querySelector("#rrm-loc")?.addEventListener("change", _rrRenderMetrics);
+  d.querySelector("#rrm-range")?.addEventListener("change", _rrRenderMetrics);
+  return d;
+}
+
+function _rrRenderMetrics() {
+  const d = document.getElementById("rr-metrics-drawer");
+  if (!d) return;
+  const loc = d.querySelector("#rrm-loc")?.value || "";
+  const cards = d.querySelector("#rrm-cards");
+  if (cards) cards.innerHTML = _rrMetricCardsHtml(_rrComputeMetrics(loc));
+}
+
+function _rrMetricsBtnActive(on) {
+  document.querySelectorAll("[data-rr-roster-metrics]").forEach((b) => {
+    b.classList.toggle("is-active", !!on);
+    b.setAttribute("aria-expanded", on ? "true" : "false");
+  });
+}
+
+function _rrOpenMetricsDrawer() {
+  const d = _rrEnsureMetricsDrawer();
+  _rrRenderMetrics();
+  requestAnimationFrame(() => d.classList.add("is-open"));
+  try { localStorage.setItem(_RR_METRICS_KEY, "1"); } catch (_) {}
+  _rrMetricsBtnActive(true);
+}
+
+function _rrCloseMetricsDrawer(opts) {
+  const d = document.getElementById("rr-metrics-drawer");
+  if (!d) return;
+  d.classList.remove("is-open");
+  if (!(opts && opts.keepState)) { try { localStorage.setItem(_RR_METRICS_KEY, "0"); } catch (_) {} }
+  _rrMetricsBtnActive(false);
+}
+
+function _rrToggleMetricsDrawer() {
+  const d = document.getElementById("rr-metrics-drawer");
+  if (d && d.classList.contains("is-open")) _rrCloseMetricsDrawer();
+  else _rrOpenMetricsDrawer();
+}
+
+// Restore the persisted open state when the roster (re)renders — covers full
+// page reloads. In-app navigation is handled by #view-drivers hiding/showing.
+function _rrSyncMetricsDrawer() {
+  let open = false;
+  try { open = localStorage.getItem(_RR_METRICS_KEY) === "1"; } catch (_) {}
+  if (open) _rrOpenMetricsDrawer();
+  else _rrMetricsBtnActive(false);
+}
+
+// "View Full Insights" → reveal the roster's insights strip if present, else a hint.
+function _rrMetricsViewInsights() {
+  _rrCloseMetricsDrawer();
+  const tog = document.getElementById("rr-roster-insights-toggle");
+  const box = document.getElementById("rr-roster-insights");
+  if (tog && box) {
+    if (box.style.display === "none") tog.click();
+    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } else if (typeof toast === "function") {
+    toast("Full insights live on the roster's Insights panel.");
+  }
+}
+
+// Delegated wiring (the toolbar pills re-render, so bind on document).
+document.addEventListener("click", (e) => {
+  if (e.target.closest("[data-rr-roster-metrics]")) { e.preventDefault(); e.stopPropagation(); _rrToggleMetricsDrawer(); return; }
+  if (e.target.closest("[data-rrm-close]"))    { e.preventDefault(); _rrCloseMetricsDrawer(); return; }
+  if (e.target.closest("[data-rrm-insights]")) { e.preventDefault(); _rrMetricsViewInsights(); return; }
+  // Click-outside-to-close. A nav click is left alone: #view-drivers hides the
+  // drawer and its open state restores on return (Outlook reading-pane feel).
+  const d = document.getElementById("rr-metrics-drawer");
+  if (d && d.classList.contains("is-open") && !e.target.closest(".rrm-panel")
+      && !e.target.closest(".nav-item[data-view], .subnav-item, .ob-cmd-tab, .cmd-tab, a[data-view]")) {
+    _rrCloseMetricsDrawer();
+  }
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseMetricsDrawer(); });
+
 // Saved-view chip click → apply the preset filter combo. Toggling
 // "all" clears every preset; clicking any chip flips _driverStage
 // and _rosterFilters then re-loads. State stored in
@@ -15691,13 +15862,16 @@ async function refreshDriverStatRow(rows) {
     activeFilterPill +
     `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-coach-menu aria-haspopup="menu" aria-expanded="false" title="Coach the driver whose record is open — attendance or general"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="sched-kpi-val">Coach driver</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>` +
     `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-attendance" data-rr-roster-attendance aria-haspopup="menu" aria-expanded="false" title="Attendance report &amp; policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span class="sched-kpi-val">Attendance</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>` +
-    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>`;
+    `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-metrics" data-rr-roster-metrics aria-haspopup="dialog" aria-expanded="false" title="Driver metrics · live roster overview" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="sched-kpi-val">Metrics</span></button>` +
+    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>`;
     // Metric pills (Final corrective / >30 days / DL expiring) removed per
     // operator — the top bar is now status filter + Add/Coach actions, with
     // the shared ⋯/bell/avatar chrome relocated into the roster toolbar.
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
+  // Restore the Metrics drawer's persisted open state (and refresh its counts).
+  if (typeof _rrSyncMetricsDrawer === "function") _rrSyncMetricsDrawer();
 
   // Onboarding page's roster mode · the visible KPI strip is
   // #rr-ob-kpis. Overwrite it with the roster pills while the
