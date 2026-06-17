@@ -1497,7 +1497,9 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* ── Driver Roster polish · restraint over decoration; borders use the
    sidebar navy family at low opacity. ─────────────────────────────────── */
 /* Risk · small muted status dot (replaces the saturated flag). */
-.rr-risk-dot{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:middle}
+/* Risk signal sized to match the schedule driver-card warning circle
+   (.cal-row-label-warns svg renders ~18px on-card) so both pages read alike. */
+.rr-risk-dot{display:inline-block;width:18px;height:18px;border-radius:50%;vertical-align:middle}
 .rr-risk-dot.rr-risk-high{background:#DC2626}
 .rr-risk-dot.rr-risk-med{background:#C7860B}
 .rr-risk-dot.rr-risk-low{background:rgba(15,23,42,.22)}
@@ -8103,7 +8105,7 @@ body.rr-cmdk-open{ overflow:hidden }
    prominent than the 30px calendar-row avatar, per the user's request. 13px
    initials, subtle inner ring, never shrinks. The at-risk ring keeps its own
    treatment. */
-.roster-split #rr-roster-table-wrap .avatar-sm{width:36px;height:36px;font-size:13px;flex:0 0 auto}
+.roster-split #rr-roster-table-wrap .avatar-sm{width:28px;height:28px;font-size:var(--fs-xs);flex:0 0 auto}
 .roster-split #rr-roster-table-wrap .avatar-sm:not(.rr-final-ring){box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
 /* Force the 36px avatar even under the compact/ultra density overrides
    (which set ~26px / 20px !important and out-rank the rule above). Two IDs
