@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=8912082b1f6b";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=8912082b1f6b";
+import { planScheduleWeek } from "./scheduling-engine.js?v=306aaa4c1350";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=306aaa4c1350";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -66307,18 +66307,17 @@ document.addEventListener("click", async (e) => {
       btn.setAttribute("title",      collapsed ? "Expand sidebar" : "Collapse sidebar");
     }
   };
-  // Restore on first paint. Default state is COLLAPSED — operators
-  // open many DSP dashboards, and a fresh dashboard should start in
-  // the compact rail so the content area is maximized from the
-  // first frame. Once the user toggles, that explicit choice
+  // Restore on first paint. Default state is EXPANDED — the wide rail
+  // with section labels + sub-pages is the norm; the compact icon rail
+  // is opt-in via the collapse button. The user's explicit choice
   // persists in localStorage and wins on subsequent loads.
   const restore = () => {
     let saved = null;
     try { saved = localStorage.getItem(KEY); } catch (_) {}
-    // null / missing → collapsed (first-time default).
+    // null / missing → expanded (default).
     // "0" → user explicitly expanded.
     // "1" → user explicitly collapsed.
-    apply(saved !== "0");
+    apply(saved === "1");
   };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", restore);
