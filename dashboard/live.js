@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=e9b1c0f1e010";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=e9b1c0f1e010";
+import { planScheduleWeek } from "./scheduling-engine.js?v=eb7e78f23286";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=eb7e78f23286";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -4958,9 +4958,9 @@ function renderDriverTable(rows, error) {
     thead.innerHTML = cbHeader + `
       <th class="rr-roster-th-driver"><span class="rr-roster-th-driver-label" data-rr-roster-sort="name" style="cursor:pointer;user-select:none">Driver${caret("name")}</span></th>
       <th class="rr-roster-th-attpoints" data-rr-roster-sort="risk" style="cursor:pointer;user-select:none" title="Drivers on a corrective action: Watch (Written) or At Risk (Final)">Risk${caret("risk")}</th>
-      <th class="rr-attpts-col" data-rr-roster-sort="points" style="cursor:pointer;user-select:none" title="Active attendance points in the policy window">Points${caret("points")}</th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
       <th class="rr-roster-th-status"><span class="rr-roster-th-status-sort" data-rr-roster-sort="status" style="cursor:pointer;user-select:none">Status${caret("status")}</span></th>
+      <th class="rr-attpts-col" data-rr-roster-sort="points" style="cursor:pointer;user-select:none" title="Active attendance points in the policy window">Points${caret("points")}</th>
       <th class="rr-lastcoach-col" data-rr-roster-sort="lastcoach" style="cursor:pointer;user-select:none" title="Most recent coaching of any topic">Last coaching${caret("lastcoach")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th class="rr-roster-th-app">App</th>
@@ -8272,9 +8272,9 @@ function renderDriverRow(d) {
         <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(display)}</span>${badges}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
-      <td class="rr-attpts-col">${_attPointsCell(d.id)}</td>
       <td>${tenure}</td>
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
+      <td class="rr-attpts-col">${_attPointsCell(d.id)}</td>
       <td class="rr-lastcoach-col">${_lastCoachedCell(d.id)}</td>
       <td class="rr-lastactive-cell">${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer class="u-center rr-app-cell"></td>
