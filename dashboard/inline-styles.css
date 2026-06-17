@@ -1514,6 +1514,47 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .rr-att-bar{margin:3px 0;height:3px;border-radius:2px;background:rgba(15,23,42,.08);overflow:hidden}
 .rr-att-bar-fill{display:block;height:100%;border-radius:2px;background:rgba(15,23,42,.40)}
 .rr-att-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.2}
+/* ── Driver Metrics drawer · right-side slide-out (Outlook reading-pane feel).
+   No blocking backdrop — the roster stays interactive behind it; the panel
+   lives in #view-drivers so it hides on navigation and restores on return. */
+.rrm-drawer{position:fixed;z-index:1000;pointer-events:none}
+.rrm-panel{position:fixed;top:0;right:0;bottom:0;width:340px;max-width:88vw;
+  background:var(--surface);border-left:1px solid var(--border);
+  box-shadow:-10px 0 30px rgba(15,23,42,.12);
+  display:flex;flex-direction:column;pointer-events:auto;will-change:transform;
+  transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
+.rrm-drawer.is-open .rrm-panel{transform:translateX(0)}
+@media (prefers-reduced-motion:reduce){.rrm-panel{transition:none}}
+.rrm-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);
+  padding:var(--s-4) var(--s-4) var(--s-3);border-bottom:1px solid var(--border)}
+.rrm-title{font-size:var(--fs-lg);font-weight:600;color:var(--text);letter-spacing:-.005em}
+.rrm-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+.rrm-x{background:none;border:0;cursor:pointer;color:var(--text-muted);padding:4px;border-radius:var(--r-md);display:inline-flex;line-height:0}
+.rrm-x:hover{background:var(--canvas);color:var(--text)}
+.rrm-filters{display:flex;gap:var(--s-2-5);padding:var(--s-3) var(--s-4)}
+.rrm-field{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600}
+.rrm-select{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font-size:var(--fs-sm);font-weight:500}
+.rrm-cards{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:var(--s-2-5);padding:var(--s-2) var(--s-4) var(--s-4)}
+.rrm-card{display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s-3);
+  transition:border-color var(--t-fast),box-shadow var(--t-fast)}
+.rrm-card:hover{border-color:var(--border-strong);box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.rrm-ic{display:inline-flex;line-height:0;margin-bottom:4px;color:var(--text-muted)}
+.rrm-count{font-size:22px;font-weight:700;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}
+.rrm-label{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.25}
+.rrm-red .rrm-count,.rrm-red .rrm-ic{color:#B42318}
+.rrm-amber .rrm-count,.rrm-amber .rrm-ic{color:#B45309}
+.rrm-green .rrm-count,.rrm-green .rrm-ic{color:#15803D}
+.rrm-blue .rrm-count,.rrm-blue .rrm-ic{color:#1D4ED8}
+.rrm-purple .rrm-count,.rrm-purple .rrm-ic{color:#6D28D9}
+.rrm-orange .rrm-count,.rrm-orange .rrm-ic{color:#C2410C}
+.rrm-teal .rrm-count,.rrm-teal .rrm-ic{color:#0F766E}
+.rrm-slate .rrm-count{color:var(--text)}
+.rrm-slate .rrm-ic{color:var(--text-muted)}
+.rrm-foot{padding:var(--s-3) var(--s-4);border-top:1px solid var(--border)}
+.rrm-insights{width:100%;justify-content:center}
+.sched-kpi-pill.rr-kpi-metrics.is-active{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text)}
+@media (max-width:640px){.rrm-panel{width:100%;max-width:100%;border-left:0}}
 /* Status pills · white fill, thin navy border, colour in the text only
    (green reserved for Active) — one consistent treatment. */
 #view-drivers .status-pill.rr-dstatus-active{background:#fff;color:#16A34A;border-color:rgba(15,23,42,.16)}
