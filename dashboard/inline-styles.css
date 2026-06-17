@@ -1497,12 +1497,13 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* ── Driver Roster polish · restraint over decoration; borders use the
    sidebar navy family at low opacity. ─────────────────────────────────── */
 /* Risk · small muted status dot (replaces the saturated flag). */
-/* Risk signal sized to match the schedule driver-card warning circle
-   (.cal-row-label-warns svg renders ~18px on-card) so both pages read alike. */
-.rr-risk-dot{display:inline-block;width:18px;height:18px;border-radius:50%;vertical-align:middle}
-.rr-risk-dot.rr-risk-high{background:#DC2626}
-.rr-risk-dot.rr-risk-med{background:#C7860B}
-.rr-risk-dot.rr-risk-low{background:rgba(15,23,42,.22)}
+/* Descriptive risk badge — subtle background pills (High / Medium / Low),
+   not bright dots. Tones borrow the att2 status palette so risk reads the
+   same restrained way it does elsewhere in the product. */
+.rr-risk-badge{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;padding:2px 9px;border-radius:var(--r-pill);white-space:nowrap}
+.rr-risk-badge.rr-risk-high{background:rgba(220,38,38,.10);color:#B42318}
+.rr-risk-badge.rr-risk-med{background:rgba(245,158,11,.13);color:#B45309}
+.rr-risk-badge.rr-risk-low{background:rgba(15,23,42,.05);color:var(--text-subtle)}
 /* Status pills · white fill, thin navy border, colour in the text only
    (green reserved for Active) — one consistent treatment. */
 #view-drivers .status-pill.rr-dstatus-active{background:#fff;color:#16A34A;border-color:rgba(15,23,42,.16)}
@@ -8078,9 +8079,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .roster-split .rr-lastactive-cell,
 .roster-split .rr-roster-th-app,
 .roster-split .rr-app-cell{display:none}
-/* Points + Last-coaching show on the full-width roster; once a record is
-   open the list condenses, so hide them then (the card carries that detail). */
-.roster-split.has-record .rr-attpts-col,
+/* Last-coaching shows on the full-width roster; once a record is open the
+   list condenses, so hide it then (the open card carries that detail). */
 .roster-split.has-record .rr-lastcoach-col{display:none}
 /* Attendance Points header is too wide for the condensed split pane and
    clips behind the open driver drawer — show the short "Points" label
@@ -8095,7 +8095,13 @@ body.rr-cmdk-open{ overflow:hidden }
    (that detail lives in the open record). */
 .roster-split #rr-roster-table-wrap th,
 .roster-split #rr-roster-table-wrap td{padding-left:var(--s-2);padding-right:var(--s-2)}
-.roster-split #rr-roster-table-wrap .cell-name-sub{display:none}
+/* Driver is the leading column now (the app-view column was removed); give it
+   the comfortable left inset the old leading cell carried. */
+.roster-split #rr-roster-table-wrap th:first-child,
+.roster-split #rr-roster-table-wrap td:first-child{padding-left:16px}
+/* Secondary metadata line under the driver name shows on the full-width
+   roster; once a record is docked the list condenses, so hide it then. */
+.roster-split.has-record #rr-roster-table-wrap .cell-name-sub{display:none}
 /* ── Reduce roster table visual weight (the record pane is the workspace;
    the roster reads as navigation). Trim row height ~12%, lighten the
    dividers, and shrink the avatar a notch — no color/token changes. */
@@ -8116,9 +8122,10 @@ body.rr-cmdk-open{ overflow:hidden }
    Hover behavior is untouched; this layers on top of it. The accent is
    painted with inset box-shadow so it never shifts the cell layout, and
    the first cell rounds with the table edge. */
-.roster-split #drivers-tbody tr.is-record-open > td{background:rgba(37,99,235,.04)}
+.roster-split #drivers-tbody tr.is-record-open > td{background:rgba(15,23,42,.035)}
 .roster-split #drivers-tbody tr.is-record-open > td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
-.roster-split #drivers-tbody tr.is-record-open:hover > td{background:rgba(37,99,235,.06)}
+.roster-split #drivers-tbody tr.is-record-open:hover > td{background:rgba(15,23,42,.05)}
+.roster-split #drivers-tbody tr.is-record-open .cell-name-text{font-weight:700}
 /* Neutralise the fixed-overlay drawer styling when the record lives
    in the inline mount, so it reads as a static workspace card that
    matches the Schedule / roster cards — no backdrop, no blur, no

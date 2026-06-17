@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=31277eadb708";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=31277eadb708";
+import { planScheduleWeek } from "./scheduling-engine.js?v=7a9a2bed68dd";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=7a9a2bed68dd";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -4648,6 +4648,7 @@ async function loadDriversRoster() {
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, score, updated_at, metadata,
                background_check_completed_at, drug_test_completed_at,
                training_scheduled_at, training_date, dl_expires_on,
+               dot_certified, xl_certified, edv_certified, is_trainer,
                station:station_id (code)`)
       .eq("dsp_id", window.RR.dsp.id)
       .order("hire_date", { ascending: false })
@@ -4955,17 +4956,16 @@ function renderDriverTable(rows, error) {
       <th>App</th>
       <th></th>`;
   } else {
-    thead.innerHTML = cbHeader + `
+    thead.innerHTML = `
       <th class="rr-roster-th-driver"><span class="rr-roster-th-driver-label" data-rr-roster-sort="name" style="cursor:pointer;user-select:none">Driver${caret("name")}</span></th>
       <th class="rr-roster-th-attpoints" data-rr-roster-sort="risk" style="cursor:pointer;user-select:none" title="Drivers on a corrective action: Watch (Written) or At Risk (Final)">Risk${caret("risk")}</th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
       <th class="rr-roster-th-status"><span class="rr-roster-th-status-sort" data-rr-roster-sort="status" style="cursor:pointer;user-select:none">Status${caret("status")}</span></th>
-      <th class="rr-attpts-col" data-rr-roster-sort="points" style="cursor:pointer;user-select:none" title="Active attendance points in the policy window">Points${caret("points")}</th>
       <th class="rr-lastcoach-col" data-rr-roster-sort="lastcoach" style="cursor:pointer;user-select:none" title="Most recent coaching of any topic">Last coaching${caret("lastcoach")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th class="rr-roster-th-app">App</th>
       <th class="rr-roster-th-actions"></th>`;
-    thead.dataset.rrColCount = "10";
+    thead.dataset.rrColCount = "8";
   }
 
   // Roster toolbar · search + status filter + Add driver live here, not in the
@@ -8262,24 +8262,43 @@ function renderDriverRow(d) {
   const display = displayDriverName(d);
   const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
   const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
-  const contact = d.phone || d.email || "";
+  const isNew  = d.hire_date && (Date.now() - new Date(d.hire_date).getTime()) < 30 * 86400000;
+  const meta = _driverMetaLine(d);
   const badges = _rowBadgesFor(d);
   const actions = _rowActionsFor(d);
+  const atRisk = !!(_rosterRisk && _rosterRisk.get && _rosterRisk.get(d.id) === "atrisk");
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
-      <td class="dr-cb" data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
-      <td><div class="cell-driver"><div class="avatar-sm ${tier}${(_rosterRisk && _rosterRisk.get && _rosterRisk.get(d.id) === "atrisk") ? " rr-final-ring" : ""}"${(_rosterRisk && _rosterRisk.get && _rosterRisk.get(d.id) === "atrisk") ? ' title="At risk · on a final corrective action"' : ""}>${initials}</div>
+      <td><div class="cell-driver"><div class="avatar-sm ${tier}${atRisk ? " rr-final-ring" : ""}"${atRisk ? ' title="At risk · on a final corrective action"' : ""}>${initials}</div>
         <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(display)}</span>${badges}</div>
-        <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
+        ${meta ? `<div class="cell-name-sub">${meta}</div>` : ""}</div></div></td>
       <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
-      <td>${tenure}</td>
+      <td class="rr-tenure-cell">${escapeHtml(tenure)}${isNew ? ` <span class="rr-row-badge rr-badge-new" title="Hired within the last 30 days">New</span>` : ""}</td>
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
-      <td class="rr-attpts-col">${_attPointsCell(d.id)}</td>
       <td class="rr-lastcoach-col">${_lastCoachedCell(d.id)}</td>
       <td class="rr-lastactive-cell">${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer class="u-center rr-app-cell"></td>
       <td data-rr-no-drawer class="rr-row-actions">${actions}</td>
     </tr>`;
+}
+
+// Secondary metadata line under the driver name — operational attributes the
+// roster can scan: certifications (DOT / XL / EDV), trainer role, and a
+// top-performer flag (tier A or a strong score). Vehicle type isn't a stored
+// driver field, so it's intentionally omitted. Falls back to the station code,
+// then contact, so the line is never empty for a driver with no flags. Risk
+// is intentionally left to the Risk column to avoid double-signalling.
+function _driverMetaLine(d) {
+  const items = [];
+  if (d.dot_certified) items.push("DOT");
+  if (d.xl_certified)  items.push("XL");
+  if (d.edv_certified) items.push("EDV");
+  if (d.is_trainer)    items.push("Trainer");
+  const topTier = d.tier && String(d.tier).toLowerCase() === "a";
+  if ((topTier || (d.score != null && d.score >= 90)) && items.length < 3) items.push("Top Performer");
+  let line = items.slice(0, 3).join(" • ");
+  if (!line) line = (d.station && d.station.code) || d.phone || d.email || "";
+  return line ? escapeHtml(line) : "";
 }
 
 // Saved-view chip click → apply the preset filter combo. Toggling
@@ -9605,10 +9624,12 @@ function _riskCell(driverId) {
   // (written). No label; the color + hover title do the work.
   // A small muted status dot carries the signal — red = At Risk (final),
   // amber = Watch (written), gray = clear.  No flag; colour + hover do the work.
-  const dot = (cls, title) => `<span class="rr-risk-dot ${cls}" title="${title}" aria-label="${title}"></span>`;
-  if (r === "atrisk") return dot("rr-risk-high", "At risk · on a final corrective action");
-  if (r === "watch")  return dot("rr-risk-med", "Watch · on a written corrective action");
-  return dot("rr-risk-low", "Clear · no active corrective action");
+  // Descriptive risk badge — subtle background pills (not bright dots): High =
+  // on a final corrective action, Medium = on a written one, Low = clear.
+  const badge = (cls, label, title) => `<span class="rr-risk-badge ${cls}" title="${title}" aria-label="${title}">${label}</span>`;
+  if (r === "atrisk") return badge("rr-risk-high", "High",   "High · on a final corrective action");
+  if (r === "watch")  return badge("rr-risk-med",  "Medium", "Medium · on a written corrective action");
+  return badge("rr-risk-low", "Low", "Low · no active corrective action");
 }
 
 // "Last coached" — pulled from the per-driver latest coaching loaded
@@ -9621,7 +9642,7 @@ function _lastCoachedCell(driverId) {
   const d = new Date(iso);
   const days = Math.floor((Date.now() - d.getTime()) / 86400000);
   const dim = days > 30;
-  return `<span style="${dim ? "color:var(--text-subtle)" : ""}" title="${escapeHtml(d.toLocaleString())}">${escapeHtml(d.toLocaleDateString(undefined,{month:"short",day:"numeric"}))}<span style="display:block;font-size:var(--fs-xs);color:var(--text-subtle)">${days === 0 ? "today" : days + "d ago"}</span></span>`;
+  return `<span style="${dim ? "color:var(--text-subtle)" : ""}" title="${escapeHtml(d.toLocaleString())}">${escapeHtml(d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}))}<span style="display:block;font-size:var(--fs-xs);color:var(--text-subtle)">${days === 0 ? "today" : days + "d ago"}</span></span>`;
 }
 
 // Override the mockup's filterDriversStage so it actually filters the
