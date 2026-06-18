@@ -1598,27 +1598,31 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 #view-schedule .req-type-badge.is-availability{background:rgba(37,99,235,.10);color:#1D4ED8;border-color:transparent}
 #view-schedule .req-type-badge.is-pto{background:rgba(109,40,217,.10);color:#6D28D9;border-color:transparent}
 #view-schedule .req-type-badge.is-unpaid{background:rgba(15,23,42,.06);color:var(--text-muted);border-color:transparent}
-/* Requests controls live in a dedicated bar at the top of the Requests view
-   (the shared #rr-sched-kpis strip is force-hidden by the schedule, which kept
-   hiding them). Filter dropdowns are formatted as schedule page buttons (Smart
-   Fill / Unassign Fleet): rounded pill, light border + soft shadow, a clean
-   chevron instead of the native OS arrow; PTO report sits on the right. */
+/* Requests controls live in a dedicated bar at the top of the Requests view.
+   Match the schedule top buttons exactly: rounded RECT (8px = --sch-radius, not
+   a full pill), thin border, white, ~38px tall, soft shadow. Both the filter
+   dropdowns (clean chevron, no native OS arrow) and the PTO report use it. */
 #view-schedule .req-toolbar-bar{display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;margin:0 0 var(--s-4)}
-#view-schedule .req-toolbar-bar #rr-pto-report-btn{margin-left:auto;height:36px}
-#view-schedule .req-toolbar-bar select.req-toolbar-filter{
-  appearance:none;-webkit-appearance:none;-moz-appearance:none;
-  height:36px;line-height:1;cursor:pointer;
-  padding:0 32px 0 15px;
-  border-radius:999px;
-  background-color:var(--canvas);
-  border:1px solid rgba(15,23,42,.10);
+#view-schedule .req-toolbar-bar #rr-pto-report-btn{margin-left:auto}
+#view-schedule .req-toolbar-bar select.req-toolbar-filter,
+#view-schedule .req-toolbar-bar #rr-pto-report-btn{
+  height:38px;line-height:1;
+  border-radius:var(--sch-radius, 8px);
+  border:1px solid rgba(15,23,42,.12);
+  background-color:var(--surface);
   box-shadow:0 1px 2px rgba(15,23,42,.04);
   font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text);
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='2 4 6 8 10 4'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 13px center;background-size:11px;
   transition:background-color var(--t-fast),box-shadow var(--t-fast),border-color var(--t-fast);
 }
-#view-schedule .req-toolbar-bar select.req-toolbar-filter:hover{background-color:var(--surface);box-shadow:0 4px 12px rgba(15,23,42,.06)}
+#view-schedule .req-toolbar-bar #rr-pto-report-btn{display:inline-flex;align-items:center;gap:7px;padding:0 14px;cursor:pointer}
+#view-schedule .req-toolbar-bar select.req-toolbar-filter{
+  appearance:none;-webkit-appearance:none;-moz-appearance:none;cursor:pointer;
+  padding:0 32px 0 14px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='2 4 6 8 10 4'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;background-size:11px;
+}
+#view-schedule .req-toolbar-bar select.req-toolbar-filter:hover,
+#view-schedule .req-toolbar-bar #rr-pto-report-btn:hover{background-color:var(--canvas);box-shadow:0 4px 12px rgba(15,23,42,.06);border-color:rgba(15,23,42,.18)}
 #view-schedule .req-toolbar-bar select.req-toolbar-filter:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 /* Status pills · white fill, thin navy border, colour in the text only
    (green reserved for Active) — one consistent treatment. */
