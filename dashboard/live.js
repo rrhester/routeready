@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=9bba1d215f63";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=9bba1d215f63";
+import { planScheduleWeek } from "./scheduling-engine.js?v=b933a1354af4";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=b933a1354af4";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -64514,21 +64514,6 @@ function _rrRequestsToolbarHtml() {
     <select class="sched-page-btn req-toolbar-filter" data-req-filter="loc" aria-label="Location" title="Filter by location"><option value="">All locations</option></select>
     <button type="button" class="sched-page-btn" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>`;
 }
-function _rrSwapInRequestsToolbar() {
-  // The schedule action ribbon (Smart Fill / Unassign / Finalize) is hidden on
-  // the Requests tab, so the controls live in the Requests card header instead
-  // — a reliably-visible top row. Populated on entering Requests; the filter
-  // selects keep their state across stream re-renders (only the stream below
-  // re-renders on a filter change, not this header).
-  const slot = document.getElementById("rr-req-head-actions");
-  if (!slot) return;
-  slot.innerHTML = _rrRequestsToolbarHtml();
-  slot.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
-    _reqFilter[el.getAttribute("data-req-filter")] = el.value;
-    if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
-  }));
-}
-
 function _renderSchedRequestsActive() {
   const stream = document.getElementById("rr-sched-req-stream");
   if (!stream) {
@@ -64546,9 +64531,6 @@ function _renderSchedRequestsActive() {
   try { _renderRequestsReports(); }
   catch (e) { console.warn("_renderRequestsReports:", e); }
   _renderSchedRequestsKpis();
-  // Put the Requests filters + PTO report in the top toolbar (replacing the
-  // week-action ribbon, which doesn't apply here).
-  try { _rrSwapInRequestsToolbar(); } catch (e) { console.warn("requests toolbar:", e); }
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
 
@@ -64579,60 +64561,18 @@ if (!window._rrPtoReportHandlerInstalled) {
 // continuation only paints if the captured token still matches AND
 // the Requests sub-view is still the visible one. Prevents a slow
 // RPC from overwriting the Week/Today KPI strip after a tab switch.
-let _rrReqKpiToken = 0;
-async function _renderSchedRequestsKpis() {
+function _renderSchedRequestsKpis() {
   const host = document.getElementById("rr-sched-kpis");
   if (!host) return;
-  const token = ++_rrReqKpiToken;
-  const stillCurrent = () => {
-    if (token !== _rrReqKpiToken) return false;
-    const sub = document.getElementById("sched-sub-requests");
-    if (!sub || sub.style.display === "none") return false;
-    return true;
-  };
-  host.classList.add("sched-kpi-pills");
-  host.innerHTML = `<span class="sched-kpi-pill" style="opacity:.5"><span class="sched-kpi-dot" style="background:#94A3B8"></span><span class="sched-kpi-text">Loading request KPIs…</span></span>`;
-
-  // Operational request KPIs (replaces the old availability stats): how many
-  // requests await review, how many were approved / denied this week, and how
-  // many approved changes take effect inside the next 14 days. Reads the same
-  // two request lists the stream uses.
-  const [avRes, toRes] = await Promise.allSettled([
-    sb.rpc("availability_request_list"),
-    sb.rpc("dispatch_time_off_list"),
-  ]);
-  if (!stillCurrent()) return;
-  const avRows = (avRes.status === "fulfilled" && Array.isArray(avRes.value?.data)) ? avRes.value.data : [];
-  const toRows = (toRes.status === "fulfilled" && Array.isArray(toRes.value?.data)) ? toRes.value.data : [];
-
-  const items = [
-    ...avRows.map((r) => ({ status: r.status || "pending", decidedAt: r.decided_at || null, effective: r.effective_on || r.effective_from || null })),
-    ...toRows.map((r) => ({ status: r.status || "pending", decidedAt: r.decided_at || null, effective: r.start_date || null })),
-  ];
-  const now = new Date();
-  const monday = (typeof startOfWeekMonday === "function") ? startOfWeekMonday(now) : now;
-  const weekStart = new Date(monday); weekStart.setHours(0, 0, 0, 0);
-  const in14 = new Date(now.getTime() + 14 * 86400000);
-  const isPending = (s) => s === "pending" || !s;
-  const haveDecidedAt = items.some((it) => it.decidedAt);
-  const thisWeek = (st) => items.filter((it) => it.status === st && it.decidedAt && new Date(it.decidedAt) >= weekStart).length;
-  const countStatus = (st) => haveDecidedAt ? thisWeek(st) : items.filter((it) => it.status === st).length;
-  const pending  = items.filter((it) => isPending(it.status)).length;
-  const approved = countStatus("approved");
-  const denied   = countStatus("denied");
-  const upcoming = items.filter((it) => it.status === "approved" && it.effective
-    && new Date(it.effective + "T12:00:00") >= now && new Date(it.effective + "T12:00:00") <= in14).length;
-
-  const navy = "#1E293B";
-  const pill = (dot, val, sub) =>
-    `<span class="sched-kpi-pill"><span class="sched-kpi-dot" style="background:${dot}"></span>`
-    + `<span class="sched-kpi-text"><span class="sched-kpi-val">${escapeHtml(val)}</span><span class="sched-kpi-sub">${escapeHtml(sub)}</span></span></span>`;
-  const weekSub = haveDecidedAt ? "This week" : "Total";
-  host.innerHTML =
-      pill(pending ? "#B45309" : navy, `${pending} Pending`,  "Awaiting review")
-    + pill("#15803D",                  `${approved} Approved`, weekSub)
-    + pill(denied ? "#B42318" : navy,  `${denied} Denied`,     weekSub)
-    + pill(navy,                       `${upcoming} Upcoming`, "Effective within 14 days");
+  // Per operator: the Requests top strip holds the filter controls + PTO report
+  // (replacing the Pending / Approved / Denied / Upcoming KPI cards). The
+  // pending / decided counts still show in the section headers below.
+  host.classList.remove("sched-kpi-pills");
+  host.innerHTML = `<div class="req-kpi-toolbar">${_rrRequestsToolbarHtml()}</div>`;
+  host.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
+    _reqFilter[el.getAttribute("data-req-filter")] = el.value;
+    if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
+  }));
 }
 
 // Inline preview mirroring the Drivers → Availability drill-down for
@@ -65067,7 +65007,7 @@ async function renderSchedRequestStream() {
   const pendingRowHtml = (it) => it.type === "availability" ? _reqAvailRowHtml(it.row, avCtx) : _toPendingRowHtml(it.row);
   // Filters live in the top toolbar now — keep its Location options in sync
   // with the stations currently on hand.
-  const _locSel = document.querySelector('#rr-req-head-actions [data-req-filter="loc"]');
+  const _locSel = document.querySelector('#rr-sched-kpis [data-req-filter="loc"]');
   if (_locSel) {
     _locSel.innerHTML = `<option value="">All locations</option>`
       + stations.map((s) => `<option value="${escapeHtml(s)}"${s === _reqFilter.loc ? " selected" : ""}>${escapeHtml(s)}</option>`).join("");
