@@ -2454,6 +2454,7 @@
               <header class="sched-requests-card-head">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
                 <span class="sched-requests-card-title">Requests</span>
+                <div class="req-head-actions" id="rr-req-head-actions"></div>
               </header>
               <div class="sched-requests-card-body" id="rr-sched-req-stream"><div class="rr-loading">Loading requests…</div></div>
             </section>
