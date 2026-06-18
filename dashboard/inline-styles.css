@@ -1601,6 +1601,9 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* Requests controls occupy the top strip (#rr-sched-kpis), replacing the
    Pending/Approved/Denied/Upcoming KPI cards. Filter selects + PTO report
    reuse .sched-page-btn so they read as schedule top buttons; PTO sits right. */
+/* Force the KPI strip visible on the Requests tab (renderScheduleWeek sets it
+   display:none) and strip the KPI-card chrome so it's a plain toolbar row. */
+#view-schedule #rr-sched-kpis.req-kpi-mode{display:flex !important;align-items:center;background:none;border:0;box-shadow:none;padding:0;margin:0 0 var(--s-4)}
 #view-schedule #rr-sched-kpis .req-kpi-toolbar{display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;width:100%;grid-column:1/-1}
 #view-schedule #rr-sched-kpis .req-kpi-toolbar #rr-pto-report-btn{margin-left:auto}
 /* Filter dropdowns formatted as schedule page buttons (Smart Fill / Unassign
