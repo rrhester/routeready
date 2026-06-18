@@ -64515,8 +64515,9 @@ function _rrRequestsToolbarHtml() {
       <option value="denied"${s("denied", _reqFilter.status)}>Denied</option>
     </select>
     <select class="sched-page-btn req-toolbar-filter" data-req-filter="loc" aria-label="Location" title="Filter by location"><option value="">All locations</option></select>
-    <button type="button" class="sched-page-btn req-toolbar-act" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>
-    <button type="button" class="sched-page-btn req-toolbar-act req-toolbar-primary" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>`;
+    <button type="button" class="req-toolbar-act" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>
+    <button type="button" class="req-toolbar-act req-toolbar-primary" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
+    <span class="rr-roster-chrome-host" id="rr-req-chrome-host"></span>`;
 }
 
 // ─── Driver-app request settings ──────────────────────────────────────────
@@ -64727,12 +64728,33 @@ function _renderSchedRequestsKpis() {
   if (strip) strip.classList.remove("req-kpi-mode");
   const bar = document.getElementById("rr-req-toolbar-bar");
   if (!bar) return;
+  // The shared bell/avatar chrome lives in this bar's chrome host. Park it
+  // back home BEFORE wiping the bar so innerHTML never destroys those shared
+  // nodes; re-home it into the freshly-rendered host afterward.
+  if (typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
   bar.innerHTML = _rrRequestsToolbarHtml();
   bar.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
     _reqFilter[el.getAttribute("data-req-filter")] = el.value;
     if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
   }));
+  if (typeof _rrMoveChromeToRequests === "function") _rrMoveChromeToRequests();
 }
+
+// Mirror _rrMoveChromeToRoster for the Requests tab: bring the global
+// ⋯/bell/avatar — here just the notification bell + account/settings avatar —
+// into the Requests toolbar so it shows the same header chrome as the roster.
+// The Requests tab hides the Schedule action bar those nodes normally dock to,
+// so without this they'd be invisible on this tab. _rrReturnChromeHome() (run
+// when leaving Requests, see the schedSub wrapper) puts them back.
+function _rrMoveChromeToRequests() {
+  const host = document.getElementById("rr-req-chrome-host");
+  if (!host) return;
+  const bell = document.getElementById("rr-hdr-notif");
+  const acct = document.getElementById("rr-hdr-avatar-btn");
+  if (bell && !host.contains(bell)) host.appendChild(bell);
+  if (acct && !host.contains(acct)) host.appendChild(acct);
+}
+window._rrMoveChromeToRequests = _rrMoveChromeToRequests;
 
 // Inline preview mirroring the Drivers → Availability drill-down for
 // the four KPIs. The full reports live on that page (with full
@@ -65430,6 +65452,14 @@ function _toRefreshNavBadge() {
     const prev = window.schedSub;
     if (typeof prev !== "function" || prev._wrappedForTimeOff) return false;
     window.schedSub = function (sub) {
+      // Leaving Requests → park the shared bell/avatar chrome back home (the
+      // destination sub, e.g. roster, re-grabs it if it wants it). Entering
+      // Requests moves it in via _renderSchedRequestsKpis below.
+      if (window._rrLastSchedSub === "requests" && sub !== "requests"
+          && typeof _rrReturnChromeHome === "function") {
+        _rrReturnChromeHome();
+      }
+      window._rrLastSchedSub = sub;
       prev(sub);
       if (sub === "time-off" || sub === "requests") {
         // Either legacy "time-off" or the new "requests" tab. Render
