@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=88bae9604b5f";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=88bae9604b5f";
+import { planScheduleWeek } from "./scheduling-engine.js?v=0d432d0bff41";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=0d432d0bff41";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -37920,6 +37920,9 @@ window.schedSub = function (sub) {
   if (sub !== "requests") {
     const dd = document.getElementById("rr-sched-req-drilldown");
     if (dd) { dd.hidden = true; dd.innerHTML = ""; dd.dataset.rrOpenKpi = ""; }
+    // Drop the Requests toolbar mode so renderScheduleWeek can hide the strip again.
+    const k = document.getElementById("rr-sched-kpis");
+    if (k) k.classList.remove("req-kpi-mode");
   }
   if (sub === "targets") {
     // Planning view — explicitly clear the KPI strip; no auto-repaint.
@@ -64567,7 +64570,12 @@ function _renderSchedRequestsKpis() {
   // Per operator: the Requests top strip holds the filter controls + PTO report
   // (replacing the Pending / Approved / Denied / Upcoming KPI cards). The
   // pending / decided counts still show in the section headers below.
+  // renderScheduleWeek hides this strip (inline display:none) on the week view;
+  // req-kpi-mode forces it back (display:flex !important) and drops the KPI-card
+  // chrome so the controls read as a plain row of schedule buttons.
   host.classList.remove("sched-kpi-pills");
+  host.classList.add("req-kpi-mode");
+  host.style.display = "";
   host.innerHTML = `<div class="req-kpi-toolbar">${_rrRequestsToolbarHtml()}</div>`;
   host.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
     _reqFilter[el.getAttribute("data-req-filter")] = el.value;
