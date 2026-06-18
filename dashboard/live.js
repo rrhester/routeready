@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=266b944adf24";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=266b944adf24";
+import { planScheduleWeek } from "./scheduling-engine.js?v=9bba1d215f63";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=9bba1d215f63";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -37848,8 +37848,6 @@ window._rrCloseDriverRecord = _rrCloseDriverRecord;
 const _legacySchedSub = window.schedSub;
 window.schedSub = function (sub) {
   _rrCloseDriverRecord();
-  // Leaving Requests → put the schedule's action ribbon back.
-  if (sub !== "requests") { try { _rrRestoreSchedToolbar(); } catch (_) {} }
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
   // The Smart Fill command tile doubles as "Forecast" on the Monthly view.
   if (typeof _rrSetSmartFillTileMode === "function") _rrSetSmartFillTileMode(sub === "monthly");
@@ -64517,26 +64515,18 @@ function _rrRequestsToolbarHtml() {
     <button type="button" class="sched-page-btn" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>`;
 }
 function _rrSwapInRequestsToolbar() {
-  const actions = document.getElementById("rr-sched-page-actions");
-  if (!actions || actions.querySelector(".req-toolbar")) return; // absent or already swapped
-  // Hide the schedule's own action tiles (and parked chrome) without removing
-  // them, so they restore intact on the next non-Requests sub-view.
-  Array.from(actions.children).forEach((c) => { c.setAttribute("data-rr-req-hidden", "1"); c.style.display = "none"; });
-  const wrap = document.createElement("div");
-  wrap.className = "req-toolbar";
-  wrap.innerHTML = _rrRequestsToolbarHtml();
-  actions.appendChild(wrap);
-  wrap.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
+  // The schedule action ribbon (Smart Fill / Unassign / Finalize) is hidden on
+  // the Requests tab, so the controls live in the Requests card header instead
+  // — a reliably-visible top row. Populated on entering Requests; the filter
+  // selects keep their state across stream re-renders (only the stream below
+  // re-renders on a filter change, not this header).
+  const slot = document.getElementById("rr-req-head-actions");
+  if (!slot) return;
+  slot.innerHTML = _rrRequestsToolbarHtml();
+  slot.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
     _reqFilter[el.getAttribute("data-req-filter")] = el.value;
     if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
   }));
-}
-function _rrRestoreSchedToolbar() {
-  const actions = document.getElementById("rr-sched-page-actions");
-  if (!actions) return;
-  const wrap = actions.querySelector(".req-toolbar");
-  if (wrap) wrap.remove();
-  actions.querySelectorAll("[data-rr-req-hidden]").forEach((c) => { c.style.display = ""; c.removeAttribute("data-rr-req-hidden"); });
 }
 
 function _renderSchedRequestsActive() {
@@ -65077,7 +65067,7 @@ async function renderSchedRequestStream() {
   const pendingRowHtml = (it) => it.type === "availability" ? _reqAvailRowHtml(it.row, avCtx) : _toPendingRowHtml(it.row);
   // Filters live in the top toolbar now — keep its Location options in sync
   // with the stations currently on hand.
-  const _locSel = document.querySelector('#rr-sched-page-actions [data-req-filter="loc"]');
+  const _locSel = document.querySelector('#rr-req-head-actions [data-req-filter="loc"]');
   if (_locSel) {
     _locSel.innerHTML = `<option value="">All locations</option>`
       + stations.map((s) => `<option value="${escapeHtml(s)}"${s === _reqFilter.loc ? " selected" : ""}>${escapeHtml(s)}</option>`).join("");
