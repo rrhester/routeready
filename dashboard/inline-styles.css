@@ -1616,7 +1616,12 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   transition:background-color var(--t-fast),box-shadow var(--t-fast);
 }
 #view-schedule .req-toolbar-bar .req-toolbar-act{display:inline-flex;align-items:center;gap:7px;padding:0 14px;cursor:pointer}
-#view-schedule .req-toolbar-bar .req-toolbar-act[data-rr-req-settings] svg:last-child{margin-left:1px;opacity:.7}
+/* Settings button = solid accent fill with a white icon + label, matching the
+   roster "Add driver" button. Same height as the PTO report button beside it. */
+#view-schedule .req-toolbar-bar .req-toolbar-primary{background-color:var(--accent);border-color:var(--accent);color:#fff;box-shadow:none}
+#view-schedule .req-toolbar-bar .req-toolbar-primary svg{color:#fff}
+#view-schedule .req-toolbar-bar .req-toolbar-primary:hover{background-color:var(--accent);border-color:var(--accent);box-shadow:none;filter:brightness(1.06)}
+#view-schedule .req-toolbar-bar .req-toolbar-primary[aria-expanded="true"]{background-color:var(--accent);filter:brightness(1.06);box-shadow:0 0 0 3px var(--accent-soft)}
 /* Filter dropdowns · full-height hairline divider (sidebar colour) before the
    chevron, like the schedule split buttons. Two backgrounds: the chevron, then
    a 1px vertical line spanning the pill height. */
@@ -1631,10 +1636,9 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   background-size:11px, 1px 100%;
 }
 #view-schedule .req-toolbar-bar select.req-toolbar-filter:hover,
-#view-schedule .req-toolbar-bar .req-toolbar-act:hover{background-color:var(--canvas);box-shadow:0 4px 12px rgba(15,23,42,.06)}
+#view-schedule .req-toolbar-bar .req-toolbar-act:not(.req-toolbar-primary):hover{background-color:var(--canvas);box-shadow:0 4px 12px rgba(15,23,42,.06)}
 #view-schedule .req-toolbar-bar select.req-toolbar-filter:focus-visible,
 #view-schedule .req-toolbar-bar .req-toolbar-act:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
-#view-schedule .req-toolbar-bar .req-toolbar-act[aria-expanded="true"]{background-color:var(--canvas);box-shadow:0 0 0 3px var(--accent-soft)}
 
 /* Driver-app request settings popover · opened from the Settings pill. A
    small floating card (position set inline at open time) with grouped on/off
