@@ -64515,7 +64515,161 @@ function _rrRequestsToolbarHtml() {
       <option value="denied"${s("denied", _reqFilter.status)}>Denied</option>
     </select>
     <select class="sched-page-btn req-toolbar-filter" data-req-filter="loc" aria-label="Location" title="Filter by location"><option value="">All locations</option></select>
-    <button type="button" class="sched-page-btn" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>`;
+    <button type="button" class="sched-page-btn req-toolbar-act" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>
+    <button type="button" class="sched-page-btn req-toolbar-act" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg></button>`;
+}
+
+// ─── Driver-app request settings ──────────────────────────────────────────
+// The Settings pill in the Requests toolbar opens a small popover where the
+// DSP toggles which request features the DRIVER APP exposes. Each toggle
+// persists to dsps.metadata.request_features (read-modify-write) and updates
+// the cached copy optimistically. The driver app reads the same flags (via
+// driver_me) to add/remove the matching form sections.
+//
+// Two groups: the request types drivers may submit at all (time off,
+// availability) and the individual fields the availability form asks about
+// (preferred days, start time, 5th day). Everything defaults ON, so a DSP
+// that has never opened Settings keeps the full driver experience.
+const _RR_REQ_FEATURES = [
+  { group: "Request types", items: [
+    { key: "time_off",     label: "Time off requests",    sub: "Let drivers request PTO and unpaid days off." },
+    { key: "availability", label: "Availability requests", sub: "Let drivers submit their weekly availability." },
+  ] },
+  { group: "Availability questions", items: [
+    { key: "preferred_days", label: "Preferred availability", sub: "Ask which days they'd prefer to work." },
+    { key: "start_time",     label: "Start time interest",    sub: "Ask their preferred start time." },
+    { key: "fifth_day",      label: "5th day interest",       sub: "Ask if they'd take a 5th working day." },
+  ] },
+];
+
+// Current feature flags, defaulting every key to ON when unset.
+function _rrReqFeatures() {
+  const md = (window.RR && window.RR.dsp && window.RR.dsp.metadata) || {};
+  const saved = md.request_features || {};
+  const out = {};
+  _RR_REQ_FEATURES.forEach((g) => g.items.forEach((it) => {
+    out[it.key] = saved[it.key] !== false; // anything but an explicit false ⇒ ON
+  }));
+  return out;
+}
+
+function _rrReqFeatureLabel(key) {
+  for (const g of _RR_REQ_FEATURES) for (const it of g.items) if (it.key === key) return it.label;
+  return "Setting";
+}
+
+function _rrRequestsSettingsPanelHtml() {
+  const cur = _rrReqFeatures();
+  const groups = _RR_REQ_FEATURES.map((g) => {
+    const rows = g.items.map((it) => {
+      const on = cur[it.key];
+      return `
+        <label class="rr-reqset-row">
+          <span class="rr-reqset-txt">
+            <span class="rr-reqset-label">${it.label}</span>
+            <span class="rr-reqset-sub">${it.sub}</span>
+          </span>
+          <span class="rr-tg${on ? " on" : ""}">
+            <input type="checkbox" class="rr-tg-input" data-rr-reqfeat="${it.key}"${on ? " checked" : ""} aria-label="${it.label}">
+            <span class="rr-tg-slider" aria-hidden="true"></span>
+          </span>
+        </label>`;
+    }).join("");
+    return `<div class="rr-reqset-group"><div class="rr-reqset-grouphd">${g.group}</div>${rows}</div>`;
+  }).join("");
+  return `
+    <div class="rr-reqset-head">
+      <div class="rr-reqset-title">Driver app requests</div>
+      <div class="rr-reqset-help">Turn features on or off in the driver app.</div>
+    </div>
+    ${groups}`;
+}
+
+function _rrReqSettingsDismiss() { _rrCloseReqSettings(); }
+function _rrReqSettingsEsc(e) {
+  if (e.key === "Escape") { e.preventDefault(); _rrCloseReqSettings(); }
+}
+function _rrCloseReqSettings() {
+  const pop = document.getElementById("rr-reqset-pop");
+  if (pop) pop.remove();
+  const btn = document.querySelector("[data-rr-req-settings]");
+  if (btn) btn.setAttribute("aria-expanded", "false");
+  document.removeEventListener("keydown", _rrReqSettingsEsc, true);
+  document.removeEventListener("scroll", _rrReqSettingsDismiss, true);
+  window.removeEventListener("resize", _rrReqSettingsDismiss);
+}
+function _rrOpenReqSettings(btn) {
+  _rrCloseReqSettings();
+  const pop = document.createElement("div");
+  pop.id = "rr-reqset-pop";
+  pop.className = "rr-reqset-pop";
+  pop.setAttribute("role", "dialog");
+  pop.setAttribute("aria-label", "Driver app request settings");
+  pop.innerHTML = _rrRequestsSettingsPanelHtml();
+  document.body.appendChild(pop);
+  // Anchor under the button's right edge; clamp to the viewport.
+  const r = btn.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.top = (r.bottom + 6) + "px";
+  pop.style.right = Math.max(12, window.innerWidth - r.right) + "px";
+  pop.style.zIndex = "1100";
+  btn.setAttribute("aria-expanded", "true");
+  document.addEventListener("keydown", _rrReqSettingsEsc, true);
+  document.addEventListener("scroll", _rrReqSettingsDismiss, true);
+  window.addEventListener("resize", _rrReqSettingsDismiss);
+}
+
+// Persist one flag. Read-modify-write so we never clobber sibling metadata,
+// then optimistic-cache so a re-render reflects it without a refetch.
+async function _rrSaveReqFeature(key, val) {
+  const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+  if (!dspId) { toast("No DSP loaded", "warn"); return false; }
+  try {
+    const { data: row, error: rErr } = await sb.from("dsps").select("metadata").eq("id", dspId).single();
+    if (rErr) throw rErr;
+    const md = row?.metadata || {};
+    md.request_features = { ...(md.request_features || {}), [key]: val };
+    const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", dspId);
+    if (wErr) throw wErr;
+    if (window.RR?.dsp) window.RR.dsp.metadata = md;
+    return true;
+  } catch (err) {
+    console.warn("save request feature:", err && err.message);
+    return false;
+  }
+}
+
+// Delegated handlers (installed once): toggle the popover, dismiss on an
+// outside click, and flip a flag when a switch changes.
+if (!window._rrReqSettingsHandlersInstalled) {
+  window._rrReqSettingsHandlersInstalled = true;
+  document.addEventListener("click", (e) => {
+    const trigger = e.target.closest && e.target.closest("[data-rr-req-settings]");
+    if (trigger) {
+      e.preventDefault();
+      if (document.getElementById("rr-reqset-pop")) _rrCloseReqSettings();
+      else _rrOpenReqSettings(trigger);
+      return;
+    }
+    const pop = document.getElementById("rr-reqset-pop");
+    if (pop && !(e.target.closest && e.target.closest("#rr-reqset-pop"))) _rrCloseReqSettings();
+  });
+  document.addEventListener("change", async (e) => {
+    const input = e.target.closest && e.target.closest("[data-rr-reqfeat]");
+    if (!input) return;
+    const key = input.getAttribute("data-rr-reqfeat");
+    const val = !!input.checked;
+    const wrap = input.closest(".rr-tg");
+    if (wrap) wrap.classList.toggle("on", val);
+    const ok = await _rrSaveReqFeature(key, val);
+    if (!ok) {
+      input.checked = !val;
+      if (wrap) wrap.classList.toggle("on", !val);
+      toast("Couldn't save setting", "warn");
+      return;
+    }
+    toast(`${_rrReqFeatureLabel(key)}: ${val ? "ON" : "OFF"}`, "success");
+  });
 }
 function _renderSchedRequestsActive() {
   const stream = document.getElementById("rr-sched-req-stream");

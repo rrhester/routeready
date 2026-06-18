@@ -1023,12 +1023,19 @@ async function refreshDriverProfile(session, { force } = {}) {
     const dspPhone = data.dsp_phone || cur.dsp_phone || "";
     const dspId    = data.dsp_id    || cur.dsp_id    || null;
     const drvId    = data.id        || cur.driver_id || null;
+    // Which request features the DSP exposes (Settings → Requests in dispatch).
+    // Empty object ⇒ everything on. Fall back to the cached copy when the RPC
+    // predates migration 0393 so we never blank a feature on stale data.
+    const reqFeat  = (data.request_features && typeof data.request_features === "object")
+      ? data.request_features
+      : (cur.request_features || {});
     if ((cur.photo_url || null) === (photoUrl || null) &&
         (cur.name || "")        === (data.name || "") &&
         (cur.dsp_name || "")    === dspName &&
         (cur.dsp_phone || "")   === dspPhone &&
         (cur.dsp_id || null)    === dspId &&
         (cur.driver_id || null) === drvId &&
+        JSON.stringify(cur.request_features || {}) === JSON.stringify(reqFeat) &&
         (cur.status || null)    === (status || null)) return;
     writeSession({ ...cur,
       name:       data.name || cur.name,
@@ -1038,6 +1045,7 @@ async function refreshDriverProfile(session, { force } = {}) {
       dsp_phone:  dspPhone,
       dsp_id:     dspId,
       driver_id:  drvId,
+      request_features: reqFeat,
       status,
     });
     // Re-render so the header brand picks up the new dsp_name and the
@@ -1045,6 +1053,27 @@ async function refreshDriverProfile(session, { force } = {}) {
     // onboarding → active flip and unlocks the rest of the app.
     render();
   } catch {}
+}
+
+// Driver-app request features the DSP toggles in dispatch (Settings →
+// Requests). Persisted to dsps.metadata.request_features, surfaced via
+// driver_me → session.request_features. Defaults every key ON when unset, so
+// an older session or a DSP that never opened Settings keeps the full app.
+//   time_off · availability · preferred_days · start_time · fifth_day
+function driverFeatureOn(key) {
+  const f = readSession()?.request_features;
+  if (!f || typeof f !== "object") return true;
+  return f[key] !== false; // anything but an explicit false ⇒ ON
+}
+
+// Friendly placeholder when a driver lands on a feature their DSP turned off
+// (e.g. an old bookmark / direct hash). Keeps the back button working.
+function _featureOffHtml(name) {
+  return `
+    <div class="settings-section" style="text-align:center;padding:44px 18px">
+      <div class="settings-section-title">${escapeHtml(name)} isn't available</div>
+      <div class="settings-section-sub" style="margin-top:6px">Your DSP has turned this off. Message dispatch if you have questions.</div>
+    </div>`;
 }
 
 // Refresh on focus so a DSP name change in dispatcher Settings shows
@@ -4596,8 +4625,8 @@ function renderSettings() {
         ${row("profile",      "/settings/profile",      "Profile",      "Name, contact, emergency contact")}
         ${row("license",      "/settings/license",      "Driver's license", "License number and image")}
         ${row("pin",          "/settings/pin",          "Sign-in PIN",  "Set or change your 4–6 digit PIN")}
-        ${row("availability", "/settings/availability", "Availability", "Days you can work and your earliest start")}
-        ${row("time-off",     "/settings/time-off",     "Time off",     "Request a day off and see past decisions")}
+        ${driverFeatureOn("availability") ? row("availability", "/settings/availability", "Availability", "Days you can work and your earliest start") : ""}
+        ${driverFeatureOn("time_off")     ? row("time-off",     "/settings/time-off",     "Time off",     "Request a day off and see past decisions") : ""}
         ${row("attendance",   "/settings/attendance",   "Attendance",   "Today's status and your DSP's points policy")}
       </section>
 
@@ -5078,10 +5107,13 @@ async function renderOnboarding(opts) {
     { key: "license", title: "Upload your driver's license", owner: "driver", done: !!(prof.dl_image_path && prof.dl_back_image_path && prof.dl_number),
       action: "/settings/license", cta: (prof.dl_image_path && prof.dl_back_image_path && prof.dl_number) ? "Replace images" : "Upload license",
       subDone: "License number & both sides on file", subTodo: "Enter your license number and take photos of the front and back" },
-    { key: "availability", title: "Set your availability", owner: "driver", done: availDone,
-      action: "/settings/availability", cta: "Set availability",
-      subDone: (av && av.pending) ? "Submitted — your team will review it" : "On file", subTodo: "Tell us which days you can work and your earliest start time" },
   ];
+  // Availability is part of onboarding only when the DSP offers it.
+  if (driverFeatureOn("availability")) {
+    items.push({ key: "availability", title: "Set your availability", owner: "driver", done: availDone,
+      action: "/settings/availability", cta: "Set availability",
+      subDone: (av && av.pending) ? "Submitted — your team will review it" : "On file", subTodo: "Tell us which days you can work and your earliest start time" });
+  }
   for (const cs of (Array.isArray(stepsRes?.data) ? stepsRes.data : [])) {
     if (!cs || !cs.key) continue;
     const owner = cs.owner === "driver" ? "driver" : "dsp";
@@ -6225,6 +6257,7 @@ async function renderAvailability() {
 
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
+  if (!driverFeatureOn("availability")) { main.innerHTML = _featureOffHtml("Availability"); return; }
 
   const { data, error } = await sb.rpc("driver_get_availability", { p_token: session.token });
   if (error) {
@@ -6382,13 +6415,13 @@ async function renderAvailability() {
       ${bannerHtml ? `<div id="avail-banner-slot">${bannerHtml}</div>` : ""}
       <div style="font-weight:700;font-size:var(--fs-lg);margin-bottom:8px">Days you can work</div>
       <section class="avail-list" id="avail-list">${rowsHtml}</section>
-      ${startBlock}
+      ${driverFeatureOn("start_time") ? startBlock : ""}
       <button class="checkin-btn" id="avail-submit" type="button" ${locked ? "disabled" : ""}>
         ${locked ? "Submission paused" : "Submit availability change"}
       </button>
       <div class="avail-policy">${policyText}</div>
-      ${prefBlock}
-      ${fifthDayBlock}
+      ${driverFeatureOn("preferred_days") ? prefBlock : ""}
+      ${driverFeatureOn("fifth_day") ? fifthDayBlock : ""}
     </div>`;
 
   const listEl   = document.getElementById("avail-list");
@@ -6593,6 +6626,7 @@ async function renderTimeOff() {
   main.innerHTML = `<div class="loader" style="margin:60px auto"></div>`;
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
+  if (!driverFeatureOn("time_off")) { main.innerHTML = _featureOffHtml("Time off"); return; }
 
   const { data, error } = await sb.rpc("driver_time_off_list", { p_token: session.token });
   if (currentRoute() !== "/settings/time-off") return;
