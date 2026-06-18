@@ -1555,6 +1555,49 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .rrm-insights{width:100%;justify-content:center}
 .sched-kpi-pill.rr-kpi-metrics.is-active{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text)}
 @media (max-width:640px){.rrm-panel{width:100%;max-width:100%;border-left:0}}
+/* ── Requests page redesign · filter bar + Pending section + Recent Decisions
+   table. Reuses the roster table feel (uppercase muted headers, hover, light-
+   blue selected row) + existing status-pill / req-type-badge / sched-req-day
+   chrome so it reads as part of Schedule/Roster. */
+#view-schedule .req-page{display:flex;flex-direction:column;gap:var(--s-4)}
+#view-schedule .req-filterbar{display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap}
+#view-schedule .req-tab{display:inline-flex;align-items:center;font-size:var(--fs-sm);font-weight:600;color:var(--text);padding:6px 12px;border-radius:var(--r-md);border:1px solid var(--border)}
+#view-schedule .req-tab.is-active{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text)}
+#view-schedule .req-filter{padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text);font-size:var(--fs-sm);font-weight:500;cursor:pointer}
+#view-schedule .req-section{display:flex;flex-direction:column;gap:var(--s-2-5)}
+#view-schedule .req-section-head{display:flex;align-items:center;gap:8px}
+#view-schedule .req-section-title{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+#view-schedule .req-section-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:var(--r-pill);background:var(--canvas);border:1px solid var(--border);font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)}
+#view-schedule .req-pending{display:flex;flex-direction:column;gap:var(--s-2-5)}
+/* Compact empty state — only as tall as it needs to be. */
+#view-schedule .req-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;padding:26px 20px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--canvas)}
+#view-schedule .req-empty-ic{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:var(--green-soft);color:var(--green);margin-bottom:2px}
+#view-schedule .req-empty-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
+#view-schedule .req-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle)}
+/* Recent Decisions table — Roster-style. */
+#view-schedule .req-table-wrap{border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+#view-schedule .req-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+#view-schedule .req-table thead th{text-align:left;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);padding:10px 14px;border-bottom:1px solid var(--border);background:var(--canvas);white-space:nowrap}
+#view-schedule .req-table tbody td{padding:11px 14px;border-bottom:1px solid rgba(15,23,42,.06);vertical-align:middle;color:var(--text)}
+#view-schedule .req-table tbody tr:last-child td{border-bottom:0}
+#view-schedule .req-trow{cursor:pointer;transition:background var(--t-fast)}
+#view-schedule .req-trow:hover{background:var(--canvas)}
+#view-schedule .req-trow.is-selected td{background:rgba(37,99,235,.06)}
+#view-schedule .req-trow.is-selected td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+#view-schedule .req-td-eff{color:var(--text-subtle);white-space:nowrap}
+#view-schedule .req-detail{color:var(--text);font-variant-numeric:tabular-nums}
+#view-schedule .req-detail-dim{color:var(--text-disabled)}
+/* Coverage Impact — green = added capacity, red = dropped, neutral = flat. */
+#view-schedule .req-impact{display:flex;flex-direction:column;line-height:1.25;min-width:140px}
+#view-schedule .req-impact-main{font-size:var(--fs-sm);font-weight:600}
+#view-schedule .req-impact-sub{font-size:var(--fs-xs);color:var(--text-subtle)}
+#view-schedule .req-impact-pos .req-impact-main{color:#15803D}
+#view-schedule .req-impact-neg .req-impact-main{color:#B42318}
+#view-schedule .req-impact-flat .req-impact-main{color:var(--text-subtle);font-weight:500}
+/* Request-type badge colors per spec: Availability=blue, PTO=purple, Unpaid=gray. */
+#view-schedule .req-type-badge.is-availability{background:rgba(37,99,235,.10);color:#1D4ED8;border-color:transparent}
+#view-schedule .req-type-badge.is-pto{background:rgba(109,40,217,.10);color:#6D28D9;border-color:transparent}
+#view-schedule .req-type-badge.is-unpaid{background:rgba(15,23,42,.06);color:var(--text-muted);border-color:transparent}
 /* Status pills · white fill, thin navy border, colour in the text only
    (green reserved for Active) — one consistent treatment. */
 #view-drivers .status-pill.rr-dstatus-active{background:#fff;color:#16A34A;border-color:rgba(15,23,42,.16)}
