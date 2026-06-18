@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=0d432d0bff41";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=0d432d0bff41";
+import { planScheduleWeek } from "./scheduling-engine.js?v=453d3531d11d";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=453d3531d11d";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -64565,19 +64565,16 @@ if (!window._rrPtoReportHandlerInstalled) {
 // the Requests sub-view is still the visible one. Prevents a slow
 // RPC from overwriting the Week/Today KPI strip after a tab switch.
 function _renderSchedRequestsKpis() {
-  const host = document.getElementById("rr-sched-kpis");
-  if (!host) return;
-  // Per operator: the Requests top strip holds the filter controls + PTO report
-  // (replacing the Pending / Approved / Denied / Upcoming KPI cards). The
-  // pending / decided counts still show in the section headers below.
-  // renderScheduleWeek hides this strip (inline display:none) on the week view;
-  // req-kpi-mode forces it back (display:flex !important) and drops the KPI-card
-  // chrome so the controls read as a plain row of schedule buttons.
-  host.classList.remove("sched-kpi-pills");
-  host.classList.add("req-kpi-mode");
-  host.style.display = "";
-  host.innerHTML = `<div class="req-kpi-toolbar">${_rrRequestsToolbarHtml()}</div>`;
-  host.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
+  // The filter controls + PTO report (replacing the Pending/Approved/Denied/
+  // Upcoming KPI cards) live in a dedicated bar inside the Requests view — NOT
+  // the shared #rr-sched-kpis strip, which the schedule force-hides
+  // (display:none) and kept hiding the controls with it. Leave that strip alone.
+  const strip = document.getElementById("rr-sched-kpis");
+  if (strip) strip.classList.remove("req-kpi-mode");
+  const bar = document.getElementById("rr-req-toolbar-bar");
+  if (!bar) return;
+  bar.innerHTML = _rrRequestsToolbarHtml();
+  bar.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
     _reqFilter[el.getAttribute("data-req-filter")] = el.value;
     if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
   }));
@@ -65015,7 +65012,7 @@ async function renderSchedRequestStream() {
   const pendingRowHtml = (it) => it.type === "availability" ? _reqAvailRowHtml(it.row, avCtx) : _toPendingRowHtml(it.row);
   // Filters live in the top toolbar now — keep its Location options in sync
   // with the stations currently on hand.
-  const _locSel = document.querySelector('#rr-sched-kpis [data-req-filter="loc"]');
+  const _locSel = document.querySelector('#rr-req-toolbar-bar [data-req-filter="loc"]');
   if (_locSel) {
     _locSel.innerHTML = `<option value="">All locations</option>`
       + stations.map((s) => `<option value="${escapeHtml(s)}"${s === _reqFilter.loc ? " selected" : ""}>${escapeHtml(s)}</option>`).join("");
