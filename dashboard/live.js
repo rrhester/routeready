@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=c615caa0c8f0";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=c615caa0c8f0";
+import { planScheduleWeek } from "./scheduling-engine.js?v=266b944adf24";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=266b944adf24";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -37848,6 +37848,8 @@ window._rrCloseDriverRecord = _rrCloseDriverRecord;
 const _legacySchedSub = window.schedSub;
 window.schedSub = function (sub) {
   _rrCloseDriverRecord();
+  // Leaving Requests → put the schedule's action ribbon back.
+  if (sub !== "requests") { try { _rrRestoreSchedToolbar(); } catch (_) {} }
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
   // The Smart Fill command tile doubles as "Forecast" on the Monthly view.
   if (typeof _rrSetSmartFillTileMode === "function") _rrSetSmartFillTileMode(sub === "monthly");
@@ -64491,6 +64493,52 @@ function _reqMarkDecided(id) {
 // ─── Schedule · Requests sub-view (PTO + Availability, split) ──────
 // The Requests tab shows both request types side by side. Each panel
 // calls its own RPC + renderer; both populate on every render.
+// Requests top toolbar · on the Requests tab the schedule's week-action ribbon
+// (Smart Fill / Unassign / Finalize) doesn't apply, so hide those tiles and put
+// the Requests controls — Type / Status / Location filters + PTO report — in
+// that top-right slot instead, styled as schedule page buttons. Hidden tiles
+// (and any relocated chrome) are preserved and restored when leaving Requests.
+function _rrRequestsToolbarHtml() {
+  const s = (v, cur) => v === cur ? " selected" : "";
+  return `
+    <select class="sched-page-btn req-toolbar-filter" data-req-filter="type" aria-label="Request type" title="Filter by request type">
+      <option value=""${s("", _reqFilter.type)}>All types</option>
+      <option value="availability"${s("availability", _reqFilter.type)}>Availability</option>
+      <option value="pto"${s("pto", _reqFilter.type)}>PTO</option>
+      <option value="unpaid"${s("unpaid", _reqFilter.type)}>Unpaid</option>
+    </select>
+    <select class="sched-page-btn req-toolbar-filter" data-req-filter="status" aria-label="Status" title="Filter by status">
+      <option value=""${s("", _reqFilter.status)}>All statuses</option>
+      <option value="pending"${s("pending", _reqFilter.status)}>Pending</option>
+      <option value="approved"${s("approved", _reqFilter.status)}>Approved</option>
+      <option value="denied"${s("denied", _reqFilter.status)}>Denied</option>
+    </select>
+    <select class="sched-page-btn req-toolbar-filter" data-req-filter="loc" aria-label="Location" title="Filter by location"><option value="">All locations</option></select>
+    <button type="button" class="sched-page-btn" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>`;
+}
+function _rrSwapInRequestsToolbar() {
+  const actions = document.getElementById("rr-sched-page-actions");
+  if (!actions || actions.querySelector(".req-toolbar")) return; // absent or already swapped
+  // Hide the schedule's own action tiles (and parked chrome) without removing
+  // them, so they restore intact on the next non-Requests sub-view.
+  Array.from(actions.children).forEach((c) => { c.setAttribute("data-rr-req-hidden", "1"); c.style.display = "none"; });
+  const wrap = document.createElement("div");
+  wrap.className = "req-toolbar";
+  wrap.innerHTML = _rrRequestsToolbarHtml();
+  actions.appendChild(wrap);
+  wrap.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
+    _reqFilter[el.getAttribute("data-req-filter")] = el.value;
+    if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
+  }));
+}
+function _rrRestoreSchedToolbar() {
+  const actions = document.getElementById("rr-sched-page-actions");
+  if (!actions) return;
+  const wrap = actions.querySelector(".req-toolbar");
+  if (wrap) wrap.remove();
+  actions.querySelectorAll("[data-rr-req-hidden]").forEach((c) => { c.style.display = ""; c.removeAttribute("data-rr-req-hidden"); });
+}
+
 function _renderSchedRequestsActive() {
   const stream = document.getElementById("rr-sched-req-stream");
   if (!stream) {
@@ -64508,6 +64556,9 @@ function _renderSchedRequestsActive() {
   try { _renderRequestsReports(); }
   catch (e) { console.warn("_renderRequestsReports:", e); }
   _renderSchedRequestsKpis();
+  // Put the Requests filters + PTO report in the top toolbar (replacing the
+  // week-action ribbon, which doesn't apply here).
+  try { _rrSwapInRequestsToolbar(); } catch (e) { console.warn("requests toolbar:", e); }
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
 
@@ -65024,29 +65075,17 @@ async function renderSchedRequestStream() {
     });
 
   const pendingRowHtml = (it) => it.type === "availability" ? _reqAvailRowHtml(it.row, avCtx) : _toPendingRowHtml(it.row);
-  const sel = (v, cur) => v === cur ? " selected" : "";
-  const locOpts = `<option value="">All locations</option>`
-    + stations.map((s) => `<option value="${escapeHtml(s)}"${sel(s, _reqFilter.loc)}>${escapeHtml(s)}</option>`).join("");
+  // Filters live in the top toolbar now — keep its Location options in sync
+  // with the stations currently on hand.
+  const _locSel = document.querySelector('#rr-sched-page-actions [data-req-filter="loc"]');
+  if (_locSel) {
+    _locSel.innerHTML = `<option value="">All locations</option>`
+      + stations.map((s) => `<option value="${escapeHtml(s)}"${s === _reqFilter.loc ? " selected" : ""}>${escapeHtml(s)}</option>`).join("");
+    _locSel.value = _reqFilter.loc;
+  }
 
   host.innerHTML = `
     <div class="req-page">
-      <div class="req-filterbar">
-        <span class="req-tab is-active">Pending Requests</span>
-        <select class="req-filter" data-req-filter="type" aria-label="Request type">
-          <option value=""${sel("", _reqFilter.type)}>All types</option>
-          <option value="availability"${sel("availability", _reqFilter.type)}>Availability</option>
-          <option value="pto"${sel("pto", _reqFilter.type)}>PTO</option>
-          <option value="unpaid"${sel("unpaid", _reqFilter.type)}>Unpaid</option>
-        </select>
-        <select class="req-filter" data-req-filter="status" aria-label="Status">
-          <option value=""${sel("", _reqFilter.status)}>All statuses</option>
-          <option value="pending"${sel("pending", _reqFilter.status)}>Pending</option>
-          <option value="approved"${sel("approved", _reqFilter.status)}>Approved</option>
-          <option value="denied"${sel("denied", _reqFilter.status)}>Denied</option>
-        </select>
-        <select class="req-filter" data-req-filter="loc" aria-label="Location">${locOpts}</select>
-      </div>
-
       <section class="req-section">
         <div class="req-section-head"><span class="req-section-title">Pending Requests</span><span class="req-section-count">${pending.length}</span></div>
         ${pending.length
@@ -65071,10 +65110,6 @@ async function renderSchedRequestStream() {
 
   host.querySelectorAll("[data-rr-to-decide]").forEach((btn) => btn.addEventListener("click", () => _toDecide(btn)));
   host.querySelectorAll("[data-rr-av-decide]").forEach((btn) => btn.addEventListener("click", () => _avDecide(btn)));
-  host.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
-    _reqFilter[el.getAttribute("data-req-filter")] = el.value;
-    renderSchedRequestStream();
-  }));
   host.querySelectorAll(".req-trow").forEach((tr) => tr.addEventListener("click", () => {
     host.querySelectorAll(".req-trow.is-selected").forEach((x) => x.classList.remove("is-selected"));
     tr.classList.add("is-selected");
