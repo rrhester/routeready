@@ -2444,6 +2444,10 @@
                Hidden by default; _renderSchedReqDrilldown unhides it
                when a KPI pill is clicked. -->
           <div id="rr-sched-req-drilldown" class="rr-sched-req-drilldown" hidden></div>
+          <!-- Filter controls + PTO report (Type / Status / Location). Populated
+               by _renderSchedRequestsKpis; lives here (not the shared KPI strip)
+               so the schedule's display:none on that strip can't hide it. -->
+          <div class="req-toolbar-bar" id="rr-req-toolbar-bar"></div>
           <!-- Split screen · LEFT = one unified request stream (PTO,
                Unpaid time off and Availability changes merged into a
                single chronological queue). RIGHT = three equally-sized
