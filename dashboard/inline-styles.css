@@ -1650,14 +1650,15 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .rr-reqset-pop{
   width:300px;max-width:calc(100vw - 24px);
   background:var(--surface);
-  border:1px solid var(--border);
+  border:1px solid var(--sidebar);
   border-radius:var(--r-lg, 12px);
   box-shadow:0 12px 32px rgba(15,23,42,.18);
   padding:14px;
 }
-.rr-reqset-head{margin-bottom:10px}
-.rr-reqset-title{font-size:var(--fs-md);font-weight:700;color:var(--text)}
-.rr-reqset-help{font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px}
+/* Slim header bar in the sidebar (navy) colour, bled to the popover edges. */
+.rr-reqset-head{margin:-14px -14px 12px;padding:10px 14px;background:var(--sidebar);border-radius:7px 7px 0 0}
+.rr-reqset-title{font-size:var(--fs-md);font-weight:700;color:#fff}
+.rr-reqset-help{font-size:var(--fs-xs);color:rgba(255,255,255,.72);margin-top:2px}
 .rr-reqset-group + .rr-reqset-group{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
 .rr-reqset-grouphd{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
 .rr-reqset-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;cursor:pointer}
