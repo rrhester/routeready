@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20ef2f9af9cb";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=20ef2f9af9cb";
+import { planScheduleWeek } from "./scheduling-engine.js?v=c615caa0c8f0";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=c615caa0c8f0";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -64904,6 +64904,73 @@ async function _avDecide(btn) {
   _renderRequestsReports();
 }
 
+// ─── Requests redesign · filters + Recent Decisions table helpers ───────────
+// Filter state for the Requests page (type / status / location), applied to
+// both the Pending section and the Recent Decisions table.
+let _reqFilter = { type: "", status: "", loc: "" };
+function _reqInitials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "—";
+  return ((parts[0][0] || "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+function _reqDayCount(a, b) {
+  if (!a) return 0;
+  const s = new Date(a + "T12:00:00"), e = new Date((b || a) + "T12:00:00");
+  return Math.max(1, Math.round((e - s) / 86400000) + 1);
+}
+// Coverage Impact cell — the page's key enhancement. Availability changes show
+// the day-delta (green = days added, red = days dropped); PTO / unpaid show the
+// freed-shift count (the live per-day coverage verdict rides on pending rows).
+function _reqCoverageImpactCell(it) {
+  const r = it.row;
+  if (it.type === "availability") {
+    const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+    const LBL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+    const norm = (a) => new Set((Array.isArray(a) ? a : []).map((x) => String(x).toLowerCase()));
+    const cur = norm(r.current_days), next = norm(r.requested_days || r.days);
+    const added = DOW.filter((d) => next.has(d) && !cur.has(d));
+    const dropped = DOW.filter((d) => cur.has(d) && !next.has(d));
+    if (!added.length && !dropped.length)
+      return `<div class="req-impact req-impact-flat"><span class="req-impact-main">No coverage impact</span><span class="req-impact-sub">Same days available</span></div>`;
+    if (dropped.length)
+      return `<div class="req-impact req-impact-neg"><span class="req-impact-main">−${dropped.length} ${dropped.length === 1 ? "day" : "days"}</span><span class="req-impact-sub">${escapeHtml(dropped.map((d) => LBL[d]).join(", "))} coverage drops</span></div>`;
+    const wk = added.filter((d) => d === "sat" || d === "sun");
+    const main = wk.length ? `+${wk.length} weekend ${wk.length === 1 ? "day" : "days"}` : `+${added.length} ${added.length === 1 ? "day" : "days"}`;
+    const sub  = wk.length ? "Improves Sat/Sun coverage" : `Adds ${added.map((d) => LBL[d]).join(", ")}`;
+    return `<div class="req-impact req-impact-pos"><span class="req-impact-main">${main}</span><span class="req-impact-sub">${escapeHtml(sub)}</span></div>`;
+  }
+  const days = _reqDayCount(r.start_date, r.end_date);
+  return `<div class="req-impact req-impact-flat"><span class="req-impact-main">${days} ${days === 1 ? "day" : "days"} off</span><span class="req-impact-sub">${it.type === "pto" ? "PTO · paid" : "Unpaid"}</span></div>`;
+}
+// One Recent-Decisions table row (decided requests only) — Roster-style.
+function _reqDecidedRowHtml(it) {
+  const r = it.row;
+  const name = r.driver_name || r.full_name || "—";
+  const station = r.station_code || "—";
+  const st = r.status === "approved" ? ["status-pill-approved", "Approved"]
+           : r.status === "denied"   ? ["status-pill-denied", "Denied"]
+           : ["status-pill-pending", "Pending"];
+  let oldP, newP, eff;
+  if (it.type === "availability") {
+    oldP = `<div class="sched-req-days">${_reqDaysHtml(r.current_days || [])}</div>`;
+    newP = `<div class="sched-req-days">${_reqDaysHtml(r.requested_days || r.days || [])}</div>`;
+    eff  = r.effective_on ? _reqFmtDate(r.effective_on) : "When approved";
+  } else {
+    oldP = `<span class="req-detail-dim">—</span>`;
+    newP = `<span class="req-detail">${escapeHtml(_reqFmtDate(r.start_date))} – ${escapeHtml(_reqFmtDate(r.end_date))}</span>`;
+    eff  = _reqFmtDate(r.start_date);
+  }
+  return `<tr class="req-trow" data-req-row="${escapeHtml(r.id)}">
+    <td class="req-td-driver"><div class="cell-driver"><div class="avatar-sm">${escapeHtml(_reqInitials(name))}</div><div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(name)}</span></div><div class="cell-name-sub">${escapeHtml(station)}</div></div></div></td>
+    <td>${_reqTypeBadge(it.type)}</td>
+    <td>${oldP}</td>
+    <td>${newP}</td>
+    <td>${_reqCoverageImpactCell(it)}</td>
+    <td><span class="status-pill ${st[0]}">${st[1]}</span></td>
+    <td class="req-td-eff">${escapeHtml(eff)}</td>
+  </tr>`;
+}
+
 // LEFT column · one unified request stream. PTO, Unpaid time off and
 // Availability changes are pulled from their two RPCs, tagged with a
 // type, and merged into a single chronological queue (Pending first,
@@ -64932,66 +64999,86 @@ async function renderSchedRequestStream() {
   if (!document.getElementById("rr-sched-req-stream")) return;
 
   const items = [];
-  for (const r of avRows) {
-    items.push({ row: r, type: "availability", sortDate: r.effective_on || "9999-12-31" });
-  }
-  for (const r of toRows) {
-    items.push({ row: r, type: r.is_pto ? "pto" : "unpaid", sortDate: r.start_date || "9999-12-31" });
-  }
+  for (const r of avRows) items.push({ row: r, type: "availability", sortDate: r.effective_on || "9999-12-31" });
+  for (const r of toRows) items.push({ row: r, type: r.is_pto ? "pto" : "unpaid", sortDate: r.start_date || "9999-12-31" });
+
+  const stations = Array.from(new Set(items.map((it) => it.row.station_code).filter(Boolean))).sort();
+  // Filter bar (type / status / location).
+  const matches = (it) => {
+    if (_reqFilter.type && it.type !== _reqFilter.type) return false;
+    if (_reqFilter.status && (it.row.status || "pending") !== _reqFilter.status) return false;
+    if (_reqFilter.loc && (it.row.station_code || "") !== _reqFilter.loc) return false;
+    return true;
+  };
+  const shown = items.filter(matches);
 
   const isPending = (it) => it.row.status === "pending" || !it.row.status;
-  // Pending: soonest first (most urgent). History: anything decided in
-  // this session floats to the top (most-recent action first), then
-  // the rest by date.
-  const pending = items.filter(isPending)
+  const pending = shown.filter(isPending)
     .sort((a, b) => a.sortDate < b.sortDate ? -1 : a.sortDate > b.sortDate ? 1 : 0);
-  const recencyRank = (id) => {
-    const i = _reqRecentlyDecided.indexOf(String(id));
-    return i === -1 ? Infinity : i;
-  };
-  const decided = items.filter(it => !isPending(it))
+  const recencyRank = (id) => { const i = _reqRecentlyDecided.indexOf(String(id)); return i === -1 ? Infinity : i; };
+  const decided = shown.filter((it) => !isPending(it))
     .sort((a, b) => {
       const ra = recencyRank(a.row.id), rb = recencyRank(b.row.id);
       if (ra !== rb) return ra - rb;
       return a.sortDate > b.sortDate ? -1 : a.sortDate < b.sortDate ? 1 : 0;
     });
 
-  const rowHtml = (it) => {
-    if (it.type === "availability") return _reqAvailRowHtml(it.row, avCtx);
-    return isPending(it) ? _toPendingRowHtml(it.row) : _toDecidedRowHtml(it.row);
-  };
+  const pendingRowHtml = (it) => it.type === "availability" ? _reqAvailRowHtml(it.row, avCtx) : _toPendingRowHtml(it.row);
+  const sel = (v, cur) => v === cur ? " selected" : "";
+  const locOpts = `<option value="">All locations</option>`
+    + stations.map((s) => `<option value="${escapeHtml(s)}"${sel(s, _reqFilter.loc)}>${escapeHtml(s)}</option>`).join("");
 
   host.innerHTML = `
-    <div class="to-page">
-      <section class="to-card">
-        <header class="to-card-head">
-          <div class="to-card-head-title">Pending</div>
-          <div class="to-card-head-count">${pending.length} awaiting review</div>
-        </header>
-        ${pending.length ? pending.map(rowHtml).join("") : `<div class="rr-empty-inline">No pending requests.</div>`}
+    <div class="req-page">
+      <div class="req-filterbar">
+        <span class="req-tab is-active">Pending Requests</span>
+        <select class="req-filter" data-req-filter="type" aria-label="Request type">
+          <option value=""${sel("", _reqFilter.type)}>All types</option>
+          <option value="availability"${sel("availability", _reqFilter.type)}>Availability</option>
+          <option value="pto"${sel("pto", _reqFilter.type)}>PTO</option>
+          <option value="unpaid"${sel("unpaid", _reqFilter.type)}>Unpaid</option>
+        </select>
+        <select class="req-filter" data-req-filter="status" aria-label="Status">
+          <option value=""${sel("", _reqFilter.status)}>All statuses</option>
+          <option value="pending"${sel("pending", _reqFilter.status)}>Pending</option>
+          <option value="approved"${sel("approved", _reqFilter.status)}>Approved</option>
+          <option value="denied"${sel("denied", _reqFilter.status)}>Denied</option>
+        </select>
+        <select class="req-filter" data-req-filter="loc" aria-label="Location">${locOpts}</select>
+      </div>
+
+      <section class="req-section">
+        <div class="req-section-head"><span class="req-section-title">Pending Requests</span><span class="req-section-count">${pending.length}</span></div>
+        ${pending.length
+          ? `<div class="req-pending">${pending.map(pendingRowHtml).join("")}</div>`
+          : `<div class="req-empty"><div class="req-empty-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="req-empty-title">No pending requests</div><div class="req-empty-sub">All requests have been reviewed.</div></div>`}
       </section>
-      <section class="to-card">
-        <header class="to-card-head">
-          <div class="to-card-head-title">History</div>
-          <div class="to-card-head-count">${decided.length} decided</div>
-        </header>
-        ${decided.length ? decided.map(rowHtml).join("") : `<div class="rr-empty-inline">No decided requests yet.</div>`}
+
+      <section class="req-section">
+        <div class="req-section-head"><span class="req-section-title">Recent Decisions</span><span class="req-section-count">${decided.length}</span></div>
+        ${decided.length
+          ? `<div class="req-table-wrap"><table class="req-table"><thead><tr><th>Driver</th><th>Request</th><th>Old pattern</th><th>New pattern</th><th>Coverage impact</th><th>Status</th><th>Effective</th></tr></thead><tbody>${decided.map(_reqDecidedRowHtml).join("")}</tbody></table></div>`
+          : `<div class="rr-empty-inline">No decided requests yet.</div>`}
       </section>
     </div>`;
 
-  // Tint rows decided this session so the operator's last action is
-  // obvious at the top of History.
+  // Tint rows decided this session so the operator's last action is obvious.
   for (const id of _reqRecentlyDecided) {
-    const row = host.querySelector(`.to-row[data-rr-to-row="${CSS.escape(String(id))}"]`);
+    const row = host.querySelector(`[data-req-row="${CSS.escape(String(id))}"]`)
+             || host.querySelector(`.to-row[data-rr-to-row="${CSS.escape(String(id))}"]`);
     if (row) row.classList.add("req-row-fresh");
   }
 
-  host.querySelectorAll("[data-rr-to-decide]").forEach((btn) => {
-    btn.addEventListener("click", () => _toDecide(btn));
-  });
-  host.querySelectorAll("[data-rr-av-decide]").forEach((btn) => {
-    btn.addEventListener("click", () => _avDecide(btn));
-  });
+  host.querySelectorAll("[data-rr-to-decide]").forEach((btn) => btn.addEventListener("click", () => _toDecide(btn)));
+  host.querySelectorAll("[data-rr-av-decide]").forEach((btn) => btn.addEventListener("click", () => _avDecide(btn)));
+  host.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
+    _reqFilter[el.getAttribute("data-req-filter")] = el.value;
+    renderSchedRequestStream();
+  }));
+  host.querySelectorAll(".req-trow").forEach((tr) => tr.addEventListener("click", () => {
+    host.querySelectorAll(".req-trow.is-selected").forEach((x) => x.classList.remove("is-selected"));
+    tr.classList.add("is-selected");
+  }));
   _toPaintCoverage(host).catch((e) => console.warn("coverage check:", e));
 }
 window._rrRenderSchedRequestStream = renderSchedRequestStream;
