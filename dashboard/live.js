@@ -65080,31 +65080,84 @@ function _reqDayCount(a, b) {
   const s = new Date(a + "T12:00:00"), e = new Date((b || a) + "T12:00:00");
   return Math.max(1, Math.round((e - s) / 86400000) + 1);
 }
-// Coverage Impact cell — the page's key enhancement. Availability changes show
-// the day-delta (green = days added, red = days dropped); PTO / unpaid show the
-// freed-shift count (the live per-day coverage verdict rides on pending rows).
+// ─── Requests · Recent Decisions cells (severity-first, scannable) ───────────
+const _REQ_DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+const _REQ_DOW_LBL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+const _reqNormDays = (a) => new Set((Array.isArray(a) ? a : []).map((x) => String(x).toLowerCase()));
+
+// Unique weekday keys (Mon→Sun order) spanned by an inclusive date range.
+function _reqRangeDows(startIso, endIso) {
+  if (!startIso) return [];
+  const seen = new Set();
+  const idx = ["sun","mon","tue","wed","thu","fri","sat"];
+  const s = new Date(startIso + "T12:00:00"), e = new Date((endIso || startIso) + "T12:00:00");
+  for (let t = s.getTime(); t <= e.getTime() && seen.size < 7; t += 86400000) seen.add(idx[new Date(t).getDay()]);
+  return _REQ_DOW.filter((d) => seen.has(d));
+}
+
+// Small day chips (Mon Fri Sat Sun) for the coverage-impact cell.
+function _reqDayChips(dows) {
+  if (!dows.length) return "";
+  return `<div class="req-cov-chips">${dows.map((d) => `<span class="req-cov-chip">${_REQ_DOW_LBL[d] || d}</span>`).join("")}</div>`;
+}
+
+// Coverage-impact model: which days lose coverage if approved + a High / Medium
+// / None severity. Availability = days dropped; time off = weekdays off.
+function _reqCoverage(it) {
+  const r = it.row;
+  let dows;
+  if (it.type === "availability") {
+    const cur = _reqNormDays(r.current_days), next = _reqNormDays(r.requested_days || r.days);
+    dows = _REQ_DOW.filter((d) => cur.has(d) && !next.has(d)); // dropped days reduce coverage
+  } else {
+    dows = _reqRangeDows(r.start_date, r.end_date);
+  }
+  const count = dows.length;
+  return { sev: count === 0 ? "none" : count <= 2 ? "medium" : "high", count, dows };
+}
+
+// Coverage Impact cell — the page's primary signal after Driver: a coloured
+// severity, the count of affected coverage days, and small day chips.
 function _reqCoverageImpactCell(it) {
+  const { sev, count, dows } = _reqCoverage(it);
+  const head = sev === "high" ? "High" : sev === "medium" ? "Medium" : "None";
+  const sub = count === 0 ? "No coverage impact" : `${count} coverage day${count === 1 ? "" : "s"} affected`;
+  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-head"><span class="req-cov-dot"></span><span class="req-cov-sev">${head}</span></div><div class="req-cov-sub">${sub}</div>${_reqDayChips(dows)}</div>`;
+}
+
+// "Requested change" — what actually changed in plain words (bold primary +
+// muted secondary), so a manager scans the decision without comparing grids.
+function _reqRequestedChange(it) {
   const r = it.row;
   if (it.type === "availability") {
-    const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
-    const LBL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
-    const norm = (a) => new Set((Array.isArray(a) ? a : []).map((x) => String(x).toLowerCase()));
-    const cur = norm(r.current_days), next = norm(r.requested_days || r.days);
-    const added = DOW.filter((d) => next.has(d) && !cur.has(d));
-    const dropped = DOW.filter((d) => cur.has(d) && !next.has(d));
-    if (!added.length && !dropped.length)
-      return `<div class="req-impact req-impact-flat"><span class="req-impact-main">No coverage impact</span><span class="req-impact-sub">Same days available</span></div>`;
-    if (dropped.length)
-      return `<div class="req-impact req-impact-neg"><span class="req-impact-main">−${dropped.length} ${dropped.length === 1 ? "day" : "days"}</span><span class="req-impact-sub">${escapeHtml(dropped.map((d) => LBL[d]).join(", "))} coverage drops</span></div>`;
-    const wk = added.filter((d) => d === "sat" || d === "sun");
-    const main = wk.length ? `+${wk.length} weekend ${wk.length === 1 ? "day" : "days"}` : `+${added.length} ${added.length === 1 ? "day" : "days"}`;
-    const sub  = wk.length ? "Improves Sat/Sun coverage" : `Adds ${added.map((d) => LBL[d]).join(", ")}`;
-    return `<div class="req-impact req-impact-pos"><span class="req-impact-main">${main}</span><span class="req-impact-sub">${escapeHtml(sub)}</span></div>`;
+    const cur = _reqNormDays(r.current_days), next = _reqNormDays(r.requested_days || r.days);
+    const added = _REQ_DOW.filter((d) => next.has(d) && !cur.has(d));
+    const dropped = _REQ_DOW.filter((d) => cur.has(d) && !next.has(d));
+    const names = (arr) => arr.map((d) => _REQ_DOW_LBL[d]).join(", ");
+    const weekendOnly = (arr) => arr.length > 0 && arr.every((d) => d === "sat" || d === "sun");
+    if (!added.length && !dropped.length) return { primary: "No change", sub: "Same availability" };
+    if (dropped.length && !added.length) return { primary: `Remove ${names(dropped)}`, sub: weekendOnly(dropped) ? "Weekends unavailable" : `${names(dropped)} now unavailable` };
+    if (added.length && !dropped.length) return { primary: `Add ${names(added)}`, sub: weekendOnly(added) ? "Weekends now available" : `${names(added)} now available` };
+    return { primary: `Remove ${names(dropped)}, add ${names(added)}`, sub: "Availability updated" };
   }
+  const range = `${_reqFmtDate(r.start_date)} – ${_reqFmtDate(r.end_date)}`;
   const days = _reqDayCount(r.start_date, r.end_date);
-  return `<div class="req-impact req-impact-flat"><span class="req-impact-main">${days} ${days === 1 ? "day" : "days"} off</span><span class="req-impact-sub">${it.type === "pto" ? "PTO · paid" : "Unpaid"}</span></div>`;
+  return { primary: it.type === "pto" ? "Paid time off" : "Unpaid time off", sub: `${range} · ${days} day${days === 1 ? "" : "s"}` };
 }
-// One Recent-Decisions table row (decided requests only) — Roster-style.
+
+// Decision date + time (when the dispatcher approved / denied).
+function _reqDecisionParts(r) {
+  const iso = r.decided_at || r.created_at;
+  const d = iso ? new Date(iso) : null;
+  if (!d || isNaN(d)) return { date: "—", time: "" };
+  return {
+    date: d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+    time: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
+  };
+}
+
+// One Recent-Decisions row · Driver · Coverage impact · Requested change ·
+// Status · Decision date · chevron. The whole row opens the detail panel.
 function _reqDecidedRowHtml(it) {
   const r = it.row;
   const name = r.driver_name || r.full_name || "—";
@@ -65112,25 +65165,73 @@ function _reqDecidedRowHtml(it) {
   const st = r.status === "approved" ? ["status-pill-approved", "Approved"]
            : r.status === "denied"   ? ["status-pill-denied", "Denied"]
            : ["status-pill-pending", "Pending"];
-  let oldP, newP, eff;
-  if (it.type === "availability") {
-    oldP = `<div class="sched-req-days">${_reqDaysHtml(r.current_days || [])}</div>`;
-    newP = `<div class="sched-req-days">${_reqDaysHtml(r.requested_days || r.days || [])}</div>`;
-    eff  = r.effective_on ? _reqFmtDate(r.effective_on) : "When approved";
-  } else {
-    oldP = `<span class="req-detail-dim">—</span>`;
-    newP = `<span class="req-detail">${escapeHtml(_reqFmtDate(r.start_date))} – ${escapeHtml(_reqFmtDate(r.end_date))}</span>`;
-    eff  = _reqFmtDate(r.start_date);
-  }
-  return `<tr class="req-trow" data-req-row="${escapeHtml(r.id)}">
+  const chg = _reqRequestedChange(it);
+  const dec = _reqDecisionParts(r);
+  return `<tr class="req-trow" data-req-row="${escapeHtml(r.id)}" tabindex="0" role="button" aria-label="Open ${escapeHtml(name)} request detail">
     <td class="req-td-driver"><div class="cell-driver"><div class="avatar-sm">${escapeHtml(_reqInitials(name))}</div><div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(name)}</span></div><div class="cell-name-sub">${escapeHtml(station)}</div></div></div></td>
-    <td>${_reqTypeBadge(it.type)}</td>
-    <td>${oldP}</td>
-    <td>${newP}</td>
     <td>${_reqCoverageImpactCell(it)}</td>
+    <td><div class="req-change"><div class="req-change-main">${escapeHtml(chg.primary)}</div><div class="req-change-sub">${escapeHtml(chg.sub)}</div></div></td>
     <td><span class="status-pill ${st[0]}">${st[1]}</span></td>
-    <td class="req-td-eff">${escapeHtml(eff)}</td>
+    <td class="req-td-decdate"><div class="req-decdate">${escapeHtml(dec.date)}</div>${dec.time ? `<div class="req-decdate-time">${escapeHtml(dec.time)}</div>` : ""}</td>
+    <td class="req-td-chev"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg></td>
   </tr>`;
+}
+
+// ─── Requests · row detail panel (right-side drawer) ─────────────────────────
+function _reqDetailById(id) { return (window._reqRowById || {})[String(id)] || null; }
+function _rrReqDetailHtml(it) {
+  const r = it.row;
+  const name = r.driver_name || r.full_name || "—";
+  const station = r.station_code || "—";
+  const typeLabel = it.type === "pto" ? "Paid time off" : it.type === "unpaid" ? "Unpaid time off" : "Availability change";
+  const st = r.status === "approved" ? ["status-pill-approved", "Approved"]
+           : r.status === "denied"   ? ["status-pill-denied", "Denied"]
+           : ["status-pill-pending", "Pending"];
+  const chg = _reqRequestedChange(it);
+  const dec = _reqDecisionParts(r);
+  const notes = r.decision_notes || r.decision_note || "";
+  const approver = r.decided_by_name || "";
+  const field = (label, valueHtml) => `<div class="rr-reqd-field"><div class="rr-reqd-label">${label}</div><div class="rr-reqd-value">${valueHtml}</div></div>`;
+  let body;
+  if (it.type === "availability") {
+    body = field("Previous availability", `<div class="sched-req-days">${_reqDaysHtml(r.current_days || [])}</div>`)
+         + field("Requested availability", `<div class="sched-req-days">${_reqDaysHtml(r.requested_days || r.days || [])}</div>`);
+  } else {
+    body = field("Dates", `${escapeHtml(_reqFmtDate(r.start_date))} – ${escapeHtml(_reqFmtDate(r.end_date))}`)
+         + (r.reason ? field("Reason", escapeHtml(r.reason)) : "");
+  }
+  return `
+    <div class="rr-reqd-head">
+      <div><div class="rr-reqd-title">${escapeHtml(name)}</div><div class="rr-reqd-sub">${escapeHtml(station)} · ${escapeHtml(typeLabel)}</div></div>
+      <button type="button" class="rr-reqd-close" data-rr-reqd-close aria-label="Close">×</button>
+    </div>
+    <div class="rr-reqd-body">
+      ${field("Status", `<span class="status-pill ${st[0]}">${st[1]}</span>`)}
+      ${field("Requested change", `<strong>${escapeHtml(chg.primary)}</strong> · <span class="rr-reqd-dim">${escapeHtml(chg.sub)}</span>`)}
+      ${body}
+      <div class="rr-reqd-field"><div class="rr-reqd-label">Coverage analysis</div>${_reqCoverageImpactCell(it)}</div>
+      ${field("Decision notes", notes ? escapeHtml(notes) : `<span class="rr-reqd-dim">No notes recorded</span>`)}
+      ${field("Decision date", `${escapeHtml(dec.date)}${dec.time ? " · " + escapeHtml(dec.time) : ""}`)}
+      ${field("Approver", approver ? escapeHtml(approver) : `<span class="rr-reqd-dim">—</span>`)}
+    </div>`;
+}
+function _rrReqDetailEsc(e) { if (e.key === "Escape") { e.preventDefault(); _rrCloseReqDetail(); } }
+function _rrCloseReqDetail() {
+  const w = document.getElementById("rr-req-detail");
+  if (w) { w.classList.remove("is-open"); setTimeout(() => { try { w.remove(); } catch (_) {} }, 200); }
+  document.removeEventListener("keydown", _rrReqDetailEsc, true);
+}
+function _rrOpenReqDetail(it) {
+  _rrCloseReqDetail();
+  if (!it) return;
+  const wrap = document.createElement("div");
+  wrap.id = "rr-req-detail";
+  wrap.className = "rr-req-detail";
+  wrap.innerHTML = `<div class="rr-req-detail-backdrop" data-rr-reqd-close></div><aside class="rr-req-detail-panel" role="dialog" aria-modal="true" aria-label="Request detail">${_rrReqDetailHtml(it)}</aside>`;
+  document.body.appendChild(wrap);
+  requestAnimationFrame(() => wrap.classList.add("is-open"));
+  wrap.addEventListener("click", (e) => { if (e.target.closest("[data-rr-reqd-close]")) _rrCloseReqDetail(); });
+  document.addEventListener("keydown", _rrReqDetailEsc, true);
 }
 
 // LEFT column · one unified request stream. PTO, Unpaid time off and
@@ -65201,13 +65302,13 @@ async function renderSchedRequestStream() {
         <div class="req-section-head"><span class="req-section-title">Pending Requests</span><span class="req-section-count">${pending.length}</span></div>
         ${pending.length
           ? `<div class="req-pending">${pending.map(pendingRowHtml).join("")}</div>`
-          : `<div class="req-empty"><div class="req-empty-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="req-empty-title">No pending requests</div><div class="req-empty-sub">All requests have been reviewed.</div></div>`}
+          : `<div class="req-allclear"><span class="req-allclear-ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span><div class="req-allclear-text"><div class="req-allclear-title">No pending requests</div><div class="req-allclear-sub">All caught up. New requests will appear here.</div></div></div>`}
       </section>
 
       <section class="req-section">
         <div class="req-section-head"><span class="req-section-title">Recent Decisions</span><span class="req-section-count">${decided.length}</span></div>
         ${decided.length
-          ? `<div class="req-table-wrap"><table class="req-table"><thead><tr><th>Driver</th><th>Request</th><th>Old pattern</th><th>New pattern</th><th>Coverage impact</th><th>Status</th><th>Effective</th></tr></thead><tbody>${decided.map(_reqDecidedRowHtml).join("")}</tbody></table></div>`
+          ? `<div class="req-table-wrap"><table class="req-table"><thead><tr><th>Driver</th><th>Coverage impact</th><th>Requested change</th><th>Status</th><th>Decision date</th><th class="req-th-chev" aria-hidden="true"></th></tr></thead><tbody>${decided.map(_reqDecidedRowHtml).join("")}</tbody></table></div>`
           : `<div class="rr-empty-inline">No decided requests yet.</div>`}
       </section>
     </div>`;
@@ -65221,10 +65322,14 @@ async function renderSchedRequestStream() {
 
   host.querySelectorAll("[data-rr-to-decide]").forEach((btn) => btn.addEventListener("click", () => _toDecide(btn)));
   host.querySelectorAll("[data-rr-av-decide]").forEach((btn) => btn.addEventListener("click", () => _avDecide(btn)));
-  host.querySelectorAll(".req-trow").forEach((tr) => tr.addEventListener("click", () => {
-    host.querySelectorAll(".req-trow.is-selected").forEach((x) => x.classList.remove("is-selected"));
-    tr.classList.add("is-selected");
-  }));
+  // Index decided items by id so a row click can open its detail panel.
+  window._reqRowById = {};
+  decided.forEach((it) => { window._reqRowById[String(it.row.id)] = it; });
+  const _openReqRow = (tr) => _rrOpenReqDetail(_reqDetailById(tr.getAttribute("data-req-row")));
+  host.querySelectorAll(".req-trow").forEach((tr) => {
+    tr.addEventListener("click", () => _openReqRow(tr));
+    tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); _openReqRow(tr); } });
+  });
   _toPaintCoverage(host).catch((e) => console.warn("coverage check:", e));
 }
 window._rrRenderSchedRequestStream = renderSchedRequestStream;
