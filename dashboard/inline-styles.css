@@ -1602,7 +1602,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
    Match the schedule top buttons exactly: rounded RECT (8px = --sch-radius, not
    a full pill), thin border, white, ~38px tall, soft shadow. Both the filter
    dropdowns (clean chevron, no native OS arrow) and the PTO report use it. */
-#view-schedule .req-toolbar-bar{display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;margin:0 0 var(--s-4)}
+#view-schedule .req-toolbar-bar{display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;margin:var(--s-4) 0}
 #view-schedule .req-toolbar-bar #rr-pto-report-btn{margin-left:auto}
 #view-schedule .req-toolbar-bar select.req-toolbar-filter,
 #view-schedule .req-toolbar-bar #rr-pto-report-btn{
