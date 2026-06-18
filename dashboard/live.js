@@ -65586,13 +65586,13 @@ async function openPtoReportModal() {
   m.id = "rr-pto-report-modal";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:720px;width:100%;max-height:85vh;display:flex;flex-direction:column">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) 18px;border-bottom:1px solid var(--border)">
+    <div style="background:var(--surface);border:1px solid var(--sidebar);border-radius:12px;max-width:720px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 18px;background:var(--sidebar)">
         <div>
-          <div style="font-size:var(--fs-base);font-weight:600">PTO payroll report</div>
-          <div class="u-sm-subtle">Approved PTO requests that overlap the date range below. Use the CSV download to import into ADP / your payroll system.</div>
+          <div style="font-size:var(--fs-base);font-weight:600;color:#fff">PTO payroll report</div>
+          <div class="u-sm-subtle" style="color:rgba(255,255,255,.72)">Approved PTO requests that overlap the date range below. Use the CSV download to import into ADP / your payroll system.</div>
         </div>
-        <button type="button" id="rr-pto-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+        <button type="button" id="rr-pto-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:rgba(255,255,255,.85);padding:0 6px">×</button>
       </div>
       <div style="display:flex;gap:var(--s-3);align-items:flex-end;padding:var(--s-3) 18px;border-bottom:1px solid var(--border);background:var(--canvas)">
         <div>
