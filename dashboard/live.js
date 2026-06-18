@@ -65331,8 +65331,27 @@ async function renderSchedRequestStream() {
     tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); _openReqRow(tr); } });
   });
   _toPaintCoverage(host).catch((e) => console.warn("coverage check:", e));
+  // Stretch the card to fill the viewport so the page doesn't dead-end in
+  // empty space below a short table. Two rAFs so the toolbar + body have laid
+  // out before we measure the card's top.
+  requestAnimationFrame(() => requestAnimationFrame(_rrSizeRequestsCard));
 }
 window._rrRenderSchedRequestStream = renderSchedRequestStream;
+
+// Size the Requests card so its bottom sits just above the viewport edge
+// (robust to the toolbar height / top offset, like the roster's table sizing).
+function _rrSizeRequestsCard() {
+  const card = document.getElementById("rr-sched-req-stream-panel");
+  if (!card) return;
+  const sub = document.getElementById("sched-sub-requests");
+  if (!sub || getComputedStyle(sub).display === "none") return; // only when visible
+  const top = card.getBoundingClientRect().top;
+  const h = Math.max(360, Math.round(window.innerHeight - top - 20));
+  card.style.maxHeight = "none";
+  card.style.height = h + "px";
+}
+window._rrSizeRequestsCard = _rrSizeRequestsCard;
+window.addEventListener("resize", () => { try { _rrSizeRequestsCard(); } catch (_) {} });
 
 // RIGHT column · three equally-sized operational reports.
 //   1 · Availability by day — active drivers available each weekday.
