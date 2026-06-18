@@ -1577,8 +1577,8 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* Recent Decisions table — Roster-style. */
 #view-schedule .req-table-wrap{border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
 #view-schedule .req-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
-#view-schedule .req-table thead th{text-align:left;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);padding:10px 14px;border-bottom:1px solid var(--border);background:var(--canvas);white-space:nowrap}
-#view-schedule .req-table tbody td{padding:11px 14px;border-bottom:1px solid rgba(15,23,42,.06);vertical-align:middle;color:var(--text)}
+#view-schedule .req-table thead th{text-align:left;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface);white-space:nowrap}
+#view-schedule .req-table tbody td{padding:16px 18px;border-bottom:1px solid rgba(15,23,42,.05);vertical-align:middle;color:var(--text)}
 #view-schedule .req-table tbody tr:last-child td{border-bottom:0}
 #view-schedule .req-trow{cursor:pointer;transition:background var(--t-fast)}
 #view-schedule .req-trow:hover{background:var(--canvas)}
@@ -1594,6 +1594,64 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 #view-schedule .req-impact-pos .req-impact-main{color:#15803D}
 #view-schedule .req-impact-neg .req-impact-main{color:#B42318}
 #view-schedule .req-impact-flat .req-impact-main{color:var(--text-subtle);font-weight:500}
+/* All-clear banner — compact full-width success bar (replaces the big empty card). */
+#view-schedule .req-allclear{display:flex;align-items:center;gap:14px;width:100%;min-height:76px;padding:16px 20px;border-radius:var(--r-lg);background:var(--green-soft);border:1px solid rgba(22,163,74,.20)}
+#view-schedule .req-allclear-ic{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:rgba(22,163,74,.16);color:#16A34A;flex:0 0 auto}
+#view-schedule .req-allclear-title{font-size:var(--fs-md);font-weight:600;color:#15803D}
+#view-schedule .req-allclear-sub{font-size:var(--fs-sm);color:#3F7E5B;margin-top:1px}
+/* Coverage impact — the primary signal after Driver: severity dot + label,
+   affected-day count, and small day chips. */
+#view-schedule .req-cov{display:flex;flex-direction:column;gap:3px;min-width:150px}
+#view-schedule .req-cov-head{display:flex;align-items:center;gap:7px}
+#view-schedule .req-cov-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+#view-schedule .req-cov-sev{font-size:var(--fs-sm);font-weight:700}
+#view-schedule .req-cov-sub{font-size:var(--fs-xs);color:var(--text-subtle)}
+#view-schedule .req-cov-high .req-cov-dot{background:#DC2626}
+#view-schedule .req-cov-high .req-cov-sev{color:#B42318}
+#view-schedule .req-cov-medium .req-cov-dot{background:#D97706}
+#view-schedule .req-cov-medium .req-cov-sev{color:#B45309}
+#view-schedule .req-cov-none .req-cov-dot{background:#16A34A}
+#view-schedule .req-cov-none .req-cov-sev{color:#15803D}
+#view-schedule .req-cov-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+#view-schedule .req-cov-chip{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:19px;padding:0 6px;border-radius:5px;font-size:10.5px;font-weight:600;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border)}
+/* Requested change — bold primary + muted secondary, easy to scan. */
+#view-schedule .req-change-main{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3}
+#view-schedule .req-change-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
+/* Decision date — date over a muted time. */
+#view-schedule .req-td-decdate{white-space:nowrap}
+#view-schedule .req-decdate{font-size:var(--fs-sm);color:var(--text);font-variant-numeric:tabular-nums}
+#view-schedule .req-decdate-time{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
+/* Row chevron — quiet at rest, darker on hover. */
+#view-schedule .req-th-chev{width:34px}
+#view-schedule .req-td-chev{width:34px;text-align:right;color:var(--text-disabled)}
+#view-schedule .req-trow:hover .req-td-chev{color:var(--text-muted)}
+/* Status as a filled pill in the decisions table (overrides the dot+label). */
+#view-schedule .req-table .status-pill{display:inline-flex;align-items:center;gap:0;padding:3px 10px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;letter-spacing:0;border:0;background:var(--canvas);color:var(--text-muted)}
+#view-schedule .req-table .status-pill::before{display:none}
+#view-schedule .req-table .status-pill-approved{background:rgba(22,163,74,.12);color:#15803D}
+#view-schedule .req-table .status-pill-denied{background:rgba(220,38,38,.10);color:#B42318}
+#view-schedule .req-table .status-pill-pending{background:rgba(217,119,6,.12);color:#B45309}
+/* Row detail panel — right-side drawer with the navy header treatment. */
+.rr-req-detail{position:fixed;inset:0;z-index:1200}
+.rr-req-detail-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.20);opacity:0;transition:opacity .2s}
+.rr-req-detail.is-open .rr-req-detail-backdrop{opacity:1}
+.rr-req-detail-panel{position:absolute;top:0;right:0;height:100%;width:min(420px,92vw);background:var(--surface);border-left:1px solid var(--sidebar);box-shadow:-24px 0 60px -30px rgba(15,23,42,.45);display:flex;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform .22s cubic-bezier(.32,.72,0,1)}
+.rr-req-detail.is-open .rr-req-detail-panel{transform:translateX(0)}
+.rr-reqd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 18px;background:var(--sidebar)}
+.rr-reqd-title{font-size:var(--fs-base);font-weight:700;color:#fff}
+.rr-reqd-sub{font-size:var(--fs-sm);color:rgba(255,255,255,.72);margin-top:2px}
+.rr-reqd-close{background:none;border:0;color:rgba(255,255,255,.85);font-size:var(--fs-xl);line-height:1;cursor:pointer;padding:0 4px}
+.rr-reqd-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:16px}
+.rr-reqd-field{display:flex;flex-direction:column;gap:5px}
+.rr-reqd-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}
+.rr-reqd-value{font-size:var(--fs-sm);color:var(--text);line-height:1.45}
+.rr-reqd-dim{color:var(--text-subtle)}
+.rr-reqd-body .req-cov{min-width:0}
+.rr-reqd-body .status-pill{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;border:0;background:var(--canvas);color:var(--text-muted)}
+.rr-reqd-body .status-pill::before{display:none}
+.rr-reqd-body .status-pill-approved{background:rgba(22,163,74,.12);color:#15803D}
+.rr-reqd-body .status-pill-denied{background:rgba(220,38,38,.10);color:#B42318}
+.rr-reqd-body .status-pill-pending{background:rgba(217,119,6,.12);color:#B45309}
 /* Request-type badge colors per spec: Availability=blue, PTO=purple, Unpaid=gray. */
 #view-schedule .req-type-badge.is-availability{background:rgba(37,99,235,.10);color:#1D4ED8;border-color:transparent}
 #view-schedule .req-type-badge.is-pto{background:rgba(109,40,217,.10);color:#6D28D9;border-color:transparent}
