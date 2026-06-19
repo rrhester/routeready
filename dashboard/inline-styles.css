@@ -24112,9 +24112,9 @@ body.rr-cmdk-open{ overflow:hidden }
    boot flag on init). No measured-width, no boot-flag, no hover, no
    rr-fly — those caused the children to detach/float. */
 /* EXPANDED rail: inline, in normal flow, directly under the parent. */
-.sidebar:not(.collapsed) .nav-sub[data-for="schedule"].is-open{display:flex}
+.sidebar:not(.collapsed) .nav-sub.is-open{display:flex}
 /* COLLAPSED rail: the same .is-open opens a flyout panel beside the rail. */
-.sidebar.collapsed .nav-sub[data-for="schedule"].is-open{
+.sidebar.collapsed .nav-sub.is-open{
   display:flex;position:fixed;left:64px;top:84px;width:198px;
   flex-direction:column;gap:1px;margin:0;padding:10px 8px 8px;
   /* The flyout is a standard white popover — the same floating-panel
@@ -24123,16 +24123,18 @@ body.rr-cmdk-open{ overflow:hidden }
   border:1px solid var(--border-subtle,rgba(15,23,42,.14));border-left:0;border-radius:0 12px 12px 0;
   box-shadow:10px 6px 28px rgba(2,6,23,.14);z-index:70;
 }
-.sidebar.collapsed .nav-sub[data-for="schedule"].is-open::before{
-  content:"Schedule";display:block;padding:2px 12px 8px;
+.sidebar.collapsed .nav-sub[data-for="schedule"].is-open::before{content:"Schedule"}
+.sidebar.collapsed .nav-sub[data-for="onboarding-ops"].is-open::before{content:"Onboarding"}
+.sidebar.collapsed .nav-sub.is-open::before{
+  display:block;padding:2px 12px 8px;
   font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-subtle);
 }
-.sidebar.collapsed .nav-sub[data-for="schedule"] .nav-sub-item{padding-left:12px}
+.sidebar.collapsed .nav-sub .nav-sub-item{padding-left:12px}
 /* Flyout items sit on the WHITE popover, not the navy rail — restore
    the light-surface ink/hover/active language inside it. */
-.sidebar.collapsed .nav-sub[data-for="schedule"].is-open .nav-sub-item{color:var(--text-subtle)}
-.sidebar.collapsed .nav-sub[data-for="schedule"].is-open .nav-sub-item:hover{background:var(--surface-hover);color:var(--text)}
-.sidebar.collapsed .nav-sub[data-for="schedule"].is-open .nav-sub-item.active{background:#EFF6FF;color:var(--accent);font-weight:600}
+.sidebar.collapsed .nav-sub.is-open .nav-sub-item{color:var(--text-subtle)}
+.sidebar.collapsed .nav-sub.is-open .nav-sub-item:hover{background:var(--surface-hover);color:var(--text)}
+.sidebar.collapsed .nav-sub.is-open .nav-sub-item.active{background:#EFF6FF;color:var(--accent);font-weight:600}
 /* Rail above page content so the collapsed flyout isn't trapped/clipped. */
 .sidebar{z-index:40}
 
@@ -24141,6 +24143,16 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-schedule.rrx-schedule .sched-v2-strip,
 #view-schedule.rrx-schedule .sched-v2-split,
 #view-schedule.rrx-schedule .sched-v2-viewgroup{display:none!important}
+
+/* Onboarding page tabs (Overview / Funnel / Interview / Calendar / Work auth)
+   moved into the sidebar — hide them in the top ribbon. Keep the calendar
+   controls + actions; keep the Funnel "Screening" and Onboarding "steps" Rules
+   launchers. The no-op Rules stubs and the now-empty Interview / Work-auth
+   wraps are hidden. */
+#view-onboarding-ops .subnav-item[data-obsub]{display:none}
+#view-onboarding-ops .ob-rules-foot[data-rr-rules-stub]{display:none}
+#view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-interview"],
+#view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-workauth"]{display:none}
 
 /* Grid to the very top: drop the zero-height .tcp block's 12px margin and
    the empty intel host's 16px margin (populated intel content self-spaces). */
