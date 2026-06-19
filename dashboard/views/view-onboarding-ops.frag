@@ -266,7 +266,7 @@
                        the subtle box-arrow launcher like the Calendar +
                        Onboarding-steps rules. -->
                   <button type="button" class="ob-rules-foot ob-rules-foot-shown" id="rr-funnel-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-funnel-rules-popover" title="Screening questions — what applicants answer before booking">
-                    Rules
+                    Screening
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
                   </button>
                   <!-- style block 13 extracted to inline-styles.css -->
@@ -374,7 +374,7 @@
                        "Rules" label + the subtle box-arrow launcher, matching
                        the Calendar group's Rules. -->
                   <button type="button" class="ob-rules-foot ob-rules-foot-shown" id="rr-ob-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-ob-rules-popover" title="Onboarding steps — edit the onboarding blueprint">
-                    Rules
+                    Onboarding steps
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
                   </button>
                   <div class="ob-rules-popover" id="rr-ob-rules-popover" role="dialog" aria-modal="false" aria-label="Onboarding steps" hidden>
