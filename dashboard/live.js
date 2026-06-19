@@ -65959,7 +65959,12 @@ async function _toPaintCoverage(host) {
         const now  = `${pct}% <span class="to-cov-frac">(${filled}/${needed})</span>`;
         if (on) {
           hasArrow = true;
-          val = `<span class="to-cov-now">${now}</span><span class="to-cov-arrow">→</span><span class="to-cov-after${pctA < pct ? " is-drop" : ""}">${pctA}% <span class="to-cov-frac">(${after}/${needed})</span></span>`;
+          // Only alarm (red) the dip when the freed shift CAN'T actually be
+          // backfilled — otherwise it contradicts the "can be covered" verdict.
+          // When covered, the freed slot has an eligible standby driver, so the
+          // dip is recoverable and shown neutral.
+          const dropBad = pctA < pct && (d.status === "rule_break" || d.status === "no_coverage");
+          val = `<span class="to-cov-now">${now}</span><span class="to-cov-arrow">→</span><span class="to-cov-after${dropBad ? " is-drop" : ""}">${pctA}% <span class="to-cov-frac">(${after}/${needed})</span></span>`;
         } else {
           val = `<span class="to-cov-now">${now}</span><span class="to-cov-day-muted">· not scheduled</span>`;
         }
@@ -65968,9 +65973,11 @@ async function _toPaintCoverage(host) {
     }).join("");
 
     // Caption so the two numbers around the arrow are self-explanatory:
-    // left = staffing now, right = staffing if this request is approved.
+    // left = the day's overall staffing now, right = if this request is
+    // approved (before the freed shift is backfilled). Worded as "staffing"
+    // (not "coverage") so it doesn't read as contradicting the verdict above.
     const legend = hasArrow
-      ? `<div class="to-cov-legend">Route coverage · <b>now</b> → <b>if approved</b></div>`
+      ? `<div class="to-cov-legend">Whole-day route staffing · <b>now</b> → <b>if approved</b></div>`
       : "";
     slot.innerHTML = `
       <div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">${escapeHtml(msg)}</span></div>
