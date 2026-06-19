@@ -9851,16 +9851,19 @@ body.rr-cmdk-open{ overflow:hidden }
   padding-left:16px;
 }
 #sched-sub-requests .to-cov-day{
-  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
   font-size:11px;font-variant-numeric:tabular-nums;
 }
 #sched-sub-requests .to-cov-day-d{
   font-weight:600;color:var(--text-subtle);
 }
 #sched-sub-requests .to-cov-day-v{
-  display:inline-flex;align-items:baseline;gap:5px;
+  display:inline-flex;flex-direction:column;align-items:flex-end;gap:2px;
   white-space:nowrap;color:var(--text-muted);
 }
+#sched-sub-requests .to-cov-staff{display:inline-flex;align-items:baseline;gap:5px}
+#sched-sub-requests .to-cov-by{font-size:11px;font-weight:600;color:#15803D}
+#sched-sub-requests .to-cov-by-more{font-weight:500;color:var(--text-subtle)}
 #sched-sub-requests .to-cov-now{font-weight:600;color:var(--text-muted)}
 #sched-sub-requests .to-cov-arrow{color:var(--text-subtle)}
 #sched-sub-requests .to-cov-after{font-weight:700;color:var(--text)}
