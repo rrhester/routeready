@@ -8296,15 +8296,18 @@ function renderDriverRow(d) {
   const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
   const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
   const isNew  = d.hire_date && (Date.now() - new Date(d.hire_date).getTime()) < 30 * 86400000;
-  const meta = _driverMetaLine(d);
+  const certs = _certBadgesFor(d);
+  const sub = _driverStationLine(d);
   const badges = _rowBadgesFor(d);
   const actions = _rowActionsFor(d);
-  const atRisk = !!(_rosterRisk && _rosterRisk.get && _rosterRisk.get(d.id) === "atrisk");
+  const health = _driverHealth(d.id);
+  const healthTitle = { high: "High risk · final corrective action", medium: "Medium risk · written corrective action", due: "Coaching due", healthy: "Healthy" }[health];
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
-      <td><div class="cell-driver"><div class="avatar-sm ${tier}${atRisk ? " rr-final-ring" : ""}"${atRisk ? ' title="At risk · on a final corrective action"' : ""}>${initials}</div>
+      <td><div class="cell-driver"><div class="avatar-sm ${tier} rr-health-${health}" title="${healthTitle}" aria-label="${healthTitle}">${initials}</div>
         <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(display)}</span>${badges}</div>
-        ${meta ? `<div class="cell-name-sub">${meta}</div>` : ""}</div></div></td>
+        ${certs}
+        ${sub ? `<div class="cell-name-sub">${sub}</div>` : ""}</div></div></td>
       <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
       <td class="rr-att-col">${_attendanceCell(d.id)}</td>
       <td class="rr-tenure-cell">${escapeHtml(tenure)}${isNew ? ` <span class="rr-row-badge rr-badge-new" title="Hired within the last 30 days">New</span>` : ""}</td>
@@ -8315,43 +8318,65 @@ function renderDriverRow(d) {
     </tr>`;
 }
 
-// Secondary metadata line under the driver name — operational attributes the
-// roster can scan: certifications (DOT / XL / EDV), trainer role, and a
-// top-performer flag (tier A or a strong score). Vehicle type isn't a stored
-// driver field, so it's intentionally omitted. Falls back to the station code,
-// then contact, so the line is never empty for a driver with no flags. Risk
-// is intentionally left to the Risk column to avoid double-signalling.
-function _driverMetaLine(d) {
-  const parts = [];
-  // Lead with attendance — the roster's primary operational signal.
-  const att = _rosterAttCounts && _rosterAttCounts.get ? _rosterAttCounts.get(d.id) : null;
-  if (att && att.pct != null) parts.push(`${att.pct}% Attendance`);
-  // Capability + role context. Vehicle type is a per-vehicle field (assigned
-  // per shift, not a driver attribute), so cert capability (XL / DOT / EDV)
-  // stands in for it. Then trainer, top-performer, station — capped tight.
-  const tags = [];
-  if (d.xl_certified)       tags.push("XL");
-  else if (d.dot_certified) tags.push("DOT");
-  if (d.edv_certified)      tags.push("EDV");
-  if (d.is_trainer)         tags.push("Trainer");
-  const topTier = d.tier && String(d.tier).toLowerCase() === "a";
-  if (topTier || (d.score != null && d.score >= 90)) tags.push("Top Performer");
-  if (d.station && d.station.code) tags.push(d.station.code);
-  for (const t of tags) { if (parts.length >= 3) break; parts.push(t); }
-  if (!parts.length) { const f = d.phone || d.email; if (f) parts.push(f); }
-  return parts.length ? escapeHtml(parts.join(" • ")) : "";
+// Certification / role pills under the driver name — soft enterprise tints
+// (XL blue, DOT green, Trainer purple, EDV teal). Lightweight, informational;
+// the station + risk live elsewhere so the cell stays calm.
+function _certBadgesFor(d) {
+  const out = [];
+  if (d.xl_certified)  out.push(["xl", "XL"]);
+  if (d.dot_certified) out.push(["dot", "DOT"]);
+  if (d.is_trainer)    out.push(["trainer", "Trainer"]);
+  if (d.edv_certified) out.push(["edv", "EDV"]);
+  if (!out.length) return "";
+  return `<div class="rr-cert-row">${out.map(([k, l]) => `<span class="rr-cert rr-cert-${k}">${l}</span>`).join("")}</div>`;
 }
 
-// Recent attendance — % + a thin, subtle progress bar + "X of Y shifts". The
-// bar is neutral (its length carries the signal); risk colour stays in the
-// Risk pill so the Attendance column reads calm. "—" when no eligible shifts.
+// Quiet sub line beneath the certs — station code (contact as a fallback) so
+// the cell always has an anchor. Attendance now lives in its own ring column.
+function _driverStationLine(d) {
+  if (d.station && d.station.code) return escapeHtml(d.station.code);
+  const f = d.phone || d.email;
+  return f ? escapeHtml(f) : "";
+}
+
+// 4-level driver health for the avatar ring, derived from the same corrective-
+// action + attendance signals the Risk column uses, so a dispatcher can spot
+// at-risk drivers without reading the Risk column:
+//   high (red)      · on a final corrective action / high attendance risk
+//   medium (orange) · on a written corrective action
+//   due (yellow)    · accumulating attendance points (or <85% attendance) with
+//                     no corrective action yet — coaching due
+//   healthy (green) · clear
+function _driverHealth(id) {
+  const r = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(id) : null;
+  if (r === "atrisk") return "high";
+  if (r === "watch")  return "medium";
+  const pts = (_rosterAttPoints && _rosterAttPoints.get) ? (_rosterAttPoints.get(id) || 0) : 0;
+  const att = (_rosterAttCounts && _rosterAttCounts.get) ? _rosterAttCounts.get(id) : null;
+  const lowAtt = !!(att && att.pct != null && att.eligible && att.pct < 85);
+  const coached = !!(_rosterAttnCoached && _rosterAttnCoached.has && _rosterAttnCoached.has(id));
+  if ((pts > 0 && !coached) || lowAtt) return "due";
+  return "healthy";
+}
+
+// Recent attendance — a compact progress ring (KPI-widget style): % in the
+// centre, "worked / eligible days" beneath. Colour by band (≥95 green / 85-94
+// amber / <85 red). "—" when there are no eligible shifts in the window.
 function _attendanceCell(driverId) {
   const c = _rosterAttCounts && _rosterAttCounts.get ? _rosterAttCounts.get(driverId) : null;
   if (!c || c.pct == null || !c.eligible) return '<span class="u-subtle">—</span>';
-  return `<div class="rr-att" title="${c.worked} of ${c.eligible} eligible shifts worked (last 30 days)">`
-    + `<div class="rr-att-pct">${c.pct}%</div>`
-    + `<div class="rr-att-bar"><span class="rr-att-bar-fill" style="width:${c.pct}%"></span></div>`
-    + `<div class="rr-att-sub">${c.worked} of ${c.eligible} shifts</div>`
+  const pct = Math.max(0, Math.min(100, c.pct));
+  const sev = pct >= 95 ? "good" : pct >= 85 ? "warn" : "bad";
+  const r = 18, circ = 2 * Math.PI * r, off = circ * (1 - pct / 100);
+  return `<div class="rr-attring rr-attring-${sev}" title="${c.worked} of ${c.eligible} eligible shifts worked (last 30 days)">`
+    + `<div class="rr-attring-circle">`
+    +   `<svg viewBox="0 0 40 40" aria-hidden="true">`
+    +     `<circle class="rr-attring-track" cx="20" cy="20" r="${r}" fill="none" stroke-width="3"/>`
+    +     `<circle class="rr-attring-prog" cx="20" cy="20" r="${r}" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}" transform="rotate(-90 20 20)"/>`
+    +   `</svg>`
+    +   `<span class="rr-attring-pct">${c.pct}%</span>`
+    + `</div>`
+    + `<div class="rr-attring-days">${c.worked} / ${c.eligible} days</div>`
     + `</div>`;
 }
 
