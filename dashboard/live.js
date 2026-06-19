@@ -8272,16 +8272,21 @@ function _rowBadgesFor(d) {
 function _rowActionsFor(d) {
   // Terminated drivers get two downloadable, court-ready plain-text
   // documents next to the App column — an Unemployment Separation
-  // Statement and an itemized Attendance Record. Every other row shows
-  // no row-end action. (The old per-row notes icon was removed; the
-  // driver drawer is still reachable by clicking anywhere on the row.)
-  if (d.status !== "terminated") return `<div class="rr-row-actions-bar"></div>`;
-  const ueIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>';
-  const attIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>';
-  const id = escapeHtml(d.id);
-  const ueBtn = `<button type="button" class="rr-row-action" data-rr-term-report="unemployment" data-rr-driver-id="${id}" title="Download Unemployment Separation Statement (PDF)" aria-label="Download Unemployment Separation Statement">${ueIcon}</button>`;
-  const attBtn = `<button type="button" class="rr-row-action" data-rr-term-report="attendance" data-rr-driver-id="${id}" title="Download Attendance Record (PDF)" aria-label="Download Attendance Record">${attIcon}</button>`;
-  return `<div class="rr-row-actions-bar is-persistent">${ueBtn}${attBtn}</div>`;
+  // Statement and an itemized Attendance Record.
+  if (d.status === "terminated") {
+    const ueIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>';
+    const attIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>';
+    const id = escapeHtml(d.id);
+    const ueBtn = `<button type="button" class="rr-row-action" data-rr-term-report="unemployment" data-rr-driver-id="${id}" title="Download Unemployment Separation Statement (PDF)" aria-label="Download Unemployment Separation Statement">${ueIcon}</button>`;
+    const attBtn = `<button type="button" class="rr-row-action" data-rr-term-report="attendance" data-rr-driver-id="${id}" title="Download Attendance Record (PDF)" aria-label="Download Attendance Record">${attIcon}</button>`;
+    return `<div class="rr-row-actions-bar is-persistent">${ueBtn}${attBtn}</div>`;
+  }
+  // Every other (still-employed) driver gets a hover-revealed "Separate"
+  // action that opens the Driver Separation Review — which collects the
+  // factual record and then commits the termination + separation packet.
+  const sepIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>';
+  const sepBtn = `<button type="button" class="rr-row-action rr-row-action--sep" data-rr-separate="1" data-rr-driver-id="${escapeHtml(d.id)}" title="Separate driver" aria-label="Separate ${escapeHtml(displayDriverName(d))}">${sepIcon}</button>`;
+  return `<div class="rr-row-actions-bar">${sepBtn}</div>`;
 }
 
 function renderDriverRow(d) {
@@ -8564,6 +8569,18 @@ document.addEventListener("click", (e) => {
     const id = termBtn.getAttribute("data-rr-driver-id");
     const kind = termBtn.getAttribute("data-rr-term-report");
     if (id) _downloadTerminationReport(id, kind);
+    return;
+  }
+  // Row-end action: separate (offboard) a still-employed driver — opens the
+  // Driver Separation Review, which gates and commits the termination.
+  const sepBtn = e.target.closest("[data-rr-separate]");
+  if (sepBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const sid = sepBtn.getAttribute("data-rr-driver-id");
+    const drv = (_rosterRows || []).find((r) => r.id === sid);
+    if (drv && typeof _openSeparationReview === "function") _openSeparationReview(drv);
+    else toast("Driver not found", "warn");
   }
 });
 // Rehydrate the saved view on first paint.
