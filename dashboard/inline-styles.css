@@ -3771,6 +3771,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .stat-mini-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-1)}
 
 .avatar-sm{
+  position:relative;
   width:28px;height:28px;border-radius:50%;flex-shrink:0;
   display:inline-flex;align-items:center;justify-content:center;
   font-size:var(--fs-xs);font-weight:700;color:#fff;
@@ -3788,6 +3789,47 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .avatar-sm.tier-d{background:rgba(220,38,38,.12);color:#B91C1C}
 /* Final-corrective / At-risk warning · thin red ring around the avatar. */
 .avatar-sm.rr-final-ring{box-shadow:0 0 0 2px #DC2626}
+
+/* Driver health ring · a 3px coloured ring (with a thin surface gap so it
+   reads as sitting OUTSIDE the avatar) lets a dispatcher scan the roster and
+   spot at-risk drivers in seconds, without reading the Risk column.
+   green=healthy · yellow=coaching due · orange=medium · red=high. */
+.avatar-sm.rr-health-healthy{box-shadow:0 0 0 2px var(--surface),0 0 0 5px #16A34A}
+.avatar-sm.rr-health-due    {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #EAB308}
+.avatar-sm.rr-health-medium {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #F97316}
+.avatar-sm.rr-health-high   {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #DC2626}
+/* A small status dot in the lower-right reinforces the attention states
+   (healthy stays clean — the green ring is enough). */
+.avatar-sm.rr-health-due::after,
+.avatar-sm.rr-health-medium::after,
+.avatar-sm.rr-health-high::after{
+  content:"";position:absolute;right:-2px;bottom:-2px;
+  width:9px;height:9px;border-radius:50%;border:2px solid var(--surface);
+}
+.avatar-sm.rr-health-due::after   {background:#EAB308}
+.avatar-sm.rr-health-medium::after{background:#F97316}
+.avatar-sm.rr-health-high::after  {background:#DC2626}
+
+/* Certification / role pills under the driver name · soft enterprise tints,
+   dark text, fully rounded, no shadow/border — lightweight + informational. */
+.rr-cert-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.rr-cert{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:600;line-height:1;letter-spacing:.01em;white-space:nowrap}
+.rr-cert-xl     {background:#E8F0FF;color:#2563EB}
+.rr-cert-dot    {background:#ECFDF3;color:#16A34A}
+.rr-cert-trainer{background:#F3E8FF;color:#7C3AED}
+.rr-cert-edv    {background:#E6FFFB;color:#0F766E}
+
+/* Attendance ring · KPI-widget circle: % centred, worked/eligible days below.
+   Track is neutral; the progress arc carries the band colour. */
+.rr-attring{display:inline-flex;flex-direction:column;align-items:center;gap:2px}
+.rr-attring-circle{position:relative;width:40px;height:40px}
+.rr-attring-circle svg{display:block;width:40px;height:40px}
+.rr-attring-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.rr-attring-days{font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap;line-height:1.2}
+.rr-attring-track{stroke:rgba(15,23,42,.08)}
+.rr-attring-good .rr-attring-prog{stroke:#16A34A}
+.rr-attring-warn .rr-attring-prog{stroke:#F59E0B}
+.rr-attring-bad  .rr-attring-prog{stroke:#DC2626}
 
 .cell-driver{display:flex;align-items:center;gap:var(--s-2-5)}
 /* Name text block flexes (so the name truncates) and the app-view icon
