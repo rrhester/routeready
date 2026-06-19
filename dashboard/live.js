@@ -65005,7 +65005,8 @@ function _avImpactStrip(r, ctx) {
   // Per-day % of drivers available, now → if approved. Every weekday is shown;
   // only the days this request changes get the "→ new%" (red if the change
   // drops that day below its staffing target).
-  let anyChanged = false, belowAny = false;
+  let anyChanged = false;
+  const belowDays = [];
   const rows = DOW.map((d) => {
     const inCur = cur.has(d), inNext = next.has(d);
     const changed = inCur !== inNext;
@@ -65014,7 +65015,7 @@ function _avImpactStrip(r, ctx) {
     const need    = demand[d] || 0;
     const below   = changed && inCur && !inNext && need > 0 && after < need;
     if (changed) anyChanged = true;
-    if (below) belowAny = true;
+    if (below) belowDays.push(LBL[d]);
     const val = changed
       ? `<span class="to-cov-now">${pct(before)}%</span><span class="to-cov-arrow">→</span><span class="to-cov-after${below ? " is-drop" : ""}">${pct(after)}%</span>`
       : `<span class="to-cov-now">${pct(before)}%</span>`;
@@ -65024,8 +65025,17 @@ function _avImpactStrip(r, ctx) {
   if (!anyChanged) {
     return `<div class="to-row-coverage to-cov-empty"><div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">No change to which days this driver can work.</span></div></div>`;
   }
-  const cls = belowAny ? "to-cov-rule" : "to-cov-ok";
+  // Recommend Deny when the change drops a day below its staffing plan,
+  // Approve when every day stays staffed to plan.
+  const deny = belowDays.length > 0;
+  const cls = deny ? "to-cov-blocked" : "to-cov-ok";
+  const rec = deny ? "Deny" : "Approve";
+  const recCls = deny ? "to-cov-rec-deny" : "to-cov-rec-approve";
+  const reason = deny
+    ? `${belowDays.join(", ")} would fall below plan`
+    : "every changed day stays staffed to plan";
   return `<div class="to-row-coverage ${cls}">
+    <div class="to-cov-verdict"><span class="to-cov-rec ${recCls}">Recommend: ${rec}</span> — ${escapeHtml(reason)}</div>
     <div class="to-cov-legend">Drivers available · <b>now</b> → <b>if approved</b></div>
     <div class="to-cov-days">${rows}</div>
   </div>`;
@@ -65914,28 +65924,29 @@ async function _toPaintCoverage(host) {
     const d = res.data;
     const total = Number(d.shifts_total || 0);
     const cap   = Number(d.max_hours_per_week || 40);
-    let cls, msg;
+    let cls, rec, msg;
     if (d.status === "no_shifts") {
-      cls = "to-cov-empty";
-      msg = "Driver isn't scheduled in this range — approving doesn't reduce staffing.";
+      cls = "to-cov-ok"; rec = "Approve";
+      msg = "driver isn't scheduled in this range — no coverage impact.";
     } else if (d.status === "covered") {
-      cls = "to-cov-ok";
+      cls = "to-cov-ok"; rec = "Approve";
       msg = total === 1
-        ? "The freed shift can be covered by another eligible driver."
-        : `All ${total} freed shifts can be covered by eligible drivers.`;
+        ? "the freed shift can be filled to plan by another eligible driver."
+        : `all ${total} freed shifts can be filled to plan by eligible drivers.`;
     } else if (d.status === "rule_break") {
       const n = Number(d.rule_break || 0);
-      cls = "to-cov-rule";
-      msg = `Covering ${n} freed shift${n === 1 ? "" : "s"} would push someone past the ${cap}h weekly cap.`;
+      cls = "to-cov-rule"; rec = "Deny";
+      msg = `${n} freed shift${n === 1 ? "" : "s"} can't be filled to plan — covering would exceed the ${cap}h weekly cap.`;
     } else {
       const n = Number(d.no_coverage || 0);
-      cls = "to-cov-blocked";
-      msg = `${n} freed shift${n === 1 ? " has" : "s have"} no eligible driver — coverage can't be filled.`;
+      cls = "to-cov-blocked"; rec = "Deny";
+      msg = `${n} freed shift${n === 1 ? "" : "s"} can't be filled to plan — no eligible driver.`;
     }
     slot.classList.add(cls);
-    // Time off needs one answer: can the plan be covered or not. Just the
-    // verdict — no per-day staffing %, fractions, or standby names.
-    slot.innerHTML = `<div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">${escapeHtml(msg)}</span></div>`;
+    // One actionable line: recommend Approve when the freed shifts can be
+    // filled to plan, Deny when they can't.
+    const recCls = rec === "Approve" ? "to-cov-rec-approve" : "to-cov-rec-deny";
+    slot.innerHTML = `<div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict"><span class="to-cov-rec ${recCls}">Recommend: ${rec}</span> — ${escapeHtml(msg)}</span></div>`;
   }
 }
 
