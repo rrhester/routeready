@@ -64999,38 +64999,35 @@ function _avImpactStrip(r, ctx) {
   const next = norm(r.days || r.requested_days);
   const supply = ctx.supplyByDow || {};
   const demand = ctx.demandByDow || {};
+  const total  = Math.max(1, Number(ctx.totalActive) || 0);
+  const pct    = (n) => Math.round((Math.max(0, n) / total) * 100);
 
-  const rows = [];
-  const belowDays = [];
-  for (const d of DOW) {
+  // Per-day % of drivers available, now → if approved. Every weekday is shown;
+  // only the days this request changes get the "→ new%" (red if the change
+  // drops that day below its staffing target).
+  let anyChanged = false, belowAny = false;
+  const rows = DOW.map((d) => {
     const inCur = cur.has(d), inNext = next.has(d);
-    if (inCur === inNext) continue;            // unchanged weekday
-    const before = supply[d] || 0;
-    const after  = inNext ? before + 1 : before - 1;   // add vs drop
-    const need   = demand[d] || 0;
-    const isDrop = inCur && !inNext;
-    const below  = isDrop && need > 0 && after < need;
-    if (below) belowDays.push(LBL[d]);
-    const tgt = need > 0 ? `<span class="to-cov-day-muted">· target ${need}</span>` : "";
-    rows.push(`<div class="to-cov-day">
-      <span class="to-cov-day-d">${LBL[d]}${isDrop ? " · drops" : " · adds"}</span>
-      <span class="to-cov-day-v"><span class="to-cov-now">${before}</span><span class="to-cov-arrow">→</span><span class="to-cov-after${below ? " is-drop" : ""}">${after} available</span>${tgt}</span>
-    </div>`);
-  }
-  if (rows.length === 0) {
+    const changed = inCur !== inNext;
+    const before  = supply[d] || 0;
+    const after   = changed ? (inNext ? before + 1 : before - 1) : before;
+    const need    = demand[d] || 0;
+    const below   = changed && inCur && !inNext && need > 0 && after < need;
+    if (changed) anyChanged = true;
+    if (below) belowAny = true;
+    const val = changed
+      ? `<span class="to-cov-now">${pct(before)}%</span><span class="to-cov-arrow">→</span><span class="to-cov-after${below ? " is-drop" : ""}">${pct(after)}%</span>`
+      : `<span class="to-cov-now">${pct(before)}%</span>`;
+    return `<div class="to-cov-day"><span class="to-cov-day-d">${LBL[d]}</span><span class="to-cov-day-v">${val}</span></div>`;
+  }).join("");
+
+  if (!anyChanged) {
     return `<div class="to-row-coverage to-cov-empty"><div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">No change to which days this driver can work.</span></div></div>`;
   }
-  let cls, msg;
-  if (belowDays.length) {
-    cls = "to-cov-rule";
-    msg = `Approving drops ${belowDays.join(", ")} below the staffing target.`;
-  } else {
-    cls = "to-cov-ok";
-    msg = "Every affected day stays at or above its staffing target.";
-  }
+  const cls = belowAny ? "to-cov-rule" : "to-cov-ok";
   return `<div class="to-row-coverage ${cls}">
-    <div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">${escapeHtml(msg)}</span></div>
-    <div class="to-cov-days">${rows.join("")}</div>
+    <div class="to-cov-legend">Drivers available · <b>now</b> → <b>if approved</b></div>
+    <div class="to-cov-days">${rows}</div>
   </div>`;
 }
 
@@ -65936,58 +65933,9 @@ async function _toPaintCoverage(host) {
       msg = `${n} freed shift${n === 1 ? " has" : "s have"} no eligible driver — coverage can't be filled.`;
     }
     slot.classList.add(cls);
-
-    // Per-day coverage telemetry — current staffing and, where the
-    // driver is scheduled, the level after the request is approved.
-    const days = Array.isArray(d.days) ? d.days : [];
-    const fmtD = (iso) => {
-      try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
-      catch { return iso; }
-    };
-    let hasArrow = false;
-    const dayRows = days.map((day) => {
-      const needed = Number(day.needed || 0);
-      const filled = Number(day.filled || 0);
-      const after  = Number(day.filled_after ?? filled);
-      const on     = !!day.driver_on;
-      let val;
-      if (needed === 0) {
-        val = `<span class="to-cov-day-muted">No routes scheduled</span>`;
-      } else {
-        const pct  = Math.round((filled / needed) * 100);
-        const pctA = Math.round((after  / needed) * 100);
-        const now  = `${pct}% <span class="to-cov-frac">(${filled}/${needed})</span>`;
-        if (on) {
-          hasArrow = true;
-          // Only alarm (red) the dip when the freed shift CAN'T actually be
-          // backfilled — otherwise it contradicts the "can be covered" verdict.
-          // When covered, the freed slot has an eligible standby driver, so the
-          // dip is recoverable and shown neutral.
-          const dropBad = pctA < pct && (d.status === "rule_break" || d.status === "no_coverage");
-          val = `<span class="to-cov-now">${now}</span><span class="to-cov-arrow">→</span><span class="to-cov-after${dropBad ? " is-drop" : ""}">${pctA}% <span class="to-cov-frac">(${after}/${needed})</span></span>`;
-        } else {
-          val = `<span class="to-cov-now">${now}</span><span class="to-cov-day-muted">· not scheduled</span>`;
-        }
-      }
-      // Name the standby(s) who could take the freed shift, when known, so the
-      // "can be covered" verdict is concrete (needs migration 0395; absent ⇒
-      // just the staffing line, as before).
-      const coverBy = (on && day.cover_by)
-        ? `<span class="to-cov-by">✓ ${escapeHtml(day.cover_by)} can cover${(Number(day.cover_n) || 1) > 1 ? ` <span class="to-cov-by-more">+${Number(day.cover_n) - 1} more</span>` : ""}</span>`
-        : "";
-      return `<div class="to-cov-day"><span class="to-cov-day-d">${escapeHtml(fmtD(day.date))}</span><span class="to-cov-day-v"><span class="to-cov-staff">${val}</span>${coverBy}</span></div>`;
-    }).join("");
-
-    // Caption so the two numbers around the arrow are self-explanatory:
-    // left = the day's overall staffing now, right = if this request is
-    // approved (before the freed shift is backfilled). Worded as "staffing"
-    // (not "coverage") so it doesn't read as contradicting the verdict above.
-    const legend = hasArrow
-      ? `<div class="to-cov-legend">Whole-day route staffing · <b>now</b> → <b>if approved</b></div>`
-      : "";
-    slot.innerHTML = `
-      <div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">${escapeHtml(msg)}</span></div>
-      ${dayRows ? `<div class="to-cov-days">${legend}${dayRows}</div>` : ""}`;
+    // Time off needs one answer: can the plan be covered or not. Just the
+    // verdict — no per-day staffing %, fractions, or standby names.
+    slot.innerHTML = `<div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">${escapeHtml(msg)}</span></div>`;
   }
 }
 
