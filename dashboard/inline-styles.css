@@ -8382,7 +8382,13 @@ body.rr-cmdk-open{ overflow:hidden }
    initials, subtle inner ring, never shrinks. The at-risk ring keeps its own
    treatment. */
 .roster-split #rr-roster-table-wrap .avatar-sm{width:28px;height:28px;font-size:var(--fs-xs);flex:0 0 auto}
-.roster-split #rr-roster-table-wrap .avatar-sm:not(.rr-final-ring){box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
+.roster-split #rr-roster-table-wrap .avatar-sm:not(.rr-final-ring):not([class*="rr-health-"]){box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
+/* Health ring must win over the roster's ID-scoped inset-border rule above
+   (which otherwise replaces the box-shadow). Re-assert it at matching scope. */
+.roster-split #rr-roster-table-wrap .avatar-sm.rr-health-healthy{box-shadow:0 0 0 2px var(--surface),0 0 0 5px #16A34A}
+.roster-split #rr-roster-table-wrap .avatar-sm.rr-health-due    {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #EAB308}
+.roster-split #rr-roster-table-wrap .avatar-sm.rr-health-medium {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #F97316}
+.roster-split #rr-roster-table-wrap .avatar-sm.rr-health-high   {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #DC2626}
 /* Force the 36px avatar even under the compact/ultra density overrides
    (which set ~26px / 20px !important and out-rank the rule above). Two IDs
    beat the density selector's single ID, so this wins regardless of mode. */
