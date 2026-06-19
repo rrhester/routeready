@@ -65924,23 +65924,34 @@ async function _toPaintCoverage(host) {
     const d = res.data;
     const total = Number(d.shifts_total || 0);
     const cap   = Number(d.max_hours_per_week || 40);
+    // Days the requester actually works that are ALREADY below their route
+    // plan — letting them off there means the plan can't be staffed (not
+    // enough drivers), so recommend Deny even if the single freed shift has a
+    // backup. This is the operator's real question: can I still run my plan?
+    const days   = Array.isArray(d.days) ? d.days : [];
+    const fmtDow = (iso) => { try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" }); } catch { return ""; } };
+    const short  = days.filter((x) => x.driver_on && Number(x.needed) > 0 && Number(x.filled) < Number(x.needed));
     let cls, rec, msg;
     if (d.status === "no_shifts") {
       cls = "to-cov-ok"; rec = "Approve";
       msg = "driver isn't scheduled in this range — no coverage impact.";
-    } else if (d.status === "covered") {
-      cls = "to-cov-ok"; rec = "Approve";
-      msg = total === 1
-        ? "the freed shift can be filled to plan by another eligible driver."
-        : `all ${total} freed shifts can be filled to plan by eligible drivers.`;
+    } else if (short.length) {
+      cls = "to-cov-blocked"; rec = "Deny";
+      const list = short.map((x) => `${fmtDow(x.date)} ${Number(x.filled)}/${Number(x.needed)}`).join(", ");
+      msg = `not enough drivers to staff the plan — ${list} already below the route target.`;
+    } else if (d.status === "no_coverage") {
+      const n = Number(d.no_coverage || 0);
+      cls = "to-cov-blocked"; rec = "Deny";
+      msg = `${n} freed shift${n === 1 ? "" : "s"} can't be filled — no eligible driver.`;
     } else if (d.status === "rule_break") {
       const n = Number(d.rule_break || 0);
       cls = "to-cov-rule"; rec = "Deny";
       msg = `${n} freed shift${n === 1 ? "" : "s"} can't be filled to plan — covering would exceed the ${cap}h weekly cap.`;
     } else {
-      const n = Number(d.no_coverage || 0);
-      cls = "to-cov-blocked"; rec = "Deny";
-      msg = `${n} freed shift${n === 1 ? "" : "s"} can't be filled to plan — no eligible driver.`;
+      cls = "to-cov-ok"; rec = "Approve";
+      msg = total === 1
+        ? "the freed shift can be filled to plan by another eligible driver."
+        : `all ${total} freed shifts can be filled to plan by eligible drivers.`;
     }
     slot.classList.add(cls);
     // One actionable line: recommend Approve when the freed shifts can be
