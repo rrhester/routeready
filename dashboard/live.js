@@ -65969,7 +65969,13 @@ async function _toPaintCoverage(host) {
           val = `<span class="to-cov-now">${now}</span><span class="to-cov-day-muted">· not scheduled</span>`;
         }
       }
-      return `<div class="to-cov-day"><span class="to-cov-day-d">${escapeHtml(fmtD(day.date))}</span><span class="to-cov-day-v">${val}</span></div>`;
+      // Name the standby(s) who could take the freed shift, when known, so the
+      // "can be covered" verdict is concrete (needs migration 0395; absent ⇒
+      // just the staffing line, as before).
+      const coverBy = (on && day.cover_by)
+        ? `<span class="to-cov-by">✓ ${escapeHtml(day.cover_by)} can cover${(Number(day.cover_n) || 1) > 1 ? ` <span class="to-cov-by-more">+${Number(day.cover_n) - 1} more</span>` : ""}</span>`
+        : "";
+      return `<div class="to-cov-day"><span class="to-cov-day-d">${escapeHtml(fmtD(day.date))}</span><span class="to-cov-day-v"><span class="to-cov-staff">${val}</span>${coverBy}</span></div>`;
     }).join("");
 
     // Caption so the two numbers around the arrow are self-explanatory:
