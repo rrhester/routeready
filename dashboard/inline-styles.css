@@ -3790,16 +3790,10 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 /* Final-corrective / At-risk warning · thin red ring around the avatar. */
 .avatar-sm.rr-final-ring{box-shadow:0 0 0 2px #DC2626}
 
-/* Driver health ring · a 3px coloured ring (with a thin surface gap so it
-   reads as sitting OUTSIDE the avatar) lets a dispatcher scan the roster and
-   spot at-risk drivers in seconds, without reading the Risk column.
-   green=healthy · yellow=coaching due · orange=medium · red=high. */
-.avatar-sm.rr-health-healthy{box-shadow:0 0 0 2px var(--surface),0 0 0 5px #16A34A}
-.avatar-sm.rr-health-due    {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #EAB308}
-.avatar-sm.rr-health-medium {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #F97316}
-.avatar-sm.rr-health-high   {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #DC2626}
-/* A small status dot in the lower-right reinforces the attention states
-   (healthy stays clean — the green ring is enough). */
+/* Driver health · a small status dot in the lower-right corner flags
+   at-risk drivers (yellow=coaching due · orange=medium · red=high) so the
+   roster scans fast; healthy avatars stay clean. (The full coloured ring was
+   removed — too heavy across the whole roster.) */
 .avatar-sm.rr-health-due::after,
 .avatar-sm.rr-health-medium::after,
 .avatar-sm.rr-health-high::after{
@@ -8382,13 +8376,7 @@ body.rr-cmdk-open{ overflow:hidden }
    initials, subtle inner ring, never shrinks. The at-risk ring keeps its own
    treatment. */
 .roster-split #rr-roster-table-wrap .avatar-sm{width:28px;height:28px;font-size:var(--fs-xs);flex:0 0 auto}
-.roster-split #rr-roster-table-wrap .avatar-sm:not(.rr-final-ring):not([class*="rr-health-"]){box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
-/* Health ring must win over the roster's ID-scoped inset-border rule above
-   (which otherwise replaces the box-shadow). Re-assert it at matching scope. */
-.roster-split #rr-roster-table-wrap .avatar-sm.rr-health-healthy{box-shadow:0 0 0 2px var(--surface),0 0 0 5px #16A34A}
-.roster-split #rr-roster-table-wrap .avatar-sm.rr-health-due    {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #EAB308}
-.roster-split #rr-roster-table-wrap .avatar-sm.rr-health-medium {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #F97316}
-.roster-split #rr-roster-table-wrap .avatar-sm.rr-health-high   {box-shadow:0 0 0 2px var(--surface),0 0 0 5px #DC2626}
+.roster-split #rr-roster-table-wrap .avatar-sm:not(.rr-final-ring){box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
 /* Force the 36px avatar even under the compact/ultra density overrides
    (which set ~26px / 20px !important and out-rank the rule above). Two IDs
    beat the density selector's single ID, so this wins regardless of mode. */
