@@ -13108,6 +13108,9 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-row-action:hover{
             background:#fff;color:var(--accent);border-color:var(--accent-border);
           }
+          /* Separate (offboard) is destructive — tint it red on hover/focus. */
+          .rr-row-action--sep:hover{color:#B42318;border-color:rgba(180,35,24,.4);background:rgba(180,35,24,.05)}
+          .rr-row-action--sep:focus-visible{border-color:#B42318;box-shadow:0 0 0 3px rgba(180,35,24,.18)}
           .rr-row-action:focus-visible{
             outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
           }
