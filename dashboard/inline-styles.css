@@ -9866,6 +9866,10 @@ body.rr-cmdk-open{ overflow:hidden }
 #sched-sub-requests .to-cov-after{font-weight:700;color:var(--text)}
 #sched-sub-requests .to-cov-after.is-drop{color:#9F635B}
 #sched-sub-requests .to-cov-day-muted{color:var(--text-subtle);font-weight:500}
+/* Caption labelling the two staffing numbers around the arrow. */
+#sched-sub-requests .to-cov-legend{font-size:11px;color:var(--text-subtle);margin:0 0 5px}
+#sched-sub-requests .to-cov-legend b{font-weight:600;color:var(--text-muted)}
+#sched-sub-requests .to-cov-frac{color:var(--text-subtle);font-weight:500}
 
 /* Requests page · ONE operational coordination workspace — a unified
    request stream and an operational telemetry rail, joined as a
