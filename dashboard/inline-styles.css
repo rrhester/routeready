@@ -24154,6 +24154,24 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-interview"],
 #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-workauth"]{display:none}
 
+/* Funnel page · the page nav now lives in the sidebar, so strip the whole
+   command-strip on Funnel and keep just one clean Schedule-style primary
+   "Add applicant" button, pushed to the top-right. Scoped via the data-obsub
+   marker obSub sets on the container. */
+#view-onboarding-ops[data-obsub="funnel"] .sched-ribbon-group[data-group="calendar-controls"],
+#view-onboarding-ops[data-obsub="funnel"] .sched-ribbon-group[data-group="sourcing"],
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"]{display:none}
+#view-onboarding-ops[data-obsub="funnel"] .sched-nav-heading-actions{justify-content:flex-end}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"]{align-self:center}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item{
+  flex-direction:row;gap:7px;min-width:0;height:36px;padding:0 16px;
+  background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:8px;
+  font-weight:600;cursor:pointer;
+}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item svg{width:16px;height:16px;color:#fff;stroke-width:1.7}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item span{color:#fff}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item:hover{background:var(--accent);color:#fff;filter:brightness(1.06)}
+
 /* Grid to the very top: drop the zero-height .tcp block's 12px margin and
    the empty intel host's 16px margin (populated intel content self-spaces). */
 #view-schedule .tcp{margin-bottom:0!important}
