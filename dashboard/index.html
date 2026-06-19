@@ -101,9 +101,9 @@
 <link rel="preconnect" href="https://doiwrhkirgblcvuskhno.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm">
-<link rel="modulepreload" href="./scheduling-engine.js?v=43d23eecae51">
-<link rel="modulepreload" href="./flex-capacity.js?v=43d23eecae51">
-<link rel="stylesheet" href="../app/rr-system.css?v=43d23eecae51">
+<link rel="modulepreload" href="./scheduling-engine.js?v=3cfad48f5b2b">
+<link rel="modulepreload" href="./flex-capacity.js?v=3cfad48f5b2b">
+<link rel="stylesheet" href="../app/rr-system.css?v=3cfad48f5b2b">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
@@ -112,16 +112,16 @@
      structural classes). Single source of truth for chrome
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
-<link rel="stylesheet" href="tcp.css?v=43d23eecae51">
-<link rel="stylesheet" href="schedule-rrx.css?v=43d23eecae51">
+<link rel="stylesheet" href="tcp.css?v=3cfad48f5b2b">
+<link rel="stylesheet" href="schedule-rrx.css?v=3cfad48f5b2b">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
-<link rel="stylesheet" href="onboarding-rrx.css?v=43d23eecae51">
+<link rel="stylesheet" href="onboarding-rrx.css?v=3cfad48f5b2b">
 <!-- The dashboard's former inline styles · extracted so the no-cache
      HTML shell stops re-shipping ~1.2MB of CSS on every load; this
      file is cacheable and busts via the ?v= token like the rest. -->
-<link rel="stylesheet" href="inline-styles.css?v=43d23eecae51">
+<link rel="stylesheet" href="inline-styles.css?v=3cfad48f5b2b">
 <!-- style block 0 extracted to inline-styles.css -->
 </head>
 <body>
@@ -439,6 +439,60 @@
               sub.classList.remove('is-open');
             }
           });
+
+          // ── Funnel page chrome · cache-proof fallback. The same header-hide +
+          //    Schedule-style action buttons are expressed in inline-styles.css,
+          //    but that stylesheet is ?v= cache-busted and a pinned app shell can
+          //    lag a deploy (stale bundle ⇒ the rules never arrive). This logic
+          //    lives in the no-cache index.html and sets INLINE styles, which beat
+          //    any stale rule — so the Funnel page renders correctly the moment a
+          //    fresh shell loads, regardless of whether the CSS bundle caught up.
+          window.rrObFunnelChrome = function (key) {
+            var v = document.getElementById('view-onboarding-ops');
+            if (!v) return;
+            var isFunnel = key === 'funnel';
+            var hdr = v.querySelector('.page-header-l');
+            if (hdr) hdr.style.display = isFunnel ? 'none' : '';
+            ['ob-addapplicant', 'ob-pdf-upload'].forEach(function (t) {
+              var btn = v.querySelector('.ob-tab-wrap[data-rr-tile="' + t + '"] .subnav-item');
+              if (!btn) return;
+              var s = btn.style, sp = btn.querySelector('span'), sv = btn.querySelector('svg');
+              if (isFunnel) {
+                s.flexDirection = 'row'; s.alignItems = 'center'; s.gap = '6px';
+                s.height = '38px'; s.minWidth = '0'; s.padding = '0 14px';
+                s.background = 'var(--surface)'; s.color = 'var(--text)';
+                s.border = '1px solid var(--border)'; s.borderRadius = 'var(--r-md)';
+                s.boxShadow = '0 1px 2px rgba(15,23,42,.04)';
+                s.fontWeight = '500'; s.fontSize = 'var(--fs-sm)';
+                if (sp) sp.style.color = 'var(--text)';
+                if (sv) { sv.style.width = '16px'; sv.style.height = '16px'; sv.style.color = 'var(--text-subtle)'; }
+              } else {
+                ['flexDirection', 'alignItems', 'gap', 'height', 'minWidth', 'padding',
+                 'background', 'color', 'border', 'borderRadius', 'boxShadow',
+                 'fontWeight', 'fontSize'].forEach(function (p) { s[p] = ''; });
+                if (sp) sp.style.color = '';
+                if (sv) { sv.style.width = ''; sv.style.height = ''; sv.style.color = ''; }
+              }
+            });
+          };
+          // Wrap obSub (defined later in live.js) so EVERY sub-view switch — sidebar
+          // click, initial mount, or loadOnboardingOps' default — re-applies the
+          // funnel chrome. Poll until live.js has defined it.
+          (function hookObSub() {
+            if (typeof window.obSub === 'function') {
+              if (!window.obSub.__funnelHooked) {
+                var orig = window.obSub;
+                window.obSub = function (which) {
+                  var r = orig.apply(this, arguments);
+                  try { window.rrObFunnelChrome(which); } catch (e) {}
+                  return r;
+                };
+                window.obSub.__funnelHooked = true;
+              }
+              return;
+            }
+            setTimeout(hookObSub, 150);
+          })();
         })();
       </script>
       <!-- Fleet (new, separate page) · empty scaffold view that reuses
@@ -995,12 +1049,12 @@
     </div>
 
     <!-- ─── DASHBOARD VIEW ─── -->
-    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=43d23eecae51">
+    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-dashboard.frag (monolith split phase 2) -->
     </div>
 
     <!-- ─── HIRING PIPELINE VIEW ─── -->
-    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=43d23eecae51">
+    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-pipeline.frag (monolith split phase 2) -->
     </div>
 
@@ -1008,28 +1062,28 @@
          ONBOARDING (OPERATIONS) VIEW — readiness command center.
          Populated by loadOnboardingOps() in live.js.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=43d23eecae51">
+    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-onboarding-ops.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          DRIVERS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=43d23eecae51">
+    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-drivers.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SETTINGS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=43d23eecae51">
+    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-settings.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SCHEDULE VIEW — full DSP-grade schedule system
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=43d23eecae51">
+    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-schedule.frag (monolith split phase 2) -->
     </div>
 
@@ -1038,14 +1092,14 @@
          (Amazon's term for DSP route plan horizon)
          ═══════════════════════════════════════════════════════════ -->
     <div id="rr-okami-backdrop" class="rr-okami-backdrop"></div>
-    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=43d23eecae51">
+    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-okami.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          MESSAGES — real-time dispatch ↔ driver comms
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=43d23eecae51">
+    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-messages.frag (monolith split phase 2) -->
     </div>
 
@@ -1056,7 +1110,7 @@
          Loader functions live in live.js (loadRecognitionView /
          loadRecognitionUpcoming / loadRecognitionHistory / …).
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=43d23eecae51">
+    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-recognition.frag (monolith split phase 2) -->
     </div>
 
@@ -1071,7 +1125,7 @@
          scoped entirely to #view-fleet2 — it does not touch
          #view-schedule or schedule-rrx.css.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=43d23eecae51">
+    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-fleet2.frag (monolith split phase 2) -->
     </div>
 
@@ -1107,7 +1161,7 @@
          into [data-co-render="exceptions-table"] and
          [data-co-render="rules-list"].
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=43d23eecae51">
+    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-compliance.frag (monolith split phase 2) -->
     </div>
 
@@ -1119,21 +1173,21 @@
          row to a driver links the driver profile, surfaces the task in
          the driver app, and logs the accountability trail.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=43d23eecae51">
+    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-workspaces.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          FORMS — DSP-built custom forms drivers fill out
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=43d23eecae51">
+    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-forms.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          CHECKLISTS — recurring task lists (Open / Close / shift)
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=43d23eecae51">
+    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-checklists.frag (monolith split phase 2) -->
     </div>
 
@@ -1143,7 +1197,7 @@
          audit flows. PDF signing service + driver-side viewer ship in
          later slices.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=43d23eecae51">
+    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-documents.frag (monolith split phase 2) -->
     </div>
 
@@ -1155,7 +1209,7 @@
          strip and flips the layout: the open-shifts-sized aside sits
          on the LEFT, the calendar-sized main panel on the RIGHT.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=43d23eecae51">
+    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-email.frag (monolith split phase 2) -->
     </div>
 
@@ -1168,14 +1222,14 @@
          Phase 2 ships header + stats; Phase 3 fills the table area;
          Phase 4 wires the modals.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=43d23eecae51">
+    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-admin.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          BUILD YOUR OWN TOOL
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=43d23eecae51">
+    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=3cfad48f5b2b">
       <!-- markup extracted to views/view-build.frag (monolith split phase 2) -->
     </div>
 
@@ -4185,7 +4239,7 @@ John,Smith,555-0101,john@example.com</code>
     if (!window.__RR_VIEW_LOAD_FAILED) {
       await new Promise(function (resolve) {
         var s = document.createElement('script');
-        s.src = 'mock-wiring.js?v=43d23eecae51';
+        s.src = 'mock-wiring.js?v=3cfad48f5b2b';
         s.onload = function () {
           // These three register DOMContentLoaded callbacks with no
           // already-fired fallback (unlike the rest of the script);
@@ -4202,10 +4256,10 @@ John,Smith,555-0101,john@example.com</code>
   })();
 </script>
 <script src="./config.js"></script>
-<script src="./desktop-connect.js?v=43d23eecae51"></script>
-<script src="./fleet-sync.js?v=43d23eecae51"></script>
-<script src="./admin-crawl-tasks.js?v=43d23eecae51"></script>
-<script type="module" src="./live.js?v=43d23eecae51"></script>
+<script src="./desktop-connect.js?v=3cfad48f5b2b"></script>
+<script src="./fleet-sync.js?v=3cfad48f5b2b"></script>
+<script src="./admin-crawl-tasks.js?v=3cfad48f5b2b"></script>
+<script type="module" src="./live.js?v=3cfad48f5b2b"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
