@@ -6038,6 +6038,10 @@ function _obMountDocuments() {
 }
 
 window.obSub = function (which) {
+  // Mark the active sub on the container so per-page CSS can scope to it
+  // (e.g. the Funnel page strips the command-strip icons).
+  const _obv = document.getElementById("view-onboarding-ops");
+  if (_obv) _obv.setAttribute("data-obsub", which);
   document.querySelectorAll("#view-onboarding-ops .subnav .subnav-item[data-obsub]").forEach(b => b.classList.toggle("active", b.getAttribute("data-obsub") === which));
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? "" : "none"; };
   const isPipe = which === "funnel" || which === "interview" || which === "calendar";
