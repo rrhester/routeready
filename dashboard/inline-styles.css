@@ -24154,23 +24154,34 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-interview"],
 #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-workauth"]{display:none}
 
-/* Funnel page · the page nav now lives in the sidebar, so strip the whole
-   command-strip on Funnel and keep just one clean Schedule-style primary
-   "Add applicant" button, pushed to the top-right. Scoped via the data-obsub
-   marker obSub sets on the container. */
+/* Funnel page · the page nav now lives in the sidebar, so strip the
+   command-strip's nav/calendar/rules icons and keep just two clean
+   Schedule-style buttons in the top-right: a primary "Add applicant" and a
+   secondary "Import". Scoped via the data-obsub marker obSub sets. */
 #view-onboarding-ops[data-obsub="funnel"] .sched-ribbon-group[data-group="calendar-controls"],
-#view-onboarding-ops[data-obsub="funnel"] .sched-ribbon-group[data-group="sourcing"],
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"]{display:none}
+#view-onboarding-ops[data-obsub="funnel"] .sched-ribbon-group[data-group="sourcing"]{display:none}
 #view-onboarding-ops[data-obsub="funnel"] .sched-nav-heading-actions{justify-content:flex-end}
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"]{align-self:center}
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item{
-  flex-direction:row;gap:7px;min-width:0;height:36px;padding:0 16px;
-  background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:8px;
+/* Import sits to the LEFT of the primary Add applicant (which stays rightmost). */
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"],
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"]{align-self:center}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"]{order:-1}
+/* Shared button shape. */
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item,
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item{
+  flex-direction:row;gap:7px;min-width:0;height:36px;padding:0 16px;border-radius:8px;
   font-weight:600;cursor:pointer;
 }
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item svg{width:16px;height:16px;color:#fff;stroke-width:1.7}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item svg,
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item svg{width:16px;height:16px;stroke-width:1.7}
+/* Primary · Add applicant (solid accent). */
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item{background:var(--accent);color:#fff;border:1px solid var(--accent)}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item svg,
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item span{color:#fff}
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item:hover{background:var(--accent);color:#fff;filter:brightness(1.06)}
+/* Secondary · Import (white, hairline border). */
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item svg{color:var(--text-muted)}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item:hover{background:var(--canvas);color:var(--text)}
 
 /* Grid to the very top: drop the zero-height .tcp block's 12px margin and
    the empty intel host's 16px margin (populated intel content self-spaces). */
