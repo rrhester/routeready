@@ -65944,6 +65944,7 @@ async function _toPaintCoverage(host) {
       try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
       catch { return iso; }
     };
+    let hasArrow = false;
     const dayRows = days.map((day) => {
       const needed = Number(day.needed || 0);
       const filled = Number(day.filled || 0);
@@ -65955,9 +65956,10 @@ async function _toPaintCoverage(host) {
       } else {
         const pct  = Math.round((filled / needed) * 100);
         const pctA = Math.round((after  / needed) * 100);
-        const now  = `${filled}/${needed} · ${pct}%`;
+        const now  = `${pct}% <span class="to-cov-frac">(${filled}/${needed})</span>`;
         if (on) {
-          val = `<span class="to-cov-now">${now}</span><span class="to-cov-arrow">→</span><span class="to-cov-after${pctA < pct ? " is-drop" : ""}">${after}/${needed} · ${pctA}%</span>`;
+          hasArrow = true;
+          val = `<span class="to-cov-now">${now}</span><span class="to-cov-arrow">→</span><span class="to-cov-after${pctA < pct ? " is-drop" : ""}">${pctA}% <span class="to-cov-frac">(${after}/${needed})</span></span>`;
         } else {
           val = `<span class="to-cov-now">${now}</span><span class="to-cov-day-muted">· not scheduled</span>`;
         }
@@ -65965,9 +65967,14 @@ async function _toPaintCoverage(host) {
       return `<div class="to-cov-day"><span class="to-cov-day-d">${escapeHtml(fmtD(day.date))}</span><span class="to-cov-day-v">${val}</span></div>`;
     }).join("");
 
+    // Caption so the two numbers around the arrow are self-explanatory:
+    // left = staffing now, right = staffing if this request is approved.
+    const legend = hasArrow
+      ? `<div class="to-cov-legend">Route coverage · <b>now</b> → <b>if approved</b></div>`
+      : "";
     slot.innerHTML = `
       <div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">${escapeHtml(msg)}</span></div>
-      ${dayRows ? `<div class="to-cov-days">${dayRows}</div>` : ""}`;
+      ${dayRows ? `<div class="to-cov-days">${legend}${dayRows}</div>` : ""}`;
   }
 }
 
