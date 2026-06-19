@@ -64541,6 +64541,9 @@ const _RR_REQ_FEATURES = [
     { key: "start_time",     label: "Start time interest",    sub: "Ask their preferred start time." },
     { key: "fifth_day",      label: "5th day interest",       sub: "Ask if they'd take a 5th working day." },
   ] },
+  { group: "Automation", items: [
+    { key: "auto_approve_open", label: "Auto-approve added availability", sub: "Approve requests that only open up more days (no coverage drop) without review." },
+  ] },
 ];
 
 // Current feature flags, defaulting every key to ON when unset.
