@@ -522,18 +522,20 @@
                 if (actions) actions.style.setProperty('flex', '0 0 auto', 'important');
                 // Relocate the filter tabs into the top bar, left of the actions.
                 if (tabs && actions && tabs.parentNode !== band) band.insertBefore(tabs, actions);
-                // Let the relocated strip grow into the free space (pushing the
-                // action buttons to the far right) and wrap any trailing tab to a
-                // second row, instead of overflowing UNDER the opaque blue Import
-                // button — that hidden overflow is what "covered" the Booking
-                // scheduled tab. Inline + !important so a stale CSS bundle (the
-                // ?v= cache-busted sheet) can't leave this unfixed.
+                // Let the relocated strip GROW into the free space (which pushes
+                // the action buttons to the far right) and stay a SINGLE row —
+                // never shrinking so small that its trailing tabs overflow UNDER
+                // the opaque blue Import button (what "covered" the Booking
+                // scheduled tab), and never wrapping a tab onto a second row.
+                // overflow-x:auto only engages on a genuinely too-narrow window.
+                // Inline + !important so a stale ?v= CSS bundle can't undo it.
                 if (tabs) {
                   tabs.style.setProperty('flex', '1 1 auto', 'important');
                   tabs.style.setProperty('min-width', '0', 'important');
-                  tabs.style.setProperty('flex-wrap', 'wrap', 'important');
-                  tabs.style.setProperty('overflow', 'visible', 'important');
-                  tabs.style.setProperty('row-gap', '4px', 'important');
+                  tabs.style.setProperty('flex-wrap', 'nowrap', 'important');
+                  tabs.style.setProperty('overflow-x', 'auto', 'important');
+                  tabs.style.setProperty('overflow-y', 'visible', 'important');
+                  tabs.style.setProperty('scrollbar-width', 'none', 'important');
                 }
                 // Borrow the ⋯ / bell / avatar onto the far right of the bar.
                 chrome.forEach(function (el) { if (el && el.parentNode !== band) band.appendChild(el); });
@@ -546,7 +548,7 @@
                 // Drop the funnel-only inline overrides so the strip returns to
                 // its normal card-header layout on the other onboarding subs.
                 if (tabs) {
-                  ['flex', 'min-width', 'flex-wrap', 'overflow', 'row-gap']
+                  ['flex', 'min-width', 'flex-wrap', 'overflow-x', 'overflow-y', 'scrollbar-width']
                     .forEach(function (p) { tabs.style.removeProperty(p); });
                 }
                 // Move the filter tabs back into the Applicants card header.
