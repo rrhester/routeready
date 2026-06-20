@@ -24193,7 +24193,7 @@ body.rr-cmdk-open{ overflow:hidden }
    row ever overflows so the band never grows taller. */
 #view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs{
   display:flex!important;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0;
-  margin:0!important;padding:0!important;border:0!important;background:transparent!important;
+  margin:0 auto 0 0!important;padding:0!important;border:0!important;background:transparent!important;
   overflow-x:auto;scrollbar-width:none;
 }
 #view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs::-webkit-scrollbar{display:none}
