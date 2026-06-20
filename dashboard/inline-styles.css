@@ -25777,3 +25777,12 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="funnel"] .sched-nav-heading-actions{
   flex:0 0 auto !important; margin-left:auto !important;
 }
+/* The borrowed bell + account carry their OWN margin-left:auto (set inline
+   by live.js for the schedule action bar). On Funnel that second auto-margin
+   splits the band's free space — pushing the bell to the far edge and
+   stranding Import / Add applicant in the middle. Force it off so the action
+   cluster and the bell/account pack together at the far right. */
+#view-onboarding-ops[data-obsub="funnel"] #rr-hdr-notif,
+#view-onboarding-ops[data-obsub="funnel"] #rr-hdr-avatar-btn{
+  margin-left:0 !important; flex:0 0 auto !important;
+}
