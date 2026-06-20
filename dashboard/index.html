@@ -522,6 +522,19 @@
                 if (actions) actions.style.setProperty('flex', '0 0 auto', 'important');
                 // Relocate the filter tabs into the top bar, left of the actions.
                 if (tabs && actions && tabs.parentNode !== band) band.insertBefore(tabs, actions);
+                // Let the relocated strip grow into the free space (pushing the
+                // action buttons to the far right) and wrap any trailing tab to a
+                // second row, instead of overflowing UNDER the opaque blue Import
+                // button — that hidden overflow is what "covered" the Booking
+                // scheduled tab. Inline + !important so a stale CSS bundle (the
+                // ?v= cache-busted sheet) can't leave this unfixed.
+                if (tabs) {
+                  tabs.style.setProperty('flex', '1 1 auto', 'important');
+                  tabs.style.setProperty('min-width', '0', 'important');
+                  tabs.style.setProperty('flex-wrap', 'wrap', 'important');
+                  tabs.style.setProperty('overflow', 'visible', 'important');
+                  tabs.style.setProperty('row-gap', '4px', 'important');
+                }
                 // Borrow the ⋯ / bell / avatar onto the far right of the bar.
                 chrome.forEach(function (el) { if (el && el.parentNode !== band) band.appendChild(el); });
                 window.__rrChromeInFunnel = true;
@@ -530,6 +543,12 @@
                  'display', 'align-items', 'justify-content', 'gap', 'padding']
                   .forEach(function (p) { band.style.removeProperty(p); });
                 if (actions) actions.style.removeProperty('flex');
+                // Drop the funnel-only inline overrides so the strip returns to
+                // its normal card-header layout on the other onboarding subs.
+                if (tabs) {
+                  ['flex', 'min-width', 'flex-wrap', 'overflow', 'row-gap']
+                    .forEach(function (p) { tabs.style.removeProperty(p); });
+                }
                 // Move the filter tabs back into the Applicants card header.
                 var home = document.querySelector('.pa-ws-header');
                 if (tabs && home && tabs.parentNode !== home) home.appendChild(tabs);
