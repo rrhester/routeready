@@ -25767,15 +25767,13 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="funnel"] #rr-funnel-rules-toggle::after{ content:" questions"; }
 #view-onboarding-ops[data-obsub="funnel"] #rr-funnel-rules-toggle:hover{ background:var(--surface-hover) !important; color:var(--text) !important; }
 
-/* Funnel band overlap fix · the stage-filter strip was sized to its content
-   (default flex basis + margin-right:auto), so with enough stages its box
-   didn't clip and it underlapped the Import / Add applicant buttons. Make
-   the strip the flexible middle element so it owns the free space and
-   scrolls internally; the action buttons stay a fixed-size sibling to its
-   right and never collide. */
+/* Funnel band layout · the stage-filter strip stays content-sized on the
+   LEFT (shrinks + scrolls internally when crowded, so it never underlaps
+   the buttons), and the action cluster (Import / Add applicant / Screening
+   + the borrowed bell/avatar) is pushed hard RIGHT via margin-left:auto. */
 #view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs{
-  flex:1 1 0 !important; min-width:0 !important; margin:0 10px 0 0 !important;
+  flex:0 1 auto !important; min-width:0 !important; margin:0 !important;
 }
 #view-onboarding-ops[data-obsub="funnel"] .sched-nav-heading-actions{
-  flex:0 0 auto !important;
+  flex:0 0 auto !important; margin-left:auto !important;
 }
