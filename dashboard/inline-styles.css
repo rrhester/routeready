@@ -11423,7 +11423,11 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Stage filter · quiet Fluent pivot tabs sit directly on the
              new header background; no extra box chrome. */
           #view-pipeline .hp-stages{
-            max-width:100%;overflow-x:auto;gap:4px;padding:0;
+            /* Wrap the stage tabs instead of horizontally clipping the
+               trailing tab (Booking scheduled · calendar glyph) when the
+               header runs out of room — a half-cut tab read as a button
+               overlapping the Import action. */
+            max-width:100%;flex-wrap:wrap;overflow:visible;gap:4px;padding:0;
             background:transparent;border:0;border-radius:0;
             scrollbar-width:none;
           }
