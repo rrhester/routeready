@@ -1267,6 +1267,13 @@ function _rrToggleRecruitingChooser(anchor) {
   }, 0);
 }
 function _rrBuildRecruitingFooter() {
+  // RETIRED · the combined "Recruiting" chooser is replaced by
+  // context-specific per-tab buttons surfaced directly on the action bar
+  // (Funnel → "Screening questions" via #rr-funnel-rules-toggle,
+  // Onboarding → "Onboarding steps" via #rr-ob-rules-toggle). Leaving the
+  // per-tile launchers visible, so this footer builder is a no-op now.
+  return;
+  // eslint-disable-next-line no-unreachable
   if (typeof document === "undefined") return;
   const group = document.querySelector('#view-onboarding-ops .sched-ribbon-group[data-group="sourcing"]');
   if (!group) return;
@@ -6120,6 +6127,9 @@ function _obToggleRules(force) {
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next && typeof loadOnboardingBuilder === "function") loadOnboardingBuilder();
+  // Pin the panel under the action bar (fixed, viewport-bounded) so it
+  // opens cleanly from the top-bar button, not just the old chooser path.
+  if (next && typeof _rrFitRulesPopover === "function") _rrFitRulesPopover(pop);
   return next;
 }
 window._rrToggleObRules = _obToggleRules;
@@ -6153,6 +6163,7 @@ function _funnelToggleRules(force) {
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next && typeof loadScreeningQuestionsList === "function") loadScreeningQuestionsList();
+  if (next && typeof _rrFitRulesPopover === "function") _rrFitRulesPopover(pop);
   return next;
 }
 window._rrToggleFunnelRules = _funnelToggleRules;
@@ -6186,6 +6197,7 @@ function _ivToggleRules(force) {
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next && typeof loadInterviewAvailabilityEditor === "function") loadInterviewAvailabilityEditor();
+  if (next && typeof _rrFitRulesPopover === "function") _rrFitRulesPopover(pop);
   return next;
 }
 window._rrToggleIvRules = _ivToggleRules;
