@@ -325,7 +325,7 @@
       analytics: 'Analytics',
       okami: 'OKAMI',
       messages: 'Messages',
-      email: 'Fleet Bridge',
+      email: 'Email',
       workspaces: 'Workspaces',
       forms: 'Workspaces',
       checklists: 'Workspaces',
