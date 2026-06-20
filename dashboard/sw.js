@@ -1,27 +1,30 @@
 // RouteReady Dispatch · dashboard service worker
 //
-// ── RECOVERY MODE ────────────────────────────────────────────────
+// ── RECOVERY MODE + FORCED REFRESH ───────────────────────────────
 // A prior caching strategy poisoned some operators' browsers with a
-// stale MIX of assets across rapid deploys — e.g. fresh index.html
-// paired with a stale schedule-rrx.css — which rendered the schedule
-// command strip in a scrambled order even though `main` was correct.
-// Reloading didn't dislodge it because the controlling worker kept
-// serving cached copies.
+// stale MIX of assets across rapid deploys. This worker caches NOTHING
+// and PURGES every existing cache the moment it activates, so all
+// requests go straight to the network (governed only by the HTTP cache
+// headers in _headers — HTML = no-cache; JS/CSS = ?v= versioned).
 //
-// This worker fixes that by caching NOTHING and PURGING every
-// existing cache the moment it activates. All requests then go
-// straight to the network, governed only by the normal HTTP cache
-// headers in netlify.toml (HTML = no-cache; JS/CSS = ?v= versioned
-// per deploy). That guarantees a clean, internally-consistent asset
-// set on every load and lets a stuck browser self-heal — no DevTools
-// "Unregister", no incognito required.
+// NEW (forced refresh): on activate we ALSO navigate every open window
+// to a fresh copy. An INSTALLED app that's resumed (not cold-launched)
+// can sit on a stale shell indefinitely — the no-cache headers never
+// get a chance to run because the shell is never re-requested. By
+// reloading controlled clients the moment a new worker takes over, a
+// deploy reaches even a pinned installed app: the browser fetches the
+// new sw.js on launch, this worker activates, wipes caches, and
+// navigates the window to the current shell. No DevTools, no incognito,
+// no "clear site data" required.
 //
-// Offline shell support is intentionally dropped while we recover;
-// it can be reintroduced later behind a fresh, well-tested cache.
+// Re-navigation only fires when a NEW worker activates (i.e. when this
+// file's bytes change on a deploy), so it cannot loop: the reloaded
+// page registers the same worker, finds no update, and nothing else
+// fires.
 
 self.addEventListener("install", () => {
-  // Take over as soon as possible so the purge runs without waiting
-  // for every dashboard tab to close.
+  // Take over as soon as possible so the purge + refresh run without
+  // waiting for every dashboard tab to close.
   self.skipWaiting();
 });
 
@@ -29,7 +32,15 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: "window", includeUncontrolled: true }))
+      .then((clients) => {
+        clients.forEach((client) => {
+          // Reload each open window to the fresh shell. Best-effort —
+          // one client that refuses to navigate can't abort the rest.
+          try { client.navigate(client.url); } catch (e) { /* ignore */ }
+        });
+      }),
   );
 });
 
