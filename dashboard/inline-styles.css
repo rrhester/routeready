@@ -25553,3 +25553,70 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-section[data-rr-sf-section] .sf2-section-body > .sf2-row-help{
   column-span:all !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   Onboarding · clean top action bar (consistency pass · OVERVIEW tab)
+   ──────────────────────────────────────────────────────────────────
+   Replaces the icon-over-label command ribbon with Schedule-style text
+   buttons. Per-sub visibility is keyed off #view-onboarding-ops[data-obsub]
+   (set by obSub()). This slice does the OVERVIEW tab only:
+   Add applicant · Import · Onboarding steps. Other sub-tabs keep their
+   current strip until their own slice lands.
+   ══════════════════════════════════════════════════════════════════ */
+/* Hide the groups that don't belong on Overview (roster modes + calendar). */
+#view-onboarding-ops[data-obsub="overview"] .sched-ribbon-group[data-group="roster"],
+#view-onboarding-ops[data-obsub="overview"] .sched-ribbon-group[data-group="daily"],
+#view-onboarding-ops[data-obsub="overview"] .sched-ribbon-group[data-group="compliance"],
+#view-onboarding-ops[data-obsub="overview"] .sched-ribbon-group[data-group="calendar-controls"]{
+  display:none !important;
+}
+/* Sub-view NAV tiles are redundant (sidebar owns sub-nav); the "coming
+   soon" rules stubs are noise; the Funnel-only screening launcher and the
+   empty funnel/interview tile wraps don't belong here. */
+#view-onboarding-ops[data-obsub="overview"] .subnav-item[data-obsub],
+#view-onboarding-ops[data-obsub="overview"] .ob-rules-foot[data-rr-rules-stub],
+#view-onboarding-ops[data-obsub="overview"] #rr-funnel-rules-toggle,
+#view-onboarding-ops[data-obsub="overview"] .ob-tab-wrap[data-rr-tile="ob-funnel"],
+#view-onboarding-ops[data-obsub="overview"] .ob-tab-wrap[data-rr-tile="ob-interview"],
+#view-onboarding-ops[data-obsub="overview"] .ob-tab-divider{
+  display:none !important;
+}
+/* Order: Add applicant · Import (actions) then Onboarding steps (sourcing). */
+#view-onboarding-ops[data-obsub="overview"] .sched-ribbon-group[data-group="actions"]{ order:3 !important; }
+#view-onboarding-ops[data-obsub="overview"] .sched-ribbon-group[data-group="sourcing"]{ order:4 !important; }
+#view-onboarding-ops[data-obsub="overview"] .sched-ribbon-group{ border:0 !important; }
+#view-onboarding-ops[data-obsub="overview"] .sched-ribbon-group[data-group="actions"] .subnav,
+#view-onboarding-ops[data-obsub="overview"] .sched-ribbon-group[data-group="sourcing"] .subnav{
+  display:flex !important; flex-direction:row !important; align-items:center !important; gap:8px !important;
+}
+#view-onboarding-ops[data-obsub="overview"] .ob-tab-wrap{
+  display:flex !important; align-items:center !important; min-height:0 !important; padding:0 !important;
+}
+/* Text-button restyle (Schedule action-bar look). */
+#view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions .subnav-item,
+#view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions #rr-ob-rules-toggle{
+  flex-direction:row !important; align-items:center !important; justify-content:center !important;
+  gap:8px !important; height:40px !important; min-width:0 !important;
+  padding:0 16px !important; margin:0 !important;
+  background:var(--surface) !important; color:var(--text) !important;
+  border:1px solid var(--border) !important; border-radius:var(--r-lg) !important;
+  box-shadow:0 1px 2px rgba(15,23,42,.04) !important;
+  font-weight:600 !important; font-size:var(--fs-sm) !important; line-height:1 !important;
+  white-space:nowrap !important;
+}
+#view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions .subnav-item > svg,
+#view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions #rr-ob-rules-toggle > svg{
+  display:none !important;
+}
+#view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions .subnav-item:hover,
+#view-onboarding-ops[data-obsub="overview"] .sched-nav-heading-actions #rr-ob-rules-toggle:hover{
+  background:var(--surface-hover) !important; color:var(--text) !important;
+}
+/* Primary = Add applicant (solid blue). */
+#view-onboarding-ops[data-obsub="overview"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item{
+  background:var(--accent) !important; color:#fff !important; border-color:transparent !important;
+  box-shadow:0 1px 2px rgba(37,99,235,.18) !important;
+}
+#view-onboarding-ops[data-obsub="overview"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item:hover{
+  background:var(--accent-d,#1d4ed8) !important; color:#fff !important;
+}
