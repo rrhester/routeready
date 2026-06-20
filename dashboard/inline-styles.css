@@ -24168,16 +24168,21 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"]{order:-1}
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item,
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item{
-  flex-direction:row!important;align-items:center;gap:6px;min-width:0!important;height:38px;padding:0 14px!important;
-  background:var(--surface)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:var(--r-md)!important;
-  box-shadow:0 1px 2px rgba(15,23,42,.04);font-weight:500!important;font-size:var(--fs-sm);cursor:pointer;
+  flex-direction:row!important;align-items:center;gap:8px;min-width:0!important;height:40px;padding:0 16px!important;
+  background:var(--accent)!important;color:#fff!important;border:0!important;border-radius:var(--r-lg)!important;
+  box-shadow:0 1px 2px rgba(37,99,235,.18);font-weight:600!important;font-size:var(--fs-sm);cursor:pointer;
 }
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item span,
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item span{color:var(--text)}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item span{color:#fff}
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item svg,
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item svg{width:16px!important;height:16px!important;color:var(--text-subtle)!important;stroke-width:1.6}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item svg{width:16px!important;height:16px!important;color:#fff!important;stroke-width:1.6}
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item:hover,
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item:hover{background:var(--canvas)!important;color:var(--text)!important}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item:hover{background:var(--accent-hover,#1d4ed8)!important;color:#fff!important}
+/* No hairline dividers around the funnel actions: the explicit divider
+   element, the ribbon-group border-left, and the inter-group ::before. */
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-divider{display:none!important}
+#view-onboarding-ops[data-obsub="funnel"] .sched-nav-heading-actions .sched-ribbon-group{border-left:0!important}
+#view-onboarding-ops[data-obsub="funnel"] .sched-nav-heading-actions .sched-ribbon-group::before{content:none!important;display:none!important;border:0!important}
 
 /* Grid to the very top: drop the zero-height .tcp block's 12px margin and
    the empty intel host's 16px margin (populated intel content self-spaces). */
