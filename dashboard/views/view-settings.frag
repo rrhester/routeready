@@ -36,14 +36,14 @@
                   <button class="btn btn-sm btn-primary" id="rr-set-dsp-name-save" type="button">Save</button>
                 </div>
               </div>
-              <!-- Team email · the DSP's unique Fleet Bridge address.
+              <!-- Team email · the DSP's unique Email address.
                    Derived from the Station code: <short_code>@mail
                    .gorouteready.com. Share with vendors; inbound mail
-                   lands in Fleet Bridge → Inbox. -->
+                   lands in Email → Inbox. -->
               <div class="form-row">
                 <div>
                   <div class="form-label">Team email</div>
-                  <div class="form-help">Your DSP's unique address. Share with vendors — inbound mail lands in Fleet Bridge → Inbox. Outbound mail you send from Fleet Bridge goes out from this address.</div>
+                  <div class="form-help">Your DSP's unique address. Share with vendors — inbound mail lands in Email → Inbox. Outbound mail you send from Email goes out from this address.</div>
                 </div>
                 <div style="display:flex;gap:var(--s-2);align-items:center">
                   <input class="form-input" id="rr-set-fb-email" value="" readonly style="flex:1;background:var(--canvas);font-family:ui-monospace,SFMono-Regular,Menlo,monospace"/>
