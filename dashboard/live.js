@@ -6197,6 +6197,7 @@ function _ivToggleRules(force) {
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next && typeof loadInterviewAvailabilityEditor === "function") loadInterviewAvailabilityEditor();
+  if (next && typeof _rrFitRulesPopover === "function") _rrFitRulesPopover(pop);
   return next;
 }
 window._rrToggleIvRules = _ivToggleRules;
