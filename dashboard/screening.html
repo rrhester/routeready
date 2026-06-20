@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#FFFFFF">
 <title>Application</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&display=swap" rel="stylesheet">
+<!-- Headings use the self-hosted Inter (DS title spec: 600 / 28px); the
+     external 'DM Serif Display' webfont was dropped in the design-system
+     pass — the product carries no serif anywhere else. -->
 <style>
   @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(../app/fonts/inter-var-latin.woff2) format('woff2')}
   :root {
@@ -108,10 +108,11 @@ body {
   margin-bottom: 10px;
 }
 .step-title {
-  font-family: 'DM Serif Display', serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 600;
   font-size: 28px;
-  line-height: 1.15;
-  letter-spacing: -0.015em;
+  line-height: 1.2;
+  letter-spacing: -0.018em;
   margin-bottom: 10px;
 }
 .step-body {
