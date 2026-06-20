@@ -31759,6 +31759,18 @@ setInterval(refreshActiveView, 30 * 1000);
 
 const RR_NAV_ORDER_KEY = "rr-nav-order-v1";
 
+// Expandable parents (Schedule, Onboarding) own a sibling
+// `.nav-sub[data-for=<view>]` child list. Return it for a nav-item so
+// the reorder logic can move the button and its children as one unit —
+// otherwise the list strands at the top of the rail (the job the old
+// index.html MutationObserver "glue" did reactively).
+function rrNavSubForItem(el) {
+  const view = el && el.getAttribute("data-view");
+  const parent = el && el.parentNode;
+  if (!view || !parent) return null;
+  return parent.querySelector(`.nav-sub[data-for="${view}"]`);
+}
+
 function applyStoredNavOrder() {
   const raw = localStorage.getItem(RR_NAV_ORDER_KEY);
   if (!raw) return;
@@ -31789,7 +31801,11 @@ function applyStoredNavOrder() {
 
   for (const view of order) {
     const el = byView.get(view);
-    if (el) nav.appendChild(el);
+    if (!el) continue;
+    nav.appendChild(el);
+    // Re-home the parent's child list right after it.
+    const sub = rrNavSubForItem(el);
+    if (sub) nav.appendChild(sub);
   }
 }
 
@@ -31827,7 +31843,15 @@ function wireSidebarDrag() {
       if (!dragged || dragged === el) return;
       const rect = el.getBoundingClientRect();
       const before = (e.clientY - rect.top) < (rect.height / 2);
-      el.parentNode.insertBefore(dragged, before ? el : el.nextSibling);
+      const parent = el.parentNode;
+      // Drop AFTER the hovered row's own child list so we never wedge
+      // the dragged item between a parent and its .nav-sub.
+      const elSub = rrNavSubForItem(el);
+      const ref = before ? el : (elSub ? elSub.nextSibling : el.nextSibling);
+      parent.insertBefore(dragged, ref);
+      // Keep the dragged parent's children pinned under it.
+      const dragSub = rrNavSubForItem(dragged);
+      if (dragSub) parent.insertBefore(dragSub, dragged.nextSibling);
     });
   });
 }
