@@ -305,29 +305,12 @@
           if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
           else watch();
 
-          // Accordion toggle — called INLINE from the parent button's
-          // onclick so no other click handler can intercept it. One state
-          // (.is-open); CSS decides inline list vs collapsed-rail flyout.
-          window.rrSchedToggle = function () {
-            var sub = document.querySelector('.nav-sub[data-for="schedule"]');
-            if (sub) sub.classList.toggle('is-open');
-          };
-          // ── Glue: keep the children physically right after the parent ──
-          // live.js applyNavOrder() re-appends every .nav-item[data-view] to
-          // honor the operator's drag-reordered sidebar (rr-nav-order-v1 in
-          // localStorage) — which moves the parents PAST this static child
-          // list and strands it at the top of the rail. Re-insert the list
-          // after the Schedule button whenever the nav's children change.
-          function glueChildren() {
-            var btn = document.querySelector('.sidebar .nav-item[data-view="schedule"]');
-            var sub = document.querySelector('.nav-sub[data-for="schedule"]');
-            if (btn && sub && btn.nextElementSibling !== sub) btn.insertAdjacentElement('afterend', sub);
-          }
-          var navEl = document.querySelector('.sidebar .nav') || document.querySelector('.sidebar nav');
-          if (navEl) new MutationObserver(glueChildren).observe(navEl, { childList: true });
-          glueChildren();
-          document.addEventListener('DOMContentLoaded', glueChildren);
-          setTimeout(glueChildren, 1200); setTimeout(glueChildren, 3000);
+          // rrSchedToggle is defined in the consolidated nav-group
+          // accordion block below (collapsed-rail flyout toggle; the open
+          // rail follows navigation via rrSyncNavGroups).
+          // Child-list gluing moved to live.js (applyStoredNavOrder /
+          // wireSidebarDrag now move each parent together with its
+          // .nav-sub) — no MutationObserver glue needed here.
 
           // Tidy rail foot: physically move the tool cluster (.topbar —
           // bell / settings / account; QAT + refresh hidden in CSS) into
@@ -473,20 +456,10 @@
             var sub = document.querySelector('.nav-sub[data-for="onboarding-ops"]');
             if (sub && document.getElementById('rr-sidebar')?.classList.contains('collapsed')) sub.classList.remove('is-open');
           };
-          window.rrObToggle = function () {
-            var sub = document.querySelector('.nav-sub[data-for="onboarding-ops"]');
-            if (sub) sub.classList.toggle('is-open');
-          };
-          function glue() {
-            var btn = document.querySelector('.sidebar .nav-item[data-view="onboarding-ops"]');
-            var sub = document.querySelector('.nav-sub[data-for="onboarding-ops"]');
-            if (btn && sub && btn.nextElementSibling !== sub) btn.insertAdjacentElement('afterend', sub);
-          }
-          var navEl = document.querySelector('.sidebar .nav') || document.querySelector('.sidebar nav');
-          if (navEl) new MutationObserver(glue).observe(navEl, { childList: true });
-          glue();
-          document.addEventListener('DOMContentLoaded', glue);
-          setTimeout(glue, 1200); setTimeout(glue, 3000);
+          // rrObToggle is defined in the consolidated nav-group accordion
+          // block below.
+          // Child-list gluing moved to live.js (parent + .nav-sub move as
+          // a unit on reorder) — no MutationObserver glue needed here.
           document.addEventListener('click', function (e) {
             var sub = document.querySelector('.nav-sub[data-for="onboarding-ops"]');
             if (!sub) return;
@@ -758,6 +731,61 @@
         Admin
       </button>
     </nav>
+    <script>
+      // ── Sidebar parent/child groups · accordion ────────────────────
+      // At most ONE parent group (Schedule / Onboarding) is expanded at a
+      // time on the open rail, and it follows the active page — so the
+      // child lists stop stacking into a wall. Driven off the active
+      // .view, so it stays correct no matter which path navigated.
+      (function () {
+        window.rrSyncNavGroups = function () {
+          var sb = document.getElementById('rr-sidebar');
+          if (sb && sb.classList.contains('collapsed')) {
+            // Icon-only rail: groups are transient click-flyouts.
+            document.querySelectorAll('.sidebar .nav-sub.is-open')
+              .forEach(function (s) { s.classList.remove('is-open'); });
+            return;
+          }
+          var active = document.querySelector('.main .view.active') || document.querySelector('.view.active');
+          var id = active && active.id ? active.id.replace(/^view-/, '') : '';
+          document.querySelectorAll('.sidebar .nav-sub').forEach(function (sub) {
+            sub.classList.toggle('is-open', !!id && sub.getAttribute('data-for') === id);
+          });
+          // Exactly one location highlight: the parent owning the page.
+          var owner = id ? document.querySelector('.sidebar .nav-item[data-view="' + id + '"]') : null;
+          if (owner) {
+            document.querySelectorAll('.sidebar .nav-item[data-view].active')
+              .forEach(function (b) { b.classList.remove('active'); });
+            owner.classList.add('active');
+          }
+        };
+        // Parent click only needs to act on the collapsed rail (toggle that
+        // parent's flyout, close the rest); the open rail follows nav.
+        window.rrToggleNavFlyout = function (view) {
+          var sb = document.getElementById('rr-sidebar');
+          if (!sb || !sb.classList.contains('collapsed')) return;
+          document.querySelectorAll('.sidebar .nav-sub').forEach(function (sub) {
+            var match = sub.getAttribute('data-for') === view;
+            if (match) sub.classList.toggle('is-open'); else sub.classList.remove('is-open');
+          });
+        };
+        window.rrSchedToggle = function () { window.rrToggleNavFlyout('schedule'); };
+        window.rrObToggle = function () { window.rrToggleNavFlyout('onboarding-ops'); };
+        // goto is (re)defined several times in live.js; poll for the final
+        // one, then wrap once so every navigation re-syncs the open group.
+        (function hook() {
+          if (typeof window.goto === 'function') {
+            if (!window.goto.__navGroupSync) {
+              var orig = window.goto;
+              window.goto = function () { var r = orig.apply(this, arguments); try { window.rrSyncNavGroups(); } catch (e) {} return r; };
+              window.goto.__navGroupSync = true;
+            }
+            return;
+          }
+          setTimeout(hook, 150);
+        })();
+      })();
+    </script>
     <!-- Sidebar collapse · subtle bottom button.  Toggles the
          `.collapsed` class on the sidebar to hide every nav label
          and shrink the rail to icon-only width (Outlook Mail's

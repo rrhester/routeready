@@ -24111,8 +24111,16 @@ body.rr-cmdk-open{ overflow:hidden }
    Keyed solely on .sidebar.collapsed (live.js owns it and clears the
    boot flag on init). No measured-width, no boot-flag, no hover, no
    rr-fly — those caused the children to detach/float. */
-/* EXPANDED rail: inline, in normal flow, directly under the parent. */
-.sidebar:not(.collapsed) .nav-sub.is-open{display:flex}
+/* EXPANDED rail: inline, in normal flow, as a nested branch of the
+   parent — a subtle guide rail + indent so the children read as a group
+   instead of a flat wall of text. */
+.sidebar:not(.collapsed) .nav-sub.is-open{
+  display:flex;
+  margin:2px 0 10px 19px;
+  padding-left:11px;
+  border-left:1.5px solid rgba(148,163,184,.22);
+}
+.sidebar:not(.collapsed) .nav-sub.is-open .nav-sub-item{padding-left:8px}
 /* COLLAPSED rail: the same .is-open opens a flyout panel beside the rail. */
 .sidebar.collapsed .nav-sub.is-open{
   display:flex;position:fixed;left:64px;top:84px;width:198px;
