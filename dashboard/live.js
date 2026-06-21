@@ -617,7 +617,10 @@ function _addedBadge(a) {
   const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
   const ageTxt = days === 0 ? "today" : days === 1 ? "1 day ago" : `${days} days ago`;
-  const tone = days >= 30 ? "var(--red)" : days >= 14 ? "#D97706" : "var(--text-subtle)";
+  // Neutral meta — staleness is conveyed by the Action-needed tab + stage chip,
+  // so the "Added …" line no longer colours itself amber/red (kept the page
+  // calm, colour lives in the stage chip).
+  const tone = "var(--text-subtle)";
   return `<div class="pa-id-added" style="color:${tone};font-variant-numeric:tabular-nums;font-size:var(--fs-xs)">Added ${escapeHtml(date)} · ${escapeHtml(ageTxt)}</div>`;
 }
 
