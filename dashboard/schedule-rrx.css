@@ -83,6 +83,24 @@
   overflow-y: auto !important;
 }
 
+/* ── Roster typography parity with the Schedule grid ──────────────
+   Operator request: the Schedule → Roster tab should read with the same
+   fonts as the Schedule grid. The roster driver name defaults to 600 and
+   the meta line to 11px; the Schedule's row label (.cal-row-label-name /
+   .cal-row-label-meta) is 700 with -.005em tracking + 1.25 leading and a
+   10px meta. Mirror that here. Fonts only — no row height, spacing, color
+   or border changes. Scoped to the schedule-embedded mount, so the Drivers
+   page roster keeps its own treatment. */
+#view-schedule.rrx-schedule #ob-roster-mount #rr-roster-table-wrap .cell-name {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+}
+#view-schedule.rrx-schedule #ob-roster-mount #rr-roster-table-wrap .cell-name-sub {
+  font-size: 10px;
+}
+
 /* ── Title block ────────────────────────────────────────────── */
 
 #view-schedule.rrx-schedule .sched-nav-heading .page-title {
