@@ -814,7 +814,9 @@
 
 #view-onboarding-ops.rrx-onboarding .ob-rules-popover {
   background: var(--rr-bg-surface-1) !important;
-  border: 1px solid var(--rr-border-primary) !important;
+  /* Outline in the sidebar navy so the flyout reads as part of the
+     same surface family as the left rail (operator request). */
+  border: 1px solid var(--sidebar-bg) !important;
   border-radius: var(--rr-radius-large) !important;
   box-shadow: var(--rr-shadow-8) !important;
   /* Anchor to the trigger tile (Onboarding sits at the LEFT,
@@ -840,16 +842,17 @@
   -webkit-backdrop-filter: none !important;
 }
 
-/* Muted-blue header band — replaces the bright Microsoft-blue
+/* Sidebar-navy header band — the thin header matches the left rail
+   (operator request), replacing the muted-blue / Microsoft-blue
    gradient header the unified rules-popover block applies. */
 #view-onboarding-ops.rrx-onboarding .ob-rules-popover > .ob-rules-head,
 #view-onboarding-ops.rrx-onboarding .ob-rules-popover > :first-child {
-  background: var(--rr-brand-soft) !important;
+  background: var(--sidebar-bg) !important;
   background-image: none !important;
-  color: var(--rr-brand-pressed) !important;
+  color: var(--sidebar-ink) !important;
   padding: var(--rr-space-120) var(--rr-space-160) !important;
   border: 0 !important;
-  border-bottom: 1px solid rgba(37,99,235, 0.20) !important;
+  border-bottom: 0 !important;
   border-top-left-radius: var(--rr-radius-large) !important;
   border-top-right-radius: var(--rr-radius-large) !important;
   margin: 0 !important;
@@ -862,7 +865,7 @@
 
 #view-onboarding-ops.rrx-onboarding .ob-rules-popover > .ob-rules-head *,
 #view-onboarding-ops.rrx-onboarding .ob-rules-popover > :first-child * {
-  color: var(--rr-brand-pressed) !important;
+  color: var(--sidebar-ink) !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-rules-popover > .ob-rules-head > svg,
@@ -870,7 +873,7 @@
   width: 16px !important;
   height: 16px !important;
   flex: 0 0 auto !important;
-  color: var(--rr-brand-pressed) !important;
+  color: var(--sidebar-ink) !important;
 }
 
 /* Body / last child — calm white surface, not the
