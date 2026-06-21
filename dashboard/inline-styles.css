@@ -10911,29 +10911,22 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--canvas);
             border-left:1px solid var(--border);
           }
-          /* V4 action zone · one primary CTA + a quiet ⋯ overflow at
-             the far right. Operator-requested cognitive-load reduction
-             (Fluent hierarchy: strong primary, tertiary utility).
-             The advance button stretches to fill the available width;
-             the more button sits at the right with a fixed footprint. */
+          /* V4 action zone · stacked workflow buttons (Fluent hierarchy:
+             strong primary, tertiary utility). The CTA, Review video, and
+             Decline each take the full column width so they read as one
+             symmetric, same-width stack; the quiet ⋯ overflow tucks small
+             at the bottom-right below them. Operator asked for the Decline
+             to line up flush with the CTA above it. */
           #view-pipeline .pa-zone-action-v4{
-            flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px;
+            flex-direction:column;align-items:stretch;gap:8px;
           }
-          /* Each action button needs ~130px. When a "Review video" button
-             is present next to the stage CTA they can't share one row in the
-             196px action column — without wrapping, the nowrap labels bleed
-             over each other. flex-wrap lets them stack (video on top, the CTA
-             + ⋯ below). Single-CTA cards keep their one-row layout. */
           #view-pipeline .pa-zone-action-v4 .pa-btn-advance,
-          #view-pipeline .pa-zone-action-v4 .pa-btn-video{
-            flex:1 1 130px;min-width:0;justify-content:center;
+          #view-pipeline .pa-zone-action-v4 .pa-btn-video,
+          #view-pipeline .pa-zone-action-v4 .pa-btn-decline{
+            flex:0 0 auto;width:100%;min-width:0;justify-content:center;margin-right:0;
           }
-          /* Line the video button's right edge up with the stage CTA below it:
-             the CTA shares its row with the ⋯ menu (28px) + 6px gap, so reserve
-             the same 34px on the video's row instead of letting it run the full
-             column width. Now "Review video" and "Send booking link" match. */
-          #view-pipeline .pa-zone-action-v4 .pa-btn-video{
-            margin-right:34px;
+          #view-pipeline .pa-zone-action-v4 .pa-act-more{
+            flex:0 0 auto;align-self:flex-end;
           }
           /* Review video · secondary action that sits next to the
              primary CTA on screened applicants. Subtle Fluent
