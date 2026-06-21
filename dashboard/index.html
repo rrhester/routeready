@@ -546,25 +546,32 @@
                 // margin-left:auto. Also drop the 1px hairline ribbon dividers
                 // the operator asked to remove.
                 (function () {
-                  var impTile = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-pdf-upload"]');
-                  var ribbon = impTile && impTile.closest('.sched-nav-heading-actions');
-                  if (ribbon) {
-                    ribbon.style.setProperty('order', '2', 'important');
-                    ribbon.style.setProperty('margin-left', 'auto', 'important');
-                    // Right-align the ribbon's own content so Import + Add
-                    // applicant sit flush against the bell/avatar (kills the gap).
-                    ribbon.style.setProperty('display', 'flex', 'important');
-                    ribbon.style.setProperty('justify-content', 'flex-end', 'important');
-                  }
+                  var imp = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-pdf-upload"]');
+                  var add = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-addapplicant"]');
                   var bell = document.getElementById('rr-hdr-notif');
-                  if (bell) bell.style.setProperty('order', '3', 'important');
                   var av = document.getElementById('rr-hdr-avatar-btn');
-                  if (av) av.style.setProperty('order', '4', 'important');
+                  // The bell + avatar are GLOBAL header icons; at runtime they do
+                  // NOT reliably end up in this funnel band, which is why the
+                  // buttons never sat flush against them. Move Import + Add
+                  // applicant into the bell's OWN parent, right before it —
+                  // wherever that is — so they're always adjacent to the
+                  // bell/avatar. Each tile records its home so it returns cleanly
+                  // on the other onboarding subs.
+                  if (bell && bell.parentNode) {
+                    if (add && !add.__rrHome) { add.__rrHome = add.parentNode; add.__rrNext = add.nextSibling; }
+                    if (imp && !imp.__rrHome) { imp.__rrHome = imp.parentNode; imp.__rrNext = imp.nextSibling; }
+                    if (imp) bell.parentNode.insertBefore(imp, bell);
+                    if (add) bell.parentNode.insertBefore(add, bell);
+                    // Explicit order so that if the shared parent is a flex
+                    // container the buttons sit just left of the bell, never far left.
+                    if (imp) imp.style.setProperty('order', '7', 'important');
+                    if (add) add.style.setProperty('order', '7', 'important');
+                    bell.style.setProperty('order', '8', 'important');
+                    if (av) av.style.setProperty('order', '9', 'important');
+                  }
                   band.querySelectorAll('.ob-tab-divider').forEach(function (d) {
                     d.style.setProperty('display', 'none', 'important');
                   });
-                  // The hairline that survived is a .sched-ribbon-group
-                  // border-left, not an .ob-tab-divider — strip those borders.
                   band.querySelectorAll('.sched-ribbon-group').forEach(function (g) {
                     g.style.setProperty('border-left', '0', 'important');
                     g.style.setProperty('border-right', '0', 'important');
@@ -583,9 +590,16 @@
                     .forEach(function (p) { tabs.style.removeProperty(p); });
                 }
                 (function () {
-                  var impTile = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-pdf-upload"]');
-                  var ribbon = impTile && impTile.closest('.sched-nav-heading-actions');
-                  if (ribbon) { ribbon.style.removeProperty('order'); ribbon.style.removeProperty('margin-left'); ribbon.style.removeProperty('display'); ribbon.style.removeProperty('justify-content'); }
+                  var imp = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-pdf-upload"]');
+                  var add = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-addapplicant"]');
+                  // Return the action buttons to their ribbon home + clear order.
+                  [imp, add].forEach(function (w) {
+                    if (!w) return;
+                    if (w.__rrHome && w.parentNode !== w.__rrHome) {
+                      try { w.__rrHome.insertBefore(w, w.__rrNext); } catch (e) { w.__rrHome.appendChild(w); }
+                    }
+                    w.style.removeProperty('order');
+                  });
                   var bell = document.getElementById('rr-hdr-notif'); if (bell) bell.style.removeProperty('order');
                   var av = document.getElementById('rr-hdr-avatar-btn'); if (av) av.style.removeProperty('order');
                   document.querySelectorAll('.ob-tab-divider').forEach(function (d) { d.style.removeProperty('display'); });
