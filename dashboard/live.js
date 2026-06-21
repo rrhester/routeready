@@ -6235,6 +6235,37 @@ document.addEventListener("click", (e) => {
     _ivToggleRules(false);
   }
 });
+// Calendar view-switcher dropdown · the Day / Week / Work Week / Month
+// buttons collapsed into one trigger (#rr-cal-viewdd-trigger) + menu
+// (#rr-cal-viewdd-menu). Toggle on trigger click; close when a view is
+// picked (the item's own onclick switches the view, which re-syncs the
+// trigger label via _ivcalSyncStripView) or on any outside click.
+function _rrCloseCalViewMenu() {
+  const m = document.getElementById("rr-cal-viewdd-menu");
+  const t = document.getElementById("rr-cal-viewdd-trigger");
+  if (m) m.hidden = true;
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  const trig = e.target.closest("#rr-cal-viewdd-trigger");
+  if (trig) {
+    e.preventDefault(); e.stopPropagation();
+    const m = document.getElementById("rr-cal-viewdd-menu");
+    if (m) {
+      const open = m.hidden;
+      m.hidden = !open;
+      trig.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    return;
+  }
+  if (e.target.closest("#rr-cal-viewdd-menu .rr-cal-vtab")) {
+    _rrCloseCalViewMenu();
+    return;
+  }
+  const m = document.getElementById("rr-cal-viewdd-menu");
+  if (m && !m.hidden && !e.target.closest("#rr-cal-viewdd")) _rrCloseCalViewMenu();
+});
 
 // Any "Rules" popover (Onboarding, Funnel, Schedule) auto-closes when
 // the operator scrolls — the popover is anchored to a header tab, so a
@@ -18420,6 +18451,14 @@ function _ivcalSyncStripView(onCal) {
   const active = onCal === false ? null : _ivcalView;
   document.querySelectorAll("#rr-cal-ribbon [data-cal-view]").forEach(b =>
     b.classList.toggle("active", active != null && b.getAttribute("data-cal-view") === active));
+  // The four view buttons now live inside the collapsed view-switcher
+  // dropdown (#rr-cal-viewdd-menu); keep its trigger label showing the
+  // active view's name.
+  if (active != null) {
+    const cur = document.querySelector('#rr-cal-ribbon [data-cal-view="' + active + '"] span');
+    const out = document.getElementById("rr-cal-viewdd-current");
+    if (cur && out) out.textContent = cur.textContent;
+  }
 }
 // Strip-icon entry points (Day / Week / Work Week / Month / New event). They
 // also switch to the Calendar sub-view, since the calendar has no own tab.
