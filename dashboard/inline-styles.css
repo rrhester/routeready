@@ -1622,19 +1622,26 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 #view-schedule .req-allclear-ic{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:rgba(22,163,74,.12);color:#16A34A;flex:0 0 auto}
 #view-schedule .req-allclear-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
 #view-schedule .req-allclear-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:1px}
-/* Coverage impact — the primary signal after Driver: severity dot + label,
-   affected-day count, and small day chips. */
-#view-schedule .req-cov{display:flex;flex-direction:column;gap:3px;min-width:150px}
+/* Coverage impact — the page's primary signal after Driver, shown as a status
+   card that mirrors the Roster's Risk card (tinted fill + 3px left accent +
+   bold uppercase level over a muted reason) so the two pages share one visual
+   language. Day chips sit under the card. */
+#view-schedule .req-cov{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+#view-schedule .req-cov-card{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;box-sizing:border-box;min-width:160px;min-height:44px;padding:6px 10px;border:1px solid transparent;border-left-width:3px;border-radius:8px}
 #view-schedule .req-cov-head{display:flex;align-items:center;gap:7px}
 #view-schedule .req-cov-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
-/* Severity reads from the small dot only; the label stays neutral so the
-   column doesn't shout three different colors. */
-#view-schedule .req-cov-sev{font-size:var(--fs-sm);font-weight:700;color:var(--text)}
-#view-schedule .req-cov-sub{font-size:var(--fs-xs);color:var(--text-subtle)}
+#view-schedule .req-cov-sev{font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+#view-schedule .req-cov-sub{font-size:12px;font-weight:500;color:#475569}
+#view-schedule .req-cov-high .req-cov-card{background:#FEF2F2;border-color:#FECACA;border-left-color:#DC2626}
 #view-schedule .req-cov-high .req-cov-dot{background:#DC2626}
+#view-schedule .req-cov-high .req-cov-sev{color:#DC2626}
+#view-schedule .req-cov-medium .req-cov-card{background:#FFFBEB;border-color:#FDE68A;border-left-color:#D97706}
 #view-schedule .req-cov-medium .req-cov-dot{background:#D97706}
+#view-schedule .req-cov-medium .req-cov-sev{color:#D97706}
+#view-schedule .req-cov-none .req-cov-card{background:#F0FDF4;border-color:#BBF7D0;border-left-color:#16A34A}
 #view-schedule .req-cov-none .req-cov-dot{background:#16A34A}
-#view-schedule .req-cov-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+#view-schedule .req-cov-none .req-cov-sev{color:#16A34A}
+#view-schedule .req-cov-chips{display:flex;flex-wrap:wrap;gap:4px}
 #view-schedule .req-cov-chip{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:19px;padding:0 6px;border-radius:5px;font-size:10.5px;font-weight:600;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border)}
 /* Requested change — bold primary + muted secondary, easy to scan. */
 #view-schedule .req-change-main{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3}
