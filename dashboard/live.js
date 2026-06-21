@@ -742,6 +742,13 @@ function renderApplicantCard(a) {
   // Progress: a fixed milestone stepper (Applied → Screening invite sent →
   // Screening → Interview → Hired) showing how far the applicant has moved.
   const timelineHtml = _milestoneStepper(a);
+  // Stage status reads as two lines (like the Roster risk card): the stage
+  // chip + the recommended next step, so an operator sees status + what to do.
+  const nextStep = _recommendedNextStep(a);
+  // The static "applied" headline ("Send the screening invite") contradicts the
+  // CTA ("Resend") and the stepper once the invite has gone out — derive the
+  // line from the same _screeningInviteSent signal so the card never disagrees.
+  const stageNextTxt = (stage === "applied" && _screeningInviteSent(a)) ? "Awaiting screening" : nextStep.headline;
 
   // "Last updated" column — most recent activity timestamp (date + time).
   const upd = _lastUpdatedAt(a);
@@ -793,6 +800,13 @@ function renderApplicantCard(a) {
        </button>`
     : "";
 
+  // Decline · a visible secondary action (operator asked for it not to be
+  // buried in the ⋯ menu). Same confirm + decline_applicant dispatcher.
+  const declineBtn = `<button class="pa-btn-decline" type="button" data-rr-action="decline" data-applicant-id="${escapeHtml(a.id)}" title="Decline applicant">
+       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+       Decline
+     </button>`;
+
   // Quiet ⋯ overflow · Phone / Email / Note utilities. Tertiary color,
   // no border, only reads on hover. Menu opens via _paOpenMoreMenu below.
   const moreBtn = `<button class="pa-act-more" type="button" data-rr-pa-more aria-label="More actions" title="More actions">
@@ -820,6 +834,7 @@ function renderApplicantCard(a) {
               <span class="pa-stage-pill ${stage}">${escapeHtml(stageLabel)}</span>
               ${scoreChip}
             </div>
+            <div class="pa-stage-next">${escapeHtml(stageNextTxt)}</div>
           </div>
         </div>
 
@@ -835,6 +850,7 @@ function renderApplicantCard(a) {
         <div class="pa-zone pa-zone-action pa-zone-action-v4">
           ${reviewVideoBtn}
           ${advanceBtn}
+          ${declineBtn}
           ${moreBtn}
         </div>
 
