@@ -531,12 +531,11 @@
                 // Inline + !important so a stale ?v= CSS bundle can't undo it.
                 if (tabs) {
                   tabs.style.setProperty('order', '1', 'important');
-                  tabs.style.setProperty('flex', '0 1 auto', 'important');
-                  tabs.style.setProperty('min-width', '0', 'important');
+                  // 0 0 auto: hold the strip at its natural width so it never
+                  // shrinks and clips the last tab (Booking scheduled / Hired).
+                  tabs.style.setProperty('flex', '0 0 auto', 'important');
                   tabs.style.setProperty('flex-wrap', 'nowrap', 'important');
-                  tabs.style.setProperty('overflow-x', 'auto', 'important');
-                  tabs.style.setProperty('overflow-y', 'visible', 'important');
-                  tabs.style.setProperty('scrollbar-width', 'none', 'important');
+                  tabs.style.setProperty('overflow', 'visible', 'important');
                 }
                 // Borrow the ⋯ / bell / avatar onto the far right of the bar.
                 chrome.forEach(function (el) { if (el && el.parentNode !== band) band.appendChild(el); });
@@ -560,6 +559,12 @@
                   band.querySelectorAll('.ob-tab-divider').forEach(function (d) {
                     d.style.setProperty('display', 'none', 'important');
                   });
+                  // The hairline that survived is a .sched-ribbon-group
+                  // border-left, not an .ob-tab-divider — strip those borders.
+                  band.querySelectorAll('.sched-ribbon-group').forEach(function (g) {
+                    g.style.setProperty('border-left', '0', 'important');
+                    g.style.setProperty('border-right', '0', 'important');
+                  });
                 })();
                 window.__rrChromeInFunnel = true;
               } else {
@@ -570,7 +575,7 @@
                 // Drop the funnel-only inline overrides so the strip returns to
                 // its normal card-header layout on the other onboarding subs.
                 if (tabs) {
-                  ['order', 'flex', 'min-width', 'flex-wrap', 'overflow-x', 'overflow-y', 'scrollbar-width']
+                  ['order', 'flex', 'min-width', 'flex-wrap', 'overflow', 'overflow-x', 'overflow-y', 'scrollbar-width']
                     .forEach(function (p) { tabs.style.removeProperty(p); });
                 }
                 (function () {
@@ -580,6 +585,7 @@
                   var bell = document.getElementById('rr-hdr-notif'); if (bell) bell.style.removeProperty('order');
                   var av = document.getElementById('rr-hdr-avatar-btn'); if (av) av.style.removeProperty('order');
                   document.querySelectorAll('.ob-tab-divider').forEach(function (d) { d.style.removeProperty('display'); });
+                  document.querySelectorAll('.sched-ribbon-group').forEach(function (g) { g.style.removeProperty('border-left'); g.style.removeProperty('border-right'); });
                 })();
                 // Move the filter tabs back into the Applicants card header.
                 var home = document.querySelector('.pa-ws-header');
