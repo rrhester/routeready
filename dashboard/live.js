@@ -9907,7 +9907,7 @@ function _riskCell(driverId) {
   let cls, label, dot, sub, title;
   if (r === "atrisk") {
     cls = "rr-risk-high"; label = "HIGH"; dot = "🔴";
-    sub = attn ? "Attendance Risk" : "Corrective Action";
+    sub = attn ? "Attendance Risk" : "Final Action";
     title = "High · on a final corrective action";
   } else if (r === "watch") {
     cls = "rr-risk-med"; label = "MEDIUM"; dot = "🟡"; sub = "Coaching Due";
