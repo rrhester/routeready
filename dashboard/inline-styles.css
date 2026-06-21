@@ -10828,31 +10828,33 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;flex-direction:column;align-items:center;text-align:center;
           }
           /* connector line into each node (not the first) */
+          /* Shrunk + muted into a quiet progress track so the stage chip leads:
+             smaller dots, no per-step dates, reached steps a calm slate (not
+             green/blue) that recedes behind the chip. */
           #view-pipeline .pa-mstep-item:not(:first-child)::before{
-            content:"";position:absolute;top:12px;left:-50%;width:100%;height:2px;
+            content:"";position:absolute;top:9px;left:-50%;width:100%;height:2px;
             background:var(--border-strong,#CBD5E1);z-index:0;
           }
-          #view-pipeline .pa-mstep-item.is-reached:not(:first-child)::before{background:#2563EB}
+          #view-pipeline .pa-mstep-item.is-reached:not(:first-child)::before{background:#94A3B8}
           #view-pipeline .pa-mstep-dot{
-            position:relative;z-index:1;width:26px;height:26px;border-radius:50%;
+            position:relative;z-index:1;width:20px;height:20px;border-radius:50%;
             display:flex;align-items:center;justify-content:center;
-            background:var(--surface,#fff);border:2px solid var(--border-strong,#CBD5E1);
+            background:var(--surface,#fff);border:1.5px solid var(--border-strong,#CBD5E1);
             color:var(--text-subtle,#94A3B8);box-sizing:border-box;
           }
-          #view-pipeline .pa-mstep-item.is-done .pa-mstep-dot{background:#16A34A;border-color:#16A34A;color:#fff}
+          #view-pipeline .pa-mstep-dot svg{width:11px;height:11px}
+          #view-pipeline .pa-mstep-item.is-done .pa-mstep-dot{background:#64748B;border-color:#64748B;color:#fff}
           #view-pipeline .pa-mstep-item.is-current .pa-mstep-dot{
-            /* Schedule-card blue (--sch-blue #2563EB) so the "Screening invite
-               sent" icon matches the shift cards on the Schedule page. */
-            background:#2563EB;border-color:#2563EB;color:#fff;
-            box-shadow:0 0 0 4px rgba(37,99,235,.15);
+            background:#475569;border-color:#475569;color:#fff;
           }
-          #view-pipeline .pa-mstep-label{
-            margin-top:6px;font-size:11px;line-height:1.2;color:var(--text-subtle,#94A3B8);
-            max-width:84px;
-          }
-          #view-pipeline .pa-mstep-item.is-done .pa-mstep-label,
-          #view-pipeline .pa-mstep-item.is-current .pa-mstep-label{color:var(--text);font-weight:600}
-          #view-pipeline .pa-mstep-date{font-size:10px;color:var(--text-subtle,#94A3B8);margin-top:1px;font-variant-numeric:tabular-nums}
+          /* Labels + dates dropped — the stage chip names the stage, so the
+             stepper is just a compact dot-only progress track. */
+          #view-pipeline .pa-mstep-label{display:none}
+          #view-pipeline .pa-mstep-date{display:none}
+          /* Hold the dot-track to a compact width on the left of the zone so it
+             reads as a small progress indicator, not a full-width bar. */
+          #view-pipeline .pa-row-v3 .pa-steps{justify-content:center}
+          #view-pipeline .pa-mstep{max-width:300px}
           #view-pipeline .pa-tl-step{
             display:flex;flex-direction:row;align-items:center;text-align:left;
             flex:0 0 auto;gap:4px;
@@ -11784,16 +11786,26 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-row{padding:13px 16px;gap:var(--s-3)}
           /* Stage badge · Fluent — a compact rectangle chip, one line. */
           #view-pipeline .pa-stage-pill{
-            padding:3px 8px;border-radius:4px;background:var(--sch-surface-2);
-            color:var(--text-muted);border-color:var(--border-subtle);
-            font-size:11px;font-weight:600;letter-spacing:.01em;
+            display:inline-flex;align-items:center;gap:6px;
+            padding:4px 10px;border-radius:8px;border:1px solid #E2E8F0;
+            background:#F1F5F9;color:#475569;
+            font-size:12px;font-weight:700;letter-spacing:.01em;
             white-space:nowrap;max-width:100%;
           }
+          /* Stage = the row's lead signal, a contained tinted chip in the card
+             palette (like the Roster / Requests / Targets signals). */
+          #view-pipeline .pa-stage-pill.applied{background:#F1F5F9;border-color:#E2E8F0;color:#475569}
+          #view-pipeline .pa-stage-pill.applied::before{background:#94A3B8}
+          #view-pipeline .pa-stage-pill.screened{background:#EFF6FF;border-color:#BFDBFE;color:#1D4ED8}
+          #view-pipeline .pa-stage-pill.screened::before{background:#2563EB}
+          #view-pipeline .pa-stage-pill.booking_pending{background:#FFFBEB;border-color:#FDE68A;color:#B45309}
+          #view-pipeline .pa-stage-pill.booking_pending::before{background:#D97706}
           #view-pipeline .pa-stage-pill.booking_scheduled{
-            background:rgba(37,99,235,.12);color:#1E40AF;
-            border-color:rgba(37,99,235,.22);
+            background:#F0FDF4;color:#15803D;border-color:#BBF7D0;
           }
-          #view-pipeline .pa-stage-pill.booking_scheduled::before{background:#2563EB}
+          #view-pipeline .pa-stage-pill.booking_scheduled::before{background:#16A34A}
+          #view-pipeline .pa-stage-pill.hired{background:#F0FDF4;border-color:#BBF7D0;color:#15803D}
+          #view-pipeline .pa-stage-pill.hired::before{background:#16A34A}
           #view-pipeline .pa-card-avatar{width:40px;height:40px;box-shadow:inset 0 1px 0 rgba(255,255,255,.28)}
           #view-pipeline .pa-card-name{font-size:15px;letter-spacing:-.01em}
           #view-pipeline .pa-card-meta{line-height:1.45;color:var(--text-muted)}
