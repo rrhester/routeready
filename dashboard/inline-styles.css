@@ -25810,47 +25810,50 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle > svg{ display:none !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle::after{ content:"Availability"; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle:hover{ background:var(--surface-hover) !important; }
-/* Match the Schedule page buttons exactly · the calendar controls render as
-   icon-over-label tiles (operator request, Schedule view-switcher spec):
-   transparent/ghost, 6px corners, a 28px icon stacked over a 13px/500 label,
-   #6B7280 text, #F3F4F6 hover. New event is the one blue primary; the active
-   view is the light-blue selected tile. A later source order + higher
-   specificity (+ .rr-cal-viewgroup) overrides the calendar's own text-button
-   rules above AND the onboarding-rrx .subnav-item chrome. */
+/* Match the Schedule page's action-bar buttons exactly (.rr-ab-btn,
+   schedule-rrx.css): a horizontal row of white pills with a 1.5px
+   sidebar-navy outline, 8px corners, 36px tall, 12.5/600 navy type and the
+   same quiet navy hover/active. Operator wanted the stacked tile icons
+   gone, so the glyphs are hidden and these read as clean text pills (like
+   the Schedule bar's "Today" control). New event is the one blue primary
+   (.rr-ab-primary spec); the active view is a solid navy "selected" pill.
+   A later source order + higher specificity (+ .rr-cal-viewgroup /
+   .rr-cal-newgroup) overrides the calendar's own text-button rules above
+   AND the onboarding-rrx .subnav-item chrome. */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item,
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .rr-cal-vtab,
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle{
-  display:inline-flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important;
-  gap:4px !important; height:auto !important; min-width:62px !important; padding:8px 12px 9px !important; margin:0 !important;
-  background:transparent !important; color:#6B7280 !important;
-  border:0 !important; border-radius:6px !important; box-shadow:none !important;
-  font-size:13px !important; font-weight:500 !important; line-height:1.1 !important; white-space:nowrap !important;
+  display:inline-flex !important; flex-direction:row !important; align-items:center !important; justify-content:center !important;
+  gap:7px !important; height:36px !important; min-width:0 !important; padding:0 13px !important; margin:0 !important;
+  background:#FFFFFF !important; color:var(--sidebar-bg, #0F172A) !important;
+  border:1.5px solid var(--sidebar-bg, #0F172A) !important; border-radius:8px !important; box-shadow:none !important;
+  font-size:12.5px !important; font-weight:600 !important; line-height:1 !important; white-space:nowrap !important;
 }
-/* Show the (previously hidden) 28px tile icon, stacked above the label. */
+/* Ditch the icons — text-only pills, exactly like the Schedule "Today" pill. */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item > svg,
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .rr-cal-vtab > svg,
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle > svg{
-  display:block !important; width:28px !important; height:28px !important; flex:0 0 auto !important; color:inherit !important;
+  display:none !important;
 }
-/* Ghost hover · secondary actions + view tiles (Schedule #F3F4F6 spec). */
+/* Quiet navy hover · secondary actions + inactive view pills (.rr-ab-btn:hover). */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:not(:first-child):hover,
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .rr-cal-vtab:hover,
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .rr-cal-vtab:not(.active):hover,
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle:hover{
-  background:#F3F4F6 !important; color:#111827 !important;
+  background:rgba(15,23,42,.05) !important; color:var(--sidebar-bg, #0F172A) !important;
 }
-/* New event · the one blue primary (Schedule "Finalize" spec: blue + shadow). */
+/* New event · the one blue primary (.rr-ab-primary spec). */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child{
-  background:#2563EB !important; color:#fff !important;
-  box-shadow:0 1px 2px rgba(15,23,42,.10), 0 2px 6px rgba(37,99,235,.18) !important;
+  background:#2563EB !important; color:#fff !important; border-color:#2563EB !important;
+  box-shadow:none !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child:hover{
-  background:#1D4ED8 !important; color:#fff !important;
+  background:#1D4ED8 !important; border-color:#1D4ED8 !important; color:#fff !important;
 }
-/* Active view · the light-blue selected tile (Schedule selected spec). */
+/* Active view · solid navy "selected" pill — sits in the Schedule bar's navy
+   chrome system, distinct from the blue New-event primary. */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .rr-cal-vtab.active{
-  background:#EFF6FF !important; color:#1E40AF !important; font-weight:600 !important;
+  background:var(--sidebar-bg, #0F172A) !important; color:#fff !important; border-color:var(--sidebar-bg, #0F172A) !important;
 }
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .rr-cal-vtab.active > svg{ color:#2563EB !important; }
 
 /* ── Onboarding clean bar · Funnel ───────────────────────────────────────
    Funnel already had its own chrome (rrObFunnelChrome relocates the stage
