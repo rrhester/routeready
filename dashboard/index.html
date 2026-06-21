@@ -539,12 +539,35 @@
                 }
                 // Borrow the ⋯ / bell / avatar onto the far right of the bar.
                 chrome.forEach(function (el) { if (el && el.parentNode !== band) band.appendChild(el); });
+                // Operator request: pull the two solid-blue action buttons
+                // (Import + Add applicant) OUT of the wide ribbon and sit them
+                // right next to the borrowed bell/avatar at the far right. This
+                // also frees the ribbon's width so the stage-tab row stops being
+                // squeezed (the Booking scheduled tab was getting clipped). Each
+                // tile remembers its home so it returns cleanly on other subs.
+                (function () {
+                  var notif = document.getElementById('rr-hdr-notif');
+                  if (!notif || notif.parentNode !== band) return;
+                  ['ob-pdf-upload', 'ob-addapplicant'].forEach(function (tile) {
+                    var w = document.querySelector('.ob-tab-wrap[data-rr-tile="' + tile + '"]');
+                    if (!w) return;
+                    if (!w.__rrHome) { w.__rrHome = w.parentNode; w.__rrNext = w.nextSibling; }
+                    band.insertBefore(w, notif);
+                  });
+                })();
                 window.__rrChromeInFunnel = true;
               } else {
                 ['min-height', 'height', 'max-height', 'background', 'border', 'box-shadow',
                  'display', 'align-items', 'justify-content', 'gap', 'padding']
                   .forEach(function (p) { band.style.removeProperty(p); });
                 if (actions) actions.style.removeProperty('flex');
+                // Return Import + Add applicant to their ribbon home.
+                ['ob-pdf-upload', 'ob-addapplicant'].forEach(function (tile) {
+                  var w = document.querySelector('.ob-tab-wrap[data-rr-tile="' + tile + '"]');
+                  if (w && w.__rrHome && w.parentNode !== w.__rrHome) {
+                    try { w.__rrHome.insertBefore(w, w.__rrNext); } catch (e) { w.__rrHome.appendChild(w); }
+                  }
+                });
                 // Drop the funnel-only inline overrides so the strip returns to
                 // its normal card-header layout on the other onboarding subs.
                 if (tabs) {
