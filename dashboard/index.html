@@ -551,6 +551,10 @@
                   if (ribbon) {
                     ribbon.style.setProperty('order', '2', 'important');
                     ribbon.style.setProperty('margin-left', 'auto', 'important');
+                    // Right-align the ribbon's own content so Import + Add
+                    // applicant sit flush against the bell/avatar (kills the gap).
+                    ribbon.style.setProperty('display', 'flex', 'important');
+                    ribbon.style.setProperty('justify-content', 'flex-end', 'important');
                   }
                   var bell = document.getElementById('rr-hdr-notif');
                   if (bell) bell.style.setProperty('order', '3', 'important');
@@ -581,7 +585,7 @@
                 (function () {
                   var impTile = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-pdf-upload"]');
                   var ribbon = impTile && impTile.closest('.sched-nav-heading-actions');
-                  if (ribbon) { ribbon.style.removeProperty('order'); ribbon.style.removeProperty('margin-left'); }
+                  if (ribbon) { ribbon.style.removeProperty('order'); ribbon.style.removeProperty('margin-left'); ribbon.style.removeProperty('display'); ribbon.style.removeProperty('justify-content'); }
                   var bell = document.getElementById('rr-hdr-notif'); if (bell) bell.style.removeProperty('order');
                   var av = document.getElementById('rr-hdr-avatar-btn'); if (av) av.style.removeProperty('order');
                   document.querySelectorAll('.ob-tab-divider').forEach(function (d) { d.style.removeProperty('display'); });
