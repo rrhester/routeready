@@ -397,11 +397,11 @@
                      the strip's bottom line, mirroring "Rules". -->
                 <div class="rr-cal-newgroup">
                 <button class="subnav-item" type="button" onclick="rrIvcalNewEvent()" title="New event">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="12" y1="12.5" x2="12" y2="18.5"/><line x1="9" y1="15.5" x2="15" y2="15.5"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
                   <span>New event</span>
                 </button>
                 <button class="subnav-item" type="button" onclick="rrIvcalAddCalendar()" title="Add calendar">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><circle cx="17.5" cy="16.5" r="4.2" fill="var(--oc-surface,#fff)"/><line x1="17.5" y1="14.3" x2="17.5" y2="18.7"/><line x1="15.3" y1="16.5" x2="19.7" y2="16.5"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><line x1="16" y1="13" x2="16" y2="19"/><line x1="13" y1="16" x2="19" y2="16"/></svg>
                   <span>Add calendar</span>
                 </button>
                 <span class="rr-cal-newgroup-cap" aria-hidden="true">New</span>
@@ -414,12 +414,12 @@
                      the hairline — the same location as Schedule's "Go To". -->
                 <div class="rr-cal-viewgroup">
                 <button class="subnav-item rr-cal-vtab" data-cal-view="day" type="button" onclick="rrIvcalSetView('day')" title="Day view">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="12" y1="13" x2="12" y2="18"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><rect x="10" y="13" width="4" height="4" fill="currentColor" stroke="none"/></svg>
                   <span>Day</span>
                 </button>
                 <div class="ob-tab-wrap" data-rr-tile="ob-cal-week">
                   <button class="subnav-item rr-cal-vtab" data-cal-view="week" type="button" onclick="rrIvcalSetView('week')" title="Week view">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/></svg>
                     <span>Week</span>
                   </button>
                   <div class="ob-rules-popover" id="rr-iv-rules-popover" role="dialog" aria-modal="false" aria-label="Interview availability" hidden>
@@ -436,11 +436,11 @@
                   </div>
                 </div>
                 <button class="subnav-item rr-cal-vtab" data-cal-view="workweek" type="button" onclick="rrIvcalSetView('workweek')" title="Work week (Mon–Fri)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="7" width="18" height="13"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/></svg>
                   <span>Work Week</span>
                 </button>
                 <button class="subnav-item rr-cal-vtab" data-cal-view="month" type="button" onclick="rrIvcalSetView('month')" title="Month view">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><rect x="6" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="11" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="16" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="6" y="17" width="2" height="2" fill="currentColor" stroke="none"/><rect x="11" y="17" width="2" height="2" fill="currentColor" stroke="none"/></svg>
                   <span>Month</span>
                 </button>
                 <!-- Rules caption + dialog-launcher · one fixed-height footer
