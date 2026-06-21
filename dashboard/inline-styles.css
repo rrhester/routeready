@@ -1618,23 +1618,22 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 #view-schedule .req-impact-neg .req-impact-main{color:#B42318}
 #view-schedule .req-impact-flat .req-impact-main{color:var(--text-subtle);font-weight:500}
 /* All-clear banner — compact full-width success bar (replaces the big empty card). */
-#view-schedule .req-allclear{display:flex;align-items:center;gap:14px;width:100%;min-height:76px;padding:16px 20px;border-radius:var(--r-lg);background:var(--green-soft);border:1px solid rgba(22,163,74,.20)}
-#view-schedule .req-allclear-ic{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:rgba(22,163,74,.16);color:#16A34A;flex:0 0 auto}
-#view-schedule .req-allclear-title{font-size:var(--fs-md);font-weight:600;color:#15803D}
-#view-schedule .req-allclear-sub{font-size:var(--fs-sm);color:#3F7E5B;margin-top:1px}
+#view-schedule .req-allclear{display:flex;align-items:center;gap:14px;width:100%;min-height:76px;padding:16px 20px;border-radius:var(--r-lg);background:var(--canvas);border:1px solid var(--border)}
+#view-schedule .req-allclear-ic{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:rgba(22,163,74,.12);color:#16A34A;flex:0 0 auto}
+#view-schedule .req-allclear-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
+#view-schedule .req-allclear-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:1px}
 /* Coverage impact — the primary signal after Driver: severity dot + label,
    affected-day count, and small day chips. */
 #view-schedule .req-cov{display:flex;flex-direction:column;gap:3px;min-width:150px}
 #view-schedule .req-cov-head{display:flex;align-items:center;gap:7px}
 #view-schedule .req-cov-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
-#view-schedule .req-cov-sev{font-size:var(--fs-sm);font-weight:700}
+/* Severity reads from the small dot only; the label stays neutral so the
+   column doesn't shout three different colors. */
+#view-schedule .req-cov-sev{font-size:var(--fs-sm);font-weight:700;color:var(--text)}
 #view-schedule .req-cov-sub{font-size:var(--fs-xs);color:var(--text-subtle)}
 #view-schedule .req-cov-high .req-cov-dot{background:#DC2626}
-#view-schedule .req-cov-high .req-cov-sev{color:#B42318}
 #view-schedule .req-cov-medium .req-cov-dot{background:#D97706}
-#view-schedule .req-cov-medium .req-cov-sev{color:#B45309}
 #view-schedule .req-cov-none .req-cov-dot{background:#16A34A}
-#view-schedule .req-cov-none .req-cov-sev{color:#15803D}
 #view-schedule .req-cov-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
 #view-schedule .req-cov-chip{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:19px;padding:0 6px;border-radius:5px;font-size:10.5px;font-weight:600;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border)}
 /* Requested change — bold primary + muted secondary, easy to scan. */
@@ -1648,12 +1647,13 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 #view-schedule .req-th-chev{width:34px}
 #view-schedule .req-td-chev{width:34px;text-align:right;color:var(--text-disabled)}
 #view-schedule .req-trow:hover .req-td-chev{color:var(--text-muted)}
-/* Status as a filled pill in the decisions table (overrides the dot+label). */
-#view-schedule .req-table .status-pill{display:inline-flex;align-items:center;gap:0;padding:3px 10px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;letter-spacing:0;border:0;background:var(--canvas);color:var(--text-muted)}
-#view-schedule .req-table .status-pill::before{display:none}
-#view-schedule .req-table .status-pill-approved{background:rgba(22,163,74,.12);color:#15803D}
-#view-schedule .req-table .status-pill-denied{background:rgba(220,38,38,.10);color:#B42318}
-#view-schedule .req-table .status-pill-pending{background:rgba(217,119,6,.12);color:#B45309}
+/* Status as a quiet pill + a small colour dot (Outlook/Teams style) so the
+   decisions column reads calm instead of green-vs-red. */
+#view-schedule .req-table .status-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;letter-spacing:0;border:0;background:var(--canvas);color:var(--text-muted)}
+#view-schedule .req-table .status-pill::before{display:inline-block;content:"";width:7px;height:7px;border-radius:50%;background:var(--text-subtle);flex:0 0 auto}
+#view-schedule .req-table .status-pill-approved::before{background:#16A34A}
+#view-schedule .req-table .status-pill-denied::before{background:#DC2626}
+#view-schedule .req-table .status-pill-pending::before{background:#D97706}
 /* Row detail panel — right-side drawer with the navy header treatment. */
 .rr-req-detail{position:fixed;inset:0;z-index:1200}
 .rr-req-detail-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.20);opacity:0;transition:opacity .2s}
