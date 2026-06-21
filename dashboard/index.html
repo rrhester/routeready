@@ -617,6 +617,14 @@
                   band.style.setProperty('background', 'transparent', 'important');
                   band.style.setProperty('border', '0', 'important');
                   band.style.setProperty('box-shadow', 'none', 'important');
+                  // Collapse the band to a compact flat bar (same as the Funnel
+                  // branch). onboarding-rrx.css locks the strip to 115px via
+                  // --tcp-strip-h; without this the hidden-title calendar header
+                  // would leave a 115px empty transparent area instead of hugging
+                  // its controls. Restored (removeProperty above) on other subs.
+                  band.style.setProperty('min-height', '0', 'important');
+                  band.style.setProperty('height', 'auto', 'important');
+                  band.style.setProperty('max-height', 'none', 'important');
                   // Kill the title-to-first-group hairline: the .rrx-onboarding
                   // rule puts a 1px border-left on the first ribbon group, which
                   // is the vertical line the operator still saw. Inline !important
