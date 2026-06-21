@@ -569,6 +569,10 @@
                     if (add) add.style.setProperty('order', '7', 'important');
                     bell.style.setProperty('order', '8', 'important');
                     if (av) av.style.setProperty('order', '9', 'important');
+                    // margin-left:auto on the first right-group item pushes the
+                    // buttons + bell + avatar to the far right, leaving the stage
+                    // tabs hard-left (the actual left/right justification).
+                    if (imp) imp.style.setProperty('margin-left', 'auto', 'important');
                   }
                   // The buttons have left the ribbon, so hide the now-empty ribbon
                   // — otherwise it reserves width and shoves the stage tabs toward
@@ -604,6 +608,7 @@
                       try { w.__rrHome.insertBefore(w, w.__rrNext); } catch (e) { w.__rrHome.appendChild(w); }
                     }
                     w.style.removeProperty('order');
+                    w.style.removeProperty('margin-left');
                   });
                   var ribbon = (imp && imp.closest('.sched-nav-heading-actions')) || (add && add.closest('.sched-nav-heading-actions'));
                   if (ribbon) ribbon.style.removeProperty('display');
