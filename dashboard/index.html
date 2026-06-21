@@ -491,24 +491,19 @@
             if (hdr) {
               if (isFunnel) hdr.style.setProperty('display', 'none', 'important');
               else {
-                // Calendar sub hides the title block too — the operator asked
-                // for the calendar header to match the Funnel "flat bar" format
-                // (no "Calendar" heading, controls only). Other subs keep theirs.
+                // Calendar keeps its title block HIDDEN (operator: no "Calendar"
+                // heading). The header is a clean, flat Google-Calendar-style bar
+                // — view/sorting tabs hard-left, New-event/Add-calendar actions
+                // hard-right. Other non-funnel subs show their title.
                 if (key === 'calendar') hdr.style.setProperty('display', 'none', 'important');
                 else hdr.style.removeProperty('display');
                 hdr.style.removeProperty('margin-right');
-                // Calendar sub: right-justify the controls (New event / Add
-                // calendar / Day-Week-Month / Availability) so the title sits
-                // hard-left and the controls sit on the right — same left/right
-                // split as the Funnel header. The actions strip is flex:1 (fills
-                // the band), so justify-content:flex-end pushes its content to the
-                // right edge.
+                // Calendar sub: the controls span the full bar (view tabs left,
+                // actions right) — the inner split is handled in CSS. Clear any
+                // stale justify-content so the actions strip can fill the width.
                 var _calActs = document.getElementById('rr-cal-ribbon');
                 _calActs = _calActs && _calActs.closest('.sched-nav-heading-actions');
-                if (_calActs) {
-                  if (key === 'calendar') _calActs.style.setProperty('justify-content', 'flex-end', 'important');
-                  else _calActs.style.removeProperty('justify-content');
-                }
+                if (_calActs) _calActs.style.removeProperty('justify-content');
               }
             }
             // Collapse the now-titleless header band so it isn't a tall empty
@@ -607,35 +602,37 @@
                 })();
                 window.__rrChromeInFunnel = true;
               } else {
-                ['min-height', 'height', 'max-height', 'background', 'border', 'box-shadow',
-                 'display', 'align-items', 'justify-content', 'gap', 'padding']
+                ['min-height', 'height', 'max-height', 'background', 'border', 'border-bottom',
+                 'border-radius', 'box-shadow', 'display', 'align-items', 'justify-content', 'gap', 'padding']
                   .forEach(function (p) { band.style.removeProperty(p); });
-                // Calendar sub: drop the white card chrome (background + the 1px
-                // bottom border) so the title + controls sit flat on the page,
-                // like the Funnel header. Other subs keep their normal card.
+                // Calendar sub: clean, flat Google-Calendar-style bar — no white
+                // card, no shadow, no divider; a single compact full-width row.
+                // The view/sorting tabs sit hard-left and the actions hard-right
+                // (the L/R split + pill buttons are styled in CSS). Other subs
+                // keep their normal card (restored via removeProperty above).
                 if (key === 'calendar') {
                   band.style.setProperty('background', 'transparent', 'important');
                   band.style.setProperty('border', '0', 'important');
+                  band.style.setProperty('border-radius', '0', 'important');
                   band.style.setProperty('box-shadow', 'none', 'important');
-                  // Collapse the band to a compact flat bar (same as the Funnel
-                  // branch). onboarding-rrx.css locks the strip to 115px via
-                  // --tcp-strip-h; without this the hidden-title calendar header
-                  // would leave a 115px empty transparent area instead of hugging
-                  // its controls. Restored (removeProperty above) on other subs.
+                  // Compact row, not the 115px --tcp-strip-h card.
                   band.style.setProperty('min-height', '0', 'important');
                   band.style.setProperty('height', 'auto', 'important');
                   band.style.setProperty('max-height', 'none', 'important');
-                  // Kill the title-to-first-group hairline: the .rrx-onboarding
-                  // rule puts a 1px border-left on the first ribbon group, which
-                  // is the vertical line the operator still saw. Inline !important
-                  // on the element beats that stylesheet rule even when the CSS
-                  // bundle is stale. Restored (removeProperty) on the other subs.
+                  band.style.setProperty('display', 'flex', 'important');
+                  band.style.setProperty('align-items', 'center', 'important');
+                  band.style.setProperty('gap', '12px', 'important');
+                  band.style.setProperty('padding', '12px 20px', 'important');
+                  // Kill any vertical ribbon-group hairline.
                   band.querySelectorAll('.sched-ribbon-group').forEach(function (g) {
                     g.style.setProperty('border-left', '0', 'important');
                     g.style.setProperty('border-right', '0', 'important');
                   });
                 }
-                if (actions) actions.style.removeProperty('flex');
+                if (actions) {
+                  if (key === 'calendar') actions.style.setProperty('flex', '1 1 auto', 'important');
+                  else actions.style.removeProperty('flex');
+                }
                 // Drop the funnel-only inline overrides so the strip returns to
                 // its normal card-header layout on the other onboarding subs.
                 if (tabs) {

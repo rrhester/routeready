@@ -25713,11 +25713,13 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] .sched-ribbon-group,
 #view-onboarding-ops[data-obsub="interview"] .sched-ribbon-group,
 #view-onboarding-ops[data-obsub="workauth"] .sched-ribbon-group{ border:0 !important; }
-/* Calendar header = flat bar, no card (matches the Funnel header). Hide the
-   "Calendar" title block and kill the title-to-first-group hairline — the 1px
-   border-left onboarding-rrx.css:359 puts on .sched-ribbon-group:first-child.
-   Needs equal specificity + later source order to beat that rule, the same
-   recipe as the funnel divider kill (see the [data-obsub="funnel"] block). */
+/* Calendar header = clean, flat Google-Calendar-style bar: NO "Calendar" title,
+   the view/sorting tabs hard-left and the New-event/Add-calendar actions
+   hard-right, flat on the page (the band flattening is applied by
+   rrObFunnelChrome in index.html). Hide the title block and kill the
+   title-to-first-group vertical hairline — the 1px border-left
+   onboarding-rrx.css:359 puts on .sched-ribbon-group:first-child — using equal
+   specificity + later source order, the same recipe as the funnel divider kill. */
 #view-onboarding-ops[data-obsub="calendar"] .page-header-l{ display:none !important; }
 #view-onboarding-ops[data-obsub="calendar"] .sched-nav-heading-actions .sched-ribbon-group,
 #view-onboarding-ops[data-obsub="calendar"] .sched-nav-heading-actions .sched-ribbon-group:first-child{ border-left:0 !important; border-right:0 !important; margin-left:0 !important; padding-left:0 !important; }
@@ -25726,9 +25728,15 @@ body.rr-cmdk-open{ overflow:hidden }
    empty transparent band — same compact bar the funnel produces. Equal
    specificity (1,3,0) + later source order beats the lock. */
 #view-onboarding-ops[data-obsub="calendar"] .page-header.sched-nav-heading{ min-height:0 !important; height:auto !important; max-height:none !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon{ flex:1 1 auto !important; width:100% !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon > .subnav{
   display:flex !important; flex-direction:row !important; align-items:center !important; gap:10px !important;
+  width:100% !important; justify-content:space-between !important;
 }
+/* View/sorting tabs hard-left, New-event/Add-calendar actions hard-right
+   (operator: actions far right, sorting far left). */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup{ order:1 !important; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup{ order:2 !important; }
 #view-onboarding-ops[data-obsub="interview"] .sched-ribbon-group[data-group="actions"] .subnav,
 #view-onboarding-ops[data-obsub="workauth"] .sched-ribbon-group[data-group="actions"] .subnav,
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup{
@@ -25802,6 +25810,25 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle > svg{ display:none !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle::after{ content:"Availability"; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle:hover{ background:var(--surface-hover) !important; }
+/* Google-Calendar vibe · pill-shaped controls across the calendar header
+   (rounded ends, like Today / Week in Google Calendar). */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .subnav-item.rr-cal-vtab,
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item,
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle{ border-radius:999px !important; }
+/* The view/sorting tabs render as clean pill chips to match the action pills.
+   A higher-specificity selector (+ .rr-cal-viewgroup) is needed to beat the
+   onboarding-rrx .subnav-item chrome that otherwise flattens them to plain
+   text; the active view is the one accent chip. */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .subnav-item.rr-cal-vtab{
+  background:var(--surface) !important; color:var(--text-subtle) !important;
+  border:1px solid var(--border) !important; box-shadow:none !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .subnav-item.rr-cal-vtab:hover{
+  background:var(--surface-hover) !important; color:var(--text) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .subnav-item.rr-cal-vtab.active{
+  background:var(--accent) !important; color:#fff !important; border-color:transparent !important;
+}
 
 /* ── Onboarding clean bar · Funnel ───────────────────────────────────────
    Funnel already had its own chrome (rrObFunnelChrome relocates the stage
