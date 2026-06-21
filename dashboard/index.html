@@ -548,6 +548,7 @@
                 (function () {
                   var imp = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-pdf-upload"]');
                   var add = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-addapplicant"]');
+                  var ribbon = imp && imp.closest('.sched-nav-heading-actions');
                   var bell = document.getElementById('rr-hdr-notif');
                   var av = document.getElementById('rr-hdr-avatar-btn');
                   // The bell + avatar are GLOBAL header icons; at runtime they do
@@ -569,6 +570,10 @@
                     bell.style.setProperty('order', '8', 'important');
                     if (av) av.style.setProperty('order', '9', 'important');
                   }
+                  // The buttons have left the ribbon, so hide the now-empty ribbon
+                  // — otherwise it reserves width and shoves the stage tabs toward
+                  // the centre. With it gone the tabs sit hard left.
+                  if (ribbon) ribbon.style.setProperty('display', 'none', 'important');
                   band.querySelectorAll('.ob-tab-divider').forEach(function (d) {
                     d.style.setProperty('display', 'none', 'important');
                   });
@@ -600,6 +605,8 @@
                     }
                     w.style.removeProperty('order');
                   });
+                  var ribbon = (imp && imp.closest('.sched-nav-heading-actions')) || (add && add.closest('.sched-nav-heading-actions'));
+                  if (ribbon) ribbon.style.removeProperty('display');
                   var bell = document.getElementById('rr-hdr-notif'); if (bell) bell.style.removeProperty('order');
                   var av = document.getElementById('rr-hdr-avatar-btn'); if (av) av.style.removeProperty('order');
                   document.querySelectorAll('.ob-tab-divider').forEach(function (d) { d.style.removeProperty('display'); });
