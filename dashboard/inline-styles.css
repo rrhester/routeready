@@ -10855,6 +10855,17 @@ body.rr-cmdk-open{ overflow:hidden }
              reads as a small progress indicator, not a full-width bar. */
           #view-pipeline .pa-row-v3 .pa-steps{justify-content:center}
           #view-pipeline .pa-mstep{max-width:300px}
+          /* Stage status second line — the recommended next step, muted under
+             the stage chip (status + what-to-do, like the risk card). */
+          #view-pipeline .pa-stage-next{font-size:12px;font-weight:500;color:var(--text-muted);margin-top:3px;line-height:1.25}
+          /* Decline · a visible secondary action (no longer buried in ⋯). */
+          #view-pipeline .pa-btn-decline{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:7px 12px;border-radius:8px;border:1px solid var(--border);
+            background:var(--surface,#fff);color:#B42318;font-size:13px;font-weight:600;
+            cursor:pointer;white-space:nowrap;
+          }
+          #view-pipeline .pa-btn-decline:hover{background:#FEF2F2;border-color:#FECACA}
           #view-pipeline .pa-tl-step{
             display:flex;flex-direction:row;align-items:center;text-align:left;
             flex:0 0 auto;gap:4px;
