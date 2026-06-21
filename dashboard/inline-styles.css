@@ -25661,6 +25661,14 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] .sched-ribbon-group,
 #view-onboarding-ops[data-obsub="interview"] .sched-ribbon-group,
 #view-onboarding-ops[data-obsub="workauth"] .sched-ribbon-group{ border:0 !important; }
+/* Calendar header = flat bar, no card (matches the Funnel header). Hide the
+   "Calendar" title block and kill the title-to-first-group hairline — the 1px
+   border-left onboarding-rrx.css:359 puts on .sched-ribbon-group:first-child.
+   Needs equal specificity + later source order to beat that rule, the same
+   recipe as the funnel divider kill (see the [data-obsub="funnel"] block). */
+#view-onboarding-ops[data-obsub="calendar"] .page-header-l{ display:none !important; }
+#view-onboarding-ops[data-obsub="calendar"] .sched-nav-heading-actions .sched-ribbon-group,
+#view-onboarding-ops[data-obsub="calendar"] .sched-nav-heading-actions .sched-ribbon-group:first-child{ border-left:0 !important; border-right:0 !important; margin-left:0 !important; padding-left:0 !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon > .subnav{
   display:flex !important; flex-direction:row !important; align-items:center !important; gap:10px !important;
 }
