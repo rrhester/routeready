@@ -490,7 +490,22 @@
             var hdr = t && t.closest('.page-header-l');
             if (hdr) {
               if (isFunnel) hdr.style.setProperty('display', 'none', 'important');
-              else hdr.style.removeProperty('display');
+              else {
+                hdr.style.removeProperty('display');
+                hdr.style.removeProperty('margin-right');
+                // Calendar sub: right-justify the controls (New event / Add
+                // calendar / Day-Week-Month / Availability) so the title sits
+                // hard-left and the controls sit on the right — same left/right
+                // split as the Funnel header. The actions strip is flex:1 (fills
+                // the band), so justify-content:flex-end pushes its content to the
+                // right edge.
+                var _calActs = document.getElementById('rr-cal-ribbon');
+                _calActs = _calActs && _calActs.closest('.sched-nav-heading-actions');
+                if (_calActs) {
+                  if (key === 'calendar') _calActs.style.setProperty('justify-content', 'flex-end', 'important');
+                  else _calActs.style.removeProperty('justify-content');
+                }
+              }
             }
             // Collapse the now-titleless header band so it isn't a tall empty
             // card, and lay it out as a flex row so the relocated filter tabs sit
