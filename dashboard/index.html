@@ -530,7 +530,8 @@
                 // overflow-x:auto only engages on a genuinely too-narrow window.
                 // Inline + !important so a stale ?v= CSS bundle can't undo it.
                 if (tabs) {
-                  tabs.style.setProperty('flex', '1 1 auto', 'important');
+                  tabs.style.setProperty('order', '1', 'important');
+                  tabs.style.setProperty('flex', '0 1 auto', 'important');
                   tabs.style.setProperty('min-width', '0', 'important');
                   tabs.style.setProperty('flex-wrap', 'nowrap', 'important');
                   tabs.style.setProperty('overflow-x', 'auto', 'important');
@@ -539,6 +540,27 @@
                 }
                 // Borrow the ⋯ / bell / avatar onto the far right of the bar.
                 chrome.forEach(function (el) { if (el && el.parentNode !== band) band.appendChild(el); });
+                // Deterministic left/right layout via flex ORDER — robust no
+                // matter how the band's children get re-shuffled at runtime:
+                // stage tabs pinned hard-left, the action ribbon (Import +
+                // Add applicant) pushed hard-right against the bell/avatar via
+                // margin-left:auto. Also drop the 1px hairline ribbon dividers
+                // the operator asked to remove.
+                (function () {
+                  var impTile = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-pdf-upload"]');
+                  var ribbon = impTile && impTile.closest('.sched-nav-heading-actions');
+                  if (ribbon) {
+                    ribbon.style.setProperty('order', '2', 'important');
+                    ribbon.style.setProperty('margin-left', 'auto', 'important');
+                  }
+                  var bell = document.getElementById('rr-hdr-notif');
+                  if (bell) bell.style.setProperty('order', '3', 'important');
+                  var av = document.getElementById('rr-hdr-avatar-btn');
+                  if (av) av.style.setProperty('order', '4', 'important');
+                  band.querySelectorAll('.ob-tab-divider').forEach(function (d) {
+                    d.style.setProperty('display', 'none', 'important');
+                  });
+                })();
                 window.__rrChromeInFunnel = true;
               } else {
                 ['min-height', 'height', 'max-height', 'background', 'border', 'box-shadow',
@@ -548,9 +570,17 @@
                 // Drop the funnel-only inline overrides so the strip returns to
                 // its normal card-header layout on the other onboarding subs.
                 if (tabs) {
-                  ['flex', 'min-width', 'flex-wrap', 'overflow-x', 'overflow-y', 'scrollbar-width']
+                  ['order', 'flex', 'min-width', 'flex-wrap', 'overflow-x', 'overflow-y', 'scrollbar-width']
                     .forEach(function (p) { tabs.style.removeProperty(p); });
                 }
+                (function () {
+                  var impTile = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-pdf-upload"]');
+                  var ribbon = impTile && impTile.closest('.sched-nav-heading-actions');
+                  if (ribbon) { ribbon.style.removeProperty('order'); ribbon.style.removeProperty('margin-left'); }
+                  var bell = document.getElementById('rr-hdr-notif'); if (bell) bell.style.removeProperty('order');
+                  var av = document.getElementById('rr-hdr-avatar-btn'); if (av) av.style.removeProperty('order');
+                  document.querySelectorAll('.ob-tab-divider').forEach(function (d) { d.style.removeProperty('display'); });
+                })();
                 // Move the filter tabs back into the Applicants card header.
                 var home = document.querySelector('.pa-ws-header');
                 if (tabs && home && tabs.parentNode !== home) home.appendChild(tabs);
