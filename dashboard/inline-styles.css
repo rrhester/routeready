@@ -1500,12 +1500,27 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
    not bright dots. Tones borrow the att2 status palette so risk reads the
    same restrained way it does elsewhere. A muted support line sits beneath
    the pill (why: Attendance Risk / Coaching Due / Healthy). */
-.rr-risk-cell{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
-.rr-risk-badge{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;padding:2px 9px;border-radius:var(--r-pill);white-space:nowrap}
-.rr-risk-badge.rr-risk-high{background:rgba(220,38,38,.10);color:#B42318}
-.rr-risk-badge.rr-risk-med{background:rgba(245,158,11,.13);color:#B45309}
-.rr-risk-badge.rr-risk-low{background:rgba(15,23,42,.05);color:var(--text-subtle)}
-.rr-risk-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.2}
+/* Risk status card — a compact tinted rectangle (Microsoft Teams / Azure
+   admin feel) so risk is the strongest signal in a roster row after the
+   driver name. Flat by design: 1px border, 8px radius, soft tint, NO shadow,
+   NO gradient. ~132px × 44px so the eye lands on it without dominating the
+   dense roster. */
+.rr-risk-card{
+  display:inline-flex;flex-direction:column;justify-content:center;gap:1px;
+  box-sizing:border-box;width:132px;min-height:44px;padding:6px 10px;
+  border:1px solid transparent;border-radius:8px;white-space:nowrap;vertical-align:middle;
+}
+.rr-risk-status{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:12px;font-weight:600;line-height:1.25;letter-spacing:.02em;text-transform:uppercase;
+}
+.rr-risk-reason{font-size:13px;font-weight:500;line-height:1.25;color:#374151}
+.rr-risk-card.rr-risk-high{background:#FEF2F2;border-color:#FECACA}
+.rr-risk-card.rr-risk-high .rr-risk-status{color:#DC2626}
+.rr-risk-card.rr-risk-med{background:#FFFBEB;border-color:#FDE68A}
+.rr-risk-card.rr-risk-med .rr-risk-status{color:#D97706}
+.rr-risk-card.rr-risk-low{background:#F0FDF4;border-color:#BBF7D0}
+.rr-risk-card.rr-risk-low .rr-risk-status{color:#16A34A}
 /* Attendance column — % over a thin neutral bar over "X of Y shifts".
    Deliberately subtle: the fill is a single muted slate (its LENGTH carries
    the signal); attendance-risk colour lives in the Risk pill, not here. */

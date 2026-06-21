@@ -9899,22 +9899,24 @@ function _attPointsCell(driverId) {
 function _riskCell(driverId) {
   const r = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(driverId) : null;
   const attn = !!(_rosterAttnCoached && _rosterAttnCoached.has && _rosterAttnCoached.has(driverId));
-  // Descriptive risk pill + a muted support line so a glance reads the level
-  // AND why: High = on a final corrective action, Medium = on a written one
-  // (coaching due), Low = clear (healthy). Subtle pills, no bright fills.
-  let cls, label, sub, title;
+  // Compact risk status card — a tinted rectangle (Microsoft Teams / Azure
+  // admin feel) so risk is the strongest signal in the row after the driver
+  // name. A bold uppercase level (with a status dot) over a muted reason line:
+  // High = on a final corrective action, Medium = a written one (coaching due),
+  // Low = clear (healthy). Flat: 1px border, 8px radius, soft tint, no shadow.
+  let cls, label, dot, sub, title;
   if (r === "atrisk") {
-    cls = "rr-risk-high"; label = "High";
+    cls = "rr-risk-high"; label = "HIGH"; dot = "🔴";
     sub = attn ? "Attendance Risk" : "Corrective Action";
     title = "High · on a final corrective action";
   } else if (r === "watch") {
-    cls = "rr-risk-med"; label = "Medium"; sub = "Coaching Due";
+    cls = "rr-risk-med"; label = "MEDIUM"; dot = "🟡"; sub = "Coaching Due";
     title = "Medium · on a written corrective action";
   } else {
-    cls = "rr-risk-low"; label = "Low"; sub = "Healthy";
+    cls = "rr-risk-low"; label = "LOW"; dot = "🟢"; sub = "Healthy";
     title = "Low · no active corrective action";
   }
-  return `<div class="rr-risk-cell"><span class="rr-risk-badge ${cls}" title="${title}" aria-label="${title}">${label}</span><span class="rr-risk-sub">${sub}</span></div>`;
+  return `<div class="rr-risk-card ${cls}" title="${title}" aria-label="${title}"><span class="rr-risk-status">${dot} ${label}</span><span class="rr-risk-reason">${sub}</span></div>`;
 }
 
 // "Last coached" — pulled from the per-driver latest coaching loaded
