@@ -19801,31 +19801,32 @@ body.rr-cmdk-open{ overflow:hidden }
             /* Gap · soft status pill (restrained red / green); the sign class
                comes from the render. Overrides the global injected
                `.plan-gap{color:muted!important}` via higher specificity. */
-            /* Gap · just colored text, no fill (operator). Negative = red,
-               graduating darker with severity; positive = green. */
+            /* Gap · contained tinted chip in the Roster/Requests card palette
+               so Targets shares their visual language: red for a deficit
+               (deepening with the shortfall), green for a surplus. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap{
               display:inline-flex;align-items:center;justify-content:center;
-              min-width:40px;padding:0;background:transparent !important;
-              font-size:var(--fs-md);font-weight:700;
-              font-variant-numeric:tabular-nums;line-height:1;letter-spacing:0;
+              min-width:54px;padding:3px 10px;border:1px solid transparent;border-radius:8px;
+              background:transparent;font-size:var(--fs-md);font-weight:700;
+              font-variant-numeric:tabular-nums;line-height:1.2;letter-spacing:0;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s1{
-              background:transparent !important;color:#BD5A50 !important;
+              background:#FEF2F2 !important;border-color:#FECACA;color:#DC2626 !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s2{
-              background:transparent !important;color:#B23A2E !important;
+              background:#FEF2F2 !important;border-color:#FECACA;color:#B91C1C !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-s3{
-              background:transparent !important;color:#8C2A1F !important;
+              background:#FEE2E2 !important;border-color:#FCA5A5;color:#991B1B !important;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap.rr-tgt-gap-pos{
-              background:transparent !important;color:#15803D !important;
+              background:#F0FDF4 !important;border-color:#BBF7D0;color:#15803D !important;
             }
             /* Available · subtly positive (restrained green, no badge). The
                4th visible column is AVAILABLE; Drivers Needed (col 3) stays
                neutral. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody tr:not(.okami-detail) > td:nth-child(4) .plan-calc{
-              color:#15803D;
+              color:var(--text);
             }
             /* Header type matches the Schedule grid column header
                (.cal-cell-head: 11px / 600 / .04em uppercase) — operator asked
