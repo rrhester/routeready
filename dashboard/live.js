@@ -49333,6 +49333,14 @@ async function renderScheduleWeek() {
     if (!el.classList.contains("head")) el.remove();
   });
 
+  // Overtime threshold — the DSP's configured weekly OT hours (default 40).
+  // The grid previously hard-coded 50, so drivers scheduled 40–50h showed no
+  // OT flag. Prefer the live Pay-settings cache (_rrPayCache, refreshed by the
+  // save path) so a same-session threshold change is honored without a reload;
+  // fall back to the boot-time metadata, then 40.
+  const _otThresholdHours = Number(_rrPayCache?.overtime_threshold_hours)
+    || Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours)
+    || 40;
   const driverRowsHtml = drivers.map(d => {
     const initials = displayDriverInitials(d);
     const display = displayDriverName(d);
@@ -49352,9 +49360,9 @@ async function renderScheduleWeek() {
     const hoursLabelHTML =
       `<span class="cal-row-label-hours">${netHoursRounded}h<span class="cal-row-label-hours-word"> scheduled</span></span>`;
     // Overtime warning · gold circle with a white "OT" when this driver is
-    // scheduled 50+ hours this week. Lives in the right-edge warning cluster
-    // alongside the DL + no-van circles.
-    const otWarnIcon = (netHoursRounded >= 50)
+    // scheduled over the weekly OT threshold (default 40h). Lives in the
+    // right-edge warning cluster alongside the DL + no-van circles.
+    const otWarnIcon = (netHoursRounded > _otThresholdHours)
       ? `<span class="cal-row-label-otwarn" title="Scheduled ${netHoursRounded}h this week — overtime" aria-label="Scheduled ${netHoursRounded} hours this week — overtime" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrOtWarnIcon("Overtime — " + netHoursRounded + "h scheduled")}</span>`
       : "";
     const otIcon = ""; // legacy placeholder kept in the row template below
