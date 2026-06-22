@@ -205,7 +205,7 @@
            always-present home). Items reuse the existing navigation: goto(view)
            for top-level destinations, or goto('schedule') + the sidebar
            sub-nav for the schedule sub-views (Roster / Today / Requests). -->
-      <div class="rr-applauncher" id="rr-applauncher">
+      <div class="rr-applauncher rr-al-fixed" id="rr-applauncher">
         <button type="button" class="rr-al-btn" id="rr-al-btn" aria-haspopup="menu" aria-expanded="false" title="App launcher" aria-label="App launcher">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg>
         </button>
@@ -255,18 +255,36 @@
           var btn = document.getElementById('rr-al-btn');
           var panel = document.getElementById('rr-al-panel');
           if (!btn || !panel) return;
-          // Panel is position:fixed (JS-placed). The launcher sits at the LEFT
-          // (sidebar), so anchor the panel's left edge under the button and
-          // open rightward, clamped to stay on screen.
+          // ── Keep the launcher pinned top-right: in-flow just LEFT of the
+          //    notifications bell on the views that show one, else floating in
+          //    the corner (.rr-al-fixed). The bell is a shared singleton each
+          //    view borrows, so re-check on a light poll + resize.
+          function bellVisible (bell) {
+            if (!bell || bell.offsetParent === null) return false;
+            var r = bell.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          }
+          function placeLauncher () {
+            var bell = document.getElementById('rr-hdr-notif');
+            if (bellVisible(bell)) {
+              L.classList.remove('rr-al-fixed');
+              if (L.parentNode !== bell.parentNode || L.nextElementSibling !== bell) {
+                bell.parentNode.insertBefore(L, bell);
+              }
+              var ord = getComputedStyle(bell).order;
+              L.style.order = (ord && ord !== 'normal') ? ord : '';
+            } else {
+              L.style.order = '';
+              if (L.parentNode !== document.body) document.body.appendChild(L);
+              L.classList.add('rr-al-fixed');
+            }
+          }
+          // Panel opens as a top-right dropdown — right edge under the button.
           function place () {
             var r = btn.getBoundingClientRect();
-            var pw = panel.offsetWidth || 520;
-            var left = r.left;
-            if (left + pw > window.innerWidth - 12) left = window.innerWidth - 12 - pw;
-            if (left < 12) left = 12;
-            panel.style.left = Math.round(left) + 'px';
-            panel.style.right = 'auto';
-            panel.style.top = Math.round(r.bottom + 10) + 'px';
+            panel.style.left = 'auto';
+            panel.style.right = Math.round(Math.max(8, window.innerWidth - r.right)) + 'px';
+            panel.style.top = Math.round(r.bottom + 8) + 'px';
           }
           function close () { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
           function open () { panel.hidden = false; place(); btn.setAttribute('aria-expanded', 'true'); }
@@ -294,8 +312,10 @@
           document.addEventListener('click', function (e) {
             if (!panel.hidden && !e.target.closest('#rr-applauncher')) close();
           });
-          window.addEventListener('resize', function () { if (!panel.hidden) place(); });
+          window.addEventListener('resize', function () { placeLauncher(); if (!panel.hidden) place(); });
           document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+          placeLauncher();
+          setInterval(placeLauncher, 250);
         }
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
         else wire();

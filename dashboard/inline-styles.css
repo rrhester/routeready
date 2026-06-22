@@ -26168,15 +26168,15 @@ body.rr-cmdk-open{ overflow:hidden }
    Business). ════════════════════════════════════════════════════════════ */
 .rr-applauncher{ position:relative; display:inline-flex; align-items:center; }
 .rr-al-btn{
-  width:38px; height:38px; flex:0 0 auto; padding:0;
+  width:32px; height:32px; flex:0 0 auto; padding:0;
   display:inline-flex; align-items:center; justify-content:center;
-  border:1px solid var(--border, rgba(15,23,42,.14)); border-radius:10px;
-  background:#FFFFFF; color:#475569; cursor:pointer;
+  border:1px solid transparent; border-radius:8px;
+  background:transparent; color:var(--text-muted, #64748B); cursor:pointer;
   transition:background-color .12s ease, border-color .12s ease, box-shadow .12s ease, color .12s ease;
 }
-.rr-al-btn svg{ width:20px; height:20px; }
-.rr-al-btn:hover{ background:#F3F4F6; color:#1E293B; }
-.rr-al-btn[aria-expanded="true"]{ border-color:#2563EB; color:#2563EB; box-shadow:0 0 0 3px rgba(37,99,235,.16); }
+.rr-al-btn svg{ width:18px; height:18px; }
+.rr-al-btn:hover{ background:var(--surface-hover, #F1F5F9); color:var(--text, #1E293B); }
+.rr-al-btn[aria-expanded="true"]{ background:rgba(37,99,235,.12); color:#2563EB; border-color:transparent; }
 .rr-al-panel{
   position:fixed; z-index:130; /* left/top set by JS (place()) so the rail can't clip it */
   display:flex; flex-direction:column; gap:2px;
@@ -26296,26 +26296,15 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   App launcher · pinned to the TOP of the sidebar rail so it's reachable
-   from every page. (The topbar chrome docks into the rail foot / schedule
-   action bar, so the rail is the only always-present home — the old
-   "relocate next to the bell" approach stranded it bottom-left when the
-   bell rode off to the schedule action bar.) ════════════════════════════ */
-.brand .rr-applauncher{ margin-left:auto; }
-/* Blend the trigger into the soft-blue rail — a ghost button, not a white
-   chip floating on the pale canvas. */
-.sidebar .rr-al-btn{
-  width:34px; height:34px;
-  background:transparent; border-color:transparent; color:var(--sidebar-ink, #1E293B);
+   App launcher · pinned to the TOP-RIGHT of every screen. placeLauncher()
+   (wiring script) inserts it in-flow just left of the notifications bell on
+   the views that show one (Schedule, Onboarding Funnel); on views without a
+   bell (Fleet / Messages / Email / Admin) it floats in the corner via
+   .rr-al-fixed, clear of the window-controls overlay. ════════════════════ */
+.rr-applauncher.rr-al-fixed{
+  position:fixed; top:8px; right:158px; z-index:120;
+  -webkit-app-region:no-drag; app-region:no-drag;
 }
-.sidebar .rr-al-btn:hover{ background:rgba(15,23,42,.06); border-color:transparent; color:var(--sidebar-ink, #1E293B); }
-.sidebar .rr-al-btn[aria-expanded="true"]{
-  background:rgba(37,99,235,.12); border-color:transparent; color:#2563EB; box-shadow:none;
-}
-/* Collapsed rail (64px): stack the logo + launcher so both stay visible and
-   centred instead of overflowing the narrow row. */
-.sidebar.collapsed .brand{ flex-direction:column; gap:8px; }
-.sidebar.collapsed .brand .rr-applauncher{ margin-left:0; }
 
 /* ════════════════════════════════════════════════════════════════════════
    App-launcher account footer · Settings + Sign out, moved out of the
