@@ -25727,7 +25727,7 @@ body.rr-cmdk-open{ overflow:hidden }
    hidden-title calendar header hugs its controls instead of leaving a tall
    empty transparent band — same compact bar the funnel produces. Equal
    specificity (1,3,0) + later source order beats the lock. */
-#view-onboarding-ops[data-obsub="calendar"] .page-header.sched-nav-heading{ min-height:0 !important; height:auto !important; max-height:none !important; }
+#view-onboarding-ops[data-obsub="calendar"] .page-header.sched-nav-heading{ min-height:0 !important; height:auto !important; max-height:none !important; padding-left:0 !important; padding-right:0 !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon{ flex:1 1 auto !important; width:100% !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon > .subnav{
   display:flex !important; flex-direction:row !important; align-items:center !important; gap:10px !important;
