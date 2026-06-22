@@ -8362,20 +8362,22 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Cap the split to the viewport so the PAGE never scrolls — each pane
    scrolls internally instead, which keeps the roster column header and the
    record card header/tabs pinned in place. */
-.roster-split{display:flex;gap:var(--s-4);align-items:stretch;overflow:hidden;max-height:calc(100vh - 360px)}
+.roster-split{display:flex;gap:var(--s-4);align-items:stretch;overflow:hidden;max-height:calc(100vh - 300px)}
 .roster-split-list{flex:1 1 100%;min-width:0;min-height:0;display:flex;flex-direction:column}
-/* When a record is docked the list condenses to ~58% beside the card. */
-.roster-split.has-record .roster-split-list{flex:1 1 58%}
+/* Driver Workspace · when a record is docked the roster collapses to a
+   navigation rail (~330px) and the workspace takes the remaining ~75–80%
+   of the width — the record reads as the primary object, not a flyout. */
+.roster-split.has-record .roster-split-list{flex:0 0 330px;min-width:0}
 /* The table-wrap fills the list pane and scrolls internally (override its
    own inline max-height so the split's cap governs the height). */
 .roster-split-list .table-wrap{flex:1;min-height:0;max-height:none !important;overflow:auto}
 /* Roster column header stays pinned while the rows scroll under it. */
 .roster-split #rr-roster-table-wrap thead th{position:sticky;top:0;z-index:3}
 /* The record pane is hidden until a driver row is clicked — the roster list
-   fills the full width. Clicking a row docks the record (mount gets
-   .is-filled, the split gets .has-record) and the card emerges alongside. */
+   fills the full width. Clicking a row docks the workspace (mount gets
+   .is-filled, the split gets .has-record) and it expands alongside the rail. */
 #driver-record-mount{
-  display:none;flex-direction:column;flex:0 0 42%;min-width:340px;min-height:0;
+  display:none;flex-direction:column;flex:1 1 auto;min-width:0;min-height:0;
   container-type:inline-size;
 }
 #driver-record-mount.is-filled{display:flex}

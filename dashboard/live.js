@@ -21746,14 +21746,12 @@ async function openDriverDrawer(driverId, opts) {
   // opts.tab — open the drawer with that tab pre-selected (e.g. the
   // Attendance Report row click drops the operator straight into the
   // driver's Attendance tab).
-  // Migrated tab names — the old "overview" and "activity" tabs were
-  // dropped in favor of routing operators straight to the actual
-  // record details.  Callers still passing those names land on the
-  // Profile tab so their existing entry points keep working.
-  // Attendance is the operational home — it's the default landing tab when a
-  // driver is opened. (Legacy "overview"/"activity" callers fold into Profile.)
-  const requestedTab = (opts && opts.tab) || "attendance";
-  const initialTab = (requestedTab === "overview" || requestedTab === "activity") ? "profile" : requestedTab;
+  // Overview is the default landing tab — a scan-first dashboard (KPIs,
+  // attendance heatmap, risk, recent activity). Callers can deep-link to a
+  // specific tab via opts.tab (e.g. the Attendance Report row → "attendance").
+  // The legacy "activity" tab folded into Overview.
+  const requestedTab = (opts && opts.tab) || "overview";
+  const initialTab = (requestedTab === "activity") ? "overview" : requestedTab;
   let drawer = document.getElementById("rr-dd-drawer");
   if (drawer) drawer.remove();
   drawer = document.createElement("div");
@@ -21943,6 +21941,164 @@ async function openDriverDrawer(driverId, opts) {
         .dd-row{grid-template-columns:1fr;gap:5px}
         .dd-row label{font-size:var(--fs-xs)}
       }
+
+      /* ════════════════════════════════════════════════════════════════
+         DRIVER WORKSPACE — enterprise record redesign. A docked workspace
+         (not a flyout): large professional header, Schedule-style tabs, a
+         six-card KPI strip, and a dashboard Overview. Calm/minimal palette,
+         subtle borders, soft shadows — Outlook / Workday voice. Scoped to
+         the inline (docked) mode; the overlay fallback keeps its prior look.
+         ════════════════════════════════════════════════════════════════ */
+      /* Large light header — the dark identity band is replaced by a clean
+         surface header so the record reads as a full employment file. */
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:22px 26px 18px;background:var(--surface);border-bottom:1px solid var(--border);align-items:flex-start}
+      #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:16px}
+      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:23px;font-weight:700;letter-spacing:-.02em;color:var(--text)}
+      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--text-muted);margin-top:5px}
+      #rr-dd-drawer.rr-dd-inline .dd-meta-sub{display:inline-flex;align-items:center;gap:6px;margin-top:3px;color:var(--text-subtle)}
+      #rr-dd-drawer.rr-dd-inline .dd-meta-sub svg{color:var(--text-subtle)}
+      #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:60px!important;height:60px!important;font-size:22px!important;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(15,23,42,.06)}
+      #rr-dd-drawer.rr-dd-inline .dd-head-x{color:var(--text-subtle)}
+      #rr-dd-drawer.rr-dd-inline .dd-head-x:hover{background:var(--canvas);color:var(--text)}
+      .dd-head-nameline{align-items:center}
+      /* Header badge row — Active / XL / DOT / Trainer etc. Soft enterprise
+         tints; the status badge leads, certifications follow. */
+      .dd-head-badges{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+      .dd-hbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:.01em;line-height:1.5;padding:2px 9px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--canvas);color:var(--text-muted);white-space:nowrap}
+      .dd-hbadge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+      .dd-hbadge-active{color:#15803d;border-color:rgba(22,163,74,.30);background:rgba(22,163,74,.08)}
+      .dd-hbadge-leave{color:#1d4ed8;border-color:rgba(37,99,235,.28);background:rgba(37,99,235,.08)}
+      .dd-hbadge-inactive,.dd-hbadge-terminated{color:#b42318;border-color:rgba(180,35,24,.26);background:rgba(180,35,24,.06)}
+      .dd-hbadge-xl{color:#1d4ed8;border-color:rgba(37,99,235,.26);background:rgba(37,99,235,.07)}
+      .dd-hbadge-dot{color:#15803d;border-color:rgba(22,163,74,.26);background:rgba(22,163,74,.07)}
+      .dd-hbadge-trainer{color:#7c3aed;border-color:rgba(124,58,237,.26);background:rgba(124,58,237,.07)}
+      .dd-hbadge-edv{color:#0e7490;border-color:rgba(14,116,144,.26);background:rgba(14,116,144,.07)}
+      .dd-hbadge-mentor{color:#b45309;border-color:rgba(180,83,9,.26);background:rgba(180,83,9,.07)}
+      /* Header actions — Message (primary), Create coaching / warning, More. */
+      #rr-dd-drawer.rr-dd-inline .dd-head-actions{align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+      .dd-act-txt{display:inline}
+      /* Overlay fallback panel is only ~640px wide — collapse the action
+         labels to icons there so the header never overflows. */
+      #rr-dd-drawer:not(.rr-dd-inline) .dd-act-txt{display:none}
+      #rr-dd-drawer:not(.rr-dd-inline) .dd-act{padding:7px 9px}
+      /* Narrow workspace (docked on smaller screens) — icons only. */
+      @container (max-width:720px){#rr-dd-drawer.rr-dd-inline .dd-act-txt{display:none}#rr-dd-drawer.rr-dd-inline .dd-act{padding:7px 9px}}
+      .dd-act-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+      .dd-act-primary:hover{background:var(--accent-strong,var(--accent));border-color:var(--accent-strong,var(--accent));color:#fff;filter:brightness(.96)}
+      .dd-more-wrap{position:relative;display:inline-flex}
+      .dd-more-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:30;min-width:210px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-lg,0 12px 32px rgba(15,23,42,.16));padding:6px;display:flex;flex-direction:column;gap:1px}
+      .dd-more-menu[hidden]{display:none}
+      .dd-more-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:0;border-radius:var(--r-sm);padding:8px 10px;font:inherit;font-size:var(--fs-sm);color:var(--text);cursor:pointer}
+      .dd-more-item:hover{background:var(--canvas)}
+      .dd-more-item svg{width:15px;height:15px;flex:0 0 auto;color:var(--text-subtle)}
+      .dd-more-item.is-danger{color:var(--red)}
+      .dd-more-item.is-danger svg{color:var(--red)}
+      .dd-more-sep{height:1px;background:var(--border-subtle);margin:5px 2px}
+      /* ── KPI strip — six cards directly below the tabs ─────────────── */
+      .dd-kpi-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:16px 26px 18px;background:var(--canvas);border-bottom:1px solid var(--border)}
+      .dd-kpi-strip:empty{display:none}
+      .dd-kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:13px 14px;min-width:0;display:flex;flex-direction:column;gap:4px}
+      .dd-kpi-card .k-label{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .dd-kpi-card .k-val{font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--text);line-height:1.05;font-variant-numeric:tabular-nums}
+      .dd-kpi-card .k-val small{font-size:13px;font-weight:600;color:var(--text-subtle)}
+      .dd-kpi-card .k-sub{font-size:11px;color:var(--text-subtle);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .dd-kpi-card .k-val.tone-good{color:#15803d}.dd-kpi-card .k-val.tone-warn{color:#b45309}.dd-kpi-card .k-val.tone-bad{color:#b42318}
+      .dd-kpi-card .k-trend{display:inline-flex;align-items:center;gap:3px;font-weight:600}
+      .dd-kpi-card .k-trend.up{color:#15803d}.dd-kpi-card .k-trend.down{color:#b42318}.dd-kpi-card .k-trend.flat{color:var(--text-subtle)}
+      .dd-kpi-card .k-pill{align-self:flex-start;font-size:10px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-pill)}
+      .k-pill.risk-low{color:#15803d;background:rgba(22,163,74,.10)}
+      .k-pill.risk-medium{color:#b45309;background:rgba(245,158,11,.13)}
+      .k-pill.risk-high{color:#b42318;background:rgba(220,38,38,.10)}
+      /* Overlay fallback panel (~640px) can't hold six cards across — show
+         three. The docked workspace sizes to its own width via container
+         queries (the mount declares container-type:inline-size). */
+      #rr-dd-drawer:not(.rr-dd-inline) .dd-kpi-strip{grid-template-columns:repeat(3,1fr);padding:14px 18px}
+      @container (max-width:1000px){#rr-dd-drawer.rr-dd-inline .dd-kpi-strip{grid-template-columns:repeat(3,1fr)}}
+      @container (max-width:600px){#rr-dd-drawer.rr-dd-inline .dd-kpi-strip{grid-template-columns:repeat(2,1fr);padding:14px 18px}}
+      /* ── Overview dashboard ───────────────────────────────────────── */
+      #rr-dd-body .ov-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:22px}
+      #rr-dd-drawer:not(.rr-dd-inline) #rr-dd-body .ov-grid{grid-template-columns:1fr}
+      @container (max-width:980px){#rr-dd-body .ov-grid{grid-template-columns:1fr}}
+      #rr-dd-body .ov-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;min-width:0;display:flex;flex-direction:column}
+      #rr-dd-body .ov-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
+      #rr-dd-body .ov-card-title{font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)}
+      #rr-dd-body .ov-card-link{background:none;border:0;padding:0;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);cursor:pointer}
+      #rr-dd-body .ov-card-link:hover{text-decoration:underline}
+      /* Attendance heatmap — GitHub-contribution style, 90 days. */
+      #rr-dd-body .hm-wrap{display:flex;gap:9px}
+      #rr-dd-body .hm-dows{display:grid;grid-template-rows:repeat(7,13px);gap:3px;font-size:9px;color:var(--text-subtle);padding-top:0}
+      #rr-dd-body .hm-dows span{height:13px;line-height:13px}
+      #rr-dd-body .hm-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,13px);gap:3px;flex:1;min-width:0;overflow-x:auto}
+      #rr-dd-body .hm-cell{width:13px;height:13px;border-radius:3px;background:var(--border-subtle);box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
+      #rr-dd-body .hm-cell.s-none{background:#eceff3}
+      #rr-dd-body .hm-cell.s-present{background:#3aa757}
+      #rr-dd-body .hm-cell.s-late{background:#e8a23d}
+      #rr-dd-body .hm-cell.s-called_off{background:#e0612f}
+      #rr-dd-body .hm-cell.s-no_show{background:#b42318}
+      #rr-dd-body .hm-cell.s-excused{background:#94a3b8}
+      #rr-dd-body .hm-cell.s-future{background:transparent;box-shadow:none}
+      #rr-dd-body .hm-legend{display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin-top:14px;font-size:11px;color:var(--text-subtle)}
+      #rr-dd-body .hm-legend span{display:inline-flex;align-items:center;gap:5px}
+      #rr-dd-body .hm-legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+      /* Risk summary card */
+      #rr-dd-body .ov-risk-level{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+      #rr-dd-body .ov-risk-badge{font-size:13px;font-weight:700;letter-spacing:.02em;padding:4px 12px;border-radius:var(--r-pill)}
+      #rr-dd-body .ov-risk-badge.risk-low{color:#15803d;background:rgba(22,163,74,.10)}
+      #rr-dd-body .ov-risk-badge.risk-medium{color:#b45309;background:rgba(245,158,11,.14)}
+      #rr-dd-body .ov-risk-badge.risk-high{color:#b42318;background:rgba(220,38,38,.10)}
+      #rr-dd-body .ov-sub-label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin:6px 0 8px}
+      #rr-dd-body .ov-factor{display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-sm);color:var(--text);line-height:1.45;padding:4px 0}
+      #rr-dd-body .ov-factor .fdot{width:6px;height:6px;border-radius:50%;flex:0 0 auto;margin-top:6px;background:var(--text-disabled)}
+      #rr-dd-body .ov-factor.t-red .fdot{background:#dc2626}#rr-dd-body .ov-factor.t-amber .fdot{background:#d97706}
+      #rr-dd-body .ov-actions{display:flex;flex-direction:column;gap:7px;margin-top:6px}
+      #rr-dd-body .ov-action-btn{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 11px;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text);cursor:pointer;transition:border-color var(--t-fast),background var(--t-fast)}
+      #rr-dd-body .ov-action-btn:hover{border-color:var(--accent);background:var(--surface)}
+      #rr-dd-body .ov-action-btn svg{width:15px;height:15px;flex:0 0 auto;color:var(--text-subtle)}
+      /* Overview timeline (compact) */
+      #rr-dd-body .ovtl{display:flex;flex-direction:column}
+      #rr-dd-body .ovtl-row{display:grid;grid-template-columns:14px 1fr;gap:10px;align-items:start}
+      #rr-dd-body .ovtl-track{position:relative;display:flex;justify-content:center}
+      #rr-dd-body .ovtl-track::before{content:"";position:absolute;top:8px;bottom:-4px;left:50%;width:2px;background:var(--border-subtle);transform:translateX(-50%)}
+      #rr-dd-body .ovtl-row.last .ovtl-track::before{display:none}
+      #rr-dd-body .ovtl-dot{position:relative;z-index:1;width:9px;height:9px;border-radius:50%;margin-top:4px;background:var(--text-subtle);box-shadow:0 0 0 3px var(--surface)}
+      #rr-dd-body .ovtl-dot.t-green{background:var(--green)}#rr-dd-body .ovtl-dot.t-amber{background:var(--amber)}#rr-dd-body .ovtl-dot.t-red{background:var(--red)}#rr-dd-body .ovtl-dot.t-blue{background:var(--accent)}
+      #rr-dd-body .ovtl-body{padding-bottom:15px;min-width:0}
+      #rr-dd-body .ovtl-row.last .ovtl-body{padding-bottom:0}
+      #rr-dd-body .ovtl-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+      #rr-dd-body .ovtl-label{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+      #rr-dd-body .ovtl-when{font-size:11px;color:var(--text-subtle);white-space:nowrap;flex:0 0 auto}
+      #rr-dd-body .ovtl-sub{font-size:11px;color:var(--text-subtle);margin-top:1px}
+      /* Section blocks under the dashboard (Coaching, Documents) */
+      #rr-dd-body .ov-section{margin-top:26px}
+      #rr-dd-body .ov-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:13px;padding-bottom:9px;border-bottom:1px solid var(--border)}
+      #rr-dd-body .ov-section-title{font-size:var(--fs-sm);font-weight:700;letter-spacing:.03em;color:var(--text)}
+      #rr-dd-body .ov-coach-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:11px}
+      #rr-dd-body .ov-coach-card{border:1px solid var(--border);border-radius:var(--r-lg);padding:13px 14px;background:var(--surface);display:flex;flex-direction:column;gap:6px}
+      #rr-dd-body .ov-coach-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+      #rr-dd-body .ov-coach-title{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.35}
+      #rr-dd-body .ov-coach-meta{font-size:11px;color:var(--text-subtle)}
+      #rr-dd-body .ov-coach-sev{font-size:10px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-pill);white-space:nowrap}
+      #rr-dd-body .ov-coach-sev.sev-slate{color:#475569;background:rgba(100,116,139,.12)}
+      #rr-dd-body .ov-coach-sev.sev-amber{color:#b45309;background:rgba(245,158,11,.14)}
+      #rr-dd-body .ov-coach-sev.sev-red{color:#b42318;background:rgba(220,38,38,.10)}
+      #rr-dd-body .ov-doc-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:11px}
+      #rr-dd-body .ov-doc-card{border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;background:var(--surface);display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
+      #rr-dd-body .ov-doc-card:hover{border-color:var(--accent);box-shadow:var(--shadow-sm)}
+      #rr-dd-body .ov-doc-ico{width:38px;height:38px;border-radius:10px;background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle);flex:0 0 auto}
+      #rr-dd-body .ov-doc-ico svg{width:19px;height:19px}
+      #rr-dd-body .ov-doc-name{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+      #rr-dd-body .ov-doc-count{font-size:11px;color:var(--text-subtle);margin-top:1px}
+      /* Performance tab */
+      #rr-dd-body .perf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:22px}
+      #rr-dd-body .perf-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px}
+      #rr-dd-body .perf-card .pc-label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:7px}
+      #rr-dd-body .perf-card .pc-val{font-size:30px;font-weight:700;letter-spacing:-.02em;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
+      #rr-dd-body .perf-card .pc-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px}
+      #rr-dd-body .perf-bars{display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:10px}
+      #rr-dd-body .perf-bar{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+      #rr-dd-body .perf-bar .pb-fill{width:100%;max-width:34px;border-radius:4px 4px 0 0;background:var(--accent);min-height:3px}
+      #rr-dd-body .perf-bar .pb-cap{font-size:10px;color:var(--text-subtle);white-space:nowrap}
+      #rr-dd-body .perf-bar .pb-val{font-size:10px;font-weight:700;color:var(--text-muted)}
     </style>
     <div id="rr-dd-panel">
       <div class="dd-chrome">
@@ -21952,50 +22108,84 @@ async function openDriverDrawer(driverId, opts) {
           <div class="dd-head-idtext">
             <div class="dd-head-nameline">
               <h3 id="rr-dd-title">Driver record</h3>
+              <span class="dd-head-badges" id="rr-dd-badges"></span>
             </div>
             <div class="dd-meta" id="rr-dd-sub"></div>
             <div class="dd-meta dd-meta-sub" id="rr-dd-sub2"></div>
           </div>
         </div>
-        <button type="button" class="dd-head-x" data-rr-dd-close aria-label="Close record" title="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <!-- Header actions — Message (primary), Create coaching / warning,
+             More ▾ overflow menu, then Close. Wired by the drawer click
+             delegate via data-rr-dd-action. Hidden in CREATE mode. -->
+        <div class="dd-head-actions" id="rr-dd-actions" hidden>
+          <button type="button" class="dd-act dd-act-primary" data-rr-dd-action="message" title="Message driver in the RouteReady app">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <span class="dd-act-txt">Message</span>
+          </button>
+          <button type="button" class="dd-act" data-rr-dd-action="coach" title="Log a coaching for this driver">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+            <span class="dd-act-txt">Create coaching</span>
+          </button>
+          <button type="button" class="dd-act" data-rr-dd-action="warning" title="Issue a written / final warning">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span class="dd-act-txt">Create warning</span>
+          </button>
+          <div class="dd-more-wrap">
+            <button type="button" class="dd-act" data-rr-dd-action="more" aria-haspopup="menu" aria-expanded="false" title="More actions">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/><circle cx="5" cy="12" r="1.6"/></svg>
+            </button>
+            <div class="dd-more-menu" id="rr-dd-more-menu" role="menu" hidden>
+              <button type="button" class="dd-more-item" role="menuitem" data-rr-dd-action="availability"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Edit availability</button>
+              <button type="button" class="dd-more-item" role="menuitem" data-rr-dd-action="report"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Employment report</button>
+              <button type="button" class="dd-more-item" role="menuitem" data-rr-dd-action="expand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>Open as overlay</button>
+            </div>
+          </div>
+          <button type="button" class="dd-head-x" data-rr-dd-close aria-label="Close record" title="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
       </div>
-      <!-- Quiet KPI row under the profile header (Attendance · Risk · Tenure ·
-           Last event) — populated in loadDriverDrawer. -->
-      <div class="dd-kpis" id="rr-dd-kpis"></div>
-      <!-- Tabs grouped by what they hold: identity → employment record →
-           credentials → availability → docs → attendance history.
-           Overview + Activity were dashboard-flavored and are dropped —
-           their facts already live in Profile/Employment, and the
-           merged chronology is in the Employment Documentation Report. -->
+      <!-- Workspace navigation — Schedule-page tab styling. Overview is the
+           default landing dashboard; History is the full audit log. -->
       <div class="dd-tabs">
-        <button type="button" class="dd-tab active" data-rr-dd-tab="attendance">Attendance</button>
+        <button type="button" class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="attendance">Attendance</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="profile">Profile</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="employment">Employment</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="license">Credentials</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="performance">Performance</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="timeline">Timeline</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="timeline">History</button>
       </div>
       <div class="dd-tab-note" id="rr-dd-tab-note"></div>
+      <!-- Six-card KPI strip — populated in loadDriverDrawer once the model
+           (attendance, risk, tenure, coaching, stability) is computed. -->
+      <div class="dd-kpi-strip" id="rr-dd-kpi-strip"></div>
       </div><!-- /.dd-chrome -->
       <div class="dd-body" id="rr-dd-body"><div class="rr-loading">Loading</div></div>
       <div class="dd-foot" id="rr-dd-foot"></div>
     </div>`;
-  // Inline workspace vs. overlay. When the roster split is on-screen we
-  // dock the record into #driver-record-mount beside the roster list (no
-  // backdrop / blur / page-blocking overlay); otherwise — e.g. opened from
-  // an Attendance deep-link, Onboarding, or global search on another page —
-  // we fall back to the slide-over drawer. offsetParent is null while the
-  // roster sub-view is display:none, so this is true only when the inline
-  // pane is actually visible.
   const _ddSplit = document.getElementById("rr-roster-split");
   const _ddMount = document.getElementById("driver-record-mount");
-  // The driver record opens as a right-side slide-out overlay (Slack / Linear
-  // style): the roster stays full-width and is the primary object. The old
-  // docked-into-the-split mode is retired — always body-append the slide-over.
-  document.body.appendChild(drawer);
-  if (_ddMount) _ddMount.classList.remove("is-filled");
-  if (_ddSplit) _ddSplit.classList.remove("has-record");
+  // Inline Driver Workspace vs. overlay. When the roster split is on-screen
+  // (Drivers › Roster sub-view active) we dock the record into
+  // #driver-record-mount beside the roster: the roster condenses to a nav
+  // rail and the workspace expands to ~75–80% of the width — a permanent
+  // employment record, not a flyout. Opened from anywhere else (Attendance
+  // deep-link, Schedule, global search) it falls back to the right-side
+  // slide-over. opts.forceOverlay (the "Open as overlay" action) requests
+  // the slide-over explicitly even from the roster.
+  const _wantInline = !(opts && opts.forceOverlay)
+    && _ddMount && _ddSplit && _ddSplit.offsetParent !== null;
+  if (_wantInline) {
+    drawer.classList.add("rr-dd-inline");
+    _ddMount.appendChild(drawer);
+    _ddMount.classList.add("is-filled");
+    _ddSplit.classList.add("has-record");
+  } else {
+    document.body.appendChild(drawer);
+    if (_ddMount) _ddMount.classList.remove("is-filled");
+    if (_ddSplit) _ddSplit.classList.remove("has-record");
+  }
   if (driverId) _rrMarkActiveRosterRow(driverId);   // accent the selected row
   // Slide in (overlay) / fade in (inline) · the panel is appended in its
   // un-.open form; adding .rr-dd-open on the next frame triggers the
@@ -22122,6 +22312,22 @@ async function loadDriverDrawer(driverId) {
   if (!Array.isArray(_obBlueprint) || !_obBlueprint.length) {
     try { const { data: bp } = await sb.rpc("onboarding_blueprint_get"); if (Array.isArray(bp) && bp.length) _obBlueprint = bp; } catch {}
   }
+  // Recent shift history (≈13 weeks) — powers the Workspace KPI strip,
+  // the Overview attendance heatmap, schedule-stability, and risk scoring.
+  try {
+    const _wsSince = new Date(); _wsSince.setDate(_wsSince.getDate() - 97);
+    const { data: shifts } = await sb.from("shifts")
+      .select("id, date, status")
+      .eq("dsp_id", window.RR?.dsp?.id)
+      .eq("driver_id", driverId)
+      .gte("date", fmtIsoDate(_wsSince))
+      .order("date", { ascending: true })
+      .limit(2000);
+    _ddDriver.shifts = shifts || [];
+  } catch { _ddDriver.shifts = []; }
+  // Derived workspace model (KPIs, risk, heatmap data). Stashed so the KPI
+  // strip and the Overview/Performance tabs render synchronously from it.
+  _ddDriver._model = _ddWorkspaceModel(_ddDriver);
 
   const drv = data.driver;
   const titleEl = document.getElementById("rr-dd-title");
@@ -22175,8 +22381,164 @@ async function loadDriverDrawer(driverId) {
     _paintDriverAvatars(avEl.parentElement || document);
   }
 
+  // ── Header badge row — status + certifications/roles. Soft enterprise
+  // tints; the status leads (Active/On leave/…), credentials follow.
+  const badgesEl = document.getElementById("rr-dd-badges");
+  if (badgesEl) {
+    const badges = [];
+    const stKey = drv.status === "leave" ? "leave"
+      : (drv.status === "inactive" || drv.status === "terminated") ? drv.status
+      : drv.status === "active" ? "active" : null;
+    if (stKey) badges.push(`<span class="dd-hbadge dd-hbadge-${stKey}"><span class="dot"></span>${escapeHtml(sm.label)}</span>`);
+    else if (sm.label) badges.push(`<span class="dd-hbadge"><span class="dot"></span>${escapeHtml(sm.label)}</span>`);
+    if (drv.xl_certified)  badges.push(`<span class="dd-hbadge dd-hbadge-xl">XL</span>`);
+    if (drv.dot_certified) badges.push(`<span class="dd-hbadge dd-hbadge-dot">DOT</span>`);
+    if (drv.is_trainer)    badges.push(`<span class="dd-hbadge dd-hbadge-trainer">Trainer</span>`);
+    if (drv.edv_certified) badges.push(`<span class="dd-hbadge dd-hbadge-edv">EDV</span>`);
+    if (drv.metadata && drv.metadata.is_mentor) badges.push(`<span class="dd-hbadge dd-hbadge-mentor">Mentor</span>`);
+    badgesEl.innerHTML = badges.join("");
+  }
+
+  // Employee ID on the tenure line, when present in metadata.
+  const empId = drv.metadata && (drv.metadata.employee_id || drv.metadata.emp_id);
+  const sub2El2 = document.getElementById("rr-dd-sub2");
+  if (sub2El2 && empId) {
+    const base = sub2El2.textContent ? sub2El2.textContent + "  ·  " : "";
+    sub2El2.textContent = `${base}Employee ID ${empId}`;
+  }
+
+  // Reveal the header action bar (hidden in CREATE mode, which has no id).
+  const actionsEl = document.getElementById("rr-dd-actions");
+  if (actionsEl) actionsEl.hidden = false;
+
+  // Paint the six-card KPI strip from the derived model.
+  const kpiStrip = document.getElementById("rr-dd-kpi-strip");
+  if (kpiStrip) kpiStrip.innerHTML = renderWorkspaceKpis(_ddDriver._model);
+
   if (!_ddLive()) return; // closed during the doc/envelope/report loads
   renderDriverDrawerTab();
+}
+
+// ── Driver Workspace model ─────────────────────────────────────────────────
+// Derives every KPI / risk / heatmap value the workspace needs from the data
+// already loaded onto _ddDriver (driver row, coachings, ~13 weeks of shifts).
+// Pure + synchronous so the KPI strip and Overview/Performance render instantly.
+function _ddWorkspaceModel(dd) {
+  const d = (dd && dd.driver) || {};
+  const shifts = Array.isArray(dd && dd.shifts) ? dd.shifts : [];
+  const coachings = ((dd && dd.coachings) || []).filter(c => c && !c.archived_at);
+  const DAY = 86400000;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+  const COUNTED = ["completed", "late", "no_show", "called_off"];
+  const ageDaysOf = (iso) => Math.floor((todayMs - new Date(iso + "T12:00:00").getTime()) / DAY);
+
+  // Heatmap source — most-recent status wins per ISO date.
+  const byDate = {};
+  let worked = 0, eligible = 0;
+  let callOffs30 = 0, late14 = 0, noShow30 = 0, late30 = 0;
+  let workedR = 0, eligibleR = 0, workedP = 0, eligibleP = 0; // recent/prior 45d windows
+  let disrupted = new Array(8).fill(false), hadWeek = new Array(8).fill(false);
+  for (const s of shifts) {
+    const iso = (s.date || "").slice(0, 10);
+    if (!iso) continue;
+    const st = s.status;
+    byDate[iso] = st;
+    const age = ageDaysOf(iso);
+    if (age < 0) continue; // future
+    if (COUNTED.includes(st)) {
+      eligible++;
+      const w = (st === "completed" || st === "late") ? 1 : 0;
+      worked += w;
+      if (age < 45) { eligibleR++; workedR += w; } else if (age < 90) { eligibleP++; workedP += w; }
+    }
+    if (age < 30) { if (st === "called_off") callOffs30++; if (st === "no_show") noShow30++; if (st === "late") late30++; }
+    if (age < 14 && st === "late") late14++;
+    if (age < 56) {
+      const wk = Math.floor(age / 7);
+      if (wk >= 0 && wk < 8) { hadWeek[wk] = true; if (st === "called_off" || st === "no_show") disrupted[wk] = true; }
+    }
+  }
+  const attendancePct = eligible ? Math.round((worked / eligible) * 100) : null;
+  const pctR = eligibleR ? (workedR / eligibleR) * 100 : null;
+  const pctP = eligibleP ? (workedP / eligibleP) * 100 : null;
+  let attTrend = "flat";
+  if (pctR != null && pctP != null) attTrend = pctR > pctP + 2 ? "up" : pctR < pctP - 2 ? "down" : "flat";
+  const attendanceTone = attendancePct == null ? "" : attendancePct >= 92 ? "good" : attendancePct >= 80 ? "warn" : "bad";
+
+  // Active corrective standing (unresolved coachings).
+  const sevRank = { verbal: 1, concern: 1, written: 2, warning: 2, final: 3, termination: 4 };
+  let topSev = 0, topSevLabel = null;
+  let activeCoach = 0;
+  for (const c of coachings) {
+    if (c.resolved_at) continue;
+    activeCoach++;
+    const r = sevRank[c.severity] || 0;
+    if (r > topSev) { topSev = r; topSevLabel = c.severity; }
+  }
+  const sevName = { 2: "Written warning", 3: "Final warning", 4: "Termination" }[topSev] || null;
+
+  // Risk model — High / Medium / Low.
+  let risk = "low";
+  if (topSev >= 3 || noShow30 >= 1 || callOffs30 >= 3) risk = "high";
+  else if (topSev === 2 || callOffs30 >= 1 || late14 >= 2 || (attendancePct != null && attendancePct < 85)) risk = "medium";
+
+  const factors = [];
+  if (callOffs30) factors.push({ tone: callOffs30 >= 3 ? "red" : "amber", txt: `${callOffs30} call off${callOffs30 === 1 ? "" : "s"} in the last 30 days` });
+  if (noShow30) factors.push({ tone: "red", txt: `${noShow30} no-show${noShow30 === 1 ? "" : "s"} in the last 30 days` });
+  if (late14) factors.push({ tone: "amber", txt: `${late14} late arrival${late14 === 1 ? "" : "s"} in the last 14 days` });
+  if (sevName) factors.push({ tone: topSev >= 3 ? "red" : "amber", txt: `${sevName} active` });
+  if (attendancePct != null && attendancePct < 90) factors.push({ tone: attendancePct < 80 ? "red" : "amber", txt: `Attendance ${attendancePct}% — below 90% target` });
+
+  // Schedule stability — weeks (of the last 8) with no call-off / no-show.
+  let goodWeeks = 0;
+  for (let i = 0; i < 8; i++) if (!disrupted[i]) goodWeeks++;
+  const stabilityTone = goodWeeks >= 7 ? "good" : goodWeeks >= 5 ? "warn" : "bad";
+
+  const tenureDays = d.hire_date ? Math.max(0, Math.floor((todayMs - new Date(d.hire_date + (/T/.test(d.hire_date) ? "" : "T12:00:00")).getTime()) / DAY)) : null;
+
+  return {
+    attendancePct, attendanceTone, attTrend,
+    callOffs30, late14, late30, noShow30,
+    tenureDays,
+    activeCoach,
+    risk, factors, topSev, sevName,
+    stabilityGood: goodWeeks, stabilityTone,
+    heatmapByDate: byDate,
+    hasShiftData: shifts.length > 0,
+  };
+}
+
+// Six-card KPI strip — Attendance Score · Call Offs · Tenure · Coaching ·
+// Driver Risk · Schedule Stability. Rendered into #rr-dd-kpi-strip.
+function renderWorkspaceKpis(m) {
+  if (!m) return "";
+  const trendIco = {
+    up:   `<span class="k-trend up"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>Improving</span>`,
+    down: `<span class="k-trend down"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>Declining</span>`,
+    flat: `<span class="k-trend flat">Steady</span>`,
+  };
+  const riskLabel = { low: "Low", medium: "Medium", high: "High" }[m.risk] || "—";
+  const card = (label, valHtml, subHtml) =>
+    `<div class="dd-kpi-card"><div class="k-label">${label}</div><div class="k-val">${valHtml}</div>${subHtml ? `<div class="k-sub">${subHtml}</div>` : ""}</div>`;
+  return [
+    card("Attendance score",
+      m.attendancePct == null ? `—` : `<span class="${m.attendanceTone ? "tone-" + m.attendanceTone : ""}">${m.attendancePct}%</span>`,
+      m.attendancePct == null ? "No shift data yet" : trendIco[m.attTrend]),
+    card("Call offs",
+      `${m.callOffs30}`,
+      "Last 30 days"),
+    card("Tenure",
+      m.tenureDays == null ? `—` : `${m.tenureDays}`,
+      m.tenureDays == null ? "Hire date not set" : "Days employed"),
+    card("Coaching",
+      `${m.activeCoach}`,
+      "Active events"),
+    `<div class="dd-kpi-card"><div class="k-label">Driver risk</div><div class="k-val" style="font-size:18px"><span class="k-pill risk-${m.risk}">${riskLabel}</span></div><div class="k-sub">${m.factors.length} factor${m.factors.length === 1 ? "" : "s"}</div></div>`,
+    card("Schedule stability",
+      `<span class="${m.stabilityTone ? "tone-" + m.stabilityTone : ""}">${m.stabilityGood}<small>/8</small></span>`,
+      "Weeks without disruption"),
+  ].join("");
 }
 
 // Capture every visible data-rr-dd-field input into _ddPending so its
@@ -22225,6 +22587,7 @@ function renderDriverDrawerTab() {
   if (_ddTab === "profile")      renderProfileTab(body, _ddDriver.driver);
   if (_ddTab === "employment")   renderEmploymentTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
+  if (_ddTab === "performance")  renderPerformanceTab(body, _ddDriver, _ddDriver._model);
   if (_ddTab === "attendance")   renderAttendanceTab(body, _ddDriver.driver);
   if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver, _ddDriver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
@@ -22604,107 +22967,251 @@ function renderActivityTab(body, dd) {
     <div>${html}</div>`;
 }
 
-// Overview — the landing tab. A calm, scan-first snapshot: status &
-// readiness, what needs attention, the key facts, recent activity. The
-// detail (and editing) lives in the other tabs; this is the "I trust
-// this record / I understand this employee at a glance" surface.
+// Overview — the default landing dashboard. A three-column, scan-first
+// snapshot built for an enterprise driver record: a 90-day attendance
+// heatmap, a risk summary with recommended actions, and a recent activity
+// timeline — followed by coaching history and a document library. The
+// editable detail lives in the other tabs; Overview is "understand this
+// employee at a glance."
 function renderOverviewTab(body, dd) {
   const d = (dd && dd.driver) || {};
-  const fmtD  = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
-  const fmtTs = (x) => x ? new Date(x).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
-  const station = (_driverStationsCache || []).find(s => s.id === d.station_id);
-  const stationTxt = d.station_id ? (station ? station.code : "Assigned") : "Unassigned";
-  const tenureTxt = d.hire_date ? (() => {
-    const days = Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000));
-    if (days < 45) return `${days}d`;
-    const mo = Math.round(days / 30.4);
-    return mo < 24 ? `${mo} mo` : `${(days / 365.25).toFixed(1)} yr`;
-  })() : null;
-  const onboarding = d.status === "onboarding";
-  const ob = onboarding ? _obReadiness(d, dd && dd.i9 ? dd.i9.record : null, (dd && dd.prog) || null, (dd && dd.onbState) || {}) : null;
-  const i9d = _i9Derived(dd && dd.i9 ? dd.i9.record : null);
-  const app = _rosterAppStatus ? _rosterAppStatus.get(d.id) : null;
+  const m = (dd && dd._model) || _ddWorkspaceModel(dd);
+  const coachings = ((dd && dd.coachings) || []).filter(c => c && !c.archived_at);
 
-  // ── needs attention ──
-  const attn = [];
-  if (d.dl_expires_on) {
-    const days = Math.floor((new Date(d.dl_expires_on + "T12:00:00").getTime() - Date.now()) / 86400000);
-    if (days < 0) attn.push({ t: "red",   txt: `Driver's license expired ${fmtD(d.dl_expires_on)}` });
-    else if (days <= 30) attn.push({ t: "amber", txt: `Driver's license expires ${fmtD(d.dl_expires_on)} — ${days} day${days === 1 ? "" : "s"}` });
-  } else if (d.dl_image_path || d.dl_back_image_path) {
-    attn.push({ t: "amber", txt: "Driver's license uploaded — expiry not verified yet" });
-  } else if (d.status !== "onboarding") {
-    attn.push({ t: "amber", txt: "No driver's license on file" });
-  }
-  if (i9d.key !== "verified") {
-    if (i9d.attention === "overdue" || i9d.key === "needs_correction") attn.push({ t: "red",   txt: `Form I-9 — ${i9d.label.toLowerCase()}` });
-    else if (i9d.attention === "due_soon" || i9d.attention === "blocked") attn.push({ t: "amber", txt: `Form I-9 — ${i9d.label.toLowerCase()}` });
-    else if (i9d.key !== "no_record") attn.push({ t: "slate", txt: `Form I-9 — ${i9d.label.toLowerCase()}` });
-  } else if (i9d.key === "verified_expiring") {
-    attn.push({ t: "amber", txt: "Work authorization expiring — plan reverification" });
-  }
-  if (ob) {
-    if (ob.key === "blocked") attn.push({ t: "red", txt: `Onboarding blocked — ${ob.next.toLowerCase()}` });
-    else if (ob.tone === "amber") attn.push({ t: "amber", txt: `Onboarding — ${ob.next.toLowerCase()}` });
-  }
-  if (d.status === "active" && d.score != null && d.score < 70) attn.push({ t: "red", txt: `Performance score ${d.score} — below threshold` });
-  if (app && !app.signed_in_at && app.invited) attn.push({ t: "slate", txt: "Invited to the RouteReady app — hasn't signed in yet" });
-  else if (app && !app.invited && !app.signed_in_at && d.status !== "inactive" && d.status !== "terminated") attn.push({ t: "slate", txt: "Not invited to the RouteReady app yet" });
+  // ── Column 1 · attendance heatmap (previous 90 days, GitHub style) ──
+  const heatmap = _ddHeatmapHtml(m);
 
-  // ── recent activity (merged, newest first) ──
-  const ev = [];
-  for (const c of (dd.coachings || [])) if (c.occurred_at) ev.push({ at: c.occurred_at, txt: `Coaching logged${c.category ? " · " + c.category : ""}` });
-  for (const e of (dd.envelopes || [])) {
-    const t = (e.document_templates && e.document_templates.title) || "Document";
-    if (e.signed_at) ev.push({ at: e.signed_at, txt: `Signed: ${t}` });
-    else if (e.sent_at) ev.push({ at: e.sent_at, txt: `Sent for signature: ${t}` });
-  }
-  for (const x of ((dd.i9 && dd.i9.events) || [])) if (x.created_at) ev.push({ at: x.created_at, txt: `Form I-9 · ${typeof _i9EventMeta === "function" ? _i9EventMeta(x).title : x.kind}` });
-  for (const r of (dd.empReports || [])) if (r.generated_at) ev.push({ at: r.generated_at, txt: "Employment report generated" });
-  ev.sort((a, b) => new Date(b.at) - new Date(a.at));
-  const recent = ev.slice(0, 6);
+  // ── Column 2 · risk summary ──
+  const riskLabel = { low: "LOW", medium: "MEDIUM", high: "HIGH" }[m.risk] || "—";
+  const factorsHtml = m.factors.length
+    ? m.factors.map(f => `<div class="ov-factor t-${f.tone}"><span class="fdot"></span><span>${escapeHtml(f.txt)}</span></div>`).join("")
+    : `<div class="ov-factor"><span class="fdot"></span><span style="color:var(--text-subtle)">No risk factors — this driver is in good standing.</span></div>`;
+  const actions = `
+    <button type="button" class="ov-action-btn" data-rr-dd-action="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Schedule coaching</button>
+    <button type="button" class="ov-action-btn" data-rr-dd-action="message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Send message</button>
+    <button type="button" class="ov-action-btn" data-rr-dd-action="warning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Create warning</button>`;
 
-  const dot = (t) => `<span style="width:7px;height:7px;border-radius:50%;flex:0 0 auto;margin-top:5px;background:${t === "red" ? "#dc2626" : t === "amber" ? "#d97706" : "#94a3b8"}"></span>`;
-  const fact = (label, val) => `<div><div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">${escapeHtml(label)}</div><div style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(val)}</div></div>`;
+  // ── Column 3 · recent timeline ──
+  const tl = _ddOverviewTimeline(dd).slice(0, 8);
+  const tlHtml = tl.length ? tl.map((e, i) => `
+    <div class="ovtl-row${i === tl.length - 1 ? " last" : ""}">
+      <span class="ovtl-track"><span class="ovtl-dot t-${e.tone}"></span></span>
+      <div class="ovtl-body">
+        <div class="ovtl-top"><span class="ovtl-label">${escapeHtml(e.label)}</span><span class="ovtl-when">${escapeHtml(_ddRelDate(e.at))}</span></div>
+        ${e.sub ? `<div class="ovtl-sub">${escapeHtml(e.sub)}</div>` : ""}
+      </div>
+    </div>`).join("") : `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No recorded activity yet.</div>`;
+
+  // ── Coaching history cards ──
+  const coachCards = coachings.slice(0, 4).map(c => {
+    const lvl = (typeof _coachingSevLabel === "function") ? _coachingSevLabel(c.severity, c.topic, c.metadata?.attendance_reason) : (c.severity || "Coaching");
+    const sev = String(c.severity || "").toLowerCase();
+    const sevCls = (sev === "final" || sev === "termination") ? "sev-red" : (sev === "written" || sev === "warning") ? "sev-amber" : "sev-slate";
+    const date = c.occurred_at ? new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+    const by = c.coached_by_name || "";
+    const status = c.resolved_at ? "Resolved" : (c.acknowledged_at || c.signed_at) ? "Acknowledged" : (c.delivery_required && c.delivery_required !== "none") ? "Awaiting acknowledgment" : "Logged";
+    return `<div class="ov-coach-card">
+      <div class="ov-coach-top"><span class="ov-coach-title">${escapeHtml(c.summary || lvl)}</span><span class="ov-coach-sev ${sevCls}">${escapeHtml(lvl)}</span></div>
+      <div class="ov-coach-meta">${escapeHtml(date)}${by ? " · " + escapeHtml(by) : ""}</div>
+      <div class="ov-coach-meta">${escapeHtml(status)}</div>
+    </div>`;
+  }).join("");
+
+  // ── Document library categories ──
+  const docs = (dd && dd.documents) || [];
+  const envs = (dd && dd.envelopes) || [];
+  const kindCount = (re) => docs.filter(x => re.test((x.kind || "") + " " + (x.label || ""))).length;
+  const warningsN = coachings.filter(c => ["written", "warning", "final", "termination"].includes(String(c.severity || "").toLowerCase())).length;
+  const folderIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+  const docCats = [
+    ["Warnings", warningsN],
+    ["Coaching forms", coachings.length],
+    ["DOT certifications", kindCount(/dot/i) + (d.dot_certified ? 1 : 0)],
+    ["Employment documents", envs.filter(e => e.status === "signed").length + kindCount(/i9|w4|w-4|direct_deposit|background|social/i)],
+    ["Training records", kindCount(/train/i)],
+  ];
+  const docCards = docCats.map(([name, n]) => `
+    <div class="ov-doc-card" data-rr-dd-tab="documents" role="button" tabindex="0">
+      <div class="ov-doc-ico">${folderIco}</div>
+      <div><div class="ov-doc-name">${escapeHtml(name)}</div><div class="ov-doc-count">${n} ${n === 1 ? "file" : "files"}</div></div>
+    </div>`).join("");
 
   body.innerHTML = `
-    <div style="margin-bottom:18px">
-      <div style="display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap">
-        ${typeof renderDriverStatusBadge === "function" ? renderDriverStatusBadge(d.status) : `<span class="dd-badge dsp">${escapeHtml(d.status || "—")}</span>`}
-        ${ob ? `${_obPill(ob.label, ob.tone)}<span class="u-xs-subtle">${ob.doneN}/${ob.totalN} gates</span>` : ""}
-        <span class="u-xs-subtle">${escapeHtml(stationTxt)}${tenureTxt ? " · " + escapeHtml(tenureTxt) : ""}${d.tier ? " · Tier " + escapeHtml(String(d.tier)) : ""}</span>
+    <div class="ov-grid">
+      <div class="ov-card">
+        <div class="ov-card-head"><div class="ov-card-title">Attendance · last 90 days</div><button type="button" class="ov-card-link" data-rr-dd-tab="attendance">Details →</button></div>
+        ${heatmap}
       </div>
-      ${ob ? `<div style="display:flex;gap:var(--s-1);margin-top:var(--s-3);max-width:340px">${ob.gates.map(g => `<div title="${escapeHtml(g.label)}${g.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:var(--r-pill);background:${g.done ? "#16a34a" : "var(--border)"}"></div>`).join("")}</div>` : ""}
-      ${ob ? `<div class="u-mt-3"><button type="button" class="btn btn-sm btn-primary" data-rr-dd-tab="employment">Continue onboarding & Form I-9 →</button></div>` : ""}
-    </div>
-
-    <div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">Needs attention</div></div></div>
-      ${attn.length
-        ? `<div style="display:flex;flex-direction:column;gap:9px">${attn.map(a => `<div style="display:flex;align-items:flex-start;gap:9px;font-size:var(--fs-sm);line-height:1.4">${dot(a.t)}<span style="color:${a.t === "red" ? "#991b1b" : a.t === "amber" ? "#92400e" : "var(--text)"}">${escapeHtml(a.txt)}</span></div>`).join("")}</div>`
-        : `<div style="display:flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:var(--text-subtle)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#16a34a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><polyline points="20 6 9 17 4 12"/></svg>Nothing needs attention — this record is in good standing.</div>`}
-    </div>
-
-    <div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">At a glance</div></div></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s-4) 14px">
-        ${d.phone
-          ? `<div><div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">Phone</div><div style="font-size:var(--fs-sm);color:var(--text)">${phoneCell(d.phone)}</div></div>`
-          : fact("Phone", "—")}
-        ${fact("Email", d.email || "—")}
-        ${fact("Station", stationTxt)}
-        ${fact("Hired", d.hire_date ? fmtD(d.hire_date) + (tenureTxt ? " · " + tenureTxt : "") : "—")}
-        ${d.status === "active" && d.score != null ? fact("Performance score", String(d.score)) : ""}
-        ${fact("Driver's license", d.dl_number ? (d.dl_number + (d.dl_expires_on ? " · exp " + fmtD(d.dl_expires_on) : "")) : "Not on file")}
-        ${fact("Form I-9", i9d.label)}
-        ${fact("App access", app ? (app.signed_in_at ? "Signed in" : app.invited ? "Invited" : "Not invited") : "—")}
+      <div class="ov-card">
+        <div class="ov-card-head"><div class="ov-card-title">Risk summary</div></div>
+        <div class="ov-risk-level"><span class="ov-risk-badge risk-${m.risk}">${riskLabel}</span><span style="font-size:var(--fs-sm);color:var(--text-subtle)">Driver risk</span></div>
+        <div class="ov-sub-label">Contributing factors</div>
+        ${factorsHtml}
+        <div class="ov-sub-label" style="margin-top:14px">Recommended actions</div>
+        <div class="ov-actions">${actions}</div>
+      </div>
+      <div class="ov-card">
+        <div class="ov-card-head"><div class="ov-card-title">Recent activity</div><button type="button" class="ov-card-link" data-rr-dd-tab="timeline">Full history →</button></div>
+        <div class="ovtl">${tlHtml}</div>
       </div>
     </div>
 
-    ${recent.length ? `<div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">Recent activity</div></div><button type="button" class="btn btn-sm btn-ghost" data-rr-dd-tab="activity" style="margin-left:auto">View all →</button></div>
-      <div style="display:flex;flex-direction:column">${recent.map((e, i) => `<div style="display:grid;grid-template-columns:96px 1fr;gap:var(--s-3);align-items:baseline;padding:9px 0;${i ? "border-top:1px solid var(--border)" : ""}"><span class="u-xs-subtle">${escapeHtml(fmtTs(e.at))}</span><span style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(e.txt)}</span></div>`).join("")}</div>
-    </div>` : ""}`;
+    <div class="ov-section">
+      <div class="ov-section-head"><div class="ov-section-title">Coaching</div><button type="button" class="ov-card-link" data-rr-dd-tab="timeline">View all →</button></div>
+      ${coachings.length ? `<div class="ov-coach-row">${coachCards}</div>` : `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No coachings logged for this driver yet.</div>`}
+    </div>
+
+    <div class="ov-section">
+      <div class="ov-section-head"><div class="ov-section-title">Documents</div><button type="button" class="ov-card-link" data-rr-dd-tab="documents">Open library →</button></div>
+      <div class="ov-doc-row">${docCards}</div>
+    </div>`;
+}
+
+// Relative date label for the Overview timeline ("Today", "Yesterday",
+// "May 7", "Sep 5, 2025"). Compact + scannable.
+function _ddRelDate(ms) {
+  if (!ms) return "";
+  const dt = new Date(ms);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((today.getTime() - new Date(dt).setHours(0, 0, 0, 0)) / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  const sameYear = dt.getFullYear() === new Date().getFullYear();
+  return dt.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
+}
+
+// 90-day attendance heatmap (GitHub-contribution style). Columns are weeks
+// (Sun-anchored), rows are weekdays; each cell is tinted by the day's shift
+// outcome. Future days in the current week render empty.
+function _ddHeatmapHtml(m) {
+  const byDate = (m && m.heatmapByDate) || {};
+  const DAY = 86400000;
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const todayMs = today.getTime();
+  const start = new Date(todayMs - 89 * DAY);
+  start.setDate(start.getDate() - start.getDay());           // back to Sunday
+  const end = new Date(todayMs);
+  end.setDate(end.getDate() + (6 - end.getDay()));           // forward to Saturday
+  const cls = (st) => st === "completed" ? "present"
+    : st === "late" ? "late"
+    : st === "called_off" ? "called_off"
+    : st === "no_show" ? "no_show"
+    : (st === "excused" || st === "vto") ? "excused" : "none";
+  const human = { present: "Present", late: "Late", called_off: "Call off", no_show: "No show", excused: "Excused", none: "No shift" };
+  const cells = [];
+  for (let t = start.getTime(); t <= end.getTime(); t += DAY) {
+    const dt = new Date(t);
+    if (t > todayMs + DAY / 2) { cells.push(`<div class="hm-cell s-future"></div>`); continue; }
+    const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    const c = cls(byDate[iso]);
+    const title = `${dt.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${human[c]}`;
+    cells.push(`<div class="hm-cell s-${c}" title="${escapeHtml(title)}"></div>`);
+  }
+  const dows = ["", "Mon", "", "Wed", "", "Fri", ""].map(l => `<span>${l}</span>`).join("");
+  return `<div class="hm-wrap"><div class="hm-dows">${dows}</div><div class="hm-grid">${cells.join("")}</div></div>
+    <div class="hm-legend">
+      <span><i class="s-present" style="background:#3aa757"></i>Present</span>
+      <span><i style="background:#e8a23d"></i>Late</span>
+      <span><i style="background:#e0612f"></i>Call off</span>
+      <span><i style="background:#b42318"></i>No show</span>
+      <span><i style="background:#eceff3"></i>No shift</span>
+    </div>`;
+}
+
+// Merged, newest-first activity feed for the Overview timeline: hire,
+// coachings/warnings, signed documents, Form I-9 events, employment
+// reports, and attendance exceptions (call-offs / no-shows / late).
+function _ddOverviewTimeline(dd) {
+  const d = (dd && dd.driver) || {};
+  const out = [];
+  const push = (at, label, tone, sub) => {
+    if (!at) return;
+    const ms = (at instanceof Date) ? at.getTime() : new Date(/T/.test(at) ? at : at + "T12:00:00").getTime();
+    if (isNaN(ms)) return;
+    out.push({ at: ms, label, tone: tone || "blue", sub: sub || "" });
+  };
+  if (d.hire_date) push(d.hire_date, "Hired", "green");
+  for (const c of ((dd && dd.coachings) || [])) {
+    if (c.archived_at || !c.occurred_at) continue;
+    const lvl = (typeof _coachingSevLabel === "function") ? _coachingSevLabel(c.severity, c.topic, c.metadata?.attendance_reason) : (c.severity || "Coaching");
+    const sev = String(c.severity || "").toLowerCase();
+    const tone = (sev === "final" || sev === "termination") ? "red" : "amber";
+    const topic = c.topic ? c.topic.replace(/_/g, " ") : "";
+    push(c.occurred_at, `${lvl} Coaching`, tone, topic ? topic.charAt(0).toUpperCase() + topic.slice(1) : "");
+  }
+  for (const e of ((dd && dd.envelopes) || [])) {
+    const t = (e.document_templates && e.document_templates.title) || "Document";
+    if (e.signed_at) push(e.signed_at, `Signed ${t}`, "blue");
+    else if (e.declined_at) push(e.declined_at, `Declined ${t}`, "red");
+  }
+  for (const x of ((dd && dd.i9 && dd.i9.events) || [])) {
+    if (!x.created_at) continue;
+    const meta = (typeof _i9EventMeta === "function") ? _i9EventMeta(x) : { title: String(x.kind || "I-9") };
+    push(x.created_at, `Form I-9 · ${meta.title}`, "blue");
+  }
+  for (const r of ((dd && dd.empReports) || [])) push(r.generated_at, "Employment report generated", "blue", r.generated_by_name || "");
+  for (const s of ((dd && dd.shifts) || [])) {
+    if (!["called_off", "no_show", "late"].includes(s.status)) continue;
+    const lbl = s.status === "called_off" ? "Missed shift — call off" : s.status === "no_show" ? "Missed shift — no show" : "Late arrival";
+    push(s.date, lbl, s.status === "no_show" ? "red" : "amber");
+  }
+  out.sort((a, b) => b.at - a.at);
+  return out;
+}
+
+// Performance — analytics view: attendance trend, monthly attendance bars,
+// call-off / late history, and the same heatmap for continuity.
+function renderPerformanceTab(body, dd, model) {
+  const d = (dd && dd.driver) || {};
+  const m = model || (dd && dd._model) || _ddWorkspaceModel(dd);
+  const shifts = (dd && dd.shifts) || [];
+  const DAY = 86400000;
+  const now = new Date();
+
+  // Monthly attendance % for the last 6 months (worked ÷ eligible).
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ y: dt.getFullYear(), mo: dt.getMonth(), label: dt.toLocaleDateString(undefined, { month: "short" }), worked: 0, eligible: 0 });
+  }
+  for (const s of shifts) {
+    if (!["completed", "late", "no_show", "called_off"].includes(s.status)) continue;
+    const dt = new Date((s.date || "") + "T12:00:00");
+    const bucket = months.find(x => x.y === dt.getFullYear() && x.mo === dt.getMonth());
+    if (!bucket) continue;
+    bucket.eligible++;
+    if (s.status === "completed" || s.status === "late") bucket.worked++;
+  }
+  const bars = months.map(x => {
+    const pct = x.eligible ? Math.round((x.worked / x.eligible) * 100) : null;
+    const h = pct == null ? 0 : Math.max(3, Math.round(pct));
+    return `<div class="perf-bar" title="${escapeHtml(x.label)} · ${pct == null ? "no data" : pct + "%"}">
+      <span class="pb-val">${pct == null ? "—" : pct + "%"}</span>
+      <span class="pb-fill" style="height:${h}%;background:${pct == null ? "var(--border)" : pct >= 92 ? "#3aa757" : pct >= 80 ? "#e8a23d" : "#b42318"}"></span>
+      <span class="pb-cap">${escapeHtml(x.label)}</span>
+    </div>`;
+  }).join("");
+
+  const tone = (t) => t === "good" ? "tone-good" : t === "warn" ? "tone-warn" : t === "bad" ? "tone-bad" : "";
+  const scoreCard = (label, val, sub, toneCls) => `<div class="perf-card"><div class="pc-label">${label}</div><div class="pc-val ${toneCls || ""}">${val}</div><div class="pc-sub">${sub}</div></div>`;
+
+  body.innerHTML = `
+    <div class="perf-grid">
+      ${scoreCard("Attendance score", m.attendancePct == null ? "—" : m.attendancePct + "%", m.attendancePct == null ? "No shift data" : (m.attTrend === "up" ? "Improving vs prior period" : m.attTrend === "down" ? "Declining vs prior period" : "Steady"), tone(m.attendanceTone))}
+      ${scoreCard("Call-offs · 30d", String(m.callOffs30), "Unexcused absences", m.callOffs30 >= 3 ? "tone-bad" : m.callOffs30 >= 1 ? "tone-warn" : "tone-good")}
+      ${scoreCard("Late arrivals · 30d", String(m.late30), "Tardy clock-ins", m.late30 >= 3 ? "tone-bad" : m.late30 >= 1 ? "tone-warn" : "tone-good")}
+      ${scoreCard("Schedule stability", `${m.stabilityGood}<span style="font-size:16px;color:var(--text-subtle)">/8</span>`, "Weeks without disruption", tone(m.stabilityTone))}
+    </div>
+
+    <div class="perf-card" style="margin-bottom:22px">
+      <div class="pc-label">Monthly attendance · last 6 months</div>
+      <div class="perf-bars">${bars}</div>
+    </div>
+
+    <div class="ov-card" style="border-radius:var(--r-lg)">
+      <div class="ov-card-head"><div class="ov-card-title">Attendance heatmap · last 90 days</div></div>
+      ${_ddHeatmapHtml(m)}
+    </div>`;
 }
 
 // ── Training pairing modal (lives on the orientation dashboard) ───────
@@ -29258,6 +29765,35 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
+  // Workspace header / overview action buttons (Message · Create coaching ·
+  // Create warning · More ▾, plus the Overview "Recommended actions").
+  const moreMenu = document.getElementById("rr-dd-more-menu");
+  const actionEl = e.target.closest("#rr-dd-drawer [data-rr-dd-action]");
+  // Dismiss the More menu on any click that isn't the toggle or inside it.
+  if (moreMenu && !moreMenu.hidden) {
+    const onToggle = actionEl && actionEl.getAttribute("data-rr-dd-action") === "more";
+    if (!onToggle && !e.target.closest("#rr-dd-more-menu")) moreMenu.hidden = true;
+  }
+  if (actionEl) {
+    const act = actionEl.getAttribute("data-rr-dd-action");
+    const id = _ddDriver?.driver?.id;
+    if (act === "more") {
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (moreMenu) { moreMenu.hidden = !moreMenu.hidden; actionEl.setAttribute("aria-expanded", String(!moreMenu.hidden)); }
+      return;
+    }
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (moreMenu) moreMenu.hidden = true;
+    if (!id) { toast("Save the driver record first.", "warn"); return; }
+    if (act === "message")      { _ddMessageDriver(id); return; }
+    if (act === "coach")        { if (typeof openCoachingForm === "function") openCoachingForm(id); return; }
+    if (act === "warning")      { if (typeof openCoachingForm === "function") openCoachingForm(id, { warning: true }); return; }
+    if (act === "availability") { _ddTab = "availability"; renderDriverDrawerTab(); return; }
+    if (act === "report")       { if (typeof _openEmploymentReport === "function") _openEmploymentReport(id); return; }
+    if (act === "expand")       { openDriverDrawer(id, { tab: _ddTab, forceOverlay: true }); return; }
+    return;
+  }
+
   // Tab switch inside drawer
   const tab = e.target.closest("#rr-dd-drawer [data-rr-dd-tab]");
   if (tab) {
@@ -29554,7 +30090,23 @@ document.addEventListener("click", async (e) => {
   }
 }, true);
 
-async function openCoachingForm(driverId) {
+// Quick message to a driver from the Driver Workspace header — delivered in
+// their RouteReady app via dispatch_chat_send (same channel as the roster's
+// bulk "Send message"). Kept lightweight: one prompt, one send.
+async function _ddMessageDriver(driverId) {
+  if (!driverId) return;
+  const drv = _ddDriver && _ddDriver.driver;
+  const name = drv ? (displayDriverName(drv) || "this driver") : "this driver";
+  const body = prompt(`Message ${name} (delivered in their RouteReady app):`);
+  if (body === null) return;
+  const txt = body.trim();
+  if (!txt) { toast("Message can't be empty", "warn"); return; }
+  const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: driverId, p_body: txt });
+  if (error) toast("Couldn't send message: " + error.message, "warn");
+  else toast(`Message sent to ${name} ✓`, "success");
+}
+
+async function openCoachingForm(driverId, opts) {
   let m = document.getElementById("rr-coach-modal");
   if (m) m.remove();
 
@@ -29721,6 +30273,12 @@ async function openCoachingForm(driverId) {
     wrap.style.display = "";
   };
   m.querySelector("#rr-coach-severity").addEventListener("change", _renderLadder);
+  // "Create warning" (from the Driver Workspace) opens the form pre-set to a
+  // Written warning on the conduct/performance ladder; the operator can adjust.
+  if (opts && opts.warning) {
+    const sevSel = m.querySelector("#rr-coach-severity");
+    if (sevSel) sevSel.value = "written";
+  }
   _renderLadder();
 
   // Attendance reason picker is only meaningful for the attendance topic —
