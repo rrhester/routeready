@@ -25994,8 +25994,10 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 /* Google-sync status pill */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-sync{
-  display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; margin-top:2px;
-  height:30px; padding:0 13px; border-radius:999px;
+  /* order:-1 floats the sync pill to the front of the right-hand action group,
+     so it sits in line just before Schedule Interview / Add calendar. */
+  display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; order:-1;
+  height:34px; padding:0 13px; border-radius:999px;
   background:rgba(22,163,74,.08); border:1px solid rgba(22,163,74,.22);
   font-size:12.5px; font-weight:600; color:#15803D; white-space:nowrap;
 }
