@@ -26135,3 +26135,32 @@ body.rr-cmdk-open{ overflow:hidden }
 @media (max-width: 1180px){
   #view-onboarding-ops[data-obsub="calendar"] .rr-cal-kpis{ grid-template-columns:repeat(2, minmax(0,1fr)); }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Light pop-out headers (operator: every pop-out, every page, loses the dark
+   header). The base .rr-pol-head is already white; this re-points the few
+   pop-out headers still painted navy (var(--sidebar) / --sidebar-bg) to a
+   white header with a dark title + muted close — matching the Staffing-Policy
+   / Attendance-modal treatment. Selectors mirror the originals' specificity
+   (the Smart Fill rule doubles its id) + sit last in the file, so they win.
+   ════════════════════════════════════════════════════════════════════════ */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-head,
+#rr-sched-colors-popover .rr-pol-head,
+.rr-reqd-head,
+.rr-reqset-head{
+  background:#FFFFFF !important;
+  color:#0F172A !important;
+  border-bottom:1px solid #EEF0F4 !important;
+}
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-title,
+#rr-sched-colors-popover .rr-pol-title,
+.rr-reqd-title,
+.rr-reqset-title{ color:#0F172A !important; }
+.rr-reqd-sub,
+.rr-reqset-help{ color:#64748B !important; }
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-close,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-head .rr-pol-close svg,
+#rr-sched-colors-popover .rr-pol-close,
+.rr-reqd-close{ color:#64748B !important; }
+#rr-sched-colors-popover .rr-pol-close:hover,
+.rr-reqd-close:hover{ background:rgba(15,23,42,.06) !important; color:#0F172A !important; }
