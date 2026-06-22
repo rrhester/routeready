@@ -10510,10 +10510,10 @@ body.rr-cmdk-open{ overflow:hidden }
   }
   #rr-boot-overlay.rr-hide{opacity:0;pointer-events:none}
   #rr-boot-overlay .rr-boot-mark{
-    width:46px;height:46px;border-radius:12px;background:#2563EB;color:#fff;
+    width:56px;height:56px;
     display:flex;align-items:center;justify-content:center;
-    font-size:24px;font-weight:700;font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
   }
+  #rr-boot-overlay .rr-boot-mark img{width:100%;height:100%;display:block}
   #rr-boot-overlay .rr-boot-spin{
     width:26px;height:26px;border-radius:50%;
     border:3px solid rgba(15,23,42,.12);border-top-color:#2563EB;
