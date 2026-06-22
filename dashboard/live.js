@@ -18924,7 +18924,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-days label{gap:4px;font-size:12px}
       #rr-ivcal-new .rr-ne-pop-f{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.06))}
     </style>
-    <div class="rr-ne-card is-max" id="rr-ne-card">
+    <div class="rr-ne-card is-restored" id="rr-ne-card">
       <div class="rr-ne-titlebar">
         <div class="rr-ne-tt" id="rr-ne-tt">Untitled event</div>
         <div class="rr-ne-wins">
@@ -19062,7 +19062,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   }
 
   // ── Window controls (minimize / restore-maximize / close) ──
-  let prevMode = "is-max";
+  // Open windowed (centered modal) rather than full-screen; the operator can
+  // still maximize via the titlebar button. prevMode is the restore target
+  // when un-minimizing, so it tracks the windowed default too.
+  let prevMode = "is-restored";
   const closeEditor = () => { try { if (dictateRecog) dictateRecog.stop(); } catch(_){} document.removeEventListener("mousemove", _neDragMove); document.removeEventListener("mouseup", _neDragUp); m.remove(); };
   function setMode(mode) {
     card.classList.remove("is-max","is-restored","is-min","is-float");
