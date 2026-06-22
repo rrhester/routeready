@@ -390,13 +390,6 @@
                  switches to the calendar and sets it. Interview-availability
                  Rules live on the Week tile. Wired in live.js. order:1 = first. -->
             <div class="sched-ribbon-group" data-group="calendar-controls" id="rr-cal-ribbon" style="order:1;position:relative">
-              <!-- Google-sync status pill (operator removed the title text). -->
-              <div class="rr-cal-titleblock">
-                <span class="rr-cal-sync" title="Connected to Google Calendar">
-                  <span class="rr-cal-sync-dot" aria-hidden="true"></span>
-                  Google Calendar synced
-                </span>
-              </div>
               <div class="subnav" data-rr-tabbar="calendar-controls">
                 <!-- New-action subgroup (New event / Add calendar) · same
                      full-height group treatment as the view-selector below, so
@@ -411,6 +404,10 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><line x1="16" y1="13" x2="16" y2="19"/><line x1="13" y1="16" x2="19" y2="16"/></svg>
                   <span>Add calendar</span>
                 </button>
+                <span class="rr-cal-sync" title="Connected to Google Calendar">
+                  <span class="rr-cal-sync-dot" aria-hidden="true"></span>
+                  Google Calendar synced
+                </span>
                 <span class="rr-cal-newgroup-cap" aria-hidden="true">New</span>
                 </div><!-- /.rr-cal-newgroup -->
                 <div class="ob-tab-divider" aria-hidden="true"></div>
