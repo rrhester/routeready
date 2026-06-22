@@ -26314,3 +26314,25 @@ body.rr-cmdk-open{ overflow:hidden }
    centred instead of overflowing the narrow row. */
 .sidebar.collapsed .brand{ flex-direction:column; gap:8px; }
 .sidebar.collapsed .brand .rr-applauncher{ margin-left:0; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   App-launcher account footer · Settings + Sign out, moved out of the
+   retired top-right account menu. The footer spans the full panel width
+   under the 3 nav columns, divided by a hairline. (Refresh app / What's
+   new still live in the ⌘K command palette.) ════════════════════════════ */
+.rr-al-foot{
+  grid-column:1 / -1;
+  display:flex; gap:6px;
+  margin-top:12px; padding-top:12px;
+  border-top:1px solid rgba(15,23,42,.08);
+}
+.rr-al-footitem{ flex:1; }
+.rr-al-footitem svg{ width:18px; height:18px; flex:0 0 auto; color:#475569; }
+.rr-al-footitem:hover svg{ color:#2563EB; }
+.rr-al-signout{ color:#DC2626; }
+.rr-al-signout svg{ color:#DC2626; }
+.rr-al-signout:hover{ background:#FEF2F2; }
+.rr-al-signout:hover svg{ color:#DC2626; }
+/* Retire the top-right account icon app-wide — Settings + Sign out now ride
+   the launcher; the bell stays put. */
+#rr-hdr-avatar-btn{ display:none !important; }
