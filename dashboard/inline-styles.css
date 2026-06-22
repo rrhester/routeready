@@ -1542,22 +1542,25 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .rr-risk-status{
   display:inline-flex;align-items:center;gap:5px;
   font-size:13px;font-weight:700;line-height:1.2;letter-spacing:.02em;text-transform:uppercase;
-  color:#FFFFFF;
 }
 .rr-risk-reason{
   max-width:100%;overflow:hidden;text-overflow:ellipsis;
-  font-size:12px;font-weight:500;line-height:1.2;color:rgba(255,255,255,.88);
+  font-size:12px;font-weight:500;line-height:1.2;color:#475569;
 }
-/* Solid status pills · white ink, no left accent band (operator). Healthy
-   takes the sidebar's signature blue (the pale rail #EFF6FF can't carry
-   white text). */
-.rr-risk-card.rr-risk-high{background:#DC2626;border-color:#DC2626}
-.rr-risk-card.rr-risk-med{background:#D97706;border-color:#D97706}
-.rr-risk-card.rr-risk-low{background:#2563EB;border-color:#2563EB}
-/* Selected row · one step darker so the open driver feels connected. */
-#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-high{background:#B91C1C;border-color:#B91C1C}
-#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-med{background:#B45309;border-color:#B45309}
-#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-low{background:#1D4ED8;border-color:#1D4ED8}
+/* Soft status pills · pale fills in one family, no left accent band
+   (operator). Healthy uses the Schedule shift-card blue (#EFF6FF); the red
+   is softened to the matching pale level (#FEF2F2). Status word carries the
+   saturated hue for contrast + meaning. */
+.rr-risk-card.rr-risk-high{background:#FEF2F2}
+.rr-risk-card.rr-risk-high .rr-risk-status{color:#DC2626}
+.rr-risk-card.rr-risk-med{background:#FFFBEB}
+.rr-risk-card.rr-risk-med .rr-risk-status{color:#B45309}
+.rr-risk-card.rr-risk-low{background:#EFF6FF}
+.rr-risk-card.rr-risk-low .rr-risk-status{color:#1E40AF}
+/* Selected row · deepen the tint one step so the open driver feels connected. */
+#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-high{background:#FEE2E2}
+#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-med{background:#FEF3C7}
+#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-low{background:#DBEAFE}
 /* Attendance column — % over a thin neutral bar over "X of Y shifts".
    Deliberately subtle: the fill is a single muted slate (its LENGTH carries
    the signal); attendance-risk colour lives in the Risk pill, not here. */
