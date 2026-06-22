@@ -26178,13 +26178,19 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-al-btn:hover{ background:#F3F4F6; color:#1E293B; }
 .rr-al-btn[aria-expanded="true"]{ border-color:#2563EB; color:#2563EB; box-shadow:0 0 0 3px rgba(37,99,235,.16); }
 .rr-al-panel{
-  position:fixed; z-index:130; /* top/right set by JS (place()) so the topbar can't clip it */
-  display:grid; grid-template-columns:repeat(3, minmax(156px, 1fr)); gap:2px 24px;
-  padding:18px 20px; background:#FFFFFF;
+  position:fixed; z-index:130; /* left/top set by JS (place()) so the rail can't clip it */
+  display:flex; flex-direction:column; gap:2px;
+  width:264px; padding:12px; background:#FFFFFF;
   border:1px solid rgba(15,23,42,.08); border-radius:16px;
   box-shadow:0 18px 48px rgba(15,23,42,.18), 0 2px 8px rgba(15,23,42,.08);
 }
 .rr-al-panel[hidden]{ display:none; }
+/* "Soon" tag on not-yet-built apps (Vault, Reports). */
+.rr-al-soon{
+  margin-left:auto; align-self:center;
+  font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+  color:#64748B; background:#F1F5F9; border-radius:999px; padding:2px 8px;
+}
 .rr-al-col{ display:flex; flex-direction:column; gap:2px; }
 .rr-al-colhd{ font-size:12px; font-weight:700; color:#0F172A; padding:0 8px 8px; }
 .rr-al-item{
