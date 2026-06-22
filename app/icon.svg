@@ -1,58 +1,55 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="RouteReady">
   <defs>
-    <!-- Soft sky-blue background like the brand reference -->
-    <linearGradient id="rr-icon-bg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#CFE0F2"/>
-      <stop offset="100%" stop-color="#9CBEDF"/>
+    <!-- Dark navy tile, faint vertical lift toward the top -->
+    <linearGradient id="rrBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16273F"/>
+      <stop offset="1" stop-color="#0A1320"/>
     </linearGradient>
-    <!-- Brand-blue pin gradient (cyan top → deeper blue bottom) -->
-    <linearGradient id="rr-icon-pin" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#60A5FA"/>
-      <stop offset="55%" stop-color="#2563EB"/>
-      <stop offset="100%" stop-color="#1D4ED8"/>
-    </linearGradient>
-    <!-- Soft inner highlight for the 3D-ish depth on the pin -->
-    <radialGradient id="rr-icon-glow" cx="35%" cy="25%" r="60%">
-      <stop offset="0%" stop-color="rgba(255,255,255,.55)"/>
-      <stop offset="55%" stop-color="rgba(255,255,255,0)"/>
+    <radialGradient id="rrSheen" cx="0.5" cy="0.1" r="0.75">
+      <stop offset="0" stop-color="#263C58" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#263C58" stop-opacity="0"/>
     </radialGradient>
-    <!-- R letter cutout mask so the lighter background shows through -->
-    <mask id="rr-icon-r-cut">
-      <rect width="512" height="512" fill="#fff"/>
-      <text x="240" y="296" text-anchor="middle"
-            font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Inter, sans-serif"
-            font-size="190" font-weight="900" letter-spacing="-4"
-            fill="#000">R</text>
-    </mask>
-    <!-- Soft drop shadow under the pin -->
-    <filter id="rr-icon-shadow" x="-20%" y="-10%" width="140%" height="130%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
-      <feOffset dx="0" dy="6" result="off"/>
-      <feComponentTransfer><feFuncA type="linear" slope=".30"/></feComponentTransfer>
-      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    <!-- Brand blue (bright top -> deep bottom) for the route + active nodes -->
+    <linearGradient id="rrBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3D8BFF"/>
+      <stop offset="1" stop-color="#1E66E6"/>
+    </linearGradient>
+    <linearGradient id="rrWhite" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E9F0F8"/>
+    </linearGradient>
+    <!-- Soft float shadow under the lit cells -->
+    <filter id="rrCellShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#04070D" flood-opacity="0.45"/>
     </filter>
   </defs>
 
-  <!-- Rounded-square background plate -->
-  <rect width="512" height="512" rx="92" fill="url(#rr-icon-bg)"/>
+  <!-- Tile -->
+  <rect width="512" height="512" rx="108" fill="url(#rrBg)"/>
+  <rect width="512" height="512" rx="108" fill="url(#rrSheen)"/>
 
-  <!-- Subtle horizon band suggesting a road / landscape -->
-  <path d="M0 380 C140 330 280 360 380 350 C440 344 500 360 512 364 L512 512 L0 512 Z"
-        fill="rgba(37,99,235,.12)"/>
-
-  <!-- White path / road curving under the pin -->
-  <path d="M256 460 C290 430 330 410 380 400 C430 390 470 392 512 396 L512 460 C470 456 430 454 388 462 C346 470 302 478 256 484 C210 478 166 470 124 462 C80 454 40 456 0 460 L0 396 C40 392 80 390 132 400 C182 410 222 430 256 460 Z"
-        fill="rgba(255,255,255,.40)"/>
-
-  <!-- Pin shape (centered slightly above the road) — R cut out -->
-  <g filter="url(#rr-icon-shadow)">
-    <path d="M240 90 C158 90 96 152 96 234 C96 280 124 326 174 364 L240 412 L306 364 C356 326 384 280 384 234 C384 152 322 90 240 90 Z"
-          fill="url(#rr-icon-pin)"
-          mask="url(#rr-icon-r-cut)"/>
+  <!-- Dormant grid cells (the un-lit app tiles the route hasn't reached) -->
+  <g fill="#A6C0DD" fill-opacity="0.24" stroke="#A6C0DD" stroke-opacity="0.18" stroke-width="2">
+    <rect x="336" y="208" width="96" height="96" rx="24"/>
+    <rect x="208" y="336" width="96" height="96" rx="24"/>
+    <rect x="336" y="336" width="96" height="96" rx="24"/>
   </g>
-  <!-- Inner top-left highlight on the pin for the 3D ish glow -->
-  <path d="M240 90 C158 90 96 152 96 234 C96 280 124 326 174 364 L240 412 L306 364 C356 326 384 280 384 234 C384 152 322 90 240 90 Z"
-        fill="url(#rr-icon-glow)"
-        mask="url(#rr-icon-r-cut)"
-        style="mix-blend-mode:screen;pointer-events:none"/>
+
+  <!-- Route connectors (tuck under the lit cells) -->
+  <g fill="none" stroke="url(#rrBlue)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M256 256 H384 V128"/>
+    <path d="M128 384 H256 V256"/>
+  </g>
+
+  <!-- Lit cells -->
+  <g filter="url(#rrCellShadow)">
+    <g fill="url(#rrWhite)">
+      <rect x="80" y="80" width="96" height="96" rx="24"/>
+      <rect x="208" y="80" width="96" height="96" rx="24"/>
+      <rect x="80" y="208" width="96" height="96" rx="24"/>
+    </g>
+    <rect x="204" y="204" width="104" height="104" rx="28" fill="url(#rrBlue)"/>
+    <circle cx="384" cy="128" r="54" fill="url(#rrBlue)"/>
+    <circle cx="128" cy="384" r="54" fill="url(#rrBlue)"/>
+  </g>
 </svg>
