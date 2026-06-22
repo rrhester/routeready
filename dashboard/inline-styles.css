@@ -26206,3 +26206,89 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .rr-al-ico svg{ width:20px; height:20px; }
 .rr-al-item:hover .rr-al-ico{ background:#FFFFFF; border-color:#D7DEE8; color:#2563EB; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Unified pop-out framing · "make every pop-out look like the app launcher"
+   ─────────────────────────────────────────────────────────────────────────
+   Every dropdown / rules / settings pop-out now wears the launcher's frame:
+   an opaque-white surface (no acrylic / glass), a faint hairline edge that
+   reads as borderless, the launcher's soft two-layer shadow and 14px rounded
+   corners. inline-styles.css loads last, so these win same-specificity ties;
+   the schedule-rrx / onboarding-rrx frames use !important, so the rules
+   pop-outs are matched at id-level specificity (two ids out-rank a
+   one-id-two-class view rule) and re-declared !important. The JS-built
+   pop-outs set their frame with plain inline styles, which !important here
+   beats. Centred modals, side drawers, the windowed interview-event editor
+   and the intentionally-tinted forecast / recurrence pops are left alone.
+   Header colours were handled in the earlier white-header pass; the one
+   exception is the onboarding rules pop-out, whose leftover navy band that
+   pass missed is whitened at the bottom of this block.
+   ════════════════════════════════════════════════════════════════════════ */
+/* ── Container frame ─────────────────────────────────────────────────────*/
+.popover,
+.rr-qat-menu,
+.hdr-undo-menu,
+.rr-tf-popover,
+.oc-menu, .oc-quick, .oc-hover,
+.rr-ob-rules-chooser,
+.cl-rn-meta-pop, .cl-launch-pop,
+.rr-reqset-pop,
+.sched-kpi-config-popover,
+#rr-pol-info-pop,
+#rr-sched-colors-popover,
+#view-schedule .rr-ab-menu,
+#view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-menu,
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewdd-menu,
+#view-schedule #rr-sched-smartfill-rules-popover,
+#view-schedule #rr-sched-vans-rules-popover,
+#view-schedule #rr-sched-quick-settings-popover,
+#view-schedule #rr-sched-milestone-rules-popover,
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover,
+#rr-recruiting-chooser,
+#rr-att-ev-pop,
+#rr-tp-vp-pop,
+#rr-di-menu{
+  background:#FFFFFF !important;
+  -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+  border:1px solid rgba(15,23,42,.08) !important;
+  border-radius:14px !important;
+  box-shadow:0 18px 48px rgba(15,23,42,.18), 0 2px 8px rgba(15,23,42,.08) !important;
+}
+/* ── Full-bleed header / body corners follow the new 14px radius so no
+      square corner peeks past the rounded shell (radius only — the header
+      and body colours stay exactly as they are). ───────────────────────*/
+#view-schedule #rr-sched-smartfill-rules-popover > :first-child,
+#view-schedule #rr-sched-vans-rules-popover > :first-child,
+#view-schedule #rr-sched-quick-settings-popover > :first-child,
+#view-schedule #rr-sched-milestone-rules-popover > :first-child,
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > :first-child{
+  border-top-left-radius:14px !important;
+  border-top-right-radius:14px !important;
+}
+#view-schedule #rr-sched-smartfill-rules-popover > :last-child,
+#view-schedule #rr-sched-vans-rules-popover > :last-child,
+#view-schedule #rr-sched-quick-settings-popover > :last-child,
+#view-schedule #rr-sched-milestone-rules-popover > :last-child,
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > :last-child{
+  border-bottom-left-radius:14px !important;
+  border-bottom-right-radius:14px !important;
+}
+/* ── Onboarding rules pop-outs (Onboarding / Funnel / Interview) still wore
+      the sidebar-navy header band (--sidebar-bg resolves to #0F172A off the
+      rail) — the one dark header the app-wide white-header pass missed. Bring
+      it in line with the launcher and every other pop-out: white band, dark
+      title + icon, hairline divider. Matched at equal specificity to the
+      onboarding-rrx !important rules and re-declared !important so it wins on
+      load order (inline-styles.css is the last stylesheet). ──────────────*/
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > :first-child{
+  background:#FFFFFF !important;
+  background-image:none !important;
+  color:#0F172A !important;
+  border-bottom:1px solid #EEF1F5 !important;
+}
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > :first-child *{
+  color:#0F172A !important;
+}
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > :first-child > svg{
+  color:#334155 !important;
+}
