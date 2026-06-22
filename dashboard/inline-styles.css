@@ -25962,3 +25962,139 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="funnel"] #rr-hdr-avatar-btn{
   margin-left:0 !important; flex:0 0 auto !important;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   PREMIUM INTERVIEW CALENDAR · recruiting redesign
+   Scoped to the onboarding Calendar sub. Adds the title / Google-sync / KPI
+   chrome above the calendar and refines the embedded #rr-ivcal calendar
+   (softer palette, airier grid, richer event cards) toward a purpose-built
+   hiring-ops surface. Scoped selectors outrank the base #rr-ivcal rules, so
+   no !important is needed for the calendar-body overrides.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Header band → flat zone stacking: title row · controls row · KPI strip. */
+#view-onboarding-ops[data-obsub="calendar"] .page-header.sched-nav-heading{
+  background:transparent !important; border:0 !important; box-shadow:none !important;
+  padding-top:6px !important; padding-bottom:14px !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon{
+  display:flex !important; flex-direction:column !important; align-items:stretch !important;
+  gap:14px !important; width:100% !important;
+}
+
+/* ── Title block ─────────────────────────────────────────────────────── */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-titleblock{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:16px; width:100%;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-title{
+  margin:0; font-size:22px; line-height:1.15; font-weight:700; letter-spacing:-.012em; color:var(--text,#0F172A);
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-sub{
+  margin:3px 0 0; font-size:13px; font-weight:450; color:var(--text-subtle,#64748B);
+}
+/* Google-sync status pill */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-sync{
+  display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; margin-top:2px;
+  height:30px; padding:0 13px; border-radius:999px;
+  background:rgba(22,163,74,.08); border:1px solid rgba(22,163,74,.22);
+  font-size:12.5px; font-weight:600; color:#15803D; white-space:nowrap;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-sync-dot{
+  width:8px; height:8px; border-radius:50%; background:#16A34A; box-shadow:0 0 0 3px rgba(22,163,74,.16);
+}
+
+/* ── KPI strip ───────────────────────────────────────────────────────── */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-kpis{
+  display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px; width:100%;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi{
+  display:flex; align-items:center; gap:13px; padding:13px 16px;
+  border-radius:14px; background:var(--surface,#FFFFFF);
+  border:1px solid rgba(15,23,42,.07); box-shadow:0 1px 2px rgba(15,23,42,.04);
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-ic{
+  display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto;
+  width:40px; height:40px; border-radius:11px;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-ic svg{ width:20px; height:20px; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-ic--blue{ background:rgba(37,99,235,.10); color:#2563EB; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-ic--indigo{ background:rgba(99,102,241,.12); color:#6366F1; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-ic--red{ background:rgba(220,38,38,.10); color:#DC2626; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-ic--amber{ background:rgba(245,158,11,.14); color:#D97706; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-body{ display:flex; flex-direction:column; min-width:0; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-label{
+  font-size:12px; font-weight:550; color:var(--text-subtle,#64748B);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-val{
+  font-size:25px; font-weight:760; line-height:1.05; color:var(--text,#0F172A);
+  letter-spacing:-.015em; margin-top:1px; font-variant-numeric:tabular-nums;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-trend{
+  display:inline-flex; align-items:center; gap:4px; margin-top:4px;
+  font-size:11.5px; font-weight:650; color:#16A34A;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-kpi-trend svg{ width:13px; height:13px; }
+
+/* ── Schedule Interview · the prominent primary CTA ──────────────────── */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child{
+  padding:0 16px !important; height:38px !important;
+  box-shadow:0 1px 2px rgba(37,99,235,.28), 0 4px 12px rgba(37,99,235,.20) !important;
+}
+
+/* ════════ Calendar body (#rr-ivcal) · premium polish ════════ */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal{
+  --oc-line:rgba(15,23,42,.07); --oc-line2:rgba(15,23,42,.035);
+  --oc-colsep:rgba(15,23,42,.07); --oc-rowline:rgba(15,23,42,.055); --oc-rowline2:rgba(15,23,42,.03);
+  --oc-surface:#FFFFFF; --oc-surface-2:#F8FAFC; --oc-hover:rgba(15,23,42,.035); --oc-today:rgba(37,99,235,.05);
+  border:1px solid rgba(15,23,42,.08); border-radius:16px;
+  box-shadow:0 1px 3px rgba(15,23,42,.04), 0 10px 30px rgba(15,23,42,.045);
+}
+/* Toolbar */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-bar{
+  padding:12px 16px; background:#FFFFFF; border-bottom:1px solid rgba(15,23,42,.06); gap:10px;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-period{ font-size:16px; font-weight:650; letter-spacing:-.01em; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn{ border-radius:8px; }
+/* Sidebar */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-side{
+  background:#F8FAFC; border-right:1px solid rgba(15,23,42,.06); padding:16px 14px;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-title{ font-weight:700; letter-spacing:-.01em; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals-h{ letter-spacing:.05em; color:#94A3B8; }
+/* Day headers — airy, large dates */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-head{ background:#FFFFFF; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-corner{ background:#FFFFFF; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh{ padding:13px 0 13px 14px; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .dow{
+  font-size:11px; font-weight:600; letter-spacing:.07em; color:#94A3B8;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .dn{
+  font-size:25px; font-weight:700; color:#0F172A; margin-top:3px;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dn{ width:36px; height:36px; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dow{ color:#2563EB; }
+/* Columns — soft neutral working-hours wash; only today carries faint blue */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col{ background:#F8FAFC; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.today{ background:rgba(37,99,235,.05); }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hr span{ color:#94A3B8; font-weight:550; }
+/* Event cards — rounded, soft elevation, restrained type-color bar */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev{
+  border-radius:9px; border-left-width:3px; padding:4px 8px 4px 10px;
+  box-shadow:0 1px 2px rgba(15,23,42,.07), 0 2px 5px rgba(15,23,42,.05);
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev:hover{
+  filter:none; box-shadow:0 3px 8px rgba(15,23,42,.14), 0 6px 16px rgba(15,23,42,.10);
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .et{ font-weight:700; }
+/* Month view */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mhead{ background:#FFFFFF; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mdow{ color:#94A3B8; letter-spacing:.06em; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mcell{ padding:4px 5px 5px; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mcell.out{ background:#FAFBFC; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-pill{ border-radius:6px; padding:1px 6px; line-height:1.6; }
+
+/* Responsive · KPI strip wraps to 2×2 on tighter widths */
+@media (max-width: 1180px){
+  #view-onboarding-ops[data-obsub="calendar"] .rr-cal-kpis{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+}
