@@ -26144,6 +26144,7 @@ body.rr-cmdk-open{ overflow:hidden }
    / Attendance-modal treatment. Selectors mirror the originals' specificity
    (the Smart Fill rule doubles its id) + sit last in the file, so they win.
    ════════════════════════════════════════════════════════════════════════ */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sched-smartfill-rules-head.rr-pol-head,
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .rr-pol-head,
 #rr-sched-colors-popover .rr-pol-head,
 .rr-reqd-head,
