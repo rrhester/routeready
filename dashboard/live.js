@@ -65286,7 +65286,7 @@ function _reqCoverageImpactCell(it) {
   const { sev, count, dows } = _reqCoverage(it);
   const head = sev === "high" ? "High" : sev === "medium" ? "Medium" : "None";
   const sub = count === 0 ? "No coverage impact" : `${count} coverage day${count === 1 ? "" : "s"} affected`;
-  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-card"><div class="req-cov-head"><span class="req-cov-dot"></span><span class="req-cov-sev">${head}</span></div><div class="req-cov-sub">${sub}</div></div>${_reqDayChips(dows)}</div>`;
+  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-card"><div class="req-cov-head"><span class="req-cov-sev">${head}</span></div><div class="req-cov-sub">${sub}</div></div>${_reqDayChips(dows)}</div>`;
 }
 
 // "Requested change" — what actually changed in plain words (bold primary +
