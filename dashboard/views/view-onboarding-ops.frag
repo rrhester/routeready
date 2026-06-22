@@ -524,8 +524,9 @@
                     <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
                 </div>
-                <!-- Hidden file input that openPdfUploadPicker clicks. -->
-                <input type="file" id="rr-ob-pdf-upload-input" accept="application/pdf" style="display:none" multiple/>
+                <!-- The hidden file input openPdfUploadPicker() clicks now
+                     lives globally in index.html (shared with the app
+                     launcher's Indeed Import). -->
                 <div class="ob-tab-divider" aria-hidden="true"></div>
               </div>
               <!-- Actions group · no caption/launcher (Add applicant + PDF Upload

@@ -280,7 +280,7 @@
             var act = it.getAttribute('data-al-act');
             close();
             try {
-              if (act === 'indeed') { if (window.openModal) window.openModal('modal-bulk-ingest'); }
+              if (act === 'indeed') { if (window.openPdfUploadPicker) window.openPdfUploadPicker(); }
               else if (act === 'vault') { if (window.toast) window.toast('Vault is coming soon'); }
               else if (act === 'reports') { if (window.toast) window.toast('Reports are coming soon'); }
               else if (go && window.goto) { window.goto(go); }
@@ -301,6 +301,11 @@
         else wire();
       })();
     </script>
+    <!-- Global hidden file input · the launcher's Indeed Import and the
+         Onboarding funnel's Import button both call openPdfUploadPicker()
+         (mock-wiring.js), which clicks this. Kept global so the picker can
+         open from any page within the click's user gesture. -->
+    <input type="file" id="rr-ob-pdf-upload-input" accept="application/pdf" style="display:none" multiple/>
 
     <nav class="nav">
       <!-- ═══════════════════════════════════════════════════════════
