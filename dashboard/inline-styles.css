@@ -5054,11 +5054,11 @@ select.form-input{
    and a matching sidebar-colored card border. Scoped to this modal only so
    the standard centered modals keep their dimmed backdrop + light header. */
 #rr-att-policy-modal{background:transparent}
-#rr-att-policy-modal .modal-card{border:1px solid var(--sidebar)}
-#rr-att-policy-modal .modal-head{background:var(--sidebar);border-bottom:0;align-items:center;padding:11px 18px}
-#rr-att-policy-modal .modal-title{color:var(--sidebar-ink);font-size:var(--fs-base);font-weight:600;margin:0}
-#rr-att-policy-modal .modal-close{color:var(--sidebar-ink-idle)}
-#rr-att-policy-modal .modal-close:hover{color:var(--sidebar-ink);background:rgba(255,255,255,.12)}
+#rr-att-policy-modal .modal-card{border:1px solid var(--border,rgba(15,23,42,.12))}
+#rr-att-policy-modal .modal-head{background:#FFFFFF;border-bottom:1px solid var(--border,rgba(15,23,42,.08));align-items:center;padding:11px 18px}
+#rr-att-policy-modal .modal-title{color:var(--text,#0F172A);font-size:var(--fs-base);font-weight:600;margin:0}
+#rr-att-policy-modal .modal-close{color:var(--text-subtle,#64748B)}
+#rr-att-policy-modal .modal-close:hover{color:var(--text,#0F172A);background:rgba(15,23,42,.06)}
 
 /* ─────────────────────────────────────────────────────────────
    PREMIUM SCHEDULE — AI, conflicts, forecast, rules, live panel
@@ -24150,8 +24150,11 @@ body.rr-cmdk-open{ overflow:hidden }
        stripe — operator report 2026-06-12). Width tracks the .app grid
        columns (176px rail / 64px collapsed). */
     --rr-tb-rail-w:176px;
+    /* Rail segment hardcoded to the rail blue (#EFF6FF): body::before is
+       NOT inside .sidebar, so it can't read the sidebar-scoped --sidebar-bg
+       override and would otherwise fall back to the :root navy. */
     background:linear-gradient(90deg,
-      var(--sidebar-bg,#F9FAFB) 0 var(--rr-tb-rail-w),
+      #EFF6FF 0 var(--rr-tb-rail-w),
       #F9FAFB var(--rr-tb-rail-w));
   }
   /* Collapsed rail (64px): both signals — the pre-init boot flag on
