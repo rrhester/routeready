@@ -25984,7 +25984,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* ── Title block ─────────────────────────────────────────────────────── */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-titleblock{
-  display:flex; align-items:flex-start; justify-content:space-between; gap:16px; width:100%;
+  display:flex; align-items:center; justify-content:flex-end; gap:16px; width:100%;
 }
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-title{
   margin:0; font-size:22px; line-height:1.15; font-weight:700; letter-spacing:-.012em; color:var(--text,#0F172A);
