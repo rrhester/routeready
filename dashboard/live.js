@@ -9966,7 +9966,7 @@ function _riskCell(driverId) {
     cls = "rr-risk-low"; label = "LOW"; dot = "🟢"; sub = "Healthy";
     title = "Low · no active corrective action";
   }
-  return `<div class="rr-risk-card ${cls}" title="${title}" aria-label="${title}"><span class="rr-risk-status">${dot} ${label}</span><span class="rr-risk-reason">${sub}</span></div>`;
+  return `<div class="rr-risk-card ${cls}" title="${title}" aria-label="${title}"><span class="rr-risk-status">${label}</span><span class="rr-risk-reason">${sub}</span></div>`;
 }
 
 // "Last coached" — pulled from the per-driver latest coaching loaded

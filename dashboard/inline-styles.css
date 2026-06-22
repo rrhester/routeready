@@ -1536,28 +1536,28 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .rr-risk-card{
   display:inline-flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;gap:2px;
   box-sizing:border-box;width:116px;min-height:44px;padding:6px 8px;
-  border:1px solid transparent;border-left-width:3px;border-radius:8px;
+  border:1px solid transparent;border-radius:8px;
   white-space:nowrap;vertical-align:middle;text-align:left;
 }
 .rr-risk-status{
   display:inline-flex;align-items:center;gap:5px;
   font-size:13px;font-weight:700;line-height:1.2;letter-spacing:.02em;text-transform:uppercase;
+  color:#FFFFFF;
 }
 .rr-risk-reason{
   max-width:100%;overflow:hidden;text-overflow:ellipsis;
-  font-size:12px;font-weight:500;line-height:1.2;color:#475569;
+  font-size:12px;font-weight:500;line-height:1.2;color:rgba(255,255,255,.88);
 }
-.rr-risk-card.rr-risk-high{background:#FEF2F2;border-color:#FECACA;border-left-color:#DC2626}
-.rr-risk-card.rr-risk-high .rr-risk-status{color:#DC2626}
-.rr-risk-card.rr-risk-med{background:#FFFBEB;border-color:#FDE68A;border-left-color:#D97706}
-.rr-risk-card.rr-risk-med .rr-risk-status{color:#D97706}
-.rr-risk-card.rr-risk-low{background:#F0FDF4;border-color:#BBF7D0;border-left-color:#16A34A}
-.rr-risk-card.rr-risk-low .rr-risk-status{color:#16A34A}
-/* Selected row · deepen the risk tint one step (~10% darker) so the open
-   driver feels connected to its risk. */
-#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-high{background:#FEE2E2}
-#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-med{background:#FEF3C7}
-#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-low{background:#DCFCE7}
+/* Solid status pills · white ink, no left accent band (operator). Healthy
+   takes the sidebar's signature blue (the pale rail #EFF6FF can't carry
+   white text). */
+.rr-risk-card.rr-risk-high{background:#DC2626;border-color:#DC2626}
+.rr-risk-card.rr-risk-med{background:#D97706;border-color:#D97706}
+.rr-risk-card.rr-risk-low{background:#2563EB;border-color:#2563EB}
+/* Selected row · one step darker so the open driver feels connected. */
+#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-high{background:#B91C1C;border-color:#B91C1C}
+#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-med{background:#B45309;border-color:#B45309}
+#drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-low{background:#1D4ED8;border-color:#1D4ED8}
 /* Attendance column — % over a thin neutral bar over "X of Y shifts".
    Deliberately subtle: the fill is a single muted slate (its LENGTH carries
    the signal); attendance-risk colour lives in the Risk pill, not here. */
