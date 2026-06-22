@@ -26836,7 +26836,7 @@ async function renderAttendanceTab(body, d) {
     <details class="att2-history">
       <summary class="att2-label att2-history-summary">History (${coachings.length})</summary>
       <div class="att2-timeline">${coachings.map((c, i) =>
-        `<div class="att2-tl-item${i === 0 ? " is-latest" : ""}"><span class="att2-tl-dot"></span><div class="att2-tl-body"><div class="att2-tl-top"><span class="att2-tl-title">${escapeHtml(stageLabel(c.severity))}</span><button type="button" class="att2-tl-doc" data-rr-coaching-record="${escapeHtml(c.id)}">View document</button></div><div class="att2-tl-date">${escapeHtml(fmtDate(c.occurred_at))}</div>${isAwaiting(c) ? `<div class="att2-tl-ack">Awaiting acknowledgment</div>` : ""}</div></div>`
+        `<div class="att2-tl-item${i === 0 ? " is-latest" : ""}"><span class="att2-tl-dot"></span><div class="att2-tl-body"><div class="att2-tl-top"><span class="att2-tl-title">${escapeHtml(stageLabel(c.severity))}</span><button type="button" class="att2-tl-doc" data-rr-coaching-doc="${escapeHtml(d.id)}" title="Open coaching document" aria-label="Open coaching document"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg></button></div><div class="att2-tl-date">${escapeHtml(fmtDate(c.occurred_at))}</div>${isAwaiting(c) ? `<div class="att2-tl-ack">Awaiting acknowledgment</div>` : ""}</div></div>`
       ).join("")}</div>
     </details>`;
 
@@ -26886,12 +26886,14 @@ async function renderAttendanceTab(body, d) {
       #rr-dd-body .att2-tl-dot{position:relative;z-index:1;flex:0 0 auto;width:11px;height:11px;margin-top:4px;border-radius:50%;background:var(--text-disabled)}
       #rr-dd-body .att2-tl-item.is-latest .att2-tl-dot{background:var(--text)}
       #rr-dd-body .att2-tl-body{flex:1;min-width:0}
-      #rr-dd-body .att2-tl-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+      #rr-dd-body .att2-tl-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
       #rr-dd-body .att2-tl-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
       #rr-dd-body .att2-tl-date{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
       #rr-dd-body .att2-tl-ack{font-size:var(--fs-xs);font-weight:600;color:#8A6D3B;margin-top:5px}
-      #rr-dd-body .att2-tl-doc{flex:0 0 auto;background:none;border:0;padding:0;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--accent-text);cursor:pointer;white-space:nowrap}
-      #rr-dd-body .att2-tl-doc:hover{text-decoration:underline}
+      /* Document icon button — opens the printable coaching record document. */
+      #rr-dd-body .att2-tl-doc{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:var(--r-md);background:none;border:1px solid var(--border);padding:0;color:var(--text-subtle);cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast),background var(--t-fast)}
+      #rr-dd-body .att2-tl-doc:hover{color:var(--accent-text);border-color:var(--accent);background:var(--canvas)}
+      #rr-dd-body .att2-tl-doc svg{width:16px;height:16px}
     </style>
     ${statusCard}
     ${current ? progression + timeline : ""}`;
@@ -27046,6 +27048,9 @@ function _rrOpenAttEvent(el, ev) {
 
 // Delegated openers for the attendance-tab coaching rows + event rows.
 document.addEventListener("click", (e) => {
+  // Document icon → open the actual printable coaching record document.
+  const cdoc = e.target.closest && e.target.closest("[data-rr-coaching-doc]");
+  if (cdoc) { e.preventDefault(); e.stopPropagation(); if (typeof openCoachingPrintView === "function") openCoachingPrintView(cdoc.getAttribute("data-rr-coaching-doc")); return; }
   const cr = e.target.closest && e.target.closest("[data-rr-coaching-record]");
   if (cr) { e.preventDefault(); e.stopPropagation(); _rrOpenCoachingRecord(cr.getAttribute("data-rr-coaching-record")); return; }
   const av = e.target.closest && e.target.closest("[data-rr-att-event]");
