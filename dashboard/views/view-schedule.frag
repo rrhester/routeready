@@ -1730,11 +1730,22 @@
                 if (!L || L.__wired) return; L.__wired = true;
                 var btn = document.getElementById('rr-al-btn');
                 var panel = document.getElementById('rr-al-panel');
+                // Relocate into the GLOBAL topbar (operator: launcher on every
+                // page), just before the notifications bell — so it's app-wide
+                // instead of only on the schedule action bar.
+                var bell = document.getElementById('rr-hdr-notif');
+                if (bell && bell.parentNode && L.parentNode !== bell.parentNode) bell.parentNode.insertBefore(L, bell);
+                // Panel is position:fixed (JS-placed) so the topbar can't clip it.
+                function place () {
+                  var r = btn.getBoundingClientRect();
+                  panel.style.top = Math.round(r.bottom + 10) + 'px';
+                  panel.style.right = Math.round(window.innerWidth - r.right) + 'px';
+                }
                 function close () { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
                 btn.addEventListener('click', function (e) {
                   e.stopPropagation();
-                  var open = panel.hidden; panel.hidden = !open;
-                  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                  if (panel.hidden) { place(); panel.hidden = false; btn.setAttribute('aria-expanded', 'true'); }
+                  else close();
                 });
                 panel.addEventListener('click', function (e) {
                   var it = e.target.closest('.rr-al-item'); if (!it) return;
@@ -1752,6 +1763,7 @@
                 document.addEventListener('click', function (e) {
                   if (!panel.hidden && !e.target.closest('#rr-applauncher')) close();
                 });
+                window.addEventListener('resize', function () { if (!panel.hidden) place(); });
                 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
               })();
             </script>
