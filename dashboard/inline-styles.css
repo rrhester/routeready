@@ -1011,6 +1011,35 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .workspace-chip-name{font-size:var(--fs-sm);font-weight:600;color:var(--sidebar-ink);line-height:1.2}
 .workspace-chip-sub{font-size:var(--fs-xs);color:var(--sidebar-ink-idle);line-height:1.2;margin-top:2px}
 
+/* ── Soft-blue sidebar ─────────────────────────────────────────────────────
+   Operator wants the rail the same soft blue as the Schedule shift cards
+   (#EFF6FF). Done by redefining the --sidebar-* vars ON the .sidebar element,
+   so ONLY the rail + its children flip to a light theme — everything else
+   that reuses var(--sidebar-bg) as a navy accent (Targets pills, the calendar
+   buttons, search inputs, dividers) keeps #0F172A untouched. The handful of
+   hardcoded white inks in the rail are re-pointed to dark for contrast. */
+.sidebar{
+  --sidebar-bg:#EFF6FF;
+  --sidebar-ink:#1E293B;
+  --sidebar-ink-idle:#475569;
+  --sidebar-icon-idle:#64748B;
+  --sidebar-icon-active:#2563EB;
+  --sidebar-hover:#E0EAFE;
+  --sidebar-divider:rgba(15,23,42,.10);
+}
+.sidebar .nav{scrollbar-color:rgba(15,23,42,.20) transparent}
+.sidebar .brand-name{color:#0F172A}
+/* Main nav · selected = white pill + blue ink (clear against the blue rail). */
+.sidebar .nav-item.active{
+  background:#FFFFFF;color:#1E40AF;
+  box-shadow:0 1px 2px rgba(15,23,42,.07), 0 0 0 1px rgba(15,23,42,.05);
+}
+.sidebar .nav-item.active:hover{background:#FFFFFF;color:#1E3A8A}
+/* Sub-nav · selected = soft blue tint + blue ink (lighter than the main pill). */
+.sidebar .nav-sub-item.active{background:rgba(37,99,235,.10);color:#1E40AF;font-weight:600}
+/* Account avatar · a visible blue tint instead of the dark-rail white wash. */
+.sidebar .sidebar-foot .hdr-avatar{background:rgba(37,99,235,.12);color:#1E40AF}
+
 /* Main column */
 .main{display:flex;flex-direction:column;min-width:0;background:transparent}
 
