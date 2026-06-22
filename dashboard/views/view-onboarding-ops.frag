@@ -390,14 +390,8 @@
                  switches to the calendar and sets it. Interview-availability
                  Rules live on the Week tile. Wired in live.js. order:1 = first. -->
             <div class="sched-ribbon-group" data-group="calendar-controls" id="rr-cal-ribbon" style="order:1;position:relative">
-              <!-- Premium recruiting header · "Interview Calendar" title +
-                   subtitle (left) and the Google-sync status pill (right),
-                   sitting above the calendar controls + KPI strip. -->
+              <!-- Google-sync status pill (operator removed the title text). -->
               <div class="rr-cal-titleblock">
-                <div class="rr-cal-titlewrap">
-                  <h1 class="rr-cal-title">Interview Calendar</h1>
-                  <p class="rr-cal-sub">Manage and schedule interviews with your candidates</p>
-                </div>
                 <span class="rr-cal-sync" title="Connected to Google Calendar">
                   <span class="rr-cal-sync-dot" aria-hidden="true"></span>
                   Google Calendar synced
@@ -486,43 +480,6 @@
                   </button>
                 </div>
                 </div><!-- /.rr-cal-viewgroup -->
-              </div>
-              <!-- KPI strip · compact recruiting metrics directly above the
-                   calendar. Values are operator-specified design content for
-                   now; wire to live pipeline data as a fast follow. -->
-              <div class="rr-cal-kpis" aria-label="Recruiting metrics">
-                <div class="rr-kpi">
-                  <span class="rr-kpi-ic rr-kpi-ic--blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 15l2.5 2.5L16 12"/></svg></span>
-                  <span class="rr-kpi-body">
-                    <span class="rr-kpi-label">Scheduled Interviews</span>
-                    <span class="rr-kpi-val">18</span>
-                    <span class="rr-kpi-trend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>+3 this week</span>
-                  </span>
-                </div>
-                <div class="rr-kpi">
-                  <span class="rr-kpi-ic rr-kpi-ic--indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg></span>
-                  <span class="rr-kpi-body">
-                    <span class="rr-kpi-label">This Week</span>
-                    <span class="rr-kpi-val">12</span>
-                    <span class="rr-kpi-trend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>+5 vs last week</span>
-                  </span>
-                </div>
-                <div class="rr-kpi">
-                  <span class="rr-kpi-ic rr-kpi-ic--red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17.5" y1="8" x2="22.5" y2="13"/><line x1="22.5" y1="8" x2="17.5" y2="13"/></svg></span>
-                  <span class="rr-kpi-body">
-                    <span class="rr-kpi-label">No Shows</span>
-                    <span class="rr-kpi-val">2</span>
-                    <span class="rr-kpi-trend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 7 9 13 13 9 21 17"/><polyline points="15 17 21 17 21 11"/></svg>&minus;1 vs last week</span>
-                  </span>
-                </div>
-                <div class="rr-kpi">
-                  <span class="rr-kpi-ic rr-kpi-ic--amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></span>
-                  <span class="rr-kpi-body">
-                    <span class="rr-kpi-label">Offers Pending</span>
-                    <span class="rr-kpi-val">4</span>
-                    <span class="rr-kpi-trend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>+2 this week</span>
-                  </span>
-                </div>
               </div>
             </div><!-- /group: calendar-controls -->
 
