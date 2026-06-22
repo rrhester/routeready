@@ -21746,12 +21746,11 @@ async function openDriverDrawer(driverId, opts) {
   // opts.tab — open the drawer with that tab pre-selected (e.g. the
   // Attendance Report row click drops the operator straight into the
   // driver's Attendance tab).
-  // Overview is the default landing tab — a scan-first dashboard (KPIs,
-  // attendance heatmap, risk, recent activity). Callers can deep-link to a
-  // specific tab via opts.tab (e.g. the Attendance Report row → "attendance").
-  // The legacy "activity" tab folded into Overview.
-  const requestedTab = (opts && opts.tab) || "overview";
-  const initialTab = (requestedTab === "activity") ? "overview" : requestedTab;
+  // Attendance is the default landing tab — the operational home. Callers can
+  // deep-link to a specific tab via opts.tab. The retired "overview"/"activity"
+  // tabs fold into Attendance so existing entry points keep working.
+  const requestedTab = (opts && opts.tab) || "attendance";
+  const initialTab = (requestedTab === "overview" || requestedTab === "activity") ? "attendance" : requestedTab;
   let drawer = document.getElementById("rr-dd-drawer");
   if (drawer) drawer.remove();
   drawer = document.createElement("div");
@@ -22143,11 +22142,10 @@ async function openDriverDrawer(driverId, opts) {
           <button type="button" class="dd-head-x" data-rr-dd-close aria-label="Close record" title="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
       </div>
-      <!-- Workspace navigation — Schedule-page tab styling. Overview is the
-           default landing dashboard; History is the full audit log. -->
+      <!-- Workspace navigation — Schedule-page tab styling. Attendance is the
+           default landing tab; History is the full audit log. -->
       <div class="dd-tabs">
-        <button type="button" class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="attendance">Attendance</button>
+        <button type="button" class="dd-tab active" data-rr-dd-tab="attendance">Attendance</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="profile">Profile</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="employment">Employment</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="license">Credentials</button>
@@ -22157,9 +22155,6 @@ async function openDriverDrawer(driverId, opts) {
         <button type="button" class="dd-tab" data-rr-dd-tab="timeline">History</button>
       </div>
       <div class="dd-tab-note" id="rr-dd-tab-note"></div>
-      <!-- Six-card KPI strip — populated in loadDriverDrawer once the model
-           (attendance, risk, tenure, coaching, stability) is computed. -->
-      <div class="dd-kpi-strip" id="rr-dd-kpi-strip"></div>
       </div><!-- /.dd-chrome -->
       <div class="dd-body" id="rr-dd-body"><div class="rr-loading">Loading</div></div>
       <div class="dd-foot" id="rr-dd-foot"></div>
@@ -22411,10 +22406,6 @@ async function loadDriverDrawer(driverId) {
   const actionsEl = document.getElementById("rr-dd-actions");
   if (actionsEl) actionsEl.hidden = false;
 
-  // Paint the six-card KPI strip from the derived model.
-  const kpiStrip = document.getElementById("rr-dd-kpi-strip");
-  if (kpiStrip) kpiStrip.innerHTML = renderWorkspaceKpis(_ddDriver._model);
-
   if (!_ddLive()) return; // closed during the doc/envelope/report loads
   renderDriverDrawerTab();
 }
@@ -22509,38 +22500,6 @@ function _ddWorkspaceModel(dd) {
   };
 }
 
-// Six-card KPI strip — Attendance Score · Call Offs · Tenure · Coaching ·
-// Driver Risk · Schedule Stability. Rendered into #rr-dd-kpi-strip.
-function renderWorkspaceKpis(m) {
-  if (!m) return "";
-  const trendIco = {
-    up:   `<span class="k-trend up"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>Improving</span>`,
-    down: `<span class="k-trend down"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>Declining</span>`,
-    flat: `<span class="k-trend flat">Steady</span>`,
-  };
-  const riskLabel = { low: "Low", medium: "Medium", high: "High" }[m.risk] || "—";
-  const card = (label, valHtml, subHtml) =>
-    `<div class="dd-kpi-card"><div class="k-label">${label}</div><div class="k-val">${valHtml}</div>${subHtml ? `<div class="k-sub">${subHtml}</div>` : ""}</div>`;
-  return [
-    card("Attendance score",
-      m.attendancePct == null ? `—` : `<span class="${m.attendanceTone ? "tone-" + m.attendanceTone : ""}">${m.attendancePct}%</span>`,
-      m.attendancePct == null ? "No shift data yet" : trendIco[m.attTrend]),
-    card("Call offs",
-      `${m.callOffs30}`,
-      "Last 30 days"),
-    card("Tenure",
-      m.tenureDays == null ? `—` : `${m.tenureDays}`,
-      m.tenureDays == null ? "Hire date not set" : "Days employed"),
-    card("Coaching",
-      `${m.activeCoach}`,
-      "Active events"),
-    `<div class="dd-kpi-card"><div class="k-label">Driver risk</div><div class="k-val" style="font-size:18px"><span class="k-pill risk-${m.risk}">${riskLabel}</span></div><div class="k-sub">${m.factors.length} factor${m.factors.length === 1 ? "" : "s"}</div></div>`,
-    card("Schedule stability",
-      `<span class="${m.stabilityTone ? "tone-" + m.stabilityTone : ""}">${m.stabilityGood}<small>/8</small></span>`,
-      "Weeks without disruption"),
-  ].join("");
-}
-
 // Capture every visible data-rr-dd-field input into _ddPending so its
 // value survives a tab switch (each tab re-renders the body from scratch).
 function _ddCaptureVisibleFields() {
@@ -22582,7 +22541,6 @@ function renderDriverDrawerTab() {
   // License / Attendance / Availability) fetch their data; sync renderers
   // overwrite this immediately.
   body.innerHTML = `<div class="dd-skel-block"><div class="head"></div><div class="dd-skel-line" style="width:100%"></div><div class="dd-skel-line" style="width:88%"></div><div class="dd-skel-line" style="width:72%"></div></div><div class="dd-skel-block"><div class="head"></div><div class="dd-skel-line" style="width:96%"></div><div class="dd-skel-line" style="width:78%"></div></div><div class="dd-skel-block"><div class="head"></div><div class="dd-skel-line" style="width:90%"></div><div class="dd-skel-line" style="width:60%"></div></div>`;
-  if (_ddTab === "overview")     renderOverviewTab(body, _ddDriver);
   if (_ddTab === "activity")     renderActivityTab(body, _ddDriver);
   if (_ddTab === "profile")      renderProfileTab(body, _ddDriver.driver);
   if (_ddTab === "employment")   renderEmploymentTab(body, _ddDriver.driver);
@@ -22967,119 +22925,6 @@ function renderActivityTab(body, dd) {
     <div>${html}</div>`;
 }
 
-// Overview — the default landing dashboard. A three-column, scan-first
-// snapshot built for an enterprise driver record: a 90-day attendance
-// heatmap, a risk summary with recommended actions, and a recent activity
-// timeline — followed by coaching history and a document library. The
-// editable detail lives in the other tabs; Overview is "understand this
-// employee at a glance."
-function renderOverviewTab(body, dd) {
-  const d = (dd && dd.driver) || {};
-  const m = (dd && dd._model) || _ddWorkspaceModel(dd);
-  const coachings = ((dd && dd.coachings) || []).filter(c => c && !c.archived_at);
-
-  // ── Column 1 · attendance heatmap (previous 90 days, GitHub style) ──
-  const heatmap = _ddHeatmapHtml(m);
-
-  // ── Column 2 · risk summary ──
-  const riskLabel = { low: "LOW", medium: "MEDIUM", high: "HIGH" }[m.risk] || "—";
-  const factorsHtml = m.factors.length
-    ? m.factors.map(f => `<div class="ov-factor t-${f.tone}"><span class="fdot"></span><span>${escapeHtml(f.txt)}</span></div>`).join("")
-    : `<div class="ov-factor"><span class="fdot"></span><span style="color:var(--text-subtle)">No risk factors — this driver is in good standing.</span></div>`;
-  const actions = `
-    <button type="button" class="ov-action-btn" data-rr-dd-action="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Schedule coaching</button>
-    <button type="button" class="ov-action-btn" data-rr-dd-action="message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Send message</button>
-    <button type="button" class="ov-action-btn" data-rr-dd-action="warning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Create warning</button>`;
-
-  // ── Column 3 · recent timeline ──
-  const tl = _ddOverviewTimeline(dd).slice(0, 8);
-  const tlHtml = tl.length ? tl.map((e, i) => `
-    <div class="ovtl-row${i === tl.length - 1 ? " last" : ""}">
-      <span class="ovtl-track"><span class="ovtl-dot t-${e.tone}"></span></span>
-      <div class="ovtl-body">
-        <div class="ovtl-top"><span class="ovtl-label">${escapeHtml(e.label)}</span><span class="ovtl-when">${escapeHtml(_ddRelDate(e.at))}</span></div>
-        ${e.sub ? `<div class="ovtl-sub">${escapeHtml(e.sub)}</div>` : ""}
-      </div>
-    </div>`).join("") : `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No recorded activity yet.</div>`;
-
-  // ── Coaching history cards ──
-  const coachCards = coachings.slice(0, 4).map(c => {
-    const lvl = (typeof _coachingSevLabel === "function") ? _coachingSevLabel(c.severity, c.topic, c.metadata?.attendance_reason) : (c.severity || "Coaching");
-    const sev = String(c.severity || "").toLowerCase();
-    const sevCls = (sev === "final" || sev === "termination") ? "sev-red" : (sev === "written" || sev === "warning") ? "sev-amber" : "sev-slate";
-    const date = c.occurred_at ? new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
-    const by = c.coached_by_name || "";
-    const status = c.resolved_at ? "Resolved" : (c.acknowledged_at || c.signed_at) ? "Acknowledged" : (c.delivery_required && c.delivery_required !== "none") ? "Awaiting acknowledgment" : "Logged";
-    return `<div class="ov-coach-card">
-      <div class="ov-coach-top"><span class="ov-coach-title">${escapeHtml(c.summary || lvl)}</span><span class="ov-coach-sev ${sevCls}">${escapeHtml(lvl)}</span></div>
-      <div class="ov-coach-meta">${escapeHtml(date)}${by ? " · " + escapeHtml(by) : ""}</div>
-      <div class="ov-coach-meta">${escapeHtml(status)}</div>
-    </div>`;
-  }).join("");
-
-  // ── Document library categories ──
-  const docs = (dd && dd.documents) || [];
-  const envs = (dd && dd.envelopes) || [];
-  const kindCount = (re) => docs.filter(x => re.test((x.kind || "") + " " + (x.label || ""))).length;
-  const warningsN = coachings.filter(c => ["written", "warning", "final", "termination"].includes(String(c.severity || "").toLowerCase())).length;
-  const folderIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
-  const docCats = [
-    ["Warnings", warningsN],
-    ["Coaching forms", coachings.length],
-    ["DOT certifications", kindCount(/dot/i) + (d.dot_certified ? 1 : 0)],
-    ["Employment documents", envs.filter(e => e.status === "signed").length + kindCount(/i9|w4|w-4|direct_deposit|background|social/i)],
-    ["Training records", kindCount(/train/i)],
-  ];
-  const docCards = docCats.map(([name, n]) => `
-    <div class="ov-doc-card" data-rr-dd-tab="documents" role="button" tabindex="0">
-      <div class="ov-doc-ico">${folderIco}</div>
-      <div><div class="ov-doc-name">${escapeHtml(name)}</div><div class="ov-doc-count">${n} ${n === 1 ? "file" : "files"}</div></div>
-    </div>`).join("");
-
-  body.innerHTML = `
-    <div class="ov-grid">
-      <div class="ov-card">
-        <div class="ov-card-head"><div class="ov-card-title">Attendance · last 90 days</div><button type="button" class="ov-card-link" data-rr-dd-tab="attendance">Details →</button></div>
-        ${heatmap}
-      </div>
-      <div class="ov-card">
-        <div class="ov-card-head"><div class="ov-card-title">Risk summary</div></div>
-        <div class="ov-risk-level"><span class="ov-risk-badge risk-${m.risk}">${riskLabel}</span><span style="font-size:var(--fs-sm);color:var(--text-subtle)">Driver risk</span></div>
-        <div class="ov-sub-label">Contributing factors</div>
-        ${factorsHtml}
-        <div class="ov-sub-label" style="margin-top:14px">Recommended actions</div>
-        <div class="ov-actions">${actions}</div>
-      </div>
-      <div class="ov-card">
-        <div class="ov-card-head"><div class="ov-card-title">Recent activity</div><button type="button" class="ov-card-link" data-rr-dd-tab="timeline">Full history →</button></div>
-        <div class="ovtl">${tlHtml}</div>
-      </div>
-    </div>
-
-    <div class="ov-section">
-      <div class="ov-section-head"><div class="ov-section-title">Coaching</div><button type="button" class="ov-card-link" data-rr-dd-tab="timeline">View all →</button></div>
-      ${coachings.length ? `<div class="ov-coach-row">${coachCards}</div>` : `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No coachings logged for this driver yet.</div>`}
-    </div>
-
-    <div class="ov-section">
-      <div class="ov-section-head"><div class="ov-section-title">Documents</div><button type="button" class="ov-card-link" data-rr-dd-tab="documents">Open library →</button></div>
-      <div class="ov-doc-row">${docCards}</div>
-    </div>`;
-}
-
-// Relative date label for the Overview timeline ("Today", "Yesterday",
-// "May 7", "Sep 5, 2025"). Compact + scannable.
-function _ddRelDate(ms) {
-  if (!ms) return "";
-  const dt = new Date(ms);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const days = Math.round((today.getTime() - new Date(dt).setHours(0, 0, 0, 0)) / 86400000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  const sameYear = dt.getFullYear() === new Date().getFullYear();
-  return dt.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
-}
-
 // 90-day attendance heatmap (GitHub-contribution style). Columns are weeks
 // (Sun-anchored), rows are weekdays; each cell is tinted by the day's shift
 // outcome. Future days in the current week render empty.
@@ -23116,47 +22961,6 @@ function _ddHeatmapHtml(m) {
       <span><i style="background:#b42318"></i>No show</span>
       <span><i style="background:#eceff3"></i>No shift</span>
     </div>`;
-}
-
-// Merged, newest-first activity feed for the Overview timeline: hire,
-// coachings/warnings, signed documents, Form I-9 events, employment
-// reports, and attendance exceptions (call-offs / no-shows / late).
-function _ddOverviewTimeline(dd) {
-  const d = (dd && dd.driver) || {};
-  const out = [];
-  const push = (at, label, tone, sub) => {
-    if (!at) return;
-    const ms = (at instanceof Date) ? at.getTime() : new Date(/T/.test(at) ? at : at + "T12:00:00").getTime();
-    if (isNaN(ms)) return;
-    out.push({ at: ms, label, tone: tone || "blue", sub: sub || "" });
-  };
-  if (d.hire_date) push(d.hire_date, "Hired", "green");
-  for (const c of ((dd && dd.coachings) || [])) {
-    if (c.archived_at || !c.occurred_at) continue;
-    const lvl = (typeof _coachingSevLabel === "function") ? _coachingSevLabel(c.severity, c.topic, c.metadata?.attendance_reason) : (c.severity || "Coaching");
-    const sev = String(c.severity || "").toLowerCase();
-    const tone = (sev === "final" || sev === "termination") ? "red" : "amber";
-    const topic = c.topic ? c.topic.replace(/_/g, " ") : "";
-    push(c.occurred_at, `${lvl} Coaching`, tone, topic ? topic.charAt(0).toUpperCase() + topic.slice(1) : "");
-  }
-  for (const e of ((dd && dd.envelopes) || [])) {
-    const t = (e.document_templates && e.document_templates.title) || "Document";
-    if (e.signed_at) push(e.signed_at, `Signed ${t}`, "blue");
-    else if (e.declined_at) push(e.declined_at, `Declined ${t}`, "red");
-  }
-  for (const x of ((dd && dd.i9 && dd.i9.events) || [])) {
-    if (!x.created_at) continue;
-    const meta = (typeof _i9EventMeta === "function") ? _i9EventMeta(x) : { title: String(x.kind || "I-9") };
-    push(x.created_at, `Form I-9 · ${meta.title}`, "blue");
-  }
-  for (const r of ((dd && dd.empReports) || [])) push(r.generated_at, "Employment report generated", "blue", r.generated_by_name || "");
-  for (const s of ((dd && dd.shifts) || [])) {
-    if (!["called_off", "no_show", "late"].includes(s.status)) continue;
-    const lbl = s.status === "called_off" ? "Missed shift — call off" : s.status === "no_show" ? "Missed shift — no show" : "Late arrival";
-    push(s.date, lbl, s.status === "no_show" ? "red" : "amber");
-  }
-  out.sort((a, b) => b.at - a.at);
-  return out;
 }
 
 // Performance — analytics view: attendance trend, monthly attendance bars,
