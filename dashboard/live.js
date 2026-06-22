@@ -22125,10 +22125,6 @@ async function openDriverDrawer(driverId, opts) {
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
             <span class="dd-act-txt">Create coaching</span>
           </button>
-          <button type="button" class="dd-act" data-rr-dd-action="warning" title="Issue a written / final warning">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <span class="dd-act-txt">Create warning</span>
-          </button>
           <div class="dd-more-wrap">
             <button type="button" class="dd-act" data-rr-dd-action="more" aria-haspopup="menu" aria-expanded="false" title="More actions">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/><circle cx="5" cy="12" r="1.6"/></svg>
@@ -29591,7 +29587,6 @@ document.addEventListener("click", async (e) => {
     if (!id) { toast("Save the driver record first.", "warn"); return; }
     if (act === "message")      { _ddMessageDriver(id); return; }
     if (act === "coach")        { if (typeof openCoachingForm === "function") openCoachingForm(id); return; }
-    if (act === "warning")      { if (typeof openCoachingForm === "function") openCoachingForm(id, { warning: true }); return; }
     if (act === "availability") { _ddTab = "availability"; renderDriverDrawerTab(); return; }
     if (act === "report")       { if (typeof _openEmploymentReport === "function") _openEmploymentReport(id); return; }
     if (act === "expand")       { openDriverDrawer(id, { tab: _ddTab, forceOverlay: true }); return; }
@@ -29894,20 +29889,16 @@ document.addEventListener("click", async (e) => {
   }
 }, true);
 
-// Quick message to a driver from the Driver Workspace header — delivered in
-// their RouteReady app via dispatch_chat_send (same channel as the roster's
-// bulk "Send message"). Kept lightweight: one prompt, one send.
-async function _ddMessageDriver(driverId) {
+// Message a driver from the Driver Workspace header — opens the Messages
+// app and selects this driver's conversation (same flow Cmd+K and the
+// driver-detail popover use). The operator composes in the real chat thread.
+function _ddMessageDriver(driverId) {
   if (!driverId) return;
-  const drv = _ddDriver && _ddDriver.driver;
-  const name = drv ? (displayDriverName(drv) || "this driver") : "this driver";
-  const body = prompt(`Message ${name} (delivered in their RouteReady app):`);
-  if (body === null) return;
-  const txt = body.trim();
-  if (!txt) { toast("Message can't be empty", "warn"); return; }
-  const { error } = await sb.rpc("dispatch_chat_send", { p_driver_id: driverId, p_body: txt });
-  if (error) toast("Couldn't send message: " + error.message, "warn");
-  else toast(`Message sent to ${name} ✓`, "success");
+  try { if (typeof window.goto === "function") window.goto("messages"); } catch (_) {}
+  // Let the inbox paint, then open this driver's thread.
+  setTimeout(() => {
+    try { if (typeof openDriverChatThread === "function") openDriverChatThread(driverId); } catch (_) {}
+  }, 80);
 }
 
 async function openCoachingForm(driverId, opts) {
