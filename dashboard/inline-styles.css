@@ -26481,6 +26481,14 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-fav.is-on,.rr-drive-fav.is-on:hover{color:#f59e0b}
 .rr-drive-folderbar-acts .btn.is-active{border-color:#f59e0b;color:#b45309}
 
+/* Compliance view — wider status column + expiry badges */
+.rr-drive-complist .rr-drive-lhead,.rr-drive-complist .rr-drive-row{grid-template-columns:minmax(0,1fr) 130px 110px 96px 132px}
+.rr-drive-expbadge{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.rr-drive-expbadge.is-expired{background:#fee2e2;color:#b42318}
+.rr-drive-expbadge.is-soon{background:#fef3c7;color:#b45309}
+.rr-drive-expbadge.is-ok{background:var(--canvas);color:var(--text-subtle)}
+.rr-drive-chip-btn.rr-drive-chip-alert .rr-drive-chip-cnt{background:#fee2e2;color:#b42318}
+
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .rr-drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
 .rr-drive-tile{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);cursor:pointer;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
