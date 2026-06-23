@@ -70347,6 +70347,23 @@ function _driveSectionDocs(section) {
   if (section === "station") return [];
   return active;
 }
+// Compliance — active documents that carry an expiry (DOT medical, licenses,
+// etc.), soonest first. Read-only triage over data already loaded; no schema.
+function _driveComplianceList() {
+  return ((_driveData?.docs) || [])
+    .filter(d => !d.archivedAt && !d.deletedAt && d.expiresOn && !isNaN(new Date(d.expiresOn)))
+    .sort((a, b) => new Date(a.expiresOn) - new Date(b.expiresOn));
+}
+function _driveExpiryStatus(expiresOn) {
+  const exp = new Date(expiresOn); if (isNaN(exp)) return null;
+  const days = Math.floor((exp.getTime() - Date.now()) / 86400000);
+  if (days < 0) return { key: "expired", label: `Expired ${-days}d ago`, cls: "is-expired" };
+  if (days <= 30) return { key: "soon", label: days === 0 ? "Expires today" : `Expires in ${days}d`, cls: "is-soon" };
+  return { key: "ok", label: `Expires in ${days}d`, cls: "is-ok" };
+}
+function _driveComplianceAttention() {
+  return _driveComplianceList().filter(d => { const s = _driveExpiryStatus(d.expiresOn); return s && (s.key === "expired" || s.key === "soon"); }).length;
+}
 function _driveCounts() {
   const active = ((_driveData?.docs) || []).filter(d => !d.archivedAt && !d.deletedAt);
   return {
@@ -70357,6 +70374,7 @@ function _driveCounts() {
     fleet: _driveSectionDocs("fleet").length,
     hr: _driveSectionDocs("hr").length,
     station: 0, reports: _driveSectionDocs("reports").length,
+    compliance: _driveComplianceAttention(),
     archive: _driveSectionDocs("archive").length, trash: _driveSectionDocs("trash").length,
   };
 }
@@ -70377,16 +70395,16 @@ function _driveRenderChips() {
   const el = document.getElementById("rr-drive-chips");
   if (!el) return;
   const c = _driveCounts();
-  const chips = [["all", "All documents", c.all], ["recent", "Recent", c.recent], ["shared", "Shared", c.shared], ["archive", "Archive", c.archive], ["trash", "Trash", c.trash]];
+  const chips = [["all", "All documents", c.all], ["recent", "Recent", c.recent], ["shared", "Shared", c.shared], ["compliance", "Compliance", c.compliance], ["archive", "Archive", c.archive], ["trash", "Trash", c.trash]];
   const atTop = !_driveState.driverId && !_driveState.folderId; // hide active highlight once drilled into a folder
   el.innerHTML = chips.map(([k, l, n]) =>
-    `<button type="button" class="rr-drive-chip-btn${atTop && _driveState.section === k ? " is-active" : ""}" data-rr-drive-sec="${k}">${l}<span class="rr-drive-chip-cnt">${n || 0}</span></button>`
+    `<button type="button" class="rr-drive-chip-btn${atTop && _driveState.section === k ? " is-active" : ""}${k === "compliance" && n ? " rr-drive-chip-alert" : ""}" data-rr-drive-sec="${k}">${l}<span class="rr-drive-chip-cnt">${n || 0}</span></button>`
   ).join("");
 }
 function _driveRenderCrumbs() {
   const el = document.getElementById("rr-drive-crumbs");
   if (!el) return;
-  const SEC = { all: "All Documents", recent: "Recent", shared: "Shared", drivers: "Drivers", fleet: "Fleet", hr: "HR", station: "Station", reports: "Reports", archive: "Archive", trash: "Trash" };
+  const SEC = { all: "All Documents", recent: "Recent", shared: "Shared", compliance: "Compliance", drivers: "Drivers", fleet: "Fleet", hr: "HR", station: "Station", reports: "Reports", archive: "Archive", trash: "Trash" };
   const crumbs = [{ label: "Vault", to: { section: "all" } }];
   if (_driveState.folderId) {
     // Walk the custom-folder chain to the root for the breadcrumb.
@@ -70516,6 +70534,8 @@ function _driveRenderMain() {
 
   if (s === "station") { main.innerHTML = _driveEmpty(s); return; }
 
+  if (s === "compliance") { main.innerHTML = _driveComplianceHtml(); return; }
+
   if (s === "archive" || s === "trash") {
     const list = _driveSectionDocs(s);
     const note = s === "trash"
@@ -70527,6 +70547,34 @@ function _driveRenderMain() {
 
   // Flat document sections (recent / shared / fleet / hr / reports).
   main.innerHTML = _driveListHtml(_driveSectionDocs(s), s === "all" || s === "recent" || s === "shared");
+}
+// Compliance view — credentials with an expiry, soonest first, status-badged.
+function _driveComplianceHtml() {
+  const list = _driveComplianceList();
+  const att = _driveComplianceAttention();
+  if (!list.length) {
+    return `<div class="rr-drive-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <div class="rr-drive-empty-title">Nothing expiring</div>
+      <div class="rr-drive-empty-sub">Documents with an expiry date (DOT medical cards, licenses) show up here, soonest first.</div>
+    </div>`;
+  }
+  const head = `<div class="rr-drive-lhead"><div>Document</div><div>Driver</div><div>Type</div><div>Expires</div><div>Status</div></div>`;
+  const rows = list.map(d => {
+    const st = _driveExpiryStatus(d.expiresOn) || { label: "—", cls: "is-ok" };
+    const sel = (_driveState.selected === d.id ? " is-selected" : "") + (_driveState.checked?.has(d.id) ? " is-checked" : "");
+    return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="false">
+      <div class="rr-drive-name"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>
+      <div class="rr-drive-cell">${escapeHtml(d.driverName || "—")}</div>
+      <div class="rr-drive-cell">${escapeHtml(d.docType || "—")}</div>
+      <div class="rr-drive-cell">${_driveFmtDate(d.expiresOn)}</div>
+      <div class="rr-drive-cell"><span class="rr-drive-expbadge ${st.cls}">${escapeHtml(st.label)}</span></div>
+    </div>`;
+  }).join("");
+  const note = att
+    ? `<div class="rr-drive-sectionhead">${att} document${att === 1 ? "" : "s"} need attention — expired or expiring within 30 days.</div>`
+    : `<div class="rr-drive-sectionhead">${list.length} document${list.length === 1 ? "" : "s"} with an expiry · all current.</div>`;
+  return note + `<div class="rr-drive-list rr-drive-complist">${head}${rows}</div>`;
 }
 function _driveListHtml(docs, showLoc) {
   if (!docs || !docs.length) return _driveEmpty();
