@@ -71395,7 +71395,9 @@ async function _driveCreateGoogle(kind, opts) {
     throw new Error((data && data.error) || "create_failed");
   } catch (e) {
     const msg = String((e && e.message) || e || "");
-    if (/not_connected|no_drive_scope|needs_reauth|unauthorized|forbidden|401|403/i.test(msg))
+    if (/needs_migration/i.test(msg))
+      toast("Apply the Vault Google migration (0397) in Supabase to file Google files.", "warn");
+    else if (/not_connected|no_drive_scope|needs_reauth|unauthorized|forbidden|401|403/i.test(msg))
       toast("Connect Google Workspace (with Drive access) in Settings to create Google files.", "warn");
     else if (/not.?found|404|non-2xx|Edge Function|Failed to (send|fetch)|Function ?not ?found|FunctionsFetchError/i.test(msg))
       toast("Google Workspace files aren't enabled on this environment yet — finishing the backend next.", "warn");
