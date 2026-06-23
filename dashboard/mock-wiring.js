@@ -330,7 +330,7 @@
       forms: 'Workspaces',
       checklists: 'Workspaces',
       documents: 'Documents',
-      drive: 'Drive',
+      drive: 'Vault',
       finances: 'Finances',
       build: 'Build Your Own Tool',
       settings: 'Settings',

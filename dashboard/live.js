@@ -29502,8 +29502,8 @@ function renderDocumentsTab(docs, envelopes) {
 
   return `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap">
-      <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.4">Documents are stored in <strong style="color:var(--text)">RouteReady Drive</strong> — the system of record. Generated and uploaded files file here automatically.</div>
-      <button type="button" class="btn btn-sm" data-rr-dd-opendrive>Open in Drive →</button>
+      <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.4">Documents are stored in <strong style="color:var(--text)">RouteReady Vault</strong> — the system of record. Generated and uploaded files file here automatically.</div>
+      <button type="button" class="btn btn-sm" data-rr-dd-opendrive>Open in Vault →</button>
     </div>
     <div class="dd-section" style="margin-bottom:22px">
       <div class="dd-section-head">
@@ -29698,7 +29698,7 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // "Open in Drive →" from the Documents tab → the driver's Drive folder.
+  // "Open in Vault →" from the Documents tab → the driver's Drive folder.
   if (e.target.closest("[data-rr-dd-opendrive]")) {
     e.preventDefault();
     e.stopImmediatePropagation();
@@ -70103,7 +70103,7 @@ async function loadDriveView(opts) {
   if (_driveLoadedFor !== dspId) { _driveData = null; }
   if (!_driveData && !_driveLoading) {
     _driveLoading = true;
-    if (main) main.innerHTML = `<div class="rr-loading">Loading Drive</div>`;
+    if (main) main.innerHTML = `<div class="rr-loading">Loading Vault</div>`;
     try { await _driveLoadData(dspId); _driveLoadedFor = dspId; } catch (e) { console.warn("[drive] load failed:", e); }
     _driveLoading = false;
   }
@@ -70352,7 +70352,7 @@ function _driveRenderCrumbs() {
   const el = document.getElementById("rr-drive-crumbs");
   if (!el) return;
   const SEC = { all: "All Documents", recent: "Recent", shared: "Shared", drivers: "Drivers", fleet: "Fleet", hr: "HR", station: "Station", reports: "Reports", archive: "Archive", trash: "Trash" };
-  const crumbs = [{ label: "Drive", to: { section: "all" } }];
+  const crumbs = [{ label: "Vault", to: { section: "all" } }];
   if (_driveState.folderId) {
     // Walk the custom-folder chain to the root for the breadcrumb.
     const byId = new Map(((_driveData?.folders) || []).map(f => [f.id, f]));
@@ -70643,7 +70643,7 @@ async function _driveSetDocStatus(doc, action) {
   if (error) {
     const msg = String(error.message || error);
     if (/drive_documents|does not exist|schema cache|relation|42P01/i.test(msg))
-      toast("Apply the Drive schema migration (0396) in Supabase to enable Archive & Trash.", "warn");
+      toast("Apply the Vault schema migration (0396) in Supabase to enable Archive & Trash.", "warn");
     else toast("Couldn't update: " + msg, "warn");
     return;
   }
@@ -70668,7 +70668,7 @@ async function _driveNewFolder() {
   if (error) {
     const msg = String(error.message || error);
     if (/drive_folders|does not exist|schema cache|relation|42P01/i.test(msg))
-      toast("Apply the Drive schema migration (0396) in Supabase to create folders.", "warn");
+      toast("Apply the Vault schema migration (0396) in Supabase to create folders.", "warn");
     else toast("Couldn't create folder: " + msg, "warn");
     return;
   }
@@ -70702,11 +70702,11 @@ async function _driveMoveDoc(doc, folderId) {
   if (error) {
     const msg = String(error.message || error);
     if (/drive_documents|does not exist|schema cache|relation|42P01/i.test(msg))
-      toast("Apply the Drive schema migration (0396) to move documents.", "warn");
+      toast("Apply the Vault schema migration (0396) to move documents.", "warn");
     else toast("Couldn't move: " + msg, "warn");
     return;
   }
-  toast(folderId ? "Moved to folder" : "Moved to Drive root", "success");
+  toast(folderId ? "Moved to folder" : "Moved to Vault root", "success");
   _driveState.selected = null; _driveData = null;
   await loadDriveView();
 }
@@ -70719,7 +70719,7 @@ function _driveOpenMovePicker(doc) {
   const m = document.createElement("div");
   m.id = "rr-drive-move-pick";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.45));z-index:10002;display:flex;align-items:center;justify-content:center;padding:24px";
-  const items = [`<button type="button" class="rr-al-item" data-fid="">Drive root (no folder)</button>`]
+  const items = [`<button type="button" class="rr-al-item" data-fid="">Vault root (no folder)</button>`]
     .concat(folders.map(f => `<button type="button" class="rr-al-item" data-fid="${escapeHtml(f.id)}"><span class="rr-al-ico">${_driveFileIco(null, true)}</span><span class="rr-al-lbl">${escapeHtml(f.name)}</span></button>`));
   m.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:16px;max-width:380px;width:100%;max-height:70vh;display:flex;flex-direction:column">
     <div style="font-size:var(--fs-md);font-weight:700">Move document</div>
@@ -70790,7 +70790,7 @@ document.addEventListener("change", async (e) => {
       metadata: { drive_title: file.name },
     });
     if (insErr) { toast("Save failed: " + insErr.message, "warn"); return; }
-    toast("Document uploaded to Drive", "success");
+    toast("Document uploaded to Vault", "success");
     _driveData = null; await loadDriveView();
     return;
   }
@@ -70804,7 +70804,7 @@ document.addEventListener("change", async (e) => {
   const { error: insErr } = await sb.from("driver_documents").insert({ dsp_id: dspId, driver_id: _driveState.driverId, kind, label: file.name, file_path: path, file_size: file.size, mime_type: file.type });
   if (insErr) { toast("Save failed: " + insErr.message, "warn"); return; }
   _driveRecordCanonical({ driverId: _driveState.driverId, title: file.name, docType: _driveState.sub || "Document", category: _driveState.sub || "Documents", path, size: file.size, mime: file.type, source: "upload" });
-  toast("Document uploaded to Drive", "success");
+  toast("Document uploaded to Vault", "success");
   _driveData = null; await loadDriveView();
 });
 
