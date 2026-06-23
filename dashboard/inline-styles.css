@@ -26494,6 +26494,20 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-fico.t-gsheet,.rr-drive-tile-ico.t-gsheet,.rr-drive-newico.t-gsheet,.rr-al-ico.t-gsheet{color:#188038}
 .rr-drive-fico.t-gslide,.rr-drive-tile-ico.t-gslide,.rr-drive-newico.t-gslide,.rr-al-ico.t-gslide{color:#e37400}
 
+/* Google Workspace status strip */
+.rr-drive-gbanner{display:flex;align-items:center;gap:13px;padding:12px 14px;margin-bottom:14px;border:1px solid var(--accent);border-radius:var(--r-lg);background:var(--accent-soft)}
+.rr-drive-gbanner[hidden]{display:none}
+.rr-drive-gbanner-ico{flex:0 0 auto;width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:var(--accent)}
+.rr-drive-gbanner-ico svg{width:22px;height:22px}
+.rr-drive-gbanner-txt{flex:1;min-width:0}
+.rr-drive-gbanner-title{font-size:var(--fs-sm);font-weight:700;color:var(--text)}
+.rr-drive-gbanner-body{font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px;line-height:1.5}
+.rr-drive-gbanner-body code{font-family:var(--font-mono,ui-monospace,monospace);font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:0 4px}
+.rr-drive-gbanner-acts{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.rr-drive-gbanner-x{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;background:none;border-radius:var(--r-sm);color:var(--text-subtle);cursor:pointer}
+.rr-drive-gbanner-x:hover{background:var(--surface)}
+.rr-drive-gbanner-x svg{width:16px;height:16px}
+
 /* New ▾ menu */
 .rr-drive-newwrap{position:relative}
 #rr-drive-new{display:inline-flex;align-items:center;gap:7px}

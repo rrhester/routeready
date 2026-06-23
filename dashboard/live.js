@@ -70108,6 +70108,7 @@ async function loadDriveView(opts) {
     _driveLoading = false;
   }
   _driveRender();
+  _driveLoadGoogleStatus();   // non-blocking — paints the connect banner when ready
 }
 window.loadDriveView = loadDriveView;
 
@@ -70405,11 +70406,89 @@ function _driveCounts() {
 // ── Render ───────────────────────────────────────────────────────────────
 function _driveRender() {
   if (!document.getElementById("view-drive")?.classList.contains("active") && !document.getElementById("rr-drive-main")) return;
+  _driveRenderGoogleBanner();
   _driveRenderChips();
   _driveRenderCrumbs();
   _driveRenderBulk();
   _driveRenderMain();
   _driveRenderDetails();
+}
+
+// ── Google Workspace status strip ──────────────────────────────────────────
+// Shows connect / reconnect-for-Drive prompts in-app, with a popup OAuth flow
+// (the same one the Settings → Calendar integration uses; now that the
+// drive.file scope is in google-oauth-start, connecting also grants Drive).
+let _driveGoogleStatus = null;          // {connected, drive, email} | null (unknown)
+let _driveGoogleStatusFetched = false;
+let _driveGoogleBannerDismissed = false;
+async function _driveLoadGoogleStatus(force) {
+  if (_driveGoogleStatusFetched && !force) return;
+  _driveGoogleStatusFetched = true;
+  try {
+    const { data, error } = await sb.functions.invoke("google-drive-status", { body: {} });
+    if (error) throw error;
+    _driveGoogleStatus = { connected: !!data.connected, drive: !!data.drive, email: data.email || "" };
+  } catch (_) {
+    // Status function not deployed yet — fall back to the calendar status RPC
+    // for connected/email (drive unknown → don't nag a connected tenant).
+    try {
+      const { data } = await sb.rpc("google_calendar_status");
+      const row = Array.isArray(data) ? data[0] : data;
+      _driveGoogleStatus = (row && typeof row.connected === "boolean")
+        ? { connected: row.connected, drive: null, email: row.email || "" } : null;
+    } catch (_2) { _driveGoogleStatus = null; }
+  }
+  _driveRenderGoogleBanner();
+}
+function _driveRenderGoogleBanner() {
+  const el = document.getElementById("rr-drive-gbanner");
+  if (!el) return;
+  const s = _driveGoogleStatus;
+  // Hide when fully connected, when status is unknown, or after a dismiss.
+  if (_driveGoogleBannerDismissed || !s || (s.connected && s.drive !== false)) { el.hidden = true; return; }
+  const ico = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+  let title, body;
+  if (!s.connected) {
+    title = "Connect Google Workspace";
+    body = "Create Google Docs, Sheets, and Slides right inside the Vault. Connect your Google account to turn it on.";
+  } else {
+    title = "Finish enabling Google Docs";
+    body = `Connected${s.email ? " as " + escapeHtml(s.email) : ""}, but Drive access isn't granted yet. In Google Cloud, enable the Drive / Docs / Sheets / Slides APIs and add the <code>drive.file</code> scope, then reconnect below.`;
+  }
+  el.hidden = false;
+  el.innerHTML = `<span class="rr-drive-gbanner-ico">${ico}</span>
+    <div class="rr-drive-gbanner-txt"><div class="rr-drive-gbanner-title">${title}</div><div class="rr-drive-gbanner-body">${body}</div></div>
+    <div class="rr-drive-gbanner-acts">
+      <button type="button" class="btn btn-sm btn-primary" data-rr-gw="connect">${s.connected ? "Reconnect Google" : "Connect Google"}</button>
+      <button type="button" class="rr-drive-gbanner-x" data-rr-gw="dismiss" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`;
+}
+// Open Google's OAuth consent in a popup (reuses google-oauth-start, which now
+// requests the drive.file scope). Refreshes the banner when the popup returns.
+async function _driveConnectGoogle(triggerBtn) {
+  if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = "Opening Google…"; }
+  try {
+    const { data, error } = await sb.functions.invoke("google-oauth-start", { body: {} });
+    if (error || !data?.url) throw error || new Error("No authorization URL returned");
+    const popup = window.open(data.url, "rr-gw", "width=520,height=660");
+    const onMsg = (ev) => {
+      if (!ev.data || ev.data.type !== "rr-gcal") return;
+      window.removeEventListener("message", onMsg);
+      try { popup && popup.close(); } catch (_) {}
+      if (ev.data.ok) toast("Google connected", "success");
+      else toast("Connection failed: " + (ev.data.message || ""), "warn");
+      _driveGoogleBannerDismissed = false;
+      _driveLoadGoogleStatus(true);
+    };
+    window.addEventListener("message", onMsg);
+    const poll = setInterval(() => {
+      if (popup && popup.closed) { clearInterval(poll); window.removeEventListener("message", onMsg); _driveLoadGoogleStatus(true); }
+    }, 800);
+    if (!popup) { window.removeEventListener("message", onMsg); clearInterval(poll); window.open(data.url, "_blank"); }
+  } catch (e) {
+    toast("Couldn't start Google connect: " + ((e && e.message) || e), "warn");
+    _driveRenderGoogleBanner();
+  }
 }
 // Cross-cutting view chips (replaced the section rail) — All documents,
 // Recent, Shared. Category navigation (Drivers/Fleet/HR/Station/Reports)
@@ -71252,6 +71331,15 @@ document.addEventListener("click", (e) => {
   if (fav) { e.stopPropagation(); _driveToggleFav(fav.getAttribute("data-rr-drive-fav")); _driveRenderMain(); return; }
   const folderCard = e.target.closest("[data-rr-drive-folder]");
   if (folderCard) { _driveState.folderId = folderCard.getAttribute("data-rr-drive-folder"); _drivePushRecent(_driveState.folderId); _driveState.driverId = null; _driveState.sub = null; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); return; }
+  // Google Workspace status strip — Connect / Reconnect / dismiss.
+  const gw = e.target.closest("[data-rr-gw]");
+  if (gw) {
+    e.stopPropagation();
+    const act = gw.getAttribute("data-rr-gw");
+    if (act === "connect") _driveConnectGoogle(gw);
+    else if (act === "dismiss") { _driveGoogleBannerDismissed = true; _driveRenderGoogleBanner(); }
+    return;
+  }
   // Header — New ▾ menu (opens a body-anchored popover so no overflow/stacking
   // context on the page header can clip it).
   if (e.target.closest("#rr-drive-new")) { e.stopPropagation(); _driveOpenNewMenu(); return; }

@@ -28,6 +28,11 @@
           </div>
         </div>
 
+        <!-- Google Workspace status strip — connected / not connected / Drive
+             access missing, with an in-app Connect button (popup OAuth). Filled
+             by _driveRenderGoogleBanner(); hidden when fully connected. -->
+        <div class="rr-drive-gbanner" id="rr-drive-gbanner" hidden></div>
+
         <!-- Two-column workspace: content · details/preview. (The section rail
              was removed per operator request — category cards + the Recent /
              Shared chips + breadcrumbs carry navigation.) -->
