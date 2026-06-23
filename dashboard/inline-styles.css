@@ -26459,6 +26459,19 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-dropzone-title{font-size:var(--fs-md);font-weight:700;color:var(--text)}
 .rr-drive-dropzone-sub{font-size:var(--fs-sm);color:var(--text-subtle)}
 
+/* Folder customization picker (color swatches + icon choices) */
+.rr-drive-style-label{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:9px}
+.rr-drive-sw-row{display:flex;flex-wrap:wrap;gap:9px}
+.rr-drive-sw{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;outline-offset:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.rr-drive-sw.is-active{border-color:var(--text);box-shadow:none}
+.rr-drive-sw-none{background:var(--surface);position:relative;box-shadow:inset 0 0 0 1px var(--border-strong,var(--border))}
+.rr-drive-sw-none::after{content:"";position:absolute;left:3px;right:3px;top:11px;height:2px;background:var(--text-disabled);transform:rotate(-45deg)}
+.rr-drive-icq-row{display:flex;flex-wrap:wrap;gap:8px}
+.rr-drive-icq{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r-md,10px);background:var(--surface);cursor:pointer}
+.rr-drive-icq svg{width:20px;height:20px}
+.rr-drive-icq:hover{border-color:var(--accent)}
+.rr-drive-icq.is-active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .rr-drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
 .rr-drive-tile{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);cursor:pointer;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
