@@ -9446,8 +9446,9 @@ async function _uploadSeparationFiles(driver, files) {
       .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
     if (upErr) { console.warn("separation file upload failed:", upErr); continue; }
     await sb.from("driver_documents").insert({
-      dsp_id: dspId, driver_id: driver.id, kind: "separation_support",
+      dsp_id: dspId, driver_id: driver.id, kind: "other",
       label: file.name, file_path: path, file_size: file.size, mime_type: file.type,
+      metadata: { drive_category: "Employment", drive_title: file.name, drive_doc_type: "Separation support", drive_source: "separation", auto_generated: true },
     }).then((r) => r, (e) => console.warn("driver_documents insert failed:", e));
     out.push({ label: file.name, path });
   }
@@ -9461,10 +9462,11 @@ async function _storeSeparationPacket(driver, bytes) {
   const { error: upErr } = await sb.storage.from("driver-documents")
     .upload(path, blob, { contentType: "application/pdf", upsert: false });
   if (upErr) { console.warn("packet store failed:", upErr); return null; }
+  const _sepLabel = `Separation Packet · ${new Date().toLocaleDateString("en-US")}`;
   await sb.from("driver_documents").insert({
-    dsp_id: dspId, driver_id: driver.id, kind: "separation_packet",
-    label: `Separation Packet · ${new Date().toLocaleDateString("en-US")}`,
-    file_path: path, file_size: blob.size, mime_type: "application/pdf",
+    dsp_id: dspId, driver_id: driver.id, kind: "other",
+    label: _sepLabel, file_path: path, file_size: blob.size, mime_type: "application/pdf",
+    metadata: { drive_category: "Employment", drive_title: _sepLabel, drive_doc_type: "Separation Packet", drive_source: "separation", auto_generated: true },
   }).then((r) => r, (e) => console.warn("driver_documents insert failed:", e));
   return path;
 }
@@ -30291,6 +30293,9 @@ async function openCoachingForm(driverId, opts) {
       }
     }
 
+    // Auto-file the coaching document into Drive (Coaching / Warnings folder),
+    // fire-and-forget so the save flow stays snappy.
+    if (inserted?.id && typeof _driveAutoFileCoaching === "function") _driveAutoFileCoaching(inserted.id, driverId, payload, _coachReason);
     m.remove();
     toast("Coaching logged", "success");
     await loadDriverDrawer(driverId);
@@ -70121,19 +70126,23 @@ async function _driveLoadData(dspId) {
   const nameOf = (id) => { const d = driverMap.get(id); return d ? (displayDriverName(d) || "Driver") : "Driver"; };
   const stationOf = (id) => { const d = driverMap.get(id); return d?.station?.code || ""; };
 
-  // 1 · driver_documents (HR / personnel files uploaded per driver).
+  // 1 · driver_documents (HR / personnel files + auto-filed generated docs).
   try {
     const { data } = await sb.from("driver_documents")
-      .select("id, driver_id, kind, label, file_path, file_size, mime_type, expires_on, created_at")
+      .select("id, driver_id, kind, label, file_path, file_size, mime_type, expires_on, created_at, metadata")
       .eq("dsp_id", dspId).order("created_at", { ascending: false }).limit(5000);
     for (const x of (data || [])) {
-      const nm = x.label || (fold(x.kind).replace(/_/g, " ") || "Document");
+      const meta = x.metadata || {};
+      const nm = meta.drive_title || x.label || (fold(x.kind).replace(/_/g, " ") || "Document");
+      const cat = meta.drive_category && _DRIVE_SUBS.includes(meta.drive_category) ? meta.drive_category : null;
       docs.push({
         id: "dd_" + x.id, source: "driver_documents", name: nm,
-        kind: x.kind, docType: fold(x.kind).replace(/_/g, " ") || "Document",
+        kind: x.kind, driveCategory: cat,
+        docType: meta.drive_doc_type || (cat ? cat : fold(x.kind).replace(/_/g, " ") || "Document"),
         bucket: "driver-documents", path: x.file_path, mime: x.mime_type, size: x.file_size,
         driverId: x.driver_id, driverName: nameOf(x.driver_id), station: stationOf(x.driver_id),
-        createdAt: x.created_at, createdBy: "", expiresOn: x.expires_on,
+        createdAt: x.created_at, createdBy: meta.drive_created_by || "", expiresOn: x.expires_on,
+        tags: meta.auto_generated ? ["Auto-filed"] : [],
       });
     }
   } catch (e) { console.warn("[drive] driver_documents:", e); }
@@ -70207,6 +70216,7 @@ function _driveType(mime, name) {
 }
 const _DRIVE_SUBS = ["Coaching", "Attendance", "Warnings", "Employment", "DOT", "Licenses", "Documents"];
 function _driveSubfolder(doc) {
+  if (doc.driveCategory && _DRIVE_SUBS.includes(doc.driveCategory)) return doc.driveCategory;
   if (doc.source === "report") return "Employment";
   if (doc.source === "envelope") {
     const t = String(doc.docType || "").toLowerCase();
@@ -70522,3 +70532,96 @@ document.addEventListener("change", async (e) => {
   toast("Document uploaded to Drive", "success");
   _driveData = null; await loadDriveView();
 });
+
+// ── Drive · auto-filing of generated documents (Phase 2) ───────────────────
+// Files a generated artifact into Drive by uploading it to the driver-documents
+// bucket and recording a driver_documents row tagged with metadata.drive_*.
+// No new schema: kind stays "other"; the category drives the Drive subfolder.
+async function _driveAutoFile(opts) {
+  const o = opts || {};
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !o.driverId || !o.blob) return null;
+  const title = o.title || "Document";
+  const safe = ((title.endsWith(".pdf") ? title : title + ".pdf")).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${dspId}/${o.driverId}/${Date.now()}-${safe}`;
+  const mime = o.mime || "application/pdf";
+  try {
+    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, o.blob, { contentType: mime, upsert: false });
+    if (upErr) { console.warn("[drive] auto-file upload:", upErr); return null; }
+    const { error: insErr } = await sb.from("driver_documents").insert({
+      dsp_id: dspId, driver_id: o.driverId, kind: "other",
+      label: title, file_path: path, file_size: o.blob.size, mime_type: mime,
+      metadata: {
+        drive_category: _DRIVE_SUBS.includes(o.category) ? o.category : "Documents",
+        drive_title: title, drive_doc_type: o.docType || o.category || "Document",
+        drive_source: o.source || "generated", auto_generated: true,
+        drive_created_by: window.RR?.user?.name || window.RR?.user?.email || "",
+      },
+    });
+    if (insErr) { console.warn("[drive] auto-file insert:", insErr); return null; }
+  } catch (e) { console.warn("[drive] auto-file:", e); return null; }
+  _driveData = null;   // invalidate cache so Drive shows the new file on next open
+  return path;
+}
+
+// Single-coaching document (text → PDF via the shared pdf-lib pipeline). Used
+// to auto-file a Coaching / Warning into Drive the moment it's created.
+async function _coachingDocBytes(drv, c, levelLabel) {
+  const dsp = (window.RR && window.RR.dsp) || {};
+  const name = displayDriverName(drv) || "Driver";
+  const station = drv?.station?.code || dsp.short_code || "—";
+  const L = [];
+  L.push(_rptRule("="));
+  L.push(_rptCenter((dsp.name || "Delivery Service Partner").toUpperCase()));
+  L.push(_rptCenter("Employee " + (levelLabel || "Coaching") + " Record"));
+  L.push(_rptRule("="));
+  L.push("");
+  L.push(`    EMPLOYEE:      ${name}`);
+  L.push(`    STATION:       ${station}`);
+  L.push(`    DATE:          ${_rptDate(c.occurred_at)}`);
+  L.push(`    LEVEL:         ${levelLabel || c.severity || "Coaching"}`);
+  if (c.topic) L.push(`    TOPIC:         ${String(c.topic).replace(/_/g, " ")}`);
+  L.push(`    ISSUED BY:     ${c.coached_by_name || "—"}`);
+  L.push(_rptRule("-"));
+  L.push("");
+  if (c.summary) { L.push("SUMMARY"); L.push(""); L.push(_rptWrap(c.summary, "    ")); L.push(""); }
+  if (c.notes) { L.push("DETAILS"); L.push(""); L.push(_rptWrap(c.notes, "    ")); L.push(""); }
+  L.push("ACKNOWLEDGMENT");
+  L.push("");
+  L.push(_rptWrap("By signing below, the employee acknowledges receipt of this document. "
+    + "Acknowledgment indicates receipt, not necessarily agreement.", "    "));
+  L.push("");
+  L.push("    Employee: ______________________________   Date: ____________");
+  L.push("");
+  L.push("    Manager:  ______________________________   Date: ____________");
+  L.push("");
+  return _textToPdfBytes(L.join("\n"));
+}
+
+// Auto-file a just-created coaching into the driver's Drive folder (Coaching
+// or Warnings, by severity). Best-effort + fire-and-forget from the save flow.
+async function _driveAutoFileCoaching(coachingId, driverId, payload, reason) {
+  try {
+    if (!driverId) return;
+    let drv = (_driveData?.driverMap?.get(driverId)) || (_ddDriver?.driver?.id === driverId ? _ddDriver.driver : null);
+    if (!drv) {
+      const { data } = await sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, station:station_id(code)").eq("id", driverId).maybeSingle();
+      drv = data;
+    }
+    if (!drv) return;
+    const sev = payload.severity;
+    const label = (typeof _coachingSevLabel === "function") ? _coachingSevLabel(sev, payload.topic, reason) : (sev || "Coaching");
+    const isWarn = ["written", "final", "termination"].includes(sev);
+    const c = {
+      id: coachingId, severity: sev, topic: payload.topic, summary: payload.summary,
+      notes: payload.notes, occurred_at: new Date().toISOString(),
+      coached_by_name: window.RR?.user?.name || window.RR?.user?.email || "",
+    };
+    const bytes = await _coachingDocBytes(drv, c, label);
+    await _driveAutoFile({
+      driverId, blob: new Blob([bytes], { type: "application/pdf" }),
+      title: `${label}${payload.topic ? " — " + String(payload.topic).replace(/_/g, " ") : ""}`,
+      category: isWarn ? "Warnings" : "Coaching", docType: label, source: "coaching",
+    });
+  } catch (e) { console.warn("[drive] coaching auto-file:", e); }
+}
