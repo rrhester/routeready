@@ -71252,33 +71252,11 @@ document.addEventListener("click", (e) => {
   if (fav) { e.stopPropagation(); _driveToggleFav(fav.getAttribute("data-rr-drive-fav")); _driveRenderMain(); return; }
   const folderCard = e.target.closest("[data-rr-drive-folder]");
   if (folderCard) { _driveState.folderId = folderCard.getAttribute("data-rr-drive-folder"); _drivePushRecent(_driveState.folderId); _driveState.driverId = null; _driveState.sub = null; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); return; }
-  // Header — New ▾ menu
-  if (e.target.closest("#rr-drive-new")) { _driveToggleNewMenu(); return; }
-  const newItem = e.target.closest("[data-rr-new]");
-  if (newItem) {
-    _driveToggleNewMenu(false);
-    const what = newItem.getAttribute("data-rr-new");
-    if (what === "folder") _driveNewFolder();
-    else if (what === "upload") {
-      if (_driveState.folderId || (_driveState.section === "drivers" && _driveState.driverId)) { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
-      else toast("Open a folder (a driver, or a custom folder) to upload a file there.", "info");
-    }
-    else if (what === "gdoc") _driveCreateGoogle("document");
-    else if (what === "gsheet") _driveCreateGoogle("spreadsheet");
-    else if (what === "gslide") _driveCreateGoogle("presentation");
-    else if (what === "template") _driveOpenTemplatePicker();
-    return;
-  }
+  // Header — New ▾ menu (opens a body-anchored popover so no overflow/stacking
+  // context on the page header can clip it).
+  if (e.target.closest("#rr-drive-new")) { e.stopPropagation(); _driveOpenNewMenu(); return; }
   if (e.target.closest("#rr-drive-generate")) { toast("Generate documents from a driver record (Create coaching, attendance, reports).", "info"); if (typeof window.goto === "function") window.goto("drivers"); return; }
 });
-// Close the New menu on an outside click or Escape.
-document.addEventListener("click", (e) => {
-  const menu = document.getElementById("rr-drive-newmenu");
-  if (!menu || menu.hidden) return;
-  if (e.target.closest && e.target.closest("#rr-drive-newwrap")) return;
-  _driveToggleNewMenu(false);
-});
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") _driveToggleNewMenu(false); });
 document.addEventListener("input", (e) => {
   if (e.target && e.target.id === "rr-drive-search") { _driveState.query = e.target.value || ""; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRenderBulk(); _driveRenderMain(); }
 });
@@ -71341,13 +71319,64 @@ document.addEventListener("change", async (e) => {
 });
 
 // ── New ▾ menu + Google Workspace file creation ────────────────────────────
-function _driveToggleNewMenu(force) {
-  const menu = document.getElementById("rr-drive-newmenu");
+// Body-anchored popover positioned under the New button. Built on demand and
+// appended to <body> (fixed position) so no ancestor's overflow/stacking can
+// hide it — the same pattern the Move / Customize / Template pickers use.
+let _driveNewPopClose = null;
+function _driveOpenNewMenu() {
+  if (_driveNewPopClose) { _driveNewPopClose(); return; }   // toggle closed
+  document.getElementById("rr-drive-newpop")?.remove();
   const btn = document.getElementById("rr-drive-new");
-  if (!menu || !btn) return;
-  const show = typeof force === "boolean" ? force : menu.hidden;
-  menu.hidden = !show;
-  btn.setAttribute("aria-expanded", show ? "true" : "false");
+  if (!btn) return;
+  btn.setAttribute("aria-expanded", "true");
+  const r = btn.getBoundingClientRect();
+  const folderIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+  const uploadIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+  const tplIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>`;
+  const item = (key, label, icoHtml, tcls) =>
+    `<button type="button" class="rr-drive-newitem" role="menuitem" data-rr-new="${key}"><span class="rr-drive-newico${tcls ? " " + tcls : ""}">${icoHtml}</span>${label}</button>`;
+  const sep = `<div class="rr-drive-newmenu-sep"></div>`;
+  const pop = document.createElement("div");
+  pop.id = "rr-drive-newpop";
+  pop.className = "rr-drive-newmenu";
+  pop.setAttribute("role", "menu");
+  pop.style.cssText = `position:fixed;top:${Math.round(r.bottom + 6)}px;right:${Math.round(Math.max(8, window.innerWidth - r.right))}px;z-index:10050`;
+  pop.innerHTML =
+    item("folder", "Folder", folderIco) +
+    item("upload", "Upload file", uploadIco) + sep +
+    item("gdoc", "Google Doc", _driveFileIco("gdoc"), "t-gdoc") +
+    item("gsheet", "Google Sheet", _driveFileIco("gsheet"), "t-gsheet") +
+    item("gslide", "Google Slide", _driveFileIco("gslide"), "t-gslide") + sep +
+    item("template", "From template", tplIco);
+  document.body.appendChild(pop);
+
+  const close = () => {
+    pop.remove();
+    btn.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", onDoc, true);
+    document.removeEventListener("keydown", onKey, true);
+    _driveNewPopClose = null;
+  };
+  _driveNewPopClose = close;
+  const onDoc = (ev) => { if (!pop.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) close(); };
+  const onKey = (ev) => { if (ev.key === "Escape") close(); };
+  setTimeout(() => { document.addEventListener("click", onDoc, true); document.addEventListener("keydown", onKey, true); }, 0);
+
+  pop.addEventListener("click", (e) => {
+    const it = e.target.closest("[data-rr-new]");
+    if (!it) return;
+    const what = it.getAttribute("data-rr-new");
+    close();
+    if (what === "folder") _driveNewFolder();
+    else if (what === "upload") {
+      if (_driveState.folderId || (_driveState.section === "drivers" && _driveState.driverId)) { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
+      else toast("Open a folder (a driver, or a custom folder) to upload a file there.", "info");
+    }
+    else if (what === "gdoc") _driveCreateGoogle("document");
+    else if (what === "gsheet") _driveCreateGoogle("spreadsheet");
+    else if (what === "gslide") _driveCreateGoogle("presentation");
+    else if (what === "template") _driveOpenTemplatePicker();
+  });
 }
 function _driveDateStamp(d) {
   const n = d ? new Date(d) : new Date();
@@ -71373,7 +71402,6 @@ async function _driveCreateGoogle(kind, opts) {
   opts = opts || {};
   const name = opts.name || _driveDefaultGoogleName(kind, opts.templateLabel);
   toast("Creating in Google…", "info");
-  _driveToggleNewMenu(false);
   try {
     const { data, error } = await sb.functions.invoke("google-drive-create", {
       body: {
