@@ -26489,6 +26489,23 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-expbadge.is-ok{background:var(--canvas);color:var(--text-subtle)}
 .rr-drive-chip-btn.rr-drive-chip-alert .rr-drive-chip-cnt{background:#fee2e2;color:#b42318}
 
+/* Google Workspace file colors (icon tint by type) */
+.rr-drive-fico.t-gdoc,.rr-drive-tile-ico.t-gdoc,.rr-drive-newico.t-gdoc,.rr-al-ico.t-gdoc{color:#1a73e8}
+.rr-drive-fico.t-gsheet,.rr-drive-tile-ico.t-gsheet,.rr-drive-newico.t-gsheet,.rr-al-ico.t-gsheet{color:#188038}
+.rr-drive-fico.t-gslide,.rr-drive-tile-ico.t-gslide,.rr-drive-newico.t-gslide,.rr-al-ico.t-gslide{color:#e37400}
+
+/* New ▾ menu */
+.rr-drive-newwrap{position:relative}
+#rr-drive-new{display:inline-flex;align-items:center;gap:7px}
+.rr-drive-new-caret{width:13px;height:13px;margin-left:-2px}
+.rr-drive-newmenu{position:absolute;top:calc(100% + 6px);right:0;z-index:60;min-width:212px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-md,0 8px 24px rgba(15,23,42,.12));padding:6px;display:flex;flex-direction:column;gap:1px}
+.rr-drive-newmenu[hidden]{display:none}
+.rr-drive-newitem{display:flex;align-items:center;gap:11px;padding:8px 10px;border:0;background:none;cursor:pointer;border-radius:var(--r-sm);font-size:var(--fs-sm);font-weight:500;color:var(--text);text-align:left;width:100%}
+.rr-drive-newitem:hover{background:var(--canvas)}
+.rr-drive-newico{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;color:var(--text-muted)}
+.rr-drive-newico svg{width:18px;height:18px}
+.rr-drive-newmenu-sep{height:1px;background:var(--border);margin:5px 6px}
+
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .rr-drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
 .rr-drive-tile{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);cursor:pointer;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
