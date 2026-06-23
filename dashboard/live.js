@@ -70237,7 +70237,7 @@ async function _driveLoadData(dspId) {
   // Derive type + flags for every doc.
   for (const d of docs) {
     d.type = _driveType(d.mime, d.name);
-    d.previewable = !!d.path && (d.type === "pdf" || d.type === "img");
+    d.previewable = !!d.path && (d.type === "pdf" || d.type === "img" || d.type === "doc" || d.type === "xls");
     d.openable = !!d.path || d.source === "report";
     if (!d.tags) d.tags = [];
   }
@@ -70561,6 +70561,12 @@ function _driveRenderDetails() {
     <div class="rr-drive-det-foot">${foot}</div>`;
   if (doc.previewable) _drivePaintPreview(doc);
 }
+// Lazily load Word/Excel renderers from the same CDN pdf-lib uses. Files are
+// parsed entirely in the browser — never sent to any third-party viewer.
+let _mammothP = null, _xlsxP = null;
+function _loadMammoth() { if (!_mammothP) _mammothP = import("https://cdn.jsdelivr.net/npm/mammoth@1.6.0/+esm"); return _mammothP; }
+function _loadXlsx()    { if (!_xlsxP)    _xlsxP    = import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm");    return _xlsxP; }
+
 async function _drivePaintPreview(doc) {
   const box = document.getElementById("rr-drive-preview");
   if (!box || !doc.path) return;
@@ -70568,7 +70574,32 @@ async function _drivePaintPreview(doc) {
   try { const { data } = await sb.storage.from(doc.bucket).createSignedUrl(doc.path, 3600); url = data?.signedUrl || null; } catch {}
   if (!document.getElementById("rr-drive-preview")) return; // selection changed
   if (!url) { box.innerHTML = `<div class="rr-drive-det-noprev">Couldn't load preview.</div>`; return; }
-  box.innerHTML = doc.type === "img" ? `<img src="${url}" alt="${escapeHtml(doc.name)}">` : `<iframe src="${url}" title="${escapeHtml(doc.name)}"></iframe>`;
+  if (doc.type === "img") { box.innerHTML = `<img src="${url}" alt="${escapeHtml(doc.name)}">`; return; }
+  if (doc.type === "pdf") { box.innerHTML = `<iframe src="${url}" title="${escapeHtml(doc.name)}"></iframe>`; return; }
+  // Word / Excel · render to HTML client-side.
+  if (doc.type === "doc" || doc.type === "xls") {
+    try {
+      const buf = await (await fetch(url)).arrayBuffer();
+      if (!document.getElementById("rr-drive-preview")) return;
+      let html = "";
+      if (doc.type === "doc") {
+        const mammoth = await _loadMammoth();
+        const res = await (mammoth.convertToHtml ? mammoth : mammoth.default).convertToHtml({ arrayBuffer: buf });
+        html = `<div class="rr-drive-doc-html">${res.value || "<p>(empty document)</p>"}</div>`;
+      } else {
+        const XLSX = await _loadXlsx();
+        const wb = (XLSX.read ? XLSX : XLSX.default).read(buf, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        html = `<div class="rr-drive-doc-html rr-drive-xls">${(XLSX.utils || XLSX.default.utils).sheet_to_html(ws)}</div>`;
+      }
+      if (!document.getElementById("rr-drive-preview")) return;
+      box.innerHTML = html;
+    } catch (e) {
+      box.innerHTML = `<div class="rr-drive-det-noprev">Couldn't render a preview. Use Open to download the file.</div>`;
+    }
+    return;
+  }
+  box.innerHTML = `<iframe src="${url}" title="${escapeHtml(doc.name)}"></iframe>`;
 }
 async function _driveOpenDoc(doc, download) {
   if (!doc) return;

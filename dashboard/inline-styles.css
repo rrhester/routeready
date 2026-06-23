@@ -26434,6 +26434,14 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-det-type{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px}
 .rr-drive-det-preview{margin:14px 16px;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--canvas);min-height:150px;display:flex;align-items:center;justify-content:center}
 .rr-drive-det-preview iframe{width:100%;height:280px;border:0;background:#fff}
+/* Client-side Word / Excel render (mammoth / SheetJS → HTML). */
+.rr-drive-doc-html{width:100%;max-height:320px;overflow:auto;background:#fff;padding:14px 16px;font-size:var(--fs-sm);line-height:1.55;color:var(--text);text-align:left}
+.rr-drive-doc-html.rr-drive-xls{padding:0}
+.rr-drive-doc-html img{max-width:100%}
+.rr-drive-doc-html h1,.rr-drive-doc-html h2,.rr-drive-doc-html h3{font-size:var(--fs-md);margin:.6em 0 .3em}
+.rr-drive-doc-html p{margin:0 0 .5em}
+.rr-drive-doc-html table{border-collapse:collapse;font-size:var(--fs-xs);width:100%}
+.rr-drive-doc-html td,.rr-drive-doc-html th{border:1px solid var(--border-subtle);padding:4px 8px;white-space:nowrap}
 .rr-drive-det-preview img{max-width:100%;max-height:280px;display:block}
 .rr-drive-det-noprev{padding:34px 16px;text-align:center;color:var(--text-subtle);font-size:var(--fs-xs);line-height:1.5}
 .rr-drive-det-noprev svg{width:30px;height:30px;opacity:.4;margin-bottom:8px}
