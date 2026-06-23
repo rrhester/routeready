@@ -673,6 +673,11 @@ textarea,
    ───────────────────────────────────────────────────────────── */
 .app{display:grid;grid-template-columns:176px 1fr;min-height:100vh}
 .app:has(.sidebar.collapsed){grid-template-columns:64px 1fr}
+/* Drive is a focused, full-screen workspace — hide the global app rail.
+   Navigation off Drive goes through the in-header app launcher (the app
+   drawer mirrors every visible sidebar destination). */
+.app:has(#view-drive.active){grid-template-columns:1fr}
+.app:has(#view-drive.active) .sidebar{display:none}
 
 /* Dashboard-wide sharpness layer · matches the schedule sharpness
    treatment but extends it to every view. Bumps any SVG icon that
@@ -26187,6 +26192,9 @@ body.rr-cmdk-open{ overflow:hidden }
   box-shadow:0 18px 48px rgba(15,23,42,.18), 0 2px 8px rgba(15,23,42,.08);
 }
 .rr-al-panel[hidden]{ display:none; }
+/* App-switcher section at the top of the drawer (mirrors sidebar nav). */
+.rr-al-apps{ display:flex; flex-direction:column; gap:2px; }
+.rr-al-apps:not(:empty){ margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid rgba(15,23,42,.08); }
 /* "Soon" tag on not-yet-built apps (Vault, Reports). */
 .rr-al-soon{
   margin-left:auto; align-self:center;
