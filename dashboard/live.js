@@ -71356,7 +71356,7 @@ function _driveUploadCtx() {
     const d = _driveData?.driverMap?.get(_driveState.driverId);
     return (displayDriverName(d) || "this driver") + (_driveState.sub ? ` · ${_driveState.sub}` : "");
   }
-  return null;
+  return "Vault";   // root — uploads land in All documents, unfiled
 }
 // Upload one file into the current context (no toast/reload — callers batch).
 // Returns true on success. Custom folder → canonical store; driver → legacy
@@ -71387,7 +71387,18 @@ async function _driveUploadFile(file) {
     _driveRecordCanonical({ driverId: _driveState.driverId, title: file.name, docType: _driveState.sub || "Document", category: _driveState.sub || "Documents", path, size: file.size, mime: file.type, source: "upload" });
     return true;
   }
-  return false;
+  // Vault root (no folder, no driver) → canonical store, filed in All documents.
+  const path = `${dspId}/_uploads/${Date.now()}-${file.name}`;
+  const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type, upsert: false });
+  if (upErr) { console.warn("[drive] upload:", upErr); return false; }
+  const { error: insErr } = await sb.from("drive_documents").insert({
+    dsp_id: dspId, folder_id: null, driver_id: null, name: file.name, doc_type: "Document",
+    category: null, bucket: "driver-documents", file_path: path, file_size: file.size,
+    mime_type: file.type, source: "upload", created_by: window.RR?.user?.id || null,
+    metadata: { drive_title: file.name },
+  });
+  if (insErr) { console.warn("[drive] save:", insErr); return false; }
+  return true;
 }
 // Upload a set of files (from the picker or a drop), with one combined toast.
 async function _driveUploadFiles(files) {
@@ -71456,10 +71467,7 @@ function _driveOpenNewMenu() {
     const what = it.getAttribute("data-rr-new");
     close();
     if (what === "folder") _driveNewFolder();
-    else if (what === "upload") {
-      if (_driveState.folderId || (_driveState.section === "drivers" && _driveState.driverId)) { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
-      else toast("Open a folder (a driver, or a custom folder) to upload a file there.", "info");
-    }
+    else if (what === "upload") { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
     else if (what === "gdoc") _driveCreateGoogle("document");
     else if (what === "gsheet") _driveCreateGoogle("spreadsheet");
     else if (what === "gslide") _driveCreateGoogle("presentation");
