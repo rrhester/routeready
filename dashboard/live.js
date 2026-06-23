@@ -70142,14 +70142,17 @@ async function _driveLoadData(dspId) {
   const canonicalPaths = new Set();
   try {
     // Fetch every canonical row (incl. archived / trashed) so the dedup set is
-    // complete; the section filters decide what each view shows.
+    // complete; the section filters decide what each view shows. `select *` so
+    // newer columns (e.g. the Google fields from 0397) load when present and
+    // this degrades cleanly when the migration hasn't been applied.
     const { data, error } = await sb.from("drive_documents")
-      .select("id, driver_id, folder_id, name, doc_type, category, subfolder, bucket, file_path, file_size, mime_type, source, tags, created_at, archived_at, deleted_at, metadata")
+      .select("*")
       .eq("dsp_id", dspId)
       .order("created_at", { ascending: false }).limit(8000);
     if (!error) for (const x of (data || [])) {
       if (x.file_path) canonicalPaths.add(x.file_path);
       const cat = x.subfolder && _DRIVE_SUBS.includes(x.subfolder) ? x.subfolder : null;
+      const isGoogle = !!x.is_google_file;
       docs.push({
         folderId: x.folder_id || null,
         id: "drv_" + x.id, canonicalId: x.id, source: "driver_documents", canonical: true,
@@ -70160,6 +70163,11 @@ async function _driveLoadData(dspId) {
         createdAt: x.created_at, createdBy: (x.metadata && x.metadata.drive_created_by) || "",
         archivedAt: x.archived_at, deletedAt: x.deleted_at,
         tags: Array.isArray(x.tags) ? x.tags : [],
+        // Google Workspace (0397) — Google-owned metadata.
+        isGoogle, googleId: x.google_file_id || null, googleUrl: x.google_drive_url || null,
+        googleMime: x.google_mime_type || null, relatedType: x.related_entity_type || null,
+        relatedId: x.related_entity_id || null, permStatus: x.permissions_status || null,
+        modifiedAt: x.modified_at || null, lastSyncedAt: x.last_synced_at || null,
       });
     }
   } catch (_) { /* not migrated yet — ignore */ }
@@ -70236,15 +70244,26 @@ async function _driveLoadData(dspId) {
 
   // Derive type + flags for every doc.
   for (const d of docs) {
-    d.type = _driveType(d.mime, d.name);
-    d.previewable = !!d.path && (d.type === "pdf" || d.type === "img" || d.type === "doc" || d.type === "xls");
-    d.openable = !!d.path || d.source === "report";
+    d.type = d.isGoogle ? _driveGoogleType(d.googleMime, d.name) : _driveType(d.mime, d.name);
+    // Google files open in Google (their editor) — never previewed inline.
+    d.previewable = !d.isGoogle && !!d.path && (d.type === "pdf" || d.type === "img" || d.type === "doc" || d.type === "xls");
+    d.openable = d.isGoogle ? !!d.googleUrl : (!!d.path || d.source === "report");
     if (!d.tags) d.tags = [];
   }
   _driveData = { docs, drivers, driverMap, folders };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+// Google Workspace mime → internal type tag (drives the icon + label).
+function _driveGoogleType(mime) {
+  const m = String(mime || "").toLowerCase();
+  if (m.includes("presentation")) return "gslide";
+  if (m.includes("spreadsheet")) return "gsheet";
+  return "gdoc";
+}
+function _driveGoogleLabel(type) {
+  return { gdoc: "Google Doc", gsheet: "Google Sheet", gslide: "Google Slide" }[type] || "Google file";
+}
 function _driveType(mime, name) {
   const m = String(mime || "").toLowerCase(), n = String(name || "").toLowerCase();
   if (m.includes("pdf") || n.endsWith(".pdf")) return "pdf";
@@ -70278,6 +70297,10 @@ function _driveFileIco(type, folder) {
   if (folder) return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
   const base = `fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"`;
   if (type === "img") return `<svg viewBox="0 0 24 24" ${base}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
+  // Google Workspace files.
+  if (type === "gdoc")   return `<svg viewBox="0 0 24 24" ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg>`;
+  if (type === "gsheet") return `<svg viewBox="0 0 24 24" ${base}><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
+  if (type === "gslide") return `<svg viewBox="0 0 24 24" ${base}><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
   return `<svg viewBox="0 0 24 24" ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
 }
 // Folder personalization — color + icon stored in drive_folders.metadata
@@ -70585,7 +70608,7 @@ function _driveListHtml(docs, showLoc) {
       `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${d.path ? "true" : "false"}">
         <span class="rr-drive-tile-ico t-${d.type}">${_driveFileIco(d.type)}${checkBox(d.id)}</span>
         <span class="rr-drive-tile-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
-        <span class="rr-drive-tile-meta">${escapeHtml(d.docType || "")} · ${_driveFmtDate(d.createdAt)}</span>
+        <span class="rr-drive-tile-meta">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "")} · ${_driveFmtDate(d.createdAt)}</span>
       </button>`).join("");
     return `<div class="rr-drive-grid">${tiles}</div>`;
   }
@@ -70594,7 +70617,7 @@ function _driveListHtml(docs, showLoc) {
     const loc = d.driverName || (d.source === "vehicle" ? "Fleet" : d.source === "report" ? "Reports" : "—");
     return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${d.path ? "true" : "false"}">
       <div class="rr-drive-name"><span class="rr-drive-figbox"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span>${checkBox(d.id)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>
-      <div class="rr-drive-cell">${escapeHtml(d.docType || "—")}</div>
+      <div class="rr-drive-cell">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "—")}</div>
       <div class="rr-drive-cell">${showLoc ? escapeHtml(loc) : _driveFmtDate(d.createdAt)}</div>
       <div class="rr-drive-cell">${showLoc ? _driveFmtDate(d.createdAt) : _driveFmtSize(d.size)}</div>
       <div class="rr-drive-rowact"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -70669,47 +70692,70 @@ function _driveRenderDetails() {
   }
   const row = (k, v) => v ? `<div class="rr-drive-det-row"><div class="k">${k}</div><div class="v">${v}</div></div>` : "";
   const tags = (doc.tags || []).length ? `<div class="rr-drive-det-row"><div class="k">Tags</div><div class="v rr-drive-det-tags">${doc.tags.map(t => `<span class="rr-drive-det-tag">${escapeHtml(t)}</span>`).join("")}</div></div>` : "";
-  const previewBox = doc.previewable
-    ? `<div class="rr-drive-det-preview" id="rr-drive-preview"><div class="rr-loading" style="padding:30px">Loading preview</div></div>`
-    : `<div class="rr-drive-det-preview"><div class="rr-drive-det-noprev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${doc.source === "report" ? "Generated report — open to view." : "Preview isn't available for this file type yet."}</div></div>`;
+  // Google files can be filed into Vault folders even though they have no
+  // stored object (the "object" lives in Google Drive).
+  const canFile = !!(doc.path || doc.isGoogle);
+  const previewBox = doc.isGoogle
+    ? `<div class="rr-drive-det-preview"><div class="rr-drive-det-noprev"><span class="rr-drive-fico t-${doc.type}" style="width:46px;height:46px;border-radius:12px">${_driveFileIco(doc.type)}</span><div style="margin-top:10px">${escapeHtml(_driveGoogleLabel(doc.type))} — opens in Google.</div></div></div>`
+    : (doc.previewable
+      ? `<div class="rr-drive-det-preview" id="rr-drive-preview"><div class="rr-loading" style="padding:30px">Loading preview</div></div>`
+      : `<div class="rr-drive-det-preview"><div class="rr-drive-det-noprev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${doc.source === "report" ? "Generated report — open to view." : "Preview isn't available for this file type yet."}</div></div>`);
   const open = doc.source === "report"
     ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open report</button>`
-    : (doc.openable ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open</button><button class="btn btn-sm" data-rr-drive-download="${escapeHtml(doc.id)}">Download</button>` : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">No file attached.</span>`);
-  // Archive / Trash / Restore (canonical store · migration 0396). Only for
-  // real files; generated reports have no stored object to file.
+    : doc.isGoogle
+      ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open in Google</button><button class="btn btn-sm" data-rr-drive-copylink="${escapeHtml(doc.id)}">Copy link</button>`
+      : (doc.openable ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open</button><button class="btn btn-sm" data-rr-drive-download="${escapeHtml(doc.id)}">Download</button>` : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">No file attached.</span>`);
+  // Archive / Trash / Restore (canonical store · migration 0396). Available for
+  // stored files and Google files (for a Google file this removes it from the
+  // Vault, not from Google). Generated reports have no record to file.
   let status = "";
-  if (doc.path) {
+  if (canFile) {
+    const trashLbl = doc.isGoogle ? "Remove from Vault" : "Move to Trash";
     if (doc.deletedAt) status = `<button class="btn btn-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">Restore</button>`;
-    else if (doc.archivedAt) status = `<button class="btn btn-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">Restore</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">Move to Trash</button>`;
-    else status = `<button class="btn btn-sm" data-rr-drive-status="archive" data-rr-drive-id="${escapeHtml(doc.id)}">Archive</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">Move to Trash</button>`;
+    else if (doc.archivedAt) status = `<button class="btn btn-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">Restore</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">${trashLbl}</button>`;
+    else status = `<button class="btn btn-sm" data-rr-drive-status="archive" data-rr-drive-id="${escapeHtml(doc.id)}">Archive</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">${trashLbl}</button>`;
   }
   // Move to a custom folder — only for active (non-archived, non-trashed) files.
-  const move = (doc.path && !doc.deletedAt && !doc.archivedAt)
+  const move = (canFile && !doc.deletedAt && !doc.archivedAt)
     ? `<button class="btn btn-sm" data-rr-drive-move="${escapeHtml(doc.id)}">Move to…</button>` : "";
-  // Rename — only docs with an editable backing record (canonical store or a
-  // driver_documents row). Derived names (envelopes/fleet/reports) stay fixed.
+  // Rename — docs with an editable backing record (canonical store, incl. Google
+  // files, or a driver_documents row). Derived names (envelopes/fleet/reports) stay fixed.
   const rename = ((doc.canonical || doc.source === "driver_documents") && !doc.deletedAt)
     ? `<button class="btn btn-sm" data-rr-drive-rename="${escapeHtml(doc.id)}">Rename</button>` : "";
-  // Duplicate — any stored file that isn't trashed; the copy is filed in the
-  // same place (driver subfolder / custom folder / All documents).
-  const dup = (doc.path && !doc.deletedAt)
+  // Duplicate — stored files only (a Google copy needs the Drive API; comes with
+  // the Google backend). Filed in the same place as the original.
+  const dup = (doc.path && !doc.isGoogle && !doc.deletedAt)
     ? `<button class="btn btn-sm" data-rr-drive-duplicate="${escapeHtml(doc.id)}">Duplicate</button>` : "";
   const foot = open + rename + dup + move + status;
   el.innerHTML = `
-    <div class="rr-drive-det-head"><div class="rr-drive-det-name">${escapeHtml(doc.name)}</div><div class="rr-drive-det-type">${escapeHtml((doc.docType || doc.type || "Document"))}</div></div>
+    <div class="rr-drive-det-head"><div class="rr-drive-det-name">${escapeHtml(doc.name)}</div><div class="rr-drive-det-type">${escapeHtml(doc.isGoogle ? _driveGoogleLabel(doc.type) : (doc.docType || doc.type || "Document"))}</div></div>
     ${previewBox}
     <div class="rr-drive-det-meta">
       ${row("Created", _driveFmtDate(doc.createdAt))}
+      ${doc.isGoogle && doc.modifiedAt ? row("Modified", _driveFmtDate(doc.modifiedAt)) : ""}
       ${row("Created by", doc.createdBy ? escapeHtml(doc.createdBy) : "")}
       ${row("Driver", doc.driverName ? escapeHtml(doc.driverName) : "")}
       ${row("Station", doc.station ? escapeHtml(doc.station) : "")}
-      ${row("Type", escapeHtml(doc.docType || "—"))}
-      ${row("Size", doc.size ? _driveFmtSize(doc.size) : "")}
+      ${doc.isGoogle ? row("Type", escapeHtml(_driveGoogleLabel(doc.type))) : row("Type", escapeHtml(doc.docType || "—"))}
+      ${doc.isGoogle && doc.docType && doc.docType !== "Document" ? row("Document type", escapeHtml(doc.docType)) : ""}
+      ${doc.isGoogle && doc.relatedType ? row("Related to", escapeHtml(_driveRelatedLabel(doc))) : ""}
+      ${doc.isGoogle && doc.permStatus ? row("Access", escapeHtml(doc.permStatus)) : ""}
+      ${!doc.isGoogle ? row("Size", doc.size ? _driveFmtSize(doc.size) : "") : ""}
       ${doc.expiresOn ? row("Expires", _driveFmtDate(doc.expiresOn)) : ""}
       ${tags}
     </div>
     <div class="rr-drive-det-foot">${foot}</div>`;
   if (doc.previewable) _drivePaintPreview(doc);
+}
+function _driveRelatedLabel(doc) {
+  const t = String(doc.relatedType || "").replace(/^\w/, c => c.toUpperCase());
+  const who = doc.driverName || "";
+  return who ? `${t} · ${who}` : (t || "—");
+}
+async function _driveCopyLink(doc) {
+  const url = doc && doc.googleUrl; if (!url) { toast("No link to copy yet.", "warn"); return; }
+  try { await navigator.clipboard.writeText(url); toast("Link copied", "success"); }
+  catch (_) { toast("Couldn't copy — open the file to get its link.", "warn"); }
 }
 // Lazily load Word/Excel renderers from the same CDN pdf-lib uses. Files are
 // parsed entirely in the browser — never sent to any third-party viewer.
@@ -70753,6 +70799,12 @@ async function _drivePaintPreview(doc) {
 }
 async function _driveOpenDoc(doc, download) {
   if (!doc) return;
+  // Google files open in the real Google editor (a new tab) — never inline.
+  if (doc.isGoogle) {
+    if (doc.googleUrl) window.open(doc.googleUrl, "_blank", "noopener");
+    else toast("No Google link yet — try Sync metadata.", "warn");
+    return;
+  }
   if (doc.source === "report") { if (typeof _openEmploymentReport === "function") _openEmploymentReport(doc.driverId); return; }
   if (!doc.path) { toast("No file is attached to this record.", "warn"); return; }
   try {
@@ -70771,7 +70823,7 @@ function _driveIsMigErr(error) { return /drive_documents|drive_folders|does not 
 // canonical row carrying the status (which shadows it out of the live views).
 async function _driveDocStatusWrite(doc, action) {
   const dspId = window.RR?.dsp?.id;
-  if (!dspId || !doc || !doc.path) return { error: "skip" };
+  if (!dspId || !doc || !(doc.path || doc.isGoogle)) return { error: "skip" };
   const now = new Date().toISOString();
   const patch = action === "archive" ? { archived_at: now, deleted_at: null }
     : action === "trash" ? { deleted_at: now }
@@ -70792,7 +70844,7 @@ async function _driveDocStatusWrite(doc, action) {
   } catch (e) { return { error: e }; }
 }
 async function _driveSetDocStatus(doc, action) {
-  if (!doc || !doc.path) return;
+  if (!doc || !(doc.path || doc.isGoogle)) return;
   const { error } = await _driveDocStatusWrite(doc, action);
   if (error) {
     if (_driveIsMigErr(error)) toast("Apply the Vault schema migration (0396) in Supabase to enable Archive & Trash.", "warn");
@@ -70833,7 +70885,7 @@ async function _driveNewFolder() {
 // One move write (no toast/reload) — shared by the single and bulk paths.
 async function _driveMoveWrite(doc, folderId) {
   const dspId = window.RR?.dsp?.id;
-  if (!dspId || !doc || !doc.path) return { error: "skip" };
+  if (!dspId || !doc || !(doc.path || doc.isGoogle)) return { error: "skip" };
   try {
     if (doc.canonicalId) return await sb.from("drive_documents").update({ folder_id: folderId || null }).eq("id", doc.canonicalId);
     return await sb.from("drive_documents").insert({
@@ -70851,7 +70903,7 @@ async function _driveMoveWrite(doc, folderId) {
 }
 // Move one or many documents into a custom folder (or back to the root).
 async function _driveMoveMany(docs, folderId) {
-  const list = (Array.isArray(docs) ? docs : [docs]).filter(d => d && d.path);
+  const list = (Array.isArray(docs) ? docs : [docs]).filter(d => d && (d.path || d.isGoogle));
   if (!list.length) return;
   let ok = 0, fail = 0, mig = false;
   for (const d of list) {
@@ -70927,7 +70979,7 @@ async function _driveDuplicateDoc(doc) {
 
 // Folder picker overlay for "Move to…" — accepts one doc or an array.
 function _driveOpenMovePicker(target) {
-  const docs = (Array.isArray(target) ? target : [target]).filter(d => d && d.path);
+  const docs = (Array.isArray(target) ? target : [target]).filter(d => d && (d.path || d.isGoogle));
   if (!docs.length) return;
   const folders = (_driveData?.folders || []);
   if (!folders.length) { toast("Create a folder first with New folder.", "info"); return; }
@@ -71114,7 +71166,7 @@ function _driveClearSel() {
 async function _driveBulk(action) {
   if (action === "clear") { _driveClearSel(); return; }
   const ids = _driveState.checked; if (!ids || !ids.size) return;
-  const docs = (_driveData?.docs || []).filter(d => ids.has(d.id) && d.path);
+  const docs = (_driveData?.docs || []).filter(d => ids.has(d.id) && (d.path || d.isGoogle));
   if (!docs.length) { toast("These items have no stored file to update.", "info"); return; }
   if (action === "move") { _driveOpenMovePicker(docs); return; }
   let ok = 0, fail = 0, mig = false;
@@ -71144,6 +71196,8 @@ document.addEventListener("click", (e) => {
   if (open) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === open.getAttribute("data-rr-drive-open")); _driveOpenDoc(d, false); return; }
   const dl = e.target.closest("[data-rr-drive-download]");
   if (dl) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === dl.getAttribute("data-rr-drive-download")); _driveOpenDoc(d, true); return; }
+  const cl = e.target.closest("[data-rr-drive-copylink]");
+  if (cl) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === cl.getAttribute("data-rr-drive-copylink")); _driveCopyLink(d); return; }
   const st = e.target.closest("[data-rr-drive-status]");
   if (st) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === st.getAttribute("data-rr-drive-id")); _driveSetDocStatus(d, st.getAttribute("data-rr-drive-status")); return; }
   const mv = e.target.closest("[data-rr-drive-move]");
@@ -71198,15 +71252,33 @@ document.addEventListener("click", (e) => {
   if (fav) { e.stopPropagation(); _driveToggleFav(fav.getAttribute("data-rr-drive-fav")); _driveRenderMain(); return; }
   const folderCard = e.target.closest("[data-rr-drive-folder]");
   if (folderCard) { _driveState.folderId = folderCard.getAttribute("data-rr-drive-folder"); _drivePushRecent(_driveState.folderId); _driveState.driverId = null; _driveState.sub = null; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); return; }
-  // Header actions
-  if (e.target.closest("#rr-drive-upload")) {
-    if (_driveState.folderId || (_driveState.section === "drivers" && _driveState.driverId)) { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
-    else toast("Open a folder (a driver, or a custom folder) to upload a file there.", "info");
+  // Header — New ▾ menu
+  if (e.target.closest("#rr-drive-new")) { _driveToggleNewMenu(); return; }
+  const newItem = e.target.closest("[data-rr-new]");
+  if (newItem) {
+    _driveToggleNewMenu(false);
+    const what = newItem.getAttribute("data-rr-new");
+    if (what === "folder") _driveNewFolder();
+    else if (what === "upload") {
+      if (_driveState.folderId || (_driveState.section === "drivers" && _driveState.driverId)) { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
+      else toast("Open a folder (a driver, or a custom folder) to upload a file there.", "info");
+    }
+    else if (what === "gdoc") _driveCreateGoogle("document");
+    else if (what === "gsheet") _driveCreateGoogle("spreadsheet");
+    else if (what === "gslide") _driveCreateGoogle("presentation");
+    else if (what === "template") _driveOpenTemplatePicker();
     return;
   }
-  if (e.target.closest("#rr-drive-newfolder")) { _driveNewFolder(); return; }
   if (e.target.closest("#rr-drive-generate")) { toast("Generate documents from a driver record (Create coaching, attendance, reports).", "info"); if (typeof window.goto === "function") window.goto("drivers"); return; }
 });
+// Close the New menu on an outside click or Escape.
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("rr-drive-newmenu");
+  if (!menu || menu.hidden) return;
+  if (e.target.closest && e.target.closest("#rr-drive-newwrap")) return;
+  _driveToggleNewMenu(false);
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") _driveToggleNewMenu(false); });
 document.addEventListener("input", (e) => {
   if (e.target && e.target.id === "rr-drive-search") { _driveState.query = e.target.value || ""; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRenderBulk(); _driveRenderMain(); }
 });
@@ -71267,6 +71339,104 @@ document.addEventListener("change", async (e) => {
   const files = e.target.files; e.target.value = "";
   await _driveUploadFiles(files);
 });
+
+// ── New ▾ menu + Google Workspace file creation ────────────────────────────
+function _driveToggleNewMenu(force) {
+  const menu = document.getElementById("rr-drive-newmenu");
+  const btn = document.getElementById("rr-drive-new");
+  if (!menu || !btn) return;
+  const show = typeof force === "boolean" ? force : menu.hidden;
+  menu.hidden = !show;
+  btn.setAttribute("aria-expanded", show ? "true" : "false");
+}
+function _driveDateStamp(d) {
+  const n = d ? new Date(d) : new Date();
+  return `${String(n.getMonth() + 1).padStart(2, "0")}.${String(n.getDate()).padStart(2, "0")}.${String(n.getFullYear()).slice(2)}`;
+}
+// Default name for a new Google file. Inside a driver subfolder it follows the
+// RouteReady convention "<Driver> - <Subfolder> - <MM.DD.YY>".
+function _driveDefaultGoogleName(kind, label) {
+  const noun = label || { document: "Document", spreadsheet: "Sheet", presentation: "Slides" }[kind] || "Document";
+  if (_driveState.section === "drivers" && _driveState.driverId) {
+    const d = _driveData?.driverMap?.get(_driveState.driverId);
+    const who = (d && displayDriverName(d)) || "Driver";
+    const what = _driveState.sub || noun;
+    return `${who} - ${what} - ${_driveDateStamp()}`;
+  }
+  return `${noun} - ${_driveDateStamp()}`;
+}
+// Create a Google Doc/Sheet/Slide (optionally from a template) via the
+// google-drive-create edge function, filed at the current Vault location and
+// attached to the driver in context. Degrades with a clear hint when Google
+// Workspace isn't connected / the backend isn't deployed yet.
+async function _driveCreateGoogle(kind, opts) {
+  opts = opts || {};
+  const name = opts.name || _driveDefaultGoogleName(kind, opts.templateLabel);
+  toast("Creating in Google…", "info");
+  _driveToggleNewMenu(false);
+  try {
+    const { data, error } = await sb.functions.invoke("google-drive-create", {
+      body: {
+        kind, name,
+        template: opts.template || null,
+        folder_id: _driveState.folderId || null,
+        driver_id: (_driveState.section === "drivers" ? _driveState.driverId : null) || null,
+        subfolder: _driveState.sub || null,
+        document_type: opts.documentType || _driveState.sub || null,
+      },
+    });
+    if (error) throw error;
+    if (data && data.google_drive_url) {
+      toast("Created in Google", "success");
+      window.open(data.google_drive_url, "_blank", "noopener");
+      _driveData = null; await loadDriveView();
+      return;
+    }
+    throw new Error((data && data.error) || "create_failed");
+  } catch (e) {
+    const msg = String((e && e.message) || e || "");
+    if (/not_connected|no_drive_scope|needs_reauth|unauthorized|forbidden|401|403/i.test(msg))
+      toast("Connect Google Workspace (with Drive access) in Settings to create Google files.", "warn");
+    else if (/not.?found|404|non-2xx|Edge Function|Failed to (send|fetch)|Function ?not ?found|FunctionsFetchError/i.test(msg))
+      toast("Google Workspace files aren't enabled on this environment yet — finishing the backend next.", "warn");
+    else toast("Couldn't create the file: " + msg, "warn");
+  }
+}
+// RouteReady document templates (Google Docs copied + renamed on create).
+const _DRIVE_TEMPLATES = [
+  ["coaching_form", "Coaching Form", "Coaching"],
+  ["corrective_action", "Corrective Action", "Warnings"],
+  ["incident_report", "Incident Report", "Documents"],
+  ["performance_review", "Performance Review", "Employment"],
+  ["ride_along", "Ride Along Evaluation", "Coaching"],
+  ["training_checklist", "Training Checklist", "Documents"],
+  ["termination_summary", "Termination Summary", "Employment"],
+];
+function _driveOpenTemplatePicker() {
+  document.getElementById("rr-drive-tpl-pick")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-drive-tpl-pick";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.45));z-index:10002;display:flex;align-items:center;justify-content:center;padding:24px";
+  const items = _DRIVE_TEMPLATES.map(([key, label]) =>
+    `<button type="button" class="rr-al-item" data-tpl="${key}" data-tpl-label="${escapeHtml(label)}"><span class="rr-al-ico t-gdoc">${_driveFileIco("gdoc")}</span><span class="rr-al-lbl">${escapeHtml(label)}</span></button>`).join("");
+  m.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:16px;max-width:400px;width:100%;max-height:72vh;display:flex;flex-direction:column">
+    <div style="font-size:var(--fs-md);font-weight:700">New from template</div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 12px">Creates a Google Doc, renamed and filed at the current Vault location.</div>
+    <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px">${items}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-sm" data-cancel>Cancel</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-cancel]")) { m.remove(); return; }
+    const it = e.target.closest("[data-tpl]");
+    if (it) {
+      const key = it.getAttribute("data-tpl");
+      const label = it.getAttribute("data-tpl-label");
+      m.remove();
+      _driveCreateGoogle("document", { template: key, templateLabel: label, documentType: label });
+    }
+  });
+}
 
 // ── Drag-and-drop ──────────────────────────────────────────────────────────
 // Two gestures: (1) drag desktop files onto the workspace → upload to the
