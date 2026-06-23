@@ -4,7 +4,7 @@
           <div class="page-header-l">
             <div class="page-icon" data-c="drive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
             <div>
-              <h1 class="page-title">Drive</h1>
+              <h1 class="page-title">Vault</h1>
               <p class="page-sub">Store and organize driver, fleet, HR, and station documents.</p>
             </div>
           </div>
@@ -46,7 +46,7 @@
               </div>
             </div>
             <div class="rr-drive-main" id="rr-drive-main">
-              <div class="rr-loading">Loading Drive</div>
+              <div class="rr-loading">Loading Vault</div>
             </div>
           </section>
 
