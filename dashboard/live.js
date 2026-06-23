@@ -70080,7 +70080,7 @@ document.addEventListener("click", (e) => {
 // duplicated — rows reference the real storage objects. Schema-backed folders,
 // auto-filing of generated docs, and DOCX/XLSX preview land in Phase 2.
 // ═══════════════════════════════════════════════════════════════════════════
-let _driveState = { section: "all", driverId: null, sub: null, folderId: null, query: "", view: "list", selected: null };
+let _driveState = { section: "all", driverId: null, sub: null, folderId: null, query: "", view: "list", selected: null, sort: { key: "modified", dir: "desc" } };
 let _driveData = null;        // { docs:[], drivers:[], driverMap:Map }
 let _driveLoadedFor = null;   // dsp id the cache was built for
 let _driveLoading = false;
@@ -70295,6 +70295,22 @@ function _driveLastMod(list) {
   let m = 0; for (const d of list) { const t = d.createdAt ? new Date(d.createdAt).getTime() : 0; if (t > m) m = t; }
   return m ? _driveFmtDate(new Date(m)) : "—";
 }
+// Sort comparator for the file list/grid. Driven by _driveState.sort
+// ({ key, dir }); falls back to newest-first as a stable tie-break.
+const _driveCollator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+function _driveLoc(d) { return d.driverName || (d.source === "vehicle" ? "Fleet" : d.source === "report" ? "Reports" : ""); }
+function _driveCmp(a, b) {
+  const s = _driveState.sort || { key: "modified", dir: "desc" };
+  let r;
+  if (s.key === "name") r = _driveCollator.compare(a.name || "", b.name || "");
+  else if (s.key === "type") r = _driveCollator.compare(a.docType || a.type || "", b.docType || b.type || "");
+  else if (s.key === "location") r = _driveCollator.compare(_driveLoc(a), _driveLoc(b));
+  else if (s.key === "size") r = (a.size || 0) - (b.size || 0);
+  else r = (new Date(a.createdAt || 0).getTime()) - (new Date(b.createdAt || 0).getTime());
+  r *= (s.dir === "asc" ? 1 : -1);
+  if (r === 0) r = (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime());
+  return r;
+}
 // Documents in a given category section (excludes folder navigation).
 function _driveSectionDocs(section) {
   const all = (_driveData?.docs) || [];
@@ -70392,11 +70408,18 @@ function _driveRenderMain() {
 
   // Inside a custom folder — its sub-folders + its files.
   if (_driveState.folderId) {
+    const folder = (_driveData?.folders || []).find(f => f.id === _driveState.folderId);
     const subfolders = (_driveData?.folders || []).filter(x => x.parent_id === _driveState.folderId);
     const fdocs = (_driveData?.docs || []).filter(d => d.folderId === _driveState.folderId && !d.archivedAt && !d.deletedAt);
+    const bar = folder ? `<div class="rr-drive-folderbar">
+      <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder">${_driveFileIco(null, true)}</span>${escapeHtml(folder.name)}</div>
+      <div class="rr-drive-folderbar-acts">
+        <button type="button" class="btn btn-sm" data-rr-drive-foldername="${escapeHtml(folder.id)}">Rename</button>
+        <button type="button" class="btn btn-sm" data-rr-drive-folderdel="${escapeHtml(folder.id)}">Delete</button>
+      </div></div>` : "";
     const subCards = subfolders.length ? `<div class="rr-drive-sectionhead">Folders</div><div class="rr-drive-cards">${subfolders.map(_driveFolderCard).join("")}</div>` : "";
     const filesHead = subCards ? `<div class="rr-drive-sectionhead" style="margin-top:22px">Files</div>` : "";
-    main.innerHTML = subCards + filesHead + (fdocs.length ? _driveListHtml(fdocs, false) : _driveEmpty("folder"));
+    main.innerHTML = bar + subCards + filesHead + (fdocs.length ? _driveListHtml(fdocs, false) : _driveEmpty("folder"));
     return;
   }
 
@@ -70473,7 +70496,16 @@ function _driveRenderMain() {
 }
 function _driveListHtml(docs, showLoc) {
   if (!docs || !docs.length) return _driveEmpty();
-  const rows = docs.slice().sort((a, b) => (new Date(b.createdAt || 0)) - (new Date(a.createdAt || 0))).map(d => {
+  if (_driveState.view === "grid") {
+    const tiles = docs.slice().sort(_driveCmp).map(d =>
+      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}">
+        <span class="rr-drive-tile-ico t-${d.type}">${_driveFileIco(d.type)}</span>
+        <span class="rr-drive-tile-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
+        <span class="rr-drive-tile-meta">${escapeHtml(d.docType || "")} · ${_driveFmtDate(d.createdAt)}</span>
+      </button>`).join("");
+    return `<div class="rr-drive-grid">${tiles}</div>`;
+  }
+  const rows = docs.slice().sort(_driveCmp).map(d => {
     const sel = _driveState.selected === d.id ? " is-selected" : "";
     const loc = d.driverName || (d.source === "vehicle" ? "Fleet" : d.source === "report" ? "Reports" : "—");
     return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}">
@@ -70484,16 +70516,14 @@ function _driveListHtml(docs, showLoc) {
       <div class="rr-drive-rowact"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
     </div>`;
   }).join("");
-  const head = `<div class="rr-drive-lhead"><div>Name</div><div>Type</div><div>${showLoc ? "Location" : "Modified"}</div><div>${showLoc ? "Modified" : "Size"}</div><div></div></div>`;
-  if (_driveState.view === "grid") {
-    const tiles = docs.slice().sort((a, b) => (new Date(b.createdAt || 0)) - (new Date(a.createdAt || 0))).map(d =>
-      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}">
-        <span class="rr-drive-tile-ico t-${d.type}">${_driveFileIco(d.type)}</span>
-        <span class="rr-drive-tile-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
-        <span class="rr-drive-tile-meta">${escapeHtml(d.docType || "")} · ${_driveFmtDate(d.createdAt)}</span>
-      </button>`).join("");
-    return `<div class="rr-drive-grid">${tiles}</div>`;
-  }
+  const cols = showLoc
+    ? [["name", "Name"], ["type", "Type"], ["location", "Location"], ["modified", "Modified"]]
+    : [["name", "Name"], ["type", "Type"], ["modified", "Modified"], ["size", "Size"]];
+  const s = _driveState.sort || { key: "modified", dir: "desc" };
+  const head = `<div class="rr-drive-lhead">` + cols.map(([k, l]) => {
+    const on = s.key === k;
+    return `<button type="button" class="rr-drive-sortbtn${on ? " is-active" : ""}" data-rr-drive-sort="${k}">${l}${on ? `<span class="rr-drive-caret">${s.dir === "asc" ? "▲" : "▼"}</span>` : ""}</button>`;
+  }).join("") + `<div></div></div>`;
   return `<div class="rr-drive-list">${head}${rows}</div>`;
 }
 function _driveEmpty(section) {
@@ -70544,7 +70574,11 @@ function _driveRenderDetails() {
   // Move to a custom folder — only for active (non-archived, non-trashed) files.
   const move = (doc.path && !doc.deletedAt && !doc.archivedAt)
     ? `<button class="btn btn-sm" data-rr-drive-move="${escapeHtml(doc.id)}">Move to…</button>` : "";
-  const foot = open + move + status;
+  // Rename — only docs with an editable backing record (canonical store or a
+  // driver_documents row). Derived names (envelopes/fleet/reports) stay fixed.
+  const rename = ((doc.canonical || doc.source === "driver_documents") && !doc.deletedAt)
+    ? `<button class="btn btn-sm" data-rr-drive-rename="${escapeHtml(doc.id)}">Rename</button>` : "";
+  const foot = open + rename + move + status;
   el.innerHTML = `
     <div class="rr-drive-det-head"><div class="rr-drive-det-name">${escapeHtml(doc.name)}</div><div class="rr-drive-det-type">${escapeHtml((doc.docType || doc.type || "Document"))}</div></div>
     ${previewBox}
@@ -70735,6 +70769,65 @@ function _driveOpenMovePicker(doc) {
   });
 }
 
+// Rename a document. Canonical rows update drive_documents.name; legacy
+// driver_documents rows update both the label and metadata.drive_title (the
+// name Drive shows). Derived sources (envelopes/fleet/reports) aren't editable.
+async function _driveRenameDoc(doc) {
+  if (!doc) return;
+  if (!(doc.canonical || doc.source === "driver_documents")) {
+    toast("This document's name comes from its source and can't be renamed here.", "info"); return;
+  }
+  const cur = doc.name || "";
+  const next = (prompt("Rename document:", cur) || "").trim();
+  if (!next || next === cur) return;
+  let error = null;
+  try {
+    if (doc.canonical && doc.canonicalId) {
+      ({ error } = await sb.from("drive_documents").update({ name: next }).eq("id", doc.canonicalId));
+    } else {
+      const rawId = doc.id.replace(/^dd_/, "");
+      let meta = {};
+      try { const { data } = await sb.from("driver_documents").select("metadata").eq("id", rawId).maybeSingle(); meta = data?.metadata || {}; } catch (_) {}
+      ({ error } = await sb.from("driver_documents").update({ label: next, metadata: Object.assign({}, meta, { drive_title: next }) }).eq("id", rawId));
+    }
+  } catch (e) { error = e; }
+  if (error) { toast("Couldn't rename: " + String(error.message || error), "warn"); return; }
+  toast("Renamed", "success");
+  const keep = doc.id;
+  _driveData = null; await loadDriveView();
+  _driveState.selected = keep; _driveRenderMain(); _driveRenderDetails();
+}
+
+// Rename a custom folder (drive_folders.name).
+async function _driveRenameFolder(folder) {
+  if (!folder) return;
+  const next = (prompt("Rename folder:", folder.name || "") || "").trim();
+  if (!next || next === folder.name) return;
+  let error = null;
+  try { ({ error } = await sb.from("drive_folders").update({ name: next }).eq("id", folder.id)); } catch (e) { error = e; }
+  if (error) { toast("Couldn't rename folder: " + String(error.message || error), "warn"); return; }
+  toast("Folder renamed", "success");
+  _driveData = null; await loadDriveView();
+}
+
+// Delete an empty custom folder (soft — sets archived_at, which drops it from
+// the loaded folder list). Refuses while it still holds files or sub-folders so
+// nothing gets orphaned; afterwards navigates to the parent (or the root).
+async function _driveDeleteFolder(folder) {
+  if (!folder) return;
+  const kids = (_driveData?.docs || []).filter(d => d.folderId === folder.id && !d.deletedAt);
+  const subs = (_driveData?.folders || []).filter(f => f.parent_id === folder.id);
+  if (kids.length || subs.length) { toast("Move this folder's documents and sub-folders out before deleting it.", "warn"); return; }
+  if (!confirm(`Delete the folder "${folder.name}"?`)) return;
+  let error = null;
+  try { ({ error } = await sb.from("drive_folders").update({ archived_at: new Date().toISOString() }).eq("id", folder.id)); } catch (e) { error = e; }
+  if (error) { toast("Couldn't delete folder: " + String(error.message || error), "warn"); return; }
+  toast("Folder deleted", "success");
+  _driveState.folderId = folder.parent_id || null;
+  if (!folder.parent_id) _driveState.section = "all";
+  _driveState.selected = null; _driveData = null; await loadDriveView();
+}
+
 // ── Interaction ──────────────────────────────────────────────────────────
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#view-drive")) return;
@@ -70754,6 +70847,20 @@ document.addEventListener("click", (e) => {
   if (st) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === st.getAttribute("data-rr-drive-id")); _driveSetDocStatus(d, st.getAttribute("data-rr-drive-status")); return; }
   const mv = e.target.closest("[data-rr-drive-move]");
   if (mv) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === mv.getAttribute("data-rr-drive-move")); if (d) _driveOpenMovePicker(d); return; }
+  const rn = e.target.closest("[data-rr-drive-rename]");
+  if (rn) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === rn.getAttribute("data-rr-drive-rename")); if (d) _driveRenameDoc(d); return; }
+  const frn = e.target.closest("[data-rr-drive-foldername]");
+  if (frn) { e.stopPropagation(); const f = (_driveData?.folders || []).find(x => x.id === frn.getAttribute("data-rr-drive-foldername")); if (f) _driveRenameFolder(f); return; }
+  const fdel = e.target.closest("[data-rr-drive-folderdel]");
+  if (fdel) { e.stopPropagation(); const f = (_driveData?.folders || []).find(x => x.id === fdel.getAttribute("data-rr-drive-folderdel")); if (f) _driveDeleteFolder(f); return; }
+  const sortBtn = e.target.closest("[data-rr-drive-sort]");
+  if (sortBtn) {
+    const k = sortBtn.getAttribute("data-rr-drive-sort");
+    const s = _driveState.sort || { key: "modified", dir: "desc" };
+    if (s.key === k) s.dir = s.dir === "asc" ? "desc" : "asc";
+    else { s.key = k; s.dir = (k === "name" || k === "type" || k === "location") ? "asc" : "desc"; }
+    _driveState.sort = s; _driveRenderMain(); return;
+  }
   const vbtn = e.target.closest("[data-rr-drive-view]");
   if (vbtn) { _driveState.view = vbtn.getAttribute("data-rr-drive-view"); document.querySelectorAll("#view-drive .rr-drive-vbtn").forEach(b => b.classList.toggle("is-active", b === vbtn)); _driveRenderMain(); return; }
   const row = e.target.closest("[data-rr-drive-doc]");
