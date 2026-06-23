@@ -70080,7 +70080,7 @@ document.addEventListener("click", (e) => {
 // duplicated — rows reference the real storage objects. Schema-backed folders,
 // auto-filing of generated docs, and DOCX/XLSX preview land in Phase 2.
 // ═══════════════════════════════════════════════════════════════════════════
-let _driveState = { section: "all", driverId: null, sub: null, query: "", view: "list", selected: null };
+let _driveState = { section: "all", driverId: null, sub: null, folderId: null, query: "", view: "list", selected: null };
 let _driveData = null;        // { docs:[], drivers:[], driverMap:Map }
 let _driveLoadedFor = null;   // dsp id the cache was built for
 let _driveLoading = false;
@@ -70094,8 +70094,8 @@ window.openDrive = openDrive;
 async function loadDriveView(opts) {
   opts = opts || {};
   // Deep-link context (e.g. "Open in Drive" from a driver record).
-  if (opts.driverId) { _driveState.section = "drivers"; _driveState.driverId = opts.driverId; _driveState.sub = opts.sub || null; }
-  else if (opts.section) { _driveState.section = opts.section; _driveState.driverId = null; _driveState.sub = null; }
+  if (opts.driverId) { _driveState.section = "drivers"; _driveState.driverId = opts.driverId; _driveState.sub = opts.sub || null; _driveState.folderId = null; }
+  else if (opts.section) { _driveState.section = opts.section; _driveState.driverId = null; _driveState.sub = null; _driveState.folderId = null; }
   _driveState.selected = null;
   const main = document.getElementById("rr-drive-main");
   const dspId = window.RR?.dsp?.id;
@@ -70130,18 +70130,28 @@ async function _driveLoadData(dspId) {
   //     is ignored until the migration is applied. A canonical row takes
   //     precedence over the legacy driver_documents view for the same storage
   //     object (deduped by file_path below).
+  // Custom folders (drive_folders · migration 0396). Best-effort.
+  let folders = [];
+  try {
+    const { data, error } = await sb.from("drive_folders")
+      .select("id, name, category, parent_id, created_at")
+      .eq("dsp_id", dspId).is("archived_at", null).order("name", { ascending: true }).limit(2000);
+    if (!error) folders = (data || []).filter(f => (f.category || "custom") === "custom");
+  } catch (_) { /* not migrated yet */ }
+
   const canonicalPaths = new Set();
   try {
     // Fetch every canonical row (incl. archived / trashed) so the dedup set is
     // complete; the section filters decide what each view shows.
     const { data, error } = await sb.from("drive_documents")
-      .select("id, driver_id, name, doc_type, category, subfolder, bucket, file_path, file_size, mime_type, source, tags, created_at, archived_at, deleted_at, metadata")
+      .select("id, driver_id, folder_id, name, doc_type, category, subfolder, bucket, file_path, file_size, mime_type, source, tags, created_at, archived_at, deleted_at, metadata")
       .eq("dsp_id", dspId)
       .order("created_at", { ascending: false }).limit(8000);
     if (!error) for (const x of (data || [])) {
       if (x.file_path) canonicalPaths.add(x.file_path);
       const cat = x.subfolder && _DRIVE_SUBS.includes(x.subfolder) ? x.subfolder : null;
       docs.push({
+        folderId: x.folder_id || null,
         id: "drv_" + x.id, canonicalId: x.id, source: "driver_documents", canonical: true,
         name: x.name || "Document", kind: "other", driveCategory: cat,
         docType: x.doc_type || cat || "Document",
@@ -70231,7 +70241,7 @@ async function _driveLoadData(dspId) {
     d.openable = !!d.path || d.source === "report";
     if (!d.tags) d.tags = [];
   }
-  _driveData = { docs, drivers, driverMap };
+  _driveData = { docs, drivers, driverMap, folders };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -70333,7 +70343,7 @@ function _driveRenderChips() {
   if (!el) return;
   const c = _driveCounts();
   const chips = [["all", "All documents", c.all], ["recent", "Recent", c.recent], ["shared", "Shared", c.shared], ["archive", "Archive", c.archive], ["trash", "Trash", c.trash]];
-  const atTop = !_driveState.driverId; // hide active highlight once drilled into a folder
+  const atTop = !_driveState.driverId && !_driveState.folderId; // hide active highlight once drilled into a folder
   el.innerHTML = chips.map(([k, l, n]) =>
     `<button type="button" class="rr-drive-chip-btn${atTop && _driveState.section === k ? " is-active" : ""}" data-rr-drive-sec="${k}">${l}<span class="rr-drive-chip-cnt">${n || 0}</span></button>`
   ).join("");
@@ -70343,10 +70353,19 @@ function _driveRenderCrumbs() {
   if (!el) return;
   const SEC = { all: "All Documents", recent: "Recent", shared: "Shared", drivers: "Drivers", fleet: "Fleet", hr: "HR", station: "Station", reports: "Reports", archive: "Archive", trash: "Trash" };
   const crumbs = [{ label: "Drive", to: { section: "all" } }];
-  if (_driveState.section !== "all") crumbs.push({ label: SEC[_driveState.section] || _driveState.section, to: { section: _driveState.section } });
-  if (_driveState.section === "drivers" && _driveState.driverId) {
-    crumbs.push({ label: (_driveData?.driverMap.get(_driveState.driverId) && displayDriverName(_driveData.driverMap.get(_driveState.driverId))) || "Driver", to: { section: "drivers", driverId: _driveState.driverId } });
-    if (_driveState.sub) crumbs.push({ label: _driveState.sub, to: { section: "drivers", driverId: _driveState.driverId, sub: _driveState.sub } });
+  if (_driveState.folderId) {
+    // Walk the custom-folder chain to the root for the breadcrumb.
+    const byId = new Map(((_driveData?.folders) || []).map(f => [f.id, f]));
+    const chain = []; let cur = byId.get(_driveState.folderId); let guard = 0;
+    while (cur && guard++ < 20) { chain.unshift(cur); cur = cur.parent_id ? byId.get(cur.parent_id) : null; }
+    for (const f of chain) crumbs.push({ label: f.name, to: { section: "all", folderId: f.id } });
+    if (!chain.length) crumbs.push({ label: "Folder", to: { section: "all", folderId: _driveState.folderId } });
+  } else if (_driveState.section !== "all") {
+    crumbs.push({ label: SEC[_driveState.section] || _driveState.section, to: { section: _driveState.section } });
+    if (_driveState.section === "drivers" && _driveState.driverId) {
+      crumbs.push({ label: (_driveData?.driverMap.get(_driveState.driverId) && displayDriverName(_driveData.driverMap.get(_driveState.driverId))) || "Driver", to: { section: "drivers", driverId: _driveState.driverId } });
+      if (_driveState.sub) crumbs.push({ label: _driveState.sub, to: { section: "drivers", driverId: _driveState.driverId, sub: _driveState.sub } });
+    }
   }
   el.innerHTML = crumbs.map((c, i) => {
     const last = i === crumbs.length - 1;
@@ -70371,10 +70390,22 @@ function _driveRenderMain() {
     return;
   }
 
+  // Inside a custom folder — its sub-folders + its files.
+  if (_driveState.folderId) {
+    const subfolders = (_driveData?.folders || []).filter(x => x.parent_id === _driveState.folderId);
+    const fdocs = (_driveData?.docs || []).filter(d => d.folderId === _driveState.folderId && !d.archivedAt && !d.deletedAt);
+    const subCards = subfolders.length ? `<div class="rr-drive-sectionhead">Folders</div><div class="rr-drive-cards">${subfolders.map(_driveFolderCard).join("")}</div>` : "";
+    const filesHead = subCards ? `<div class="rr-drive-sectionhead" style="margin-top:22px">Files</div>` : "";
+    main.innerHTML = subCards + filesHead + (fdocs.length ? _driveListHtml(fdocs, false) : _driveEmpty("folder"));
+    return;
+  }
+
   const s = _driveState.section;
-  // Root (All Documents): category cards + everything below.
+  // Root (All Documents): custom folders + category cards + everything below.
   if (s === "all") {
     const c = _driveCounts();
+    const rootFolders = (_driveData?.folders || []).filter(x => !x.parent_id);
+    const folderCards = rootFolders.length ? `<div class="rr-drive-sectionhead">Folders</div><div class="rr-drive-cards">${rootFolders.map(_driveFolderCard).join("")}</div>` : "";
     const cats = [["drivers", "Drivers"], ["fleet", "Fleet"], ["hr", "HR"], ["station", "Station"], ["reports", "Reports"]];
     const cards = cats.map(([key, label]) => {
       const list = _driveSectionDocs(key);
@@ -70384,7 +70415,8 @@ function _driveRenderMain() {
         <span class="rr-drive-card-meta">${c[key] || 0} item${(c[key] || 0) === 1 ? "" : "s"} · ${_driveLastMod(list)}</span></span>
       </button>`;
     }).join("");
-    main.innerHTML = `<div class="rr-drive-sectionhead">Categories</div><div class="rr-drive-cards">${cards}</div>
+    main.innerHTML = folderCards
+      + `<div class="rr-drive-sectionhead"${folderCards ? ' style="margin-top:22px"' : ""}>Categories</div><div class="rr-drive-cards">${cards}</div>
       <div class="rr-drive-sectionhead" style="margin-top:22px">All documents</div>${_driveListHtml(_driveSectionDocs("all"), true)}`;
     return;
   }
@@ -70468,12 +70500,22 @@ function _driveEmpty(section) {
   const sub = section === "station" ? "Station-level documents will appear here once uploaded."
     : section === "archive" ? "Archived documents will appear here."
     : section === "trash" ? "Deleted documents will appear here."
+    : section === "folder" ? "This folder is empty. Use Upload to add files, or New folder to nest one."
     : "Upload a file or generate a document from a driver record.";
   return `<div class="rr-drive-empty">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
     <div class="rr-drive-empty-title">No documents found</div>
     <div class="rr-drive-empty-sub">${sub}</div>
   </div>`;
+}
+// Custom-folder card (drive_folders). Count = active docs filed directly in it.
+function _driveFolderCard(f) {
+  const n = ((_driveData?.docs) || []).filter(d => d.folderId === f.id && !d.archivedAt && !d.deletedAt).length;
+  return `<button type="button" class="rr-drive-card" data-rr-drive-folder="${escapeHtml(f.id)}">
+    <span class="rr-drive-card-ico">${_driveFileIco(null, true)}</span>
+    <span class="rr-drive-card-body"><span class="rr-drive-card-name">${escapeHtml(f.name)}</span>
+    <span class="rr-drive-card-meta">${n} item${n === 1 ? "" : "s"}</span></span>
+  </button>`;
 }
 function _driveRenderDetails() {
   const el = document.getElementById("rr-drive-details");
@@ -70576,15 +70618,39 @@ async function _driveSetDocStatus(doc, action) {
   await loadDriveView();
 }
 
+// Create a custom folder (drive_folders · migration 0396). Nested under the
+// current custom folder if one is open, else at the Drive root.
+async function _driveNewFolder() {
+  const dspId = window.RR?.dsp?.id; if (!dspId) return;
+  const name = (prompt("New folder name:") || "").trim();
+  if (!name) return;
+  let error = null;
+  try {
+    ({ error } = await sb.from("drive_folders").insert({
+      dsp_id: dspId, name, category: "custom",
+      parent_id: _driveState.folderId || null, created_by: window.RR?.user?.id || null,
+    }));
+  } catch (e) { error = e; }
+  if (error) {
+    const msg = String(error.message || error);
+    if (/drive_folders|does not exist|schema cache|relation|42P01/i.test(msg))
+      toast("Apply the Drive schema migration (0396) in Supabase to create folders.", "warn");
+    else toast("Couldn't create folder: " + msg, "warn");
+    return;
+  }
+  toast("Folder created", "success");
+  _driveData = null; await loadDriveView();
+}
+
 // ── Interaction ──────────────────────────────────────────────────────────
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#view-drive")) return;
   const go = e.target.closest("[data-rr-drive-go]");
-  if (go) { try { const to = JSON.parse(go.getAttribute("data-rr-drive-go")); _driveState.section = to.section; _driveState.driverId = to.driverId || null; _driveState.sub = to.sub || null; _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveState.selected = null; _driveRender(); } catch {} return; }
+  if (go) { try { const to = JSON.parse(go.getAttribute("data-rr-drive-go")); _driveState.section = to.section; _driveState.driverId = to.driverId || null; _driveState.sub = to.sub || null; _driveState.folderId = to.folderId || null; _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveState.selected = null; _driveRender(); } catch {} return; }
   const sec = e.target.closest("[data-rr-drive-sec]");
-  if (sec) { _driveState.section = sec.getAttribute("data-rr-drive-sec"); _driveState.driverId = null; _driveState.sub = null; _driveState.selected = null; _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveRender(); return; }
+  if (sec) { _driveState.section = sec.getAttribute("data-rr-drive-sec"); _driveState.driverId = null; _driveState.sub = null; _driveState.folderId = null; _driveState.selected = null; _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveRender(); return; }
   const drv = e.target.closest("[data-rr-drive-driver]");
-  if (drv) { _driveState.section = "drivers"; _driveState.driverId = drv.getAttribute("data-rr-drive-driver"); _driveState.sub = null; _driveState.selected = null; _driveRender(); return; }
+  if (drv) { _driveState.section = "drivers"; _driveState.driverId = drv.getAttribute("data-rr-drive-driver"); _driveState.sub = null; _driveState.folderId = null; _driveState.selected = null; _driveRender(); return; }
   const sub = e.target.closest("[data-rr-drive-sub]");
   if (sub) { _driveState.sub = sub.getAttribute("data-rr-drive-sub"); _driveState.selected = null; _driveRender(); return; }
   const open = e.target.closest("[data-rr-drive-open]");
@@ -70597,13 +70663,15 @@ document.addEventListener("click", (e) => {
   if (vbtn) { _driveState.view = vbtn.getAttribute("data-rr-drive-view"); document.querySelectorAll("#view-drive .rr-drive-vbtn").forEach(b => b.classList.toggle("is-active", b === vbtn)); _driveRenderMain(); return; }
   const row = e.target.closest("[data-rr-drive-doc]");
   if (row) { _driveState.selected = row.getAttribute("data-rr-drive-doc"); document.querySelectorAll("#view-drive .rr-drive-row,#view-drive .rr-drive-tile").forEach(r => r.classList.toggle("is-selected", r === row)); _driveRenderDetails(); return; }
+  const folderCard = e.target.closest("[data-rr-drive-folder]");
+  if (folderCard) { _driveState.folderId = folderCard.getAttribute("data-rr-drive-folder"); _driveState.driverId = null; _driveState.sub = null; _driveState.selected = null; _driveRender(); return; }
   // Header actions
   if (e.target.closest("#rr-drive-upload")) {
-    if (_driveState.section === "drivers" && _driveState.driverId) { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
-    else toast("Open a driver folder to upload a file there, or use the driver record.", "info");
+    if (_driveState.folderId || (_driveState.section === "drivers" && _driveState.driverId)) { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
+    else toast("Open a folder (a driver, or a custom folder) to upload a file there.", "info");
     return;
   }
-  if (e.target.closest("#rr-drive-newfolder")) { toast("Folders are organized automatically — by driver and category.", "info"); return; }
+  if (e.target.closest("#rr-drive-newfolder")) { _driveNewFolder(); return; }
   if (e.target.closest("#rr-drive-generate")) { toast("Generate documents from a driver record (Create coaching, attendance, reports).", "info"); if (typeof window.goto === "function") window.goto("drivers"); return; }
 });
 document.addEventListener("input", (e) => {
@@ -70612,8 +70680,26 @@ document.addEventListener("input", (e) => {
 document.addEventListener("change", async (e) => {
   if (!e.target || e.target.id !== "rr-drive-file") return;
   const file = e.target.files?.[0]; e.target.value = "";
-  if (!file || !_driveState.driverId) return;
+  if (!file) return;
   const dspId = window.RR?.dsp?.id; if (!dspId) return;
+  // Upload into a custom folder (canonical-only; not driver-scoped).
+  if (_driveState.folderId) {
+    const path = `${dspId}/_folders/${_driveState.folderId}/${Date.now()}-${file.name}`;
+    toast("Uploading…", "info");
+    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type, upsert: false });
+    if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+    const { error: insErr } = await sb.from("drive_documents").insert({
+      dsp_id: dspId, folder_id: _driveState.folderId, name: file.name, doc_type: "Document",
+      category: "custom", bucket: "driver-documents", file_path: path, file_size: file.size,
+      mime_type: file.type, source: "upload", created_by: window.RR?.user?.id || null,
+      metadata: { drive_title: file.name },
+    });
+    if (insErr) { toast("Save failed: " + insErr.message, "warn"); return; }
+    toast("Document uploaded to Drive", "success");
+    _driveData = null; await loadDriveView();
+    return;
+  }
+  if (!_driveState.driverId) return;
   const kindBySub = { DOT: "dot_medical", Licenses: "drivers_license", Employment: "i9", Documents: "other", Coaching: "other", Attendance: "other", Warnings: "other" };
   const kind = kindBySub[_driveState.sub] || "other";
   const path = `${dspId}/${_driveState.driverId}/${Date.now()}-${file.name}`;
