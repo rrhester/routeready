@@ -70684,7 +70684,7 @@ function _driveListHtml(docs, showLoc) {
   const checkBox = (id) => `<span class="rr-drive-check" data-rr-drive-check="${escapeHtml(id)}" role="checkbox" aria-checked="${ck(id) ? "true" : "false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
   if (_driveState.view === "grid") {
     const tiles = docs.slice().sort(_driveCmp).map(d =>
-      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${d.path ? "true" : "false"}">
+      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${(d.path || d.isGoogle) ? "true" : "false"}">
         <span class="rr-drive-tile-ico t-${d.type}">${_driveFileIco(d.type)}${checkBox(d.id)}</span>
         <span class="rr-drive-tile-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
         <span class="rr-drive-tile-meta">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "")} · ${_driveFmtDate(d.createdAt)}</span>
@@ -70694,7 +70694,7 @@ function _driveListHtml(docs, showLoc) {
   const rows = docs.slice().sort(_driveCmp).map(d => {
     const sel = (_driveState.selected === d.id ? " is-selected" : "") + (ck(d.id) ? " is-checked" : "");
     const loc = d.driverName || (d.source === "vehicle" ? "Fleet" : d.source === "report" ? "Reports" : "—");
-    return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${d.path ? "true" : "false"}">
+    return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${(d.path || d.isGoogle) ? "true" : "false"}">
       <div class="rr-drive-name"><span class="rr-drive-figbox"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span>${checkBox(d.id)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>
       <div class="rr-drive-cell">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "—")}</div>
       <div class="rr-drive-cell">${showLoc ? escapeHtml(loc) : _driveFmtDate(d.createdAt)}</div>
@@ -71579,7 +71579,7 @@ document.addEventListener("dragstart", (e) => {
   if (!row) return;
   const id = row.getAttribute("data-rr-drive-doc");
   const base = (_driveState.checked.has(id) && _driveState.checked.size > 1) ? [..._driveState.checked] : [id];
-  _driveDragIds = base.filter(x => { const d = (_driveData?.docs || []).find(y => y.id === x); return d && d.path; });
+  _driveDragIds = base.filter(x => { const d = (_driveData?.docs || []).find(y => y.id === x); return d && (d.path || d.isGoogle); });
   if (!_driveDragIds.length) { e.preventDefault(); return; }
   try { e.dataTransfer.setData("application/x-rr-drive", _driveDragIds.join(",")); e.dataTransfer.effectAllowed = "move"; } catch (_) {}
   row.classList.add("rr-drive-dragging");
