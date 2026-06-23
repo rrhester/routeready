@@ -210,6 +210,10 @@
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg>
         </button>
         <div class="rr-al-panel" id="rr-al-panel" role="menu" hidden>
+          <!-- App switcher · mirrors the visible sidebar destinations so the
+               drawer can navigate anywhere even when the rail is hidden (Drive).
+               Populated by buildApps() on open. -->
+          <div id="rr-al-apps" class="rr-al-apps"></div>
           <!-- Drive · RouteReady's document management workspace. Opens the
                dedicated #view-drive page. -->
           <button type="button" class="rr-al-item" role="menuitem" data-al-act="drive">
@@ -296,7 +300,29 @@
             panel.style.top = Math.round(r.bottom + 8) + 'px';
           }
           function close () { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
-          function open () { panel.hidden = false; place(); btn.setAttribute('aria-expanded', 'true'); }
+          // Mirror every visible sidebar destination into the drawer so it
+          // works as a full app switcher (needed on Drive, where the rail is
+          // hidden). Role-gated items (style.display:none) are skipped, so the
+          // drawer never offers a page the operator can't open.
+          function buildApps () {
+            var apps = document.getElementById('rr-al-apps');
+            if (!apps) return;
+            apps.innerHTML = '';
+            var items = Array.prototype.slice.call(document.querySelectorAll('.nav .nav-item[data-view]'));
+            items.forEach(function (nav) {
+              if (nav.style.display === 'none') return;        // role-gated
+              var view = nav.getAttribute('data-view');
+              if (!view || view === 'settings') return;        // Settings lives in the footer
+              var label = nav.getAttribute('title') || (nav.textContent || '').replace(/\s+/g, ' ').trim();
+              var icoSvg = nav.querySelector('.nav-icon svg, svg');
+              var b = document.createElement('button');
+              b.type = 'button'; b.className = 'rr-al-item'; b.setAttribute('role', 'menuitem');
+              b.setAttribute('data-al-go', view);
+              b.innerHTML = '<span class="rr-al-ico">' + (icoSvg ? icoSvg.outerHTML : '') + '</span><span class="rr-al-lbl">' + label + '</span>';
+              apps.appendChild(b);
+            });
+          }
+          function open () { buildApps(); panel.hidden = false; place(); btn.setAttribute('aria-expanded', 'true'); }
           btn.addEventListener('click', function (e) {
             e.stopPropagation();
             if (panel.hidden) open(); else close();
