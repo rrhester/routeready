@@ -26417,6 +26417,36 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-folderbar-name{display:flex;align-items:center;gap:10px;font-size:var(--fs-lg);font-weight:700;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rr-drive-folderbar-acts{display:flex;gap:8px;flex:0 0 auto}
 
+/* Multi-select checkboxes — swap with the file icon on hover / when checked */
+.rr-drive-figbox{position:relative;flex:0 0 auto;width:30px;height:30px}
+.rr-drive-figbox .rr-drive-fico{position:absolute;inset:0}
+.rr-drive-check{position:absolute;inset:0;display:none;align-items:center;justify-content:center;border-radius:8px;background:var(--surface);border:1.5px solid var(--border-strong,var(--border));color:transparent;cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast)}
+.rr-drive-check svg{width:15px;height:15px}
+.rr-drive-row:hover .rr-drive-check,.rr-drive-row.is-checked .rr-drive-check{display:flex}
+.rr-drive-row.is-checked .rr-drive-check{background:var(--accent);border-color:var(--accent);color:#fff}
+.rr-drive-row.is-checked{background:var(--accent-soft)}
+.rr-drive-tile .rr-drive-tile-ico{position:relative}
+.rr-drive-tile .rr-drive-check{inset:auto;top:-6px;left:-6px;width:22px;height:22px;border-radius:6px}
+.rr-drive-tile .rr-drive-check svg{width:13px;height:13px}
+.rr-drive-tile:hover .rr-drive-check,.rr-drive-tile.is-checked .rr-drive-check{display:flex}
+.rr-drive-tile.is-checked .rr-drive-check{background:var(--accent);border-color:var(--accent);color:#fff}
+.rr-drive-tile.is-checked{border-color:var(--accent);box-shadow:var(--shadow-sm)}
+
+/* Contextual selection bar (replaces the toolbar while items are checked) */
+.rr-drive-bulkbar{display:flex;align-items:center;gap:12px;padding:7px 4px;margin-bottom:8px;min-height:42px}
+.rr-drive-bulkbar[hidden]{display:none}
+.rr-drive-toolbar[hidden]{display:none}
+.rr-drive-bulk-x{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:0;background:none;border-radius:var(--r-sm);color:var(--text-muted);cursor:pointer}
+.rr-drive-bulk-x:hover{background:var(--canvas)}
+.rr-drive-bulk-x svg{width:18px;height:18px}
+.rr-drive-bulk-count{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+.rr-drive-bulk-acts{display:flex;gap:8px;margin-left:6px;flex-wrap:wrap}
+
+/* Multi-select details summary */
+.rr-drive-det-multi{padding:14px 16px;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
+.rr-drive-det-multi-item{display:flex;align-items:center;gap:10px;min-width:0}
+.rr-drive-det-multi-more{font-size:var(--fs-xs);color:var(--text-subtle);padding-left:2px}
+
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .rr-drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
 .rr-drive-tile{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);cursor:pointer;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
