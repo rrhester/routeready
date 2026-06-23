@@ -70431,9 +70431,11 @@ function _driveRenderMain() {
     const subfolders = (_driveData?.folders || []).filter(x => x.parent_id === _driveState.folderId);
     const fdocs = (_driveData?.docs || []).filter(d => d.folderId === _driveState.folderId && !d.archivedAt && !d.deletedAt);
     const fcolor = folder ? _driveFolderColor(folder.metadata) : null;
+    const ffav = folder ? _driveIsFav(folder.id) : false;
     const bar = folder ? `<div class="rr-drive-folderbar">
       <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder"${fcolor ? ` style="color:${fcolor}"` : ""}>${_driveFolderIcoSvg(folder.metadata)}</span>${escapeHtml(folder.name)}</div>
       <div class="rr-drive-folderbar-acts">
+        <button type="button" class="btn btn-sm${ffav ? " is-active" : ""}" data-rr-drive-fav="${escapeHtml(folder.id)}">${ffav ? "★ Starred" : "☆ Star"}</button>
         <button type="button" class="btn btn-sm" data-rr-drive-folderstyle="${escapeHtml(folder.id)}">Customize</button>
         <button type="button" class="btn btn-sm" data-rr-drive-foldername="${escapeHtml(folder.id)}">Rename</button>
         <button type="button" class="btn btn-sm" data-rr-drive-folderdel="${escapeHtml(folder.id)}">Delete</button>
@@ -70445,11 +70447,16 @@ function _driveRenderMain() {
   }
 
   const s = _driveState.section;
-  // Root (All Documents): custom folders + category cards + everything below.
+  // Root (All Documents): quick-access (Starred / Recent) + custom folders +
+  // category cards + everything below.
   if (s === "all") {
     const c = _driveCounts();
-    const rootFolders = (_driveData?.folders || []).filter(x => !x.parent_id);
-    const folderCards = rootFolders.length ? `<div class="rr-drive-sectionhead">Folders</div><div class="rr-drive-cards">${rootFolders.map(_driveFolderCard).join("")}</div>` : "";
+    const allFolders = (_driveData?.folders || []);
+    const favSet = _driveGetFavs();
+    const byId = new Map(allFolders.map(f => [f.id, f]));
+    const starred = allFolders.filter(f => favSet.has(f.id));
+    const recent = _driveGetRecent().map(id => byId.get(id)).filter(f => f && !favSet.has(f.id)).slice(0, 6);
+    const rootFolders = allFolders.filter(x => !x.parent_id);
     const cats = [["drivers", "Drivers"], ["fleet", "Fleet"], ["hr", "HR"], ["station", "Station"], ["reports", "Reports"]];
     const cards = cats.map(([key, label]) => {
       const list = _driveSectionDocs(key);
@@ -70459,9 +70466,15 @@ function _driveRenderMain() {
         <span class="rr-drive-card-meta">${c[key] || 0} item${(c[key] || 0) === 1 ? "" : "s"} · ${_driveLastMod(list)}</span></span>
       </button>`;
     }).join("");
-    main.innerHTML = folderCards
-      + `<div class="rr-drive-sectionhead"${folderCards ? ' style="margin-top:22px"' : ""}>Categories</div><div class="rr-drive-cards">${cards}</div>
-      <div class="rr-drive-sectionhead" style="margin-top:22px">All documents</div>${_driveListHtml(_driveSectionDocs("all"), true)}`;
+    const section = (head, body) => `<div class="rr-drive-sectionhead">${head}</div>${body}`;
+    const cardRow = (list) => `<div class="rr-drive-cards">${list.map(_driveFolderCard).join("")}</div>`;
+    const blocks = [];
+    if (starred.length) blocks.push(section("Starred", cardRow(starred)));
+    if (recent.length) blocks.push(section("Recent folders", cardRow(recent)));
+    if (rootFolders.length) blocks.push(section("Folders", cardRow(rootFolders)));
+    blocks.push(section("Categories", `<div class="rr-drive-cards">${cards}</div>`));
+    blocks.push(section("All documents", _driveListHtml(_driveSectionDocs("all"), true)));
+    main.innerHTML = blocks.map((b, i) => i === 0 ? b : b.replace('class="rr-drive-sectionhead"', 'class="rr-drive-sectionhead" style="margin-top:22px"')).join("");
     return;
   }
 
@@ -70561,15 +70574,33 @@ function _driveEmpty(section) {
     <div class="rr-drive-empty-sub">${sub}</div>
   </div>`;
 }
+// Favorites + recent folders — per-tenant, stored in localStorage (no
+// migration, per the Google-Drive-interactions plan).
+function _driveFavKey() { return "rr.vault.favs." + (window.RR?.dsp?.id || "x"); }
+function _driveRecentKey() { return "rr.vault.recent." + (window.RR?.dsp?.id || "x"); }
+function _driveGetFavs() { try { return new Set(JSON.parse(localStorage.getItem(_driveFavKey()) || "[]")); } catch (_) { return new Set(); } }
+function _driveIsFav(id) { return _driveGetFavs().has(id); }
+function _driveToggleFav(id) { const s = _driveGetFavs(); if (s.has(id)) s.delete(id); else s.add(id); try { localStorage.setItem(_driveFavKey(), JSON.stringify([...s])); } catch (_) {} }
+function _driveGetRecent() { try { const r = JSON.parse(localStorage.getItem(_driveRecentKey()) || "[]"); return Array.isArray(r) ? r : []; } catch (_) { return []; } }
+function _drivePushRecent(id) {
+  if (!id) return;
+  const r = [id, ..._driveGetRecent().filter(x => x !== id)].slice(0, 6);
+  try { localStorage.setItem(_driveRecentKey(), JSON.stringify(r)); } catch (_) {}
+}
+function _driveStarSvg(filled) {
+  return `<svg viewBox="0 0 24 24" fill="${filled ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+}
 // Custom-folder card (drive_folders). Count = active docs filed directly in it.
 function _driveFolderCard(f) {
   const n = ((_driveData?.docs) || []).filter(d => d.folderId === f.id && !d.archivedAt && !d.deletedAt).length;
   const color = _driveFolderColor(f.metadata);
   const icoStyle = color ? ` style="color:${color};background:${color}1f"` : "";
-  return `<button type="button" class="rr-drive-card" data-rr-drive-folder="${escapeHtml(f.id)}">
+  const fav = _driveIsFav(f.id);
+  return `<button type="button" class="rr-drive-card rr-drive-foldercard" data-rr-drive-folder="${escapeHtml(f.id)}">
     <span class="rr-drive-card-ico"${icoStyle}>${_driveFolderIcoSvg(f.metadata)}</span>
     <span class="rr-drive-card-body"><span class="rr-drive-card-name">${escapeHtml(f.name)}</span>
     <span class="rr-drive-card-meta">${n} item${n === 1 ? "" : "s"}</span></span>
+    <span class="rr-drive-fav${fav ? " is-on" : ""}" data-rr-drive-fav="${escapeHtml(f.id)}" role="button" aria-pressed="${fav}" aria-label="${fav ? "Unstar folder" : "Star folder"}" title="${fav ? "Unstar" : "Star"}">${_driveStarSvg(fav)}</span>
   </button>`;
 }
 function _driveRenderDetails() {
@@ -70991,7 +71022,7 @@ async function _driveBulk(action) {
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#view-drive")) return;
   const go = e.target.closest("[data-rr-drive-go]");
-  if (go) { try { const to = JSON.parse(go.getAttribute("data-rr-drive-go")); _driveState.section = to.section; _driveState.driverId = to.driverId || null; _driveState.sub = to.sub || null; _driveState.folderId = to.folderId || null; _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); } catch {} return; }
+  if (go) { try { const to = JSON.parse(go.getAttribute("data-rr-drive-go")); _driveState.section = to.section; _driveState.driverId = to.driverId || null; _driveState.sub = to.sub || null; _driveState.folderId = to.folderId || null; if (to.folderId) _drivePushRecent(to.folderId); _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); } catch {} return; }
   const sec = e.target.closest("[data-rr-drive-sec]");
   if (sec) { _driveState.section = sec.getAttribute("data-rr-drive-sec"); _driveState.driverId = null; _driveState.sub = null; _driveState.folderId = null; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveRender(); return; }
   const drv = e.target.closest("[data-rr-drive-driver]");
@@ -71048,8 +71079,12 @@ document.addEventListener("click", (e) => {
     _driveSyncSelClasses(); _driveRenderBulk(); _driveRenderDetails();
     return;
   }
+  // Star toggle — sits inside a folder card or on the folder action bar, so it
+  // must be handled before the card-open handler below.
+  const fav = e.target.closest("[data-rr-drive-fav]");
+  if (fav) { e.stopPropagation(); _driveToggleFav(fav.getAttribute("data-rr-drive-fav")); _driveRenderMain(); return; }
   const folderCard = e.target.closest("[data-rr-drive-folder]");
-  if (folderCard) { _driveState.folderId = folderCard.getAttribute("data-rr-drive-folder"); _driveState.driverId = null; _driveState.sub = null; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); return; }
+  if (folderCard) { _driveState.folderId = folderCard.getAttribute("data-rr-drive-folder"); _drivePushRecent(_driveState.folderId); _driveState.driverId = null; _driveState.sub = null; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); return; }
   // Header actions
   if (e.target.closest("#rr-drive-upload")) {
     if (_driveState.folderId || (_driveState.section === "drivers" && _driveState.driverId)) { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
