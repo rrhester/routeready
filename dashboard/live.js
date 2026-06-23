@@ -70501,7 +70501,7 @@ function _driveListHtml(docs, showLoc) {
   const checkBox = (id) => `<span class="rr-drive-check" data-rr-drive-check="${escapeHtml(id)}" role="checkbox" aria-checked="${ck(id) ? "true" : "false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
   if (_driveState.view === "grid") {
     const tiles = docs.slice().sort(_driveCmp).map(d =>
-      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}">
+      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${d.path ? "true" : "false"}">
         <span class="rr-drive-tile-ico t-${d.type}">${_driveFileIco(d.type)}${checkBox(d.id)}</span>
         <span class="rr-drive-tile-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
         <span class="rr-drive-tile-meta">${escapeHtml(d.docType || "")} · ${_driveFmtDate(d.createdAt)}</span>
@@ -70511,7 +70511,7 @@ function _driveListHtml(docs, showLoc) {
   const rows = docs.slice().sort(_driveCmp).map(d => {
     const sel = (_driveState.selected === d.id ? " is-selected" : "") + (ck(d.id) ? " is-checked" : "");
     const loc = d.driverName || (d.source === "vehicle" ? "Fleet" : d.source === "report" ? "Reports" : "—");
-    return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}">
+    return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${d.path ? "true" : "false"}">
       <div class="rr-drive-name"><span class="rr-drive-figbox"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span>${checkBox(d.id)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>
       <div class="rr-drive-cell">${escapeHtml(d.docType || "—")}</div>
       <div class="rr-drive-cell">${showLoc ? escapeHtml(loc) : _driveFmtDate(d.createdAt)}</div>
@@ -70983,40 +70983,135 @@ document.addEventListener("click", (e) => {
 document.addEventListener("input", (e) => {
   if (e.target && e.target.id === "rr-drive-search") { _driveState.query = e.target.value || ""; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRenderBulk(); _driveRenderMain(); }
 });
-document.addEventListener("change", async (e) => {
-  if (!e.target || e.target.id !== "rr-drive-file") return;
-  const file = e.target.files?.[0]; e.target.value = "";
-  if (!file) return;
-  const dspId = window.RR?.dsp?.id; if (!dspId) return;
-  // Upload into a custom folder (canonical-only; not driver-scoped).
+// Where would an uploaded file land right now? Returns a human label for the
+// current context, or null when there's no valid target (root / category view).
+function _driveUploadCtx() {
+  if (_driveState.folderId) { const f = (_driveData?.folders || []).find(x => x.id === _driveState.folderId); return f ? `“${f.name}”` : "this folder"; }
+  if (_driveState.section === "drivers" && _driveState.driverId) {
+    const d = _driveData?.driverMap?.get(_driveState.driverId);
+    return (displayDriverName(d) || "this driver") + (_driveState.sub ? ` · ${_driveState.sub}` : "");
+  }
+  return null;
+}
+// Upload one file into the current context (no toast/reload — callers batch).
+// Returns true on success. Custom folder → canonical store; driver → legacy
+// driver_documents + a canonical mirror, matching the Upload-button paths.
+async function _driveUploadFile(file) {
+  const dspId = window.RR?.dsp?.id; if (!dspId || !file) return false;
   if (_driveState.folderId) {
     const path = `${dspId}/_folders/${_driveState.folderId}/${Date.now()}-${file.name}`;
-    toast("Uploading…", "info");
     const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type, upsert: false });
-    if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+    if (upErr) { console.warn("[drive] upload:", upErr); return false; }
     const { error: insErr } = await sb.from("drive_documents").insert({
       dsp_id: dspId, folder_id: _driveState.folderId, name: file.name, doc_type: "Document",
       category: "custom", bucket: "driver-documents", file_path: path, file_size: file.size,
       mime_type: file.type, source: "upload", created_by: window.RR?.user?.id || null,
       metadata: { drive_title: file.name },
     });
-    if (insErr) { toast("Save failed: " + insErr.message, "warn"); return; }
-    toast("Document uploaded to Vault", "success");
-    _driveData = null; await loadDriveView();
+    if (insErr) { console.warn("[drive] save:", insErr); return false; }
+    return true;
+  }
+  if (_driveState.section === "drivers" && _driveState.driverId) {
+    const kindBySub = { DOT: "dot_medical", Licenses: "drivers_license", Employment: "i9", Documents: "other", Coaching: "other", Attendance: "other", Warnings: "other" };
+    const kind = kindBySub[_driveState.sub] || "other";
+    const path = `${dspId}/${_driveState.driverId}/${Date.now()}-${file.name}`;
+    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type, upsert: false });
+    if (upErr) { console.warn("[drive] upload:", upErr); return false; }
+    const { error: insErr } = await sb.from("driver_documents").insert({ dsp_id: dspId, driver_id: _driveState.driverId, kind, label: file.name, file_path: path, file_size: file.size, mime_type: file.type });
+    if (insErr) { console.warn("[drive] save:", insErr); return false; }
+    _driveRecordCanonical({ driverId: _driveState.driverId, title: file.name, docType: _driveState.sub || "Document", category: _driveState.sub || "Documents", path, size: file.size, mime: file.type, source: "upload" });
+    return true;
+  }
+  return false;
+}
+// Upload a set of files (from the picker or a drop), with one combined toast.
+async function _driveUploadFiles(files) {
+  const list = Array.from(files || []).filter(Boolean);
+  if (!list.length) return;
+  if (!_driveUploadCtx()) { toast("Open a folder or a driver to upload files there.", "info"); return; }
+  toast(`Uploading ${list.length} file${list.length > 1 ? "s" : ""}…`, "info");
+  let ok = 0, fail = 0;
+  for (const f of list) { if (await _driveUploadFile(f)) ok++; else fail++; }
+  toast(fail ? `Uploaded ${ok} · ${fail} failed` : (ok > 1 ? `${ok} files uploaded to Vault` : "Document uploaded to Vault"), fail ? "warn" : "success");
+  _driveData = null; await loadDriveView();
+}
+document.addEventListener("change", async (e) => {
+  if (!e.target || e.target.id !== "rr-drive-file") return;
+  const files = e.target.files; e.target.value = "";
+  await _driveUploadFiles(files);
+});
+
+// ── Drag-and-drop ──────────────────────────────────────────────────────────
+// Two gestures: (1) drag desktop files onto the workspace → upload to the
+// current context; (2) drag a document (or the whole multi-selection) onto a
+// folder card → move it there. Internal drags carry _driveDragIds; desktop
+// file drags are detected via the "Files" dataTransfer type.
+let _driveDragIds = [];
+let _driveDzTimer = null;
+function _driveShowDropzone() {
+  const dz = document.getElementById("rr-drive-dropzone"); if (!dz) return;
+  const ctx = _driveUploadCtx();
+  const sub = document.getElementById("rr-drive-dropzone-sub");
+  if (sub) sub.textContent = ctx ? `to ${ctx}` : "Open a folder or a driver to upload here";
+  dz.classList.toggle("is-invalid", !ctx);
+  dz.hidden = false;
+}
+function _driveHideDropzone() { clearTimeout(_driveDzTimer); const dz = document.getElementById("rr-drive-dropzone"); if (dz) dz.hidden = true; }
+function _driveDzPing() { _driveShowDropzone(); clearTimeout(_driveDzTimer); _driveDzTimer = setTimeout(_driveHideDropzone, 130); }
+
+document.addEventListener("dragstart", (e) => {
+  const row = e.target.closest && e.target.closest("#view-drive [data-rr-drive-doc]");
+  if (!row) return;
+  const id = row.getAttribute("data-rr-drive-doc");
+  const base = (_driveState.checked.has(id) && _driveState.checked.size > 1) ? [..._driveState.checked] : [id];
+  _driveDragIds = base.filter(x => { const d = (_driveData?.docs || []).find(y => y.id === x); return d && d.path; });
+  if (!_driveDragIds.length) { e.preventDefault(); return; }
+  try { e.dataTransfer.setData("application/x-rr-drive", _driveDragIds.join(",")); e.dataTransfer.effectAllowed = "move"; } catch (_) {}
+  row.classList.add("rr-drive-dragging");
+});
+document.addEventListener("dragend", () => {
+  document.querySelectorAll("#view-drive .rr-drive-dragging").forEach(el => el.classList.remove("rr-drive-dragging"));
+  document.querySelectorAll("#view-drive .rr-drive-dropover").forEach(el => el.classList.remove("rr-drive-dropover"));
+  _driveDragIds = []; _driveHideDropzone();
+});
+document.addEventListener("dragover", (e) => {
+  if (!(e.target.closest && e.target.closest("#view-drive"))) return;
+  // Internal doc → folder card.
+  const card = e.target.closest("[data-rr-drive-folder]");
+  if (_driveDragIds.length) {
+    if (card) { e.preventDefault(); try { e.dataTransfer.dropEffect = "move"; } catch (_) {} card.classList.add("rr-drive-dropover"); }
     return;
   }
-  if (!_driveState.driverId) return;
-  const kindBySub = { DOT: "dot_medical", Licenses: "drivers_license", Employment: "i9", Documents: "other", Coaching: "other", Attendance: "other", Warnings: "other" };
-  const kind = kindBySub[_driveState.sub] || "other";
-  const path = `${dspId}/${_driveState.driverId}/${Date.now()}-${file.name}`;
-  toast("Uploading…", "info");
-  const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type, upsert: false });
-  if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
-  const { error: insErr } = await sb.from("driver_documents").insert({ dsp_id: dspId, driver_id: _driveState.driverId, kind, label: file.name, file_path: path, file_size: file.size, mime_type: file.type });
-  if (insErr) { toast("Save failed: " + insErr.message, "warn"); return; }
-  _driveRecordCanonical({ driverId: _driveState.driverId, title: file.name, docType: _driveState.sub || "Document", category: _driveState.sub || "Documents", path, size: file.size, mime: file.type, source: "upload" });
-  toast("Document uploaded to Vault", "success");
-  _driveData = null; await loadDriveView();
+  // Desktop files → upload.
+  const dt = e.dataTransfer;
+  if (dt && Array.from(dt.types || []).includes("Files")) {
+    e.preventDefault();
+    try { dt.dropEffect = _driveUploadCtx() ? "copy" : "none"; } catch (_) {}
+    _driveDzPing();
+  }
+});
+document.addEventListener("dragleave", (e) => {
+  const card = e.target.closest && e.target.closest("#view-drive [data-rr-drive-folder]");
+  if (card && !card.contains(e.relatedTarget)) card.classList.remove("rr-drive-dropover");
+});
+document.addEventListener("drop", async (e) => {
+  if (!(e.target.closest && e.target.closest("#view-drive"))) return;
+  // Internal doc → folder card move.
+  const card = e.target.closest("[data-rr-drive-folder]");
+  if (card && _driveDragIds.length) {
+    e.preventDefault(); e.stopPropagation();
+    const fid = card.getAttribute("data-rr-drive-folder");
+    const docs = (_driveData?.docs || []).filter(d => _driveDragIds.includes(d.id));
+    card.classList.remove("rr-drive-dropover"); _driveDragIds = [];
+    if (docs.length) _driveMoveMany(docs, fid);
+    return;
+  }
+  // Desktop file drop → upload to context.
+  const files = e.dataTransfer && e.dataTransfer.files;
+  if (files && files.length && !_driveDragIds.length) {
+    e.preventDefault(); _driveHideDropzone();
+    await _driveUploadFiles(files);
+  }
 });
 
 // ── Drive · auto-filing of generated documents (Phase 2) ───────────────────
