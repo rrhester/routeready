@@ -29499,6 +29499,10 @@ function renderDocumentsTab(docs, envelopes) {
     </div>`).join("");
 
   return `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+      <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.4">Documents are stored in <strong style="color:var(--text)">RouteReady Drive</strong> — the system of record. Generated and uploaded files file here automatically.</div>
+      <button type="button" class="btn btn-sm" data-rr-dd-opendrive>Open in Drive →</button>
+    </div>
     <div class="dd-section" style="margin-bottom:22px">
       <div class="dd-section-head">
         <div>
@@ -29689,6 +29693,15 @@ document.addEventListener("click", async (e) => {
     if (act === "availability") { _ddTab = "availability"; renderDriverDrawerTab(); return; }
     if (act === "report")       { if (typeof _openEmploymentReport === "function") _openEmploymentReport(id); return; }
     if (act === "expand")       { openDriverDrawer(id, { tab: _ddTab, forceOverlay: true }); return; }
+    return;
+  }
+
+  // "Open in Drive →" from the Documents tab → the driver's Drive folder.
+  if (e.target.closest("[data-rr-dd-opendrive]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const id = _ddDriver?.driver?.id;
+    if (id && typeof openDrive === "function") openDrive({ driverId: id });
     return;
   }
 
@@ -31847,6 +31860,8 @@ function refreshActiveView() {
     if (typeof loadPlatformAdmin === "function") loadPlatformAdmin();
   } else if (activeView === "view-fleet2") {
     if (typeof loadFleetView === "function") loadFleetView();
+  } else if (activeView === "view-drive") {
+    if (typeof loadDriveView === "function") loadDriveView();
   }
   // view-schedule / view-okami refresh via their own focus hook below;
   // view-messages has live chat; view-forms / view-checklists are edit
@@ -70051,3 +70066,470 @@ document.addEventListener("click", (e) => {
     setTimeout(setupFauxScrollbars, 600);
   });
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROUTEREADY DRIVE — document management workspace (#view-drive).
+// Phase 1: a unified, read-through workspace over the existing document stores
+// (driver_documents, document_envelopes, vehicle_documents, employment_reports)
+// with automatic per-driver folders. Drive is the system of record; nothing is
+// duplicated — rows reference the real storage objects. Schema-backed folders,
+// auto-filing of generated docs, and DOCX/XLSX preview land in Phase 2.
+// ═══════════════════════════════════════════════════════════════════════════
+let _driveState = { section: "all", driverId: null, sub: null, query: "", view: "list", selected: null };
+let _driveData = null;        // { docs:[], drivers:[], driverMap:Map }
+let _driveLoadedFor = null;   // dsp id the cache was built for
+let _driveLoading = false;
+
+function openDrive(opts) {
+  if (typeof window.goto === "function") window.goto("drive");
+  loadDriveView(opts || {});
+}
+window.openDrive = openDrive;
+
+async function loadDriveView(opts) {
+  opts = opts || {};
+  // Deep-link context (e.g. "Open in Drive" from a driver record).
+  if (opts.driverId) { _driveState.section = "drivers"; _driveState.driverId = opts.driverId; _driveState.sub = opts.sub || null; }
+  else if (opts.section) { _driveState.section = opts.section; _driveState.driverId = null; _driveState.sub = null; }
+  _driveState.selected = null;
+  const main = document.getElementById("rr-drive-main");
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { if (main) main.innerHTML = `<div class="rr-drive-empty"><div class="rr-drive-empty-title">Sign in to view Drive</div></div>`; return; }
+  if (_driveLoadedFor !== dspId) { _driveData = null; }
+  if (!_driveData && !_driveLoading) {
+    _driveLoading = true;
+    if (main) main.innerHTML = `<div class="rr-loading">Loading Drive</div>`;
+    try { await _driveLoadData(dspId); _driveLoadedFor = dspId; } catch (e) { console.warn("[drive] load failed:", e); }
+    _driveLoading = false;
+  }
+  _driveRender();
+}
+window.loadDriveView = loadDriveView;
+
+async function _driveLoadData(dspId) {
+  const docs = [];
+  const fold = (s) => String(s || "");
+  // Drivers (folders exist for every roster driver, even with no docs yet).
+  let drivers = [];
+  try {
+    const { data } = await sb.from("drivers")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station:station_id(code)")
+      .eq("dsp_id", dspId).limit(1000);
+    drivers = data || [];
+  } catch { drivers = (_rosterRows || []); }
+  const driverMap = new Map(drivers.map(d => [d.id, d]));
+  const nameOf = (id) => { const d = driverMap.get(id); return d ? (displayDriverName(d) || "Driver") : "Driver"; };
+  const stationOf = (id) => { const d = driverMap.get(id); return d?.station?.code || ""; };
+
+  // 1 · driver_documents (HR / personnel files uploaded per driver).
+  try {
+    const { data } = await sb.from("driver_documents")
+      .select("id, driver_id, kind, label, file_path, file_size, mime_type, expires_on, created_at")
+      .eq("dsp_id", dspId).order("created_at", { ascending: false }).limit(5000);
+    for (const x of (data || [])) {
+      const nm = x.label || (fold(x.kind).replace(/_/g, " ") || "Document");
+      docs.push({
+        id: "dd_" + x.id, source: "driver_documents", name: nm,
+        kind: x.kind, docType: fold(x.kind).replace(/_/g, " ") || "Document",
+        bucket: "driver-documents", path: x.file_path, mime: x.mime_type, size: x.file_size,
+        driverId: x.driver_id, driverName: nameOf(x.driver_id), station: stationOf(x.driver_id),
+        createdAt: x.created_at, createdBy: "", expiresOn: x.expires_on,
+      });
+    }
+  } catch (e) { console.warn("[drive] driver_documents:", e); }
+
+  // 2 · document_envelopes (e-signature — signed PDFs in the documents bucket).
+  try {
+    const { data } = await sb.from("document_envelopes")
+      .select("id, status, sent_at, signed_at, signed_pdf_path, certificate_pdf_path, recipient_driver_id, document_templates(title)")
+      .eq("dsp_id", dspId).order("sent_at", { ascending: false }).limit(5000);
+    for (const e of (data || [])) {
+      const title = e.document_templates?.title || "Document";
+      docs.push({
+        id: "env_" + e.id, source: "envelope", name: title + (e.signed_pdf_path ? ".pdf" : ""),
+        docType: title, bucket: "documents", path: e.signed_pdf_path || null, mime: "application/pdf",
+        driverId: e.recipient_driver_id || null,
+        driverName: e.recipient_driver_id ? nameOf(e.recipient_driver_id) : "",
+        station: e.recipient_driver_id ? stationOf(e.recipient_driver_id) : "",
+        createdAt: e.signed_at || e.sent_at, status: e.status, shared: true,
+        tags: ["E-signature", e.status].filter(Boolean),
+      });
+    }
+  } catch (e) { console.warn("[drive] envelopes:", e); }
+
+  // 3 · vehicle_documents (Fleet). Best-effort — column set varies by version.
+  try {
+    const { data } = await sb.from("vehicle_documents").select("*").eq("dsp_id", dspId).limit(3000);
+    for (const v of (data || [])) {
+      const nm = v.label || v.title || fold(v.kind || v.doc_type).replace(/_/g, " ") || "Fleet document";
+      docs.push({
+        id: "veh_" + v.id, source: "vehicle", name: nm, docType: fold(v.kind || v.doc_type).replace(/_/g, " ") || "Fleet",
+        bucket: "vehicle-documents", path: v.file_path || v.path || null, mime: v.mime_type || v.mime || "",
+        size: v.file_size || null, vehicleId: v.vehicle_id || null,
+        createdAt: v.created_at || v.uploaded_at, station: "", tags: ["Fleet"],
+      });
+    }
+  } catch (e) { console.warn("[drive] vehicle_documents:", e); }
+
+  // 4 · employment_reports (Reports). DB-backed; opens the report viewer.
+  try {
+    const { data } = await sb.from("employment_reports")
+      .select("id, driver_id, generated_at, generated_by_name, summary")
+      .eq("dsp_id", dspId).order("generated_at", { ascending: false }).limit(2000);
+    for (const r of (data || [])) {
+      docs.push({
+        id: "rep_" + r.id, source: "report", name: `Employment report — ${nameOf(r.driver_id)}`,
+        docType: "Employment report", driverId: r.driver_id, driverName: nameOf(r.driver_id),
+        station: stationOf(r.driver_id), createdAt: r.generated_at, createdBy: r.generated_by_name || "",
+        tags: ["Report"], reportId: r.id,
+      });
+    }
+  } catch (e) { console.warn("[drive] employment_reports:", e); }
+
+  // Derive type + flags for every doc.
+  for (const d of docs) {
+    d.type = _driveType(d.mime, d.name);
+    d.previewable = !!d.path && (d.type === "pdf" || d.type === "img");
+    d.openable = !!d.path || d.source === "report";
+    if (!d.tags) d.tags = [];
+  }
+  _driveData = { docs, drivers, driverMap };
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function _driveType(mime, name) {
+  const m = String(mime || "").toLowerCase(), n = String(name || "").toLowerCase();
+  if (m.includes("pdf") || n.endsWith(".pdf")) return "pdf";
+  if (m.startsWith("image/") || /\.(png|jpe?g|gif|webp|heic|bmp)$/.test(n)) return "img";
+  if (m.includes("word") || /\.docx?$/.test(n)) return "doc";
+  if (m.includes("sheet") || m.includes("excel") || /\.(xlsx?|csv)$/.test(n)) return "xls";
+  return "file";
+}
+const _DRIVE_SUBS = ["Coaching", "Attendance", "Warnings", "Employment", "DOT", "Licenses", "Documents"];
+function _driveSubfolder(doc) {
+  if (doc.source === "report") return "Employment";
+  if (doc.source === "envelope") {
+    const t = String(doc.docType || "").toLowerCase();
+    if (/warn/.test(t)) return "Warnings";
+    if (/coach/.test(t)) return "Coaching";
+    if (/attend/.test(t)) return "Attendance";
+    return "Employment";
+  }
+  const k = String(doc.kind || "").toLowerCase();
+  if (/dot/.test(k)) return "DOT";
+  if (/licen|mvr|^dl|drivers_license/.test(k)) return "Licenses";
+  if (/i9|w4|w-4|direct_deposit|background|social|employ/.test(k)) return "Employment";
+  return "Documents";
+}
+function _driveIsHr(doc) {
+  if (doc.source !== "driver_documents") return false;
+  return /i9|w4|w-4|direct_deposit|background|social|medical/.test(String(doc.kind || "").toLowerCase());
+}
+function _driveFileIco(type, folder) {
+  if (folder) return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+  const base = `fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"`;
+  if (type === "img") return `<svg viewBox="0 0 24 24" ${base}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
+  return `<svg viewBox="0 0 24 24" ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+}
+function _driveFmtDate(x) {
+  if (!x) return "—";
+  const d = new Date(x); if (isNaN(d)) return "—";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+function _driveFmtSize(n) {
+  if (!n || n < 0) return "—";
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(0) + " KB";
+  return (n / 1048576).toFixed(1) + " MB";
+}
+function _driveLastMod(list) {
+  let m = 0; for (const d of list) { const t = d.createdAt ? new Date(d.createdAt).getTime() : 0; if (t > m) m = t; }
+  return m ? _driveFmtDate(new Date(m)) : "—";
+}
+// Documents in a given category section (excludes folder navigation).
+function _driveSectionDocs(section) {
+  const all = (_driveData?.docs) || [];
+  if (section === "all") return all;
+  if (section === "recent") { const cut = Date.now() - 30 * 86400000; return all.filter(d => d.createdAt && new Date(d.createdAt).getTime() >= cut); }
+  if (section === "shared") return all.filter(d => d.source === "envelope");
+  if (section === "drivers") return all.filter(d => d.driverId);
+  if (section === "fleet") return all.filter(d => d.source === "vehicle");
+  if (section === "hr") return all.filter(_driveIsHr);
+  if (section === "reports") return all.filter(d => d.source === "report");
+  if (section === "station") return [];
+  if (section === "archive" || section === "trash") return [];
+  return all;
+}
+function _driveCounts() {
+  const all = (_driveData?.docs) || [];
+  return {
+    all: all.length,
+    recent: _driveSectionDocs("recent").length,
+    shared: _driveSectionDocs("shared").length,
+    drivers: all.filter(d => d.driverId).length,
+    fleet: _driveSectionDocs("fleet").length,
+    hr: _driveSectionDocs("hr").length,
+    station: 0, reports: _driveSectionDocs("reports").length,
+    archive: 0, trash: 0,
+  };
+}
+
+// ── Render ───────────────────────────────────────────────────────────────
+function _driveRender() {
+  if (!document.getElementById("view-drive")?.classList.contains("active") && !document.getElementById("rr-drive-rail")) return;
+  _driveRenderRail();
+  _driveRenderCrumbs();
+  _driveRenderMain();
+  _driveRenderDetails();
+}
+function _driveRenderRail() {
+  const rail = document.getElementById("rr-drive-rail");
+  if (!rail) return;
+  const c = _driveCounts();
+  const ico = {
+    all: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>',
+    recent: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
+    shared: '<path d="M16 6l-4-4-4 4"/><line x1="12" y1="2" x2="12" y2="14"/><path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/>',
+    drivers: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
+    fleet: '<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+    hr: '<path d="M20 21v-2a4 4 0 0 0-3-3.87"/><path d="M4 21v-2a4 4 0 0 1 3-3.87"/><circle cx="12" cy="7" r="4"/>',
+    station: '<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/>',
+    reports: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+    archive: '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>',
+    trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  };
+  const item = (key, label) => `<button type="button" class="rr-drive-sec${_driveState.section === key ? " is-active" : ""}" data-rr-drive-sec="${key}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ico[key]}</svg><span class="rr-drive-sec-lbl">${label}</span><span class="rr-drive-sec-cnt">${c[key] || 0}</span></button>`;
+  rail.innerHTML =
+    item("all", "All Documents") + item("recent", "Recent") + item("shared", "Shared") +
+    `<div class="rr-drive-rail-sep"></div>` +
+    item("drivers", "Drivers") + item("fleet", "Fleet") + item("hr", "HR") + item("station", "Station") + item("reports", "Reports") +
+    `<div class="rr-drive-rail-sep"></div>` +
+    item("archive", "Archive") + item("trash", "Trash");
+}
+function _driveRenderCrumbs() {
+  const el = document.getElementById("rr-drive-crumbs");
+  if (!el) return;
+  const SEC = { all: "All Documents", recent: "Recent", shared: "Shared", drivers: "Drivers", fleet: "Fleet", hr: "HR", station: "Station", reports: "Reports", archive: "Archive", trash: "Trash" };
+  const crumbs = [{ label: "Drive", to: { section: "all" } }];
+  if (_driveState.section !== "all") crumbs.push({ label: SEC[_driveState.section] || _driveState.section, to: { section: _driveState.section } });
+  if (_driveState.section === "drivers" && _driveState.driverId) {
+    crumbs.push({ label: (_driveData?.driverMap.get(_driveState.driverId) && displayDriverName(_driveData.driverMap.get(_driveState.driverId))) || "Driver", to: { section: "drivers", driverId: _driveState.driverId } });
+    if (_driveState.sub) crumbs.push({ label: _driveState.sub, to: { section: "drivers", driverId: _driveState.driverId, sub: _driveState.sub } });
+  }
+  el.innerHTML = crumbs.map((c, i) => {
+    const last = i === crumbs.length - 1;
+    return `${i ? '<span class="rr-drive-crumb-sep">›</span>' : ""}<button type="button" class="rr-drive-crumb${last ? " is-current" : ""}" data-rr-drive-go='${JSON.stringify(c.to)}'>${escapeHtml(c.label)}</button>`;
+  }).join("");
+}
+function _driveRenderMain() {
+  const main = document.getElementById("rr-drive-main");
+  if (!main) return;
+  const q = _driveState.query.trim().toLowerCase();
+
+  // Global search overrides folder navigation.
+  if (q) {
+    const matches = (_driveData?.docs || []).filter(d =>
+      (d.name && d.name.toLowerCase().includes(q)) ||
+      (d.driverName && d.driverName.toLowerCase().includes(q)) ||
+      (d.docType && d.docType.toLowerCase().includes(q)) ||
+      (d.station && d.station.toLowerCase().includes(q)) ||
+      (d.tags && d.tags.join(" ").toLowerCase().includes(q))
+    );
+    main.innerHTML = `<div class="rr-drive-sectionhead">${matches.length} result${matches.length === 1 ? "" : "s"} for "${escapeHtml(_driveState.query.trim())}"</div>` + _driveListHtml(matches, true);
+    return;
+  }
+
+  const s = _driveState.section;
+  // Root (All Documents): category cards + everything below.
+  if (s === "all") {
+    const c = _driveCounts();
+    const cats = [["drivers", "Drivers"], ["fleet", "Fleet"], ["hr", "HR"], ["station", "Station"], ["reports", "Reports"]];
+    const cards = cats.map(([key, label]) => {
+      const list = _driveSectionDocs(key);
+      return `<button type="button" class="rr-drive-card" data-rr-drive-sec="${key}">
+        <span class="rr-drive-card-ico">${_driveFileIco(null, true)}</span>
+        <span class="rr-drive-card-body"><span class="rr-drive-card-name">${label}</span>
+        <span class="rr-drive-card-meta">${c[key] || 0} item${(c[key] || 0) === 1 ? "" : "s"} · ${_driveLastMod(list)}</span></span>
+      </button>`;
+    }).join("");
+    main.innerHTML = `<div class="rr-drive-sectionhead">Categories</div><div class="rr-drive-cards">${cards}</div>
+      <div class="rr-drive-sectionhead" style="margin-top:22px">All documents</div>${_driveListHtml(_driveSectionDocs("all"), true)}`;
+    return;
+  }
+
+  // Drivers section — folder tree.
+  if (s === "drivers") {
+    if (!_driveState.driverId) {
+      const drivers = (_driveData?.drivers || []).slice().sort((a, b) => (displayDriverName(a) || "").localeCompare(displayDriverName(b) || ""));
+      if (!drivers.length) { main.innerHTML = _driveEmpty(); return; }
+      const byDriver = new Map();
+      for (const d of _driveSectionDocs("drivers")) byDriver.set(d.driverId, (byDriver.get(d.driverId) || 0) + 1);
+      const cards = drivers.map(d => {
+        const n = byDriver.get(d.id) || 0;
+        return `<button type="button" class="rr-drive-card" data-rr-drive-driver="${escapeHtml(d.id)}">
+          <span class="rr-drive-card-ico">${_driveFileIco(null, true)}</span>
+          <span class="rr-drive-card-body"><span class="rr-drive-card-name">${escapeHtml(displayDriverName(d) || "Driver")}</span>
+          <span class="rr-drive-card-meta">${n} document${n === 1 ? "" : "s"}${d.station?.code ? " · " + escapeHtml(d.station.code) : ""}</span></span>
+        </button>`;
+      }).join("");
+      main.innerHTML = `<div class="rr-drive-sectionhead">${drivers.length} driver folders</div><div class="rr-drive-cards">${cards}</div>`;
+      return;
+    }
+    if (!_driveState.sub) {
+      // 7 standard subfolders for this driver.
+      const docs = _driveSectionDocs("drivers").filter(d => d.driverId === _driveState.driverId);
+      const counts = {}; for (const sub of _DRIVE_SUBS) counts[sub] = 0;
+      for (const d of docs) { const sf = _driveSubfolder(d); counts[sf] = (counts[sf] || 0) + 1; }
+      const cards = _DRIVE_SUBS.map(sub => `<button type="button" class="rr-drive-card" data-rr-drive-sub="${escapeHtml(sub)}">
+        <span class="rr-drive-card-ico">${_driveFileIco(null, true)}</span>
+        <span class="rr-drive-card-body"><span class="rr-drive-card-name">${sub}</span>
+        <span class="rr-drive-card-meta">${counts[sub] || 0} document${(counts[sub] || 0) === 1 ? "" : "s"}</span></span>
+      </button>`).join("");
+      main.innerHTML = `<div class="rr-drive-sectionhead">Folders</div><div class="rr-drive-cards">${cards}</div>`;
+      return;
+    }
+    const docs = _driveSectionDocs("drivers").filter(d => d.driverId === _driveState.driverId && _driveSubfolder(d) === _driveState.sub);
+    main.innerHTML = _driveListHtml(docs, false);
+    return;
+  }
+
+  if (s === "station" || s === "archive" || s === "trash") { main.innerHTML = _driveEmpty(s); return; }
+
+  // Flat document sections (recent / shared / fleet / hr / reports).
+  main.innerHTML = _driveListHtml(_driveSectionDocs(s), s === "all" || s === "recent" || s === "shared");
+}
+function _driveListHtml(docs, showLoc) {
+  if (!docs || !docs.length) return _driveEmpty();
+  const rows = docs.slice().sort((a, b) => (new Date(b.createdAt || 0)) - (new Date(a.createdAt || 0))).map(d => {
+    const sel = _driveState.selected === d.id ? " is-selected" : "";
+    const loc = d.driverName || (d.source === "vehicle" ? "Fleet" : d.source === "report" ? "Reports" : "—");
+    return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}">
+      <div class="rr-drive-name"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>
+      <div class="rr-drive-cell">${escapeHtml(d.docType || "—")}</div>
+      <div class="rr-drive-cell">${showLoc ? escapeHtml(loc) : _driveFmtDate(d.createdAt)}</div>
+      <div class="rr-drive-cell">${showLoc ? _driveFmtDate(d.createdAt) : _driveFmtSize(d.size)}</div>
+      <div class="rr-drive-rowact"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+    </div>`;
+  }).join("");
+  const head = `<div class="rr-drive-lhead"><div>Name</div><div>Type</div><div>${showLoc ? "Location" : "Modified"}</div><div>${showLoc ? "Modified" : "Size"}</div><div></div></div>`;
+  if (_driveState.view === "grid") {
+    const tiles = docs.slice().sort((a, b) => (new Date(b.createdAt || 0)) - (new Date(a.createdAt || 0))).map(d =>
+      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}">
+        <span class="rr-drive-tile-ico t-${d.type}">${_driveFileIco(d.type)}</span>
+        <span class="rr-drive-tile-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
+        <span class="rr-drive-tile-meta">${escapeHtml(d.docType || "")} · ${_driveFmtDate(d.createdAt)}</span>
+      </button>`).join("");
+    return `<div class="rr-drive-grid">${tiles}</div>`;
+  }
+  return `<div class="rr-drive-list">${head}${rows}</div>`;
+}
+function _driveEmpty(section) {
+  const sub = section === "station" ? "Station-level documents will appear here once uploaded."
+    : section === "archive" ? "Archived documents will appear here."
+    : section === "trash" ? "Deleted documents will appear here."
+    : "Upload a file or generate a document from a driver record.";
+  return `<div class="rr-drive-empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    <div class="rr-drive-empty-title">No documents found</div>
+    <div class="rr-drive-empty-sub">${sub}</div>
+  </div>`;
+}
+function _driveRenderDetails() {
+  const el = document.getElementById("rr-drive-details");
+  if (!el) return;
+  const doc = (_driveData?.docs || []).find(d => d.id === _driveState.selected);
+  if (!doc) {
+    el.innerHTML = `<div class="rr-drive-det-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>Select a document to see its details and preview.</span></div>`;
+    return;
+  }
+  const row = (k, v) => v ? `<div class="rr-drive-det-row"><div class="k">${k}</div><div class="v">${v}</div></div>` : "";
+  const tags = (doc.tags || []).length ? `<div class="rr-drive-det-row"><div class="k">Tags</div><div class="v rr-drive-det-tags">${doc.tags.map(t => `<span class="rr-drive-det-tag">${escapeHtml(t)}</span>`).join("")}</div></div>` : "";
+  const previewBox = doc.previewable
+    ? `<div class="rr-drive-det-preview" id="rr-drive-preview"><div class="rr-loading" style="padding:30px">Loading preview</div></div>`
+    : `<div class="rr-drive-det-preview"><div class="rr-drive-det-noprev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${doc.source === "report" ? "Generated report — open to view." : "Preview isn't available for this file type yet."}</div></div>`;
+  const foot = doc.source === "report"
+    ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open report</button>`
+    : (doc.openable ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open</button><button class="btn btn-sm" data-rr-drive-download="${escapeHtml(doc.id)}">Download</button>` : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">No file attached.</span>`);
+  el.innerHTML = `
+    <div class="rr-drive-det-head"><div class="rr-drive-det-name">${escapeHtml(doc.name)}</div><div class="rr-drive-det-type">${escapeHtml((doc.docType || doc.type || "Document"))}</div></div>
+    ${previewBox}
+    <div class="rr-drive-det-meta">
+      ${row("Created", _driveFmtDate(doc.createdAt))}
+      ${row("Created by", doc.createdBy ? escapeHtml(doc.createdBy) : "")}
+      ${row("Driver", doc.driverName ? escapeHtml(doc.driverName) : "")}
+      ${row("Station", doc.station ? escapeHtml(doc.station) : "")}
+      ${row("Type", escapeHtml(doc.docType || "—"))}
+      ${row("Size", doc.size ? _driveFmtSize(doc.size) : "")}
+      ${doc.expiresOn ? row("Expires", _driveFmtDate(doc.expiresOn)) : ""}
+      ${tags}
+    </div>
+    <div class="rr-drive-det-foot">${foot}</div>`;
+  if (doc.previewable) _drivePaintPreview(doc);
+}
+async function _drivePaintPreview(doc) {
+  const box = document.getElementById("rr-drive-preview");
+  if (!box || !doc.path) return;
+  let url = null;
+  try { const { data } = await sb.storage.from(doc.bucket).createSignedUrl(doc.path, 3600); url = data?.signedUrl || null; } catch {}
+  if (!document.getElementById("rr-drive-preview")) return; // selection changed
+  if (!url) { box.innerHTML = `<div class="rr-drive-det-noprev">Couldn't load preview.</div>`; return; }
+  box.innerHTML = doc.type === "img" ? `<img src="${url}" alt="${escapeHtml(doc.name)}">` : `<iframe src="${url}" title="${escapeHtml(doc.name)}"></iframe>`;
+}
+async function _driveOpenDoc(doc, download) {
+  if (!doc) return;
+  if (doc.source === "report") { if (typeof _openEmploymentReport === "function") _openEmploymentReport(doc.driverId); return; }
+  if (!doc.path) { toast("No file is attached to this record.", "warn"); return; }
+  try {
+    const { data } = await sb.storage.from(doc.bucket).createSignedUrl(doc.path, 3600, download ? { download: doc.name || true } : {});
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    else toast("Couldn't open the document.", "warn");
+  } catch (e) { toast("Couldn't open the document.", "warn"); }
+}
+
+// ── Interaction ──────────────────────────────────────────────────────────
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#view-drive")) return;
+  const go = e.target.closest("[data-rr-drive-go]");
+  if (go) { try { const to = JSON.parse(go.getAttribute("data-rr-drive-go")); _driveState.section = to.section; _driveState.driverId = to.driverId || null; _driveState.sub = to.sub || null; _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveState.selected = null; _driveRender(); } catch {} return; }
+  const sec = e.target.closest("[data-rr-drive-sec]");
+  if (sec) { _driveState.section = sec.getAttribute("data-rr-drive-sec"); _driveState.driverId = null; _driveState.sub = null; _driveState.selected = null; _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveRender(); return; }
+  const drv = e.target.closest("[data-rr-drive-driver]");
+  if (drv) { _driveState.section = "drivers"; _driveState.driverId = drv.getAttribute("data-rr-drive-driver"); _driveState.sub = null; _driveState.selected = null; _driveRender(); return; }
+  const sub = e.target.closest("[data-rr-drive-sub]");
+  if (sub) { _driveState.sub = sub.getAttribute("data-rr-drive-sub"); _driveState.selected = null; _driveRender(); return; }
+  const open = e.target.closest("[data-rr-drive-open]");
+  if (open) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === open.getAttribute("data-rr-drive-open")); _driveOpenDoc(d, false); return; }
+  const dl = e.target.closest("[data-rr-drive-download]");
+  if (dl) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === dl.getAttribute("data-rr-drive-download")); _driveOpenDoc(d, true); return; }
+  const vbtn = e.target.closest("[data-rr-drive-view]");
+  if (vbtn) { _driveState.view = vbtn.getAttribute("data-rr-drive-view"); document.querySelectorAll("#view-drive .rr-drive-vbtn").forEach(b => b.classList.toggle("is-active", b === vbtn)); _driveRenderMain(); return; }
+  const row = e.target.closest("[data-rr-drive-doc]");
+  if (row) { _driveState.selected = row.getAttribute("data-rr-drive-doc"); document.querySelectorAll("#view-drive .rr-drive-row,#view-drive .rr-drive-tile").forEach(r => r.classList.toggle("is-selected", r === row)); _driveRenderDetails(); return; }
+  // Header actions
+  if (e.target.closest("#rr-drive-upload")) {
+    if (_driveState.section === "drivers" && _driveState.driverId) { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
+    else toast("Open a driver folder to upload a file there, or use the driver record.", "info");
+    return;
+  }
+  if (e.target.closest("#rr-drive-newfolder")) { toast("Folders are organized automatically — by driver and category.", "info"); return; }
+  if (e.target.closest("#rr-drive-generate")) { toast("Generate documents from a driver record (Create coaching, attendance, reports).", "info"); if (typeof window.goto === "function") window.goto("drivers"); return; }
+});
+document.addEventListener("input", (e) => {
+  if (e.target && e.target.id === "rr-drive-search") { _driveState.query = e.target.value || ""; _driveState.selected = null; _driveRenderMain(); }
+});
+document.addEventListener("change", async (e) => {
+  if (!e.target || e.target.id !== "rr-drive-file") return;
+  const file = e.target.files?.[0]; e.target.value = "";
+  if (!file || !_driveState.driverId) return;
+  const dspId = window.RR?.dsp?.id; if (!dspId) return;
+  const kindBySub = { DOT: "dot_medical", Licenses: "drivers_license", Employment: "i9", Documents: "other", Coaching: "other", Attendance: "other", Warnings: "other" };
+  const kind = kindBySub[_driveState.sub] || "other";
+  const path = `${dspId}/${_driveState.driverId}/${Date.now()}-${file.name}`;
+  toast("Uploading…", "info");
+  const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type, upsert: false });
+  if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
+  const { error: insErr } = await sb.from("driver_documents").insert({ dsp_id: dspId, driver_id: _driveState.driverId, kind, label: file.name, file_path: path, file_size: file.size, mime_type: file.type });
+  if (insErr) { toast("Save failed: " + insErr.message, "warn"); return; }
+  toast("Document uploaded to Drive", "success");
+  _driveData = null; await loadDriveView();
+});
