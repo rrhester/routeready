@@ -70132,20 +70132,23 @@ async function _driveLoadData(dspId) {
   //     object (deduped by file_path below).
   const canonicalPaths = new Set();
   try {
+    // Fetch every canonical row (incl. archived / trashed) so the dedup set is
+    // complete; the section filters decide what each view shows.
     const { data, error } = await sb.from("drive_documents")
-      .select("id, driver_id, name, doc_type, category, subfolder, bucket, file_path, file_size, mime_type, source, tags, created_at, metadata")
-      .eq("dsp_id", dspId).is("deleted_at", null).is("archived_at", null)
+      .select("id, driver_id, name, doc_type, category, subfolder, bucket, file_path, file_size, mime_type, source, tags, created_at, archived_at, deleted_at, metadata")
+      .eq("dsp_id", dspId)
       .order("created_at", { ascending: false }).limit(8000);
     if (!error) for (const x of (data || [])) {
       if (x.file_path) canonicalPaths.add(x.file_path);
       const cat = x.subfolder && _DRIVE_SUBS.includes(x.subfolder) ? x.subfolder : null;
       docs.push({
-        id: "drv_" + x.id, source: "driver_documents", canonical: true,
+        id: "drv_" + x.id, canonicalId: x.id, source: "driver_documents", canonical: true,
         name: x.name || "Document", kind: "other", driveCategory: cat,
         docType: x.doc_type || cat || "Document",
         bucket: x.bucket || "driver-documents", path: x.file_path, mime: x.mime_type, size: x.file_size,
         driverId: x.driver_id, driverName: x.driver_id ? nameOf(x.driver_id) : "", station: x.driver_id ? stationOf(x.driver_id) : "",
         createdAt: x.created_at, createdBy: (x.metadata && x.metadata.drive_created_by) || "",
+        archivedAt: x.archived_at, deletedAt: x.deleted_at,
         tags: Array.isArray(x.tags) ? x.tags : [],
       });
     }
@@ -70285,28 +70288,32 @@ function _driveLastMod(list) {
 // Documents in a given category section (excludes folder navigation).
 function _driveSectionDocs(section) {
   const all = (_driveData?.docs) || [];
-  if (section === "all") return all;
-  if (section === "recent") { const cut = Date.now() - 30 * 86400000; return all.filter(d => d.createdAt && new Date(d.createdAt).getTime() >= cut); }
-  if (section === "shared") return all.filter(d => d.source === "envelope");
-  if (section === "drivers") return all.filter(d => d.driverId);
-  if (section === "fleet") return all.filter(d => d.source === "vehicle");
-  if (section === "hr") return all.filter(_driveIsHr);
-  if (section === "reports") return all.filter(d => d.source === "report");
+  // Archive / Trash are status views over the canonical store.
+  if (section === "archive") return all.filter(d => d.archivedAt && !d.deletedAt);
+  if (section === "trash")   return all.filter(d => d.deletedAt);
+  // Every other section shows only active (not archived, not trashed) docs.
+  const active = all.filter(d => !d.archivedAt && !d.deletedAt);
+  if (section === "all") return active;
+  if (section === "recent") { const cut = Date.now() - 30 * 86400000; return active.filter(d => d.createdAt && new Date(d.createdAt).getTime() >= cut); }
+  if (section === "shared") return active.filter(d => d.source === "envelope");
+  if (section === "drivers") return active.filter(d => d.driverId);
+  if (section === "fleet") return active.filter(d => d.source === "vehicle");
+  if (section === "hr") return active.filter(_driveIsHr);
+  if (section === "reports") return active.filter(d => d.source === "report");
   if (section === "station") return [];
-  if (section === "archive" || section === "trash") return [];
-  return all;
+  return active;
 }
 function _driveCounts() {
-  const all = (_driveData?.docs) || [];
+  const active = ((_driveData?.docs) || []).filter(d => !d.archivedAt && !d.deletedAt);
   return {
-    all: all.length,
+    all: active.length,
     recent: _driveSectionDocs("recent").length,
     shared: _driveSectionDocs("shared").length,
-    drivers: all.filter(d => d.driverId).length,
+    drivers: active.filter(d => d.driverId).length,
     fleet: _driveSectionDocs("fleet").length,
     hr: _driveSectionDocs("hr").length,
     station: 0, reports: _driveSectionDocs("reports").length,
-    archive: 0, trash: 0,
+    archive: _driveSectionDocs("archive").length, trash: _driveSectionDocs("trash").length,
   };
 }
 
@@ -70325,7 +70332,7 @@ function _driveRenderChips() {
   const el = document.getElementById("rr-drive-chips");
   if (!el) return;
   const c = _driveCounts();
-  const chips = [["all", "All documents", c.all], ["recent", "Recent", c.recent], ["shared", "Shared", c.shared]];
+  const chips = [["all", "All documents", c.all], ["recent", "Recent", c.recent], ["shared", "Shared", c.shared], ["archive", "Archive", c.archive], ["trash", "Trash", c.trash]];
   const atTop = !_driveState.driverId; // hide active highlight once drilled into a folder
   el.innerHTML = chips.map(([k, l, n]) =>
     `<button type="button" class="rr-drive-chip-btn${atTop && _driveState.section === k ? " is-active" : ""}" data-rr-drive-sec="${k}">${l}<span class="rr-drive-chip-cnt">${n || 0}</span></button>`
@@ -70418,7 +70425,16 @@ function _driveRenderMain() {
     return;
   }
 
-  if (s === "station" || s === "archive" || s === "trash") { main.innerHTML = _driveEmpty(s); return; }
+  if (s === "station") { main.innerHTML = _driveEmpty(s); return; }
+
+  if (s === "archive" || s === "trash") {
+    const list = _driveSectionDocs(s);
+    const note = s === "trash"
+      ? `<div class="rr-drive-sectionhead">Trash · ${list.length} item${list.length === 1 ? "" : "s"} — restore to put a document back in its folder.</div>`
+      : `<div class="rr-drive-sectionhead">Archive · ${list.length} item${list.length === 1 ? "" : "s"}</div>`;
+    main.innerHTML = note + (list.length ? _driveListHtml(list, true) : _driveEmpty(s));
+    return;
+  }
 
   // Flat document sections (recent / shared / fleet / hr / reports).
   main.innerHTML = _driveListHtml(_driveSectionDocs(s), s === "all" || s === "recent" || s === "shared");
@@ -70472,9 +70488,18 @@ function _driveRenderDetails() {
   const previewBox = doc.previewable
     ? `<div class="rr-drive-det-preview" id="rr-drive-preview"><div class="rr-loading" style="padding:30px">Loading preview</div></div>`
     : `<div class="rr-drive-det-preview"><div class="rr-drive-det-noprev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${doc.source === "report" ? "Generated report — open to view." : "Preview isn't available for this file type yet."}</div></div>`;
-  const foot = doc.source === "report"
+  const open = doc.source === "report"
     ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open report</button>`
     : (doc.openable ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open</button><button class="btn btn-sm" data-rr-drive-download="${escapeHtml(doc.id)}">Download</button>` : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">No file attached.</span>`);
+  // Archive / Trash / Restore (canonical store · migration 0396). Only for
+  // real files; generated reports have no stored object to file.
+  let status = "";
+  if (doc.path) {
+    if (doc.deletedAt) status = `<button class="btn btn-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">Restore</button>`;
+    else if (doc.archivedAt) status = `<button class="btn btn-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">Restore</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">Move to Trash</button>`;
+    else status = `<button class="btn btn-sm" data-rr-drive-status="archive" data-rr-drive-id="${escapeHtml(doc.id)}">Archive</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">Move to Trash</button>`;
+  }
+  const foot = open + status;
   el.innerHTML = `
     <div class="rr-drive-det-head"><div class="rr-drive-det-name">${escapeHtml(doc.name)}</div><div class="rr-drive-det-type">${escapeHtml((doc.docType || doc.type || "Document"))}</div></div>
     ${previewBox}
@@ -70511,6 +70536,46 @@ async function _driveOpenDoc(doc, download) {
   } catch (e) { toast("Couldn't open the document.", "warn"); }
 }
 
+// Archive / Trash / Restore a document via the canonical store (migration
+// 0396). A canonical row is updated in place; a legacy doc gets a canonical
+// row created that carries the status (and shadows it out of the live views).
+async function _driveSetDocStatus(doc, action) {
+  if (!doc || !doc.path) return;
+  const dspId = window.RR?.dsp?.id; if (!dspId) return;
+  const now = new Date().toISOString();
+  const patch = action === "archive" ? { archived_at: now, deleted_at: null }
+    : action === "trash" ? { deleted_at: now }
+    : { archived_at: null, deleted_at: null };
+  let error = null;
+  try {
+    if (doc.canonicalId) {
+      ({ error } = await sb.from("drive_documents").update(patch).eq("id", doc.canonicalId));
+    } else {
+      ({ error } = await sb.from("drive_documents").insert({
+        dsp_id: dspId, driver_id: doc.driverId || null, name: doc.name, doc_type: doc.docType || null,
+        category: doc.source === "vehicle" ? "fleet" : (doc.driverId ? "drivers" : null),
+        subfolder: doc.driverId ? _driveSubfolder(doc) : null,
+        bucket: doc.bucket || "driver-documents", file_path: doc.path,
+        file_size: doc.size || null, mime_type: doc.mime || null,
+        source: doc.source === "envelope" ? "envelope" : "upload",
+        tags: Array.isArray(doc.tags) ? doc.tags : [],
+        archived_at: patch.archived_at || null, deleted_at: patch.deleted_at || null,
+        created_by: window.RR?.user?.id || null, metadata: { drive_title: doc.name },
+      }));
+    }
+  } catch (e) { error = e; }
+  if (error) {
+    const msg = String(error.message || error);
+    if (/drive_documents|does not exist|schema cache|relation|42P01/i.test(msg))
+      toast("Apply the Drive schema migration (0396) in Supabase to enable Archive & Trash.", "warn");
+    else toast("Couldn't update: " + msg, "warn");
+    return;
+  }
+  toast({ archive: "Archived", trash: "Moved to Trash", restore: "Restored" }[action] || "Updated", "success");
+  _driveState.selected = null; _driveData = null;
+  await loadDriveView();
+}
+
 // ── Interaction ──────────────────────────────────────────────────────────
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#view-drive")) return;
@@ -70526,6 +70591,8 @@ document.addEventListener("click", (e) => {
   if (open) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === open.getAttribute("data-rr-drive-open")); _driveOpenDoc(d, false); return; }
   const dl = e.target.closest("[data-rr-drive-download]");
   if (dl) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === dl.getAttribute("data-rr-drive-download")); _driveOpenDoc(d, true); return; }
+  const st = e.target.closest("[data-rr-drive-status]");
+  if (st) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === st.getAttribute("data-rr-drive-id")); _driveSetDocStatus(d, st.getAttribute("data-rr-drive-status")); return; }
   const vbtn = e.target.closest("[data-rr-drive-view]");
   if (vbtn) { _driveState.view = vbtn.getAttribute("data-rr-drive-view"); document.querySelectorAll("#view-drive .rr-drive-vbtn").forEach(b => b.classList.toggle("is-active", b === vbtn)); _driveRenderMain(); return; }
   const row = e.target.closest("[data-rr-drive-doc]");
