@@ -32,6 +32,9 @@
              Shared chips + breadcrumbs carry navigation.) -->
         <div class="rr-drive-shell">
           <section class="rr-drive-center">
+            <!-- Contextual selection bar — replaces the toolbar while one or
+                 more documents are checked (multi-select bulk actions). -->
+            <div class="rr-drive-bulkbar" id="rr-drive-bulkbar" hidden></div>
             <div class="rr-drive-toolbar">
               <nav class="rr-drive-crumbs" id="rr-drive-crumbs" aria-label="Breadcrumb"></nav>
               <div class="rr-drive-chips" id="rr-drive-chips"></div>
