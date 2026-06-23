@@ -26407,6 +26407,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-cell{font-size:var(--fs-xs);color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rr-drive-row .rr-drive-rowact{display:flex;justify-content:flex-end;color:var(--text-disabled)}
 .rr-drive-row:hover .rr-drive-rowact{color:var(--text-subtle)}
+/* Clickable sort headers */
+.rr-drive-sortbtn{display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:0;margin:0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer;text-align:left;min-width:0}
+.rr-drive-sortbtn:hover,.rr-drive-sortbtn.is-active{color:var(--text-muted)}
+.rr-drive-caret{font-size:8px;line-height:1}
+
+/* Folder action bar (shown inside an open custom folder) */
+.rr-drive-folderbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 16px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.rr-drive-folderbar-name{display:flex;align-items:center;gap:10px;font-size:var(--fs-lg);font-weight:700;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-drive-folderbar-acts{display:flex;gap:8px;flex:0 0 auto}
 
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .rr-drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
