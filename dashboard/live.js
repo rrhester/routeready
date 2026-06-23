@@ -70134,7 +70134,7 @@ async function _driveLoadData(dspId) {
   let folders = [];
   try {
     const { data, error } = await sb.from("drive_folders")
-      .select("id, name, category, parent_id, created_at")
+      .select("id, name, category, parent_id, created_at, metadata")
       .eq("dsp_id", dspId).is("archived_at", null).order("name", { ascending: true }).limit(2000);
     if (!error) folders = (data || []).filter(f => (f.category || "custom") === "custom");
   } catch (_) { /* not migrated yet */ }
@@ -70280,6 +70280,24 @@ function _driveFileIco(type, folder) {
   if (type === "img") return `<svg viewBox="0 0 24 24" ${base}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
   return `<svg viewBox="0 0 24 24" ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
 }
+// Folder personalization — color + icon stored in drive_folders.metadata
+// (no migration). A calm, app-consistent palette and a small icon set.
+const _DRIVE_FOLDER_COLORS = { slate: "#64748b", blue: "#2563eb", teal: "#0e7490", green: "#15803d", amber: "#b45309", red: "#b42318", purple: "#7c3aed", pink: "#be185d" };
+const _DRIVE_FOLDER_ICONS = {
+  folder: `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>`,
+  star: `<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`,
+  users: `<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>`,
+  truck: `<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>`,
+  shield: `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
+  briefcase: `<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>`,
+  flag: `<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>`,
+  clipboard: `<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>`,
+};
+function _driveFolderColor(meta) { const c = meta && meta.color; return (c && _DRIVE_FOLDER_COLORS[c]) || null; }
+function _driveFolderIcoSvg(meta) {
+  const key = (meta && meta.icon && _DRIVE_FOLDER_ICONS[meta.icon]) ? meta.icon : "folder";
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${_DRIVE_FOLDER_ICONS[key]}</svg>`;
+}
 function _driveFmtDate(x) {
   if (!x) return "—";
   const d = new Date(x); if (isNaN(d)) return "—";
@@ -70412,9 +70430,11 @@ function _driveRenderMain() {
     const folder = (_driveData?.folders || []).find(f => f.id === _driveState.folderId);
     const subfolders = (_driveData?.folders || []).filter(x => x.parent_id === _driveState.folderId);
     const fdocs = (_driveData?.docs || []).filter(d => d.folderId === _driveState.folderId && !d.archivedAt && !d.deletedAt);
+    const fcolor = folder ? _driveFolderColor(folder.metadata) : null;
     const bar = folder ? `<div class="rr-drive-folderbar">
-      <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder">${_driveFileIco(null, true)}</span>${escapeHtml(folder.name)}</div>
+      <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder"${fcolor ? ` style="color:${fcolor}"` : ""}>${_driveFolderIcoSvg(folder.metadata)}</span>${escapeHtml(folder.name)}</div>
       <div class="rr-drive-folderbar-acts">
+        <button type="button" class="btn btn-sm" data-rr-drive-folderstyle="${escapeHtml(folder.id)}">Customize</button>
         <button type="button" class="btn btn-sm" data-rr-drive-foldername="${escapeHtml(folder.id)}">Rename</button>
         <button type="button" class="btn btn-sm" data-rr-drive-folderdel="${escapeHtml(folder.id)}">Delete</button>
       </div></div>` : "";
@@ -70544,8 +70564,10 @@ function _driveEmpty(section) {
 // Custom-folder card (drive_folders). Count = active docs filed directly in it.
 function _driveFolderCard(f) {
   const n = ((_driveData?.docs) || []).filter(d => d.folderId === f.id && !d.archivedAt && !d.deletedAt).length;
+  const color = _driveFolderColor(f.metadata);
+  const icoStyle = color ? ` style="color:${color};background:${color}1f"` : "";
   return `<button type="button" class="rr-drive-card" data-rr-drive-folder="${escapeHtml(f.id)}">
-    <span class="rr-drive-card-ico">${_driveFileIco(null, true)}</span>
+    <span class="rr-drive-card-ico"${icoStyle}>${_driveFolderIcoSvg(f.metadata)}</span>
     <span class="rr-drive-card-body"><span class="rr-drive-card-name">${escapeHtml(f.name)}</span>
     <span class="rr-drive-card-meta">${n} item${n === 1 ? "" : "s"}</span></span>
   </button>`;
@@ -70847,6 +70869,61 @@ async function _driveDeleteFolder(folder) {
   _driveState.selected = null; _driveData = null; await loadDriveView();
 }
 
+// Save a color/icon choice onto a folder (merged into drive_folders.metadata).
+// Mutates the cached folder so the open popover + view update without a full
+// reload. Returns false on error (e.g. schema not migrated).
+async function _driveSetFolderStyle(folder, patch) {
+  if (!folder) return false;
+  const meta = Object.assign({}, folder.metadata || {}, patch);
+  let error = null;
+  try { ({ error } = await sb.from("drive_folders").update({ metadata: meta }).eq("id", folder.id)); } catch (e) { error = e; }
+  if (error) {
+    if (_driveIsMigErr(error)) toast("Apply the Vault schema migration (0396) in Supabase to customize folders.", "warn");
+    else toast("Couldn't update folder: " + String(error.message || error), "warn");
+    return false;
+  }
+  folder.metadata = meta;
+  return true;
+}
+// Color + icon picker overlay for a folder.
+function _driveOpenFolderStyle(folder) {
+  if (!folder) return;
+  document.getElementById("rr-drive-style-pick")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-drive-style-pick";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.45));z-index:10002;display:flex;align-items:center;justify-content:center;padding:24px";
+  const paint = () => {
+    const meta = folder.metadata || {};
+    const curColor = meta.color || "";
+    const curIcon = (meta.icon && _DRIVE_FOLDER_ICONS[meta.icon]) ? meta.icon : "folder";
+    const swatches = `<button type="button" class="rr-drive-sw rr-drive-sw-none${!curColor ? " is-active" : ""}" data-color="" title="Default" aria-label="Default color"></button>`
+      + Object.entries(_DRIVE_FOLDER_COLORS).map(([k, hex]) =>
+        `<button type="button" class="rr-drive-sw${curColor === k ? " is-active" : ""}" data-color="${k}" title="${k}" aria-label="${k}" style="background:${hex}"></button>`).join("");
+    const icons = Object.keys(_DRIVE_FOLDER_ICONS).map(k => {
+      const hex = (curColor && _DRIVE_FOLDER_COLORS[curColor]) || "var(--text-muted)";
+      return `<button type="button" class="rr-drive-icq${curIcon === k ? " is-active" : ""}" data-icon="${k}" aria-label="${k}" style="color:${hex}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${_DRIVE_FOLDER_ICONS[k]}</svg></button>`;
+    }).join("");
+    m.querySelector(".rr-drive-style-body").innerHTML =
+      `<div class="rr-drive-style-label">Color</div><div class="rr-drive-sw-row">${swatches}</div>
+       <div class="rr-drive-style-label" style="margin-top:14px">Icon</div><div class="rr-drive-icq-row">${icons}</div>`;
+  };
+  m.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:18px;max-width:360px;width:100%">
+    <div style="font-size:var(--fs-md);font-weight:700">Customize folder</div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(folder.name)}</div>
+    <div class="rr-drive-style-body"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:18px"><button class="btn btn-sm btn-primary" data-done>Done</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  paint();
+  m.addEventListener("click", async (e) => {
+    if (e.target === m || e.target.closest("[data-done]")) { m.remove(); _driveData = null; loadDriveView(); return; }
+    const sw = e.target.closest("[data-color]");
+    if (sw) { if (await _driveSetFolderStyle(folder, { color: sw.getAttribute("data-color") || null })) { paint(); _driveRenderMain(); } return; }
+    const iq = e.target.closest("[data-icon]");
+    if (iq) { if (await _driveSetFolderStyle(folder, { icon: iq.getAttribute("data-icon") })) { paint(); _driveRenderMain(); } return; }
+  });
+}
+
 // ── Multi-select + bulk actions ────────────────────────────────────────────
 // The contextual selection bar replaces the toolbar while ≥1 doc is checked.
 function _driveRenderBulk() {
@@ -70931,6 +71008,8 @@ document.addEventListener("click", (e) => {
   if (mv) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === mv.getAttribute("data-rr-drive-move")); if (d) _driveOpenMovePicker(d); return; }
   const rn = e.target.closest("[data-rr-drive-rename]");
   if (rn) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === rn.getAttribute("data-rr-drive-rename")); if (d) _driveRenameDoc(d); return; }
+  const fst = e.target.closest("[data-rr-drive-folderstyle]");
+  if (fst) { e.stopPropagation(); const f = (_driveData?.folders || []).find(x => x.id === fst.getAttribute("data-rr-drive-folderstyle")); if (f) _driveOpenFolderStyle(f); return; }
   const frn = e.target.closest("[data-rr-drive-foldername]");
   if (frn) { e.stopPropagation(); const f = (_driveData?.folders || []).find(x => x.id === frn.getAttribute("data-rr-drive-foldername")); if (f) _driveRenameFolder(f); return; }
   const fdel = e.target.closest("[data-rr-drive-folderdel]");
