@@ -70306,7 +70306,7 @@ function _driveSectionDocs(section) {
   if (section === "all") return active;
   if (section === "recent") { const cut = Date.now() - 30 * 86400000; return active.filter(d => d.createdAt && new Date(d.createdAt).getTime() >= cut); }
   if (section === "shared") return active.filter(d => d.source === "envelope");
-  if (section === "drivers") return active.filter(d => d.driverId);
+  if (section === "drivers") return active.filter(d => d.driverId && !d.folderId);
   if (section === "fleet") return active.filter(d => d.source === "vehicle");
   if (section === "hr") return active.filter(_driveIsHr);
   if (section === "reports") return active.filter(d => d.source === "report");
@@ -70319,7 +70319,7 @@ function _driveCounts() {
     all: active.length,
     recent: _driveSectionDocs("recent").length,
     shared: _driveSectionDocs("shared").length,
-    drivers: active.filter(d => d.driverId).length,
+    drivers: active.filter(d => d.driverId && !d.folderId).length,
     fleet: _driveSectionDocs("fleet").length,
     hr: _driveSectionDocs("hr").length,
     station: 0, reports: _driveSectionDocs("reports").length,
@@ -70541,7 +70541,10 @@ function _driveRenderDetails() {
     else if (doc.archivedAt) status = `<button class="btn btn-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">Restore</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">Move to Trash</button>`;
     else status = `<button class="btn btn-sm" data-rr-drive-status="archive" data-rr-drive-id="${escapeHtml(doc.id)}">Archive</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">Move to Trash</button>`;
   }
-  const foot = open + status;
+  // Move to a custom folder — only for active (non-archived, non-trashed) files.
+  const move = (doc.path && !doc.deletedAt && !doc.archivedAt)
+    ? `<button class="btn btn-sm" data-rr-drive-move="${escapeHtml(doc.id)}">Move to…</button>` : "";
+  const foot = open + move + status;
   el.innerHTML = `
     <div class="rr-drive-det-head"><div class="rr-drive-det-name">${escapeHtml(doc.name)}</div><div class="rr-drive-det-type">${escapeHtml((doc.docType || doc.type || "Document"))}</div></div>
     ${previewBox}
@@ -70642,6 +70645,65 @@ async function _driveNewFolder() {
   _driveData = null; await loadDriveView();
 }
 
+// Move a document into a custom folder (or back to the Drive root). Updates
+// the canonical row's folder_id; mirrors a legacy doc into the store first.
+async function _driveMoveDoc(doc, folderId) {
+  if (!doc || !doc.path) return;
+  const dspId = window.RR?.dsp?.id; if (!dspId) return;
+  let error = null;
+  try {
+    if (doc.canonicalId) {
+      ({ error } = await sb.from("drive_documents").update({ folder_id: folderId || null }).eq("id", doc.canonicalId));
+    } else {
+      ({ error } = await sb.from("drive_documents").insert({
+        dsp_id: dspId, folder_id: folderId || null, driver_id: doc.driverId || null,
+        name: doc.name, doc_type: doc.docType || null,
+        category: folderId ? "custom" : (doc.source === "vehicle" ? "fleet" : (doc.driverId ? "drivers" : null)),
+        subfolder: doc.driverId ? _driveSubfolder(doc) : null,
+        bucket: doc.bucket || "driver-documents", file_path: doc.path,
+        file_size: doc.size || null, mime_type: doc.mime || null,
+        source: doc.source === "envelope" ? "envelope" : "upload",
+        tags: Array.isArray(doc.tags) ? doc.tags : [],
+        created_by: window.RR?.user?.id || null, metadata: { drive_title: doc.name },
+      }));
+    }
+  } catch (e) { error = e; }
+  if (error) {
+    const msg = String(error.message || error);
+    if (/drive_documents|does not exist|schema cache|relation|42P01/i.test(msg))
+      toast("Apply the Drive schema migration (0396) to move documents.", "warn");
+    else toast("Couldn't move: " + msg, "warn");
+    return;
+  }
+  toast(folderId ? "Moved to folder" : "Moved to Drive root", "success");
+  _driveState.selected = null; _driveData = null;
+  await loadDriveView();
+}
+
+// Folder picker overlay for "Move to…".
+function _driveOpenMovePicker(doc) {
+  const folders = (_driveData?.folders || []);
+  if (!folders.length) { toast("Create a folder first with New folder.", "info"); return; }
+  document.getElementById("rr-drive-move-pick")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-drive-move-pick";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.45));z-index:10002;display:flex;align-items:center;justify-content:center;padding:24px";
+  const items = [`<button type="button" class="rr-al-item" data-fid="">Drive root (no folder)</button>`]
+    .concat(folders.map(f => `<button type="button" class="rr-al-item" data-fid="${escapeHtml(f.id)}"><span class="rr-al-ico">${_driveFileIco(null, true)}</span><span class="rr-al-lbl">${escapeHtml(f.name)}</span></button>`));
+  m.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:16px;max-width:380px;width:100%;max-height:70vh;display:flex;flex-direction:column">
+    <div style="font-size:var(--fs-md);font-weight:700">Move document</div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(doc.name)}</div>
+    <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px">${items.join("")}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-sm" data-cancel>Cancel</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-cancel]")) { m.remove(); return; }
+    const it = e.target.closest("[data-fid]");
+    if (it) { const fid = it.getAttribute("data-fid"); m.remove(); _driveMoveDoc(doc, fid || null); }
+  });
+}
+
 // ── Interaction ──────────────────────────────────────────────────────────
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#view-drive")) return;
@@ -70659,6 +70721,8 @@ document.addEventListener("click", (e) => {
   if (dl) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === dl.getAttribute("data-rr-drive-download")); _driveOpenDoc(d, true); return; }
   const st = e.target.closest("[data-rr-drive-status]");
   if (st) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === st.getAttribute("data-rr-drive-id")); _driveSetDocStatus(d, st.getAttribute("data-rr-drive-status")); return; }
+  const mv = e.target.closest("[data-rr-drive-move]");
+  if (mv) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === mv.getAttribute("data-rr-drive-move")); if (d) _driveOpenMovePicker(d); return; }
   const vbtn = e.target.closest("[data-rr-drive-view]");
   if (vbtn) { _driveState.view = vbtn.getAttribute("data-rr-drive-view"); document.querySelectorAll("#view-drive .rr-drive-vbtn").forEach(b => b.classList.toggle("is-active", b === vbtn)); _driveRenderMain(); return; }
   const row = e.target.closest("[data-rr-drive-doc]");
