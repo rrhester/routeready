@@ -26472,6 +26472,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-icq:hover{border-color:var(--accent)}
 .rr-drive-icq.is-active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 
+/* Favorite (star) on folder cards + folderbar */
+.rr-drive-foldercard{position:relative}
+.rr-drive-fav{position:absolute;top:8px;right:8px;width:24px;height:24px;display:none;align-items:center;justify-content:center;border-radius:6px;color:var(--text-disabled);cursor:pointer}
+.rr-drive-fav svg{width:15px;height:15px}
+.rr-drive-foldercard:hover .rr-drive-fav,.rr-drive-fav.is-on{display:flex}
+.rr-drive-fav:hover{background:var(--canvas);color:var(--text-muted)}
+.rr-drive-fav.is-on,.rr-drive-fav.is-on:hover{color:#f59e0b}
+.rr-drive-folderbar-acts .btn.is-active{border-color:#f59e0b;color:#b45309}
+
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .rr-drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
 .rr-drive-tile{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);cursor:pointer;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
