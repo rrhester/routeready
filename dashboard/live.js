@@ -9181,7 +9181,101 @@ async function _downloadTerminationReport(driverId, kind) {
   }
 }
 
-// ── Driver Separation Review ────────────────────────────────────────
+// ── Coaching record · downloadable PDF ──────────────────────────────────
+// Generates and downloads a real PDF of the driver's coaching / disciplinary
+// record (the formal write-up), built from the coachings on file and rendered
+// through the same pdf-lib pipeline the employment reports use. Falls back to
+// a .txt download if pdf-lib can't load. Wired to the document icon on the
+// Attendance tab's coaching history.
+async function _downloadCoachingRecordPdf(driverId) {
+  if (!driverId) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  toast("Preparing coaching document…", "info");
+  let drv, list;
+  try {
+    const [drvRes, coachRes] = await Promise.all([
+      sb.from("drivers").select("*, station:station_id(code)").eq("id", driverId).single(),
+      sb.from("coachings").select("*").eq("dsp_id", dspId).eq("driver_id", driverId)
+        .is("archived_at", null).order("occurred_at", { ascending: false }),
+    ]);
+    drv = drvRes?.data;
+    list = coachRes?.data || [];
+  } catch (e) {
+    console.warn("coaching record load failed:", e);
+    toast("Could not load the coaching record", "error");
+    return;
+  }
+  if (!drv) { toast("Couldn't load driver", "warn"); return; }
+
+  const name = displayDriverName(drv);
+  const dsp = (window.RR && window.RR.dsp) || {};
+  const station = drv.station?.code || dsp.short_code || "—";
+  const levelOf = (c) => (typeof _coachingSevLabel === "function")
+    ? _coachingSevLabel(c.severity, c.topic, c.metadata?.attendance_reason)
+    : (_RR_SEV_LABEL[c.severity] || c.severity || "Coaching");
+  const ackOf = (c) => (c.acknowledgment && c.acknowledgment !== "none")
+    ? `Acknowledged (${c.acknowledgment})${c.acknowledged_at ? " on " + _rptDate(c.acknowledged_at) : ""}`
+    : c.signed_at ? `Signed on ${_rptDate(c.signed_at)}`
+    : c.acknowledged_at ? `Acknowledged on ${_rptDate(c.acknowledged_at)}`
+    : (c.driver_visible ? "Awaiting driver acknowledgment" : "Not visible to driver");
+
+  const L = [];
+  L.push(_rptRule("="));
+  L.push(_rptCenter((dsp.name || "Delivery Service Partner").toUpperCase()));
+  L.push(_rptCenter("Employee Coaching & Disciplinary Record"));
+  L.push(_rptRule("="));
+  L.push("");
+  L.push(`    EMPLOYEE:         ${name}`);
+  L.push(`    STATION:          ${station}`);
+  L.push(`    DATE PREPARED:    ${_rptDate(new Date().toISOString())}`);
+  L.push(`    EMPLOYER FILE:    RR-${String(drv.id).slice(0, 8).toUpperCase()}`);
+  L.push(`    RECORDS ON FILE:  ${list.length}`);
+  L.push(_rptRule("-"));
+  L.push("");
+
+  if (!list.length) {
+    L.push(_rptWrap("No coaching or disciplinary records are on file for this employee.", "    "));
+    L.push("");
+  } else {
+    list.forEach((c, i) => {
+      L.push(`RECORD ${list.length - i} OF ${list.length}`);
+      L.push("");
+      L.push(`    ${_rptPad("Level:", 18)}${levelOf(c)}`);
+      L.push(`    ${_rptPad("Date issued:", 18)}${_rptDate(c.occurred_at)}`);
+      if (c.topic) L.push(`    ${_rptPad("Topic:", 18)}${String(c.topic).replace(/_/g, " ")}`);
+      if (c.type)  L.push(`    ${_rptPad("Type:", 18)}${String(c.type).replace(/_/g, " ")}`);
+      L.push(`    ${_rptPad("Issued by:", 18)}${c.coached_by_name || "—"}`);
+      L.push(`    ${_rptPad("Acknowledgment:", 18)}${ackOf(c)}`);
+      if (c.summary) { L.push(""); L.push(`    ${_rptPad("Summary:", 18)}${c.summary}`); }
+      if (c.notes) {
+        L.push("");
+        L.push("    Notes:");
+        L.push(_rptWrap(String(c.notes), "        "));
+      }
+      L.push("");
+      L.push(_rptRule("-"));
+      L.push("");
+    });
+  }
+  L.push("CERTIFICATION");
+  L.push("");
+  L.push(_rptCertification());
+  L.push("");
+  const text = L.join("\n");
+
+  const slug = name.toLowerCase().replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "") || "driver";
+  try {
+    const bytes = await _textToPdfBytes(text);
+    _downloadBlob(`${slug}-coaching-record.pdf`, new Blob([bytes], { type: "application/pdf" }));
+    toast("Coaching document downloaded", "success");
+  } catch (e) {
+    console.warn("PDF generation failed; falling back to text:", e);
+    _downloadBlob(`${slug}-coaching-record.txt`, new Blob([text], { type: "text/plain;charset=utf-8" }));
+    toast("Downloaded as text (PDF unavailable)", "warn");
+  }
+}
+
 // Toggling a driver to Terminated opens this guided review before any
 // separation record is written. It auto-detects the compliance records
 // already on file, collects a factual employer statement + the standard
@@ -27048,9 +27142,9 @@ function _rrOpenAttEvent(el, ev) {
 
 // Delegated openers for the attendance-tab coaching rows + event rows.
 document.addEventListener("click", (e) => {
-  // Document icon → open the actual printable coaching record document.
+  // Document icon → download the actual coaching record document (PDF).
   const cdoc = e.target.closest && e.target.closest("[data-rr-coaching-doc]");
-  if (cdoc) { e.preventDefault(); e.stopPropagation(); if (typeof openCoachingPrintView === "function") openCoachingPrintView(cdoc.getAttribute("data-rr-coaching-doc")); return; }
+  if (cdoc) { e.preventDefault(); e.stopPropagation(); if (typeof _downloadCoachingRecordPdf === "function") _downloadCoachingRecordPdf(cdoc.getAttribute("data-rr-coaching-doc")); return; }
   const cr = e.target.closest && e.target.closest("[data-rr-coaching-record]");
   if (cr) { e.preventDefault(); e.stopPropagation(); _rrOpenCoachingRecord(cr.getAttribute("data-rr-coaching-record")); return; }
   const av = e.target.closest && e.target.closest("[data-rr-att-event]");
