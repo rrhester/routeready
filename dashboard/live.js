@@ -70642,7 +70642,11 @@ function _driveRenderDetails() {
   // driver_documents row). Derived names (envelopes/fleet/reports) stay fixed.
   const rename = ((doc.canonical || doc.source === "driver_documents") && !doc.deletedAt)
     ? `<button class="btn btn-sm" data-rr-drive-rename="${escapeHtml(doc.id)}">Rename</button>` : "";
-  const foot = open + rename + move + status;
+  // Duplicate — any stored file that isn't trashed; the copy is filed in the
+  // same place (driver subfolder / custom folder / All documents).
+  const dup = (doc.path && !doc.deletedAt)
+    ? `<button class="btn btn-sm" data-rr-drive-duplicate="${escapeHtml(doc.id)}">Duplicate</button>` : "";
+  const foot = open + rename + dup + move + status;
   el.innerHTML = `
     <div class="rr-drive-det-head"><div class="rr-drive-det-name">${escapeHtml(doc.name)}</div><div class="rr-drive-det-type">${escapeHtml((doc.docType || doc.type || "Document"))}</div></div>
     ${previewBox}
@@ -70813,6 +70817,65 @@ async function _driveMoveMany(docs, folderId) {
   await loadDriveView();
 }
 async function _driveMoveDoc(doc, folderId) { return _driveMoveMany([doc], folderId); }
+
+// "Name (copy).ext" — inserts the suffix before the extension.
+function _driveCopyName(name) {
+  const n = String(name || "Document");
+  const dot = n.lastIndexOf(".");
+  return dot > 0 ? `${n.slice(0, dot)} (copy)${n.slice(dot)}` : `${n} (copy)`;
+}
+// Duplicate a stored document: server-side copy of the storage object into the
+// same bucket, then a new record filed in the same place. Driver docs get a
+// driver_documents row (+ canonical mirror) so they show with or without the
+// migration; everything else becomes a canonical drive_documents row.
+async function _driveDuplicateDoc(doc) {
+  if (!doc || !doc.path) { toast("This item has no file to duplicate.", "info"); return; }
+  const dspId = window.RR?.dsp?.id; if (!dspId) return;
+  const bucket = doc.bucket || "driver-documents";
+  const newName = _driveCopyName(doc.name);
+  const dir = doc.folderId ? `${dspId}/_folders/${doc.folderId}` : (doc.driverId ? `${dspId}/${doc.driverId}` : `${dspId}/_copies`);
+  const newPath = `${dir}/${Date.now()}-${newName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  toast("Duplicating…", "info");
+  try {
+    const { error: cpErr } = await sb.storage.from(bucket).copy(doc.path, newPath);
+    if (cpErr) { toast("Couldn't duplicate the file: " + cpErr.message, "warn"); return; }
+  } catch (e) { toast("Couldn't duplicate the file.", "warn"); return; }
+  // File the duplicate. The legacy driver_documents view always assumes the
+  // driver-documents bucket, so only route there for objects actually in it;
+  // anything else (e-sign in `documents`, fleet in `vehicle-documents`) becomes
+  // a canonical row that records the real bucket.
+  if (doc.driverId && !doc.folderId && bucket === "driver-documents") {
+    const kind = (doc.source === "driver_documents" && doc.kind) ? doc.kind : "other";
+    const { error } = await sb.from("driver_documents").insert({
+      dsp_id: dspId, driver_id: doc.driverId, kind, label: newName,
+      file_path: newPath, file_size: doc.size || null, mime_type: doc.mime || null,
+      metadata: { drive_title: newName, drive_category: _driveSubfolder(doc) },
+    });
+    if (error) { try { await sb.storage.from(bucket).remove([newPath]); } catch (_) {} toast("Couldn't save the duplicate: " + error.message, "warn"); return; }
+    _driveRecordCanonical({ driverId: doc.driverId, title: newName, docType: doc.docType || _driveSubfolder(doc), category: _driveSubfolder(doc), path: newPath, size: doc.size, mime: doc.mime, source: "upload", bucket });
+  } else {
+    let error = null;
+    try {
+      ({ error } = await sb.from("drive_documents").insert({
+        dsp_id: dspId, folder_id: doc.folderId || null, driver_id: doc.driverId || null,
+        name: newName, doc_type: doc.docType || null,
+        category: doc.folderId ? "custom" : (doc.source === "vehicle" ? "fleet" : (doc.driverId ? "drivers" : null)),
+        subfolder: doc.driverId ? _driveSubfolder(doc) : null,
+        bucket, file_path: newPath, file_size: doc.size || null, mime_type: doc.mime || null,
+        source: "upload", tags: Array.isArray(doc.tags) ? doc.tags : [],
+        created_by: window.RR?.user?.id || null, metadata: { drive_title: newName },
+      }));
+    } catch (e) { error = e; }
+    if (error) {
+      try { await sb.storage.from(bucket).remove([newPath]); } catch (_) {}
+      if (_driveIsMigErr(error)) toast("Apply the Vault schema migration (0396) in Supabase to duplicate documents.", "warn");
+      else toast("Couldn't save the duplicate: " + String(error.message || error), "warn");
+      return;
+    }
+  }
+  toast("Duplicated", "success");
+  _driveState.selected = null; _driveData = null; await loadDriveView();
+}
 
 // Folder picker overlay for "Move to…" — accepts one doc or an array.
 function _driveOpenMovePicker(target) {
@@ -71039,6 +71102,8 @@ document.addEventListener("click", (e) => {
   if (mv) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === mv.getAttribute("data-rr-drive-move")); if (d) _driveOpenMovePicker(d); return; }
   const rn = e.target.closest("[data-rr-drive-rename]");
   if (rn) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === rn.getAttribute("data-rr-drive-rename")); if (d) _driveRenameDoc(d); return; }
+  const dup = e.target.closest("[data-rr-drive-duplicate]");
+  if (dup) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === dup.getAttribute("data-rr-drive-duplicate")); if (d) _driveDuplicateDoc(d); return; }
   const fst = e.target.closest("[data-rr-drive-folderstyle]");
   if (fst) { e.stopPropagation(); const f = (_driveData?.folders || []).find(x => x.id === fst.getAttribute("data-rr-drive-folderstyle")); if (f) _driveOpenFolderStyle(f); return; }
   const frn = e.target.closest("[data-rr-drive-foldername]");
