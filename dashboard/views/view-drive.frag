@@ -21,17 +21,21 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               Upload
             </button>
+            <!-- The app launcher (3×3 app drawer) docks here on Drive — see
+                 placeLauncher() in index.html — so it stays reachable. -->
+            <span class="rr-launcher-dock"></span>
           </div>
         </div>
 
-        <!-- Three-column workspace: section rail · content · details/preview.
-             All three panes are painted by loadDriveView() in live.js. -->
+        <!-- Two-column workspace: content · details/preview. (The section rail
+             was removed per operator request — category cards + the Recent /
+             Shared chips + breadcrumbs carry navigation.) -->
         <div class="rr-drive-shell">
-          <aside class="rr-drive-rail" id="rr-drive-rail" aria-label="Drive sections"></aside>
-
           <section class="rr-drive-center">
             <div class="rr-drive-toolbar">
               <nav class="rr-drive-crumbs" id="rr-drive-crumbs" aria-label="Breadcrumb"></nav>
+              <div class="rr-drive-chips" id="rr-drive-chips"></div>
+              <div class="rr-drive-tb-spacer"></div>
               <div class="rr-drive-search">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input type="search" id="rr-drive-search" placeholder="Search documents…" autocomplete="off" spellcheck="false">

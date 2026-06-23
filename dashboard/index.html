@@ -264,6 +264,16 @@
             return r.width > 0 && r.height > 0;
           }
           function placeLauncher () {
+            // A view can host the launcher in-page via a .rr-launcher-dock
+            // slot (used by Drive, which has no bell and where the floating
+            // fallback hides under the desktop title bar). Docking wins.
+            var dock = document.querySelector('.view.active .rr-launcher-dock');
+            if (dock) {
+              L.classList.remove('rr-al-fixed');
+              L.style.order = '';
+              if (L.parentNode !== dock) dock.appendChild(L);
+              return;
+            }
             var bell = document.getElementById('rr-hdr-notif');
             if (bellVisible(bell)) {
               L.classList.remove('rr-al-fixed');

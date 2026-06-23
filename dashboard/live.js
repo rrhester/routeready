@@ -70276,35 +70276,24 @@ function _driveCounts() {
 
 // ── Render ───────────────────────────────────────────────────────────────
 function _driveRender() {
-  if (!document.getElementById("view-drive")?.classList.contains("active") && !document.getElementById("rr-drive-rail")) return;
-  _driveRenderRail();
+  if (!document.getElementById("view-drive")?.classList.contains("active") && !document.getElementById("rr-drive-main")) return;
+  _driveRenderChips();
   _driveRenderCrumbs();
   _driveRenderMain();
   _driveRenderDetails();
 }
-function _driveRenderRail() {
-  const rail = document.getElementById("rr-drive-rail");
-  if (!rail) return;
+// Cross-cutting view chips (replaced the section rail) — All documents,
+// Recent, Shared. Category navigation (Drivers/Fleet/HR/Station/Reports)
+// lives in the root cards; drill-down is via breadcrumbs.
+function _driveRenderChips() {
+  const el = document.getElementById("rr-drive-chips");
+  if (!el) return;
   const c = _driveCounts();
-  const ico = {
-    all: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>',
-    recent: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
-    shared: '<path d="M16 6l-4-4-4 4"/><line x1="12" y1="2" x2="12" y2="14"/><path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/>',
-    drivers: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
-    fleet: '<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
-    hr: '<path d="M20 21v-2a4 4 0 0 0-3-3.87"/><path d="M4 21v-2a4 4 0 0 1 3-3.87"/><circle cx="12" cy="7" r="4"/>',
-    station: '<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/>',
-    reports: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
-    archive: '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>',
-    trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
-  };
-  const item = (key, label) => `<button type="button" class="rr-drive-sec${_driveState.section === key ? " is-active" : ""}" data-rr-drive-sec="${key}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ico[key]}</svg><span class="rr-drive-sec-lbl">${label}</span><span class="rr-drive-sec-cnt">${c[key] || 0}</span></button>`;
-  rail.innerHTML =
-    item("all", "All Documents") + item("recent", "Recent") + item("shared", "Shared") +
-    `<div class="rr-drive-rail-sep"></div>` +
-    item("drivers", "Drivers") + item("fleet", "Fleet") + item("hr", "HR") + item("station", "Station") + item("reports", "Reports") +
-    `<div class="rr-drive-rail-sep"></div>` +
-    item("archive", "Archive") + item("trash", "Trash");
+  const chips = [["all", "All documents", c.all], ["recent", "Recent", c.recent], ["shared", "Shared", c.shared]];
+  const atTop = !_driveState.driverId; // hide active highlight once drilled into a folder
+  el.innerHTML = chips.map(([k, l, n]) =>
+    `<button type="button" class="rr-drive-chip-btn${atTop && _driveState.section === k ? " is-active" : ""}" data-rr-drive-sec="${k}">${l}<span class="rr-drive-chip-cnt">${n || 0}</span></button>`
+  ).join("");
 }
 function _driveRenderCrumbs() {
   const el = document.getElementById("rr-drive-crumbs");
