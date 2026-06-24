@@ -24111,8 +24111,11 @@ body.rr-cmdk-open{ overflow:hidden }
    Keyed solely on .sidebar.collapsed (live.js owns it and clears the
    boot flag on init). No measured-width, no boot-flag, no hover, no
    rr-fly — those caused the children to detach/float. */
-/* EXPANDED rail: inline, in normal flow, directly under the parent. */
-.sidebar:not(.collapsed) .nav-sub.is-open{display:flex}
+/* EXPANDED rail: inline, in normal flow, directly under the parent. Outlook
+   mail-style — every folder's children stay expanded all the time (no .is-open
+   gate), so the full nav tree is always visible. The .is-open toggle still
+   governs the COLLAPSED-rail flyout below. */
+.sidebar:not(.collapsed) .nav-sub{display:flex}
 /* COLLAPSED rail: the same .is-open opens a flyout panel beside the rail. */
 .sidebar.collapsed .nav-sub.is-open{
   display:flex;position:fixed;left:64px;top:84px;width:198px;
