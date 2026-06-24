@@ -70790,19 +70790,22 @@ function _driveListHtml(docs) {
 // Folders rendered as a clean table (Folder · Items · Modified). Custom folders
 // carry data-rr-drive-folder; category folders carry data-rr-drive-sec.
 function _driveFolderRow(o) {
-  // Custom folders expose the full action set inline — Star / Customize /
-  // Rename / Delete, always visible (the same operations, and the same buttons,
-  // as the folder header bar). Category folders (Drivers, Fleet, …) are system
-  // folders, so they get no actions.
+  // Custom folders expose Star / Customize / Rename / Delete as subtle icon
+  // actions — always present but quiet, each revealing a small label on hover.
+  // Category folders (Drivers, Fleet, …) are system folders, so no actions.
   let acts = `<div class="rr-drive-frow-acts"></div>`;
   if (o.favId) {
     const id = escapeHtml(o.favId);
     const fav = _driveIsFav(o.favId);
+    const starIco = `<svg viewBox="0 0 24 24" fill="${fav ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+    const paletteIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".7" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r=".7" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r=".7" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r=".7" fill="currentColor" stroke="none"/><path d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c1.38 0 2.5-1.12 2.5-2.5 0-.61-.23-1.2-.64-1.67-.08-.1-.13-.21-.13-.33 0-.28.22-.5.5-.5H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9z"/></svg>`;
+    const pencilIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>`;
+    const trashIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
     acts = `<div class="rr-drive-frow-acts">
-      <button type="button" class="btn btn-sm rr-drive-fbtn${fav ? " is-active" : ""}" data-rr-drive-fav="${id}">${fav ? "★ Starred" : "☆ Star"}</button>
-      <button type="button" class="btn btn-sm rr-drive-fbtn" data-rr-drive-folderstyle="${id}">Customize</button>
-      <button type="button" class="btn btn-sm rr-drive-fbtn" data-rr-drive-foldername="${id}">Rename</button>
-      <button type="button" class="btn btn-sm rr-drive-fbtn rr-drive-fbtn-del" data-rr-drive-folderdel="${id}">Delete</button>
+      <button type="button" class="rr-drive-fact${fav ? " is-fav" : ""}" data-rr-drive-fav="${id}" data-tip="${fav ? "Starred" : "Star"}" aria-label="${fav ? "Unstar folder" : "Star folder"}">${starIco}</button>
+      <button type="button" class="rr-drive-fact" data-rr-drive-folderstyle="${id}" data-tip="Customize" aria-label="Customize folder">${paletteIco}</button>
+      <button type="button" class="rr-drive-fact" data-rr-drive-foldername="${id}" data-tip="Rename" aria-label="Rename folder">${pencilIco}</button>
+      <button type="button" class="rr-drive-fact rr-drive-fact-del" data-rr-drive-folderdel="${id}" data-tip="Delete" aria-label="Delete folder">${trashIco}</button>
     </div>`;
   }
   return `<div class="rr-drive-frow" ${o.attr}>
