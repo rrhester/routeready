@@ -70080,7 +70080,7 @@ document.addEventListener("click", (e) => {
 // duplicated — rows reference the real storage objects. Schema-backed folders,
 // auto-filing of generated docs, and DOCX/XLSX preview land in Phase 2.
 // ═══════════════════════════════════════════════════════════════════════════
-let _driveState = { section: "all", driverId: null, sub: null, folderId: null, query: "", view: "list", selected: null, sort: { key: "modified", dir: "desc" }, checked: new Set(), anchor: null };
+let _driveState = { section: "all", driverId: null, sub: null, folderId: null, query: "", view: "list", selected: null, sort: { key: "modified", dir: "desc" }, checked: new Set(), anchor: null, filter: "all" };
 let _driveData = null;        // { docs:[], drivers:[], driverMap:Map }
 let _driveLoadedFor = null;   // dsp id the cache was built for
 let _driveLoading = false;
@@ -70346,9 +70346,10 @@ function _driveCmp(a, b) {
   let r;
   if (s.key === "name") r = _driveCollator.compare(a.name || "", b.name || "");
   else if (s.key === "type") r = _driveCollator.compare(a.docType || a.type || "", b.docType || b.type || "");
-  else if (s.key === "location") r = _driveCollator.compare(_driveLoc(a), _driveLoc(b));
+  else if (s.key === "location") r = _driveCollator.compare((typeof _driveLocOf === "function" ? _driveLocOf(a) : _driveLoc(a)), (typeof _driveLocOf === "function" ? _driveLocOf(b) : _driveLoc(b)));
+  else if (s.key === "owner") r = _driveCollator.compare(a.createdBy || "", b.createdBy || "");
   else if (s.key === "size") r = (a.size || 0) - (b.size || 0);
-  else r = (new Date(a.createdAt || 0).getTime()) - (new Date(b.createdAt || 0).getTime());
+  else r = (new Date(a.modifiedAt || a.createdAt || 0).getTime()) - (new Date(b.modifiedAt || b.createdAt || 0).getTime());
   r *= (s.dir === "asc" ? 1 : -1);
   if (r === 0) r = (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime());
   return r;
@@ -70407,7 +70408,7 @@ function _driveCounts() {
 function _driveRender() {
   if (!document.getElementById("view-drive")?.classList.contains("active") && !document.getElementById("rr-drive-main")) return;
   _driveRenderGoogleBanner();
-  _driveRenderChips();
+  _driveRenderNav();
   _driveRenderCrumbs();
   _driveRenderBulk();
   _driveRenderMain();
@@ -70493,20 +70494,60 @@ async function _driveConnectGoogle(triggerBtn) {
 // Cross-cutting view chips (replaced the section rail) — All documents,
 // Recent, Shared. Category navigation (Drivers/Fleet/HR/Station/Reports)
 // lives in the root cards; drill-down is via breadcrumbs.
-function _driveRenderChips() {
-  const el = document.getElementById("rr-drive-chips");
+const _DRIVE_NAV_ICO = {
+  all: `<path d="M3 7h18M3 12h18M3 17h18"/>`,
+  activity: `<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>`,
+  shared: `<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>`,
+  recent: `<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>`,
+  starred: `<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`,
+  compliance: `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>`,
+  archive: `<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><line x1="10" y1="12" x2="14" y2="12"/>`,
+  trash: `<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>`,
+  admin: `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
+};
+function _driveNavIco(k) { return `<svg viewBox="0 0 24 24" fill="${k === "starred" ? "none" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${_DRIVE_NAV_ICO[k] || ""}</svg>`; }
+// Left navigation rail (enterprise DMS). Same data-rr-drive-sec contract the
+// old chips used, so the click delegate is unchanged.
+function _driveRenderNav() {
+  const el = document.getElementById("rr-drive-navlist");
   if (!el) return;
   const c = _driveCounts();
-  const chips = [["all", "All documents", c.all], ["recent", "Recent", c.recent], ["shared", "Shared", c.shared], ["compliance", "Compliance", c.compliance], ["archive", "Archive", c.archive], ["trash", "Trash", c.trash]];
-  const atTop = !_driveState.driverId && !_driveState.folderId; // hide active highlight once drilled into a folder
-  el.innerHTML = chips.map(([k, l, n]) =>
-    `<button type="button" class="rr-drive-chip-btn${atTop && _driveState.section === k ? " is-active" : ""}${k === "compliance" && n ? " rr-drive-chip-alert" : ""}" data-rr-drive-sec="${k}">${l}<span class="rr-drive-chip-cnt">${n || 0}</span></button>`
-  ).join("");
+  const atTop = !_driveState.driverId && !_driveState.folderId;
+  const item = (k, l, n, alert) => `<button type="button" class="rr-drive-navitem${atTop && _driveState.section === k ? " is-active" : ""}${alert ? " is-alert" : ""}" data-rr-drive-sec="${k}">
+    <span class="rr-drive-navico">${_driveNavIco(k)}</span><span class="rr-drive-navlbl">${l}</span>${n ? `<span class="rr-drive-navcnt">${n}</span>` : ""}</button>`;
+  const primary = [
+    item("all", "Vault", c.all),
+    item("activity", "Activity", 0),
+    item("shared", "Shared", c.shared),
+    item("recent", "Recent", c.recent),
+    item("starred", "Starred", _driveGetFavs().size),
+  ].join("");
+  const secondary = [
+    item("compliance", "Compliance", c.compliance, c.compliance > 0),
+    item("archive", "Archive", c.archive),
+    item("trash", "Trash", c.trash),
+  ].join("");
+  el.innerHTML = primary + `<div class="rr-drive-navsep"></div>` + secondary;
+  _driveRenderNavFoot();
+}
+function _driveRenderNavFoot() {
+  const el = document.getElementById("rr-drive-navfoot");
+  if (!el) return;
+  const docs = (_driveData?.docs || []).filter(d => !d.archivedAt && !d.deletedAt);
+  let bytes = 0; for (const d of docs) bytes += (d.size || 0);
+  el.innerHTML = `
+    <div class="rr-drive-storage">
+      <div class="rr-drive-storage-t">Storage</div>
+      <div class="rr-drive-storage-v">${docs.length} item${docs.length === 1 ? "" : "s"}${bytes ? " · " + _driveFmtSize(bytes) : ""}</div>
+    </div>
+    <button type="button" class="rr-drive-navitem rr-drive-navfootbtn" data-rr-drive-admin>
+      <span class="rr-drive-navico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+      <span class="rr-drive-navlbl">Admin Console</span></button>`;
 }
 function _driveRenderCrumbs() {
   const el = document.getElementById("rr-drive-crumbs");
   if (!el) return;
-  const SEC = { all: "All Documents", recent: "Recent", shared: "Shared", compliance: "Compliance", drivers: "Drivers", fleet: "Fleet", hr: "HR", station: "Station", reports: "Reports", archive: "Archive", trash: "Trash" };
+  const SEC = { all: "Vault", activity: "Activity", recent: "Recent", shared: "Shared", starred: "Starred", compliance: "Compliance", drivers: "Drivers", fleet: "Fleet", hr: "HR", station: "Station", reports: "Reports", archive: "Archive", trash: "Trash" };
   const crumbs = [{ label: "Vault", to: { section: "all" } }];
   if (_driveState.folderId) {
     // Walk the custom-folder chain to the root for the breadcrumb.
@@ -70567,34 +70608,49 @@ function _driveRenderMain() {
   }
 
   const s = _driveState.section;
-  // Root (All Documents): quick-access (Starred / Recent) + custom folders +
-  // category cards + everything below.
+  // Vault home: Quick access · Folders (table) · Documents (table).
   if (s === "all") {
     const c = _driveCounts();
     const allFolders = (_driveData?.folders || []);
     const favSet = _driveGetFavs();
     const byId = new Map(allFolders.map(f => [f.id, f]));
-    const starred = allFolders.filter(f => favSet.has(f.id));
-    const recent = _driveGetRecent().map(id => byId.get(id)).filter(f => f && !favSet.has(f.id)).slice(0, 6);
+    // Quick access — a few frequently-used folders (starred first, then recent).
+    const quickIds = [];
+    for (const f of allFolders) if (favSet.has(f.id)) quickIds.push(f.id);
+    for (const id of _driveGetRecent()) if (byId.has(id) && !quickIds.includes(id)) quickIds.push(id);
+    const quick = quickIds.map(id => byId.get(id)).filter(Boolean).slice(0, 4);
+    // Folders table — custom root folders + the category folders.
     const rootFolders = allFolders.filter(x => !x.parent_id);
     const cats = [["drivers", "Drivers"], ["fleet", "Fleet"], ["hr", "HR"], ["station", "Station"], ["reports", "Reports"]];
-    const cards = cats.map(([key, label]) => {
-      const list = _driveSectionDocs(key);
-      return `<button type="button" class="rr-drive-card" data-rr-drive-sec="${key}">
-        <span class="rr-drive-card-ico">${_driveFileIco(null, true)}</span>
-        <span class="rr-drive-card-body"><span class="rr-drive-card-name">${label}</span>
-        <span class="rr-drive-card-meta">${c[key] || 0} item${(c[key] || 0) === 1 ? "" : "s"} · ${_driveLastMod(list)}</span></span>
-      </button>`;
-    }).join("");
-    const section = (head, body) => `<div class="rr-drive-sectionhead">${head}</div>${body}`;
-    const cardRow = (list) => `<div class="rr-drive-cards">${list.map(_driveFolderCard).join("")}</div>`;
+    const catIco = _driveFileIco(null, true);
+    const folderRows = rootFolders.map(_driveCustomFolderRowData).concat(
+      cats.map(([key, label]) => ({
+        name: label, items: `${c[key] || 0} item${(c[key] || 0) === 1 ? "" : "s"}`, modified: _driveLastMod(_driveSectionDocs(key)),
+        attr: `data-rr-drive-sec="${key}"`, color: null, ico: catIco, favId: null,
+      }))
+    );
     const blocks = [];
-    if (starred.length) blocks.push(section("Starred", cardRow(starred)));
-    if (recent.length) blocks.push(section("Recent folders", cardRow(recent)));
-    if (rootFolders.length) blocks.push(section("Folders", cardRow(rootFolders)));
-    blocks.push(section("Categories", `<div class="rr-drive-cards">${cards}</div>`));
-    blocks.push(section("All documents", _driveListHtml(_driveSectionDocs("all"), true)));
-    main.innerHTML = blocks.map((b, i) => i === 0 ? b : b.replace('class="rr-drive-sectionhead"', 'class="rr-drive-sectionhead" style="margin-top:22px"')).join("");
+    if (quick.length) blocks.push(`<div class="rr-drive-sectionhead">Quick access</div><div class="rr-drive-quick">${quick.map(_driveFolderCard).join("")}</div>`);
+    blocks.push(`<div class="rr-drive-sectionhead">Folders</div>${_driveFoldersTable(folderRows)}`);
+    blocks.push(`<div class="rr-drive-sectionhead">Documents</div>${_driveListHtml(_driveSectionDocs("all"))}`);
+    main.innerHTML = blocks.map((b, i) => i === 0 ? b : b.replace('class="rr-drive-sectionhead"', 'class="rr-drive-sectionhead rr-drive-sectionhead-gap"')).join("");
+    return;
+  }
+
+  // Starred — starred folders.
+  if (s === "starred") {
+    const favSet = _driveGetFavs();
+    const starred = (_driveData?.folders || []).filter(f => favSet.has(f.id));
+    if (!starred.length) { main.innerHTML = `<div class="rr-drive-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><div class="rr-drive-empty-title">Nothing starred yet</div><div class="rr-drive-empty-sub">Star a folder to pin it here for quick access.</div></div>`; return; }
+    main.innerHTML = `<div class="rr-drive-sectionhead">Starred folders</div>${_driveFoldersTable(starred.map(_driveCustomFolderRowData))}`;
+    return;
+  }
+
+  // Activity — every document, most recently changed first (a lightweight feed).
+  if (s === "activity") {
+    const list = ((_driveData?.docs || []).filter(d => !d.archivedAt && !d.deletedAt))
+      .slice().sort((a, b) => new Date(b.modifiedAt || b.createdAt || 0) - new Date(a.modifiedAt || a.createdAt || 0));
+    main.innerHTML = `<div class="rr-drive-sectionhead">Recent activity</div>${list.length ? _driveListHtml(list) : _driveEmpty()}`;
     return;
   }
 
@@ -70678,8 +70734,30 @@ function _driveComplianceHtml() {
     : `<div class="rr-drive-sectionhead">${list.length} document${list.length === 1 ? "" : "s"} with an expiry · all current.</div>`;
   return note + `<div class="rr-drive-list rr-drive-complist">${head}${rows}</div>`;
 }
-function _driveListHtml(docs, showLoc) {
+// Where a document lives, for the Location column.
+function _driveLocOf(d) {
+  if (d.folderId) { const f = (_driveData?.folders || []).find(x => x.id === d.folderId); return f ? f.name : "Folder"; }
+  if (d.driverName) return d.driverName;
+  if (d.source === "vehicle") return "Fleet";
+  if (d.source === "report") return "Reports";
+  return "Vault";
+}
+function _driveOwner(d) { return d.createdBy || (d.source === "envelope" ? "E-signature" : "—"); }
+// Type filter (toolbar Filter menu).
+function _driveApplyFilter(docs) {
+  const f = _driveState.filter || "all";
+  if (f === "all") return docs;
+  if (f === "google") return docs.filter(d => d.isGoogle);
+  if (f === "pdf") return docs.filter(d => d.type === "pdf");
+  if (f === "image") return docs.filter(d => d.type === "img");
+  if (f === "office") return docs.filter(d => d.type === "doc" || d.type === "xls" || (!d.isGoogle && (d.type === "gdoc")));
+  if (f === "folder") return docs;
+  return docs;
+}
+function _driveListHtml(docs) {
   if (!docs || !docs.length) return _driveEmpty();
+  docs = _driveApplyFilter(docs);
+  if (!docs.length) return `<div class="rr-drive-empty"><div class="rr-drive-empty-title">No matching documents</div><div class="rr-drive-empty-sub">Nothing matches the current filter.</div></div>`;
   const ck = (id) => _driveState.checked?.has(id);
   const checkBox = (id) => `<span class="rr-drive-check" data-rr-drive-check="${escapeHtml(id)}" role="checkbox" aria-checked="${ck(id) ? "true" : "false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
   if (_driveState.view === "grid") {
@@ -70687,30 +70765,50 @@ function _driveListHtml(docs, showLoc) {
       `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${(d.path || d.isGoogle) ? "true" : "false"}">
         <span class="rr-drive-tile-ico t-${d.type}">${_driveFileIco(d.type)}${checkBox(d.id)}</span>
         <span class="rr-drive-tile-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
-        <span class="rr-drive-tile-meta">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "")} · ${_driveFmtDate(d.createdAt)}</span>
+        <span class="rr-drive-tile-meta">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "")} · ${_driveFmtDate(d.modifiedAt || d.createdAt)}</span>
       </button>`).join("");
     return `<div class="rr-drive-grid">${tiles}</div>`;
   }
   const rows = docs.slice().sort(_driveCmp).map(d => {
     const sel = (_driveState.selected === d.id ? " is-selected" : "") + (ck(d.id) ? " is-checked" : "");
-    const loc = d.driverName || (d.source === "vehicle" ? "Fleet" : d.source === "report" ? "Reports" : "—");
     return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${(d.path || d.isGoogle) ? "true" : "false"}">
       <div class="rr-drive-name"><span class="rr-drive-figbox"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span>${checkBox(d.id)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>
       <div class="rr-drive-cell">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "—")}</div>
-      <div class="rr-drive-cell">${showLoc ? escapeHtml(loc) : _driveFmtDate(d.createdAt)}</div>
-      <div class="rr-drive-cell">${showLoc ? _driveFmtDate(d.createdAt) : _driveFmtSize(d.size)}</div>
-      <div class="rr-drive-rowact"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+      <div class="rr-drive-cell rr-drive-cell-soft">${escapeHtml(_driveLocOf(d))}</div>
+      <div class="rr-drive-cell rr-drive-cell-soft">${_driveFmtDate(d.modifiedAt || d.createdAt)}</div>
+      <div class="rr-drive-cell rr-drive-cell-soft">${escapeHtml(_driveOwner(d))}</div>
     </div>`;
   }).join("");
-  const cols = showLoc
-    ? [["name", "Name"], ["type", "Type"], ["location", "Location"], ["modified", "Modified"]]
-    : [["name", "Name"], ["type", "Type"], ["modified", "Modified"], ["size", "Size"]];
+  const cols = [["name", "Name"], ["type", "Type"], ["location", "Location"], ["modified", "Modified"], ["owner", "Owner"]];
   const s = _driveState.sort || { key: "modified", dir: "desc" };
   const head = `<div class="rr-drive-lhead">` + cols.map(([k, l]) => {
     const on = s.key === k;
     return `<button type="button" class="rr-drive-sortbtn${on ? " is-active" : ""}" data-rr-drive-sort="${k}">${l}${on ? `<span class="rr-drive-caret">${s.dir === "asc" ? "▲" : "▼"}</span>` : ""}</button>`;
-  }).join("") + `<div></div></div>`;
+  }).join("") + `</div>`;
   return `<div class="rr-drive-list">${head}${rows}</div>`;
+}
+// Folders rendered as a clean table (Folder · Items · Modified). Custom folders
+// carry data-rr-drive-folder; category folders carry data-rr-drive-sec.
+function _driveFolderRow(o) {
+  const star = o.favId ? `<span class="rr-drive-fav${_driveIsFav(o.favId) ? " is-on" : ""}" data-rr-drive-fav="${escapeHtml(o.favId)}" role="button" aria-label="Star folder">${_driveStarSvg(_driveIsFav(o.favId))}</span>` : "";
+  return `<div class="rr-drive-frow" ${o.attr}>
+    <div class="rr-drive-fname"><span class="rr-drive-fico is-folder"${o.color ? ` style="color:${o.color}"` : ""}>${o.ico}</span><span class="rr-drive-name-txt">${escapeHtml(o.name)}</span>${star}</div>
+    <div class="rr-drive-fcell rr-drive-cell-soft">${o.items}</div>
+    <div class="rr-drive-fcell rr-drive-cell-soft">${o.modified || "—"}</div>
+  </div>`;
+}
+function _driveFoldersTable(rows) {
+  if (!rows.length) return "";
+  const head = `<div class="rr-drive-fhead"><div>Folder</div><div>Items</div><div>Modified</div></div>`;
+  return `<div class="rr-drive-ftable">${head}${rows.map(_driveFolderRow).join("")}</div>`;
+}
+// Build a folder-table row for a custom folder.
+function _driveCustomFolderRowData(f) {
+  const docs = ((_driveData?.docs) || []).filter(d => d.folderId === f.id && !d.archivedAt && !d.deletedAt);
+  return {
+    name: f.name, items: `${docs.length} item${docs.length === 1 ? "" : "s"}`, modified: _driveLastMod(docs),
+    attr: `data-rr-drive-folder="${escapeHtml(f.id)}"`, color: _driveFolderColor(f.metadata), ico: _driveFolderIcoSvg(f.metadata), favId: f.id,
+  };
 }
 function _driveEmpty(section) {
   const sub = section === "station" ? "Station-level documents will appear here once uploaded."
@@ -71344,6 +71442,9 @@ document.addEventListener("click", (e) => {
   // context on the page header can clip it).
   if (e.target.closest("#rr-drive-new")) { e.stopPropagation(); _driveOpenNewMenu(); return; }
   if (e.target.closest("#rr-drive-generate")) { toast("Generate documents from a driver record (Create coaching, attendance, reports).", "info"); if (typeof window.goto === "function") window.goto("drivers"); return; }
+  if (e.target.closest("#rr-drive-sortbtn")) { e.stopPropagation(); _driveOpenSortMenu(); return; }
+  if (e.target.closest("#rr-drive-filterbtn")) { e.stopPropagation(); _driveOpenFilterMenu(); return; }
+  if (e.target.closest("[data-rr-drive-admin]")) { if (typeof window.goto === "function") window.goto("admin"); return; }
 });
 document.addEventListener("input", (e) => {
   if (e.target && e.target.id === "rr-drive-search") { _driveState.query = e.target.value || ""; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRenderBulk(); _driveRenderMain(); }
@@ -71421,6 +71522,41 @@ document.addEventListener("change", async (e) => {
 // Body-anchored popover positioned under the New button. Built on demand and
 // appended to <body> (fixed position) so no ancestor's overflow/stacking can
 // hide it — the same pattern the Move / Customize / Template pickers use.
+// Generic body-anchored dropdown under a toolbar button (sort / filter).
+let _driveMenuClose = null;
+function _driveAnchoredMenu(btn, items, onPick, align) {
+  if (_driveMenuClose) _driveMenuClose();
+  if (!btn) return;
+  const r = btn.getBoundingClientRect();
+  const pop = document.createElement("div");
+  pop.className = "rr-drive-newmenu rr-drive-popmenu";
+  const rightPx = Math.round(Math.max(8, window.innerWidth - r.right));
+  pop.style.cssText = `position:fixed;top:${Math.round(r.bottom + 6)}px;${align === "left" ? `left:${Math.round(r.left)}px` : `right:${rightPx}px`};z-index:10050;min-width:190px`;
+  pop.innerHTML = items.map(it => it.sep
+    ? `<div class="rr-drive-newmenu-sep"></div>`
+    : `<button type="button" class="rr-drive-newitem${it.active ? " is-active" : ""}" data-k="${escapeHtml(it.key)}"><span class="rr-drive-newcheck">${it.active ? "✓" : ""}</span>${escapeHtml(it.label)}</button>`).join("");
+  document.body.appendChild(pop);
+  const close = () => { pop.remove(); document.removeEventListener("click", onDoc, true); document.removeEventListener("keydown", onKey, true); _driveMenuClose = null; };
+  _driveMenuClose = close;
+  const onDoc = (ev) => { if (!pop.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) close(); };
+  const onKey = (ev) => { if (ev.key === "Escape") close(); };
+  setTimeout(() => { document.addEventListener("click", onDoc, true); document.addEventListener("keydown", onKey, true); }, 0);
+  pop.addEventListener("click", (ev) => { const it = ev.target.closest("[data-k]"); if (!it) return; close(); onPick(it.getAttribute("data-k")); });
+}
+function _driveOpenSortMenu() {
+  const s = _driveState.sort || { key: "modified", dir: "desc" };
+  const opt = (key, label) => ({ key, label: label + (s.key === key ? (s.dir === "asc" ? " ↑" : " ↓") : ""), active: s.key === key });
+  _driveAnchoredMenu(document.getElementById("rr-drive-sortbtn"),
+    [opt("name", "Name"), opt("modified", "Last modified"), opt("type", "Type"), opt("location", "Location"), opt("owner", "Owner")],
+    (k) => { const st = _driveState.sort; if (st.key === k) st.dir = st.dir === "asc" ? "desc" : "asc"; else { st.key = k; st.dir = (k === "name" || k === "type" || k === "location" || k === "owner") ? "asc" : "desc"; } _driveRenderMain(); });
+}
+function _driveOpenFilterMenu() {
+  const f = _driveState.filter || "all";
+  const opt = (key, label) => ({ key, label, active: f === key });
+  _driveAnchoredMenu(document.getElementById("rr-drive-filterbtn"),
+    [opt("all", "All types"), opt("google", "Google files"), opt("pdf", "PDF"), opt("image", "Images"), opt("office", "Word / Excel")],
+    (k) => { _driveState.filter = k; const btn = document.getElementById("rr-drive-filterbtn"); if (btn) btn.classList.toggle("is-active", k !== "all"); _driveRenderMain(); });
+}
 let _driveNewPopClose = null;
 function _driveOpenNewMenu() {
   if (_driveNewPopClose) { _driveNewPopClose(); return; }   // toggle closed
@@ -71439,14 +71575,16 @@ function _driveOpenNewMenu() {
   pop.id = "rr-drive-newpop";
   pop.className = "rr-drive-newmenu";
   pop.setAttribute("role", "menu");
-  pop.style.cssText = `position:fixed;top:${Math.round(r.bottom + 6)}px;right:${Math.round(Math.max(8, window.innerWidth - r.right))}px;z-index:10050`;
+  pop.style.cssText = `position:fixed;top:${Math.round(r.bottom + 6)}px;left:${Math.round(r.left)}px;z-index:10050`;
+  const genIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`;
   pop.innerHTML =
     item("folder", "Folder", folderIco) +
     item("upload", "Upload file", uploadIco) + sep +
     item("gdoc", "Google Doc", _driveFileIco("gdoc"), "t-gdoc") +
     item("gsheet", "Google Sheet", _driveFileIco("gsheet"), "t-gsheet") +
     item("gslide", "Google Slide", _driveFileIco("gslide"), "t-gslide") + sep +
-    item("template", "From template", tplIco);
+    item("template", "From template", tplIco) +
+    item("generate", "Generate from record", genIco);
   document.body.appendChild(pop);
 
   const close = () => {
@@ -71472,6 +71610,7 @@ function _driveOpenNewMenu() {
     else if (what === "gsheet") _driveCreateGoogle("spreadsheet");
     else if (what === "gslide") _driveCreateGoogle("presentation");
     else if (what === "template") _driveOpenTemplatePicker();
+    else if (what === "generate") { toast("Generate documents from a driver record (coaching, attendance, reports).", "info"); if (typeof window.goto === "function") window.goto("drivers"); }
   });
 }
 function _driveDateStamp(d) {
