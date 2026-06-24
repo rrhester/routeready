@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=50dcb6ba77b4";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=50dcb6ba77b4";
+import { planScheduleWeek } from "./scheduling-engine.js?v=fdd0825ce582";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=fdd0825ce582";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70527,8 +70527,37 @@ function _driveRenderNav() {
     item("archive", "Archive", c.archive),
     item("trash", "Trash", c.trash),
   ].join("");
-  el.innerHTML = primary + `<div class="rr-drive-navsep"></div>` + secondary;
+  el.innerHTML = primary + `<div class="rr-drive-navsep"></div>` + secondary + _driveNavFoldersHtml(c);
   _driveRenderNavFoot();
+}
+// Folders in the left rail · the same root + category folders the Vault home
+// lists, surfaced in the nav so every folder is reachable from anywhere (the
+// far-left tree, operator request). Custom folders navigate by id
+// (data-rr-drive-folder); category folders by section (data-rr-drive-sec) —
+// both click handlers already exist, so these are just more entry points.
+function _driveNavFoldersHtml(c) {
+  c = c || _driveCounts();
+  const roots = (_driveData?.folders || []).filter((f) => !f.parent_id);
+  const hiddenCats = _driveGetHiddenCats();
+  const cats = [["drivers", "Drivers"], ["fleet", "Fleet"], ["hr", "HR"], ["station", "Station"], ["reports", "Reports"]]
+    .filter(([k]) => !hiddenCats.has(k));
+  if (!roots.length && !cats.length) return "";
+  const docs = (_driveData?.docs) || [];
+  const fcount = (id) => docs.filter((d) => d.folderId === id && !d.archivedAt && !d.deletedAt).length;
+  const row = (attr, label, ico, color, active, n) =>
+    `<button type="button" class="rr-drive-navitem rr-drive-navfolder${active ? " is-active" : ""}" ${attr}>` +
+    `<span class="rr-drive-navico"${color ? ` style="color:${color}"` : ""}>${ico}</span>` +
+    `<span class="rr-drive-navlbl">${escapeHtml(label)}</span>${n ? `<span class="rr-drive-navcnt">${n}</span>` : ""}</button>`;
+  const custom = roots.map((f) => row(
+    `data-rr-drive-folder="${escapeHtml(f.id)}"`, f.name, _driveFolderIcoSvg(f.metadata), _driveFolderColor(f.metadata),
+    _driveState.folderId === f.id, fcount(f.id),
+  )).join("");
+  const catIco = _driveFileIco(null, true);
+  const catRows = cats.map(([key, label]) => row(
+    `data-rr-drive-sec="${key}"`, label, catIco, null,
+    !_driveState.folderId && !_driveState.driverId && _driveState.section === key, c[key] || 0,
+  )).join("");
+  return `<div class="rr-drive-navsep"></div><div class="rr-drive-navhead">Folders</div>` + custom + catRows;
 }
 function _driveRenderNavFoot() {
   const el = document.getElementById("rr-drive-navfoot");
