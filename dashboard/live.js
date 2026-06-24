@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=fdd0825ce582";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=fdd0825ce582";
+import { planScheduleWeek } from "./scheduling-engine.js?v=8b9c3066605b";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=8b9c3066605b";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70641,34 +70641,10 @@ function _driveRenderMain() {
   }
 
   const s = _driveState.section;
-  // Vault home: Quick access · Folders (table) · Documents (table).
+  // Vault home: folders (and Quick access) live in the left rail now (operator
+  // request), so the home view shows just the Documents list.
   if (s === "all") {
-    const c = _driveCounts();
-    const allFolders = (_driveData?.folders || []);
-    const favSet = _driveGetFavs();
-    const byId = new Map(allFolders.map(f => [f.id, f]));
-    // Quick access — a few frequently-used folders (starred first, then recent).
-    const quickIds = [];
-    for (const f of allFolders) if (favSet.has(f.id)) quickIds.push(f.id);
-    for (const id of _driveGetRecent()) if (byId.has(id) && !quickIds.includes(id)) quickIds.push(id);
-    const quick = quickIds.map(id => byId.get(id)).filter(Boolean).slice(0, 4);
-    // Folders table — custom root folders + the (non-hidden) category folders.
-    const rootFolders = allFolders.filter(x => !x.parent_id);
-    const hiddenCats = _driveGetHiddenCats();
-    const cats = [["drivers", "Drivers"], ["fleet", "Fleet"], ["hr", "HR"], ["station", "Station"], ["reports", "Reports"]].filter(([key]) => !hiddenCats.has(key));
-    const catIco = _driveFileIco(null, true);
-    const folderRows = rootFolders.map(_driveCustomFolderRowData).concat(
-      cats.map(([key, label]) => ({
-        name: label, items: `${c[key] || 0} item${(c[key] || 0) === 1 ? "" : "s"}`, modified: _driveLastMod(_driveSectionDocs(key)),
-        attr: `data-rr-drive-sec="${key}"`, color: null, ico: catIco, favId: null, secKey: key,
-      }))
-    );
-    const hiddenLink = hiddenCats.size ? `<button type="button" class="rr-drive-showhidden" data-rr-drive-unhide><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Show ${hiddenCats.size} hidden folder${hiddenCats.size === 1 ? "" : "s"}</button>` : "";
-    const blocks = [];
-    if (quick.length) blocks.push(`<div class="rr-drive-sectionhead">Quick access</div><div class="rr-drive-quick">${quick.map(_driveFolderCard).join("")}</div>`);
-    blocks.push(`<div class="rr-drive-sectionhead">Folders</div>${_driveFoldersTable(folderRows)}${hiddenLink}`);
-    blocks.push(`<div class="rr-drive-sectionhead">Documents</div>${_driveListHtml(_driveSectionDocs("all"))}`);
-    main.innerHTML = blocks.map((b, i) => i === 0 ? b : b.replace('class="rr-drive-sectionhead"', 'class="rr-drive-sectionhead rr-drive-sectionhead-gap"')).join("");
+    main.innerHTML = `<div class="rr-drive-sectionhead">Documents</div>${_driveListHtml(_driveSectionDocs("all"))}`;
     return;
   }
 
