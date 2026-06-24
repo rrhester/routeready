@@ -3,7 +3,7 @@
         <!-- style block 40 extracted to inline-styles.css -->
         <div class="em-cmd-shell" id="rr-em-cmd">
           <div class="em-cmd-tabs" role="tablist" aria-label="Command strip mode">
-            <button class="em-cmd-tab active" type="button" data-em-cmd-tab="email" role="tab" aria-selected="true">Fleet Bridge</button>
+            <button class="em-cmd-tab active" type="button" data-em-cmd-tab="email" role="tab" aria-selected="true">Email</button>
             <button class="em-cmd-tab" type="button" data-em-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
           <div class="em-header">
@@ -12,7 +12,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
               </div>
               <div>
-                <h1 class="page-title">Fleet Bridge</h1>
+                <h1 class="page-title">Email</h1>
                 <p class="page-sub" id="rr-fb-team-email" title="Your DSP's team email. Outbound from this address; inbound here lands in Inbox."></p>
               </div>
             </div>

@@ -101,9 +101,9 @@
 <link rel="preconnect" href="https://doiwrhkirgblcvuskhno.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm">
-<link rel="modulepreload" href="./scheduling-engine.js?v=f297be60e552">
-<link rel="modulepreload" href="./flex-capacity.js?v=f297be60e552">
-<link rel="stylesheet" href="../app/rr-system.css?v=f297be60e552">
+<link rel="modulepreload" href="./scheduling-engine.js?v=50dcb6ba77b4">
+<link rel="modulepreload" href="./flex-capacity.js?v=50dcb6ba77b4">
+<link rel="stylesheet" href="../app/rr-system.css?v=50dcb6ba77b4">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
@@ -112,16 +112,16 @@
      structural classes). Single source of truth for chrome
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
-<link rel="stylesheet" href="tcp.css?v=f297be60e552">
-<link rel="stylesheet" href="schedule-rrx.css?v=f297be60e552">
+<link rel="stylesheet" href="tcp.css?v=50dcb6ba77b4">
+<link rel="stylesheet" href="schedule-rrx.css?v=50dcb6ba77b4">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
-<link rel="stylesheet" href="onboarding-rrx.css?v=f297be60e552">
+<link rel="stylesheet" href="onboarding-rrx.css?v=50dcb6ba77b4">
 <!-- The dashboard's former inline styles · extracted so the no-cache
      HTML shell stops re-shipping ~1.2MB of CSS on every load; this
      file is cacheable and busts via the ?v= token like the rest. -->
-<link rel="stylesheet" href="inline-styles.css?v=f297be60e552">
+<link rel="stylesheet" href="inline-styles.css?v=50dcb6ba77b4">
 <!-- style block 0 extracted to inline-styles.css -->
 </head>
 <body>
@@ -132,7 +132,7 @@
      once boot completes; a hard 8s cap below prevents a stuck overlay. -->
 <!-- style block 1 extracted to inline-styles.css -->
 <div id="rr-boot-overlay" aria-hidden="true">
-  <div class="rr-boot-mark">R</div>
+  <div class="rr-boot-mark"><img src="../app/icon.svg" alt="RouteReady"></div>
   <div class="rr-boot-spin"></div>
   <div class="rr-boot-text">Loading your fleet…</div>
   <div class="rr-boot-err" role="alert">
@@ -199,7 +199,168 @@
         <img src="../app/Icon.png" alt="RouteReady">
       </div>
       <div class="brand-name" id="rr-brand-name">Route<em>Ready</em></div>
+      <!-- App launcher · Google-style grid menu pinned to the top of the
+           sidebar so it's reachable from every page (the topbar chrome docks
+           into the rail foot / schedule action bar, so the rail is the only
+           always-present home). Items reuse the existing navigation: goto(view)
+           for top-level destinations, or goto('schedule') + the sidebar
+           sub-nav for the schedule sub-views (Roster / Today / Requests). -->
+      <div class="rr-applauncher rr-al-fixed" id="rr-applauncher">
+        <button type="button" class="rr-al-btn" id="rr-al-btn" aria-haspopup="menu" aria-expanded="false" title="App launcher" aria-label="App launcher">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg>
+        </button>
+        <div class="rr-al-panel" id="rr-al-panel" role="menu" hidden>
+          <!-- App switcher · mirrors the visible sidebar destinations so the
+               drawer can navigate anywhere even when the rail is hidden (Drive).
+               Populated by buildApps() on open. -->
+          <div id="rr-al-apps" class="rr-al-apps"></div>
+          <!-- Drive · RouteReady's document management workspace. Opens the
+               dedicated #view-drive page. -->
+          <button type="button" class="rr-al-item" role="menuitem" data-al-act="drive">
+            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="rr-al-lbl">Vault</span>
+          </button>
+          <!-- Reports · downloadable reports (not built yet — "coming soon"). -->
+          <button type="button" class="rr-al-item" role="menuitem" data-al-act="reports">
+            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></span>
+            <span class="rr-al-lbl">Reports</span>
+            <span class="rr-al-soon">Soon</span>
+          </button>
+          <!-- Indeed Import · bulk-ingest applicants from Indeed (built) —
+               opens #modal-bulk-ingest. -->
+          <button type="button" class="rr-al-item" role="menuitem" data-al-act="indeed">
+            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+            <span class="rr-al-lbl">Indeed Import</span>
+          </button>
+          <!-- Account actions · Settings + Sign out moved here from the
+               retired top-right account menu. data-al-go routes through the
+               launcher's nav handler; data-rr-signout hits the global
+               sign-out hook in live.js. (Refresh app / What's new still live
+               in the ⌘K command palette.) -->
+          <div class="rr-al-foot">
+            <button type="button" class="rr-al-item rr-al-footitem" role="menuitem" data-al-go="settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span class="rr-al-lbl">Settings</span>
+            </button>
+            <button type="button" class="rr-al-item rr-al-footitem rr-al-signout" role="menuitem" data-rr-signout>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <span class="rr-al-lbl">Sign out</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
+    <script>
+      (function () {
+        function wire () {
+          var L = document.getElementById('rr-applauncher');
+          if (!L || L.__wired) return; L.__wired = true;
+          var btn = document.getElementById('rr-al-btn');
+          var panel = document.getElementById('rr-al-panel');
+          if (!btn || !panel) return;
+          // ── Keep the launcher pinned top-right: in-flow just LEFT of the
+          //    notifications bell on the views that show one, else floating in
+          //    the corner (.rr-al-fixed). The bell is a shared singleton each
+          //    view borrows, so re-check on a light poll + resize.
+          function bellVisible (bell) {
+            if (!bell || bell.offsetParent === null) return false;
+            var r = bell.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          }
+          function placeLauncher () {
+            // A view can host the launcher in-page via a .rr-launcher-dock
+            // slot (used by Drive, which has no bell and where the floating
+            // fallback hides under the desktop title bar). Docking wins.
+            var dock = document.querySelector('.view.active .rr-launcher-dock');
+            if (dock) {
+              L.classList.remove('rr-al-fixed');
+              L.style.order = '';
+              if (L.parentNode !== dock) dock.appendChild(L);
+              return;
+            }
+            var bell = document.getElementById('rr-hdr-notif');
+            if (bellVisible(bell)) {
+              L.classList.remove('rr-al-fixed');
+              if (L.parentNode !== bell.parentNode || L.nextElementSibling !== bell) {
+                bell.parentNode.insertBefore(L, bell);
+              }
+              var ord = getComputedStyle(bell).order;
+              L.style.order = (ord && ord !== 'normal') ? ord : '';
+            } else {
+              L.style.order = '';
+              if (L.parentNode !== document.body) document.body.appendChild(L);
+              L.classList.add('rr-al-fixed');
+            }
+          }
+          // Panel opens as a top-right dropdown — right edge under the button.
+          function place () {
+            var r = btn.getBoundingClientRect();
+            panel.style.left = 'auto';
+            panel.style.right = Math.round(Math.max(8, window.innerWidth - r.right)) + 'px';
+            panel.style.top = Math.round(r.bottom + 8) + 'px';
+          }
+          function close () { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+          // Mirror every visible sidebar destination into the drawer so it
+          // works as a full app switcher (needed on Drive, where the rail is
+          // hidden). Role-gated items (style.display:none) are skipped, so the
+          // drawer never offers a page the operator can't open.
+          function buildApps () {
+            var apps = document.getElementById('rr-al-apps');
+            if (!apps) return;
+            apps.innerHTML = '';
+            var items = Array.prototype.slice.call(document.querySelectorAll('.nav .nav-item[data-view]'));
+            items.forEach(function (nav) {
+              if (nav.style.display === 'none') return;        // role-gated
+              var view = nav.getAttribute('data-view');
+              if (!view || view === 'settings') return;        // Settings lives in the footer
+              var label = nav.getAttribute('title') || (nav.textContent || '').replace(/\s+/g, ' ').trim();
+              var icoSvg = nav.querySelector('.nav-icon svg, svg');
+              var b = document.createElement('button');
+              b.type = 'button'; b.className = 'rr-al-item'; b.setAttribute('role', 'menuitem');
+              b.setAttribute('data-al-go', view);
+              b.innerHTML = '<span class="rr-al-ico">' + (icoSvg ? icoSvg.outerHTML : '') + '</span><span class="rr-al-lbl">' + label + '</span>';
+              apps.appendChild(b);
+            });
+          }
+          function open () { buildApps(); panel.hidden = false; place(); btn.setAttribute('aria-expanded', 'true'); }
+          btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (panel.hidden) open(); else close();
+          });
+          panel.addEventListener('click', function (e) {
+            var it = e.target.closest('.rr-al-item'); if (!it) return;
+            var go = it.getAttribute('data-al-go'); var sub = it.getAttribute('data-al-sub');
+            var act = it.getAttribute('data-al-act');
+            close();
+            try {
+              if (act === 'indeed') { if (window.openPdfUploadPicker) window.openPdfUploadPicker(); }
+              else if (act === 'drive') { if (window.openDrive) window.openDrive(); else if (window.goto) window.goto('drive'); }
+              else if (act === 'reports') { if (window.toast) window.toast('Reports are coming soon'); }
+              else if (go && window.goto) { window.goto(go); }
+              else if (sub) {
+                if (window.goto) window.goto('schedule');
+                var b = document.querySelector('.nav-sub-item[data-key="' + sub + '"]');
+                if (b) b.click();
+              }
+            } catch (_) {}
+          });
+          document.addEventListener('click', function (e) {
+            if (!panel.hidden && !e.target.closest('#rr-applauncher')) close();
+          });
+          window.addEventListener('resize', function () { placeLauncher(); if (!panel.hidden) place(); });
+          document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+          placeLauncher();
+          setInterval(placeLauncher, 250);
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
+        else wire();
+      })();
+    </script>
+    <!-- Global hidden file input · the launcher's Indeed Import and the
+         Onboarding funnel's Import button both call openPdfUploadPicker()
+         (mock-wiring.js), which clicks this. Kept global so the picker can
+         open from any page within the click's user gesture. -->
+    <input type="file" id="rr-ob-pdf-upload-input" accept="application/pdf" style="display:none" multiple/>
 
     <nav class="nav">
       <!-- ═══════════════════════════════════════════════════════════
@@ -227,17 +388,6 @@
            Every icon shares: rx=3.5 outer corner, identical light
            direction, fills pinned (no currentColor) so they hold
            tone across inactive/hover/active states. ═══════════════ -->
-      <!-- Onboarding sidebar nav-item removed — the Onboarding +
-           Roster surfaces now live as tabs inside the Schedule
-           cmd-strip (and the Onboarding-ops cmd-strip mirrors the
-           same set so operators can navigate freely between them
-           without leaving the unified Schedule sidebar slot). -->
-      <!-- Fleet sidebar nav-item removed — Fleet now lives as a tab
-           inside the unified Schedule cmd-strip (mirrored on
-           Onboarding-ops + Fleet's own strip). Badges that used
-           to attach to .nav-item[data-view="fleet"] .nav-badge
-           silently no-op when the element is absent. -->
-
       <button class="nav-item active" data-view="schedule" data-c="schedule" title="Schedule" onclick="goto('schedule');if(window.rrSchedToggle)window.rrSchedToggle()">
         <!-- Schedule (CORE) · deep-navy frame, recessed inner panel
              for the calendar paper, cool-blue header bar with a 1px
@@ -245,7 +395,6 @@
              surfaces, not gradient), focused "today" cell. -->
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         Schedule
-        <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
       <!-- Schedule children (parent/child sidebar · operator request
            2026-06-11). Each child programmatically clicks the matching
@@ -317,29 +466,12 @@
           if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
           else watch();
 
-          // Accordion toggle — called INLINE from the parent button's
-          // onclick so no other click handler can intercept it. One state
-          // (.is-open); CSS decides inline list vs collapsed-rail flyout.
-          window.rrSchedToggle = function () {
-            var sub = document.querySelector('.nav-sub[data-for="schedule"]');
-            if (sub) sub.classList.toggle('is-open');
-          };
-          // ── Glue: keep the children physically right after the parent ──
-          // live.js applyNavOrder() re-appends every .nav-item[data-view] to
-          // honor the operator's drag-reordered sidebar (rr-nav-order-v1 in
-          // localStorage) — which moves the parents PAST this static child
-          // list and strands it at the top of the rail. Re-insert the list
-          // after the Schedule button whenever the nav's children change.
-          function glueChildren() {
-            var btn = document.querySelector('.sidebar .nav-item[data-view="schedule"]');
-            var sub = document.querySelector('.nav-sub[data-for="schedule"]');
-            if (btn && sub && btn.nextElementSibling !== sub) btn.insertAdjacentElement('afterend', sub);
-          }
-          var navEl = document.querySelector('.sidebar .nav') || document.querySelector('.sidebar nav');
-          if (navEl) new MutationObserver(glueChildren).observe(navEl, { childList: true });
-          glueChildren();
-          document.addEventListener('DOMContentLoaded', glueChildren);
-          setTimeout(glueChildren, 1200); setTimeout(glueChildren, 3000);
+          // rrSchedToggle is defined in the consolidated nav-group
+          // accordion block below (collapsed-rail flyout toggle; the open
+          // rail follows navigation via rrSyncNavGroups).
+          // Child-list gluing moved to live.js (applyStoredNavOrder /
+          // wireSidebarDrag now move each parent together with its
+          // .nav-sub) — no MutationObserver glue needed here.
 
           // Tidy rail foot: physically move the tool cluster (.topbar —
           // bell / settings / account; QAT + refresh hidden in CSS) into
@@ -485,20 +617,10 @@
             var sub = document.querySelector('.nav-sub[data-for="onboarding-ops"]');
             if (sub && document.getElementById('rr-sidebar')?.classList.contains('collapsed')) sub.classList.remove('is-open');
           };
-          window.rrObToggle = function () {
-            var sub = document.querySelector('.nav-sub[data-for="onboarding-ops"]');
-            if (sub) sub.classList.toggle('is-open');
-          };
-          function glue() {
-            var btn = document.querySelector('.sidebar .nav-item[data-view="onboarding-ops"]');
-            var sub = document.querySelector('.nav-sub[data-for="onboarding-ops"]');
-            if (btn && sub && btn.nextElementSibling !== sub) btn.insertAdjacentElement('afterend', sub);
-          }
-          var navEl = document.querySelector('.sidebar .nav') || document.querySelector('.sidebar nav');
-          if (navEl) new MutationObserver(glue).observe(navEl, { childList: true });
-          glue();
-          document.addEventListener('DOMContentLoaded', glue);
-          setTimeout(glue, 1200); setTimeout(glue, 3000);
+          // rrObToggle is defined in the consolidated nav-group accordion
+          // block below.
+          // Child-list gluing moved to live.js (parent + .nav-sub move as
+          // a unit on reorder) — no MutationObserver glue needed here.
           document.addEventListener('click', function (e) {
             var sub = document.querySelector('.nav-sub[data-for="onboarding-ops"]');
             if (!sub) return;
@@ -529,7 +651,21 @@
             var hdr = t && t.closest('.page-header-l');
             if (hdr) {
               if (isFunnel) hdr.style.setProperty('display', 'none', 'important');
-              else hdr.style.removeProperty('display');
+              else {
+                // Calendar keeps its title block HIDDEN (operator: no "Calendar"
+                // heading). The header is a clean, flat Google-Calendar-style bar
+                // — view/sorting tabs hard-left, New-event/Add-calendar actions
+                // hard-right. Other non-funnel subs show their title.
+                if (key === 'calendar') hdr.style.setProperty('display', 'none', 'important');
+                else hdr.style.removeProperty('display');
+                hdr.style.removeProperty('margin-right');
+                // Calendar sub: the controls span the full bar (view tabs left,
+                // actions right) — the inner split is handled in CSS. Clear any
+                // stale justify-content so the actions strip can fill the width.
+                var _calActs = document.getElementById('rr-cal-ribbon');
+                _calActs = _calActs && _calActs.closest('.sched-nav-heading-actions');
+                if (_calActs) _calActs.style.removeProperty('justify-content');
+              }
             }
             // Collapse the now-titleless header band so it isn't a tall empty
             // card, and lay it out as a flex row so the relocated filter tabs sit
@@ -561,14 +697,132 @@
                 if (actions) actions.style.setProperty('flex', '0 0 auto', 'important');
                 // Relocate the filter tabs into the top bar, left of the actions.
                 if (tabs && actions && tabs.parentNode !== band) band.insertBefore(tabs, actions);
+                // Let the relocated strip GROW into the free space (which pushes
+                // the action buttons to the far right) and stay a SINGLE row —
+                // never shrinking so small that its trailing tabs overflow UNDER
+                // the opaque blue Import button (what "covered" the Booking
+                // scheduled tab), and never wrapping a tab onto a second row.
+                // overflow-x:auto only engages on a genuinely too-narrow window.
+                // Inline + !important so a stale ?v= CSS bundle can't undo it.
+                if (tabs) {
+                  tabs.style.setProperty('order', '1', 'important');
+                  // 0 0 auto: hold the strip at its natural width so it never
+                  // shrinks and clips the last tab (Booking scheduled / Hired).
+                  tabs.style.setProperty('flex', '0 0 auto', 'important');
+                  tabs.style.setProperty('flex-wrap', 'nowrap', 'important');
+                  tabs.style.setProperty('overflow', 'visible', 'important');
+                }
                 // Borrow the ⋯ / bell / avatar onto the far right of the bar.
                 chrome.forEach(function (el) { if (el && el.parentNode !== band) band.appendChild(el); });
+                // Deterministic left/right layout via flex ORDER — robust no
+                // matter how the band's children get re-shuffled at runtime:
+                // stage tabs pinned hard-left, the action ribbon (Import +
+                // Add applicant) pushed hard-right against the bell/avatar via
+                // margin-left:auto. Also drop the 1px hairline ribbon dividers
+                // the operator asked to remove.
+                (function () {
+                  var imp = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-pdf-upload"]');
+                  var add = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-addapplicant"]');
+                  var ribbon = imp && imp.closest('.sched-nav-heading-actions');
+                  var bell = document.getElementById('rr-hdr-notif');
+                  var av = document.getElementById('rr-hdr-avatar-btn');
+                  // The bell + avatar are GLOBAL header icons; at runtime they do
+                  // NOT reliably end up in this funnel band, which is why the
+                  // buttons never sat flush against them. Move Import + Add
+                  // applicant into the bell's OWN parent, right before it —
+                  // wherever that is — so they're always adjacent to the
+                  // bell/avatar. Each tile records its home so it returns cleanly
+                  // on the other onboarding subs.
+                  if (bell && bell.parentNode) {
+                    if (add && !add.__rrHome) { add.__rrHome = add.parentNode; add.__rrNext = add.nextSibling; }
+                    if (imp && !imp.__rrHome) { imp.__rrHome = imp.parentNode; imp.__rrNext = imp.nextSibling; }
+                    if (imp) bell.parentNode.insertBefore(imp, bell);
+                    if (add) bell.parentNode.insertBefore(add, bell);
+                    // Explicit order so that if the shared parent is a flex
+                    // container the buttons sit just left of the bell, never far left.
+                    if (imp) imp.style.setProperty('order', '7', 'important');
+                    if (add) add.style.setProperty('order', '7', 'important');
+                    bell.style.setProperty('order', '8', 'important');
+                    if (av) av.style.setProperty('order', '9', 'important');
+                    // margin-left:auto on the first right-group item pushes the
+                    // buttons + bell + avatar to the far right, leaving the stage
+                    // tabs hard-left (the actual left/right justification).
+                    if (imp) imp.style.setProperty('margin-left', 'auto', 'important');
+                  }
+                  // The buttons have left the ribbon, so hide the now-empty ribbon
+                  // — otherwise it reserves width and shoves the stage tabs toward
+                  // the centre. With it gone the tabs sit hard left.
+                  if (ribbon) ribbon.style.setProperty('display', 'none', 'important');
+                  band.querySelectorAll('.ob-tab-divider').forEach(function (d) {
+                    d.style.setProperty('display', 'none', 'important');
+                  });
+                  band.querySelectorAll('.sched-ribbon-group').forEach(function (g) {
+                    g.style.setProperty('border-left', '0', 'important');
+                    g.style.setProperty('border-right', '0', 'important');
+                  });
+                })();
                 window.__rrChromeInFunnel = true;
               } else {
-                ['min-height', 'height', 'max-height', 'background', 'border', 'box-shadow',
-                 'display', 'align-items', 'justify-content', 'gap', 'padding']
+                ['min-height', 'height', 'max-height', 'background', 'border', 'border-bottom',
+                 'border-radius', 'box-shadow', 'display', 'align-items', 'justify-content', 'gap', 'padding']
                   .forEach(function (p) { band.style.removeProperty(p); });
-                if (actions) actions.style.removeProperty('flex');
+                // Calendar sub: clean, flat Google-Calendar-style bar — no white
+                // card, no shadow, no divider; a single compact full-width row.
+                // The view/sorting tabs sit hard-left and the actions hard-right
+                // (the L/R split + pill buttons are styled in CSS). Other subs
+                // keep their normal card (restored via removeProperty above).
+                if (key === 'calendar') {
+                  band.style.setProperty('background', 'transparent', 'important');
+                  band.style.setProperty('border', '0', 'important');
+                  band.style.setProperty('border-radius', '0', 'important');
+                  band.style.setProperty('box-shadow', 'none', 'important');
+                  // Compact row, not the 115px --tcp-strip-h card.
+                  band.style.setProperty('min-height', '0', 'important');
+                  band.style.setProperty('height', 'auto', 'important');
+                  band.style.setProperty('max-height', 'none', 'important');
+                  band.style.setProperty('display', 'flex', 'important');
+                  band.style.setProperty('align-items', 'center', 'important');
+                  band.style.setProperty('gap', '12px', 'important');
+                  band.style.setProperty('padding', '12px 20px', 'important');
+                  // Kill any vertical ribbon-group hairline.
+                  band.querySelectorAll('.sched-ribbon-group').forEach(function (g) {
+                    g.style.setProperty('border-left', '0', 'important');
+                    g.style.setProperty('border-right', '0', 'important');
+                  });
+                }
+                if (actions) {
+                  if (key === 'calendar') actions.style.setProperty('flex', '1 1 auto', 'important');
+                  else actions.style.removeProperty('flex');
+                }
+                // Drop the funnel-only inline overrides so the strip returns to
+                // its normal card-header layout on the other onboarding subs.
+                if (tabs) {
+                  ['order', 'flex', 'min-width', 'flex-wrap', 'overflow', 'overflow-x', 'overflow-y', 'scrollbar-width']
+                    .forEach(function (p) { tabs.style.removeProperty(p); });
+                }
+                (function () {
+                  var imp = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-pdf-upload"]');
+                  var add = document.querySelector('.ob-tab-wrap[data-rr-tile="ob-addapplicant"]');
+                  // Return the action buttons to their ribbon home + clear order.
+                  [imp, add].forEach(function (w) {
+                    if (!w) return;
+                    if (w.__rrHome && w.parentNode !== w.__rrHome) {
+                      try { w.__rrHome.insertBefore(w, w.__rrNext); } catch (e) { w.__rrHome.appendChild(w); }
+                    }
+                    w.style.removeProperty('order');
+                    w.style.removeProperty('margin-left');
+                  });
+                  var ribbon = (imp && imp.closest('.sched-nav-heading-actions')) || (add && add.closest('.sched-nav-heading-actions'));
+                  if (ribbon) ribbon.style.removeProperty('display');
+                  var bell = document.getElementById('rr-hdr-notif'); if (bell) bell.style.removeProperty('order');
+                  var av = document.getElementById('rr-hdr-avatar-btn'); if (av) av.style.removeProperty('order');
+                  // Don't restore the ribbon-group borders on the calendar sub —
+                  // the calendar branch above intentionally strips that hairline.
+                  if (key !== 'calendar') {
+                    document.querySelectorAll('.ob-tab-divider').forEach(function (d) { d.style.removeProperty('display'); });
+                    document.querySelectorAll('.sched-ribbon-group').forEach(function (g) { g.style.removeProperty('border-left'); g.style.removeProperty('border-right'); });
+                  }
+                })();
                 // Move the filter tabs back into the Applicants card header.
                 var home = document.querySelector('.pa-ws-header');
                 if (tabs && home && tabs.parentNode !== home) home.appendChild(tabs);
@@ -703,16 +957,15 @@
              gradient), muted-indigo dots. -->
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
         Messages
-        <span class="nav-badge">7</span>
       </button>
       <button class="nav-item nav-item-fleet-bridge" data-view="email" data-c="messages" title="Email" onclick="goto('email')">
-        <!-- Fleet Bridge (CORE) · deep-navy frame, muted cool-blue
+        <!-- Email (CORE) · deep-navy frame, muted cool-blue
              envelope body, recessed muted-indigo inner tile holding
              an off-white envelope. Saturation pulled back ~35% from
              the prior Outlook-mimic version so it sits inside the
              system rather than competing with the page. -->
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg></span>
-        Fleet Bridge
+        Email
       </button>
       <!-- Download · sidebar form of the app install button (operator
            request 2026-06-12 — the small download glyph in the rail
@@ -771,6 +1024,61 @@
         Admin
       </button>
     </nav>
+    <script>
+      // ── Sidebar parent/child groups · accordion ────────────────────
+      // At most ONE parent group (Schedule / Onboarding) is expanded at a
+      // time on the open rail, and it follows the active page — so the
+      // child lists stop stacking into a wall. Driven off the active
+      // .view, so it stays correct no matter which path navigated.
+      (function () {
+        window.rrSyncNavGroups = function () {
+          var sb = document.getElementById('rr-sidebar');
+          if (sb && sb.classList.contains('collapsed')) {
+            // Icon-only rail: groups are transient click-flyouts.
+            document.querySelectorAll('.sidebar .nav-sub.is-open')
+              .forEach(function (s) { s.classList.remove('is-open'); });
+            return;
+          }
+          var active = document.querySelector('.main .view.active') || document.querySelector('.view.active');
+          var id = active && active.id ? active.id.replace(/^view-/, '') : '';
+          document.querySelectorAll('.sidebar .nav-sub').forEach(function (sub) {
+            sub.classList.toggle('is-open', !!id && sub.getAttribute('data-for') === id);
+          });
+          // Exactly one location highlight: the parent owning the page.
+          var owner = id ? document.querySelector('.sidebar .nav-item[data-view="' + id + '"]') : null;
+          if (owner) {
+            document.querySelectorAll('.sidebar .nav-item[data-view].active')
+              .forEach(function (b) { b.classList.remove('active'); });
+            owner.classList.add('active');
+          }
+        };
+        // Parent click only needs to act on the collapsed rail (toggle that
+        // parent's flyout, close the rest); the open rail follows nav.
+        window.rrToggleNavFlyout = function (view) {
+          var sb = document.getElementById('rr-sidebar');
+          if (!sb || !sb.classList.contains('collapsed')) return;
+          document.querySelectorAll('.sidebar .nav-sub').forEach(function (sub) {
+            var match = sub.getAttribute('data-for') === view;
+            if (match) sub.classList.toggle('is-open'); else sub.classList.remove('is-open');
+          });
+        };
+        window.rrSchedToggle = function () { window.rrToggleNavFlyout('schedule'); };
+        window.rrObToggle = function () { window.rrToggleNavFlyout('onboarding-ops'); };
+        // goto is (re)defined several times in live.js; poll for the final
+        // one, then wrap once so every navigation re-syncs the open group.
+        (function hook() {
+          if (typeof window.goto === 'function') {
+            if (!window.goto.__navGroupSync) {
+              var orig = window.goto;
+              window.goto = function () { var r = orig.apply(this, arguments); try { window.rrSyncNavGroups(); } catch (e) {} return r; };
+              window.goto.__navGroupSync = true;
+            }
+            return;
+          }
+          setTimeout(hook, 150);
+        })();
+      })();
+    </script>
     <!-- Sidebar collapse · subtle bottom button.  Toggles the
          `.collapsed` class on the sidebar to hide every nav label
          and shrink the rail to icon-only width (Outlook Mail's
@@ -1230,12 +1538,12 @@
     </div>
 
     <!-- ─── DASHBOARD VIEW ─── -->
-    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=f297be60e552">
+    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-dashboard.frag (monolith split phase 2) -->
     </div>
 
     <!-- ─── HIRING PIPELINE VIEW ─── -->
-    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=f297be60e552">
+    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-pipeline.frag (monolith split phase 2) -->
     </div>
 
@@ -1243,28 +1551,28 @@
          ONBOARDING (OPERATIONS) VIEW — readiness command center.
          Populated by loadOnboardingOps() in live.js.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=f297be60e552">
+    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-onboarding-ops.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          DRIVERS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=f297be60e552">
+    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-drivers.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SETTINGS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=f297be60e552">
+    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-settings.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SCHEDULE VIEW — full DSP-grade schedule system
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=f297be60e552">
+    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-schedule.frag (monolith split phase 2) -->
     </div>
 
@@ -1273,14 +1581,14 @@
          (Amazon's term for DSP route plan horizon)
          ═══════════════════════════════════════════════════════════ -->
     <div id="rr-okami-backdrop" class="rr-okami-backdrop"></div>
-    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=f297be60e552">
+    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-okami.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          MESSAGES — real-time dispatch ↔ driver comms
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=f297be60e552">
+    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-messages.frag (monolith split phase 2) -->
     </div>
 
@@ -1291,7 +1599,7 @@
          Loader functions live in live.js (loadRecognitionView /
          loadRecognitionUpcoming / loadRecognitionHistory / …).
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=f297be60e552">
+    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-recognition.frag (monolith split phase 2) -->
     </div>
 
@@ -1306,7 +1614,7 @@
          scoped entirely to #view-fleet2 — it does not touch
          #view-schedule or schedule-rrx.css.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=f297be60e552">
+    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-fleet2.frag (monolith split phase 2) -->
     </div>
 
@@ -1342,7 +1650,7 @@
          into [data-co-render="exceptions-table"] and
          [data-co-render="rules-list"].
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=f297be60e552">
+    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-compliance.frag (monolith split phase 2) -->
     </div>
 
@@ -1354,21 +1662,21 @@
          row to a driver links the driver profile, surfaces the task in
          the driver app, and logs the accountability trail.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=f297be60e552">
+    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-workspaces.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          FORMS — DSP-built custom forms drivers fill out
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=f297be60e552">
+    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-forms.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          CHECKLISTS — recurring task lists (Open / Close / shift)
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=f297be60e552">
+    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-checklists.frag (monolith split phase 2) -->
     </div>
 
@@ -1378,8 +1686,17 @@
          audit flows. PDF signing service + driver-side viewer ship in
          later slices.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=f297be60e552">
+    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-documents.frag (monolith split phase 2) -->
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         DRIVE VIEW — RouteReady Drive (document management workspace).
+         Three-column shell (section rail · content · details/preview),
+         painted by loadDriveView() over the existing document stores.
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-drive" data-rr-view-src="views/view-drive.frag?v=50dcb6ba77b4">
+      <!-- markup in views/view-drive.frag -->
     </div>
 
 
@@ -1390,7 +1707,7 @@
          strip and flips the layout: the open-shifts-sized aside sits
          on the LEFT, the calendar-sized main panel on the RIGHT.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=f297be60e552">
+    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-email.frag (monolith split phase 2) -->
     </div>
 
@@ -1403,14 +1720,14 @@
          Phase 2 ships header + stats; Phase 3 fills the table area;
          Phase 4 wires the modals.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=f297be60e552">
+    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-admin.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          BUILD YOUR OWN TOOL
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=f297be60e552">
+    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=50dcb6ba77b4">
       <!-- markup extracted to views/view-build.frag (monolith split phase 2) -->
     </div>
 
@@ -4420,7 +4737,7 @@ John,Smith,555-0101,john@example.com</code>
     if (!window.__RR_VIEW_LOAD_FAILED) {
       await new Promise(function (resolve) {
         var s = document.createElement('script');
-        s.src = 'mock-wiring.js?v=f297be60e552';
+        s.src = 'mock-wiring.js?v=50dcb6ba77b4';
         s.onload = function () {
           // These three register DOMContentLoaded callbacks with no
           // already-fired fallback (unlike the rest of the script);
@@ -4437,10 +4754,10 @@ John,Smith,555-0101,john@example.com</code>
   })();
 </script>
 <script src="./config.js"></script>
-<script src="./desktop-connect.js?v=f297be60e552"></script>
-<script src="./fleet-sync.js?v=f297be60e552"></script>
-<script src="./admin-crawl-tasks.js?v=f297be60e552"></script>
-<script type="module" src="./live.js?v=f297be60e552"></script>
+<script src="./desktop-connect.js?v=50dcb6ba77b4"></script>
+<script src="./fleet-sync.js?v=50dcb6ba77b4"></script>
+<script src="./admin-crawl-tasks.js?v=50dcb6ba77b4"></script>
+<script type="module" src="./live.js?v=50dcb6ba77b4"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=f297be60e552";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=f297be60e552";
+import { planScheduleWeek } from "./scheduling-engine.js?v=50dcb6ba77b4";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=50dcb6ba77b4";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -617,7 +617,10 @@ function _addedBadge(a) {
   const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
   const ageTxt = days === 0 ? "today" : days === 1 ? "1 day ago" : `${days} days ago`;
-  const tone = days >= 30 ? "var(--red)" : days >= 14 ? "#D97706" : "var(--text-subtle)";
+  // Neutral meta — staleness is conveyed by the Action-needed tab + stage chip,
+  // so the "Added …" line no longer colours itself amber/red (kept the page
+  // calm, colour lives in the stage chip).
+  const tone = "var(--text-subtle)";
   return `<div class="pa-id-added" style="color:${tone};font-variant-numeric:tabular-nums;font-size:var(--fs-xs)">Added ${escapeHtml(date)} · ${escapeHtml(ageTxt)}</div>`;
 }
 
@@ -739,6 +742,13 @@ function renderApplicantCard(a) {
   // Progress: a fixed milestone stepper (Applied → Screening invite sent →
   // Screening → Interview → Hired) showing how far the applicant has moved.
   const timelineHtml = _milestoneStepper(a);
+  // Stage status reads as two lines (like the Roster risk card): the stage
+  // chip + the recommended next step, so an operator sees status + what to do.
+  const nextStep = _recommendedNextStep(a);
+  // The static "applied" headline ("Send the screening invite") contradicts the
+  // CTA ("Resend") and the stepper once the invite has gone out — derive the
+  // line from the same _screeningInviteSent signal so the card never disagrees.
+  const stageNextTxt = (stage === "applied" && _screeningInviteSent(a)) ? "Awaiting screening" : nextStep.headline;
 
   // "Last updated" column — most recent activity timestamp (date + time).
   const upd = _lastUpdatedAt(a);
@@ -790,6 +800,13 @@ function renderApplicantCard(a) {
        </button>`
     : "";
 
+  // Decline · a visible secondary action (operator asked for it not to be
+  // buried in the ⋯ menu). Same confirm + decline_applicant dispatcher.
+  const declineBtn = `<button class="pa-btn-decline" type="button" data-rr-action="decline" data-applicant-id="${escapeHtml(a.id)}" title="Decline applicant">
+       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+       Decline
+     </button>`;
+
   // Quiet ⋯ overflow · Phone / Email / Note utilities. Tertiary color,
   // no border, only reads on hover. Menu opens via _paOpenMoreMenu below.
   const moreBtn = `<button class="pa-act-more" type="button" data-rr-pa-more aria-label="More actions" title="More actions">
@@ -817,6 +834,7 @@ function renderApplicantCard(a) {
               <span class="pa-stage-pill ${stage}">${escapeHtml(stageLabel)}</span>
               ${scoreChip}
             </div>
+            <div class="pa-stage-next">${escapeHtml(stageNextTxt)}</div>
           </div>
         </div>
 
@@ -832,6 +850,7 @@ function renderApplicantCard(a) {
         <div class="pa-zone pa-zone-action pa-zone-action-v4">
           ${reviewVideoBtn}
           ${advanceBtn}
+          ${declineBtn}
           ${moreBtn}
         </div>
 
@@ -1267,6 +1286,13 @@ function _rrToggleRecruitingChooser(anchor) {
   }, 0);
 }
 function _rrBuildRecruitingFooter() {
+  // RETIRED · the combined "Recruiting" chooser is replaced by
+  // context-specific per-tab buttons surfaced directly on the action bar
+  // (Funnel → "Screening questions" via #rr-funnel-rules-toggle,
+  // Onboarding → "Onboarding steps" via #rr-ob-rules-toggle). Leaving the
+  // per-tile launchers visible, so this footer builder is a no-op now.
+  return;
+  // eslint-disable-next-line no-unreachable
   if (typeof document === "undefined") return;
   const group = document.querySelector('#view-onboarding-ops .sched-ribbon-group[data-group="sourcing"]');
   if (!group) return;
@@ -6120,6 +6146,9 @@ function _obToggleRules(force) {
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next && typeof loadOnboardingBuilder === "function") loadOnboardingBuilder();
+  // Pin the panel under the action bar (fixed, viewport-bounded) so it
+  // opens cleanly from the top-bar button, not just the old chooser path.
+  if (next && typeof _rrFitRulesPopover === "function") _rrFitRulesPopover(pop);
   return next;
 }
 window._rrToggleObRules = _obToggleRules;
@@ -6153,6 +6182,7 @@ function _funnelToggleRules(force) {
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next && typeof loadScreeningQuestionsList === "function") loadScreeningQuestionsList();
+  if (next && typeof _rrFitRulesPopover === "function") _rrFitRulesPopover(pop);
   return next;
 }
 window._rrToggleFunnelRules = _funnelToggleRules;
@@ -6186,6 +6216,7 @@ function _ivToggleRules(force) {
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next && typeof loadInterviewAvailabilityEditor === "function") loadInterviewAvailabilityEditor();
+  if (next && typeof _rrFitRulesPopover === "function") _rrFitRulesPopover(pop);
   return next;
 }
 window._rrToggleIvRules = _ivToggleRules;
@@ -6203,6 +6234,37 @@ document.addEventListener("click", (e) => {
       && !e.target.closest("#rr-ob-rules-chooser")) {
     _ivToggleRules(false);
   }
+});
+// Calendar view-switcher dropdown · the Day / Week / Work Week / Month
+// buttons collapsed into one trigger (#rr-cal-viewdd-trigger) + menu
+// (#rr-cal-viewdd-menu). Toggle on trigger click; close when a view is
+// picked (the item's own onclick switches the view, which re-syncs the
+// trigger label via _ivcalSyncStripView) or on any outside click.
+function _rrCloseCalViewMenu() {
+  const m = document.getElementById("rr-cal-viewdd-menu");
+  const t = document.getElementById("rr-cal-viewdd-trigger");
+  if (m) m.hidden = true;
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  const trig = e.target.closest("#rr-cal-viewdd-trigger");
+  if (trig) {
+    e.preventDefault(); e.stopPropagation();
+    const m = document.getElementById("rr-cal-viewdd-menu");
+    if (m) {
+      const open = m.hidden;
+      m.hidden = !open;
+      trig.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    return;
+  }
+  if (e.target.closest("#rr-cal-viewdd-menu .rr-cal-vtab")) {
+    _rrCloseCalViewMenu();
+    return;
+  }
+  const m = document.getElementById("rr-cal-viewdd-menu");
+  if (m && !m.hidden && !e.target.closest("#rr-cal-viewdd")) _rrCloseCalViewMenu();
 });
 
 // Any "Rules" popover (Onboarding, Funnel, Schedule) auto-closes when
@@ -9119,7 +9181,101 @@ async function _downloadTerminationReport(driverId, kind) {
   }
 }
 
-// ── Driver Separation Review ────────────────────────────────────────
+// ── Coaching record · downloadable PDF ──────────────────────────────────
+// Generates and downloads a real PDF of the driver's coaching / disciplinary
+// record (the formal write-up), built from the coachings on file and rendered
+// through the same pdf-lib pipeline the employment reports use. Falls back to
+// a .txt download if pdf-lib can't load. Wired to the document icon on the
+// Attendance tab's coaching history.
+async function _downloadCoachingRecordPdf(driverId) {
+  if (!driverId) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  toast("Preparing coaching document…", "info");
+  let drv, list;
+  try {
+    const [drvRes, coachRes] = await Promise.all([
+      sb.from("drivers").select("*, station:station_id(code)").eq("id", driverId).single(),
+      sb.from("coachings").select("*").eq("dsp_id", dspId).eq("driver_id", driverId)
+        .is("archived_at", null).order("occurred_at", { ascending: false }),
+    ]);
+    drv = drvRes?.data;
+    list = coachRes?.data || [];
+  } catch (e) {
+    console.warn("coaching record load failed:", e);
+    toast("Could not load the coaching record", "error");
+    return;
+  }
+  if (!drv) { toast("Couldn't load driver", "warn"); return; }
+
+  const name = displayDriverName(drv);
+  const dsp = (window.RR && window.RR.dsp) || {};
+  const station = drv.station?.code || dsp.short_code || "—";
+  const levelOf = (c) => (typeof _coachingSevLabel === "function")
+    ? _coachingSevLabel(c.severity, c.topic, c.metadata?.attendance_reason)
+    : (_RR_SEV_LABEL[c.severity] || c.severity || "Coaching");
+  const ackOf = (c) => (c.acknowledgment && c.acknowledgment !== "none")
+    ? `Acknowledged (${c.acknowledgment})${c.acknowledged_at ? " on " + _rptDate(c.acknowledged_at) : ""}`
+    : c.signed_at ? `Signed on ${_rptDate(c.signed_at)}`
+    : c.acknowledged_at ? `Acknowledged on ${_rptDate(c.acknowledged_at)}`
+    : (c.driver_visible ? "Awaiting driver acknowledgment" : "Not visible to driver");
+
+  const L = [];
+  L.push(_rptRule("="));
+  L.push(_rptCenter((dsp.name || "Delivery Service Partner").toUpperCase()));
+  L.push(_rptCenter("Employee Coaching & Disciplinary Record"));
+  L.push(_rptRule("="));
+  L.push("");
+  L.push(`    EMPLOYEE:         ${name}`);
+  L.push(`    STATION:          ${station}`);
+  L.push(`    DATE PREPARED:    ${_rptDate(new Date().toISOString())}`);
+  L.push(`    EMPLOYER FILE:    RR-${String(drv.id).slice(0, 8).toUpperCase()}`);
+  L.push(`    RECORDS ON FILE:  ${list.length}`);
+  L.push(_rptRule("-"));
+  L.push("");
+
+  if (!list.length) {
+    L.push(_rptWrap("No coaching or disciplinary records are on file for this employee.", "    "));
+    L.push("");
+  } else {
+    list.forEach((c, i) => {
+      L.push(`RECORD ${list.length - i} OF ${list.length}`);
+      L.push("");
+      L.push(`    ${_rptPad("Level:", 18)}${levelOf(c)}`);
+      L.push(`    ${_rptPad("Date issued:", 18)}${_rptDate(c.occurred_at)}`);
+      if (c.topic) L.push(`    ${_rptPad("Topic:", 18)}${String(c.topic).replace(/_/g, " ")}`);
+      if (c.type)  L.push(`    ${_rptPad("Type:", 18)}${String(c.type).replace(/_/g, " ")}`);
+      L.push(`    ${_rptPad("Issued by:", 18)}${c.coached_by_name || "—"}`);
+      L.push(`    ${_rptPad("Acknowledgment:", 18)}${ackOf(c)}`);
+      if (c.summary) { L.push(""); L.push(`    ${_rptPad("Summary:", 18)}${c.summary}`); }
+      if (c.notes) {
+        L.push("");
+        L.push("    Notes:");
+        L.push(_rptWrap(String(c.notes), "        "));
+      }
+      L.push("");
+      L.push(_rptRule("-"));
+      L.push("");
+    });
+  }
+  L.push("CERTIFICATION");
+  L.push("");
+  L.push(_rptCertification());
+  L.push("");
+  const text = L.join("\n");
+
+  const slug = name.toLowerCase().replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "") || "driver";
+  try {
+    const bytes = await _textToPdfBytes(text);
+    _downloadBlob(`${slug}-coaching-record.pdf`, new Blob([bytes], { type: "application/pdf" }));
+    toast("Coaching document downloaded", "success");
+  } catch (e) {
+    console.warn("PDF generation failed; falling back to text:", e);
+    _downloadBlob(`${slug}-coaching-record.txt`, new Blob([text], { type: "text/plain;charset=utf-8" }));
+    toast("Downloaded as text (PDF unavailable)", "warn");
+  }
+}
+
 // Toggling a driver to Terminated opens this guided review before any
 // separation record is written. It auto-detects the compliance records
 // already on file, collects a factual employer statement + the standard
@@ -9290,8 +9446,9 @@ async function _uploadSeparationFiles(driver, files) {
       .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
     if (upErr) { console.warn("separation file upload failed:", upErr); continue; }
     await sb.from("driver_documents").insert({
-      dsp_id: dspId, driver_id: driver.id, kind: "separation_support",
+      dsp_id: dspId, driver_id: driver.id, kind: "other",
       label: file.name, file_path: path, file_size: file.size, mime_type: file.type,
+      metadata: { drive_category: "Employment", drive_title: file.name, drive_doc_type: "Separation support", drive_source: "separation", auto_generated: true },
     }).then((r) => r, (e) => console.warn("driver_documents insert failed:", e));
     out.push({ label: file.name, path });
   }
@@ -9305,10 +9462,11 @@ async function _storeSeparationPacket(driver, bytes) {
   const { error: upErr } = await sb.storage.from("driver-documents")
     .upload(path, blob, { contentType: "application/pdf", upsert: false });
   if (upErr) { console.warn("packet store failed:", upErr); return null; }
+  const _sepLabel = `Separation Packet · ${new Date().toLocaleDateString("en-US")}`;
   await sb.from("driver_documents").insert({
-    dsp_id: dspId, driver_id: driver.id, kind: "separation_packet",
-    label: `Separation Packet · ${new Date().toLocaleDateString("en-US")}`,
-    file_path: path, file_size: blob.size, mime_type: "application/pdf",
+    dsp_id: dspId, driver_id: driver.id, kind: "other",
+    label: _sepLabel, file_path: path, file_size: blob.size, mime_type: "application/pdf",
+    metadata: { drive_category: "Employment", drive_title: _sepLabel, drive_doc_type: "Separation Packet", drive_source: "separation", auto_generated: true },
   }).then((r) => r, (e) => console.warn("driver_documents insert failed:", e));
   return path;
 }
@@ -9887,22 +10045,24 @@ function _attPointsCell(driverId) {
 function _riskCell(driverId) {
   const r = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(driverId) : null;
   const attn = !!(_rosterAttnCoached && _rosterAttnCoached.has && _rosterAttnCoached.has(driverId));
-  // Descriptive risk pill + a muted support line so a glance reads the level
-  // AND why: High = on a final corrective action, Medium = on a written one
-  // (coaching due), Low = clear (healthy). Subtle pills, no bright fills.
-  let cls, label, sub, title;
+  // Compact risk status card — a tinted rectangle (Microsoft Teams / Azure
+  // admin feel) so risk is the strongest signal in the row after the driver
+  // name. A bold uppercase level (with a status dot) over a muted reason line:
+  // High = on a final corrective action, Medium = a written one (coaching due),
+  // Low = clear (healthy). Flat: 1px border, 8px radius, soft tint, no shadow.
+  let cls, label, dot, sub, title;
   if (r === "atrisk") {
-    cls = "rr-risk-high"; label = "High";
-    sub = attn ? "Attendance Risk" : "Corrective Action";
+    cls = "rr-risk-high"; label = "HIGH"; dot = "🔴";
+    sub = attn ? "Attendance Risk" : "Final Action";
     title = "High · on a final corrective action";
   } else if (r === "watch") {
-    cls = "rr-risk-med"; label = "Medium"; sub = "Coaching Due";
+    cls = "rr-risk-med"; label = "MEDIUM"; dot = "🟡"; sub = "Coaching Due";
     title = "Medium · on a written corrective action";
   } else {
-    cls = "rr-risk-low"; label = "Low"; sub = "Healthy";
+    cls = "rr-risk-low"; label = "LOW"; dot = "🟢"; sub = "Healthy";
     title = "Low · no active corrective action";
   }
-  return `<div class="rr-risk-cell"><span class="rr-risk-badge ${cls}" title="${title}" aria-label="${title}">${label}</span><span class="rr-risk-sub">${sub}</span></div>`;
+  return `<div class="rr-risk-card ${cls}" title="${title}" aria-label="${title}"><span class="rr-risk-status">${label}</span><span class="rr-risk-reason">${sub}</span></div>`;
 }
 
 // "Last coached" — pulled from the per-driver latest coaching loaded
@@ -18387,6 +18547,14 @@ function _ivcalSyncStripView(onCal) {
   const active = onCal === false ? null : _ivcalView;
   document.querySelectorAll("#rr-cal-ribbon [data-cal-view]").forEach(b =>
     b.classList.toggle("active", active != null && b.getAttribute("data-cal-view") === active));
+  // The four view buttons now live inside the collapsed view-switcher
+  // dropdown (#rr-cal-viewdd-menu); keep its trigger label showing the
+  // active view's name.
+  if (active != null) {
+    const cur = document.querySelector('#rr-cal-ribbon [data-cal-view="' + active + '"] span');
+    const out = document.getElementById("rr-cal-viewdd-current");
+    if (cur && out) out.textContent = cur.textContent;
+  }
 }
 // Strip-icon entry points (Day / Week / Work Week / Month / New event). They
 // also switch to the Calendar sub-view, since the calendar has no own tab.
@@ -18852,7 +19020,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-days label{gap:4px;font-size:12px}
       #rr-ivcal-new .rr-ne-pop-f{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.06))}
     </style>
-    <div class="rr-ne-card is-max" id="rr-ne-card">
+    <div class="rr-ne-card is-restored" id="rr-ne-card">
       <div class="rr-ne-titlebar">
         <div class="rr-ne-tt" id="rr-ne-tt">Untitled event</div>
         <div class="rr-ne-wins">
@@ -18990,7 +19158,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   }
 
   // ── Window controls (minimize / restore-maximize / close) ──
-  let prevMode = "is-max";
+  // Open windowed (centered modal) rather than full-screen; the operator can
+  // still maximize via the titlebar button. prevMode is the restore target
+  // when un-minimizing, so it tracks the windowed default too.
+  let prevMode = "is-restored";
   const closeEditor = () => { try { if (dictateRecog) dictateRecog.stop(); } catch(_){} document.removeEventListener("mousemove", _neDragMove); document.removeEventListener("mouseup", _neDragUp); m.remove(); };
   function setMode(mode) {
     card.classList.remove("is-max","is-restored","is-min","is-float");
@@ -21671,14 +21842,11 @@ async function openDriverDrawer(driverId, opts) {
   // opts.tab — open the drawer with that tab pre-selected (e.g. the
   // Attendance Report row click drops the operator straight into the
   // driver's Attendance tab).
-  // Migrated tab names — the old "overview" and "activity" tabs were
-  // dropped in favor of routing operators straight to the actual
-  // record details.  Callers still passing those names land on the
-  // Profile tab so their existing entry points keep working.
-  // Attendance is the operational home — it's the default landing tab when a
-  // driver is opened. (Legacy "overview"/"activity" callers fold into Profile.)
+  // Attendance is the default landing tab — the operational home. Callers can
+  // deep-link to a specific tab via opts.tab. The retired "overview"/"activity"
+  // tabs fold into Attendance so existing entry points keep working.
   const requestedTab = (opts && opts.tab) || "attendance";
-  const initialTab = (requestedTab === "overview" || requestedTab === "activity") ? "profile" : requestedTab;
+  const initialTab = (requestedTab === "overview" || requestedTab === "activity") ? "attendance" : requestedTab;
   let drawer = document.getElementById("rr-dd-drawer");
   if (drawer) drawer.remove();
   drawer = document.createElement("div");
@@ -21868,6 +22036,164 @@ async function openDriverDrawer(driverId, opts) {
         .dd-row{grid-template-columns:1fr;gap:5px}
         .dd-row label{font-size:var(--fs-xs)}
       }
+
+      /* ════════════════════════════════════════════════════════════════
+         DRIVER WORKSPACE — enterprise record redesign. A docked workspace
+         (not a flyout): large professional header, Schedule-style tabs, a
+         six-card KPI strip, and a dashboard Overview. Calm/minimal palette,
+         subtle borders, soft shadows — Outlook / Workday voice. Scoped to
+         the inline (docked) mode; the overlay fallback keeps its prior look.
+         ════════════════════════════════════════════════════════════════ */
+      /* Large light header — the dark identity band is replaced by a clean
+         surface header so the record reads as a full employment file. */
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:22px 26px 18px;background:var(--surface);border-bottom:1px solid var(--border);align-items:flex-start}
+      #rr-dd-drawer.rr-dd-inline .dd-head-id{gap:16px}
+      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:23px;font-weight:700;letter-spacing:-.02em;color:var(--text)}
+      #rr-dd-drawer.rr-dd-inline .dd-meta{font-size:var(--fs-sm);color:var(--text-muted);margin-top:5px}
+      #rr-dd-drawer.rr-dd-inline .dd-meta-sub{display:inline-flex;align-items:center;gap:6px;margin-top:3px;color:var(--text-subtle)}
+      #rr-dd-drawer.rr-dd-inline .dd-meta-sub svg{color:var(--text-subtle)}
+      #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:60px!important;height:60px!important;font-size:22px!important;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(15,23,42,.06)}
+      #rr-dd-drawer.rr-dd-inline .dd-head-x{color:var(--text-subtle)}
+      #rr-dd-drawer.rr-dd-inline .dd-head-x:hover{background:var(--canvas);color:var(--text)}
+      .dd-head-nameline{align-items:center}
+      /* Header badge row — Active / XL / DOT / Trainer etc. Soft enterprise
+         tints; the status badge leads, certifications follow. */
+      .dd-head-badges{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+      .dd-hbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:.01em;line-height:1.5;padding:2px 9px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--canvas);color:var(--text-muted);white-space:nowrap}
+      .dd-hbadge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+      .dd-hbadge-active{color:#15803d;border-color:rgba(22,163,74,.30);background:rgba(22,163,74,.08)}
+      .dd-hbadge-leave{color:#1d4ed8;border-color:rgba(37,99,235,.28);background:rgba(37,99,235,.08)}
+      .dd-hbadge-inactive,.dd-hbadge-terminated{color:#b42318;border-color:rgba(180,35,24,.26);background:rgba(180,35,24,.06)}
+      .dd-hbadge-xl{color:#1d4ed8;border-color:rgba(37,99,235,.26);background:rgba(37,99,235,.07)}
+      .dd-hbadge-dot{color:#15803d;border-color:rgba(22,163,74,.26);background:rgba(22,163,74,.07)}
+      .dd-hbadge-trainer{color:#7c3aed;border-color:rgba(124,58,237,.26);background:rgba(124,58,237,.07)}
+      .dd-hbadge-edv{color:#0e7490;border-color:rgba(14,116,144,.26);background:rgba(14,116,144,.07)}
+      .dd-hbadge-mentor{color:#b45309;border-color:rgba(180,83,9,.26);background:rgba(180,83,9,.07)}
+      /* Header actions — Message (primary), Create coaching / warning, More. */
+      #rr-dd-drawer.rr-dd-inline .dd-head-actions{align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+      .dd-act-txt{display:inline}
+      /* Overlay fallback panel is only ~640px wide — collapse the action
+         labels to icons there so the header never overflows. */
+      #rr-dd-drawer:not(.rr-dd-inline) .dd-act-txt{display:none}
+      #rr-dd-drawer:not(.rr-dd-inline) .dd-act{padding:7px 9px}
+      /* Narrow workspace (docked on smaller screens) — icons only. */
+      @container (max-width:720px){#rr-dd-drawer.rr-dd-inline .dd-act-txt{display:none}#rr-dd-drawer.rr-dd-inline .dd-act{padding:7px 9px}}
+      .dd-act-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+      .dd-act-primary:hover{background:var(--accent-strong,var(--accent));border-color:var(--accent-strong,var(--accent));color:#fff;filter:brightness(.96)}
+      .dd-more-wrap{position:relative;display:inline-flex}
+      .dd-more-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:30;min-width:210px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-lg,0 12px 32px rgba(15,23,42,.16));padding:6px;display:flex;flex-direction:column;gap:1px}
+      .dd-more-menu[hidden]{display:none}
+      .dd-more-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:0;border-radius:var(--r-sm);padding:8px 10px;font:inherit;font-size:var(--fs-sm);color:var(--text);cursor:pointer}
+      .dd-more-item:hover{background:var(--canvas)}
+      .dd-more-item svg{width:15px;height:15px;flex:0 0 auto;color:var(--text-subtle)}
+      .dd-more-item.is-danger{color:var(--red)}
+      .dd-more-item.is-danger svg{color:var(--red)}
+      .dd-more-sep{height:1px;background:var(--border-subtle);margin:5px 2px}
+      /* ── KPI strip — six cards directly below the tabs ─────────────── */
+      .dd-kpi-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:16px 26px 18px;background:var(--canvas);border-bottom:1px solid var(--border)}
+      .dd-kpi-strip:empty{display:none}
+      .dd-kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:13px 14px;min-width:0;display:flex;flex-direction:column;gap:4px}
+      .dd-kpi-card .k-label{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .dd-kpi-card .k-val{font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--text);line-height:1.05;font-variant-numeric:tabular-nums}
+      .dd-kpi-card .k-val small{font-size:13px;font-weight:600;color:var(--text-subtle)}
+      .dd-kpi-card .k-sub{font-size:11px;color:var(--text-subtle);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .dd-kpi-card .k-val.tone-good{color:#15803d}.dd-kpi-card .k-val.tone-warn{color:#b45309}.dd-kpi-card .k-val.tone-bad{color:#b42318}
+      .dd-kpi-card .k-trend{display:inline-flex;align-items:center;gap:3px;font-weight:600}
+      .dd-kpi-card .k-trend.up{color:#15803d}.dd-kpi-card .k-trend.down{color:#b42318}.dd-kpi-card .k-trend.flat{color:var(--text-subtle)}
+      .dd-kpi-card .k-pill{align-self:flex-start;font-size:10px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-pill)}
+      .k-pill.risk-low{color:#15803d;background:rgba(22,163,74,.10)}
+      .k-pill.risk-medium{color:#b45309;background:rgba(245,158,11,.13)}
+      .k-pill.risk-high{color:#b42318;background:rgba(220,38,38,.10)}
+      /* Overlay fallback panel (~640px) can't hold six cards across — show
+         three. The docked workspace sizes to its own width via container
+         queries (the mount declares container-type:inline-size). */
+      #rr-dd-drawer:not(.rr-dd-inline) .dd-kpi-strip{grid-template-columns:repeat(3,1fr);padding:14px 18px}
+      @container (max-width:1000px){#rr-dd-drawer.rr-dd-inline .dd-kpi-strip{grid-template-columns:repeat(3,1fr)}}
+      @container (max-width:600px){#rr-dd-drawer.rr-dd-inline .dd-kpi-strip{grid-template-columns:repeat(2,1fr);padding:14px 18px}}
+      /* ── Overview dashboard ───────────────────────────────────────── */
+      #rr-dd-body .ov-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:22px}
+      #rr-dd-drawer:not(.rr-dd-inline) #rr-dd-body .ov-grid{grid-template-columns:1fr}
+      @container (max-width:980px){#rr-dd-body .ov-grid{grid-template-columns:1fr}}
+      #rr-dd-body .ov-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;min-width:0;display:flex;flex-direction:column}
+      #rr-dd-body .ov-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
+      #rr-dd-body .ov-card-title{font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)}
+      #rr-dd-body .ov-card-link{background:none;border:0;padding:0;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);cursor:pointer}
+      #rr-dd-body .ov-card-link:hover{text-decoration:underline}
+      /* Attendance heatmap — GitHub-contribution style, 90 days. */
+      #rr-dd-body .hm-wrap{display:flex;gap:9px}
+      #rr-dd-body .hm-dows{display:grid;grid-template-rows:repeat(7,13px);gap:3px;font-size:9px;color:var(--text-subtle);padding-top:0}
+      #rr-dd-body .hm-dows span{height:13px;line-height:13px}
+      #rr-dd-body .hm-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,13px);gap:3px;flex:1;min-width:0;overflow-x:auto}
+      #rr-dd-body .hm-cell{width:13px;height:13px;border-radius:3px;background:var(--border-subtle);box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
+      #rr-dd-body .hm-cell.s-none{background:#eceff3}
+      #rr-dd-body .hm-cell.s-present{background:#3aa757}
+      #rr-dd-body .hm-cell.s-late{background:#e8a23d}
+      #rr-dd-body .hm-cell.s-called_off{background:#e0612f}
+      #rr-dd-body .hm-cell.s-no_show{background:#b42318}
+      #rr-dd-body .hm-cell.s-excused{background:#94a3b8}
+      #rr-dd-body .hm-cell.s-future{background:transparent;box-shadow:none}
+      #rr-dd-body .hm-legend{display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin-top:14px;font-size:11px;color:var(--text-subtle)}
+      #rr-dd-body .hm-legend span{display:inline-flex;align-items:center;gap:5px}
+      #rr-dd-body .hm-legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+      /* Risk summary card */
+      #rr-dd-body .ov-risk-level{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+      #rr-dd-body .ov-risk-badge{font-size:13px;font-weight:700;letter-spacing:.02em;padding:4px 12px;border-radius:var(--r-pill)}
+      #rr-dd-body .ov-risk-badge.risk-low{color:#15803d;background:rgba(22,163,74,.10)}
+      #rr-dd-body .ov-risk-badge.risk-medium{color:#b45309;background:rgba(245,158,11,.14)}
+      #rr-dd-body .ov-risk-badge.risk-high{color:#b42318;background:rgba(220,38,38,.10)}
+      #rr-dd-body .ov-sub-label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin:6px 0 8px}
+      #rr-dd-body .ov-factor{display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-sm);color:var(--text);line-height:1.45;padding:4px 0}
+      #rr-dd-body .ov-factor .fdot{width:6px;height:6px;border-radius:50%;flex:0 0 auto;margin-top:6px;background:var(--text-disabled)}
+      #rr-dd-body .ov-factor.t-red .fdot{background:#dc2626}#rr-dd-body .ov-factor.t-amber .fdot{background:#d97706}
+      #rr-dd-body .ov-actions{display:flex;flex-direction:column;gap:7px;margin-top:6px}
+      #rr-dd-body .ov-action-btn{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 11px;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text);cursor:pointer;transition:border-color var(--t-fast),background var(--t-fast)}
+      #rr-dd-body .ov-action-btn:hover{border-color:var(--accent);background:var(--surface)}
+      #rr-dd-body .ov-action-btn svg{width:15px;height:15px;flex:0 0 auto;color:var(--text-subtle)}
+      /* Overview timeline (compact) */
+      #rr-dd-body .ovtl{display:flex;flex-direction:column}
+      #rr-dd-body .ovtl-row{display:grid;grid-template-columns:14px 1fr;gap:10px;align-items:start}
+      #rr-dd-body .ovtl-track{position:relative;display:flex;justify-content:center}
+      #rr-dd-body .ovtl-track::before{content:"";position:absolute;top:8px;bottom:-4px;left:50%;width:2px;background:var(--border-subtle);transform:translateX(-50%)}
+      #rr-dd-body .ovtl-row.last .ovtl-track::before{display:none}
+      #rr-dd-body .ovtl-dot{position:relative;z-index:1;width:9px;height:9px;border-radius:50%;margin-top:4px;background:var(--text-subtle);box-shadow:0 0 0 3px var(--surface)}
+      #rr-dd-body .ovtl-dot.t-green{background:var(--green)}#rr-dd-body .ovtl-dot.t-amber{background:var(--amber)}#rr-dd-body .ovtl-dot.t-red{background:var(--red)}#rr-dd-body .ovtl-dot.t-blue{background:var(--accent)}
+      #rr-dd-body .ovtl-body{padding-bottom:15px;min-width:0}
+      #rr-dd-body .ovtl-row.last .ovtl-body{padding-bottom:0}
+      #rr-dd-body .ovtl-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+      #rr-dd-body .ovtl-label{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+      #rr-dd-body .ovtl-when{font-size:11px;color:var(--text-subtle);white-space:nowrap;flex:0 0 auto}
+      #rr-dd-body .ovtl-sub{font-size:11px;color:var(--text-subtle);margin-top:1px}
+      /* Section blocks under the dashboard (Coaching, Documents) */
+      #rr-dd-body .ov-section{margin-top:26px}
+      #rr-dd-body .ov-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:13px;padding-bottom:9px;border-bottom:1px solid var(--border)}
+      #rr-dd-body .ov-section-title{font-size:var(--fs-sm);font-weight:700;letter-spacing:.03em;color:var(--text)}
+      #rr-dd-body .ov-coach-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:11px}
+      #rr-dd-body .ov-coach-card{border:1px solid var(--border);border-radius:var(--r-lg);padding:13px 14px;background:var(--surface);display:flex;flex-direction:column;gap:6px}
+      #rr-dd-body .ov-coach-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+      #rr-dd-body .ov-coach-title{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.35}
+      #rr-dd-body .ov-coach-meta{font-size:11px;color:var(--text-subtle)}
+      #rr-dd-body .ov-coach-sev{font-size:10px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-pill);white-space:nowrap}
+      #rr-dd-body .ov-coach-sev.sev-slate{color:#475569;background:rgba(100,116,139,.12)}
+      #rr-dd-body .ov-coach-sev.sev-amber{color:#b45309;background:rgba(245,158,11,.14)}
+      #rr-dd-body .ov-coach-sev.sev-red{color:#b42318;background:rgba(220,38,38,.10)}
+      #rr-dd-body .ov-doc-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:11px}
+      #rr-dd-body .ov-doc-card{border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;background:var(--surface);display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
+      #rr-dd-body .ov-doc-card:hover{border-color:var(--accent);box-shadow:var(--shadow-sm)}
+      #rr-dd-body .ov-doc-ico{width:38px;height:38px;border-radius:10px;background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle);flex:0 0 auto}
+      #rr-dd-body .ov-doc-ico svg{width:19px;height:19px}
+      #rr-dd-body .ov-doc-name{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+      #rr-dd-body .ov-doc-count{font-size:11px;color:var(--text-subtle);margin-top:1px}
+      /* Performance tab */
+      #rr-dd-body .perf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:22px}
+      #rr-dd-body .perf-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px}
+      #rr-dd-body .perf-card .pc-label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:7px}
+      #rr-dd-body .perf-card .pc-val{font-size:30px;font-weight:700;letter-spacing:-.02em;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
+      #rr-dd-body .perf-card .pc-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px}
+      #rr-dd-body .perf-bars{display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:10px}
+      #rr-dd-body .perf-bar{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+      #rr-dd-body .perf-bar .pb-fill{width:100%;max-width:34px;border-radius:4px 4px 0 0;background:var(--accent);min-height:3px}
+      #rr-dd-body .perf-bar .pb-cap{font-size:10px;color:var(--text-subtle);white-space:nowrap}
+      #rr-dd-body .perf-bar .pb-val{font-size:10px;font-weight:700;color:var(--text-muted)}
     </style>
     <div id="rr-dd-panel">
       <div class="dd-chrome">
@@ -21877,50 +22203,76 @@ async function openDriverDrawer(driverId, opts) {
           <div class="dd-head-idtext">
             <div class="dd-head-nameline">
               <h3 id="rr-dd-title">Driver record</h3>
+              <span class="dd-head-badges" id="rr-dd-badges"></span>
             </div>
             <div class="dd-meta" id="rr-dd-sub"></div>
             <div class="dd-meta dd-meta-sub" id="rr-dd-sub2"></div>
           </div>
         </div>
-        <button type="button" class="dd-head-x" data-rr-dd-close aria-label="Close record" title="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <!-- Header actions — Message (primary), Create coaching / warning,
+             More ▾ overflow menu, then Close. Wired by the drawer click
+             delegate via data-rr-dd-action. Hidden in CREATE mode. -->
+        <div class="dd-head-actions" id="rr-dd-actions" hidden>
+          <button type="button" class="dd-act dd-act-primary" data-rr-dd-action="message" title="Message driver in the RouteReady app">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <span class="dd-act-txt">Message</span>
+          </button>
+          <button type="button" class="dd-act" data-rr-dd-action="coach" title="Log a coaching for this driver">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+            <span class="dd-act-txt">Create coaching</span>
+          </button>
+          <div class="dd-more-wrap">
+            <button type="button" class="dd-act" data-rr-dd-action="more" aria-haspopup="menu" aria-expanded="false" title="More actions">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/><circle cx="5" cy="12" r="1.6"/></svg>
+            </button>
+            <div class="dd-more-menu" id="rr-dd-more-menu" role="menu" hidden>
+              <button type="button" class="dd-more-item" role="menuitem" data-rr-dd-action="availability"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Edit availability</button>
+              <button type="button" class="dd-more-item" role="menuitem" data-rr-dd-action="report"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Employment report</button>
+              <button type="button" class="dd-more-item" role="menuitem" data-rr-dd-action="expand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>Open as overlay</button>
+            </div>
+          </div>
+          <button type="button" class="dd-head-x" data-rr-dd-close aria-label="Close record" title="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
       </div>
-      <!-- Quiet KPI row under the profile header (Attendance · Risk · Tenure ·
-           Last event) — populated in loadDriverDrawer. -->
-      <div class="dd-kpis" id="rr-dd-kpis"></div>
-      <!-- Tabs grouped by what they hold: identity → employment record →
-           credentials → availability → docs → attendance history.
-           Overview + Activity were dashboard-flavored and are dropped —
-           their facts already live in Profile/Employment, and the
-           merged chronology is in the Employment Documentation Report. -->
+      <!-- Workspace navigation — Schedule-page tab styling. Attendance is the
+           default landing tab; History is the full audit log. -->
       <div class="dd-tabs">
         <button type="button" class="dd-tab active" data-rr-dd-tab="attendance">Attendance</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="profile">Profile</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="employment">Employment</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="license">Credentials</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="performance">Performance</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="timeline">Timeline</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="timeline">History</button>
       </div>
       <div class="dd-tab-note" id="rr-dd-tab-note"></div>
       </div><!-- /.dd-chrome -->
       <div class="dd-body" id="rr-dd-body"><div class="rr-loading">Loading</div></div>
       <div class="dd-foot" id="rr-dd-foot"></div>
     </div>`;
-  // Inline workspace vs. overlay. When the roster split is on-screen we
-  // dock the record into #driver-record-mount beside the roster list (no
-  // backdrop / blur / page-blocking overlay); otherwise — e.g. opened from
-  // an Attendance deep-link, Onboarding, or global search on another page —
-  // we fall back to the slide-over drawer. offsetParent is null while the
-  // roster sub-view is display:none, so this is true only when the inline
-  // pane is actually visible.
   const _ddSplit = document.getElementById("rr-roster-split");
   const _ddMount = document.getElementById("driver-record-mount");
-  // The driver record opens as a right-side slide-out overlay (Slack / Linear
-  // style): the roster stays full-width and is the primary object. The old
-  // docked-into-the-split mode is retired — always body-append the slide-over.
-  document.body.appendChild(drawer);
-  if (_ddMount) _ddMount.classList.remove("is-filled");
-  if (_ddSplit) _ddSplit.classList.remove("has-record");
+  // Inline Driver Workspace vs. overlay. When the roster split is on-screen
+  // (Drivers › Roster sub-view active) we dock the record into
+  // #driver-record-mount beside the roster: the roster condenses to a nav
+  // rail and the workspace expands to ~75–80% of the width — a permanent
+  // employment record, not a flyout. Opened from anywhere else (Attendance
+  // deep-link, Schedule, global search) it falls back to the right-side
+  // slide-over. opts.forceOverlay (the "Open as overlay" action) requests
+  // the slide-over explicitly even from the roster.
+  const _wantInline = !(opts && opts.forceOverlay)
+    && _ddMount && _ddSplit && _ddSplit.offsetParent !== null;
+  if (_wantInline) {
+    drawer.classList.add("rr-dd-inline");
+    _ddMount.appendChild(drawer);
+    _ddMount.classList.add("is-filled");
+    _ddSplit.classList.add("has-record");
+  } else {
+    document.body.appendChild(drawer);
+    if (_ddMount) _ddMount.classList.remove("is-filled");
+    if (_ddSplit) _ddSplit.classList.remove("has-record");
+  }
   if (driverId) _rrMarkActiveRosterRow(driverId);   // accent the selected row
   // Slide in (overlay) / fade in (inline) · the panel is appended in its
   // un-.open form; adding .rr-dd-open on the next frame triggers the
@@ -22047,6 +22399,22 @@ async function loadDriverDrawer(driverId) {
   if (!Array.isArray(_obBlueprint) || !_obBlueprint.length) {
     try { const { data: bp } = await sb.rpc("onboarding_blueprint_get"); if (Array.isArray(bp) && bp.length) _obBlueprint = bp; } catch {}
   }
+  // Recent shift history (≈13 weeks) — powers the Workspace KPI strip,
+  // the Overview attendance heatmap, schedule-stability, and risk scoring.
+  try {
+    const _wsSince = new Date(); _wsSince.setDate(_wsSince.getDate() - 97);
+    const { data: shifts } = await sb.from("shifts")
+      .select("id, date, status")
+      .eq("dsp_id", window.RR?.dsp?.id)
+      .eq("driver_id", driverId)
+      .gte("date", fmtIsoDate(_wsSince))
+      .order("date", { ascending: true })
+      .limit(2000);
+    _ddDriver.shifts = shifts || [];
+  } catch { _ddDriver.shifts = []; }
+  // Derived workspace model (KPIs, risk, heatmap data). Stashed so the KPI
+  // strip and the Overview/Performance tabs render synchronously from it.
+  _ddDriver._model = _ddWorkspaceModel(_ddDriver);
 
   const drv = data.driver;
   const titleEl = document.getElementById("rr-dd-title");
@@ -22100,8 +22468,128 @@ async function loadDriverDrawer(driverId) {
     _paintDriverAvatars(avEl.parentElement || document);
   }
 
+  // ── Header badge row — status + certifications/roles. Soft enterprise
+  // tints; the status leads (Active/On leave/…), credentials follow.
+  const badgesEl = document.getElementById("rr-dd-badges");
+  if (badgesEl) {
+    const badges = [];
+    const stKey = drv.status === "leave" ? "leave"
+      : (drv.status === "inactive" || drv.status === "terminated") ? drv.status
+      : drv.status === "active" ? "active" : null;
+    if (stKey) badges.push(`<span class="dd-hbadge dd-hbadge-${stKey}"><span class="dot"></span>${escapeHtml(sm.label)}</span>`);
+    else if (sm.label) badges.push(`<span class="dd-hbadge"><span class="dot"></span>${escapeHtml(sm.label)}</span>`);
+    if (drv.xl_certified)  badges.push(`<span class="dd-hbadge dd-hbadge-xl">XL</span>`);
+    if (drv.dot_certified) badges.push(`<span class="dd-hbadge dd-hbadge-dot">DOT</span>`);
+    if (drv.is_trainer)    badges.push(`<span class="dd-hbadge dd-hbadge-trainer">Trainer</span>`);
+    if (drv.edv_certified) badges.push(`<span class="dd-hbadge dd-hbadge-edv">EDV</span>`);
+    if (drv.metadata && drv.metadata.is_mentor) badges.push(`<span class="dd-hbadge dd-hbadge-mentor">Mentor</span>`);
+    badgesEl.innerHTML = badges.join("");
+  }
+
+  // Employee ID on the tenure line, when present in metadata.
+  const empId = drv.metadata && (drv.metadata.employee_id || drv.metadata.emp_id);
+  const sub2El2 = document.getElementById("rr-dd-sub2");
+  if (sub2El2 && empId) {
+    const base = sub2El2.textContent ? sub2El2.textContent + "  ·  " : "";
+    sub2El2.textContent = `${base}Employee ID ${empId}`;
+  }
+
+  // Reveal the header action bar (hidden in CREATE mode, which has no id).
+  const actionsEl = document.getElementById("rr-dd-actions");
+  if (actionsEl) actionsEl.hidden = false;
+
   if (!_ddLive()) return; // closed during the doc/envelope/report loads
   renderDriverDrawerTab();
+}
+
+// ── Driver Workspace model ─────────────────────────────────────────────────
+// Derives every KPI / risk / heatmap value the workspace needs from the data
+// already loaded onto _ddDriver (driver row, coachings, ~13 weeks of shifts).
+// Pure + synchronous so the KPI strip and Overview/Performance render instantly.
+function _ddWorkspaceModel(dd) {
+  const d = (dd && dd.driver) || {};
+  const shifts = Array.isArray(dd && dd.shifts) ? dd.shifts : [];
+  const coachings = ((dd && dd.coachings) || []).filter(c => c && !c.archived_at);
+  const DAY = 86400000;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+  const COUNTED = ["completed", "late", "no_show", "called_off"];
+  const ageDaysOf = (iso) => Math.floor((todayMs - new Date(iso + "T12:00:00").getTime()) / DAY);
+
+  // Heatmap source — most-recent status wins per ISO date.
+  const byDate = {};
+  let worked = 0, eligible = 0;
+  let callOffs30 = 0, late14 = 0, noShow30 = 0, late30 = 0;
+  let workedR = 0, eligibleR = 0, workedP = 0, eligibleP = 0; // recent/prior 45d windows
+  let disrupted = new Array(8).fill(false), hadWeek = new Array(8).fill(false);
+  for (const s of shifts) {
+    const iso = (s.date || "").slice(0, 10);
+    if (!iso) continue;
+    const st = s.status;
+    byDate[iso] = st;
+    const age = ageDaysOf(iso);
+    if (age < 0) continue; // future
+    if (COUNTED.includes(st)) {
+      eligible++;
+      const w = (st === "completed" || st === "late") ? 1 : 0;
+      worked += w;
+      if (age < 45) { eligibleR++; workedR += w; } else if (age < 90) { eligibleP++; workedP += w; }
+    }
+    if (age < 30) { if (st === "called_off") callOffs30++; if (st === "no_show") noShow30++; if (st === "late") late30++; }
+    if (age < 14 && st === "late") late14++;
+    if (age < 56) {
+      const wk = Math.floor(age / 7);
+      if (wk >= 0 && wk < 8) { hadWeek[wk] = true; if (st === "called_off" || st === "no_show") disrupted[wk] = true; }
+    }
+  }
+  const attendancePct = eligible ? Math.round((worked / eligible) * 100) : null;
+  const pctR = eligibleR ? (workedR / eligibleR) * 100 : null;
+  const pctP = eligibleP ? (workedP / eligibleP) * 100 : null;
+  let attTrend = "flat";
+  if (pctR != null && pctP != null) attTrend = pctR > pctP + 2 ? "up" : pctR < pctP - 2 ? "down" : "flat";
+  const attendanceTone = attendancePct == null ? "" : attendancePct >= 92 ? "good" : attendancePct >= 80 ? "warn" : "bad";
+
+  // Active corrective standing (unresolved coachings).
+  const sevRank = { verbal: 1, concern: 1, written: 2, warning: 2, final: 3, termination: 4 };
+  let topSev = 0, topSevLabel = null;
+  let activeCoach = 0;
+  for (const c of coachings) {
+    if (c.resolved_at) continue;
+    activeCoach++;
+    const r = sevRank[c.severity] || 0;
+    if (r > topSev) { topSev = r; topSevLabel = c.severity; }
+  }
+  const sevName = { 2: "Written warning", 3: "Final warning", 4: "Termination" }[topSev] || null;
+
+  // Risk model — High / Medium / Low.
+  let risk = "low";
+  if (topSev >= 3 || noShow30 >= 1 || callOffs30 >= 3) risk = "high";
+  else if (topSev === 2 || callOffs30 >= 1 || late14 >= 2 || (attendancePct != null && attendancePct < 85)) risk = "medium";
+
+  const factors = [];
+  if (callOffs30) factors.push({ tone: callOffs30 >= 3 ? "red" : "amber", txt: `${callOffs30} call off${callOffs30 === 1 ? "" : "s"} in the last 30 days` });
+  if (noShow30) factors.push({ tone: "red", txt: `${noShow30} no-show${noShow30 === 1 ? "" : "s"} in the last 30 days` });
+  if (late14) factors.push({ tone: "amber", txt: `${late14} late arrival${late14 === 1 ? "" : "s"} in the last 14 days` });
+  if (sevName) factors.push({ tone: topSev >= 3 ? "red" : "amber", txt: `${sevName} active` });
+  if (attendancePct != null && attendancePct < 90) factors.push({ tone: attendancePct < 80 ? "red" : "amber", txt: `Attendance ${attendancePct}% — below 90% target` });
+
+  // Schedule stability — weeks (of the last 8) with no call-off / no-show.
+  let goodWeeks = 0;
+  for (let i = 0; i < 8; i++) if (!disrupted[i]) goodWeeks++;
+  const stabilityTone = goodWeeks >= 7 ? "good" : goodWeeks >= 5 ? "warn" : "bad";
+
+  const tenureDays = d.hire_date ? Math.max(0, Math.floor((todayMs - new Date(d.hire_date + (/T/.test(d.hire_date) ? "" : "T12:00:00")).getTime()) / DAY)) : null;
+
+  return {
+    attendancePct, attendanceTone, attTrend,
+    callOffs30, late14, late30, noShow30,
+    tenureDays,
+    activeCoach,
+    risk, factors, topSev, sevName,
+    stabilityGood: goodWeeks, stabilityTone,
+    heatmapByDate: byDate,
+    hasShiftData: shifts.length > 0,
+  };
 }
 
 // Capture every visible data-rr-dd-field input into _ddPending so its
@@ -22145,11 +22633,11 @@ function renderDriverDrawerTab() {
   // License / Attendance / Availability) fetch their data; sync renderers
   // overwrite this immediately.
   body.innerHTML = `<div class="dd-skel-block"><div class="head"></div><div class="dd-skel-line" style="width:100%"></div><div class="dd-skel-line" style="width:88%"></div><div class="dd-skel-line" style="width:72%"></div></div><div class="dd-skel-block"><div class="head"></div><div class="dd-skel-line" style="width:96%"></div><div class="dd-skel-line" style="width:78%"></div></div><div class="dd-skel-block"><div class="head"></div><div class="dd-skel-line" style="width:90%"></div><div class="dd-skel-line" style="width:60%"></div></div>`;
-  if (_ddTab === "overview")     renderOverviewTab(body, _ddDriver);
   if (_ddTab === "activity")     renderActivityTab(body, _ddDriver);
   if (_ddTab === "profile")      renderProfileTab(body, _ddDriver.driver);
   if (_ddTab === "employment")   renderEmploymentTab(body, _ddDriver.driver);
   if (_ddTab === "license")      renderLicenseTab(body, _ddDriver.driver);
+  if (_ddTab === "performance")  renderPerformanceTab(body, _ddDriver, _ddDriver._model);
   if (_ddTab === "attendance")   renderAttendanceTab(body, _ddDriver.driver);
   if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver, _ddDriver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
@@ -22529,107 +23017,97 @@ function renderActivityTab(body, dd) {
     <div>${html}</div>`;
 }
 
-// Overview — the landing tab. A calm, scan-first snapshot: status &
-// readiness, what needs attention, the key facts, recent activity. The
-// detail (and editing) lives in the other tabs; this is the "I trust
-// this record / I understand this employee at a glance" surface.
-function renderOverviewTab(body, dd) {
+// 90-day attendance heatmap (GitHub-contribution style). Columns are weeks
+// (Sun-anchored), rows are weekdays; each cell is tinted by the day's shift
+// outcome. Future days in the current week render empty.
+function _ddHeatmapHtml(m) {
+  const byDate = (m && m.heatmapByDate) || {};
+  const DAY = 86400000;
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const todayMs = today.getTime();
+  const start = new Date(todayMs - 89 * DAY);
+  start.setDate(start.getDate() - start.getDay());           // back to Sunday
+  const end = new Date(todayMs);
+  end.setDate(end.getDate() + (6 - end.getDay()));           // forward to Saturday
+  const cls = (st) => st === "completed" ? "present"
+    : st === "late" ? "late"
+    : st === "called_off" ? "called_off"
+    : st === "no_show" ? "no_show"
+    : (st === "excused" || st === "vto") ? "excused" : "none";
+  const human = { present: "Present", late: "Late", called_off: "Call off", no_show: "No show", excused: "Excused", none: "No shift" };
+  const cells = [];
+  for (let t = start.getTime(); t <= end.getTime(); t += DAY) {
+    const dt = new Date(t);
+    if (t > todayMs + DAY / 2) { cells.push(`<div class="hm-cell s-future"></div>`); continue; }
+    const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    const c = cls(byDate[iso]);
+    const title = `${dt.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${human[c]}`;
+    cells.push(`<div class="hm-cell s-${c}" title="${escapeHtml(title)}"></div>`);
+  }
+  const dows = ["", "Mon", "", "Wed", "", "Fri", ""].map(l => `<span>${l}</span>`).join("");
+  return `<div class="hm-wrap"><div class="hm-dows">${dows}</div><div class="hm-grid">${cells.join("")}</div></div>
+    <div class="hm-legend">
+      <span><i class="s-present" style="background:#3aa757"></i>Present</span>
+      <span><i style="background:#e8a23d"></i>Late</span>
+      <span><i style="background:#e0612f"></i>Call off</span>
+      <span><i style="background:#b42318"></i>No show</span>
+      <span><i style="background:#eceff3"></i>No shift</span>
+    </div>`;
+}
+
+// Performance — analytics view: attendance trend, monthly attendance bars,
+// call-off / late history, and the same heatmap for continuity.
+function renderPerformanceTab(body, dd, model) {
   const d = (dd && dd.driver) || {};
-  const fmtD  = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
-  const fmtTs = (x) => x ? new Date(x).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
-  const station = (_driverStationsCache || []).find(s => s.id === d.station_id);
-  const stationTxt = d.station_id ? (station ? station.code : "Assigned") : "Unassigned";
-  const tenureTxt = d.hire_date ? (() => {
-    const days = Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000));
-    if (days < 45) return `${days}d`;
-    const mo = Math.round(days / 30.4);
-    return mo < 24 ? `${mo} mo` : `${(days / 365.25).toFixed(1)} yr`;
-  })() : null;
-  const onboarding = d.status === "onboarding";
-  const ob = onboarding ? _obReadiness(d, dd && dd.i9 ? dd.i9.record : null, (dd && dd.prog) || null, (dd && dd.onbState) || {}) : null;
-  const i9d = _i9Derived(dd && dd.i9 ? dd.i9.record : null);
-  const app = _rosterAppStatus ? _rosterAppStatus.get(d.id) : null;
+  const m = model || (dd && dd._model) || _ddWorkspaceModel(dd);
+  const shifts = (dd && dd.shifts) || [];
+  const DAY = 86400000;
+  const now = new Date();
 
-  // ── needs attention ──
-  const attn = [];
-  if (d.dl_expires_on) {
-    const days = Math.floor((new Date(d.dl_expires_on + "T12:00:00").getTime() - Date.now()) / 86400000);
-    if (days < 0) attn.push({ t: "red",   txt: `Driver's license expired ${fmtD(d.dl_expires_on)}` });
-    else if (days <= 30) attn.push({ t: "amber", txt: `Driver's license expires ${fmtD(d.dl_expires_on)} — ${days} day${days === 1 ? "" : "s"}` });
-  } else if (d.dl_image_path || d.dl_back_image_path) {
-    attn.push({ t: "amber", txt: "Driver's license uploaded — expiry not verified yet" });
-  } else if (d.status !== "onboarding") {
-    attn.push({ t: "amber", txt: "No driver's license on file" });
+  // Monthly attendance % for the last 6 months (worked ÷ eligible).
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ y: dt.getFullYear(), mo: dt.getMonth(), label: dt.toLocaleDateString(undefined, { month: "short" }), worked: 0, eligible: 0 });
   }
-  if (i9d.key !== "verified") {
-    if (i9d.attention === "overdue" || i9d.key === "needs_correction") attn.push({ t: "red",   txt: `Form I-9 — ${i9d.label.toLowerCase()}` });
-    else if (i9d.attention === "due_soon" || i9d.attention === "blocked") attn.push({ t: "amber", txt: `Form I-9 — ${i9d.label.toLowerCase()}` });
-    else if (i9d.key !== "no_record") attn.push({ t: "slate", txt: `Form I-9 — ${i9d.label.toLowerCase()}` });
-  } else if (i9d.key === "verified_expiring") {
-    attn.push({ t: "amber", txt: "Work authorization expiring — plan reverification" });
+  for (const s of shifts) {
+    if (!["completed", "late", "no_show", "called_off"].includes(s.status)) continue;
+    const dt = new Date((s.date || "") + "T12:00:00");
+    const bucket = months.find(x => x.y === dt.getFullYear() && x.mo === dt.getMonth());
+    if (!bucket) continue;
+    bucket.eligible++;
+    if (s.status === "completed" || s.status === "late") bucket.worked++;
   }
-  if (ob) {
-    if (ob.key === "blocked") attn.push({ t: "red", txt: `Onboarding blocked — ${ob.next.toLowerCase()}` });
-    else if (ob.tone === "amber") attn.push({ t: "amber", txt: `Onboarding — ${ob.next.toLowerCase()}` });
-  }
-  if (d.status === "active" && d.score != null && d.score < 70) attn.push({ t: "red", txt: `Performance score ${d.score} — below threshold` });
-  if (app && !app.signed_in_at && app.invited) attn.push({ t: "slate", txt: "Invited to the RouteReady app — hasn't signed in yet" });
-  else if (app && !app.invited && !app.signed_in_at && d.status !== "inactive" && d.status !== "terminated") attn.push({ t: "slate", txt: "Not invited to the RouteReady app yet" });
+  const bars = months.map(x => {
+    const pct = x.eligible ? Math.round((x.worked / x.eligible) * 100) : null;
+    const h = pct == null ? 0 : Math.max(3, Math.round(pct));
+    return `<div class="perf-bar" title="${escapeHtml(x.label)} · ${pct == null ? "no data" : pct + "%"}">
+      <span class="pb-val">${pct == null ? "—" : pct + "%"}</span>
+      <span class="pb-fill" style="height:${h}%;background:${pct == null ? "var(--border)" : pct >= 92 ? "#3aa757" : pct >= 80 ? "#e8a23d" : "#b42318"}"></span>
+      <span class="pb-cap">${escapeHtml(x.label)}</span>
+    </div>`;
+  }).join("");
 
-  // ── recent activity (merged, newest first) ──
-  const ev = [];
-  for (const c of (dd.coachings || [])) if (c.occurred_at) ev.push({ at: c.occurred_at, txt: `Coaching logged${c.category ? " · " + c.category : ""}` });
-  for (const e of (dd.envelopes || [])) {
-    const t = (e.document_templates && e.document_templates.title) || "Document";
-    if (e.signed_at) ev.push({ at: e.signed_at, txt: `Signed: ${t}` });
-    else if (e.sent_at) ev.push({ at: e.sent_at, txt: `Sent for signature: ${t}` });
-  }
-  for (const x of ((dd.i9 && dd.i9.events) || [])) if (x.created_at) ev.push({ at: x.created_at, txt: `Form I-9 · ${typeof _i9EventMeta === "function" ? _i9EventMeta(x).title : x.kind}` });
-  for (const r of (dd.empReports || [])) if (r.generated_at) ev.push({ at: r.generated_at, txt: "Employment report generated" });
-  ev.sort((a, b) => new Date(b.at) - new Date(a.at));
-  const recent = ev.slice(0, 6);
-
-  const dot = (t) => `<span style="width:7px;height:7px;border-radius:50%;flex:0 0 auto;margin-top:5px;background:${t === "red" ? "#dc2626" : t === "amber" ? "#d97706" : "#94a3b8"}"></span>`;
-  const fact = (label, val) => `<div><div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">${escapeHtml(label)}</div><div style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(val)}</div></div>`;
+  const tone = (t) => t === "good" ? "tone-good" : t === "warn" ? "tone-warn" : t === "bad" ? "tone-bad" : "";
+  const scoreCard = (label, val, sub, toneCls) => `<div class="perf-card"><div class="pc-label">${label}</div><div class="pc-val ${toneCls || ""}">${val}</div><div class="pc-sub">${sub}</div></div>`;
 
   body.innerHTML = `
-    <div style="margin-bottom:18px">
-      <div style="display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap">
-        ${typeof renderDriverStatusBadge === "function" ? renderDriverStatusBadge(d.status) : `<span class="dd-badge dsp">${escapeHtml(d.status || "—")}</span>`}
-        ${ob ? `${_obPill(ob.label, ob.tone)}<span class="u-xs-subtle">${ob.doneN}/${ob.totalN} gates</span>` : ""}
-        <span class="u-xs-subtle">${escapeHtml(stationTxt)}${tenureTxt ? " · " + escapeHtml(tenureTxt) : ""}${d.tier ? " · Tier " + escapeHtml(String(d.tier)) : ""}</span>
-      </div>
-      ${ob ? `<div style="display:flex;gap:var(--s-1);margin-top:var(--s-3);max-width:340px">${ob.gates.map(g => `<div title="${escapeHtml(g.label)}${g.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:var(--r-pill);background:${g.done ? "#16a34a" : "var(--border)"}"></div>`).join("")}</div>` : ""}
-      ${ob ? `<div class="u-mt-3"><button type="button" class="btn btn-sm btn-primary" data-rr-dd-tab="employment">Continue onboarding & Form I-9 →</button></div>` : ""}
+    <div class="perf-grid">
+      ${scoreCard("Attendance score", m.attendancePct == null ? "—" : m.attendancePct + "%", m.attendancePct == null ? "No shift data" : (m.attTrend === "up" ? "Improving vs prior period" : m.attTrend === "down" ? "Declining vs prior period" : "Steady"), tone(m.attendanceTone))}
+      ${scoreCard("Call-offs · 30d", String(m.callOffs30), "Unexcused absences", m.callOffs30 >= 3 ? "tone-bad" : m.callOffs30 >= 1 ? "tone-warn" : "tone-good")}
+      ${scoreCard("Late arrivals · 30d", String(m.late30), "Tardy clock-ins", m.late30 >= 3 ? "tone-bad" : m.late30 >= 1 ? "tone-warn" : "tone-good")}
+      ${scoreCard("Schedule stability", `${m.stabilityGood}<span style="font-size:16px;color:var(--text-subtle)">/8</span>`, "Weeks without disruption", tone(m.stabilityTone))}
     </div>
 
-    <div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">Needs attention</div></div></div>
-      ${attn.length
-        ? `<div style="display:flex;flex-direction:column;gap:9px">${attn.map(a => `<div style="display:flex;align-items:flex-start;gap:9px;font-size:var(--fs-sm);line-height:1.4">${dot(a.t)}<span style="color:${a.t === "red" ? "#991b1b" : a.t === "amber" ? "#92400e" : "var(--text)"}">${escapeHtml(a.txt)}</span></div>`).join("")}</div>`
-        : `<div style="display:flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:var(--text-subtle)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#16a34a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><polyline points="20 6 9 17 4 12"/></svg>Nothing needs attention — this record is in good standing.</div>`}
+    <div class="perf-card" style="margin-bottom:22px">
+      <div class="pc-label">Monthly attendance · last 6 months</div>
+      <div class="perf-bars">${bars}</div>
     </div>
 
-    <div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">At a glance</div></div></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s-4) 14px">
-        ${d.phone
-          ? `<div><div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">Phone</div><div style="font-size:var(--fs-sm);color:var(--text)">${phoneCell(d.phone)}</div></div>`
-          : fact("Phone", "—")}
-        ${fact("Email", d.email || "—")}
-        ${fact("Station", stationTxt)}
-        ${fact("Hired", d.hire_date ? fmtD(d.hire_date) + (tenureTxt ? " · " + tenureTxt : "") : "—")}
-        ${d.status === "active" && d.score != null ? fact("Performance score", String(d.score)) : ""}
-        ${fact("Driver's license", d.dl_number ? (d.dl_number + (d.dl_expires_on ? " · exp " + fmtD(d.dl_expires_on) : "")) : "Not on file")}
-        ${fact("Form I-9", i9d.label)}
-        ${fact("App access", app ? (app.signed_in_at ? "Signed in" : app.invited ? "Invited" : "Not invited") : "—")}
-      </div>
-    </div>
-
-    ${recent.length ? `<div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">Recent activity</div></div><button type="button" class="btn btn-sm btn-ghost" data-rr-dd-tab="activity" style="margin-left:auto">View all →</button></div>
-      <div style="display:flex;flex-direction:column">${recent.map((e, i) => `<div style="display:grid;grid-template-columns:96px 1fr;gap:var(--s-3);align-items:baseline;padding:9px 0;${i ? "border-top:1px solid var(--border)" : ""}"><span class="u-xs-subtle">${escapeHtml(fmtTs(e.at))}</span><span style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(e.txt)}</span></div>`).join("")}</div>
-    </div>` : ""}`;
+    <div class="ov-card" style="border-radius:var(--r-lg)">
+      <div class="ov-card-head"><div class="ov-card-title">Attendance heatmap · last 90 days</div></div>
+      ${_ddHeatmapHtml(m)}
+    </div>`;
 }
 
 // ── Training pairing modal (lives on the orientation dashboard) ───────
@@ -26454,7 +26932,7 @@ async function renderAttendanceTab(body, d) {
     <details class="att2-history">
       <summary class="att2-label att2-history-summary">History (${coachings.length})</summary>
       <div class="att2-timeline">${coachings.map((c, i) =>
-        `<div class="att2-tl-item${i === 0 ? " is-latest" : ""}"><span class="att2-tl-dot"></span><div class="att2-tl-body"><div class="att2-tl-top"><span class="att2-tl-title">${escapeHtml(stageLabel(c.severity))}</span><button type="button" class="att2-tl-doc" data-rr-coaching-record="${escapeHtml(c.id)}">View document</button></div><div class="att2-tl-date">${escapeHtml(fmtDate(c.occurred_at))}</div>${isAwaiting(c) ? `<div class="att2-tl-ack">Awaiting acknowledgment</div>` : ""}</div></div>`
+        `<div class="att2-tl-item${i === 0 ? " is-latest" : ""}"><span class="att2-tl-dot"></span><div class="att2-tl-body"><div class="att2-tl-top"><span class="att2-tl-title">${escapeHtml(stageLabel(c.severity))}</span><button type="button" class="att2-tl-doc" data-rr-coaching-doc="${escapeHtml(d.id)}" title="Open coaching document" aria-label="Open coaching document"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg></button></div><div class="att2-tl-date">${escapeHtml(fmtDate(c.occurred_at))}</div>${isAwaiting(c) ? `<div class="att2-tl-ack">Awaiting acknowledgment</div>` : ""}</div></div>`
       ).join("")}</div>
     </details>`;
 
@@ -26504,12 +26982,14 @@ async function renderAttendanceTab(body, d) {
       #rr-dd-body .att2-tl-dot{position:relative;z-index:1;flex:0 0 auto;width:11px;height:11px;margin-top:4px;border-radius:50%;background:var(--text-disabled)}
       #rr-dd-body .att2-tl-item.is-latest .att2-tl-dot{background:var(--text)}
       #rr-dd-body .att2-tl-body{flex:1;min-width:0}
-      #rr-dd-body .att2-tl-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+      #rr-dd-body .att2-tl-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
       #rr-dd-body .att2-tl-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
       #rr-dd-body .att2-tl-date{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
       #rr-dd-body .att2-tl-ack{font-size:var(--fs-xs);font-weight:600;color:#8A6D3B;margin-top:5px}
-      #rr-dd-body .att2-tl-doc{flex:0 0 auto;background:none;border:0;padding:0;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--accent-text);cursor:pointer;white-space:nowrap}
-      #rr-dd-body .att2-tl-doc:hover{text-decoration:underline}
+      /* Document icon button — opens the printable coaching record document. */
+      #rr-dd-body .att2-tl-doc{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:var(--r-md);background:none;border:1px solid var(--border);padding:0;color:var(--text-subtle);cursor:pointer;transition:color var(--t-fast),border-color var(--t-fast),background var(--t-fast)}
+      #rr-dd-body .att2-tl-doc:hover{color:var(--accent-text);border-color:var(--accent);background:var(--canvas)}
+      #rr-dd-body .att2-tl-doc svg{width:16px;height:16px}
     </style>
     ${statusCard}
     ${current ? progression + timeline : ""}`;
@@ -26664,6 +27144,9 @@ function _rrOpenAttEvent(el, ev) {
 
 // Delegated openers for the attendance-tab coaching rows + event rows.
 document.addEventListener("click", (e) => {
+  // Document icon → download the actual coaching record document (PDF).
+  const cdoc = e.target.closest && e.target.closest("[data-rr-coaching-doc]");
+  if (cdoc) { e.preventDefault(); e.stopPropagation(); if (typeof _downloadCoachingRecordPdf === "function") _downloadCoachingRecordPdf(cdoc.getAttribute("data-rr-coaching-doc")); return; }
   const cr = e.target.closest && e.target.closest("[data-rr-coaching-record]");
   if (cr) { e.preventDefault(); e.stopPropagation(); _rrOpenCoachingRecord(cr.getAttribute("data-rr-coaching-record")); return; }
   const av = e.target.closest && e.target.closest("[data-rr-att-event]");
@@ -29018,6 +29501,10 @@ function renderDocumentsTab(docs, envelopes) {
     </div>`).join("");
 
   return `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+      <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.4">Documents are stored in <strong style="color:var(--text)">RouteReady Vault</strong> — the system of record. Generated and uploaded files file here automatically.</div>
+      <button type="button" class="btn btn-sm" data-rr-dd-opendrive>Open in Vault →</button>
+    </div>
     <div class="dd-section" style="margin-bottom:22px">
       <div class="dd-section-head">
         <div>
@@ -29180,6 +29667,43 @@ document.addEventListener("click", async (e) => {
   if (row && !e.target.closest("[data-rr-no-drawer]")) {
     const id = row.getAttribute("data-driver-id");
     if (id) await openDriverDrawer(id);
+    return;
+  }
+
+  // Workspace header / overview action buttons (Message · Create coaching ·
+  // Create warning · More ▾, plus the Overview "Recommended actions").
+  const moreMenu = document.getElementById("rr-dd-more-menu");
+  const actionEl = e.target.closest("#rr-dd-drawer [data-rr-dd-action]");
+  // Dismiss the More menu on any click that isn't the toggle or inside it.
+  if (moreMenu && !moreMenu.hidden) {
+    const onToggle = actionEl && actionEl.getAttribute("data-rr-dd-action") === "more";
+    if (!onToggle && !e.target.closest("#rr-dd-more-menu")) moreMenu.hidden = true;
+  }
+  if (actionEl) {
+    const act = actionEl.getAttribute("data-rr-dd-action");
+    const id = _ddDriver?.driver?.id;
+    if (act === "more") {
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (moreMenu) { moreMenu.hidden = !moreMenu.hidden; actionEl.setAttribute("aria-expanded", String(!moreMenu.hidden)); }
+      return;
+    }
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (moreMenu) moreMenu.hidden = true;
+    if (!id) { toast("Save the driver record first.", "warn"); return; }
+    if (act === "message")      { _ddMessageDriver(id); return; }
+    if (act === "coach")        { if (typeof openCoachingForm === "function") openCoachingForm(id); return; }
+    if (act === "availability") { _ddTab = "availability"; renderDriverDrawerTab(); return; }
+    if (act === "report")       { if (typeof _openEmploymentReport === "function") _openEmploymentReport(id); return; }
+    if (act === "expand")       { openDriverDrawer(id, { tab: _ddTab, forceOverlay: true }); return; }
+    return;
+  }
+
+  // "Open in Vault →" from the Documents tab → the driver's Drive folder.
+  if (e.target.closest("[data-rr-dd-opendrive]")) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const id = _ddDriver?.driver?.id;
+    if (id && typeof openDrive === "function") openDrive({ driverId: id });
     return;
   }
 
@@ -29479,7 +30003,19 @@ document.addEventListener("click", async (e) => {
   }
 }, true);
 
-async function openCoachingForm(driverId) {
+// Message a driver from the Driver Workspace header — opens the Messages
+// app and selects this driver's conversation (same flow Cmd+K and the
+// driver-detail popover use). The operator composes in the real chat thread.
+function _ddMessageDriver(driverId) {
+  if (!driverId) return;
+  try { if (typeof window.goto === "function") window.goto("messages"); } catch (_) {}
+  // Let the inbox paint, then open this driver's thread.
+  setTimeout(() => {
+    try { if (typeof openDriverChatThread === "function") openDriverChatThread(driverId); } catch (_) {}
+  }, 80);
+}
+
+async function openCoachingForm(driverId, opts) {
   let m = document.getElementById("rr-coach-modal");
   if (m) m.remove();
 
@@ -29646,6 +30182,12 @@ async function openCoachingForm(driverId) {
     wrap.style.display = "";
   };
   m.querySelector("#rr-coach-severity").addEventListener("change", _renderLadder);
+  // "Create warning" (from the Driver Workspace) opens the form pre-set to a
+  // Written warning on the conduct/performance ladder; the operator can adjust.
+  if (opts && opts.warning) {
+    const sevSel = m.querySelector("#rr-coach-severity");
+    if (sevSel) sevSel.value = "written";
+  }
   _renderLadder();
 
   // Attendance reason picker is only meaningful for the attendance topic —
@@ -29751,6 +30293,9 @@ async function openCoachingForm(driverId) {
       }
     }
 
+    // Auto-file the coaching document into Drive (Coaching / Warnings folder),
+    // fire-and-forget so the save flow stays snappy.
+    if (inserted?.id && typeof _driveAutoFileCoaching === "function") _driveAutoFileCoaching(inserted.id, driverId, payload, _coachReason);
     m.remove();
     toast("Coaching logged", "success");
     await loadDriverDrawer(driverId);
@@ -31320,6 +31865,8 @@ function refreshActiveView() {
     if (typeof loadPlatformAdmin === "function") loadPlatformAdmin();
   } else if (activeView === "view-fleet2") {
     if (typeof loadFleetView === "function") loadFleetView();
+  } else if (activeView === "view-drive") {
+    if (typeof loadDriveView === "function") loadDriveView();
   }
   // view-schedule / view-okami refresh via their own focus hook below;
   // view-messages has live chat; view-forms / view-checklists are edit
@@ -31759,6 +32306,18 @@ setInterval(refreshActiveView, 30 * 1000);
 
 const RR_NAV_ORDER_KEY = "rr-nav-order-v1";
 
+// Expandable parents (Schedule, Onboarding) own a sibling
+// `.nav-sub[data-for=<view>]` child list. Return it for a nav-item so
+// the reorder logic can move the button and its children as one unit —
+// otherwise the list strands at the top of the rail (the job the old
+// index.html MutationObserver "glue" did reactively).
+function rrNavSubForItem(el) {
+  const view = el && el.getAttribute("data-view");
+  const parent = el && el.parentNode;
+  if (!view || !parent) return null;
+  return parent.querySelector(`.nav-sub[data-for="${view}"]`);
+}
+
 function applyStoredNavOrder() {
   const raw = localStorage.getItem(RR_NAV_ORDER_KEY);
   if (!raw) return;
@@ -31789,7 +32348,11 @@ function applyStoredNavOrder() {
 
   for (const view of order) {
     const el = byView.get(view);
-    if (el) nav.appendChild(el);
+    if (!el) continue;
+    nav.appendChild(el);
+    // Re-home the parent's child list right after it.
+    const sub = rrNavSubForItem(el);
+    if (sub) nav.appendChild(sub);
   }
 }
 
@@ -31827,7 +32390,15 @@ function wireSidebarDrag() {
       if (!dragged || dragged === el) return;
       const rect = el.getBoundingClientRect();
       const before = (e.clientY - rect.top) < (rect.height / 2);
-      el.parentNode.insertBefore(dragged, before ? el : el.nextSibling);
+      const parent = el.parentNode;
+      // Drop AFTER the hovered row's own child list so we never wedge
+      // the dragged item between a parent and its .nav-sub.
+      const elSub = rrNavSubForItem(el);
+      const ref = before ? el : (elSub ? elSub.nextSibling : el.nextSibling);
+      parent.insertBefore(dragged, ref);
+      // Keep the dragged parent's children pinned under it.
+      const dragSub = rrNavSubForItem(dragged);
+      if (dragSub) parent.insertBefore(dragSub, dragged.nextSibling);
     });
   });
 }
@@ -49297,6 +49868,14 @@ async function renderScheduleWeek() {
     if (!el.classList.contains("head")) el.remove();
   });
 
+  // Overtime threshold — the DSP's configured weekly OT hours (default 40).
+  // The grid previously hard-coded 50, so drivers scheduled 40–50h showed no
+  // OT flag. Prefer the live Pay-settings cache (_rrPayCache, refreshed by the
+  // save path) so a same-session threshold change is honored without a reload;
+  // fall back to the boot-time metadata, then 40.
+  const _otThresholdHours = Number(_rrPayCache?.overtime_threshold_hours)
+    || Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours)
+    || 40;
   const driverRowsHtml = drivers.map(d => {
     const initials = displayDriverInitials(d);
     const display = displayDriverName(d);
@@ -49316,9 +49895,9 @@ async function renderScheduleWeek() {
     const hoursLabelHTML =
       `<span class="cal-row-label-hours">${netHoursRounded}h<span class="cal-row-label-hours-word"> scheduled</span></span>`;
     // Overtime warning · gold circle with a white "OT" when this driver is
-    // scheduled 50+ hours this week. Lives in the right-edge warning cluster
-    // alongside the DL + no-van circles.
-    const otWarnIcon = (netHoursRounded >= 50)
+    // scheduled over the weekly OT threshold (default 40h). Lives in the
+    // right-edge warning cluster alongside the DL + no-van circles.
+    const otWarnIcon = (netHoursRounded > _otThresholdHours)
       ? `<span class="cal-row-label-otwarn" title="Scheduled ${netHoursRounded}h this week — overtime" aria-label="Scheduled ${netHoursRounded} hours this week — overtime" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrOtWarnIcon("Overtime — " + netHoursRounded + "h scheduled")}</span>`
       : "";
     const otIcon = ""; // legacy placeholder kept in the row template below
@@ -65179,7 +65758,7 @@ function _reqCoverageImpactCell(it) {
   const { sev, count, dows } = _reqCoverage(it);
   const head = sev === "high" ? "High" : sev === "medium" ? "Medium" : "None";
   const sub = count === 0 ? "No coverage impact" : `${count} coverage day${count === 1 ? "" : "s"} affected`;
-  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-head"><span class="req-cov-dot"></span><span class="req-cov-sev">${head}</span></div><div class="req-cov-sub">${sub}</div>${_reqDayChips(dows)}</div>`;
+  return `<div class="req-cov req-cov-${sev}"><div class="req-cov-card"><div class="req-cov-head"><span class="req-cov-sev">${head}</span></div><div class="req-cov-sub">${sub}</div></div>${_reqDayChips(dows)}</div>`;
 }
 
 // "Requested change" — what actually changed in plain words (bold primary +
@@ -69492,3 +70071,1908 @@ document.addEventListener("click", (e) => {
     setTimeout(setupFauxScrollbars, 600);
   });
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROUTEREADY DRIVE — document management workspace (#view-drive).
+// Phase 1: a unified, read-through workspace over the existing document stores
+// (driver_documents, document_envelopes, vehicle_documents, employment_reports)
+// with automatic per-driver folders. Drive is the system of record; nothing is
+// duplicated — rows reference the real storage objects. Schema-backed folders,
+// auto-filing of generated docs, and DOCX/XLSX preview land in Phase 2.
+// ═══════════════════════════════════════════════════════════════════════════
+let _driveState = { section: "all", driverId: null, sub: null, folderId: null, query: "", view: "list", selected: null, sort: { key: "modified", dir: "desc" }, checked: new Set(), anchor: null, filter: "all" };
+let _driveData = null;        // { docs:[], drivers:[], driverMap:Map }
+let _driveLoadedFor = null;   // dsp id the cache was built for
+let _driveLoading = false;
+
+function openDrive(opts) {
+  if (typeof window.goto === "function") window.goto("drive");
+  loadDriveView(opts || {});
+}
+window.openDrive = openDrive;
+
+async function loadDriveView(opts) {
+  opts = opts || {};
+  // Deep-link context (e.g. "Open in Drive" from a driver record).
+  if (opts.driverId) { _driveState.section = "drivers"; _driveState.driverId = opts.driverId; _driveState.sub = opts.sub || null; _driveState.folderId = null; }
+  else if (opts.section) { _driveState.section = opts.section; _driveState.driverId = null; _driveState.sub = null; _driveState.folderId = null; }
+  _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null;
+  const main = document.getElementById("rr-drive-main");
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { if (main) main.innerHTML = `<div class="rr-drive-empty"><div class="rr-drive-empty-title">Sign in to view Drive</div></div>`; return; }
+  if (_driveLoadedFor !== dspId) { _driveData = null; }
+  if (!_driveData && !_driveLoading) {
+    _driveLoading = true;
+    if (main) main.innerHTML = `<div class="rr-loading">Loading Vault</div>`;
+    try { await _driveLoadData(dspId); _driveLoadedFor = dspId; } catch (e) { console.warn("[drive] load failed:", e); }
+    _driveLoading = false;
+  }
+  _driveRender();
+  _driveLoadGoogleStatus();   // non-blocking — paints the connect banner when ready
+}
+window.loadDriveView = loadDriveView;
+
+async function _driveLoadData(dspId) {
+  const docs = [];
+  const fold = (s) => String(s || "");
+  // Drivers (folders exist for every roster driver, even with no docs yet).
+  let drivers = [];
+  try {
+    const { data } = await sb.from("drivers")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station:station_id(code)")
+      .eq("dsp_id", dspId).limit(1000);
+    drivers = data || [];
+  } catch { drivers = (_rosterRows || []); }
+  const driverMap = new Map(drivers.map(d => [d.id, d]));
+  const nameOf = (id) => { const d = driverMap.get(id); return d ? (displayDriverName(d) || "Driver") : "Driver"; };
+  const stationOf = (id) => { const d = driverMap.get(id); return d?.station?.code || ""; };
+
+  // 0 · canonical Drive store (migration 0396). Best-effort — stays empty and
+  //     is ignored until the migration is applied. A canonical row takes
+  //     precedence over the legacy driver_documents view for the same storage
+  //     object (deduped by file_path below).
+  // Custom folders (drive_folders · migration 0396). Best-effort.
+  let folders = [];
+  try {
+    const { data, error } = await sb.from("drive_folders")
+      .select("id, name, category, parent_id, created_at, metadata")
+      .eq("dsp_id", dspId).is("archived_at", null).order("name", { ascending: true }).limit(2000);
+    if (!error) folders = (data || []).filter(f => (f.category || "custom") === "custom");
+  } catch (_) { /* not migrated yet */ }
+
+  const canonicalPaths = new Set();
+  try {
+    // Fetch every canonical row (incl. archived / trashed) so the dedup set is
+    // complete; the section filters decide what each view shows. `select *` so
+    // newer columns (e.g. the Google fields from 0397) load when present and
+    // this degrades cleanly when the migration hasn't been applied.
+    const { data, error } = await sb.from("drive_documents")
+      .select("*")
+      .eq("dsp_id", dspId)
+      .order("created_at", { ascending: false }).limit(8000);
+    if (!error) for (const x of (data || [])) {
+      if (x.file_path) canonicalPaths.add(x.file_path);
+      const cat = x.subfolder && _DRIVE_SUBS.includes(x.subfolder) ? x.subfolder : null;
+      const isGoogle = !!x.is_google_file;
+      docs.push({
+        folderId: x.folder_id || null,
+        id: "drv_" + x.id, canonicalId: x.id, source: "driver_documents", canonical: true,
+        name: x.name || "Document", kind: "other", driveCategory: cat,
+        docType: x.doc_type || cat || "Document",
+        bucket: x.bucket || "driver-documents", path: x.file_path, mime: x.mime_type, size: x.file_size,
+        driverId: x.driver_id, driverName: x.driver_id ? nameOf(x.driver_id) : "", station: x.driver_id ? stationOf(x.driver_id) : "",
+        createdAt: x.created_at, createdBy: (x.metadata && x.metadata.drive_created_by) || "",
+        archivedAt: x.archived_at, deletedAt: x.deleted_at,
+        tags: Array.isArray(x.tags) ? x.tags : [],
+        // Google Workspace (0397) — Google-owned metadata.
+        isGoogle, googleId: x.google_file_id || null, googleUrl: x.google_drive_url || null,
+        googleMime: x.google_mime_type || null, relatedType: x.related_entity_type || null,
+        relatedId: x.related_entity_id || null, permStatus: x.permissions_status || null,
+        modifiedAt: x.modified_at || null, lastSyncedAt: x.last_synced_at || null,
+      });
+    }
+  } catch (_) { /* not migrated yet — ignore */ }
+
+  // 1 · driver_documents (HR / personnel files + auto-filed generated docs).
+  try {
+    const { data } = await sb.from("driver_documents")
+      .select("id, driver_id, kind, label, file_path, file_size, mime_type, expires_on, created_at, metadata")
+      .eq("dsp_id", dspId).order("created_at", { ascending: false }).limit(5000);
+    for (const x of (data || [])) {
+      if (x.file_path && canonicalPaths.has(x.file_path)) continue; // already shown from the canonical store
+      const meta = x.metadata || {};
+      const nm = meta.drive_title || x.label || (fold(x.kind).replace(/_/g, " ") || "Document");
+      const cat = meta.drive_category && _DRIVE_SUBS.includes(meta.drive_category) ? meta.drive_category : null;
+      docs.push({
+        id: "dd_" + x.id, source: "driver_documents", name: nm,
+        kind: x.kind, driveCategory: cat,
+        docType: meta.drive_doc_type || (cat ? cat : fold(x.kind).replace(/_/g, " ") || "Document"),
+        bucket: "driver-documents", path: x.file_path, mime: x.mime_type, size: x.file_size,
+        driverId: x.driver_id, driverName: nameOf(x.driver_id), station: stationOf(x.driver_id),
+        createdAt: x.created_at, createdBy: meta.drive_created_by || "", expiresOn: x.expires_on,
+        tags: meta.auto_generated ? ["Auto-filed"] : [],
+      });
+    }
+  } catch (e) { console.warn("[drive] driver_documents:", e); }
+
+  // 2 · document_envelopes (e-signature — signed PDFs in the documents bucket).
+  try {
+    const { data } = await sb.from("document_envelopes")
+      .select("id, status, sent_at, signed_at, signed_pdf_path, certificate_pdf_path, recipient_driver_id, document_templates(title)")
+      .eq("dsp_id", dspId).order("sent_at", { ascending: false }).limit(5000);
+    for (const e of (data || [])) {
+      const title = e.document_templates?.title || "Document";
+      docs.push({
+        id: "env_" + e.id, source: "envelope", name: title + (e.signed_pdf_path ? ".pdf" : ""),
+        docType: title, bucket: "documents", path: e.signed_pdf_path || null, mime: "application/pdf",
+        driverId: e.recipient_driver_id || null,
+        driverName: e.recipient_driver_id ? nameOf(e.recipient_driver_id) : "",
+        station: e.recipient_driver_id ? stationOf(e.recipient_driver_id) : "",
+        createdAt: e.signed_at || e.sent_at, status: e.status, shared: true,
+        tags: ["E-signature", e.status].filter(Boolean),
+      });
+    }
+  } catch (e) { console.warn("[drive] envelopes:", e); }
+
+  // 3 · vehicle_documents (Fleet). Best-effort — column set varies by version.
+  try {
+    const { data } = await sb.from("vehicle_documents").select("*").eq("dsp_id", dspId).limit(3000);
+    for (const v of (data || [])) {
+      const nm = v.label || v.title || fold(v.kind || v.doc_type).replace(/_/g, " ") || "Fleet document";
+      docs.push({
+        id: "veh_" + v.id, source: "vehicle", name: nm, docType: fold(v.kind || v.doc_type).replace(/_/g, " ") || "Fleet",
+        bucket: "vehicle-documents", path: v.file_path || v.path || null, mime: v.mime_type || v.mime || "",
+        size: v.file_size || null, vehicleId: v.vehicle_id || null,
+        createdAt: v.created_at || v.uploaded_at, station: "", tags: ["Fleet"],
+      });
+    }
+  } catch (e) { console.warn("[drive] vehicle_documents:", e); }
+
+  // 4 · employment_reports (Reports). DB-backed; opens the report viewer.
+  try {
+    const { data } = await sb.from("employment_reports")
+      .select("id, driver_id, generated_at, generated_by_name, summary")
+      .eq("dsp_id", dspId).order("generated_at", { ascending: false }).limit(2000);
+    for (const r of (data || [])) {
+      docs.push({
+        id: "rep_" + r.id, source: "report", name: `Employment report — ${nameOf(r.driver_id)}`,
+        docType: "Employment report", driverId: r.driver_id, driverName: nameOf(r.driver_id),
+        station: stationOf(r.driver_id), createdAt: r.generated_at, createdBy: r.generated_by_name || "",
+        tags: ["Report"], reportId: r.id,
+      });
+    }
+  } catch (e) { console.warn("[drive] employment_reports:", e); }
+
+  // Derive type + flags for every doc.
+  for (const d of docs) {
+    d.type = d.isGoogle ? _driveGoogleType(d.googleMime, d.name) : _driveType(d.mime, d.name);
+    // Google files open in Google (their editor) — never previewed inline.
+    d.previewable = !d.isGoogle && !!d.path && (d.type === "pdf" || d.type === "img" || d.type === "doc" || d.type === "xls");
+    d.openable = d.isGoogle ? !!d.googleUrl : (!!d.path || d.source === "report");
+    if (!d.tags) d.tags = [];
+  }
+  _driveData = { docs, drivers, driverMap, folders };
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+// Google Workspace mime → internal type tag (drives the icon + label).
+function _driveGoogleType(mime) {
+  const m = String(mime || "").toLowerCase();
+  if (m.includes("presentation")) return "gslide";
+  if (m.includes("spreadsheet")) return "gsheet";
+  return "gdoc";
+}
+function _driveGoogleLabel(type) {
+  return { gdoc: "Google Doc", gsheet: "Google Sheet", gslide: "Google Slide" }[type] || "Google file";
+}
+function _driveType(mime, name) {
+  const m = String(mime || "").toLowerCase(), n = String(name || "").toLowerCase();
+  if (m.includes("pdf") || n.endsWith(".pdf")) return "pdf";
+  if (m.startsWith("image/") || /\.(png|jpe?g|gif|webp|heic|bmp)$/.test(n)) return "img";
+  if (m.includes("word") || /\.docx?$/.test(n)) return "doc";
+  if (m.includes("sheet") || m.includes("excel") || /\.(xlsx?|csv)$/.test(n)) return "xls";
+  return "file";
+}
+const _DRIVE_SUBS = ["Coaching", "Attendance", "Warnings", "Employment", "DOT", "Licenses", "Documents"];
+function _driveSubfolder(doc) {
+  if (doc.driveCategory && _DRIVE_SUBS.includes(doc.driveCategory)) return doc.driveCategory;
+  if (doc.source === "report") return "Employment";
+  if (doc.source === "envelope") {
+    const t = String(doc.docType || "").toLowerCase();
+    if (/warn/.test(t)) return "Warnings";
+    if (/coach/.test(t)) return "Coaching";
+    if (/attend/.test(t)) return "Attendance";
+    return "Employment";
+  }
+  const k = String(doc.kind || "").toLowerCase();
+  if (/dot/.test(k)) return "DOT";
+  if (/licen|mvr|^dl|drivers_license/.test(k)) return "Licenses";
+  if (/i9|w4|w-4|direct_deposit|background|social|employ/.test(k)) return "Employment";
+  return "Documents";
+}
+function _driveIsHr(doc) {
+  if (doc.source !== "driver_documents") return false;
+  return /i9|w4|w-4|direct_deposit|background|social|medical/.test(String(doc.kind || "").toLowerCase());
+}
+function _driveFileIco(type, folder) {
+  if (folder) return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+  const base = `fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"`;
+  if (type === "img") return `<svg viewBox="0 0 24 24" ${base}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
+  // Google Workspace files.
+  if (type === "gdoc")   return `<svg viewBox="0 0 24 24" ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg>`;
+  if (type === "gsheet") return `<svg viewBox="0 0 24 24" ${base}><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
+  if (type === "gslide") return `<svg viewBox="0 0 24 24" ${base}><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
+  return `<svg viewBox="0 0 24 24" ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+}
+// Folder personalization — color + icon stored in drive_folders.metadata
+// (no migration). A calm, app-consistent palette and a small icon set.
+const _DRIVE_FOLDER_COLORS = { slate: "#64748b", blue: "#2563eb", teal: "#0e7490", green: "#15803d", amber: "#b45309", red: "#b42318", purple: "#7c3aed", pink: "#be185d" };
+const _DRIVE_FOLDER_ICONS = {
+  folder: `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>`,
+  star: `<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`,
+  users: `<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>`,
+  truck: `<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>`,
+  shield: `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
+  briefcase: `<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>`,
+  flag: `<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>`,
+  clipboard: `<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>`,
+};
+function _driveFolderColor(meta) { const c = meta && meta.color; return (c && _DRIVE_FOLDER_COLORS[c]) || null; }
+function _driveFolderIcoSvg(meta) {
+  const key = (meta && meta.icon && _DRIVE_FOLDER_ICONS[meta.icon]) ? meta.icon : "folder";
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${_DRIVE_FOLDER_ICONS[key]}</svg>`;
+}
+function _driveFmtDate(x) {
+  if (!x) return "—";
+  const d = new Date(x); if (isNaN(d)) return "—";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+function _driveFmtSize(n) {
+  if (!n || n < 0) return "—";
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(0) + " KB";
+  return (n / 1048576).toFixed(1) + " MB";
+}
+function _driveLastMod(list) {
+  let m = 0; for (const d of list) { const t = d.createdAt ? new Date(d.createdAt).getTime() : 0; if (t > m) m = t; }
+  return m ? _driveFmtDate(new Date(m)) : "—";
+}
+// Sort comparator for the file list/grid. Driven by _driveState.sort
+// ({ key, dir }); falls back to newest-first as a stable tie-break.
+const _driveCollator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+function _driveLoc(d) { return d.driverName || (d.source === "vehicle" ? "Fleet" : d.source === "report" ? "Reports" : ""); }
+function _driveCmp(a, b) {
+  const s = _driveState.sort || { key: "modified", dir: "desc" };
+  let r;
+  if (s.key === "name") r = _driveCollator.compare(a.name || "", b.name || "");
+  else if (s.key === "type") r = _driveCollator.compare(a.docType || a.type || "", b.docType || b.type || "");
+  else if (s.key === "location") r = _driveCollator.compare((typeof _driveLocOf === "function" ? _driveLocOf(a) : _driveLoc(a)), (typeof _driveLocOf === "function" ? _driveLocOf(b) : _driveLoc(b)));
+  else if (s.key === "owner") r = _driveCollator.compare(a.createdBy || "", b.createdBy || "");
+  else if (s.key === "size") r = (a.size || 0) - (b.size || 0);
+  else r = (new Date(a.modifiedAt || a.createdAt || 0).getTime()) - (new Date(b.modifiedAt || b.createdAt || 0).getTime());
+  r *= (s.dir === "asc" ? 1 : -1);
+  if (r === 0) r = (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime());
+  return r;
+}
+// Documents in a given category section (excludes folder navigation).
+function _driveSectionDocs(section) {
+  const all = (_driveData?.docs) || [];
+  // Archive / Trash are status views over the canonical store.
+  if (section === "archive") return all.filter(d => d.archivedAt && !d.deletedAt);
+  if (section === "trash")   return all.filter(d => d.deletedAt);
+  // Every other section shows only active (not archived, not trashed) docs.
+  const active = all.filter(d => !d.archivedAt && !d.deletedAt);
+  if (section === "all") return active;
+  if (section === "recent") { const cut = Date.now() - 30 * 86400000; return active.filter(d => d.createdAt && new Date(d.createdAt).getTime() >= cut); }
+  if (section === "shared") return active.filter(d => d.source === "envelope");
+  if (section === "drivers") return active.filter(d => d.driverId && !d.folderId);
+  if (section === "fleet") return active.filter(d => d.source === "vehicle");
+  if (section === "hr") return active.filter(_driveIsHr);
+  if (section === "reports") return active.filter(d => d.source === "report");
+  if (section === "station") return [];
+  return active;
+}
+// Compliance — active documents that carry an expiry (DOT medical, licenses,
+// etc.), soonest first. Read-only triage over data already loaded; no schema.
+function _driveComplianceList() {
+  return ((_driveData?.docs) || [])
+    .filter(d => !d.archivedAt && !d.deletedAt && d.expiresOn && !isNaN(new Date(d.expiresOn)))
+    .sort((a, b) => new Date(a.expiresOn) - new Date(b.expiresOn));
+}
+function _driveExpiryStatus(expiresOn) {
+  const exp = new Date(expiresOn); if (isNaN(exp)) return null;
+  const days = Math.floor((exp.getTime() - Date.now()) / 86400000);
+  if (days < 0) return { key: "expired", label: `Expired ${-days}d ago`, cls: "is-expired" };
+  if (days <= 30) return { key: "soon", label: days === 0 ? "Expires today" : `Expires in ${days}d`, cls: "is-soon" };
+  return { key: "ok", label: `Expires in ${days}d`, cls: "is-ok" };
+}
+function _driveComplianceAttention() {
+  return _driveComplianceList().filter(d => { const s = _driveExpiryStatus(d.expiresOn); return s && (s.key === "expired" || s.key === "soon"); }).length;
+}
+function _driveCounts() {
+  const active = ((_driveData?.docs) || []).filter(d => !d.archivedAt && !d.deletedAt);
+  return {
+    all: active.length,
+    recent: _driveSectionDocs("recent").length,
+    shared: _driveSectionDocs("shared").length,
+    drivers: active.filter(d => d.driverId && !d.folderId).length,
+    fleet: _driveSectionDocs("fleet").length,
+    hr: _driveSectionDocs("hr").length,
+    station: 0, reports: _driveSectionDocs("reports").length,
+    compliance: _driveComplianceAttention(),
+    archive: _driveSectionDocs("archive").length, trash: _driveSectionDocs("trash").length,
+  };
+}
+
+// ── Render ───────────────────────────────────────────────────────────────
+function _driveRender() {
+  if (!document.getElementById("view-drive")?.classList.contains("active") && !document.getElementById("rr-drive-main")) return;
+  _driveRenderGoogleBanner();
+  _driveRenderNav();
+  _driveRenderCrumbs();
+  _driveRenderBulk();
+  _driveRenderMain();
+  _driveRenderDetails();
+}
+
+// ── Google Workspace status strip ──────────────────────────────────────────
+// Shows connect / reconnect-for-Drive prompts in-app, with a popup OAuth flow
+// (the same one the Settings → Calendar integration uses; now that the
+// drive.file scope is in google-oauth-start, connecting also grants Drive).
+let _driveGoogleStatus = null;          // {connected, drive, email} | null (unknown)
+let _driveGoogleStatusFetched = false;
+let _driveGoogleBannerDismissed = false;
+async function _driveLoadGoogleStatus(force) {
+  if (_driveGoogleStatusFetched && !force) return;
+  _driveGoogleStatusFetched = true;
+  try {
+    const { data, error } = await sb.functions.invoke("google-drive-status", { body: {} });
+    if (error) throw error;
+    _driveGoogleStatus = { connected: !!data.connected, drive: !!data.drive, email: data.email || "" };
+  } catch (_) {
+    // Status function not deployed yet — fall back to the calendar status RPC
+    // for connected/email (drive unknown → don't nag a connected tenant).
+    try {
+      const { data } = await sb.rpc("google_calendar_status");
+      const row = Array.isArray(data) ? data[0] : data;
+      _driveGoogleStatus = (row && typeof row.connected === "boolean")
+        ? { connected: row.connected, drive: null, email: row.email || "" } : null;
+    } catch (_2) { _driveGoogleStatus = null; }
+  }
+  _driveRenderGoogleBanner();
+}
+function _driveRenderGoogleBanner() {
+  const el = document.getElementById("rr-drive-gbanner");
+  if (!el) return;
+  const s = _driveGoogleStatus;
+  // Hide when fully connected, when status is unknown, or after a dismiss.
+  if (_driveGoogleBannerDismissed || !s || (s.connected && s.drive !== false)) { el.hidden = true; return; }
+  const ico = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+  let title, body;
+  if (!s.connected) {
+    title = "Connect Google Workspace";
+    body = "Create Google Docs, Sheets, and Slides right inside the Vault. Connect your Google account to turn it on.";
+  } else {
+    title = "Finish enabling Google Docs";
+    body = `Connected${s.email ? " as " + escapeHtml(s.email) : ""}, but Drive access isn't granted yet. In Google Cloud, enable the Drive / Docs / Sheets / Slides APIs and add the <code>drive.file</code> scope, then reconnect below.`;
+  }
+  el.hidden = false;
+  el.innerHTML = `<span class="rr-drive-gbanner-ico">${ico}</span>
+    <div class="rr-drive-gbanner-txt"><div class="rr-drive-gbanner-title">${title}</div><div class="rr-drive-gbanner-body">${body}</div></div>
+    <div class="rr-drive-gbanner-acts">
+      <button type="button" class="btn btn-sm btn-primary" data-rr-gw="connect">${s.connected ? "Reconnect Google" : "Connect Google"}</button>
+      <button type="button" class="rr-drive-gbanner-x" data-rr-gw="dismiss" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`;
+}
+// Open Google's OAuth consent in a popup (reuses google-oauth-start, which now
+// requests the drive.file scope). Refreshes the banner when the popup returns.
+async function _driveConnectGoogle(triggerBtn) {
+  if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = "Opening Google…"; }
+  try {
+    const { data, error } = await sb.functions.invoke("google-oauth-start", { body: {} });
+    if (error || !data?.url) throw error || new Error("No authorization URL returned");
+    const popup = window.open(data.url, "rr-gw", "width=520,height=660");
+    const onMsg = (ev) => {
+      if (!ev.data || ev.data.type !== "rr-gcal") return;
+      window.removeEventListener("message", onMsg);
+      try { popup && popup.close(); } catch (_) {}
+      if (ev.data.ok) toast("Google connected", "success");
+      else toast("Connection failed: " + (ev.data.message || ""), "warn");
+      _driveGoogleBannerDismissed = false;
+      _driveLoadGoogleStatus(true);
+    };
+    window.addEventListener("message", onMsg);
+    const poll = setInterval(() => {
+      if (popup && popup.closed) { clearInterval(poll); window.removeEventListener("message", onMsg); _driveLoadGoogleStatus(true); }
+    }, 800);
+    if (!popup) { window.removeEventListener("message", onMsg); clearInterval(poll); window.open(data.url, "_blank"); }
+  } catch (e) {
+    toast("Couldn't start Google connect: " + ((e && e.message) || e), "warn");
+    _driveRenderGoogleBanner();
+  }
+}
+// Cross-cutting view chips (replaced the section rail) — All documents,
+// Recent, Shared. Category navigation (Drivers/Fleet/HR/Station/Reports)
+// lives in the root cards; drill-down is via breadcrumbs.
+const _DRIVE_NAV_ICO = {
+  all: `<path d="M3 7h18M3 12h18M3 17h18"/>`,
+  activity: `<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>`,
+  shared: `<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>`,
+  recent: `<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>`,
+  starred: `<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`,
+  compliance: `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>`,
+  archive: `<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><line x1="10" y1="12" x2="14" y2="12"/>`,
+  trash: `<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>`,
+  admin: `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
+};
+function _driveNavIco(k) { return `<svg viewBox="0 0 24 24" fill="${k === "starred" ? "none" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${_DRIVE_NAV_ICO[k] || ""}</svg>`; }
+// Left navigation rail (enterprise DMS). Same data-rr-drive-sec contract the
+// old chips used, so the click delegate is unchanged.
+function _driveRenderNav() {
+  const el = document.getElementById("rr-drive-navlist");
+  if (!el) return;
+  const c = _driveCounts();
+  const atTop = !_driveState.driverId && !_driveState.folderId;
+  const item = (k, l, n, alert) => `<button type="button" class="rr-drive-navitem${atTop && _driveState.section === k ? " is-active" : ""}${alert ? " is-alert" : ""}" data-rr-drive-sec="${k}">
+    <span class="rr-drive-navico">${_driveNavIco(k)}</span><span class="rr-drive-navlbl">${l}</span>${n ? `<span class="rr-drive-navcnt">${n}</span>` : ""}</button>`;
+  const primary = [
+    item("all", "Vault", c.all),
+    item("activity", "Activity", 0),
+    item("shared", "Shared", c.shared),
+    item("recent", "Recent", c.recent),
+    item("starred", "Starred", _driveGetFavs().size),
+  ].join("");
+  const secondary = [
+    item("compliance", "Compliance", c.compliance, c.compliance > 0),
+    item("archive", "Archive", c.archive),
+    item("trash", "Trash", c.trash),
+  ].join("");
+  el.innerHTML = primary + `<div class="rr-drive-navsep"></div>` + secondary;
+  _driveRenderNavFoot();
+}
+function _driveRenderNavFoot() {
+  const el = document.getElementById("rr-drive-navfoot");
+  if (!el) return;
+  const docs = (_driveData?.docs || []).filter(d => !d.archivedAt && !d.deletedAt);
+  let bytes = 0; for (const d of docs) bytes += (d.size || 0);
+  el.innerHTML = `
+    <div class="rr-drive-storage">
+      <div class="rr-drive-storage-t">Storage</div>
+      <div class="rr-drive-storage-v">${docs.length} item${docs.length === 1 ? "" : "s"}${bytes ? " · " + _driveFmtSize(bytes) : ""}</div>
+    </div>
+    <button type="button" class="rr-drive-navitem rr-drive-navfootbtn" data-rr-drive-admin>
+      <span class="rr-drive-navico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+      <span class="rr-drive-navlbl">Admin Console</span></button>`;
+}
+function _driveRenderCrumbs() {
+  const el = document.getElementById("rr-drive-crumbs");
+  if (!el) return;
+  const SEC = { all: "Vault", activity: "Activity", recent: "Recent", shared: "Shared", starred: "Starred", compliance: "Compliance", drivers: "Drivers", fleet: "Fleet", hr: "HR", station: "Station", reports: "Reports", archive: "Archive", trash: "Trash" };
+  const crumbs = [{ label: "Vault", to: { section: "all" } }];
+  if (_driveState.folderId) {
+    // Walk the custom-folder chain to the root for the breadcrumb.
+    const byId = new Map(((_driveData?.folders) || []).map(f => [f.id, f]));
+    const chain = []; let cur = byId.get(_driveState.folderId); let guard = 0;
+    while (cur && guard++ < 20) { chain.unshift(cur); cur = cur.parent_id ? byId.get(cur.parent_id) : null; }
+    for (const f of chain) crumbs.push({ label: f.name, to: { section: "all", folderId: f.id } });
+    if (!chain.length) crumbs.push({ label: "Folder", to: { section: "all", folderId: _driveState.folderId } });
+  } else if (_driveState.section !== "all") {
+    crumbs.push({ label: SEC[_driveState.section] || _driveState.section, to: { section: _driveState.section } });
+    if (_driveState.section === "drivers" && _driveState.driverId) {
+      crumbs.push({ label: (_driveData?.driverMap.get(_driveState.driverId) && displayDriverName(_driveData.driverMap.get(_driveState.driverId))) || "Driver", to: { section: "drivers", driverId: _driveState.driverId } });
+      if (_driveState.sub) crumbs.push({ label: _driveState.sub, to: { section: "drivers", driverId: _driveState.driverId, sub: _driveState.sub } });
+    }
+  }
+  el.innerHTML = crumbs.map((c, i) => {
+    const last = i === crumbs.length - 1;
+    return `${i ? '<span class="rr-drive-crumb-sep">›</span>' : ""}<button type="button" class="rr-drive-crumb${last ? " is-current" : ""}" data-rr-drive-go='${JSON.stringify(c.to)}'>${escapeHtml(c.label)}</button>`;
+  }).join("");
+}
+function _driveRenderMain() {
+  const main = document.getElementById("rr-drive-main");
+  if (!main) return;
+  const q = _driveState.query.trim().toLowerCase();
+
+  // Global search overrides folder navigation.
+  if (q) {
+    const matches = (_driveData?.docs || []).filter(d =>
+      (d.name && d.name.toLowerCase().includes(q)) ||
+      (d.driverName && d.driverName.toLowerCase().includes(q)) ||
+      (d.docType && d.docType.toLowerCase().includes(q)) ||
+      (d.station && d.station.toLowerCase().includes(q)) ||
+      (d.tags && d.tags.join(" ").toLowerCase().includes(q))
+    );
+    main.innerHTML = `<div class="rr-drive-sectionhead">${matches.length} result${matches.length === 1 ? "" : "s"} for "${escapeHtml(_driveState.query.trim())}"</div>` + _driveListHtml(matches, true);
+    return;
+  }
+
+  // Inside a custom folder — its sub-folders + its files.
+  if (_driveState.folderId) {
+    const folder = (_driveData?.folders || []).find(f => f.id === _driveState.folderId);
+    const subfolders = (_driveData?.folders || []).filter(x => x.parent_id === _driveState.folderId);
+    const fdocs = (_driveData?.docs || []).filter(d => d.folderId === _driveState.folderId && !d.archivedAt && !d.deletedAt);
+    const fcolor = folder ? _driveFolderColor(folder.metadata) : null;
+    const ffav = folder ? _driveIsFav(folder.id) : false;
+    // "New folder" creates a sub-folder right here (parent_id = this folder).
+    const newFolderBtn = `<button type="button" class="btn btn-sm btn-primary" data-rr-drive-newfolder><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>New folder</button>`;
+    const bar = folder ? `<div class="rr-drive-folderbar">
+      <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder"${fcolor ? ` style="color:${fcolor}"` : ""}>${_driveFolderIcoSvg(folder.metadata)}</span>${escapeHtml(folder.name)}</div>
+      <div class="rr-drive-folderbar-acts">
+        ${newFolderBtn}
+        <button type="button" class="btn btn-sm${ffav ? " is-active" : ""}" data-rr-drive-fav="${escapeHtml(folder.id)}">${ffav ? "★ Starred" : "☆ Star"}</button>
+        <button type="button" class="btn btn-sm" data-rr-drive-folderstyle="${escapeHtml(folder.id)}">Customize</button>
+        <button type="button" class="btn btn-sm" data-rr-drive-foldername="${escapeHtml(folder.id)}">Rename</button>
+        <button type="button" class="btn btn-sm" data-rr-drive-folderdel="${escapeHtml(folder.id)}">Delete</button>
+      </div></div>` : "";
+    // Sub-folders render as the same manageable table (with the 3-dot menu).
+    const subTable = subfolders.length ? `<div class="rr-drive-sectionhead">Folders</div>${_driveFoldersTable(subfolders.map(_driveCustomFolderRowData))}` : "";
+    const filesHead = subTable ? `<div class="rr-drive-sectionhead" style="margin-top:22px">Files</div>` : "";
+    main.innerHTML = bar + subTable + filesHead + (fdocs.length ? _driveListHtml(fdocs, false) : _driveEmpty("folder"));
+    return;
+  }
+
+  const s = _driveState.section;
+  // Vault home: Quick access · Folders (table) · Documents (table).
+  if (s === "all") {
+    const c = _driveCounts();
+    const allFolders = (_driveData?.folders || []);
+    const favSet = _driveGetFavs();
+    const byId = new Map(allFolders.map(f => [f.id, f]));
+    // Quick access — a few frequently-used folders (starred first, then recent).
+    const quickIds = [];
+    for (const f of allFolders) if (favSet.has(f.id)) quickIds.push(f.id);
+    for (const id of _driveGetRecent()) if (byId.has(id) && !quickIds.includes(id)) quickIds.push(id);
+    const quick = quickIds.map(id => byId.get(id)).filter(Boolean).slice(0, 4);
+    // Folders table — custom root folders + the (non-hidden) category folders.
+    const rootFolders = allFolders.filter(x => !x.parent_id);
+    const hiddenCats = _driveGetHiddenCats();
+    const cats = [["drivers", "Drivers"], ["fleet", "Fleet"], ["hr", "HR"], ["station", "Station"], ["reports", "Reports"]].filter(([key]) => !hiddenCats.has(key));
+    const catIco = _driveFileIco(null, true);
+    const folderRows = rootFolders.map(_driveCustomFolderRowData).concat(
+      cats.map(([key, label]) => ({
+        name: label, items: `${c[key] || 0} item${(c[key] || 0) === 1 ? "" : "s"}`, modified: _driveLastMod(_driveSectionDocs(key)),
+        attr: `data-rr-drive-sec="${key}"`, color: null, ico: catIco, favId: null, secKey: key,
+      }))
+    );
+    const hiddenLink = hiddenCats.size ? `<button type="button" class="rr-drive-showhidden" data-rr-drive-unhide><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Show ${hiddenCats.size} hidden folder${hiddenCats.size === 1 ? "" : "s"}</button>` : "";
+    const blocks = [];
+    if (quick.length) blocks.push(`<div class="rr-drive-sectionhead">Quick access</div><div class="rr-drive-quick">${quick.map(_driveFolderCard).join("")}</div>`);
+    blocks.push(`<div class="rr-drive-sectionhead">Folders</div>${_driveFoldersTable(folderRows)}${hiddenLink}`);
+    blocks.push(`<div class="rr-drive-sectionhead">Documents</div>${_driveListHtml(_driveSectionDocs("all"))}`);
+    main.innerHTML = blocks.map((b, i) => i === 0 ? b : b.replace('class="rr-drive-sectionhead"', 'class="rr-drive-sectionhead rr-drive-sectionhead-gap"')).join("");
+    return;
+  }
+
+  // Starred — starred folders.
+  if (s === "starred") {
+    const favSet = _driveGetFavs();
+    const starred = (_driveData?.folders || []).filter(f => favSet.has(f.id));
+    if (!starred.length) { main.innerHTML = `<div class="rr-drive-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><div class="rr-drive-empty-title">Nothing starred yet</div><div class="rr-drive-empty-sub">Star a folder to pin it here for quick access.</div></div>`; return; }
+    main.innerHTML = `<div class="rr-drive-sectionhead">Starred folders</div>${_driveFoldersTable(starred.map(_driveCustomFolderRowData))}`;
+    return;
+  }
+
+  // Activity — every document, most recently changed first (a lightweight feed).
+  if (s === "activity") {
+    const list = ((_driveData?.docs || []).filter(d => !d.archivedAt && !d.deletedAt))
+      .slice().sort((a, b) => new Date(b.modifiedAt || b.createdAt || 0) - new Date(a.modifiedAt || a.createdAt || 0));
+    main.innerHTML = `<div class="rr-drive-sectionhead">Recent activity</div>${list.length ? _driveListHtml(list) : _driveEmpty()}`;
+    return;
+  }
+
+  // Drivers section — folder tree.
+  if (s === "drivers") {
+    if (!_driveState.driverId) {
+      const drivers = (_driveData?.drivers || []).slice().sort((a, b) => (displayDriverName(a) || "").localeCompare(displayDriverName(b) || ""));
+      if (!drivers.length) { main.innerHTML = _driveEmpty(); return; }
+      const byDriver = new Map();
+      for (const d of _driveSectionDocs("drivers")) byDriver.set(d.driverId, (byDriver.get(d.driverId) || 0) + 1);
+      const cards = drivers.map(d => {
+        const n = byDriver.get(d.id) || 0;
+        return `<button type="button" class="rr-drive-card" data-rr-drive-driver="${escapeHtml(d.id)}">
+          <span class="rr-drive-card-ico">${_driveFileIco(null, true)}</span>
+          <span class="rr-drive-card-body"><span class="rr-drive-card-name">${escapeHtml(displayDriverName(d) || "Driver")}</span>
+          <span class="rr-drive-card-meta">${n} document${n === 1 ? "" : "s"}${d.station?.code ? " · " + escapeHtml(d.station.code) : ""}</span></span>
+        </button>`;
+      }).join("");
+      main.innerHTML = `<div class="rr-drive-sectionhead">${drivers.length} driver folders</div><div class="rr-drive-cards">${cards}</div>`;
+      return;
+    }
+    if (!_driveState.sub) {
+      // 7 standard subfolders for this driver.
+      const docs = _driveSectionDocs("drivers").filter(d => d.driverId === _driveState.driverId);
+      const counts = {}; for (const sub of _DRIVE_SUBS) counts[sub] = 0;
+      for (const d of docs) { const sf = _driveSubfolder(d); counts[sf] = (counts[sf] || 0) + 1; }
+      const cards = _DRIVE_SUBS.map(sub => `<button type="button" class="rr-drive-card" data-rr-drive-sub="${escapeHtml(sub)}">
+        <span class="rr-drive-card-ico">${_driveFileIco(null, true)}</span>
+        <span class="rr-drive-card-body"><span class="rr-drive-card-name">${sub}</span>
+        <span class="rr-drive-card-meta">${counts[sub] || 0} document${(counts[sub] || 0) === 1 ? "" : "s"}</span></span>
+      </button>`).join("");
+      main.innerHTML = `<div class="rr-drive-sectionhead">Folders</div><div class="rr-drive-cards">${cards}</div>`;
+      return;
+    }
+    const docs = _driveSectionDocs("drivers").filter(d => d.driverId === _driveState.driverId && _driveSubfolder(d) === _driveState.sub);
+    main.innerHTML = _driveListHtml(docs, false);
+    return;
+  }
+
+  if (s === "station") { main.innerHTML = _driveEmpty(s); return; }
+
+  if (s === "compliance") { main.innerHTML = _driveComplianceHtml(); return; }
+
+  if (s === "archive" || s === "trash") {
+    const list = _driveSectionDocs(s);
+    const note = s === "trash"
+      ? `<div class="rr-drive-sectionhead">Trash · ${list.length} item${list.length === 1 ? "" : "s"} — restore to put a document back in its folder.</div>`
+      : `<div class="rr-drive-sectionhead">Archive · ${list.length} item${list.length === 1 ? "" : "s"}</div>`;
+    main.innerHTML = note + (list.length ? _driveListHtml(list, true) : _driveEmpty(s));
+    return;
+  }
+
+  // Flat document sections (recent / shared / fleet / hr / reports).
+  main.innerHTML = _driveListHtml(_driveSectionDocs(s), s === "all" || s === "recent" || s === "shared");
+}
+// Compliance view — credentials with an expiry, soonest first, status-badged.
+function _driveComplianceHtml() {
+  const list = _driveComplianceList();
+  const att = _driveComplianceAttention();
+  if (!list.length) {
+    return `<div class="rr-drive-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <div class="rr-drive-empty-title">Nothing expiring</div>
+      <div class="rr-drive-empty-sub">Documents with an expiry date (DOT medical cards, licenses) show up here, soonest first.</div>
+    </div>`;
+  }
+  const head = `<div class="rr-drive-lhead"><div>Document</div><div>Driver</div><div>Type</div><div>Expires</div><div>Status</div></div>`;
+  const rows = list.map(d => {
+    const st = _driveExpiryStatus(d.expiresOn) || { label: "—", cls: "is-ok" };
+    const sel = (_driveState.selected === d.id ? " is-selected" : "") + (_driveState.checked?.has(d.id) ? " is-checked" : "");
+    return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="false">
+      <div class="rr-drive-name"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>
+      <div class="rr-drive-cell">${escapeHtml(d.driverName || "—")}</div>
+      <div class="rr-drive-cell">${escapeHtml(d.docType || "—")}</div>
+      <div class="rr-drive-cell">${_driveFmtDate(d.expiresOn)}</div>
+      <div class="rr-drive-cell"><span class="rr-drive-expbadge ${st.cls}">${escapeHtml(st.label)}</span></div>
+    </div>`;
+  }).join("");
+  const note = att
+    ? `<div class="rr-drive-sectionhead">${att} document${att === 1 ? "" : "s"} need attention — expired or expiring within 30 days.</div>`
+    : `<div class="rr-drive-sectionhead">${list.length} document${list.length === 1 ? "" : "s"} with an expiry · all current.</div>`;
+  return note + `<div class="rr-drive-list rr-drive-complist">${head}${rows}</div>`;
+}
+// Where a document lives, for the Location column.
+function _driveLocOf(d) {
+  if (d.folderId) { const f = (_driveData?.folders || []).find(x => x.id === d.folderId); return f ? f.name : "Folder"; }
+  if (d.driverName) return d.driverName;
+  if (d.source === "vehicle") return "Fleet";
+  if (d.source === "report") return "Reports";
+  return "Vault";
+}
+function _driveOwner(d) { return d.createdBy || (d.source === "envelope" ? "E-signature" : "—"); }
+// Type filter (toolbar Filter menu).
+function _driveApplyFilter(docs) {
+  const f = _driveState.filter || "all";
+  if (f === "all") return docs;
+  if (f === "google") return docs.filter(d => d.isGoogle);
+  if (f === "pdf") return docs.filter(d => d.type === "pdf");
+  if (f === "image") return docs.filter(d => d.type === "img");
+  if (f === "office") return docs.filter(d => d.type === "doc" || d.type === "xls" || (!d.isGoogle && (d.type === "gdoc")));
+  if (f === "folder") return docs;
+  return docs;
+}
+function _driveListHtml(docs) {
+  if (!docs || !docs.length) return _driveEmpty();
+  docs = _driveApplyFilter(docs);
+  if (!docs.length) return `<div class="rr-drive-empty"><div class="rr-drive-empty-title">No matching documents</div><div class="rr-drive-empty-sub">Nothing matches the current filter.</div></div>`;
+  const ck = (id) => _driveState.checked?.has(id);
+  const checkBox = (id) => `<span class="rr-drive-check" data-rr-drive-check="${escapeHtml(id)}" role="checkbox" aria-checked="${ck(id) ? "true" : "false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
+  if (_driveState.view === "grid") {
+    const tiles = docs.slice().sort(_driveCmp).map(d =>
+      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${(d.path || d.isGoogle) ? "true" : "false"}">
+        <span class="rr-drive-tile-ico t-${d.type}">${_driveFileIco(d.type)}${checkBox(d.id)}</span>
+        <span class="rr-drive-tile-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
+        <span class="rr-drive-tile-meta">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "")} · ${_driveFmtDate(d.modifiedAt || d.createdAt)}</span>
+      </button>`).join("");
+    return `<div class="rr-drive-grid">${tiles}</div>`;
+  }
+  const rows = docs.slice().sort(_driveCmp).map(d => {
+    const sel = (_driveState.selected === d.id ? " is-selected" : "") + (ck(d.id) ? " is-checked" : "");
+    return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${(d.path || d.isGoogle) ? "true" : "false"}">
+      <div class="rr-drive-name"><span class="rr-drive-figbox"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span>${checkBox(d.id)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>
+      <div class="rr-drive-cell">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "—")}</div>
+      <div class="rr-drive-cell rr-drive-cell-soft">${escapeHtml(_driveLocOf(d))}</div>
+      <div class="rr-drive-cell rr-drive-cell-soft">${_driveFmtDate(d.modifiedAt || d.createdAt)}</div>
+      <div class="rr-drive-cell rr-drive-cell-soft">${escapeHtml(_driveOwner(d))}</div>
+    </div>`;
+  }).join("");
+  const cols = [["name", "Name"], ["type", "Type"], ["location", "Location"], ["modified", "Modified"], ["owner", "Owner"]];
+  const s = _driveState.sort || { key: "modified", dir: "desc" };
+  const head = `<div class="rr-drive-lhead">` + cols.map(([k, l]) => {
+    const on = s.key === k;
+    return `<button type="button" class="rr-drive-sortbtn${on ? " is-active" : ""}" data-rr-drive-sort="${k}">${l}${on ? `<span class="rr-drive-caret">${s.dir === "asc" ? "▲" : "▼"}</span>` : ""}</button>`;
+  }).join("") + `</div>`;
+  return `<div class="rr-drive-list">${head}${rows}</div>`;
+}
+// Folders rendered as a clean table (Folder · Items · Modified). Custom folders
+// carry data-rr-drive-folder; category folders carry data-rr-drive-sec.
+function _driveFolderRow(o) {
+  // Every folder row carries a single 3-dot menu (Google-Drive style). Custom
+  // folders → Star / Customize / Rename / Delete. Built-in category folders
+  // (Drivers, Fleet, …) → Hide from Vault (reversible; records are untouched).
+  let menuAttr = "";
+  if (o.favId) menuAttr = `data-rr-drive-foldermenu="${escapeHtml(o.favId)}"`;
+  else if (o.secKey) menuAttr = `data-rr-drive-catmenu="${escapeHtml(o.secKey)}"`;
+  const acts = menuAttr
+    ? `<div class="rr-drive-frow-acts"><button type="button" class="rr-drive-kebab" ${menuAttr} aria-haspopup="menu" aria-label="Folder actions" title="More actions"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button></div>`
+    : `<div class="rr-drive-frow-acts"></div>`;
+  return `<div class="rr-drive-frow" ${o.attr}>
+    <div class="rr-drive-fname"><span class="rr-drive-fico is-folder"${o.color ? ` style="color:${o.color}"` : ""}>${o.ico}</span><span class="rr-drive-name-txt">${escapeHtml(o.name)}</span></div>
+    <div class="rr-drive-fcell rr-drive-cell-soft">${o.items}</div>
+    <div class="rr-drive-fcell rr-drive-cell-soft">${o.modified || "—"}</div>
+    ${acts}
+  </div>`;
+}
+function _driveFoldersTable(rows) {
+  if (!rows.length) return "";
+  const head = `<div class="rr-drive-fhead"><div>Folder</div><div>Items</div><div>Modified</div><div class="rr-drive-fhead-acts" aria-hidden="true"></div></div>`;
+  return `<div class="rr-drive-ftable">${head}${rows.map(_driveFolderRow).join("")}</div>`;
+}
+// Build a folder-table row for a custom folder.
+function _driveCustomFolderRowData(f) {
+  const docs = ((_driveData?.docs) || []).filter(d => d.folderId === f.id && !d.archivedAt && !d.deletedAt);
+  return {
+    name: f.name, items: `${docs.length} item${docs.length === 1 ? "" : "s"}`, modified: _driveLastMod(docs),
+    attr: `data-rr-drive-folder="${escapeHtml(f.id)}"`, color: _driveFolderColor(f.metadata), ico: _driveFolderIcoSvg(f.metadata), favId: f.id,
+  };
+}
+function _driveEmpty(section) {
+  const sub = section === "station" ? "Station-level documents will appear here once uploaded."
+    : section === "archive" ? "Archived documents will appear here."
+    : section === "trash" ? "Deleted documents will appear here."
+    : section === "folder" ? "This folder is empty. Use Upload to add files, or New folder to nest one."
+    : "Upload a file or generate a document from a driver record.";
+  return `<div class="rr-drive-empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    <div class="rr-drive-empty-title">No documents found</div>
+    <div class="rr-drive-empty-sub">${sub}</div>
+  </div>`;
+}
+// Favorites + recent folders — per-tenant, stored in localStorage (no
+// migration, per the Google-Drive-interactions plan).
+function _driveFavKey() { return "rr.vault.favs." + (window.RR?.dsp?.id || "x"); }
+function _driveRecentKey() { return "rr.vault.recent." + (window.RR?.dsp?.id || "x"); }
+function _driveGetFavs() { try { return new Set(JSON.parse(localStorage.getItem(_driveFavKey()) || "[]")); } catch (_) { return new Set(); } }
+function _driveIsFav(id) { return _driveGetFavs().has(id); }
+function _driveToggleFav(id) { const s = _driveGetFavs(); if (s.has(id)) s.delete(id); else s.add(id); try { localStorage.setItem(_driveFavKey(), JSON.stringify([...s])); } catch (_) {} }
+function _driveGetRecent() { try { const r = JSON.parse(localStorage.getItem(_driveRecentKey()) || "[]"); return Array.isArray(r) ? r : []; } catch (_) { return []; } }
+function _drivePushRecent(id) {
+  if (!id) return;
+  const r = [id, ..._driveGetRecent().filter(x => x !== id)].slice(0, 6);
+  try { localStorage.setItem(_driveRecentKey(), JSON.stringify(r)); } catch (_) {}
+}
+// Hidden built-in category folders (Drivers / Fleet / HR / Station / Reports).
+// These are virtual sections derived from records, not real folder rows, so
+// "Delete" hides the shortcut from the Vault home (per-tenant, reversible) —
+// it never touches the underlying documents.
+function _driveHiddenCatsKey() { return "rr.vault.hiddencats." + (window.RR?.dsp?.id || "x"); }
+function _driveGetHiddenCats() { try { return new Set(JSON.parse(localStorage.getItem(_driveHiddenCatsKey()) || "[]")); } catch (_) { return new Set(); } }
+function _driveHideCat(key) { const s = _driveGetHiddenCats(); s.add(key); try { localStorage.setItem(_driveHiddenCatsKey(), JSON.stringify([...s])); } catch (_) {} }
+function _driveUnhideAllCats() { try { localStorage.removeItem(_driveHiddenCatsKey()); } catch (_) {} }
+function _driveStarSvg(filled) {
+  return `<svg viewBox="0 0 24 24" fill="${filled ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+}
+// Custom-folder card (drive_folders). Count = active docs filed directly in it.
+function _driveFolderCard(f) {
+  const n = ((_driveData?.docs) || []).filter(d => d.folderId === f.id && !d.archivedAt && !d.deletedAt).length;
+  const color = _driveFolderColor(f.metadata);
+  const icoStyle = color ? ` style="color:${color};background:${color}1f"` : "";
+  const fav = _driveIsFav(f.id);
+  return `<button type="button" class="rr-drive-card rr-drive-foldercard" data-rr-drive-folder="${escapeHtml(f.id)}">
+    <span class="rr-drive-card-ico"${icoStyle}>${_driveFolderIcoSvg(f.metadata)}</span>
+    <span class="rr-drive-card-body"><span class="rr-drive-card-name">${escapeHtml(f.name)}</span>
+    <span class="rr-drive-card-meta">${n} item${n === 1 ? "" : "s"}</span></span>
+    <span class="rr-drive-fav${fav ? " is-on" : ""}" data-rr-drive-fav="${escapeHtml(f.id)}" role="button" aria-pressed="${fav}" aria-label="${fav ? "Unstar folder" : "Star folder"}" title="${fav ? "Unstar" : "Star"}">${_driveStarSvg(fav)}</span>
+  </button>`;
+}
+function _driveRenderDetails() {
+  const el = document.getElementById("rr-drive-details");
+  if (!el) return;
+  // Multi-select → a summary (bulk actions live in the selection bar up top).
+  if (_driveState.checked && _driveState.checked.size > 1) {
+    const sel = (_driveData?.docs || []).filter(d => _driveState.checked.has(d.id));
+    const list = sel.slice(0, 12).map(d => `<div class="rr-drive-det-multi-item"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>`).join("");
+    const more = sel.length > 12 ? `<div class="rr-drive-det-multi-more">+${sel.length - 12} more</div>` : "";
+    el.innerHTML = `<div class="rr-drive-det-head"><div class="rr-drive-det-name">${sel.length} documents selected</div><div class="rr-drive-det-type">Use the selection bar to move, archive, or delete them.</div></div><div class="rr-drive-det-multi">${list}${more}</div>`;
+    return;
+  }
+  const doc = (_driveData?.docs || []).find(d => d.id === _driveState.selected);
+  if (!doc) {
+    el.innerHTML = `<div class="rr-drive-det-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>Select a document to see its details and preview.</span></div>`;
+    return;
+  }
+  const row = (k, v) => v ? `<div class="rr-drive-det-row"><div class="k">${k}</div><div class="v">${v}</div></div>` : "";
+  const tags = (doc.tags || []).length ? `<div class="rr-drive-det-row"><div class="k">Tags</div><div class="v rr-drive-det-tags">${doc.tags.map(t => `<span class="rr-drive-det-tag">${escapeHtml(t)}</span>`).join("")}</div></div>` : "";
+  // Google files can be filed into Vault folders even though they have no
+  // stored object (the "object" lives in Google Drive).
+  const canFile = !!(doc.path || doc.isGoogle);
+  const previewBox = doc.isGoogle
+    ? `<div class="rr-drive-det-preview"><div class="rr-drive-det-noprev"><span class="rr-drive-fico t-${doc.type}" style="width:46px;height:46px;border-radius:12px">${_driveFileIco(doc.type)}</span><div style="margin-top:10px">${escapeHtml(_driveGoogleLabel(doc.type))} — opens in Google.</div></div></div>`
+    : (doc.previewable
+      ? `<div class="rr-drive-det-preview" id="rr-drive-preview"><div class="rr-loading" style="padding:30px">Loading preview</div></div>`
+      : `<div class="rr-drive-det-preview"><div class="rr-drive-det-noprev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${doc.source === "report" ? "Generated report — open to view." : "Preview isn't available for this file type yet."}</div></div>`);
+  const open = doc.source === "report"
+    ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open report</button>`
+    : doc.isGoogle
+      ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open in Google</button><button class="btn btn-sm" data-rr-drive-copylink="${escapeHtml(doc.id)}">Copy link</button>`
+      : (doc.openable ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open</button><button class="btn btn-sm" data-rr-drive-download="${escapeHtml(doc.id)}">Download</button>` : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">No file attached.</span>`);
+  // Archive / Trash / Restore (canonical store · migration 0396). Available for
+  // stored files and Google files (for a Google file this removes it from the
+  // Vault, not from Google). Generated reports have no record to file.
+  let status = "";
+  if (canFile) {
+    const trashLbl = doc.isGoogle ? "Remove from Vault" : "Move to Trash";
+    if (doc.deletedAt) status = `<button class="btn btn-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">Restore</button>`;
+    else if (doc.archivedAt) status = `<button class="btn btn-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">Restore</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">${trashLbl}</button>`;
+    else status = `<button class="btn btn-sm" data-rr-drive-status="archive" data-rr-drive-id="${escapeHtml(doc.id)}">Archive</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">${trashLbl}</button>`;
+  }
+  // Move to a custom folder — only for active (non-archived, non-trashed) files.
+  const move = (canFile && !doc.deletedAt && !doc.archivedAt)
+    ? `<button class="btn btn-sm" data-rr-drive-move="${escapeHtml(doc.id)}">Move to…</button>` : "";
+  // Rename — docs with an editable backing record (canonical store, incl. Google
+  // files, or a driver_documents row). Derived names (envelopes/fleet/reports) stay fixed.
+  const rename = ((doc.canonical || doc.source === "driver_documents") && !doc.deletedAt)
+    ? `<button class="btn btn-sm" data-rr-drive-rename="${escapeHtml(doc.id)}">Rename</button>` : "";
+  // Duplicate — stored files only (a Google copy needs the Drive API; comes with
+  // the Google backend). Filed in the same place as the original.
+  const dup = (doc.path && !doc.isGoogle && !doc.deletedAt)
+    ? `<button class="btn btn-sm" data-rr-drive-duplicate="${escapeHtml(doc.id)}">Duplicate</button>` : "";
+  const foot = open + rename + dup + move + status;
+  el.innerHTML = `
+    <div class="rr-drive-det-head"><div class="rr-drive-det-name">${escapeHtml(doc.name)}</div><div class="rr-drive-det-type">${escapeHtml(doc.isGoogle ? _driveGoogleLabel(doc.type) : (doc.docType || doc.type || "Document"))}</div></div>
+    ${previewBox}
+    <div class="rr-drive-det-meta">
+      ${row("Created", _driveFmtDate(doc.createdAt))}
+      ${doc.isGoogle && doc.modifiedAt ? row("Modified", _driveFmtDate(doc.modifiedAt)) : ""}
+      ${row("Created by", doc.createdBy ? escapeHtml(doc.createdBy) : "")}
+      ${row("Driver", doc.driverName ? escapeHtml(doc.driverName) : "")}
+      ${row("Station", doc.station ? escapeHtml(doc.station) : "")}
+      ${doc.isGoogle ? row("Type", escapeHtml(_driveGoogleLabel(doc.type))) : row("Type", escapeHtml(doc.docType || "—"))}
+      ${doc.isGoogle && doc.docType && doc.docType !== "Document" ? row("Document type", escapeHtml(doc.docType)) : ""}
+      ${doc.isGoogle && doc.relatedType ? row("Related to", escapeHtml(_driveRelatedLabel(doc))) : ""}
+      ${doc.isGoogle && doc.permStatus ? row("Access", escapeHtml(doc.permStatus)) : ""}
+      ${!doc.isGoogle ? row("Size", doc.size ? _driveFmtSize(doc.size) : "") : ""}
+      ${doc.expiresOn ? row("Expires", _driveFmtDate(doc.expiresOn)) : ""}
+      ${tags}
+    </div>
+    <div class="rr-drive-det-foot">${foot}</div>`;
+  if (doc.previewable) _drivePaintPreview(doc);
+}
+function _driveRelatedLabel(doc) {
+  const t = String(doc.relatedType || "").replace(/^\w/, c => c.toUpperCase());
+  const who = doc.driverName || "";
+  return who ? `${t} · ${who}` : (t || "—");
+}
+async function _driveCopyLink(doc) {
+  const url = doc && doc.googleUrl; if (!url) { toast("No link to copy yet.", "warn"); return; }
+  try { await navigator.clipboard.writeText(url); toast("Link copied", "success"); }
+  catch (_) { toast("Couldn't copy — open the file to get its link.", "warn"); }
+}
+// Lazily load Word/Excel renderers from the same CDN pdf-lib uses. Files are
+// parsed entirely in the browser — never sent to any third-party viewer.
+let _mammothP = null, _xlsxP = null;
+function _loadMammoth() { if (!_mammothP) _mammothP = import("https://cdn.jsdelivr.net/npm/mammoth@1.6.0/+esm"); return _mammothP; }
+function _loadXlsx()    { if (!_xlsxP)    _xlsxP    = import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm");    return _xlsxP; }
+
+async function _drivePaintPreview(doc) {
+  const box = document.getElementById("rr-drive-preview");
+  if (!box || !doc.path) return;
+  let url = null;
+  try { const { data } = await sb.storage.from(doc.bucket).createSignedUrl(doc.path, 3600); url = data?.signedUrl || null; } catch {}
+  if (!document.getElementById("rr-drive-preview")) return; // selection changed
+  if (!url) { box.innerHTML = `<div class="rr-drive-det-noprev">Couldn't load preview.</div>`; return; }
+  if (doc.type === "img") { box.innerHTML = `<img src="${url}" alt="${escapeHtml(doc.name)}">`; return; }
+  if (doc.type === "pdf") { box.innerHTML = `<iframe src="${url}" title="${escapeHtml(doc.name)}"></iframe>`; return; }
+  // Word / Excel · render to HTML client-side.
+  if (doc.type === "doc" || doc.type === "xls") {
+    try {
+      const buf = await (await fetch(url)).arrayBuffer();
+      if (!document.getElementById("rr-drive-preview")) return;
+      let html = "";
+      if (doc.type === "doc") {
+        const mammoth = await _loadMammoth();
+        const res = await (mammoth.convertToHtml ? mammoth : mammoth.default).convertToHtml({ arrayBuffer: buf });
+        html = `<div class="rr-drive-doc-html">${res.value || "<p>(empty document)</p>"}</div>`;
+      } else {
+        const XLSX = await _loadXlsx();
+        const wb = (XLSX.read ? XLSX : XLSX.default).read(buf, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        html = `<div class="rr-drive-doc-html rr-drive-xls">${(XLSX.utils || XLSX.default.utils).sheet_to_html(ws)}</div>`;
+      }
+      if (!document.getElementById("rr-drive-preview")) return;
+      box.innerHTML = html;
+    } catch (e) {
+      box.innerHTML = `<div class="rr-drive-det-noprev">Couldn't render a preview. Use Open to download the file.</div>`;
+    }
+    return;
+  }
+  box.innerHTML = `<iframe src="${url}" title="${escapeHtml(doc.name)}"></iframe>`;
+}
+async function _driveOpenDoc(doc, download) {
+  if (!doc) return;
+  // Google files open in the real Google editor (a new tab) — never inline.
+  if (doc.isGoogle) {
+    if (doc.googleUrl) window.open(doc.googleUrl, "_blank", "noopener");
+    else toast("No Google link yet — try Sync metadata.", "warn");
+    return;
+  }
+  if (doc.source === "report") { if (typeof _openEmploymentReport === "function") _openEmploymentReport(doc.driverId); return; }
+  if (!doc.path) { toast("No file is attached to this record.", "warn"); return; }
+  try {
+    const { data } = await sb.storage.from(doc.bucket).createSignedUrl(doc.path, 3600, download ? { download: doc.name || true } : {});
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    else toast("Couldn't open the document.", "warn");
+  } catch (e) { toast("Couldn't open the document.", "warn"); }
+}
+
+// Archive / Trash / Restore a document via the canonical store (migration
+// 0396). A canonical row is updated in place; a legacy doc gets a canonical
+// row created that carries the status (and shadows it out of the live views).
+function _driveIsMigErr(error) { return /drive_documents|drive_folders|does not exist|schema cache|relation|42P01/i.test(String(error?.message || error || "")); }
+// One Archive/Trash/Restore write (no toast/reload) — shared by the single and
+// bulk paths. A canonical row is patched in place; a legacy doc gets a
+// canonical row carrying the status (which shadows it out of the live views).
+async function _driveDocStatusWrite(doc, action) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !doc || !(doc.path || doc.isGoogle)) return { error: "skip" };
+  const now = new Date().toISOString();
+  const patch = action === "archive" ? { archived_at: now, deleted_at: null }
+    : action === "trash" ? { deleted_at: now }
+    : { archived_at: null, deleted_at: null };
+  try {
+    if (doc.canonicalId) return await sb.from("drive_documents").update(patch).eq("id", doc.canonicalId);
+    return await sb.from("drive_documents").insert({
+      dsp_id: dspId, driver_id: doc.driverId || null, name: doc.name, doc_type: doc.docType || null,
+      category: doc.source === "vehicle" ? "fleet" : (doc.driverId ? "drivers" : null),
+      subfolder: doc.driverId ? _driveSubfolder(doc) : null,
+      bucket: doc.bucket || "driver-documents", file_path: doc.path,
+      file_size: doc.size || null, mime_type: doc.mime || null,
+      source: doc.source === "envelope" ? "envelope" : "upload",
+      tags: Array.isArray(doc.tags) ? doc.tags : [],
+      archived_at: patch.archived_at || null, deleted_at: patch.deleted_at || null,
+      created_by: window.RR?.user?.id || null, metadata: { drive_title: doc.name },
+    });
+  } catch (e) { return { error: e }; }
+}
+async function _driveSetDocStatus(doc, action) {
+  if (!doc || !(doc.path || doc.isGoogle)) return;
+  const { error } = await _driveDocStatusWrite(doc, action);
+  if (error) {
+    if (_driveIsMigErr(error)) toast("Apply the Vault schema migration (0396) in Supabase to enable Archive & Trash.", "warn");
+    else toast("Couldn't update: " + String(error.message || error), "warn");
+    return;
+  }
+  toast({ archive: "Archived", trash: "Moved to Trash", restore: "Restored" }[action] || "Updated", "success");
+  _driveState.selected = null; _driveState.checked = new Set(); _driveData = null;
+  await loadDriveView();
+}
+
+// Create a custom folder (drive_folders · migration 0396). Nested under the
+// current custom folder if one is open, else at the Drive root.
+async function _driveNewFolder() {
+  const dspId = window.RR?.dsp?.id; if (!dspId) return;
+  const name = (prompt("New folder name:") || "").trim();
+  if (!name) return;
+  let error = null;
+  try {
+    ({ error } = await sb.from("drive_folders").insert({
+      dsp_id: dspId, name, category: "custom",
+      parent_id: _driveState.folderId || null, created_by: window.RR?.user?.id || null,
+    }));
+  } catch (e) { error = e; }
+  if (error) {
+    const msg = String(error.message || error);
+    if (/drive_folders|does not exist|schema cache|relation|42P01/i.test(msg))
+      toast("Apply the Vault schema migration (0396) in Supabase to create folders.", "warn");
+    else toast("Couldn't create folder: " + msg, "warn");
+    return;
+  }
+  toast("Folder created", "success");
+  _driveData = null; await loadDriveView();
+}
+
+// Move a document into a custom folder (or back to the Drive root). Updates
+// the canonical row's folder_id; mirrors a legacy doc into the store first.
+// One move write (no toast/reload) — shared by the single and bulk paths.
+async function _driveMoveWrite(doc, folderId) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !doc || !(doc.path || doc.isGoogle)) return { error: "skip" };
+  try {
+    if (doc.canonicalId) return await sb.from("drive_documents").update({ folder_id: folderId || null }).eq("id", doc.canonicalId);
+    return await sb.from("drive_documents").insert({
+      dsp_id: dspId, folder_id: folderId || null, driver_id: doc.driverId || null,
+      name: doc.name, doc_type: doc.docType || null,
+      category: folderId ? "custom" : (doc.source === "vehicle" ? "fleet" : (doc.driverId ? "drivers" : null)),
+      subfolder: doc.driverId ? _driveSubfolder(doc) : null,
+      bucket: doc.bucket || "driver-documents", file_path: doc.path,
+      file_size: doc.size || null, mime_type: doc.mime || null,
+      source: doc.source === "envelope" ? "envelope" : "upload",
+      tags: Array.isArray(doc.tags) ? doc.tags : [],
+      created_by: window.RR?.user?.id || null, metadata: { drive_title: doc.name },
+    });
+  } catch (e) { return { error: e }; }
+}
+// Move one or many documents into a custom folder (or back to the root).
+async function _driveMoveMany(docs, folderId) {
+  const list = (Array.isArray(docs) ? docs : [docs]).filter(d => d && (d.path || d.isGoogle));
+  if (!list.length) return;
+  let ok = 0, fail = 0, mig = false;
+  for (const d of list) {
+    const { error } = await _driveMoveWrite(d, folderId);
+    if (error) { fail++; if (_driveIsMigErr(error)) mig = true; } else ok++;
+  }
+  if (mig) toast("Apply the Vault schema migration (0396) to move documents.", "warn");
+  else if (fail) toast(`Moved ${ok} · ${fail} couldn't be moved`, "warn");
+  else toast(list.length === 1 ? (folderId ? "Moved to folder" : "Moved to Vault root") : `${ok} documents moved`, "success");
+  _driveState.selected = null; _driveState.checked = new Set(); _driveData = null;
+  await loadDriveView();
+}
+async function _driveMoveDoc(doc, folderId) { return _driveMoveMany([doc], folderId); }
+
+// "Name (copy).ext" — inserts the suffix before the extension.
+function _driveCopyName(name) {
+  const n = String(name || "Document");
+  const dot = n.lastIndexOf(".");
+  return dot > 0 ? `${n.slice(0, dot)} (copy)${n.slice(dot)}` : `${n} (copy)`;
+}
+// Duplicate a stored document: server-side copy of the storage object into the
+// same bucket, then a new record filed in the same place. Driver docs get a
+// driver_documents row (+ canonical mirror) so they show with or without the
+// migration; everything else becomes a canonical drive_documents row.
+async function _driveDuplicateDoc(doc) {
+  if (!doc || !doc.path) { toast("This item has no file to duplicate.", "info"); return; }
+  const dspId = window.RR?.dsp?.id; if (!dspId) return;
+  const bucket = doc.bucket || "driver-documents";
+  const newName = _driveCopyName(doc.name);
+  const dir = doc.folderId ? `${dspId}/_folders/${doc.folderId}` : (doc.driverId ? `${dspId}/${doc.driverId}` : `${dspId}/_copies`);
+  const newPath = `${dir}/${Date.now()}-${newName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  toast("Duplicating…", "info");
+  try {
+    const { error: cpErr } = await sb.storage.from(bucket).copy(doc.path, newPath);
+    if (cpErr) { toast("Couldn't duplicate the file: " + cpErr.message, "warn"); return; }
+  } catch (e) { toast("Couldn't duplicate the file.", "warn"); return; }
+  // File the duplicate. The legacy driver_documents view always assumes the
+  // driver-documents bucket, so only route there for objects actually in it;
+  // anything else (e-sign in `documents`, fleet in `vehicle-documents`) becomes
+  // a canonical row that records the real bucket.
+  if (doc.driverId && !doc.folderId && bucket === "driver-documents") {
+    const kind = (doc.source === "driver_documents" && doc.kind) ? doc.kind : "other";
+    const { error } = await sb.from("driver_documents").insert({
+      dsp_id: dspId, driver_id: doc.driverId, kind, label: newName,
+      file_path: newPath, file_size: doc.size || null, mime_type: doc.mime || null,
+      metadata: { drive_title: newName, drive_category: _driveSubfolder(doc) },
+    });
+    if (error) { try { await sb.storage.from(bucket).remove([newPath]); } catch (_) {} toast("Couldn't save the duplicate: " + error.message, "warn"); return; }
+    _driveRecordCanonical({ driverId: doc.driverId, title: newName, docType: doc.docType || _driveSubfolder(doc), category: _driveSubfolder(doc), path: newPath, size: doc.size, mime: doc.mime, source: "upload", bucket });
+  } else {
+    let error = null;
+    try {
+      ({ error } = await sb.from("drive_documents").insert({
+        dsp_id: dspId, folder_id: doc.folderId || null, driver_id: doc.driverId || null,
+        name: newName, doc_type: doc.docType || null,
+        category: doc.folderId ? "custom" : (doc.source === "vehicle" ? "fleet" : (doc.driverId ? "drivers" : null)),
+        subfolder: doc.driverId ? _driveSubfolder(doc) : null,
+        bucket, file_path: newPath, file_size: doc.size || null, mime_type: doc.mime || null,
+        source: "upload", tags: Array.isArray(doc.tags) ? doc.tags : [],
+        created_by: window.RR?.user?.id || null, metadata: { drive_title: newName },
+      }));
+    } catch (e) { error = e; }
+    if (error) {
+      try { await sb.storage.from(bucket).remove([newPath]); } catch (_) {}
+      if (_driveIsMigErr(error)) toast("Apply the Vault schema migration (0396) in Supabase to duplicate documents.", "warn");
+      else toast("Couldn't save the duplicate: " + String(error.message || error), "warn");
+      return;
+    }
+  }
+  toast("Duplicated", "success");
+  _driveState.selected = null; _driveData = null; await loadDriveView();
+}
+
+// Folder picker overlay for "Move to…" — accepts one doc or an array.
+function _driveOpenMovePicker(target) {
+  const docs = (Array.isArray(target) ? target : [target]).filter(d => d && (d.path || d.isGoogle));
+  if (!docs.length) return;
+  const folders = (_driveData?.folders || []);
+  if (!folders.length) { toast("Create a folder first with New folder.", "info"); return; }
+  document.getElementById("rr-drive-move-pick")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-drive-move-pick";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.45));z-index:10002;display:flex;align-items:center;justify-content:center;padding:24px";
+  const items = [`<button type="button" class="rr-al-item" data-fid="">Vault root (no folder)</button>`]
+    .concat(folders.map(f => `<button type="button" class="rr-al-item" data-fid="${escapeHtml(f.id)}"><span class="rr-al-ico">${_driveFileIco(null, true)}</span><span class="rr-al-lbl">${escapeHtml(f.name)}</span></button>`));
+  const subtitle = docs.length === 1 ? escapeHtml(docs[0].name) : `${docs.length} documents`;
+  m.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:16px;max-width:380px;width:100%;max-height:70vh;display:flex;flex-direction:column">
+    <div style="font-size:var(--fs-md);font-weight:700">Move ${docs.length === 1 ? "document" : docs.length + " documents"}</div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${subtitle}</div>
+    <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px">${items.join("")}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-sm" data-cancel>Cancel</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-cancel]")) { m.remove(); return; }
+    const it = e.target.closest("[data-fid]");
+    if (it) { const fid = it.getAttribute("data-fid"); m.remove(); _driveMoveMany(docs, fid || null); }
+  });
+}
+
+// Rename a document. Canonical rows update drive_documents.name; legacy
+// driver_documents rows update both the label and metadata.drive_title (the
+// name Drive shows). Derived sources (envelopes/fleet/reports) aren't editable.
+async function _driveRenameDoc(doc) {
+  if (!doc) return;
+  if (!(doc.canonical || doc.source === "driver_documents")) {
+    toast("This document's name comes from its source and can't be renamed here.", "info"); return;
+  }
+  const cur = doc.name || "";
+  const next = (prompt("Rename document:", cur) || "").trim();
+  if (!next || next === cur) return;
+  let error = null;
+  try {
+    if (doc.canonical && doc.canonicalId) {
+      ({ error } = await sb.from("drive_documents").update({ name: next }).eq("id", doc.canonicalId));
+    } else {
+      const rawId = doc.id.replace(/^dd_/, "");
+      let meta = {};
+      try { const { data } = await sb.from("driver_documents").select("metadata").eq("id", rawId).maybeSingle(); meta = data?.metadata || {}; } catch (_) {}
+      ({ error } = await sb.from("driver_documents").update({ label: next, metadata: Object.assign({}, meta, { drive_title: next }) }).eq("id", rawId));
+    }
+  } catch (e) { error = e; }
+  if (error) { toast("Couldn't rename: " + String(error.message || error), "warn"); return; }
+  toast("Renamed", "success");
+  const keep = doc.id;
+  _driveData = null; await loadDriveView();
+  _driveState.selected = keep; _driveRenderMain(); _driveRenderDetails();
+}
+
+// Rename a custom folder (drive_folders.name).
+async function _driveRenameFolder(folder) {
+  if (!folder) return;
+  const next = (prompt("Rename folder:", folder.name || "") || "").trim();
+  if (!next || next === folder.name) return;
+  let error = null;
+  try { ({ error } = await sb.from("drive_folders").update({ name: next }).eq("id", folder.id)); } catch (e) { error = e; }
+  if (error) { toast("Couldn't rename folder: " + String(error.message || error), "warn"); return; }
+  toast("Folder renamed", "success");
+  _driveData = null; await loadDriveView();
+}
+
+// Delete an empty custom folder (soft — sets archived_at, which drops it from
+// the loaded folder list). Refuses while it still holds files or sub-folders so
+// nothing gets orphaned; afterwards navigates to the parent (or the root).
+async function _driveDeleteFolder(folder) {
+  if (!folder) return;
+  const kids = (_driveData?.docs || []).filter(d => d.folderId === folder.id && !d.deletedAt);
+  const subs = (_driveData?.folders || []).filter(f => f.parent_id === folder.id);
+  if (kids.length || subs.length) { toast("Move this folder's documents and sub-folders out before deleting it.", "warn"); return; }
+  if (!confirm(`Delete the folder "${folder.name}"?`)) return;
+  let error = null;
+  try { ({ error } = await sb.from("drive_folders").update({ archived_at: new Date().toISOString() }).eq("id", folder.id)); } catch (e) { error = e; }
+  if (error) { toast("Couldn't delete folder: " + String(error.message || error), "warn"); return; }
+  toast("Folder deleted", "success");
+  _driveState.folderId = folder.parent_id || null;
+  if (!folder.parent_id) _driveState.section = "all";
+  _driveState.selected = null; _driveData = null; await loadDriveView();
+}
+
+// Save a color/icon choice onto a folder (merged into drive_folders.metadata).
+// Mutates the cached folder so the open popover + view update without a full
+// reload. Returns false on error (e.g. schema not migrated).
+async function _driveSetFolderStyle(folder, patch) {
+  if (!folder) return false;
+  const meta = Object.assign({}, folder.metadata || {}, patch);
+  let error = null;
+  try { ({ error } = await sb.from("drive_folders").update({ metadata: meta }).eq("id", folder.id)); } catch (e) { error = e; }
+  if (error) {
+    if (_driveIsMigErr(error)) toast("Apply the Vault schema migration (0396) in Supabase to customize folders.", "warn");
+    else toast("Couldn't update folder: " + String(error.message || error), "warn");
+    return false;
+  }
+  folder.metadata = meta;
+  return true;
+}
+// Color + icon picker overlay for a folder.
+function _driveOpenFolderStyle(folder) {
+  if (!folder) return;
+  document.getElementById("rr-drive-style-pick")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-drive-style-pick";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.45));z-index:10002;display:flex;align-items:center;justify-content:center;padding:24px";
+  const paint = () => {
+    const meta = folder.metadata || {};
+    const curColor = meta.color || "";
+    const curIcon = (meta.icon && _DRIVE_FOLDER_ICONS[meta.icon]) ? meta.icon : "folder";
+    const swatches = `<button type="button" class="rr-drive-sw rr-drive-sw-none${!curColor ? " is-active" : ""}" data-color="" title="Default" aria-label="Default color"></button>`
+      + Object.entries(_DRIVE_FOLDER_COLORS).map(([k, hex]) =>
+        `<button type="button" class="rr-drive-sw${curColor === k ? " is-active" : ""}" data-color="${k}" title="${k}" aria-label="${k}" style="background:${hex}"></button>`).join("");
+    const icons = Object.keys(_DRIVE_FOLDER_ICONS).map(k => {
+      const hex = (curColor && _DRIVE_FOLDER_COLORS[curColor]) || "var(--text-muted)";
+      return `<button type="button" class="rr-drive-icq${curIcon === k ? " is-active" : ""}" data-icon="${k}" aria-label="${k}" style="color:${hex}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${_DRIVE_FOLDER_ICONS[k]}</svg></button>`;
+    }).join("");
+    m.querySelector(".rr-drive-style-body").innerHTML =
+      `<div class="rr-drive-style-label">Color</div><div class="rr-drive-sw-row">${swatches}</div>
+       <div class="rr-drive-style-label" style="margin-top:14px">Icon</div><div class="rr-drive-icq-row">${icons}</div>`;
+  };
+  m.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:18px;max-width:360px;width:100%">
+    <div style="font-size:var(--fs-md);font-weight:700">Customize folder</div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(folder.name)}</div>
+    <div class="rr-drive-style-body"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:18px"><button class="btn btn-sm btn-primary" data-done>Done</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  paint();
+  m.addEventListener("click", async (e) => {
+    if (e.target === m || e.target.closest("[data-done]")) { m.remove(); _driveData = null; loadDriveView(); return; }
+    const sw = e.target.closest("[data-color]");
+    if (sw) { if (await _driveSetFolderStyle(folder, { color: sw.getAttribute("data-color") || null })) { paint(); _driveRenderMain(); } return; }
+    const iq = e.target.closest("[data-icon]");
+    if (iq) { if (await _driveSetFolderStyle(folder, { icon: iq.getAttribute("data-icon") })) { paint(); _driveRenderMain(); } return; }
+  });
+}
+
+// ── Multi-select + bulk actions ────────────────────────────────────────────
+// The contextual selection bar replaces the toolbar while ≥1 doc is checked.
+function _driveRenderBulk() {
+  const bar = document.getElementById("rr-drive-bulkbar");
+  const tb = document.querySelector("#view-drive .rr-drive-toolbar");
+  if (!bar) return;
+  const ids = _driveState.checked;
+  const n = ids ? ids.size : 0;
+  // Single selection keeps the normal toolbar + details panel; the selection
+  // bar is for true multi-select (2+).
+  if (n < 2) { bar.hidden = true; if (tb) tb.hidden = false; return; }
+  const docs = (_driveData?.docs || []).filter(d => ids.has(d.id));
+  const filed = docs.filter(d => d.path);                    // only stored files can be filed
+  const allActive = filed.length && filed.every(d => !d.archivedAt && !d.deletedAt);
+  const anyArchived = filed.some(d => d.archivedAt && !d.deletedAt);
+  const anyTrashed = filed.some(d => d.deletedAt);
+  const acts = [];
+  if (filed.length && allActive) {
+    acts.push(`<button class="btn btn-sm" data-rr-drive-bulk="move">Move to…</button>`);
+    acts.push(`<button class="btn btn-sm" data-rr-drive-bulk="archive">Archive</button>`);
+    acts.push(`<button class="btn btn-sm" data-rr-drive-bulk="trash">Trash</button>`);
+  } else if (filed.length && (anyArchived || anyTrashed)) {
+    acts.push(`<button class="btn btn-sm" data-rr-drive-bulk="restore">Restore</button>`);
+    if (anyArchived && !anyTrashed) acts.push(`<button class="btn btn-sm" data-rr-drive-bulk="trash">Trash</button>`);
+  }
+  bar.hidden = false; if (tb) tb.hidden = true;
+  bar.innerHTML = `<button type="button" class="rr-drive-bulk-x" data-rr-drive-bulk="clear" aria-label="Clear selection"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <span class="rr-drive-bulk-count">${n} selected</span>
+    <div class="rr-drive-bulk-acts">${acts.join("")}</div>`;
+}
+// Re-apply selection classes without a full re-render (fast path on click).
+function _driveSyncSelClasses() {
+  document.querySelectorAll("#rr-drive-main [data-rr-drive-doc]").forEach(el => {
+    const id = el.getAttribute("data-rr-drive-doc");
+    el.classList.toggle("is-checked", _driveState.checked.has(id));
+    el.classList.toggle("is-selected", _driveState.selected === id);
+    const ck = el.querySelector("[data-rr-drive-check]");
+    if (ck) ck.setAttribute("aria-checked", _driveState.checked.has(id) ? "true" : "false");
+  });
+}
+function _driveClearSel() {
+  _driveState.checked = new Set(); _driveState.selected = null; _driveState.anchor = null;
+  _driveSyncSelClasses(); _driveRenderBulk(); _driveRenderDetails();
+}
+// Run a bulk action over the checked documents.
+async function _driveBulk(action) {
+  if (action === "clear") { _driveClearSel(); return; }
+  const ids = _driveState.checked; if (!ids || !ids.size) return;
+  const docs = (_driveData?.docs || []).filter(d => ids.has(d.id) && (d.path || d.isGoogle));
+  if (!docs.length) { toast("These items have no stored file to update.", "info"); return; }
+  if (action === "move") { _driveOpenMovePicker(docs); return; }
+  let ok = 0, fail = 0, mig = false;
+  for (const d of docs) {
+    const { error } = await _driveDocStatusWrite(d, action);
+    if (error) { fail++; if (_driveIsMigErr(error)) mig = true; } else ok++;
+  }
+  if (mig) { toast("Apply the Vault schema migration (0396) in Supabase to enable Archive & Trash.", "warn"); return; }
+  const verb = action === "archive" ? "archived" : action === "trash" ? "moved to Trash" : "restored";
+  toast(fail ? `${ok} ${verb} · ${fail} failed` : `${ok} ${verb}`, fail ? "warn" : "success");
+  _driveState.checked = new Set(); _driveState.selected = null; _driveData = null;
+  await loadDriveView();
+}
+
+// ── Interaction ──────────────────────────────────────────────────────────
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#view-drive")) return;
+  // Folder / category 3-dot menus + hidden-folder restore. These sit at the
+  // very top so a kebab click wins over the row's navigation handler below.
+  const fmenu = e.target.closest("[data-rr-drive-foldermenu]");
+  if (fmenu) { e.stopPropagation(); _driveOpenFolderMenu(fmenu.getAttribute("data-rr-drive-foldermenu"), fmenu); return; }
+  const cmenu = e.target.closest("[data-rr-drive-catmenu]");
+  if (cmenu) { e.stopPropagation(); _driveOpenCatMenu(cmenu.getAttribute("data-rr-drive-catmenu"), cmenu); return; }
+  if (e.target.closest("[data-rr-drive-unhide]")) { e.stopPropagation(); _driveUnhideAllCats(); _driveRenderMain(); return; }
+  // New sub-folder inside the current folder.
+  if (e.target.closest("[data-rr-drive-newfolder]")) { e.stopPropagation(); _driveNewFolder(); return; }
+  const go = e.target.closest("[data-rr-drive-go]");
+  if (go) { try { const to = JSON.parse(go.getAttribute("data-rr-drive-go")); _driveState.section = to.section; _driveState.driverId = to.driverId || null; _driveState.sub = to.sub || null; _driveState.folderId = to.folderId || null; if (to.folderId) _drivePushRecent(to.folderId); _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); } catch {} return; }
+  const sec = e.target.closest("[data-rr-drive-sec]");
+  if (sec) { _driveState.section = sec.getAttribute("data-rr-drive-sec"); _driveState.driverId = null; _driveState.sub = null; _driveState.folderId = null; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveRender(); return; }
+  const drv = e.target.closest("[data-rr-drive-driver]");
+  if (drv) { _driveState.section = "drivers"; _driveState.driverId = drv.getAttribute("data-rr-drive-driver"); _driveState.sub = null; _driveState.folderId = null; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); return; }
+  const sub = e.target.closest("[data-rr-drive-sub]");
+  if (sub) { _driveState.sub = sub.getAttribute("data-rr-drive-sub"); _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); return; }
+  const open = e.target.closest("[data-rr-drive-open]");
+  if (open) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === open.getAttribute("data-rr-drive-open")); _driveOpenDoc(d, false); return; }
+  const dl = e.target.closest("[data-rr-drive-download]");
+  if (dl) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === dl.getAttribute("data-rr-drive-download")); _driveOpenDoc(d, true); return; }
+  const cl = e.target.closest("[data-rr-drive-copylink]");
+  if (cl) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === cl.getAttribute("data-rr-drive-copylink")); _driveCopyLink(d); return; }
+  const st = e.target.closest("[data-rr-drive-status]");
+  if (st) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === st.getAttribute("data-rr-drive-id")); _driveSetDocStatus(d, st.getAttribute("data-rr-drive-status")); return; }
+  const mv = e.target.closest("[data-rr-drive-move]");
+  if (mv) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === mv.getAttribute("data-rr-drive-move")); if (d) _driveOpenMovePicker(d); return; }
+  const rn = e.target.closest("[data-rr-drive-rename]");
+  if (rn) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === rn.getAttribute("data-rr-drive-rename")); if (d) _driveRenameDoc(d); return; }
+  const dup = e.target.closest("[data-rr-drive-duplicate]");
+  if (dup) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === dup.getAttribute("data-rr-drive-duplicate")); if (d) _driveDuplicateDoc(d); return; }
+  const fst = e.target.closest("[data-rr-drive-folderstyle]");
+  if (fst) { e.stopPropagation(); const f = (_driveData?.folders || []).find(x => x.id === fst.getAttribute("data-rr-drive-folderstyle")); if (f) _driveOpenFolderStyle(f); return; }
+  const frn = e.target.closest("[data-rr-drive-foldername]");
+  if (frn) { e.stopPropagation(); const f = (_driveData?.folders || []).find(x => x.id === frn.getAttribute("data-rr-drive-foldername")); if (f) _driveRenameFolder(f); return; }
+  const fdel = e.target.closest("[data-rr-drive-folderdel]");
+  if (fdel) { e.stopPropagation(); const f = (_driveData?.folders || []).find(x => x.id === fdel.getAttribute("data-rr-drive-folderdel")); if (f) _driveDeleteFolder(f); return; }
+  const sortBtn = e.target.closest("[data-rr-drive-sort]");
+  if (sortBtn) {
+    const k = sortBtn.getAttribute("data-rr-drive-sort");
+    const s = _driveState.sort || { key: "modified", dir: "desc" };
+    if (s.key === k) s.dir = s.dir === "asc" ? "desc" : "asc";
+    else { s.key = k; s.dir = (k === "name" || k === "type" || k === "location") ? "asc" : "desc"; }
+    _driveState.sort = s; _driveRenderMain(); return;
+  }
+  const bulk = e.target.closest("[data-rr-drive-bulk]");
+  if (bulk) { e.stopPropagation(); _driveBulk(bulk.getAttribute("data-rr-drive-bulk")); return; }
+  const vbtn = e.target.closest("[data-rr-drive-view]");
+  if (vbtn) { _driveState.view = vbtn.getAttribute("data-rr-drive-view"); document.querySelectorAll("#view-drive .rr-drive-vbtn").forEach(b => b.classList.toggle("is-active", b === vbtn)); _driveRenderMain(); return; }
+  const row = e.target.closest("[data-rr-drive-doc]");
+  if (row) {
+    const id = row.getAttribute("data-rr-drive-doc");
+    const onCheck = !!e.target.closest("[data-rr-drive-check]");
+    if (onCheck || e.metaKey || e.ctrlKey) {
+      // Toggle this doc in the selection (additive).
+      if (_driveState.checked.has(id)) _driveState.checked.delete(id); else _driveState.checked.add(id);
+      _driveState.anchor = id;
+    } else if (e.shiftKey && _driveState.anchor) {
+      // Range select between the anchor and this row, in display order.
+      _driveState.checked.add(id);
+      const order = [...document.querySelectorAll("#rr-drive-main [data-rr-drive-doc]")].map(el => el.getAttribute("data-rr-drive-doc"));
+      const i1 = order.indexOf(_driveState.anchor), i2 = order.indexOf(id);
+      if (i1 !== -1 && i2 !== -1) { for (let i = Math.min(i1, i2); i <= Math.max(i1, i2); i++) _driveState.checked.add(order[i]); }
+    } else {
+      // Plain click → select just this one.
+      _driveState.checked = new Set([id]); _driveState.anchor = id;
+    }
+    _driveState.selected = _driveState.checked.size === 1 ? [..._driveState.checked][0] : (_driveState.checked.has(id) ? id : null);
+    _driveSyncSelClasses(); _driveRenderBulk(); _driveRenderDetails();
+    return;
+  }
+  // Star toggle — sits inside a folder card or on the folder action bar, so it
+  // must be handled before the card-open handler below.
+  const fav = e.target.closest("[data-rr-drive-fav]");
+  if (fav) { e.stopPropagation(); _driveToggleFav(fav.getAttribute("data-rr-drive-fav")); _driveRenderMain(); return; }
+  const folderCard = e.target.closest("[data-rr-drive-folder]");
+  if (folderCard) { _driveState.folderId = folderCard.getAttribute("data-rr-drive-folder"); _drivePushRecent(_driveState.folderId); _driveState.driverId = null; _driveState.sub = null; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); return; }
+  // Google Workspace status strip — Connect / Reconnect / dismiss.
+  const gw = e.target.closest("[data-rr-gw]");
+  if (gw) {
+    e.stopPropagation();
+    const act = gw.getAttribute("data-rr-gw");
+    if (act === "connect") _driveConnectGoogle(gw);
+    else if (act === "dismiss") { _driveGoogleBannerDismissed = true; _driveRenderGoogleBanner(); }
+    return;
+  }
+  // Header — New ▾ menu (opens a body-anchored popover so no overflow/stacking
+  // context on the page header can clip it).
+  if (e.target.closest("#rr-drive-new")) { e.stopPropagation(); _driveOpenNewMenu(); return; }
+  if (e.target.closest("#rr-drive-generate")) { toast("Generate documents from a driver record (Create coaching, attendance, reports).", "info"); if (typeof window.goto === "function") window.goto("drivers"); return; }
+  if (e.target.closest("#rr-drive-sortbtn")) { e.stopPropagation(); _driveOpenSortMenu(); return; }
+  if (e.target.closest("#rr-drive-filterbtn")) { e.stopPropagation(); _driveOpenFilterMenu(); return; }
+  if (e.target.closest("[data-rr-drive-admin]")) { if (typeof window.goto === "function") window.goto("admin"); return; }
+});
+document.addEventListener("input", (e) => {
+  if (e.target && e.target.id === "rr-drive-search") { _driveState.query = e.target.value || ""; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRenderBulk(); _driveRenderMain(); }
+});
+// Where would an uploaded file land right now? Returns a human label for the
+// current context, or null when there's no valid target (root / category view).
+function _driveUploadCtx() {
+  if (_driveState.folderId) { const f = (_driveData?.folders || []).find(x => x.id === _driveState.folderId); return f ? `“${f.name}”` : "this folder"; }
+  if (_driveState.section === "drivers" && _driveState.driverId) {
+    const d = _driveData?.driverMap?.get(_driveState.driverId);
+    return (displayDriverName(d) || "this driver") + (_driveState.sub ? ` · ${_driveState.sub}` : "");
+  }
+  return "Vault";   // root — uploads land in All documents, unfiled
+}
+// Upload one file into the current context (no toast/reload — callers batch).
+// Returns true on success. Custom folder → canonical store; driver → legacy
+// driver_documents + a canonical mirror, matching the Upload-button paths.
+async function _driveUploadFile(file) {
+  const dspId = window.RR?.dsp?.id; if (!dspId || !file) return false;
+  if (_driveState.folderId) {
+    const path = `${dspId}/_folders/${_driveState.folderId}/${Date.now()}-${file.name}`;
+    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type, upsert: false });
+    if (upErr) { console.warn("[drive] upload:", upErr); return false; }
+    const { error: insErr } = await sb.from("drive_documents").insert({
+      dsp_id: dspId, folder_id: _driveState.folderId, name: file.name, doc_type: "Document",
+      category: "custom", bucket: "driver-documents", file_path: path, file_size: file.size,
+      mime_type: file.type, source: "upload", created_by: window.RR?.user?.id || null,
+      metadata: { drive_title: file.name },
+    });
+    if (insErr) { console.warn("[drive] save:", insErr); return false; }
+    return true;
+  }
+  if (_driveState.section === "drivers" && _driveState.driverId) {
+    const kindBySub = { DOT: "dot_medical", Licenses: "drivers_license", Employment: "i9", Documents: "other", Coaching: "other", Attendance: "other", Warnings: "other" };
+    const kind = kindBySub[_driveState.sub] || "other";
+    const path = `${dspId}/${_driveState.driverId}/${Date.now()}-${file.name}`;
+    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type, upsert: false });
+    if (upErr) { console.warn("[drive] upload:", upErr); return false; }
+    const { error: insErr } = await sb.from("driver_documents").insert({ dsp_id: dspId, driver_id: _driveState.driverId, kind, label: file.name, file_path: path, file_size: file.size, mime_type: file.type });
+    if (insErr) { console.warn("[drive] save:", insErr); return false; }
+    _driveRecordCanonical({ driverId: _driveState.driverId, title: file.name, docType: _driveState.sub || "Document", category: _driveState.sub || "Documents", path, size: file.size, mime: file.type, source: "upload" });
+    return true;
+  }
+  // Vault root (no folder, no driver) → canonical store, filed in All documents.
+  const path = `${dspId}/_uploads/${Date.now()}-${file.name}`;
+  const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, { contentType: file.type, upsert: false });
+  if (upErr) { console.warn("[drive] upload:", upErr); return false; }
+  const { error: insErr } = await sb.from("drive_documents").insert({
+    dsp_id: dspId, folder_id: null, driver_id: null, name: file.name, doc_type: "Document",
+    category: null, bucket: "driver-documents", file_path: path, file_size: file.size,
+    mime_type: file.type, source: "upload", created_by: window.RR?.user?.id || null,
+    metadata: { drive_title: file.name },
+  });
+  if (insErr) { console.warn("[drive] save:", insErr); return false; }
+  return true;
+}
+// Upload a set of files (from the picker or a drop), with one combined toast.
+async function _driveUploadFiles(files) {
+  const list = Array.from(files || []).filter(Boolean);
+  if (!list.length) return;
+  if (!_driveUploadCtx()) { toast("Open a folder or a driver to upload files there.", "info"); return; }
+  toast(`Uploading ${list.length} file${list.length > 1 ? "s" : ""}…`, "info");
+  let ok = 0, fail = 0;
+  for (const f of list) { if (await _driveUploadFile(f)) ok++; else fail++; }
+  toast(fail ? `Uploaded ${ok} · ${fail} failed` : (ok > 1 ? `${ok} files uploaded to Vault` : "Document uploaded to Vault"), fail ? "warn" : "success");
+  _driveData = null; await loadDriveView();
+}
+document.addEventListener("change", async (e) => {
+  if (!e.target || e.target.id !== "rr-drive-file") return;
+  const files = e.target.files; e.target.value = "";
+  await _driveUploadFiles(files);
+});
+
+// ── New ▾ menu + Google Workspace file creation ────────────────────────────
+// Body-anchored popover positioned under the New button. Built on demand and
+// appended to <body> (fixed position) so no ancestor's overflow/stacking can
+// hide it — the same pattern the Move / Customize / Template pickers use.
+// Generic body-anchored dropdown under a toolbar button (sort / filter).
+let _driveMenuClose = null;
+function _driveAnchoredMenu(btn, items, onPick, align) {
+  if (_driveMenuClose) _driveMenuClose();
+  if (!btn) return;
+  const r = btn.getBoundingClientRect();
+  const pop = document.createElement("div");
+  pop.className = "rr-drive-newmenu rr-drive-popmenu";
+  const rightPx = Math.round(Math.max(8, window.innerWidth - r.right));
+  pop.style.cssText = `position:fixed;top:${Math.round(r.bottom + 6)}px;${align === "left" ? `left:${Math.round(r.left)}px` : `right:${rightPx}px`};z-index:10050;min-width:190px`;
+  pop.innerHTML = items.map(it => it.sep
+    ? `<div class="rr-drive-newmenu-sep"></div>`
+    : `<button type="button" class="rr-drive-newitem${it.active ? " is-active" : ""}${it.danger ? " rr-drive-newitem-danger" : ""}" data-k="${escapeHtml(it.key)}">${it.ico ? `<span class="rr-drive-newico">${it.ico}</span>` : `<span class="rr-drive-newcheck">${it.active ? "✓" : ""}</span>`}${escapeHtml(it.label)}</button>`).join("");
+  document.body.appendChild(pop);
+  // Flip above the anchor if the menu would overflow the viewport bottom.
+  const ph = pop.offsetHeight;
+  if (r.bottom + ph + 10 > window.innerHeight && r.top - ph - 10 > 0) {
+    pop.style.top = "auto";
+    pop.style.bottom = `${Math.round(window.innerHeight - r.top + 6)}px`;
+  }
+  const close = () => { pop.remove(); document.removeEventListener("click", onDoc, true); document.removeEventListener("keydown", onKey, true); _driveMenuClose = null; };
+  _driveMenuClose = close;
+  const onDoc = (ev) => { if (!pop.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) close(); };
+  const onKey = (ev) => { if (ev.key === "Escape") close(); };
+  setTimeout(() => { document.addEventListener("click", onDoc, true); document.addEventListener("keydown", onKey, true); }, 0);
+  pop.addEventListener("click", (ev) => { const it = ev.target.closest("[data-k]"); if (!it) return; close(); onPick(it.getAttribute("data-k")); });
+}
+function _driveOpenSortMenu() {
+  const s = _driveState.sort || { key: "modified", dir: "desc" };
+  const opt = (key, label) => ({ key, label: label + (s.key === key ? (s.dir === "asc" ? " ↑" : " ↓") : ""), active: s.key === key });
+  _driveAnchoredMenu(document.getElementById("rr-drive-sortbtn"),
+    [opt("name", "Name"), opt("modified", "Last modified"), opt("type", "Type"), opt("location", "Location"), opt("owner", "Owner")],
+    (k) => { const st = _driveState.sort; if (st.key === k) st.dir = st.dir === "asc" ? "desc" : "asc"; else { st.key = k; st.dir = (k === "name" || k === "type" || k === "location" || k === "owner") ? "asc" : "desc"; } _driveRenderMain(); });
+}
+function _driveOpenFilterMenu() {
+  const f = _driveState.filter || "all";
+  const opt = (key, label) => ({ key, label, active: f === key });
+  _driveAnchoredMenu(document.getElementById("rr-drive-filterbtn"),
+    [opt("all", "All types"), opt("google", "Google files"), opt("pdf", "PDF"), opt("image", "Images"), opt("office", "Word / Excel")],
+    (k) => { _driveState.filter = k; const btn = document.getElementById("rr-drive-filterbtn"); if (btn) btn.classList.toggle("is-active", k !== "all"); _driveRenderMain(); });
+}
+// Google-Drive-style 3-dot menu for a custom folder — Star / Customize /
+// Rename / Delete, with icons, anchored under the row's kebab button.
+function _driveOpenFolderMenu(folderId, btn) {
+  const f = (_driveData?.folders || []).find(x => x.id === folderId);
+  if (!f) return;
+  const fav = _driveIsFav(f.id);
+  const ico = {
+    star: `<svg viewBox="0 0 24 24" fill="${fav ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+    palette: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".7" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r=".7" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r=".7" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r=".7" fill="currentColor" stroke="none"/><path d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c1.38 0 2.5-1.12 2.5-2.5 0-.61-.23-1.2-.64-1.67-.08-.1-.13-.21-.13-.33 0-.28.22-.5.5-.5H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9z"/></svg>`,
+    pencil: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>`,
+    trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
+  };
+  _driveAnchoredMenu(btn, [
+    { key: "star", label: fav ? "Remove from Starred" : "Add to Starred", ico: ico.star },
+    { key: "customize", label: "Customize", ico: ico.palette },
+    { key: "rename", label: "Rename", ico: ico.pencil },
+    { sep: true },
+    { key: "delete", label: "Delete", ico: ico.trash, danger: true },
+  ], (k) => {
+    if (k === "star") { _driveToggleFav(f.id); _driveRenderMain(); }
+    else if (k === "customize") _driveOpenFolderStyle(f);
+    else if (k === "rename") _driveRenameFolder(f);
+    else if (k === "delete") _driveDeleteFolder(f);
+  });
+}
+// 3-dot menu for a built-in category folder (Drivers / Fleet / HR / …). They
+// can't be renamed/recolored (derived from records), so the only action is
+// hiding the shortcut from the Vault home — reversible, records untouched.
+function _driveOpenCatMenu(secKey, btn) {
+  const labels = { drivers: "Drivers", fleet: "Fleet", hr: "HR", station: "Station", reports: "Reports" };
+  const trashIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
+  _driveAnchoredMenu(btn, [
+    { key: "hide", label: "Hide from Vault", ico: trashIco, danger: true },
+  ], (k) => {
+    if (k === "hide") {
+      _driveHideCat(secKey);
+      toast(`${labels[secKey] || "Folder"} hidden — use “Show hidden folders” to restore.`, "info");
+      _driveRenderMain();
+    }
+  });
+}
+let _driveNewPopClose = null;
+function _driveOpenNewMenu() {
+  if (_driveNewPopClose) { _driveNewPopClose(); return; }   // toggle closed
+  document.getElementById("rr-drive-newpop")?.remove();
+  const btn = document.getElementById("rr-drive-new");
+  if (!btn) return;
+  btn.setAttribute("aria-expanded", "true");
+  const r = btn.getBoundingClientRect();
+  const folderIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+  const uploadIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+  const tplIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>`;
+  const item = (key, label, icoHtml, tcls) =>
+    `<button type="button" class="rr-drive-newitem" role="menuitem" data-rr-new="${key}"><span class="rr-drive-newico${tcls ? " " + tcls : ""}">${icoHtml}</span>${label}</button>`;
+  const sep = `<div class="rr-drive-newmenu-sep"></div>`;
+  const pop = document.createElement("div");
+  pop.id = "rr-drive-newpop";
+  pop.className = "rr-drive-newmenu";
+  pop.setAttribute("role", "menu");
+  pop.style.cssText = `position:fixed;top:${Math.round(r.bottom + 6)}px;left:${Math.round(r.left)}px;z-index:10050`;
+  const genIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`;
+  pop.innerHTML =
+    item("folder", "Folder", folderIco) +
+    item("upload", "Upload file", uploadIco) + sep +
+    item("gdoc", "Google Doc", _driveFileIco("gdoc"), "t-gdoc") +
+    item("gsheet", "Google Sheet", _driveFileIco("gsheet"), "t-gsheet") +
+    item("gslide", "Google Slide", _driveFileIco("gslide"), "t-gslide") + sep +
+    item("template", "From template", tplIco) +
+    item("generate", "Generate from record", genIco);
+  document.body.appendChild(pop);
+
+  const close = () => {
+    pop.remove();
+    btn.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", onDoc, true);
+    document.removeEventListener("keydown", onKey, true);
+    _driveNewPopClose = null;
+  };
+  _driveNewPopClose = close;
+  const onDoc = (ev) => { if (!pop.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) close(); };
+  const onKey = (ev) => { if (ev.key === "Escape") close(); };
+  setTimeout(() => { document.addEventListener("click", onDoc, true); document.addEventListener("keydown", onKey, true); }, 0);
+
+  pop.addEventListener("click", (e) => {
+    const it = e.target.closest("[data-rr-new]");
+    if (!it) return;
+    const what = it.getAttribute("data-rr-new");
+    close();
+    if (what === "folder") _driveNewFolder();
+    else if (what === "upload") { const f = document.getElementById("rr-drive-file"); if (f) f.click(); }
+    else if (what === "gdoc") _driveCreateGoogle("document");
+    else if (what === "gsheet") _driveCreateGoogle("spreadsheet");
+    else if (what === "gslide") _driveCreateGoogle("presentation");
+    else if (what === "template") _driveOpenTemplatePicker();
+    else if (what === "generate") { toast("Generate documents from a driver record (coaching, attendance, reports).", "info"); if (typeof window.goto === "function") window.goto("drivers"); }
+  });
+}
+function _driveDateStamp(d) {
+  const n = d ? new Date(d) : new Date();
+  return `${String(n.getMonth() + 1).padStart(2, "0")}.${String(n.getDate()).padStart(2, "0")}.${String(n.getFullYear()).slice(2)}`;
+}
+// Default name for a new Google file. Inside a driver subfolder it follows the
+// RouteReady convention "<Driver> - <Subfolder> - <MM.DD.YY>".
+function _driveDefaultGoogleName(kind, label) {
+  const noun = label || { document: "Document", spreadsheet: "Sheet", presentation: "Slides" }[kind] || "Document";
+  if (_driveState.section === "drivers" && _driveState.driverId) {
+    const d = _driveData?.driverMap?.get(_driveState.driverId);
+    const who = (d && displayDriverName(d)) || "Driver";
+    const what = _driveState.sub || noun;
+    return `${who} - ${what} - ${_driveDateStamp()}`;
+  }
+  return `${noun} - ${_driveDateStamp()}`;
+}
+// Create a Google Doc/Sheet/Slide (optionally from a template) via the
+// google-drive-create edge function, filed at the current Vault location and
+// attached to the driver in context. Degrades with a clear hint when Google
+// Workspace isn't connected / the backend isn't deployed yet.
+async function _driveCreateGoogle(kind, opts) {
+  opts = opts || {};
+  const name = opts.name || _driveDefaultGoogleName(kind, opts.templateLabel);
+  toast("Creating in Google…", "info");
+  try {
+    const { data, error } = await sb.functions.invoke("google-drive-create", {
+      body: {
+        kind, name,
+        template: opts.template || null,
+        folder_id: _driveState.folderId || null,
+        driver_id: (_driveState.section === "drivers" ? _driveState.driverId : null) || null,
+        subfolder: _driveState.sub || null,
+        document_type: opts.documentType || _driveState.sub || null,
+      },
+    });
+    if (error) throw error;
+    if (data && data.google_drive_url) {
+      toast("Created in Google", "success");
+      window.open(data.google_drive_url, "_blank", "noopener");
+      _driveData = null; await loadDriveView();
+      return;
+    }
+    throw new Error((data && data.error) || "create_failed");
+  } catch (e) {
+    const msg = String((e && e.message) || e || "");
+    if (/needs_migration/i.test(msg))
+      toast("Apply the Vault Google migration (0397) in Supabase to file Google files.", "warn");
+    else if (/not_connected|no_drive_scope|needs_reauth|unauthorized|forbidden|401|403/i.test(msg))
+      toast("Connect Google Workspace (with Drive access) in Settings to create Google files.", "warn");
+    else if (/not.?found|404|non-2xx|Edge Function|Failed to (send|fetch)|Function ?not ?found|FunctionsFetchError/i.test(msg))
+      toast("Google Workspace files aren't enabled on this environment yet — finishing the backend next.", "warn");
+    else toast("Couldn't create the file: " + msg, "warn");
+  }
+}
+// RouteReady document templates (Google Docs copied + renamed on create).
+const _DRIVE_TEMPLATES = [
+  ["coaching_form", "Coaching Form", "Coaching"],
+  ["corrective_action", "Corrective Action", "Warnings"],
+  ["incident_report", "Incident Report", "Documents"],
+  ["performance_review", "Performance Review", "Employment"],
+  ["ride_along", "Ride Along Evaluation", "Coaching"],
+  ["training_checklist", "Training Checklist", "Documents"],
+  ["termination_summary", "Termination Summary", "Employment"],
+];
+function _driveOpenTemplatePicker() {
+  document.getElementById("rr-drive-tpl-pick")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-drive-tpl-pick";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.45));z-index:10002;display:flex;align-items:center;justify-content:center;padding:24px";
+  const items = _DRIVE_TEMPLATES.map(([key, label]) =>
+    `<button type="button" class="rr-al-item" data-tpl="${key}" data-tpl-label="${escapeHtml(label)}"><span class="rr-al-ico t-gdoc">${_driveFileIco("gdoc")}</span><span class="rr-al-lbl">${escapeHtml(label)}</span></button>`).join("");
+  m.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:16px;max-width:400px;width:100%;max-height:72vh;display:flex;flex-direction:column">
+    <div style="font-size:var(--fs-md);font-weight:700">New from template</div>
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:2px 0 12px">Creates a Google Doc, renamed and filed at the current Vault location.</div>
+    <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px">${items}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-sm" data-cancel>Cancel</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-cancel]")) { m.remove(); return; }
+    const it = e.target.closest("[data-tpl]");
+    if (it) {
+      const key = it.getAttribute("data-tpl");
+      const label = it.getAttribute("data-tpl-label");
+      m.remove();
+      _driveCreateGoogle("document", { template: key, templateLabel: label, documentType: label });
+    }
+  });
+}
+
+// ── Drag-and-drop ──────────────────────────────────────────────────────────
+// Two gestures: (1) drag desktop files onto the workspace → upload to the
+// current context; (2) drag a document (or the whole multi-selection) onto a
+// folder card → move it there. Internal drags carry _driveDragIds; desktop
+// file drags are detected via the "Files" dataTransfer type.
+let _driveDragIds = [];
+let _driveDzTimer = null;
+function _driveShowDropzone() {
+  const dz = document.getElementById("rr-drive-dropzone"); if (!dz) return;
+  const ctx = _driveUploadCtx();
+  const sub = document.getElementById("rr-drive-dropzone-sub");
+  if (sub) sub.textContent = ctx ? `to ${ctx}` : "Open a folder or a driver to upload here";
+  dz.classList.toggle("is-invalid", !ctx);
+  dz.hidden = false;
+}
+function _driveHideDropzone() { clearTimeout(_driveDzTimer); const dz = document.getElementById("rr-drive-dropzone"); if (dz) dz.hidden = true; }
+function _driveDzPing() { _driveShowDropzone(); clearTimeout(_driveDzTimer); _driveDzTimer = setTimeout(_driveHideDropzone, 130); }
+
+document.addEventListener("dragstart", (e) => {
+  const row = e.target.closest && e.target.closest("#view-drive [data-rr-drive-doc]");
+  if (!row) return;
+  const id = row.getAttribute("data-rr-drive-doc");
+  const base = (_driveState.checked.has(id) && _driveState.checked.size > 1) ? [..._driveState.checked] : [id];
+  _driveDragIds = base.filter(x => { const d = (_driveData?.docs || []).find(y => y.id === x); return d && (d.path || d.isGoogle); });
+  if (!_driveDragIds.length) { e.preventDefault(); return; }
+  try { e.dataTransfer.setData("application/x-rr-drive", _driveDragIds.join(",")); e.dataTransfer.effectAllowed = "move"; } catch (_) {}
+  row.classList.add("rr-drive-dragging");
+});
+document.addEventListener("dragend", () => {
+  document.querySelectorAll("#view-drive .rr-drive-dragging").forEach(el => el.classList.remove("rr-drive-dragging"));
+  document.querySelectorAll("#view-drive .rr-drive-dropover").forEach(el => el.classList.remove("rr-drive-dropover"));
+  _driveDragIds = []; _driveHideDropzone();
+});
+document.addEventListener("dragover", (e) => {
+  if (!(e.target.closest && e.target.closest("#view-drive"))) return;
+  // Internal doc → folder card.
+  const card = e.target.closest("[data-rr-drive-folder]");
+  if (_driveDragIds.length) {
+    if (card) { e.preventDefault(); try { e.dataTransfer.dropEffect = "move"; } catch (_) {} card.classList.add("rr-drive-dropover"); }
+    return;
+  }
+  // Desktop files → upload.
+  const dt = e.dataTransfer;
+  if (dt && Array.from(dt.types || []).includes("Files")) {
+    e.preventDefault();
+    try { dt.dropEffect = _driveUploadCtx() ? "copy" : "none"; } catch (_) {}
+    _driveDzPing();
+  }
+});
+document.addEventListener("dragleave", (e) => {
+  const card = e.target.closest && e.target.closest("#view-drive [data-rr-drive-folder]");
+  if (card && !card.contains(e.relatedTarget)) card.classList.remove("rr-drive-dropover");
+});
+document.addEventListener("drop", async (e) => {
+  if (!(e.target.closest && e.target.closest("#view-drive"))) return;
+  // Internal doc → folder card move.
+  const card = e.target.closest("[data-rr-drive-folder]");
+  if (card && _driveDragIds.length) {
+    e.preventDefault(); e.stopPropagation();
+    const fid = card.getAttribute("data-rr-drive-folder");
+    const docs = (_driveData?.docs || []).filter(d => _driveDragIds.includes(d.id));
+    card.classList.remove("rr-drive-dropover"); _driveDragIds = [];
+    if (docs.length) _driveMoveMany(docs, fid);
+    return;
+  }
+  // Desktop file drop → upload to context.
+  const files = e.dataTransfer && e.dataTransfer.files;
+  if (files && files.length && !_driveDragIds.length) {
+    e.preventDefault(); _driveHideDropzone();
+    await _driveUploadFiles(files);
+  }
+});
+
+// ── Drive · auto-filing of generated documents (Phase 2) ───────────────────
+// Files a generated artifact into Drive by uploading it to the driver-documents
+// bucket and recording a driver_documents row tagged with metadata.drive_*.
+// No new schema: kind stays "other"; the category drives the Drive subfolder.
+async function _driveAutoFile(opts) {
+  const o = opts || {};
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !o.driverId || !o.blob) return null;
+  const title = o.title || "Document";
+  const safe = ((title.endsWith(".pdf") ? title : title + ".pdf")).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${dspId}/${o.driverId}/${Date.now()}-${safe}`;
+  const mime = o.mime || "application/pdf";
+  try {
+    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, o.blob, { contentType: mime, upsert: false });
+    if (upErr) { console.warn("[drive] auto-file upload:", upErr); return null; }
+    const { error: insErr } = await sb.from("driver_documents").insert({
+      dsp_id: dspId, driver_id: o.driverId, kind: "other",
+      label: title, file_path: path, file_size: o.blob.size, mime_type: mime,
+      metadata: {
+        drive_category: _DRIVE_SUBS.includes(o.category) ? o.category : "Documents",
+        drive_title: title, drive_doc_type: o.docType || o.category || "Document",
+        drive_source: o.source || "generated", auto_generated: true,
+        drive_created_by: window.RR?.user?.name || window.RR?.user?.email || "",
+      },
+    });
+    if (insErr) { console.warn("[drive] auto-file insert:", insErr); return null; }
+  } catch (e) { console.warn("[drive] auto-file:", e); return null; }
+  // Mirror into the canonical Drive store (migration 0396). Best-effort — a
+  // no-op until the table exists, so this never blocks the file.
+  _driveRecordCanonical({
+    driverId: o.driverId, title, docType: o.docType || o.category || "Document",
+    category: _DRIVE_SUBS.includes(o.category) ? o.category : "Documents",
+    path, size: o.blob.size, mime, source: o.source || "generated", sourceId: o.sourceId || null,
+    autoGenerated: true,
+  });
+  _driveData = null;   // invalidate cache so Drive shows the new file on next open
+  return path;
+}
+
+// Record a canonical drive_documents row pointing at an existing storage
+// object (migration 0396). Best-effort: if the table isn't there yet the
+// PostgREST error is swallowed and Drive keeps working off the legacy view.
+async function _driveRecordCanonical(o) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !o || !o.driverId || !o.path) return;
+  try {
+    await sb.from("drive_documents").insert({
+      dsp_id: dspId, driver_id: o.driverId,
+      name: o.title || "Document", doc_type: o.docType || null,
+      category: "drivers", subfolder: _DRIVE_SUBS.includes(o.category) ? o.category : "Documents",
+      bucket: o.bucket || "driver-documents", file_path: o.path,
+      file_size: o.size || null, mime_type: o.mime || null,
+      source: o.source || "upload", source_id: o.sourceId || null,
+      tags: o.autoGenerated ? ["Auto-filed"] : [],
+      created_by: window.RR?.user?.id || null,
+      metadata: { drive_created_by: window.RR?.user?.name || window.RR?.user?.email || "" },
+    });
+  } catch (_) { /* table not migrated yet — ignore */ }
+}
+
+// Single-coaching document (text → PDF via the shared pdf-lib pipeline). Used
+// to auto-file a Coaching / Warning into Drive the moment it's created.
+async function _coachingDocBytes(drv, c, levelLabel) {
+  const dsp = (window.RR && window.RR.dsp) || {};
+  const name = displayDriverName(drv) || "Driver";
+  const station = drv?.station?.code || dsp.short_code || "—";
+  const L = [];
+  L.push(_rptRule("="));
+  L.push(_rptCenter((dsp.name || "Delivery Service Partner").toUpperCase()));
+  L.push(_rptCenter("Employee " + (levelLabel || "Coaching") + " Record"));
+  L.push(_rptRule("="));
+  L.push("");
+  L.push(`    EMPLOYEE:      ${name}`);
+  L.push(`    STATION:       ${station}`);
+  L.push(`    DATE:          ${_rptDate(c.occurred_at)}`);
+  L.push(`    LEVEL:         ${levelLabel || c.severity || "Coaching"}`);
+  if (c.topic) L.push(`    TOPIC:         ${String(c.topic).replace(/_/g, " ")}`);
+  L.push(`    ISSUED BY:     ${c.coached_by_name || "—"}`);
+  L.push(_rptRule("-"));
+  L.push("");
+  if (c.summary) { L.push("SUMMARY"); L.push(""); L.push(_rptWrap(c.summary, "    ")); L.push(""); }
+  if (c.notes) { L.push("DETAILS"); L.push(""); L.push(_rptWrap(c.notes, "    ")); L.push(""); }
+  L.push("ACKNOWLEDGMENT");
+  L.push("");
+  L.push(_rptWrap("By signing below, the employee acknowledges receipt of this document. "
+    + "Acknowledgment indicates receipt, not necessarily agreement.", "    "));
+  L.push("");
+  L.push("    Employee: ______________________________   Date: ____________");
+  L.push("");
+  L.push("    Manager:  ______________________________   Date: ____________");
+  L.push("");
+  return _textToPdfBytes(L.join("\n"));
+}
+
+// Auto-file a just-created coaching into the driver's Drive folder (Coaching
+// or Warnings, by severity). Best-effort + fire-and-forget from the save flow.
+async function _driveAutoFileCoaching(coachingId, driverId, payload, reason) {
+  try {
+    if (!driverId) return;
+    let drv = (_driveData?.driverMap?.get(driverId)) || (_ddDriver?.driver?.id === driverId ? _ddDriver.driver : null);
+    if (!drv) {
+      const { data } = await sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, station:station_id(code)").eq("id", driverId).maybeSingle();
+      drv = data;
+    }
+    if (!drv) return;
+    const sev = payload.severity;
+    const label = (typeof _coachingSevLabel === "function") ? _coachingSevLabel(sev, payload.topic, reason) : (sev || "Coaching");
+    const isWarn = ["written", "final", "termination"].includes(sev);
+    const c = {
+      id: coachingId, severity: sev, topic: payload.topic, summary: payload.summary,
+      notes: payload.notes, occurred_at: new Date().toISOString(),
+      coached_by_name: window.RR?.user?.name || window.RR?.user?.email || "",
+    };
+    const bytes = await _coachingDocBytes(drv, c, label);
+    await _driveAutoFile({
+      driverId, blob: new Blob([bytes], { type: "application/pdf" }),
+      title: `${label}${payload.topic ? " — " + String(payload.topic).replace(/_/g, " ") : ""}`,
+      category: isWarn ? "Warnings" : "Coaching", docType: label, source: "coaching",
+    });
+  } catch (e) { console.warn("[drive] coaching auto-file:", e); }
+}

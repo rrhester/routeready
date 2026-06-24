@@ -14,6 +14,10 @@ const SCOPES = [
   "openid",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/calendar.events",
+  // RouteReady Vault — create + manage only the Google files RouteReady makes
+  // (Docs/Sheets/Slides). drive.file is per-file and non-sensitive, so it needs
+  // no Google security review and can never see the user's other Drive files.
+  "https://www.googleapis.com/auth/drive.file",
 ].join(" ");
 
 Deno.serve(async (req) => {

@@ -396,14 +396,18 @@
                      the "New" group caption centers under the pair and sits on
                      the strip's bottom line, mirroring "Rules". -->
                 <div class="rr-cal-newgroup">
-                <button class="subnav-item" type="button" onclick="rrIvcalNewEvent()" title="New event">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="12" y1="12.5" x2="12" y2="18.5"/><line x1="9" y1="15.5" x2="15" y2="15.5"/></svg>
-                  <span>New event</span>
+                <button class="subnav-item" type="button" onclick="rrIvcalNewEvent()" title="Schedule a new interview">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                  <span>Schedule Interview</span>
                 </button>
                 <button class="subnav-item" type="button" onclick="rrIvcalAddCalendar()" title="Add calendar">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><circle cx="17.5" cy="16.5" r="4.2" fill="var(--oc-surface,#fff)"/><line x1="17.5" y1="14.3" x2="17.5" y2="18.7"/><line x1="15.3" y1="16.5" x2="19.7" y2="16.5"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><line x1="16" y1="13" x2="16" y2="19"/><line x1="13" y1="16" x2="19" y2="16"/></svg>
                   <span>Add calendar</span>
                 </button>
+                <span class="rr-cal-sync" title="Connected to Google Calendar">
+                  <span class="rr-cal-sync-dot" aria-hidden="true"></span>
+                  Google Calendar synced
+                </span>
                 <span class="rr-cal-newgroup-cap" aria-hidden="true">New</span>
                 </div><!-- /.rr-cal-newgroup -->
                 <div class="ob-tab-divider" aria-hidden="true"></div>
@@ -412,37 +416,55 @@
                      "Rules" caption centers under the view tiles and the
                      dialog-launcher pins to the group's bottom-right next to
                      the hairline — the same location as Schedule's "Go To". -->
+                <!-- View switcher · the Day / Week / Work Week / Month pills
+                     collapsed into ONE button with a dropdown (operator). The
+                     four original view buttons live unchanged inside the menu
+                     — same data-cal-view + rrIvcalSetView wiring and .active
+                     sync (_ivcalSyncStripView) — and the trigger label tracks
+                     the active view. Open/close is wired document-delegated in
+                     live.js, like the Availability launcher. -->
                 <div class="rr-cal-viewgroup">
-                <button class="subnav-item rr-cal-vtab" data-cal-view="day" type="button" onclick="rrIvcalSetView('day')" title="Day view">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="12" y1="13" x2="12" y2="18"/></svg>
-                  <span>Day</span>
-                </button>
-                <div class="ob-tab-wrap" data-rr-tile="ob-cal-week">
-                  <button class="subnav-item rr-cal-vtab" data-cal-view="week" type="button" onclick="rrIvcalSetView('week')" title="Week view">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/></svg>
-                    <span>Week</span>
+                <div class="rr-cal-viewdd" id="rr-cal-viewdd">
+                  <button type="button" class="rr-cal-viewdd-trigger" id="rr-cal-viewdd-trigger" aria-haspopup="menu" aria-expanded="false" title="Change calendar view">
+                    <span class="rr-cal-viewdd-current" id="rr-cal-viewdd-current">Work Week</span>
+                    <svg class="rr-cal-viewdd-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
-                  <div class="ob-rules-popover" id="rr-iv-rules-popover" role="dialog" aria-modal="false" aria-label="Interview availability" hidden>
-                    <div class="ob-rules-head">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                      Interview availability
-                    </div>
-                    <div class="ob-rules-body">
-                      <p style="margin:0 0 12px;font-size:var(--fs-sm);color:var(--text-subtle)">The days, times, capacity, and one-off group sessions applicants see on your RouteReady booking page.</p>
-                      <div class="rr-iv-card" id="rr-iv-card">
-                        <div id="rr-iv-body"><div aria-hidden="true" style="padding:var(--s-4)"><div class="rrx-skeleton rrx-skeleton--block" style="height:46px"></div><div class="rrx-skeleton rrx-skeleton--block" style="height:46px;margin-top:8px"></div><div class="rrx-skeleton rrx-skeleton--block" style="height:46px;margin-top:8px"></div></div></div>
-                      </div>
+                  <div class="rr-cal-viewdd-menu" id="rr-cal-viewdd-menu" role="menu" hidden>
+                    <button class="subnav-item rr-cal-vtab" data-cal-view="day" type="button" role="menuitem" onclick="rrIvcalSetView('day')" title="Day view">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><rect x="10" y="13" width="4" height="4" fill="currentColor" stroke="none"/></svg>
+                      <span>Day</span>
+                    </button>
+                    <button class="subnav-item rr-cal-vtab" data-cal-view="week" type="button" role="menuitem" onclick="rrIvcalSetView('week')" title="Week view">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/></svg>
+                      <span>Week</span>
+                    </button>
+                    <button class="subnav-item rr-cal-vtab" data-cal-view="workweek" type="button" role="menuitem" onclick="rrIvcalSetView('workweek')" title="Work week (Mon–Fri)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/></svg>
+                      <span>Work Week</span>
+                    </button>
+                    <button class="subnav-item rr-cal-vtab" data-cal-view="month" type="button" role="menuitem" onclick="rrIvcalSetView('month')" title="Month view">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><rect x="6" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="11" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="16" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="6" y="17" width="2" height="2" fill="currentColor" stroke="none"/><rect x="11" y="17" width="2" height="2" fill="currentColor" stroke="none"/></svg>
+                      <span>Month</span>
+                    </button>
+                  </div>
+                </div>
+                <!-- Interview-availability popover · moved OUT of the (now
+                     collapsed) Week button so it isn't trapped inside the
+                     hidden menu. Opened by #rr-iv-rules-toggle and shown as
+                     position:fixed by _rrFitRulesPopover, so its DOM location
+                     here is purely structural. -->
+                <div class="ob-rules-popover" id="rr-iv-rules-popover" role="dialog" aria-modal="false" aria-label="Interview availability" hidden>
+                  <div class="ob-rules-head">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Interview availability
+                  </div>
+                  <div class="ob-rules-body">
+                    <p style="margin:0 0 12px;font-size:var(--fs-sm);color:var(--text-subtle)">The days, times, capacity, and one-off group sessions applicants see on your RouteReady booking page.</p>
+                    <div class="rr-iv-card" id="rr-iv-card">
+                      <div id="rr-iv-body"><div aria-hidden="true" style="padding:var(--s-4)"><div class="rrx-skeleton rrx-skeleton--block" style="height:46px"></div><div class="rrx-skeleton rrx-skeleton--block" style="height:46px;margin-top:8px"></div><div class="rrx-skeleton rrx-skeleton--block" style="height:46px;margin-top:8px"></div></div></div>
                     </div>
                   </div>
                 </div>
-                <button class="subnav-item rr-cal-vtab" data-cal-view="workweek" type="button" onclick="rrIvcalSetView('workweek')" title="Work week (Mon–Fri)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="7" width="18" height="13"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
-                  <span>Work Week</span>
-                </button>
-                <button class="subnav-item rr-cal-vtab" data-cal-view="month" type="button" onclick="rrIvcalSetView('month')" title="Month view">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
-                  <span>Month</span>
-                </button>
                 <!-- Rules caption + dialog-launcher · one fixed-height footer
                      row so the browser vertically centers the caption AND the
                      launcher on the same line (caption centered, launcher
@@ -502,8 +524,9 @@
                     <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
                 </div>
-                <!-- Hidden file input that openPdfUploadPicker clicks. -->
-                <input type="file" id="rr-ob-pdf-upload-input" accept="application/pdf" style="display:none" multiple/>
+                <!-- The hidden file input openPdfUploadPicker() clicks now
+                     lives globally in index.html (shared with the app
+                     launcher's Indeed Import). -->
                 <div class="ob-tab-divider" aria-hidden="true"></div>
               </div>
               <!-- Actions group · no caption/launcher (Add applicant + PDF Upload
