@@ -70814,7 +70814,7 @@ function _driveFolderRow(o) {
 }
 function _driveFoldersTable(rows) {
   if (!rows.length) return "";
-  const head = `<div class="rr-drive-fhead"><div>Folder</div><div>Items</div><div>Modified</div><div class="rr-drive-fhead-acts">Actions</div></div>`;
+  const head = `<div class="rr-drive-fhead"><div>Folder</div><div>Items</div><div>Modified</div><div class="rr-drive-fhead-acts" aria-hidden="true"></div></div>`;
   return `<div class="rr-drive-ftable">${head}${rows.map(_driveFolderRow).join("")}</div>`;
 }
 // Build a folder-table row for a custom folder.
