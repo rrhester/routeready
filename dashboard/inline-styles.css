@@ -26420,8 +26420,10 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Multi-select checkboxes — swap with the file icon on hover / when checked */
 .rr-drive-figbox{position:relative;flex:0 0 auto;width:30px;height:30px}
 .rr-drive-figbox .rr-drive-fico{position:absolute;inset:0}
-.rr-drive-check{position:absolute;inset:0;display:none;align-items:center;justify-content:center;border-radius:8px;background:var(--surface);border:1.5px solid var(--border-strong,var(--border));color:transparent;cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast)}
-.rr-drive-check svg{width:15px;height:15px}
+/* Selection check sits as a small badge on the icon's corner — the file-type
+   icon stays visible underneath (it does NOT turn into a checkmark). */
+.rr-drive-check{position:absolute;inset:auto;right:-3px;bottom:-3px;display:none;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface);border:1.5px solid var(--border-strong,var(--border));color:transparent;cursor:pointer;box-shadow:0 0 0 2px var(--surface);transition:background var(--t-fast),border-color var(--t-fast)}
+.rr-drive-check svg{width:10px;height:10px}
 .rr-drive-row:hover .rr-drive-check,.rr-drive-row.is-checked .rr-drive-check{display:flex}
 .rr-drive-row.is-checked .rr-drive-check{background:var(--accent);border-color:var(--accent);color:#fff}
 .rr-drive-row.is-checked{background:var(--accent-soft)}
