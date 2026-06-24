@@ -26579,9 +26579,14 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-ftable{display:flex;flex-direction:column}
 .rr-drive-fhead,.rr-drive-frow{display:grid;grid-template-columns:minmax(0,1fr) 140px 160px;align-items:center;gap:14px;padding:0 10px}
 .rr-drive-fhead{height:34px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)}
-.rr-drive-frow{height:52px;border-radius:8px;cursor:pointer}
+.rr-drive-frow{height:52px;border-radius:8px;cursor:pointer;position:relative}
 .rr-drive-frow:hover{background:var(--canvas)}
 .rr-drive-frow.rr-drive-dropover{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+/* Per-row folder actions kebab (Star / Customize / Rename / Delete). */
+.rr-drive-fmore{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;background:transparent;border-radius:6px;color:var(--text-subtle);cursor:pointer;opacity:.45;transition:opacity .12s ease,background .12s ease,color .12s ease}
+.rr-drive-fmore svg{width:16px;height:16px}
+.rr-drive-frow:hover .rr-drive-fmore{opacity:1}
+.rr-drive-fmore:hover{background:var(--border-subtle);color:var(--text);opacity:1}
 .rr-drive-fname{display:flex;align-items:center;gap:12px;min-width:0;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
 .rr-drive-fname .rr-drive-fico{flex:0 0 auto}
 .rr-drive-fname .rr-drive-name-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -70791,10 +70791,15 @@ function _driveListHtml(docs) {
 // carry data-rr-drive-folder; category folders carry data-rr-drive-sec.
 function _driveFolderRow(o) {
   const star = o.favId ? `<span class="rr-drive-fav${_driveIsFav(o.favId) ? " is-on" : ""}" data-rr-drive-fav="${escapeHtml(o.favId)}" role="button" aria-label="Star folder">${_driveStarSvg(_driveIsFav(o.favId))}</span>` : "";
+  // Custom folders carry a kebab → Star / Customize / Rename / Delete, right on
+  // the main page (the same actions the folder header exposes once opened).
+  // Category folders (Drivers, Fleet, …) are system folders, so no menu.
+  const more = o.favId ? `<button type="button" class="rr-drive-fmore" data-rr-drive-foldermenu="${escapeHtml(o.favId)}" aria-haspopup="menu" aria-label="Folder actions" title="More actions"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>` : "";
   return `<div class="rr-drive-frow" ${o.attr}>
     <div class="rr-drive-fname"><span class="rr-drive-fico is-folder"${o.color ? ` style="color:${o.color}"` : ""}>${o.ico}</span><span class="rr-drive-name-txt">${escapeHtml(o.name)}</span>${star}</div>
     <div class="rr-drive-fcell rr-drive-cell-soft">${o.items}</div>
     <div class="rr-drive-fcell rr-drive-cell-soft">${o.modified || "—"}</div>
+    ${more}
   </div>`;
 }
 function _driveFoldersTable(rows) {
@@ -71423,6 +71428,10 @@ document.addEventListener("click", (e) => {
     _driveSyncSelClasses(); _driveRenderBulk(); _driveRenderDetails();
     return;
   }
+  // Folder kebab (main-page folders table) → Star / Customize / Rename / Delete.
+  // Must precede the fav + folder-open handlers so the menu wins the click.
+  const fmenu = e.target.closest("[data-rr-drive-foldermenu]");
+  if (fmenu) { e.stopPropagation(); _driveOpenFolderMenu(fmenu.getAttribute("data-rr-drive-foldermenu"), fmenu); return; }
   // Star toggle — sits inside a folder card or on the folder action bar, so it
   // must be handled before the card-open handler below.
   const fav = e.target.closest("[data-rr-drive-fav]");
@@ -71556,6 +71565,25 @@ function _driveOpenFilterMenu() {
   _driveAnchoredMenu(document.getElementById("rr-drive-filterbtn"),
     [opt("all", "All types"), opt("google", "Google files"), opt("pdf", "PDF"), opt("image", "Images"), opt("office", "Word / Excel")],
     (k) => { _driveState.filter = k; const btn = document.getElementById("rr-drive-filterbtn"); if (btn) btn.classList.toggle("is-active", k !== "all"); _driveRenderMain(); });
+}
+// Per-row folder actions (the main-page kebab) — same operations as the folder
+// header bar, anchored under the ⋮ button. Custom folders only.
+function _driveOpenFolderMenu(folderId, btn) {
+  const f = (_driveData?.folders || []).find(x => x.id === folderId);
+  if (!f) return;
+  const fav = _driveIsFav(f.id);
+  _driveAnchoredMenu(btn, [
+    { key: "star", label: fav ? "Starred" : "Star", active: fav },
+    { key: "customize", label: "Customize" },
+    { key: "rename", label: "Rename" },
+    { sep: true },
+    { key: "delete", label: "Delete" },
+  ], (k) => {
+    if (k === "star") { _driveToggleFav(f.id); _driveRenderMain(); }
+    else if (k === "customize") _driveOpenFolderStyle(f);
+    else if (k === "rename") _driveRenameFolder(f);
+    else if (k === "delete") _driveDeleteFolder(f);
+  });
 }
 let _driveNewPopClose = null;
 function _driveOpenNewMenu() {
