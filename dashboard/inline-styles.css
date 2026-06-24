@@ -26583,11 +26583,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-frow{height:52px;border-radius:8px;cursor:pointer}
 .rr-drive-frow:hover{background:var(--canvas)}
 .rr-drive-frow.rr-drive-dropover{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
-/* Per-row folder actions — always-visible Star / Customize / Rename / Delete. */
-.rr-drive-frow-acts{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0}
-.rr-drive-fbtn{padding:4px 10px;font-size:12px;font-weight:600;line-height:1.25;white-space:nowrap;flex:0 0 auto}
-.rr-drive-frow-acts .btn.is-active{border-color:#f59e0b;color:#b45309}
-.rr-drive-fbtn-del:hover{border-color:#ef4444;color:#dc2626}
+/* Per-row folder actions — always-visible Star / Customize / Rename / Delete,
+   but deliberately quiet: borderless, muted text, no box. They only pick up a
+   faint background when you hover an individual action. */
+.rr-drive-frow-acts{display:flex;align-items:center;justify-content:flex-end;gap:2px;min-width:0}
+.rr-drive-fbtn{padding:3px 8px;font-size:12px;font-weight:500;line-height:1.25;white-space:nowrap;flex:0 0 auto;background:transparent;border-color:transparent;color:var(--text-muted);box-shadow:none}
+.rr-drive-fbtn:hover{background:var(--surface-hover);color:var(--text);border-color:transparent;box-shadow:none}
+.rr-drive-fbtn:active{background:var(--surface-pressed);box-shadow:none}
+.rr-drive-frow-acts .btn.is-active{background:transparent;border-color:transparent;color:#b45309}
+.rr-drive-fbtn-del:hover{background:var(--surface-hover);color:#dc2626;border-color:transparent}
 .rr-drive-fname{display:flex;align-items:center;gap:12px;min-width:0;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
 .rr-drive-fname .rr-drive-fico{flex:0 0 auto}
 .rr-drive-fname .rr-drive-name-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
