@@ -26519,6 +26519,89 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-newico{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;color:var(--text-muted)}
 .rr-drive-newico svg{width:18px;height:18px}
 .rr-drive-newmenu-sep{height:1px;background:var(--border);margin:5px 6px}
+.rr-drive-popmenu .rr-drive-newitem{font-weight:500}
+.rr-drive-newcheck{display:inline-flex;width:14px;justify-content:center;color:var(--accent);font-weight:700}
+.rr-drive-popmenu .rr-drive-newitem.is-active{color:var(--text)}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Vault v2 — enterprise 3-column DMS (left nav · content · preview panel).
+   Reduced borders, generous whitespace, RouteReady blue only for primary
+   actions + active nav. Scoped to .rr-drive-v2 so it overrides the base.
+   ════════════════════════════════════════════════════════════════════════ */
+.rr-drive-v2{padding:0 14px 14px;height:100%;min-height:0}
+.rr-drive-v2 .rr-drive-shell{display:grid;grid-template-columns:220px minmax(0,1fr) 340px;gap:0;height:calc(100vh - 96px);min-height:520px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl,14px);overflow:hidden}
+@media (max-width:1180px){.rr-drive-v2 .rr-drive-shell{grid-template-columns:210px minmax(0,1fr)}.rr-drive-v2 .rr-drive-details{display:none}}
+@media (max-width:820px){.rr-drive-v2 .rr-drive-shell{grid-template-columns:1fr;height:auto}.rr-drive-v2 .rr-drive-nav{display:none}}
+
+/* Left navigation */
+.rr-drive-nav{display:flex;flex-direction:column;min-height:0;padding:14px 12px;background:var(--canvas);border-right:1px solid var(--border-subtle)}
+.rr-drive-nav-top{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.rr-drive-newbtn{flex:1;justify-content:center;gap:7px}
+.rr-drive-navlist{display:flex;flex-direction:column;gap:1px;overflow-y:auto;min-height:0;flex:1}
+.rr-drive-navitem{display:flex;align-items:center;gap:11px;width:100%;padding:8px 10px;border:0;background:none;border-radius:8px;cursor:pointer;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);text-align:left;line-height:1.2}
+.rr-drive-navitem:hover{background:var(--surface)}
+.rr-drive-navitem.is-active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.rr-drive-navico{flex:0 0 auto;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;color:currentColor}
+.rr-drive-navico svg{width:18px;height:18px}
+.rr-drive-navlbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-drive-navcnt{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500}
+.rr-drive-navitem.is-active .rr-drive-navcnt{color:var(--accent)}
+.rr-drive-navitem.is-alert .rr-drive-navcnt{background:#fee2e2;color:#b42318;border-radius:999px;padding:1px 7px}
+.rr-drive-navsep{height:1px;background:var(--border-subtle);margin:9px 8px}
+.rr-drive-nav-foot{margin-top:auto;padding-top:8px;border-top:1px solid var(--border-subtle)}
+.rr-drive-storage-t{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:8px 10px 0}
+.rr-drive-storage-v{font-size:var(--fs-xs);color:var(--text-muted);padding:3px 10px 8px}
+.rr-drive-navfootbtn{color:var(--text-subtle)}
+
+/* Center column */
+.rr-drive-v2 .rr-drive-center{border:0;border-radius:0;background:var(--surface)}
+.rr-drive-v2 .rr-drive-toolbar{border-bottom:1px solid var(--border-subtle);padding:14px 24px;gap:14px}
+.rr-drive-v2 .rr-drive-search{flex:1;max-width:560px;background:var(--canvas);border:1px solid var(--border-subtle);border-radius:10px;height:42px;padding:0 14px}
+.rr-drive-v2 .rr-drive-search:focus-within{border-color:var(--accent);background:var(--surface)}
+.rr-drive-v2 .rr-drive-search input{font-size:var(--fs-sm)}
+.rr-drive-tb-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin-left:auto}
+.rr-drive-tbtn{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1px solid var(--border-subtle);background:var(--surface);border-radius:9px;cursor:pointer;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted)}
+.rr-drive-tbtn:hover{background:var(--canvas);color:var(--text)}
+.rr-drive-tbtn.is-active{border-color:var(--accent);color:var(--accent)}
+.rr-drive-tbtn svg{width:16px;height:16px}
+.rr-drive-v2 .rr-drive-crumbs{padding:12px 24px 0}
+.rr-drive-v2 .rr-drive-main{padding:6px 24px 26px}
+.rr-drive-v2 .rr-drive-sectionhead{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin:16px 2px 10px}
+.rr-drive-v2 .rr-drive-sectionhead-gap{margin-top:28px}
+
+/* Quick access — small, low-chrome folder cards */
+.rr-drive-quick{display:grid;grid-template-columns:repeat(auto-fill,minmax(188px,1fr));gap:10px}
+.rr-drive-v2 .rr-drive-quick .rr-drive-card{padding:12px;border-color:var(--border-subtle);border-radius:10px}
+.rr-drive-v2 .rr-drive-quick .rr-drive-card:hover{border-color:var(--accent);background:var(--canvas);box-shadow:none}
+.rr-drive-v2 .rr-drive-quick .rr-drive-card-ico{width:34px;height:34px}
+
+/* Folders table */
+.rr-drive-ftable{display:flex;flex-direction:column}
+.rr-drive-fhead,.rr-drive-frow{display:grid;grid-template-columns:minmax(0,1fr) 140px 160px;align-items:center;gap:14px;padding:0 10px}
+.rr-drive-fhead{height:34px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)}
+.rr-drive-frow{height:52px;border-radius:8px;cursor:pointer}
+.rr-drive-frow:hover{background:var(--canvas)}
+.rr-drive-frow.rr-drive-dropover{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.rr-drive-fname{display:flex;align-items:center;gap:12px;min-width:0;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+.rr-drive-fname .rr-drive-fico{flex:0 0 auto}
+.rr-drive-fname .rr-drive-name-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-drive-fcell{font-size:var(--fs-sm)}
+.rr-drive-frow .rr-drive-fav{position:static;display:inline-flex;width:24px;height:24px;opacity:0;margin-left:6px}
+.rr-drive-frow:hover .rr-drive-fav,.rr-drive-frow .rr-drive-fav.is-on{opacity:1}
+.rr-drive-cell-soft{color:var(--text-subtle)}
+
+/* Documents table — 56px rows, 5 columns, hairline separators only */
+.rr-drive-v2 .rr-drive-list{border:0}
+.rr-drive-v2 .rr-drive-lhead,.rr-drive-v2 .rr-drive-row{grid-template-columns:minmax(0,1fr) 140px 160px 130px 140px;gap:14px;padding:0 10px;border:0}
+.rr-drive-v2 .rr-drive-lhead{height:42px;border-bottom:1px solid var(--border-subtle);position:sticky;top:0;background:var(--surface);z-index:1}
+.rr-drive-v2 .rr-drive-row{height:56px;border-radius:8px;border-bottom:1px solid transparent}
+.rr-drive-v2 .rr-drive-row:hover{background:var(--canvas)}
+.rr-drive-v2 .rr-drive-row.is-selected,.rr-drive-v2 .rr-drive-row.is-checked{background:var(--accent-soft)}
+.rr-drive-v2 .rr-drive-name-txt{font-weight:500}
+.rr-drive-v2 .rr-drive-fico{width:32px;height:32px}
+
+/* Right preview / details panel */
+.rr-drive-v2 .rr-drive-details{border:0;border-left:1px solid var(--border-subtle);border-radius:0;background:var(--surface)}
 
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .rr-drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
