@@ -26385,8 +26385,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(214px,1fr));gap:12px;margin-bottom:8px}
 .rr-drive-card{display:flex;align-items:flex-start;gap:12px;padding:15px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);cursor:pointer;text-align:left;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
 .rr-drive-card:hover{border-color:var(--accent);box-shadow:var(--shadow-sm)}
-.rr-drive-card-ico{flex:0 0 auto;width:40px;height:40px;border-radius:10px;background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-muted)}
-.rr-drive-card-ico svg{width:20px;height:20px}
+.rr-drive-card-ico{flex:0 0 auto;width:50px;height:50px;border-radius:12px;background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-muted)}
+.rr-drive-card-ico svg{width:25px;height:25px}
 .rr-drive-card-body{min-width:0;flex:1}
 .rr-drive-card-name{font-size:var(--fs-md);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rr-drive-card-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px}
@@ -26399,8 +26399,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-row:hover{background:var(--canvas)}
 .rr-drive-row.is-selected{background:var(--accent-soft)}
 .rr-drive-name{display:flex;align-items:center;gap:11px;min-width:0}
-.rr-drive-fico{flex:0 0 auto;width:30px;height:30px;border-radius:8px;background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle)}
-.rr-drive-fico svg{width:16px;height:16px}
+.rr-drive-fico{flex:0 0 auto;width:38px;height:38px;border-radius:9px;background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle)}
+.rr-drive-fico svg{width:20px;height:20px}
 .rr-drive-fico.is-folder{color:var(--text-muted)}
 .rr-drive-fico.t-pdf{color:#b42318}.rr-drive-fico.t-img{color:#0e7490}.rr-drive-fico.t-doc{color:#1d4ed8}.rr-drive-fico.t-xls{color:#15803d}
 .rr-drive-name-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
@@ -26418,7 +26418,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-folderbar-acts{display:flex;gap:8px;flex:0 0 auto}
 
 /* Multi-select checkboxes — swap with the file icon on hover / when checked */
-.rr-drive-figbox{position:relative;flex:0 0 auto;width:30px;height:30px}
+.rr-drive-figbox{position:relative;flex:0 0 auto;width:38px;height:38px}
 .rr-drive-figbox .rr-drive-fico{position:absolute;inset:0}
 /* Selection check sits as a small badge on the icon's corner — the file-type
    icon stays visible underneath (it does NOT turn into a checkmark). */
@@ -26575,7 +26575,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-quick{display:grid;grid-template-columns:repeat(auto-fill,minmax(188px,1fr));gap:10px}
 .rr-drive-v2 .rr-drive-quick .rr-drive-card{padding:12px;border-color:var(--border-subtle);border-radius:10px}
 .rr-drive-v2 .rr-drive-quick .rr-drive-card:hover{border-color:var(--accent);background:var(--canvas);box-shadow:none}
-.rr-drive-v2 .rr-drive-quick .rr-drive-card-ico{width:34px;height:34px}
+.rr-drive-v2 .rr-drive-quick .rr-drive-card-ico{width:42px;height:42px}
 
 /* Folders table */
 .rr-drive-ftable{display:flex;flex-direction:column}
@@ -26611,7 +26611,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-v2 .rr-drive-row:hover{background:var(--canvas)}
 .rr-drive-v2 .rr-drive-row.is-selected,.rr-drive-v2 .rr-drive-row.is-checked{background:var(--accent-soft)}
 .rr-drive-v2 .rr-drive-name-txt{font-weight:500}
-.rr-drive-v2 .rr-drive-fico{width:32px;height:32px}
+.rr-drive-v2 .rr-drive-fico{width:40px;height:40px}
 
 /* Right preview / details panel */
 .rr-drive-v2 .rr-drive-details{border:0;border-left:1px solid var(--border-subtle);border-radius:0;background:var(--surface)}
@@ -26621,8 +26621,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-tile{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);cursor:pointer;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
 .rr-drive-tile:hover{border-color:var(--accent);box-shadow:var(--shadow-sm)}
 .rr-drive-tile.is-selected{border-color:var(--accent);box-shadow:var(--shadow-sm)}
-.rr-drive-tile-ico{width:38px;height:38px;border-radius:9px;background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle)}
-.rr-drive-tile-ico svg{width:19px;height:19px}
+.rr-drive-tile-ico{width:47px;height:47px;border-radius:11px;background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle)}
+.rr-drive-tile-ico svg{width:24px;height:24px}
 .rr-drive-tile-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rr-drive-tile-meta{font-size:var(--fs-xs);color:var(--text-subtle)}
 
