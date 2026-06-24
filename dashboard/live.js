@@ -70593,17 +70593,21 @@ function _driveRenderMain() {
     const fdocs = (_driveData?.docs || []).filter(d => d.folderId === _driveState.folderId && !d.archivedAt && !d.deletedAt);
     const fcolor = folder ? _driveFolderColor(folder.metadata) : null;
     const ffav = folder ? _driveIsFav(folder.id) : false;
+    // "New folder" creates a sub-folder right here (parent_id = this folder).
+    const newFolderBtn = `<button type="button" class="btn btn-sm btn-primary" data-rr-drive-newfolder><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>New folder</button>`;
     const bar = folder ? `<div class="rr-drive-folderbar">
       <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder"${fcolor ? ` style="color:${fcolor}"` : ""}>${_driveFolderIcoSvg(folder.metadata)}</span>${escapeHtml(folder.name)}</div>
       <div class="rr-drive-folderbar-acts">
+        ${newFolderBtn}
         <button type="button" class="btn btn-sm${ffav ? " is-active" : ""}" data-rr-drive-fav="${escapeHtml(folder.id)}">${ffav ? "★ Starred" : "☆ Star"}</button>
         <button type="button" class="btn btn-sm" data-rr-drive-folderstyle="${escapeHtml(folder.id)}">Customize</button>
         <button type="button" class="btn btn-sm" data-rr-drive-foldername="${escapeHtml(folder.id)}">Rename</button>
         <button type="button" class="btn btn-sm" data-rr-drive-folderdel="${escapeHtml(folder.id)}">Delete</button>
       </div></div>` : "";
-    const subCards = subfolders.length ? `<div class="rr-drive-sectionhead">Folders</div><div class="rr-drive-cards">${subfolders.map(_driveFolderCard).join("")}</div>` : "";
-    const filesHead = subCards ? `<div class="rr-drive-sectionhead" style="margin-top:22px">Files</div>` : "";
-    main.innerHTML = bar + subCards + filesHead + (fdocs.length ? _driveListHtml(fdocs, false) : _driveEmpty("folder"));
+    // Sub-folders render as the same manageable table (with the 3-dot menu).
+    const subTable = subfolders.length ? `<div class="rr-drive-sectionhead">Folders</div>${_driveFoldersTable(subfolders.map(_driveCustomFolderRowData))}` : "";
+    const filesHead = subTable ? `<div class="rr-drive-sectionhead" style="margin-top:22px">Files</div>` : "";
+    main.innerHTML = bar + subTable + filesHead + (fdocs.length ? _driveListHtml(fdocs, false) : _driveEmpty("folder"));
     return;
   }
 
@@ -71387,6 +71391,8 @@ document.addEventListener("click", (e) => {
   const cmenu = e.target.closest("[data-rr-drive-catmenu]");
   if (cmenu) { e.stopPropagation(); _driveOpenCatMenu(cmenu.getAttribute("data-rr-drive-catmenu"), cmenu); return; }
   if (e.target.closest("[data-rr-drive-unhide]")) { e.stopPropagation(); _driveUnhideAllCats(); _driveRenderMain(); return; }
+  // New sub-folder inside the current folder.
+  if (e.target.closest("[data-rr-drive-newfolder]")) { e.stopPropagation(); _driveNewFolder(); return; }
   const go = e.target.closest("[data-rr-drive-go]");
   if (go) { try { const to = JSON.parse(go.getAttribute("data-rr-drive-go")); _driveState.section = to.section; _driveState.driverId = to.driverId || null; _driveState.sub = to.sub || null; _driveState.folderId = to.folderId || null; if (to.folderId) _drivePushRecent(to.folderId); _driveState.query = ""; const si = document.getElementById("rr-drive-search"); if (si) si.value = ""; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); } catch {} return; }
   const sec = e.target.closest("[data-rr-drive-sec]");
