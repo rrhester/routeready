@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=739e24c41a42";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=739e24c41a42";
+import { planScheduleWeek } from "./scheduling-engine.js?v=33ea4e6bdb9a";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=33ea4e6bdb9a";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70621,7 +70621,7 @@ function _driveRenderMain() {
     // "New folder" creates a sub-folder right here (parent_id = this folder).
     const newFolderBtn = `<button type="button" class="btn btn-sm btn-primary" data-rr-drive-newfolder><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>New folder</button>`;
     const bar = folder ? `<div class="rr-drive-folderbar">
-      <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder"${fcolor ? ` style="color:${fcolor}"` : ""}>${_driveFolderIcoSvg(folder.metadata)}</span><button type="button" class="rr-drive-folderbar-rename" data-rr-drive-foldername="${escapeHtml(folder.id)}" title="Click to rename">${escapeHtml(folder.name)}</button></div>
+      <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder"${fcolor ? ` style="color:${fcolor}"` : ""}>${_driveFolderIcoSvg(folder.metadata)}</span><span class="rr-drive-folderbar-rename" contenteditable="true" spellcheck="false" role="textbox" aria-label="Folder name — click to edit" data-rr-drive-renamefolder="${escapeHtml(folder.id)}" data-orig="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</span></div>
       <div class="rr-drive-folderbar-acts">
         ${newFolderBtn}
         <button type="button" class="btn btn-sm${ffav ? " is-active" : ""}" data-rr-drive-fav="${escapeHtml(folder.id)}">${ffav ? "★ Starred" : "☆ Star"}</button>
@@ -71237,9 +71237,15 @@ async function _driveRenameDoc(doc) {
 async function _driveRenameFolder(folder) {
   if (!folder) return;
   const next = (prompt("Rename folder:", folder.name || "") || "").trim();
-  if (!next || next === folder.name) return;
+  await _driveSaveFolderName(folder.id, next);
+}
+// Commit a folder rename (shared by the prompt path + the inline title edit).
+async function _driveSaveFolderName(id, next) {
+  const folder = (_driveData?.folders || []).find((x) => x.id === id);
+  next = (next || "").replace(/\s+/g, " ").trim();
+  if (!folder || !next || next === folder.name) return;
   let error = null;
-  try { ({ error } = await sb.from("drive_folders").update({ name: next }).eq("id", folder.id)); } catch (e) { error = e; }
+  try { ({ error } = await sb.from("drive_folders").update({ name: next }).eq("id", id)); } catch (e) { error = e; }
   if (error) { toast("Couldn't rename folder: " + String(error.message || error), "warn"); return; }
   toast("Folder renamed", "success");
   _driveData = null; await loadDriveView();
@@ -71382,6 +71388,23 @@ async function _driveBulk(action) {
 }
 
 // ── Interaction ──────────────────────────────────────────────────────────
+// Inline folder rename · the folder title is contenteditable. Enter (or
+// clicking away) commits the new name; Escape cancels — no prompt dialog.
+document.addEventListener("keydown", (e) => {
+  const el = e.target.closest && e.target.closest("[data-rr-drive-renamefolder]");
+  if (!el) return;
+  if (e.key === "Enter") { e.preventDefault(); el.blur(); }
+  else if (e.key === "Escape") { e.preventDefault(); el.dataset.cancel = "1"; el.textContent = el.getAttribute("data-orig") || ""; el.blur(); }
+});
+document.addEventListener("focusout", (e) => {
+  const el = e.target.closest && e.target.closest("[data-rr-drive-renamefolder]");
+  if (!el) return;
+  if (el.dataset.cancel === "1") { delete el.dataset.cancel; return; }
+  const orig = el.getAttribute("data-orig") || "";
+  const next = (el.textContent || "").replace(/\s+/g, " ").trim();
+  if (!next || next === orig) { el.textContent = orig; return; }
+  _driveSaveFolderName(el.getAttribute("data-rr-drive-renamefolder"), next);
+});
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#view-drive")) return;
   // Folder / category 3-dot menus + hidden-folder restore. These sit at the
