@@ -26415,10 +26415,10 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Folder action bar (shown inside an open custom folder) */
 .rr-drive-folderbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 16px;padding-bottom:14px;border-bottom:1px solid var(--border)}
 .rr-drive-folderbar-name{display:flex;align-items:center;gap:10px;font-size:var(--fs-lg);font-weight:700;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* Folder title is editable in place — looks like the heading; click to type,
-   a focus ring appears while editing. No underline, no button chrome. */
-.rr-drive-folderbar-rename{font:inherit;color:inherit;cursor:text;padding:0 4px;margin:0 -4px;border-radius:5px;outline:none;white-space:nowrap}
-.rr-drive-folderbar-rename:focus{background:var(--surface);box-shadow:inset 0 0 0 1px var(--accent),0 0 0 3px var(--accent-soft)}
+/* Folder title is editable in place — looks like the heading; click to type.
+   No box/ring while editing (operator request) — just the text caret. */
+.rr-drive-folderbar-rename{font:inherit;color:inherit;cursor:text;outline:none;white-space:nowrap}
+.rr-drive-folderbar-rename:focus{outline:none;background:none;box-shadow:none}
 .rr-drive-folderbar-acts{display:flex;gap:8px;flex:0 0 auto}
 
 /* Multi-select checkboxes — swap with the file icon on hover / when checked */
