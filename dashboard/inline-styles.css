@@ -26556,8 +26556,17 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-navsep{height:1px;background:var(--border-subtle);margin:9px 8px}
 /* "Folders" group label + folder rows in the left rail. */
 .rr-drive-navhead{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);padding:2px 10px 4px}
-.rr-drive-navfolder .rr-drive-navico{color:var(--text-muted)}
-.rr-drive-navfolder.is-active .rr-drive-navico{color:var(--accent)}
+/* Folder tree row · [subtle chevron | folder button]. The chevron toggles the
+   sub-folders (collapsed by default); the spacer keeps icons aligned. */
+.rr-drive-navrow{display:flex;align-items:center;gap:1px}
+.rr-drive-navrow .rr-drive-navfolderbtn{flex:1;min-width:0;padding-left:4px}
+.rr-drive-navrow .rr-drive-navico{color:var(--text-muted)}
+.rr-drive-navrow.is-active .rr-drive-navico{color:var(--accent)}
+.rr-drive-navchev{flex:0 0 auto;width:16px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;background:none;padding:0;cursor:pointer;color:var(--text-subtle);opacity:.45;border-radius:4px}
+.rr-drive-navchev svg{width:13px;height:13px;transition:transform .15s ease}
+.rr-drive-navchev.is-open svg{transform:rotate(90deg)}
+.rr-drive-navchev:hover{opacity:.9;background:var(--surface)}
+.rr-drive-navchev.is-empty{cursor:default;pointer-events:none}
 .rr-drive-nav-foot{margin-top:auto;padding-top:8px;border-top:1px solid var(--border-subtle)}
 .rr-drive-storage-t{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:8px 10px 0}
 .rr-drive-storage-v{font-size:var(--fs-xs);color:var(--text-muted);padding:3px 10px 8px}
