@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=d6beafed0e0c";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=d6beafed0e0c";
+import { planScheduleWeek } from "./scheduling-engine.js?v=e43ecc30209e";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=e43ecc30209e";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70137,12 +70137,15 @@ async function _driveLoadData(dspId) {
   let folders = [];
   try {
     const { data, error } = await sb.from("drive_folders")
-      .select("id, name, category, parent_id, created_at, metadata")
-      .eq("dsp_id", dspId).is("archived_at", null).order("name", { ascending: true }).limit(2000);
+      .select("id, name, category, parent_id, sort_order, created_at, metadata")
+      .eq("dsp_id", dspId).is("archived_at", null)
+      .order("sort_order", { ascending: true }).order("name", { ascending: true }).limit(2000);
     if (!error) folders = (data || []).filter(f => (f.category || "custom") === "custom");
   } catch (_) { /* not migrated yet */ }
 
   const canonicalPaths = new Set();
+  const canonicalReportIds = new Set();   // employment_reports.id already filed into a folder
+  const canonicalEnvIds = new Set();       // document_envelopes.id already filed into a folder
   try {
     // Fetch every canonical row (incl. archived / trashed) so the dedup set is
     // complete; the section filters decide what each view shows. `select *` so
@@ -70154,6 +70157,32 @@ async function _driveLoadData(dspId) {
       .order("created_at", { ascending: false }).limit(8000);
     if (!error) for (const x of (data || [])) {
       if (x.file_path) canonicalPaths.add(x.file_path);
+      // Reference rows for fileless records (a report or a still-unsigned
+      // envelope filed into a folder). Reconstruct the original doc so it stays
+      // openable, and remember its source id so the legacy row is deduped below.
+      if (!x.file_path && !x.is_google_file && (x.source === "report" || x.source === "envelope")) {
+        if (x.source === "report") {
+          if (x.source_id) canonicalReportIds.add(x.source_id);
+          docs.push({
+            folderId: x.folder_id || null, id: "drv_" + x.id, canonicalId: x.id, source: "report", canonical: true,
+            name: x.name || "Employment report", docType: x.doc_type || "Employment report",
+            driverId: x.driver_id, driverName: x.driver_id ? nameOf(x.driver_id) : "", station: x.driver_id ? stationOf(x.driver_id) : "",
+            reportId: x.source_id || null, createdAt: x.created_at, createdBy: (x.metadata && x.metadata.drive_created_by) || "",
+            archivedAt: x.archived_at, deletedAt: x.deleted_at, tags: (Array.isArray(x.tags) && x.tags.length) ? x.tags : ["Report"],
+          });
+        } else {
+          if (x.source_id) canonicalEnvIds.add(x.source_id);
+          docs.push({
+            folderId: x.folder_id || null, id: "drv_" + x.id, canonicalId: x.id, source: "envelope", canonical: true,
+            name: x.name || "Document", docType: x.doc_type || "Document", bucket: x.bucket || "documents", path: null, mime: "application/pdf",
+            driverId: x.driver_id, driverName: x.driver_id ? nameOf(x.driver_id) : "", station: x.driver_id ? stationOf(x.driver_id) : "",
+            envelopeId: x.source_id || null, createdAt: x.created_at, createdBy: (x.metadata && x.metadata.drive_created_by) || "",
+            archivedAt: x.archived_at, deletedAt: x.deleted_at, shared: true,
+            tags: (Array.isArray(x.tags) && x.tags.length) ? x.tags : ["E-signature"],
+          });
+        }
+        continue;
+      }
       const cat = x.subfolder && _DRIVE_SUBS.includes(x.subfolder) ? x.subfolder : null;
       const isGoogle = !!x.is_google_file;
       docs.push({
@@ -70203,9 +70232,19 @@ async function _driveLoadData(dspId) {
       .select("id, status, sent_at, signed_at, signed_pdf_path, certificate_pdf_path, recipient_driver_id, document_templates(title)")
       .eq("dsp_id", dspId).order("sent_at", { ascending: false }).limit(5000);
     for (const e of (data || [])) {
+      // Already filed into a folder? Its canonical reference stands in for it.
+      // If it has since been signed, surface the signed PDF on that reference so
+      // the document stays reachable (no duplicate row, no lost file).
+      if (canonicalEnvIds.has(e.id)) {
+        if (e.signed_pdf_path) {
+          const ref = docs.find(d => d.canonical && d.source === "envelope" && d.envelopeId === e.id);
+          if (ref && !ref.path) { ref.path = e.signed_pdf_path; ref.bucket = "documents"; if (!/\.pdf$/i.test(ref.name)) ref.name += ".pdf"; }
+        }
+        continue;
+      }
       const title = e.document_templates?.title || "Document";
       docs.push({
-        id: "env_" + e.id, source: "envelope", name: title + (e.signed_pdf_path ? ".pdf" : ""),
+        id: "env_" + e.id, envelopeId: e.id, source: "envelope", name: title + (e.signed_pdf_path ? ".pdf" : ""),
         docType: title, bucket: "documents", path: e.signed_pdf_path || null, mime: "application/pdf",
         driverId: e.recipient_driver_id || null,
         driverName: e.recipient_driver_id ? nameOf(e.recipient_driver_id) : "",
@@ -70236,6 +70275,7 @@ async function _driveLoadData(dspId) {
       .select("id, driver_id, generated_at, generated_by_name, summary")
       .eq("dsp_id", dspId).order("generated_at", { ascending: false }).limit(2000);
     for (const r of (data || [])) {
+      if (canonicalReportIds.has(r.id)) continue; // already filed into a folder
       docs.push({
         id: "rep_" + r.id, source: "report", name: `Employment report — ${nameOf(r.driver_id)}`,
         docType: "Employment report", driverId: r.driver_id, driverName: nameOf(r.driver_id),
@@ -70557,12 +70597,14 @@ function _driveNavFoldersHtml(c) {
   // A nav row = [chevron | folder button]. expandId set ⇒ the folder has
   // sub-folders, so the chevron toggles them; otherwise a blank chevron-width
   // spacer keeps every icon aligned. The button navigates.
-  const navRow = (attr, label, ico, color, active, n, depth, expandId, expanded) =>
-    `<div class="rr-drive-navrow${active ? " is-active" : ""}"${depth ? ` style="padding-left:${depth * 14}px"` : ""}>` +
+  // dragId set (custom folders only) ⇒ the row is a drag handle (reorder / nest)
+  // and a drop target; category folders pass null and stay fixed.
+  const navRow = (attr, label, ico, color, active, n, depth, expandId, expanded, dragId) =>
+    `<div class="rr-drive-navrow${active ? " is-active" : ""}"${dragId ? ` data-rr-drive-folderrow="${escapeHtml(dragId)}"` : ""}${depth ? ` style="padding-left:${depth * 14}px"` : ""}>` +
     (expandId
       ? `<button type="button" class="rr-drive-navchev${expanded ? " is-open" : ""}" data-rr-drive-folderexpand="${escapeHtml(expandId)}" aria-label="${expanded ? "Collapse" : "Expand"}">${CHEV}</button>`
       : `<span class="rr-drive-navchev is-empty"></span>`) +
-    `<button type="button" class="rr-drive-navitem rr-drive-navfolderbtn${active ? " is-active" : ""}" ${attr}>` +
+    `<button type="button" class="rr-drive-navitem rr-drive-navfolderbtn${active ? " is-active" : ""}"${dragId ? ` draggable="true" data-rr-drive-folderdrag="${escapeHtml(dragId)}"` : ""} ${attr}>` +
     `<span class="rr-drive-navico"${color ? ` style="color:${color}"` : ""}>${ico}</span>` +
     `<span class="rr-drive-navlbl">${escapeHtml(label)}</span>${n ? `<span class="rr-drive-navcnt">${n}</span>` : ""}</button></div>`;
   // Recursively render a folder + (when expanded) its sub-folders. Collapsed by
@@ -70575,7 +70617,7 @@ function _driveNavFoldersHtml(c) {
     const expanded = _driveExpanded.has(f.id);
     let html = navRow(
       `data-rr-drive-folder="${escapeHtml(f.id)}"`, f.name, _driveFolderIcoSvg(f.metadata), _driveFolderColor(f.metadata),
-      _driveState.folderId === f.id, fcount(f.id), depth, kids.length ? f.id : null, expanded,
+      _driveState.folderId === f.id, fcount(f.id), depth, kids.length ? f.id : null, expanded, f.id,
     );
     if (kids.length && expanded) for (const kid of kids) html += renderFolder(kid, depth + 1);
     return html;
@@ -70584,7 +70626,7 @@ function _driveNavFoldersHtml(c) {
   const catIco = _driveFileIco(null, true);
   const catRows = cats.map(([key, label]) => navRow(
     `data-rr-drive-sec="${key}"`, label, catIco, null,
-    !_driveState.folderId && !_driveState.driverId && _driveState.section === key, c[key] || 0, 0, null, false,
+    !_driveState.folderId && !_driveState.driverId && _driveState.section === key, c[key] || 0, 0, null, false, null,
   )).join("");
   return `<div class="rr-drive-navsep"></div><div class="rr-drive-navhead">Folders</div>` + custom + catRows;
 }
@@ -70780,6 +70822,15 @@ function _driveLocOf(d) {
   return "Vault";
 }
 function _driveOwner(d) { return d.createdBy || (d.source === "envelope" ? "E-signature" : "—"); }
+// A document can be filed into a folder (drag-move / "Move to…" / Archive /
+// Trash) when it has a stable identity to record in the canonical store: a
+// storage object (path), a Google file, an already-canonical row, or a
+// DB-backed record we can reference by id (employment report / e-sign
+// envelope). Fileless records are filed as reference rows (file_path null,
+// keyed by source + source_id) and reconstructed on reload.
+function _driveCanMove(d) {
+  return !!(d && (d.canonicalId || d.path || d.isGoogle || d.source === "report" || d.source === "envelope"));
+}
 // Type filter (toolbar Filter menu).
 function _driveApplyFilter(docs) {
   const f = _driveState.filter || "all";
@@ -70799,7 +70850,7 @@ function _driveListHtml(docs) {
   const checkBox = (id) => `<span class="rr-drive-check" data-rr-drive-check="${escapeHtml(id)}" role="checkbox" aria-checked="${ck(id) ? "true" : "false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
   if (_driveState.view === "grid") {
     const tiles = docs.slice().sort(_driveCmp).map(d =>
-      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${(d.path || d.isGoogle) ? "true" : "false"}">
+      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${_driveCanMove(d) ? "true" : "false"}">
         <span class="rr-drive-tile-ico t-${d.type}">${_driveFileIco(d.type)}${checkBox(d.id)}</span>
         <span class="rr-drive-tile-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
         <span class="rr-drive-tile-meta">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "")} · ${_driveFmtDate(d.modifiedAt || d.createdAt)}</span>
@@ -70808,7 +70859,7 @@ function _driveListHtml(docs) {
   }
   const rows = docs.slice().sort(_driveCmp).map(d => {
     const sel = (_driveState.selected === d.id ? " is-selected" : "") + (ck(d.id) ? " is-checked" : "");
-    return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${(d.path || d.isGoogle) ? "true" : "false"}">
+    return `<div class="rr-drive-row${sel}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${_driveCanMove(d) ? "true" : "false"}">
       <div class="rr-drive-name"><span class="rr-drive-figbox"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span>${checkBox(d.id)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>
       <div class="rr-drive-cell">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "—")}</div>
       <div class="rr-drive-cell rr-drive-cell-soft">${escapeHtml(_driveLocOf(d))}</div>
@@ -70923,9 +70974,9 @@ function _driveRenderDetails() {
   }
   const row = (k, v) => v ? `<div class="rr-drive-det-row"><div class="k">${k}</div><div class="v">${v}</div></div>` : "";
   const tags = (doc.tags || []).length ? `<div class="rr-drive-det-row"><div class="k">Tags</div><div class="v rr-drive-det-tags">${doc.tags.map(t => `<span class="rr-drive-det-tag">${escapeHtml(t)}</span>`).join("")}</div></div>` : "";
-  // Google files can be filed into Vault folders even though they have no
-  // stored object (the "object" lives in Google Drive).
-  const canFile = !!(doc.path || doc.isGoogle);
+  // Files, Google files, and DB-backed records (reports / envelopes) can all be
+  // filed into Vault folders — fileless records via a canonical reference row.
+  const canFile = _driveCanMove(doc);
   const previewBox = doc.isGoogle
     ? `<div class="rr-drive-det-preview"><div class="rr-drive-det-noprev"><span class="rr-drive-fico t-${doc.type}" style="width:46px;height:46px;border-radius:12px">${_driveFileIco(doc.type)}</span><div style="margin-top:10px">${escapeHtml(_driveGoogleLabel(doc.type))} — opens in Google.</div></div></div>`
     : (doc.previewable
@@ -70939,8 +70990,8 @@ function _driveRenderDetails() {
       ? `<button class="btn btn-sm" data-rr-drive-copylink="${escapeHtml(doc.id)}">Copy link</button>`
       : (doc.openable ? `<button class="btn btn-sm" data-rr-drive-download="${escapeHtml(doc.id)}">Download</button>` : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">No file attached.</span>`);
   // Archive / Trash / Restore (canonical store · migration 0396). Available for
-  // stored files and Google files (for a Google file this removes it from the
-  // Vault, not from Google). Generated reports have no record to file.
+  // anything filable — stored files, Google files (removes from the Vault, not
+  // from Google), and DB-backed records (reports / envelopes) via a reference row.
   let status = "";
   if (canFile) {
     const trashLbl = doc.isGoogle ? "Remove from Vault" : "Move to Trash";
@@ -71056,7 +71107,7 @@ function _driveIsMigErr(error) { return /drive_documents|drive_folders|does not 
 // canonical row carrying the status (which shadows it out of the live views).
 async function _driveDocStatusWrite(doc, action) {
   const dspId = window.RR?.dsp?.id;
-  if (!dspId || !doc || !(doc.path || doc.isGoogle)) return { error: "skip" };
+  if (!dspId || !doc || !_driveCanMove(doc)) return { error: "skip" };
   const now = new Date().toISOString();
   const patch = action === "archive" ? { archived_at: now, deleted_at: null }
     : action === "trash" ? { deleted_at: now }
@@ -71065,11 +71116,12 @@ async function _driveDocStatusWrite(doc, action) {
     if (doc.canonicalId) return await sb.from("drive_documents").update(patch).eq("id", doc.canonicalId);
     return await sb.from("drive_documents").insert({
       dsp_id: dspId, driver_id: doc.driverId || null, name: doc.name, doc_type: doc.docType || null,
-      category: doc.source === "vehicle" ? "fleet" : (doc.driverId ? "drivers" : null),
-      subfolder: doc.driverId ? _driveSubfolder(doc) : null,
-      bucket: doc.bucket || "driver-documents", file_path: doc.path,
+      category: doc.source === "report" ? "reports" : doc.source === "vehicle" ? "fleet" : (doc.driverId ? "drivers" : null),
+      subfolder: doc.path && doc.driverId ? _driveSubfolder(doc) : null,
+      bucket: doc.bucket || "driver-documents", file_path: doc.path || null,
       file_size: doc.size || null, mime_type: doc.mime || null,
-      source: doc.source === "envelope" ? "envelope" : "upload",
+      source: doc.source === "report" ? "report" : doc.source === "envelope" ? "envelope" : "upload",
+      source_id: (doc.source === "report" ? doc.reportId : doc.source === "envelope" ? doc.envelopeId : null) || null,
       tags: Array.isArray(doc.tags) ? doc.tags : [],
       archived_at: patch.archived_at || null, deleted_at: patch.deleted_at || null,
       created_by: window.RR?.user?.id || null, metadata: { drive_title: doc.name },
@@ -71077,7 +71129,7 @@ async function _driveDocStatusWrite(doc, action) {
   } catch (e) { return { error: e }; }
 }
 async function _driveSetDocStatus(doc, action) {
-  if (!doc || !(doc.path || doc.isGoogle)) return;
+  if (!doc || !_driveCanMove(doc)) return;
   const { error } = await _driveDocStatusWrite(doc, action);
   if (error) {
     if (_driveIsMigErr(error)) toast("Apply the Vault schema migration (0396) in Supabase to enable Archive & Trash.", "warn");
@@ -71121,17 +71173,18 @@ async function _driveNewFolder() {
 // One move write (no toast/reload) — shared by the single and bulk paths.
 async function _driveMoveWrite(doc, folderId) {
   const dspId = window.RR?.dsp?.id;
-  if (!dspId || !doc || !(doc.path || doc.isGoogle)) return { error: "skip" };
+  if (!dspId || !doc || !_driveCanMove(doc)) return { error: "skip" };
   try {
     if (doc.canonicalId) return await sb.from("drive_documents").update({ folder_id: folderId || null }).eq("id", doc.canonicalId);
     return await sb.from("drive_documents").insert({
       dsp_id: dspId, folder_id: folderId || null, driver_id: doc.driverId || null,
       name: doc.name, doc_type: doc.docType || null,
-      category: folderId ? "custom" : (doc.source === "vehicle" ? "fleet" : (doc.driverId ? "drivers" : null)),
-      subfolder: doc.driverId ? _driveSubfolder(doc) : null,
-      bucket: doc.bucket || "driver-documents", file_path: doc.path,
+      category: folderId ? "custom" : (doc.source === "report" ? "reports" : doc.source === "vehicle" ? "fleet" : (doc.driverId ? "drivers" : null)),
+      subfolder: doc.path && doc.driverId ? _driveSubfolder(doc) : null,
+      bucket: doc.bucket || "driver-documents", file_path: doc.path || null,
       file_size: doc.size || null, mime_type: doc.mime || null,
-      source: doc.source === "envelope" ? "envelope" : "upload",
+      source: doc.source === "report" ? "report" : doc.source === "envelope" ? "envelope" : "upload",
+      source_id: (doc.source === "report" ? doc.reportId : doc.source === "envelope" ? doc.envelopeId : null) || null,
       tags: Array.isArray(doc.tags) ? doc.tags : [],
       created_by: window.RR?.user?.id || null, metadata: { drive_title: doc.name },
     });
@@ -71139,7 +71192,7 @@ async function _driveMoveWrite(doc, folderId) {
 }
 // Move one or many documents into a custom folder (or back to the root).
 async function _driveMoveMany(docs, folderId) {
-  const list = (Array.isArray(docs) ? docs : [docs]).filter(d => d && (d.path || d.isGoogle));
+  const list = (Array.isArray(docs) ? docs : [docs]).filter(d => d && _driveCanMove(d));
   if (!list.length) return;
   let ok = 0, fail = 0, mig = false;
   for (const d of list) {
@@ -71861,12 +71914,82 @@ function _driveShowDropzone() {
 function _driveHideDropzone() { clearTimeout(_driveDzTimer); const dz = document.getElementById("rr-drive-dropzone"); if (dz) dz.hidden = true; }
 function _driveDzPing() { _driveShowDropzone(); clearTimeout(_driveDzTimer); _driveDzTimer = setTimeout(_driveHideDropzone, 130); }
 
+// ── Folder rearrange / nest (rail drag) ────────────────────────────────────
+// Drag a custom folder in the left rail to reorder it (drop on a sibling's top/
+// bottom edge) or nest it inside another folder (drop on the row's middle).
+// Separate state from the doc drag above so the two gestures never cross.
+let _driveFolderDrag = null;        // dragged custom folder id
+let _driveFolderDropTarget = null;  // folder id currently under the cursor
+let _driveFolderDropMode = null;    // "before" | "after" | "into"
+function _driveClearFolderDrop() {
+  document.querySelectorAll("#view-drive .rr-drive-navrow.is-drop-into, #view-drive .rr-drive-navrow.is-drop-before, #view-drive .rr-drive-navrow.is-drop-after")
+    .forEach(el => el.classList.remove("is-drop-into", "is-drop-before", "is-drop-after"));
+}
+// True when `id` is `ancestorId` itself or sits anywhere beneath it — the guard
+// that stops a folder being dropped into its own subtree (a parent_id cycle).
+function _driveIsDescendant(id, ancestorId, folders) {
+  let cur = (folders || []).find(f => f.id === id); let guard = 0;
+  while (cur && guard++ < 50) {
+    if (cur.id === ancestorId) return true;
+    cur = cur.parent_id ? (folders || []).find(f => f.id === cur.parent_id) : null;
+  }
+  return false;
+}
+// Persist a rail drag: re-parent (nest) and/or re-order the dragged folder among
+// its new siblings. mode: into (nest at end) | before | after (reorder around the
+// target, sharing its parent). Renumbers the affected siblings' sort_order and
+// writes only the rows that actually changed (sibling sets are small).
+async function _driveFolderDrop(dragId, targetId, mode) {
+  const folders = (_driveData?.folders) || [];
+  const drag = folders.find(f => f.id === dragId);
+  const target = folders.find(f => f.id === targetId);
+  if (!drag || !target || dragId === targetId) return;
+  const newParent = mode === "into" ? targetId : (target.parent_id || null);
+  if (newParent && _driveIsDescendant(newParent, dragId, folders)) {
+    toast("Can't move a folder into itself or one of its sub-folders.", "warn"); return;
+  }
+  // Desired sibling order under newParent (excluding the dragged folder).
+  const sibs = folders.filter(f => (f.parent_id || null) === (newParent || null) && f.id !== dragId)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || String(a.name || "").localeCompare(String(b.name || "")));
+  if (mode === "into") {
+    sibs.push(drag);
+  } else {
+    const idx = sibs.findIndex(f => f.id === targetId);
+    const at = idx < 0 ? sibs.length : (mode === "before" ? idx : idx + 1);
+    sibs.splice(at, 0, drag);
+  }
+  try {
+    for (let i = 0; i < sibs.length; i++) {
+      const f = sibs[i];
+      const nextParent = f.id === dragId ? (newParent || null) : (f.parent_id || null);
+      if ((f.sort_order ?? 0) === i && (f.parent_id || null) === nextParent) continue; // unchanged
+      const { error } = await sb.from("drive_folders").update({ sort_order: i, parent_id: nextParent }).eq("id", f.id);
+      if (error) throw error;
+    }
+  } catch (error) {
+    if (_driveIsMigErr(error)) toast("Apply the Vault schema migration (0396) to organize folders.", "warn");
+    else toast("Couldn't move the folder: " + String(error.message || error), "warn");
+    return;
+  }
+  if (newParent) _driveExpanded.add(newParent); // reveal the destination subtree
+  _driveData = null; await loadDriveView();
+}
+
 document.addEventListener("dragstart", (e) => {
+  // Rail folder drag (rearrange / nest) takes precedence over a doc drag.
+  const fdrag = e.target.closest && e.target.closest("#view-drive [data-rr-drive-folderdrag]");
+  if (fdrag) {
+    _driveFolderDrag = fdrag.getAttribute("data-rr-drive-folderdrag");
+    _driveDragIds = [];
+    try { e.dataTransfer.setData("application/x-rr-folder", _driveFolderDrag); e.dataTransfer.effectAllowed = "move"; } catch (_) {}
+    fdrag.classList.add("rr-drive-dragging");
+    return;
+  }
   const row = e.target.closest && e.target.closest("#view-drive [data-rr-drive-doc]");
   if (!row) return;
   const id = row.getAttribute("data-rr-drive-doc");
   const base = (_driveState.checked.has(id) && _driveState.checked.size > 1) ? [..._driveState.checked] : [id];
-  _driveDragIds = base.filter(x => { const d = (_driveData?.docs || []).find(y => y.id === x); return d && (d.path || d.isGoogle); });
+  _driveDragIds = base.filter(x => { const d = (_driveData?.docs || []).find(y => y.id === x); return d && _driveCanMove(d); });
   if (!_driveDragIds.length) { e.preventDefault(); return; }
   try { e.dataTransfer.setData("application/x-rr-drive", _driveDragIds.join(",")); e.dataTransfer.effectAllowed = "move"; } catch (_) {}
   row.classList.add("rr-drive-dragging");
@@ -71890,7 +72013,7 @@ document.addEventListener("contextmenu", (e) => {
 });
 function _driveDocContextMenu(e, doc) {
   if (!doc) return;
-  const canFile = !!(doc.path || doc.isGoogle);
+  const canFile = _driveCanMove(doc);
   const I = {
     open: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
     link: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
@@ -71904,7 +72027,7 @@ function _driveDocContextMenu(e, doc) {
   };
   const items = [{ key: "open", label: doc.isGoogle ? "Open in Google" : (doc.source === "report" ? "Open report" : "Open"), ico: I.open }];
   if (doc.isGoogle) items.push({ key: "copylink", label: "Copy link", ico: I.link });
-  if (!doc.isGoogle && doc.openable) items.push({ key: "download", label: "Download", ico: I.download });
+  if (!doc.isGoogle && doc.path) items.push({ key: "download", label: "Download", ico: I.download });
   if ((doc.canonical || doc.source === "driver_documents") && !doc.deletedAt) items.push({ key: "rename", label: "Rename", ico: I.pencil });
   if (doc.path && !doc.isGoogle && !doc.deletedAt) items.push({ key: "duplicate", label: "Duplicate", ico: I.dup });
   if (canFile && !doc.deletedAt && !doc.archivedAt) items.push({ key: "move", label: "Move to…", ico: I.move });
@@ -71934,10 +72057,29 @@ function _driveDocContextMenu(e, doc) {
 document.addEventListener("dragend", () => {
   document.querySelectorAll("#view-drive .rr-drive-dragging").forEach(el => el.classList.remove("rr-drive-dragging"));
   document.querySelectorAll("#view-drive .rr-drive-dropover").forEach(el => el.classList.remove("rr-drive-dropover"));
-  _driveDragIds = []; _driveHideDropzone();
+  _driveClearFolderDrop();
+  _driveDragIds = []; _driveFolderDrag = null; _driveFolderDropTarget = null; _driveFolderDropMode = null;
+  _driveHideDropzone();
 });
 document.addEventListener("dragover", (e) => {
   if (!(e.target.closest && e.target.closest("#view-drive"))) return;
+  // Rail folder drag → reorder (row top/bottom edge) or nest (row middle).
+  if (_driveFolderDrag) {
+    _driveClearFolderDrop();
+    _driveFolderDropTarget = null; _driveFolderDropMode = null;
+    const rowEl = e.target.closest("[data-rr-drive-folderrow]");
+    const tid = rowEl && rowEl.getAttribute("data-rr-drive-folderrow");
+    if (rowEl && tid && tid !== _driveFolderDrag) {
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = "move"; } catch (_) {}
+      const r = rowEl.getBoundingClientRect();
+      const y = e.clientY - r.top;
+      const mode = y < r.height * 0.3 ? "before" : y > r.height * 0.7 ? "after" : "into";
+      _driveFolderDropTarget = tid; _driveFolderDropMode = mode;
+      rowEl.classList.add(mode === "into" ? "is-drop-into" : mode === "before" ? "is-drop-before" : "is-drop-after");
+    }
+    return;
+  }
   // Internal doc → folder card.
   const card = e.target.closest("[data-rr-drive-folder]");
   if (_driveDragIds.length) {
@@ -71958,6 +72100,15 @@ document.addEventListener("dragleave", (e) => {
 });
 document.addEventListener("drop", async (e) => {
   if (!(e.target.closest && e.target.closest("#view-drive"))) return;
+  // Rail folder drag → reorder / nest.
+  if (_driveFolderDrag) {
+    e.preventDefault(); e.stopPropagation();
+    const dragId = _driveFolderDrag, target = _driveFolderDropTarget, mode = _driveFolderDropMode;
+    _driveClearFolderDrop();
+    _driveFolderDrag = null; _driveFolderDropTarget = null; _driveFolderDropMode = null;
+    if (dragId && target && mode) await _driveFolderDrop(dragId, target, mode);
+    return;
+  }
   // Internal doc → folder card move.
   const card = e.target.closest("[data-rr-drive-folder]");
   if (card && _driveDragIds.length) {
