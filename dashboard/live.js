@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=5336a037154b";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=5336a037154b";
+import { planScheduleWeek } from "./scheduling-engine.js?v=d6beafed0e0c";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=d6beafed0e0c";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -71624,7 +71624,7 @@ function _driveAnchoredMenu(btn, items, onPick, align) {
   const pop = document.createElement("div");
   pop.className = "rr-drive-newmenu rr-drive-popmenu";
   const rightPx = Math.round(Math.max(8, window.innerWidth - r.right));
-  pop.style.cssText = `position:fixed;top:${Math.round(r.bottom + 6)}px;${align === "left" ? `left:${Math.round(r.left)}px` : `right:${rightPx}px`};z-index:10050;min-width:190px`;
+  pop.style.cssText = `position:fixed;top:${Math.round(r.bottom + 6)}px;${align === "left" ? `left:${Math.round(r.left)}px;right:auto` : `right:${rightPx}px`};z-index:10050;min-width:190px;width:max-content;max-width:280px`;
   pop.innerHTML = items.map(it => it.sep
     ? `<div class="rr-drive-newmenu-sep"></div>`
     : `<button type="button" class="rr-drive-newitem${it.active ? " is-active" : ""}${it.danger ? " rr-drive-newitem-danger" : ""}" data-k="${escapeHtml(it.key)}">${it.ico ? `<span class="rr-drive-newico">${it.ico}</span>` : `<span class="rr-drive-newcheck">${it.active ? "✓" : ""}</span>`}${escapeHtml(it.label)}</button>`).join("");
