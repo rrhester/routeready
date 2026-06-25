@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=09e481c1c9fb";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=09e481c1c9fb";
+import { planScheduleWeek } from "./scheduling-engine.js?v=739e24c41a42";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=739e24c41a42";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70621,12 +70621,11 @@ function _driveRenderMain() {
     // "New folder" creates a sub-folder right here (parent_id = this folder).
     const newFolderBtn = `<button type="button" class="btn btn-sm btn-primary" data-rr-drive-newfolder><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>New folder</button>`;
     const bar = folder ? `<div class="rr-drive-folderbar">
-      <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder"${fcolor ? ` style="color:${fcolor}"` : ""}>${_driveFolderIcoSvg(folder.metadata)}</span>${escapeHtml(folder.name)}</div>
+      <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder"${fcolor ? ` style="color:${fcolor}"` : ""}>${_driveFolderIcoSvg(folder.metadata)}</span><button type="button" class="rr-drive-folderbar-rename" data-rr-drive-foldername="${escapeHtml(folder.id)}" title="Click to rename">${escapeHtml(folder.name)}</button></div>
       <div class="rr-drive-folderbar-acts">
         ${newFolderBtn}
         <button type="button" class="btn btn-sm${ffav ? " is-active" : ""}" data-rr-drive-fav="${escapeHtml(folder.id)}">${ffav ? "★ Starred" : "☆ Star"}</button>
         <button type="button" class="btn btn-sm" data-rr-drive-folderstyle="${escapeHtml(folder.id)}">Customize</button>
-        <button type="button" class="btn btn-sm" data-rr-drive-foldername="${escapeHtml(folder.id)}">Rename</button>
         <button type="button" class="btn btn-sm" data-rr-drive-folderdel="${escapeHtml(folder.id)}">Delete</button>
       </div></div>` : "";
     // Sub-folders render as the same manageable table (with the 3-dot menu).
