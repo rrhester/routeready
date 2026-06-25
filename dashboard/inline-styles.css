@@ -26567,6 +26567,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-navchev.is-open svg{transform:rotate(90deg)}
 .rr-drive-navchev:hover{opacity:.9;background:var(--surface)}
 .rr-drive-navchev.is-empty{cursor:default;pointer-events:none}
+/* Folder rearrange / nest drag (rail). Grab cursor on draggable folder rows;
+   drop indicators — a tinted outlined box = nest inside, a top/bottom rule =
+   reorder before/after that folder. */
+.rr-drive-navfolderbtn[draggable="true"]{cursor:grab}
+.rr-drive-navfolderbtn[draggable="true"]:active{cursor:grabbing}
+.rr-drive-navrow .rr-drive-navfolderbtn.rr-drive-dragging{opacity:.45}
+.rr-drive-navrow.is-drop-into{background:var(--accent-soft);border-radius:8px;box-shadow:inset 0 0 0 1.5px var(--accent)}
+.rr-drive-navrow.is-drop-before{box-shadow:inset 0 2px 0 var(--accent)}
+.rr-drive-navrow.is-drop-after{box-shadow:inset 0 -2px 0 var(--accent)}
 .rr-drive-nav-foot{margin-top:auto;padding-top:8px;border-top:1px solid var(--border-subtle)}
 .rr-drive-storage-t{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:8px 10px 0}
 .rr-drive-storage-v{font-size:var(--fs-xs);color:var(--text-muted);padding:3px 10px 8px}
