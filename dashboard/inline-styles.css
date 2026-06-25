@@ -26761,36 +26761,52 @@ body.rr-cmdk-open{ overflow:hidden }
 @keyframes rr-drive-detfade{from{opacity:0}to{opacity:1}}
 
 /* ════════════════════════════════════════════════════════════════════════
-   Vault sidebar · match the app's Schedule (global) sidebar — deep-navy chrome.
-   The global rail is hidden on the Vault page, so the Vault's own left nav
-   adopts the same slate background + light ink so the two pages read as one
-   product. Mirrors .sidebar / .nav-item: slate-gray at rest, light on hover, a
-   soft slate tint when active (no bright-blue pill). Scoped to the nav only —
-   the content + preview columns stay light.
+   Vault sidebar · match the app's Schedule rail — the soft-blue (#EFF6FF) light
+   theme. The global rail redefines the --sidebar-* vars ON the .sidebar element
+   (see "Soft-blue sidebar" above), so the Vault's own nav redefines the SAME
+   vars here to read identically. Selected item = white pill + blue ink, exactly
+   like .sidebar .nav-item.active. Scoped to the nav — content + preview stay light.
    ════════════════════════════════════════════════════════════════════════ */
-.rr-drive-v2 .rr-drive-nav{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-divider)}
+.rr-drive-v2 .rr-drive-nav{
+  --sidebar-bg:#EFF6FF;
+  --sidebar-ink:#1E293B;
+  --sidebar-ink-idle:#475569;
+  --sidebar-icon-idle:#64748B;
+  --sidebar-icon-active:#2563EB;
+  --sidebar-hover:#E0EAFE;
+  --sidebar-divider:rgba(15,23,42,.10);
+  background:var(--sidebar-bg);
+  border-right:1px solid var(--sidebar-divider);
+}
 .rr-drive-v2 .rr-drive-nav .rr-drive-navitem{color:var(--sidebar-ink-idle)}
 .rr-drive-v2 .rr-drive-nav .rr-drive-navitem:hover{background:var(--sidebar-hover);color:var(--sidebar-ink)}
-.rr-drive-v2 .rr-drive-nav .rr-drive-navitem.is-active{background:rgba(148,163,184,.10);color:#F1F5F9}
+/* Selected = white pill + blue ink (matches .sidebar .nav-item.active). */
+.rr-drive-v2 .rr-drive-nav .rr-drive-navitem.is-active{
+  background:#FFFFFF;color:#1E40AF;font-weight:600;
+  box-shadow:0 1px 2px rgba(15,23,42,.07), 0 0 0 1px rgba(15,23,42,.05);
+}
 .rr-drive-v2 .rr-drive-nav .rr-drive-navitem.is-active::before{display:none}
-.rr-drive-v2 .rr-drive-nav .rr-drive-navrow.is-active{background:rgba(148,163,184,.10);border-radius:8px}
-.rr-drive-v2 .rr-drive-nav .rr-drive-navrow.is-active .rr-drive-navitem.is-active{background:transparent}
-/* Counts · group label · separators · folder icons · chevrons — quiet light. */
+.rr-drive-v2 .rr-drive-nav .rr-drive-navrow.is-active{
+  background:#FFFFFF;border-radius:8px;
+  box-shadow:0 1px 2px rgba(15,23,42,.07), 0 0 0 1px rgba(15,23,42,.05);
+}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navrow.is-active .rr-drive-navitem.is-active{background:transparent;box-shadow:none}
+/* Counts · group label · separators · folder icons · chevrons. */
 .rr-drive-v2 .rr-drive-nav .rr-drive-navcnt{color:var(--sidebar-ink-idle)}
-.rr-drive-v2 .rr-drive-nav .rr-drive-navitem.is-active .rr-drive-navcnt{color:#E2E8F0}
-.rr-drive-v2 .rr-drive-nav .rr-drive-navhead{color:rgba(148,163,184,.75)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navitem.is-active .rr-drive-navcnt{color:#1E40AF}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navhead{color:var(--sidebar-ink-idle)}
 .rr-drive-v2 .rr-drive-nav .rr-drive-navsep{background:var(--sidebar-divider)}
 .rr-drive-v2 .rr-drive-nav .rr-drive-navrow .rr-drive-navico{color:var(--sidebar-icon-idle)}
 .rr-drive-v2 .rr-drive-nav .rr-drive-navrow.is-active .rr-drive-navico{color:var(--sidebar-icon-active)}
 .rr-drive-v2 .rr-drive-nav .rr-drive-navchev{color:var(--sidebar-ink-idle);opacity:.6}
 .rr-drive-v2 .rr-drive-nav .rr-drive-navchev:hover{opacity:1;background:var(--sidebar-hover)}
-/* Foot — storage card + Admin Console on the navy. */
+/* Foot — storage card + Admin Console on the soft-blue rail. */
 .rr-drive-v2 .rr-drive-nav .rr-drive-nav-foot{border-top:1px solid var(--sidebar-divider)}
 .rr-drive-v2 .rr-drive-nav .rr-drive-storage-t{color:var(--sidebar-ink-idle)}
-.rr-drive-v2 .rr-drive-nav .rr-drive-store-bar{background:rgba(255,255,255,.12)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-store-bar{background:rgba(15,23,42,.10)}
 .rr-drive-v2 .rr-drive-nav .rr-drive-store-line{color:var(--sidebar-ink-idle)}
 .rr-drive-v2 .rr-drive-nav .rr-drive-navfootbtn{color:var(--sidebar-ink-idle)}
-/* Docked app launcher (3×3) — light glyph on the navy, like the global rail. */
+/* Docked app launcher (3×3) — matches the rail's idle glyph. */
 .rr-drive-v2 .rr-drive-nav .rr-launcher-dock:not(:empty){border-left-color:var(--sidebar-divider)}
 .rr-drive-v2 .rr-drive-nav .rr-al-btn{color:var(--sidebar-icon-idle)}
 .rr-drive-v2 .rr-drive-nav .rr-al-btn:hover{background:var(--sidebar-hover);color:var(--sidebar-ink)}
