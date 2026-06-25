@@ -26542,7 +26542,7 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Left navigation */
 .rr-drive-nav{display:flex;flex-direction:column;min-height:0;padding:14px 12px;background:var(--canvas);border-right:1px solid var(--border-subtle)}
 .rr-drive-nav-top{display:flex;align-items:center;gap:8px;margin-bottom:16px}
-.rr-drive-newbtn{flex:1;justify-content:center;gap:7px}
+.rr-drive-newbtn{flex:0 0 auto;gap:7px;padding:8px 12px;font-size:var(--fs-sm)}
 .rr-drive-navlist{display:flex;flex-direction:column;gap:1px;overflow-y:auto;min-height:0;flex:1}
 .rr-drive-navitem{display:flex;align-items:center;gap:11px;width:100%;padding:8px 10px;border:0;background:none;border-radius:8px;cursor:pointer;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);text-align:left;line-height:1.2}
 .rr-drive-navitem:hover{background:var(--surface)}
@@ -26759,3 +26759,38 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Details content fades in on selection — a calm transition between documents. */
 .rr-drive-v2 .rr-drive-details > *{animation:rr-drive-detfade .16s ease}
 @keyframes rr-drive-detfade{from{opacity:0}to{opacity:1}}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Vault sidebar · match the app's Schedule (global) sidebar — deep-navy chrome.
+   The global rail is hidden on the Vault page, so the Vault's own left nav
+   adopts the same slate background + light ink so the two pages read as one
+   product. Mirrors .sidebar / .nav-item: slate-gray at rest, light on hover, a
+   soft slate tint when active (no bright-blue pill). Scoped to the nav only —
+   the content + preview columns stay light.
+   ════════════════════════════════════════════════════════════════════════ */
+.rr-drive-v2 .rr-drive-nav{background:var(--sidebar-bg);border-right:1px solid var(--sidebar-divider)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navitem{color:var(--sidebar-ink-idle)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navitem:hover{background:var(--sidebar-hover);color:var(--sidebar-ink)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navitem.is-active{background:rgba(148,163,184,.10);color:#F1F5F9}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navitem.is-active::before{display:none}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navrow.is-active{background:rgba(148,163,184,.10);border-radius:8px}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navrow.is-active .rr-drive-navitem.is-active{background:transparent}
+/* Counts · group label · separators · folder icons · chevrons — quiet light. */
+.rr-drive-v2 .rr-drive-nav .rr-drive-navcnt{color:var(--sidebar-ink-idle)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navitem.is-active .rr-drive-navcnt{color:#E2E8F0}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navhead{color:rgba(148,163,184,.75)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navsep{background:var(--sidebar-divider)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navrow .rr-drive-navico{color:var(--sidebar-icon-idle)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navrow.is-active .rr-drive-navico{color:var(--sidebar-icon-active)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navchev{color:var(--sidebar-ink-idle);opacity:.6}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navchev:hover{opacity:1;background:var(--sidebar-hover)}
+/* Foot — storage card + Admin Console on the navy. */
+.rr-drive-v2 .rr-drive-nav .rr-drive-nav-foot{border-top:1px solid var(--sidebar-divider)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-storage-t{color:var(--sidebar-ink-idle)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-store-bar{background:rgba(255,255,255,.12)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-store-line{color:var(--sidebar-ink-idle)}
+.rr-drive-v2 .rr-drive-nav .rr-drive-navfootbtn{color:var(--sidebar-ink-idle)}
+/* Docked app launcher (3×3) — light glyph on the navy, like the global rail. */
+.rr-drive-v2 .rr-drive-nav .rr-launcher-dock:not(:empty){border-left-color:var(--sidebar-divider)}
+.rr-drive-v2 .rr-drive-nav .rr-al-btn{color:var(--sidebar-icon-idle)}
+.rr-drive-v2 .rr-drive-nav .rr-al-btn:hover{background:var(--sidebar-hover);color:var(--sidebar-ink)}
