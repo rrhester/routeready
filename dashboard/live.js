@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=f501d5b80f9c";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=f501d5b80f9c";
+import { planScheduleWeek } from "./scheduling-engine.js?v=5b1ecf1c4539";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=5b1ecf1c4539";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70931,11 +70931,13 @@ function _driveRenderDetails() {
     : (doc.previewable
       ? `<div class="rr-drive-det-preview" id="rr-drive-preview"><div class="rr-loading" style="padding:30px">Loading preview</div></div>`
       : `<div class="rr-drive-det-preview"><div class="rr-drive-det-noprev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${doc.source === "report" ? "Generated report — open to view." : "Preview isn't available for this file type yet."}</div></div>`);
+  // Open is via double-click on the row now — no separate Open button. Keep
+  // the type-specific secondary action (Copy link for Google, Download for files).
   const open = doc.source === "report"
-    ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open report</button>`
+    ? ``
     : doc.isGoogle
-      ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open in Google</button><button class="btn btn-sm" data-rr-drive-copylink="${escapeHtml(doc.id)}">Copy link</button>`
-      : (doc.openable ? `<button class="btn btn-sm btn-primary" data-rr-drive-open="${escapeHtml(doc.id)}">Open</button><button class="btn btn-sm" data-rr-drive-download="${escapeHtml(doc.id)}">Download</button>` : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">No file attached.</span>`);
+      ? `<button class="btn btn-sm" data-rr-drive-copylink="${escapeHtml(doc.id)}">Copy link</button>`
+      : (doc.openable ? `<button class="btn btn-sm" data-rr-drive-download="${escapeHtml(doc.id)}">Download</button>` : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">No file attached.</span>`);
   // Archive / Trash / Restore (canonical store · migration 0396). Available for
   // stored files and Google files (for a Google file this removes it from the
   // Vault, not from Google). Generated reports have no record to file.
@@ -71868,6 +71870,14 @@ document.addEventListener("dragstart", (e) => {
   if (!_driveDragIds.length) { e.preventDefault(); return; }
   try { e.dataTransfer.setData("application/x-rr-drive", _driveDragIds.join(",")); e.dataTransfer.effectAllowed = "move"; } catch (_) {}
   row.classList.add("rr-drive-dragging");
+});
+// Double-click a Vault document to open it (no separate Open button needed).
+document.addEventListener("dblclick", (e) => {
+  const row = e.target.closest && e.target.closest("#view-drive [data-rr-drive-doc]");
+  if (!row) return;
+  e.preventDefault();
+  const d = (_driveData?.docs || []).find((x) => x.id === row.getAttribute("data-rr-drive-doc"));
+  if (d) _driveOpenDoc(d, false);
 });
 document.addEventListener("dragend", () => {
   document.querySelectorAll("#view-drive .rr-drive-dragging").forEach(el => el.classList.remove("rr-drive-dragging"));
