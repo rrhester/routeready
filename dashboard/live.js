@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=d88e46927218";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=d88e46927218";
+import { planScheduleWeek } from "./scheduling-engine.js?v=34ca64af2c8e";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=34ca64af2c8e";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -71857,7 +71857,10 @@ function _driveOpenNewMenu() {
   pop.id = "rr-drive-newpop";
   pop.className = "rr-drive-newmenu";
   pop.setAttribute("role", "menu");
-  pop.style.cssText = `position:fixed;top:${Math.round(r.bottom + 6)}px;left:${Math.round(r.left)}px;z-index:10050`;
+  // right:auto clears the .rr-drive-newmenu class's `right:0`; without it the
+  // menu gets both left+right and stretches edge-to-edge. width:max-content
+  // sizes it to its items (min-width from the class still applies).
+  pop.style.cssText = `position:fixed;top:${Math.round(r.bottom + 6)}px;left:${Math.round(r.left)}px;right:auto;width:max-content;z-index:10050`;
   const genIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`;
   pop.innerHTML =
     item("folder", "Folder", folderIco) +
