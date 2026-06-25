@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=a65eed716a18";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=a65eed716a18";
+import { planScheduleWeek } from "./scheduling-engine.js?v=f501d5b80f9c";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=f501d5b80f9c";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70647,7 +70647,6 @@ function _driveRenderMain() {
   // Inside a custom folder — its sub-folders + its files.
   if (_driveState.folderId) {
     const folder = (_driveData?.folders || []).find(f => f.id === _driveState.folderId);
-    const subfolders = (_driveData?.folders || []).filter(x => x.parent_id === _driveState.folderId);
     const fdocs = (_driveData?.docs || []).filter(d => d.folderId === _driveState.folderId && !d.archivedAt && !d.deletedAt);
     const fcolor = folder ? _driveFolderColor(folder.metadata) : null;
     const ffav = folder ? _driveIsFav(folder.id) : false;
@@ -70661,10 +70660,9 @@ function _driveRenderMain() {
         <button type="button" class="btn btn-sm" data-rr-drive-folderstyle="${escapeHtml(folder.id)}">Customize</button>
         <button type="button" class="btn btn-sm" data-rr-drive-folderdel="${escapeHtml(folder.id)}">Delete</button>
       </div></div>` : "";
-    // Sub-folders render as the same manageable table (with the 3-dot menu).
-    const subTable = subfolders.length ? `<div class="rr-drive-sectionhead">Folders</div>${_driveFoldersTable(subfolders.map(_driveCustomFolderRowData))}` : "";
-    const filesHead = subTable ? `<div class="rr-drive-sectionhead" style="margin-top:22px">Files</div>` : "";
-    main.innerHTML = bar + subTable + filesHead + (fdocs.length ? _driveListHtml(fdocs, false) : _driveEmpty("folder"));
+    // Sub-folders live in the left-rail tree now (operator request), so the
+    // folder body shows just its own files.
+    main.innerHTML = bar + (fdocs.length ? _driveListHtml(fdocs, false) : _driveEmpty("folder"));
     return;
   }
 
@@ -71110,6 +71108,9 @@ async function _driveNewFolder() {
     return;
   }
   toast("Folder created", "success");
+  // Reveal the new folder in the rail tree: expand its parent (a root folder
+  // is always visible). It lives in the sidebar now, not the folder body.
+  if (_driveState.folderId) _driveExpanded.add(_driveState.folderId);
   _driveData = null; await loadDriveView();
 }
 
