@@ -28,7 +28,8 @@
             <div class="rr-drive-toolbar">
               <div class="rr-drive-search">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="search" id="rr-drive-search" placeholder="Search your vault…" autocomplete="off" spellcheck="false">
+                <input type="search" id="rr-drive-search" placeholder="Search everything in your Vault…" autocomplete="off" spellcheck="false">
+                <kbd class="rr-drive-search-kbd" id="rr-drive-search-kbd" aria-hidden="true">⌘K</kbd>
               </div>
               <div class="rr-drive-tb-actions">
                 <button type="button" class="rr-drive-tbtn" id="rr-drive-sortbtn" aria-haspopup="menu" title="Sort">

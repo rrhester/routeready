@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=34ca64af2c8e";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=34ca64af2c8e";
+import { planScheduleWeek } from "./scheduling-engine.js?v=81f029af2f76";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=81f029af2f76";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70110,9 +70110,28 @@ async function loadDriveView(opts) {
     _driveLoading = false;
   }
   _driveRender();
+  _driveWireSearchShortcut();
   _driveLoadGoogleStatus();   // non-blocking — paints the connect banner when ready
 }
 window.loadDriveView = loadDriveView;
+// Search shortcut · ⌘K (Mac) / Ctrl+K focuses the Vault search. Sets the kbd
+// hint label to the right platform glyph and wires the key once.
+let _driveSearchKbdWired = false;
+function _driveWireSearchShortcut() {
+  const isMac = /Mac|iPhone|iPad|iPod/.test((navigator.platform || "") + " " + (navigator.userAgent || ""));
+  const kbd = document.getElementById("rr-drive-search-kbd");
+  if (kbd) kbd.textContent = isMac ? "⌘K" : "Ctrl K";
+  if (_driveSearchKbdWired) return;
+  _driveSearchKbdWired = true;
+  document.addEventListener("keydown", (e) => {
+    if ((e.key || "").toLowerCase() !== "k" || !(e.metaKey || e.ctrlKey)) return;
+    const view = document.getElementById("view-drive");
+    if (!view || !view.classList.contains("active")) return;
+    const input = document.getElementById("rr-drive-search");
+    if (!input) return;
+    e.preventDefault(); input.focus(); input.select();
+  });
+}
 
 async function _driveLoadData(dspId) {
   const docs = [];
@@ -70391,16 +70410,18 @@ function _driveStorageStats() {
   const docs = (_driveData?.docs || []).filter(d => !d.archivedAt && !d.deletedAt);
   let bytes = 0; for (const d of docs) bytes += (d.size || 0);
   const pct = Math.min(100, Math.round((bytes / _DRIVE_STORAGE_QUOTA) * 100));
-  return { count: docs.length, bytes, quota: _DRIVE_STORAGE_QUOTA, pct };
+  const folders = (_driveData?.folders || []).filter(f => !f.archived_at).length;
+  return { count: docs.length, folders, bytes, quota: _DRIVE_STORAGE_QUOTA, pct };
 }
-// Storage card — used / quota with a thin progress bar + item count. Shared by
-// the rail foot and the empty preview workspace so they read identically.
+// Storage card — used / quota with a thin progress bar, then real file + folder
+// counts. Shared by the rail foot and the empty preview so they read identically.
 function _driveStorageCardHtml() {
   const s = _driveStorageStats();
   const fill = s.bytes > 0 ? Math.max(2, s.pct) : 0; // keep a sliver visible when non-empty
   return `<div class="rr-drive-storecard">
       <div class="rr-drive-store-bar"><span style="width:${fill}%"></span></div>
-      <div class="rr-drive-store-line"><span>${_driveFmtStorage(s.bytes)} of ${_driveFmtStorage(s.quota)} used</span><span class="rr-drive-store-count">${s.count} item${s.count === 1 ? "" : "s"}</span></div>
+      <div class="rr-drive-store-line"><span>${_driveFmtStorage(s.bytes)} / ${_driveFmtStorage(s.quota)}</span></div>
+      <div class="rr-drive-store-counts"><span>${s.count} File${s.count === 1 ? "" : "s"}</span><span>${s.folders} Folder${s.folders === 1 ? "" : "s"}</span></div>
     </div>`;
 }
 // Friendly relative day label ("Today" / "Yesterday" / "3 days ago" / date) for
@@ -70655,7 +70676,7 @@ function _driveNavFoldersHtml(c) {
   // dragId set (custom folders only) ⇒ the row is a drag handle (reorder / nest)
   // and a drop target; category folders pass null and stay fixed.
   const navRow = (attr, label, ico, color, active, n, depth, expandId, expanded, dragId) =>
-    `<div class="rr-drive-navrow${active ? " is-active" : ""}"${dragId ? ` data-rr-drive-folderrow="${escapeHtml(dragId)}"` : ""}${depth ? ` style="padding-left:${depth * 14}px"` : ""}>` +
+    `<div class="rr-drive-navrow${active ? " is-active" : ""}"${dragId ? ` data-rr-drive-folderrow="${escapeHtml(dragId)}"` : ""}${depth ? ` style="padding-left:${depth * 18}px"` : ""}>` +
     (expandId
       ? `<button type="button" class="rr-drive-navchev${expanded ? " is-open" : ""}" data-rr-drive-folderexpand="${escapeHtml(expandId)}" aria-label="${expanded ? "Collapse" : "Expand"}">${CHEV}</button>`
       : `<span class="rr-drive-navchev is-empty"></span>`) +
@@ -70747,14 +70768,28 @@ function _driveRenderMain() {
     const ffav = folder ? _driveIsFav(folder.id) : false;
     // "New folder" creates a sub-folder right here (parent_id = this folder).
     const newFolderBtn = `<button type="button" class="btn btn-sm btn-primary" data-rr-drive-newfolder><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>New folder</button>`;
+    // Folder name is the page anchor; a quiet metadata line under it reports the
+    // real counts + last activity (files here, sub-folders, most-recent change).
+    const subCount = folder ? (_driveData?.folders || []).filter(f => f.parent_id === folder.id && !f.archived_at).length : 0;
+    const lastUpd = fdocs.reduce((m, d) => { const t = new Date(d.modifiedAt || d.createdAt || 0).getTime(); return t > m ? t : m; }, 0);
+    const fmeta = [
+      `${fdocs.length} File${fdocs.length === 1 ? "" : "s"}`,
+      subCount ? `${subCount} Folder${subCount === 1 ? "" : "s"}` : null,
+      lastUpd ? `Updated ${_driveRelTime(lastUpd)}` : null,
+    ].filter(Boolean).join("  •  ");
     const bar = folder ? `<div class="rr-drive-folderbar">
-      <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder"${fcolor ? ` style="color:${fcolor}"` : ""}>${_driveFolderIcoSvg(folder.metadata)}</span><span class="rr-drive-folderbar-rename" contenteditable="true" spellcheck="false" role="textbox" aria-label="Folder name — click to edit" data-rr-drive-renamefolder="${escapeHtml(folder.id)}" data-orig="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</span></div>
-      <div class="rr-drive-folderbar-acts">
-        ${newFolderBtn}
-        <button type="button" class="btn btn-sm${ffav ? " is-active" : ""}" data-rr-drive-fav="${escapeHtml(folder.id)}">${ffav ? "★ Starred" : "☆ Star"}</button>
-        <button type="button" class="btn btn-sm" data-rr-drive-folderstyle="${escapeHtml(folder.id)}">Customize</button>
-        <button type="button" class="btn btn-sm" data-rr-drive-folderdel="${escapeHtml(folder.id)}">Delete</button>
-      </div></div>` : "";
+      <div class="rr-drive-folderbar-head">
+        <div class="rr-drive-folderbar-name"><span class="rr-drive-fico is-folder"${fcolor ? ` style="color:${fcolor}"` : ""}>${_driveFolderIcoSvg(folder.metadata)}</span><span class="rr-drive-folderbar-rename" contenteditable="true" spellcheck="false" role="textbox" aria-label="Folder name — click to edit" data-rr-drive-renamefolder="${escapeHtml(folder.id)}" data-orig="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</span></div>
+        <div class="rr-drive-folderbar-acts">
+          ${newFolderBtn}
+          <button type="button" class="btn btn-sm rr-drive-fbtn${ffav ? " is-active" : ""}" data-rr-drive-fav="${escapeHtml(folder.id)}">${ffav ? "★ Starred" : "☆ Star"}</button>
+          <button type="button" class="btn btn-sm rr-drive-fbtn" data-rr-drive-folderstyle="${escapeHtml(folder.id)}">Customize</button>
+          <span class="rr-drive-folderbar-sep" aria-hidden="true"></span>
+          <button type="button" class="btn btn-sm rr-drive-fbtn rr-drive-fbtn-danger" data-rr-drive-folderdel="${escapeHtml(folder.id)}">Delete</button>
+        </div>
+      </div>
+      <div class="rr-drive-folderbar-meta">${escapeHtml(fmeta)}</div>
+    </div>` : "";
     // Sub-folders live in the left-rail tree now (operator request), so the
     // folder body shows just its own files.
     main.innerHTML = bar + (fdocs.length ? _driveListHtml(fdocs, false) : _driveEmpty("folder"));
@@ -70923,6 +70958,7 @@ function _driveListHtml(docs) {
       <div class="rr-drive-cell rr-drive-cell-soft">${escapeHtml(_driveLocOf(d))}</div>
       <div class="rr-drive-cell rr-drive-cell-soft">${_driveFmtDate(d.modifiedAt || d.createdAt)}</div>
       <div class="rr-drive-cell rr-drive-cell-soft">${escapeHtml(_driveOwner(d))}</div>
+      <div class="rr-drive-rowact"><button type="button" class="rr-drive-rowkebab" data-rr-drive-rowmenu="${escapeHtml(d.id)}" aria-label="More actions" title="More actions"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button></div>
     </div>`;
   }).join("");
   const cols = [["name", "Name"], ["type", "Type"], ["location", "Location"], ["modified", "Modified"], ["owner", "Owner"]];
@@ -70930,7 +70966,7 @@ function _driveListHtml(docs) {
   const head = `<div class="rr-drive-lhead">` + cols.map(([k, l]) => {
     const on = s.key === k;
     return `<button type="button" class="rr-drive-sortbtn${on ? " is-active" : ""}" data-rr-drive-sort="${k}">${l}${on ? `<span class="rr-drive-caret">${s.dir === "asc" ? "▲" : "▼"}</span>` : ""}</button>`;
-  }).join("") + `</div>`;
+  }).join("") + `<span class="rr-drive-lhead-act" aria-hidden="true"></span></div>`;
   return `<div class="rr-drive-list">${head}${rows}</div>`;
 }
 // Folders rendered as a clean table (Folder · Items · Modified). Custom folders
@@ -71634,6 +71670,14 @@ document.addEventListener("click", (e) => {
   if (bulk) { e.stopPropagation(); _driveBulk(bulk.getAttribute("data-rr-drive-bulk")); return; }
   const vbtn = e.target.closest("[data-rr-drive-view]");
   if (vbtn) { _driveState.view = vbtn.getAttribute("data-rr-drive-view"); document.querySelectorAll("#view-drive .rr-drive-vbtn").forEach(b => b.classList.toggle("is-active", b === vbtn)); _driveRenderMain(); return; }
+  // Row 3-dot overflow → the same context menu as right-click, anchored at the button.
+  const rowMenu = e.target.closest("[data-rr-drive-rowmenu]");
+  if (rowMenu) {
+    e.stopPropagation();
+    const d = (_driveData?.docs || []).find(x => x.id === rowMenu.getAttribute("data-rr-drive-rowmenu"));
+    if (d) { const r = rowMenu.getBoundingClientRect(); _driveDocContextMenu({ clientX: Math.round(r.right), clientY: Math.round(r.bottom + 2), preventDefault() {} }, d); }
+    return;
+  }
   const row = e.target.closest("[data-rr-drive-doc]");
   if (row) {
     const id = row.getAttribute("data-rr-drive-doc");
