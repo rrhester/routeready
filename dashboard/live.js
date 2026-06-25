@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=e43ecc30209e";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=e43ecc30209e";
+import { planScheduleWeek } from "./scheduling-engine.js?v=3bc21e4ce4aa";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=3bc21e4ce4aa";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70375,6 +70375,61 @@ function _driveFmtSize(n) {
   if (n < 1048576) return (n / 1024).toFixed(0) + " KB";
   return (n / 1048576).toFixed(1) + " MB";
 }
+// Storage formatter that scales through GB (used by the storage card / quota).
+// Trailing ".0" is dropped so whole units read cleanly ("50 GB", not "50.0 GB").
+function _driveFmtStorage(n) {
+  if (!n || n < 0) return "0 B";
+  const u = (v, s) => v.toFixed(1).replace(/\.0$/, "") + s;
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(0) + " KB";
+  if (n < 1073741824) return u(n / 1048576, " MB");
+  return u(n / 1073741824, " GB");
+}
+// Soft display quota for the storage widget (no hard cap is enforced server-side).
+const _DRIVE_STORAGE_QUOTA = 50 * 1073741824; // 50 GB
+function _driveStorageStats() {
+  const docs = (_driveData?.docs || []).filter(d => !d.archivedAt && !d.deletedAt);
+  let bytes = 0; for (const d of docs) bytes += (d.size || 0);
+  const pct = Math.min(100, Math.round((bytes / _DRIVE_STORAGE_QUOTA) * 100));
+  return { count: docs.length, bytes, quota: _DRIVE_STORAGE_QUOTA, pct };
+}
+// Storage card — used / quota with a thin progress bar + item count. Shared by
+// the rail foot and the empty preview workspace so they read identically.
+function _driveStorageCardHtml() {
+  const s = _driveStorageStats();
+  const fill = s.bytes > 0 ? Math.max(2, s.pct) : 0; // keep a sliver visible when non-empty
+  return `<div class="rr-drive-storecard">
+      <div class="rr-drive-store-bar"><span style="width:${fill}%"></span></div>
+      <div class="rr-drive-store-line"><span>${_driveFmtStorage(s.bytes)} of ${_driveFmtStorage(s.quota)} used</span><span class="rr-drive-store-count">${s.count} item${s.count === 1 ? "" : "s"}</span></div>
+    </div>`;
+}
+// Friendly relative day label ("Today" / "Yesterday" / "3 days ago" / date) for
+// card + activity metadata. Calendar-accurate (not a rolling 24h window).
+function _driveRelTime(x) {
+  if (!x) return "";
+  const d = new Date(x); if (isNaN(d)) return "";
+  const now = new Date();
+  const a = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const b = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((a - b) / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return days + " days ago";
+  if (days < 30) { const w = Math.floor(days / 7); return w === 1 ? "Last week" : w + " weeks ago"; }
+  return _driveFmtDate(x);
+}
+// Short type label for card metadata (Google label, doc type, or a tidy fallback).
+function _driveTypeLabel(d) {
+  if (!d) return "Document";
+  if (d.isGoogle) return _driveGoogleLabel(d.type);
+  return d.docType || ({ pdf: "PDF", img: "Image", doc: "Document", xls: "Spreadsheet", gdoc: "Document" }[d.type]) || "Document";
+}
+// 1–2 letter initials for a quiet owner avatar chip.
+function _driveInitials(name) {
+  const p = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!p.length) return "";
+  return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
+}
 function _driveLastMod(list) {
   let m = 0; for (const d of list) { const t = d.createdAt ? new Date(d.createdAt).getTime() : 0; if (t > m) m = t; }
   return m ? _driveFmtDate(new Date(m)) : "—";
@@ -70633,12 +70688,10 @@ function _driveNavFoldersHtml(c) {
 function _driveRenderNavFoot() {
   const el = document.getElementById("rr-drive-navfoot");
   if (!el) return;
-  const docs = (_driveData?.docs || []).filter(d => !d.archivedAt && !d.deletedAt);
-  let bytes = 0; for (const d of docs) bytes += (d.size || 0);
   el.innerHTML = `
     <div class="rr-drive-storage">
       <div class="rr-drive-storage-t">Storage</div>
-      <div class="rr-drive-storage-v">${docs.length} item${docs.length === 1 ? "" : "s"}${bytes ? " · " + _driveFmtSize(bytes) : ""}</div>
+      ${_driveStorageCardHtml()}
     </div>
     <button type="button" class="rr-drive-navitem rr-drive-navfootbtn" data-rr-drive-admin>
       <span class="rr-drive-navico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
@@ -70849,12 +70902,17 @@ function _driveListHtml(docs) {
   const ck = (id) => _driveState.checked?.has(id);
   const checkBox = (id) => `<span class="rr-drive-check" data-rr-drive-check="${escapeHtml(id)}" role="checkbox" aria-checked="${ck(id) ? "true" : "false"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
   if (_driveState.view === "grid") {
-    const tiles = docs.slice().sort(_driveCmp).map(d =>
-      `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${_driveCanMove(d) ? "true" : "false"}">
+    const tiles = docs.slice().sort(_driveCmp).map(d => {
+      const ed = `${d.modifiedAt ? "Edited" : "Added"} ${_driveRelTime(d.modifiedAt || d.createdAt)}`;
+      const ini = _driveInitials(d.createdBy);
+      const ava = ini ? `<span class="rr-drive-ava" title="${escapeHtml(d.createdBy)}">${escapeHtml(ini)}</span>` : "";
+      return `<button type="button" class="rr-drive-tile${_driveState.selected === d.id ? " is-selected" : ""}${ck(d.id) ? " is-checked" : ""}" data-rr-drive-doc="${escapeHtml(d.id)}" draggable="${_driveCanMove(d) ? "true" : "false"}">
         <span class="rr-drive-tile-ico t-${d.type}">${_driveFileIco(d.type)}${checkBox(d.id)}</span>
         <span class="rr-drive-tile-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
-        <span class="rr-drive-tile-meta">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "")} · ${_driveFmtDate(d.modifiedAt || d.createdAt)}</span>
-      </button>`).join("");
+        <span class="rr-drive-tile-meta">${escapeHtml(_driveTypeLabel(d))}</span>
+        <span class="rr-drive-tile-sub"><span class="rr-drive-tile-edited">${escapeHtml(ed)}</span>${ava}</span>
+      </button>`;
+    }).join("");
     return `<div class="rr-drive-grid">${tiles}</div>`;
   }
   const rows = docs.slice().sort(_driveCmp).map(d => {
@@ -70969,7 +71027,38 @@ function _driveRenderDetails() {
   }
   const doc = (_driveData?.docs || []).find(d => d.id === _driveState.selected);
   if (!doc) {
-    el.innerHTML = `<div class="rr-drive-det-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>Select a document to see its details and preview.</span></div>`;
+    // Empty state is a quiet workspace, not a dead end: Preview placeholder,
+    // Recent activity (real data, click to open), Storage, and a Details hint.
+    const recents = (_driveData?.docs || []).filter(d => !d.archivedAt && !d.deletedAt)
+      .slice().sort((a, b) => new Date(b.modifiedAt || b.createdAt || 0) - new Date(a.modifiedAt || a.createdAt || 0))
+      .slice(0, 4);
+    const recentHtml = recents.length
+      ? recents.map(d => `<button type="button" class="rr-drive-recent" data-rr-drive-doc="${escapeHtml(d.id)}" title="${escapeHtml(d.name)}">
+          <span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span>
+          <span class="rr-drive-recent-body"><span class="rr-drive-recent-name">${escapeHtml(d.name)}</span><span class="rr-drive-recent-meta">${escapeHtml(_driveTypeLabel(d))} · ${escapeHtml(_driveRelTime(d.modifiedAt || d.createdAt))}</span></span>
+        </button>`).join("")
+      : `<div class="rr-drive-det-quiet">No recent documents yet.</div>`;
+    el.innerHTML = `<div class="rr-drive-det-empty2">
+      <section class="rr-drive-det-sec">
+        <div class="rr-drive-det-sechead">Preview</div>
+        <div class="rr-drive-det-noselect">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>No document selected</span>
+        </div>
+      </section>
+      <section class="rr-drive-det-sec">
+        <div class="rr-drive-det-sechead">Recent activity</div>
+        <div class="rr-drive-recents">${recentHtml}</div>
+      </section>
+      <section class="rr-drive-det-sec">
+        <div class="rr-drive-det-sechead">Storage</div>
+        ${_driveStorageCardHtml()}
+      </section>
+      <section class="rr-drive-det-sec">
+        <div class="rr-drive-det-sechead">Details</div>
+        <div class="rr-drive-det-quiet">Select a document to see its metadata.</div>
+      </section>
+    </div>`;
     return;
   }
   const row = (k, v) => v ? `<div class="rr-drive-det-row"><div class="k">${k}</div><div class="v">${v}</div></div>` : "";

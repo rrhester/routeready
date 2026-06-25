@@ -26690,3 +26690,72 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* Tag chip on a row (suggested driver match etc.). */
 .rr-drive-chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-pill);padding:1px 7px}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Vault v2 · enterprise refinement pass — premium cards, calmer typography,
+   a useful empty preview, a real storage card, subtler folder selection, and
+   an 8px rhythm. Pure polish: no layout or proportion changes. All motion is
+   gentle (≈160ms) and collapses under prefers-reduced-motion (block above).
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Typography hierarchy — the filename anchors each row; metadata stays quiet
+   (but never too light). Background fades smoothly on hover / selection. */
+.rr-drive-v2 .rr-drive-name-txt{font-weight:600;color:var(--text)}
+.rr-drive-v2 .rr-drive-cell{color:var(--text-muted)}
+.rr-drive-v2 .rr-drive-cell.rr-drive-cell-soft{color:var(--text-subtle)}
+.rr-drive-v2 .rr-drive-row{transition:background-color .16s ease}
+
+/* Document tiles (grid) — comfortable padding, a slightly larger icon, two
+   quiet metadata lines + an owner chip, and a 2px hover lift. */
+.rr-drive-v2 .rr-drive-grid{gap:14px}
+.rr-drive-v2 .rr-drive-tile{gap:12px;padding:18px 16px;border-color:var(--border-subtle);border-radius:12px;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.rr-drive-v2 .rr-drive-tile:hover{border-color:var(--border);box-shadow:var(--shadow-sm-hover);transform:translateY(-2px)}
+.rr-drive-v2 .rr-drive-tile.is-selected,.rr-drive-v2 .rr-drive-tile.is-checked{border-color:var(--accent);box-shadow:var(--shadow-sm);transform:none}
+.rr-drive-v2 .rr-drive-tile-ico{width:52px;height:52px;border-radius:13px}
+.rr-drive-v2 .rr-drive-tile-ico svg{width:26px;height:26px}
+.rr-drive-v2 .rr-drive-tile-name{font-weight:600}
+.rr-drive-v2 .rr-drive-tile-meta{color:var(--text-muted)}
+.rr-drive-tile-sub{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:-4px;font-size:var(--fs-xs);color:var(--text-subtle)}
+.rr-drive-tile-edited{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-drive-ava{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:var(--canvas);border:1px solid var(--border-subtle);color:var(--text-muted);font-size:9px;font-weight:700;letter-spacing:.02em;display:inline-flex;align-items:center;justify-content:center}
+
+/* Folder / section nav — calmer hover, an obvious-but-soft selected state with
+   a subtle left indicator. Hover and chevron transitions settle at ~160ms. */
+.rr-drive-v2 .rr-drive-navitem{position:relative;transition:background-color .16s ease,color .16s ease}
+.rr-drive-v2 .rr-drive-navitem.is-active::before{content:"";position:absolute;left:1px;top:50%;transform:translateY(-50%);width:3px;height:16px;border-radius:3px;background:var(--accent)}
+.rr-drive-v2 .rr-drive-navchev{transition:opacity .16s ease,background-color .16s ease}
+
+/* Toolbar controls — unhurried 160ms transitions for a settled, premium feel. */
+.rr-drive-v2 .rr-drive-tbtn{transition:background-color .16s ease,border-color .16s ease,color .16s ease}
+.rr-drive-v2 .rr-drive-vbtn{transition:background-color .16s ease,color .16s ease,box-shadow .16s ease}
+
+/* Storage card — thin progress bar + quiet caption. Shared by the rail foot and
+   the empty preview so they read identically. Track reads on white and canvas. */
+.rr-drive-storecard{padding:0}
+.rr-drive-store-bar{height:6px;border-radius:999px;background:var(--border);overflow:hidden}
+.rr-drive-store-bar span{display:block;height:100%;border-radius:999px;background:var(--accent);transition:width .3s ease}
+.rr-drive-store-line{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:8px;font-size:var(--fs-xs);color:var(--text-subtle)}
+.rr-drive-store-count{flex:0 0 auto;font-variant-numeric:tabular-nums}
+.rr-drive-v2 .rr-drive-nav-foot .rr-drive-storage{padding:4px 10px 6px}
+.rr-drive-v2 .rr-drive-nav-foot .rr-drive-storage-t{padding:0 0 8px}
+
+/* Empty preview workspace — Preview · Recent activity · Storage · Details. */
+.rr-drive-det-empty2{display:flex;flex-direction:column;gap:24px;padding:20px 16px}
+.rr-drive-det-sec{display:flex;flex-direction:column;gap:10px}
+.rr-drive-det-sechead{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
+.rr-drive-det-noselect{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:30px 16px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--canvas);color:var(--text-subtle)}
+.rr-drive-det-noselect svg{width:30px;height:30px;opacity:.4}
+.rr-drive-det-noselect span{font-size:var(--fs-sm);font-weight:500;color:var(--text-muted)}
+.rr-drive-det-quiet{font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5}
+.rr-drive-recents{display:flex;flex-direction:column;gap:2px}
+.rr-drive-recent{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border:0;background:none;border-radius:8px;cursor:pointer;text-align:left;transition:background-color .16s ease}
+.rr-drive-recent:hover{background:var(--canvas)}
+.rr-drive-recent .rr-drive-fico{flex:0 0 auto;width:34px;height:34px}
+.rr-drive-recent .rr-drive-fico svg{width:18px;height:18px}
+.rr-drive-recent-body{min-width:0;display:flex;flex-direction:column;gap:1px}
+.rr-drive-recent-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-drive-recent-meta{font-size:var(--fs-xs);color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Details content fades in on selection — a calm transition between documents. */
+.rr-drive-v2 .rr-drive-details > *{animation:rr-drive-detfade .16s ease}
+@keyframes rr-drive-detfade{from{opacity:0}to{opacity:1}}
