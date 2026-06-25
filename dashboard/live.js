@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=b3811b162b73";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=b3811b162b73";
+import { planScheduleWeek } from "./scheduling-engine.js?v=a65eed716a18";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=a65eed716a18";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70081,6 +70081,8 @@ document.addEventListener("click", (e) => {
 // auto-filing of generated docs, and DOCX/XLSX preview land in Phase 2.
 // ═══════════════════════════════════════════════════════════════════════════
 let _driveState = { section: "all", driverId: null, sub: null, folderId: null, query: "", view: "list", selected: null, sort: { key: "modified", dir: "desc" }, checked: new Set(), anchor: null, filter: "all" };
+// Which folders are expanded in the left-rail tree (collapsed by default).
+let _driveExpanded = new Set();
 let _driveData = null;        // { docs:[], drivers:[], driverMap:Map }
 let _driveLoadedFor = null;   // dsp id the cache was built for
 let _driveLoading = false;
@@ -70548,28 +70550,41 @@ function _driveNavFoldersHtml(c) {
     if (!byParent.has(k)) byParent.set(k, []);
     byParent.get(k).push(f);
   }
-  const row = (attr, label, ico, color, active, n, depth) =>
-    `<button type="button" class="rr-drive-navitem rr-drive-navfolder${active ? " is-active" : ""}"${depth ? ` style="padding-left:${10 + depth * 15}px"` : ""} ${attr}>` +
+  const CHEV = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>`;
+  // A nav row = [chevron | folder button]. Childless folders + categories get a
+  // blank chevron-width spacer so every icon lines up. The chevron toggles the
+  // sub-tree; the button navigates.
+  // A nav row = [chevron | folder button]. expandId set ⇒ the folder has
+  // sub-folders, so the chevron toggles them; otherwise a blank chevron-width
+  // spacer keeps every icon aligned. The button navigates.
+  const navRow = (attr, label, ico, color, active, n, depth, expandId, expanded) =>
+    `<div class="rr-drive-navrow${active ? " is-active" : ""}"${depth ? ` style="padding-left:${depth * 14}px"` : ""}>` +
+    (expandId
+      ? `<button type="button" class="rr-drive-navchev${expanded ? " is-open" : ""}" data-rr-drive-folderexpand="${escapeHtml(expandId)}" aria-label="${expanded ? "Collapse" : "Expand"}">${CHEV}</button>`
+      : `<span class="rr-drive-navchev is-empty"></span>`) +
+    `<button type="button" class="rr-drive-navitem rr-drive-navfolderbtn${active ? " is-active" : ""}" ${attr}>` +
     `<span class="rr-drive-navico"${color ? ` style="color:${color}"` : ""}>${ico}</span>` +
-    `<span class="rr-drive-navlbl">${escapeHtml(label)}</span>${n ? `<span class="rr-drive-navcnt">${n}</span>` : ""}</button>`;
-  // Recursively render a folder and its sub-folders (indented). Guard against
-  // cycles / runaway depth from a malformed parent_id chain.
+    `<span class="rr-drive-navlbl">${escapeHtml(label)}</span>${n ? `<span class="rr-drive-navcnt">${n}</span>` : ""}</button></div>`;
+  // Recursively render a folder + (when expanded) its sub-folders. Collapsed by
+  // default. Guard against cycles / runaway depth from a bad parent_id chain.
   const seen = new Set();
   const renderFolder = (f, depth) => {
     if (seen.has(f.id) || depth > 8) return "";
     seen.add(f.id);
-    let html = row(
+    const kids = byParent.get(f.id) || [];
+    const expanded = _driveExpanded.has(f.id);
+    let html = navRow(
       `data-rr-drive-folder="${escapeHtml(f.id)}"`, f.name, _driveFolderIcoSvg(f.metadata), _driveFolderColor(f.metadata),
-      _driveState.folderId === f.id, fcount(f.id), depth,
+      _driveState.folderId === f.id, fcount(f.id), depth, kids.length ? f.id : null, expanded,
     );
-    for (const kid of (byParent.get(f.id) || [])) html += renderFolder(kid, depth + 1);
+    if (kids.length && expanded) for (const kid of kids) html += renderFolder(kid, depth + 1);
     return html;
   };
   const custom = roots.map((f) => renderFolder(f, 0)).join("");
   const catIco = _driveFileIco(null, true);
-  const catRows = cats.map(([key, label]) => row(
+  const catRows = cats.map(([key, label]) => navRow(
     `data-rr-drive-sec="${key}"`, label, catIco, null,
-    !_driveState.folderId && !_driveState.driverId && _driveState.section === key, c[key] || 0, 0,
+    !_driveState.folderId && !_driveState.driverId && _driveState.section === key, c[key] || 0, 0, null, false,
   )).join("");
   return `<div class="rr-drive-navsep"></div><div class="rr-drive-navhead">Folders</div>` + custom + catRows;
 }
@@ -71500,6 +71515,8 @@ document.addEventListener("click", (e) => {
   // must be handled before the card-open handler below.
   const fav = e.target.closest("[data-rr-drive-fav]");
   if (fav) { e.stopPropagation(); _driveToggleFav(fav.getAttribute("data-rr-drive-fav")); _driveRenderMain(); return; }
+  const fexp = e.target.closest("[data-rr-drive-folderexpand]");
+  if (fexp) { e.stopPropagation(); const id = fexp.getAttribute("data-rr-drive-folderexpand"); if (_driveExpanded.has(id)) _driveExpanded.delete(id); else _driveExpanded.add(id); _driveRenderNav(); return; }
   const folderCard = e.target.closest("[data-rr-drive-folder]");
   if (folderCard) { _driveState.folderId = folderCard.getAttribute("data-rr-drive-folder"); _drivePushRecent(_driveState.folderId); _driveState.driverId = null; _driveState.sub = null; _driveState.selected = null; _driveState.checked = new Set(); _driveState.anchor = null; _driveRender(); return; }
   // Google Workspace status strip — Connect / Reconnect / dismiss.
