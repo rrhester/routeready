@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=81f029af2f76";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=81f029af2f76";
+import { planScheduleWeek } from "./scheduling-engine.js?v=e9a11f0c7bee";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=e9a11f0c7bee";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70808,8 +70808,12 @@ function _driveRenderMain() {
   if (s === "starred") {
     const favSet = _driveGetFavs();
     const starred = (_driveData?.folders || []).filter(f => favSet.has(f.id));
-    if (!starred.length) { main.innerHTML = `<div class="rr-drive-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><div class="rr-drive-empty-title">Nothing starred yet</div><div class="rr-drive-empty-sub">Star a folder to pin it here for quick access.</div></div>`; return; }
-    main.innerHTML = `<div class="rr-drive-sectionhead">Starred folders</div>${_driveFoldersTable(starred.map(_driveCustomFolderRowData))}`;
+    const pins = _driveGetDocPins();
+    const pinnedDocs = (_driveData?.docs || []).filter(d => pins.has(d.id) && !d.archivedAt && !d.deletedAt);
+    if (!starred.length && !pinnedDocs.length) { main.innerHTML = `<div class="rr-drive-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><div class="rr-drive-empty-title">Nothing starred yet</div><div class="rr-drive-empty-sub">Star a folder or pin a document to keep it here for quick access.</div></div>`; return; }
+    main.innerHTML =
+      (pinnedDocs.length ? `<div class="rr-drive-sectionhead">Pinned documents</div>${_driveListHtml(pinnedDocs)}` : "") +
+      (starred.length ? `<div class="rr-drive-sectionhead${pinnedDocs.length ? " rr-drive-sectionhead-gap" : ""}">Starred folders</div>${_driveFoldersTable(starred.map(_driveCustomFolderRowData))}` : "");
     return;
   }
 
@@ -71050,6 +71054,83 @@ function _driveFolderCard(f) {
     <span class="rr-drive-fav${fav ? " is-on" : ""}" data-rr-drive-fav="${escapeHtml(f.id)}" role="button" aria-pressed="${fav}" aria-label="${fav ? "Unstar folder" : "Star folder"}" title="${fav ? "Unstar" : "Star"}">${_driveStarSvg(fav)}</span>
   </button>`;
 }
+// ── Inspector (right panel) state + helpers ────────────────────────────────
+let _driveDetTab = "details";   // inspector tab: details | activity
+// Per-document pins (localStorage, tenant-scoped). Folders use _driveGetFavs;
+// this is the document equivalent surfaced under Starred + the inspector Pin.
+function _driveDocPinKey() { return "rr_drive_docpins_" + (window.RR?.dsp?.id || "x"); }
+function _driveGetDocPins() { try { return new Set(JSON.parse(localStorage.getItem(_driveDocPinKey()) || "[]")); } catch (_) { return new Set(); } }
+function _driveIsDocPinned(id) { return _driveGetDocPins().has(id); }
+function _driveToggleDocPin(id) { const s = _driveGetDocPins(); if (s.has(id)) s.delete(id); else s.add(id); try { localStorage.setItem(_driveDocPinKey(), JSON.stringify([...s])); } catch (_) {} }
+// Monoline glyphs for the inspector quick-action grid + driver intelligence.
+const _DRIVE_QA = {
+  open: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
+  download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+  link: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+  rename: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>`,
+  move: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M14 12l3 3-3 3M17 15H9"/></svg>`,
+  pin: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M9 4h6v6l2 3H7l2-3z"/></svg>`,
+  archive: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="4" rx="1"/><path d="M5 7v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  restore: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`,
+  record: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+  request: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`,
+};
+// Activity tab — a quiet timeline derived from the record's real timestamps and
+// state (newest first). No fabricated edit history; just what the data shows.
+function _driveActivityHtml(doc) {
+  const ev = [];
+  if (doc.deletedAt) ev.push(["Moved to Trash", _driveFmtDate(doc.deletedAt)]);
+  if (doc.archivedAt) ev.push(["Archived", _driveFmtDate(doc.archivedAt)]);
+  if (doc.modifiedAt && doc.createdAt && (new Date(doc.modifiedAt) - new Date(doc.createdAt)) > 60000) ev.push(["Last modified", _driveFmtDate(doc.modifiedAt)]);
+  if (doc.folderId) { const f = (_driveData?.folders || []).find(x => x.id === doc.folderId); ev.push([`Filed in ${f ? f.name : "a folder"}`, ""]); }
+  ev.push([doc.createdBy ? `Created by ${doc.createdBy}` : "Created", _driveFmtDate(doc.createdAt)]);
+  return `<ul class="rr-drive-act">` + ev.map(([t, d]) =>
+    `<li class="rr-drive-act-item"><span class="rr-drive-act-dot"></span><div class="rr-drive-act-body"><div class="rr-drive-act-t">${escapeHtml(t)}</div>${d ? `<div class="rr-drive-act-d">${escapeHtml(d)}</div>` : ""}</div></li>`).join("") + `</ul>`;
+}
+// RouteReady Intelligence — when a specific driver is open, the inspector becomes
+// an operational overview instead of a generic empty panel. Every figure is real:
+// status, station, document count, last activity, and compliance derived from the
+// documents that actually carry an expiry (DOT medical, licenses, etc.).
+function _driveDriverIntelHtml(driverId) {
+  const drv = (_driveData?.driverMap && _driveData.driverMap.get(driverId)) || (_driveData?.drivers || []).find(d => d.id === driverId);
+  if (!drv) return null;
+  const name = (typeof displayDriverName === "function" ? displayDriverName(drv) : (drv.name || "Driver")) || "Driver";
+  const status = drv.status ? (drv.status.charAt(0).toUpperCase() + drv.status.slice(1)) : "—";
+  const station = (drv.station && drv.station.code) || "";
+  const docs = (_driveData?.docs || []).filter(d => d.driverId === driverId && !d.archivedAt && !d.deletedAt);
+  const last = docs.reduce((m, d) => { const t = new Date(d.modifiedAt || d.createdAt || 0).getTime(); return t > m ? t : m; }, 0);
+  const atRisk = docs.filter(d => { if (!d.expiresOn) return false; const s = _driveExpiryStatus(d.expiresOn); return s && (s.key === "expired" || s.key === "soon"); });
+  const expired = atRisk.filter(d => { const s = _driveExpiryStatus(d.expiresOn); return s && s.key === "expired"; }).length;
+  const soon = atRisk.length - expired;
+  const compTone = expired ? "is-red" : soon ? "is-amber" : "is-ok";
+  const compText = expired ? `${expired} document${expired === 1 ? "" : "s"} expired` : soon ? `${soon} expiring soon` : "All documents current";
+  const stat = (k, v) => `<div class="rr-drive-intel-stat"><div class="rr-drive-intel-k">${k}</div><div class="rr-drive-intel-v">${escapeHtml(String(v))}</div></div>`;
+  const riskRows = atRisk.slice(0, 5).map(d => { const s = _driveExpiryStatus(d.expiresOn); return `<button type="button" class="rr-drive-recent" data-rr-drive-doc="${escapeHtml(d.id)}"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span><span class="rr-drive-recent-body"><span class="rr-drive-recent-name">${escapeHtml(d.name)}</span><span class="rr-drive-recent-meta">${escapeHtml(s ? s.label : "")}</span></span></button>`; }).join("");
+  const hasRecord = typeof openDriverDrawer === "function";
+  const hasRequest = typeof openOnboardingSendDocsModal === "function";
+  return `<div class="rr-drive-intel">
+    <div class="rr-drive-intel-head">
+      <span class="rr-drive-intel-ava">${escapeHtml(_driveInitials(name) || "—")}</span>
+      <div class="rr-drive-intel-id"><div class="rr-drive-intel-name">${escapeHtml(name)}</div><div class="rr-drive-intel-sub">Driver overview</div></div>
+    </div>
+    <div class="rr-drive-intel-comp ${compTone}"><span class="rr-drive-intel-comp-dot"></span><span>${escapeHtml(compText)}</span></div>
+    <div class="rr-drive-intel-stats">
+      ${stat("Status", status)}
+      ${station ? stat("Station", station) : ""}
+      ${stat("Documents", docs.length)}
+      ${stat("Last activity", last ? _driveRelTime(last) : "—")}
+    </div>
+    ${atRisk.length ? `<div class="rr-drive-det-sechead">Needs attention</div><div class="rr-drive-recents">${riskRows}</div>` : ""}
+    <div class="rr-drive-det-sechead">Quick actions</div>
+    <div class="rr-drive-intel-qa">
+      ${hasRecord ? `<button type="button" class="rr-drive-qa" data-rr-drive-openrecord="${escapeHtml(driverId)}">${_DRIVE_QA.record}<span>Open Driver Record</span></button>` : ""}
+      <button type="button" class="rr-drive-qa" data-rr-drive-uploadhere="1">${_DRIVE_QA.upload}<span>Upload Document</span></button>
+      ${hasRequest ? `<button type="button" class="rr-drive-qa" data-rr-drive-requestdoc="${escapeHtml(driverId)}">${_DRIVE_QA.request}<span>Request Document</span></button>` : ""}
+    </div>
+  </div>`;
+}
 function _driveRenderDetails() {
   const el = document.getElementById("rr-drive-details");
   if (!el) return;
@@ -71063,6 +71144,12 @@ function _driveRenderDetails() {
   }
   const doc = (_driveData?.docs || []).find(d => d.id === _driveState.selected);
   if (!doc) {
+    // RouteReady Intelligence — a specific driver open with nothing selected →
+    // the inspector becomes an operational driver overview, not a blank panel.
+    if (_driveState.driverId && _driveState.section === "drivers") {
+      const intel = _driveDriverIntelHtml(_driveState.driverId);
+      if (intel) { el.innerHTML = intel; return; }
+    }
     // Empty state is a quiet workspace, not a dead end: Preview placeholder,
     // Recent activity (real data, click to open), Storage, and a Details hint.
     const recents = (_driveData?.docs || []).filter(d => !d.archivedAt && !d.deletedAt)
@@ -71107,54 +71194,57 @@ function _driveRenderDetails() {
     : (doc.previewable
       ? `<div class="rr-drive-det-preview" id="rr-drive-preview"><div class="rr-loading" style="padding:30px">Loading preview</div></div>`
       : `<div class="rr-drive-det-preview"><div class="rr-drive-det-noprev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${doc.source === "report" ? "Generated report — open to view." : "Preview isn't available for this file type yet."}</div></div>`);
-  // Open is via double-click on the row now — no separate Open button. Keep
-  // the type-specific secondary action (Copy link for Google, Download for files).
-  const open = doc.source === "report"
-    ? ``
-    : doc.isGoogle
-      ? `<button class="btn btn-sm" data-rr-drive-copylink="${escapeHtml(doc.id)}">Copy link</button>`
-      : (doc.openable ? `<button class="btn btn-sm" data-rr-drive-download="${escapeHtml(doc.id)}">Download</button>` : `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">No file attached.</span>`);
-  // Archive / Trash / Restore (canonical store · migration 0396). Available for
-  // anything filable — stored files, Google files (removes from the Vault, not
-  // from Google), and DB-backed records (reports / envelopes) via a reference row.
-  let status = "";
+  const typeLabel = doc.isGoogle ? _driveGoogleLabel(doc.type) : (doc.docType || _driveTypeLabel(doc));
+  const pinned = _driveIsDocPinned(doc.id);
+  // Quick actions — real, wired actions only (existing data-attrs). Pin persists
+  // locally and surfaces under Starred. Archive/Trash sit in a secondary row.
+  const qa = [`<button type="button" class="rr-drive-qa" data-rr-drive-open="${escapeHtml(doc.id)}">${_DRIVE_QA.open}<span>Open</span></button>`];
+  if (!doc.isGoogle && doc.path) qa.push(`<button type="button" class="rr-drive-qa" data-rr-drive-download="${escapeHtml(doc.id)}">${_DRIVE_QA.download}<span>Download</span></button>`);
+  if (doc.isGoogle && doc.googleUrl) qa.push(`<button type="button" class="rr-drive-qa" data-rr-drive-copylink="${escapeHtml(doc.id)}">${_DRIVE_QA.link}<span>Copy link</span></button>`);
+  if ((doc.canonical || doc.source === "driver_documents") && !doc.deletedAt) qa.push(`<button type="button" class="rr-drive-qa" data-rr-drive-rename="${escapeHtml(doc.id)}">${_DRIVE_QA.rename}<span>Rename</span></button>`);
+  if (canFile && !doc.deletedAt && !doc.archivedAt) qa.push(`<button type="button" class="rr-drive-qa" data-rr-drive-move="${escapeHtml(doc.id)}">${_DRIVE_QA.move}<span>Move</span></button>`);
+  qa.push(`<button type="button" class="rr-drive-qa${pinned ? " is-on" : ""}" data-rr-drive-pin="${escapeHtml(doc.id)}">${_DRIVE_QA.pin}<span>${pinned ? "Pinned" : "Pin"}</span></button>`);
+  // Secondary row — Archive / Trash / Restore (canonical store · migration 0396).
+  let statusRow = "";
   if (canFile) {
-    const trashLbl = doc.isGoogle ? "Remove from Vault" : "Move to Trash";
-    if (doc.deletedAt) status = `<button class="btn btn-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">Restore</button>`;
-    else if (doc.archivedAt) status = `<button class="btn btn-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">Restore</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">${trashLbl}</button>`;
-    else status = `<button class="btn btn-sm" data-rr-drive-status="archive" data-rr-drive-id="${escapeHtml(doc.id)}">Archive</button><button class="btn btn-sm" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">${trashLbl}</button>`;
+    const trashLbl = doc.isGoogle ? "Remove" : "Trash";
+    const restoreBtn = `<button type="button" class="rr-drive-qa rr-drive-qa-sm" data-rr-drive-status="restore" data-rr-drive-id="${escapeHtml(doc.id)}">${_DRIVE_QA.restore}<span>Restore</span></button>`;
+    const trashBtn = `<button type="button" class="rr-drive-qa rr-drive-qa-sm rr-drive-qa-danger" data-rr-drive-status="trash" data-rr-drive-id="${escapeHtml(doc.id)}">${_DRIVE_QA.trash}<span>${trashLbl}</span></button>`;
+    if (doc.deletedAt) statusRow = restoreBtn;
+    else if (doc.archivedAt) statusRow = restoreBtn + trashBtn;
+    else statusRow = `<button type="button" class="rr-drive-qa rr-drive-qa-sm" data-rr-drive-status="archive" data-rr-drive-id="${escapeHtml(doc.id)}">${_DRIVE_QA.archive}<span>Archive</span></button>` + trashBtn;
   }
-  // Move to a custom folder — only for active (non-archived, non-trashed) files.
-  const move = (canFile && !doc.deletedAt && !doc.archivedAt)
-    ? `<button class="btn btn-sm" data-rr-drive-move="${escapeHtml(doc.id)}">Move to…</button>` : "";
-  // Rename — docs with an editable backing record (canonical store, incl. Google
-  // files, or a driver_documents row). Derived names (envelopes/fleet/reports) stay fixed.
-  const rename = ((doc.canonical || doc.source === "driver_documents") && !doc.deletedAt)
-    ? `<button class="btn btn-sm" data-rr-drive-rename="${escapeHtml(doc.id)}">Rename</button>` : "";
-  // Duplicate — stored files only (a Google copy needs the Drive API; comes with
-  // the Google backend). Filed in the same place as the original.
-  const dup = (doc.path && !doc.isGoogle && !doc.deletedAt)
-    ? `<button class="btn btn-sm" data-rr-drive-duplicate="${escapeHtml(doc.id)}">Duplicate</button>` : "";
-  const foot = open + rename + dup + move + status;
-  el.innerHTML = `
-    <div class="rr-drive-det-head"><div class="rr-drive-det-name">${escapeHtml(doc.name)}</div><div class="rr-drive-det-type">${escapeHtml(doc.isGoogle ? _driveGoogleLabel(doc.type) : (doc.docType || doc.type || "Document"))}</div></div>
-    ${previewBox}
-    <div class="rr-drive-det-meta">
+  const sharedWith = doc.shared ? (doc.driverName || "E-signature recipient") : "";
+  const detailsBody = `${previewBox}<div class="rr-drive-det-meta">
+      ${row("Location", escapeHtml(_driveLocOf(doc)))}
+      ${row("Type", escapeHtml(typeLabel))}
+      ${row("Owner", escapeHtml(_driveOwner(doc)))}
       ${row("Created", _driveFmtDate(doc.createdAt))}
-      ${doc.isGoogle && doc.modifiedAt ? row("Modified", _driveFmtDate(doc.modifiedAt)) : ""}
-      ${row("Created by", doc.createdBy ? escapeHtml(doc.createdBy) : "")}
-      ${row("Driver", doc.driverName ? escapeHtml(doc.driverName) : "")}
-      ${row("Station", doc.station ? escapeHtml(doc.station) : "")}
-      ${doc.isGoogle ? row("Type", escapeHtml(_driveGoogleLabel(doc.type))) : row("Type", escapeHtml(doc.docType || "—"))}
-      ${doc.isGoogle && doc.docType && doc.docType !== "Document" ? row("Document type", escapeHtml(doc.docType)) : ""}
-      ${doc.isGoogle && doc.relatedType ? row("Related to", escapeHtml(_driveRelatedLabel(doc))) : ""}
+      ${row("Modified", _driveFmtDate(doc.modifiedAt || doc.createdAt))}
+      ${!doc.isGoogle && doc.size ? row("Size", _driveFmtSize(doc.size)) : ""}
+      ${doc.driverName ? row("Driver", escapeHtml(doc.driverName)) : ""}
+      ${doc.station ? row("Station", escapeHtml(doc.station)) : ""}
       ${doc.isGoogle && doc.permStatus ? row("Access", escapeHtml(doc.permStatus)) : ""}
-      ${!doc.isGoogle ? row("Size", doc.size ? _driveFmtSize(doc.size) : "") : ""}
       ${doc.expiresOn ? row("Expires", _driveFmtDate(doc.expiresOn)) : ""}
+      ${row("Shared with", escapeHtml(sharedWith || "—"))}
       ${tags}
+    </div>`;
+  const tab = _driveDetTab === "activity" ? "activity" : "details";
+  el.innerHTML = `
+    <div class="rr-drive-insp-head">
+      <span class="rr-drive-insp-ico t-${doc.type}">${_driveFileIco(doc.type)}</span>
+      <div class="rr-drive-insp-id"><div class="rr-drive-insp-name" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</div><div class="rr-drive-insp-type">${escapeHtml(typeLabel)}</div></div>
     </div>
-    <div class="rr-drive-det-foot">${foot}</div>`;
-  if (doc.previewable) _drivePaintPreview(doc);
+    <div class="rr-drive-insp-tabs" role="tablist">
+      <button type="button" class="rr-drive-insp-tab${tab === "details" ? " is-active" : ""}" data-rr-drive-dettab="details" role="tab" aria-selected="${tab === "details"}">Details</button>
+      <button type="button" class="rr-drive-insp-tab${tab === "activity" ? " is-active" : ""}" data-rr-drive-dettab="activity" role="tab" aria-selected="${tab === "activity"}">Activity</button>
+    </div>
+    <div class="rr-drive-insp-body">${tab === "activity" ? _driveActivityHtml(doc) : detailsBody}</div>
+    <div class="rr-drive-insp-foot">
+      <div class="rr-drive-insp-qa">${qa.join("")}</div>
+      ${statusRow ? `<div class="rr-drive-insp-qa rr-drive-insp-qa-sec">${statusRow}</div>` : ""}
+    </div>`;
+  if (tab === "details" && doc.previewable) _drivePaintPreview(doc);
 }
 function _driveRelatedLabel(doc) {
   const t = String(doc.relatedType || "").replace(/^\w/, c => c.toUpperCase());
@@ -71652,6 +71742,19 @@ document.addEventListener("click", (e) => {
   if (rn) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === rn.getAttribute("data-rr-drive-rename")); if (d) _driveRenameDoc(d); return; }
   const dup = e.target.closest("[data-rr-drive-duplicate]");
   if (dup) { e.stopPropagation(); const d = (_driveData?.docs || []).find(x => x.id === dup.getAttribute("data-rr-drive-duplicate")); if (d) _driveDuplicateDoc(d); return; }
+  // Inspector tabs (Details / Activity).
+  const detTab = e.target.closest("[data-rr-drive-dettab]");
+  if (detTab) { e.stopPropagation(); _driveDetTab = detTab.getAttribute("data-rr-drive-dettab"); _driveRenderDetails(); return; }
+  // Pin / unpin a document (localStorage; surfaces under Starred).
+  const pinBtn = e.target.closest("[data-rr-drive-pin]");
+  if (pinBtn) { e.stopPropagation(); _driveToggleDocPin(pinBtn.getAttribute("data-rr-drive-pin")); _driveRenderDetails(); _driveRenderNav(); toast(_driveIsDocPinned(pinBtn.getAttribute("data-rr-drive-pin")) ? "Pinned" : "Unpinned", "success"); return; }
+  // Driver intelligence actions.
+  const openRec = e.target.closest("[data-rr-drive-openrecord]");
+  if (openRec) { e.stopPropagation(); const id = openRec.getAttribute("data-rr-drive-openrecord"); if (typeof openDriverDrawer === "function") openDriverDrawer(id); return; }
+  const upHere = e.target.closest("[data-rr-drive-uploadhere]");
+  if (upHere) { e.stopPropagation(); const f = document.getElementById("rr-drive-file"); if (f) f.click(); return; }
+  const reqDoc = e.target.closest("[data-rr-drive-requestdoc]");
+  if (reqDoc) { e.stopPropagation(); const id = reqDoc.getAttribute("data-rr-drive-requestdoc"); if (typeof openOnboardingSendDocsModal === "function") openOnboardingSendDocsModal(id); else toast("Document requests aren't available here yet.", "info"); return; }
   const fst = e.target.closest("[data-rr-drive-folderstyle]");
   if (fst) { e.stopPropagation(); const f = (_driveData?.folders || []).find(x => x.id === fst.getAttribute("data-rr-drive-folderstyle")); if (f) _driveOpenFolderStyle(f); return; }
   const frn = e.target.closest("[data-rr-drive-foldername]");

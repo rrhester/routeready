@@ -26851,3 +26851,62 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* Sidebar — folder counts de-emphasised (quieter, smaller) per the spec. */
 .rr-drive-v2 .rr-drive-nav .rr-drive-navcnt{font-size:11px;opacity:.75}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Vault enterprise pass B · the right-panel inspector + RouteReady Intelligence.
+   Selected document → large icon, Details/Activity tabs, organized metadata, a
+   quick-action footer. A driver open → an operational overview (real figures).
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Document inspector — header · tabs · scrolling body · sticky action footer. */
+.rr-drive-insp-head{display:flex;align-items:center;gap:12px;padding:16px 16px 12px;flex:0 0 auto}
+.rr-drive-insp-ico{flex:0 0 auto;width:44px;height:44px;border-radius:11px;background:var(--canvas);display:flex;align-items:center;justify-content:center;color:var(--text-subtle)}
+.rr-drive-insp-ico svg{width:24px;height:24px}
+.rr-drive-insp-id{min-width:0}
+.rr-drive-insp-name{font-size:var(--fs-md);font-weight:700;color:var(--text);line-height:1.3;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rr-drive-insp-type{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+.rr-drive-insp-tabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--border-subtle);flex:0 0 auto}
+.rr-drive-insp-tab{appearance:none;border:0;background:none;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:9px 10px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .16s ease,border-color .16s ease}
+.rr-drive-insp-tab:hover{color:var(--text-muted)}
+.rr-drive-insp-tab.is-active{color:var(--accent-text);border-bottom-color:var(--accent)}
+.rr-drive-insp-body{flex:1;min-height:0;overflow-y:auto;animation:rr-drive-detfade .16s ease}
+.rr-drive-insp-foot{flex:0 0 auto;border-top:1px solid var(--border-subtle);padding:12px}
+.rr-drive-insp-qa{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rr-drive-insp-qa-sec{margin-top:8px}
+.rr-drive-qa{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border-subtle);border-radius:9px;background:var(--surface);color:var(--text-muted);font:inherit;font-size:var(--fs-sm);font-weight:500;cursor:pointer;text-align:left;transition:background-color .16s ease,border-color .16s ease,color .16s ease}
+.rr-drive-qa svg{width:17px;height:17px;flex:0 0 auto}
+.rr-drive-qa span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-drive-qa:hover{background:var(--canvas);border-color:var(--border);color:var(--text)}
+.rr-drive-qa.is-on{border-color:var(--accent-border,rgba(37,99,235,.3));color:var(--accent-text);background:var(--accent-soft)}
+.rr-drive-qa-sm{padding:7px 10px;font-size:var(--fs-xs)}
+.rr-drive-qa-danger{color:#b42318}
+.rr-drive-qa-danger:hover{background:var(--red-soft,#fef2f2);border-color:#fecaca;color:#b42318}
+
+/* Activity tab — a quiet timeline built from the record's real timestamps. */
+.rr-drive-act{list-style:none;margin:0;padding:16px}
+.rr-drive-act-item{position:relative;display:flex;gap:12px;padding:0 0 16px 4px}
+.rr-drive-act-item:last-child{padding-bottom:0}
+.rr-drive-act-dot{flex:0 0 auto;width:9px;height:9px;margin-top:4px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.rr-drive-act-item:not(:last-child)::before{content:"";position:absolute;left:8px;top:15px;bottom:0;width:1px;background:var(--border-subtle)}
+.rr-drive-act-body{min-width:0}
+.rr-drive-act-t{font-size:var(--fs-sm);font-weight:500;color:var(--text)}
+.rr-drive-act-d{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
+
+/* RouteReady Intelligence — driver overview inspector (real operational data). */
+.rr-drive-intel{display:flex;flex-direction:column;gap:14px;padding:18px 16px;overflow-y:auto}
+.rr-drive-intel-head{display:flex;align-items:center;gap:12px}
+.rr-drive-intel-ava{flex:0 0 auto;width:44px;height:44px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-md);font-weight:700;display:flex;align-items:center;justify-content:center}
+.rr-drive-intel-id{min-width:0}
+.rr-drive-intel-name{font-size:var(--fs-lg);font-weight:700;color:var(--text);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-drive-intel-sub{font-size:10px;color:var(--text-subtle);margin-top:3px;text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.rr-drive-intel-comp{display:flex;align-items:center;gap:9px;padding:11px 13px;border-radius:10px;font-size:var(--fs-sm);font-weight:600}
+.rr-drive-intel-comp-dot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:currentColor}
+.rr-drive-intel-comp.is-ok{background:rgba(16,185,129,.10);color:#047857}
+.rr-drive-intel-comp.is-amber{background:#fef3c7;color:#b45309}
+.rr-drive-intel-comp.is-red{background:#fee2e2;color:#b42318}
+.rr-drive-intel-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rr-drive-intel-stat{padding:11px 13px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface)}
+.rr-drive-intel-k{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
+.rr-drive-intel-v{font-size:var(--fs-md);font-weight:700;color:var(--text);margin-top:3px}
+.rr-drive-intel-qa{display:flex;flex-direction:column;gap:8px}
+.rr-drive-intel-qa .rr-drive-qa{width:100%}
