@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=8b9c3066605b";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=8b9c3066605b";
+import { planScheduleWeek } from "./scheduling-engine.js?v=09e481c1c9fb";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=09e481c1c9fb";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70517,14 +70517,10 @@ function _driveRenderNav() {
     <span class="rr-drive-navico">${_driveNavIco(k)}</span><span class="rr-drive-navlbl">${l}</span>${n ? `<span class="rr-drive-navcnt">${n}</span>` : ""}</button>`;
   const primary = [
     item("all", "Vault", c.all),
-    item("activity", "Activity", 0),
-    item("shared", "Shared", c.shared),
     item("recent", "Recent", c.recent),
     item("starred", "Starred", _driveGetFavs().size),
   ].join("");
   const secondary = [
-    item("compliance", "Compliance", c.compliance, c.compliance > 0),
-    item("archive", "Archive", c.archive),
     item("trash", "Trash", c.trash),
   ].join("");
   el.innerHTML = primary + `<div class="rr-drive-navsep"></div>` + secondary + _driveNavFoldersHtml(c);
