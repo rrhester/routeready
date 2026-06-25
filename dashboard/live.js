@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=5b1ecf1c4539";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=5b1ecf1c4539";
+import { planScheduleWeek } from "./scheduling-engine.js?v=5336a037154b";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=5336a037154b";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -71879,6 +71879,58 @@ document.addEventListener("dblclick", (e) => {
   const d = (_driveData?.docs || []).find((x) => x.id === row.getAttribute("data-rr-drive-doc"));
   if (d) _driveOpenDoc(d, false);
 });
+// Right-click a Vault document → a context menu with all of its actions
+// (the same set shown in the details panel), anchored at the cursor.
+document.addEventListener("contextmenu", (e) => {
+  const row = e.target.closest && e.target.closest("#view-drive [data-rr-drive-doc]");
+  if (!row) return;
+  e.preventDefault();
+  const d = (_driveData?.docs || []).find((x) => x.id === row.getAttribute("data-rr-drive-doc"));
+  if (d) _driveDocContextMenu(e, d);
+});
+function _driveDocContextMenu(e, doc) {
+  if (!doc) return;
+  const canFile = !!(doc.path || doc.isGoogle);
+  const I = {
+    open: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
+    link: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+    download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+    pencil: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>`,
+    dup: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+    move: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M14 12l3 3-3 3M17 15H9"/></svg>`,
+    archive: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="4" rx="1"/><path d="M5 7v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
+    restore: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`,
+    trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
+  };
+  const items = [{ key: "open", label: doc.isGoogle ? "Open in Google" : (doc.source === "report" ? "Open report" : "Open"), ico: I.open }];
+  if (doc.isGoogle) items.push({ key: "copylink", label: "Copy link", ico: I.link });
+  if (!doc.isGoogle && doc.openable) items.push({ key: "download", label: "Download", ico: I.download });
+  if ((doc.canonical || doc.source === "driver_documents") && !doc.deletedAt) items.push({ key: "rename", label: "Rename", ico: I.pencil });
+  if (doc.path && !doc.isGoogle && !doc.deletedAt) items.push({ key: "duplicate", label: "Duplicate", ico: I.dup });
+  if (canFile && !doc.deletedAt && !doc.archivedAt) items.push({ key: "move", label: "Move to…", ico: I.move });
+  if (canFile) {
+    items.push({ sep: true });
+    const trashLbl = doc.isGoogle ? "Remove from Vault" : "Move to Trash";
+    if (doc.deletedAt) items.push({ key: "restore", label: "Restore", ico: I.restore });
+    else if (doc.archivedAt) items.push({ key: "restore", label: "Restore", ico: I.restore }, { key: "trash", label: trashLbl, ico: I.trash, danger: true });
+    else items.push({ key: "archive", label: "Archive", ico: I.archive }, { key: "trash", label: trashLbl, ico: I.trash, danger: true });
+  }
+  // Zero-size anchor at the cursor so _driveAnchoredMenu positions the menu
+  // there; remove it right after (position is computed synchronously).
+  const anchor = document.createElement("div");
+  anchor.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;width:1px;height:1px;pointer-events:none`;
+  document.body.appendChild(anchor);
+  _driveAnchoredMenu(anchor, items, (k) => {
+    if (k === "open") _driveOpenDoc(doc, false);
+    else if (k === "copylink") _driveCopyLink(doc);
+    else if (k === "download") _driveOpenDoc(doc, true);
+    else if (k === "rename") _driveRenameDoc(doc);
+    else if (k === "duplicate") _driveDuplicateDoc(doc);
+    else if (k === "move") _driveOpenMovePicker(doc);
+    else if (k === "restore" || k === "archive" || k === "trash") _driveSetDocStatus(doc, k);
+  }, "left");
+  anchor.remove();
+}
 document.addEventListener("dragend", () => {
   document.querySelectorAll("#view-drive .rr-drive-dragging").forEach(el => el.classList.remove("rr-drive-dragging"));
   document.querySelectorAll("#view-drive .rr-drive-dropover").forEach(el => el.classList.remove("rr-drive-dropover"));
