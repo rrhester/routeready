@@ -8,8 +8,8 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=44439c1d5a20";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=44439c1d5a20";
+import { planScheduleWeek } from "./scheduling-engine.js?v=b3811b162b73";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=b3811b162b73";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -70533,25 +70533,43 @@ function _driveRenderNav() {
 // both click handlers already exist, so these are just more entry points.
 function _driveNavFoldersHtml(c) {
   c = c || _driveCounts();
-  const roots = (_driveData?.folders || []).filter((f) => !f.parent_id);
+  const all = (_driveData?.folders || []);
+  const roots = all.filter((f) => !f.parent_id);
   const hiddenCats = _driveGetHiddenCats();
   const cats = [["drivers", "Drivers"], ["fleet", "Fleet"], ["hr", "HR"], ["station", "Station"], ["reports", "Reports"]]
     .filter(([k]) => !hiddenCats.has(k));
   if (!roots.length && !cats.length) return "";
   const docs = (_driveData?.docs) || [];
   const fcount = (id) => docs.filter((d) => d.folderId === id && !d.archivedAt && !d.deletedAt).length;
-  const row = (attr, label, ico, color, active, n) =>
-    `<button type="button" class="rr-drive-navitem rr-drive-navfolder${active ? " is-active" : ""}" ${attr}>` +
+  // Index children by parent so the rail can render the full folder tree.
+  const byParent = new Map();
+  for (const f of all) {
+    const k = f.parent_id || "__root";
+    if (!byParent.has(k)) byParent.set(k, []);
+    byParent.get(k).push(f);
+  }
+  const row = (attr, label, ico, color, active, n, depth) =>
+    `<button type="button" class="rr-drive-navitem rr-drive-navfolder${active ? " is-active" : ""}"${depth ? ` style="padding-left:${10 + depth * 15}px"` : ""} ${attr}>` +
     `<span class="rr-drive-navico"${color ? ` style="color:${color}"` : ""}>${ico}</span>` +
     `<span class="rr-drive-navlbl">${escapeHtml(label)}</span>${n ? `<span class="rr-drive-navcnt">${n}</span>` : ""}</button>`;
-  const custom = roots.map((f) => row(
-    `data-rr-drive-folder="${escapeHtml(f.id)}"`, f.name, _driveFolderIcoSvg(f.metadata), _driveFolderColor(f.metadata),
-    _driveState.folderId === f.id, fcount(f.id),
-  )).join("");
+  // Recursively render a folder and its sub-folders (indented). Guard against
+  // cycles / runaway depth from a malformed parent_id chain.
+  const seen = new Set();
+  const renderFolder = (f, depth) => {
+    if (seen.has(f.id) || depth > 8) return "";
+    seen.add(f.id);
+    let html = row(
+      `data-rr-drive-folder="${escapeHtml(f.id)}"`, f.name, _driveFolderIcoSvg(f.metadata), _driveFolderColor(f.metadata),
+      _driveState.folderId === f.id, fcount(f.id), depth,
+    );
+    for (const kid of (byParent.get(f.id) || [])) html += renderFolder(kid, depth + 1);
+    return html;
+  };
+  const custom = roots.map((f) => renderFolder(f, 0)).join("");
   const catIco = _driveFileIco(null, true);
   const catRows = cats.map(([key, label]) => row(
     `data-rr-drive-sec="${key}"`, label, catIco, null,
-    !_driveState.folderId && !_driveState.driverId && _driveState.section === key, c[key] || 0,
+    !_driveState.folderId && !_driveState.driverId && _driveState.section === key, c[key] || 0, 0,
   )).join("");
   return `<div class="rr-drive-navsep"></div><div class="rr-drive-navhead">Folders</div>` + custom + catRows;
 }
