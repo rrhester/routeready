@@ -26413,8 +26413,12 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-caret{font-size:8px;line-height:1}
 
 /* Folder action bar (shown inside an open custom folder) */
-.rr-drive-folderbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 16px;padding-bottom:14px;border-bottom:1px solid var(--border)}
-.rr-drive-folderbar-name{display:flex;align-items:center;gap:10px;font-size:var(--fs-lg);font-weight:700;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-drive-folderbar{display:flex;flex-direction:column;align-items:stretch;gap:8px;margin:0 2px 16px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle)}
+.rr-drive-folderbar-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.rr-drive-folderbar-name{display:flex;align-items:center;gap:11px;font-size:22px;line-height:1.2;font-weight:700;letter-spacing:-.01em;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-drive-folderbar-name .rr-drive-fico{width:34px;height:34px}
+/* Quiet metadata line under the folder anchor — real counts + last activity. */
+.rr-drive-folderbar-meta{font-size:var(--fs-sm);color:var(--text-subtle);padding-left:45px;letter-spacing:.01em}
 /* Folder title is editable in place — looks like the heading; click to type.
    No box/ring while editing (operator request) — just the text caret. */
 .rr-drive-folderbar-rename{font:inherit;color:inherit;cursor:text;outline:none;white-space:nowrap}
@@ -26631,9 +26635,9 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* Documents table — 56px rows, 5 columns, hairline separators only */
 .rr-drive-v2 .rr-drive-list{border:0}
-.rr-drive-v2 .rr-drive-lhead,.rr-drive-v2 .rr-drive-row{grid-template-columns:minmax(0,1fr) 140px 160px 130px 140px;gap:14px;padding:0 10px;border:0}
-.rr-drive-v2 .rr-drive-lhead{height:42px;border-bottom:1px solid var(--border-subtle);position:sticky;top:0;background:var(--surface);z-index:1}
-.rr-drive-v2 .rr-drive-row{height:56px;border-radius:8px;border-bottom:1px solid transparent}
+.rr-drive-v2 .rr-drive-lhead,.rr-drive-v2 .rr-drive-row{grid-template-columns:minmax(0,1fr) 140px 160px 130px 140px;gap:18px;padding:0 14px;border:0}
+.rr-drive-v2 .rr-drive-lhead{height:42px;border-bottom:1px solid var(--border-subtle);position:sticky;top:0;background:var(--surface);z-index:1;color:var(--text-muted)}
+.rr-drive-v2 .rr-drive-row{position:relative;height:64px;border-radius:10px;border-bottom:1px solid transparent}
 .rr-drive-v2 .rr-drive-row:hover{background:var(--canvas)}
 .rr-drive-v2 .rr-drive-row.is-selected,.rr-drive-v2 .rr-drive-row.is-checked{background:var(--accent-soft)}
 .rr-drive-v2 .rr-drive-name-txt{font-weight:500}
@@ -26810,3 +26814,40 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-v2 .rr-drive-nav .rr-launcher-dock:not(:empty){border-left-color:var(--sidebar-divider)}
 .rr-drive-v2 .rr-drive-nav .rr-al-btn{color:var(--sidebar-icon-idle)}
 .rr-drive-v2 .rr-drive-nav .rr-al-btn:hover{background:var(--sidebar-hover);color:var(--sidebar-ink)}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Vault enterprise pass A · folder-header anchor, search, toolbar, table rows,
+   storage. Pure refinement on the existing layout — 8px rhythm, calm color,
+   soft shadows, no heavy borders.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Folder toolbar — New folder is the only filled button; Star/Customize are
+   subtle outlines; Delete is the lone destructive action, grouped at the right. */
+.rr-drive-folderbar-acts{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.rr-drive-folderbar-sep{width:1px;align-self:stretch;margin:5px 4px;background:var(--border-subtle)}
+.rr-drive-v2 .rr-drive-folderbar-acts .rr-drive-fbtn{background:var(--surface);border:1px solid var(--border-subtle);color:var(--text-muted);box-shadow:none}
+.rr-drive-v2 .rr-drive-folderbar-acts .rr-drive-fbtn:hover{background:var(--canvas);border-color:var(--border);color:var(--text)}
+.rr-drive-v2 .rr-drive-folderbar-acts .rr-drive-fbtn.is-active{border-color:#f59e0b;color:#b45309;background:var(--surface)}
+.rr-drive-v2 .rr-drive-folderbar-acts .rr-drive-fbtn-danger{color:#b42318}
+.rr-drive-v2 .rr-drive-folderbar-acts .rr-drive-fbtn-danger:hover{background:var(--red-soft,#fef2f2);border-color:#fecaca;color:#b42318}
+
+/* Search — wider, with a platform ⌘K / Ctrl+K hint chip on the right. */
+.rr-drive-v2 .rr-drive-search{max-width:680px}
+.rr-drive-search-kbd{flex:0 0 auto;display:inline-flex;align-items:center;height:22px;padding:0 7px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--surface);color:var(--text-subtle);font-size:11px;font-weight:600;font-family:inherit;letter-spacing:.02em;white-space:nowrap}
+
+/* File table — subtle blue selection ring (rounded) + the hover 3-dot overflow.
+   The kebab floats at the row's right edge (absolute) so it adds no column width
+   and the table keeps its 5-column proportions at any width. */
+.rr-drive-v2 .rr-drive-row.is-selected,.rr-drive-v2 .rr-drive-row.is-checked{box-shadow:inset 0 0 0 1px var(--accent-border,rgba(37,99,235,.22))}
+.rr-drive-lhead-act{display:none}
+.rr-drive-rowact{position:absolute;right:8px;top:0;bottom:0;display:flex;align-items:center;justify-content:flex-end}
+.rr-drive-rowkebab{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:0;background:transparent;border-radius:8px;color:var(--text-subtle);cursor:pointer;opacity:0;transition:opacity .14s ease,background-color .14s ease,color .14s ease}
+.rr-drive-rowkebab svg{width:18px;height:18px}
+.rr-drive-row:hover .rr-drive-rowkebab,.rr-drive-row.is-selected .rr-drive-rowkebab{opacity:1}
+.rr-drive-rowkebab:hover{background:var(--surface-hover);color:var(--text)}
+
+/* Storage card · used / quota, then real File + Folder counts. */
+.rr-drive-store-counts{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:4px;font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums}
+
+/* Sidebar — folder counts de-emphasised (quieter, smaller) per the spec. */
+.rr-drive-v2 .rr-drive-nav .rr-drive-navcnt{font-size:11px;opacity:.75}
