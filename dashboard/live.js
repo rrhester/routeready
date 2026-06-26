@@ -17980,10 +17980,19 @@ const _ivcalFilters = (() => {
 const _ivcalCalVis = (() => {
   try { return JSON.parse(localStorage.getItem("rr_ivcal_calvis") || "{}"); } catch (_) { return {}; }
 })();
+// Status-legend filters · the colored swatches under "My Calendars" double as
+// toggles, so an operator can isolate (say) just "Pending reply" + "No-show" to
+// triage who needs chasing. Keyed by the _ivcalCat() category; a missing key
+// means visible, so a category added later defaults on.
+const _IVCAL_STATUS_CATS = ["blue", "green", "orange", "gray", "red", "teal"];
+const _ivcalStatusFilters = (() => {
+  try { return JSON.parse(localStorage.getItem("rr_ivcal_statusfilters") || "{}"); } catch (_) { return {}; }
+})();
 function _ivcalSaveToggles() {
   try {
     localStorage.setItem("rr_ivcal_filters", JSON.stringify(_ivcalFilters));
     localStorage.setItem("rr_ivcal_calvis", JSON.stringify(_ivcalCalVis));
+    localStorage.setItem("rr_ivcal_statusfilters", JSON.stringify(_ivcalStatusFilters));
   } catch (_) {}
 }
 // Legend swatch per built-in calendar (events keep their status-based color;
@@ -18014,11 +18023,39 @@ function _ivcalMyCalendars() {
     return `<div class="oc-cal-row"><label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="${escapeHtml(c.id)}"${on?" checked":""}><span class="oc-cal-dot" style="background:${escapeHtml(c.color||'#2563EB')}"></span><span class="oc-cal-name">${escapeHtml(c.name)}</span></label><button class="oc-cal-menu" data-ivcal-calmenu="${escapeHtml(c.id)}" title="Calendar options" aria-label="Calendar options">⋯</button></div>`;
   }).join("");
   return `<div class="oc-cals">
+    ${_ivcalAwaiting()}
     <div class="oc-cals-h"><span>My Calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
     <div class="oc-cals-grp">${builtin}</div>
     ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
     ${_ivcalGoogleRow()}
     ${_ivcalLegend()}
+  </div>`;
+}
+
+// ── "Awaiting scheduling" worklist (top of the sidebar). Candidates who were
+//    invited to interview but haven't booked a slot yet, so the empty calendar
+//    becomes a queue of who to chase instead of a passive grid. Clicking a row
+//    opens the applicant; "Send link" resends the booking link.
+function _ivcalAwaiting() {
+  const list = (_ivcalCache && _ivcalCache.awaiting) || [];
+  const LIM = 8;
+  const rows = list.slice(0, LIM).map(a => {
+    const name = rrTitleCaseName(a.full_name) || "Unnamed candidate";
+    const sub = a.email ? escapeHtml(a.email) : "Invited — no time booked";
+    return `<div class="oc-await-row" data-ivcal-await="${escapeHtml(a.id)}" title="Open ${escapeHtml(name)}">
+      <span class="oc-await-dot" aria-hidden="true"></span>
+      <span class="oc-await-main"><span class="oc-await-name">${escapeHtml(name)}</span><span class="oc-await-sub">${sub}</span></span>
+      <button type="button" class="oc-await-send" data-ivcal-await-send="${escapeHtml(a.id)}" title="Resend booking link to ${escapeHtml(name)}">Send link</button>
+    </div>`;
+  }).join("");
+  const more = list.length > LIM
+    ? `<button type="button" class="oc-await-more" data-ivcal-await-more>+${list.length - LIM} more in Funnel</button>` : "";
+  const body = list.length
+    ? rows + more
+    : `<div class="oc-await-empty">All caught up — nobody's waiting on a time.</div>`;
+  return `<div class="oc-cals-grp oc-await">
+    <div class="oc-cals-h oc-await-h"><span>Awaiting scheduling</span>${list.length ? `<span class="oc-await-count">${list.length}</span>` : ""}</div>
+    ${body}
   </div>`;
 }
 
@@ -18277,18 +18314,23 @@ const _IVCAL_CAM_SVG = '<svg class="ei-cam" viewBox="0 0 24 24" fill="#2563EB" a
 // "My Calendars" kind-dots explain — so spell both out under the calendar list.
 function _ivcalLegend() {
   const C = _IVCAL_CAT_COLOR;
-  const swatch = (color, label) =>
-    `<div class="oc-cal-row"><span class="oc-cal-dot" style="background:${color}"></span><span class="oc-cal-name">${label}</span></div>`;
+  // Each status row is a toggle: click to hide that status on the grid, click
+  // again to restore. "Show all" appears once anything is hidden.
+  const anyOff = _IVCAL_STATUS_CATS.some(c => _ivcalStatusFilters[c] === false);
+  const tog = (cat, label) => {
+    const off = _ivcalStatusFilters[cat] === false;
+    return `<button type="button" class="oc-cal-row oc-leg-tog${off ? " off" : ""}" data-ivcal-status="${cat}" aria-pressed="${off ? "false" : "true"}" title="${off ? "Show" : "Hide"} ${escapeHtml(label)}"><span class="oc-cal-dot" style="background:${C[cat]}"></span><span class="oc-cal-name">${escapeHtml(label)}</span></button>`;
+  };
   const icon = (glyph, label) =>
     `<div class="oc-cal-row"><span class="oc-leg-ico">${glyph}</span><span class="oc-cal-name">${label}</span></div>`;
   return `<div class="oc-cals-grp oc-leg">
-    <div class="oc-cals-sub">Status</div>
-    ${swatch(C.blue, "Scheduled")}
-    ${swatch(C.green, "Accepted")}
-    ${swatch(C.orange, "Pending reply")}
-    ${swatch(C.gray, "Declined")}
-    ${swatch(C.red, "No-show")}
-    ${swatch(C.teal, "Group session")}
+    <div class="oc-cals-sub oc-leg-h"><span>Status</span>${anyOff ? `<button type="button" class="oc-leg-all" data-ivcal-status-all>Show all</button>` : ""}</div>
+    ${tog("blue", "Scheduled")}
+    ${tog("green", "Accepted")}
+    ${tog("orange", "Pending reply")}
+    ${tog("gray", "Declined")}
+    ${tog("red", "No-show")}
+    ${tog("teal", "Group session")}
     <div class="oc-cals-sub">Icons</div>
     ${icon(_IVCAL_CAM_SVG, "Has video link")}
     ${icon("✓", "RSVP accepted")}
@@ -18305,7 +18347,7 @@ async function loadIvCalendar() {
   const firstLoad = !_ivcalCache || !host.querySelector(".oc");
   if (firstLoad) host.innerHTML = `<div class="rr-loading">Loading calendar…</div>`;
   try {
-    const [a, s, b, c, g] = await Promise.all([
+    const [a, s, b, c, g, w] = await Promise.all([
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
@@ -18320,6 +18362,14 @@ async function loadIvCalendar() {
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true }),
       sb.rpc("google_calendar_status"),
+      // Candidates invited to interview who haven't booked a slot yet — the
+      // "Awaiting scheduling" worklist in the sidebar.
+      sb.from("applicants")
+        .select("id, full_name, email, created_at")
+        .eq("dsp_id", window.RR.dsp.id)
+        .eq("status", "interview_invited")
+        .order("created_at", { ascending: true })
+        .limit(50),
     ]);
     if (a.error) throw a.error;
     let bookings = b.data || [];
@@ -18343,6 +18393,7 @@ async function loadIvCalendar() {
       sessions: s.data || [],
       bookings: bookings,
       calendars: (c && !c.error && c.data) ? c.data : [],
+      awaiting: (w && !w.error && Array.isArray(w.data)) ? w.data : [],
       gcal: (g && !g.error && g.data) ? (Array.isArray(g.data) ? g.data[0] : g.data) : null,
       // Carry overlaid Google events across refreshes so minor reloads don't
       // refetch; _ivcalEnsureGoogle refetches only when the window/toggle changes.
@@ -18524,6 +18575,40 @@ function _ivcalRender() {
   });
   host.querySelectorAll("[data-ivcal-cal]").forEach(cb => cb.onchange = () => {
     _ivcalCalVis[cb.getAttribute("data-ivcal-cal")] = cb.checked; _ivcalSaveToggles(); _ivcalRender();
+  });
+  // Status legend toggles (and "Show all" reset).
+  host.querySelectorAll("[data-ivcal-status]").forEach(b => b.onclick = () => {
+    const c = b.getAttribute("data-ivcal-status");
+    _ivcalStatusFilters[c] = _ivcalStatusFilters[c] === false ? true : false;
+    _ivcalSaveToggles(); _ivcalRender();
+  });
+  host.querySelector("[data-ivcal-status-all]")?.addEventListener("click", () => {
+    _IVCAL_STATUS_CATS.forEach(c => { _ivcalStatusFilters[c] = true; });
+    _ivcalSaveToggles(); _ivcalRender();
+  });
+  // Awaiting scheduling rail: open the applicant, resend their booking link, or
+  // jump to the full Funnel when the list overflows.
+  host.querySelectorAll("[data-ivcal-await]").forEach(r => r.onclick = (e) => {
+    if (e.target.closest("[data-ivcal-await-send]")) return;
+    _ivcalOpenApplicant(r.getAttribute("data-ivcal-await"));
+  });
+  host.querySelectorAll("[data-ivcal-await-send]").forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    if (!confirm("Resend the interview booking link so they can pick a time?")) return;
+    const id = b.getAttribute("data-ivcal-await-send"), orig = b.textContent;
+    b.disabled = true; b.textContent = "Sending…";
+    try {
+      const { error } = await sb.rpc("send_booking_link", { p_id: id, p_kind: "interview" });
+      if (error) throw error;
+      toast("Booking link sent", "success");
+      b.textContent = "Sent ✓";
+    } catch (err) {
+      toast("Couldn't send booking link: " + (err.message || err), "warn");
+      b.disabled = false; b.textContent = orig;
+    }
+  });
+  host.querySelector("[data-ivcal-await-more]")?.addEventListener("click", () => {
+    if (typeof window.obSub === "function") window.obSub("funnel");
   });
   host.querySelectorAll("[data-ivcal-addcal]").forEach(b => b.onclick = (e) => { e.stopPropagation(); _ivcalCalendarDialog(null); });
   host.querySelectorAll("[data-ivcal-calmenu]").forEach(b => b.onclick = (e) => {
@@ -19650,6 +19735,9 @@ async function _ivcalLoadEventMessages(eventId, host) {
 }
 
 function _ivcalFilterOk(ev, type) {
+  // Legend status toggles apply to every source: a hidden status stays hidden
+  // whether the event sits on a built-in or a custom calendar.
+  if (_ivcalStatusFilters[_ivcalCat(ev, type)] === false) return false;
   // Events on a custom calendar are governed solely by that calendar's toggle.
   if (type !== "session" && ev.calendar_id) return _ivcalCalVis[ev.calendar_id] !== false;
   const k = type === "session" ? "session" : _ivcalEvKind(ev);
