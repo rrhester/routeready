@@ -11956,6 +11956,16 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-leg .oc-cal-row:hover{background:none}
             #rr-ivcal .oc-leg-ico{width:13px;height:13px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;font-size:12px;line-height:1;color:var(--oc-sub)}
             #rr-ivcal .oc-leg-ico svg{width:13px;height:13px}
+            /* Empty-state nudge — shown above the grid when no availability is set. */
+            #rr-ivcal .oc-nudge{display:flex;align-items:center;gap:11px;margin:0 0 10px;padding:10px 12px;border:1px solid var(--oc-colsep);border-radius:8px;background:var(--oc-hover);color:var(--oc-ink)}
+            #rr-ivcal .oc-nudge-ic{width:20px;height:20px;flex:0 0 auto;color:var(--oc-blue)}
+            #rr-ivcal .oc-nudge-txt{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1 1 auto}
+            #rr-ivcal .oc-nudge-txt strong{font-size:13px;font-weight:700}
+            #rr-ivcal .oc-nudge-txt span{font-size:12px;color:var(--oc-sub);line-height:1.35}
+            #rr-ivcal .oc-nudge-cta{flex:0 0 auto;appearance:none;border:0;border-radius:6px;background:var(--oc-blue);color:#fff;font:inherit;font-size:13px;font-weight:600;padding:7px 13px;cursor:pointer}
+            #rr-ivcal .oc-nudge-cta:hover{filter:brightness(.94)}
+            #rr-ivcal .oc-nudge-x{flex:0 0 auto;appearance:none;border:0;background:none;color:var(--oc-sub);font-size:18px;line-height:1;cursor:pointer;padding:0 3px;border-radius:5px}
+            #rr-ivcal .oc-nudge-x:hover{background:var(--oc-colsep);color:var(--oc-ink)}
             #rr-ivcal .oc-gcal-ico{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
             #rr-ivcal .oc-gcal-row .oc-cal-lbl{gap:7px}
             #rr-ivcal .oc-gcal-connect{display:inline-flex;align-items:center;gap:7px;width:100%;text-align:left;appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--oc-ink);cursor:pointer;font:inherit;font-size:13px;padding:6px 9px;border-radius:6px;transition:background var(--t-fast),border-color var(--t-fast)}
