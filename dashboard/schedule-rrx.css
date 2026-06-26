@@ -425,11 +425,16 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   align-items: stretch;
   gap: 0;
   flex: 0 0 auto;
-  margin: 0 8px 0 0;
+  /* Pinned as a small bar at the top-left of the schedule content (first child
+     of #view-schedule), above whatever toolbar the current sub-view shows, so
+     it sits in the same place on all five views. */
+  margin: 10px 0 6px 22px;
   padding: 0;
   background: var(--surface, #fff);
   border: 1px solid var(--border, rgba(15, 23, 42, .12));
   border-radius: 9px;
+  position: relative;
+  z-index: 3;
 }
 #view-schedule.rrx-schedule .rr-viewseg-btn {
   display: inline-flex;
