@@ -38672,19 +38672,18 @@ function _rrBuildViewSeg() {
     b.addEventListener("click", () => window.rrSchedViewSeg(b.getAttribute("data-rr-viewseg"))));
   return el;
 }
-// Pin the pill to the FIRST slot of the persistent command-bar actions row so
-// it sits in the exact same spot on every Schedule sub-view. (It used to anchor
-// to the week navigator, but that gets relocated/hidden on Roster + Targets, so
-// the pill drifted between views.) The actions row survives sub-view switches —
-// only the body below it swaps — so re-pinning to its first child on every
-// schedSub() keeps the pill put. Idempotent; re-pins only when missing/moved.
+// Anchor the pill immediately before the live week navigator. We anchor to the
+// stable #rr-sched-week-nav ID (not a wrapper class — the runtime reassembly
+// renames/replaces those, which is what made the pill vanish when it was
+// pinned to .sched-nav-heading-actions). The pill follows the week nav on every
+// schedSub(), so it stays in the same relative spot as the operator switches
+// sub-views. Idempotent: only inserts/moves when missing or displaced.
 function _rrEnsureSchedViewSeg() {
-  const bar = document.querySelector("#view-schedule .sched-nav-heading-actions")
-           || document.getElementById("rr-sched-cmd");
+  const nav = document.getElementById("rr-sched-week-nav");
   let seg = document.getElementById("rr-sched-viewseg");
-  if (bar) {
+  if (nav && nav.parentElement) {
     if (!seg) seg = _rrBuildViewSeg();
-    if (bar.firstElementChild !== seg) bar.insertBefore(seg, bar.firstElementChild);
+    if (nav.previousElementSibling !== seg) nav.parentElement.insertBefore(seg, nav);
   }
   const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
   if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));
