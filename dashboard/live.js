@@ -70209,7 +70209,7 @@ async function _driveLoadData(dspId) {
         id: "drv_" + x.id, canonicalId: x.id, source: "driver_documents", canonical: true,
         name: x.name || "Document", kind: "other", driveCategory: cat,
         docType: x.doc_type || cat || "Document",
-        bucket: x.bucket || "driver-documents", path: x.file_path, mime: x.mime_type, size: x.file_size,
+        bucket: x.bucket || "driver-documents", path: x.file_path, mime: x.mime_type, size: x.file_size ?? x.file_size_bytes ?? null,
         driverId: x.driver_id, driverName: x.driver_id ? nameOf(x.driver_id) : "", station: x.driver_id ? stationOf(x.driver_id) : "",
         createdAt: x.created_at, createdBy: (x.metadata && x.metadata.drive_created_by) || "",
         archivedAt: x.archived_at, deletedAt: x.deleted_at,
@@ -70282,7 +70282,7 @@ async function _driveLoadData(dspId) {
       docs.push({
         id: "veh_" + v.id, source: "vehicle", name: nm, docType: fold(v.kind || v.doc_type).replace(/_/g, " ") || "Fleet",
         bucket: "vehicle-documents", path: v.file_path || v.path || null, mime: v.mime_type || v.mime || "",
-        size: v.file_size || null, vehicleId: v.vehicle_id || null,
+        size: v.file_size_bytes ?? v.file_size ?? null, vehicleId: v.vehicle_id || null,
         createdAt: v.created_at || v.uploaded_at, station: "", tags: ["Fleet"],
       });
     }
@@ -70417,10 +70417,16 @@ function _driveStorageStats() {
 // counts. Shared by the rail foot and the empty preview so they read identically.
 function _driveStorageCardHtml() {
   const s = _driveStorageStats();
-  const fill = s.bytes > 0 ? Math.max(2, s.pct) : 0; // keep a sliver visible when non-empty
-  return `<div class="rr-drive-storecard">
+  const used = s.bytes > 0;
+  const fill = used ? Math.max(2, s.pct) : 0; // keep a sliver visible when non-empty
+  // When nothing in the Vault has a measurable byte footprint — every item is a
+  // Google file, an e-signature, or a generated report — an empty "0 B / 50 GB"
+  // meter reads as broken. State what's actually true and explain it on hover.
+  const line = used ? `${_driveFmtStorage(s.bytes)} / ${_driveFmtStorage(s.quota)}` : "No file storage used";
+  const note = used ? "" : ` title="Cloud &amp; linked files — Google, e-signature, and generated reports — don't use Vault storage."`;
+  return `<div class="rr-drive-storecard"${note}>
       <div class="rr-drive-store-bar"><span style="width:${fill}%"></span></div>
-      <div class="rr-drive-store-line"><span>${_driveFmtStorage(s.bytes)} / ${_driveFmtStorage(s.quota)}</span></div>
+      <div class="rr-drive-store-line"><span>${line}</span></div>
       <div class="rr-drive-store-counts"><span>${s.count} File${s.count === 1 ? "" : "s"}</span><span>${s.folders} Folder${s.folders === 1 ? "" : "s"}</span></div>
     </div>`;
 }
@@ -70704,7 +70710,13 @@ function _driveNavFoldersHtml(c) {
     `data-rr-drive-sec="${key}"`, label, catIco, null,
     !_driveState.folderId && !_driveState.driverId && _driveState.section === key, c[key] || 0, 0, null, false, null,
   )).join("");
-  return `<div class="rr-drive-navsep"></div><div class="rr-drive-navhead">Folders</div>` + custom + catRows;
+  // Keep user-made folders and the built-in category views in separate, labelled
+  // groups. The two can legitimately share a name (a custom "Drivers" folder vs.
+  // the Drivers category), so grouping them apart stops the rail from reading as
+  // a duplicate bug.
+  const customGroup = custom ? `<div class="rr-drive-navhead">Folders</div>` + custom : "";
+  const catGroup = catRows ? `<div class="rr-drive-navhead">Categories</div>` + catRows : "";
+  return `<div class="rr-drive-navsep"></div>` + customGroup + catGroup;
 }
 function _driveRenderNavFoot() {
   const el = document.getElementById("rr-drive-navfoot");
@@ -70960,7 +70972,7 @@ function _driveListHtml(docs) {
       <div class="rr-drive-name"><span class="rr-drive-figbox"><span class="rr-drive-fico t-${d.type}">${_driveFileIco(d.type)}</span>${checkBox(d.id)}</span><span class="rr-drive-name-txt" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span></div>
       <div class="rr-drive-cell">${d.isGoogle ? _driveGoogleLabel(d.type) : escapeHtml(d.docType || "—")}</div>
       <div class="rr-drive-cell rr-drive-cell-soft">${escapeHtml(_driveLocOf(d))}</div>
-      <div class="rr-drive-cell rr-drive-cell-soft">${_driveFmtDate(d.modifiedAt || d.createdAt)}</div>
+      <div class="rr-drive-cell rr-drive-cell-soft" title="${escapeHtml(_driveFmtDate(d.modifiedAt || d.createdAt))}">${escapeHtml(_driveRelTime(d.modifiedAt || d.createdAt) || "—")}</div>
       <div class="rr-drive-cell rr-drive-cell-soft">${escapeHtml(_driveOwner(d))}</div>
       <div class="rr-drive-rowact"><button type="button" class="rr-drive-rowkebab" data-rr-drive-rowmenu="${escapeHtml(d.id)}" aria-label="More actions" title="More actions"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button></div>
     </div>`;
@@ -71172,10 +71184,6 @@ function _driveRenderDetails() {
       <section class="rr-drive-det-sec">
         <div class="rr-drive-det-sechead">Recent activity</div>
         <div class="rr-drive-recents">${recentHtml}</div>
-      </section>
-      <section class="rr-drive-det-sec">
-        <div class="rr-drive-det-sechead">Storage</div>
-        ${_driveStorageCardHtml()}
       </section>
       <section class="rr-drive-det-sec">
         <div class="rr-drive-det-sechead">Details</div>
