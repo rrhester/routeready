@@ -102,6 +102,22 @@
 # rewritten by scripts/bust-cache.mjs in the build step above so
 # every deploy uses a fresh, deploy-unique value (COMMIT_REF).
 
+# Security headers — applied site-wide. Safe, non-breaking hardening
+# headers (no enforcing CSP). They harden a PII-handling operator
+# dashboard against clickjacking, MIME sniffing, referrer leakage, and
+# protocol-downgrade attacks. geolocation=(self) because the routing
+# app uses navigator.geolocation (dashboard/live.js, app/app.js).
+# CSP: deferred — inline scripts/styles need nonce/hash refactor first.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options           = "DENY"
+    X-Content-Type-Options    = "nosniff"
+    Referrer-Policy           = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    Permissions-Policy        = "geolocation=(self), camera=(), microphone=(), payment=()"
+    X-XSS-Protection          = "0"
+
 [[headers]]
   for = "/dashboard/*.html"
   [headers.values]

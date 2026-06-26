@@ -7,6 +7,22 @@
 # and manifests are likewise never-cache so a deploy reaches devices on
 # the next load.
 
+# Security headers — applied site-wide. These are safe, non-breaking
+# hardening headers (no enforcing CSP — see note below). They harden a
+# PII-handling operator dashboard against clickjacking, MIME sniffing,
+# referrer leakage, and protocol-downgrade attacks.
+#   geolocation=(self): the routing app uses navigator.geolocation
+#   (dashboard/live.js station-locate, app/app.js), so (self) is the
+#   least-breaking Permissions-Policy value.
+# CSP: deferred — inline scripts/styles need nonce/hash refactor first.
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=()
+  X-XSS-Protection: 0
+
 /*.html
   Cache-Control: no-cache, no-store, must-revalidate
   Pragma: no-cache
