@@ -38672,18 +38672,22 @@ function _rrBuildViewSeg() {
     b.addEventListener("click", () => window.rrSchedViewSeg(b.getAttribute("data-rr-viewseg"))));
   return el;
 }
-// Anchor the pill immediately before the live week navigator. We anchor to the
-// stable #rr-sched-week-nav ID (not a wrapper class — the runtime reassembly
-// renames/replaces those, which is what made the pill vanish when it was
-// pinned to .sched-nav-heading-actions). The pill follows the week nav on every
-// schedSub(), so it stays in the same relative spot as the operator switches
-// sub-views. Idempotent: only inserts/moves when missing or displaced.
+// Anchor the strip to the .sched-v2-strip command strip — NOT the week nav.
+// The week nav (#rr-sched-week-nav) is a week-only control hidden on Today /
+// Roster / Requests / Targets, so anchoring to it left the strip absent on
+// those four views. The week nav is a direct child of .sched-v2-strip (per the
+// CSS), and that strip persists on every sub-view, so it's the right anchor:
+// the strip lands at the front of it (the hidden view tiles take no space, so
+// "front" reads far-left, next to where the date nav sits on the week view) and
+// stays in the SAME spot on all five views. Fall back to the week nav's parent
+// if the class query ever misses. Idempotent: only inserts/moves when needed.
 function _rrEnsureSchedViewSeg() {
-  const nav = document.getElementById("rr-sched-week-nav");
   let seg = document.getElementById("rr-sched-viewseg");
-  if (nav && nav.parentElement) {
+  const nav = document.getElementById("rr-sched-week-nav");
+  const strip = document.querySelector("#view-schedule .sched-v2-strip") || (nav && nav.parentElement) || null;
+  if (strip) {
     if (!seg) seg = _rrBuildViewSeg();
-    if (nav.previousElementSibling !== seg) nav.parentElement.insertBefore(seg, nav);
+    if (strip.firstElementChild !== seg) strip.insertBefore(seg, strip.firstElementChild);
   }
   const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
   if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));
