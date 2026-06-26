@@ -38627,11 +38627,24 @@ function _rrCloseDriverRecord() {
 }
 window._rrCloseDriverRecord = _rrCloseDriverRecord;
 
-// ── Segmented view-switcher pill (frag #rr-sched-viewseg) ───────────────────
-// Highlight the segment matching the active sub-view. Called on every
-// schedSub() so the pill stays truthful no matter how the view changed
-// (pill click, left-rail child, week-nav). A sub that isn't one of the five
-// pill views clears all segments — correct, since the pill can't represent it.
+// ── Segmented view-switcher pill ───────────────────────────────────────────
+// The Schedule command bar is reassembled at runtime — pieces are relocated
+// out of the frag into a hidden V2 strip — so a static pill in the markup gets
+// stranded where it can't be seen. Instead we BUILD the pill in JS and glue it
+// immediately before the live week navigator (#rr-sched-week-nav, whose id
+// survives relocation), re-asserting it on every view switch + a first-paint
+// poll. Each segment routes through rrSchedNav() — the same dispatcher the
+// left-rail children use — passing the matching rail button so its highlight
+// stays in sync. [key, label, svg-inner]
+const _RR_VIEWSEG_VIEWS = [
+  ["week",     "Schedule", '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>'],
+  ["today",    "Today",    '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><rect x="7" y="13" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>'],
+  ["roster",   "Roster",   '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'],
+  ["requests", "Requests", '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'],
+  ["targets",  "Targets",  '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>'],
+];
+// Highlight the segment matching the active sub-view; a non-pill view (monthly,
+// attendance, calendar) clears all — correct, the pill can't represent it.
 function _rrSyncSchedViewSeg(sub) {
   const seg = document.getElementById("rr-sched-viewseg");
   if (!seg) return;
@@ -38641,19 +38654,70 @@ function _rrSyncSchedViewSeg(sub) {
     b.setAttribute("aria-selected", on ? "true" : "false");
   });
 }
-// Pill segment click → optimistic highlight, then route through the SAME
-// dispatcher the left-rail children use (passing the matching rail button so
-// its highlight stays in sync too).
 window.rrSchedViewSeg = function (key) {
-  _rrSyncSchedViewSeg(key);
+  _rrSyncSchedViewSeg(key);                       // optimistic highlight
   const rail = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item[data-key="' + key + '"]');
   if (typeof window.rrSchedNav === "function") window.rrSchedNav(key, rail);
 };
+function _rrBuildViewSeg() {
+  const el = document.createElement("div");
+  el.className = "rr-viewseg";
+  el.id = "rr-sched-viewseg";
+  el.setAttribute("role", "tablist");
+  el.setAttribute("aria-label", "Schedule view");
+  el.innerHTML = _RR_VIEWSEG_VIEWS.map(v =>
+    `<button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-rr-viewseg="${v[0]}" title="${v[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${v[2]}</svg><span>${v[1]}</span></button>`
+  ).join("");
+  el.querySelectorAll("[data-rr-viewseg]").forEach(b =>
+    b.addEventListener("click", () => window.rrSchedViewSeg(b.getAttribute("data-rr-viewseg"))));
+  return el;
+}
+// Insert (or re-glue) the pill just before the live week navigator, wherever
+// the runtime reassembly has moved it. Idempotent: only inserts/moves when
+// missing or displaced, then syncs the highlight to the active rail child.
+function _rrEnsureSchedViewSeg() {
+  const nav = document.getElementById("rr-sched-week-nav");
+  let seg = document.getElementById("rr-sched-viewseg");
+  if (nav) {
+    if (!seg) seg = _rrBuildViewSeg();
+    if (nav.previousElementSibling !== seg && nav.parentElement) nav.parentElement.insertBefore(seg, nav);
+  } else if (!seg) {
+    // Fallback: drop it into the command bar so it's still visible.
+    const bar = document.querySelector("#view-schedule .sched-nav-heading-actions") || document.getElementById("rr-sched-cmd");
+    if (bar) bar.insertBefore(_rrBuildViewSeg(), bar.firstChild);
+  }
+  const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
+  if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));
+}
+window._rrEnsureSchedViewSeg = _rrEnsureSchedViewSeg;
+// First-paint + re-entry placement: the command bar mounts async and gets
+// reshuffled, so poll briefly each time we (re)enter the Schedule view. A
+// single re-armable interval; ensure() is idempotent so overlapping ticks are
+// harmless. (Date.now is fine here — the no-Date rule applies to Workflow
+// scripts, not browser runtime.)
+let _rrViewSegIv = null;
+function _rrViewSegPoll() {
+  if (_rrViewSegIv) clearInterval(_rrViewSegIv);
+  let tries = 0;
+  _rrViewSegIv = setInterval(() => {
+    _rrEnsureSchedViewSeg();
+    if (++tries > 30) { clearInterval(_rrViewSegIv); _rrViewSegIv = null; }
+  }, 400);
+}
+(function _rrViewSegBoot() {
+  _rrViewSegPoll();
+  const v = document.getElementById("view-schedule");
+  if (v && typeof MutationObserver === "function") {
+    new MutationObserver(() => { if (v.classList.contains("active")) _rrViewSegPoll(); })
+      .observe(v, { attributes: true, attributeFilter: ["class"] });
+  }
+})();
 
 const _legacySchedSub = window.schedSub;
 window.schedSub = function (sub) {
   _rrCloseDriverRecord();
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
+  _rrEnsureSchedViewSeg();
   _rrSyncSchedViewSeg(sub);
   // The Smart Fill command tile doubles as "Forecast" on the Monthly view.
   if (typeof _rrSetSmartFillTileMode === "function") _rrSetSmartFillTileMode(sub === "monthly");
