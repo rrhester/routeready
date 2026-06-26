@@ -38672,20 +38672,20 @@ function _rrBuildViewSeg() {
     b.addEventListener("click", () => window.rrSchedViewSeg(b.getAttribute("data-rr-viewseg"))));
   return el;
 }
-// Anchor immediately before the week nav (#rr-sched-week-nav) — the one spot
-// empirically confirmed to render cleanly. (Prepending to #view-schedule put it
-// behind the page layout, leaving only a sliver of its border as a stray line
-// at the top; every toolbar/container anchor either hides it or leaves an
-// artifact, because the per-view toolbars differ and the page uses overlay
-// layout.) The week nav is week-only, so this shows the strip on the Schedule
-// view without breaking anything; the all-views placement is being handled
-// separately. Idempotent.
+// Anchor the strip to the Schedule nav rail (.nav-sub[data-for="schedule"]) —
+// the ONE container present and visible on every sub-view. The per-view
+// toolbars share no slot, and the schedule page uses overlay layout (anchoring
+// in the page body left a stray line), so the rail is the only place that
+// renders cleanly on all five views. The strip goes at the top of the rail,
+// above the existing text view-items; clicks route through the same rrSchedNav
+// dispatcher those items use, so behavior + highlighting stay in sync.
+// Idempotent: only inserts/moves when missing or displaced.
 function _rrEnsureSchedViewSeg() {
-  const nav = document.getElementById("rr-sched-week-nav");
+  const rail = document.querySelector('.nav-sub[data-for="schedule"]');
   let seg = document.getElementById("rr-sched-viewseg");
-  if (nav && nav.parentElement) {
+  if (rail) {
     if (!seg) seg = _rrBuildViewSeg();
-    if (nav.previousElementSibling !== seg) nav.parentElement.insertBefore(seg, nav);
+    if (rail.firstElementChild !== seg) rail.insertBefore(seg, rail.firstElementChild);
   }
   const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
   if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));

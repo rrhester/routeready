@@ -414,29 +414,33 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   display: none;
 }
 
-/* Segmented view-switcher pill · the five Schedule views as a single
-   rounded, icon-only toggle (operator request 2026-06-26). White track,
-   hairline divider between each icon, and the active segment filled solid
-   with the operator's light blue. Pinned to the same command-bar slot on
-   every Schedule sub-view (see _rrEnsureSchedViewSeg). Each segment carries
-   a title + aria-label so the icon stays self-explaining and accessible. */
-#view-schedule.rrx-schedule .rr-viewseg {
-  display: inline-flex;
+/* Segmented view-switcher · the five Schedule views as one icon-only toggle
+   (operator request 2026-06-26). Lives at the top of the Schedule nav rail
+   (#rr-sched-viewseg, inserted by _rrEnsureSchedViewSeg) — the one container
+   that's present and visible on every sub-view, since the per-view toolbars
+   share no slot. Scoped by id (not #view-schedule) because it sits in the
+   sidebar. Full width of the rail, segments share the width; hairline divider
+   between icons; active segment filled with the operator's light blue. Each
+   segment carries a title + aria-label so the icon stays self-explaining. */
+#rr-sched-viewseg {
+  display: flex;
   align-items: stretch;
   gap: 0;
-  flex: 0 0 auto;
-  margin: 0 8px 0 0;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 2px 0 8px;
   padding: 0;
   background: var(--surface, #fff);
   border: 1px solid var(--border, rgba(15, 23, 42, .12));
   border-radius: 9px;
 }
-#view-schedule.rrx-schedule .rr-viewseg-btn {
+#rr-sched-viewseg .rr-viewseg-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 30px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 32px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -445,37 +449,37 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   transition: background var(--rr-motion-fast, .12s), color var(--rr-motion-fast, .12s);
 }
 /* Hairline divider between each icon. */
-#view-schedule.rrx-schedule .rr-viewseg-btn:not(:last-child) {
+#rr-sched-viewseg .rr-viewseg-btn:not(:last-child) {
   border-right: 1px solid var(--border, rgba(15, 23, 42, .12));
 }
 /* Round the end segments so the active fill follows the track's corners. */
-#view-schedule.rrx-schedule .rr-viewseg-btn:first-child {
+#rr-sched-viewseg .rr-viewseg-btn:first-child {
   border-top-left-radius: 8px;
   border-bottom-left-radius: 8px;
 }
-#view-schedule.rrx-schedule .rr-viewseg-btn:last-child {
+#rr-sched-viewseg .rr-viewseg-btn:last-child {
   border-top-right-radius: 8px;
   border-bottom-right-radius: 8px;
 }
-#view-schedule.rrx-schedule .rr-viewseg-btn svg {
+#rr-sched-viewseg .rr-viewseg-btn svg {
   width: 17px;
   height: 17px;
   flex: 0 0 auto;
   stroke-width: 1.7;
 }
-#view-schedule.rrx-schedule .rr-viewseg-btn:hover {
+#rr-sched-viewseg .rr-viewseg-btn:hover {
   color: var(--text, #1F2937);
   background: rgba(15, 23, 42, .05);
 }
 /* Active segment · whole segment filled with the operator-specified blue. */
-#view-schedule.rrx-schedule .rr-viewseg-btn.active {
+#rr-sched-viewseg .rr-viewseg-btn.active {
   background: rgb(194, 231, 255);
   color: var(--accent-text, #1E40AF);
 }
-#view-schedule.rrx-schedule .rr-viewseg-btn.active svg {
+#rr-sched-viewseg .rr-viewseg-btn.active svg {
   color: #1E40AF;
 }
-#view-schedule.rrx-schedule .rr-viewseg-btn:focus-visible {
+#rr-sched-viewseg .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent, #2563EB);
   outline-offset: -2px;
 }
