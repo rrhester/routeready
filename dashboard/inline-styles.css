@@ -11954,6 +11954,30 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-leg .oc-cal-row:hover{background:none}
             #rr-ivcal .oc-leg-ico{width:13px;height:13px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;font-size:12px;line-height:1;color:var(--oc-sub)}
             #rr-ivcal .oc-leg-ico svg{width:13px;height:13px}
+            /* Status legend doubles as filters — each row toggles that status on the grid. */
+            #rr-ivcal .oc-leg-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+            #rr-ivcal .oc-leg-all{appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-blue);font:inherit;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:1px 4px;border-radius:4px}
+            #rr-ivcal .oc-leg-all:hover{background:rgba(37,99,235,.10)}
+            #rr-ivcal .oc-leg .oc-leg-tog{width:100%;appearance:none;border:0;background:none;font:inherit;text-align:left;cursor:pointer}
+            #rr-ivcal .oc-leg .oc-leg-tog:hover{background:var(--oc-hover)}
+            #rr-ivcal .oc-leg .oc-leg-tog.off{opacity:.42}
+            #rr-ivcal .oc-leg .oc-leg-tog.off .oc-cal-name{text-decoration:line-through}
+            /* Awaiting scheduling · invited candidates who haven't booked a time yet. */
+            #rr-ivcal .oc-await{margin-bottom:10px;border-bottom:1px solid var(--oc-colsep);padding-bottom:10px}
+            #rr-ivcal .oc-await-h{margin-bottom:6px}
+            #rr-ivcal .oc-await-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--oc-blue);color:#fff;font-size:11px;font-weight:700;line-height:1}
+            #rr-ivcal .oc-await-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer}
+            #rr-ivcal .oc-await-row:hover{background:var(--oc-hover)}
+            #rr-ivcal .oc-await-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;background:var(--oc-blue)}
+            #rr-ivcal .oc-await-main{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1 1 auto}
+            #rr-ivcal .oc-await-name{font-size:13px;font-weight:600;color:var(--oc-ink);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+            #rr-ivcal .oc-await-sub{font-size:11px;color:var(--oc-sub);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+            #rr-ivcal .oc-await-send{flex:0 0 auto;appearance:none;border:1px solid var(--oc-colsep);background:var(--oc-surface);color:var(--oc-blue);font:inherit;font-size:11px;font-weight:600;padding:3px 8px;border-radius:5px;cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast)}
+            #rr-ivcal .oc-await-send:hover{background:rgba(37,99,235,.10);border-color:var(--oc-blue)}
+            #rr-ivcal .oc-await-send:disabled{color:var(--oc-sub);cursor:default;background:var(--oc-surface);border-color:var(--oc-colsep)}
+            #rr-ivcal .oc-await-more{display:block;width:100%;text-align:left;appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-blue);font:inherit;font-size:12px;font-weight:600;padding:4px 6px;border-radius:5px}
+            #rr-ivcal .oc-await-more:hover{background:var(--oc-hover)}
+            #rr-ivcal .oc-await-empty{font-size:12px;color:var(--oc-sub);line-height:1.4;padding:2px 6px}
             /* Empty-state nudge — shown above the grid when no availability is set. */
             #rr-ivcal .oc-nudge{display:flex;align-items:center;gap:11px;margin:0 0 10px;padding:10px 12px;border:1px solid var(--oc-colsep);border-radius:8px;background:var(--oc-hover);color:var(--oc-ink)}
             #rr-ivcal .oc-nudge-ic{width:20px;height:20px;flex:0 0 auto;color:var(--oc-blue)}
