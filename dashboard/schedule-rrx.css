@@ -423,15 +423,20 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    between icons; active segment filled with the operator's light blue. Each
    segment carries a title + aria-label so the icon stays self-explaining. */
 #rr-sched-viewseg {
+  /* Absolute overlay pinned to a FIXED spot on #view-schedule (which is
+     position:relative). Inserted once and never moved, so it's in the exact
+     same place on every sub-view and never glitches on switch. Each view's
+     toolbar is given a left margin (see _rrEnsureSchedViewSeg) so its buttons
+     sit just to the right of this. */
+  position: absolute;
+  left: 24px;
+  top: 13px;
+  z-index: 50;
   display: inline-flex;
   align-items: stretch;
   gap: 0;
-  flex: 0 0 auto;
-  align-self: center;          /* don't let the toolbar row stretch it taller */
-  vertical-align: middle;
   height: 32px;
   box-sizing: border-box;
-  margin: 0 10px 0 0;
   padding: 0;
   background: var(--surface, #fff);
   border: 1px solid var(--border, rgba(15, 23, 42, .12));
