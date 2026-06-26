@@ -414,6 +414,68 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   display: none;
 }
 
+/* Segmented view-switcher pill · the five Schedule views as a single
+   rounded toggle (operator request 2026-06-26). White track, light-blue
+   active segment with brand-blue icon — same family as the Google-style
+   toggle. Sits in the command bar next to the week navigator. */
+#view-schedule.rrx-schedule .rr-viewseg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  margin: 0 8px 0 0;
+  padding: 3px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, rgba(15, 23, 42, .12));
+  border-radius: 10px;
+}
+#view-schedule.rrx-schedule .rr-viewseg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  color: var(--text-subtle, #6B7280);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--rr-motion-fast, .12s), color var(--rr-motion-fast, .12s);
+}
+#view-schedule.rrx-schedule .rr-viewseg-btn svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  stroke-width: 1.7;
+}
+#view-schedule.rrx-schedule .rr-viewseg-btn:hover {
+  color: var(--text, #1F2937);
+  background: rgba(15, 23, 42, .05);
+}
+#view-schedule.rrx-schedule .rr-viewseg-btn.active {
+  color: var(--accent-text, #1E40AF);
+  background: var(--accent-soft-strong, rgba(37, 99, 235, .12));
+  font-weight: 600;
+}
+#view-schedule.rrx-schedule .rr-viewseg-btn.active svg {
+  color: var(--accent, #2563EB);
+}
+#view-schedule.rrx-schedule .rr-viewseg-btn:focus-visible {
+  outline: 2px solid var(--accent, #2563EB);
+  outline-offset: 1px;
+}
+/* Tighten to icon-only on very narrow command bars so the pill never
+   wraps the toolbar. */
+@media (max-width: 1180px) {
+  #view-schedule.rrx-schedule .rr-viewseg-btn span { display: none; }
+  #view-schedule.rrx-schedule .rr-viewseg-btn { padding: 0 8px; }
+}
+
 /* Indicator dots (today / requests) */
 #view-schedule.rrx-schedule .sched-today-indicator,
 #view-schedule.rrx-schedule .sched-requests-indicator {
