@@ -38627,10 +38627,34 @@ function _rrCloseDriverRecord() {
 }
 window._rrCloseDriverRecord = _rrCloseDriverRecord;
 
+// ── Segmented view-switcher pill (frag #rr-sched-viewseg) ───────────────────
+// Highlight the segment matching the active sub-view. Called on every
+// schedSub() so the pill stays truthful no matter how the view changed
+// (pill click, left-rail child, week-nav). A sub that isn't one of the five
+// pill views clears all segments — correct, since the pill can't represent it.
+function _rrSyncSchedViewSeg(sub) {
+  const seg = document.getElementById("rr-sched-viewseg");
+  if (!seg) return;
+  seg.querySelectorAll("[data-rr-viewseg]").forEach(b => {
+    const on = b.getAttribute("data-rr-viewseg") === sub;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+}
+// Pill segment click → optimistic highlight, then route through the SAME
+// dispatcher the left-rail children use (passing the matching rail button so
+// its highlight stays in sync too).
+window.rrSchedViewSeg = function (key) {
+  _rrSyncSchedViewSeg(key);
+  const rail = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item[data-key="' + key + '"]');
+  if (typeof window.rrSchedNav === "function") window.rrSchedNav(key, rail);
+};
+
 const _legacySchedSub = window.schedSub;
 window.schedSub = function (sub) {
   _rrCloseDriverRecord();
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
+  _rrSyncSchedViewSeg(sub);
   // The Smart Fill command tile doubles as "Forecast" on the Monthly view.
   if (typeof _rrSetSmartFillTileMode === "function") _rrSetSmartFillTileMode(sub === "monthly");
   // The page header reads "Forecast" (and hides the Live/Draft pill) on Monthly.

@@ -1473,6 +1473,35 @@
           </button>
             <button type="button" class="sched-v2-rules-foot" tabindex="-1">Rules <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg></button>
           </div>
+          <!-- Segmented view switcher · pill toggle for the five Schedule
+               views (operator request 2026-06-26). Sits next to the week
+               navigator. Each segment routes through rrSchedViewSeg() →
+               rrSchedNav() — the SAME dispatcher the left-rail children
+               use — so behavior + rail highlighting stay identical. The
+               active segment is kept truthful from schedSub() in live.js;
+               'week' is pre-marked active to match the rail's default. -->
+          <div class="rr-viewseg" id="rr-sched-viewseg" role="tablist" aria-label="Schedule view">
+            <button type="button" class="rr-viewseg-btn active" role="tab" aria-selected="true" data-rr-viewseg="week" onclick="rrSchedViewSeg('week')" title="Schedule grid">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+              <span>Schedule</span>
+            </button>
+            <button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-rr-viewseg="today" onclick="rrSchedViewSeg('today')" title="Today">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><rect x="7" y="13" width="4" height="4" rx="1" fill="currentColor" stroke="none"/></svg>
+              <span>Today</span>
+            </button>
+            <button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-rr-viewseg="roster" onclick="rrSchedViewSeg('roster')" title="Roster">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>Roster</span>
+            </button>
+            <button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-rr-viewseg="requests" onclick="rrSchedViewSeg('requests')" title="Requests">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+              <span>Requests</span>
+            </button>
+            <button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-rr-viewseg="targets" onclick="rrSchedViewSeg('targets')" title="Targets">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
+              <span>Targets</span>
+            </button>
+          </div>
           <!-- Week navigator · relocated from the top ribbon to the
                far right of the V2 strip. All IDs preserved so the
                JS handlers (`rr-sched-week-prev / -today / -next /
