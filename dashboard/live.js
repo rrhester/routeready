@@ -38672,20 +38672,55 @@ function _rrBuildViewSeg() {
     b.addEventListener("click", () => window.rrSchedViewSeg(b.getAttribute("data-rr-viewseg"))));
   return el;
 }
-// Anchor the strip to the Schedule nav rail (.nav-sub[data-for="schedule"]) —
-// the ONE container present and visible on every sub-view. The per-view
-// toolbars share no slot, and the schedule page uses overlay layout (anchoring
-// in the page body left a stray line), so the rail is the only place that
-// renders cleanly on all five views. The strip goes at the top of the rail,
-// above the existing text view-items; clicks route through the same rrSchedNav
-// dispatcher those items use, so behavior + highlighting stay in sync.
-// Idempotent: only inserts/moves when missing or displaced.
+// Each Schedule sub-view (Schedule / Today / Roster / Requests / Targets) swaps
+// in its OWN toolbar with no shared element, so we can't hard-code one anchor.
+// Instead, detect the current view's toolbar at runtime: find the left-most
+// visible control in the top toolbar band, climb to the toolbar ROW (the short
+// container whose parent is the tall page body), and drop the strip in front of
+// that row's first visible child — i.e. top-left, next to that screen's buttons.
+
+// Left-most visible interactive control sitting in the toolbar band.
+function _rrLeftmostToolbarControl(host) {
+  let best = null, bestKey = Infinity;
+  host.querySelectorAll("button, input, a[href], [role='button']").forEach(el => {
+    if (el.id === "rr-sched-viewseg" || el.closest("#rr-sched-viewseg")) return;
+    if (el.offsetParent === null) return;
+    const r = el.getBoundingClientRect();
+    if (r.width < 6 || r.height < 6) return;
+    if (r.top < 28 || r.top > 168) return;          // below the window titlebar, above the content
+    const key = r.left + r.top * 0.05;              // left-most, slight top preference
+    if (key < bestKey) { bestKey = key; best = el; }
+  });
+  return best;
+}
+// The element to insert the strip in front of: the first visible child of the
+// current view's toolbar row.
+function _rrToolbarAnchor(host) {
+  const ctrl = _rrLeftmostToolbarControl(host);
+  if (!ctrl) return null;
+  // Climb while the parent is still a short, toolbar-height container; stop when
+  // the parent becomes the tall page/body — `row` is then the toolbar row.
+  let row = ctrl;
+  while (row.parentElement && row.parentElement !== host) {
+    const pr = row.parentElement.getBoundingClientRect();
+    if (pr.height > 170) break;                     // parent is the tall body, not a toolbar
+    row = row.parentElement;
+  }
+  return [...row.children].find(c => {
+    if (c.id === "rr-sched-viewseg") return false;
+    const r = c.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }) || null;
+}
+// Place the strip in front of the current view's toolbar. Falls back to the week
+// nav on the Schedule view if the detector finds nothing. Idempotent.
 function _rrEnsureSchedViewSeg() {
-  const rail = document.querySelector('.nav-sub[data-for="schedule"]');
+  const host = document.getElementById("view-schedule");
   let seg = document.getElementById("rr-sched-viewseg");
-  if (rail) {
+  const anchor = (host && _rrToolbarAnchor(host)) || document.getElementById("rr-sched-week-nav");
+  if (anchor && anchor.parentElement && anchor.id !== "rr-sched-viewseg") {
     if (!seg) seg = _rrBuildViewSeg();
-    if (rail.firstElementChild !== seg) rail.insertBefore(seg, rail.firstElementChild);
+    if (anchor.previousElementSibling !== seg) anchor.parentElement.insertBefore(seg, anchor);
   }
   const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
   if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));

@@ -423,12 +423,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    between icons; active segment filled with the operator's light blue. Each
    segment carries a title + aria-label so the icon stays self-explaining. */
 #rr-sched-viewseg {
-  display: flex;
+  display: inline-flex;
   align-items: stretch;
   gap: 0;
-  width: 100%;
-  box-sizing: border-box;
-  margin: 2px 0 8px;
+  flex: 0 0 auto;
+  vertical-align: middle;
+  margin: 0 10px 0 0;
   padding: 0;
   background: var(--surface, #fff);
   border: 1px solid var(--border, rgba(15, 23, 42, .12));
@@ -438,8 +438,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 1 1 0;
-  min-width: 0;
+  width: 36px;
   height: 32px;
   padding: 0;
   border: 0;
