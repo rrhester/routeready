@@ -427,19 +427,23 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   align-items: stretch;
   gap: 0;
   flex: 0 0 auto;
+  align-self: center;          /* don't let the toolbar row stretch it taller */
   vertical-align: middle;
+  height: 32px;
+  box-sizing: border-box;
   margin: 0 10px 0 0;
   padding: 0;
   background: var(--surface, #fff);
   border: 1px solid var(--border, rgba(15, 23, 42, .12));
   border-radius: 9px;
+  overflow: hidden;            /* active fill clips cleanly to the rounded ends */
 }
 #rr-sched-viewseg .rr-viewseg-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  align-self: stretch;         /* fill the strip's full height (full-height dividers + fill) */
   width: 36px;
-  height: 32px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -447,18 +451,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   cursor: pointer;
   transition: background var(--rr-motion-fast, .12s), color var(--rr-motion-fast, .12s);
 }
-/* Hairline divider between each icon. */
+/* Hairline divider between each icon — full height now that the buttons stretch. */
 #rr-sched-viewseg .rr-viewseg-btn:not(:last-child) {
   border-right: 1px solid var(--border, rgba(15, 23, 42, .12));
-}
-/* Round the end segments so the active fill follows the track's corners. */
-#rr-sched-viewseg .rr-viewseg-btn:first-child {
-  border-top-left-radius: 8px;
-  border-bottom-left-radius: 8px;
-}
-#rr-sched-viewseg .rr-viewseg-btn:last-child {
-  border-top-right-radius: 8px;
-  border-bottom-right-radius: 8px;
 }
 #rr-sched-viewseg .rr-viewseg-btn svg {
   width: 17px;
