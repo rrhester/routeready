@@ -38717,6 +38717,12 @@ window.schedSub = function (sub) {
   _rrCloseDriverRecord();
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
   _rrEnsureSchedViewSeg();
+  // Re-arm the placement poll on every sub-view switch (not just top-level
+  // page entry). Some sub-views — Targets especially — relocate command-bar
+  // chrome on a setTimeout AFTER schedSub returns, which can displace the
+  // strip; re-pinning for a few seconds keeps it in the SAME spot on every
+  // supported view (Schedule / Today / Roster / Requests / Targets).
+  _rrViewSegPoll();
   _rrSyncSchedViewSeg(sub);
   // The Smart Fill command tile doubles as "Forecast" on the Monthly view.
   if (typeof _rrSetSmartFillTileMode === "function") _rrSetSmartFillTileMode(sub === "monthly");
