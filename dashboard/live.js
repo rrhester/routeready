@@ -38679,15 +38679,22 @@ function _rrBuildViewSeg() {
 // container whose parent is the tall page body), and drop the strip in front of
 // that row's first visible child — i.e. top-left, next to that screen's buttons.
 
+// The toolbar band: only the first ~72px below the view's top. Measured
+// RELATIVE to #view-schedule so it tracks the real toolbar row and, crucially,
+// EXCLUDES the grid's column header (the "DRIVER" header sits lower but further
+// left — including it made the strip ping-pong between the toolbar and that
+// header every poll as the grid re-rendered).
+function _rrSegBand(host) { const t = host.getBoundingClientRect().top; return [t - 6, t + 72]; }
 // Left-most visible interactive control sitting in the toolbar band.
 function _rrLeftmostToolbarControl(host) {
+  const [bandTop, bandBot] = _rrSegBand(host);
   let best = null, bestKey = Infinity;
   host.querySelectorAll("button, input, a[href], [role='button']").forEach(el => {
     if (el.id === "rr-sched-viewseg" || el.closest("#rr-sched-viewseg")) return;
     if (el.offsetParent === null) return;
     const r = el.getBoundingClientRect();
     if (r.width < 6 || r.height < 6) return;
-    if (r.top < 28 || r.top > 168) return;          // below the window titlebar, above the content
+    if (r.top < bandTop || r.top > bandBot) return; // toolbar row only — not the grid/driver header below
     const key = r.left + r.top * 0.05;              // left-most, slight top preference
     if (key < bestKey) { bestKey = key; best = el; }
   });
@@ -38712,18 +38719,33 @@ function _rrToolbarAnchor(host) {
     return r.width > 0 && r.height > 0;
   }) || null;
 }
-// Place the strip in front of the current view's toolbar. Falls back to the week
-// nav on the Schedule view if the detector finds nothing. Idempotent.
+// Is the strip already sitting correctly in this view's toolbar band? If so we
+// leave it alone — re-detecting/moving on every poll is what caused the flicker.
+function _rrSegPlacedOk(seg, host) {
+  if (!seg || seg.offsetParent === null) return false;
+  const r = seg.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1) return false;
+  const [bandTop, bandBot] = _rrSegBand(host);
+  return r.top >= bandTop && r.top <= bandBot;
+}
+// Place the strip in front of the current view's toolbar. No-ops when it's
+// already correctly placed (anti-flicker); re-detects only when it's missing or
+// has fallen out of the toolbar band (e.g. after a sub-view switch). Falls back
+// to the week nav on the Schedule view if the detector finds nothing.
 function _rrEnsureSchedViewSeg() {
   const host = document.getElementById("view-schedule");
   let seg = document.getElementById("rr-sched-viewseg");
+  const syncActive = () => {
+    const a = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
+    if (a) _rrSyncSchedViewSeg(a.getAttribute("data-key"));
+  };
+  if (host && seg && _rrSegPlacedOk(seg, host)) { syncActive(); return; }
   const anchor = (host && _rrToolbarAnchor(host)) || document.getElementById("rr-sched-week-nav");
   if (anchor && anchor.parentElement && anchor.id !== "rr-sched-viewseg") {
     if (!seg) seg = _rrBuildViewSeg();
     if (anchor.previousElementSibling !== seg) anchor.parentElement.insertBefore(seg, anchor);
   }
-  const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
-  if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));
+  syncActive();
 }
 window._rrEnsureSchedViewSeg = _rrEnsureSchedViewSeg;
 // First-paint + re-entry placement: the command bar mounts async and gets
