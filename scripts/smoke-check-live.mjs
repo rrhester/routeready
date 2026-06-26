@@ -17,7 +17,22 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { Parser } from "acorn";
+
+// acorn is a devDependency. On a fresh clone it isn't present until
+// `npm install`, and a bare `import { Parser } from "acorn"` throws a
+// raw ERR_MODULE_NOT_FOUND stack trace that buries the real fix. Load
+// it dynamically so we can fail with a clear, actionable message.
+let Parser;
+try {
+  ({ Parser } = await import("acorn"));
+} catch (e) {
+  if (e && e.code === "ERR_MODULE_NOT_FOUND") {
+    console.error("✗ smoke-check: dependency 'acorn' is not installed.");
+    console.error("  Run `npm install` first, then re-run `npm run smoke`.");
+    process.exit(1);
+  }
+  throw e;
+}
 
 const targets = [
   path.join(import.meta.dirname, "..", "dashboard", "live.js"),
