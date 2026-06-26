@@ -38719,33 +38719,34 @@ function _rrToolbarAnchor(host) {
     return r.width > 0 && r.height > 0;
   }) || null;
 }
-// Is the strip already sitting correctly in this view's toolbar band? If so we
-// leave it alone — re-detecting/moving on every poll is what caused the flicker.
-function _rrSegPlacedOk(seg, host) {
-  if (!seg || seg.offsetParent === null) return false;
-  const r = seg.getBoundingClientRect();
-  if (r.width < 1 || r.height < 1) return false;
-  const [bandTop, bandBot] = _rrSegBand(host);
-  return r.top >= bandTop && r.top <= bandBot;
-}
-// Place the strip in front of the current view's toolbar. No-ops when it's
-// already correctly placed (anti-flicker); re-detects only when it's missing or
-// has fallen out of the toolbar band (e.g. after a sub-view switch). Falls back
-// to the week nav on the Schedule view if the detector finds nothing.
+// The strip is an ABSOLUTE overlay on #view-schedule, inserted ONCE and never
+// moved — THAT is what gives it the exact same position on every sub-view and
+// removes the switch glitch (no per-view re-insertion/repositioning). Each
+// view's toolbar instead gets a left margin on its first control so its buttons
+// sit to the RIGHT of the strip rather than under it; the reservation follows
+// the view, the strip stays put. _rrSegReserved tracks the element holding it.
+let _rrSegReserved = null;
 function _rrEnsureSchedViewSeg() {
   const host = document.getElementById("view-schedule");
+  if (!host) return;
   let seg = document.getElementById("rr-sched-viewseg");
-  const syncActive = () => {
-    const a = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
-    if (a) _rrSyncSchedViewSeg(a.getAttribute("data-key"));
-  };
-  if (host && seg && _rrSegPlacedOk(seg, host)) { syncActive(); return; }
-  const anchor = (host && _rrToolbarAnchor(host)) || document.getElementById("rr-sched-week-nav");
-  if (anchor && anchor.parentElement && anchor.id !== "rr-sched-viewseg") {
-    if (!seg) seg = _rrBuildViewSeg();
-    if (anchor.previousElementSibling !== seg) anchor.parentElement.insertBefore(seg, anchor);
+  if (!seg) { seg = _rrBuildViewSeg(); host.appendChild(seg); }
+  else if (seg.parentElement !== host) host.appendChild(seg);   // recover if displaced; never reposition
+  // Reserve room at the front of the CURRENT view's toolbar so its buttons clear
+  // the (fixed-position) strip. Move the reservation as the view changes.
+  const anchor = _rrToolbarAnchor(host);
+  if (_rrSegReserved && _rrSegReserved !== anchor) {
+    _rrSegReserved.style.marginLeft = _rrSegReserved.dataset.rrOldMl || "";
+    _rrSegReserved = null;
   }
-  syncActive();
+  if (anchor && anchor !== _rrSegReserved && anchor.id !== "rr-sched-viewseg" && !anchor.closest("#rr-sched-viewseg")) {
+    if (anchor.dataset.rrOldMl == null) anchor.dataset.rrOldMl = anchor.style.marginLeft || "";
+    const w = Math.round(seg.getBoundingClientRect().width) || 196;
+    anchor.style.marginLeft = (w + 22) + "px";
+    _rrSegReserved = anchor;
+  }
+  const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
+  if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));
 }
 window._rrEnsureSchedViewSeg = _rrEnsureSchedViewSeg;
 // First-paint + re-entry placement: the command bar mounts async and gets
