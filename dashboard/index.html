@@ -4,7 +4,13 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="description" content="RouteReady — fleet-operations dashboard for Amazon DSPs: scheduling, hiring, compliance, and driver communications in one command center." />
-<meta name="theme-color" content="#2563EB" />
+<!-- NB: the single source of truth for theme-color (the OS title-bar
+     paint of the installed app) lives further down as #F9FAFB, matched
+     to the neutral page ground. Do NOT add an earlier theme-color here:
+     browsers honour the FIRST applicable <meta theme-color> (no media
+     query = always applies), not the last, so an earlier tag silently
+     wins. A stray #2563EB here used to paint the title bar saturated
+     blue — removed 2026-06-26. -->
 <!-- ONE-TIME service-worker reset · runs before everything else on the
      page so it bypasses every cache layer. Without this, operators
      whose old SW (with stale-while-revalidate semantics) was already
