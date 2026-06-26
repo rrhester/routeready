@@ -17997,6 +17997,7 @@ function _ivcalMyCalendars() {
     <div class="oc-cals-grp">${builtin}</div>
     ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
     ${_ivcalGoogleRow()}
+    ${_ivcalLegend()}
   </div>`;
 }
 
@@ -18249,6 +18250,30 @@ function _ivcalEvKind(ev) { return ev.kind === "orientation" ? "orientation" : (
 // 🎥 emoji). Flat brand blue — the old #rr-cam-grad gradient paint server was
 // retired in the app-wide gradient sweep.
 const _IVCAL_CAM_SVG = '<svg class="ei-cam" viewBox="0 0 24 24" fill="#2563EB" aria-hidden="true"><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>';
+
+// At-a-glance key for the calendar surface. Event chips are colored by booking
+// status (see _ivcalCat) and carry status icons — neither of which the
+// "My Calendars" kind-dots explain — so spell both out under the calendar list.
+function _ivcalLegend() {
+  const C = _IVCAL_CAT_COLOR;
+  const swatch = (color, label) =>
+    `<div class="oc-cal-row"><span class="oc-cal-dot" style="background:${color}"></span><span class="oc-cal-name">${label}</span></div>`;
+  const icon = (glyph, label) =>
+    `<div class="oc-cal-row"><span class="oc-leg-ico">${glyph}</span><span class="oc-cal-name">${label}</span></div>`;
+  return `<div class="oc-cals-grp oc-leg">
+    <div class="oc-cals-sub">Status</div>
+    ${swatch(C.blue, "Scheduled")}
+    ${swatch(C.green, "Accepted")}
+    ${swatch(C.orange, "Pending reply")}
+    ${swatch(C.gray, "Declined")}
+    ${swatch(C.red, "No-show")}
+    ${swatch(C.teal, "Group session")}
+    <div class="oc-cals-sub">Icons</div>
+    ${icon(_IVCAL_CAM_SVG, "Has video link")}
+    ${icon("✓", "RSVP accepted")}
+    ${icon("✉", "Awaiting reply")}
+  </div>`;
+}
 
 async function loadIvCalendar() {
   const host = document.getElementById("rr-ivcal-body");
