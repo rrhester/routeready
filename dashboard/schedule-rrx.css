@@ -416,34 +416,46 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 /* Segmented view-switcher pill · the five Schedule views as a single
    rounded, icon-only toggle (operator request 2026-06-26). White track,
-   light-blue active segment with brand-blue icon — same family as the
-   Google-style toggle. Pinned to the same command-bar slot on every
-   Schedule sub-view (see _rrEnsureSchedViewSeg). Each segment carries a
-   title + aria-label so the icon stays self-explaining and accessible. */
+   hairline divider between each icon, and the active segment filled solid
+   with the operator's light blue. Pinned to the same command-bar slot on
+   every Schedule sub-view (see _rrEnsureSchedViewSeg). Each segment carries
+   a title + aria-label so the icon stays self-explaining and accessible. */
 #view-schedule.rrx-schedule .rr-viewseg {
   display: inline-flex;
-  align-items: center;
-  gap: 2px;
+  align-items: stretch;
+  gap: 0;
   flex: 0 0 auto;
   margin: 0 8px 0 0;
-  padding: 3px;
+  padding: 0;
   background: var(--surface, #fff);
   border: 1px solid var(--border, rgba(15, 23, 42, .12));
-  border-radius: 10px;
+  border-radius: 9px;
 }
 #view-schedule.rrx-schedule .rr-viewseg-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
+  width: 36px;
   height: 30px;
   padding: 0;
   border: 0;
   background: transparent;
-  border-radius: 7px;
   color: var(--text-subtle, #6B7280);
   cursor: pointer;
   transition: background var(--rr-motion-fast, .12s), color var(--rr-motion-fast, .12s);
+}
+/* Hairline divider between each icon. */
+#view-schedule.rrx-schedule .rr-viewseg-btn:not(:last-child) {
+  border-right: 1px solid var(--border, rgba(15, 23, 42, .12));
+}
+/* Round the end segments so the active fill follows the track's corners. */
+#view-schedule.rrx-schedule .rr-viewseg-btn:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+#view-schedule.rrx-schedule .rr-viewseg-btn:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 #view-schedule.rrx-schedule .rr-viewseg-btn svg {
   width: 17px;
@@ -455,16 +467,17 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   color: var(--text, #1F2937);
   background: rgba(15, 23, 42, .05);
 }
+/* Active segment · whole segment filled with the operator-specified blue. */
 #view-schedule.rrx-schedule .rr-viewseg-btn.active {
+  background: rgb(194, 231, 255);
   color: var(--accent-text, #1E40AF);
-  background: var(--accent-soft-strong, rgba(37, 99, 235, .12));
 }
 #view-schedule.rrx-schedule .rr-viewseg-btn.active svg {
   color: var(--accent, #2563EB);
 }
 #view-schedule.rrx-schedule .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent, #2563EB);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 /* Indicator dots (today / requests) */
