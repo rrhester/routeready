@@ -11951,6 +11951,11 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-cals-empty{font-size:12px;color:var(--oc-sub);line-height:1.4;padding:2px 4px}
             /* Google Calendar row in My Calendars */
             #rr-ivcal .oc-cals-sub{margin-top:6px;padding-top:8px;border-top:1px solid var(--oc-colsep);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--oc-sub);margin-bottom:6px}
+            /* Status legend — reuses the calendar-row layout but is read-only. */
+            #rr-ivcal .oc-leg .oc-cal-row{cursor:default}
+            #rr-ivcal .oc-leg .oc-cal-row:hover{background:none}
+            #rr-ivcal .oc-leg-ico{width:13px;height:13px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;font-size:12px;line-height:1;color:var(--oc-sub)}
+            #rr-ivcal .oc-leg-ico svg{width:13px;height:13px}
             #rr-ivcal .oc-gcal-ico{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
             #rr-ivcal .oc-gcal-row .oc-cal-lbl{gap:7px}
             #rr-ivcal .oc-gcal-connect{display:inline-flex;align-items:center;gap:7px;width:100%;text-align:left;appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--oc-ink);cursor:pointer;font:inherit;font-size:13px;padding:6px 9px;border-radius:6px;transition:background var(--t-fast),border-color var(--t-fast)}
