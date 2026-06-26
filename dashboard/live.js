@@ -38672,21 +38672,20 @@ function _rrBuildViewSeg() {
     b.addEventListener("click", () => window.rrSchedViewSeg(b.getAttribute("data-rr-viewseg"))));
   return el;
 }
-// Anchor to the schedule VIEW container (#view-schedule), not the toolbar. Each
-// sub-view swaps in its own toolbar (Roster shows the Drivers component's
-// search/filter bar, etc.), so there's no shared toolbar slot — every toolbar
-// anchor we tried got hidden on the views whose toolbar didn't contain it.
-// #view-schedule is a display:block view that's identical on all five sub-views
-// (the per-view toolbars live INSIDE it), so prepending the strip there puts it
-// at the top of the schedule content — same spot on every view, above whatever
-// toolbar the current view shows. The strip is a direct child of #view-schedule,
-// so sub-view body swaps (which happen inside .page) never remove it. Idempotent.
+// Anchor immediately before the week nav (#rr-sched-week-nav) — the one spot
+// empirically confirmed to render cleanly. (Prepending to #view-schedule put it
+// behind the page layout, leaving only a sliver of its border as a stray line
+// at the top; every toolbar/container anchor either hides it or leaves an
+// artifact, because the per-view toolbars differ and the page uses overlay
+// layout.) The week nav is week-only, so this shows the strip on the Schedule
+// view without breaking anything; the all-views placement is being handled
+// separately. Idempotent.
 function _rrEnsureSchedViewSeg() {
-  const host = document.getElementById("view-schedule");
+  const nav = document.getElementById("rr-sched-week-nav");
   let seg = document.getElementById("rr-sched-viewseg");
-  if (host) {
+  if (nav && nav.parentElement) {
     if (!seg) seg = _rrBuildViewSeg();
-    if (host.firstElementChild !== seg) host.insertBefore(seg, host.firstElementChild);
+    if (nav.previousElementSibling !== seg) nav.parentElement.insertBefore(seg, nav);
   }
   const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
   if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));
