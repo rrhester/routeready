@@ -17944,6 +17944,27 @@ function _ivcalToggleSide() {
   try { localStorage.setItem("rr_ivcal_side", _ivcalSideOpen ? "1" : "0"); } catch (_) {}
   _ivcalRender();
 }
+// Onboarding nudge: with no interview-availability windows configured, candidates
+// can't self-book and the grid shows no shaded slots — an empty calendar with no
+// way in. Prompt the operator to set them. Dismissible (remembered per browser),
+// and it clears itself the moment any window exists.
+let _ivcalAvailNudgeOff = (() => { try { return localStorage.getItem("rr_ivcal_availnudge") === "0"; } catch (_) { return false; } })();
+function _ivcalDismissAvailNudge() {
+  _ivcalAvailNudgeOff = true;
+  try { localStorage.setItem("rr_ivcal_availnudge", "0"); } catch (_) {}
+  _ivcalRender();
+}
+window._rrDismissAvailNudge = _ivcalDismissAvailNudge;
+function _ivcalAvailNudge() {
+  const hasAvail = !!(_ivcalCache && _ivcalCache.windows && _ivcalCache.windows.length);
+  if (hasAvail || _ivcalAvailNudgeOff) return "";
+  return `<div class="oc-nudge" role="note">
+    <svg class="oc-nudge-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+    <div class="oc-nudge-txt"><strong>No interview availability set yet</strong><span>Add weekly windows so candidates can self-book — your open times then show as shaded slots here.</span></div>
+    <button type="button" class="oc-nudge-cta" onclick="window._rrToggleIvRules(true)">Set availability</button>
+    <button type="button" class="oc-nudge-x" onclick="window._rrDismissAvailNudge()" title="Dismiss" aria-label="Dismiss">×</button>
+  </div>`;
+}
 const _IVCAL_DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 // Outlook-style UI state.
 let _ivcalSelected = null;            // { kind, id } of the selected event (reading pane)
@@ -18468,6 +18489,7 @@ function _ivcalRender() {
           ${_ivcalView === "month" ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
           <span class="oc-sp"></span>
         </div>
+        ${_ivcalAvailNudge()}
         ${inner}
       </div>
       ${pane}
@@ -20553,6 +20575,10 @@ async function _ivSave(body) {
     if (error) throw error;
     if (st){ st.textContent="Saved ✓"; st.className="rr-iv-save-status ok"; }
     toast("Interview availability saved","success");
+    // Refresh the grid so the new windows shade in immediately (and the
+    // empty-state nudge clears). The editor popover lives outside #rr-ivcal-body,
+    // so re-rendering the calendar leaves it open.
+    if (typeof loadIvCalendar === "function") loadIvCalendar();
   } catch(e){ if (st){ st.textContent="Save failed"; st.className="rr-iv-save-status err"; } toast("Save failed: "+(e.message||e),"warn"); }
 }
 
