@@ -38666,25 +38666,25 @@ function _rrBuildViewSeg() {
   el.setAttribute("role", "tablist");
   el.setAttribute("aria-label", "Schedule view");
   el.innerHTML = _RR_VIEWSEG_VIEWS.map(v =>
-    `<button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" data-rr-viewseg="${v[0]}" title="${v[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${v[2]}</svg><span>${v[1]}</span></button>`
+    `<button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" aria-label="${v[1]}" data-rr-viewseg="${v[0]}" title="${v[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${v[2]}</svg></button>`
   ).join("");
   el.querySelectorAll("[data-rr-viewseg]").forEach(b =>
     b.addEventListener("click", () => window.rrSchedViewSeg(b.getAttribute("data-rr-viewseg"))));
   return el;
 }
-// Insert (or re-glue) the pill just before the live week navigator, wherever
-// the runtime reassembly has moved it. Idempotent: only inserts/moves when
-// missing or displaced, then syncs the highlight to the active rail child.
+// Pin the pill to the FIRST slot of the persistent command-bar actions row so
+// it sits in the exact same spot on every Schedule sub-view. (It used to anchor
+// to the week navigator, but that gets relocated/hidden on Roster + Targets, so
+// the pill drifted between views.) The actions row survives sub-view switches —
+// only the body below it swaps — so re-pinning to its first child on every
+// schedSub() keeps the pill put. Idempotent; re-pins only when missing/moved.
 function _rrEnsureSchedViewSeg() {
-  const nav = document.getElementById("rr-sched-week-nav");
+  const bar = document.querySelector("#view-schedule .sched-nav-heading-actions")
+           || document.getElementById("rr-sched-cmd");
   let seg = document.getElementById("rr-sched-viewseg");
-  if (nav) {
+  if (bar) {
     if (!seg) seg = _rrBuildViewSeg();
-    if (nav.previousElementSibling !== seg && nav.parentElement) nav.parentElement.insertBefore(seg, nav);
-  } else if (!seg) {
-    // Fallback: drop it into the command bar so it's still visible.
-    const bar = document.querySelector("#view-schedule .sched-nav-heading-actions") || document.getElementById("rr-sched-cmd");
-    if (bar) bar.insertBefore(_rrBuildViewSeg(), bar.firstChild);
+    if (bar.firstElementChild !== seg) bar.insertBefore(seg, bar.firstElementChild);
   }
   const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
   if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));
