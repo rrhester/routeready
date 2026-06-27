@@ -186,13 +186,13 @@
        ═══════════════════════════════════════════════════════════ -->
   <script>
     // Apply the sidebar collapsed state INLINE before render so
-    // there's no flash between widths. Default is EXPANDED (the wide
-    // rail with section labels + sub-pages); only an explicit "1" in
-    // localStorage (the user collapsed it) boots the compact icon rail.
+    // there's no flash between widths. Default is the compact ICON RAIL
+    // (icons only); only an explicit "0" in localStorage (the user
+    // expanded it) boots the wide rail with section labels.
     (function () {
       try {
         var saved = localStorage.getItem("rr-sidebar-collapsed");
-        if (saved === "1") {
+        if (saved !== "0") {
           document.documentElement.classList.add("rr-sidebar-collapsed-boot");
         }
         // Sidebar is the quiet premium rail: page-ground surface,
