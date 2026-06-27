@@ -26235,7 +26235,7 @@ body.rr-cmdk-open{ overflow:hidden }
   display:flex; flex-direction:column; gap:2px;
   width:264px; padding:12px; background:#FFFFFF;
   border:1px solid rgba(15,23,42,.08); border-radius:16px;
-  box-shadow:0 18px 48px rgba(15,23,42,.18), 0 2px 8px rgba(15,23,42,.08);
+  box-shadow:0 20px 50px -12px rgba(15,23,42,.28), 0 6px 16px -8px rgba(15,23,42,.14);
 }
 .rr-al-panel[hidden]{ display:none; }
 /* App-switcher section at the top of the drawer (mirrors sidebar nav). */
@@ -26259,11 +26259,23 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-al-ico{
   width:38px; height:38px; flex:0 0 auto;
   display:inline-flex; align-items:center; justify-content:center;
-  border-radius:10px; background:#F8FAFC; border:1px solid #EAEEF3; color:#334155;
+  border-radius:11px; background:#F8FAFC; border:1px solid transparent; color:#334155;
   transition:background-color .12s ease, border-color .12s ease, color .12s ease;
 }
 .rr-al-ico svg{ width:20px; height:20px; }
-.rr-al-item:hover .rr-al-ico{ background:#FFFFFF; border-color:#D7DEE8; color:#2563EB; }
+/* Multi-tone app icons · match the Google Workspace launcher feel (operator
+   request): each app's glyph + tile carries its own brand hue, floating on
+   the panel's soft shadow. Defined after the base rule so the color holds on
+   hover too — the row's own :hover background is the hover feedback. */
+.rr-al-item[data-al-go="schedule"] .rr-al-ico       { color:#2563EB; background:#EAF1FF; }
+.rr-al-item[data-al-go="onboarding-ops"] .rr-al-ico { color:#15A34A; background:#E9F8EF; }
+.rr-al-item[data-al-go="fleet2"] .rr-al-ico         { color:#0E7490; background:#E6F7FB; }
+.rr-al-item[data-al-go="messages"] .rr-al-ico       { color:#7C3AED; background:#F3EDFE; }
+.rr-al-item[data-al-go="email"] .rr-al-ico          { color:#E11D48; background:#FDEEF1; }
+.rr-al-item[data-al-go="admin"] .rr-al-ico          { color:#4F46E5; background:#ECECFE; }
+.rr-al-item[data-al-act="drive"] .rr-al-ico         { color:#D97706; background:#FBF1E3; }
+.rr-al-item[data-al-act="reports"] .rr-al-ico       { color:#64748B; background:#F1F5F9; }
+.rr-al-item[data-al-act="indeed"] .rr-al-ico        { color:#2557A7; background:#E9F0FA; }
 
 /* ════════════════════════════════════════════════════════════════════════
    Unified pop-out framing · "make every pop-out look like the app launcher"

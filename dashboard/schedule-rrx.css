@@ -5043,6 +5043,10 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule #rr-ab-finalize { min-width: 108px; justify-content: center; }
 /* ⋯ overflow — quiet, borderless until hovered. */
 #view-schedule .rr-ab-more-wrap { position: relative; display: flex; }
+/* ⋯ overflow (the Schedule "Show & Order KPIs" menu) removed from the header
+   per operator. Unscoped so it stays hidden wherever the shared top-right
+   chrome gets relocated (action bar / Targets host). */
+.rr-ab-more-wrap { display: none !important; }
 #view-schedule .rr-ab-more {
   width: 36px;
   padding: 0;
