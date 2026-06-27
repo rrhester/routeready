@@ -435,7 +435,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #rr-sched-viewseg {
   display: flex;
   align-items: stretch;
-  gap: 2px;
+  gap: 6px;
   width: 100%;
   box-sizing: border-box;
   padding: 0 8px;
@@ -3169,28 +3169,30 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
    to cut grid noise — structure now leans on whitespace + alignment,
    Linear / Notion / Google-Calendar style, rather than heavy rules. */
 #view-schedule.rrx-schedule .cal-cell {
-  border-right-color: rgba(15, 23, 42, 0.14) !important;
+  border-right-color: rgba(15, 23, 42, 0.06) !important;
 }
 #view-schedule.rrx-schedule .cal-cell-head:not(.today) {
-  border-right-color: rgba(15, 23, 42, 0.14) !important;
+  border-right-color: rgba(15, 23, 42, 0.06) !important;
 }
 #view-schedule.rrx-schedule .cal-grid {
-  border-bottom-color: rgba(15, 23, 42, 0.14) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.06) !important;
 }
 /* The day-of-week header keeps a touch more presence than the inner
-   rules so the grid still reads as anchored (0.32 → 0.18, ~44%). */
+   rules so the grid still reads as anchored — but quiet (polish pass:
+   0.18 → 0.10; whitespace + alignment carry the structure). */
 #view-schedule.rrx-schedule .cal-grid.head {
-  border-bottom-color: rgba(15, 23, 42, 0.18) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.10) !important;
 }
 
 /* Tighter corners on shift chips · 3px tile-style corners read as
    crisp Excel/Outlook scheduling cells, not soft pills. */
 #view-schedule.rrx-schedule .shift-chip {
-  border-radius: 5px !important;
-  /* Resting transition for the hover-lift. Lower specificity than the
-     .rr-sf-card-in reveal rule, so the staged build keeps its own timing;
-     for normally-rendered cards this is the transition the hover uses. */
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  border-radius: 6px !important;
+  /* Resting transition for the hover-lift (polish pass: 100ms). Lower
+     specificity than the .rr-sf-card-in reveal rule, so the staged build
+     keeps its own timing; for normally-rendered cards this is the
+     transition the hover uses. */
+  transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
 }
 /* Service-type badge (XL / HUB / ASU …) pinned to the chip's top-right
    corner. Absolute so it never adds to the chip's height — XL chips stay
@@ -3979,7 +3981,9 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-milestone {
      stepped down ~20% (23 → 18px), then a further 10% on request
      (→ 16px), day number and target line scaled to match. */
   font-size: 16px !important;
-  font-weight: 800 !important;
+  /* Lighter header weight (polish pass: 800 → 700) — still clearly the
+     anchor number, but it no longer shouts. */
+  font-weight: 700 !important;
   line-height: 1.05 !important;
   letter-spacing: -.02em;
   font-variant-numeric: tabular-nums;
@@ -4927,12 +4931,13 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
      type and padding scaled with it. */
   height: 36px;
   padding: 0 13px;
-  /* Outline + text ride the sidebar navy (operator 2026-06-12) so the
-     bar's secondaries read as quiet chrome, not blue calls-to-action. */
-  border: 1.5px solid var(--sidebar-bg, #0F172A);
+  /* Quiet chrome (polish pass): a 1px hairline + dark-ink label reads as
+     calm, understated toolbar chrome — the heavy 1.5px navy outline was
+     too loud for an enterprise header. */
+  border: 1px solid var(--rr-border-primary, #E5E7EB);
   border-radius: 8px;
   background: #FFFFFF;
-  color: var(--sidebar-bg, #0F172A);
+  color: var(--rr-fg-primary, #111827);
   font: inherit;
   font-size: 12.5px;
   font-weight: 600;
@@ -4968,28 +4973,35 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   flex-direction: column;
   justify-content: center;
   margin-left: auto;
-  padding: 4px 13px;
-  /* Same chrome as the Smart Fill / action buttons (operator
-     2026-06-12): 1.5px navy outline, matching radius. */
-  border: 1.5px solid var(--sidebar-bg, #0F172A);
-  border-radius: 8px;
-  background: #FFFFFF;
+  /* Compact status section, not a bordered widget (polish pass): no box,
+     no fill — the numbers + a quiet check carry it. Reads calmer beside
+     the Live control. */
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   line-height: 1.3;
 }
 #view-schedule .rr-ab-coverage[hidden] { display: none; }
 #view-schedule .rr-ab-coverage-main {
   font-size: 13px;
-  font-weight: 700;
-  color: var(--text, #0F172A);
+  font-weight: 600;
+  color: var(--rr-fg-primary, #111827);
 }
 #view-schedule .rr-ab-coverage-sub {
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--red, #DC2626);
 }
-/* No green on the card (operator 2026-06-12): red signals open routes;
-   a fully-covered week reads plain black. */
-#view-schedule .rr-ab-coverage-sub.is-ok { color: var(--text, #0F172A); }
+/* Fully covered reads as a quiet green check + muted label; red is
+   reserved for the warning state (open routes). */
+#view-schedule .rr-ab-coverage-sub.is-ok { color: var(--rr-fg-secondary, #6B7280); }
+#view-schedule .rr-ab-coverage-sub.is-ok::before {
+  content: "✓";
+  color: #16A34A;
+  font-weight: 700;
+  margin-right: 4px;
+}
 /* Primary — solid brand blue, lock glyph. */
 #view-schedule .rr-ab-primary {
   background: var(--rr-comm-blue, #2563EB);
@@ -4998,16 +5010,34 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 #view-schedule .rr-ab-primary:hover { background: #1D4ED8; border-color: #1D4ED8; }
 #view-schedule .rr-ab-primary:active { background: #0A4A85; }
-/* Finalize pill turns green + reads "Live" once the week is finalized
-   (toggled by _updateFinalizeButton in live.js). */
+/* Live state · a quiet status control, not a call-to-action (polish pass).
+   White pill, hairline border, a small green "live" dot, dark-ink label —
+   minimal emphasis. (The Finalize/draft state keeps the primary styling.) */
 #view-schedule .rr-ab-btn.rr-ab-live,
 #view-schedule .rr-ab-primary.rr-ab-live {
-  background: var(--rr-green, #16A34A);
-  border-color: var(--rr-green, #16A34A);
-  color: #FFFFFF;
+  background: #FFFFFF;
+  border: 1px solid var(--rr-border-primary, #E5E7EB);
+  color: var(--rr-fg-primary, #111827);
+  font-weight: 600;
+  box-shadow: none;
+}
+/* Swap the finalize check/lock glyph for a small green status dot. */
+#view-schedule .rr-ab-btn.rr-ab-live svg,
+#view-schedule .rr-ab-primary.rr-ab-live svg { display: none; }
+#view-schedule .rr-ab-btn.rr-ab-live::before,
+#view-schedule .rr-ab-primary.rr-ab-live::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16A34A;
+  flex: 0 0 auto;
 }
 #view-schedule .rr-ab-btn.rr-ab-live:hover,
-#view-schedule .rr-ab-primary.rr-ab-live:hover { background: #15803D; border-color: #15803D; }
+#view-schedule .rr-ab-primary.rr-ab-live:hover {
+  background: var(--rr-bg-hover, #F3F4F6);
+  border-color: var(--border-strong, #D1D5DB);
+}
 /* Hold a constant width so the pill doesn't shrink when "Finalize" flips to
    the shorter "Live" — both states render at the same size, centered. */
 #view-schedule #rr-ab-finalize { min-width: 108px; justify-content: center; }
