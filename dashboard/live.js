@@ -67866,17 +67866,17 @@ document.addEventListener("click", async (e) => {
       btn.setAttribute("title",      collapsed ? "Expand sidebar" : "Collapse sidebar");
     }
   };
-  // Restore on first paint. Default state is EXPANDED — the wide rail
-  // with section labels + sub-pages is the norm; the compact icon rail
-  // is opt-in via the collapse button. The user's explicit choice
-  // persists in localStorage and wins on subsequent loads.
+  // Restore on first paint. Default state is the compact ICON RAIL —
+  // icons only; the wide rail with section labels is opt-in via the
+  // collapse/expand button. The user's explicit choice persists in
+  // localStorage and wins on subsequent loads.
   const restore = () => {
     let saved = null;
     try { saved = localStorage.getItem(KEY); } catch (_) {}
-    // null / missing → expanded (default).
+    // null / missing → collapsed icon rail (default).
     // "0" → user explicitly expanded.
     // "1" → user explicitly collapsed.
-    apply(saved === "1");
+    apply(saved !== "0");
   };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", restore);

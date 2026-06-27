@@ -679,15 +679,6 @@ textarea,
 .app:has(#view-drive.active){grid-template-columns:1fr}
 .app:has(#view-drive.active) .sidebar{display:none}
 
-/* Sidebar removed app-wide — content runs full-width (operator request 2026-06-27).
-   Same treatment the Vault uses above, applied to every view. !important so it
-   beats the collapsed-rail variants (64px) that key off .sidebar.collapsed and the
-   boot flag. The title-bar rail band collapses to 0 so no orphaned blue strip is
-   left where the rail used to be. */
-.app{grid-template-columns:1fr!important}
-.sidebar{display:none!important}
-body::before{--rr-tb-rail-w:0px!important}
-
 /* Dashboard-wide sharpness layer · matches the schedule sharpness
    treatment but extends it to every view. Bumps any SVG icon that
    doesn't have an explicit stroke-width override to 1.9 (was the
