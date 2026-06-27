@@ -38732,9 +38732,22 @@ function _rrEnsureSchedViewSeg() {
   let seg = document.getElementById("rr-sched-viewseg");
   if (!seg) { seg = _rrBuildViewSeg(); host.appendChild(seg); }
   else if (seg.parentElement !== host) host.appendChild(seg);   // recover if displaced; never reposition
+  const anchor = _rrToolbarAnchor(host);
+  // Align the strip to the toolbar ONCE, measured from the real layout (vertical
+  // center on the toolbar control, left at the toolbar's start), then freeze it.
+  // Done once so it stays the SAME on every view; measured BEFORE the reservation
+  // margin so anchor.left is the toolbar's true start.
+  if (anchor && !seg.dataset.rrAligned) {
+    const a = anchor.getBoundingClientRect(), h = host.getBoundingClientRect();
+    if (a.height > 4 && a.width > 4) {
+      const sh = seg.offsetHeight || 32;
+      seg.style.top = Math.round(a.top - h.top + (a.height - sh) / 2) + "px";
+      seg.style.left = Math.round(a.left - h.left) + "px";
+      seg.dataset.rrAligned = "1";
+    }
+  }
   // Reserve room at the front of the CURRENT view's toolbar so its buttons clear
   // the (fixed-position) strip. Move the reservation as the view changes.
-  const anchor = _rrToolbarAnchor(host);
   if (_rrSegReserved && _rrSegReserved !== anchor) {
     _rrSegReserved.style.marginLeft = _rrSegReserved.dataset.rrOldMl || "";
     _rrSegReserved = null;
