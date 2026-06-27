@@ -24194,26 +24194,18 @@ body.rr-cmdk-open{ overflow:hidden }
     content:"";position:fixed;top:0;left:0;right:0;
     height:env(titlebar-area-height, 33px);z-index:55;
     -webkit-app-region:drag;app-region:drag;
-    /* Two-tone title-bar band: rail blue above the sidebar — so the
-       rail reads as running to the very top of the window — and the
-       page ground above the content. #F9FAFB is the unified neutral
-       canvas (Schedule/Onboarding/Fleet grounds + the topbar — keep in
-       sync; NOT --canvas #FEFEFF, which read as a slightly-off lighter
-       stripe — operator report 2026-06-12). Width tracks the .app grid
-       columns (176px rail / 64px collapsed). */
-    --rr-tb-rail-w:176px;
-    /* Rail segment hardcoded to the rail blue (#EFF6FF): body::before is
-       NOT inside .sidebar, so it can't read the sidebar-scoped --sidebar-bg
-       override and would otherwise fall back to the :root navy. */
-    background:linear-gradient(90deg,
-      #EFF6FF 0 var(--rr-tb-rail-w),
-      #F9FAFB var(--rr-tb-rail-w));
+    /* Uniform rail-blue title-bar band (operator 2026-06-27): the whole
+       band is #EFF6FF so it reads as one continuous color with the icon
+       rail AND the Schedule view-switcher tab bar directly below it. Was a
+       two-tone gradient (rail blue over the sidebar, #F9FAFB page ground
+       over the content); the operator asked for the content side to match
+       the rail too. body::before is NOT inside .sidebar, so the blue is
+       hardcoded — it can't read the sidebar-scoped --sidebar-bg override
+       and would otherwise fall back to the :root navy. The old rail-width
+       split (--rr-tb-rail-w / collapsed 64px) is retired now that both
+       segments are the same color. */
+    background:#EFF6FF;
   }
-  /* Collapsed rail (64px): both signals — the pre-init boot flag on
-     <html> (localStorage echo, see index.html) and the post-init
-     .collapsed class owned by live.js. */
-  body:has(.sidebar.collapsed)::before,
-  html.rr-sidebar-collapsed-boot body::before{--rr-tb-rail-w:64px}
 }
 .topbar{-webkit-app-region:no-drag;app-region:no-drag}
 
