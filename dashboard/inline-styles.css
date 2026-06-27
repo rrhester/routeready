@@ -26947,3 +26947,52 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-drive-intel-v{font-size:var(--fs-md);font-weight:700;color:var(--text);margin-top:3px}
 .rr-drive-intel-qa{display:flex;flex-direction:column;gap:8px}
 .rr-drive-intel-qa .rr-drive-qa{width:100%}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Schedule sub-view toolbars · match the action-bar button SIZE (operator
+   2026-06-27). The Schedule View / Today bar uses .rr-ab-btn — 36px tall,
+   1.5px navy (--sidebar-bg) outline, 8px radius, 13px side padding, 15px icons.
+   Requests (.req-toolbar-*), Roster (.sched-kpi-action) and Targets (.rr-tgt-kpi)
+   already render the SAME outlined split-button shape but at the wrong size
+   (Requests 38px / 1px border, Roster 38px, Targets 32px). Pull all three to the
+   .rr-ab-btn box so every Schedule screen's buttons are the same size. Scoped to
+   #view-schedule, so the standalone Drivers / Onboarding roster strips are
+   untouched. Appended last so it wins the cascade over the per-toolbar rules
+   above. Verified with an offline Chromium render measuring each button at 36px
+   against the real .rr-ab-btn. */
+
+/* ---- Requests ---- */
+#view-schedule.rrx-schedule .req-toolbar-bar select.req-toolbar-filter,
+#view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-act {
+  height: 36px !important;
+  border-width: 1.5px !important;
+  border-color: var(--sidebar-bg, #0F172A) !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+}
+#view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-act { padding: 0 13px !important; }
+#view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-act svg { width: 15px !important; height: 15px !important; }
+#view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-primary { border-color: var(--accent) !important; }
+
+/* ---- Roster ---- */
+#view-schedule.rrx-schedule #rr-sched-kpis .sched-kpi-action {
+  height: 36px !important;
+  padding: 0 13px !important;
+  border: 1.5px solid var(--sidebar-bg, #0F172A) !important;
+  border-radius: 8px !important;
+  background: #FFFFFF !important;
+  gap: 7px !important;
+}
+#view-schedule.rrx-schedule #rr-sched-kpis .sched-kpi-action svg { width: 15px !important; height: 15px !important; }
+#view-schedule.rrx-schedule #rr-sched-kpis .sched-kpi-action .sched-kpi-val { font-size: 14px !important; }
+/* fixed 36px height ⇒ drop the padding-cancel negatives so the divider doesn't overshoot */
+#view-schedule.rrx-schedule #rr-sched-kpis .sched-kpi-action .rr-kpi-chev {
+  margin-top: 0 !important; margin-bottom: 0 !important;
+  padding-left: 10px !important;
+}
+
+/* ---- Targets ---- */
+#view-schedule.rrx-schedule #rr-sched-targets-kpis .rr-tgt-kpi {
+  height: 36px !important;
+}
+#view-schedule.rrx-schedule #rr-sched-targets-kpis .rr-tgt-kpi-label { font-size: 14px !important; }
