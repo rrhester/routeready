@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="description" content="RouteReady — fleet-operations dashboard for Amazon DSPs: scheduling, hiring, compliance, and driver communications in one command center." />
 <!-- NB: the single source of truth for theme-color (the OS title-bar
-     paint of the installed app) lives further down as #F9FAFB, matched
-     to the neutral page ground. Do NOT add an earlier theme-color here:
+     paint of the installed app) lives further down as #EFF6FF, matched
+     to the rail-blue title-bar band. Do NOT add an earlier theme-color here:
      browsers honour the FIRST applicable <meta theme-color> (no media
      query = always applies), not the last, so an earlier tag silently
      wins. A stray #2563EB here used to paint the title bar saturated
@@ -82,12 +82,12 @@
 <!-- theme-color paints the OS title bar of the installed app — the
      standalone title bar (overlay toggled off) and the native-controls
      backdrop in WCO mode (and the browser tab bar tint on mobile).
-     Matched to the unified neutral page ground (#F9FAFB — the
-     Schedule/Onboarding/Fleet grounds + topbar; keep in sync): in WCO
-     mode the band itself is painted two-tone by inline-styles.css
-     (rail blue above the sidebar, page ground above the content), and
-     the OS controls sit on the light segment, so they blend. -->
-<meta name="theme-color" content="#F9FAFB">
+     Matched to the rail-blue title-bar band (#EFF6FF): in WCO mode the
+     band is painted a uniform #EFF6FF by inline-styles.css (body::before)
+     so it reads as one color with the icon rail + the Schedule tab bar.
+     The OS window controls sit on this same blue — otherwise they read as
+     a white rectangle in the top-right corner. Keep in sync with that band. -->
+<meta name="theme-color" content="#EFF6FF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">
