@@ -5156,6 +5156,15 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 #view-schedule .rr-ab-caret:hover { background: rgba(15,23,42, .07); }
 #view-schedule .rr-ab-caret svg { width: 11px; height: 11px; }
+
+/* Operator-picked light-blue fill (#C2E7FF) on the split-control chevron
+   sections — the week-nav ‹ / › arrows and the Smart Fill / Unassign-Fleet
+   carets. Placed after the base/hover rules so it wins on equal specificity;
+   the dark glyphs stay legible on the light blue, deeper blue on hover. */
+#view-schedule .rr-ab-weeknav .sched-week-nav-btn { background: rgb(194, 231, 255); }
+#view-schedule .rr-ab-weeknav .sched-week-nav-btn:hover { background: rgb(168, 213, 242); }
+#view-schedule .rr-ab-caret { background: rgb(194, 231, 255); }
+#view-schedule .rr-ab-caret:hover { background: rgb(168, 213, 242); }
 /* Docked top-right chrome · the bell + account buttons relocated from
    the sidebar foot (see dockTopRight in index.html) ride the bar's far
    right next to the ⋯ overflow as quiet 40px ghost squares. */
