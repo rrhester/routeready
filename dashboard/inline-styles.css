@@ -11922,7 +11922,9 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-mini-nav{appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-sub);font-size:15px;line-height:1;padding:1px 7px;border-radius:5px}
             #rr-ivcal .oc-mini-nav:hover{background:var(--oc-hover);color:var(--oc-blue)}
             #rr-ivcal .oc-mini-nav-sp{display:inline-block;width:24px}
-            #rr-ivcal .oc-mini-row{display:grid;grid-template-columns:repeat(7,1fr);align-items:center;gap:1px;position:relative}
+            #rr-ivcal .oc-mini-row{display:grid;grid-template-columns:20px repeat(7,1fr);align-items:center;gap:1px;position:relative}
+            /* Hairline divider between the week-number column and the weekdays. */
+            #rr-ivcal .oc-mini-row::before{content:"";position:absolute;left:20px;top:0;bottom:0;width:1px;background:var(--oc-colsep);pointer-events:none}
             #rr-ivcal .oc-mini-dow span{font-size:10px;font-weight:700;color:var(--oc-sub);text-align:center;padding:2px 0;text-transform:uppercase}
             #rr-ivcal .oc-mini-wk{font-size:10px;font-weight:600;color:var(--oc-sub);text-align:center;padding:0}
             #rr-ivcal button.oc-mini-wk{appearance:none;border:0;background:none;cursor:pointer;border-radius:4px;height:22px;line-height:22px;font-variant-numeric:tabular-nums;transition:background var(--t-fast),color var(--t-fast)}
