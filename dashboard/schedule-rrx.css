@@ -135,7 +135,10 @@
   gap: var(--rr-space-120);
   padding: var(--rr-space-100) var(--rr-space-160);
   margin: 0;
-  background: var(--rr-bg-surface-1);
+  /* Header bar matches the soft-blue sidebar rail (operator request).
+     Literal #EFF6FF because var(--sidebar-bg) resolves to the :root navy
+     outside .sidebar scope. */
+  background: #EFF6FF;
   border: 1px solid var(--rr-border-primary);
   border-radius: var(--rr-radius-medium);
   box-shadow: none;
