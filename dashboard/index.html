@@ -411,26 +411,10 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         Schedule
       </button>
-      <!-- Schedule children (parent/child sidebar · operator request
-           2026-06-11). Each child programmatically clicks the matching
-           hidden [data-rr-v2] strip tile, firing the exact same handler
-           the icon strip used (works even though the strip's tile rows
-           are now display:none). Fleet is a separate destination →
-           goto('fleet2'). Shown only when Schedule is the active parent
-           and the rail isn't collapsed. -->
-      <div class="nav-sub" data-for="schedule" role="group" aria-label="Schedule sections">
-        <button type="button" class="nav-sub-item" data-key="today"     onclick="rrSchedNav('today',this)">Today</button>
-        <button type="button" class="nav-sub-item active" data-key="week" onclick="rrSchedNav('week',this)">Schedule View</button>
-        <button type="button" class="nav-sub-item" data-key="roster"    onclick="rrSchedNav('roster',this)">Roster</button>
-        <button type="button" class="nav-sub-item" data-key="requests"  onclick="rrSchedNav('requests',this)">Requests</button>
-        <button type="button" class="nav-sub-item" data-key="targets"   onclick="rrSchedNav('targets',this)">Targets</button>
-        <!-- Smart Fill / Finalize / Unassign / Print / Download Excel /
-             Fleet children removed (operator request 2026-06-12) — the
-             children list is VIEWS only. The actions stay reachable on
-             the schedule page itself (header action bar; rrSchedNav's
-             BTN map is kept intact for those paths), and Fleet keeps
-             its own top-level nav-item. -->
-      </div>
+      <!-- Schedule rail children removed (operator 2026-06-28): the in-view
+           5-icon view-switcher strip (#rr-sched-viewseg) now owns sub-view
+           navigation. The rrSchedNav script below is intentionally kept — the
+           strip calls it (with a null rail; it routes via goto + schedSub). -->
       <script>
         // Parent/child sidebar driver for Schedule. Clicks the matching
         // hidden strip tile (the proven _RR_V2_FORWARD path); ensures the
@@ -605,16 +589,10 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><polyline points="9 13 11 15 15 11"/></svg></span>
         Onboarding
       </button>
-      <!-- Onboarding children · move the former top-ribbon page tabs into the
-           sidebar. Each calls obSub() (the same handler the ribbon tabs used)
-           via rrObNav. Calendar view-modes + actions stay on the page. -->
-      <div class="nav-sub" data-for="onboarding-ops" role="group" aria-label="Onboarding sections">
-        <button type="button" class="nav-sub-item active" data-key="overview"  onclick="rrObNav('overview',this)">Overview</button>
-        <button type="button" class="nav-sub-item"        data-key="funnel"     onclick="rrObNav('funnel',this)">Funnel</button>
-        <button type="button" class="nav-sub-item"        data-key="interview"  onclick="rrObNav('interview',this)">Interview</button>
-        <button type="button" class="nav-sub-item"        data-key="calendar"   onclick="rrObNav('calendar',this)">Calendar</button>
-        <button type="button" class="nav-sub-item"        data-key="workauth"   onclick="rrObNav('workauth',this)">Work auth</button>
-      </div>
+      <!-- Onboarding rail children removed (operator 2026-06-28): the in-view
+           5-icon view-switcher strip (#rr-ob-viewseg) now owns sub-view
+           navigation. The rrObNav script below is intentionally kept — the strip
+           calls it (with a null rail; it routes via goto + obSub). -->
       <script>
         // Parent/child sidebar driver for Onboarding — mirrors the Schedule
         // block above. rrObNav navigates to the onboarding-ops view (if not
