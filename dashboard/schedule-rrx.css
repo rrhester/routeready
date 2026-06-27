@@ -430,7 +430,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
      sit just to the right of this. */
   position: absolute;
   left: 24px;
-  top: 13px;
+  top: 58px;                    /* sensible default; JS re-measures to the real toolbar (see _rrEnsureSchedViewSeg) */
   z-index: 50;
   display: inline-flex;
   align-items: stretch;
