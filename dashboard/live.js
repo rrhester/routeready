@@ -17965,21 +17965,6 @@ function _ivcalAvailNudge() {
     <button type="button" class="oc-nudge-x" onclick="window._rrDismissAvailNudge()" title="Dismiss" aria-label="Dismiss">×</button>
   </div>`;
 }
-// True when a start time falls outside every configured availability window for
-// its weekday — the signal for the soft "schedule anyway?" guard. Returns false
-// when no windows are set (nothing to be outside of; the empty-state nudge owns
-// that case). weekday matches Date.getDay() (0=Sun), same as _ivcalCache.windows.
-function _ivcalOutsideAvail(dateISO, stime) {
-  const wins = (_ivcalCache && _ivcalCache.windows) || [];
-  if (!wins.length || !dateISO || !stime) return false;
-  const [Y, M, D] = String(dateISO).split("-").map(Number);
-  const wd = new Date(Y, (M || 1) - 1, D || 1).getDay();
-  const [hh, mm] = String(stime).split(":").map(Number);
-  const startMin = (hh || 0) * 60 + (mm || 0);
-  const dayWins = wins.filter(w => w.weekday === wd);
-  if (!dayWins.length) return true;
-  return !dayWins.some(w => startMin >= w.start_min && startMin < w.end_min);
-}
 const _IVCAL_DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 // Outlook-style UI state.
 let _ivcalSelected = null;            // { kind, id } of the selected event (reading pane)
@@ -18434,27 +18419,29 @@ function _isoWeek(d) {
   return 1 + Math.round((x - firstThu) / (7 * 24 * 3600 * 1000));
 }
 function _ivcalMiniMonths() {
-  // One month is enough for date navigation; the second month ate the sidebar
-  // height the calendar list + status legend now need. Prev/next both live on
-  // the single month's header.
-  return _ivcalMiniMonth(_ivcalMiniBase());
+  const base = _ivcalMiniBase();
+  const next = new Date(base.getFullYear(), base.getMonth()+1, 1);
+  return _ivcalMiniMonth(base, true) + _ivcalMiniMonth(next, false);
 }
-function _ivcalMiniMonth(first) {
+function _ivcalMiniMonth(first, isFirst) {
   const mo = first.getMonth();
   const title = first.toLocaleDateString(undefined, { month:"long", year:"numeric" });
   const gridStart = _ivcalWeekStart(first); // Sunday on/before the 1st
   const today = new Date(); today.setHours(0,0,0,0);
   const rng = _ivcalViewRange();
   const head = `<div class="oc-mini-h">
-    <button class="oc-mini-nav" data-mini-nav="-1" aria-label="Previous month">‹</button>
+    ${isFirst ? `<button class="oc-mini-nav" data-mini-nav="-1" aria-label="Previous month">‹</button>` : `<span class="oc-mini-nav-sp"></span>`}
     <span class="oc-mini-title">${escapeHtml(title)}</span>
-    <button class="oc-mini-nav" data-mini-nav="1" aria-label="Next month">›</button>
+    ${isFirst ? `<span class="oc-mini-nav-sp"></span>` : `<button class="oc-mini-nav" data-mini-nav="1" aria-label="Next month">›</button>`}
   </div>`;
-  const dow = `<div class="oc-mini-row oc-mini-dow">` +
+  const dow = `<div class="oc-mini-row oc-mini-dow"><span class="oc-mini-wk">WK</span>` +
     ["S","M","T","W","T","F","S"].map(d => `<span>${d}</span>`).join("") + `</div>`;
   let rows = "";
   const cur = new Date(gridStart);
   for (let w = 0; w < 6; w++) {
+    const wkStart = new Date(cur);
+    const thu = new Date(wkStart); thu.setDate(wkStart.getDate()+4);
+    const wkNo = _isoWeek(thu);
     let cells = "";
     for (let i = 0; i < 7; i++) {
       const d = new Date(cur);
@@ -18464,7 +18451,7 @@ function _ivcalMiniMonth(first) {
       cells += `<button class="oc-mini-d${out?" out":""}${isToday?" today":""}${inRange?" in-range":""}" data-mini-date="${_ivcalISODate(d)}">${d.getDate()}</button>`;
       cur.setDate(cur.getDate()+1);
     }
-    rows += `<div class="oc-mini-row">${cells}</div>`;
+    rows += `<div class="oc-mini-row"><button class="oc-mini-wk wk-btn" data-mini-week="${_ivcalISODate(wkStart)}" title="Week ${wkNo} — click for this week">${wkNo}</button>${cells}</div>`;
   }
   return `<div class="oc-mini">${head}${dow}${rows}</div>`;
 }
@@ -19488,18 +19475,6 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       // Occurrence dates: a single one, or the recurrence series.
       const dates = recurrence ? expandOccurrences(recurrence, sdate) : [sdate];
       if (attachments.length) toast("Note: attachments show here but aren't sent with auto-invites yet", "info");
-      // Off-hours guard: scheduling outside the configured interview availability
-      // is almost always a timezone/typo slip (e.g. a 2 AM interview). Soft-confirm
-      // — but only when windows exist; with none set the empty-state nudge already
-      // prompts to add them, so we don't double up.
-      if (!isAllDay && _ivcalOutsideAvail(sdate, stime)) {
-        const ok = await _rrConfirmDialog({
-          title: "Outside your interview availability",
-          body: "This time isn't within the availability windows you've set — double-check the day and time. Schedule it anyway?",
-          confirmLabel: "Schedule anyway", cancelLabel: "Go back",
-        });
-        if (!ok) { if (btn) btn.style.opacity = ""; return; }
-      }
       let made = 0, firstId = null;
       try {
         for (let i = 0; i < dates.length; i++) {
