@@ -38719,13 +38719,31 @@ function _rrToolbarAnchor(host) {
     return r.width > 0 && r.height > 0;
   }) || null;
 }
+// The persistent toolbar ROW container (parent of the anchor child). Unlike the
+// anchor child — which is recreated on every async repaint — the row container
+// survives, so the strip's space reservation can live on it as a padding that's
+// never wiped.
+function _rrToolbarRow(host) {
+  const ctrl = _rrLeftmostToolbarControl(host);
+  if (!ctrl) return null;
+  let row = ctrl;
+  while (row.parentElement && row.parentElement !== host) {
+    const pr = row.parentElement.getBoundingClientRect();
+    if (pr.height > 170) break;
+    row = row.parentElement;
+  }
+  return row;
+}
 // The strip is an ABSOLUTE overlay on #view-schedule, inserted ONCE and never
 // moved — THAT is what gives it the exact same position on every sub-view and
 // removes the switch glitch (no per-view re-insertion/repositioning). Each
-// view's toolbar instead gets a left margin on its first control so its buttons
-// sit to the RIGHT of the strip rather than under it; the reservation follows
-// the view, the strip stays put. _rrSegReserved tracks the element holding it.
-let _rrSegReserved = null;
+// view's toolbar instead reserves a left PADDING on its persistent container so
+// its buttons sit to the RIGHT of the strip rather than under it. Padding on the
+// container (not a margin on the leftmost child) is the fix for the buttons
+// SLIDING sideways on every switch: the child is recreated on each async repaint,
+// so a child-margin was lost and then re-applied a tick later by the poll — the
+// visible slide. Container padding survives repaints and is set once per
+// container (never reset), so a view's buttons paint already-cleared and stay put.
 function _rrEnsureSchedViewSeg() {
   const host = document.getElementById("view-schedule");
   if (!host) return;
@@ -38746,17 +38764,22 @@ function _rrEnsureSchedViewSeg() {
       seg.dataset.rrAligned = "1";
     }
   }
-  // Reserve room at the front of the CURRENT view's toolbar so its buttons clear
-  // the (fixed-position) strip. Move the reservation as the view changes.
-  if (_rrSegReserved && _rrSegReserved !== anchor) {
-    _rrSegReserved.style.marginLeft = _rrSegReserved.dataset.rrOldMl || "";
-    _rrSegReserved = null;
-  }
-  if (anchor && anchor !== _rrSegReserved && anchor.id !== "rr-sched-viewseg" && !anchor.closest("#rr-sched-viewseg")) {
-    if (anchor.dataset.rrOldMl == null) anchor.dataset.rrOldMl = anchor.style.marginLeft || "";
+  // Reserve room for the (fixed-overlay) strip at the FRONT of each view's
+  // toolbar — once aligned, so we never pad before the true toolbar start is
+  // measured. Pad the PERSISTENT container (set-once, never reset) so repaints
+  // and re-entries paint already-cleared and never slide. Pre-reserve the known
+  // static containers too, so even a view's FIRST paint lands cleared; the
+  // generic row covers Today / anything the list misses.
+  if (seg.dataset.rrAligned) {
     const w = Math.round(seg.getBoundingClientRect().width) || 196;
-    anchor.style.marginLeft = (w + 22) + "px";
-    _rrSegReserved = anchor;
+    const reserve = (el) => {
+      if (!el || el.dataset.rrSegReserved || el.id === "rr-sched-viewseg" || el.closest("#rr-sched-viewseg")) return;
+      el.dataset.rrSegReserved = "1";
+      el.style.paddingLeft = (w + 22) + "px";
+    };
+    ["#rr-sched-actionbar", "#rr-sched-kpis", "#rr-req-toolbar-bar", "#rr-sched-targets-kpis"]
+      .forEach((sel) => reserve(host.querySelector(sel)));
+    reserve(_rrToolbarRow(host));
   }
   const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
   if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));
