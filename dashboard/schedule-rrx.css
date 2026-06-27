@@ -439,10 +439,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   width: 100%;
   box-sizing: border-box;
   padding: 0 8px;
-  /* Tab row fill · operator-picked light blue rgb(194,231,255) = #C2E7FF
-     (2026-06-27). No bottom hairline — the active tab's underline is the
-     only divider that remains. */
-  background: rgb(194, 231, 255);
+  /* Transparent fill — the operator-picked light blue rgb(194,231,255)
+     lives on the active tab's TEXT + underline instead of the bar
+     background (2026-06-27). No bottom hairline. */
+  background: transparent;
   border: 0;
   border-radius: 0;
   overflow: visible;
@@ -477,10 +477,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 #rr-sched-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, #1F2937); }
 #rr-sched-viewseg .rr-viewseg-btn.active {
-  color: var(--accent, #2563EB);
-  border-bottom-color: var(--accent, #2563EB);
+  color: rgb(194, 231, 255);
+  border-bottom-color: rgb(194, 231, 255);
 }
-#rr-sched-viewseg .rr-viewseg-btn.active svg { color: var(--accent, #2563EB); }
+#rr-sched-viewseg .rr-viewseg-btn.active svg { color: rgb(194, 231, 255); }
 #rr-sched-viewseg .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent, #2563EB);
   outline-offset: -3px;
