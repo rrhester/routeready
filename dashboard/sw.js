@@ -29,8 +29,8 @@
 // fresh shell), so a recolor that never touches sw.js can sit invisible
 // on a resumed installed app. Bumping forces every open window to the
 // current shell on next launch.
-//   2026-06-27.06 · Multi-tone app launcher + remove Schedule ⋯ overflow.
-const SW_DEPLOY_NONCE = "2026-06-27.06";
+//   2026-06-27.07 · Gold app-launcher button (border + multi-tone dots).
+const SW_DEPLOY_NONCE = "2026-06-27.07";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

@@ -26223,13 +26223,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-al-btn{
   width:32px; height:32px; flex:0 0 auto; padding:0;
   display:inline-flex; align-items:center; justify-content:center;
-  border:1px solid transparent; border-radius:8px;
+  /* Gold launcher button (operator): light-gold border, gold multi-tone dots
+     (fills hardcoded on the SVG circles). */
+  border:1px solid #FFE691; border-radius:8px;
   background:transparent; color:var(--text-muted, #64748B); cursor:pointer;
   transition:background-color .12s ease, border-color .12s ease, box-shadow .12s ease, color .12s ease;
 }
 .rr-al-btn svg{ width:18px; height:18px; }
 .rr-al-btn:hover{ background:var(--surface-hover, #F1F5F9); color:var(--text, #1E293B); }
-.rr-al-btn[aria-expanded="true"]{ background:rgba(37,99,235,.12); color:#2563EB; border-color:transparent; }
+.rr-al-btn[aria-expanded="true"]{ background:rgba(255,192,0,.14); color:#FFC000; border-color:#FFE691; }
 .rr-al-panel{
   position:fixed; z-index:130; /* left/top set by JS (place()) so the rail can't clip it */
   display:flex; flex-direction:column; gap:2px;
