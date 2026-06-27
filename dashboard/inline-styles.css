@@ -4644,7 +4644,7 @@ select.form-input{
    a glance. */
 .shift-chip{
   flex:1;padding:7px 9px;border-radius:var(--r-md);
-  background:var(--sch-blue-soft);border:1px solid rgba(37,99,235,.20);
+  background:var(--sch-blue-soft);border:1px solid rgba(37,99,235,.14);
   display:flex;flex-direction:column;align-items:flex-start;justify-content:center;
   font-size:var(--fs-xs);line-height:1.25;
   transition:transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
@@ -4653,11 +4653,11 @@ select.form-input{
      it past the cell border. */
   min-width:0;max-width:100%;overflow:hidden;
 }
-.cal-cell:hover .shift-chip{box-shadow:0 1px 2px rgba(15,23,42,.06)}
+.cal-cell:hover .shift-chip{transform:translateY(-1px);box-shadow:0 2px 4px rgba(15,23,42,.05)}
 .cal-cell:hover .shift-chip:not(.off):not(.timeoff):not(.open){
-  border-color:rgba(37,99,235,.42);
+  border-color:rgba(37,99,235,.30);
 }
-.shift-chip-route{font-weight:600;color:var(--sch-blue-text);font-variant-numeric:tabular-nums}
+.shift-chip-route{font-weight:500;color:var(--sch-blue-text);font-variant-numeric:tabular-nums}
 .shift-chip-time{color:var(--text-muted);font-size:var(--fs-xs);margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
 /* Swap pending / planned time-off both read amber — "expected, note it",
    not red.  Swap stays dashed (in flux); time-off is a settled absence. */
@@ -18723,7 +18723,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
           /* Driver row label · sticky left */
           #view-schedule .cal-row-label{
-            padding:10px var(--s-4);
+            padding:12px var(--s-4);
             display:flex;align-items:center;gap:10px;
             border-right:1px solid var(--sch-line);
             background:var(--sch-surface);
