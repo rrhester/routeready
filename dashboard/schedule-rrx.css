@@ -145,6 +145,12 @@
   /* No fixed min-height — vertical tiles inside set the height. */
 }
 
+/* The .rrx-schedule-scoped rule above only matches when #view-schedule actually
+   carries the rrx-schedule class — it doesn't always, so the white inline-styles
+   `#view-schedule .sched-nav-heading` rule wins and the header reads white. Force
+   the rail-blue regardless of that flag and CSS load order. */
+#view-schedule .sched-nav-heading { background: #EFF6FF !important; }
+
 #view-schedule.rrx-schedule .sched-nav-heading .page-header-l {
   flex: 0 0 auto;
   min-width: 0;
