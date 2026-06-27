@@ -1765,62 +1765,59 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   border-right: 0 !important;
 }
 
-/* ── Onboarding · segmented view-switcher strip (operator 2026-06-28) ────────
-   Mirror of #rr-sched-viewseg for the Onboarding view — a 5-icon overlay at the
-   top-left of #view-onboarding-ops switching the five Onboarding pages
-   (Overview / Funnel / Interview / Calendar / Work auth). Built + placed by
-   _rrEnsureObViewSeg (live.js); same icon-only segmented look as Schedule:
-   hairline dividers, active segment filled with the operator's light blue. */
+/* ── Onboarding · horizontal view-switcher tab bar (operator redesign 2026-06-28)
+   Mirror of #rr-sched-viewseg — icon + label tabs in an in-flow, full-width row
+   at the top of #view-onboarding-ops (Overview / Funnel / Interview / Calendar /
+   Work auth). Active tab in brand blue with an underline; gray inactive; hairline
+   baseline. Built + placed by _rrEnsureObViewSeg (live.js). */
 #rr-ob-viewseg {
-  position: absolute;
-  left: 24px;
-  top: 58px;                    /* sensible default; JS re-measures to the real toolbar */
-  z-index: 50;
-  display: inline-flex;
+  display: flex;
   align-items: stretch;
-  gap: 0;
-  height: 32px;
+  gap: 2px;
+  width: 100%;
   box-sizing: border-box;
-  padding: 0;
+  padding: 0 8px;
   background: var(--surface, #fff);
-  border: 1px solid var(--border, rgba(15, 23, 42, .12));
-  border-radius: 9px;
-  overflow: hidden;
+  border: 0;
+  border-bottom: 1px solid var(--border, rgba(15, 23, 42, .12));
+  border-radius: 0;
+  overflow: visible;
 }
 #rr-ob-viewseg .rr-viewseg-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  align-self: stretch;
-  width: 36px;
-  padding: 0;
+  gap: 8px;
+  width: auto;
+  height: auto;
+  padding: 13px 16px 12px;
+  margin-bottom: -1px;
   border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: transparent;
-  color: #374151;
+  color: var(--rr-fg-secondary, #6B7280);
+  font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background var(--rr-motion-fast, .12s), color var(--rr-motion-fast, .12s);
-}
-#rr-ob-viewseg .rr-viewseg-btn:not(:last-child) {
-  border-right: 1px solid var(--border, rgba(15, 23, 42, .12));
+  white-space: nowrap;
+  transition: color var(--rr-motion-fast, .12s), border-color var(--rr-motion-fast, .12s);
 }
 #rr-ob-viewseg .rr-viewseg-btn svg {
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
-  stroke-width: 1.7;
+  stroke-width: 1.8;
 }
-#rr-ob-viewseg .rr-viewseg-btn:hover {
-  color: var(--text, #1F2937);
-  background: rgba(15, 23, 42, .05);
-}
+#rr-ob-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, #1F2937); }
 #rr-ob-viewseg .rr-viewseg-btn.active {
-  background: rgb(194, 231, 255);
-  color: var(--accent-text, #1E40AF);
+  color: var(--accent, #2563EB);
+  border-bottom-color: var(--accent, #2563EB);
 }
-#rr-ob-viewseg .rr-viewseg-btn.active svg {
-  color: #1E40AF;
-}
+#rr-ob-viewseg .rr-viewseg-btn.active svg { color: var(--accent, #2563EB); }
 #rr-ob-viewseg .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent, #2563EB);
-  outline-offset: -2px;
+  outline-offset: -3px;
+  border-radius: 4px;
 }
