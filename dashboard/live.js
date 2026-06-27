@@ -38686,11 +38686,12 @@ function _rrBuildViewSeg() {
 // header every poll as the grid re-rendered).
 function _rrSegBand(host) { const t = host.getBoundingClientRect().top; return [t - 6, t + 72]; }
 // Left-most visible interactive control sitting in the toolbar band.
-function _rrLeftmostToolbarControl(host) {
+function _rrLeftmostToolbarControl(host, segId) {
+  segId = segId || "rr-sched-viewseg";            // Schedule default; Onboarding passes "rr-ob-viewseg"
   const [bandTop, bandBot] = _rrSegBand(host);
   let best = null, bestKey = Infinity;
   host.querySelectorAll("button, input, a[href], [role='button']").forEach(el => {
-    if (el.id === "rr-sched-viewseg" || el.closest("#rr-sched-viewseg")) return;
+    if (el.id === segId || el.closest("#" + segId)) return;
     if (el.offsetParent === null) return;
     const r = el.getBoundingClientRect();
     if (r.width < 6 || r.height < 6) return;
@@ -38702,8 +38703,9 @@ function _rrLeftmostToolbarControl(host) {
 }
 // The element to insert the strip in front of: the first visible child of the
 // current view's toolbar row.
-function _rrToolbarAnchor(host) {
-  const ctrl = _rrLeftmostToolbarControl(host);
+function _rrToolbarAnchor(host, segId) {
+  segId = segId || "rr-sched-viewseg";
+  const ctrl = _rrLeftmostToolbarControl(host, segId);
   if (!ctrl) return null;
   // Climb while the parent is still a short, toolbar-height container; stop when
   // the parent becomes the tall page/body — `row` is then the toolbar row.
@@ -38714,7 +38716,7 @@ function _rrToolbarAnchor(host) {
     row = row.parentElement;
   }
   return [...row.children].find(c => {
-    if (c.id === "rr-sched-viewseg") return false;
+    if (c.id === segId) return false;
     const r = c.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
   }) || null;
@@ -38723,8 +38725,8 @@ function _rrToolbarAnchor(host) {
 // anchor child — which is recreated on every async repaint — the row container
 // survives, so the strip's space reservation can live on it as a padding that's
 // never wiped.
-function _rrToolbarRow(host) {
-  const ctrl = _rrLeftmostToolbarControl(host);
+function _rrToolbarRow(host, segId) {
+  const ctrl = _rrLeftmostToolbarControl(host, segId || "rr-sched-viewseg");
   if (!ctrl) return null;
   let row = ctrl;
   while (row.parentElement && row.parentElement !== host) {
@@ -38810,6 +38812,115 @@ function _rrViewSegPoll() {
     new MutationObserver(() => { if (v.classList.contains("active")) _rrViewSegPoll(); })
       .observe(v, { attributes: true, attributeFilter: ["class"] });
   }
+})();
+
+// ── Onboarding · segmented view-switcher strip ─────────────────────────────
+// Mirror of the Schedule strip (above) for the Onboarding view: a 5-icon
+// overlay at the top-left of #view-onboarding-ops switching the five Onboarding
+// pages (Overview / Funnel / Interview / Calendar / Work auth). Reuses the same
+// generic toolbar detection (passing the ob strip id), the same fixed-overlay
+// placement, and the same persistent-container padding reservation (set-once,
+// !important, never reset). Routing goes through rrObNav — the same dispatcher
+// the sidebar children use — so highlight + behaviour stay in sync.
+const _RR_OB_VIEWSEG_VIEWS = [
+  ["overview",  "Overview",  '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>'],
+  ["funnel",    "Funnel",    '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>'],
+  ["interview", "Interview", '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/>'],
+  ["calendar",  "Calendar",  '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'],
+  ["workauth",  "Work auth", '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/>'],
+];
+function _rrSyncObViewSeg(sub) {
+  const seg = document.getElementById("rr-ob-viewseg");
+  if (!seg) return;
+  seg.querySelectorAll("[data-rr-viewseg]").forEach(b => {
+    const on = b.getAttribute("data-rr-viewseg") === sub;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+}
+window.rrObViewSeg = function (key) {
+  _rrSyncObViewSeg(key);                            // optimistic highlight
+  const rail = document.querySelector('.nav-sub[data-for="onboarding-ops"] .nav-sub-item[data-key="' + key + '"]');
+  if (typeof window.rrObNav === "function") window.rrObNav(key, rail);
+  else if (typeof window.obSub === "function") window.obSub(key);
+};
+function _rrBuildObViewSeg() {
+  const el = document.createElement("div");
+  el.className = "rr-viewseg";
+  el.id = "rr-ob-viewseg";
+  el.setAttribute("role", "tablist");
+  el.setAttribute("aria-label", "Onboarding view");
+  el.innerHTML = _RR_OB_VIEWSEG_VIEWS.map(v =>
+    `<button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" aria-label="${v[1]}" data-rr-viewseg="${v[0]}" title="${v[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${v[2]}</svg></button>`
+  ).join("");
+  el.querySelectorAll("[data-rr-viewseg]").forEach(b =>
+    b.addEventListener("click", () => window.rrObViewSeg(b.getAttribute("data-rr-viewseg"))));
+  return el;
+}
+function _rrEnsureObViewSeg() {
+  const host = document.getElementById("view-onboarding-ops");
+  if (!host) return;
+  let seg = document.getElementById("rr-ob-viewseg");
+  if (!seg) { seg = _rrBuildObViewSeg(); host.appendChild(seg); }
+  else if (seg.parentElement !== host) host.appendChild(seg);
+  const anchor = _rrToolbarAnchor(host, "rr-ob-viewseg");
+  if (anchor && !seg.dataset.rrAligned) {
+    const a = anchor.getBoundingClientRect(), h = host.getBoundingClientRect();
+    if (a.height > 4 && a.width > 4) {
+      const sh = seg.offsetHeight || 32;
+      seg.style.top = Math.round(a.top - h.top + (a.height - sh) / 2) + "px";
+      seg.style.left = Math.round(a.left - h.left) + "px";
+      seg.dataset.rrAligned = "1";
+    }
+  }
+  if (seg.dataset.rrAligned) {
+    const w = Math.round(seg.getBoundingClientRect().width) || 196;
+    const reserve = (el) => {
+      if (!el || el.dataset.rrSegReserved || el.id === "rr-ob-viewseg" || el.closest("#rr-ob-viewseg")) return;
+      el.dataset.rrSegReserved = "1";
+      el.style.setProperty("padding-left", (w + 22) + "px", "important");
+    };
+    // The persistent Onboarding header (.sched-nav-heading) is the consistent
+    // top-left toolbar on every page; the per-page toolbars (Funnel .pa-ws-header,
+    // Interview [data-rr-iv-nav]) and the KPI band sit below it. Pre-reserve them
+    // all; the generic row covers anything the list misses.
+    [".sched-nav-heading", "#rr-ob-kpis", ".pa-ws-header", "[data-rr-iv-nav]"]
+      .forEach((sel) => reserve(host.querySelector(sel)));
+    reserve(_rrToolbarRow(host, "rr-ob-viewseg"));
+  }
+  const active = document.querySelector('.nav-sub[data-for="onboarding-ops"] .nav-sub-item.active');
+  if (active) _rrSyncObViewSeg(active.getAttribute("data-key"));
+}
+window._rrEnsureObViewSeg = _rrEnsureObViewSeg;
+let _rrObViewSegIv = null;
+function _rrObViewSegPoll() {
+  if (_rrObViewSegIv) clearInterval(_rrObViewSegIv);
+  let tries = 0;
+  _rrObViewSegIv = setInterval(() => {
+    _rrEnsureObViewSeg();
+    if (++tries > 30) { clearInterval(_rrObViewSegIv); _rrObViewSegIv = null; }
+  }, 400);
+}
+(function _rrObViewSegBoot() {
+  const v = document.getElementById("view-onboarding-ops");
+  if (!v) { setTimeout(_rrObViewSegBoot, 600); return; }   // the ob frag mounts lazily
+  _rrObViewSegPoll();
+  if (typeof MutationObserver === "function") {
+    new MutationObserver(() => { if (v.classList.contains("active")) _rrObViewSegPoll(); })
+      .observe(v, { attributes: true, attributeFilter: ["class"] });
+  }
+})();
+// Wrap obSub (defined far above) so every Onboarding page switch re-asserts the
+// strip + re-arms the placement poll + syncs the active icon.
+(function _rrHookObSub() {
+  const _legacyObSub = window.obSub;
+  if (typeof _legacyObSub !== "function" || _legacyObSub.__rrViewSegHooked) return;
+  window.obSub = function (which) {
+    const r = _legacyObSub.apply(this, arguments);
+    try { _rrEnsureObViewSeg(); _rrObViewSegPoll(); _rrSyncObViewSeg(which); } catch (e) {}
+    return r;
+  };
+  window.obSub.__rrViewSegHooked = true;
 })();
 
 const _legacySchedSub = window.schedSub;

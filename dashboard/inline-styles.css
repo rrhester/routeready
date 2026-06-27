@@ -25282,6 +25282,9 @@ body.rr-cmdk-open{ overflow:hidden }
    #view-schedule is covered, so the sidebar stays reachable to navigate
    back out. */
 #view-schedule { position: relative; }
+/* Overlay-pin context for the Onboarding view-switcher strip (#rr-ob-viewseg),
+   mirroring #view-schedule above. */
+#view-onboarding-ops { position: relative; }
 .rr-smartfill-page{
   position:absolute; inset:0; z-index:60;
   background:var(--canvas, #F4F6FA);

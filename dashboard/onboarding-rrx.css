@@ -1764,3 +1764,63 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
 #view-onboarding-ops.rrx-onboarding .ob-matrix td.ob-mx-namecell {
   border-right: 0 !important;
 }
+
+/* ── Onboarding · segmented view-switcher strip (operator 2026-06-28) ────────
+   Mirror of #rr-sched-viewseg for the Onboarding view — a 5-icon overlay at the
+   top-left of #view-onboarding-ops switching the five Onboarding pages
+   (Overview / Funnel / Interview / Calendar / Work auth). Built + placed by
+   _rrEnsureObViewSeg (live.js); same icon-only segmented look as Schedule:
+   hairline dividers, active segment filled with the operator's light blue. */
+#rr-ob-viewseg {
+  position: absolute;
+  left: 24px;
+  top: 58px;                    /* sensible default; JS re-measures to the real toolbar */
+  z-index: 50;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, rgba(15, 23, 42, .12));
+  border-radius: 9px;
+  overflow: hidden;
+}
+#rr-ob-viewseg .rr-viewseg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #374151;
+  cursor: pointer;
+  transition: background var(--rr-motion-fast, .12s), color var(--rr-motion-fast, .12s);
+}
+#rr-ob-viewseg .rr-viewseg-btn:not(:last-child) {
+  border-right: 1px solid var(--border, rgba(15, 23, 42, .12));
+}
+#rr-ob-viewseg .rr-viewseg-btn svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  stroke-width: 1.7;
+}
+#rr-ob-viewseg .rr-viewseg-btn:hover {
+  color: var(--text, #1F2937);
+  background: rgba(15, 23, 42, .05);
+}
+#rr-ob-viewseg .rr-viewseg-btn.active {
+  background: rgb(194, 231, 255);
+  color: var(--accent-text, #1E40AF);
+}
+#rr-ob-viewseg .rr-viewseg-btn.active svg {
+  color: #1E40AF;
+}
+#rr-ob-viewseg .rr-viewseg-btn:focus-visible {
+  outline: 2px solid var(--accent, #2563EB);
+  outline-offset: -2px;
+}
