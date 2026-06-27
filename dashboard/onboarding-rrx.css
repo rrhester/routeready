@@ -56,16 +56,13 @@
    (onboarding-rrx.css:634-636); shrinking the top padding gets
    the same visual without that risk. */
 #view-onboarding-ops.rrx-onboarding > .page {
-  /* Land the strip card top — and therefore the KPI card below it —
-     at Schedule's exact Y. MEASURED in a headless browser: Schedule's
-     strip card renders 32px below its .page content top (page pad 20px
-     + the cmd-shell's *computed* 12px margin-bottom — NOT the 17px the
-     old comments claimed). Its cmd-tabs are position:absolute (0 flow),
-     so we float .ob-cmd-tabs below the same way; the strip then starts
-     right at this padding edge. Setting it to 32px puts the strip at
-     32px and the KPI at 139px — byte-identical to Schedule (verified by
-     re-measuring both views). */
-  padding: 32px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
+  /* Top pad set to 12px — matching Schedule (#view-schedule .page) so the
+     view-switcher tab bar, now the first row of the page on both views,
+     lands at the same Y. (The old 32px floated the legacy strip card at
+     Schedule's Y; that card is no longer the top row — #rr-ob-viewseg is —
+     so the measurement that justified 32px no longer applies.) The gap to
+     the toolbar below comes from #rr-ob-viewseg's margin-bottom. */
+  padding: 12px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
@@ -1782,6 +1779,7 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   border-bottom: 1px solid var(--border, rgba(15, 23, 42, .12));
   border-radius: 0;
   overflow: visible;
+  margin-bottom: 14px;          /* breathing room between the tabs and the toolbar below */
 }
 #rr-ob-viewseg .rr-viewseg-btn {
   display: inline-flex;

@@ -47,7 +47,10 @@
    the cmd-shell + KPI strip fixed at the top and lets each
    active sub-view manage its own internal scroll. */
 #view-schedule.rrx-schedule > .page {
-  padding: var(--rr-space-200) !important;
+  /* Top pad trimmed 20→12 so the view-switcher tab bar (first row of the
+     page) sits a touch higher; the gap to the toolbar below it comes from
+     #rr-sched-viewseg's margin-bottom, not from this padding. */
+  padding: 12px var(--rr-space-200) var(--rr-space-200) !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
@@ -438,6 +441,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   border-bottom: 1px solid var(--border, rgba(15, 23, 42, .12));
   border-radius: 0;
   overflow: visible;
+  margin-bottom: 14px;          /* breathing room between the tabs and the toolbar below */
 }
 #rr-sched-viewseg .rr-viewseg-btn {
   display: inline-flex;
