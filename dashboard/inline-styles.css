@@ -1752,6 +1752,8 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
    a 1px vertical line spanning the pill height. */
 #view-schedule .req-toolbar-bar select.req-toolbar-filter{
   appearance:none;-webkit-appearance:none;-moz-appearance:none;cursor:pointer;
+  /* Center the selected value in the box (operator 2026-06-27) — was left-aligned. */
+  text-align:center;text-align-last:center;-moz-text-align-last:center;
   padding:0 42px 0 14px;
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='2 4 6 8 10 4'/%3E%3C/svg%3E"),
