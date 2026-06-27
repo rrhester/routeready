@@ -422,65 +422,60 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    sidebar. Full width of the rail, segments share the width; hairline divider
    between icons; active segment filled with the operator's light blue. Each
    segment carries a title + aria-label so the icon stays self-explaining. */
+/* Horizontal tab bar (operator redesign 2026-06-28): icon + label tabs in an
+   in-flow, full-width row above the toolbar — active tab in brand blue with an
+   underline, gray inactive, on a hairline baseline. Mounted as the first row of
+   the page by _rrEnsureSchedViewSeg. */
 #rr-sched-viewseg {
-  /* Absolute overlay pinned to a FIXED spot on #view-schedule (which is
-     position:relative). Inserted once and never moved, so it's in the exact
-     same place on every sub-view and never glitches on switch. Each view's
-     toolbar is given a left margin (see _rrEnsureSchedViewSeg) so its buttons
-     sit just to the right of this. */
-  position: absolute;
-  left: 24px;
-  top: 58px;                    /* sensible default; JS re-measures to the real toolbar (see _rrEnsureSchedViewSeg) */
-  z-index: 50;
-  display: inline-flex;
+  display: flex;
   align-items: stretch;
-  gap: 0;
-  height: 32px;
+  gap: 2px;
+  width: 100%;
   box-sizing: border-box;
-  padding: 0;
+  padding: 0 8px;
   background: var(--surface, #fff);
-  border: 1px solid var(--border, rgba(15, 23, 42, .12));
-  border-radius: 9px;
-  overflow: hidden;            /* active fill clips cleanly to the rounded ends */
+  border: 0;
+  border-bottom: 1px solid var(--border, rgba(15, 23, 42, .12));
+  border-radius: 0;
+  overflow: visible;
 }
 #rr-sched-viewseg .rr-viewseg-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  align-self: stretch;         /* fill the strip's full height (full-height dividers + fill) */
-  width: 36px;
-  padding: 0;
+  gap: 8px;
+  width: auto;
+  height: auto;
+  padding: 13px 16px 12px;
+  margin-bottom: -1px;          /* active underline overlaps the baseline */
   border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: transparent;
-  color: #374151;
+  color: var(--rr-fg-secondary, #6B7280);
+  font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background var(--rr-motion-fast, .12s), color var(--rr-motion-fast, .12s);
-}
-/* Hairline divider between each icon — full height now that the buttons stretch. */
-#rr-sched-viewseg .rr-viewseg-btn:not(:last-child) {
-  border-right: 1px solid var(--border, rgba(15, 23, 42, .12));
+  white-space: nowrap;
+  transition: color var(--rr-motion-fast, .12s), border-color var(--rr-motion-fast, .12s);
 }
 #rr-sched-viewseg .rr-viewseg-btn svg {
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
-  stroke-width: 1.7;
+  stroke-width: 1.8;
 }
-#rr-sched-viewseg .rr-viewseg-btn:hover {
-  color: var(--text, #1F2937);
-  background: rgba(15, 23, 42, .05);
-}
-/* Active segment · whole segment filled with the operator-specified blue. */
+#rr-sched-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, #1F2937); }
 #rr-sched-viewseg .rr-viewseg-btn.active {
-  background: rgb(194, 231, 255);
-  color: var(--accent-text, #1E40AF);
+  color: var(--accent, #2563EB);
+  border-bottom-color: var(--accent, #2563EB);
 }
-#rr-sched-viewseg .rr-viewseg-btn.active svg {
-  color: #1E40AF;
-}
+#rr-sched-viewseg .rr-viewseg-btn.active svg { color: var(--accent, #2563EB); }
 #rr-sched-viewseg .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent, #2563EB);
-  outline-offset: -2px;
+  outline-offset: -3px;
+  border-radius: 4px;
 }
 
 /* Indicator dots (today / requests) */

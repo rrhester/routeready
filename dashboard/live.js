@@ -38638,7 +38638,7 @@ window._rrCloseDriverRecord = _rrCloseDriverRecord;
 // stays in sync. [key, label, svg-inner]
 const _RR_VIEWSEG_VIEWS = [
   ["week",     "Schedule", '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>'],
-  ["today",    "Today",    '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><rect x="7" y="13" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>'],
+  ["today",    "Today",    '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'],
   ["roster",   "Roster",   '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'],
   ["requests", "Requests", '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'],
   ["targets",  "Targets",  '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>'],
@@ -38666,7 +38666,7 @@ function _rrBuildViewSeg() {
   el.setAttribute("role", "tablist");
   el.setAttribute("aria-label", "Schedule view");
   el.innerHTML = _RR_VIEWSEG_VIEWS.map(v =>
-    `<button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" aria-label="${v[1]}" data-rr-viewseg="${v[0]}" title="${v[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${v[2]}</svg></button>`
+    `<button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" aria-label="${v[1]}" data-rr-viewseg="${v[0]}" title="${v[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${v[2]}</svg><span class="rr-viewseg-label">${v[1]}</span></button>`
   ).join("");
   el.querySelectorAll("[data-rr-viewseg]").forEach(b =>
     b.addEventListener("click", () => window.rrSchedViewSeg(b.getAttribute("data-rr-viewseg"))));
@@ -38736,59 +38736,23 @@ function _rrToolbarRow(host, segId) {
   }
   return row;
 }
-// The strip is an ABSOLUTE overlay on #view-schedule, inserted ONCE and never
-// moved — THAT is what gives it the exact same position on every sub-view and
-// removes the switch glitch (no per-view re-insertion/repositioning). Each
-// view's toolbar instead reserves a left PADDING on its persistent container so
-// its buttons sit to the RIGHT of the strip rather than under it. Padding on the
-// container (not a margin on the leftmost child) is the fix for the buttons
-// SLIDING sideways on every switch: the child is recreated on each async repaint,
-// so a child-margin was lost and then re-applied a tick later by the poll — the
-// visible slide. Container padding survives repaints and is set once per
-// container (never reset), so a view's buttons paint already-cleared and stay put.
+// The view-switcher is now an IN-FLOW horizontal tab bar (operator redesign
+// 2026-06-28) — icon + label, underline-active — mounted as the FIRST row of the
+// page so it sits full-width above the toolbar. No overlay, no alignment, no
+// reservation: it's part of the page flow. _rrCurSchedSub tracks the active sub
+// so the bar re-asserts its highlight on any re-mount (the schedSub wrapper keeps
+// it current; the rail it used to read was removed).
+let _rrCurSchedSub = "week";
 function _rrEnsureSchedViewSeg() {
   const host = document.getElementById("view-schedule");
   if (!host) return;
+  const page = host.querySelector(".page") || host;
   let seg = document.getElementById("rr-sched-viewseg");
-  if (!seg) { seg = _rrBuildViewSeg(); host.appendChild(seg); }
-  else if (seg.parentElement !== host) host.appendChild(seg);   // recover if displaced; never reposition
-  const anchor = _rrToolbarAnchor(host);
-  // Align the strip to the toolbar ONCE, measured from the real layout (vertical
-  // center on the toolbar control, left at the toolbar's start), then freeze it.
-  // Done once so it stays the SAME on every view; measured BEFORE the reservation
-  // margin so anchor.left is the toolbar's true start.
-  if (anchor && !seg.dataset.rrAligned) {
-    const a = anchor.getBoundingClientRect(), h = host.getBoundingClientRect();
-    if (a.height > 4 && a.width > 4) {
-      const sh = seg.offsetHeight || 32;
-      seg.style.top = Math.round(a.top - h.top + (a.height - sh) / 2) + "px";
-      seg.style.left = Math.round(a.left - h.left) + "px";
-      seg.dataset.rrAligned = "1";
-    }
+  if (!seg) seg = _rrBuildViewSeg();
+  if (seg.parentElement !== page || page.firstElementChild !== seg) {
+    page.insertBefore(seg, page.firstElementChild);   // top row, above the toolbar
   }
-  // Reserve room for the (fixed-overlay) strip at the FRONT of each view's
-  // toolbar — once aligned, so we never pad before the true toolbar start is
-  // measured. Pad the PERSISTENT container (set-once, never reset) so repaints
-  // and re-entries paint already-cleared and never slide. Pre-reserve the known
-  // static containers too, so even a view's FIRST paint lands cleared; the
-  // generic row covers Today / anything the list misses.
-  if (seg.dataset.rrAligned) {
-    const w = Math.round(seg.getBoundingClientRect().width) || 196;
-    const reserve = (el) => {
-      if (!el || el.dataset.rrSegReserved || el.id === "rr-sched-viewseg" || el.closest("#rr-sched-viewseg")) return;
-      el.dataset.rrSegReserved = "1";
-      // !important: the KPI-pills toolbars (.sched-kpi-pills / .tcp-kpi — Roster
-      // and Targets) carry `padding: 0 !important`, which silently ate a plain
-      // inline padding-left, so the strip overlapped their buttons. An inline
-      // !important declaration outranks the author !important and clears it.
-      el.style.setProperty("padding-left", (w + 22) + "px", "important");
-    };
-    ["#rr-sched-actionbar", "#rr-sched-kpis", "#rr-req-toolbar-bar", "#rr-sched-targets-kpis"]
-      .forEach((sel) => reserve(host.querySelector(sel)));
-    reserve(_rrToolbarRow(host));
-  }
-  const active = document.querySelector('.nav-sub[data-for="schedule"] .nav-sub-item.active');
-  if (active) _rrSyncSchedViewSeg(active.getAttribute("data-key"));
+  _rrSyncSchedViewSeg(_rrCurSchedSub);
 }
 window._rrEnsureSchedViewSeg = _rrEnsureSchedViewSeg;
 // First-paint + re-entry placement: the command bar mounts async and gets
@@ -38851,45 +38815,25 @@ function _rrBuildObViewSeg() {
   el.setAttribute("role", "tablist");
   el.setAttribute("aria-label", "Onboarding view");
   el.innerHTML = _RR_OB_VIEWSEG_VIEWS.map(v =>
-    `<button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" aria-label="${v[1]}" data-rr-viewseg="${v[0]}" title="${v[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${v[2]}</svg></button>`
+    `<button type="button" class="rr-viewseg-btn" role="tab" aria-selected="false" aria-label="${v[1]}" data-rr-viewseg="${v[0]}" title="${v[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${v[2]}</svg><span class="rr-viewseg-label">${v[1]}</span></button>`
   ).join("");
   el.querySelectorAll("[data-rr-viewseg]").forEach(b =>
     b.addEventListener("click", () => window.rrObViewSeg(b.getAttribute("data-rr-viewseg"))));
   return el;
 }
+// In-flow tab bar (same redesign as Schedule) — mounted as the first row of the
+// Onboarding page, above its toolbar/header. _rrCurObSub tracks the active page.
+let _rrCurObSub = "overview";
 function _rrEnsureObViewSeg() {
   const host = document.getElementById("view-onboarding-ops");
   if (!host) return;
+  const page = host.querySelector(".page") || host;
   let seg = document.getElementById("rr-ob-viewseg");
-  if (!seg) { seg = _rrBuildObViewSeg(); host.appendChild(seg); }
-  else if (seg.parentElement !== host) host.appendChild(seg);
-  const anchor = _rrToolbarAnchor(host, "rr-ob-viewseg");
-  if (anchor && !seg.dataset.rrAligned) {
-    const a = anchor.getBoundingClientRect(), h = host.getBoundingClientRect();
-    if (a.height > 4 && a.width > 4) {
-      const sh = seg.offsetHeight || 32;
-      seg.style.top = Math.round(a.top - h.top + (a.height - sh) / 2) + "px";
-      seg.style.left = Math.round(a.left - h.left) + "px";
-      seg.dataset.rrAligned = "1";
-    }
+  if (!seg) seg = _rrBuildObViewSeg();
+  if (seg.parentElement !== page || page.firstElementChild !== seg) {
+    page.insertBefore(seg, page.firstElementChild);   // top row, above the toolbar
   }
-  if (seg.dataset.rrAligned) {
-    const w = Math.round(seg.getBoundingClientRect().width) || 196;
-    const reserve = (el) => {
-      if (!el || el.dataset.rrSegReserved || el.id === "rr-ob-viewseg" || el.closest("#rr-ob-viewseg")) return;
-      el.dataset.rrSegReserved = "1";
-      el.style.setProperty("padding-left", (w + 22) + "px", "important");
-    };
-    // The persistent Onboarding header (.sched-nav-heading) is the consistent
-    // top-left toolbar on every page; the per-page toolbars (Funnel .pa-ws-header,
-    // Interview [data-rr-iv-nav]) and the KPI band sit below it. Pre-reserve them
-    // all; the generic row covers anything the list misses.
-    [".sched-nav-heading", "#rr-ob-kpis", ".pa-ws-header", "[data-rr-iv-nav]"]
-      .forEach((sel) => reserve(host.querySelector(sel)));
-    reserve(_rrToolbarRow(host, "rr-ob-viewseg"));
-  }
-  const active = document.querySelector('.nav-sub[data-for="onboarding-ops"] .nav-sub-item.active');
-  if (active) _rrSyncObViewSeg(active.getAttribute("data-key"));
+  _rrSyncObViewSeg(_rrCurObSub);
 }
 window._rrEnsureObViewSeg = _rrEnsureObViewSeg;
 let _rrObViewSegIv = null;
@@ -38917,6 +38861,7 @@ function _rrObViewSegPoll() {
   if (typeof _legacyObSub !== "function" || _legacyObSub.__rrViewSegHooked) return;
   window.obSub = function (which) {
     const r = _legacyObSub.apply(this, arguments);
+    _rrCurObSub = which;
     try { _rrEnsureObViewSeg(); _rrObViewSegPoll(); _rrSyncObViewSeg(which); } catch (e) {}
     return r;
   };
@@ -38925,6 +38870,7 @@ function _rrObViewSegPoll() {
 
 const _legacySchedSub = window.schedSub;
 window.schedSub = function (sub) {
+  _rrCurSchedSub = sub;
   _rrCloseDriverRecord();
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
   _rrEnsureSchedViewSeg();
