@@ -38775,7 +38775,11 @@ function _rrEnsureSchedViewSeg() {
     const reserve = (el) => {
       if (!el || el.dataset.rrSegReserved || el.id === "rr-sched-viewseg" || el.closest("#rr-sched-viewseg")) return;
       el.dataset.rrSegReserved = "1";
-      el.style.paddingLeft = (w + 22) + "px";
+      // !important: the KPI-pills toolbars (.sched-kpi-pills / .tcp-kpi — Roster
+      // and Targets) carry `padding: 0 !important`, which silently ate a plain
+      // inline padding-left, so the strip overlapped their buttons. An inline
+      // !important declaration outranks the author !important and clears it.
+      el.style.setProperty("padding-left", (w + 22) + "px", "important");
     };
     ["#rr-sched-actionbar", "#rr-sched-kpis", "#rr-req-toolbar-bar", "#rr-sched-targets-kpis"]
       .forEach((sel) => reserve(host.querySelector(sel)));
