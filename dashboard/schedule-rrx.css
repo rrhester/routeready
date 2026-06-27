@@ -145,12 +145,6 @@
   /* No fixed min-height — vertical tiles inside set the height. */
 }
 
-/* The .rrx-schedule-scoped rule above only matches when #view-schedule actually
-   carries the rrx-schedule class — it doesn't always, so the white inline-styles
-   `#view-schedule .sched-nav-heading` rule wins and the header reads white. Force
-   the rail-blue regardless of that flag and CSS load order. */
-#view-schedule .sched-nav-heading { background: #EFF6FF !important; }
-
 #view-schedule.rrx-schedule .sched-nav-heading .page-header-l {
   flex: 0 0 auto;
   min-width: 0;
@@ -445,7 +439,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   width: 100%;
   box-sizing: border-box;
   padding: 0 8px;
-  background: var(--surface, #fff);
+  /* Rail-blue header bar — match the sidebar (#EFF6FF) so the top tab
+     row reads as one continuous color with the icon rail. This is the
+     visible Schedule header; the legacy .sched-nav-heading is display:none. */
+  background: #EFF6FF;
   border: 0;
   border-bottom: 1px solid var(--border, rgba(15, 23, 42, .12));
   border-radius: 0;
