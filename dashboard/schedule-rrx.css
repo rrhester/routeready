@@ -477,10 +477,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 #rr-sched-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, #1F2937); }
 #rr-sched-viewseg .rr-viewseg-btn.active {
-  color: rgb(194, 231, 255);
+  /* Active label reads in primary ink — the rgb(194,231,255) light blue was
+     too faint on the white bar (operator 2026-06-27). The light blue stays
+     on the underline below as the active accent. */
+  color: var(--rr-fg-primary, #1F2937);
   border-bottom-color: rgb(194, 231, 255);
 }
-#rr-sched-viewseg .rr-viewseg-btn.active svg { color: rgb(194, 231, 255); }
+#rr-sched-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, #1F2937); }
 #rr-sched-viewseg .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent, #2563EB);
   outline-offset: -3px;

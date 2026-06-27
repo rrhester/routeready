@@ -29,8 +29,8 @@
 // fresh shell), so a recolor that never touches sw.js can sit invisible
 // on a resumed installed app. Bumping forces every open window to the
 // current shell on next launch.
-//   2026-06-27.01 · Schedule view-switcher tab-bar recolor reaching pinned apps.
-const SW_DEPLOY_NONCE = "2026-06-27.01";
+//   2026-06-27.02 · Schedule active-tab text → primary ink (was too-faint blue).
+const SW_DEPLOY_NONCE = "2026-06-27.02";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
