@@ -38809,6 +38809,25 @@ function _rrEnsureObViewSeg() {
     page.insertBefore(seg, page.firstElementChild);   // top row, above the toolbar
   }
   _rrSyncObViewSeg(_rrCurObSub);
+  _rrReserveObViewSegBand(seg, page);
+}
+// The view-switcher is the page's first child, so in window-controls-overlay mode
+// it lands under the OS window controls when env(titlebar-area-height) under-reports
+// the band (observed ≈8px on this build vs a real ~40px overlay). Read the true band
+// height from the WCO API at runtime and reserve it on the strip; floor an
+// under-report so the strip always clears the controls. No-op outside overlay mode.
+function _rrReserveObViewSegBand(seg, page) {
+  if (!seg || !page) return;
+  let band = 0, overlay = false;
+  try {
+    const w = navigator.windowControlsOverlay;
+    if (w && w.visible) { overlay = true; if (w.getTitlebarAreaRect) band = Math.round(w.getTitlebarAreaRect().height) || 0; }
+    else if (window.matchMedia && matchMedia("(display-mode: window-controls-overlay)").matches) overlay = true;
+  } catch (_) {}
+  if (!overlay) { seg.style.marginTop = ""; return; }
+  const reserve = band >= 30 ? band + 4 : 48;       // trust a sane reading (+buffer); floor an under-report
+  const pad = parseFloat(getComputedStyle(page).paddingTop) || 0;
+  seg.style.marginTop = Math.max(0, reserve - pad) + "px";
 }
 window._rrEnsureObViewSeg = _rrEnsureObViewSeg;
 let _rrObViewSegIv = null;
@@ -38824,6 +38843,9 @@ function _rrObViewSegPoll() {
   const v = document.getElementById("view-onboarding-ops");
   if (!v) { setTimeout(_rrObViewSegBoot, 600); return; }   // the ob frag mounts lazily
   _rrObViewSegPoll();
+  // Re-reserve when the title-bar band resizes (maximize/restore, DPI change).
+  try { navigator.windowControlsOverlay && navigator.windowControlsOverlay.addEventListener &&
+    navigator.windowControlsOverlay.addEventListener("geometrychange", () => _rrEnsureObViewSeg()); } catch (_) {}
   if (typeof MutationObserver === "function") {
     new MutationObserver(() => { if (v.classList.contains("active")) _rrObViewSegPoll(); })
       .observe(v, { attributes: true, attributeFilter: ["class"] });
