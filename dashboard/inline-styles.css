@@ -24192,7 +24192,12 @@ body.rr-cmdk-open{ overflow:hidden }
   #view-onboarding-ops > .page{padding-top:calc(env(titlebar-area-height, 33px) + 4px)!important}
   body::before{
     content:"";position:fixed;top:0;left:0;right:0;
-    height:env(titlebar-area-height, 33px);z-index:55;
+    /* +4px so the band reaches the content's top edge: the page padding-top
+       below is calc(env + 4px), so a plain env-tall band left a 4px strip of
+       #F9FAFB page ground peeking through between the band and the tab bar —
+       a thin near-white line. Both sides reference the same env, so band
+       bottom (env+4) meets the tab-bar top (env+4) exactly. */
+    height:calc(env(titlebar-area-height, 33px) + 4px);z-index:55;
     -webkit-app-region:drag;app-region:drag;
     /* Uniform rail-blue title-bar band (operator 2026-06-27): the whole
        band is #EFF6FF so it reads as one continuous color with the icon
