@@ -439,12 +439,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   width: 100%;
   box-sizing: border-box;
   padding: 0 8px;
-  /* Rail-blue header bar — match the sidebar (#EFF6FF) so the top tab
-     row reads as one continuous color with the icon rail. This is the
-     visible Schedule header; the legacy .sched-nav-heading is display:none. */
-  background: #EFF6FF;
+  /* Transparent so the tab row reads as the page canvas (operator
+     2026-06-27): the blue now lives on the title bar + icon rail, and the
+     nav tabs blend into the white content below them. No bottom hairline —
+     the bar melts into the page; the active tab's underline is the only
+     divider that remains. */
+  background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--border, rgba(15, 23, 42, .12));
   border-radius: 0;
   overflow: visible;
   margin-bottom: 14px;          /* breathing room between the tabs and the toolbar below */
