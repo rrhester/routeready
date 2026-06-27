@@ -12368,6 +12368,11 @@ body.rr-cmdk-open{ overflow:hidden }
           background:var(--canvas);
         }
         #view-onboarding-ops .page-header.sched-nav-heading{
+          /* Pin the onboarding ribbon so the tall calendar (or any sub-view that
+             outgrows the viewport) can't scroll it off the top — a recurring
+             "header drift" the JS height-fit fought but didn't fully win. Sticky
+             is inert until something actually scrolls, so short tabs are unaffected. */
+          position:sticky;top:0;z-index:10;
           display:flex;align-items:center;justify-content:flex-start;
           gap:var(--s-3);flex-wrap:nowrap;
           padding:11px 18px;margin-bottom:var(--s-4);
