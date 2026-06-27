@@ -439,12 +439,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   width: 100%;
   box-sizing: border-box;
   padding: 0 8px;
-  /* Transparent so the tab row reads as the page canvas (operator
-     2026-06-27): the blue now lives on the title bar + icon rail, and the
-     nav tabs blend into the white content below them. No bottom hairline —
-     the bar melts into the page; the active tab's underline is the only
-     divider that remains. */
-  background: transparent;
+  /* Tab row fill · operator-picked light blue rgb(194,231,255) = #C2E7FF
+     (2026-06-27). No bottom hairline — the active tab's underline is the
+     only divider that remains. */
+  background: rgb(194, 231, 255);
   border: 0;
   border-radius: 0;
   overflow: visible;
