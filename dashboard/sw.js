@@ -22,9 +22,20 @@
 // page registers the same worker, finds no update, and nothing else
 // fires.
 
+// ── Deploy nonce ─────────────────────────────────────────────────
+// Bump this on any CSS/HTML-only deploy that must reach pinned/installed
+// apps. sw.js byte-changes are the ONLY trigger for the forced refresh
+// below (new worker → activate → purge caches → navigate windows to the
+// fresh shell), so a recolor that never touches sw.js can sit invisible
+// on a resumed installed app. Bumping forces every open window to the
+// current shell on next launch.
+//   2026-06-27.01 · Schedule view-switcher tab-bar recolor reaching pinned apps.
+const SW_DEPLOY_NONCE = "2026-06-27.01";
+
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
   // waiting for every dashboard tab to close.
+  try { console.log("[rr-sw] installing build", SW_DEPLOY_NONCE); } catch (e) {}
   self.skipWaiting();
 });
 
