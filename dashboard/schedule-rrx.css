@@ -4897,7 +4897,11 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
    ════════════════════════════════════════════════════════════════════ */
 #view-schedule .rr-ab {
   display: flex;
-  align-items: stretch;
+  /* Center every control on the cross axis so the buttons sit level. The 2-line
+     Coverage card makes the row taller than the 36px buttons; with `stretch` the
+     fixed-height buttons parked at the TOP while the week-nav centered itself,
+     leaving "Today ‹ ›" ~3px low (operator 2026-06-27). `center` levels them. */
+  align-items: center;
   /* Left-justified control row (operator 2026-06-12): week navigator
      first, then the action buttons — no leading label. */
   justify-content: flex-start;
