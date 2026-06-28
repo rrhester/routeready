@@ -1554,14 +1554,13 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 }
 /* Soft status pills · pale fills in one family, no left accent band
    (operator). Healthy uses the Schedule shift-card blue (#EFF6FF); the red
-   is softened to the matching pale level (#FEF2F2). Status word carries the
-   saturated hue for contrast + meaning. */
+   is softened to the matching pale level (#FEF2F2). The pale fill carries the
+   level; the text reads in primary ink — black (operator request). */
 .rr-risk-card.rr-risk-high{background:#FEF2F2}
-.rr-risk-card.rr-risk-high .rr-risk-status{color:#DC2626}
 .rr-risk-card.rr-risk-med{background:#FFFBEB}
-.rr-risk-card.rr-risk-med .rr-risk-status{color:#B45309}
 .rr-risk-card.rr-risk-low{background:#EFF6FF}
-.rr-risk-card.rr-risk-low .rr-risk-status{color:#1E40AF}
+.rr-risk-card .rr-risk-status,
+.rr-risk-card .rr-risk-reason{color:#111827}
 /* Selected row · deepen the tint one step so the open driver feels connected. */
 #drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-high{background:#FEE2E2}
 #drivers-tbody tr.is-record-open .rr-risk-card.rr-risk-med{background:#FEF3C7}
@@ -1573,7 +1572,17 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .rr-att-pct{font-size:var(--fs-sm);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.2}
 .rr-att-bar{margin:3px 0;height:3px;border-radius:2px;background:rgba(15,23,42,.08);overflow:hidden}
 .rr-att-bar-fill{display:block;height:100%;border-radius:2px;background:rgba(15,23,42,.40)}
-.rr-att-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.2}
+.rr-att-sub{font-size:var(--fs-xs);color:#4B5563;line-height:1.2}
+/* Roster columns · darker text for readability (operator request). Tenure
+   value, Attendance, and Last-coaching read in dark slate; the muted "X ago"
+   subline steps down but darker than before. !important overrides the inline
+   var(--text-subtle) on the JS-rendered last-coaching spans. The "New" + risk
+   badges keep their own (more-specific) colors. */
+td.rr-tenure-cell{color:#1F2937}
+td.rr-att-col{color:#1F2937}
+td.rr-lastcoach-col{color:#1F2937}
+td.rr-lastcoach-col > span{color:#1F2937 !important}
+td.rr-lastcoach-col > span > span{color:#4B5563 !important}
 /* ── Driver Metrics drawer · right-side slide-out (Outlook reading-pane feel).
    No blocking backdrop — the roster stays interactive behind it; the panel
    lives in #view-drivers so it hides on navigation and restores on return. */
