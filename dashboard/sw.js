@@ -34,7 +34,8 @@
 //   2026-06-28.12 · Roster: keep the per-row coach menu on-screen (clamp to viewport).
 //   2026-06-28.13 · Roster: add a per-row Message-driver icon.
 //   2026-06-28.14 · Roster: per-row ⋯ menu (deep-link to record tabs + actions).
-const SW_DEPLOY_NONCE = "2026-06-28.14";
+//   2026-06-28.15 · Roster: ⋯ tab items open a compact peek popup (one tab, not the full record).
+const SW_DEPLOY_NONCE = "2026-06-28.15";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
