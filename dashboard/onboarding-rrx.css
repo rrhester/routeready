@@ -1813,10 +1813,13 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
 }
 #rr-ob-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, #1F2937); }
 #rr-ob-viewseg .rr-viewseg-btn.active {
-  color: var(--accent, #2563EB);
-  border-bottom-color: var(--accent, #2563EB);
+  /* Match the Schedule strip (#rr-sched-viewseg) exactly: active label/icon in
+     primary ink, underline in the same light-blue accent. Shares the same tokens
+     so the two strips can't drift apart. */
+  color: var(--rr-fg-primary, #1F2937);
+  border-bottom-color: rgb(194, 231, 255);
 }
-#rr-ob-viewseg .rr-viewseg-btn.active svg { color: var(--accent, #2563EB); }
+#rr-ob-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, #1F2937); }
 #rr-ob-viewseg .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent, #2563EB);
   outline-offset: -3px;
