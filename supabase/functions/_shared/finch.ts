@@ -165,6 +165,33 @@ export async function getEmployment(token: string, ids: string[]): Promise<Map<s
   return map;
 }
 
+// /employer/individual (batch) → reliable contact info (emails + phone numbers).
+// Directory/employment don't consistently carry these; this is the source for
+// matching a person to an existing RouteReady driver.
+export async function getIndividual(token: string, ids: string[]): Promise<Map<string, { email: string | null; phone: string | null }>> {
+  const map = new Map<string, { email: string | null; phone: string | null }>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const res = await fetch(`${FINCH_API}/employer/individual`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ requests: chunk.map((individual_id) => ({ individual_id })) }),
+    });
+    if (!res.ok) continue;
+    const body = await res.json().catch(() => ({}));
+    for (const r of (body.responses || [])) {
+      const b = r.body || {};
+      const emails = (b.emails as Array<{ data?: string; type?: string }>) || [];
+      const phones = (b.phone_numbers as Array<{ data?: string; type?: string }>) || [];
+      // Prefer a work email/phone, else the first available.
+      const email = (emails.find((x) => x.type === "work") || emails[0])?.data || null;
+      const phone = (phones.find((x) => x.type === "work") || phones[0])?.data || null;
+      if (r.individual_id) map.set(r.individual_id, { email, phone });
+    }
+  }
+  return map;
+}
+
 // Best-effort revoke at Finch when a DSP disconnects.
 export async function disconnect(token: string): Promise<void> {
   try {

@@ -129,7 +129,7 @@
 <!-- The dashboard's former inline styles · extracted so the no-cache
      HTML shell stops re-shipping ~1.2MB of CSS on every load; this
      file is cacheable and busts via the ?v= token like the rest. -->
-<link rel="stylesheet" href="inline-styles.css?v=b38b7853961d">
+<link rel="stylesheet" href="inline-styles.css?v=f2b9a4e1c803">
 <!-- style block 0 extracted to inline-styles.css -->
 </head>
 <body>
@@ -432,6 +432,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             <span>Secure OAuth connection — RouteReady never sees or stores your ADP password.</span>
           </div>
+          <!-- Import-to-drivers panel · painted by live.js when connected:
+               counts from finch_import_preview() + a Create-driver-records
+               button that runs finch_import_apply(). -->
+          <div class="rr-adp-import" id="rr-adp-import" hidden></div>
         </div>
         <!-- Footer buttons are painted by the wiring script per connection state. -->
         <div class="modal-foot" id="rr-adp-foot"></div>
@@ -4829,7 +4833,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=b38b7853961d"></script>
 <script src="./fleet-sync.js?v=b38b7853961d"></script>
 <script src="./admin-crawl-tasks.js?v=b38b7853961d"></script>
-<script type="module" src="./live.js?v=e8a3f1c0d942"></script>
+<script type="module" src="./live.js?v=a4c19e7f02d6"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

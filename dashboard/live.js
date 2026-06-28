@@ -73635,6 +73635,7 @@ window.openAdpSync = async function () {
   if (typeof openModal === "function") openModal("modal-adp-sync");
   _rrAdpRender({ loading: true });
   _rrAdpRender(await _rrAdpStatus());
+  _rrAdpRefreshImport();
 };
 async function _rrAdpConnect() {
   try {
@@ -73659,7 +73660,7 @@ async function _rrAdpConnect() {
       if (!ev.data || ev.data.type !== "rr-finch") return;
       window.removeEventListener("message", onMsg);
       try { popup && popup.close(); } catch (_) {}
-      if (ev.data.ok) { toast("ADP connected", "success"); _rrAdpRender(await _rrAdpStatus()); }
+      if (ev.data.ok) { toast("ADP connected", "success"); _rrAdpRender(await _rrAdpStatus()); _rrAdpRefreshImport(); }
       else toast("ADP connection failed: " + (ev.data.message || ""), "warn");
     };
     window.addEventListener("message", onMsg);
@@ -73673,6 +73674,7 @@ async function _rrAdpSync(btn) {
     toast("ADP sync complete — " + (data && data.synced != null ? data.synced : 0) + " employees", "success");
   } catch (e) { toast("Sync failed: " + (e.message || e), "warn"); }
   _rrAdpRender(await _rrAdpStatus());
+  _rrAdpRefreshImport();
 }
 async function _rrAdpDisconnect() {
   if (!confirm("Disconnect ADP? RouteReady will stop syncing your ADP roster.")) return;
@@ -73682,6 +73684,45 @@ async function _rrAdpDisconnect() {
     toast("Disconnected from ADP", "success");
   } catch (e) { toast("Disconnect failed: " + (e.message || e), "warn"); }
   _rrAdpRender(await _rrAdpStatus());
+  _rrAdpRefreshImport();
+}
+// Import-to-drivers panel · counts from finch_import_preview(), create via
+// finch_import_apply(). Both RPCs no-op gracefully (and the panel hides) until
+// the 0399 migration is applied, so this is safe before the DB is ready.
+async function _rrAdpRefreshImport() {
+  const box = document.getElementById("rr-adp-import");
+  if (!box) return;
+  try {
+    const { data, error } = await sb.rpc("finch_import_preview");
+    if (error) throw error;
+    const s = (data && data.summary) || {};
+    const create = s.create || 0, existing = s.existing || 0;
+    if (create === 0 && existing === 0) { box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML =
+      '<div class="rr-adp-import-h">Bring employees into RouteReady</div>' +
+      '<p class="rr-adp-import-s">' +
+        (create > 0
+          ? '<b>' + create + '</b> active ADP ' + (create === 1 ? 'employee isn’t' : 'employees aren’t') + ' in RouteReady yet'
+          : 'All active ADP employees are already in RouteReady') +
+        (existing > 0 ? ' · ' + existing + ' already linked' : '') +
+      '</p>' +
+      (create > 0
+        ? '<button type="button" class="btn btn-primary btn-sm" data-adp="import">Create ' + create + ' driver ' + (create === 1 ? 'record' : 'records') + '</button>'
+        : '<div class="rr-adp-import-done">✓ Roster up to date</div>');
+  } catch (_) {
+    box.hidden = true; // preview RPC absent (migration not applied yet)
+  }
+}
+async function _rrAdpImport(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Creating…"; }
+  try {
+    const { data, error } = await sb.rpc("finch_import_apply");
+    if (error) throw error;
+    const c = (data && data.created != null) ? data.created : 0;
+    toast("Created " + c + " driver " + (c === 1 ? "record" : "records") + " in onboarding", "success");
+  } catch (e) { toast("Import failed: " + (e.message || e), "warn"); }
+  _rrAdpRefreshImport();
 }
 document.addEventListener("click", function (e) {
   const t = e.target.closest("[data-adp]");
@@ -73690,4 +73731,5 @@ document.addEventListener("click", function (e) {
   if (act === "connect") _rrAdpConnect(t);
   else if (act === "sync") _rrAdpSync(t);
   else if (act === "disconnect") _rrAdpDisconnect();
+  else if (act === "import") _rrAdpImport(t);
 });

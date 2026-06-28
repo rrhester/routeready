@@ -27279,5 +27279,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-adp-banner-ico svg{ width:16px; height:16px; }
 .rr-adp-banner-t{ margin:0; font-size:13.5px; font-weight:600; color:var(--text); }
 .rr-adp-banner-s{ margin:1px 0 0; font-size:12px; color:var(--text-muted); }
+/* Import-to-drivers panel (shown once connected + synced). */
+.rr-adp-import{
+  margin-top:14px; padding:13px; border-radius:11px;
+  background:var(--accent-soft); border:1px solid var(--accent-border);
+}
+.rr-adp-import[hidden]{ display:none; }
+.rr-adp-import-h{ font-size:13px; font-weight:600; color:var(--text); }
+.rr-adp-import-s{ margin:3px 0 11px; font-size:12.5px; line-height:1.45; color:var(--text-muted); }
+.rr-adp-import-s b{ color:var(--accent-text); }
+.rr-adp-import-done{ font-size:12.5px; font-weight:600; color:var(--green); }
 /* ──────────────────────────────────────────────────────────────────── */
 

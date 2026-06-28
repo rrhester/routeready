@@ -4,7 +4,7 @@
 //   { action: "sync" }        → pull the roster from Finch, upsert finch_employees → { synced }
 //   { action: "disconnect" }  → revoke at Finch (best-effort) + drop the connection
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
-import { decryptSecret, getDirectory, getEmployment, disconnect, isConfigured } from "../_shared/finch.ts";
+import { decryptSecret, getDirectory, getEmployment, getIndividual, disconnect, isConfigured } from "../_shared/finch.ts";
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -68,16 +68,19 @@ Deno.serve(async (req) => {
       const directory = await getDirectory(token);
       const ids = directory.map((d) => d.id).filter(Boolean);
       const employment = await getEmployment(token, ids);
+      const individual = await getIndividual(token, ids); // reliable email + phone
 
       const rows = directory.map((d) => {
         const emp = employment.get(d.id) || {};
+        const ind = individual.get(d.id) || { email: null, phone: null };
         const empObj = (emp.employment as Record<string, unknown>) || {};
         return {
           dsp_id: dspId,
           finch_individual_id: d.id,
           first_name: d.first_name ?? (emp.first_name as string) ?? null,
           last_name: d.last_name ?? (emp.last_name as string) ?? null,
-          email: ((emp.emails as Array<{ data?: string }>)?.[0]?.data) ?? null,
+          email: ind.email ?? ((emp.emails as Array<{ data?: string }>)?.[0]?.data) ?? null,
+          phone: ind.phone ?? null,
           department: d.department?.name ?? (emp.department as { name?: string })?.name ?? null,
           manager_name: null, // directory exposes manager id only; left for the mapping pass
           title: (emp.title as string) ?? null,
