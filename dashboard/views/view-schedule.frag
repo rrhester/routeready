@@ -2879,10 +2879,10 @@
              localStorage (namespaced per DSP). -->
         <div class="sched-util-rail" id="rr-sched-util-rail" role="toolbar" aria-label="Schedule utilities">
           <button type="button" class="sched-util-btn" data-rr-notes-toggle title="Notes" aria-label="Notes" aria-expanded="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </button>
           <button type="button" class="sched-util-btn sched-util-btn--tasks" data-rr-tasks-toggle title="Tasks" aria-label="Tasks" aria-expanded="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4.5" fill="currentColor"/><polyline points="7.5 12.4 10.5 15.4 16.5 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span class="sched-util-badge" id="rr-nt-task-badge" aria-hidden="true">0</span>
           </button>
           <button type="button" class="sched-util-btn sched-util-btn--ops" data-rr-ophealth-toggle title="Operations Health" aria-label="Operations Health" aria-expanded="false">

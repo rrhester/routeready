@@ -46,7 +46,8 @@
 //   2026-06-28.24 · Schedule: Scratchpad upgraded to a polished Notes & Tasks productivity rail (tabs, rich composer, tasks).
 //   2026-06-28.25 · Schedule: split Notes & Tasks into two separate slide-out panels, each with its own rail icon.
 //   2026-06-28.26 · Schedule: Google-Calendar-style rail interaction — icon press, yellow ripple, panel slide + content fade.
-const SW_DEPLOY_NONCE = "2026-06-28.26";
+//   2026-06-28.27 · Schedule: fill in the rail icons (solid Notes bookmark + Tasks tile, matching the shield).
+const SW_DEPLOY_NONCE = "2026-06-28.27";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
