@@ -3403,7 +3403,8 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    in the cell. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here):hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12) !important;
+  /* Richer (still soft, two-layer) lift shadow — premium V2 polish pass. */
+  box-shadow: var(--shadow-md-hover) !important;
   border-color: transparent !important;
 }
 

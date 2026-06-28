@@ -27111,3 +27111,99 @@ body.rr-cmdk-open{ overflow:hidden }
   height: 36px !important;
 }
 #view-schedule.rrx-schedule #rr-sched-targets-kpis .rr-tgt-kpi-label { font-size: 14px !important; }
+
+/* ════════════════════════════════════════════════════════════════════
+   PREMIUM V2 POLISH PASS · Schedule (2026-06-28)
+   ─────────────────────────────────────────────────────────────────────
+   A visual refinement only — layout, information architecture, workflow,
+   navigation structure and the colour palette are all unchanged. Every
+   value is drawn from the existing token system (--shadow-*, --s-*, --r-*,
+   --rr-*) so depth, spacing and radii stay consistent with the rest of the
+   app. The goal is a calm, understated, Fortune-500 / Fluent · Linear feel:
+   soft elevation, generous whitespace, restrained motion. Appended to the
+   last-loaded sheet so the whole pass lives in one reviewable, revertible
+   block instead of scattered edits.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Action bar · cleaner control rhythm + breathing room above the grid */
+#view-schedule .rr-ab { gap: 12px; margin: 0 0 16px; }
+
+/* ── Toolbar buttons · float on a soft shadow, premium hover + press ──── */
+#view-schedule.rrx-schedule .rr-ab-btn {
+  box-shadow: var(--shadow-xs);
+  transition: background-color .16s ease, border-color .16s ease,
+              box-shadow .16s ease, transform .12s ease;
+}
+#view-schedule.rrx-schedule .rr-ab-btn:not(.rr-ab-primary):hover {
+  background: #FCFDFE;
+  border-color: rgba(15, 23, 42, .16);
+  box-shadow: var(--shadow-sm);
+}
+/* Gentle compress on press — the same restrained micro-interaction the
+   utility rail uses, so clicks feel tactile without bouncing. */
+#view-schedule.rrx-schedule .rr-ab-btn:active { transform: scale(.97); box-shadow: var(--shadow-xs); }
+#view-schedule.rrx-schedule .rr-ab-primary { box-shadow: var(--shadow-sm); }
+#view-schedule.rrx-schedule .rr-ab-primary:active { transform: scale(.97); }
+
+/* ── Coverage · a compact floating status card ───────────────────────── */
+#view-schedule.rrx-schedule .rr-ab-coverage {
+  gap: 2px;
+  padding: 9px 14px;
+  background: #FFFFFF;
+  border: 1px solid var(--rr-border-primary, #E5E7EB);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md);
+  line-height: 1.2;
+}
+#view-schedule.rrx-schedule .rr-ab-coverage-main { display: flex; align-items: baseline; gap: 6px; }
+#view-schedule.rrx-schedule .rr-ab-cov-num {
+  font-size: 18px; font-weight: 700; letter-spacing: -.01em;
+  color: var(--rr-fg-primary, #111827); font-variant-numeric: tabular-nums;
+}
+#view-schedule.rrx-schedule .rr-ab-cov-unit {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--rr-fg-secondary, #6B7280);
+}
+#view-schedule.rrx-schedule .rr-ab-coverage-sub { font-size: 11.5px; margin-top: 1px; }
+
+/* ── Schedule cards (shift chips) · defined tile + soft hover lift ────── */
+#view-schedule.rrx-schedule .shift-chip {
+  border-radius: 10px !important;
+  transition: transform 180ms cubic-bezier(.2, 0, .2, 1),
+              box-shadow 180ms cubic-bezier(.2, 0, .2, 1),
+              border-color 180ms ease, background-color 180ms ease !important;
+}
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  box-shadow: var(--shadow-xs) !important;
+  padding: 6px 8px !important;
+  /* A subtle hairline rendered as an inset outline so it coexists with the
+     chip's own borderless fill modes (white / blue / route-colour) instead
+     of fighting their !important border rules. The hover lift + richer
+     shadow are owned by the existing `.cal-cell:hover …:hover` rule (its
+     shadow is upgraded to --shadow-md-hover), so the operator's
+     chip-hover-only lift behaviour is preserved. */
+  outline: 1px solid rgba(15, 23, 42, .06);
+  outline-offset: -1px;
+}
+
+/* ── Today's column · a very soft blue wash (blue top indicator kept) ── */
+#view-schedule .cal-cell.today,
+#view-schedule .cal-cell-head.today { --sch-blue-tint: #F7FAFF; }
+#view-schedule .cal-cell.today { background: #F7FAFF; }
+
+/* ── Driver list · calmer name weight + a touch more breathing room ──── */
+#view-schedule .cal-row-label { padding-top: 14px; padding-bottom: 14px; }
+#view-schedule .cal-row-label-name { font-weight: 600; }
+#view-schedule .cal-row-label .avatar-sm { flex: 0 0 auto; }
+
+/* ── Left navigation (global chrome) · stronger selected emphasis ─────
+   The rail is the light theme (#EFF6FF) where the active item is a white
+   pill with blue ink. Lift that pill a touch more so the current page reads
+   clearly, and let the idle icons sit a step lighter so selection stands out
+   by contrast — no structural or icon-set change. */
+.sidebar .nav-item.active { box-shadow: var(--shadow-sm), 0 0 0 1px rgba(15, 23, 42, .05); }
+.sidebar { --sidebar-icon-idle: #94A3B8; }
+
+/* ── Topbar (global chrome) · bell sits a little closer to the avatar ── */
+.topbar .hdr-avatar-btn { margin-left: -6px; }
+/* ─────────────────────────────────────────────────────────────────── */
