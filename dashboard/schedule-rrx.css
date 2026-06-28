@@ -5711,24 +5711,95 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
 #view-schedule .ntp-task-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:var(--text-muted,#64748b);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;overflow:hidden}
 #view-schedule .ntp-task-avatar img{width:100%;height:100%;object-fit:cover}
 
-/* ── Forms panel · same compact rail panel as Notes/Tasks ───────────
+/* ── Driver Forms panel · enterprise card list ──────────────────────
    The Forms rail icon opens #rr-sched-forms (a .sched-notes-panel like
-   Notes/Tasks). Rows reuse the .rr-ftool-* markup but are restyled to
-   match the Tasks list — flat 1px-gap rows, a small leading icon, title,
-   meta line, and a status pill — instead of the old bordered-card look
-   from the wide detail-drawer. */
-#view-schedule .ntp-formlist{display:flex;flex-direction:column;gap:1px}
-#view-schedule .rr-ftool-row{display:flex;align-items:center;gap:11px;width:100%;text-align:left;appearance:none;cursor:pointer;border:0;background:transparent;font:inherit;padding:9px 6px;border-radius:8px;transition:background .15s}
-#view-schedule .rr-ftool-row:hover{background:#fff}
-#view-schedule .rr-ftool-ico{flex:0 0 auto;width:28px;height:28px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:#e2e8f0;color:var(--text-muted,#64748b)}
-#view-schedule .rr-ftool-ico svg{width:15px;height:15px}
-#view-schedule .rr-ftool-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-#view-schedule .rr-ftool-title{font-size:13.5px;font-weight:600;color:var(--text,#0f172a);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#view-schedule .rr-ftool-meta{font-size:12px;color:var(--text-subtle,#94a3b8);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#view-schedule .rr-ftool-pill{flex:0 0 auto;font-size:11px;font-weight:600;white-space:nowrap;padding:2px 8px;border-radius:999px;background:#e2e8f0;color:var(--text-muted,#64748b)}
-#view-schedule .rr-ftool-pill.published{background:#dcfce7;color:#16a34a}
-#view-schedule .rr-ftool-pill.draft{background:#fef3c7;color:#d97706}
-#view-schedule .rr-ftool-pill.archived{background:#e2e8f0;color:var(--text-subtle,#94a3b8)}
+   Notes/Tasks — same shell, width, slide + one-at-a-time behavior). The
+   Forms panel's CONTENT is a restrained Google-Workspace / MS365 surface:
+   white background, #F7F8FA inner surfaces, very light #E7EAF0 borders,
+   minimal color (blue reserved for the New Form button + the selected
+   filter chip), soft muted status / requirement badges, monochrome card
+   icons in a faint tinted square. Header + search + chips + pagination
+   chrome live in view-schedule.frag; the cards render from mock-wiring.js.
+   Scoped to #rr-sched-forms so nothing leaks to Notes/Tasks. */
+#view-schedule #rr-sched-forms.rr-fp{background:#FFFFFF}
+
+/* Header — title + subtitle on the left, primary New Form (split) + close
+   on the right. The ONLY prominent blue in the panel. */
+#view-schedule .rr-fp-head{align-items:flex-start;padding:16px 16px 12px}
+#view-schedule .rr-fp-head-titles{min-width:0;flex:1}
+#view-schedule .rr-fp-head .ntp-head-title{font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--text,#111827);line-height:1.2}
+#view-schedule .rr-fp-subtitle{margin-top:3px;font-size:12px;color:var(--text-subtle,#6B7280);line-height:1.35}
+#view-schedule .rr-fp-head-actions{flex:0 0 auto;display:flex;align-items:center;gap:8px}
+#view-schedule .rr-fp-newsplit{display:inline-flex;align-items:stretch;border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(37,99,235,.18)}
+#view-schedule .rr-fp-new,
+#view-schedule .rr-fp-new-caret{appearance:none;cursor:pointer;border:0;background:#2563EB;color:#fff;font:inherit;display:inline-flex;align-items:center;justify-content:center;transition:background .15s}
+#view-schedule .rr-fp-new{font-size:12.5px;font-weight:600;padding:7px 11px;letter-spacing:-.01em}
+#view-schedule .rr-fp-new-caret{padding:0 7px;border-left:1px solid rgba(255,255,255,.22)}
+#view-schedule .rr-fp-new:hover,
+#view-schedule .rr-fp-new-caret:hover{background:#1D4ED8}
+
+/* Toolbar — search row + filter chips. Sits below the header, above the
+   scrollable card list, with a hairline separator. */
+#view-schedule .rr-fp-toolbar{flex:0 0 auto;padding:0 16px 12px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid #E7EAF0;opacity:0;transition:opacity 120ms ease}
+#view-schedule #rr-sched-forms.is-open .rr-fp-toolbar{opacity:1;transition:opacity 120ms ease 100ms}
+@media (prefers-reduced-motion: reduce){#view-schedule .rr-fp-toolbar{transition:none}}
+#view-schedule .rr-fp-searchrow{display:flex;align-items:center;gap:8px}
+#view-schedule .rr-fp-search{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:#F7F8FA;border:1px solid #E7EAF0;border-radius:10px;padding:0 10px;height:34px;color:var(--text-subtle,#6B7280);transition:border-color .15s,background .15s}
+#view-schedule .rr-fp-search:focus-within{background:#fff;border-color:#C7D2E4}
+#view-schedule .rr-fp-search svg{flex:0 0 auto}
+#view-schedule .rr-fp-search-input{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:13px;color:var(--text,#111827);outline:none}
+#view-schedule .rr-fp-search-input::placeholder{color:var(--text-disabled,#9CA3AF)}
+#view-schedule .rr-fp-trig{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;appearance:none;cursor:pointer;background:#fff;border:1px solid #E7EAF0;border-radius:10px;height:34px;padding:0 9px;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted,#4B5563);white-space:nowrap;transition:border-color .15s,background .15s}
+#view-schedule .rr-fp-trig:hover{background:#F7F8FA}
+#view-schedule .rr-fp-trig svg{color:var(--text-subtle,#6B7280)}
+#view-schedule .rr-fp-opt{flex:0 0 auto;appearance:none;cursor:pointer;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid #E7EAF0;border-radius:10px;color:var(--text-muted,#4B5563);transition:border-color .15s,background .15s}
+#view-schedule .rr-fp-opt:hover{background:#F7F8FA}
+
+/* Filter chips — subtle pills. Selected: faint blue tint + blue text.
+   Unselected: white, #E7EAF0 border, gray text. */
+#view-schedule .rr-fp-chips{display:flex;flex-wrap:wrap;gap:6px}
+#view-schedule .rr-fp-chip{appearance:none;cursor:pointer;background:#fff;border:1px solid #E7EAF0;border-radius:999px;padding:5px 11px;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted,#4B5563);transition:background .15s,border-color .15s,color .15s}
+#view-schedule .rr-fp-chip:hover{background:#F7F8FA}
+#view-schedule .rr-fp-chip.is-active{background:rgba(37,99,235,.09);border-color:rgba(37,99,235,.22);color:#1E40AF;font-weight:600}
+
+/* Card list — scrollable region between toolbar and pager. */
+#view-schedule .rr-fp-scroll{padding:12px 16px}
+#view-schedule .rr-fp-cards{display:flex;flex-direction:column;gap:10px}
+#view-schedule .rr-fp-empty{color:var(--text-subtle,#6B7280)}
+
+/* Form card — white, very light border, 12px radius, no shadow at rest;
+   light shadow + slight lift on hover only. */
+#view-schedule .rr-fp-card{position:relative;display:flex;align-items:flex-start;gap:11px;width:100%;text-align:left;cursor:pointer;background:#fff;border:1px solid #E7EAF0;border-radius:12px;padding:12px 12px 11px;transition:box-shadow .16s ease,transform .16s ease,border-color .16s ease}
+#view-schedule .rr-fp-card:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(17,24,39,.07);border-color:#DDE2EC}
+#view-schedule .rr-fp-card-ico{flex:0 0 auto;width:34px;height:34px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:#F2F4F8;color:var(--text-muted,#4B5563)}
+#view-schedule .rr-fp-card-ico svg{width:17px;height:17px;stroke-width:1.8}
+#view-schedule .rr-fp-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+#view-schedule .rr-fp-card-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding-right:22px}
+#view-schedule .rr-fp-card-title{font-size:13.5px;font-weight:600;color:var(--text,#111827);line-height:1.25;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#view-schedule .rr-fp-card-sub{font-size:12px;color:var(--text-subtle,#6B7280);line-height:1.3}
+#view-schedule .rr-fp-card-meta{font-size:11.5px;color:var(--text-disabled,#9CA3AF);line-height:1.3}
+
+/* Badges — soft, muted, low-saturation tints with darker muted text.
+   Nothing vivid. */
+#view-schedule .rr-fp-badge{flex:0 0 auto;font-size:10.5px;font-weight:600;line-height:1;white-space:nowrap;padding:3px 7px;border-radius:6px}
+#view-schedule .rr-fp-st-published{background:#EAF1EC;color:#3F6B50}
+#view-schedule .rr-fp-st-draft{background:#F4EFE3;color:#8A6D3B}
+#view-schedule .rr-fp-st-archived{background:#F0F1F4;color:#6B7280}
+#view-schedule .rr-fp-rq-required{background:#EDEFF5;color:#475069}
+#view-schedule .rr-fp-rq-optional{background:#F4F5F7;color:#8A93A3}
+
+/* Three-dot menu — monochrome, top-right, subtle. */
+#view-schedule .rr-fp-card-dots{position:absolute;top:9px;right:8px;appearance:none;cursor:pointer;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;border-radius:6px;color:var(--text-disabled,#9CA3AF);transition:background .15s,color .15s}
+#view-schedule .rr-fp-card-dots:hover{background:#F2F4F8;color:var(--text-muted,#4B5563)}
+#view-schedule .rr-fp-card-dots svg{width:16px;height:16px}
+
+/* Pagination — pinned at the foot of the panel, quiet monochrome. */
+#view-schedule .rr-fp-pager{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 16px;border-top:1px solid #E7EAF0;background:#FFFFFF}
+#view-schedule .rr-fp-pager-label{font-size:12px;color:var(--text-subtle,#6B7280)}
+#view-schedule .rr-fp-pager-btns{display:flex;align-items:center;gap:6px}
+#view-schedule .rr-fp-pager-btn{appearance:none;cursor:pointer;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid #E7EAF0;border-radius:8px;color:var(--text-muted,#4B5563);transition:background .15s,border-color .15s,color .15s}
+#view-schedule .rr-fp-pager-btn:hover:not(:disabled){background:#F7F8FA}
+#view-schedule .rr-fp-pager-btn:disabled{cursor:default;color:#D1D5DB;border-color:#EFF1F5}
 
 /* ============================================================
    Grounded-surface polish pass (2026-06-28)

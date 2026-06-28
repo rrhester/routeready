@@ -1146,16 +1146,24 @@
     document.body.style.overflow = '';
   }
 
-  // ─── FORMS QUICK-ACCESS TOOL ──────────────────────────────
-  // Right-edge tab → slide-out list of the operator's forms,
-  // styled like a checklist/notes panel. The list is the operator's
-  // REAL forms, read from the live forms cache that live.js exposes
-  // (window.rrGetForms() / window._formsCache · populated by
-  // loadFormsList). If the cache is cold we trigger a load (when the
-  // forms view grid is mounted) and re-render; otherwise we show a
-  // brief loading / friendly empty state — never placeholder rows.
-  // Reuses the shared .detail-drawer + #ap-backdrop pattern.
+  // ─── DRIVER FORMS PANEL ───────────────────────────────────
+  // Right-edge rail → slide-out "Driver Forms" panel: an enterprise
+  // card list of the operator's REAL forms (read from the live forms
+  // cache live.js exposes — window.rrGetForms() / window._formsCache,
+  // populated by loadFormsList). The panel chrome (header, search,
+  // trigger chips, pagination) lives in view-schedule.frag; this module
+  // owns the card render + the search / chip / page state and re-renders
+  // on change. If the cache is cold we trigger a load (only works when
+  // the forms view grid is mounted) and re-render; otherwise we show a
+  // clean empty state — never placeholder rows.
   var RR_FTOOL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12l2 2 4-4"/></svg>';
+  var RR_FP_DOTS = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
+  var RR_FP_PAGE = 5;
+  // Module-local panel state, re-applied on every render.
+  var _fpSearch = '';
+  var _fpChip = 'all';      // 'all' | 'Check-In' | 'During Route' | 'End of Shift' | 'Manual'
+  var _fpPage = 0;          // zero-based page index into the FILTERED list
+
   function rrFtoolGetForms(){
     if (typeof window === 'undefined') return [];
     if (typeof window.rrGetForms === 'function') {
@@ -1163,10 +1171,92 @@
     }
     return Array.isArray(window._formsCache) ? window._formsCache : [];
   }
-  function rrFtoolMsg(text){
+  function rrFpEsc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+  // ── Derived classifications (the forms model has no trigger / form-level
+  // required concept, so we DERIVE them — see PR notes). ────────────────
+  // Trigger: keyword-map the free-text `category` onto the 4 buckets;
+  // default Manual when nothing matches.
+  function rrFpTrigger(f){
+    var c = (f && f.category ? String(f.category) : '').toLowerCase();
+    if (/check[\s_-]?in|pre[\s_-]?trip|morning|start|dvic|dvir|inspect/.test(c)) return 'Check-In';
+    if (/route|during|mid|en[\s_-]?route|delivery|on[\s_-]?road/.test(c))        return 'During Route';
+    if (/end|shift|post[\s_-]?trip|close|eod|return/.test(c))                    return 'End of Shift';
+    return 'Manual';
+  }
+  // Requirement: a form reads as Required when it's a DVIC form
+  // (settings.is_dvic) or carries any required field; else Optional.
+  function rrFpRequired(f){
+    if (f && f.settings && f.settings.is_dvic) return true;
+    var fields = (f && Array.isArray(f.fields)) ? f.fields : [];
+    for (var i = 0; i < fields.length; i++) { if (fields[i] && fields[i].required) return true; }
+    return false;
+  }
+  function rrFpFieldCount(f){
+    return Array.isArray(f && f.fields) ? f.fields.length : 0;
+  }
+  // Real per-form submission count, if loadFormsList exposed it; else null
+  // (we OMIT the number rather than invent one).
+  function rrFpSubmCount(f){
+    var m = (typeof window !== 'undefined') ? window._formSubmCounts : null;
+    if (m && f && f.id && Object.prototype.hasOwnProperty.call(m, f.id)) return Number(m[f.id]) || 0;
+    return null;
+  }
+  function rrFpMsg(text){
     var list = document.getElementById('rr-sched-forms-list');
+    var pager = document.getElementById('rr-fp-pager');
+    if (pager) pager.hidden = true;
     if (!list) return;
-    list.innerHTML = '<div class="ntp-empty">' + text + '</div>';
+    list.innerHTML = '<div class="ntp-empty rr-fp-empty">' + rrFpEsc(text) + '</div>';
+  }
+  function rrFpCardHtml(f){
+    var status = (f.status || 'draft').toLowerCase();
+    var statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+    var trigger = rrFpTrigger(f);
+    var required = rrFpRequired(f);
+    var nFields = rrFpFieldCount(f);
+    var nSubs = rrFpSubmCount(f);
+    var idAttr = f.id ? (' data-rr-form-edit="' + rrFpEsc(f.id) + '"') : '';
+    var meta = nFields + ' field' + (nFields === 1 ? '' : 's');
+    if (nSubs != null) meta += ' • ' + nSubs + ' submission' + (nSubs === 1 ? '' : 's');
+    var openLabel = ' aria-label="Open ' + rrFpEsc(f.title || 'Untitled form') + '"';
+    return '<div class="rr-fp-card" role="button" tabindex="0"' + openLabel + idAttr + ' data-rr-fp-id="' + rrFpEsc(f.id || '') + '">'
+      +   '<span class="rr-fp-card-ico">' + RR_FTOOL_ICON + '</span>'
+      +   '<div class="rr-fp-card-body">'
+      +     '<div class="rr-fp-card-top">'
+      +       '<span class="rr-fp-card-title">' + rrFpEsc(f.title || 'Untitled form') + '</span>'
+      +       '<span class="rr-fp-badge rr-fp-st-' + status + '">' + statusLabel + '</span>'
+      +       '<span class="rr-fp-badge rr-fp-rq-' + (required ? 'required' : 'optional') + '">' + (required ? 'Required' : 'Optional') + '</span>'
+      +     '</div>'
+      +     '<div class="rr-fp-card-sub">' + rrFpEsc(trigger) + ' • Driver App</div>'
+      +     '<div class="rr-fp-card-meta">' + meta + '</div>'
+      +   '</div>'
+      +   '<button type="button" class="rr-fp-card-dots" data-rr-fp-cardmenu title="More" aria-label="Form options">' + RR_FP_DOTS + '</button>'
+      + '</div>';
+  }
+  // Apply current search + chip filter to the live forms.
+  function rrFpFilter(forms){
+    var q = _fpSearch.trim().toLowerCase();
+    return forms.filter(function(f){
+      if (q && String(f.title || '').toLowerCase().indexOf(q) === -1) return false;
+      if (_fpChip !== 'all' && rrFpTrigger(f) !== _fpChip) return false;
+      return true;
+    });
+  }
+  function rrFpRenderPager(total, start, end){
+    var pager = document.getElementById('rr-fp-pager');
+    var label = document.getElementById('rr-fp-pager-label');
+    if (!pager) return;
+    if (total <= 0) { pager.hidden = true; return; }
+    pager.hidden = false;
+    if (label) label.textContent = 'Showing ' + (start + 1) + '–' + end + ' of ' + total + ' Form' + (total === 1 ? '' : 's');
+    var prev = pager.querySelector('[data-rr-fp-page="prev"]');
+    var next = pager.querySelector('[data-rr-fp-page="next"]');
+    if (prev) prev.disabled = (_fpPage <= 0);
+    if (next) next.disabled = (end >= total);
   }
   function rrFtoolRender(){
     var list = document.getElementById('rr-sched-forms-list');
@@ -1177,53 +1267,112 @@
       // works when the forms view grid is mounted), then re-render.
       var grid = document.getElementById('rr-forms-grid');
       if (grid && typeof window.loadFormsList === 'function') {
-        rrFtoolMsg('Loading your forms…');
+        rrFpMsg('Loading your forms…');
         try {
           var p = window.loadFormsList();
           if (p && typeof p.then === 'function') {
-            p.then(function(){ rrFtoolRender(); }, function(){ rrFtoolMsg('No forms yet'); });
+            p.then(function(){ rrFtoolRender(); }, function(){ rrFpMsg('No forms yet'); });
             return;
           }
         } catch (_) {}
       }
-      rrFtoolMsg('No forms yet');
+      rrFpMsg('No forms yet');
       return;
     }
-    list.innerHTML = forms.map(function(f){
-      var count = Array.isArray(f.fields) ? f.fields.length
-        : (f.fields && typeof f.fields.length === 'number') ? f.fields.length : 0;
-      var cat = f.category ? String(f.category) : 'general';
-      var status = f.status || 'draft';
-      var label = status.charAt(0).toUpperCase() + status.slice(1);
-      var idAttr = f.id ? (' data-rr-form-edit="' + String(f.id) + '"') : '';
-      return '<button type="button" class="rr-ftool-row" role="listitem"' + idAttr + ' data-rr-ftool-id="' + (f.id || '') + '">'
-        +   '<span class="rr-ftool-ico">' + RR_FTOOL_ICON + '</span>'
-        +   '<span class="rr-ftool-main">'
-        +     '<span class="rr-ftool-title">' + (f.title || 'Untitled form') + '</span>'
-        +     '<span class="rr-ftool-meta">' + count + ' field' + (count === 1 ? '' : 's') + ' · ' + cat + '</span>'
-        +   '</span>'
-        +   '<span class="rr-ftool-pill ' + status + '">' + label + '</span>'
-        + '</button>';
-    }).join('');
+    var filtered = rrFpFilter(forms);
+    var total = filtered.length;
+    if (total === 0) { rrFpMsg('No forms match your search'); return; }
+    // Clamp the page into range (filter changes can shrink the list).
+    var maxPage = Math.max(0, Math.ceil(total / RR_FP_PAGE) - 1);
+    if (_fpPage > maxPage) _fpPage = maxPage;
+    if (_fpPage < 0) _fpPage = 0;
+    var start = _fpPage * RR_FP_PAGE;
+    var end = Math.min(start + RR_FP_PAGE, total);
+    list.innerHTML = filtered.slice(start, end).map(rrFpCardHtml).join('');
+    rrFpRenderPager(total, start, end);
   }
   // Expose the renderer so the schedule rail's shared panel manager
   // (live.js · _rrNtRenderAll) can populate the Forms panel with the
   // operator's REAL forms when it opens — the same way Notes/Tasks render.
   window.rrFtoolRender = rrFtoolRender;
-  // Row click → open the real form editor when a live form id is present
-  // (live.js wires a document-level [data-rr-form-edit] handler that loads
-  // the form and calls openFormBuilder). Close the rail panel first so the
-  // builder opens cleanly. Mock rows have no id, so they no-op gracefully.
+
+  // ── Panel interactions: search, chips, pagination, card open ──────────
+  // Search box → filter by title (case-insensitive), reset to page 1.
+  document.addEventListener('input', function(e){
+    var inp = e.target.closest && e.target.closest('#rr-fp-search');
+    if (!inp) return;
+    _fpSearch = inp.value || '';
+    _fpPage = 0;
+    rrFtoolRender();
+  });
+  // Click delegation for chips, pager, the three-dot menu, and card open.
   document.addEventListener('click', function(e){
-    var row = e.target.closest && e.target.closest('#rr-sched-forms-list .rr-ftool-row');
-    if (!row) return;
-    if (row.getAttribute('data-rr-form-edit')) {
-      // Real form — close the rail panel; live.js's delegated handler
-      // opens the builder for the same click.
+    // Filter chip → set active trigger, reset to page 1.
+    var chip = e.target.closest && e.target.closest('#rr-fp-chips .rr-fp-chip');
+    if (chip) {
+      var val = chip.getAttribute('data-rr-fp-chip') || 'all';
+      if (val !== _fpChip) {
+        _fpChip = val;
+        _fpPage = 0;
+        var chips = document.querySelectorAll('#rr-fp-chips .rr-fp-chip');
+        for (var i = 0; i < chips.length; i++) chips[i].classList.toggle('is-active', chips[i] === chip);
+        rrFtoolRender();
+      }
+      return;
+    }
+    // Pagination.
+    var pg = e.target.closest && e.target.closest('#rr-fp-pager [data-rr-fp-page]');
+    if (pg) {
+      if (pg.disabled) return;
+      _fpPage += (pg.getAttribute('data-rr-fp-page') === 'next') ? 1 : -1;
+      if (_fpPage < 0) _fpPage = 0;
+      rrFtoolRender();
+      return;
+    }
+    // New Form (primary) → live.js's [data-rr-form-new] handler opens the
+    // builder in create mode for this same click; just close the rail panel
+    // first so the builder opens cleanly (don't swallow — let it bubble).
+    if (e.target.closest && e.target.closest('#rr-sched-forms [data-rr-form-new]')) {
       if (typeof window._rrNtPanelCloseAll === 'function') window._rrNtPanelCloseAll();
       return;
     }
-    // Mock form — nothing to open. Keep the panel open.
+    // Three-dot card menu / toolbar stubs — visual only, swallow the click
+    // so it never falls through to opening the form. Use
+    // stopImmediatePropagation (not just stopPropagation): live.js registers
+    // its own document-level [data-rr-form-edit] click listener AFTER this
+    // one (mock-wiring.js loads first), and stopPropagation would NOT prevent
+    // a sibling listener on the same node from firing — so the ⋮ would still
+    // open the editor. stopImmediatePropagation blocks live.js's listener.
+    if (e.target.closest && e.target.closest('#rr-sched-forms [data-rr-fp-cardmenu], #rr-sched-forms [data-rr-fp-newmenu], #rr-sched-forms [data-rr-fp-trig], #rr-sched-forms [data-rr-fp-opt]')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+    // Card body → open the real form editor when a live form id is present
+    // (live.js wires a document-level [data-rr-form-edit] handler that loads
+    // the form and calls openFormBuilder). Close the rail panel first so the
+    // builder opens cleanly.
+    var card = e.target.closest && e.target.closest('#rr-sched-forms-list .rr-fp-card');
+    if (card && card.getAttribute('data-rr-form-edit')) {
+      if (typeof window._rrNtPanelCloseAll === 'function') window._rrNtPanelCloseAll();
+      return;
+    }
+  });
+  // Keyboard access for the cards (role="button" / tabindex="0"): Enter and
+  // Space activate the same open action as a click. Delegated on the list
+  // container; ignores the ⋮ button so it isn't hijacked. We synthesize a
+  // click on the card so the existing click delegation above (which closes
+  // the rail and lets live.js's [data-rr-form-edit] listener open the form)
+  // is reused verbatim — no divergent open logic.
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    if (!e.target.closest) return;
+    // Don't intercept keys aimed at the ⋮ button — let it behave as a button.
+    if (e.target.closest('#rr-sched-forms [data-rr-fp-cardmenu]')) return;
+    var card = e.target.closest('#rr-sched-forms-list .rr-fp-card');
+    if (!card) return;
+    e.preventDefault(); // stop Space from scrolling the panel
+    card.click();
   });
 
   // ─── SUBMISSION DETAIL ────────────────────────────────────

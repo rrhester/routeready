@@ -2953,18 +2953,48 @@
             </div>
           </div>
         </aside>
-        <aside class="sched-notes-panel" id="rr-sched-forms" aria-label="Forms" aria-hidden="true">
-          <div class="ntp-head">
-            <div class="ntp-head-title">Forms</div>
-            <button type="button" class="ntp-icon-btn" data-rr-forms-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <aside class="sched-notes-panel rr-fp" id="rr-sched-forms" aria-label="Driver Forms" aria-hidden="true">
+          <div class="ntp-head rr-fp-head">
+            <div class="rr-fp-head-titles">
+              <div class="ntp-head-title">Driver Forms</div>
+              <div class="rr-fp-subtitle">Forms used throughout the RouteReady Driver App</div>
+            </div>
+            <div class="rr-fp-head-actions">
+              <div class="rr-fp-newsplit">
+                <button type="button" class="rr-fp-new" data-rr-form-new title="Create a new form">+ New Form</button>
+                <button type="button" class="rr-fp-new-caret" data-rr-fp-newmenu title="More form options" aria-label="More form options"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+              </div>
+              <button type="button" class="ntp-icon-btn" data-rr-forms-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
           </div>
 
-          <div class="ntp-scroll">
-            <div class="ntp-forms-block" data-rr-nt-forms>
-              <div class="ntp-tasks-head">
-                <div class="ntp-section-title">All Forms</div>
+          <div class="rr-fp-toolbar">
+            <div class="rr-fp-searchrow">
+              <div class="rr-fp-search">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" class="rr-fp-search-input" id="rr-fp-search" placeholder="Search Forms..." aria-label="Search forms" autocomplete="off"/>
               </div>
-              <div class="ntp-formlist" id="rr-sched-forms-list" role="list"></div>
+              <button type="button" class="rr-fp-trig" data-rr-fp-trig title="Filter by trigger">All Triggers<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+              <button type="button" class="rr-fp-opt" data-rr-fp-opt title="View options" aria-label="View options"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg></button>
+            </div>
+            <div class="rr-fp-chips" id="rr-fp-chips" role="tablist" aria-label="Filter forms by trigger">
+              <button type="button" class="rr-fp-chip is-active" data-rr-fp-chip="all">All</button>
+              <button type="button" class="rr-fp-chip" data-rr-fp-chip="Check-In">Check-In</button>
+              <button type="button" class="rr-fp-chip" data-rr-fp-chip="During Route">During Route</button>
+              <button type="button" class="rr-fp-chip" data-rr-fp-chip="End of Shift">End of Shift</button>
+              <button type="button" class="rr-fp-chip" data-rr-fp-chip="Manual">Manual</button>
+            </div>
+          </div>
+
+          <div class="ntp-scroll rr-fp-scroll">
+            <div class="rr-fp-cards" id="rr-sched-forms-list" role="list"></div>
+          </div>
+
+          <div class="rr-fp-pager" id="rr-fp-pager" hidden>
+            <span class="rr-fp-pager-label" id="rr-fp-pager-label"></span>
+            <div class="rr-fp-pager-btns">
+              <button type="button" class="rr-fp-pager-btn" data-rr-fp-page="prev" aria-label="Previous page"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
+              <button type="button" class="rr-fp-pager-btn" data-rr-fp-page="next" aria-label="Next page"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg></button>
             </div>
           </div>
         </aside>
