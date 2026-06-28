@@ -8444,11 +8444,16 @@ function _rrSyncNotesRailTop() {
   const rail = document.getElementById("rr-sched-util-rail");
   const panel = document.getElementById("rr-sched-notes");
   if (!rail && !panel) return;
-  // Both the rail and the panel start at the schedule grid top (the
-  // .tcp-body top, just below the ribbon) so the rail lines up with the
-  // calendar instead of riding up into the ribbon.
-  const body = document.querySelector("#view-schedule .tcp-body");
-  const t = body ? Math.round(body.getBoundingClientRect().top) : 0;
+  // Align with the calendar's day-header row — the visible "top of the
+  // schedule" (where SUN/MON… sit). The .tcp-body top is a bit higher
+  // (banners + grid padding live above the header), which left the rail
+  // riding up above the grid. The header is sticky, so its rect top
+  // stays put during scroll too. Fall back to the grid wrap, then the
+  // body, for sub-views without a calendar grid.
+  const anchor = document.querySelector("#view-schedule .cal-grid.head")
+              || document.querySelector("#view-schedule .cal-wrap")
+              || document.querySelector("#view-schedule .tcp-body");
+  const t = anchor ? Math.round(anchor.getBoundingClientRect().top) : 0;
   const val = t > 0 ? t + "px" : "";
   if (rail) rail.style.top = val;
   if (panel) panel.style.top = val;
@@ -8459,7 +8464,7 @@ function _rrSyncNotesRailTop() {
 // then observe it (and the view) so they re-align on any reflow.
 window.addEventListener("resize", _rrSyncNotesRailTop);
 (function _rrNotesRailInit(){
-  let tries = 0, wired = false;
+  let n = 0, wired = false;
   const tick = () => {
     _rrSyncNotesRailTop();
     const body = document.querySelector("#view-schedule .tcp-body");
@@ -8469,13 +8474,17 @@ window.addEventListener("resize", _rrSyncNotesRailTop);
         if (typeof ResizeObserver === "function") {
           const ro = new ResizeObserver(() => _rrSyncNotesRailTop());
           ro.observe(body);
+          const grid = document.querySelector("#view-schedule .cal-wrap");
+          if (grid) ro.observe(grid);
           const v = document.getElementById("view-schedule");
           if (v) ro.observe(v);
         }
       } catch (_) {}
-      return;
     }
-    if (tries++ < 60) setTimeout(tick, 120);
+    // Keep re-syncing for a few seconds even after wiring — the grid head
+    // settles a few frames after first paint, and a plain ResizeObserver
+    // won't fire when only inner content (not the observed box) shifts.
+    if (n++ < 45) setTimeout(tick, 130);
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick, { once: true });
   else tick();

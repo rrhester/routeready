@@ -42,7 +42,8 @@
 //   2026-06-28.20 · Schedule: rail drops to the grid top; reserve its width so right-edge cells aren't clipped.
 //   2026-06-28.21 · Schedule: reliable rail/panel top-sync (grid top); notes panel uses the canvas bg.
 //   2026-06-28.22 · Schedule: notes panel goes flat (drop the shadow).
-const SW_DEPLOY_NONCE = "2026-06-28.22";
+//   2026-06-28.23 · Schedule: rail anchors to the day-header row (true grid top); notes panel bordered all sides.
+const SW_DEPLOY_NONCE = "2026-06-28.23";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
