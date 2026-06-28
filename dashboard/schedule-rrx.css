@@ -5848,3 +5848,251 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   justify-content: center;
 }
 
+/* ============================================================
+   Grounded-surface polish pass — Roster / Requests / Targets
+   (2026-06-28)
+   ------------------------------------------------------------
+   The Schedule WEEK board got the "final-5%" grounding above.
+   These three live as in-page Schedule sub-views
+   (#sched-sub-roster — the relocated Drivers node, mounted in
+   #ob-roster-mount; #sched-sub-requests; #sched-sub-targets),
+   so they share #view-schedule.rrx-schedule's page floor
+   (#F6F8FB) set at the top of this block — no per-page floor
+   needed. Here we apply the SAME design language to each one's
+   own content: one unified planted white container (1px
+   #E6EAF2, 12px radius, whisper shadow 0 1px 2px
+   rgba(15,23,42,.04)), a recessed #F7F9FC workspace tray with
+   zero net displacement, a control-row hairline, ~15% firmer
+   internal seams, and a touch more weight/contrast on headers +
+   primary row text. Adapt-don't-force: each page only gets the
+   points its real structure has. End-of-sheet so these win at
+   equal specificity. No moved controls, no new chrome, no
+   gradients/glass, no bigger shadows, no reduced whitespace.
+
+   Exact hexes (shared with the Schedule block):
+     workspace tray  #F7F9FC
+     container       #FFFFFF + 1px #E6EAF2 + 12px radius
+     container shadow 0 1px 2px rgba(15,23,42,.04)
+     control hairline #ECEFF5
+   ============================================================ */
+
+/* ─────────────────────────────────────────────────────────────
+   ROSTER  (#sched-sub-roster → #ob-roster-mount)
+   The Roster tab relocates the Drivers node into the schedule;
+   its content is the toolbar (.rr-roster-toolbar) + the roster
+   table (#rr-roster-table-wrap), optionally beside a docked
+   record (.roster-split). Apply: tray floor, one planted
+   container, control-row hairline, firmer header rule, header +
+   name weight. The schedule block already bumped .cell-name /
+   .cell-name-sub fonts; we add only color/weight hierarchy +
+   the surface treatment here.
+   ───────────────────────────────────────────────────────────── */
+
+/* (9) Workspace tray behind the roster split — recessed #F7F9FC
+   with the zero-net-displacement trick so nothing shifts. The
+   split is the main content block of the roster sub-view. */
+#view-schedule.rrx-schedule #ob-roster-mount .roster-split {
+  background: #F7F9FC;
+  border-radius: 14px;
+  padding: 6px;
+  margin: -6px;
+}
+
+/* (2) One unified planted container around the roster list. The
+   .roster-split-list holds the toolbar + table as a single
+   column, so plant THAT (not the split, which also wraps the
+   docked record pane). White, #E6EAF2 hairline, 12px corners,
+   one whisper shadow; overflow:hidden clips the corners over the
+   sticky header. No padding added — the toolbar + table keep
+   their own insets. */
+#view-schedule.rrx-schedule #ob-roster-mount .roster-split-list {
+  background: #FFFFFF;
+  border: 1px solid #E6EAF2;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+/* (3) Toolbar / control row — its bottom border is the seam to
+   the table. Firm it to the calm #ECEFF5 hairline used on the
+   Schedule action bar (was the heavier --border). Controls stay
+   exactly where they are; the existing 7px/--s-4 padding is
+   preserved. */
+#view-schedule.rrx-schedule #ob-roster-mount .rr-roster-toolbar {
+  border-bottom-color: #ECEFF5;
+}
+
+/* (4) Firm the table-header seam ~15%. The roster thead bottom
+   border was a faint --border-subtle; nudge it to the spec's
+   #ECEFF5 with a whisper of inset so the header reads as a real
+   rule under the scrolling rows — still quiet. */
+#view-schedule.rrx-schedule #ob-roster-mount #rr-roster-table-wrap thead th {
+  border-bottom-color: #ECEFF5 !important;
+  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.025);
+}
+
+/* (5) Column headers — more weight + contrast, NOT larger. Push
+   the uppercase captions from --text-muted to --text and to 650
+   so they lead the table; size/tracking untouched. */
+#view-schedule.rrx-schedule #ob-roster-mount #rr-roster-table-wrap thead th {
+  font-weight: 650 !important;
+  color: var(--text) !important;
+}
+
+/* (6) Primary row text (driver name) firm 600 / --text; the
+   contact/meta sub-line to ~430 + --text-subtle so the name
+   clearly leads. (The schedule block already set the name's
+   font-size/leading; this adds the color/weight hierarchy.) */
+#view-schedule.rrx-schedule #ob-roster-mount #rr-roster-table-wrap .cell-name {
+  color: var(--text);
+}
+#view-schedule.rrx-schedule #ob-roster-mount #rr-roster-table-wrap .cell-name-sub {
+  font-weight: 430;
+  color: var(--text-subtle);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   REQUESTS  (#sched-sub-requests)
+   Structure: a control row (.req-toolbar-bar: Type / Status /
+   Location filters + PTO report) over a split
+   (.sched-requests-split) holding the request-stream card
+   (.sched-requests-card) with its grouped .to-card lists of
+   .to-row request rows. Apply: tray floor, plant the stream
+   card, control-row hairline, firmer card-head seam, header +
+   name weight, rows darkened a few %.
+   ───────────────────────────────────────────────────────────── */
+
+/* (9) Workspace tray behind the request stream — recessed
+   #F7F9FC, zero net displacement. */
+#view-schedule.rrx-schedule #sched-sub-requests .sched-requests-split {
+  background: #F7F9FC;
+  border-radius: 14px;
+  padding: 6px;
+  margin: -6px;
+}
+
+/* (2) Plant the unified request-stream container. It already
+   carries a white surface + radius + a 0 1px 4px shadow and a
+   --req-hairline (rgba .05) border; re-key it to the exact spec
+   surface so it matches the Schedule grid: crisp #E6EAF2
+   hairline, 12px corners, the single whisper shadow. Padding
+   preserved. */
+#view-schedule.rrx-schedule #sched-sub-requests .sched-requests-card {
+  border: 1px solid #E6EAF2;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* (3) Control row — the filter/PTO toolbar. Add a quiet bottom
+   hairline + a touch more bottom space so the controls read as
+   separated from the workspace beneath. Same controls, same
+   positions; existing margin/padding preserved (we only grow
+   the bottom margin a hair). */
+#view-schedule.rrx-schedule #sched-sub-requests .req-toolbar-bar {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ECEFF5;
+}
+
+/* (4) Firm the card-head seam ~15%. The stream card's head rule
+   was --req-hairline-faint (rgba .032); nudge it to #ECEFF5 so
+   the "Pending / History" header band reads as a real divider
+   under the rows — still calm. */
+#view-schedule.rrx-schedule #sched-sub-requests .sched-requests-card-head {
+  border-bottom-color: #ECEFF5;
+}
+
+/* (5) The card eyebrow (PENDING / HISTORY) carries the header
+   role here — keep it the deliberate light uppercase label, but
+   firm its contrast a touch so it leads its list. Size/tracking
+   untouched. */
+#view-schedule.rrx-schedule #sched-sub-requests .to-card-head-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* (6) Primary row text (requester name) already 600 / --text —
+   leave it. Pin the secondary range/meta line to --text-subtle
+   so the name leads consistently with the other pages. */
+#view-schedule.rrx-schedule #sched-sub-requests .to-row-range {
+  color: var(--text-subtle);
+}
+
+/* (7) Darken the request rows a few % so they read as attached
+   to the card, not floating. The rows are transparent at rest
+   (the card is white); give them a whisper of the #F7F9FC tray
+   tone so they sit on the grid. Hover deepen kept proportional.
+   No shadow, same radius. */
+#view-schedule.rrx-schedule #sched-sub-requests .to-card .to-row {
+  background: #FBFCFE;
+}
+#view-schedule.rrx-schedule #sched-sub-requests .to-card .to-row:hover {
+  background: #F3F7FF;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   TARGETS  (#sched-sub-targets)
+   Structure: the Targets KPI/control strip (#rr-sched-targets-
+   kpis, the shared strip swapped in for this sub-view) over the
+   13-week planner host (#rr-sched-targets-13week-host) holding
+   the .okami-table. The host already mirrors the Schedule grid
+   (white + #E5E8EE + 12px); re-key it to the EXACT spec values
+   so all four surfaces match, plus header/seam/row refinement.
+   ───────────────────────────────────────────────────────────── */
+
+/* (9) Workspace tray behind the planner table — recessed
+   #F7F9FC, zero net displacement. .rr-tgt-13w is the content
+   block wrapping the host (its head is display:none, so the host
+   is effectively its sole child). */
+#view-schedule.rrx-schedule #sched-sub-targets .rr-tgt-13w {
+  background: #F7F9FC;
+  border-radius: 14px;
+  padding: 6px;
+  margin: -6px;
+}
+
+/* (2) Plant the unified planner container to the exact spec.
+   The host already had a near-identical white card (#E5E8EE
+   border, 12px); align the hairline to #E6EAF2 and add the one
+   whisper shadow so it reads as seated like the Schedule grid,
+   not a flat panel. No padding added. */
+#view-schedule.rrx-schedule #sched-sub-targets #rr-sched-targets-13week-host {
+  border-color: #E6EAF2;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* (3) Control row — the Targets KPI strip is the toolbar that
+   leads this sub-view (filters + Gap card + Save Plan). Add the
+   quiet bottom hairline + a touch more bottom space so it reads
+   as separated from the planner workspace. Controls unmoved. */
+#view-schedule.rrx-schedule #rr-sched-targets-kpis {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ECEFF5;
+}
+
+/* (4) Firm the table-header seam ~15%. The okami thead bottom
+   rule was #ECEFF3; nudge to #ECEFF5 + a whisper of inset so the
+   sticky column header reads as a real rule over the scrolling
+   weeks. Quiet, never a hard line. */
+#view-schedule.rrx-schedule #sched-sub-targets .rr-tgt-13w .okami-table thead th {
+  border-bottom-color: #ECEFF5 !important;
+  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.025);
+}
+
+/* (5) Column headers — more weight + contrast, NOT larger. The
+   captions were #374151 / 700; push the color to --text so they
+   lead the planner without growing. */
+#view-schedule.rrx-schedule #sched-sub-targets .rr-tgt-13w .okami-table thead th {
+  color: var(--text) !important;
+}
+
+/* (6) Primary row text — the week label (W## + dates) is each
+   row's title; firm it to 600 / --text so the week leads, with
+   the inline dates staying the lighter voice. */
+#view-schedule.rrx-schedule #sched-sub-targets .rr-tgt-13w .plan-week-label {
+  font-weight: 600;
+  color: var(--text);
+}
+#view-schedule.rrx-schedule #sched-sub-targets .rr-tgt-13w .plan-week-dates {
+  color: var(--text-subtle);
+}
+
