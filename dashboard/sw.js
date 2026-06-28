@@ -58,7 +58,8 @@
 //   2026-06-28.37 · Forms: open the forms slide-out from a Forms icon on the Schedule right-side utility rail (beside Notes/Tasks/Operations Health) instead of a floating tab; the slide-out now lists the operator's REAL forms (live cache) rather than placeholder rows. Floating #rr-forms-tab removed.
 //   2026-06-28.38 · Forms: render the Forms panel as the SAME compact rail push-panel as Notes/Tasks (matching width, simple "Forms" + X header, one-at-a-time behavior) instead of the wide full-height detail-drawer with the oversized header. Old #rr-forms-tool-drawer removed; rows restyled to match the Tasks list.
 //   2026-06-28.39 · ADP Sync: "Create driver records" — import active ADP employees as onboarding drivers (review count + one-click), matched so existing drivers aren't duplicated.
-const SW_DEPLOY_NONCE = "2026-06-28.39";
+//   2026-06-28.40 · Forms: redesign the Schedule rail's Forms panel into a polished "Driver Forms" surface — header + subtitle + primary New Form button, search, trigger filter chips, clean white form cards with soft muted status/requirement badges + monochrome icons, and Showing 1–N pagination (understated Google-Workspace aesthetic; blue reserved for primary action + selected chip).
+const SW_DEPLOY_NONCE = "2026-06-28.40";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

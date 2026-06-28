@@ -55956,6 +55956,19 @@ async function loadFormsList() {
   _formAssignCounts = {};
   for (const r of (Array.isArray(ac) ? ac : [])) _formAssignCounts[r.form_id] = Number(r.n) || 0;
   const forms = data || [];
+
+  // Real per-form submission tallies, grouped from the tenant-wide
+  // list_form_submissions payload we already fetched above. Exposed on
+  // window so the Schedule rail's Driver Forms panel (mock-wiring.js ·
+  // rrFtoolRender) can show REAL submission counts per card without a
+  // second round-trip. Kept in sync on every successful load.
+  try {
+    const _submCounts = {};
+    for (const s of (Array.isArray(submRes?.data) ? submRes.data : [])) {
+      if (s && s.form_id) _submCounts[s.form_id] = (_submCounts[s.form_id] || 0) + 1;
+    }
+    window._formSubmCounts = _submCounts;
+  } catch (_) {}
   if (count) count.textContent = String(forms.length);
   const published = forms.filter(f => f.status === "published").length;
   if (sub) sub.textContent = "Forms workspace";
