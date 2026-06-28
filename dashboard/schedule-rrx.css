@@ -5563,55 +5563,110 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
 #view-schedule .tcp-body{padding-right:52px;transition:padding-right 240ms cubic-bezier(.32,.72,.4,1)}
 #view-schedule.rr-notes-open .tcp-body{padding-right:calc(min(360px,86vw) + 52px)}
 
-#view-schedule .sched-notes-head{
-  display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
-  padding:16px 16px 12px; border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.07));
-}
-#view-schedule .sched-notes-eyebrow{font-size:11px;font-weight:700;letter-spacing:.10em;color:var(--text-subtle,#94a3b8)}
-#view-schedule .sched-notes-title{font-size:18px;font-weight:700;color:var(--text,#0f172a);margin-top:1px}
-#view-schedule .sched-notes-x{
+/* ── Notes & Tasks panel · enterprise productivity rail ─────────────
+   Calm Outlook/Google-grade chrome: light-canvas panel, white cards,
+   soft borders, restrained #2563EB accent, thin colored note-type rule. */
+#view-schedule .ntp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px 11px}
+#view-schedule .ntp-head-title{font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--text,#0f172a)}
+#view-schedule .ntp-icon-btn{
   appearance:none;cursor:pointer;flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:var(--text-subtle,#94a3b8);
-  display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;
+  display:inline-flex;align-items:center;justify-content:center;transition:background .15s,color .15s;
 }
-#view-schedule .sched-notes-x:hover{background:var(--canvas,#f1f5f9);color:var(--text,#0f172a)}
+#view-schedule .ntp-icon-btn:hover{background:rgba(15,23,42,.05);color:var(--text,#0f172a)}
+#view-schedule .ntp-icon-btn.ntp-soft{border:1px solid var(--border,rgba(15,23,42,.10));background:#fff}
 
-#view-schedule .sched-notes-compose{
-  display:flex; align-items:center; gap:8px;
-  margin:14px 16px 6px; padding:4px 10px;
-  border:1px solid var(--border,rgba(15,23,42,.12)); border-radius:12px;
-  background:var(--surface,#fff);
-  box-shadow:0 1px 2px rgba(15,23,42,.04);
+#view-schedule .ntp-tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.07))}
+#view-schedule .ntp-tab{
+  appearance:none;cursor:pointer;border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;
+  color:var(--text-subtle,#94a3b8);padding:9px 12px;border-bottom:2px solid transparent;margin-bottom:-1px;
+  display:inline-flex;align-items:center;gap:7px;transition:color .15s,border-color .15s;
 }
-#view-schedule .sched-notes-add{
-  appearance:none;cursor:pointer;flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:rgb(49,134,255);
-  display:flex;align-items:center;justify-content:center;transition:background .15s;
-}
-#view-schedule .sched-notes-add:hover{background:rgba(49,134,255,.12)}
-#view-schedule .sched-notes-input{
-  flex:1; min-width:0; border:0; outline:none; background:transparent;
-  font:inherit; font-size:15px; color:var(--text,#0f172a); padding:8px 0;
-}
-#view-schedule .sched-notes-input::placeholder{color:var(--text-subtle,#94a3b8)}
+#view-schedule .ntp-tab:hover{color:var(--text,#0f172a)}
+#view-schedule .ntp-tab.is-active{color:#2563EB;border-bottom-color:#2563EB}
+#view-schedule .ntp-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:rgba(15,23,42,.06);color:var(--text-muted,#64748b);font-size:11px;font-weight:700}
+#view-schedule .ntp-tab.is-active .ntp-tab-badge{background:rgba(37,99,235,.12);color:#2563EB}
 
-#view-schedule .sched-notes-list{flex:1;min-height:0;overflow-y:auto;padding:8px 16px 18px;display:flex;flex-direction:column;gap:10px}
-#view-schedule .sched-note-card{
-  position:relative; border:1px solid var(--border,rgba(15,23,42,.12)); border-radius:12px;
-  padding:12px 36px 14px 14px; background:var(--surface,#fff);
-  box-shadow:0 1px 2px rgba(15,23,42,.04);
-}
-#view-schedule .sched-note-text{font-size:14px;line-height:1.5;color:var(--text,#0f172a);white-space:pre-wrap;word-break:break-word}
-#view-schedule .sched-note-pin{
-  position:absolute; top:8px; right:8px; width:24px;height:24px;border-radius:6px;
-  appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);
-  display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s;
-}
-#view-schedule .sched-note-pin:hover{background:var(--canvas,#f1f5f9);color:var(--text-muted,#64748b)}
-#view-schedule .sched-note-card.is-pinned .sched-note-pin{color:rgb(49,134,255)}
-#view-schedule .sched-note-del{
-  position:absolute; bottom:6px; right:8px; width:24px;height:24px;border-radius:6px;
-  appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);
-  display:none;align-items:center;justify-content:center;transition:color .15s,background .15s;
-}
-#view-schedule .sched-note-card:hover .sched-note-del{display:flex}
-#view-schedule .sched-note-del:hover{color:var(--red,#dc2626);background:rgba(220,38,38,.08)}
-#view-schedule .sched-notes-empty{font-size:13px;color:var(--text-subtle,#94a3b8);text-align:center;line-height:1.5;padding:28px 10px}
+#view-schedule .ntp-scroll{flex:1;min-height:0;overflow-y:auto;padding:14px}
+#view-schedule .ntp-notes-block{display:flex;flex-direction:column}
+
+#view-schedule .ntp-composer{border:1px solid var(--border,rgba(15,23,42,.12));border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.04);overflow:hidden}
+#view-schedule .ntp-composer-row{display:flex;align-items:flex-start;gap:9px;padding:10px 12px}
+#view-schedule .ntp-composer-plus{flex:0 0 auto;color:#2563EB;display:flex;margin-top:2px}
+#view-schedule .ntp-composer-input{flex:1;min-width:0;min-height:22px;max-height:140px;overflow-y:auto;outline:none;font:inherit;font-size:14px;line-height:1.5;color:var(--text,#0f172a)}
+#view-schedule .ntp-composer-input:empty:before{content:attr(data-placeholder);color:var(--text-subtle,#94a3b8)}
+#view-schedule .ntp-composer-input a{color:#2563EB}
+#view-schedule .ntp-composer-pin{flex:0 0 auto;appearance:none;cursor:pointer;width:26px;height:26px;border-radius:7px;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
+#view-schedule .ntp-composer-pin:hover{background:rgba(15,23,42,.05)}
+#view-schedule .ntp-composer-pin[aria-pressed="true"]{color:#2563EB}
+#view-schedule .ntp-composer-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.07));background:var(--canvas,#f8fafc)}
+#view-schedule .ntp-fmt{display:flex;align-items:center;gap:1px}
+#view-schedule .ntp-fmt-btn{appearance:none;cursor:pointer;width:26px;height:26px;border-radius:6px;border:0;background:transparent;color:var(--text-muted,#64748b);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;transition:background .15s,color .15s}
+#view-schedule .ntp-fmt-btn:hover{background:rgba(15,23,42,.06);color:var(--text,#0f172a)}
+#view-schedule .ntp-fmt-bold{font-weight:800}
+#view-schedule .ntp-fmt-italic{font-style:italic;font-family:Georgia,'Times New Roman',serif}
+#view-schedule .ntp-add-btn{appearance:none;cursor:pointer;border:0;border-radius:8px;background:#2563EB;color:#fff;font:inherit;font-size:13px;font-weight:600;padding:7px 14px;transition:background .15s}
+#view-schedule .ntp-add-btn:hover{background:#1d4ed8}
+#view-schedule .ntp-add-btn-sm{padding:6px 12px;font-size:12.5px}
+
+#view-schedule .ntp-filter{display:flex;align-items:center;gap:8px;margin:14px 0 10px}
+#view-schedule .ntp-filter-sel{appearance:none;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:#fff;color:var(--text,#0f172a);font:inherit;font-size:12.5px;font-weight:600;padding:7px 9px;transition:background .15s}
+#view-schedule .ntp-filter-sel:hover{background:var(--canvas,#f8fafc)}
+#view-schedule .ntp-filter-sel svg{color:var(--text-subtle,#94a3b8)}
+#view-schedule .ntp-search{flex:1;min-width:0;display:flex;align-items:center;gap:7px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:#fff;padding:0 9px}
+#view-schedule .ntp-search svg{flex:0 0 auto;color:var(--text-subtle,#94a3b8)}
+#view-schedule .ntp-search input{flex:1;min-width:0;border:0;outline:none;background:transparent;font:inherit;font-size:13px;color:var(--text,#0f172a);padding:7px 0}
+#view-schedule .ntp-search input::placeholder{color:var(--text-subtle,#94a3b8)}
+
+#view-schedule .ntp-list{display:flex;flex-direction:column;gap:10px}
+#view-schedule .ntp-note{position:relative;border:1px solid var(--border,rgba(15,23,42,.10));border-left:3px solid #2563EB;border-radius:10px;background:#fff;padding:11px 32px 12px 13px;box-shadow:0 1px 2px rgba(15,23,42,.04);transition:box-shadow .15s}
+#view-schedule .ntp-note:hover{box-shadow:0 2px 8px rgba(15,23,42,.07)}
+#view-schedule .ntp-note[data-type="amber"]{border-left-color:#E0A82E}
+#view-schedule .ntp-note[data-type="green"]{border-left-color:#16A34A}
+#view-schedule .ntp-note[data-type="violet"]{border-left-color:#7C3AED}
+#view-schedule .ntp-note-top{display:flex;align-items:baseline;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+#view-schedule .ntp-note-time{font-size:11.5px;color:var(--text-subtle,#94a3b8);font-weight:500}
+#view-schedule .ntp-note-author{font-size:11.5px;font-weight:600;color:var(--text-muted,#64748b)}
+#view-schedule .ntp-note-body{font-size:13.5px;line-height:1.5;color:var(--text,#0f172a);word-break:break-word}
+#view-schedule .ntp-note-body a{color:#2563EB}
+#view-schedule .ntp-note-body img{max-width:100%;border-radius:6px;margin-top:6px}
+#view-schedule .ntp-note-pin{position:absolute;top:9px;right:30px;width:22px;height:22px;border-radius:6px;appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
+#view-schedule .ntp-note-pin:hover{background:rgba(15,23,42,.05);color:var(--text-muted,#64748b)}
+#view-schedule .ntp-note.is-pinned .ntp-note-pin{color:#2563EB}
+#view-schedule .ntp-note-menu{position:absolute;top:9px;right:7px;width:22px;height:22px;border-radius:6px;appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
+#view-schedule .ntp-note-menu:hover{background:rgba(15,23,42,.05);color:var(--text-muted,#64748b)}
+#view-schedule .ntp-empty{font-size:12.5px;color:var(--text-subtle,#94a3b8);text-align:center;line-height:1.5;padding:22px 10px}
+
+#view-schedule .ntp-viewall{display:inline-block;margin:11px 2px 4px;font-size:12.5px;font-weight:600;color:#2563EB;text-decoration:none;cursor:pointer}
+#view-schedule .ntp-viewall:hover{text-decoration:underline}
+
+#view-schedule .ntp-tasks-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.07))}
+#view-schedule .ntp-tasks-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+#view-schedule .ntp-section-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted,#64748b)}
+#view-schedule .ntp-addtask-btn{appearance:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:#fff;color:var(--text,#0f172a);font:inherit;font-size:12px;font-weight:600;padding:6px 10px;transition:background .15s}
+#view-schedule .ntp-addtask-btn:hover{background:var(--canvas,#f8fafc)}
+#view-schedule .ntp-task-form{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:10px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:10px;background:#fff}
+#view-schedule .ntp-task-input,#view-schedule .ntp-task-date{border:1px solid var(--border,rgba(15,23,42,.12));border-radius:7px;background:#fff;font:inherit;font-size:13px;color:var(--text,#0f172a);padding:7px 9px;outline:none}
+#view-schedule .ntp-task-input:focus,#view-schedule .ntp-task-date:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+#view-schedule .ntp-task-form-row{display:flex;align-items:center;gap:8px}
+#view-schedule .ntp-task-date{flex:1;min-width:0}
+#view-schedule .ntp-ghost-btn{appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-muted,#64748b);font:inherit;font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:7px}
+#view-schedule .ntp-ghost-btn:hover{background:rgba(15,23,42,.05)}
+#view-schedule .ntp-tasklist{display:flex;flex-direction:column;gap:1px}
+#view-schedule .ntp-task{display:flex;align-items:center;gap:11px;padding:9px 6px;border-radius:8px;transition:background .15s}
+#view-schedule .ntp-task:hover{background:#fff}
+#view-schedule .ntp-task-check{appearance:none;cursor:pointer;flex:0 0 auto;width:18px;height:18px;border-radius:5px;border:1.6px solid #cbd5e1;background:#fff;color:#fff;display:inline-flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s}
+#view-schedule .ntp-task-check:hover{border-color:#2563EB}
+#view-schedule .ntp-task.is-done .ntp-task-check{background:#2563EB;border-color:#2563EB}
+#view-schedule .ntp-task-check svg{opacity:0}
+#view-schedule .ntp-task.is-done .ntp-task-check svg{opacity:1}
+#view-schedule .ntp-task-title{flex:1;min-width:0;font-size:13.5px;color:var(--text,#0f172a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#view-schedule .ntp-task.is-done .ntp-task-title{color:var(--text-subtle,#94a3b8);text-decoration:line-through}
+#view-schedule .ntp-task-due{flex:0 0 auto;font-size:12px;font-weight:600;color:var(--text-subtle,#94a3b8)}
+#view-schedule .ntp-task-due.is-soon{color:#EA580C}
+#view-schedule .ntp-task-due.is-over{color:#DC2626}
+#view-schedule .ntp-task-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:var(--text-muted,#64748b);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;overflow:hidden}
+#view-schedule .ntp-task-avatar img{width:100%;height:100%;object-fit:cover}
+
+#view-schedule .sched-notes-panel.ntp-on-tasks .ntp-notes-block{display:none}
+#view-schedule .sched-notes-panel.ntp-on-tasks .ntp-tasks-block{margin-top:0;padding-top:2px;border-top:0}
+#view-schedule .sched-notes-panel.ntp-on-tasks [data-rr-task-viewall]{display:none}
