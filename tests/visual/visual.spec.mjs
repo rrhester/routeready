@@ -29,7 +29,7 @@ async function prep(page, path) {
       // The right utility rail + notes panel are JS-positioned (their top
       // is synced to the live grid), so they're non-deterministic in the
       // static render — hide them so the schedule-chrome baseline is stable.
-      "#rr-sched-util-rail,#rr-sched-notes{display:none!important}",
+      "#rr-sched-util-rail,#rr-sched-notes,#rr-sched-tasks{display:none!important}",
   });
   await page.waitForTimeout(1500);
   await page.evaluate(() => document.getElementById("rr-boot-overlay")?.remove());

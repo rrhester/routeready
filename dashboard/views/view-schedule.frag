@@ -2881,19 +2881,18 @@
           <button type="button" class="sched-util-btn" data-rr-notes-toggle title="Notes" aria-label="Notes" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </button>
+          <button type="button" class="sched-util-btn sched-util-btn--tasks" data-rr-tasks-toggle title="Tasks" aria-label="Tasks" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span class="sched-util-badge" id="rr-nt-task-badge" aria-hidden="true">0</span>
+          </button>
           <button type="button" class="sched-util-btn sched-util-btn--ops" data-rr-ophealth-toggle title="Operations Health" aria-label="Operations Health" aria-expanded="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor"/><polyline points="8.5 12 11 14.5 15.5 9.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
-        <aside class="sched-notes-panel" id="rr-sched-notes" aria-label="Notes &amp; Tasks" aria-hidden="true">
+        <aside class="sched-notes-panel" id="rr-sched-notes" aria-label="Notes" aria-hidden="true">
           <div class="ntp-head">
-            <div class="ntp-head-title">Notes &amp; Tasks</div>
+            <div class="ntp-head-title">Notes</div>
             <button type="button" class="ntp-icon-btn" data-rr-notes-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-          </div>
-
-          <div class="ntp-tabs" role="tablist">
-            <button type="button" class="ntp-tab is-active" role="tab" aria-selected="true" data-rr-nt-tab="notes">Notes</button>
-            <button type="button" class="ntp-tab" role="tab" aria-selected="false" data-rr-nt-tab="tasks">Tasks<span class="ntp-tab-badge" id="rr-nt-task-badge">0</span></button>
           </div>
 
           <div class="ntp-scroll">
@@ -2925,10 +2924,18 @@
               <div class="ntp-list" id="rr-sched-notes-list" role="list"></div>
               <a href="#" class="ntp-viewall" data-rr-note-viewall>View all notes (<span id="rr-nt-note-count">0</span>)</a>
             </div>
+          </div>
+        </aside>
+        <aside class="sched-notes-panel" id="rr-sched-tasks" aria-label="Tasks" aria-hidden="true">
+          <div class="ntp-head">
+            <div class="ntp-head-title">Tasks</div>
+            <button type="button" class="ntp-icon-btn" data-rr-tasks-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
 
-            <div class="ntp-tasks-block" data-rr-nt-tasks>
+          <div class="ntp-scroll">
+            <div class="ntp-tasks-block ntp-tasks-block--solo" data-rr-nt-tasks>
               <div class="ntp-tasks-head">
-                <div class="ntp-section-title" data-rr-tasks-title>Tasks</div>
+                <div class="ntp-section-title">All Tasks</div>
                 <button type="button" class="ntp-addtask-btn" data-rr-task-add-open><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Task</button>
               </div>
               <div class="ntp-task-form" data-rr-task-form hidden>
@@ -2940,7 +2947,6 @@
                 </div>
               </div>
               <div class="ntp-tasklist" id="rr-sched-tasks-list" role="list"></div>
-              <a href="#" class="ntp-viewall" data-rr-task-viewall>View all tasks (<span id="rr-nt-task-count">0</span>)</a>
             </div>
           </div>
         </aside>

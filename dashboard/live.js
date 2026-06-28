@@ -8445,7 +8445,10 @@ function _rrNtSanitize(html) {
   };
   walk(tpl); return tpl.innerHTML;
 }
-function _rrNtOnTasks() { const p = document.getElementById("rr-sched-notes"); return !!(p && p.classList.contains("ntp-on-tasks")); }
+// Notes and Tasks are now two independent slide-out panels, each driven by
+// its own rail icon. Only one is open at a time (a panel manager enforces
+// it), so opening one closes the other.
+const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks" };
 
 let _rrNotesShowAll = false;
 const _RR_NTPIN = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg>`;
@@ -8483,17 +8486,16 @@ function _rrRenderNotes() {
 function _rrRenderTasks() {
   const list = document.getElementById("rr-sched-tasks-list");
   const badge = document.getElementById("rr-nt-task-badge");
-  const countEl = document.getElementById("rr-nt-task-count");
   const tasks = _rrLoadTasks().slice().sort((a, b) =>
     ((a.done ? 1 : 0) - (b.done ? 1 : 0)) ||
     ((a.due ? Date.parse(a.due + "T12:00:00") : Infinity) - (b.due ? Date.parse(b.due + "T12:00:00") : Infinity)) ||
     ((b.ts || 0) - (a.ts || 0)));
   const open = tasks.filter((t) => !t.done).length;
+  // Open-task count rides the Tasks rail icon as a small badge.
   if (badge) { badge.textContent = String(open); badge.style.display = open ? "" : "none"; }
-  if (countEl) countEl.textContent = String(tasks.length);
   if (!list) return;
   if (!tasks.length) { list.innerHTML = `<div class="ntp-empty">No tasks yet — add one above.</div>`; return; }
-  const shown = _rrNtOnTasks() ? tasks : tasks.slice(0, 4);
+  const shown = tasks;
   const init = (_rrNtUserName() || "").trim().slice(0, 1).toUpperCase() || "•";
   list.innerHTML = shown.map((t) => {
     const due = t.due ? `<span class="ntp-task-due${_rrNtDueClass(t.due)}">${escapeHtml(_rrNtFmtDue(t.due))}</span>` : "";
@@ -8522,8 +8524,8 @@ function _rrAddNoteFromInput() {
   _rrRenderNotes();
 }
 function _rrAddTaskFromForm() {
-  const ti = document.querySelector("#rr-sched-notes [data-rr-task-title]");
-  const de = document.querySelector("#rr-sched-notes [data-rr-task-due]");
+  const ti = document.querySelector("#rr-sched-tasks [data-rr-task-title]");
+  const de = document.querySelector("#rr-sched-tasks [data-rr-task-due]");
   if (!ti) return;
   const title = (ti.value || "").trim();
   if (!title) { try { ti.focus(); } catch (_) {} return; }
@@ -8531,7 +8533,7 @@ function _rrAddTaskFromForm() {
   tasks.push({ id: _rrNtId("t"), title, due: (de && de.value) || "", done: false, ts: Date.now() });
   _rrSaveTasks(tasks);
   ti.value = ""; if (de) de.value = "";
-  const form = document.querySelector("#rr-sched-notes [data-rr-task-form]"); if (form) form.hidden = true;
+  const form = document.querySelector("#rr-sched-tasks [data-rr-task-form]"); if (form) form.hidden = true;
   _rrRenderTasks();
 }
 function _rrNtFormat(kind) {
@@ -8545,29 +8547,15 @@ function _rrNtFormat(kind) {
     else if (kind === "image") { const u = prompt("Image URL:"); if (u) document.execCommand("insertImage", false, u); }
   } catch (_) {}
 }
-function _rrNtSetTab(which) {
-  const panel = document.getElementById("rr-sched-notes");
-  if (!panel) return;
-  const onTasks = which === "tasks";
-  panel.classList.toggle("ntp-on-tasks", onTasks);
-  panel.querySelectorAll("[data-rr-nt-tab]").forEach((b) => {
-    const on = b.getAttribute("data-rr-nt-tab") === which;
-    b.classList.toggle("is-active", on);
-    b.setAttribute("aria-selected", on ? "true" : "false");
-  });
-  const title = panel.querySelector("[data-rr-tasks-title]");
-  if (title) title.textContent = onTasks ? "All Tasks" : "Tasks";
-  _rrNtRenderAll();
-}
-// Align the rail/panel top flush with the top of the schedule view, so
+// Align the rail/panels top flush with the top of the schedule view, so
 // the sidebar starts level with the schedule rather than below the
 // ribbon. They're position:fixed, so we feed a viewport-relative top;
 // falls back to the CSS default when the schedule isn't laid out yet
-// (hidden view → rect top 0).
+// (hidden view → rect top 0). Both panels (Notes + Tasks) get synced.
 function _rrSyncNotesRailTop() {
   const rail = document.getElementById("rr-sched-util-rail");
-  const panel = document.getElementById("rr-sched-notes");
-  if (!rail && !panel) return;
+  const panels = [document.getElementById("rr-sched-notes"), document.getElementById("rr-sched-tasks")];
+  if (!rail && !panels.some(Boolean)) return;
   // Align with the calendar's day-header row — the visible "top of the
   // schedule" (where SUN/MON… sit). The .tcp-body top is a bit higher
   // (banners + grid padding live above the header), which left the rail
@@ -8580,7 +8568,7 @@ function _rrSyncNotesRailTop() {
   const t = anchor ? Math.round(anchor.getBoundingClientRect().top) : 0;
   const val = t > 0 ? t + "px" : "";
   if (rail) rail.style.top = val;
-  if (panel) panel.style.top = val;
+  panels.forEach((p) => { if (p) p.style.top = val; });
 }
 // Keep the rail + notes panel pinned to the schedule grid top. The
 // schedule fragment loads async, so a one-shot observer can fire before
@@ -8613,36 +8601,60 @@ window.addEventListener("resize", _rrSyncNotesRailTop);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick, { once: true });
   else tick();
 })();
-function _rrNotesSetOpen(open) {
-  const panel = document.getElementById("rr-sched-notes");
-  if (!panel) return;
+// ── Panel manager ─────────────────────────────────────────────────────
+// Notes and Tasks share the slide-out chrome but are mutually exclusive:
+// opening one closes the other. The body's .rr-notes-open class (which
+// condenses the schedule to make room) stays on while EITHER panel is
+// open, so switching panels slides one out / the other in without the
+// schedule bouncing wider and back.
+function _rrNtPanelEl(which) { return document.getElementById(_RR_NT_PANELS[which] || ""); }
+function _rrNtToggleBtn(which) {
+  return document.querySelector(which === "tasks" ? "[data-rr-tasks-toggle]" : "[data-rr-notes-toggle]");
+}
+function _rrNtPanelIsOpen(which) { const el = _rrNtPanelEl(which); return !!(el && el.classList.contains("is-open")); }
+function _rrNtAnyPanelOpen() { return Object.keys(_RR_NT_PANELS).some(_rrNtPanelIsOpen); }
+function _rrNtMarkClosed(which) {
+  const el = _rrNtPanelEl(which);
+  if (el) { el.classList.remove("is-open"); el.setAttribute("aria-hidden", "true"); }
+  const btn = _rrNtToggleBtn(which);
+  if (btn) btn.setAttribute("aria-expanded", "false");
+}
+function _rrNtPanelCloseAll() {
+  Object.keys(_RR_NT_PANELS).forEach(_rrNtMarkClosed);
+  const view = document.getElementById("view-schedule");
+  if (view) view.classList.remove("rr-notes-open");
+}
+function _rrNtPanelOpen(which) {
+  const el = _rrNtPanelEl(which);
+  if (!el) return;
   _rrSyncNotesRailTop();
-  panel.classList.toggle("is-open", open);
+  // Close the other panel(s) WITHOUT releasing the body push, so the
+  // schedule stays condensed and we slide panel→panel.
+  Object.keys(_RR_NT_PANELS).forEach((other) => { if (other !== which) _rrNtMarkClosed(other); });
+  el.classList.add("is-open");
+  el.setAttribute("aria-hidden", "false");
+  const btn = _rrNtToggleBtn(which);
+  if (btn) btn.setAttribute("aria-expanded", "true");
   // Push, don't overlay: condense the schedule body left to make room
   // (mirrors the Operations Health right dock).
   const view = document.getElementById("view-schedule");
-  if (view) view.classList.toggle("rr-notes-open", open);
-  panel.setAttribute("aria-hidden", open ? "false" : "true");
-  const btn = document.querySelector("[data-rr-notes-toggle]");
-  if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
-  if (open) {
-    _rrNtRenderAll();
-    const ed = panel.querySelector("[data-rr-note-input]");
+  if (view) view.classList.add("rr-notes-open");
+  _rrNtRenderAll();
+  if (which === "notes") {
+    const ed = el.querySelector("[data-rr-note-input]");
     if (ed) setTimeout(() => { try { ed.focus(); } catch (_) {} }, 60);
   }
 }
+function _rrNtPanelToggle(which) {
+  if (_rrNtPanelIsOpen(which)) _rrNtPanelCloseAll();
+  else _rrNtPanelOpen(which);
+}
 document.addEventListener("click", (e) => {
-  const toggle = e.target.closest("[data-rr-notes-toggle]");
-  if (toggle) {
-    e.preventDefault();
-    const panel = document.getElementById("rr-sched-notes");
-    _rrNotesSetOpen(!(panel && panel.classList.contains("is-open")));
-    return;
-  }
-  if (e.target.closest("[data-rr-notes-close]")) { e.preventDefault(); _rrNotesSetOpen(false); return; }
-  // Tabs
-  const tab = e.target.closest("[data-rr-nt-tab]");
-  if (tab) { e.preventDefault(); _rrNtSetTab(tab.getAttribute("data-rr-nt-tab")); return; }
+  // Rail toggles — Notes and Tasks each open their own panel; opening one
+  // closes the other (panel manager). Clicking an open panel's icon closes it.
+  if (e.target.closest("[data-rr-notes-toggle]")) { e.preventDefault(); _rrNtPanelToggle("notes"); return; }
+  if (e.target.closest("[data-rr-tasks-toggle]")) { e.preventDefault(); _rrNtPanelToggle("tasks"); return; }
+  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
   // Composer
   if (e.target.closest("[data-rr-note-add]")) { e.preventDefault(); _rrAddNoteFromInput(); return; }
   const pinT = e.target.closest("[data-rr-note-pin-toggle]");
@@ -8673,12 +8685,12 @@ document.addEventListener("click", (e) => {
   // Tasks
   if (e.target.closest("[data-rr-task-add-open]")) {
     e.preventDefault();
-    const f = document.querySelector("#rr-sched-notes [data-rr-task-form]");
+    const f = document.querySelector("#rr-sched-tasks [data-rr-task-form]");
     if (f) { f.hidden = !f.hidden; if (!f.hidden) { const ti = f.querySelector("[data-rr-task-title]"); if (ti) setTimeout(() => { try { ti.focus(); } catch (_) {} }, 40); } }
     return;
   }
   if (e.target.closest("[data-rr-task-add]")) { e.preventDefault(); _rrAddTaskFromForm(); return; }
-  if (e.target.closest("[data-rr-task-cancel]")) { e.preventDefault(); const f = document.querySelector("#rr-sched-notes [data-rr-task-form]"); if (f) f.hidden = true; return; }
+  if (e.target.closest("[data-rr-task-cancel]")) { e.preventDefault(); const f = document.querySelector("#rr-sched-tasks [data-rr-task-form]"); if (f) f.hidden = true; return; }
   const tg = e.target.closest("[data-rr-task-toggle]");
   if (tg) {
     e.preventDefault();
@@ -8688,23 +8700,19 @@ document.addEventListener("click", (e) => {
     if (t) { t.done = !t.done; _rrSaveTasks(tasks); _rrRenderTasks(); }
     return;
   }
-  if (e.target.closest("[data-rr-task-viewall]")) { e.preventDefault(); _rrNtSetTab("tasks"); return; }
 });
 document.addEventListener("input", (e) => {
   if (e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-search]")) _rrRenderNotes();
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
-    const tt = e.target.closest && e.target.closest("#rr-sched-notes [data-rr-task-title]");
+    const tt = e.target.closest && e.target.closest("#rr-sched-tasks [data-rr-task-title]");
     if (tt) { e.preventDefault(); _rrAddTaskFromForm(); return; }
     // Composer: plain Enter = newline (contenteditable default); ⌘/Ctrl+Enter saves.
     const ed = e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-input]");
     if (ed && (e.metaKey || e.ctrlKey)) { e.preventDefault(); _rrAddNoteFromInput(); return; }
   }
-  if (e.key === "Escape") {
-    const panel = document.getElementById("rr-sched-notes");
-    if (panel && panel.classList.contains("is-open")) _rrNotesSetOpen(false);
-  }
+  if (e.key === "Escape" && _rrNtAnyPanelOpen()) _rrNtPanelCloseAll();
 });
 window.addEventListener("scroll", _rrCloseRosterAttendance, true);
 window.addEventListener("resize", _rrCloseRosterAttendance);

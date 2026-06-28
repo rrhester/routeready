@@ -44,7 +44,8 @@
 //   2026-06-28.22 · Schedule: notes panel goes flat (drop the shadow).
 //   2026-06-28.23 · Schedule: rail anchors to the day-header row (true grid top); notes panel bordered all sides.
 //   2026-06-28.24 · Schedule: Scratchpad upgraded to a polished Notes & Tasks productivity rail (tabs, rich composer, tasks).
-const SW_DEPLOY_NONCE = "2026-06-28.24";
+//   2026-06-28.25 · Schedule: split Notes & Tasks into two separate slide-out panels, each with its own rail icon.
+const SW_DEPLOY_NONCE = "2026-06-28.25";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
