@@ -8136,19 +8136,29 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRo
 // (send-to-driver) and the full general "Log a coaching" form (all topics +
 // witnesses / attachments / privacy). Both act on the driver whose record is
 // open; same fixed-popover chrome as the other top-strip pills.
-function _rrCoachOpenDriver(mode) {
-  const d = _ddDriver && _ddDriver.driver;
-  // Both paths coach the open record — guard on one actually being open.
-  if (!d || !d.id || !_ddOpenDriverId) { toast("Open a driver from the roster first, then coach them.", "warn"); return; }
+function _rrCoachOpenDriver(mode, driverId) {
+  // driverId set → coach that specific roster driver (the per-row icon). Else
+  // coach the open record (legacy toolbar path).
+  let id, name;
+  if (driverId) {
+    id = driverId;
+    const row = (_rosterRows || []).find((r) => r && r.id === driverId);
+    name = row ? (displayDriverName(row) || "Driver") : "Driver";
+  } else {
+    const d = _ddDriver && _ddDriver.driver;
+    if (!d || !d.id || !_ddOpenDriverId) { toast("Open a driver from the roster first, then coach them.", "warn"); return; }
+    id = d.id;
+    name = displayDriverName(d) || "Driver";
+  }
   if (mode === "general") {
-    if (typeof openCoachingForm === "function") openCoachingForm(d.id);
+    if (typeof openCoachingForm === "function") openCoachingForm(id);
     return;
   }
   _openSendCoachingModal({
     source:      "record",
     event_id:    null,
-    driver_id:   d.id,
-    driver_name: displayDriverName(d) || "Driver",
+    driver_id:   id,
+    driver_name: name,
     event_label: "Manual coaching",
     event_date:  "",
     topic:       "attendance",
@@ -8170,7 +8180,7 @@ function _rrCloseRosterCoach() {
   if (!pop || pop.hidden) return;
   pop.hidden = true;
   pop.innerHTML = "";
-  const t = document.querySelector('[data-rr-roster-coach-menu][aria-expanded="true"]');
+  const t = document.querySelector('[data-rr-roster-coach-menu][aria-expanded="true"], [data-rr-row-coach][aria-expanded="true"]');
   if (t) t.setAttribute("aria-expanded", "false");
 }
 function _rrOpenRosterCoach(trigger) {
@@ -8190,12 +8200,26 @@ function _rrOpenRosterCoach(trigger) {
   pop.hidden = false;
   trigger.setAttribute("aria-expanded", "true");
 }
+let _rrRowCoachId = null;
 document.addEventListener("click", (e) => {
+  // Per-row "Coach driver" icon → coach THIS driver (no open record needed).
+  const rowCoach = e.target.closest("[data-rr-row-coach]");
+  if (rowCoach) {
+    e.preventDefault();
+    e.stopPropagation();
+    _rrRowCoachId = rowCoach.getAttribute("data-rr-driver-id") || null;
+    const popR = document.getElementById("rr-roster-coach-pop");
+    const isOpenR = popR && !popR.hidden && rowCoach.getAttribute("aria-expanded") === "true";
+    _rrCloseRosterCoach();
+    if (!isOpenR) _rrOpenRosterCoach(rowCoach);
+    return;
+  }
   // Toggle on the Coach driver pill.
   const trigger = e.target.closest("[data-rr-roster-coach-menu]");
   if (trigger) {
     e.preventDefault();
     e.stopPropagation();
+    _rrRowCoachId = null;   // toolbar path coaches the open record
     // Both paths need an open record — prompt up front rather than opening
     // a menu whose every item would just toast.
     if (!_ddOpenDriverId || !(_ddDriver && _ddDriver.driver && _ddDriver.driver.id)) {
@@ -8215,8 +8239,10 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     const mode = pick.getAttribute("data-rr-coach-go");
+    const coachId = _rrRowCoachId;
     _rrCloseRosterCoach();
-    _rrCoachOpenDriver(mode);
+    _rrCoachOpenDriver(mode, coachId);
+    _rrRowCoachId = null;
     return;
   }
   // Outside click → close.
@@ -8352,8 +8378,12 @@ function _rowActionsFor(d) {
   // factual record and then commits the termination + separation packet.
   const sepIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>';
   const sepBtn = `<button type="button" class="rr-row-action rr-row-action--sep" data-rr-separate="1" data-rr-driver-id="${escapeHtml(d.id)}" title="Separate driver" aria-label="Separate ${escapeHtml(displayDriverName(d))}">${sepIcon}</button>`;
+  // Coach driver · per-row icon (operator moved this off the top toolbar).
+  // Opens the same Attendance / General coaching popover, scoped to THIS driver.
+  const coachIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
+  const coachBtn = `<button type="button" class="rr-row-action rr-row-action--coach" data-rr-row-coach="1" data-rr-driver-id="${escapeHtml(d.id)}" title="Coach driver" aria-label="Coach ${escapeHtml(displayDriverName(d))}">${coachIcon}</button>`;
   // is-persistent → visible at rest (not only on row hover).
-  return `<div class="rr-row-actions-bar is-persistent">${sepBtn}</div>`;
+  return `<div class="rr-row-actions-bar is-persistent">${coachBtn}${sepBtn}</div>`;
 }
 
 function renderDriverRow(d) {
@@ -16067,7 +16097,8 @@ async function refreshDriverStatRow(rows) {
     + `</button>`;
   const rosterKpisHtml =
     activeFilterPill +
-    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-coach-menu aria-haspopup="menu" aria-expanded="false" title="Coach the driver whose record is open — attendance or general"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="sched-kpi-val">Coach driver</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>` +
+    // "Coach driver" toolbar pill removed (operator) — coaching now lives as a
+    // per-row icon next to Separate (see _rowActionsFor / data-rr-row-coach).
     `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-attendance" data-rr-roster-attendance aria-haspopup="menu" aria-expanded="false" title="Attendance report &amp; policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span class="sched-kpi-val">Attendance</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>` +
     `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-metrics" data-rr-roster-metrics aria-haspopup="dialog" aria-expanded="false" title="Driver metrics · live roster overview" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="sched-kpi-val">Metrics</span></button>` +
     `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>`;
