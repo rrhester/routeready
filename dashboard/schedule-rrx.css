@@ -5514,22 +5514,22 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
   width:52px; z-index:90;
   display:flex; flex-direction:column; align-items:center; gap:6px;
   padding:12px 0;
-  background:var(--surface,#fff);
-  border-left:1px solid var(--border,rgba(15,23,42,.10));
-  box-shadow:-6px 0 18px rgba(15,23,42,.04);
+  /* Same color as the page background so the rail blends in as chrome
+     rather than reading as a raised white panel (operator request). */
+  background:var(--canvas,#F9FAFB);
 }
 #view-schedule .sched-util-btn{
   appearance:none; cursor:pointer;
   width:40px; height:40px; border-radius:12px;
   display:flex; align-items:center; justify-content:center;
   border:1px solid transparent; background:transparent;
-  color:#EAB308;
+  color:rgb(49,134,255);
   transition:background var(--t-fast,.15s),border-color var(--t-fast,.15s),transform var(--t-fast,.15s);
 }
 #view-schedule .sched-util-btn svg{width:22px;height:22px}
-#view-schedule .sched-util-btn:hover{background:rgba(234,179,8,.12);border-color:rgba(234,179,8,.30)}
-#view-schedule .sched-util-btn[aria-expanded="true"]{background:rgba(234,179,8,.16);border-color:rgba(234,179,8,.42)}
-#view-schedule .sched-util-btn:focus-visible{outline:none;border-color:#EAB308;box-shadow:0 0 0 3px rgba(234,179,8,.25)}
+#view-schedule .sched-util-btn:hover{background:rgba(49,134,255,.12);border-color:rgba(49,134,255,.30)}
+#view-schedule .sched-util-btn[aria-expanded="true"]{background:rgba(49,134,255,.16);border-color:rgba(49,134,255,.42)}
+#view-schedule .sched-util-btn:focus-visible{outline:none;border-color:rgb(49,134,255);box-shadow:0 0 0 3px rgba(49,134,255,.25)}
 
 #view-schedule .sched-notes-panel{
   position:fixed; top:var(--tcp-topbar-h,56px); right:52px; bottom:0;
@@ -5543,6 +5543,13 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
 }
 #view-schedule .sched-notes-panel.is-open{transform:translateX(0)}
 @media (prefers-reduced-motion: reduce){#view-schedule .sched-notes-panel{transition:none}}
+
+/* Push, don't overlay — when Notes is open, condense the schedule body to
+   the left to make room (the grid reflows into the narrower width), the
+   way the Operations Health right dock does. The panel is position:fixed
+   and sits in the reserved space. */
+#view-schedule .tcp-body{transition:padding-right 240ms cubic-bezier(.32,.72,.4,1)}
+#view-schedule.rr-notes-open .tcp-body{padding-right:calc(min(360px,86vw) + 52px)}
 
 #view-schedule .sched-notes-head{
   display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
@@ -5563,10 +5570,10 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
   box-shadow:0 1px 2px rgba(15,23,42,.04);
 }
 #view-schedule .sched-notes-add{
-  appearance:none;cursor:pointer;flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:#EAB308;
+  appearance:none;cursor:pointer;flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:rgb(49,134,255);
   display:flex;align-items:center;justify-content:center;transition:background .15s;
 }
-#view-schedule .sched-notes-add:hover{background:rgba(234,179,8,.12)}
+#view-schedule .sched-notes-add:hover{background:rgba(49,134,255,.12)}
 #view-schedule .sched-notes-input{
   flex:1; min-width:0; border:0; outline:none; background:transparent;
   font:inherit; font-size:15px; color:var(--text,#0f172a); padding:8px 0;
@@ -5586,7 +5593,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
   display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s;
 }
 #view-schedule .sched-note-pin:hover{background:var(--canvas,#f1f5f9);color:var(--text-muted,#64748b)}
-#view-schedule .sched-note-card.is-pinned .sched-note-pin{color:#2563EB}
+#view-schedule .sched-note-card.is-pinned .sched-note-pin{color:rgb(49,134,255)}
 #view-schedule .sched-note-del{
   position:absolute; bottom:6px; right:8px; width:24px;height:24px;border-radius:6px;
   appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);
