@@ -27280,3 +27280,53 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-adp-banner-t{ margin:0; font-size:13.5px; font-weight:600; color:var(--text); }
 .rr-adp-banner-s{ margin:1px 0 0; font-size:12px; color:var(--text-muted); }
 /* ──────────────────────────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   FORMS QUICK-ACCESS TOOL · right-edge tab + slide-out list
+   The tab is pinned to the right edge of the viewport, vertically
+   centred. It sits below the drawer (z-index 60) and backdrop so
+   the drawer covers it when open; it's also hidden outright while
+   the drawer is open via the body.rr-forms-tool-open class.
+   ───────────────────────────────────────────────────────────── */
+#rr-forms-tab{
+  position:fixed;right:0;top:50%;transform:translateY(-50%);
+  z-index:55;width:40px;height:52px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface);color:var(--accent);
+  border:1px solid var(--border);border-right:none;
+  border-radius:var(--r-lg) 0 0 var(--r-lg);
+  box-shadow:var(--shadow-xl);cursor:pointer;
+  transition:background 140ms ease,color 140ms ease,transform 140ms ease;
+}
+#rr-forms-tab svg{width:20px;height:20px}
+#rr-forms-tab:hover{background:var(--accent);color:#fff;transform:translateY(-50%) translateX(-2px)}
+#rr-forms-tab:active{transform:translateY(-50%)}
+body.rr-forms-tool-open #rr-forms-tab{display:none}
+
+.rr-ftool-list{display:flex;flex-direction:column;gap:var(--s-2)}
+.rr-ftool-row{
+  display:grid;grid-template-columns:32px 1fr auto;gap:var(--s-2-5);
+  align-items:center;padding:var(--s-2-5) var(--s-3);
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-md);cursor:pointer;text-align:left;width:100%;
+  transition:background 140ms ease,border-color 140ms ease;
+}
+.rr-ftool-row:hover{background:var(--canvas);border-color:var(--accent)}
+.rr-ftool-ico{
+  width:32px;height:32px;border-radius:var(--r-md);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--canvas);color:var(--accent);
+}
+.rr-ftool-ico svg{width:16px;height:16px}
+.rr-ftool-main{min-width:0}
+.rr-ftool-title{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-ftool-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
+.rr-ftool-pill{
+  font-size:var(--fs-xs);font-weight:600;white-space:nowrap;
+  padding:2px 8px;border-radius:var(--r-lg);
+  background:var(--canvas);color:var(--text-subtle);
+}
+.rr-ftool-pill.published{background:var(--green-soft);color:var(--green)}
+.rr-ftool-pill.draft{background:var(--amber-soft);color:var(--amber)}
+.rr-ftool-pill.archived{background:var(--canvas);color:var(--text-subtle)}
+.rr-ftool-empty{font-size:var(--fs-sm);color:var(--text-subtle);padding:var(--s-3) 0}

@@ -1146,6 +1146,77 @@
     document.body.style.overflow = '';
   }
 
+  // ─── FORMS QUICK-ACCESS TOOL ──────────────────────────────
+  // Right-edge tab → slide-out list of the operator's forms,
+  // styled like a checklist/notes panel. Renders the live forms
+  // cache when one is exposed (window._formsCache), else a small
+  // set of mock forms so the panel always shows content. Reuses
+  // the shared .detail-drawer + #ap-backdrop pattern.
+  var RR_FTOOL_MOCK = [
+    { id: null, title: 'Daily Vehicle Inspection', fields: { length: 14 }, category: 'safety',     status: 'published' },
+    { id: null, title: 'Pre-Trip Checklist',       fields: { length: 9 },  category: 'operations',  status: 'published' },
+    { id: null, title: 'End of Route Notes',       fields: { length: 5 },  category: 'operations',  status: 'draft' },
+    { id: null, title: 'Incident Report',          fields: { length: 11 }, category: 'safety',      status: 'published' },
+    { id: null, title: 'Vehicle Concern',          fields: { length: 7 },  category: 'maintenance', status: 'draft' }
+  ];
+  var RR_FTOOL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12l2 2 4-4"/></svg>';
+  function rrFtoolRender(){
+    var list = document.getElementById('rr-forms-tool-list');
+    if (!list) return;
+    var cache = (typeof window !== 'undefined' && Array.isArray(window._formsCache) && window._formsCache.length)
+      ? window._formsCache : null;
+    var forms = cache || RR_FTOOL_MOCK;
+    list.innerHTML = forms.map(function(f){
+      var count = (f.fields && typeof f.fields.length === 'number') ? f.fields.length : 0;
+      var cat = f.category ? String(f.category) : 'general';
+      var status = f.status || 'draft';
+      var label = status.charAt(0).toUpperCase() + status.slice(1);
+      var idAttr = f.id ? (' data-rr-form-edit="' + String(f.id) + '"') : '';
+      return '<button type="button" class="rr-ftool-row"' + idAttr + ' data-rr-ftool-id="' + (f.id || '') + '">'
+        +   '<span class="rr-ftool-ico">' + RR_FTOOL_ICON + '</span>'
+        +   '<span class="rr-ftool-main">'
+        +     '<span class="rr-ftool-title">' + (f.title || 'Untitled form') + '</span>'
+        +     '<span class="rr-ftool-meta">' + count + ' field' + (count === 1 ? '' : 's') + ' · ' + cat + '</span>'
+        +   '</span>'
+        +   '<span class="rr-ftool-pill ' + status + '">' + label + '</span>'
+        + '</button>';
+    }).join('');
+  }
+  function openFormsTool(){
+    rrFtoolRender();
+    document.getElementById('rr-forms-tool-drawer').classList.add('open');
+    document.getElementById('ap-backdrop').classList.add('open');
+    document.body.classList.add('rr-forms-tool-open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeFormsTool(){
+    document.getElementById('rr-forms-tool-drawer').classList.remove('open');
+    document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.classList.remove('rr-forms-tool-open');
+    document.body.style.overflow = '';
+  }
+  // Row click → open the real form editor when a live form id is
+  // present (live.js wires a document-level [data-rr-form-edit]
+  // handler that loads the form and calls openFormBuilder). Mock
+  // rows have no id, so they no-op gracefully rather than throw.
+  document.addEventListener('click', function(e){
+    var row = e.target.closest && e.target.closest('#rr-forms-tool-list .rr-ftool-row');
+    if (!row) return;
+    if (row.getAttribute('data-rr-form-edit')) {
+      // Real form — close this panel; live.js's delegated handler
+      // opens the builder for the same click.
+      closeFormsTool();
+      return;
+    }
+    // Mock form — nothing to open. Keep the panel open.
+  });
+  // Escape closes the forms tool when it's the open drawer.
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Escape') return;
+    var d = document.getElementById('rr-forms-tool-drawer');
+    if (d && d.classList.contains('open')) closeFormsTool();
+  });
+
   // ─── SUBMISSION DETAIL ────────────────────────────────────
   function openSubmission(name, status){
     document.getElementById('sub-name').textContent = 'Pre-trip · ' + (name || 'Driver');
@@ -1349,11 +1420,12 @@
     document.body.style.overflow = 'hidden';
   }
   function closeApplicantDetail(){
-    ['applicant-drawer','driver-drawer','coverage-drawer','vehicle-drawer','sched-edit-drawer','checklist-drawer','form-edit-drawer','submission-drawer','recon-drawer'].forEach(function(id){
+    ['applicant-drawer','driver-drawer','coverage-drawer','vehicle-drawer','sched-edit-drawer','checklist-drawer','form-edit-drawer','submission-drawer','recon-drawer','rr-forms-tool-drawer'].forEach(function(id){
       const el = document.getElementById(id);
       if (el) el.classList.remove('open');
     });
     document.getElementById('ap-backdrop').classList.remove('open');
+    document.body.classList.remove('rr-forms-tool-open');
     document.body.style.overflow = '';
     // The driver record is an inline pane, not a backdrop overlay —
     // collapse the split too so it closes alongside the other drawers.
