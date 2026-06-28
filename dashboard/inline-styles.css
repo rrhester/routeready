@@ -26369,7 +26369,20 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-al-item[data-al-go="admin"] .rr-al-ico          { color:#4F46E5; }
 .rr-al-item[data-al-act="drive"] .rr-al-ico         { color:#D97706; }
 .rr-al-item[data-al-act="reports"] .rr-al-ico       { color:#64748B; }
-.rr-al-item[data-al-act="indeed"] .rr-al-ico        { color:#2557A7; }
+.rr-al-item[data-al-act="analytics"] .rr-al-ico     { color:#0284C7; }
+.rr-al-item[data-al-go="marketplace"] .rr-al-ico    { color:#DB2777; }
+/* Section labels + dividers · the launcher now reads as an enterprise OS:
+   Applications · Utilities · System. Quiet uppercase eyebrows separate the
+   groups; a hairline rule divides them inside the blue card. */
+.rr-al-section{
+  font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+  color:#64748B; padding:3px 8px 5px; user-select:none;
+}
+.rr-al-section--sys{ color:#94A3B8; padding-top:6px; }
+.rr-al-divider{ height:1px; background:rgba(15,23,42,.08); margin:7px 4px 5px; }
+/* The dynamic app list no longer owns the section divider (the explicit
+   Utilities rule does), so drop its built-in bottom border. */
+.rr-al-apps:not(:empty){ margin-bottom:0; padding-bottom:0; border-bottom:0; }
 
 /* ════════════════════════════════════════════════════════════════════════
    Unified pop-out framing · "make every pop-out look like the app launcher"
@@ -27232,3 +27245,122 @@ body.rr-cmdk-open{ overflow:hidden }
   text-transform: none; letter-spacing: 0;
 }
 /* ─────────────────────────────────────────────────────────────────── */
+
+/* ════════════════════════════════════════════════════════════════════════
+   MARKETPLACE · App-Store-style integrations + extensions hub
+   Built on the shared tokens (--s-/--r-/--shadow-/--accent…). Calm enterprise
+   surface: white cards, soft borders + shadows, restrained brand-tint logo
+   tiles, one accent. Reuses .rr-drawer for the Connect panel.
+   ════════════════════════════════════════════════════════════════════════ */
+#view-marketplace .rr-mkt-titlewrap{ display:flex; align-items:center; gap:var(--s-4); min-width:0; }
+#view-marketplace .rr-mkt-hero-ico{
+  flex:0 0 auto; width:44px; height:44px; border-radius:13px;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--accent) 12%, #fff); color:var(--accent);
+  border:1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+#view-marketplace .rr-mkt-hero-ico svg{ width:23px; height:23px; }
+#view-marketplace .rr-mkt-search{ position:relative; width:min(320px, 46vw); }
+#view-marketplace .rr-mkt-search svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:var(--text-subtle); pointer-events:none; }
+#view-marketplace .rr-mkt-search input{
+  width:100%; height:38px; padding:0 12px 0 34px;
+  border:1px solid var(--border); border-radius:var(--r-md);
+  background:var(--surface); color:var(--text); font:inherit; font-size:var(--fs-sm);
+  box-shadow:var(--shadow-xs); transition:border-color var(--t-fast), box-shadow var(--t-fast);
+}
+#view-marketplace .rr-mkt-search input::placeholder{ color:var(--text-subtle); }
+#view-marketplace .rr-mkt-search input:focus{ outline:none; border-color:var(--accent); box-shadow:var(--ring-focus); }
+
+/* Category chips */
+#view-marketplace .rr-mkt-cats{
+  display:flex; gap:var(--s-2); flex-wrap:wrap; align-items:center;
+  margin:0 0 var(--s-5);
+}
+#view-marketplace .rr-mkt-chip{
+  appearance:none; cursor:pointer; font:inherit; font-size:var(--fs-sm); font-weight:600;
+  padding:7px 14px; border:1px solid var(--border); border-radius:var(--r-pill);
+  background:var(--surface); color:var(--text-muted); box-shadow:var(--shadow-xs);
+  transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
+}
+#view-marketplace .rr-mkt-chip:hover{ background:var(--canvas); color:var(--text); border-color:var(--border-strong); }
+#view-marketplace .rr-mkt-chip.is-active{
+  background:var(--accent-soft); color:var(--accent-text);
+  border-color:var(--accent-border); box-shadow:0 1px 2px rgba(37,99,235,.10);
+}
+#view-marketplace .rr-mkt-chip:focus-visible{ outline:none; border-color:var(--accent); box-shadow:var(--ring-focus); }
+
+/* Sections + responsive card grid */
+#view-marketplace .rr-mkt-sec{ margin:0 0 var(--s-8); }
+#view-marketplace .rr-mkt-sec-head{ margin:0 0 var(--s-4); }
+#view-marketplace .rr-mkt-sec-title{ font-size:var(--fs-base); font-weight:700; letter-spacing:-.01em; color:var(--text); margin:0; }
+#view-marketplace .rr-mkt-sec-sub{ font-size:var(--fs-sm); color:var(--text-muted); margin:3px 0 0; }
+#view-marketplace .rr-mkt-grid{
+  display:grid; gap:var(--s-4);
+  grid-template-columns:repeat(auto-fill, minmax(290px, 1fr));
+}
+
+/* App card */
+#view-marketplace .rr-mkt-card{
+  display:flex; flex-direction:column; gap:var(--s-3);
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  padding:var(--s-4) var(--s-4) var(--s-3); box-shadow:var(--shadow-xs);
+  transition:transform 160ms cubic-bezier(.2,0,.2,1), box-shadow 160ms cubic-bezier(.2,0,.2,1), border-color 160ms ease;
+}
+#view-marketplace .rr-mkt-card:hover{ transform:translateY(-2px); box-shadow:var(--shadow-md-hover); border-color:var(--border-strong); }
+#view-marketplace .rr-mkt-card.is-connected{ border-color:color-mix(in srgb, var(--green) 32%, var(--border)); }
+#view-marketplace .rr-mkt-card-top{ display:flex; align-items:flex-start; gap:var(--s-3); }
+#view-marketplace .rr-mkt-logo{
+  flex:0 0 auto; width:42px; height:42px; border-radius:11px;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:800; letter-spacing:.01em;
+  background:color-mix(in srgb, var(--mk, #2563EB) 15%, #fff);
+  color:var(--mk, #2563EB);
+  border:1px solid color-mix(in srgb, var(--mk, #2563EB) 26%, transparent);
+}
+#view-marketplace .rr-mkt-logo--lg{ width:52px; height:52px; border-radius:14px; font-size:16px; }
+#view-marketplace .rr-mkt-card-meta{ flex:1; min-width:0; }
+#view-marketplace .rr-mkt-card-name{ font-size:var(--fs-sm); font-weight:700; color:var(--text); line-height:1.25; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+#view-marketplace .rr-mkt-card-cat{ font-size:12px; color:var(--text-subtle); margin-top:2px; }
+#view-marketplace .rr-mkt-tag-rr{ font-size:9.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--accent-text); background:var(--accent-soft); border:1px solid var(--accent-border); border-radius:var(--r-pill); padding:1px 7px; }
+#view-marketplace .rr-mkt-status{ flex:0 0 auto; font-size:11.5px; font-weight:600; color:var(--text-subtle); display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+#view-marketplace .rr-mkt-status.is-on{ color:var(--green); }
+#view-marketplace .rr-mkt-dot{ width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px color-mix(in srgb, var(--green) 16%, transparent); }
+#view-marketplace .rr-mkt-card-desc{ font-size:13px; line-height:1.5; color:var(--text-muted); margin:0; min-height:38px; }
+#view-marketplace .rr-mkt-synced{ display:flex; flex-direction:column; gap:5px; padding:10px 12px; border-radius:10px; background:color-mix(in srgb, var(--green) 6%, var(--canvas)); border:1px solid color-mix(in srgb, var(--green) 16%, transparent); }
+#view-marketplace .rr-mkt-synced-row{ display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; color:var(--text-muted); }
+#view-marketplace .rr-mkt-synced-row.is-ok{ color:var(--green); }
+#view-marketplace .rr-mkt-synced-row svg{ flex:0 0 auto; }
+#view-marketplace .rr-mkt-synced-muted{ color:var(--text-subtle); font-weight:500; }
+#view-marketplace .rr-mkt-card-foot{ display:flex; justify-content:flex-end; margin-top:auto; }
+#view-marketplace .rr-mkt-card-btn{ min-width:96px; justify-content:center; }
+#view-marketplace .rr-mkt-card-btn:active{ transform:scale(.97); }
+
+/* Empty state */
+#view-marketplace .rr-mkt-empty{ text-align:center; padding:64px 20px; color:var(--text-subtle); }
+#view-marketplace .rr-mkt-empty-ic{ width:46px; height:46px; border-radius:13px; margin:0 auto var(--s-3); display:flex; align-items:center; justify-content:center; background:var(--canvas); border:1px solid var(--border); color:var(--text-subtle); }
+#view-marketplace .rr-mkt-empty h3{ font-size:var(--fs-base); font-weight:700; color:var(--text); margin:0 0 4px; }
+#view-marketplace .rr-mkt-empty p{ font-size:var(--fs-sm); margin:0; }
+
+/* ── Connect drawer body ─────────────────────────────────────────────── */
+.rr-mkt-drawer .rr-mkt-dh{ display:flex; align-items:center; gap:var(--s-3); min-width:0; }
+.rr-mkt-drawer .rr-drawer-body{ gap:var(--s-4); }
+.rr-mkt-dr-desc{ font-size:var(--fs-sm); line-height:1.55; color:var(--text-muted); margin:0; }
+.rr-mkt-dr-desc strong{ color:var(--text); font-weight:700; }
+.rr-mkt-dr-sec{ display:flex; flex-direction:column; gap:var(--s-2); }
+.rr-mkt-dr-sec-h{ display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-subtle); }
+.rr-mkt-perms{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.rr-mkt-perms li{ display:flex; align-items:center; gap:10px; font-size:var(--fs-sm); color:var(--text); }
+.rr-mkt-perms li svg{ flex:0 0 auto; color:var(--green); }
+.rr-mkt-dr-security{ padding:13px 14px; border-radius:12px; background:var(--canvas); border:1px solid var(--border); }
+.rr-mkt-dr-security .rr-mkt-dr-sec-h{ color:var(--text-muted); }
+.rr-mkt-dr-security .rr-mkt-dr-sec-h svg{ color:var(--accent); }
+.rr-mkt-dr-security p{ font-size:13px; line-height:1.5; color:var(--text-muted); margin:8px 0 0; }
+.rr-mkt-dr-status{ display:flex; flex-direction:column; gap:8px; padding:13px 14px; border-radius:12px; background:color-mix(in srgb, var(--green) 6%, var(--canvas)); border:1px solid color-mix(in srgb, var(--green) 18%, transparent); }
+.rr-mkt-dr-status-row{ display:flex; align-items:center; gap:9px; font-size:var(--fs-sm); font-weight:600; color:var(--text-muted); }
+.rr-mkt-dr-status-row.is-ok{ color:var(--green); }
+.rr-mkt-dr-status-row.rr-mkt-synced-muted{ color:var(--text-subtle); font-weight:500; }
+.rr-mkt-drawer-foot{ display:flex; gap:var(--s-3); padding:var(--s-4) var(--s-5); border-top:1px solid var(--border); }
+.rr-mkt-drawer-foot .btn{ flex:1; justify-content:center; }
+.rr-mkt-btn-danger{ color:var(--red); border-color:var(--red-border, rgba(220,38,38,.3)); }
+.rr-mkt-btn-danger:hover{ background:var(--red-soft); border-color:var(--red); }
+/* ─────────────────────────────────────────────────────────────────────── */

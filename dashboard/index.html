@@ -129,7 +129,7 @@
 <!-- The dashboard's former inline styles · extracted so the no-cache
      HTML shell stops re-shipping ~1.2MB of CSS on every load; this
      file is cacheable and busts via the ?v= token like the rest. -->
-<link rel="stylesheet" href="inline-styles.css?v=e9f1b7c20a4d">
+<link rel="stylesheet" href="inline-styles.css?v=a1c7e93f2b08">
 <!-- style block 0 extracted to inline-styles.css -->
 </head>
 <body>
@@ -222,11 +222,26 @@
                sit on a blue card inside the white pop-out; account actions
                (Settings / Sign out) stay on the white panel below it. -->
           <div class="rr-al-card">
+          <div class="rr-al-section">Applications</div>
           <!-- App switcher · mirrors the visible sidebar destinations so the
-               drawer can navigate anywhere even when the rail is hidden (Drive).
+               drawer can navigate anywhere even when the rail is hidden (Vault).
                Populated by buildApps() on open. -->
           <div id="rr-al-apps" class="rr-al-apps"></div>
-          <!-- Drive · RouteReady's document management workspace. Opens the
+          <!-- Analytics · cross-app reporting (not built yet). -->
+          <button type="button" class="rr-al-item" role="menuitem" data-al-act="analytics">
+            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+            <span class="rr-al-lbl">Analytics</span>
+            <span class="rr-al-soon">Soon</span>
+          </button>
+          <!-- Marketplace · a first-class application — opens the full
+               Marketplace page (integrations + RouteReady extensions). -->
+          <button type="button" class="rr-al-item" role="menuitem" data-al-go="marketplace">
+            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-1.6-5.6A1 1 0 0 0 18.5 3H5.5a1 1 0 0 0-.95.7z"/><path d="M4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 21V13h6v8"/></svg></span>
+            <span class="rr-al-lbl">Marketplace</span>
+          </button>
+          <div class="rr-al-divider" aria-hidden="true"></div>
+          <div class="rr-al-section">Utilities</div>
+          <!-- Vault · RouteReady's document management workspace. Opens the
                dedicated #view-drive page. -->
           <button type="button" class="rr-al-item" role="menuitem" data-al-act="drive">
             <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
@@ -238,12 +253,6 @@
             <span class="rr-al-lbl">Reports</span>
             <span class="rr-al-soon">Soon</span>
           </button>
-          <!-- Indeed Import · bulk-ingest applicants from Indeed (built) —
-               opens #modal-bulk-ingest. -->
-          <button type="button" class="rr-al-item" role="menuitem" data-al-act="indeed">
-            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
-            <span class="rr-al-lbl">Indeed Import</span>
-          </button>
           </div><!-- /.rr-al-card -->
           <!-- Account actions · Settings + Sign out moved here from the
                retired top-right account menu. data-al-go routes through the
@@ -251,6 +260,7 @@
                sign-out hook in live.js. (Refresh app / What's new still live
                in the ⌘K command palette.) -->
           <div class="rr-al-foot">
+            <div class="rr-al-section rr-al-section--sys">System</div>
             <button type="button" class="rr-al-item rr-al-footitem" role="menuitem" data-al-go="settings">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               <span class="rr-al-lbl">Settings</span>
@@ -353,9 +363,9 @@
             var act = it.getAttribute('data-al-act');
             close();
             try {
-              if (act === 'indeed') { if (window.openPdfUploadPicker) window.openPdfUploadPicker(); }
-              else if (act === 'drive') { if (window.openDrive) window.openDrive(); else if (window.goto) window.goto('drive'); }
+              if (act === 'drive') { if (window.openDrive) window.openDrive(); else if (window.goto) window.goto('drive'); }
               else if (act === 'reports') { if (window.toast) window.toast('Reports are coming soon'); }
+              else if (act === 'analytics') { if (window.toast) window.toast('Analytics is coming soon'); }
               else if (go && window.goto) { window.goto(go); }
               else if (sub) {
                 if (window.goto) window.goto('schedule');
@@ -1727,6 +1737,16 @@
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=4ad2d07c0e83">
       <!-- markup extracted to views/view-build.frag (monolith split phase 2) -->
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         MARKETPLACE VIEW — the integrations + RouteReady-extensions hub.
+         Shell (header / search / category chips / grid mount / connect
+         drawer) lives in the fragment; the catalog + card rendering +
+         connect flow are painted by loadMarketplaceView() in live.js.
+         ═══════════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-marketplace" data-rr-view-src="views/view-marketplace.frag?v=4ad2d07c0e83">
+      <!-- markup extracted to views/view-marketplace.frag -->
     </div>
 
     <!-- INVOICE RECONCILIATION DRAWER -->
@@ -4755,7 +4775,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=4ad2d07c0e83"></script>
 <script src="./fleet-sync.js?v=4ad2d07c0e83"></script>
 <script src="./admin-crawl-tasks.js?v=4ad2d07c0e83"></script>
-<script type="module" src="./live.js?v=c4a8f2e15b9d"></script>
+<script type="module" src="./live.js?v=d2f8b41e6c70"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
