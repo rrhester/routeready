@@ -5530,6 +5530,12 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
 #view-schedule .sched-util-btn:hover{background:rgba(49,134,255,.12);border-color:rgba(49,134,255,.30)}
 #view-schedule .sched-util-btn[aria-expanded="true"]{background:rgba(49,134,255,.16);border-color:rgba(49,134,255,.42)}
 #view-schedule .sched-util-btn:focus-visible{outline:none;border-color:rgb(49,134,255);box-shadow:0 0 0 3px rgba(49,134,255,.25)}
+/* Operations Health shield — gold + filled, its own color distinct from
+   the blue Notes bookmark. */
+#view-schedule .sched-util-btn--ops{color:rgb(246,161,0)}
+#view-schedule .sched-util-btn--ops:hover{background:rgba(246,161,0,.12);border-color:rgba(246,161,0,.30)}
+#view-schedule .sched-util-btn--ops[aria-expanded="true"]{background:rgba(246,161,0,.16);border-color:rgba(246,161,0,.42)}
+#view-schedule .sched-util-btn--ops:focus-visible{border-color:rgb(246,161,0);box-shadow:0 0 0 3px rgba(246,161,0,.25)}
 
 #view-schedule .sched-notes-panel{
   position:fixed; top:var(--tcp-topbar-h,56px); right:52px; bottom:0;
