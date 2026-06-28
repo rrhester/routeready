@@ -8538,8 +8538,12 @@ function renderDriverRow(d) {
   const actions = _rowActionsFor(d);
   const health = _driverHealth(d.id);
   const healthTitle = { high: "High risk · final corrective action", medium: "Medium risk · written corrective action", due: "Coaching due", healthy: "Healthy" }[health];
+  // The row itself is no longer click-to-open — the record is reached
+  // per-tab from the ⋯ menu now (peek popups). Keep data-driver-id for row
+  // accenting / lookups, but drop data-rr-open-driver so a row click no
+  // longer pops the full driver record.
   return `
-    <tr data-driver-id="${d.id}" data-rr-open-driver class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
+    <tr data-driver-id="${d.id}" class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
       <td><div class="cell-driver"><div class="avatar-sm ${tier} rr-health-${health}" title="${healthTitle}" aria-label="${healthTitle}">${initials}</div>
         <div class="cell-driver-text"><div class="cell-name"><span class="cell-name-text">${escapeHtml(display)}</span>${badges}</div>
         ${certs}
