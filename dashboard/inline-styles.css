@@ -13542,6 +13542,13 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-status-picker-dot{
             width:8px;height:8px;border-radius:50%;flex-shrink:0;
           }
+          /* Roster row ⋯ menu — thin divider + muted icons, with a red
+             destructive row for Terminate. Scoped so the other pickers
+             that share .rr-status-picker chrome are untouched. */
+          .rr-status-picker-sep{height:1px;background:var(--border-subtle);margin:4px 2px}
+          #rr-row-more-pop .rr-status-picker-item svg{color:var(--text-subtle)}
+          #rr-row-more-pop .rr-status-picker-item.is-danger,
+          #rr-row-more-pop .rr-status-picker-item.is-danger svg{color:var(--red)}
           /* Match the KPI dashboard status palette (see .rr-dstatus-*). */
           .rr-status-dot-active{background:#16A34A}
           .rr-status-dot-onboarding{background:#1E293B}

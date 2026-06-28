@@ -33,7 +33,8 @@
 //   2026-06-28.11 · Driver drawer: move Driver's-license section from Credentials to Documents.
 //   2026-06-28.12 · Roster: keep the per-row coach menu on-screen (clamp to viewport).
 //   2026-06-28.13 · Roster: add a per-row Message-driver icon.
-const SW_DEPLOY_NONCE = "2026-06-28.13";
+//   2026-06-28.14 · Roster: per-row ⋯ menu (deep-link to record tabs + actions).
+const SW_DEPLOY_NONCE = "2026-06-28.14";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
