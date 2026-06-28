@@ -129,7 +129,7 @@
 <!-- The dashboard's former inline styles · extracted so the no-cache
      HTML shell stops re-shipping ~1.2MB of CSS on every load; this
      file is cacheable and busts via the ?v= token like the rest. -->
-<link rel="stylesheet" href="inline-styles.css?v=e7b1052da639">
+<link rel="stylesheet" href="inline-styles.css?v=f8c2163eb74a">
 <!-- style block 0 extracted to inline-styles.css -->
 </head>
 <body>
@@ -218,6 +218,10 @@
           <svg viewBox="0 0 24 24" fill="#FFC000" aria-hidden="true"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg>
         </button>
         <div class="rr-al-panel" id="rr-al-panel" role="menu" hidden>
+          <!-- Sidebar-blue "icon card" (operator): the apps + utility items
+               sit on a blue card inside the white pop-out; account actions
+               (Settings / Sign out) stay on the white panel below it. -->
+          <div class="rr-al-card">
           <!-- App switcher · mirrors the visible sidebar destinations so the
                drawer can navigate anywhere even when the rail is hidden (Drive).
                Populated by buildApps() on open. -->
@@ -240,6 +244,7 @@
             <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
             <span class="rr-al-lbl">Indeed Import</span>
           </button>
+          </div><!-- /.rr-al-card -->
           <!-- Account actions · Settings + Sign out moved here from the
                retired top-right account menu. data-al-go routes through the
                launcher's nav handler; data-rr-signout hits the global
