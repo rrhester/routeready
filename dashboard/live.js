@@ -73621,7 +73621,18 @@ async function _rrAdpConnect() {
   try {
     const { data, error } = await sb.functions.invoke("finch-oauth-start", { body: {} });
     if (error || !data || !data.url) {
-      toast("ADP isn’t set up on the server yet — see the setup steps.", "warn");
+      let detail = "";
+      try {
+        if (error && error.context && typeof error.context.json === "function") {
+          const b = await error.context.json();
+          detail = (b && (b.message || b.error)) || "";
+        }
+      } catch (_) {}
+      if (!detail || /not_configured/i.test(detail)) {
+        toast("ADP isn’t set up on the server yet — add the FINCH_* secrets.", "warn");
+      } else {
+        toast("Couldn’t start ADP connect — " + detail, "warn");
+      }
       return;
     }
     const popup = window.open(data.url, "rr-finch", "width=560,height=680");

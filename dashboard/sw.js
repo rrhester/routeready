@@ -53,7 +53,8 @@
 //   2026-06-28.32 · App Launcher: add an "ADP Sync" item that opens a focused box to connect/sync the DSP with ADP (mock OAuth). (.31 Marketplace reverted.)
 //   2026-06-28.33 · ADP Sync goes real: connect/sync via Finch (unified HR API) — finch-* edge functions + 0398 migration; box now talks to the server.
 //   2026-06-28.34 · Forms quick-access tab: force pinned/installed apps to the new shell (the forms-tab deploy was HTML/CSS-only and never bumped sw.js, so resumed apps stayed on the pre-feature shell).
-const SW_DEPLOY_NONCE = "2026-06-28.34";
+//   2026-06-28.35 · ADP Sync: surface Finch's real connect error in the toast (no more generic "not set up"); finch-oauth-start tries both session endpoints.
+const SW_DEPLOY_NONCE = "2026-06-28.35";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

@@ -31,9 +31,8 @@ Deno.serve(async (req) => {
     const url = await createConnectSession({ state, dspId: appUser.dsp_id });
     return jsonResponse({ url }, { headers: CORS });
   } catch (e) {
-    return jsonResponse(
-      { error: "connect_start_failed", message: e instanceof Error ? e.message : String(e) },
-      { status: 502, headers: CORS },
-    );
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("finch-oauth-start:", message);
+    return jsonResponse({ error: "connect_start_failed", message }, { status: 502, headers: CORS });
   }
 });
