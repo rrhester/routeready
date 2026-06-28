@@ -27282,27 +27282,11 @@ body.rr-cmdk-open{ overflow:hidden }
 /* ──────────────────────────────────────────────────────────────────── */
 
 /* ─────────────────────────────────────────────────────────────
-   FORMS QUICK-ACCESS TOOL · right-edge tab + slide-out list
-   The tab is pinned to the right edge of the viewport, vertically
-   centred. It sits below the drawer (z-index 60) and backdrop so
-   the drawer covers it when open; it's also hidden outright while
-   the drawer is open via the body.rr-forms-tool-open class.
+   FORMS QUICK-ACCESS TOOL · slide-out list
+   Opened from the Forms icon on the Schedule right-side utility rail
+   (data-rr-forms-toggle). The earlier standalone floating #rr-forms-tab
+   was removed in favour of that rail icon.
    ───────────────────────────────────────────────────────────── */
-#rr-forms-tab{
-  position:fixed;right:0;top:50%;transform:translateY(-50%);
-  z-index:55;width:40px;height:52px;
-  display:flex;align-items:center;justify-content:center;
-  background:var(--surface);color:var(--accent);
-  border:1px solid var(--border);border-right:none;
-  border-radius:var(--r-lg) 0 0 var(--r-lg);
-  box-shadow:var(--shadow-xl);cursor:pointer;
-  transition:background 140ms ease,color 140ms ease,transform 140ms ease;
-}
-#rr-forms-tab svg{width:20px;height:20px}
-#rr-forms-tab:hover{background:var(--accent);color:#fff;transform:translateY(-50%) translateX(-2px)}
-#rr-forms-tab:active{transform:translateY(-50%)}
-body.rr-forms-tool-open #rr-forms-tab{display:none}
-
 .rr-ftool-list{display:flex;flex-direction:column;gap:var(--s-2)}
 .rr-ftool-row{
   display:grid;grid-template-columns:32px 1fr auto;gap:var(--s-2-5);

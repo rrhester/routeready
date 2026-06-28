@@ -55,7 +55,8 @@
 //   2026-06-28.34 · Forms quick-access tab: force pinned/installed apps to the new shell (the forms-tab deploy was HTML/CSS-only and never bumped sw.js, so resumed apps stayed on the pre-feature shell).
 //   2026-06-28.35 · ADP Sync: surface Finch's real connect error in the toast (no more generic "not set up"); finch-oauth-start tries both session endpoints.
 //   2026-06-28.36 · Force installed/resumed clients to fetch the bumped worker: register with updateViaCache:"none" + active reg.update() on load and on return-to-app, so a deploy reaches pinned apps that never cold-launch (forms tab was never appearing for these clients).
-const SW_DEPLOY_NONCE = "2026-06-28.36";
+//   2026-06-28.37 · Forms: open the forms slide-out from a Forms icon on the Schedule right-side utility rail (beside Notes/Tasks/Operations Health) instead of a floating tab; the slide-out now lists the operator's REAL forms (live cache) rather than placeholder rows. Floating #rr-forms-tab removed.
+const SW_DEPLOY_NONCE = "2026-06-28.37";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

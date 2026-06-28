@@ -8721,6 +8721,20 @@ document.addEventListener("click", (e) => {
   // closes the other (panel manager). Clicking an open panel's icon closes it.
   if (e.target.closest("[data-rr-notes-toggle]")) { e.preventDefault(); _rrNtPanelToggle("notes"); return; }
   if (e.target.closest("[data-rr-tasks-toggle]")) { e.preventDefault(); _rrNtPanelToggle("tasks"); return; }
+  // Forms — opens the global forms quick-access slide-out (defined in
+  // mock-wiring.js). It's a separate .detail-drawer (not a push panel),
+  // so it toggles its own open/close and sets aria-expanded on the rail
+  // button; no need to involve the Notes/Tasks push-panel manager.
+  if (e.target.closest("[data-rr-forms-toggle]")) {
+    e.preventDefault();
+    const drawer = document.getElementById("rr-forms-tool-drawer");
+    if (drawer && drawer.classList.contains("open")) {
+      if (typeof window.closeFormsTool === "function") window.closeFormsTool();
+    } else if (typeof window.openFormsTool === "function") {
+      window.openFormsTool();
+    }
+    return;
+  }
   if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
   // Composer
   if (e.target.closest("[data-rr-note-add]")) { e.preventDefault(); _rrAddNoteFromInput(); return; }
@@ -55980,10 +55994,16 @@ async function loadFormsList() {
   if (forms.length === 0) {
     grid.innerHTML = "";
     if (empty) empty.style.display = "block";
+    _formsCache = [];
+    try { window._formsCache = _formsCache; } catch (_) {}
     return;
   }
   if (empty) empty.style.display = "none";
   _formsCache = forms;
+  // Mirror the live forms onto window so the right-edge Forms quick-access
+  // slide-out (mock-wiring.js · rrFtoolRender) can list the operator's REAL
+  // forms instead of placeholder rows. Kept in sync on every successful load.
+  try { window._formsCache = _formsCache; } catch (_) {}
   _renderFormsGrid();
 }
 
@@ -55991,6 +56011,13 @@ async function loadFormsList() {
 // Cached locally so the sidebar / toolbar / view toggle can re-render
 // without another list_forms RPC.
 let _formsCache = [];
+// Expose a read accessor + the loader so the Forms quick-access slide-out
+// can show the operator's real forms (and trigger a load if the cache is
+// cold). loadFormsList itself no-ops unless the forms view grid is mounted.
+try {
+  window.rrGetForms = () => (Array.isArray(_formsCache) ? _formsCache : []);
+  window.loadFormsList = loadFormsList;
+} catch (_) {}
 let _formsSort = "updated-desc";
 let _formsQuery = "";
 let _formsView = "grid";

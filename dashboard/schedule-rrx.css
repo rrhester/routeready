@@ -5553,6 +5553,11 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
 #view-schedule .sched-util-btn--ops{color:rgb(246,161,0)}
 #view-schedule .sched-util-btn--ops:hover{background:rgba(246,161,0,.12);border-color:rgba(246,161,0,.30)}
 #view-schedule .sched-util-btn--ops:focus-visible{border-color:rgb(246,161,0);box-shadow:0 0 0 3px rgba(246,161,0,.25)}
+/* Forms clipboard — its own indigo, distinct from the blue Notes bookmark,
+   green Tasks tile and gold Operations shield. Opens the forms slide-out. */
+#view-schedule .sched-util-btn--forms{color:rgb(99,102,241)}
+#view-schedule .sched-util-btn--forms:hover{background:rgba(99,102,241,.12);border-color:rgba(99,102,241,.30)}
+#view-schedule .sched-util-btn--forms:focus-visible{border-color:rgb(99,102,241);box-shadow:0 0 0 3px rgba(99,102,241,.25)}
 /* Press ripple — a soft yellow circle blooms from the icon centre on
    pointer-down (spawned in JS, self-removing). GPU-only (transform +
    opacity), painted behind the icon, no layout impact. */
