@@ -27310,3 +27310,58 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-adp-import-done{ font-size:12.5px; font-weight:600; color:var(--green); }
 /* ──────────────────────────────────────────────────────────────────── */
 
+/* ════════════════════════════════════════════════════════════════════════
+   Recruiting (onboarding-ops) tab strip → match the Schedule tabs.
+   Previously the Funnel / Interview / Onboarding / Calendar / Work-auth tab
+   strip sat inside a white rounded bordered card
+   (#view-onboarding-ops .page-header.sched-nav-heading at ~12414), which
+   stood out from the page. Mirror the Schedule fix (#view-schedule
+   .sched-nav-heading at ~15540 + active-tab rules at ~16624/16630): drop the
+   panel so the strip sits on the page canvas, and give the active tab the
+   blue text + subtle fill + blue ::after underline. Placed at end-of-file so
+   it wins on cascade order as well as specificity; scoped to
+   #view-onboarding-ops so the Schedule nav and every other view are
+   untouched.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* 1 · Strip the bordered box — page canvas, no border / radius / shadow.
+   Mirrors #view-schedule .sched-nav-heading{ background:var(--canvas)…border:0…
+   box-shadow:none }. The [data-obsub="calendar"] sub-view already does this
+   (line ~26130); this generalises it to every sub-view. Wins over the
+   non-!important box rule at ~12414 on both specificity (equal) and !important. */
+#view-onboarding-ops .page-header.sched-nav-heading{
+  background:var(--canvas) !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
+
+/* 2 · Active tab — blue text + bold, subtle slightly-darker-than-page fill.
+   Mirrors #view-schedule …sched-ribbon-group .subnav-item.active. Out-specifies
+   the muted-active rule at ~12484 (1 id + 4 classes vs 1 id + 3 classes). */
+#view-onboarding-ops .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active{
+  color:var(--sch-blue) !important;
+  font-weight:600 !important;
+  background:rgba(15,23,42,.05) !important;
+}
+#view-onboarding-ops .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active svg{
+  color:var(--sch-blue) !important;
+}
+
+/* 3 · Active tab blue underline. Must out-specify BOTH the global suppressor
+   .view .subnav-item.active::after{display:none!important} (line ~803) AND the
+   local kill at ~12494/12495 — this selector is 1 id + 4 classes, beating both,
+   plus !important. Mirrors #view-schedule …subnav-item.active::after at ~16630. */
+#view-onboarding-ops .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active::after{
+  content:"" !important;
+  display:block !important;
+  position:absolute;
+  left:9px;right:9px;bottom:0;
+  height:2px;
+  background:var(--accent) !important;
+  border-radius:1px;
+}
+
+/* Inactive tabs keep their muted-grey / transparent base rule (~12447) — no
+   override needed. */
+
