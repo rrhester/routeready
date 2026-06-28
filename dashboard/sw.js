@@ -49,7 +49,8 @@
 //   2026-06-28.27 · Schedule: fill in the rail icons (solid Notes bookmark + Tasks tile, matching the shield).
 //   2026-06-28.28 · Schedule: anchor the right rail flush with the roster table head (was riding too high on the Roster sub-view).
 //   2026-06-28.29 · Schedule: premium V2 polish pass — coverage status card, elevated shift chips + toolbar, softer today wash, calmer hierarchy.
-const SW_DEPLOY_NONCE = "2026-06-28.29";
+//   2026-06-28.30 · Roster: search now promotes matches to the top (Matches / Other drivers) instead of filtering, so the page stays full.
+const SW_DEPLOY_NONCE = "2026-06-28.30";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
