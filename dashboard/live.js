@@ -5064,7 +5064,28 @@ function renderDriverTable(rows, error) {
       return da - db;   // oldest hire first within a bucket
     });
   }
-  if (visible.length === 0) {
+  // Search PROMOTES matches instead of filtering them away: `visible` stays the
+  // matched set (and still drives the result hint + CSV export), while
+  // `_rosterOthers` is the rest of the roster that passes the OTHER filters.
+  // The others render below the matches under an "Other drivers" header, so a
+  // search keeps the page full instead of leaving a big empty space.
+  let _rosterOthers = [];
+  const _q = (_rosterFilters.q || "").trim();
+  if (_q) {
+    const matchIds = new Set(visible.map((r) => r.id));
+    const _savedQ = _rosterFilters.q;
+    _rosterFilters.q = "";
+    try { _rosterOthers = visibleDriversForStage(rows, _driverStage).filter((r) => !matchIds.has(r.id)); }
+    finally { _rosterFilters.q = _savedQ; }
+    if (_driverStage === "onboarding") {
+      _rosterOthers = _rosterOthers.slice().sort((a, b) => {
+        const wa = _obReadiness(a).weight, wb = _obReadiness(b).weight;
+        if (wa !== wb) return wa - wb;
+        return (a.hire_date ? new Date(a.hire_date).getTime() : 0) - (b.hire_date ? new Date(b.hire_date).getTime() : 0);
+      });
+    }
+  }
+  if (visible.length === 0 && _rosterOthers.length === 0) {
     const searching = !!(_rosterFilters.q || _rosterFilters.station || _rosterFilters.tenure || _rosterFilters.score);
     const cfg = searching
       ? { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
@@ -5090,7 +5111,21 @@ function renderDriverTable(rows, error) {
   }
 
   const renderer = _driverStage === "onboarding" ? renderOnboardingRow : renderDriverRow;
-  tbody.innerHTML = visible.map(renderer).join("");
+  if (_q && _rosterOthers.length) {
+    // Two-group promote view: matches on top, everyone else below — keeps the
+    // roster full and makes the search read as a sort, not a hide. Span the
+    // ACTUAL column count (not the oversized empty-state colspan) so a header
+    // row doesn't invent phantom columns and skew the table layout.
+    const cspan = (thead.children && thead.children.length) || colspan;
+    const grp = (label, n) => `<tr class="rr-roster-group" data-rr-no-drawer><td colspan="${cspan}"><span class="rr-roster-group-label">${escapeHtml(label)}</span><span class="rr-roster-group-count">${n}</span></td></tr>`;
+    let html = "";
+    if (visible.length) html += grp(`Matches for “${_q}”`, visible.length) + visible.map(renderer).join("");
+    else html += `<tr class="rr-roster-group rr-roster-group--none" data-rr-no-drawer><td colspan="${cspan}">No exact matches for “${escapeHtml(_q)}” — showing the full roster</td></tr>`;
+    html += grp("Other drivers", _rosterOthers.length) + _rosterOthers.map(renderer).join("");
+    tbody.innerHTML = html;
+  } else {
+    tbody.innerHTML = visible.map(renderer).join("");
+  }
   _updateRosterHint(visible.length, stageTotal); _rosterBulkRefresh();
   _rrMaybeRestoreLastDriver(rows);
   requestAnimationFrame(_rrSizeRosterSplit);

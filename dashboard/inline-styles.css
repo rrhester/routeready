@@ -27207,3 +27207,28 @@ body.rr-cmdk-open{ overflow:hidden }
 /* ── Topbar (global chrome) · bell sits a little closer to the avatar ── */
 .topbar .hdr-avatar-btn { margin-left: -6px; }
 /* ─────────────────────────────────────────────────────────────────── */
+
+/* ── Roster search · "Matches" / "Other drivers" section headers ──────
+   Search now PROMOTES matches to the top instead of filtering the rest
+   away, so the roster stays full (no big empty space below one result).
+   These inline header rows label the two groups; they're inert (no
+   driver id) and must not read as clickable data rows. */
+.tp-roster-table tbody tr.rr-roster-group { cursor: default; }
+.tp-roster-table tbody tr.rr-roster-group:hover { background: transparent; box-shadow: none; }
+.tp-roster-table tbody tr.rr-roster-group > td { padding: 15px 16px 7px; border: 0; background: transparent; }
+.tp-roster-table tbody tr.rr-roster-group:first-child > td { padding-top: 11px; }
+.rr-roster-group-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+.rr-roster-group-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 8px; min-width: 18px; height: 17px; padding: 0 6px;
+  border-radius: 9px; background: rgba(15, 23, 42, .06);
+  font-size: 10.5px; font-weight: 700; color: var(--text-muted, #64748b); vertical-align: middle;
+}
+.tp-roster-table tbody tr.rr-roster-group--none > td {
+  font-size: 12.5px; font-weight: 500; color: var(--text-subtle, #94a3b8);
+  text-transform: none; letter-spacing: 0;
+}
+/* ─────────────────────────────────────────────────────────────────── */
