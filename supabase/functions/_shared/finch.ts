@@ -61,20 +61,26 @@ export async function createConnectSession(opts: { state: string; dspId: string 
   const sandbox = Deno.env.get("FINCH_SANDBOX");
   if (sandbox) body.sandbox = sandbox;
 
-  // /connect/sessions/new is the redirect-flow endpoint (returns connect_url);
-  // fall back to /connect/sessions for older API surfaces.
-  let lastErr = "endpoint_not_found";
+  // /connect/sessions/new is the documented redirect-flow endpoint (returns
+  // connect_url); /connect/sessions is the alternate spelling. Try BOTH on any
+  // non-success (not just 404) and carry the real reason + which path failed.
+  let lastErr = "no_endpoint_succeeded";
   for (const path of ["/connect/sessions/new", "/connect/sessions"]) {
-    const res = await fetch(`${FINCH_API}${path}`, {
-      method: "POST",
-      headers: { "authorization": basicAuth(), "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 404) continue; // try the other path
+    let res: Response;
+    try {
+      res = await fetch(`${FINCH_API}${path}`, {
+        method: "POST",
+        headers: { "authorization": basicAuth(), "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      lastErr = `${path}: ${e instanceof Error ? e.message : String(e)}`;
+      continue;
+    }
     const json = await res.json().catch(() => ({}));
     if (res.ok && json.connect_url) return json.connect_url as string;
-    lastErr = json.message || json.error || ("http_" + res.status);
-    break;
+    lastErr = `${path} → ${json.message || json.error || ("http_" + res.status)}`;
+    // fall through and try the next path
   }
   throw new Error("connect_session_failed: " + lastErr);
 }
