@@ -41,7 +41,8 @@
 //   2026-06-28.19 · Schedule: rail shield toggles Operations Health (default hidden); old header toggle removed.
 //   2026-06-28.20 · Schedule: rail drops to the grid top; reserve its width so right-edge cells aren't clipped.
 //   2026-06-28.21 · Schedule: reliable rail/panel top-sync (grid top); notes panel uses the canvas bg.
-const SW_DEPLOY_NONCE = "2026-06-28.21";
+//   2026-06-28.22 · Schedule: notes panel goes flat (drop the shadow).
+const SW_DEPLOY_NONCE = "2026-06-28.22";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
