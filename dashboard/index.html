@@ -2855,87 +2855,183 @@ Evidence attached:
      ═══════════════════════════════════════════════════════════ -->
 <div class="modal-backdrop" id="modal-form-builder" onclick="if(event.target===this)closeModal('modal-form-builder')">
   <div class="modal-card builder-modal">
-    <div class="modal-head">
-      <div>
-        <p class="modal-title">Form builder</p>
-        <p class="modal-sub">Click a field type on the left to add it to your form. Click a field to edit it.</p>
+    <div class="modal-head builder-head">
+      <div class="builder-head-row">
+        <div>
+          <p class="modal-title">Form builder</p>
+          <p class="modal-sub">Design the form drivers fill out — add fields, set rules, preview, and publish.</p>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-sm" data-rr-form-save>Save draft</button>
+          <button class="btn btn-sm btn-primary" data-rr-form-publish>Publish</button>
+          <button class="modal-close" onclick="closeModal('modal-form-builder')" style="margin-left:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button class="btn btn-sm" data-rr-form-save>Save draft</button>
-        <button class="btn btn-sm btn-primary" data-rr-form-publish>Publish</button>
-        <button class="modal-close" onclick="closeModal('modal-form-builder')" style="margin-left:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <div class="builder-tabs" role="tablist">
+        <button type="button" class="builder-tab is-active" data-rr-builder-tab="build" role="tab">Build</button>
+        <button type="button" class="builder-tab" data-rr-builder-tab="logic" role="tab">Logic</button>
+        <button type="button" class="builder-tab" data-rr-builder-tab="settings" role="tab">Settings</button>
+        <button type="button" class="builder-tab" data-rr-builder-tab="preview" role="tab">Preview</button>
       </div>
     </div>
-    <div class="builder-grid">
-      <div class="field-palette" id="rr-builder-palette">
-        <div class="field-palette-section">Text</div>
-        <button class="field-type" data-rr-add-field="short_text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/></svg>Short text</button>
-        <button class="field-type" data-rr-add-field="long_text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>Long text</button>
-        <button class="field-type" data-rr-add-field="email"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M16 8a4 4 0 1 0-8 0v4"/></svg>Email</button>
-        <button class="field-type" data-rr-add-field="phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/></svg>Phone</button>
-        <button class="field-type" data-rr-add-field="number"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="14" y2="15"/></svg>Number</button>
 
-        <div class="field-palette-section">Choice</div>
-        <button class="field-type" data-rr-add-field="single_choice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Single choice</button>
-        <button class="field-type" data-rr-add-field="multi_choice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>Multi-select</button>
-        <button class="field-type" data-rr-add-field="dropdown"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>Dropdown</button>
-        <button class="field-type" data-rr-add-field="yes_no"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Yes/No</button>
-        <button class="field-type" data-rr-add-field="rating"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Rating · 1–5</button>
+    <div class="builder-panes">
+      <!-- ── BUILD PANE — toolbox · canvas · properties ───────────── -->
+      <div class="builder-pane is-active" data-rr-builder-pane="build">
+        <div class="builder-grid">
+          <div class="field-palette" id="rr-builder-palette">
+            <div class="palette-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="rr-palette-search" placeholder="Search fields" autocomplete="off" aria-label="Search field types" />
+            </div>
 
-        <div class="field-palette-section">Date &amp; time</div>
-        <button class="field-type" data-rr-add-field="date"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>Date</button>
-        <button class="field-type" data-rr-add-field="time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Time</button>
+            <div class="palette-group is-open" data-rr-palette-group>
+              <button type="button" class="palette-group-head" data-rr-palette-toggle><span class="palette-chevron" aria-hidden="true">▾</span><span>Text</span></button>
+              <div class="palette-group-body">
+                <button class="field-type" data-rr-add-field="short_text" data-rr-field-desc="Single line of text"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/></svg></span><span class="field-type-meta"><span class="field-type-name">Short text</span><span class="field-type-sub">Single line of text</span></span></button>
+                <button class="field-type" data-rr-add-field="long_text" data-rr-field-desc="Multi-line paragraph answer"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></span><span class="field-type-meta"><span class="field-type-name">Long text</span><span class="field-type-sub">Multi-line paragraph answer</span></span></button>
+                <button class="field-type" data-rr-add-field="email" data-rr-field-desc="Validated email address"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M16 8a4 4 0 1 0-8 0v4"/></svg></span><span class="field-type-meta"><span class="field-type-name">Email</span><span class="field-type-sub">Validated email address</span></span></button>
+                <button class="field-type" data-rr-add-field="phone" data-rr-field-desc="Phone number entry"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/></svg></span><span class="field-type-meta"><span class="field-type-name">Phone</span><span class="field-type-sub">Phone number entry</span></span></button>
+                <button class="field-type" data-rr-add-field="number" data-rr-field-desc="Numeric value only"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="14" y2="15"/></svg></span><span class="field-type-meta"><span class="field-type-name">Number</span><span class="field-type-sub">Numeric value only</span></span></button>
+              </div>
+            </div>
 
-        <div class="field-palette-section">Files &amp; photos</div>
-        <button class="field-type" data-rr-add-field="photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Photo capture</button>
-        <button class="field-type" data-rr-add-field="file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>File upload</button>
-        <button class="field-type" data-rr-add-field="signature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8"/></svg>Signature</button>
-        <button class="field-type" data-rr-add-field="gps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 8-8z"/></svg>GPS location</button>
+            <div class="palette-group is-open" data-rr-palette-group>
+              <button type="button" class="palette-group-head" data-rr-palette-toggle><span class="palette-chevron" aria-hidden="true">▾</span><span>Choice</span></button>
+              <div class="palette-group-body">
+                <button class="field-type" data-rr-add-field="single_choice" data-rr-field-desc="Pick one of several options"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span><span class="field-type-meta"><span class="field-type-name">Single choice</span><span class="field-type-sub">Pick one of several options</span></span></button>
+                <button class="field-type" data-rr-add-field="multi_choice" data-rr-field-desc="Select one or more options"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg></span><span class="field-type-meta"><span class="field-type-name">Multi-select</span><span class="field-type-sub">Select one or more options</span></span></button>
+                <button class="field-type" data-rr-add-field="dropdown" data-rr-field-desc="Choose from a dropdown list"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg></span><span class="field-type-meta"><span class="field-type-name">Dropdown</span><span class="field-type-sub">Choose from a dropdown list</span></span></button>
+                <button class="field-type" data-rr-add-field="yes_no" data-rr-field-desc="Simple yes or no answer"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><span class="field-type-meta"><span class="field-type-name">Yes/No</span><span class="field-type-sub">Simple yes or no answer</span></span></button>
+                <button class="field-type" data-rr-add-field="rating" data-rr-field-desc="Rate on a 1–5 scale"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span><span class="field-type-meta"><span class="field-type-name">Rating · 1–5</span><span class="field-type-sub">Rate on a 1–5 scale</span></span></button>
+              </div>
+            </div>
 
-        <div class="field-palette-section">Layout</div>
-        <button class="field-type" data-rr-add-field="instructions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Instructions</button>
-        <button class="field-type" data-rr-add-field="section_header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12h16"/></svg>Section header</button>
-        <button class="field-type" data-rr-add-field="divider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="3" y1="12" x2="21" y2="12"/></svg>Divider</button>
-      </div>
+            <div class="palette-group is-open" data-rr-palette-group>
+              <button type="button" class="palette-group-head" data-rr-palette-toggle><span class="palette-chevron" aria-hidden="true">▾</span><span>Date &amp; time</span></button>
+              <div class="palette-group-body">
+                <button class="field-type" data-rr-add-field="date" data-rr-field-desc="Calendar date picker"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/></svg></span><span class="field-type-meta"><span class="field-type-name">Date</span><span class="field-type-sub">Calendar date picker</span></span></button>
+                <button class="field-type" data-rr-add-field="time" data-rr-field-desc="Time-of-day picker"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="field-type-meta"><span class="field-type-name">Time</span><span class="field-type-sub">Time-of-day picker</span></span></button>
+              </div>
+            </div>
 
-      <div class="builder-canvas" id="rr-builder-canvas">
-        <div class="builder-canvas-form">
-          <input class="builder-form-name" id="rr-builder-title" placeholder="Untitled form" />
-          <textarea class="builder-form-desc" id="rr-builder-desc" rows="2" placeholder="What is this form for? (optional)"></textarea>
-          <div class="builder-form-cat-row">
-            <label class="builder-form-cat-label" for="rr-builder-cat">Category</label>
-            <input class="builder-form-cat" id="rr-builder-cat" list="rr-builder-cat-options" placeholder="onboarding · compliance · operations · training · …" autocomplete="off" />
-            <datalist id="rr-builder-cat-options"></datalist>
+            <div class="palette-group is-open" data-rr-palette-group>
+              <button type="button" class="palette-group-head" data-rr-palette-toggle><span class="palette-chevron" aria-hidden="true">▾</span><span>Files &amp; photos</span></button>
+              <div class="palette-group-body">
+                <button class="field-type" data-rr-add-field="photo" data-rr-field-desc="Capture a photo from the camera"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span><span class="field-type-meta"><span class="field-type-name">Photo capture</span><span class="field-type-sub">Capture a photo from the camera</span></span></button>
+                <button class="field-type" data-rr-add-field="file" data-rr-field-desc="Upload a document or file"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg></span><span class="field-type-meta"><span class="field-type-name">File upload</span><span class="field-type-sub">Upload a document or file</span></span></button>
+                <button class="field-type" data-rr-add-field="signature" data-rr-field-desc="Capture a typed signature"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8"/></svg></span><span class="field-type-meta"><span class="field-type-name">Signature</span><span class="field-type-sub">Capture a typed signature</span></span></button>
+                <button class="field-type" data-rr-add-field="gps" data-rr-field-desc="Auto-capture GPS location"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 8-8z"/></svg></span><span class="field-type-meta"><span class="field-type-name">GPS location</span><span class="field-type-sub">Auto-capture GPS location</span></span></button>
+              </div>
+            </div>
+
+            <div class="palette-group is-open" data-rr-palette-group>
+              <button type="button" class="palette-group-head" data-rr-palette-toggle><span class="palette-chevron" aria-hidden="true">▾</span><span>Layout</span></button>
+              <div class="palette-group-body">
+                <button class="field-type" data-rr-add-field="instructions" data-rr-field-desc="A read-only note for drivers"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span><span class="field-type-meta"><span class="field-type-name">Instructions</span><span class="field-type-sub">A read-only note for drivers</span></span></button>
+                <button class="field-type" data-rr-add-field="section_header" data-rr-field-desc="Group fields under a heading"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12h16"/></svg></span><span class="field-type-meta"><span class="field-type-name">Section header</span><span class="field-type-sub">Group fields under a heading</span></span></button>
+                <button class="field-type" data-rr-add-field="divider" data-rr-field-desc="A thin horizontal rule"><span class="field-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="3" y1="12" x2="21" y2="12"/></svg></span><span class="field-type-meta"><span class="field-type-name">Divider</span><span class="field-type-sub">A thin horizontal rule</span></span></button>
+              </div>
+            </div>
+            <div class="palette-noresults" id="rr-palette-noresults" style="display:none">No fields match your search.</div>
           </div>
-          <div id="rr-builder-fields"></div>
-          <div id="rr-builder-empty" class="rr-empty-inline" style="margin-top:14px">No fields yet — click a field type on the left to add one.</div>
-        </div>
-      </div>
 
-      <div class="field-props" id="rr-builder-props">
-        <div class="field-props-head">Field properties</div>
-        <div class="rr-empty-inline" id="rr-builder-props-empty">Select a field to edit it.</div>
-        <div id="rr-builder-props-body" style="display:none"></div>
-
-        <div class="field-props-head" style="margin-top:18px">Form settings</div>
-        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
-          <span class="field-prop-label">Audience</span>
-          <label style="display:flex;align-items:center;gap:7px;font-size:var(--fs-sm);cursor:pointer"><input type="radio" name="rr-form-audience" value="all" checked /> All active drivers</label>
-          <label style="display:flex;align-items:center;gap:7px;font-size:var(--fs-sm);cursor:pointer"><input type="radio" name="rr-form-audience" value="some" /> Specific drivers</label>
-          <div id="rr-form-audience-list" style="display:none;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 8px;background:var(--canvas)"><div class="rr-loading" style="font-size:var(--fs-xs)">Loading drivers…</div></div>
-        </div>
-        <div class="field-prop-row">
-          <span class="field-prop-label">Allow multiple submissions</span>
-          <label class="toggle"><input type="checkbox" id="rr-form-allow-resubmit" checked /><span class="toggle-slider"></span></label>
-        </div>
-        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px;border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5)">
-            <span class="field-prop-label">Vehicle inspection (DVIC)</span>
-            <label class="toggle"><input type="checkbox" id="rr-form-is-dvic" /><span class="toggle-slider"></span></label>
+          <div class="builder-canvas" id="rr-builder-canvas">
+            <div class="builder-canvas-form">
+              <div class="builder-doc-head">
+                <input class="builder-form-name" id="rr-builder-title" placeholder="Untitled form" />
+                <textarea class="builder-form-desc" id="rr-builder-desc" rows="2" placeholder="Add a short description (optional)"></textarea>
+                <div class="builder-cat-chips" id="rr-builder-cat-chips" aria-label="Category"></div>
+                <input type="hidden" id="rr-builder-cat" />
+                <datalist id="rr-builder-cat-options"></datalist>
+              </div>
+              <div id="rr-builder-fields"></div>
+              <div id="rr-builder-empty" class="builder-empty">
+                <div class="builder-empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="13" y2="13"/></svg></div>
+                <div class="builder-empty-title">Start building your form</div>
+                <div class="builder-empty-sub">Add a field to ask drivers a question, capture a photo, or collect a signature.</div>
+                <button type="button" class="btn btn-sm btn-primary builder-empty-cta" data-rr-add-first-field>Add your first field</button>
+                <div class="builder-empty-hint">or drag a field from the left</div>
+              </div>
+              <div class="builder-dropzone" id="rr-builder-dropzone" data-rr-add-field-end tabindex="0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Add field<span class="builder-dropzone-sub"> — or drag from the left</span></span>
+              </div>
+            </div>
           </div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.45">When on, each submission auto-creates an inspection on the driver's resolved van for today and lands in <strong>Fleet → van → Inspections</strong>. Photo fields upload to the van's record. Use this for morning pre-trip DVICs.</div>
+
+          <div class="field-props" id="rr-builder-props">
+            <div class="rr-empty-inline" id="rr-builder-props-empty">Select a field to edit it.</div>
+            <div id="rr-builder-props-body" style="display:none"></div>
+          </div>
         </div>
       </div>
+
+      <!-- ── LOGIC PANE — coming soon ─────────────────────────────── -->
+      <div class="builder-pane" data-rr-builder-pane="logic">
+        <div class="builder-soon">
+          <div class="builder-soon-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></div>
+          <div class="builder-soon-title">Conditional logic is coming soon</div>
+          <div class="builder-soon-sub">Show or hide fields based on earlier answers, branch the form, and skip sections that don't apply. We're polishing it now — it lands in an upcoming release.</div>
+        </div>
+      </div>
+
+      <!-- ── SETTINGS PANE — audience + behavior ──────────────────── -->
+      <div class="builder-pane" data-rr-builder-pane="settings">
+        <div class="builder-settings">
+          <div class="builder-settings-card">
+            <div class="field-props-head">Audience</div>
+            <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
+              <label style="display:flex;align-items:center;gap:7px;font-size:var(--fs-sm);cursor:pointer"><input type="radio" name="rr-form-audience" value="all" checked /> All active drivers</label>
+              <label style="display:flex;align-items:center;gap:7px;font-size:var(--fs-sm);cursor:pointer"><input type="radio" name="rr-form-audience" value="some" /> Specific drivers</label>
+              <div id="rr-form-audience-list" style="display:none;max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 8px;background:var(--canvas)"><div class="rr-loading" style="font-size:var(--fs-xs)">Loading drivers…</div></div>
+            </div>
+          </div>
+          <div class="builder-settings-card">
+            <div class="field-props-head">Behavior</div>
+            <div class="field-prop-row" style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5)">
+              <span class="field-prop-label" style="margin-bottom:0">Allow multiple submissions</span>
+              <label class="toggle"><input type="checkbox" id="rr-form-allow-resubmit" checked /><span class="toggle-slider"></span></label>
+            </div>
+            <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px;border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5)">
+                <span class="field-prop-label" style="margin-bottom:0">Vehicle inspection (DVIC)</span>
+                <label class="toggle"><input type="checkbox" id="rr-form-is-dvic" /><span class="toggle-slider"></span></label>
+              </div>
+              <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.45">When on, each submission auto-creates an inspection on the driver's resolved van for today and lands in <strong>Fleet → van → Inspections</strong>. Photo fields upload to the van's record. Use this for morning pre-trip DVICs.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PREVIEW PANE — live Driver App preview ───────────────── -->
+      <div class="builder-pane" data-rr-builder-pane="preview">
+        <div class="builder-preview-wrap">
+          <div class="builder-preview-bar">
+            <span class="builder-preview-label">Driver preview</span>
+            <div class="builder-device-toggle" role="group" aria-label="Preview device">
+              <button type="button" class="builder-device-btn is-active" data-rr-preview-device="phone">Phone</button>
+              <button type="button" class="builder-device-btn" data-rr-preview-device="tablet">Tablet</button>
+              <button type="button" class="builder-device-btn" data-rr-preview-device="desktop">Desktop</button>
+            </div>
+          </div>
+          <div class="builder-preview-stage" id="rr-builder-preview-stage">
+            <div class="builder-device builder-device-phone" id="rr-builder-preview-device">
+              <div class="rr-bpreview" id="rr-builder-preview-body"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="builder-foot" id="rr-builder-foot">
+      <span class="builder-foot-status" id="rr-builder-foot-status"><span class="builder-foot-dot"></span>Draft ready</span>
+      <span class="builder-foot-sep"></span>
+      <span id="rr-builder-foot-counts">0 fields</span>
+      <span class="builder-foot-sep"></span>
+      <span id="rr-builder-foot-time">~0 sec to complete</span>
+      <span class="builder-foot-sep"></span>
+      <span id="rr-builder-foot-aud">All active drivers</span>
     </div>
   </div>
 </div>

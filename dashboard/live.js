@@ -55840,6 +55840,36 @@ const _FIELD_TYPE_LABELS = {
   section_header: "Section header", divider: "Divider",
 };
 
+// Small monochrome icon per field type for the canvas type-badge.  These
+// mirror the toolbox SVGs so a block in the canvas is recognizable at a
+// glance.  Returned as an inline <svg> string.
+const _FIELD_TYPE_ICONS = {
+  short_text:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/></svg>',
+  long_text:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>',
+  email:        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M16 8a4 4 0 1 0-8 0v4"/></svg>',
+  phone:        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/></svg>',
+  number:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="14" y2="15"/></svg>',
+  single_choice:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>',
+  multi_choice: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>',
+  dropdown:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>',
+  yes_no:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  rating:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  date:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/></svg>',
+  time:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  photo:        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+  file:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>',
+  signature:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8"/></svg>',
+  gps:          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 8-8z"/></svg>',
+  instructions: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+  section_header:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12h16"/></svg>',
+  divider:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="3" y1="12" x2="21" y2="12"/></svg>',
+};
+function _fieldTypeIcon(type) { return _FIELD_TYPE_ICONS[type] || _FIELD_TYPE_ICONS.short_text; }
+
+// View-only builder UI state (not persisted to _formsState).
+let _builderPreviewDevice = "phone";   // phone | tablet | desktop
+let _builderPropsOpen = "props";       // which accordion section is open
+
 function _newFieldId() {
   return "f_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -56309,12 +56339,19 @@ function openFormBuilder(form) {
   if (titleEl) titleEl.value = form?.title || "";
   if (descEl)  descEl.value  = form?.description || "";
   if (catEl)   catEl.value   = form?.category || "";
-  // Populate the category datalist from existing forms so the
-  // operator can pick from what's already in use instead of typing.
+  // Populate the category datalist (kept for parity) from existing forms.
   if (catList) {
     const cats = [...new Set((_formsCache || []).map(f => (f.category || "").trim()).filter(Boolean))].sort();
     catList.innerHTML = cats.map(c => `<option value="${escapeHtml(c)}"></option>`).join("");
   }
+  // Render category chips driven by distinct categories already in use.
+  _renderBuilderCatChips(form?.category || "");
+  // Reset view-only UI state and default back to the Build tab.
+  _builderPreviewDevice = "phone";
+  _builderPropsOpen = "props";
+  _setBuilderTab("build");
+  const search = document.getElementById("rr-palette-search");
+  if (search) { search.value = ""; _filterPalette(""); }
   // Form-level settings — once_per_driver is the inverse of the
   // "Allow multiple submissions" toggle.  Default to allow.
   const allowResubmit = document.getElementById("rr-form-allow-resubmit");
@@ -56347,6 +56384,39 @@ function openFormBuilder(form) {
   if (typeof openModal === "function") openModal("modal-form-builder");
 }
 
+// Switch builder tabs by toggling pane/tab .is-active classes.  Never
+// unmounts the canvas/palette DOM — add-field + DnD keep working when we
+// return to Build.  Re-renders the preview when the Preview tab opens.
+function _setBuilderTab(tab) {
+  const modal = document.getElementById("modal-form-builder");
+  if (!modal) return;
+  modal.querySelectorAll("[data-rr-builder-tab]").forEach(b =>
+    b.classList.toggle("is-active", b.getAttribute("data-rr-builder-tab") === tab));
+  modal.querySelectorAll("[data-rr-builder-pane]").forEach(p =>
+    p.classList.toggle("is-active", p.getAttribute("data-rr-builder-pane") === tab));
+  if (tab === "preview") _renderBuilderPreview();
+}
+
+// Category chips — render from distinct categories already in use across
+// the operator's forms, plus the form's own category and an "+ Add"
+// affordance.  The chosen category is written back to the hidden
+// #rr-builder-cat input so _saveBuilder reads it unchanged.
+function _renderBuilderCatChips(selected) {
+  const host = document.getElementById("rr-builder-cat-chips");
+  const hidden = document.getElementById("rr-builder-cat");
+  if (!host) return;
+  const sel = (selected || "").trim();
+  if (hidden) hidden.value = sel;
+  const cats = [...new Set([
+    ...(_formsCache || []).map(f => (f.category || "").trim()).filter(Boolean),
+    ...(sel ? [sel] : []),
+  ])].sort();
+  host.innerHTML = cats.map(c =>
+    `<button type="button" class="builder-cat-chip${c.toLowerCase() === sel.toLowerCase() ? " is-active" : ""}" data-rr-cat-chip="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+  ).join("") +
+    `<button type="button" class="builder-cat-chip builder-cat-add" data-rr-cat-add>+ Add category</button>`;
+}
+
 async function _renderAudienceList(checkedIds) {
   const host = document.getElementById("rr-form-audience-list");
   if (!host) return;
@@ -56377,20 +56447,82 @@ document.addEventListener("change", (e) => {
   } else {
     audList.style.display = "none";
   }
+  _renderBuilderFoot();
 });
+
+// Keep the footer's audience summary live as drivers are toggled.
+document.addEventListener("change", (e) => {
+  if (e.target?.closest?.("#rr-form-audience-list [data-rr-aud-driver]")) _renderBuilderFoot();
+});
+
+// Filter toolbox cards by title/description.  Auto-expands any group
+// with matches; hides empty groups; shows a "no results" line.  View-only
+// (toggles DOM classes), never touches _formsState.
+function _filterPalette(query) {
+  const palette = document.getElementById("rr-builder-palette");
+  if (!palette) return;
+  const q = (query || "").trim().toLowerCase();
+  const groups = palette.querySelectorAll("[data-rr-palette-group]");
+  let anyVisible = false;
+  groups.forEach(group => {
+    let groupHas = false;
+    group.querySelectorAll(".field-type").forEach(card => {
+      const name = (card.querySelector(".field-type-name")?.textContent || "").toLowerCase();
+      const desc = (card.getAttribute("data-rr-field-desc") || "").toLowerCase();
+      const hit = !q || name.includes(q) || desc.includes(q);
+      card.classList.toggle("is-hidden", !hit);
+      if (hit) groupHas = true;
+    });
+    group.style.display = groupHas ? "" : "none";
+    if (groupHas) {
+      anyVisible = true;
+      // Auto-expand matching groups while searching; otherwise leave as-is.
+      if (q) group.classList.add("is-open");
+    }
+  });
+  const none = document.getElementById("rr-palette-noresults");
+  if (none) none.style.display = anyVisible ? "none" : "block";
+}
 
 function _renderBuilderCanvas() {
   const list  = document.getElementById("rr-builder-fields");
   const empty = document.getElementById("rr-builder-empty");
-  if (!list) return;
+  if (!list) { _renderBuilderFoot(); _renderBuilderPreview(); return; }
   if (_formsState.fields.length === 0) {
     list.innerHTML = "";
-    if (empty) empty.style.display = "block";
-    return;
+    if (empty) empty.style.display = "flex";
+  } else {
+    if (empty) empty.style.display = "none";
+    const last = _formsState.fields.length - 1;
+    list.innerHTML = _formsState.fields.map((f, i) => _builderFieldHtml(f, i, f.id === _formsState.selectedId, last)).join("");
   }
-  if (empty) empty.style.display = "none";
-  const last = _formsState.fields.length - 1;
-  list.innerHTML = _formsState.fields.map((f, i) => _builderFieldHtml(f, i, f.id === _formsState.selectedId, last)).join("");
+  _renderBuilderFoot();
+  _renderBuilderPreview();
+}
+
+// Status footer — field count, required count, a light completion-time
+// heuristic, and the current audience summary.  Muted by design.
+function _renderBuilderFoot() {
+  const n   = _formsState.fields.length;
+  const inputs = _formsState.fields.filter(f => !["section_header", "divider", "instructions"].includes(f.type));
+  const req = inputs.filter(f => f.required).length;
+  const counts = document.getElementById("rr-builder-foot-counts");
+  const time   = document.getElementById("rr-builder-foot-time");
+  const aud    = document.getElementById("rr-builder-foot-aud");
+  if (counts) counts.textContent = `${n} field${n === 1 ? "" : "s"}` + (req ? ` · ${req} required` : "");
+  if (time) {
+    const secs = Math.max(5, inputs.length * 8 + inputs.filter(f => ["long_text", "signature", "photo", "file"].includes(f.type)).length * 7);
+    time.textContent = `~${secs} sec to complete`;
+  }
+  if (aud) {
+    const some = document.querySelector('input[name="rr-form-audience"][value="some"]')?.checked;
+    if (some) {
+      const c = document.querySelectorAll('#rr-form-audience-list [data-rr-aud-driver]:checked').length;
+      aud.textContent = c ? `${c} driver${c === 1 ? "" : "s"}` : "Specific drivers";
+    } else {
+      aud.textContent = "All active drivers";
+    }
+  }
 }
 
 function _builderFieldHtml(f, idx, selected, last) {
@@ -56399,12 +56531,21 @@ function _builderFieldHtml(f, idx, selected, last) {
   const id  = escapeHtml(f.id);
   // Drag-and-drop attrs + keyboard-accessible nudge buttons.  The
   // whole row is draggable (HTML5 DnD); ⋮⋮ on the left is just the
-  // visual cursor cue.  Nudge arrows render only when the row is
-  // selected, mirroring the remove (×) affordance.
+  // visual cursor cue.  Nudge arrows + ✕ stay for the early-return
+  // layout blocks; the standard wrapper uses the hover toolbar below.
   const dnd = `draggable="true" data-rr-field-idx="${idx}"`;
   const nudge = `<div class="rr-field-nudge" data-rr-no-drawer>
     <button type="button" data-rr-field-up="${id}" aria-label="Move up" title="Move up"${idx === 0 ? " disabled" : ""}>▲</button>
     <button type="button" data-rr-field-down="${id}" aria-label="Move down" title="Move down"${idx === last ? " disabled" : ""}>▼</button>
+  </div>`;
+  // Hover/active toolbar — Duplicate · Move up · Move down · Delete.
+  // data-rr-no-drawer keeps clicks from bubbling into field-pick logic;
+  // each action reuses an existing delegation branch (dup is new).
+  const toolbar = `<div class="builder-field-toolbar" data-rr-no-drawer>
+    <button type="button" data-rr-field-dup="${id}" aria-label="Duplicate" title="Duplicate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+    <button type="button" data-rr-field-up="${id}" aria-label="Move up" title="Move up"${idx === 0 ? " disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="18 15 12 9 6 15"/></svg></button>
+    <button type="button" data-rr-field-down="${id}" aria-label="Move down" title="Move down"${idx === last ? " disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg></button>
+    <button type="button" class="tb-del" data-rr-field-remove="${id}" aria-label="Delete" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
   </div>`;
   let body = "";
   switch (f.type) {
@@ -56448,37 +56589,124 @@ function _builderFieldHtml(f, idx, selected, last) {
     case "section_header":
       return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}" style="margin-top:14px">
         <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
-        <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove section">×</button>
-        ${nudge}
+        ${toolbar}
+        <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span></div>
         <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">${escapeHtml(f.label || "Section")}</div>
       </div>`;
     case "divider":
       return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}">
         <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
-        <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove divider">×</button>
-        ${nudge}
+        ${toolbar}
+        <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span></div>
         <hr style="border:0;border-top:1px solid var(--border);margin:6px 0"/>
       </div>`;
     case "instructions": {
       const text = (f.help || "").trim();
       return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}" style="background:var(--accent-soft);border-color:var(--accent-border)">
         <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
-        <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove block">×</button>
-        ${nudge}
+        ${toolbar}
+        <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span></div>
         <div style="font-weight:700;font-size:var(--fs-md);color:var(--text);margin-bottom:6px">${escapeHtml(f.label || "Instructions")}</div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;white-space:pre-wrap">${escapeHtml(text || "Click here, then type instructions in the Help text field on the right.")}</div>
       </div>`;
     }
   }
+  const reqBadge = f.required ? `<span class="builder-req-badge">Required</span>` : "";
   return `
     <div class="${cls}" ${dnd} data-rr-field-pick="${id}">
       <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
-      <button type="button" class="rr-field-remove" data-rr-field-remove="${id}" aria-label="Remove field">×</button>
-      ${nudge}
+      ${toolbar}
+      <div class="builder-field-topbar">
+        <span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span>
+        <span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type] || f.type)}</span>
+        ${reqBadge}
+      </div>
       <label class="builder-field-label">${escapeHtml(f.label || "Untitled")}${req}</label>
       ${f.help ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:6px">${escapeHtml(f.help)}</div>` : ""}
       ${body}
     </div>`;
+}
+
+// ── Live Driver-App preview ──────────────────────────────────────
+// Ported from app/app.js _formFieldHtml — renders the same field shape
+// the driver sees.  Scoped under .rr-bpreview so the ported .form-fill-*
+// CSS doesn't leak.  No app.js import.
+function _rrBuilderPreviewFieldHtml(f) {
+  const id   = `bpf-${escapeHtml(f.id)}`;
+  const lbl  = escapeHtml(f.label || "");
+  const help = f.help ? `<div class="form-fill-help">${escapeHtml(f.help)}</div>` : "";
+  const req  = f.required ? `<span style="color:var(--red);margin-left:3px">*</span>` : "";
+  const row  = (input) => `<div class="form-fill-row"><label class="form-fill-label">${lbl}${req}</label>${help}${input}</div>`;
+  switch (f.type) {
+    case "instructions":
+      return `<div class="form-fill-instructions"><div class="form-fill-instructions-title">${lbl || "Instructions"}</div><div>${escapeHtml(f.help || "")}</div></div>`;
+    case "section_header":
+      return `<div class="form-fill-section">${lbl}</div>`;
+    case "divider":
+      return `<hr class="form-fill-divider"/>`;
+    case "long_text":
+      return row(`<textarea class="field" rows="4" disabled></textarea>`);
+    case "email":
+      return row(`<input class="field" type="email" disabled/>`);
+    case "phone":
+      return row(`<input class="field" type="tel" disabled/>`);
+    case "number":
+      return row(`<input class="field" type="number" disabled/>`);
+    case "date":
+      return row(`<input class="field" type="date" disabled/>`);
+    case "time":
+      return row(`<input class="field" type="time" disabled/>`);
+    case "yes_no":
+      return row(`<div class="form-fill-choice-row"><label class="form-fill-choice"><input type="radio" disabled/><span>Yes</span></label><label class="form-fill-choice"><input type="radio" disabled/><span>No</span></label></div>`);
+    case "rating":
+      return row(`<div class="form-fill-rating">${[1,2,3,4,5].map(n => `<label class="form-fill-rating-star"><input type="radio" disabled/><span>${n}</span></label>`).join("")}</div>`);
+    case "single_choice": {
+      const opts = (f.options || []).map(o => `<label class="form-fill-choice"><input type="radio" disabled/><span>${escapeHtml(o)}</span></label>`).join("");
+      return row(`<div class="form-fill-choice-col">${opts}</div>`);
+    }
+    case "multi_choice": {
+      const opts = (f.options || []).map(o => `<label class="form-fill-choice"><input type="checkbox" disabled/><span>${escapeHtml(o)}</span></label>`).join("");
+      return row(`<div class="form-fill-choice-col">${opts}</div>`);
+    }
+    case "dropdown": {
+      const opts = (f.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
+      return row(`<select class="field" disabled><option value="">— Select —</option>${opts}</select>`);
+    }
+    case "photo":
+      return row(`<input class="field" type="file" disabled/>`);
+    case "file":
+      return row(`<input class="field" type="file" disabled/>`);
+    case "signature":
+      return row(`<input class="field" type="text" placeholder="Type your name to sign" disabled/>`);
+    case "gps":
+      return row(`<div class="form-fill-gps">Location will be captured when you submit.</div>`);
+    case "short_text":
+    default:
+      return row(`<input class="field" type="text" disabled/>`);
+  }
+}
+
+function _renderBuilderPreview() {
+  const device = document.getElementById("rr-builder-preview-device");
+  const body   = document.getElementById("rr-builder-preview-body");
+  if (!body) return;
+  if (device) device.className = "builder-device builder-device-" + _builderPreviewDevice;
+  const title = (document.getElementById("rr-builder-title")?.value || "").trim() || "Untitled form";
+  const desc  = (document.getElementById("rr-builder-desc")?.value || "").trim();
+  const fields = _formsState.fields;
+  if (fields.length === 0) {
+    body.innerHTML = `<div class="builder-preview-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <div style="font-weight:600;color:var(--text)">Nothing to preview yet</div>
+      <div style="font-size:var(--fs-sm)">Add a field on the Build tab to see how it looks to drivers.</div>
+    </div>`;
+    return;
+  }
+  body.innerHTML = `
+    <div class="builder-preview-title">${escapeHtml(title)}</div>
+    ${desc ? `<div class="form-fill-desc">${escapeHtml(desc)}</div>` : ""}
+    ${fields.map(f => _rrBuilderPreviewFieldHtml(f)).join("")}
+    <button class="btn btn-primary btn-block" type="button" disabled style="margin-top:18px">Submit</button>`;
 }
 
 function _renderBuilderProps() {
@@ -56501,23 +56729,39 @@ function _renderBuilderProps() {
     ? `<textarea class="field-prop-input" data-rr-prop="help" rows="6" placeholder="What should the driver read before they start?">${escapeHtml(f.help || "")}</textarea>`
     : `<input class="field-prop-input" data-rr-prop="help" value="${escapeHtml(f.help || "")}" />`;
   const requiredRow = (isInstructions || f.type === "section_header" || f.type === "divider") ? "" : `
-    <div class="field-prop-row"><span class="field-prop-label">Required</span>
+    <div class="field-prop-row" style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5)"><span class="field-prop-label" style="margin-bottom:0">Required</span>
       <label class="toggle"><input type="checkbox" data-rr-prop="required" ${f.required ? "checked" : ""}/><span class="toggle-slider"></span></label></div>`;
+  // Accordion — only one section open at a time (driven by _builderPropsOpen).
+  const propsOpen = _builderPropsOpen === "props";
+  const advOpen   = _builderPropsOpen === "advanced";
   body.innerHTML = `
-    <div class="field-prop-row"><span class="field-prop-label">Field type</span>
-      <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(_FIELD_TYPE_LABELS[f.type] || f.type)}</div></div>
-    <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px"><span class="field-prop-label">${escapeHtml(labelHeading)}</span>
-      <input class="field-prop-input" data-rr-prop="label" value="${escapeHtml(f.label || "")}" /></div>
-    <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px"><span class="field-prop-label">${escapeHtml(helpHeading)}</span>
-      ${helpInput}</div>
-    ${requiredRow}
-    ${hasOptions ? `
-      <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
-        <span class="field-prop-label">Options</span>
-        <textarea class="field-prop-input" data-rr-prop="options" rows="4" placeholder="One per line">${escapeHtml((f.options || []).join("\n"))}</textarea>
-      </div>` : ""}
-    <div class="field-prop-row u-mt-2">
-      <button type="button" class="btn btn-sm" data-rr-field-remove="${escapeHtml(f.id)}" style="color:var(--red)">Delete field</button>
+    <div class="field-prop-row" style="display:flex;align-items:center;gap:var(--s-2);margin-bottom:var(--s-3)">
+      <span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span>
+      <span class="props-section-type">${escapeHtml(_FIELD_TYPE_LABELS[f.type] || f.type)}</span>
+    </div>
+    <div class="props-section${propsOpen ? " is-open" : ""}">
+      <button type="button" class="props-section-head" data-rr-props-section="props">Properties<span class="props-chevron">▾</span></button>
+      <div class="props-section-body">
+        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px"><span class="field-prop-label">${escapeHtml(labelHeading)}</span>
+          <input class="field-prop-input" data-rr-prop="label" value="${escapeHtml(f.label || "")}" /></div>
+        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px"><span class="field-prop-label">${escapeHtml(helpHeading)}</span>
+          ${helpInput}</div>
+        ${requiredRow}
+        ${hasOptions ? `
+          <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
+            <span class="field-prop-label">Options</span>
+            <textarea class="field-prop-input" data-rr-prop="options" rows="4" placeholder="One per line">${escapeHtml((f.options || []).join("\n"))}</textarea>
+          </div>` : ""}
+        <div class="field-prop-row" style="margin-bottom:0">
+          <button type="button" class="btn btn-sm" data-rr-field-remove="${escapeHtml(f.id)}" style="color:var(--red)">Delete field</button>
+        </div>
+      </div>
+    </div>
+    <div class="props-section${advOpen ? " is-open" : ""}">
+      <button type="button" class="props-section-head" data-rr-props-section="advanced">Advanced<span class="props-chevron">▾</span></button>
+      <div class="props-section-body">
+        <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">Validation rules, default values, and field-level conditions arrive in an upcoming release.</div>
+      </div>
     </div>`;
 }
 
@@ -56538,6 +56782,86 @@ document.addEventListener("click", async (e) => {
   if (e.target.closest("[data-rr-form-new]")) {
     e.preventDefault();
     openFormBuilder(null);
+    return;
+  }
+  // ── Builder tabs ──────────────────────────────────────────────
+  const tabBtn = e.target.closest("[data-rr-builder-tab]");
+  if (tabBtn) {
+    e.preventDefault();
+    _setBuilderTab(tabBtn.getAttribute("data-rr-builder-tab"));
+    return;
+  }
+  // ── Toolbox collapsible group toggle ──────────────────────────
+  const grpToggle = e.target.closest("[data-rr-palette-toggle]");
+  if (grpToggle) {
+    e.preventDefault();
+    grpToggle.closest("[data-rr-palette-group]")?.classList.toggle("is-open");
+    return;
+  }
+  // ── Preview device toggle ─────────────────────────────────────
+  const devBtn = e.target.closest("[data-rr-preview-device]");
+  if (devBtn) {
+    e.preventDefault();
+    _builderPreviewDevice = devBtn.getAttribute("data-rr-preview-device");
+    document.querySelectorAll("[data-rr-preview-device]").forEach(b =>
+      b.classList.toggle("is-active", b === devBtn));
+    _renderBuilderPreview();
+    return;
+  }
+  // ── Properties accordion section ──────────────────────────────
+  const propSec = e.target.closest("[data-rr-props-section]");
+  if (propSec) {
+    e.preventDefault();
+    const which = propSec.getAttribute("data-rr-props-section");
+    _builderPropsOpen = (_builderPropsOpen === which) ? null : which;
+    _renderBuilderProps();
+    return;
+  }
+  // ── Category chips ────────────────────────────────────────────
+  const catChip = e.target.closest("[data-rr-cat-chip]");
+  if (catChip) {
+    e.preventDefault();
+    const val = catChip.getAttribute("data-rr-cat-chip");
+    const hidden = document.getElementById("rr-builder-cat");
+    const cur = (hidden?.value || "").trim().toLowerCase();
+    // Toggle off when re-clicking the active chip; otherwise select it.
+    _renderBuilderCatChips(cur === val.toLowerCase() ? "" : val);
+    return;
+  }
+  const catAdd = e.target.closest("[data-rr-cat-add]");
+  if (catAdd) {
+    e.preventDefault();
+    const name = (prompt("New category name") || "").trim();
+    if (name) _renderBuilderCatChips(name);
+    return;
+  }
+  // ── Empty-state CTA + bottom drop-zone click → add a field ────
+  if (e.target.closest("[data-rr-add-first-field]") || e.target.closest("[data-rr-add-field-end]")) {
+    if (document.getElementById("modal-form-builder")?.classList.contains("open")) {
+      e.preventDefault();
+      const f = _defaultFieldForType("short_text");
+      _formsState.fields.push(f);
+      _formsState.selectedId = f.id;
+      _builderPropsOpen = "props";
+      _renderBuilderCanvas();
+      _renderBuilderProps();
+      document.getElementById("rr-builder-fields")?.lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      return;
+    }
+  }
+  // ── Duplicate a field — clone with a fresh id, insert after ───
+  const dup = e.target.closest("[data-rr-field-dup]");
+  if (dup) {
+    e.preventDefault(); e.stopPropagation();
+    const id = dup.getAttribute("data-rr-field-dup");
+    const i = _formsState.fields.findIndex(f => f.id === id);
+    if (i < 0) return;
+    const clone = JSON.parse(JSON.stringify(_formsState.fields[i]));
+    clone.id = _newFieldId();
+    _formsState.fields.splice(i + 1, 0, clone);
+    _formsState.selectedId = clone.id;
+    _renderBuilderCanvas();
+    _renderBuilderProps();
     return;
   }
   // Install the Vehicle Concerns form — one click, idempotent.  Calls
@@ -56710,33 +57034,60 @@ document.addEventListener("click", async (e) => {
     if (row) row.classList.remove("is-dragging");
     document.querySelectorAll("#rr-builder-fields .builder-field.is-drop-target, #rr-builder-fields .builder-field.is-drop-target-bottom")
       .forEach(el => el.classList.remove("is-drop-target", "is-drop-target-bottom"));
+    document.getElementById("rr-builder-dropzone")?.classList.remove("is-drop-target");
     dragIdx = null;
   });
-  document.addEventListener("dragover", (e) => {
-    const row = e.target.closest("#rr-builder-fields .builder-field");
-    if (!row || dragIdx == null) return;
-    e.preventDefault();   // allow drop
+  const clearDropMarks = () => {
     document.querySelectorAll("#rr-builder-fields .builder-field.is-drop-target, #rr-builder-fields .builder-field.is-drop-target-bottom")
       .forEach(el => el.classList.remove("is-drop-target", "is-drop-target-bottom"));
-    const r = row.getBoundingClientRect();
-    const before = (e.clientY - r.top) < r.height / 2;
-    row.classList.add(before ? "is-drop-target" : "is-drop-target-bottom");
+    document.getElementById("rr-builder-dropzone")?.classList.remove("is-drop-target");
+  };
+  document.addEventListener("dragover", (e) => {
+    if (dragIdx == null) return;
+    const row = e.target.closest("#rr-builder-fields .builder-field");
+    const zone = e.target.closest("#rr-builder-dropzone");
+    if (row) {
+      e.preventDefault();   // allow drop
+      clearDropMarks();
+      const r = row.getBoundingClientRect();
+      const before = (e.clientY - r.top) < r.height / 2;
+      row.classList.add(before ? "is-drop-target" : "is-drop-target-bottom");
+    } else if (zone) {
+      e.preventDefault();
+      clearDropMarks();
+      zone.classList.add("is-drop-target");
+    }
   });
   document.addEventListener("drop", (e) => {
+    if (dragIdx == null) return;
     const row = e.target.closest("#rr-builder-fields .builder-field");
-    if (!row || dragIdx == null) return;
+    const zone = e.target.closest("#rr-builder-dropzone");
+    if (zone && !row) {
+      // Drop onto the bottom zone → move to the end of the list.
+      e.preventDefault();
+      const [moved] = _formsState.fields.splice(dragIdx, 1);
+      _formsState.fields.push(moved);
+      _formsState.selectedId = moved.id;
+      dragIdx = null;
+      clearDropMarks();
+      _renderBuilderCanvas();
+      _renderBuilderProps();
+      return;
+    }
+    if (!row) return;
     e.preventDefault();
     const targetIdx = Number(row.getAttribute("data-rr-field-idx"));
     const r = row.getBoundingClientRect();
     const before = (e.clientY - r.top) < r.height / 2;
     let dest = targetIdx + (before ? 0 : 1);
-    if (dragIdx === targetIdx) return;
+    if (dragIdx === targetIdx) { dragIdx = null; clearDropMarks(); return; }
     // Splice with index correction when removing-before-dest.
     const [moved] = _formsState.fields.splice(dragIdx, 1);
     if (dragIdx < dest) dest -= 1;
     _formsState.fields.splice(dest, 0, moved);
     _formsState.selectedId = moved.id;
     dragIdx = null;
+    clearDropMarks();
     _renderBuilderCanvas();
     _renderBuilderProps();
   });
@@ -56759,9 +57110,15 @@ document.addEventListener("input", (e) => {
     _renderBuilderCanvas();
     return;
   }
-  // Keep the canvas live with the title / description as the user types
+  // Toolbox search — filter field cards across all sections.
+  if (e.target.id === "rr-palette-search") {
+    _filterPalette(e.target.value);
+    return;
+  }
+  // Keep the canvas/preview live with the title / description as the user types
   if (e.target.id === "rr-builder-title" || e.target.id === "rr-builder-desc") {
-    // No state mirroring needed — read at save time.
+    // No state mirroring needed — read at save time; refresh the preview.
+    _renderBuilderPreview();
     return;
   }
 });
@@ -56816,6 +57173,8 @@ async function _saveBuilder({ publish }) {
   if (publish && saved?.id) {
     const { error: pubErr } = await sb.rpc("publish_form", { p_id: saved.id });
     if (pubErr) { toast("Publish failed: " + pubErr.message, "warn"); return; }
+    const fs = document.getElementById("rr-builder-foot-status");
+    if (fs) { fs.style.color = "var(--green-dark)"; fs.innerHTML = `<span class="builder-foot-dot"></span>Published`; }
     toast("Form published", "success");
   } else {
     toast(_formsState.editing ? "Draft saved" : "Form created", "success");

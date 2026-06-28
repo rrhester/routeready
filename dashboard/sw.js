@@ -60,7 +60,8 @@
 //   2026-06-28.39 · ADP Sync: "Create driver records" — import active ADP employees as onboarding drivers (review count + one-click), matched so existing drivers aren't duplicated.
 //   2026-06-28.40 · Roster: restore the per-row phone ("See driver's app view") icon on the active-driver rows — opens the driver-app preview, beside Message/Coach/More; actions column widened for the 4th icon.
 //   2026-06-28.41 · Forms: redesign the Schedule rail's Forms panel into a polished "Driver Forms" surface — header + subtitle + primary New Form button, search, trigger filter chips, clean white form cards with soft muted status/requirement badges + monochrome icons, and Showing 1–N pagination (understated Google-Workspace aesthetic; blue reserved for primary action + selected chip).
-const SW_DEPLOY_NONCE = "2026-06-28.41";
+//   2026-06-28.42 · Form builder: enterprise refresh — collapsible/searchable toolbox with field cards, Build/Logic/Settings/Preview tabs, refined draggable field blocks (type/required badges + hover toolbar + duplicate), document-style header with category chips, accordion properties, live Driver-App preview (phone/tablet/desktop), premium empty state, bottom drop zone, status footer. Conditional logic is a deliberate follow-up.
+const SW_DEPLOY_NONCE = "2026-06-28.42";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
