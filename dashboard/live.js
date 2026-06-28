@@ -55867,11 +55867,36 @@ const _FIELD_TYPE_ICONS = {
 function _fieldTypeIcon(type) { return _FIELD_TYPE_ICONS[type] || _FIELD_TYPE_ICONS.short_text; }
 
 // View-only builder UI state (not persisted to _formsState).
-let _builderPreviewDevice = "phone";   // phone | tablet | desktop
-let _builderPropsOpen = "props";       // which accordion section is open
+let _builderPreviewDevice = "phone";       // phone | tablet
+let _builderPreviewOrient = "portrait";    // portrait | landscape
+let _builderPropsOpen = "props";           // legacy accordion key (kept for parity)
+let _builderPropsTab  = "props";           // props | validation | logic | appearance | advanced
+let _builderDirty = false;                 // simple dirty/clean state for the saved indicator
 
 function _newFieldId() {
   return "f_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+// Header saved-state indicator.  Lightweight dirty/clean tracking — does
+// NOT touch the save logic itself.  _markBuilderDirty() flips to "Unsaved
+// changes" on any field/prop/title edit; _markBuilderSaved() flips back
+// after a successful _saveBuilder().
+function _renderBuilderSaved() {
+  const el = document.getElementById("rr-builder-saved");
+  if (!el) return;
+  const dirty = _builderDirty;
+  el.setAttribute("data-state", dirty ? "dirty" : "saved");
+  const txt = el.querySelector(".builder-saved-text");
+  if (txt) txt.textContent = dirty ? "Unsaved changes" : "All changes saved";
+}
+function _markBuilderDirty() {
+  if (_builderDirty) return;
+  _builderDirty = true;
+  _renderBuilderSaved();
+}
+function _markBuilderSaved() {
+  _builderDirty = false;
+  _renderBuilderSaved();
 }
 
 function _defaultFieldForType(type) {
@@ -56348,7 +56373,16 @@ function openFormBuilder(form) {
   _renderBuilderCatChips(form?.category || "");
   // Reset view-only UI state and default back to the Build tab.
   _builderPreviewDevice = "phone";
+  _builderPreviewOrient = "portrait";
   _builderPropsOpen = "props";
+  _builderPropsTab  = "props";
+  _builderDirty = false;
+  _renderBuilderSaved();
+  // Reset device-toggle button active states to match defaults.
+  document.querySelectorAll("[data-rr-preview-device]").forEach(b =>
+    b.classList.toggle("is-active", b.getAttribute("data-rr-preview-device") === "phone"));
+  document.querySelectorAll("[data-rr-preview-orient]").forEach(b =>
+    b.classList.toggle("is-active", b.getAttribute("data-rr-preview-orient") === "portrait"));
   _setBuilderTab("build");
   const search = document.getElementById("rr-palette-search");
   if (search) { search.value = ""; _filterPalette(""); }
@@ -56394,7 +56428,11 @@ function _setBuilderTab(tab) {
     b.classList.toggle("is-active", b.getAttribute("data-rr-builder-tab") === tab));
   modal.querySelectorAll("[data-rr-builder-pane]").forEach(p =>
     p.classList.toggle("is-active", p.getAttribute("data-rr-builder-pane") === tab));
-  if (tab === "preview") _renderBuilderPreview();
+  // The Driver preview lives in the Build pane's permanent 4th column, so
+  // re-render it whenever Build becomes visible (it's display:none on Logic
+  // / Settings).  Canvas + palette stay mounted across tabs (display toggle)
+  // so add-field + DnD keep working.
+  if (tab === "build") _renderBuilderPreview();
 }
 
 // Category chips — render from distinct categories already in use across
@@ -56538,15 +56576,23 @@ function _builderFieldHtml(f, idx, selected, last) {
     <button type="button" data-rr-field-up="${id}" aria-label="Move up" title="Move up"${idx === 0 ? " disabled" : ""}>▲</button>
     <button type="button" data-rr-field-down="${id}" aria-label="Move down" title="Move down"${idx === last ? " disabled" : ""}>▼</button>
   </div>`;
-  // Hover/active toolbar — Duplicate · Move up · Move down · Delete.
+  // Hover/active toolbar — Copy · Duplicate · Move up · Move down · Delete.
   // data-rr-no-drawer keeps clicks from bubbling into field-pick logic;
-  // each action reuses an existing delegation branch (dup is new).
+  // each action reuses an existing delegation branch.  Copy writes the
+  // field's config JSON to the clipboard; Duplicate clones it in place.
   const toolbar = `<div class="builder-field-toolbar" data-rr-no-drawer>
-    <button type="button" data-rr-field-dup="${id}" aria-label="Duplicate" title="Duplicate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+    <button type="button" data-rr-field-copy="${id}" aria-label="Copy field" title="Copy field config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+    <button type="button" data-rr-field-dup="${id}" aria-label="Duplicate" title="Duplicate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 21h11a2 2 0 0 0 2-2V8"/></svg></button>
     <button type="button" data-rr-field-up="${id}" aria-label="Move up" title="Move up"${idx === 0 ? " disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="18 15 12 9 6 15"/></svg></button>
     <button type="button" data-rr-field-down="${id}" aria-label="Move down" title="Move down"${idx === last ? " disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg></button>
     <button type="button" class="tb-del" data-rr-field-remove="${id}" aria-label="Delete" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
   </div>`;
+  // Logic badge — muted, only shown when the field has conditional logic
+  // configured (f.condition).  No fields carry it until V2-b; renders
+  // conditionally so it lights up later automatically.
+  const logicBadge = f.condition
+    ? `<span class="builder-logic-badge" title="This field has conditional logic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Logic</span>`
+    : "";
   let body = "";
   switch (f.type) {
     case "short_text": case "email": case "phone": case "number":
@@ -56590,14 +56636,14 @@ function _builderFieldHtml(f, idx, selected, last) {
       return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}" style="margin-top:14px">
         <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
         ${toolbar}
-        <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span></div>
+        <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span>${logicBadge}</div>
         <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">${escapeHtml(f.label || "Section")}</div>
       </div>`;
     case "divider":
       return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}">
         <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
         ${toolbar}
-        <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span></div>
+        <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span>${logicBadge}</div>
         <hr style="border:0;border-top:1px solid var(--border);margin:6px 0"/>
       </div>`;
     case "instructions": {
@@ -56605,7 +56651,7 @@ function _builderFieldHtml(f, idx, selected, last) {
       return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}" style="background:var(--accent-soft);border-color:var(--accent-border)">
         <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
         ${toolbar}
-        <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span></div>
+        <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span>${logicBadge}</div>
         <div style="font-weight:700;font-size:var(--fs-md);color:var(--text);margin-bottom:6px">${escapeHtml(f.label || "Instructions")}</div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;white-space:pre-wrap">${escapeHtml(text || "Click here, then type instructions in the Help text field on the right.")}</div>
       </div>`;
@@ -56620,6 +56666,7 @@ function _builderFieldHtml(f, idx, selected, last) {
         <span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span>
         <span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type] || f.type)}</span>
         ${reqBadge}
+        ${logicBadge}
       </div>
       <label class="builder-field-label">${escapeHtml(f.label || "Untitled")}${req}</label>
       ${f.help ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:6px">${escapeHtml(f.help)}</div>` : ""}
@@ -56636,14 +56683,19 @@ function _rrBuilderPreviewFieldHtml(f) {
   const lbl  = escapeHtml(f.label || "");
   const help = f.help ? `<div class="form-fill-help">${escapeHtml(f.help)}</div>` : "";
   const req  = f.required ? `<span style="color:var(--red);margin-left:3px">*</span>` : "";
-  const row  = (input) => `<div class="form-fill-row"><label class="form-fill-label">${lbl}${req}</label>${help}${input}</div>`;
+  // Two-way selection sync — every preview row carries the real field id so
+  // a click selects it in the builder, and we mark the selected row so the
+  // canvas selection is mirrored here.
+  const sel  = f.id === _formsState.selectedId;
+  const selCls = sel ? " is-selected" : "";
+  const row  = (input) => `<div class="form-fill-row${selCls}" data-rr-preview-pick="${escapeHtml(f.id)}"><label class="form-fill-label">${lbl}${req}</label>${help}${input}</div>`;
   switch (f.type) {
     case "instructions":
-      return `<div class="form-fill-instructions"><div class="form-fill-instructions-title">${lbl || "Instructions"}</div><div>${escapeHtml(f.help || "")}</div></div>`;
+      return `<div class="form-fill-instructions${selCls}" data-rr-preview-pick="${escapeHtml(f.id)}"><div class="form-fill-instructions-title">${lbl || "Instructions"}</div><div>${escapeHtml(f.help || "")}</div></div>`;
     case "section_header":
-      return `<div class="form-fill-section">${lbl}</div>`;
+      return `<div class="form-fill-section${selCls}" data-rr-preview-pick="${escapeHtml(f.id)}">${lbl}</div>`;
     case "divider":
-      return `<hr class="form-fill-divider"/>`;
+      return `<hr class="form-fill-divider${selCls}" data-rr-preview-pick="${escapeHtml(f.id)}"/>`;
     case "long_text":
       return row(`<textarea class="field" rows="4" disabled></textarea>`);
     case "email":
@@ -56690,7 +56742,10 @@ function _renderBuilderPreview() {
   const device = document.getElementById("rr-builder-preview-device");
   const body   = document.getElementById("rr-builder-preview-body");
   if (!body) return;
-  if (device) device.className = "builder-device builder-device-" + _builderPreviewDevice;
+  if (device) {
+    device.className = "builder-device builder-device-" + _builderPreviewDevice
+      + " is-" + _builderPreviewOrient;
+  }
   const title = (document.getElementById("rr-builder-title")?.value || "").trim() || "Untitled form";
   const desc  = (document.getElementById("rr-builder-desc")?.value || "").trim();
   const fields = _formsState.fields;
@@ -56707,6 +56762,14 @@ function _renderBuilderPreview() {
     ${desc ? `<div class="form-fill-desc">${escapeHtml(desc)}</div>` : ""}
     ${fields.map(f => _rrBuilderPreviewFieldHtml(f)).join("")}
     <button class="btn btn-primary btn-block" type="button" disabled style="margin-top:18px">Submit</button>`;
+  // Scroll the selected preview row into view within the preview frame so
+  // the canvas↔preview selection stays visible as the operator works.
+  if (_formsState.selectedId) {
+    const selRow = body.querySelector(`[data-rr-preview-pick="${CSS && CSS.escape ? CSS.escape(_formsState.selectedId) : _formsState.selectedId}"]`);
+    if (selRow && typeof selRow.scrollIntoView === "function") {
+      selRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
 }
 
 function _renderBuilderProps() {
@@ -56723,46 +56786,94 @@ function _renderBuilderProps() {
   body.style.display = "block";
   const hasOptions = f.type === "single_choice" || f.type === "multi_choice" || f.type === "dropdown";
   const isInstructions = f.type === "instructions";
+  const isLayout = isInstructions || f.type === "section_header" || f.type === "divider";
   const labelHeading = isInstructions ? "Heading" : "Question";
   const helpHeading  = isInstructions ? "Body" : "Help text";
   const helpInput = isInstructions
     ? `<textarea class="field-prop-input" data-rr-prop="help" rows="6" placeholder="What should the driver read before they start?">${escapeHtml(f.help || "")}</textarea>`
     : `<input class="field-prop-input" data-rr-prop="help" value="${escapeHtml(f.help || "")}" />`;
-  const requiredRow = (isInstructions || f.type === "section_header" || f.type === "divider") ? "" : `
+  const requiredRow = isLayout ? "" : `
     <div class="field-prop-row" style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5)"><span class="field-prop-label" style="margin-bottom:0">Required</span>
       <label class="toggle"><input type="checkbox" data-rr-prop="required" ${f.required ? "checked" : ""}/><span class="toggle-slider"></span></label></div>`;
-  // Accordion — only one section open at a time (driven by _builderPropsOpen).
-  const propsOpen = _builderPropsOpen === "props";
-  const advOpen   = _builderPropsOpen === "advanced";
+
+  // 5-tab properties shell.  All existing data-rr-prop inputs live in the
+  // Properties tab; Validation/Logic/Appearance carry honest placeholders
+  // (no persisted fields that don't save); Advanced shows the field id/key
+  // and the Delete action.  Default tab = Properties.
+  // Short, unambiguous labels so all five tabs fit the ~240px props column
+  // without truncation (full names live in the title attr for hover/a11y).
+  const TABS = [
+    { id: "props",      label: "Field",      title: "Properties" },
+    { id: "validation", label: "Rules",      title: "Validation" },
+    { id: "logic",      label: "Logic",      title: "Logic" },
+    { id: "appearance", label: "Style",      title: "Appearance" },
+    { id: "advanced",   label: "More",       title: "Advanced" },
+  ];
+  const active = TABS.some(t => t.id === _builderPropsTab) ? _builderPropsTab : "props";
+  const tabStrip = `<div class="props-tabs" role="tablist">${TABS.map(t =>
+    `<button type="button" class="props-tab${t.id === active ? " is-active" : ""}" data-rr-props-tab="${t.id}" role="tab" aria-selected="${t.id === active}" title="${escapeHtml(t.title)}">${t.label}</button>`
+  ).join("")}</div>`;
+
+  let panel = "";
+  if (active === "props") {
+    panel = `
+      <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px"><span class="field-prop-label">${escapeHtml(labelHeading)}</span>
+        <input class="field-prop-input" data-rr-prop="label" value="${escapeHtml(f.label || "")}" /></div>
+      <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px"><span class="field-prop-label">${escapeHtml(helpHeading)}</span>
+        ${helpInput}</div>
+      ${requiredRow}
+      ${hasOptions ? `
+        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px;margin-bottom:0">
+          <span class="field-prop-label">Options</span>
+          <textarea class="field-prop-input" data-rr-prop="options" rows="4" placeholder="One per line">${escapeHtml((f.options || []).join("\n"))}</textarea>
+        </div>` : ""}`;
+  } else if (active === "validation") {
+    panel = isLayout
+      ? `<div class="props-note">Layout blocks don't collect an answer, so they have no validation rules.</div>`
+      : `
+        <div class="field-prop-row" style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5)"><span class="field-prop-label" style="margin-bottom:0">Required</span>
+          <label class="toggle"><input type="checkbox" data-rr-prop="required" ${f.required ? "checked" : ""}/><span class="toggle-slider"></span></label></div>
+        <div class="props-soon">
+          <span class="props-soon-pill">Coming soon</span>
+          <div class="props-soon-title">Field-level validation</div>
+          <div class="props-soon-sub">Min / max length, numeric ranges, and pattern matching land in an upcoming release. The Required toggle above already saves today.</div>
+        </div>`;
+  } else if (active === "logic") {
+    panel = `
+      <div class="props-soon">
+        <span class="props-soon-pill">Coming soon</span>
+        <div class="props-soon-title">Conditional logic</div>
+        <div class="props-soon-sub">Show or hide this field based on earlier answers. Set up rules in the Logic tab — it's on the way in the next release.</div>
+      </div>`;
+  } else if (active === "appearance") {
+    panel = `
+      <div class="props-soon">
+        <span class="props-soon-pill">Coming soon</span>
+        <div class="props-soon-title">Appearance</div>
+        <div class="props-soon-sub">Column width, inline help placement, and section styling will live here. Forms use the clean default layout for now.</div>
+      </div>`;
+  } else { // advanced
+    panel = `
+      <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
+        <span class="field-prop-label">Field type</span>
+        <div class="props-keyval">${escapeHtml(f.type)}</div>
+      </div>
+      <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
+        <span class="field-prop-label">Field ID / key</span>
+        <div class="props-keyval">${escapeHtml(f.id)}</div>
+      </div>
+      <div class="field-prop-row" style="margin-bottom:0">
+        <button type="button" class="btn btn-sm" data-rr-field-remove="${escapeHtml(f.id)}" style="color:var(--red)">Delete field</button>
+      </div>`;
+  }
+
   body.innerHTML = `
     <div class="field-prop-row" style="display:flex;align-items:center;gap:var(--s-2);margin-bottom:var(--s-3)">
       <span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span>
       <span class="props-section-type">${escapeHtml(_FIELD_TYPE_LABELS[f.type] || f.type)}</span>
     </div>
-    <div class="props-section${propsOpen ? " is-open" : ""}">
-      <button type="button" class="props-section-head" data-rr-props-section="props">Properties<span class="props-chevron">▾</span></button>
-      <div class="props-section-body">
-        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px"><span class="field-prop-label">${escapeHtml(labelHeading)}</span>
-          <input class="field-prop-input" data-rr-prop="label" value="${escapeHtml(f.label || "")}" /></div>
-        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px"><span class="field-prop-label">${escapeHtml(helpHeading)}</span>
-          ${helpInput}</div>
-        ${requiredRow}
-        ${hasOptions ? `
-          <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
-            <span class="field-prop-label">Options</span>
-            <textarea class="field-prop-input" data-rr-prop="options" rows="4" placeholder="One per line">${escapeHtml((f.options || []).join("\n"))}</textarea>
-          </div>` : ""}
-        <div class="field-prop-row" style="margin-bottom:0">
-          <button type="button" class="btn btn-sm" data-rr-field-remove="${escapeHtml(f.id)}" style="color:var(--red)">Delete field</button>
-        </div>
-      </div>
-    </div>
-    <div class="props-section${advOpen ? " is-open" : ""}">
-      <button type="button" class="props-section-head" data-rr-props-section="advanced">Advanced<span class="props-chevron">▾</span></button>
-      <div class="props-section-body">
-        <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">Validation rules, default values, and field-level conditions arrive in an upcoming release.</div>
-      </div>
-    </div>`;
+    ${tabStrip}
+    <div class="props-tabpanel" role="tabpanel">${panel}</div>`;
 }
 
 // Refresh the Submissions tab when the operator clicks into it.
@@ -56798,7 +56909,7 @@ document.addEventListener("click", async (e) => {
     grpToggle.closest("[data-rr-palette-group]")?.classList.toggle("is-open");
     return;
   }
-  // ── Preview device toggle ─────────────────────────────────────
+  // ── Preview device toggle (Phone / Tablet) ────────────────────
   const devBtn = e.target.closest("[data-rr-preview-device]");
   if (devBtn) {
     e.preventDefault();
@@ -56808,13 +56919,37 @@ document.addEventListener("click", async (e) => {
     _renderBuilderPreview();
     return;
   }
-  // ── Properties accordion section ──────────────────────────────
-  const propSec = e.target.closest("[data-rr-props-section]");
-  if (propSec) {
+  // ── Preview orientation toggle (Portrait / Landscape) ─────────
+  const orBtn = e.target.closest("[data-rr-preview-orient]");
+  if (orBtn) {
     e.preventDefault();
-    const which = propSec.getAttribute("data-rr-props-section");
-    _builderPropsOpen = (_builderPropsOpen === which) ? null : which;
+    _builderPreviewOrient = orBtn.getAttribute("data-rr-preview-orient");
+    document.querySelectorAll("[data-rr-preview-orient]").forEach(b =>
+      b.classList.toggle("is-active", b === orBtn));
+    _renderBuilderPreview();
+    return;
+  }
+  // ── Properties tab strip ──────────────────────────────────────
+  const propTab = e.target.closest("[data-rr-props-tab]");
+  if (propTab) {
+    e.preventDefault();
+    _builderPropsTab = propTab.getAttribute("data-rr-props-tab");
     _renderBuilderProps();
+    return;
+  }
+  // ── Click a preview row → select that field in the builder ────
+  // Inputs inside the preview are display-only (disabled); we intercept
+  // the row click and route it through the same selection path the canvas
+  // uses, so canvas + props stay in sync.
+  const ppick = e.target.closest("[data-rr-preview-pick]");
+  if (ppick && document.getElementById("modal-form-builder")?.classList.contains("open")) {
+    e.preventDefault();
+    const id = ppick.getAttribute("data-rr-preview-pick");
+    if (_formsState.selectedId !== id) {
+      _formsState.selectedId = id;
+      _renderBuilderCanvas();
+      _renderBuilderProps();
+    }
     return;
   }
   // ── Category chips ────────────────────────────────────────────
@@ -56826,6 +56961,7 @@ document.addEventListener("click", async (e) => {
     const cur = (hidden?.value || "").trim().toLowerCase();
     // Toggle off when re-clicking the active chip; otherwise select it.
     _renderBuilderCatChips(cur === val.toLowerCase() ? "" : val);
+    _markBuilderDirty();
     return;
   }
   const catAdd = e.target.closest("[data-rr-cat-add]");
@@ -56842,12 +56978,30 @@ document.addEventListener("click", async (e) => {
       const f = _defaultFieldForType("short_text");
       _formsState.fields.push(f);
       _formsState.selectedId = f.id;
-      _builderPropsOpen = "props";
+      _builderPropsTab = "props";
+      _markBuilderDirty();
       _renderBuilderCanvas();
       _renderBuilderProps();
       document.getElementById("rr-builder-fields")?.lastElementChild?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       return;
     }
+  }
+  // ── Copy a field's config JSON to the clipboard ───────────────
+  const copy = e.target.closest("[data-rr-field-copy]");
+  if (copy) {
+    e.preventDefault(); e.stopPropagation();
+    const id = copy.getAttribute("data-rr-field-copy");
+    const field = _formsState.fields.find(f => f.id === id);
+    if (!field) return;
+    const json = JSON.stringify(field);
+    const ok = () => toast("Field copied to clipboard", "success");
+    const fail = () => toast("Couldn't copy — your browser blocked clipboard access", "warn");
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(json).then(ok).catch(fail);
+      } else { fail(); }
+    } catch (_) { fail(); }
+    return;
   }
   // ── Duplicate a field — clone with a fresh id, insert after ───
   const dup = e.target.closest("[data-rr-field-dup]");
@@ -56860,6 +57014,7 @@ document.addEventListener("click", async (e) => {
     clone.id = _newFieldId();
     _formsState.fields.splice(i + 1, 0, clone);
     _formsState.selectedId = clone.id;
+    _markBuilderDirty();
     _renderBuilderCanvas();
     _renderBuilderProps();
     return;
@@ -56968,6 +57123,8 @@ document.addEventListener("click", async (e) => {
     const f = _defaultFieldForType(t);
     _formsState.fields.push(f);
     _formsState.selectedId = f.id;
+    _builderPropsTab = "props";
+    _markBuilderDirty();
     _renderBuilderCanvas();
     _renderBuilderProps();
     return;
@@ -56980,6 +57137,7 @@ document.addEventListener("click", async (e) => {
     const id = rm.getAttribute("data-rr-field-remove");
     _formsState.fields = _formsState.fields.filter(f => f.id !== id);
     if (_formsState.selectedId === id) _formsState.selectedId = null;
+    _markBuilderDirty();
     _renderBuilderCanvas();
     _renderBuilderProps();
     return;
@@ -56998,6 +57156,7 @@ document.addEventListener("click", async (e) => {
     const [f] = _formsState.fields.splice(i, 1);
     _formsState.fields.splice(j, 0, f);
     _formsState.selectedId = f.id;
+    _markBuilderDirty();
     _renderBuilderCanvas();
     _renderBuilderProps();
     return;
@@ -57070,6 +57229,7 @@ document.addEventListener("click", async (e) => {
       _formsState.selectedId = moved.id;
       dragIdx = null;
       clearDropMarks();
+      _markBuilderDirty();
       _renderBuilderCanvas();
       _renderBuilderProps();
       return;
@@ -57088,6 +57248,7 @@ document.addEventListener("click", async (e) => {
     _formsState.selectedId = moved.id;
     dragIdx = null;
     clearDropMarks();
+    _markBuilderDirty();
     _renderBuilderCanvas();
     _renderBuilderProps();
   });
@@ -57107,6 +57268,7 @@ document.addEventListener("input", (e) => {
     } else {
       f[key] = propEl.value;
     }
+    _markBuilderDirty();
     _renderBuilderCanvas();
     return;
   }
@@ -57118,6 +57280,7 @@ document.addEventListener("input", (e) => {
   // Keep the canvas/preview live with the title / description as the user types
   if (e.target.id === "rr-builder-title" || e.target.id === "rr-builder-desc") {
     // No state mirroring needed — read at save time; refresh the preview.
+    _markBuilderDirty();
     _renderBuilderPreview();
     return;
   }
@@ -57169,6 +57332,9 @@ async function _saveBuilder({ publish }) {
     const { error: asgErr } = await sb.rpc("form_set_assignments", { p_form_id: saved.id, p_driver_ids: audienceIds });
     if (asgErr) { toast("Saved, but couldn't set audience: " + asgErr.message, "warn"); }
   }
+
+  // Mark the header saved-state clean now that the upsert succeeded.
+  _markBuilderSaved();
 
   if (publish && saved?.id) {
     const { error: pubErr } = await sb.rpc("publish_form", { p_id: saved.id });

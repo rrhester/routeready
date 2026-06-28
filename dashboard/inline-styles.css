@@ -7194,7 +7194,7 @@ body.rr-cmdk-open{ overflow:hidden }
 /* ════════════════════════════════════════════════════════════════
    FORM BUILDER — enterprise builder experience
    ════════════════════════════════════════════════════════════════ */
-.builder-modal{max-width:1120px;width:96vw;max-height:94vh;display:flex;flex-direction:column}
+.builder-modal{max-width:1320px;width:96vw;max-height:92vh;display:flex;flex-direction:column}
 .builder-head{flex-direction:column;align-items:stretch;gap:var(--s-3);padding-bottom:0}
 .builder-head-row{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)}
 /* Tab strip under the title row */
@@ -7215,8 +7215,18 @@ body.rr-cmdk-open{ overflow:hidden }
 .builder-pane.is-active{display:flex}
 
 .builder-grid{
-  display:grid;grid-template-columns:236px 1fr 256px;gap:0;
+  display:grid;grid-template-columns:200px minmax(0,1fr) 320px 240px;gap:0;
   flex:1;min-height:0;width:100%;
+}
+/* Collapse the preview column on narrower viewports so 4 columns never
+   overflow.  A header toggle (.builder-preview-col.is-collapsed) also
+   honors this.  Below ~1100px the preview hides; below ~860px properties
+   drop to a narrower track. */
+@media (max-width:1180px){
+  .builder-grid{grid-template-columns:184px minmax(0,1fr) 248px 224px}
+}
+@media (max-width:1100px){
+  .builder-grid{grid-template-columns:184px minmax(0,1fr) 224px}
 }
 
 /* ── Toolbox (palette) ──────────────────────────────────────── */
@@ -7309,6 +7319,15 @@ body.rr-cmdk-open{ overflow:hidden }
   font-size:10px;font-weight:600;color:var(--amber-dark);
   background:var(--amber-soft);border-radius:var(--r-sm);padding:2px 7px;
 }
+/* Logic badge — lights up when a field has conditional logic configured
+   (f.condition). Muted; hidden when absent (conditionally rendered). */
+.builder-logic-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;font-weight:600;color:var(--text-subtle);
+  background:var(--surface-secondary);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:2px 7px;
+}
+.builder-logic-badge svg{width:11px;height:11px;stroke-width:2}
 .builder-field-toolbar{margin-left:auto;display:flex;align-items:center;gap:1px;opacity:0;transition:opacity var(--t-fast);pointer-events:none}
 .builder-field:hover .builder-field-toolbar,.builder-field.active .builder-field-toolbar{opacity:1;pointer-events:auto}
 .builder-field-toolbar button{
@@ -7410,6 +7429,47 @@ body.rr-cmdk-open{ overflow:hidden }
 .props-section:not(.is-open) .props-section-body{display:none}
 .props-section-type{font-size:var(--fs-sm);font-weight:600;color:var(--text-muted)}
 
+/* ── Properties tabs (5-tab strip) ──────────────────────────── */
+.props-tabs{
+  display:flex;gap:1px;background:var(--surface-secondary);border-radius:var(--r-md);
+  padding:2px;margin-bottom:var(--s-3);overflow:hidden;
+}
+.props-tab{
+  flex:1 1 0;min-width:0;appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;
+  font-size:10.5px;font-weight:600;letter-spacing:-.01em;color:var(--text-subtle);
+  padding:5px 2px;border-radius:var(--r-sm);text-overflow:ellipsis;overflow:hidden;
+  white-space:nowrap;transition:background var(--t-fast),color var(--t-fast);
+}
+.props-tab:hover{color:var(--text)}
+.props-tab.is-active{background:var(--surface);color:var(--accent-text);box-shadow:0 1px 2px rgba(15,23,42,.06)}
+.props-tab:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+.props-tabpanel{animation:propsTabIn var(--t-smooth) ease}
+@keyframes propsTabIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+.props-note{font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.55}
+.props-soon{
+  display:flex;flex-direction:column;align-items:flex-start;gap:var(--s-2);
+  padding:var(--s-3-5);background:var(--canvas);border:1px dashed var(--border);
+  border-radius:var(--r-lg);
+}
+.props-soon-title{font-size:var(--fs-sm);font-weight:600;color:var(--text-muted)}
+.props-soon-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5}
+.props-soon-pill{display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface-secondary);border-radius:999px;padding:3px 9px}
+.props-disabled-field{width:100%;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm);background:var(--canvas);color:var(--text-disabled);font-family:inherit;cursor:not-allowed}
+.props-keyval{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-xs);color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 8px;word-break:break-all;user-select:all}
+
+/* ── Header "saved" indicator ───────────────────────────────── */
+.builder-saved{
+  display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;
+  padding:4px 8px;border-radius:999px;transition:color var(--t-smooth),background var(--t-smooth);
+}
+.builder-saved .builder-saved-dot{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
+.builder-saved[data-state="saved"]{color:var(--green-dark);background:var(--green-soft,rgba(16,185,129,.08))}
+.builder-saved[data-state="saved"] .builder-saved-check{display:inline-block;color:var(--green-dark)}
+.builder-saved[data-state="saved"] .builder-saved-dot{display:none}
+.builder-saved[data-state="dirty"]{color:var(--text-subtle);background:transparent}
+.builder-saved[data-state="dirty"] .builder-saved-check{display:none}
+.builder-saved[data-state="dirty"] .builder-saved-dot{display:inline-block;background:var(--amber,var(--text-subtle))}
+
 /* ── Settings pane ──────────────────────────────────────────── */
 .builder-settings{flex:1;overflow-y:auto;padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5);max-width:560px;margin:0 auto;width:100%}
 .builder-settings-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--s-4) var(--s-4) var(--s-3)}
@@ -7421,23 +7481,41 @@ body.rr-cmdk-open{ overflow:hidden }
 .builder-soon-title{font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em}
 .builder-soon-sub{font-size:var(--fs-sm);color:var(--text-subtle);max-width:42ch;line-height:1.55}
 
-/* ── Preview pane (live Driver App preview) ─────────────────── */
-.builder-preview-wrap{flex:1;display:flex;flex-direction:column;min-height:0;width:100%}
-.builder-preview-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);padding:var(--s-3) var(--s-5);border-bottom:1px solid var(--border);background:var(--surface)}
+/* ── Permanent Driver-App preview column ────────────────────── */
+.builder-preview-col{
+  display:flex;flex-direction:column;min-height:0;min-width:0;
+  background:var(--canvas);border-left:1px solid var(--border);
+}
+/* Responsive collapse — below ~1100px the 4-col grid drops the preview
+   track (see .builder-grid media query), so hide the column too.  Defined
+   after the base rule so it wins on equal specificity.  An explicit
+   .is-collapsed also hides it. */
+@media (max-width:1100px){ .builder-preview-col{display:none} }
+.builder-preview-col.is-collapsed{display:none}
+.builder-preview-bar{display:flex;flex-direction:column;align-items:stretch;gap:var(--s-2);padding:var(--s-3) var(--s-3-5);border-bottom:1px solid var(--border);background:var(--surface)}
 .builder-preview-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)}
-.builder-device-toggle{display:inline-flex;background:var(--surface-secondary);border-radius:var(--r-md);padding:2px}
-.builder-device-btn{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);padding:5px 12px;border-radius:var(--r-sm);transition:background var(--t-fast),color var(--t-fast)}
+.builder-device-toggle{display:inline-flex;align-items:center;flex-wrap:wrap;gap:2px;background:var(--surface-secondary);border-radius:var(--r-md);padding:2px;align-self:flex-start}
+.builder-device-sep{width:1px;align-self:stretch;margin:2px 3px;background:var(--border)}
+.builder-device-btn{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);padding:4px 9px;border-radius:var(--r-sm);transition:background var(--t-fast),color var(--t-fast)}
 .builder-device-btn:hover{color:var(--text)}
 .builder-device-btn.is-active{background:var(--surface);color:var(--accent-text);box-shadow:0 1px 2px rgba(15,23,42,.08)}
-.builder-preview-stage{flex:1;overflow-y:auto;padding:var(--s-5);display:flex;justify-content:center;background:var(--canvas)}
+.builder-preview-stage{flex:1;overflow-y:auto;padding:var(--s-4) var(--s-3-5);display:flex;justify-content:center;background:var(--canvas)}
 .builder-device{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-2xl);
-  padding:var(--s-4);box-shadow:0 8px 28px rgba(15,23,42,.08);
+  padding:var(--s-3-5);box-shadow:0 8px 28px rgba(15,23,42,.08);
   width:100%;align-self:flex-start;transition:max-width var(--t-smooth);
 }
-.builder-device-phone{max-width:390px}
-.builder-device-tablet{max-width:768px}
-.builder-device-desktop{max-width:100%;box-shadow:none}
+/* Device + orientation presets.  The preview column is fixed-width (~320px),
+   so devices are expressed as a max-width within it; portrait/landscape are
+   width variants of the active device (landscape fills the column, portrait
+   keeps a narrower phone-ish frame). Aspect read is reinforced by the frame
+   radius/padding. Default = phone portrait. */
+.builder-device-phone{max-width:264px}
+.builder-device-tablet{max-width:296px}
+.builder-device.is-landscape.builder-device-phone{max-width:296px}
+.builder-device.is-landscape.builder-device-tablet{max-width:296px}
+.builder-device.is-portrait{border-radius:var(--r-2xl)}
+.builder-device.is-landscape{border-radius:var(--r-xl)}
 .builder-preview-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--s-2);padding:var(--s-8) var(--s-4);text-align:center;color:var(--text-subtle)}
 .builder-preview-empty svg{width:30px;height:30px;color:var(--text-disabled);stroke-width:1.5}
 .builder-preview-title{font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.005em;margin-bottom:var(--s-3)}
@@ -7464,6 +7542,23 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-bpreview .field:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
 .rr-bpreview .btn-block{width:100%}
 
+/* Clickable preview rows — selecting in the preview selects in the builder.
+   Inputs inside are display-only (disabled); the row intercepts the click. */
+.rr-bpreview [data-rr-preview-pick]{
+  position:relative;cursor:pointer;border-radius:var(--r-card);
+  transition:box-shadow var(--t-fast),border-color var(--t-fast),background var(--t-fast);
+}
+.rr-bpreview [data-rr-preview-pick]:hover{border-color:var(--border-strong)}
+.rr-bpreview [data-rr-preview-pick].is-selected{
+  border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
+}
+/* Section/divider rows are slimmer — give the selection ring breathing room. */
+.rr-bpreview .form-fill-section[data-rr-preview-pick],
+.rr-bpreview .form-fill-divider[data-rr-preview-pick],
+.rr-bpreview .form-fill-instructions[data-rr-preview-pick]{padding-left:var(--s-3);padding-right:var(--s-3)}
+.rr-bpreview .form-fill-section[data-rr-preview-pick].is-selected,
+.rr-bpreview .form-fill-divider[data-rr-preview-pick].is-selected{outline:2px solid var(--accent);outline-offset:2px;box-shadow:none}
+
 /* ── Status footer ──────────────────────────────────────────── */
 .builder-foot{
   display:flex;align-items:center;gap:var(--s-3);flex-wrap:wrap;
@@ -7475,8 +7570,10 @@ body.rr-cmdk-open{ overflow:hidden }
 .builder-foot-sep{width:1px;height:12px;background:var(--border)}
 
 @media (prefers-reduced-motion: reduce){
-  .field-type,.builder-field,.builder-cat-chip,.builder-device{transition:none}
+  .field-type,.builder-field,.builder-cat-chip,.builder-device,
+  .builder-saved,.props-tab,.rr-bpreview [data-rr-preview-pick]{transition:none}
   .field-type:hover,.builder-field:hover,.builder-cat-chip:hover{transform:none}
+  .props-tabpanel{animation:none}
 }
 
 /* Submissions table & form analytics */
