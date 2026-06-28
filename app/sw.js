@@ -13,7 +13,11 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-const SHELL_CACHE = "rr-app-shell-v119";
+// v120 · Conditional logic: app.js now hides/shows fields by earlier
+// answers and excludes hidden conditional fields from required-validation
+// and the submit payload. Bumped so installed driver PWAs purge the old
+// shell and pick up the new app.js + styles.css.
+const SHELL_CACHE = "rr-app-shell-v120";
 const SHELL_FILES = [
   "./",
   "index.html",

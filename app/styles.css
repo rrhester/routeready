@@ -1563,6 +1563,13 @@ select.field{
 .form-fill-divider{border:0;border-top:1px solid var(--border);margin:4px 0}
 .form-fill-instructions{background:var(--accent-soft,#1A3956);border:1px solid var(--border);border-radius:12px;padding:var(--s-3-5) var(--s-4);color:var(--text);line-height:1.5;font-size:var(--fs-sm);white-space:pre-wrap}
 .form-fill-instructions-title{font-weight:700;color:var(--text);margin-bottom:6px;font-size:var(--fs-md)}
+/* Conditional fields — hidden until their trigger answer is satisfied.
+   [hidden] is the source of truth (read by submit + validation); the soft
+   reveal is purely cosmetic and disabled under reduced-motion. */
+.form-fill-cond[hidden]{display:none}
+.form-fill-cond{animation:formFillCondReveal .15s ease}
+@keyframes formFillCondReveal{from{opacity:0;transform:translateY(-2px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.form-fill-cond{animation:none}}
 .form-fill-choice-col,.form-fill-choice-row{display:flex;gap:var(--s-2);flex-wrap:wrap}
 .form-fill-choice-col{flex-direction:column}
 .form-fill-choice{display:flex;align-items:center;gap:var(--s-2);padding:var(--s-2-5) var(--s-3);border:1px solid var(--border);border-radius:8px;background:var(--canvas);cursor:pointer;font-size:var(--fs-md);color:var(--text);min-height:44px}

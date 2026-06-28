@@ -7457,6 +7457,33 @@ body.rr-cmdk-open{ overflow:hidden }
 .props-disabled-field{width:100%;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm);background:var(--canvas);color:var(--text-disabled);font-family:inherit;cursor:not-allowed}
 .props-keyval{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-xs);color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 8px;word-break:break-all;user-select:all}
 
+/* ── Logic tab — conditional-visibility editor (V2-b) ─────────── */
+/* Always-show / Show-only-if segment */
+.cond-seg{display:flex;gap:2px;background:var(--surface-secondary);border-radius:var(--r-md);padding:2px;margin-bottom:var(--s-2-5)}
+.cond-seg-btn{flex:1 1 0;min-width:0;appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:11px;font-weight:600;color:var(--text-subtle);padding:6px 4px;border-radius:var(--r-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background var(--t-fast),color var(--t-fast)}
+.cond-seg-btn:hover{color:var(--text)}
+.cond-seg-btn.is-active{background:var(--surface);color:var(--accent-text);box-shadow:0 1px 2px rgba(15,23,42,.06)}
+.cond-seg-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+/* Three-control editor */
+.cond-editor{display:flex;flex-direction:column;gap:var(--s-2-5);margin-top:var(--s-1)}
+.cond-field-row{display:flex;flex-direction:column;gap:5px}
+.cond-field-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase}
+.cond-select{cursor:pointer}
+/* Visual rule summary — calm, with a soft connector */
+.cond-summary{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:var(--s-3);padding:var(--s-2-5) var(--s-3);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);line-height:1.5}
+.cond-summary-if{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--text-subtle)}
+.cond-summary-op{font-size:var(--fs-xs);color:var(--text-muted)}
+.cond-summary-chip{font-size:var(--fs-xs);font-weight:600;color:var(--text);background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-sm);padding:2px 8px;max-width:14ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cond-summary-val{color:var(--accent-text);border-color:var(--accent-border);background:var(--accent-soft)}
+.cond-summary-arrow{color:var(--text-subtle);font-size:var(--fs-sm)}
+.cond-summary-then{font-size:var(--fs-xs);color:var(--text-muted)}
+/* Stale-condition flag */
+.cond-stale{font-size:var(--fs-xs);color:var(--amber-dark);background:var(--amber-soft);border:1px solid var(--amber-soft);border-radius:var(--r-md);padding:var(--s-2) var(--s-2-5);line-height:1.5;margin-bottom:var(--s-2)}
+.cond-clear-link{appearance:none;border:0;background:none;cursor:pointer;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);text-decoration:underline;padding:0}
+/* Driver-preview annotation chip */
+.form-fill-cond-note{display:inline-flex;align-items:center;gap:5px;align-self:flex-start;font-size:11px;font-weight:600;color:var(--text-subtle);background:var(--surface-secondary);border:1px solid var(--border);border-radius:999px;padding:3px 9px;margin-bottom:4px}
+.form-fill-cond-note svg{width:11px;height:11px;stroke-width:2}
+
 /* ── Header "saved" indicator ───────────────────────────────── */
 .builder-saved{
   display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;
