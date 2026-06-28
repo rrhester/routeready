@@ -50,7 +50,8 @@
 //   2026-06-28.28 · Schedule: anchor the right rail flush with the roster table head (was riding too high on the Roster sub-view).
 //   2026-06-28.29 · Schedule: premium V2 polish pass — coverage status card, elevated shift chips + toolbar, softer today wash, calmer hierarchy.
 //   2026-06-28.30 · Roster: search now promotes matches to the top (Matches / Other drivers) instead of filtering, so the page stays full.
-const SW_DEPLOY_NONCE = "2026-06-28.30";
+//   2026-06-28.31 · App Launcher reorg (Applications / Utilities / System) + new Marketplace app — App-Store-style integrations & RouteReady extensions hub.
+const SW_DEPLOY_NONCE = "2026-06-28.31";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
