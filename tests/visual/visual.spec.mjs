@@ -25,7 +25,11 @@ async function prep(page, path) {
       "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" +
       // The PWA install button only renders in environments where the
       // browser fires beforeinstallprompt — an env-dependent element.
-      "#rr-hdr-install{display:none!important}",
+      "#rr-hdr-install{display:none!important}" +
+      // The right utility rail + notes panel are JS-positioned (their top
+      // is synced to the live grid), so they're non-deterministic in the
+      // static render — hide them so the schedule-chrome baseline is stable.
+      "#rr-sched-util-rail,#rr-sched-notes{display:none!important}",
   });
   await page.waitForTimeout(1500);
   await page.evaluate(() => document.getElementById("rr-boot-overlay")?.remove());
