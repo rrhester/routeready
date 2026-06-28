@@ -1810,13 +1810,9 @@
                        right-hand Open shifts box so the grid fills that space.
                        Toggles body.rr-sched-hide-openshifts; persisted in
                        localStorage('rr-sched-hide-openshifts'). -->
-                  <button class="rr-tf-icon" id="rr-sched-openshifts-toggle" type="button"
-                          title="Hide the Open shifts panel — the schedule fills the space"
-                          aria-label="Hide open shifts" aria-pressed="false"
-                          style="position:relative;top:0;right:0">
-                    <svg class="ic-os-hide" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="10 9 7 12 10 15"/></svg>
-                    <svg class="ic-os-show" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="7 9 10 12 7 15"/></svg>
-                  </button>
+                  <!-- Operations Health show/hide moved to the right utility
+                       rail's shield button (data-rr-ophealth-toggle). -->
+
                   <button class="rr-tf-icon" id="rr-sched-compact-toggle" type="button"
                           title="Grid density — click to cycle Standard / Compact / Ultra-compact"
                           aria-label="Grid density (click to cycle)" aria-pressed="false"
@@ -2884,6 +2880,9 @@
         <div class="sched-util-rail" id="rr-sched-util-rail" role="toolbar" aria-label="Schedule utilities">
           <button type="button" class="sched-util-btn" data-rr-notes-toggle title="Notes" aria-label="Notes" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          </button>
+          <button type="button" class="sched-util-btn sched-util-btn--ops" data-rr-ophealth-toggle title="Operations Health" aria-label="Operations Health" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor"/><polyline points="8.5 12 11 14.5 15.5 9.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
         <aside class="sched-notes-panel" id="rr-sched-notes" aria-label="Notes" aria-hidden="true">

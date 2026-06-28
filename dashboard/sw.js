@@ -38,7 +38,8 @@
 //   2026-06-28.16 · Roster: row click no longer opens the full driver record (use the ⋯ menu).
 //   2026-06-28.17 · Schedule: slim right utility rail + slide-out Notes scratchpad.
 //   2026-06-28.18 · Schedule: rail flush-top, bookmark icon, push-to-condense, blends with bg.
-const SW_DEPLOY_NONCE = "2026-06-28.18";
+//   2026-06-28.19 · Schedule: rail shield toggles Operations Health (default hidden); old header toggle removed.
+const SW_DEPLOY_NONCE = "2026-06-28.19";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

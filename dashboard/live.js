@@ -33167,6 +33167,20 @@ document.addEventListener("click", (e) => {
   // Hide / show the Open shifts rail. Unlike focus mode, this only collapses
   // the right-hand panel so the calendar grid fills that space; all other
   // page chrome stays. Persisted under rr-sched-hide-openshifts.
+  // Operations Health show/hide — right-rail shield button. Reveals or
+  // condenses the ophealth dock via the same body.rr-sched-hide-openshifts
+  // class the (now-removed) in-header toggle used. aria-expanded tracks
+  // "panel shown".
+  const ophBtn = e.target.closest("[data-rr-ophealth-toggle]");
+  if (ophBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const show = document.body.classList.contains("rr-sched-hide-openshifts"); // hidden → reveal
+    document.body.classList.toggle("rr-sched-hide-openshifts", !show);
+    ophBtn.setAttribute("aria-expanded", show ? "true" : "false");
+    try { localStorage.setItem("rr-sched-hide-openshifts", show ? "0" : "1"); } catch (_) {}
+    return;
+  }
   const osBtn = e.target.closest("#rr-sched-openshifts-toggle");
   if (osBtn) {
     e.preventDefault();
@@ -33381,18 +33395,16 @@ window._rrClearStaffWeekRows    = _rrClearStaffWeekRows;
 
 // Rehydrate the "Hide open shifts" preference on every page load.
 (function _rrHydrateHideOpenShifts(){
-  let on = false;
-  try { on = localStorage.getItem("rr-sched-hide-openshifts") === "1"; } catch (_) {}
-  if (!on) return;
+  // Default: Operations Health hidden. It's revealed on demand from the
+  // right utility rail's shield button now (the in-header toggle was
+  // removed), so a fresh load starts condensed; an explicit "0"
+  // preference keeps it shown.
+  let hidden = true;
+  try { const p = localStorage.getItem("rr-sched-hide-openshifts"); if (p !== null) hidden = p === "1"; } catch (_) {}
   const apply = () => {
-    document.body.classList.add("rr-sched-hide-openshifts");
-    const btn = document.getElementById("rr-sched-openshifts-toggle");
-    if (btn) {
-      btn.setAttribute("aria-pressed", "true");
-      btn.title = "Show the Open shifts panel";
-      const onIc = btn.querySelector(".ic-os-hide"), offIc = btn.querySelector(".ic-os-show");
-      if (onIc && offIc) { onIc.style.display = "none"; offIc.style.display = ""; }
-    }
+    document.body.classList.toggle("rr-sched-hide-openshifts", hidden);
+    const shield = document.querySelector("[data-rr-ophealth-toggle]");
+    if (shield) shield.setAttribute("aria-expanded", hidden ? "false" : "true");
   };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", apply, { once: true });
