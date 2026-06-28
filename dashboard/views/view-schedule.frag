@@ -2873,5 +2873,32 @@
 
 
         </div><!-- /.tcp-body -->
+
+        <!-- ── Right utility rail + Notes workspace ─────────────────
+             Slim, fixed rail on the schedule's right edge (Google-
+             style). The Notes button slides out a Keep-like scratchpad.
+             Both are descendants of #view-schedule, which is
+             display:none when inactive, so they only show on Schedule.
+             Wired in live.js via delegated handlers; notes persist in
+             localStorage (namespaced per DSP). -->
+        <div class="sched-util-rail" id="rr-sched-util-rail" role="toolbar" aria-label="Schedule utilities">
+          <button type="button" class="sched-util-btn" data-rr-notes-toggle title="Notes" aria-label="Notes" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/></svg>
+          </button>
+        </div>
+        <aside class="sched-notes-panel" id="rr-sched-notes" aria-label="Notes" aria-hidden="true">
+          <div class="sched-notes-head">
+            <div class="sched-notes-head-txt">
+              <div class="sched-notes-eyebrow">NOTES</div>
+              <div class="sched-notes-title">Scratchpad</div>
+            </div>
+            <button type="button" class="sched-notes-x" data-rr-notes-close title="Close" aria-label="Close notes"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <div class="sched-notes-compose">
+            <button type="button" class="sched-notes-add" data-rr-note-add title="Add note" aria-label="Add note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+            <input type="text" class="sched-notes-input" data-rr-note-input placeholder="Take a note…" aria-label="Take a note" maxlength="2000"/>
+          </div>
+          <div class="sched-notes-list" id="rr-sched-notes-list" role="list"></div>
+        </aside>
       </div>
     
