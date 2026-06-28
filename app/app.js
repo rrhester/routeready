@@ -5306,7 +5306,7 @@ async function renderFormFill() {
   setHeader(form.title || "Form", "");
 
   const fields = Array.isArray(form.fields) ? form.fields : [];
-  const fieldHtml = fields.map(f => _formFieldHtml(f)).join("");
+  const fieldHtml = fields.map((f, i) => _formFieldHtml(f, fields, i)).join("");
 
   main.innerHTML = `
     <div class="form-fill-page">
@@ -5386,15 +5386,30 @@ async function renderFormFill() {
   _formEl.addEventListener("input",  _saveFormDraft);
   _formEl.addEventListener("change", _saveFormDraft);
 
+  // Conditional logic — re-evaluate visibility on any answer change so
+  // dependent fields reveal/hide live. No-op when the form has no
+  // conditional fields. Run once now (after prefill + draft restore) to
+  // apply the initial state against any restored trigger answers.
+  const _runConds = () => _evalFormConditions(_formEl);
+  _formEl.addEventListener("input",  _runConds);
+  _formEl.addEventListener("change", _runConds);
+  _runConds();
+
   _formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
     const btnEarly = e.target.querySelector("button[type=submit]");
     if (btnEarly) { btnEarly.disabled = true; btnEarly.textContent = "Uploading…"; }
     const answers = await _collectFormAnswers(fields);
     if (btnEarly) { btnEarly.textContent = "Submitting…"; }
-    // Required-field validation.
+    // Required-field validation. A conditional field that is currently
+    // HIDDEN (its rule isn't met) is NOT required and must not block submit:
+    // its wrapper has [hidden], and _collectFormAnswers already omitted it,
+    // so we skip the check for it. A revealed conditional field is validated
+    // like any other.
     for (const f of fields) {
       if (!f.required) continue;
+      const condWrap = _formEl.querySelector(`[data-cond-field="${CSS.escape(f.id)}"]`);
+      if (condWrap && condWrap.hidden) continue;
       const v = answers[f.id];
       const empty = v == null || v === "" || (Array.isArray(v) && v.length === 0);
       if (empty) {
@@ -5421,7 +5436,74 @@ async function renderFormFill() {
   });
 }
 
-function _formFieldHtml(f) {
+// Conditional-logic eligibility: only these earlier field types can be a
+// trigger (discrete answers). Mirrors the builder's _COND_TRIGGER_TYPES.
+const _COND_TRIGGER_TYPES = new Set(["yes_no", "single_choice", "dropdown", "rating"]);
+
+// Wrap a field's HTML in a conditional-visibility wrapper when it carries a
+// valid `condition`. The wrapper holds the rule as data-* so the runtime
+// evaluator (_evalFormConditions) can read it, and starts hidden until the
+// trigger's current answer satisfies the rule. A stale/invalid condition
+// (no fieldId, or the trigger isn't an EARLIER eligible field) fails OPEN —
+// the field renders unwrapped and always shows, exactly like today.
+function _formFieldHtml(f, allFields, idx) {
+  const inner = _formFieldInnerHtml(f);
+  const fields = Array.isArray(allFields) ? allFields : [];
+  const cond = f.condition && f.condition.fieldId ? f.condition : null;
+  if (cond) {
+    const tIdx = fields.findIndex(x => x.id === cond.fieldId);
+    const trig = tIdx >= 0 ? fields[tIdx] : null;
+    const eligible = trig && tIdx < (idx == null ? fields.length : idx) && _COND_TRIGGER_TYPES.has(trig.type);
+    if (eligible) {
+      const op = cond.op === "neq" ? "neq" : "eq";
+      return `<div class="form-fill-cond" data-cond-field="${escapeHtml(f.id)}" data-cond-on="${escapeHtml(cond.fieldId)}" data-cond-op="${op}" data-cond-value="${escapeHtml(String(cond.value ?? ""))}" hidden>${inner}</div>`;
+    }
+  }
+  return inner;
+}
+
+// Read the CURRENT value a trigger field holds inside `formEl`, matching the
+// discrete answer the builder's value picker offers. Returns a string (or ""
+// when unanswered) so it compares cleanly against data-cond-value.
+function _readTriggerValue(formEl, triggerFieldId) {
+  const root = formEl.querySelector(`[data-rr-field="${CSS.escape(triggerFieldId)}"]`);
+  if (!root) return "";
+  const t = root.getAttribute("data-rr-type");
+  if (t === "yes_no" || t === "single_choice" || t === "rating") {
+    const sel = root.querySelector("input[type=radio]:checked");
+    return sel ? String(sel.value) : "";
+  }
+  if (t === "dropdown") return String(root.value || "");
+  // Any other type isn't an eligible trigger; fall back to its value.
+  return "value" in root ? String(root.value || "") : "";
+}
+
+// Show/hide every conditional field based on its trigger's current answer.
+// No-op when the form has no [data-cond-field] wrappers (non-conditional
+// forms behave exactly as before). Called once after render and on every
+// input/change. A hidden field gets [hidden] + .is-cond-hidden; the submit
+// and required-validation paths both skip [data-cond-field][hidden] fields,
+// so a hidden conditional field is neither required nor submitted, and a
+// revealed one participates normally.
+function _evalFormConditions(formEl) {
+  if (!formEl) return;
+  const wrappers = formEl.querySelectorAll("[data-cond-field]");
+  if (!wrappers.length) return;
+  wrappers.forEach((w) => {
+    const on  = w.getAttribute("data-cond-on");
+    const op  = w.getAttribute("data-cond-op") === "neq" ? "neq" : "eq";
+    const val = w.getAttribute("data-cond-value") || "";
+    const cur = _readTriggerValue(formEl, on);
+    const matches = op === "neq" ? (cur !== val) : (cur === val);
+    // Fail-open guard: if the trigger field isn't present at all, show.
+    const triggerPresent = !!formEl.querySelector(`[data-rr-field="${CSS.escape(on)}"]`);
+    const show = triggerPresent ? matches : true;
+    w.hidden = !show;
+    w.classList.toggle("is-cond-hidden", !show);
+  });
+}
+
+function _formFieldInnerHtml(f) {
   const id   = `ff-${f.id}`;
   const lbl  = escapeHtml(f.label || "");
   const help = f.help ? `<div class="form-fill-help">${escapeHtml(f.help)}</div>` : "";
@@ -5502,6 +5584,14 @@ async function _collectFormAnswers(fields, opts = {}) {
   const skipUploads = !!opts.skipUploads;
   const photoUploads = [];
   document.querySelectorAll("#rr-form-fill [data-rr-field]").forEach((el) => {
+    // Conditional logic: a field whose condition isn't currently met sits
+    // inside a hidden [data-cond-field] wrapper. Skip it entirely so it is
+    // NOT submitted (no answer key) while hidden — and so required
+    // validation, which reads this same answers map, won't see a value for
+    // it. When the trigger reveals it, the wrapper is no longer hidden and
+    // it's collected normally.
+    const condWrap = el.closest("[data-cond-field]");
+    if (condWrap && condWrap.hidden) return;
     const fid = el.getAttribute("data-rr-field");
     const t   = el.getAttribute("data-rr-type");
     if (t === "yes_no" || t === "single_choice" || t === "rating") {

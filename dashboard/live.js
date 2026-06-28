@@ -55911,6 +55911,42 @@ function _defaultFieldForType(type) {
   return base;
 }
 
+// ── Conditional logic helpers (V2-b) ─────────────────────────────
+// A field may be conditioned on an EARLIER field whose type has a small,
+// discrete answer set so the value picker stays simple and there are no
+// forward references or cycles.
+const _COND_TRIGGER_TYPES = new Set(["yes_no", "single_choice", "dropdown", "rating"]);
+
+// Discrete answer values a given trigger field can produce, for the value
+// dropdown in the Logic editor.  Returns [{value, label}].
+function _condValuesForField(f) {
+  if (!f) return [];
+  if (f.type === "yes_no")  return [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }];
+  if (f.type === "rating")  return [1, 2, 3, 4, 5].map(n => ({ value: String(n), label: String(n) }));
+  if (f.type === "single_choice" || f.type === "dropdown") {
+    return (f.options || []).map(o => ({ value: String(o), label: String(o) }));
+  }
+  return [];
+}
+
+// Earlier eligible trigger fields for the field at index `idx`.
+function _condEligibleTriggers(fields, idx) {
+  return fields.slice(0, idx).filter(f => f && f.id && _COND_TRIGGER_TYPES.has(f.type));
+}
+
+// Human label for a field id (for the rule summary / preview annotation).
+function _condFieldLabel(fields, fieldId) {
+  const f = fields.find(x => x.id === fieldId);
+  if (!f) return "";
+  return f.label || _FIELD_TYPE_LABELS[f.type] || f.id;
+}
+
+// Human label for a stored condition value given the trigger field.
+function _condValueLabel(triggerField, value) {
+  const match = _condValuesForField(triggerField).find(v => v.value === String(value));
+  return match ? match.label : String(value ?? "");
+}
+
 let _formSubmCache = [];
 
 // Submission detail modal — opened by the "View" button on a submission row.
@@ -56683,12 +56719,26 @@ function _rrBuilderPreviewFieldHtml(f) {
   const lbl  = escapeHtml(f.label || "");
   const help = f.help ? `<div class="form-fill-help">${escapeHtml(f.help)}</div>` : "";
   const req  = f.required ? `<span style="color:var(--red);margin-left:3px">*</span>` : "";
+  // Conditional-logic annotation — the dashboard preview has no live
+  // answers, so we don't truly hide the field; instead we surface the rule
+  // as a subtle muted chip so the builder communicates it honestly. Only
+  // shown when the condition is valid (trigger still exists, before this
+  // field); a stale condition fails open and shows no chip (field always
+  // visible at runtime).
+  let condChip = "";
+  if (f.condition && f.condition.fieldId) {
+    const trig = _formsState.fields.find(x => x.id === f.condition.fieldId);
+    if (trig) {
+      const opTxt = f.condition.op === "neq" ? "is not" : "is";
+      condChip = `<div class="form-fill-cond-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Shown when "${escapeHtml(trig.label || _FIELD_TYPE_LABELS[trig.type] || trig.id)}" ${opTxt} ${escapeHtml(_condValueLabel(trig, f.condition.value) || "—")}</div>`;
+    }
+  }
   // Two-way selection sync — every preview row carries the real field id so
   // a click selects it in the builder, and we mark the selected row so the
   // canvas selection is mirrored here.
   const sel  = f.id === _formsState.selectedId;
   const selCls = sel ? " is-selected" : "";
-  const row  = (input) => `<div class="form-fill-row${selCls}" data-rr-preview-pick="${escapeHtml(f.id)}"><label class="form-fill-label">${lbl}${req}</label>${help}${input}</div>`;
+  const row  = (input) => `<div class="form-fill-row${selCls}${condChip ? " is-conditional" : ""}" data-rr-preview-pick="${escapeHtml(f.id)}">${condChip}<label class="form-fill-label">${lbl}${req}</label>${help}${input}</div>`;
   switch (f.type) {
     case "instructions":
       return `<div class="form-fill-instructions${selCls}" data-rr-preview-pick="${escapeHtml(f.id)}"><div class="form-fill-instructions-title">${lbl || "Instructions"}</div><div>${escapeHtml(f.help || "")}</div></div>`;
@@ -56772,6 +56822,97 @@ function _renderBuilderPreview() {
   }
 }
 
+// ── Logic tab editor (V2-b) ──────────────────────────────────────
+// Simple single-condition editor: "Always show" vs "Show only if … is/is
+// not <value>".  Writes to f.condition; cleared when set back to Always
+// show.  Only EARLIER eligible fields appear as triggers (no forward refs
+// / cycles).  A stale condition (trigger deleted or reordered after this
+// field) fails open — the field shows — and the editor flags it.
+function _renderLogicPanel(f) {
+  const fields = _formsState.fields;
+  const idx = fields.findIndex(x => x.id === f.id);
+  const layoutTypes = new Set(["section_header", "divider", "instructions"]);
+  if (layoutTypes.has(f.type)) {
+    return `<div class="props-note">Layout blocks are always shown and can't be conditioned on an answer.</div>`;
+  }
+  const eligible = _condEligibleTriggers(fields, idx < 0 ? fields.length : idx);
+  const cond = f.condition && f.condition.fieldId ? f.condition : null;
+  // A condition is stale if its trigger no longer exists earlier / eligibly.
+  const triggerField = cond ? eligible.find(e => e.id === cond.fieldId) : null;
+  const stale = !!cond && !triggerField;
+
+  if (eligible.length === 0) {
+    const staleNote = stale
+      ? `<div class="cond-stale">This field had a rule, but the question it referenced was removed or moved below it. The field will always show. <button type="button" class="cond-clear-link" data-rr-cond-clear>Clear rule</button></div>`
+      : "";
+    return `${staleNote}<div class="props-note">Add a Yes / No or choice question before this one to base its visibility on an answer.</div>`;
+  }
+
+  const on = !!cond;
+  const seg = `
+    <div class="cond-seg" role="tablist" aria-label="Field visibility">
+      <button type="button" class="cond-seg-btn${on ? "" : " is-active"}" data-rr-cond-mode="always" role="tab" aria-selected="${!on}">Always show</button>
+      <button type="button" class="cond-seg-btn${on ? " is-active" : ""}" data-rr-cond-mode="conditional" role="tab" aria-selected="${on}">Show only if…</button>
+    </div>`;
+
+  if (!on) {
+    const staleNote = stale
+      ? `<div class="cond-stale">The previous rule referenced a question that's no longer available; it's been turned off. The field always shows.</div>`
+      : "";
+    return `${seg}${staleNote}
+      <div class="props-note" style="margin-top:var(--s-2)">This field is shown to every driver.</div>`;
+  }
+
+  // Resolve the chosen trigger (default to first eligible if the stored one
+  // is gone) and its discrete value list.
+  const trig = triggerField || eligible[0];
+  const op = cond.op === "neq" ? "neq" : "eq";
+  const values = _condValuesForField(trig);
+  const curVal = cond.value != null ? String(cond.value) : (values[0]?.value ?? "");
+
+  const questionOpts = eligible.map(e =>
+    `<option value="${escapeHtml(e.id)}"${e.id === trig.id ? " selected" : ""}>${escapeHtml(e.label || _FIELD_TYPE_LABELS[e.type] || e.id)}</option>`
+  ).join("");
+  const valueOpts = values.length
+    ? values.map(v => `<option value="${escapeHtml(v.value)}"${v.value === curVal ? " selected" : ""}>${escapeHtml(v.label)}</option>`).join("")
+    : `<option value="">No answer options yet</option>`;
+
+  const staleNote = stale
+    ? `<div class="cond-stale">The question this rule pointed to was removed or moved after this field. Pick another question below.</div>`
+    : "";
+
+  // Clean visual summary of the rule.
+  const summary = `
+    <div class="cond-summary">
+      <span class="cond-summary-if">IF</span>
+      <span class="cond-summary-chip">${escapeHtml(trig.label || _FIELD_TYPE_LABELS[trig.type] || trig.id)}</span>
+      <span class="cond-summary-op">${op === "neq" ? "is not" : "is"}</span>
+      <span class="cond-summary-chip cond-summary-val">${escapeHtml(_condValueLabel(trig, curVal) || "—")}</span>
+      <span class="cond-summary-arrow">→</span>
+      <span class="cond-summary-then">show this field</span>
+    </div>`;
+
+  return `${seg}${staleNote}
+    <div class="cond-editor">
+      <div class="cond-field-row">
+        <span class="cond-field-label">Question</span>
+        <select class="field-prop-input cond-select" data-rr-cond-field>${questionOpts}</select>
+      </div>
+      <div class="cond-field-row">
+        <span class="cond-field-label">Condition</span>
+        <select class="field-prop-input cond-select" data-rr-cond-op>
+          <option value="eq"${op === "eq" ? " selected" : ""}>is</option>
+          <option value="neq"${op === "neq" ? " selected" : ""}>is not</option>
+        </select>
+      </div>
+      <div class="cond-field-row">
+        <span class="cond-field-label">Value</span>
+        <select class="field-prop-input cond-select" data-rr-cond-value${values.length ? "" : " disabled"}>${valueOpts}</select>
+      </div>
+    </div>
+    ${summary}`;
+}
+
 function _renderBuilderProps() {
   const empty = document.getElementById("rr-builder-props-empty");
   const body  = document.getElementById("rr-builder-props-body");
@@ -56839,12 +56980,7 @@ function _renderBuilderProps() {
           <div class="props-soon-sub">Min / max length, numeric ranges, and pattern matching land in an upcoming release. The Required toggle above already saves today.</div>
         </div>`;
   } else if (active === "logic") {
-    panel = `
-      <div class="props-soon">
-        <span class="props-soon-pill">Coming soon</span>
-        <div class="props-soon-title">Conditional logic</div>
-        <div class="props-soon-sub">Show or hide this field based on earlier answers. Set up rules in the Logic tab — it's on the way in the next release.</div>
-      </div>`;
+    panel = _renderLogicPanel(f);
   } else if (active === "appearance") {
     panel = `
       <div class="props-soon">
@@ -56935,6 +57071,42 @@ document.addEventListener("click", async (e) => {
     e.preventDefault();
     _builderPropsTab = propTab.getAttribute("data-rr-props-tab");
     _renderBuilderProps();
+    return;
+  }
+  // ── Logic editor: Always-show / Show-only-if segment toggle ───
+  const condMode = e.target.closest("[data-rr-cond-mode]");
+  if (condMode) {
+    e.preventDefault();
+    const f = _formsState.fields.find(x => x.id === _formsState.selectedId);
+    if (!f) return;
+    const mode = condMode.getAttribute("data-rr-cond-mode");
+    if (mode === "always") {
+      if (f.condition) { delete f.condition; }
+    } else {
+      // Seed a default condition from the first eligible earlier field.
+      const idx = _formsState.fields.findIndex(x => x.id === f.id);
+      const eligible = _condEligibleTriggers(_formsState.fields, idx);
+      if (eligible.length) {
+        const trig = eligible[0];
+        const vals = _condValuesForField(trig);
+        f.condition = { fieldId: trig.id, op: "eq", value: vals[0]?.value ?? "" };
+      }
+    }
+    _markBuilderDirty();
+    _renderBuilderProps();
+    _renderBuilderCanvas();
+    _renderBuilderPreview();
+    return;
+  }
+  // ── Logic editor: clear a stale rule ──────────────────────────
+  const condClear = e.target.closest("[data-rr-cond-clear]");
+  if (condClear) {
+    e.preventDefault();
+    const f = _formsState.fields.find(x => x.id === _formsState.selectedId);
+    if (f && f.condition) { delete f.condition; _markBuilderDirty(); }
+    _renderBuilderProps();
+    _renderBuilderCanvas();
+    _renderBuilderPreview();
     return;
   }
   // ── Click a preview row → select that field in the builder ────
@@ -57253,6 +57425,31 @@ document.addEventListener("click", async (e) => {
     _renderBuilderProps();
   });
 })();
+
+// Logic-editor selects update f.condition in place.  Listens on `change`
+// (selects) — re-renders the canvas/preview/badge + the rule summary.
+document.addEventListener("change", (e) => {
+  const condEl = e.target.closest("[data-rr-cond-field],[data-rr-cond-op],[data-rr-cond-value]");
+  if (!condEl) return;
+  const f = _formsState.fields.find(x => x.id === _formsState.selectedId);
+  if (!f) return;
+  if (!f.condition) f.condition = { fieldId: "", op: "eq", value: "" };
+  if (condEl.hasAttribute("data-rr-cond-field")) {
+    f.condition.fieldId = condEl.value;
+    // New trigger → reset value to the first valid option for that field.
+    const trig = _formsState.fields.find(x => x.id === condEl.value);
+    const vals = _condValuesForField(trig);
+    f.condition.value = vals[0]?.value ?? "";
+  } else if (condEl.hasAttribute("data-rr-cond-op")) {
+    f.condition.op = condEl.value === "neq" ? "neq" : "eq";
+  } else if (condEl.hasAttribute("data-rr-cond-value")) {
+    f.condition.value = condEl.value;
+  }
+  _markBuilderDirty();
+  _renderBuilderProps();
+  _renderBuilderCanvas();
+  _renderBuilderPreview();
+});
 
 // Inputs in the props panel update _formsState in place.
 document.addEventListener("input", (e) => {
