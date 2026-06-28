@@ -4,7 +4,7 @@
 // Mirrors google-oauth-start. The DSP picks their ADP product inside Finch
 // Connect; on success Finch redirects to finch-oauth-callback with ?code&state.
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
-import { signState, connectUrl, isConfigured } from "../_shared/finch.ts";
+import { signState, createConnectSession, isConfigured } from "../_shared/finch.ts";
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -26,6 +26,14 @@ Deno.serve(async (req) => {
   const { data: appUser } = await supa.from("app_users").select("dsp_id").eq("id", user.id).single();
   if (!appUser?.dsp_id) return jsonResponse({ error: "no_dsp" }, { status: 403, headers: CORS });
 
-  const state = await signState({ dsp_id: appUser.dsp_id, user_id: user.id, exp: Date.now() + 10 * 60_000 });
-  return jsonResponse({ url: connectUrl(state) }, { headers: CORS });
+  const state = await signState({ dsp_id: appUser.dsp_id, user_id: user.id, exp: Date.now() + 30 * 60_000 });
+  try {
+    const url = await createConnectSession({ state, dspId: appUser.dsp_id });
+    return jsonResponse({ url }, { headers: CORS });
+  } catch (e) {
+    return jsonResponse(
+      { error: "connect_start_failed", message: e instanceof Error ? e.message : String(e) },
+      { status: 502, headers: CORS },
+    );
+  }
 });
