@@ -1222,7 +1222,8 @@
     var idAttr = f.id ? (' data-rr-form-edit="' + rrFpEsc(f.id) + '"') : '';
     var meta = nFields + ' field' + (nFields === 1 ? '' : 's');
     if (nSubs != null) meta += ' • ' + nSubs + ' submission' + (nSubs === 1 ? '' : 's');
-    return '<div class="rr-fp-card" role="listitem"' + idAttr + ' data-rr-fp-id="' + rrFpEsc(f.id || '') + '">'
+    var openLabel = ' aria-label="Open ' + rrFpEsc(f.title || 'Untitled form') + '"';
+    return '<div class="rr-fp-card" role="button" tabindex="0"' + openLabel + idAttr + ' data-rr-fp-id="' + rrFpEsc(f.id || '') + '">'
       +   '<span class="rr-fp-card-ico">' + RR_FTOOL_ICON + '</span>'
       +   '<div class="rr-fp-card-body">'
       +     '<div class="rr-fp-card-top">'
@@ -1336,10 +1337,15 @@
       return;
     }
     // Three-dot card menu / toolbar stubs — visual only, swallow the click
-    // so it never falls through to opening the form.
+    // so it never falls through to opening the form. Use
+    // stopImmediatePropagation (not just stopPropagation): live.js registers
+    // its own document-level [data-rr-form-edit] click listener AFTER this
+    // one (mock-wiring.js loads first), and stopPropagation would NOT prevent
+    // a sibling listener on the same node from firing — so the ⋮ would still
+    // open the editor. stopImmediatePropagation blocks live.js's listener.
     if (e.target.closest && e.target.closest('#rr-sched-forms [data-rr-fp-cardmenu], #rr-sched-forms [data-rr-fp-newmenu], #rr-sched-forms [data-rr-fp-trig], #rr-sched-forms [data-rr-fp-opt]')) {
       e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       return;
     }
     // Card body → open the real form editor when a live form id is present
@@ -1351,6 +1357,22 @@
       if (typeof window._rrNtPanelCloseAll === 'function') window._rrNtPanelCloseAll();
       return;
     }
+  });
+  // Keyboard access for the cards (role="button" / tabindex="0"): Enter and
+  // Space activate the same open action as a click. Delegated on the list
+  // container; ignores the ⋮ button so it isn't hijacked. We synthesize a
+  // click on the card so the existing click delegation above (which closes
+  // the rail and lets live.js's [data-rr-form-edit] listener open the form)
+  // is reused verbatim — no divergent open logic.
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    if (!e.target.closest) return;
+    // Don't intercept keys aimed at the ⋮ button — let it behave as a button.
+    if (e.target.closest('#rr-sched-forms [data-rr-fp-cardmenu]')) return;
+    var card = e.target.closest('#rr-sched-forms-list .rr-fp-card');
+    if (!card) return;
+    e.preventDefault(); // stop Space from scrolling the panel
+    card.click();
   });
 
   // ─── SUBMISSION DETAIL ────────────────────────────────────
