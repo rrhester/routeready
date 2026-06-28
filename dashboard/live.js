@@ -8435,19 +8435,28 @@ function _rrAddNoteFromInput() {
   input.value = "";
   _rrRenderNotes();
 }
-// Start the rail/panel just below the schedule ribbon (the .tcp-body
-// top) so they never cover the ribbon's week-nav / command controls.
-// They're position:fixed, so we feed a viewport-relative top; falls back
-// to the CSS default when the schedule isn't laid out yet (hidden view).
+// Align the rail/panel top flush with the top of the schedule view, so
+// the sidebar starts level with the schedule rather than below the
+// ribbon. They're position:fixed, so we feed a viewport-relative top;
+// falls back to the CSS default when the schedule isn't laid out yet
+// (hidden view → rect top 0).
 function _rrSyncNotesRailTop() {
   const rail = document.getElementById("rr-sched-util-rail");
   const panel = document.getElementById("rr-sched-notes");
   if (!rail && !panel) return;
+  const view = document.getElementById("view-schedule");
   const body = document.querySelector("#view-schedule .tcp-body");
-  const top = body ? Math.round(body.getBoundingClientRect().top) : 0;
-  const val = top > 0 ? top + "px" : "";
-  if (rail) rail.style.top = val;
-  if (panel) panel.style.top = val;
+  // Rail is flush with the top of the schedule view; the panel docks just
+  // below the ribbon (the .tcp-body top) so the ribbon's coverage / Live /
+  // command controls stay visible while it's open.
+  if (rail && view) {
+    const t = Math.round(view.getBoundingClientRect().top);
+    rail.style.top = t > 0 ? t + "px" : "";
+  }
+  if (panel && body) {
+    const t = Math.round(body.getBoundingClientRect().top);
+    panel.style.top = t > 0 ? t + "px" : "";
+  }
 }
 try {
   window.addEventListener("resize", _rrSyncNotesRailTop);
@@ -8461,6 +8470,10 @@ function _rrNotesSetOpen(open) {
   if (!panel) return;
   _rrSyncNotesRailTop();
   panel.classList.toggle("is-open", open);
+  // Push, don't overlay: condense the schedule body left to make room
+  // (mirrors the Operations Health right dock).
+  const view = document.getElementById("view-schedule");
+  if (view) view.classList.toggle("rr-notes-open", open);
   panel.setAttribute("aria-hidden", open ? "false" : "true");
   const btn = document.querySelector("[data-rr-notes-toggle]");
   if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
