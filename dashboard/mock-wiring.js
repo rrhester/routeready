@@ -1164,13 +1164,12 @@
     return Array.isArray(window._formsCache) ? window._formsCache : [];
   }
   function rrFtoolMsg(text){
-    var list = document.getElementById('rr-forms-tool-list');
+    var list = document.getElementById('rr-sched-forms-list');
     if (!list) return;
-    list.innerHTML = '<div class="rr-ftool-empty" style="padding:var(--s-4) var(--s-3);text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">'
-      + text + '</div>';
+    list.innerHTML = '<div class="ntp-empty">' + text + '</div>';
   }
   function rrFtoolRender(){
-    var list = document.getElementById('rr-forms-tool-list');
+    var list = document.getElementById('rr-sched-forms-list');
     if (!list) return;
     var forms = rrFtoolGetForms();
     if (!forms.length) {
@@ -1197,7 +1196,7 @@
       var status = f.status || 'draft';
       var label = status.charAt(0).toUpperCase() + status.slice(1);
       var idAttr = f.id ? (' data-rr-form-edit="' + String(f.id) + '"') : '';
-      return '<button type="button" class="rr-ftool-row"' + idAttr + ' data-rr-ftool-id="' + (f.id || '') + '">'
+      return '<button type="button" class="rr-ftool-row" role="listitem"' + idAttr + ' data-rr-ftool-id="' + (f.id || '') + '">'
         +   '<span class="rr-ftool-ico">' + RR_FTOOL_ICON + '</span>'
         +   '<span class="rr-ftool-main">'
         +     '<span class="rr-ftool-title">' + (f.title || 'Untitled form') + '</span>'
@@ -1207,46 +1206,24 @@
         + '</button>';
     }).join('');
   }
-  // Reflect open state on the Forms icon in the Schedule right-side
-  // utility rail (data-rr-forms-toggle), mirroring how Notes / Tasks /
-  // Operations Health light their rail icon while their panel is open.
-  function rrFtoolSetRail(expanded){
-    var btn = document.querySelector('[data-rr-forms-toggle]');
-    if (btn) btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-  }
-  function openFormsTool(){
-    rrFtoolRender();
-    document.getElementById('rr-forms-tool-drawer').classList.add('open');
-    document.getElementById('ap-backdrop').classList.add('open');
-    rrFtoolSetRail(true);
-    document.body.style.overflow = 'hidden';
-  }
-  function closeFormsTool(){
-    document.getElementById('rr-forms-tool-drawer').classList.remove('open');
-    document.getElementById('ap-backdrop').classList.remove('open');
-    rrFtoolSetRail(false);
-    document.body.style.overflow = '';
-  }
-  // Row click → open the real form editor when a live form id is
-  // present (live.js wires a document-level [data-rr-form-edit]
-  // handler that loads the form and calls openFormBuilder). Mock
-  // rows have no id, so they no-op gracefully rather than throw.
+  // Expose the renderer so the schedule rail's shared panel manager
+  // (live.js · _rrNtRenderAll) can populate the Forms panel with the
+  // operator's REAL forms when it opens — the same way Notes/Tasks render.
+  window.rrFtoolRender = rrFtoolRender;
+  // Row click → open the real form editor when a live form id is present
+  // (live.js wires a document-level [data-rr-form-edit] handler that loads
+  // the form and calls openFormBuilder). Close the rail panel first so the
+  // builder opens cleanly. Mock rows have no id, so they no-op gracefully.
   document.addEventListener('click', function(e){
-    var row = e.target.closest && e.target.closest('#rr-forms-tool-list .rr-ftool-row');
+    var row = e.target.closest && e.target.closest('#rr-sched-forms-list .rr-ftool-row');
     if (!row) return;
     if (row.getAttribute('data-rr-form-edit')) {
-      // Real form — close this panel; live.js's delegated handler
+      // Real form — close the rail panel; live.js's delegated handler
       // opens the builder for the same click.
-      closeFormsTool();
+      if (typeof window._rrNtPanelCloseAll === 'function') window._rrNtPanelCloseAll();
       return;
     }
     // Mock form — nothing to open. Keep the panel open.
-  });
-  // Escape closes the forms tool when it's the open drawer.
-  document.addEventListener('keydown', function(e){
-    if (e.key !== 'Escape') return;
-    var d = document.getElementById('rr-forms-tool-drawer');
-    if (d && d.classList.contains('open')) closeFormsTool();
   });
 
   // ─── SUBMISSION DETAIL ────────────────────────────────────
@@ -1452,15 +1429,11 @@
     document.body.style.overflow = 'hidden';
   }
   function closeApplicantDetail(){
-    ['applicant-drawer','driver-drawer','coverage-drawer','vehicle-drawer','sched-edit-drawer','checklist-drawer','form-edit-drawer','submission-drawer','recon-drawer','rr-forms-tool-drawer'].forEach(function(id){
+    ['applicant-drawer','driver-drawer','coverage-drawer','vehicle-drawer','sched-edit-drawer','checklist-drawer','form-edit-drawer','submission-drawer','recon-drawer'].forEach(function(id){
       const el = document.getElementById(id);
       if (el) el.classList.remove('open');
     });
     document.getElementById('ap-backdrop').classList.remove('open');
-    // Clear the forms rail icon's open state too, since this catch-all
-    // closer can dismiss the forms quick-access drawer.
-    var _fbtn = document.querySelector('[data-rr-forms-toggle]');
-    if (_fbtn) _fbtn.setAttribute('aria-expanded', 'false');
     document.body.style.overflow = '';
     // The driver record is an inline pane, not a backdrop overlay —
     // collapse the split too so it closes alongside the other drawers.
