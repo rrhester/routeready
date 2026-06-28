@@ -5544,10 +5544,10 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
   /* Same canvas as the schedule background so the white note cards pop,
      instead of reading as a brighter white panel (operator request). */
   background:var(--canvas,#F9FAFB);
-  /* Flat like the schedule — a thin divider, no drop shadow (operator
-     request), so the panel reads as part of the page, not a floating
-     sheet. */
-  border-left:1px solid var(--border,rgba(15,23,42,.10));
+  /* Flat like the schedule — a thin border on all four sides, no drop
+     shadow (operator request), so the panel reads as a framed section,
+     not a floating sheet. */
+  border:1px solid var(--border,rgba(15,23,42,.10));
   transform:translateX(calc(100% + 52px));
   transition:transform 240ms cubic-bezier(.32,.72,.4,1);
 }
