@@ -333,7 +333,6 @@
       drive: 'Vault',
       finances: 'Finances',
       build: 'Build Your Own Tool',
-      marketplace: 'Marketplace',
       settings: 'Settings',
       checkin: "Today's Check-in"
     };

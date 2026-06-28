@@ -129,7 +129,7 @@
 <!-- The dashboard's former inline styles · extracted so the no-cache
      HTML shell stops re-shipping ~1.2MB of CSS on every load; this
      file is cacheable and busts via the ?v= token like the rest. -->
-<link rel="stylesheet" href="inline-styles.css?v=a1c7e93f2b08">
+<link rel="stylesheet" href="inline-styles.css?v=c5e8b1a4f902">
 <!-- style block 0 extracted to inline-styles.css -->
 </head>
 <body>
@@ -222,26 +222,17 @@
                sit on a blue card inside the white pop-out; account actions
                (Settings / Sign out) stay on the white panel below it. -->
           <div class="rr-al-card">
-          <div class="rr-al-section">Applications</div>
           <!-- App switcher · mirrors the visible sidebar destinations so the
-               drawer can navigate anywhere even when the rail is hidden (Vault).
+               drawer can navigate anywhere even when the rail is hidden (Drive).
                Populated by buildApps() on open. -->
           <div id="rr-al-apps" class="rr-al-apps"></div>
-          <!-- Analytics · cross-app reporting (not built yet). -->
-          <button type="button" class="rr-al-item" role="menuitem" data-al-act="analytics">
-            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
-            <span class="rr-al-lbl">Analytics</span>
-            <span class="rr-al-soon">Soon</span>
+          <!-- ADP Sync · connect the DSP's ADP account so employees, PTO and
+               org data stay in sync. Opens the #modal-adp-sync box. -->
+          <button type="button" class="rr-al-item" role="menuitem" data-al-act="adpsync">
+            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></span>
+            <span class="rr-al-lbl">ADP Sync</span>
           </button>
-          <!-- Marketplace · a first-class application — opens the full
-               Marketplace page (integrations + RouteReady extensions). -->
-          <button type="button" class="rr-al-item" role="menuitem" data-al-go="marketplace">
-            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-1.6-5.6A1 1 0 0 0 18.5 3H5.5a1 1 0 0 0-.95.7z"/><path d="M4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 21V13h6v8"/></svg></span>
-            <span class="rr-al-lbl">Marketplace</span>
-          </button>
-          <div class="rr-al-divider" aria-hidden="true"></div>
-          <div class="rr-al-section">Utilities</div>
-          <!-- Vault · RouteReady's document management workspace. Opens the
+          <!-- Drive · RouteReady's document management workspace. Opens the
                dedicated #view-drive page. -->
           <button type="button" class="rr-al-item" role="menuitem" data-al-act="drive">
             <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
@@ -253,6 +244,12 @@
             <span class="rr-al-lbl">Reports</span>
             <span class="rr-al-soon">Soon</span>
           </button>
+          <!-- Indeed Import · bulk-ingest applicants from Indeed (built) —
+               opens #modal-bulk-ingest. -->
+          <button type="button" class="rr-al-item" role="menuitem" data-al-act="indeed">
+            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+            <span class="rr-al-lbl">Indeed Import</span>
+          </button>
           </div><!-- /.rr-al-card -->
           <!-- Account actions · Settings + Sign out moved here from the
                retired top-right account menu. data-al-go routes through the
@@ -260,7 +257,6 @@
                sign-out hook in live.js. (Refresh app / What's new still live
                in the ⌘K command palette.) -->
           <div class="rr-al-foot">
-            <div class="rr-al-section rr-al-section--sys">System</div>
             <button type="button" class="rr-al-item rr-al-footitem" role="menuitem" data-al-go="settings">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               <span class="rr-al-lbl">Settings</span>
@@ -363,9 +359,10 @@
             var act = it.getAttribute('data-al-act');
             close();
             try {
-              if (act === 'drive') { if (window.openDrive) window.openDrive(); else if (window.goto) window.goto('drive'); }
+              if (act === 'indeed') { if (window.openPdfUploadPicker) window.openPdfUploadPicker(); }
+              else if (act === 'adpsync') { if (window.openAdpSync) window.openAdpSync(); }
+              else if (act === 'drive') { if (window.openDrive) window.openDrive(); else if (window.goto) window.goto('drive'); }
               else if (act === 'reports') { if (window.toast) window.toast('Reports are coming soon'); }
-              else if (act === 'analytics') { if (window.toast) window.toast('Analytics is coming soon'); }
               else if (go && window.goto) { window.goto(go); }
               else if (sub) {
                 if (window.goto) window.goto('schedule');
@@ -391,6 +388,96 @@
          (mock-wiring.js), which clicks this. Kept global so the picker can
          open from any page within the click's user gesture. -->
     <input type="file" id="rr-ob-pdf-upload-input" accept="application/pdf" style="display:none" multiple/>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         ADP SYNC · App launcher → "ADP Sync". A focused box that helps
+         a DSP connect RouteReady to ADP so employees, PTO and org data
+         stay in sync. Mock UI only (no real OAuth yet) — Connect flips
+         to a persisted "connected / last-synced" state in localStorage.
+         Opened via window.openAdpSync() from the launcher handler; built
+         on the shared .modal-* chrome + openModal/closeModal helpers.
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="modal-backdrop" id="modal-adp-sync" onclick="if(event.target===this)closeModal('modal-adp-sync')">
+      <div class="modal-card rr-adp" style="max-width:460px">
+        <div class="modal-head">
+          <div class="rr-adp-head">
+            <span class="rr-adp-logo" aria-hidden="true">ADP</span>
+            <div style="min-width:0">
+              <p class="modal-title">Sync with ADP</p>
+              <p class="modal-sub" id="rr-adp-sub">Keep employees, PTO and org data in sync with your ADP account.</p>
+            </div>
+          </div>
+          <button class="modal-close" type="button" onclick="closeModal('modal-adp-sync')" aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <!-- Connected banner · shown only once the (mock) connection is live. -->
+          <div class="rr-adp-banner" id="rr-adp-banner" hidden>
+            <span class="rr-adp-banner-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div>
+              <p class="rr-adp-banner-t">Connection healthy</p>
+              <p class="rr-adp-banner-s">Automatic sync enabled · Last synced <span id="rr-adp-last">just now</span></p>
+            </div>
+          </div>
+          <p class="rr-adp-sec-h">What RouteReady keeps in sync</p>
+          <ul class="rr-adp-list">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Employees &amp; new hires</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> PTO &amp; time off</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Departments &amp; routes</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Managers &amp; reporting lines</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Employment status changes</li>
+          </ul>
+          <div class="rr-adp-secure">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Secure OAuth connection — RouteReady never sees or stores your ADP password.</span>
+          </div>
+        </div>
+        <!-- Footer buttons are painted by the wiring script per connection state. -->
+        <div class="modal-foot" id="rr-adp-foot"></div>
+      </div>
+    </div>
+    <script>
+      // ── ADP Sync box · self-contained so it works regardless of live.js
+      //    (which auth-gates). Connect/Sync are a front-end mock that flips a
+      //    persisted state; swap in real ADP OAuth here later.
+      (function () {
+        var KEY = 'rr-adp-sync';
+        function isOn(){ try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } }
+        function setOn(v){ try { v ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch (e) {} }
+        function $(id){ return document.getElementById(id); }
+        function render(){
+          var foot = $('rr-adp-foot'); if (!foot) return;
+          var on = isOn();
+          var banner = $('rr-adp-banner'); if (banner) banner.hidden = !on;
+          var sub = $('rr-adp-sub');
+          if (sub) sub.textContent = on
+            ? 'Connected to ADP — your employee and PTO data stays in sync automatically.'
+            : 'Keep employees, PTO and org data in sync with your ADP account.';
+          foot.innerHTML = on
+            ? '<button type="button" class="btn btn-ghost" data-adp="disconnect">Disconnect</button>' +
+              '<button type="button" class="btn btn-primary" data-adp="sync">Sync now</button>'
+            : '<button type="button" class="btn btn-ghost" onclick="closeModal(\'modal-adp-sync\')">Cancel</button>' +
+              '<button type="button" class="btn btn-primary" data-adp="connect">Connect ADP</button>';
+        }
+        document.addEventListener('click', function (e) {
+          var t = e.target.closest('[data-adp]'); if (!t) return;
+          var act = t.getAttribute('data-adp');
+          if (act === 'connect') {
+            t.disabled = true; t.textContent = 'Connecting…';
+            setTimeout(function () { setOn(true); render(); if (window.toast) window.toast('ADP connected — syncing employees & PTO'); }, 900);
+          } else if (act === 'sync') {
+            t.disabled = true; t.textContent = 'Syncing…';
+            setTimeout(function () { var l = $('rr-adp-last'); if (l) l.textContent = 'just now'; render(); if (window.toast) window.toast('ADP sync complete'); }, 900);
+          } else if (act === 'disconnect') {
+            setOn(false); render(); if (window.toast) window.toast('Disconnected from ADP');
+          }
+        });
+        // Render the current state on open so the box always reflects reality.
+        window.openAdpSync = function () { render(); if (window.openModal) window.openModal('modal-adp-sync'); };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render); else render();
+      })();
+    </script>
 
     <nav class="nav">
       <!-- ═══════════════════════════════════════════════════════════
@@ -1737,16 +1824,6 @@
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=4ad2d07c0e83">
       <!-- markup extracted to views/view-build.frag (monolith split phase 2) -->
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════
-         MARKETPLACE VIEW — the integrations + RouteReady-extensions hub.
-         Shell (header / search / category chips / grid mount / connect
-         drawer) lives in the fragment; the catalog + card rendering +
-         connect flow are painted by loadMarketplaceView() in live.js.
-         ═══════════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-marketplace" data-rr-view-src="views/view-marketplace.frag?v=4ad2d07c0e83">
-      <!-- markup extracted to views/view-marketplace.frag -->
     </div>
 
     <!-- INVOICE RECONCILIATION DRAWER -->
@@ -4775,7 +4852,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=4ad2d07c0e83"></script>
 <script src="./fleet-sync.js?v=4ad2d07c0e83"></script>
 <script src="./admin-crawl-tasks.js?v=4ad2d07c0e83"></script>
-<script type="module" src="./live.js?v=d2f8b41e6c70"></script>
+<script type="module" src="./live.js?v=b9d2e7c41a85"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
