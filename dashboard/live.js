@@ -56603,11 +56603,15 @@ function _builderFieldHtml(f, idx, selected, last) {
   const req = f.required ? '<span class="req">*</span>' : "";
   const cls = selected ? "builder-field active" : "builder-field";
   const id  = escapeHtml(f.id);
-  // Drag-and-drop attrs + keyboard-accessible nudge buttons.  The
-  // whole row is draggable (HTML5 DnD); ⋮⋮ on the left is just the
-  // visual cursor cue.  Nudge arrows + ✕ stay for the early-return
-  // layout blocks; the standard wrapper uses the hover toolbar below.
-  const dnd = `draggable="true" data-rr-field-idx="${idx}"`;
+  // Drag-and-drop attrs + keyboard-accessible nudge buttons.  Reorder
+  // is driven from the ⋮⋮ handle only (handle-based dragging): the ROW
+  // carries data-rr-field-idx for the drop math but is NOT itself
+  // draggable, so grabbing a disabled preview input / a toolbar button /
+  // a badge never starts (or swallows) a drag.  The handle below sets
+  // draggable=true.  Nudge arrows + ✕ stay for the early-return layout
+  // blocks; the standard wrapper uses the hover toolbar below.
+  const dnd = `data-rr-field-idx="${idx}"`;
+  const handle = `<span class="builder-field-handle" data-rr-drag-handle draggable="true" role="button" tabindex="-1" aria-label="Drag to reorder" title="Drag to reorder">⋮⋮</span>`;
   const nudge = `<div class="rr-field-nudge" data-rr-no-drawer>
     <button type="button" data-rr-field-up="${id}" aria-label="Move up" title="Move up"${idx === 0 ? " disabled" : ""}>▲</button>
     <button type="button" data-rr-field-down="${id}" aria-label="Move down" title="Move down"${idx === last ? " disabled" : ""}>▼</button>
@@ -56670,14 +56674,14 @@ function _builderFieldHtml(f, idx, selected, last) {
       break;
     case "section_header":
       return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}" style="margin-top:14px">
-        <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
+        ${handle}
         ${toolbar}
         <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span>${logicBadge}</div>
         <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">${escapeHtml(f.label || "Section")}</div>
       </div>`;
     case "divider":
       return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}">
-        <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
+        ${handle}
         ${toolbar}
         <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span>${logicBadge}</div>
         <hr style="border:0;border-top:1px solid var(--border);margin:6px 0"/>
@@ -56685,7 +56689,7 @@ function _builderFieldHtml(f, idx, selected, last) {
     case "instructions": {
       const text = (f.help || "").trim();
       return `<div class="${cls}" ${dnd} data-rr-field-pick="${id}" style="background:var(--accent-soft);border-color:var(--accent-border)">
-        <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
+        ${handle}
         ${toolbar}
         <div class="builder-field-topbar"><span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span><span class="builder-type-badge">${escapeHtml(_FIELD_TYPE_LABELS[f.type])}</span>${logicBadge}</div>
         <div style="font-weight:700;font-size:var(--fs-md);color:var(--text);margin-bottom:6px">${escapeHtml(f.label || "Instructions")}</div>
@@ -56696,7 +56700,7 @@ function _builderFieldHtml(f, idx, selected, last) {
   const reqBadge = f.required ? `<span class="builder-req-badge">Required</span>` : "";
   return `
     <div class="${cls}" ${dnd} data-rr-field-pick="${id}">
-      <span class="builder-field-handle" title="Drag to reorder">⋮⋮</span>
+      ${handle}
       ${toolbar}
       <div class="builder-field-topbar">
         <span class="builder-field-typeico">${_fieldTypeIcon(f.type)}</span>
@@ -57347,75 +57351,136 @@ document.addEventListener("click", async (e) => {
   if (e.target.closest("[data-rr-form-publish]")) { e.preventDefault(); _saveBuilder({ publish: true });  return; }
 });
 
-// HTML5 drag-and-drop reordering for form-builder fields.  Each
-// .builder-field carries draggable=true + a data-rr-field-idx; on drop
-// we splice the array and re-render.  Targets render a top/bottom
-// inset line as the visual indicator depending on cursor position.
+// HTML5 drag-and-drop for the form builder.  Two flows share one set of
+// listeners:
+//   1. Reorder — drag the ⋮⋮ handle (the only draggable=true node in a
+//      row) to move an existing field.  The handle, not the row, is the
+//      grab target so clicking a disabled preview input, a toolbar button,
+//      a badge, or selecting label text can never start or swallow the
+//      drag.  The drop index comes from the hovered row's data-rr-field-idx
+//      and a top/bottom-half test.
+//   2. Insert — drag a palette card (data-rr-add-field) from the left
+//      toolbox into the canvas to insert a brand-new field of that type at
+//      the hovered position (same insert path as click-to-add).
+// Both render a top/bottom inset line (or a dropzone highlight) as the
+// visual indicator.  The keyboard ▲▼ nudge remains the accessible fallback.
 (function () {
-  let dragIdx = null;
-  document.addEventListener("dragstart", (e) => {
-    const row = e.target.closest("#rr-builder-fields .builder-field");
-    if (!row) return;
-    dragIdx = Number(row.getAttribute("data-rr-field-idx"));
-    row.classList.add("is-dragging");
-    try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(dragIdx)); } catch (_) {}
-  });
-  document.addEventListener("dragend", (e) => {
-    const row = e.target.closest("#rr-builder-fields .builder-field");
-    if (row) row.classList.remove("is-dragging");
-    document.querySelectorAll("#rr-builder-fields .builder-field.is-drop-target, #rr-builder-fields .builder-field.is-drop-target-bottom")
-      .forEach(el => el.classList.remove("is-drop-target", "is-drop-target-bottom"));
-    document.getElementById("rr-builder-dropzone")?.classList.remove("is-drop-target");
-    dragIdx = null;
-  });
+  let dragIdx  = null;   // index of the existing field being reordered
+  let paletteType = null; // field type being dragged in from the toolbox
+
   const clearDropMarks = () => {
     document.querySelectorAll("#rr-builder-fields .builder-field.is-drop-target, #rr-builder-fields .builder-field.is-drop-target-bottom")
       .forEach(el => el.classList.remove("is-drop-target", "is-drop-target-bottom"));
     document.getElementById("rr-builder-dropzone")?.classList.remove("is-drop-target");
+    document.getElementById("rr-builder-canvas")?.classList.remove("is-palette-dropping");
   };
+  const dragActive = () => dragIdx != null || paletteType != null;
+
+  document.addEventListener("dragstart", (e) => {
+    // Reorder: must originate on the drag handle.
+    const handle = e.target.closest?.("#rr-builder-fields [data-rr-drag-handle]");
+    if (handle) {
+      const row = handle.closest(".builder-field");
+      if (!row) return;
+      dragIdx = Number(row.getAttribute("data-rr-field-idx"));
+      paletteType = null;
+      row.classList.add("is-dragging");
+      try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "rr-reorder:" + dragIdx); } catch (_) {}
+      return;
+    }
+    // Insert: a palette card dragged from the toolbox.  Only while the
+    // builder modal is open so we never hijack drags elsewhere.
+    const card = e.target.closest?.("[data-rr-add-field]");
+    if (card && document.getElementById("modal-form-builder")?.classList.contains("open")) {
+      paletteType = card.getAttribute("data-rr-add-field");
+      dragIdx = null;
+      card.classList.add("is-dragging");
+      try { e.dataTransfer.effectAllowed = "copy"; e.dataTransfer.setData("text/plain", "rr-insert:" + paletteType); } catch (_) {}
+      return;
+    }
+  });
+
+  document.addEventListener("dragend", () => {
+    document.querySelectorAll("#rr-builder-fields .builder-field.is-dragging, [data-rr-add-field].is-dragging")
+      .forEach(el => el.classList.remove("is-dragging"));
+    clearDropMarks();
+    dragIdx = null;
+    paletteType = null;
+  });
+
   document.addEventListener("dragover", (e) => {
-    if (dragIdx == null) return;
-    const row = e.target.closest("#rr-builder-fields .builder-field");
-    const zone = e.target.closest("#rr-builder-dropzone");
+    if (!dragActive()) return;
+    const row  = e.target.closest?.("#rr-builder-fields .builder-field");
+    const zone = e.target.closest?.("#rr-builder-dropzone");
+    const canvas = e.target.closest?.("#rr-builder-canvas");
     if (row) {
-      e.preventDefault();   // allow drop
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = paletteType ? "copy" : "move";
       clearDropMarks();
       const r = row.getBoundingClientRect();
       const before = (e.clientY - r.top) < r.height / 2;
       row.classList.add(before ? "is-drop-target" : "is-drop-target-bottom");
     } else if (zone) {
       e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = paletteType ? "copy" : "move";
       clearDropMarks();
       zone.classList.add("is-drop-target");
+    } else if (canvas && paletteType != null) {
+      // Empty canvas area while dragging in from the toolbox — highlight
+      // the whole canvas so the user knows a drop will append.
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      clearDropMarks();
+      canvas.classList.add("is-palette-dropping");
     }
   });
+
   document.addEventListener("drop", (e) => {
-    if (dragIdx == null) return;
-    const row = e.target.closest("#rr-builder-fields .builder-field");
-    const zone = e.target.closest("#rr-builder-dropzone");
-    if (zone && !row) {
-      // Drop onto the bottom zone → move to the end of the list.
-      e.preventDefault();
-      const [moved] = _formsState.fields.splice(dragIdx, 1);
-      _formsState.fields.push(moved);
-      _formsState.selectedId = moved.id;
-      dragIdx = null;
+    if (!dragActive()) return;
+    const row    = e.target.closest?.("#rr-builder-fields .builder-field");
+    const zone   = e.target.closest?.("#rr-builder-dropzone");
+    const canvas = e.target.closest?.("#rr-builder-canvas");
+    if (!row && !zone && !canvas) { dragIdx = null; paletteType = null; clearDropMarks(); return; }
+    e.preventDefault();
+
+    // Compute the destination index in _formsState.fields.
+    let dest;
+    if (row) {
+      const targetIdx = Number(row.getAttribute("data-rr-field-idx"));
+      const r = row.getBoundingClientRect();
+      const before = (e.clientY - r.top) < r.height / 2;
+      dest = targetIdx + (before ? 0 : 1);
+    } else {
+      // Dropzone or empty canvas → append.
+      dest = _formsState.fields.length;
+    }
+
+    if (paletteType != null) {
+      // ── Toolbox insert ──────────────────────────────────────────
+      const f = _defaultFieldForType(paletteType);
+      if (dest < 0) dest = 0;
+      if (dest > _formsState.fields.length) dest = _formsState.fields.length;
+      _formsState.fields.splice(dest, 0, f);
+      _formsState.selectedId = f.id;
+      _builderPropsTab = "props";
+      paletteType = null;
       clearDropMarks();
+      document.querySelectorAll("[data-rr-add-field].is-dragging").forEach(el => el.classList.remove("is-dragging"));
       _markBuilderDirty();
       _renderBuilderCanvas();
       _renderBuilderProps();
       return;
     }
-    if (!row) return;
-    e.preventDefault();
-    const targetIdx = Number(row.getAttribute("data-rr-field-idx"));
-    const r = row.getBoundingClientRect();
-    const before = (e.clientY - r.top) < r.height / 2;
-    let dest = targetIdx + (before ? 0 : 1);
-    if (dragIdx === targetIdx) { dragIdx = null; clearDropMarks(); return; }
-    // Splice with index correction when removing-before-dest.
+
+    // ── Reorder existing field ──────────────────────────────────
+    if (dragIdx == null) { clearDropMarks(); return; }
+    if (row && dragIdx === Number(row.getAttribute("data-rr-field-idx"))) {
+      dragIdx = null; clearDropMarks(); return;
+    }
     const [moved] = _formsState.fields.splice(dragIdx, 1);
-    if (dragIdx < dest) dest -= 1;
+    if (dragIdx < dest) dest -= 1;   // index shifts after removing before dest
+    if (dest < 0) dest = 0;
+    if (dest > _formsState.fields.length) dest = _formsState.fields.length;
     _formsState.fields.splice(dest, 0, moved);
     _formsState.selectedId = moved.id;
     dragIdx = null;

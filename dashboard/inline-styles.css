@@ -7263,6 +7263,8 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .field-type:hover{background:var(--canvas);border-color:var(--border);transform:translateY(-1px);box-shadow:0 2px 6px rgba(15,23,42,.05)}
 .field-type:active{cursor:grabbing;transform:translateY(0)}
+/* Palette card being dragged into the canvas (drag-to-insert). */
+.field-type.is-dragging{opacity:.5}
 .field-type.is-hidden{display:none}
 .field-type-ico{
   flex:0 0 auto;width:26px;height:26px;border-radius:var(--r-sm);
@@ -7276,6 +7278,9 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* ── Canvas ─────────────────────────────────────────────────── */
 .builder-canvas{background:var(--canvas);padding:var(--s-5);overflow-y:auto}
+/* Whole-canvas highlight while a palette card is dragged over empty
+   space — communicates that dropping here appends a new field. */
+.builder-canvas.is-palette-dropping .builder-canvas-form{box-shadow:0 0 0 2px var(--accent);border-color:var(--accent)}
 .builder-canvas-form{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);
   padding:var(--s-5) var(--s-5) var(--s-4);max-width:620px;margin:0 auto;
