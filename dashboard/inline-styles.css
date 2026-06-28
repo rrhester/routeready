@@ -1596,6 +1596,12 @@ td.rr-lastcoach-col > span > span{color:#4B5563 !important}
   margin-top:0 !important;
   margin-bottom:0 !important;
 }
+/* Roster pill icons · brand blue to match the Smart Fill sparkle (#2563EB,
+   operator). Leading glyphs only — not the chevron caret, not the primary
+   Add-driver button. */
+.sched-kpi-pill[data-rr-roster-coach-menu] > svg,
+.sched-kpi-pill[data-rr-roster-attendance] > svg,
+.sched-kpi-pill[data-rr-roster-metrics] > svg{ color:#2563EB !important; }
 /* ── Driver Metrics drawer · right-side slide-out (Outlook reading-pane feel).
    No blocking backdrop — the roster stays interactive behind it; the panel
    lives in #view-drivers so it hides on navigation and restores on return. */
