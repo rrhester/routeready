@@ -1148,26 +1148,51 @@
 
   // ─── FORMS QUICK-ACCESS TOOL ──────────────────────────────
   // Right-edge tab → slide-out list of the operator's forms,
-  // styled like a checklist/notes panel. Renders the live forms
-  // cache when one is exposed (window._formsCache), else a small
-  // set of mock forms so the panel always shows content. Reuses
-  // the shared .detail-drawer + #ap-backdrop pattern.
-  var RR_FTOOL_MOCK = [
-    { id: null, title: 'Daily Vehicle Inspection', fields: { length: 14 }, category: 'safety',     status: 'published' },
-    { id: null, title: 'Pre-Trip Checklist',       fields: { length: 9 },  category: 'operations',  status: 'published' },
-    { id: null, title: 'End of Route Notes',       fields: { length: 5 },  category: 'operations',  status: 'draft' },
-    { id: null, title: 'Incident Report',          fields: { length: 11 }, category: 'safety',      status: 'published' },
-    { id: null, title: 'Vehicle Concern',          fields: { length: 7 },  category: 'maintenance', status: 'draft' }
-  ];
+  // styled like a checklist/notes panel. The list is the operator's
+  // REAL forms, read from the live forms cache that live.js exposes
+  // (window.rrGetForms() / window._formsCache · populated by
+  // loadFormsList). If the cache is cold we trigger a load (when the
+  // forms view grid is mounted) and re-render; otherwise we show a
+  // brief loading / friendly empty state — never placeholder rows.
+  // Reuses the shared .detail-drawer + #ap-backdrop pattern.
   var RR_FTOOL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12l2 2 4-4"/></svg>';
+  function rrFtoolGetForms(){
+    if (typeof window === 'undefined') return [];
+    if (typeof window.rrGetForms === 'function') {
+      try { var r = window.rrGetForms(); if (Array.isArray(r)) return r; } catch (_) {}
+    }
+    return Array.isArray(window._formsCache) ? window._formsCache : [];
+  }
+  function rrFtoolMsg(text){
+    var list = document.getElementById('rr-forms-tool-list');
+    if (!list) return;
+    list.innerHTML = '<div class="rr-ftool-empty" style="padding:var(--s-4) var(--s-3);text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">'
+      + text + '</div>';
+  }
   function rrFtoolRender(){
     var list = document.getElementById('rr-forms-tool-list');
     if (!list) return;
-    var cache = (typeof window !== 'undefined' && Array.isArray(window._formsCache) && window._formsCache.length)
-      ? window._formsCache : null;
-    var forms = cache || RR_FTOOL_MOCK;
+    var forms = rrFtoolGetForms();
+    if (!forms.length) {
+      // Cache is cold. Try to populate it from the live loader (only
+      // works when the forms view grid is mounted), then re-render.
+      var grid = document.getElementById('rr-forms-grid');
+      if (grid && typeof window.loadFormsList === 'function') {
+        rrFtoolMsg('Loading your forms…');
+        try {
+          var p = window.loadFormsList();
+          if (p && typeof p.then === 'function') {
+            p.then(function(){ rrFtoolRender(); }, function(){ rrFtoolMsg('No forms yet'); });
+            return;
+          }
+        } catch (_) {}
+      }
+      rrFtoolMsg('No forms yet');
+      return;
+    }
     list.innerHTML = forms.map(function(f){
-      var count = (f.fields && typeof f.fields.length === 'number') ? f.fields.length : 0;
+      var count = Array.isArray(f.fields) ? f.fields.length
+        : (f.fields && typeof f.fields.length === 'number') ? f.fields.length : 0;
       var cat = f.category ? String(f.category) : 'general';
       var status = f.status || 'draft';
       var label = status.charAt(0).toUpperCase() + status.slice(1);
@@ -1182,17 +1207,24 @@
         + '</button>';
     }).join('');
   }
+  // Reflect open state on the Forms icon in the Schedule right-side
+  // utility rail (data-rr-forms-toggle), mirroring how Notes / Tasks /
+  // Operations Health light their rail icon while their panel is open.
+  function rrFtoolSetRail(expanded){
+    var btn = document.querySelector('[data-rr-forms-toggle]');
+    if (btn) btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  }
   function openFormsTool(){
     rrFtoolRender();
     document.getElementById('rr-forms-tool-drawer').classList.add('open');
     document.getElementById('ap-backdrop').classList.add('open');
-    document.body.classList.add('rr-forms-tool-open');
+    rrFtoolSetRail(true);
     document.body.style.overflow = 'hidden';
   }
   function closeFormsTool(){
     document.getElementById('rr-forms-tool-drawer').classList.remove('open');
     document.getElementById('ap-backdrop').classList.remove('open');
-    document.body.classList.remove('rr-forms-tool-open');
+    rrFtoolSetRail(false);
     document.body.style.overflow = '';
   }
   // Row click → open the real form editor when a live form id is
@@ -1425,7 +1457,10 @@
       if (el) el.classList.remove('open');
     });
     document.getElementById('ap-backdrop').classList.remove('open');
-    document.body.classList.remove('rr-forms-tool-open');
+    // Clear the forms rail icon's open state too, since this catch-all
+    // closer can dismiss the forms quick-access drawer.
+    var _fbtn = document.querySelector('[data-rr-forms-toggle]');
+    if (_fbtn) _fbtn.setAttribute('aria-expanded', 'false');
     document.body.style.overflow = '';
     // The driver record is an inline pane, not a backdrop overlay —
     // collapse the split too so it closes alongside the other drawers.

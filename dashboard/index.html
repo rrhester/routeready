@@ -2177,15 +2177,16 @@ Evidence attached:
 </aside>
 
 <!-- ═══════════════════════════════════════════════════════════
-     FORMS QUICK-ACCESS TOOL · right-edge tab + slide-out drawer
-     A clipboard/notes-style quick list of the operator's forms,
-     pinned to the right edge of the viewport. Reuses the shared
-     .detail-drawer slide-out + #ap-backdrop pattern. Wiring lives
-     in mock-wiring.js (openFormsTool / closeFormsTool).
+     FORMS QUICK-ACCESS TOOL · slide-out drawer
+     A clipboard/notes-style quick list of the operator's real forms.
+     Opened from the Forms icon on the Schedule right-side utility rail
+     (data-rr-forms-toggle), alongside the Notes / Tasks / Operations
+     Health tools. Reuses the shared .detail-drawer slide-out +
+     #ap-backdrop pattern. Wiring lives in mock-wiring.js
+     (openFormsTool / closeFormsTool); the rail click is wired in
+     live.js. (The earlier standalone floating #rr-forms-tab was
+     removed in favour of the rail icon.)
      ═══════════════════════════════════════════════════════════ -->
-<button type="button" id="rr-forms-tab" aria-label="Forms" title="Forms" onclick="openFormsTool()">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12l2 2 4-4"/></svg>
-</button>
 <aside class="detail-drawer" id="rr-forms-tool-drawer" aria-label="Forms">
   <div class="detail-head">
     <div style="display:flex;gap:var(--s-3-5);align-items:flex-start;flex:1;min-width:0">
