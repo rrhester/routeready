@@ -8556,16 +8556,28 @@ function _rrSyncNotesRailTop() {
   const rail = document.getElementById("rr-sched-util-rail");
   const panels = [document.getElementById("rr-sched-notes"), document.getElementById("rr-sched-tasks")];
   if (!rail && !panels.some(Boolean)) return;
-  // Align with the calendar's day-header row — the visible "top of the
-  // schedule" (where SUN/MON… sit). The .tcp-body top is a bit higher
-  // (banners + grid padding live above the header), which left the rail
-  // riding up above the grid. The header is sticky, so its rect top
-  // stays put during scroll too. Fall back to the grid wrap, then the
-  // body, for sub-views without a calendar grid.
-  const anchor = document.querySelector("#view-schedule .cal-grid.head")
-              || document.querySelector("#view-schedule .cal-wrap")
-              || document.querySelector("#view-schedule .tcp-body");
-  const t = anchor ? Math.round(anchor.getBoundingClientRect().top) : 0;
+  // Align with the visible "top of the content" for the ACTIVE sub-view:
+  //  • Calendar → the sticky day-header row (.cal-grid.head, where SUN/MON…
+  //    sit). The .tcp-body top is higher (banners + grid padding sit above
+  //    the header), which would ride the rail up above the grid.
+  //  • Roster / Attendance → the embedded table wrap, whose sticky <thead>
+  //    (the sort-control header row) pins to its top — the calendar grid is
+  //    display:none there, so its header isn't the right anchor.
+  // The inactive sub-view's nodes are display:none (rect top 0), so we walk
+  // candidates and take the first that's actually laid out (top > 0), then
+  // fall back to .tcp-body / the CSS default when nothing's measured yet.
+  const onRoster = !!(window._schedRosterKpiActive && window._schedRosterKpiActive());
+  const sels = onRoster
+    ? ["#ob-roster-mount #rr-roster-table-wrap", "#ob-roster-mount .table-wrap", "#view-schedule .tcp-body"]
+    : ["#view-schedule .cal-grid.head", "#view-schedule .cal-wrap", "#view-schedule .tcp-body"];
+  let t = 0;
+  sels.some((s) => {
+    const el = document.querySelector(s);
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    if (r && r.top > 0) { t = Math.round(r.top); return true; }
+    return false;
+  });
   const val = t > 0 ? t + "px" : "";
   if (rail) rail.style.top = val;
   panels.forEach((p) => { if (p) p.style.top = val; });
@@ -39468,6 +39480,15 @@ window.schedSub = function (sub) {
   // supported view (Schedule / Today / Roster / Requests / Targets).
   _rrViewSegPoll();
   _rrSyncSchedViewSeg(sub);
+  // Re-anchor the right utility rail/panels to the new sub-view's content
+  // top — the calendar day-header row and the roster table head sit at
+  // different heights. Deferred (and repeated) so the swapped-in sub-view,
+  // its KPI board, and the roster table sizing have laid out first.
+  if (typeof _rrSyncNotesRailTop === "function") {
+    requestAnimationFrame(() => requestAnimationFrame(_rrSyncNotesRailTop));
+    setTimeout(_rrSyncNotesRailTop, 90);
+    setTimeout(_rrSyncNotesRailTop, 280);
+  }
   // The Smart Fill command tile doubles as "Forecast" on the Monthly view.
   if (typeof _rrSetSmartFillTileMode === "function") _rrSetSmartFillTileMode(sub === "monthly");
   // The page header reads "Forecast" (and hides the Live/Draft pill) on Monthly.
@@ -40962,6 +40983,9 @@ function _schedSizeEmbeddedRosterTable() {
   const avail = Math.max(220, Math.round(window.innerHeight - top - 16));
   const v = document.getElementById("view-schedule");
   if (v) v.style.setProperty("--rr-embed-table-maxh", avail + "px");
+  // The roster table top is now settled — re-anchor the utility rail/panels
+  // so they sit flush with the roster's (sticky) header row.
+  if (typeof _rrSyncNotesRailTop === "function") _rrSyncNotesRailTop();
 }
 window._schedSizeEmbeddedRosterTable = _schedSizeEmbeddedRosterTable;
 window.addEventListener("resize", function () {
