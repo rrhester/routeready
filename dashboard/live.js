@@ -8386,6 +8386,128 @@ document.addEventListener("click", (e) => {
   if (pop && !pop.hidden && !e.target.closest("#rr-row-more-pop")) _rrCloseRowMore();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRowMore(); });
+
+// ── Schedule · Notes workspace (right utility rail) ───────────────────
+// A Keep-style scratchpad that slides out from the schedule's right rail.
+// Notes persist in localStorage, namespaced by DSP so a shared browser
+// doesn't bleed notes across accounts. Everything is document-delegated
+// so it works whenever the schedule fragment is in the DOM. v1 is
+// device-local (no sync) — a Supabase-backed table can replace the
+// storage helpers later without touching the UI.
+function _rrNotesKey() {
+  let dsp = "";
+  try { dsp = (window.RR && window.RR.dsp && window.RR.dsp.id) || ""; } catch (_) {}
+  return "rr-sched-notes:" + (dsp || "default");
+}
+function _rrLoadNotes() {
+  try { const raw = localStorage.getItem(_rrNotesKey()); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; }
+  catch (_) { return []; }
+}
+function _rrSaveNotes(notes) {
+  try { localStorage.setItem(_rrNotesKey(), JSON.stringify(notes)); } catch (_) {}
+}
+function _rrRenderNotes() {
+  const list = document.getElementById("rr-sched-notes-list");
+  if (!list) return;
+  const notes = _rrLoadNotes().slice().sort((a, b) =>
+    ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.ts || 0) - (a.ts || 0)));
+  if (!notes.length) {
+    list.innerHTML = `<div class="sched-notes-empty">No notes yet. Jot something above — it stays on this device.</div>`;
+    return;
+  }
+  const pinIcon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg>`;
+  const delIcon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+  list.innerHTML = notes.map((n) => `
+    <div class="sched-note-card${n.pinned ? " is-pinned" : ""}" role="listitem">
+      <div class="sched-note-text">${escapeHtml(n.text || "")}</div>
+      <button type="button" class="sched-note-pin" data-rr-note-pin="${escapeHtml(n.id)}" title="${n.pinned ? "Unpin" : "Pin"}" aria-label="${n.pinned ? "Unpin note" : "Pin note"}">${pinIcon}</button>
+      <button type="button" class="sched-note-del" data-rr-note-del="${escapeHtml(n.id)}" title="Delete" aria-label="Delete note">${delIcon}</button>
+    </div>`).join("");
+}
+function _rrAddNoteFromInput() {
+  const input = document.querySelector("#rr-sched-notes [data-rr-note-input]");
+  if (!input) return;
+  const text = (input.value || "").trim();
+  if (!text) { try { input.focus(); } catch (_) {} return; }
+  const notes = _rrLoadNotes();
+  notes.push({ id: "n" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), text, pinned: false, ts: Date.now() });
+  _rrSaveNotes(notes);
+  input.value = "";
+  _rrRenderNotes();
+}
+// Start the rail/panel just below the schedule ribbon (the .tcp-body
+// top) so they never cover the ribbon's week-nav / command controls.
+// They're position:fixed, so we feed a viewport-relative top; falls back
+// to the CSS default when the schedule isn't laid out yet (hidden view).
+function _rrSyncNotesRailTop() {
+  const rail = document.getElementById("rr-sched-util-rail");
+  const panel = document.getElementById("rr-sched-notes");
+  if (!rail && !panel) return;
+  const body = document.querySelector("#view-schedule .tcp-body");
+  const top = body ? Math.round(body.getBoundingClientRect().top) : 0;
+  const val = top > 0 ? top + "px" : "";
+  if (rail) rail.style.top = val;
+  if (panel) panel.style.top = val;
+}
+try {
+  window.addEventListener("resize", _rrSyncNotesRailTop);
+  const _rrSchedView = document.getElementById("view-schedule");
+  if (_rrSchedView && typeof ResizeObserver === "function") {
+    new ResizeObserver(() => _rrSyncNotesRailTop()).observe(_rrSchedView);
+  }
+} catch (_) {}
+function _rrNotesSetOpen(open) {
+  const panel = document.getElementById("rr-sched-notes");
+  if (!panel) return;
+  _rrSyncNotesRailTop();
+  panel.classList.toggle("is-open", open);
+  panel.setAttribute("aria-hidden", open ? "false" : "true");
+  const btn = document.querySelector("[data-rr-notes-toggle]");
+  if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) {
+    _rrRenderNotes();
+    const input = panel.querySelector("[data-rr-note-input]");
+    if (input) setTimeout(() => { try { input.focus(); } catch (_) {} }, 60);
+  }
+}
+document.addEventListener("click", (e) => {
+  const toggle = e.target.closest("[data-rr-notes-toggle]");
+  if (toggle) {
+    e.preventDefault();
+    const panel = document.getElementById("rr-sched-notes");
+    _rrNotesSetOpen(!(panel && panel.classList.contains("is-open")));
+    return;
+  }
+  if (e.target.closest("[data-rr-notes-close]")) { e.preventDefault(); _rrNotesSetOpen(false); return; }
+  if (e.target.closest("[data-rr-note-add]")) { e.preventDefault(); _rrAddNoteFromInput(); return; }
+  const pin = e.target.closest("[data-rr-note-pin]");
+  if (pin) {
+    e.preventDefault();
+    const id = pin.getAttribute("data-rr-note-pin");
+    const notes = _rrLoadNotes();
+    const n = notes.find((x) => x.id === id);
+    if (n) { n.pinned = !n.pinned; _rrSaveNotes(notes); _rrRenderNotes(); }
+    return;
+  }
+  const del = e.target.closest("[data-rr-note-del]");
+  if (del) {
+    e.preventDefault();
+    const id = del.getAttribute("data-rr-note-del");
+    _rrSaveNotes(_rrLoadNotes().filter((x) => x.id !== id));
+    _rrRenderNotes();
+    return;
+  }
+});
+document.addEventListener("keydown", (e) => {
+  // Enter in the composer saves the note.
+  const input = e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-input]");
+  if (input && e.key === "Enter") { e.preventDefault(); _rrAddNoteFromInput(); return; }
+  // Escape closes the panel when it's open (and focus isn't elsewhere busy).
+  if (e.key === "Escape") {
+    const panel = document.getElementById("rr-sched-notes");
+    if (panel && panel.classList.contains("is-open")) _rrNotesSetOpen(false);
+  }
+});
 window.addEventListener("scroll", _rrCloseRosterAttendance, true);
 window.addEventListener("resize", _rrCloseRosterAttendance);
 

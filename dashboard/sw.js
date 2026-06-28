@@ -36,7 +36,8 @@
 //   2026-06-28.14 · Roster: per-row ⋯ menu (deep-link to record tabs + actions).
 //   2026-06-28.15 · Roster: ⋯ tab items open a compact peek popup (one tab, not the full record).
 //   2026-06-28.16 · Roster: row click no longer opens the full driver record (use the ⋯ menu).
-const SW_DEPLOY_NONCE = "2026-06-28.16";
+//   2026-06-28.17 · Schedule: slim right utility rail + slide-out Notes scratchpad.
+const SW_DEPLOY_NONCE = "2026-06-28.17";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

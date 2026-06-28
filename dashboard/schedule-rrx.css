@@ -5502,3 +5502,96 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 88%, #94A3B8) !important;
 }
+
+/* ── Schedule · right utility rail + Notes workspace ─────────────────
+   Slim, fixed rail pinned to the schedule's right edge (Google-style).
+   The Notes button slides out a Keep-like scratchpad panel. Scoped under
+   #view-schedule so it only shows on the schedule and hides with the
+   view (.view{display:none}). Sits above the schedule chrome
+   (--tcp-z-chrome:20) but below modals (>=100). */
+#view-schedule .sched-util-rail{
+  position:fixed; top:var(--tcp-topbar-h,56px); right:0; bottom:0;
+  width:52px; z-index:90;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  padding:12px 0;
+  background:var(--surface,#fff);
+  border-left:1px solid var(--border,rgba(15,23,42,.10));
+  box-shadow:-6px 0 18px rgba(15,23,42,.04);
+}
+#view-schedule .sched-util-btn{
+  appearance:none; cursor:pointer;
+  width:40px; height:40px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  border:1px solid transparent; background:transparent;
+  color:#EAB308;
+  transition:background var(--t-fast,.15s),border-color var(--t-fast,.15s),transform var(--t-fast,.15s);
+}
+#view-schedule .sched-util-btn svg{width:22px;height:22px}
+#view-schedule .sched-util-btn:hover{background:rgba(234,179,8,.12);border-color:rgba(234,179,8,.30)}
+#view-schedule .sched-util-btn[aria-expanded="true"]{background:rgba(234,179,8,.16);border-color:rgba(234,179,8,.42)}
+#view-schedule .sched-util-btn:focus-visible{outline:none;border-color:#EAB308;box-shadow:0 0 0 3px rgba(234,179,8,.25)}
+
+#view-schedule .sched-notes-panel{
+  position:fixed; top:var(--tcp-topbar-h,56px); right:52px; bottom:0;
+  width:min(360px,86vw); z-index:88;
+  display:flex; flex-direction:column;
+  background:var(--surface,#fff);
+  border-left:1px solid var(--border,rgba(15,23,42,.10));
+  box-shadow:-18px 0 40px rgba(15,23,42,.16);
+  transform:translateX(calc(100% + 52px));
+  transition:transform 240ms cubic-bezier(.32,.72,.4,1);
+}
+#view-schedule .sched-notes-panel.is-open{transform:translateX(0)}
+@media (prefers-reduced-motion: reduce){#view-schedule .sched-notes-panel{transition:none}}
+
+#view-schedule .sched-notes-head{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+  padding:16px 16px 12px; border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.07));
+}
+#view-schedule .sched-notes-eyebrow{font-size:11px;font-weight:700;letter-spacing:.10em;color:var(--text-subtle,#94a3b8)}
+#view-schedule .sched-notes-title{font-size:18px;font-weight:700;color:var(--text,#0f172a);margin-top:1px}
+#view-schedule .sched-notes-x{
+  appearance:none;cursor:pointer;flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:var(--text-subtle,#94a3b8);
+  display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;
+}
+#view-schedule .sched-notes-x:hover{background:var(--canvas,#f1f5f9);color:var(--text,#0f172a)}
+
+#view-schedule .sched-notes-compose{
+  display:flex; align-items:center; gap:8px;
+  margin:14px 16px 6px; padding:4px 10px;
+  border:1px solid var(--border,rgba(15,23,42,.12)); border-radius:12px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
+}
+#view-schedule .sched-notes-add{
+  appearance:none;cursor:pointer;flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:#EAB308;
+  display:flex;align-items:center;justify-content:center;transition:background .15s;
+}
+#view-schedule .sched-notes-add:hover{background:rgba(234,179,8,.12)}
+#view-schedule .sched-notes-input{
+  flex:1; min-width:0; border:0; outline:none; background:transparent;
+  font:inherit; font-size:15px; color:var(--text,#0f172a); padding:8px 0;
+}
+#view-schedule .sched-notes-input::placeholder{color:var(--text-subtle,#94a3b8)}
+
+#view-schedule .sched-notes-list{flex:1;min-height:0;overflow-y:auto;padding:8px 16px 18px;display:flex;flex-direction:column;gap:10px}
+#view-schedule .sched-note-card{
+  position:relative; border:1px solid var(--border,rgba(15,23,42,.12)); border-radius:12px;
+  padding:12px 36px 14px 14px; background:var(--surface,#fff);
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
+}
+#view-schedule .sched-note-text{font-size:14px;line-height:1.5;color:var(--text,#0f172a);white-space:pre-wrap;word-break:break-word}
+#view-schedule .sched-note-pin{
+  position:absolute; top:8px; right:8px; width:24px;height:24px;border-radius:6px;
+  appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);
+  display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s;
+}
+#view-schedule .sched-note-pin:hover{background:var(--canvas,#f1f5f9);color:var(--text-muted,#64748b)}
+#view-schedule .sched-note-card.is-pinned .sched-note-pin{color:#2563EB}
+#view-schedule .sched-note-del{
+  position:absolute; bottom:6px; right:8px; width:24px;height:24px;border-radius:6px;
+  appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);
+  display:none;align-items:center;justify-content:center;transition:color .15s,background .15s;
+}
+#view-schedule .sched-note-card:hover .sched-note-del{display:flex}
+#view-schedule .sched-note-del:hover{color:var(--red,#dc2626);background:rgba(220,38,38,.08)}
+#view-schedule .sched-notes-empty{font-size:13px;color:var(--text-subtle,#94a3b8);text-align:center;line-height:1.5;padding:28px 10px}
