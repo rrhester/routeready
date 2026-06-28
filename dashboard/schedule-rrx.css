@@ -5554,7 +5554,9 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
    the left to make room (the grid reflows into the narrower width), the
    way the Operations Health right dock does. The panel is position:fixed
    and sits in the reserved space. */
-#view-schedule .tcp-body{transition:padding-right 240ms cubic-bezier(.32,.72,.4,1)}
+/* Reserve the rail's 52px so the calendar clears it — the right-edge
+   cells stay fully visible instead of being hidden under the rail. */
+#view-schedule .tcp-body{padding-right:52px;transition:padding-right 240ms cubic-bezier(.32,.72,.4,1)}
 #view-schedule.rr-notes-open .tcp-body{padding-right:calc(min(360px,86vw) + 52px)}
 
 #view-schedule .sched-notes-head{

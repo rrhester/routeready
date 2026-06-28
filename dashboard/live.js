@@ -8444,19 +8444,14 @@ function _rrSyncNotesRailTop() {
   const rail = document.getElementById("rr-sched-util-rail");
   const panel = document.getElementById("rr-sched-notes");
   if (!rail && !panel) return;
-  const view = document.getElementById("view-schedule");
+  // Both the rail and the panel start at the schedule grid top (the
+  // .tcp-body top, just below the ribbon) so the rail lines up with the
+  // calendar instead of riding up into the ribbon.
   const body = document.querySelector("#view-schedule .tcp-body");
-  // Rail is flush with the top of the schedule view; the panel docks just
-  // below the ribbon (the .tcp-body top) so the ribbon's coverage / Live /
-  // command controls stay visible while it's open.
-  if (rail && view) {
-    const t = Math.round(view.getBoundingClientRect().top);
-    rail.style.top = t > 0 ? t + "px" : "";
-  }
-  if (panel && body) {
-    const t = Math.round(body.getBoundingClientRect().top);
-    panel.style.top = t > 0 ? t + "px" : "";
-  }
+  const t = body ? Math.round(body.getBoundingClientRect().top) : 0;
+  const val = t > 0 ? t + "px" : "";
+  if (rail) rail.style.top = val;
+  if (panel) panel.style.top = val;
 }
 try {
   window.addEventListener("resize", _rrSyncNotesRailTop);
