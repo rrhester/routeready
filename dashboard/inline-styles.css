@@ -1583,6 +1583,19 @@ td.rr-att-col{color:#1F2937;font-weight:700}
 td.rr-lastcoach-col{color:#1F2937;font-weight:700}
 td.rr-lastcoach-col > span{color:#1F2937 !important}
 td.rr-lastcoach-col > span > span{color:#4B5563 !important}
+/* "Show & order KPIs" ⋯ removed (operator) — the Schedule KPI-strip
+   customizer button leaks onto the roster, where those KPIs don't apply. */
+#rr-sched-kpi-config{display:none !important}
+/* Roster split-button pills · run the chevron divider the full height of the
+   pill, like the Smart Fill split button (operator). Stretch the chevron edge
+   to edge and zero the inset so the hairline reaches both borders. */
+.sched-kpi-pill.sched-kpi-action[data-rr-roster-status-filter] .rr-kpi-chev,
+.sched-kpi-pill.sched-kpi-action[data-rr-roster-coach-menu] .rr-kpi-chev,
+.sched-kpi-pill.sched-kpi-action[data-rr-roster-attendance] .rr-kpi-chev{
+  align-self:stretch !important;
+  margin-top:0 !important;
+  margin-bottom:0 !important;
+}
 /* ── Driver Metrics drawer · right-side slide-out (Outlook reading-pane feel).
    No blocking backdrop — the roster stays interactive behind it; the panel
    lives in #view-drivers so it hides on navigation and restores on return. */
