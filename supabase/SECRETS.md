@@ -37,8 +37,17 @@ supabase secrets set --project-ref doiwrhkirgblcvuskhno \
   PUBLIC_BASE_URL=https://doiwrhkirgblcvuskhno.functions.supabase.co/webhook-twilio \
   VAPID_PUBLIC_KEY=BJ... \
   VAPID_PRIVATE_KEY=... \
-  VAPID_SUBJECT=mailto:support@gorouteready.com
+  VAPID_SUBJECT=mailto:support@gorouteready.com \
+  FINCH_CLIENT_ID=... \
+  FINCH_CLIENT_SECRET=... \
+  FINCH_REDIRECT_URI=https://doiwrhkirgblcvuskhno.functions.supabase.co/finch-oauth-callback \
+  FINCH_SANDBOX=finch
 ```
+
+> **Setting secrets without the CLI:** you can also set every one of these in
+> the dashboard — `Project Settings → Edge Functions → Secrets` (or
+> `Project Settings → Vault`). The `finch-*` functions read them at runtime, so
+> a redeploy isn't needed after you add or change a secret.
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are auto-injected by the
 edge runtime — you do **not** set them yourself.
@@ -59,6 +68,11 @@ edge runtime — you do **not** set them yourself.
 | `APPLY_SHARED_SECRET` | `webhook-apply` | If unset, the function accepts any caller. Set + send `x-apply-secret: <value>` from external integrations. |
 | `PUBLIC_BASE_URL` | `webhook-twilio` (signature check) | Twilio signatures verify against the URL Twilio called; set to the function's public URL. |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `send-driver-push` | Required to sign Web Push JWTs. Driver PWA notifications + home-screen badge stop firing if missing. Generate once with `npx web-push generate-vapid-keys`. The public key is also written to a database setting (see §5) so the driver app can fetch it via the `driver_push_vapid_key()` RPC. |
+| `FINCH_CLIENT_ID`, `FINCH_CLIENT_SECRET` | `finch-oauth-start`, `finch-oauth-callback`, `finch-sync` | ADP/HRIS sync via Finch. From your app at <https://tryfinch.com>. If missing, the launcher's **ADP Sync → Connect** shows "ADP isn't set up on the server yet." |
+| `FINCH_REDIRECT_URI` | `finch-oauth-start`, `finch-oauth-callback` | The deployed `finch-oauth-callback` URL, e.g. `https://doiwrhkirgblcvuskhno.functions.supabase.co/finch-oauth-callback`. Must **also** be registered as a redirect URI in the Finch dashboard, or the connect popup errors. |
+| `FINCH_SANDBOX` | `finch-oauth-start` | Optional. Set `finch` (Finch-simulated) or `provider` to test without a live ADP account. Omit in production. |
+| `FINCH_API_VERSION` | `finch-sync`, `finch-oauth-callback` | Optional. Defaults to `2020-09-17`. |
+| *(reused)* `GOOGLE_TOKEN_ENC_KEY`, `OAUTH_STATE_SECRET`, `DASHBOARD_URL` | Finch + Google | The Finch functions reuse the Google integration's token-encryption key, signed-state secret, and dashboard base URL — no new values needed if Google Calendar already works. |
 
 ### Configure Twilio Messaging Service
 
