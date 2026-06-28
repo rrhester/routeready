@@ -39,7 +39,8 @@
 //   2026-06-28.17 · Schedule: slim right utility rail + slide-out Notes scratchpad.
 //   2026-06-28.18 · Schedule: rail flush-top, bookmark icon, push-to-condense, blends with bg.
 //   2026-06-28.19 · Schedule: rail shield toggles Operations Health (default hidden); old header toggle removed.
-const SW_DEPLOY_NONCE = "2026-06-28.19";
+//   2026-06-28.20 · Schedule: rail drops to the grid top; reserve its width so right-edge cells aren't clipped.
+const SW_DEPLOY_NONCE = "2026-06-28.20";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
