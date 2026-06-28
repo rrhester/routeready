@@ -51,7 +51,8 @@
 //   2026-06-28.29 · Schedule: premium V2 polish pass — coverage status card, elevated shift chips + toolbar, softer today wash, calmer hierarchy.
 //   2026-06-28.30 · Roster: search now promotes matches to the top (Matches / Other drivers) instead of filtering, so the page stays full.
 //   2026-06-28.32 · App Launcher: add an "ADP Sync" item that opens a focused box to connect/sync the DSP with ADP (mock OAuth). (.31 Marketplace reverted.)
-const SW_DEPLOY_NONCE = "2026-06-28.32";
+//   2026-06-28.33 · ADP Sync goes real: connect/sync via Finch (unified HR API) — finch-* edge functions + 0398 migration; box now talks to the server.
+const SW_DEPLOY_NONCE = "2026-06-28.33";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

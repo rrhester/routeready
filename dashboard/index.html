@@ -438,44 +438,21 @@
       </div>
     </div>
     <script>
-      // ── ADP Sync box · self-contained so it works regardless of live.js
-      //    (which auth-gates). Connect/Sync are a front-end mock that flips a
-      //    persisted state; swap in real ADP OAuth here later.
+      // ── ADP Sync box opener (pre-init fallback). The REAL connect / sync /
+      //    disconnect logic — and the live status render — live in live.js,
+      //    where the Supabase client + the operator's session exist; it
+      //    overrides window.openAdpSync once the app is ready and owns the
+      //    [data-adp] button clicks. Until then (or if the bundle is still
+      //    loading) this just opens the box with a neutral footer so the
+      //    launcher item always responds.
       (function () {
-        var KEY = 'rr-adp-sync';
-        function isOn(){ try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } }
-        function setOn(v){ try { v ? localStorage.setItem(KEY, '1') : localStorage.removeItem(KEY); } catch (e) {} }
-        function $(id){ return document.getElementById(id); }
-        function render(){
-          var foot = $('rr-adp-foot'); if (!foot) return;
-          var on = isOn();
-          var banner = $('rr-adp-banner'); if (banner) banner.hidden = !on;
-          var sub = $('rr-adp-sub');
-          if (sub) sub.textContent = on
-            ? 'Connected to ADP — your employee and PTO data stays in sync automatically.'
-            : 'Keep employees, PTO and org data in sync with your ADP account.';
-          foot.innerHTML = on
-            ? '<button type="button" class="btn btn-ghost" data-adp="disconnect">Disconnect</button>' +
-              '<button type="button" class="btn btn-primary" data-adp="sync">Sync now</button>'
-            : '<button type="button" class="btn btn-ghost" onclick="closeModal(\'modal-adp-sync\')">Cancel</button>' +
-              '<button type="button" class="btn btn-primary" data-adp="connect">Connect ADP</button>';
-        }
-        document.addEventListener('click', function (e) {
-          var t = e.target.closest('[data-adp]'); if (!t) return;
-          var act = t.getAttribute('data-adp');
-          if (act === 'connect') {
-            t.disabled = true; t.textContent = 'Connecting…';
-            setTimeout(function () { setOn(true); render(); if (window.toast) window.toast('ADP connected — syncing employees & PTO'); }, 900);
-          } else if (act === 'sync') {
-            t.disabled = true; t.textContent = 'Syncing…';
-            setTimeout(function () { var l = $('rr-adp-last'); if (l) l.textContent = 'just now'; render(); if (window.toast) window.toast('ADP sync complete'); }, 900);
-          } else if (act === 'disconnect') {
-            setOn(false); render(); if (window.toast) window.toast('Disconnected from ADP');
+        window.openAdpSync = function () {
+          var foot = document.getElementById('rr-adp-foot');
+          if (foot && !foot.children.length) {
+            foot.innerHTML = '<button type="button" class="btn btn-ghost" onclick="closeModal(\'modal-adp-sync\')">Close</button>';
           }
-        });
-        // Render the current state on open so the box always reflects reality.
-        window.openAdpSync = function () { render(); if (window.openModal) window.openModal('modal-adp-sync'); };
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render); else render();
+          if (window.openModal) window.openModal('modal-adp-sync');
+        };
       })();
     </script>
 
@@ -4852,7 +4829,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=4ad2d07c0e83"></script>
 <script src="./fleet-sync.js?v=4ad2d07c0e83"></script>
 <script src="./admin-crawl-tasks.js?v=4ad2d07c0e83"></script>
-<script type="module" src="./live.js?v=b9d2e7c41a85"></script>
+<script type="module" src="./live.js?v=c7f30a9e15d4"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

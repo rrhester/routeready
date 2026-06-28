@@ -73557,3 +73557,107 @@ async function _driveAutoFileCoaching(coachingId, driverId, payload, reason) {
     });
   } catch (e) { console.warn("[drive] coaching auto-file:", e); }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADP SYNC (via Finch) — drives the launcher's "ADP Sync" box (#modal-adp-sync).
+// The DSP connects their ADP account through Finch Connect (a popup), then
+// RouteReady pulls the roster server-side. Tokens never touch the browser; this
+// only calls the finch-* edge functions and renders status. Overrides the
+// pre-init window.openAdpSync stub in index.html once the app is ready.
+// ═══════════════════════════════════════════════════════════════════════
+function _rrAdpAgo(iso) {
+  try {
+    const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return m + " min ago";
+    const h = Math.round(m / 60);
+    if (h < 24) return h + " hr ago";
+    return Math.round(h / 24) + " d ago";
+  } catch (_) { return "recently"; }
+}
+function _rrAdpRender(state) {
+  state = state || {};
+  const foot = document.getElementById("rr-adp-foot");
+  if (!foot) return;
+  const banner = document.getElementById("rr-adp-banner");
+  const sub = document.getElementById("rr-adp-sub");
+  const last = document.getElementById("rr-adp-last");
+  const connected = !!state.connected;
+  if (banner) banner.hidden = !connected;
+  if (sub) {
+    if (connected) sub.textContent = "Connected to " + (state.provider_name || "ADP") + " — " + (state.employee_count || 0) + " employees in sync.";
+    else if (state.configured === false) sub.textContent = "ADP isn’t set up on this account yet — connect to get started.";
+    else sub.textContent = "Keep employees, PTO and org data in sync with your ADP account.";
+  }
+  if (last && state.last_synced_at) last.textContent = _rrAdpAgo(state.last_synced_at);
+  if (state.loading) {
+    foot.innerHTML = '<button type="button" class="btn btn-ghost" disabled>Checking…</button>';
+  } else if (connected) {
+    foot.innerHTML =
+      '<button type="button" class="btn btn-ghost" data-adp="disconnect">Disconnect</button>' +
+      '<button type="button" class="btn btn-primary" data-adp="sync">Sync now</button>';
+  } else {
+    foot.innerHTML =
+      '<button type="button" class="btn btn-ghost" onclick="closeModal(\'modal-adp-sync\')">Cancel</button>' +
+      '<button type="button" class="btn btn-primary" data-adp="connect">Connect ADP</button>';
+  }
+}
+async function _rrAdpStatus() {
+  try {
+    const { data, error } = await sb.functions.invoke("finch-sync", { body: { action: "status" } });
+    if (error) throw error;
+    return data || { connected: false };
+  } catch (_) {
+    // Function not deployed / Finch not configured yet → honest not-connected state.
+    return { connected: false, configured: false };
+  }
+}
+window.openAdpSync = async function () {
+  if (typeof openModal === "function") openModal("modal-adp-sync");
+  _rrAdpRender({ loading: true });
+  _rrAdpRender(await _rrAdpStatus());
+};
+async function _rrAdpConnect() {
+  try {
+    const { data, error } = await sb.functions.invoke("finch-oauth-start", { body: {} });
+    if (error || !data || !data.url) {
+      toast("ADP isn’t set up on the server yet — see the setup steps.", "warn");
+      return;
+    }
+    const popup = window.open(data.url, "rr-finch", "width=560,height=680");
+    const onMsg = async (ev) => {
+      if (!ev.data || ev.data.type !== "rr-finch") return;
+      window.removeEventListener("message", onMsg);
+      try { popup && popup.close(); } catch (_) {}
+      if (ev.data.ok) { toast("ADP connected", "success"); _rrAdpRender(await _rrAdpStatus()); }
+      else toast("ADP connection failed: " + (ev.data.message || ""), "warn");
+    };
+    window.addEventListener("message", onMsg);
+  } catch (e) { toast("Connect failed: " + (e.message || e), "warn"); }
+}
+async function _rrAdpSync(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Syncing…"; }
+  try {
+    const { data, error } = await sb.functions.invoke("finch-sync", { body: { action: "sync" } });
+    if (error) throw error;
+    toast("ADP sync complete — " + (data && data.synced != null ? data.synced : 0) + " employees", "success");
+  } catch (e) { toast("Sync failed: " + (e.message || e), "warn"); }
+  _rrAdpRender(await _rrAdpStatus());
+}
+async function _rrAdpDisconnect() {
+  if (!confirm("Disconnect ADP? RouteReady will stop syncing your ADP roster.")) return;
+  try {
+    const { error } = await sb.functions.invoke("finch-sync", { body: { action: "disconnect" } });
+    if (error) throw error;
+    toast("Disconnected from ADP", "success");
+  } catch (e) { toast("Disconnect failed: " + (e.message || e), "warn"); }
+  _rrAdpRender(await _rrAdpStatus());
+}
+document.addEventListener("click", function (e) {
+  const t = e.target.closest("[data-adp]");
+  if (!t) return;
+  const act = t.getAttribute("data-adp");
+  if (act === "connect") _rrAdpConnect(t);
+  else if (act === "sync") _rrAdpSync(t);
+  else if (act === "disconnect") _rrAdpDisconnect();
+});
