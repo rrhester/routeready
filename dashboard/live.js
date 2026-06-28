@@ -8387,53 +8387,177 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRowMore(); });
 
-// ── Schedule · Notes workspace (right utility rail) ───────────────────
-// A Keep-style scratchpad that slides out from the schedule's right rail.
-// Notes persist in localStorage, namespaced by DSP so a shared browser
-// doesn't bleed notes across accounts. Everything is document-delegated
-// so it works whenever the schedule fragment is in the DOM. v1 is
-// device-local (no sync) — a Supabase-backed table can replace the
-// storage helpers later without touching the UI.
-function _rrNotesKey() {
+// ── Schedule · Notes & Tasks panel (right utility rail) ───────────────
+// A polished productivity rail that slides out from the schedule's right
+// rail: a Notes tab (rich composer + premium cards) and a Tasks tab
+// (checklist). Both persist in localStorage, namespaced by DSP so a shared
+// browser doesn't bleed across accounts. Document-delegated so it works
+// whenever the schedule fragment is in the DOM. Device-local for now — the
+// storage helpers can be swapped for a Supabase table without UI changes.
+function _rrNtKey(kind) {
   let dsp = "";
   try { dsp = (window.RR && window.RR.dsp && window.RR.dsp.id) || ""; } catch (_) {}
-  return "rr-sched-notes:" + (dsp || "default");
+  return "rr-sched-" + kind + ":" + (dsp || "default");
 }
-function _rrLoadNotes() {
-  try { const raw = localStorage.getItem(_rrNotesKey()); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; }
+function _rrNtLoad(kind) {
+  try { const raw = localStorage.getItem(_rrNtKey(kind)); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; }
   catch (_) { return []; }
 }
-function _rrSaveNotes(notes) {
-  try { localStorage.setItem(_rrNotesKey(), JSON.stringify(notes)); } catch (_) {}
+function _rrNtStore(kind, arr) { try { localStorage.setItem(_rrNtKey(kind), JSON.stringify(arr)); } catch (_) {} }
+function _rrLoadNotes() { return _rrNtLoad("notes"); }
+function _rrSaveNotes(a) { _rrNtStore("notes", a); }
+function _rrLoadTasks() { return _rrNtLoad("tasks"); }
+function _rrSaveTasks(a) { _rrNtStore("tasks", a); }
+function _rrNtId(p) { return p + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); }
+function _rrNtUserName() {
+  try { const u = window.RR && window.RR.user; return (u && (u.full_name || u.name || u.email)) || ""; } catch (_) { return ""; }
 }
+function _rrNtFmtTime(ts) {
+  try { const d = new Date(ts);
+    return d.toLocaleDateString([], { month: "short", day: "numeric" }) + ", " +
+           d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch (_) { return ""; }
+}
+function _rrNtFmtDue(s) { try { return new Date(s + "T12:00:00").toLocaleDateString([], { month: "short", day: "numeric" }); } catch (_) { return s; } }
+function _rrNtDueClass(s) {
+  try { const due = new Date(s + "T23:59:59").getTime(); const now = Date.now();
+    if (due < now) return " is-over"; if (due - now < 2 * 86400000) return " is-soon"; return "";
+  } catch (_) { return ""; }
+}
+function _rrNtPlain(html) { if (!html) return ""; const d = document.createElement("div"); d.innerHTML = html; return d.textContent || ""; }
+// Light whitelist sanitizer for rich note HTML (single-user localStorage).
+function _rrNtSanitize(html) {
+  const tpl = document.createElement("div"); tpl.innerHTML = html || "";
+  const ok = new Set(["B","STRONG","I","EM","U","A","UL","OL","LI","BR","DIV","SPAN","P","CODE","IMG"]);
+  const walk = (node) => {
+    Array.from(node.childNodes).forEach((c) => {
+      if (c.nodeType !== 1) return;
+      if (!ok.has(c.tagName)) { c.replaceWith(document.createTextNode(c.textContent || "")); return; }
+      Array.from(c.attributes).forEach((a) => {
+        const nm = a.name.toLowerCase();
+        if (nm === "href" && c.tagName === "A" && !/^\s*javascript:/i.test(a.value)) return;
+        if (nm === "src"  && c.tagName === "IMG" && !/^\s*javascript:/i.test(a.value)) return;
+        c.removeAttribute(a.name);
+      });
+      if (c.tagName === "A") { c.setAttribute("target", "_blank"); c.setAttribute("rel", "noopener noreferrer"); }
+      walk(c);
+    });
+  };
+  walk(tpl); return tpl.innerHTML;
+}
+function _rrNtOnTasks() { const p = document.getElementById("rr-sched-notes"); return !!(p && p.classList.contains("ntp-on-tasks")); }
+
+let _rrNotesShowAll = false;
+const _RR_NTPIN = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg>`;
+const _RR_NTMENU = `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>`;
+const _RR_NTCHECK = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
 function _rrRenderNotes() {
   const list = document.getElementById("rr-sched-notes-list");
-  if (!list) return;
-  const notes = _rrLoadNotes().slice().sort((a, b) =>
+  const countEl = document.getElementById("rr-nt-note-count");
+  let notes = _rrLoadNotes().slice().sort((a, b) =>
     ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.ts || 0) - (a.ts || 0)));
-  if (!notes.length) {
-    list.innerHTML = `<div class="sched-notes-empty">No notes yet. Jot something above — it stays on this device.</div>`;
+  if (countEl) countEl.textContent = String(notes.length);
+  if (!list) return;
+  const q = (() => { const i = document.querySelector("#rr-sched-notes [data-rr-note-search]"); return ((i && i.value) || "").trim().toLowerCase(); })();
+  const filt = (() => { const l = document.querySelector("#rr-sched-notes [data-rr-note-filter-label]"); return (l && l.textContent) || "All Notes"; })();
+  if (filt === "Pinned") notes = notes.filter((n) => n.pinned);
+  if (q) notes = notes.filter((n) => ((n.text || _rrNtPlain(n.html)) || "").toLowerCase().includes(q));
+  const shown = (_rrNotesShowAll || q) ? notes : notes.slice(0, 6);
+  if (!shown.length) {
+    list.innerHTML = `<div class="ntp-empty">${q ? "No notes match your search." : "No notes yet — jot something above. It stays on this device."}</div>`;
     return;
   }
-  const pinIcon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg>`;
-  const delIcon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
-  list.innerHTML = notes.map((n) => `
-    <div class="sched-note-card${n.pinned ? " is-pinned" : ""}" role="listitem">
-      <div class="sched-note-text">${escapeHtml(n.text || "")}</div>
-      <button type="button" class="sched-note-pin" data-rr-note-pin="${escapeHtml(n.id)}" title="${n.pinned ? "Unpin" : "Pin"}" aria-label="${n.pinned ? "Unpin note" : "Pin note"}">${pinIcon}</button>
-      <button type="button" class="sched-note-del" data-rr-note-del="${escapeHtml(n.id)}" title="Delete" aria-label="Delete note">${delIcon}</button>
-    </div>`).join("");
+  list.innerHTML = shown.map((n) => {
+    const body = n.html ? _rrNtSanitize(n.html) : escapeHtml(n.text || "").replace(/\n/g, "<br>");
+    const type = n.type ? ` data-type="${escapeHtml(n.type)}"` : "";
+    const author = n.author ? `<span class="ntp-note-author">${escapeHtml(n.author)}</span>` : "";
+    return `<div class="ntp-note${n.pinned ? " is-pinned" : ""}"${type} role="listitem" data-rr-note-id="${escapeHtml(n.id)}">
+      <div class="ntp-note-top"><span class="ntp-note-time">${escapeHtml(_rrNtFmtTime(n.ts))}</span>${author}</div>
+      <div class="ntp-note-body">${body}</div>
+      <button type="button" class="ntp-note-pin" data-rr-note-pin="${escapeHtml(n.id)}" title="${n.pinned ? "Unpin" : "Pin"}" aria-label="${n.pinned ? "Unpin note" : "Pin note"}">${_RR_NTPIN}</button>
+      <button type="button" class="ntp-note-menu" data-rr-note-menu="${escapeHtml(n.id)}" title="Delete note" aria-label="Delete note">${_RR_NTMENU}</button>
+    </div>`;
+  }).join("");
 }
+function _rrRenderTasks() {
+  const list = document.getElementById("rr-sched-tasks-list");
+  const badge = document.getElementById("rr-nt-task-badge");
+  const countEl = document.getElementById("rr-nt-task-count");
+  const tasks = _rrLoadTasks().slice().sort((a, b) =>
+    ((a.done ? 1 : 0) - (b.done ? 1 : 0)) ||
+    ((a.due ? Date.parse(a.due + "T12:00:00") : Infinity) - (b.due ? Date.parse(b.due + "T12:00:00") : Infinity)) ||
+    ((b.ts || 0) - (a.ts || 0)));
+  const open = tasks.filter((t) => !t.done).length;
+  if (badge) { badge.textContent = String(open); badge.style.display = open ? "" : "none"; }
+  if (countEl) countEl.textContent = String(tasks.length);
+  if (!list) return;
+  if (!tasks.length) { list.innerHTML = `<div class="ntp-empty">No tasks yet — add one above.</div>`; return; }
+  const shown = _rrNtOnTasks() ? tasks : tasks.slice(0, 4);
+  const init = (_rrNtUserName() || "").trim().slice(0, 1).toUpperCase() || "•";
+  list.innerHTML = shown.map((t) => {
+    const due = t.due ? `<span class="ntp-task-due${_rrNtDueClass(t.due)}">${escapeHtml(_rrNtFmtDue(t.due))}</span>` : "";
+    return `<div class="ntp-task${t.done ? " is-done" : ""}" role="listitem" data-rr-task-id="${escapeHtml(t.id)}">
+      <button type="button" class="ntp-task-check" data-rr-task-toggle="${escapeHtml(t.id)}" role="checkbox" aria-checked="${t.done ? "true" : "false"}" aria-label="Toggle complete">${_RR_NTCHECK}</button>
+      <span class="ntp-task-title">${escapeHtml(t.title || "")}</span>
+      ${due}
+      <span class="ntp-task-avatar" title="${escapeHtml(_rrNtUserName() || "")}">${escapeHtml(init)}</span>
+    </div>`;
+  }).join("");
+}
+function _rrNtRenderAll() { _rrRenderNotes(); _rrRenderTasks(); }
 function _rrAddNoteFromInput() {
-  const input = document.querySelector("#rr-sched-notes [data-rr-note-input]");
-  if (!input) return;
-  const text = (input.value || "").trim();
-  if (!text) { try { input.focus(); } catch (_) {} return; }
+  const ed = document.querySelector("#rr-sched-notes [data-rr-note-input]");
+  if (!ed) return;
+  if (!(ed.textContent || "").trim()) { try { ed.focus(); } catch (_) {} return; }
+  const pinBtn = document.querySelector("#rr-sched-notes [data-rr-note-pin-toggle]");
   const notes = _rrLoadNotes();
-  notes.push({ id: "n" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), text, pinned: false, ts: Date.now() });
+  const note = { id: _rrNtId("n"), html: _rrNtSanitize(ed.innerHTML), pinned: !!(pinBtn && pinBtn.getAttribute("aria-pressed") === "true"), ts: Date.now() };
+  const who = _rrNtUserName(); if (who) note.author = who;
+  notes.push(note);
   _rrSaveNotes(notes);
-  input.value = "";
+  ed.innerHTML = "";
+  if (pinBtn) pinBtn.setAttribute("aria-pressed", "false");
+  _rrNotesShowAll = false;
   _rrRenderNotes();
+}
+function _rrAddTaskFromForm() {
+  const ti = document.querySelector("#rr-sched-notes [data-rr-task-title]");
+  const de = document.querySelector("#rr-sched-notes [data-rr-task-due]");
+  if (!ti) return;
+  const title = (ti.value || "").trim();
+  if (!title) { try { ti.focus(); } catch (_) {} return; }
+  const tasks = _rrLoadTasks();
+  tasks.push({ id: _rrNtId("t"), title, due: (de && de.value) || "", done: false, ts: Date.now() });
+  _rrSaveTasks(tasks);
+  ti.value = ""; if (de) de.value = "";
+  const form = document.querySelector("#rr-sched-notes [data-rr-task-form]"); if (form) form.hidden = true;
+  _rrRenderTasks();
+}
+function _rrNtFormat(kind) {
+  const ed = document.querySelector("#rr-sched-notes [data-rr-note-input]");
+  if (ed) { try { ed.focus(); } catch (_) {} }
+  try {
+    if (kind === "bold") document.execCommand("bold");
+    else if (kind === "italic") document.execCommand("italic");
+    else if (kind === "checklist") document.execCommand("insertUnorderedList");
+    else if (kind === "link") { const u = prompt("Link URL:"); if (u) document.execCommand("createLink", false, u); }
+    else if (kind === "image") { const u = prompt("Image URL:"); if (u) document.execCommand("insertImage", false, u); }
+  } catch (_) {}
+}
+function _rrNtSetTab(which) {
+  const panel = document.getElementById("rr-sched-notes");
+  if (!panel) return;
+  const onTasks = which === "tasks";
+  panel.classList.toggle("ntp-on-tasks", onTasks);
+  panel.querySelectorAll("[data-rr-nt-tab]").forEach((b) => {
+    const on = b.getAttribute("data-rr-nt-tab") === which;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const title = panel.querySelector("[data-rr-tasks-title]");
+  if (title) title.textContent = onTasks ? "All Tasks" : "Tasks";
+  _rrNtRenderAll();
 }
 // Align the rail/panel top flush with the top of the schedule view, so
 // the sidebar starts level with the schedule rather than below the
@@ -8502,9 +8626,9 @@ function _rrNotesSetOpen(open) {
   const btn = document.querySelector("[data-rr-notes-toggle]");
   if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
   if (open) {
-    _rrRenderNotes();
-    const input = panel.querySelector("[data-rr-note-input]");
-    if (input) setTimeout(() => { try { input.focus(); } catch (_) {} }, 60);
+    _rrNtRenderAll();
+    const ed = panel.querySelector("[data-rr-note-input]");
+    if (ed) setTimeout(() => { try { ed.focus(); } catch (_) {} }, 60);
   }
 }
 document.addEventListener("click", (e) => {
@@ -8516,7 +8640,16 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (e.target.closest("[data-rr-notes-close]")) { e.preventDefault(); _rrNotesSetOpen(false); return; }
+  // Tabs
+  const tab = e.target.closest("[data-rr-nt-tab]");
+  if (tab) { e.preventDefault(); _rrNtSetTab(tab.getAttribute("data-rr-nt-tab")); return; }
+  // Composer
   if (e.target.closest("[data-rr-note-add]")) { e.preventDefault(); _rrAddNoteFromInput(); return; }
+  const pinT = e.target.closest("[data-rr-note-pin-toggle]");
+  if (pinT) { e.preventDefault(); pinT.setAttribute("aria-pressed", pinT.getAttribute("aria-pressed") === "true" ? "false" : "true"); return; }
+  const fmt = e.target.closest("[data-rr-note-fmt]");
+  if (fmt) { e.preventDefault(); _rrNtFormat(fmt.getAttribute("data-rr-note-fmt")); return; }
+  // Note card actions
   const pin = e.target.closest("[data-rr-note-pin]");
   if (pin) {
     e.preventDefault();
@@ -8526,20 +8659,48 @@ document.addEventListener("click", (e) => {
     if (n) { n.pinned = !n.pinned; _rrSaveNotes(notes); _rrRenderNotes(); }
     return;
   }
-  const del = e.target.closest("[data-rr-note-del]");
-  if (del) {
+  const menu = e.target.closest("[data-rr-note-menu]");
+  if (menu) {
     e.preventDefault();
-    const id = del.getAttribute("data-rr-note-del");
-    _rrSaveNotes(_rrLoadNotes().filter((x) => x.id !== id));
-    _rrRenderNotes();
+    const id = menu.getAttribute("data-rr-note-menu");
+    if (window.confirm("Delete this note?")) { _rrSaveNotes(_rrLoadNotes().filter((x) => x.id !== id)); _rrRenderNotes(); }
     return;
   }
+  // Notes filter + view-all
+  const fc = e.target.closest("[data-rr-note-filter-cycle]");
+  if (fc) { e.preventDefault(); const l = fc.querySelector("[data-rr-note-filter-label]"); if (l) { l.textContent = l.textContent === "All Notes" ? "Pinned" : "All Notes"; _rrRenderNotes(); } return; }
+  if (e.target.closest("[data-rr-note-viewall]")) { e.preventDefault(); _rrNotesShowAll = !_rrNotesShowAll; _rrRenderNotes(); return; }
+  // Tasks
+  if (e.target.closest("[data-rr-task-add-open]")) {
+    e.preventDefault();
+    const f = document.querySelector("#rr-sched-notes [data-rr-task-form]");
+    if (f) { f.hidden = !f.hidden; if (!f.hidden) { const ti = f.querySelector("[data-rr-task-title]"); if (ti) setTimeout(() => { try { ti.focus(); } catch (_) {} }, 40); } }
+    return;
+  }
+  if (e.target.closest("[data-rr-task-add]")) { e.preventDefault(); _rrAddTaskFromForm(); return; }
+  if (e.target.closest("[data-rr-task-cancel]")) { e.preventDefault(); const f = document.querySelector("#rr-sched-notes [data-rr-task-form]"); if (f) f.hidden = true; return; }
+  const tg = e.target.closest("[data-rr-task-toggle]");
+  if (tg) {
+    e.preventDefault();
+    const id = tg.getAttribute("data-rr-task-toggle");
+    const tasks = _rrLoadTasks();
+    const t = tasks.find((x) => x.id === id);
+    if (t) { t.done = !t.done; _rrSaveTasks(tasks); _rrRenderTasks(); }
+    return;
+  }
+  if (e.target.closest("[data-rr-task-viewall]")) { e.preventDefault(); _rrNtSetTab("tasks"); return; }
+});
+document.addEventListener("input", (e) => {
+  if (e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-search]")) _rrRenderNotes();
 });
 document.addEventListener("keydown", (e) => {
-  // Enter in the composer saves the note.
-  const input = e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-input]");
-  if (input && e.key === "Enter") { e.preventDefault(); _rrAddNoteFromInput(); return; }
-  // Escape closes the panel when it's open (and focus isn't elsewhere busy).
+  if (e.key === "Enter") {
+    const tt = e.target.closest && e.target.closest("#rr-sched-notes [data-rr-task-title]");
+    if (tt) { e.preventDefault(); _rrAddTaskFromForm(); return; }
+    // Composer: plain Enter = newline (contenteditable default); ⌘/Ctrl+Enter saves.
+    const ed = e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-input]");
+    if (ed && (e.metaKey || e.ctrlKey)) { e.preventDefault(); _rrAddNoteFromInput(); return; }
+  }
   if (e.key === "Escape") {
     const panel = document.getElementById("rr-sched-notes");
     if (panel && panel.classList.contains("is-open")) _rrNotesSetOpen(false);

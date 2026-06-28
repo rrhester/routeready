@@ -2885,19 +2885,64 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor"/><polyline points="8.5 12 11 14.5 15.5 9.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
-        <aside class="sched-notes-panel" id="rr-sched-notes" aria-label="Notes" aria-hidden="true">
-          <div class="sched-notes-head">
-            <div class="sched-notes-head-txt">
-              <div class="sched-notes-eyebrow">NOTES</div>
-              <div class="sched-notes-title">Scratchpad</div>
+        <aside class="sched-notes-panel" id="rr-sched-notes" aria-label="Notes &amp; Tasks" aria-hidden="true">
+          <div class="ntp-head">
+            <div class="ntp-head-title">Notes &amp; Tasks</div>
+            <button type="button" class="ntp-icon-btn" data-rr-notes-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+
+          <div class="ntp-tabs" role="tablist">
+            <button type="button" class="ntp-tab is-active" role="tab" aria-selected="true" data-rr-nt-tab="notes">Notes</button>
+            <button type="button" class="ntp-tab" role="tab" aria-selected="false" data-rr-nt-tab="tasks">Tasks<span class="ntp-tab-badge" id="rr-nt-task-badge">0</span></button>
+          </div>
+
+          <div class="ntp-scroll">
+            <div class="ntp-notes-block" data-rr-nt-notes>
+              <div class="ntp-composer">
+                <div class="ntp-composer-row">
+                  <span class="ntp-composer-plus" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+                  <div class="ntp-composer-input" contenteditable="true" role="textbox" aria-label="Take a note" data-rr-note-input data-placeholder="Take a note…"></div>
+                  <button type="button" class="ntp-composer-pin" data-rr-note-pin-toggle aria-pressed="false" title="Pin this note" aria-label="Pin this note"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg></button>
+                </div>
+                <div class="ntp-composer-foot">
+                  <div class="ntp-fmt" role="group" aria-label="Formatting">
+                    <button type="button" class="ntp-fmt-btn" data-rr-note-fmt="checklist" title="Checklist" aria-label="Checklist"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 1.8 1.8L8 5.6"/><path d="m3 16 1.8 1.8L8 14.6"/><line x1="12" y1="7" x2="21" y2="7"/><line x1="12" y1="17" x2="21" y2="17"/></svg></button>
+                    <button type="button" class="ntp-fmt-btn ntp-fmt-bold" data-rr-note-fmt="bold" title="Bold" aria-label="Bold">B</button>
+                    <button type="button" class="ntp-fmt-btn ntp-fmt-italic" data-rr-note-fmt="italic" title="Italic" aria-label="Italic">I</button>
+                    <button type="button" class="ntp-fmt-btn" data-rr-note-fmt="link" title="Link" aria-label="Link"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+                    <button type="button" class="ntp-fmt-btn" data-rr-note-fmt="image" title="Image" aria-label="Image"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></svg></button>
+                  </div>
+                  <button type="button" class="ntp-add-btn" data-rr-note-add>Add Note</button>
+                </div>
+              </div>
+
+              <div class="ntp-filter">
+                <button type="button" class="ntp-filter-sel" data-rr-note-filter-cycle aria-label="Filter notes"><span data-rr-note-filter-label>All Notes</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+                <div class="ntp-search"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" data-rr-note-search placeholder="Search notes…" aria-label="Search notes"/></div>
+                <button type="button" class="ntp-icon-btn ntp-soft" data-rr-note-sort title="Sort &amp; filter" aria-label="Sort and filter"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg></button>
+              </div>
+
+              <div class="ntp-list" id="rr-sched-notes-list" role="list"></div>
+              <a href="#" class="ntp-viewall" data-rr-note-viewall>View all notes (<span id="rr-nt-note-count">0</span>)</a>
             </div>
-            <button type="button" class="sched-notes-x" data-rr-notes-close title="Close" aria-label="Close notes"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+
+            <div class="ntp-tasks-block" data-rr-nt-tasks>
+              <div class="ntp-tasks-head">
+                <div class="ntp-section-title" data-rr-tasks-title>Tasks</div>
+                <button type="button" class="ntp-addtask-btn" data-rr-task-add-open><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Task</button>
+              </div>
+              <div class="ntp-task-form" data-rr-task-form hidden>
+                <input type="text" class="ntp-task-input" data-rr-task-title placeholder="Task title…" aria-label="Task title" maxlength="200"/>
+                <div class="ntp-task-form-row">
+                  <input type="date" class="ntp-task-date" data-rr-task-due aria-label="Due date"/>
+                  <button type="button" class="ntp-add-btn ntp-add-btn-sm" data-rr-task-add>Add</button>
+                  <button type="button" class="ntp-ghost-btn" data-rr-task-cancel>Cancel</button>
+                </div>
+              </div>
+              <div class="ntp-tasklist" id="rr-sched-tasks-list" role="list"></div>
+              <a href="#" class="ntp-viewall" data-rr-task-viewall>View all tasks (<span id="rr-nt-task-count">0</span>)</a>
+            </div>
           </div>
-          <div class="sched-notes-compose">
-            <button type="button" class="sched-notes-add" data-rr-note-add title="Add note" aria-label="Add note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-            <input type="text" class="sched-notes-input" data-rr-note-input placeholder="Take a note…" aria-label="Take a note" maxlength="2000"/>
-          </div>
-          <div class="sched-notes-list" id="rr-sched-notes-list" role="list"></div>
         </aside>
       </div>
     
