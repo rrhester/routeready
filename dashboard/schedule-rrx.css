@@ -5524,21 +5524,26 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
   display:flex; align-items:center; justify-content:center;
   border:1px solid transparent; background:transparent;
   color:rgb(49,134,255);
-  transition:background var(--t-fast,.15s),border-color var(--t-fast,.15s),transform var(--t-fast,.15s);
+  /* Transform snaps fast for the press (~60ms); colour fades stay calmer. */
+  transition:background var(--t-fast,.15s),border-color var(--t-fast,.15s),transform 70ms ease;
 }
-#view-schedule .sched-util-btn svg{width:22px;height:22px}
+#view-schedule .sched-util-btn svg{width:22px;height:22px;position:relative;z-index:1}
+/* Press feedback — a subtle Google-style scale-down on pointer-down. */
+#view-schedule .sched-util-btn:active{transform:scale(.96)}
 #view-schedule .sched-util-btn:hover{background:rgba(49,134,255,.12);border-color:rgba(49,134,255,.30)}
-#view-schedule .sched-util-btn[aria-expanded="true"]{background:rgba(49,134,255,.16);border-color:rgba(49,134,255,.42)}
+/* Active (panel open) — a unified soft yellow (the RouteReady accent) sits
+   behind the icon for every utility: the colour the open ripple settles
+   into, held while that panel stays open. The icon keeps its resting hue. */
+#view-schedule .sched-util-btn[aria-expanded="true"]{background:rgba(246,161,0,.16);border-color:rgba(246,161,0,.42)}
 #view-schedule .sched-util-btn:focus-visible{outline:none;border-color:rgb(49,134,255);box-shadow:0 0 0 3px rgba(49,134,255,.25)}
 /* Tasks — its own green (semantically "checklist / done"), distinct from
    the blue Notes bookmark and gold Operations shield. */
 #view-schedule .sched-util-btn--tasks{color:#16A34A}
 #view-schedule .sched-util-btn--tasks:hover{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.30)}
-#view-schedule .sched-util-btn--tasks[aria-expanded="true"]{background:rgba(22,163,74,.16);border-color:rgba(22,163,74,.42)}
 #view-schedule .sched-util-btn--tasks:focus-visible{border-color:#16A34A;box-shadow:0 0 0 3px rgba(22,163,74,.25)}
 /* Open-task count riding the Tasks icon (hidden when zero, via JS). */
 #view-schedule .sched-util-badge{
-  position:absolute; top:0; right:0; min-width:16px; height:16px; padding:0 4px;
+  position:absolute; top:0; right:0; min-width:16px; height:16px; padding:0 4px; z-index:2;
   border-radius:8px; background:#16A34A; color:#fff; font-size:10px; font-weight:700;
   line-height:16px; text-align:center; box-shadow:0 0 0 2px var(--canvas,#F9FAFB); pointer-events:none;
 }
@@ -5546,8 +5551,23 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
    the blue Notes bookmark. */
 #view-schedule .sched-util-btn--ops{color:rgb(246,161,0)}
 #view-schedule .sched-util-btn--ops:hover{background:rgba(246,161,0,.12);border-color:rgba(246,161,0,.30)}
-#view-schedule .sched-util-btn--ops[aria-expanded="true"]{background:rgba(246,161,0,.16);border-color:rgba(246,161,0,.42)}
 #view-schedule .sched-util-btn--ops:focus-visible{border-color:rgb(246,161,0);box-shadow:0 0 0 3px rgba(246,161,0,.25)}
+/* Press ripple — a soft yellow circle blooms from the icon centre on
+   pointer-down (spawned in JS, self-removing). GPU-only (transform +
+   opacity), painted behind the icon, no layout impact. */
+@keyframes rrUtilRipple{
+  from{transform:translate(-50%,-50%) scale(0);opacity:.30}
+  to{transform:translate(-50%,-50%) scale(1.8);opacity:0}
+}
+#view-schedule .rr-util-ripple{
+  position:absolute; left:50%; top:50%; width:40px; height:40px; border-radius:50%;
+  background:rgb(246,161,0); opacity:0; pointer-events:none; z-index:0;
+  animation:rrUtilRipple 180ms cubic-bezier(0,0,.2,1) forwards;
+}
+@media (prefers-reduced-motion: reduce){
+  #view-schedule .sched-util-btn:active{transform:none}
+  #view-schedule .rr-util-ripple{display:none}
+}
 
 #view-schedule .sched-notes-panel{
   position:fixed; top:var(--tcp-topbar-h,56px); right:52px; bottom:0;
@@ -5561,10 +5581,25 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
      not a floating sheet. */
   border:1px solid var(--border,rgba(15,23,42,.10));
   transform:translateX(calc(100% + 52px));
-  transition:transform 240ms cubic-bezier(.32,.72,.4,1);
+  /* Google-Calendar slide curve — calm, no overshoot. */
+  transition:transform 240ms cubic-bezier(.2,0,.2,1);
+  will-change:transform;
 }
 #view-schedule .sched-notes-panel.is-open{transform:translateX(0)}
-@media (prefers-reduced-motion: reduce){#view-schedule .sched-notes-panel{transition:none}}
+/* Content settles in just after the panel starts opening: header + body
+   lift 0→100% opacity over 120ms, ~100ms in (one fade, not staggered per
+   card). On close they drop out first (no delay), so the panel slides away
+   already empty. */
+#view-schedule .sched-notes-panel .ntp-head,
+#view-schedule .sched-notes-panel .ntp-scroll{opacity:0;transition:opacity 120ms ease}
+#view-schedule .sched-notes-panel.is-open .ntp-head,
+#view-schedule .sched-notes-panel.is-open .ntp-scroll{opacity:1;transition:opacity 120ms ease 100ms}
+@media (prefers-reduced-motion: reduce){
+  #view-schedule .sched-notes-panel,
+  #view-schedule .sched-notes-panel .ntp-head,
+  #view-schedule .sched-notes-panel .ntp-scroll,
+  #view-schedule .tcp-body{transition:none}
+}
 
 /* Push, don't overlay — when Notes is open, condense the schedule body to
    the left to make room (the grid reflows into the narrower width), the
@@ -5572,7 +5607,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
    and sits in the reserved space. */
 /* Reserve the rail's 52px so the calendar clears it — the right-edge
    cells stay fully visible instead of being hidden under the rail. */
-#view-schedule .tcp-body{padding-right:52px;transition:padding-right 240ms cubic-bezier(.32,.72,.4,1)}
+#view-schedule .tcp-body{padding-right:52px;transition:padding-right 240ms cubic-bezier(.2,0,.2,1)}
 #view-schedule.rr-notes-open .tcp-body{padding-right:calc(min(360px,86vw) + 52px)}
 
 /* ── Notes & Tasks panel · enterprise productivity rail ─────────────
