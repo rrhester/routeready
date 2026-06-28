@@ -8355,8 +8355,9 @@ function _rrRowMoreDispatch(action, id) {
     else toast("Driver not found", "warn");
     return;
   }
-  // Anything else is a driver-record tab → open the record on it.
-  if (typeof openDriverDrawer === "function") openDriverDrawer(id, { tab: action });
+  // Anything else is a driver-record tab → open it in a compact peek
+  // popup (that single tab only, not the full record workspace).
+  if (typeof openDriverDrawer === "function") openDriverDrawer(id, { tab: action, peek: true });
 }
 document.addEventListener("click", (e) => {
   const moreTrigger = e.target.closest("[data-rr-row-more]");
@@ -22189,6 +22190,28 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-panel{width:640px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);box-shadow:-14px 0 36px rgba(15,23,42,.13);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1);pointer-events:auto}
       #rr-dd-drawer.rr-dd-open #rr-dd-panel{transform:translateX(0)}
       @media (prefers-reduced-motion: reduce){#rr-dd-drawer,#rr-dd-panel{transition:none}}
+      /* ── Peek mode ─────────────────────────────────────────────
+         Roster row ⋯ → a single record tab shown in a compact centered
+         modal (not the full workspace). Reuses the whole drawer — data
+         load, tab renderers, autosave — and just restyles the shell:
+         center the panel as a card, dim the backdrop (backdrop-click
+         closes, like ✕/Escape), and hide the tab strip + header action
+         buttons so only the chosen tab's content shows. */
+      #rr-dd-drawer.rr-dd-peek{justify-content:center;align-items:center;background:rgba(15,23,42,.34);pointer-events:auto;padding:24px}
+      #rr-dd-drawer.rr-dd-peek #rr-dd-panel{
+        width:min(640px,96vw);max-width:96vw;height:auto;max-height:86vh;
+        border:1px solid var(--border);border-radius:16px;overflow:hidden;
+        box-shadow:0 24px 60px rgba(15,23,42,.28);
+        transform:scale(.97);transition:transform 200ms cubic-bezier(.32,.72,.4,1),opacity 200ms ease-out;
+      }
+      #rr-dd-drawer.rr-dd-peek.rr-dd-open #rr-dd-panel{transform:scale(1)}
+      #rr-dd-drawer.rr-dd-peek .dd-tabs,
+      #rr-dd-drawer.rr-dd-peek .dd-tab-note{display:none!important}
+      #rr-dd-drawer.rr-dd-peek .dd-head-actions>.dd-act,
+      #rr-dd-drawer.rr-dd-peek .dd-head-actions>.dd-more-wrap{display:none}
+      #rr-dd-drawer.rr-dd-peek .dd-chrome,
+      #rr-dd-drawer.rr-dd-peek .dd-foot{flex:0 0 auto}
+      #rr-dd-drawer.rr-dd-peek .dd-body{flex:1 1 auto;min-height:0;overflow-y:auto}
       /* ── Inline workspace mode ──────────────────────────────────
          When the roster is on-screen the record docks into the
          #driver-record-mount pane beside the roster list instead of
@@ -22581,7 +22604,7 @@ async function openDriverDrawer(driverId, opts) {
   // deep-link, Schedule, global search) it falls back to the right-side
   // slide-over. opts.forceOverlay (the "Open as overlay" action) requests
   // the slide-over explicitly even from the roster.
-  const _wantInline = !(opts && opts.forceOverlay)
+  const _wantInline = !(opts && (opts.forceOverlay || opts.peek))
     && _ddMount && _ddSplit && _ddSplit.offsetParent !== null;
   if (_wantInline) {
     drawer.classList.add("rr-dd-inline");
@@ -22593,6 +22616,10 @@ async function openDriverDrawer(driverId, opts) {
     if (_ddMount) _ddMount.classList.remove("is-filled");
     if (_ddSplit) _ddSplit.classList.remove("has-record");
   }
+  // Peek mode (roster ⋯ → a single record tab): a compact centered modal
+  // rather than the slide-over / inline workspace. Same drawer underneath
+  // — only the shell changes (see .rr-dd-peek CSS).
+  if (opts && opts.peek) drawer.classList.add("rr-dd-peek");
   if (driverId) _rrMarkActiveRosterRow(driverId);   // accent the selected row
   // Slide in (overlay) / fade in (inline) · the panel is appended in its
   // un-.open form; adding .rr-dd-open on the next frame triggers the
