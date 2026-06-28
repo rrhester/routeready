@@ -5519,7 +5519,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
   background:var(--canvas,#F9FAFB);
 }
 #view-schedule .sched-util-btn{
-  appearance:none; cursor:pointer;
+  appearance:none; cursor:pointer; position:relative;
   width:40px; height:40px; border-radius:12px;
   display:flex; align-items:center; justify-content:center;
   border:1px solid transparent; background:transparent;
@@ -5530,6 +5530,18 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
 #view-schedule .sched-util-btn:hover{background:rgba(49,134,255,.12);border-color:rgba(49,134,255,.30)}
 #view-schedule .sched-util-btn[aria-expanded="true"]{background:rgba(49,134,255,.16);border-color:rgba(49,134,255,.42)}
 #view-schedule .sched-util-btn:focus-visible{outline:none;border-color:rgb(49,134,255);box-shadow:0 0 0 3px rgba(49,134,255,.25)}
+/* Tasks — its own green (semantically "checklist / done"), distinct from
+   the blue Notes bookmark and gold Operations shield. */
+#view-schedule .sched-util-btn--tasks{color:#16A34A}
+#view-schedule .sched-util-btn--tasks:hover{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.30)}
+#view-schedule .sched-util-btn--tasks[aria-expanded="true"]{background:rgba(22,163,74,.16);border-color:rgba(22,163,74,.42)}
+#view-schedule .sched-util-btn--tasks:focus-visible{border-color:#16A34A;box-shadow:0 0 0 3px rgba(22,163,74,.25)}
+/* Open-task count riding the Tasks icon (hidden when zero, via JS). */
+#view-schedule .sched-util-badge{
+  position:absolute; top:0; right:0; min-width:16px; height:16px; padding:0 4px;
+  border-radius:8px; background:#16A34A; color:#fff; font-size:10px; font-weight:700;
+  line-height:16px; text-align:center; box-shadow:0 0 0 2px var(--canvas,#F9FAFB); pointer-events:none;
+}
 /* Operations Health shield — gold + filled, its own color distinct from
    the blue Notes bookmark. */
 #view-schedule .sched-util-btn--ops{color:rgb(246,161,0)}
@@ -5574,17 +5586,6 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
 }
 #view-schedule .ntp-icon-btn:hover{background:rgba(15,23,42,.05);color:var(--text,#0f172a)}
 #view-schedule .ntp-icon-btn.ntp-soft{border:1px solid var(--border,rgba(15,23,42,.10));background:#fff}
-
-#view-schedule .ntp-tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.07))}
-#view-schedule .ntp-tab{
-  appearance:none;cursor:pointer;border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;
-  color:var(--text-subtle,#94a3b8);padding:9px 12px;border-bottom:2px solid transparent;margin-bottom:-1px;
-  display:inline-flex;align-items:center;gap:7px;transition:color .15s,border-color .15s;
-}
-#view-schedule .ntp-tab:hover{color:var(--text,#0f172a)}
-#view-schedule .ntp-tab.is-active{color:#2563EB;border-bottom-color:#2563EB}
-#view-schedule .ntp-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:rgba(15,23,42,.06);color:var(--text-muted,#64748b);font-size:11px;font-weight:700}
-#view-schedule .ntp-tab.is-active .ntp-tab-badge{background:rgba(37,99,235,.12);color:#2563EB}
 
 #view-schedule .ntp-scroll{flex:1;min-height:0;overflow-y:auto;padding:14px}
 #view-schedule .ntp-notes-block{display:flex;flex-direction:column}
@@ -5640,6 +5641,8 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
 #view-schedule .ntp-viewall:hover{text-decoration:underline}
 
 #view-schedule .ntp-tasks-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.07))}
+/* In the dedicated Tasks panel the block stands alone — no divider above. */
+#view-schedule .ntp-tasks-block--solo{margin-top:0;padding-top:2px;border-top:0}
 #view-schedule .ntp-tasks-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 #view-schedule .ntp-section-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted,#64748b)}
 #view-schedule .ntp-addtask-btn{appearance:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:#fff;color:var(--text,#0f172a);font:inherit;font-size:12px;font-weight:600;padding:6px 10px;transition:background .15s}
@@ -5667,6 +5670,3 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
 #view-schedule .ntp-task-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:var(--text-muted,#64748b);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;overflow:hidden}
 #view-schedule .ntp-task-avatar img{width:100%;height:100%;object-fit:cover}
 
-#view-schedule .sched-notes-panel.ntp-on-tasks .ntp-notes-block{display:none}
-#view-schedule .sched-notes-panel.ntp-on-tasks .ntp-tasks-block{margin-top:0;padding-top:2px;border-top:0}
-#view-schedule .sched-notes-panel.ntp-on-tasks [data-rr-task-viewall]{display:none}
