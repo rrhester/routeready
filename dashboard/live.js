@@ -8641,14 +8641,34 @@ function _rrNtPanelOpen(which) {
   if (view) view.classList.add("rr-notes-open");
   _rrNtRenderAll();
   if (which === "notes") {
+    // Focus the composer once the slide + content fade have settled
+    // (~240ms), so the cursor lands in a panel that's already in place.
     const ed = el.querySelector("[data-rr-note-input]");
-    if (ed) setTimeout(() => { try { ed.focus(); } catch (_) {} }, 60);
+    if (ed) setTimeout(() => { try { ed.focus({ preventScroll: true }); } catch (_) { try { ed.focus(); } catch (e) {} } }, 240);
   }
 }
 function _rrNtPanelToggle(which) {
   if (_rrNtPanelIsOpen(which)) _rrNtPanelCloseAll();
   else _rrNtPanelOpen(which);
 }
+// Soft yellow press ripple from the icon centre (Google-style). Appends a
+// transient element that self-removes after the bloom; GPU-only (a CSS
+// keyframe on transform + opacity) and skipped under reduced-motion.
+function _rrNtSpawnRipple(btn) {
+  try {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const r = document.createElement("span");
+    r.className = "rr-util-ripple";
+    btn.appendChild(r);
+    setTimeout(() => { try { r.remove(); } catch (_) {} }, 220);
+  } catch (_) {}
+}
+// Ripple on press (pointerdown) for every rail utility icon, so it fires
+// the instant the user presses — ahead of the click that toggles the panel.
+document.addEventListener("pointerdown", (e) => {
+  const btn = e.target.closest && e.target.closest("#view-schedule .sched-util-btn");
+  if (btn) _rrNtSpawnRipple(btn);
+});
 document.addEventListener("click", (e) => {
   // Rail toggles — Notes and Tasks each open their own panel; opening one
   // closes the other (panel manager). Clicking an open panel's icon closes it.
