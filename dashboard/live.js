@@ -8453,13 +8453,33 @@ function _rrSyncNotesRailTop() {
   if (rail) rail.style.top = val;
   if (panel) panel.style.top = val;
 }
-try {
-  window.addEventListener("resize", _rrSyncNotesRailTop);
-  const _rrSchedView = document.getElementById("view-schedule");
-  if (_rrSchedView && typeof ResizeObserver === "function") {
-    new ResizeObserver(() => _rrSyncNotesRailTop()).observe(_rrSchedView);
-  }
-} catch (_) {}
+// Keep the rail + notes panel pinned to the schedule grid top. The
+// schedule fragment loads async, so a one-shot observer can fire before
+// .tcp-body exists and never re-run. Retry until it's actually laid out,
+// then observe it (and the view) so they re-align on any reflow.
+window.addEventListener("resize", _rrSyncNotesRailTop);
+(function _rrNotesRailInit(){
+  let tries = 0, wired = false;
+  const tick = () => {
+    _rrSyncNotesRailTop();
+    const body = document.querySelector("#view-schedule .tcp-body");
+    if (!wired && body && body.getBoundingClientRect().top > 0) {
+      wired = true;
+      try {
+        if (typeof ResizeObserver === "function") {
+          const ro = new ResizeObserver(() => _rrSyncNotesRailTop());
+          ro.observe(body);
+          const v = document.getElementById("view-schedule");
+          if (v) ro.observe(v);
+        }
+      } catch (_) {}
+      return;
+    }
+    if (tries++ < 60) setTimeout(tick, 120);
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick, { once: true });
+  else tick();
+})();
 function _rrNotesSetOpen(open) {
   const panel = document.getElementById("rr-sched-notes");
   if (!panel) return;
