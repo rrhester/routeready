@@ -50816,7 +50816,9 @@ async function renderScheduleWeek() {
       abCard.hidden = abNeeded === 0;
       const abMain = document.getElementById("rr-ab-coverage-main");
       const abSub  = document.getElementById("rr-ab-coverage-sub");
-      if (abMain) abMain.textContent = `Coverage: ${abFilled} / ${abNeeded} Routes`;
+      // Metric wrapped so the polish pass can enlarge the count and set a
+      // clean title/metric/subtitle hierarchy inside the coverage card.
+      if (abMain) abMain.innerHTML = `<span class="rr-ab-cov-num">${abFilled} / ${abNeeded}</span> <span class="rr-ab-cov-unit">Routes</span>`;
       if (abSub) {
         // Real routes vs cushion: abRouteGap counts unfilled PLANNED
         // routes only. When the routes are covered but cushion seats
