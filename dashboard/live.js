@@ -8923,8 +8923,12 @@ function _rowActionsFor(d) {
   // this driver's direct thread (same flow as the drawer-header Message).
   const msgIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
   const msgBtn = `<button type="button" class="rr-row-action rr-row-action--msg" data-rr-row-message="1" data-rr-driver-id="${escapeHtml(d.id)}" title="Message driver" aria-label="Message ${escapeHtml(displayDriverName(d))}">${msgIcon}</button>`;
+  // See driver's app · per-row icon. Opens a preview of what THIS driver sees
+  // in the RouteReady driver app (openDriverAppPreview, via data-rr-driver-app).
+  const appIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>';
+  const appBtn = `<button type="button" class="rr-row-action rr-row-action--app" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver’s app view" aria-label="See ${escapeHtml(displayDriverName(d))}’s app view">${appIcon}</button>`;
   // is-persistent → visible at rest (not only on row hover).
-  return `<div class="rr-row-actions-bar is-persistent">${msgBtn}${coachBtn}${moreBtn}</div>`;
+  return `<div class="rr-row-actions-bar is-persistent">${appBtn}${msgBtn}${coachBtn}${moreBtn}</div>`;
 }
 
 function renderDriverRow(d) {
