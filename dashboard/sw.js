@@ -30,7 +30,8 @@
 // on a resumed installed app. Bumping forces every open window to the
 // current shell on next launch.
 //   2026-06-28.10 · Roster: remove Coach-driver toolbar pill; per-row coach icon.
-const SW_DEPLOY_NONCE = "2026-06-28.10";
+//   2026-06-28.11 · Driver drawer: move Driver's-license section from Credentials to Documents.
+const SW_DEPLOY_NONCE = "2026-06-28.11";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
