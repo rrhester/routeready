@@ -1569,7 +1569,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
    Deliberately subtle: the fill is a single muted slate (its LENGTH carries
    the signal); attendance-risk colour lives in the Risk pill, not here. */
 .rr-att{min-width:88px;max-width:124px}
-.rr-att-pct{font-size:var(--fs-sm);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.2}
+.rr-att-pct{font-size:var(--fs-sm);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.2}
 .rr-att-bar{margin:3px 0;height:3px;border-radius:2px;background:rgba(15,23,42,.08);overflow:hidden}
 .rr-att-bar-fill{display:block;height:100%;border-radius:2px;background:rgba(15,23,42,.40)}
 .rr-att-sub{font-size:var(--fs-xs);color:#4B5563;line-height:1.2}
@@ -1578,9 +1578,9 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
    subline steps down but darker than before. !important overrides the inline
    var(--text-subtle) on the JS-rendered last-coaching spans. The "New" + risk
    badges keep their own (more-specific) colors. */
-td.rr-tenure-cell{color:#1F2937}
-td.rr-att-col{color:#1F2937}
-td.rr-lastcoach-col{color:#1F2937}
+td.rr-tenure-cell{color:#1F2937;font-weight:700}
+td.rr-att-col{color:#1F2937;font-weight:700}
+td.rr-lastcoach-col{color:#1F2937;font-weight:700}
 td.rr-lastcoach-col > span{color:#1F2937 !important}
 td.rr-lastcoach-col > span > span{color:#4B5563 !important}
 /* ── Driver Metrics drawer · right-side slide-out (Outlook reading-pane feel).

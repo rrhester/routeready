@@ -29,9 +29,8 @@
 // fresh shell), so a recolor that never touches sw.js can sit invisible
 // on a resumed installed app. Bumping forces every open window to the
 // current shell on next launch.
-//   2026-06-28.04 · Roster: black risk-card text + darker Tenure / Attendance /
-//                   Last-coaching column text.
-const SW_DEPLOY_NONCE = "2026-06-28.04";
+//   2026-06-28.05 · Roster: bold Tenure / Attendance / Last-coaching text.
+const SW_DEPLOY_NONCE = "2026-06-28.05";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
