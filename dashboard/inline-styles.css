@@ -1586,15 +1586,31 @@ td.rr-lastcoach-col > span > span{color:#4B5563 !important}
 /* "Show & order KPIs" ⋯ removed (operator) — the Schedule KPI-strip
    customizer button leaks onto the roster, where those KPIs don't apply. */
 #rr-sched-kpi-config{display:none !important}
-/* Roster split-button pills · run the chevron divider the full height of the
-   pill, like the Smart Fill split button (operator). Stretch the chevron edge
-   to edge and zero the inset so the hairline reaches both borders. */
+/* Roster split-button pills · the label↔caret divider runs the FULL pill
+   height (top to bottom of the box) and reads gray, matching the Smart Fill
+   split button (operator). `align-self:stretch` only fills the content box
+   (inside the padding) so it stayed short — instead draw the hairline as an
+   absolutely-positioned line that overshoots and is clipped to the pill by
+   overflow:hidden, so it's independent of the pill's padding. */
+.sched-kpi-pill.sched-kpi-action[data-rr-roster-status-filter],
+.sched-kpi-pill.sched-kpi-action[data-rr-roster-coach-menu],
+.sched-kpi-pill.sched-kpi-action[data-rr-roster-attendance]{ overflow:hidden; }
 .sched-kpi-pill.sched-kpi-action[data-rr-roster-status-filter] .rr-kpi-chev,
 .sched-kpi-pill.sched-kpi-action[data-rr-roster-coach-menu] .rr-kpi-chev,
 .sched-kpi-pill.sched-kpi-action[data-rr-roster-attendance] .rr-kpi-chev{
-  align-self:stretch !important;
+  position:relative;
+  border-left:0 !important;
   margin-top:0 !important;
   margin-bottom:0 !important;
+}
+.sched-kpi-pill.sched-kpi-action[data-rr-roster-status-filter] .rr-kpi-chev::before,
+.sched-kpi-pill.sched-kpi-action[data-rr-roster-coach-menu] .rr-kpi-chev::before,
+.sched-kpi-pill.sched-kpi-action[data-rr-roster-attendance] .rr-kpi-chev::before{
+  content:"";
+  position:absolute;
+  left:0; top:-40px; bottom:-40px;
+  width:1px;
+  background:rgba(15,23,42,.25);
 }
 /* Roster pill icons · brand blue to match the Smart Fill sparkle (#2563EB,
    operator). Leading glyphs only — not the chevron caret, not the primary
