@@ -5706,3 +5706,145 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
 #view-schedule .ntp-task-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:var(--text-muted,#64748b);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;overflow:hidden}
 #view-schedule .ntp-task-avatar img{width:100%;height:100%;object-fit:cover}
 
+/* ============================================================
+   Grounded-surface polish pass (2026-06-28)
+   ------------------------------------------------------------
+   Final-5% visual refinement of the Schedule week view. Goal:
+   make the board feel planted, premium, and enterprise (M365 /
+   Linear / Workspace) WITHOUT redesigning anything — no moved
+   controls, no new chrome, no gradients/glass, no bigger
+   shadows. Three calm elevation layers + tighter type
+   hierarchy do the work. End-of-sheet so these win at equal
+   specificity over the earlier reference rules.
+
+   Exact hexes per the design spec:
+     page floor   #F6F8FB
+     workspace    #F7F9FC  (behind the calendar)
+     container    #FFFFFF + 1px #E6EAF2 + 12px radius
+   ============================================================ */
+
+/* (1)/(9) Layer 1 — page/window ground. Was the flat #F9FAFB
+   near-white; the spec's #F6F8FB reads a hair cooler/deeper so
+   the white toolbar + white calendar lift off it. */
+#view-schedule.rrx-schedule {
+  background: #F6F8FB;
+}
+
+/* (9) Layer 2 — workspace "floor" behind the schedule. The
+   builder-shell holds the calendar container + right rail; a
+   very light #F7F9FC tint under it (inset just enough to read as
+   a recessed tray) makes the white calendar feel set INTO the
+   page rather than floating on it. Negative margin + matching
+   padding keep every control in exactly the same place. */
+#view-schedule.rrx-schedule .builder-shell {
+  background: #F7F9FC;
+  border-radius: 14px;
+  padding: 6px;
+  margin: -6px;
+}
+
+/* (2) Layer 3 — the ONE unified container wrapping the driver
+   list + schedule grid + coverage footer. .cal-wrap already
+   spans exactly those three (sticky driver column, the 7 day
+   columns, and the coverage strip at its foot), so it is the
+   single parent the spec asks for. Plant it: crisper #E6EAF2
+   hairline, 12px corners, and one extremely subtle shadow so it
+   reads as a seated surface, not a heavy card. No padding added
+   (the grid is intentionally edge-to-edge with a sticky header);
+   the radius + overflow:hidden already clip the corners cleanly. */
+#view-schedule.rrx-schedule .cal-wrap {
+  background: #FFFFFF;
+  border: 1px solid #E6EAF2 !important;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* (3) Strengthen the toolbar. The .rr-ab action bar is the
+   control row that sits directly above the grid (week nav,
+   Smart Fill, Assign Fleet, coverage, Finalize, ⋯). Give it a
+   little more breathing room below + a quiet hairline so the
+   controls read as separated from the workspace beneath. Same
+   controls, same positions. */
+#view-schedule.rrx-schedule .rr-ab {
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #ECEFF5;
+}
+
+/* (4) Strengthen the driver-column divider ~15%. The vertical
+   rule between the driver column and the calendar was a faint
+   ~0.07 ink hairline (set end-of-sheet on .cal-cell-head:first-
+   child / the grid's first .cal-row-label right border). Nudge
+   just that divider up a notch and add a whisper of inset so it
+   reads as a real seam — still quiet, never a hard line. Targets
+   only the first column so the inner day grid stays airy. */
+#view-schedule.rrx-schedule .cal-row-label,
+#view-schedule.rrx-schedule .cal-grid.head > .cal-cell-head:first-child {
+  border-right-color: rgba(15, 23, 42, 0.10) !important;
+  box-shadow: inset -1px 0 0 rgba(15, 23, 42, 0.025);
+}
+
+/* (5) Day headers — more hierarchy, NOT larger. Keep the 10px
+   weekday label and existing date size; just push weight +
+   contrast so the date dominates and the weekday reads as a
+   confident label. The "Routes N" coverage line stays the
+   secondary/lighter voice. */
+#view-schedule.rrx-schedule .cal-cell-head {
+  font-weight: 650 !important;
+  color: var(--text) !important;
+}
+#view-schedule.rrx-schedule .cal-cell-head .day-num {
+  font-weight: 750 !important;
+  color: var(--text) !important;
+}
+/* Routes count stays secondary/lighter — guard it against the
+   header weight/contrast bump above. */
+#view-schedule.rrx-schedule .cal-cell-head .day-coverage,
+#view-schedule.rrx-schedule .cal-cell-head .day-routes,
+#view-schedule.rrx-schedule .cal-cell-head .day-target {
+  font-weight: 600 !important;
+  color: var(--text-subtle) !important;
+}
+
+/* (6) Driver rows — more hierarchy. Name to a firm 600; the
+   station/hours meta line to a regular weight + a slightly
+   lighter gray so the name clearly leads. Avatars already sit at
+   40px (bumped earlier) — left untouched. */
+#view-schedule.rrx-schedule .cal-row-label-name {
+  font-weight: 600 !important;
+  color: var(--text) !important;
+}
+#view-schedule.rrx-schedule .cal-row-label-meta {
+  font-weight: 430 !important;
+  color: var(--text-subtle) !important;
+}
+
+/* (7) Slightly darken the schedule cards. The assigned chip was
+   #EFF6FF (very light blue); drop it a few percent to #E8F1FE so
+   the card reads as attached to the grid, not floating. Same
+   radius, no shadow. Hover deepen kept proportional. */
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here),
+body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here),
+body.rr-sched-cards-blue #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: #E8F1FE !important;
+}
+#view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here),
+body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here),
+body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: #DBE9FD !important;
+}
+
+/* (8) Unify the KPI / action group. The action band reads as
+   one row: the Smart Fill / Assign Fleet secondaries, the
+   coverage stat card, and the Finalize primary. The pills are
+   already a uniform 36px; the coverage card was the odd one out
+   (auto height from its 2 text lines), so it parked at a
+   different size and broke the band's baseline. Pin it to the
+   same 36px and center its lines so it sits flush in the group.
+   The card stays intentionally borderless/transparent (its
+   prior treatment) — alignment + height only, no redesign. */
+#view-schedule .rr-ab-coverage {
+  min-height: 36px;
+  justify-content: center;
+}
+
