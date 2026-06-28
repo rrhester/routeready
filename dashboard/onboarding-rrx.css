@@ -1774,9 +1774,12 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   width: 100%;
   box-sizing: border-box;
   padding: 0 8px;
-  background: var(--surface, #fff);
+  /* Transparent fill + no bottom hairline so the tab strip blends into the
+     page, matching the Schedule strip (#rr-sched-viewseg). The active tab's
+     blue underline still lives on the .active button rule below. */
+  background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--border, rgba(15, 23, 42, .12));
+  border-bottom: 0;
   border-radius: 0;
   overflow: visible;
   margin-bottom: 14px;          /* breathing room between the tabs and the toolbar below */
