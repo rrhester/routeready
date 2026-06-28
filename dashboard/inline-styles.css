@@ -15528,11 +15528,18 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .cal-wrap,
           #view-schedule .driver-pool,
           #view-schedule .sched-insights,
-          #view-schedule .sched-nav-heading,
           #view-schedule #rr-sched-kpis.sched-kpi-pills,
           #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{
             background:var(--rr-surface) !important;
             border:1px solid var(--rr-border-soft) !important;
+            box-shadow:none !important;
+          }
+          /* Roster/schedule tab strip · borderless and page-colored so the
+             ribbon blends into the page (matches the pipeline reference nav,
+             minus its outer bordered box). */
+          #view-schedule .sched-nav-heading{
+            background:var(--canvas) !important;
+            border:0 !important;
             box-shadow:none !important;
           }
           /* ── Targets · Block / Cushion / Report time as pill buttons ──
@@ -16616,6 +16623,18 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active{
             color:var(--sch-blue);font-weight:600;
+            /* Subtle slightly-darker-than-page fill + blue accent underline,
+               mirroring the pipeline reference nav's active-tab read. */
+            background:rgba(15,23,42,.05);
+          }
+          #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active::after{
+            content:"" !important;
+            display:block !important;
+            position:absolute;
+            left:9px;right:9px;bottom:0;
+            height:2px;
+            background:var(--accent) !important;
+            border-radius:1px;
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item svg{
             color:var(--text-subtle);stroke-width:1.6;
