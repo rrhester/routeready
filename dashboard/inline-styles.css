@@ -26223,15 +26223,48 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-al-btn{
   width:32px; height:32px; flex:0 0 auto; padding:0;
   display:inline-flex; align-items:center; justify-content:center;
-  /* Gold launcher button (operator): filled light-gold (#FFE691) with gold
-     dots (#FFC000, fills hardcoded on the SVG circles). */
-  border:1px solid #FFE691; border-radius:8px;
-  background:#FFE691; color:var(--text-muted, #64748B); cursor:pointer;
-  transition:background-color .12s ease, border-color .12s ease, box-shadow .12s ease, color .12s ease;
+  /* Premium refinement pass (operator): soft warm yellow with a near-
+     imperceptible vertical gradient + a faint top highlight for restrained
+     depth; very-light neutral hairline; soft drop shadow; squircle corners.
+     Charcoal dots live on the SVG. Footprint unchanged (32×32). */
+  border:1px solid rgba(0,0,0,.06); border-radius:14px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.45), rgba(255,255,255,0) 45%),
+    linear-gradient(180deg, #FCEAA8, #F7E199);
+  box-shadow:0 2px 6px rgba(0,0,0,.08);
+  color:var(--text-muted, #64748B); cursor:pointer;
+  /* GPU-accelerated, ease-out, no bounce / no spring. */
+  transition:transform .2s ease-out, box-shadow .2s ease-out, border-color .2s ease-out;
+  will-change:transform;
 }
-.rr-al-btn svg{ width:18px; height:18px; }
-.rr-al-btn:hover{ background:#FFDF7A; color:var(--text, #1E293B); }
-.rr-al-btn[aria-expanded="true"]{ background:#FFD451; color:#FFC000; border-color:#FFD451; }
+.rr-al-btn svg{ width:16px; height:16px; }
+/* Hover · lifts toward the user: brighter fill, larger soft shadow, a small
+   rise + 1.02 scale. */
+.rr-al-btn:hover{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,0) 45%),
+    linear-gradient(180deg, #FDEEB4, #F9E6A4);
+  border-color:rgba(0,0,0,.10);
+  box-shadow:0 6px 16px rgba(0,0,0,.12);
+  transform:translateY(-1.5px) scale(1.02);
+}
+/* Pressed · physical button: drops down, shadow collapses to an inset, fill
+   darkens, quick. */
+.rr-al-btn:active{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,0) 45%),
+    linear-gradient(180deg, #F3DA8C, #EDCE78);
+  transform:translateY(1px) scale(1);
+  box-shadow:0 1px 2px rgba(0,0,0,.10), inset 0 2px 3px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.25);
+  transition-duration:.1s;
+}
+/* Open (menu showing) · a settled, slightly-darker "pressed-in" rest state. */
+.rr-al-btn[aria-expanded="true"]{
+  background:linear-gradient(180deg, #F4DC92, #EFD180);
+  border-color:rgba(0,0,0,.10);
+  box-shadow:0 1px 3px rgba(0,0,0,.08), inset 0 1px 2px rgba(0,0,0,.08);
+  transform:none;
+}
 .rr-al-panel{
   position:fixed; z-index:130; /* left/top set by JS (place()) so the rail can't clip it */
   display:flex; flex-direction:column; gap:2px;
