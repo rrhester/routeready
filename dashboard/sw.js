@@ -61,7 +61,8 @@
 //   2026-06-28.40 · Roster: restore the per-row phone ("See driver's app view") icon on the active-driver rows — opens the driver-app preview, beside Message/Coach/More; actions column widened for the 4th icon.
 //   2026-06-28.41 · Forms: redesign the Schedule rail's Forms panel into a polished "Driver Forms" surface — header + subtitle + primary New Form button, search, trigger filter chips, clean white form cards with soft muted status/requirement badges + monochrome icons, and Showing 1–N pagination (understated Google-Workspace aesthetic; blue reserved for primary action + selected chip).
 //   2026-06-28.42 · Form builder: enterprise refresh — collapsible/searchable toolbox with field cards, Build/Logic/Settings/Preview tabs, refined draggable field blocks (type/required badges + hover toolbar + duplicate), document-style header with category chips, accordion properties, live Driver-App preview (phone/tablet/desktop), premium empty state, bottom drop zone, status footer. Conditional logic is a deliberate follow-up.
-const SW_DEPLOY_NONCE = "2026-06-28.42";
+//   2026-06-28.43 · Form builder V2-a: the Driver-App preview is now a PERMANENT ~320px column on the Build tab (4-column grid: toolbox · canvas · preview · properties; widened modal) with two-way canvas↔preview selection sync (click a preview row to select it; selected field rings in both panes) and Phone/Tablet/Portrait/Landscape device toggles. Properties panel restructured into 5 tabs (Field/Rules/Logic/Style/More). Added an "All changes saved / Unsaved changes" header indicator, plus Copy (copies field JSON to clipboard) and a conditional Logic badge on field blocks. The redundant Preview tab was removed; preview column collapses below ~1100px. Conditional logic ships in V2-b.
+const SW_DEPLOY_NONCE = "2026-06-28.43";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
