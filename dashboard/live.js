@@ -8267,6 +8267,124 @@ document.addEventListener("click", (e) => {
   }
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRosterCoach(); });
+
+// ── Roster row · ⋯ overflow menu ──────────────────────────────────────
+// The per-row ⋯ opens a popover that deep-links to each driver-record tab
+// (Attendance, Profile, …) and carries Message / Create coaching /
+// Terminate driver. Picking a tab opens the driver record on it; the
+// other items reuse the same entry points the driver drawer uses. Same
+// fixed, viewport-clamped popover mechanism as the coach menu above.
+let _rrRowMoreId = null;
+const _RR_ROW_MORE_TABS = [
+  ["attendance",   "Attendance",   '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'],
+  ["profile",      "Profile",      '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'],
+  ["employment",   "Employment",   '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>'],
+  ["license",      "Credentials",  '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'],
+  ["performance",  "Performance",  '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>'],
+  ["availability", "Availability", '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>'],
+  ["documents",    "Documents",    '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'],
+  ["timeline",     "History",      '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'],
+];
+function _rrEnsureRowMorePop() {
+  let pop = document.getElementById("rr-row-more-pop");
+  if (pop) return pop;
+  pop = document.createElement("div");
+  pop.id = "rr-row-more-pop";
+  pop.className = "rr-status-picker";
+  pop.setAttribute("role", "menu");
+  pop.hidden = true;
+  document.body.appendChild(pop);
+  return pop;
+}
+function _rrCloseRowMore() {
+  const pop = document.getElementById("rr-row-more-pop");
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  pop.innerHTML = "";
+  const t = document.querySelector('[data-rr-row-more][aria-expanded="true"]');
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+function _rrOpenRowMore(trigger, driverId) {
+  if (!trigger) return;
+  _rrRowMoreId = driverId || null;
+  const pop = _rrEnsureRowMorePop();
+  const item = (action, label, icon, danger) =>
+    `<button type="button" role="menuitem" class="rr-status-picker-item${danger ? " is-danger" : ""}" data-rr-row-more-go="${action}">${icon}<span class="rr-status-picker-label">${escapeHtml(label)}</span></button>`;
+  const sep = '<div class="rr-status-picker-sep" role="separator"></div>';
+  const msgIcon   = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+  const coachIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>';
+  const termIcon  = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  pop.innerHTML =
+    _RR_ROW_MORE_TABS.map(([a, l, ic]) => item(a, l, ic)).join("") +
+    sep +
+    item("message", "Message", msgIcon) +
+    item("coach", "Create coaching", coachIcon) +
+    sep +
+    item("terminate", "Terminate driver", termIcon, true);
+  // Right-align to the trigger (it sits at the far right of the row),
+  // clamp to the viewport, and flip above / scroll when the tall menu
+  // would run off the bottom for lower rows.
+  const r = trigger.getBoundingClientRect();
+  const popW = 232;
+  pop.style.position = "fixed";
+  pop.style.minWidth = `${popW}px`;
+  pop.style.maxHeight = `${Math.max(160, window.innerHeight - 16)}px`;
+  pop.style.overflowY = "auto";
+  pop.style.zIndex = "10000";
+  let left = r.right - popW;
+  left = Math.max(8, Math.min(left, window.innerWidth - popW - 8));
+  pop.style.left = `${left}px`;
+  pop.style.top = `${r.bottom + 6}px`;
+  pop.hidden = false;
+  const popH = pop.offsetHeight || 0;
+  let top = r.bottom + 6;
+  if (top + popH > window.innerHeight - 8) {
+    const above = r.top - popH - 6;
+    top = above >= 8 ? above : Math.max(8, window.innerHeight - 8 - popH);
+  }
+  pop.style.top = `${top}px`;
+  trigger.setAttribute("aria-expanded", "true");
+}
+function _rrRowMoreDispatch(action, id) {
+  if (!action || !id) return;
+  if (action === "message")   { if (typeof _ddMessageDriver === "function") _ddMessageDriver(id); return; }
+  if (action === "coach")     { if (typeof openCoachingForm === "function") openCoachingForm(id); else toast("Coaching unavailable", "warn"); return; }
+  if (action === "terminate") {
+    const drv = (_rosterRows || []).find((row) => row.id === id);
+    if (drv && typeof _openSeparationReview === "function") _openSeparationReview(drv);
+    else toast("Driver not found", "warn");
+    return;
+  }
+  // Anything else is a driver-record tab → open the record on it.
+  if (typeof openDriverDrawer === "function") openDriverDrawer(id, { tab: action });
+}
+document.addEventListener("click", (e) => {
+  const moreTrigger = e.target.closest("[data-rr-row-more]");
+  if (moreTrigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = moreTrigger.getAttribute("data-rr-driver-id") || null;
+    const pop = document.getElementById("rr-row-more-pop");
+    const isOpen = pop && !pop.hidden && moreTrigger.getAttribute("aria-expanded") === "true";
+    if (typeof _rrCloseRosterCoach === "function") _rrCloseRosterCoach();  // never stack popovers
+    _rrCloseRowMore();
+    if (!isOpen) _rrOpenRowMore(moreTrigger, id);
+    return;
+  }
+  const go = e.target.closest("[data-rr-row-more-go]");
+  if (go) {
+    e.preventDefault();
+    e.stopPropagation();
+    const action = go.getAttribute("data-rr-row-more-go");
+    const id = _rrRowMoreId;
+    _rrCloseRowMore();
+    _rrRowMoreDispatch(action, id);
+    return;
+  }
+  const pop = document.getElementById("rr-row-more-pop");
+  if (pop && !pop.hidden && !e.target.closest("#rr-row-more-pop")) _rrCloseRowMore();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRowMore(); });
 window.addEventListener("scroll", _rrCloseRosterAttendance, true);
 window.addEventListener("resize", _rrCloseRosterAttendance);
 
@@ -8388,11 +8506,13 @@ function _rowActionsFor(d) {
     const attBtn = `<button type="button" class="rr-row-action" data-rr-term-report="attendance" data-rr-driver-id="${id}" title="Download Attendance Record (PDF)" aria-label="Download Attendance Record">${attIcon}</button>`;
     return `<div class="rr-row-actions-bar is-persistent">${ueBtn}${attBtn}</div>`;
   }
-  // Every other (still-employed) driver gets a hover-revealed "Separate"
-  // action that opens the Driver Separation Review — which collects the
-  // factual record and then commits the termination + separation packet.
-  const sepIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>';
-  const sepBtn = `<button type="button" class="rr-row-action rr-row-action--sep" data-rr-separate="1" data-rr-driver-id="${escapeHtml(d.id)}" title="Separate driver" aria-label="Separate ${escapeHtml(displayDriverName(d))}">${sepIcon}</button>`;
+  // Overflow menu (⋯) at the end of the row. Opens a popover that deep-
+  // links to each driver-record tab (click a tab → the record opens on
+  // it) plus Message, Create coaching, and Terminate driver. Terminate
+  // (the old standalone Separate icon → Driver Separation Review) now
+  // lives inside this menu so the row stays to three icons.
+  const moreIcon = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
+  const moreBtn = `<button type="button" class="rr-row-action rr-row-action--more" data-rr-row-more="1" data-rr-driver-id="${escapeHtml(d.id)}" title="More actions" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for ${escapeHtml(displayDriverName(d))}">${moreIcon}</button>`;
   // Coach driver · per-row icon (operator moved this off the top toolbar).
   // Opens the same Attendance / General coaching popover, scoped to THIS driver.
   const coachIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
@@ -8402,7 +8522,7 @@ function _rowActionsFor(d) {
   const msgIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
   const msgBtn = `<button type="button" class="rr-row-action rr-row-action--msg" data-rr-row-message="1" data-rr-driver-id="${escapeHtml(d.id)}" title="Message driver" aria-label="Message ${escapeHtml(displayDriverName(d))}">${msgIcon}</button>`;
   // is-persistent → visible at rest (not only on row hover).
-  return `<div class="rr-row-actions-bar is-persistent">${msgBtn}${coachBtn}${sepBtn}</div>`;
+  return `<div class="rr-row-actions-bar is-persistent">${msgBtn}${coachBtn}${moreBtn}</div>`;
 }
 
 function renderDriverRow(d) {
