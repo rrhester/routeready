@@ -54,6 +54,8 @@
 
 /dashboard/sw.js
   Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
 
 /dashboard/manifest.webmanifest
   Cache-Control: no-cache, no-store, must-revalidate
@@ -61,6 +63,8 @@
 
 /app/sw.js
   Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
 
 /app/manifest.webmanifest
   Cache-Control: no-cache, no-store, must-revalidate

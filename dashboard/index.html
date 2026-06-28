@@ -4875,8 +4875,20 @@ John,Smith,555-0101,john@example.com</code>
   // service workers — e.g. very old browsers or some embedded views).
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
-      navigator.serviceWorker.register("./sw.js", { scope: "/dashboard/" })
+      navigator.serviceWorker.register("./sw.js", { scope: "/dashboard/", updateViaCache: "none" })
         .then(function (reg) {
+          // Force an immediate worker-update check, then re-check whenever
+          // the operator returns to the app. updateViaCache:"none" above
+          // makes the browser bypass its HTTP cache for the SW script, so
+          // these checks always see a byte-changed sw.js on a deploy — even
+          // for an INSTALLED app that's only ever resumed (never cold-
+          // launched), which otherwise may never run an update check and
+          // sits on a stale shell indefinitely. update() is a no-op when
+          // the worker is unchanged, so this can't loop.
+          try { reg.update(); } catch (e) { /* best-effort */ }
+          document.addEventListener("visibilitychange", function () {
+            if (!document.hidden) { try { reg.update(); } catch (e) {} }
+          });
           // Self-updating SW · tell any waiting SW to take over
           // immediately, and reload the page once it does so the new
           // fetch handler is in control (= fresh JS / CSS gets loaded).
