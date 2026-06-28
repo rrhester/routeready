@@ -31,7 +31,8 @@
 // current shell on next launch.
 //   2026-06-28.10 · Roster: remove Coach-driver toolbar pill; per-row coach icon.
 //   2026-06-28.11 · Driver drawer: move Driver's-license section from Credentials to Documents.
-const SW_DEPLOY_NONCE = "2026-06-28.11";
+//   2026-06-28.12 · Roster: keep the per-row coach menu on-screen (clamp to viewport).
+const SW_DEPLOY_NONCE = "2026-06-28.12";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

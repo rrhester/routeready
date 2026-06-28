@@ -8191,13 +8191,28 @@ function _rrOpenRosterCoach(trigger) {
   pop.innerHTML =
     `<button type="button" role="menuitem" class="rr-status-picker-item" data-rr-coach-go="attendance">${attIcon}<span class="rr-status-picker-label">Attendance coaching</span></button>` +
     `<button type="button" role="menuitem" class="rr-status-picker-item" data-rr-coach-go="general">${genIcon}<span class="rr-status-picker-label">General coaching</span></button>`;
+  // Position relative to the trigger, clamped to the viewport. The same
+  // menu serves the toolbar pill (near the left) and the per-row coach
+  // icon (far right of the table), so left-aligning under the trigger
+  // would push the menu off the right edge for the per-row case. Flip to
+  // right-aligned + clamp when that happens, and flip above the trigger
+  // when opening downward would run off the bottom (lower rows).
   const r = trigger.getBoundingClientRect();
+  const popW = Math.max(200, r.width);
   pop.style.position = "fixed";
-  pop.style.left = `${Math.max(8, r.left)}px`;
-  pop.style.top  = `${r.bottom + 6}px`;
-  pop.style.minWidth = `${Math.max(200, r.width)}px`;
+  pop.style.minWidth = `${popW}px`;
   pop.style.zIndex = "10000";   // above the (click-through) driver-record overlay
+  let left = r.left;
+  const maxLeft = window.innerWidth - popW - 8;
+  if (left > maxLeft) left = r.right - popW;          // flip to right-aligned
+  left = Math.max(8, Math.min(left, maxLeft));        // final viewport clamp
+  pop.style.left = `${left}px`;
+  pop.style.top  = `${r.bottom + 6}px`;               // refined after measuring
   pop.hidden = false;
+  const popH = pop.offsetHeight || 92;
+  if (r.bottom + 6 + popH > window.innerHeight - 8) {
+    pop.style.top = `${Math.max(8, r.top - popH - 6)}px`;
+  }
   trigger.setAttribute("aria-expanded", "true");
 }
 let _rrRowCoachId = null;
