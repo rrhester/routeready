@@ -22811,7 +22811,7 @@ function renderDriverDrawerTab() {
   if (_ddTab === "attendance")   renderAttendanceTab(body, _ddDriver.driver);
   if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver, _ddDriver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
-  if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents, _ddDriver.envelopes);
+  if (_ddTab === "documents")    renderDocumentsTabWithLicense(body, _ddDriver.driver, _ddDriver.documents, _ddDriver.envelopes);
   if (_ddTab === "timeline")     body.innerHTML = renderTimelineTab(_ddDriver);
   setDriverDrawerFoot();
 }
@@ -22820,7 +22820,7 @@ function setDriverDrawerFoot() {
   const foot = document.getElementById("rr-dd-foot");
   if (!foot) return;
   const isCreate = !_ddDriver?.driver?.id;
-  if (_ddTab === "profile" || _ddTab === "employment" || _ddTab === "license") {
+  if (_ddTab === "profile" || _ddTab === "employment" || _ddTab === "license" || _ddTab === "documents") {
     foot.style.display = "";
     // A brand-new (unsaved) record still needs the explicit Save to insert —
     // autosave can't update a row that doesn't exist yet. An existing record
@@ -22861,7 +22861,7 @@ function _ddSetAutosaveStatus(state, msg) {
 async function _ddAutosaveCommit() {
   const drv = _ddDriver?.driver;
   if (!drv || !drv.id) return;                                     // create mode → explicit Save
-  if (!["profile", "employment", "license"].includes(_ddTab)) return;
+  if (!["profile", "employment", "license", "documents"].includes(_ddTab)) return;
   if (_ddAutosaveInflight) { _ddAutosaveQueued = true; return; }   // coalesce; re-run after
   _ddAutosaveInflight = true;
   _ddSetAutosaveStatus("saving");
@@ -26755,7 +26755,8 @@ document.addEventListener("change", async (e) => {
   await loadDriverDrawer(drv);
 });
 
-// Single license-image slot used inside renderLicenseTab. The native
+// Single license-image slot used inside the driver's-license section
+// (_ddRenderDlSection, now on the Documents tab). The native
 // <input type="file"> renders inconsistently across browsers (it
 // previously showed up as a near-invisible "Choose File" button next
 // to "Replace"), so the file picker is hidden and a styled button
@@ -26787,7 +26788,11 @@ function renderDlSlot(side, label, signedUrl) {
     </div>`;
 }
 
-async function renderLicenseTab(body, d) {
+// Driver's-license section — license number, DSP-verified expiration, and
+// the front/back license-image slots. Rendered on the Documents tab; it
+// moved here from Credentials so every piece of driver paperwork lives in
+// one place. Async because it resolves signed URLs for the stored photos.
+async function _ddRenderDlSection(d) {
   const v = (s) => escapeHtml(s ?? "");
   // Resolve viewable URLs for the stored DL image(s), if any. Driver's
   // licenses have a front and a back — both are stored independently so
@@ -26830,14 +26835,7 @@ async function renderLicenseTab(body, d) {
       <div><strong>Verification needed.</strong> Driver uploaded a license image but no expiration is on file. Read the date off the photo and enter it above.</div>
     </div>` : "";
 
-  const hasId = !!d.id;
-  const boolToggle = (field, on) => {
-    const labelStyle = hasId ? "" : ` style="opacity:.45;pointer-events:none"`;
-    return `<label class="rr-toggle"${labelStyle}><input type="checkbox" data-rr-bool-toggle="${escapeHtml(d.id || "")}" data-rr-bool-field="${field}" ${on ? "checked" : ""}${hasId ? "" : " disabled"}/><span class="rr-toggle-track"><span class="rr-toggle-thumb"></span></span></label>`;
-  };
-  const certsHint = hasId ? "" : `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-2)">Save the driver record first, then you can flip these on.</div>`;
-
-  body.innerHTML = `
+  return `
     <div class="dd-section">
       <div class="dd-section-head">
         <div>
@@ -26861,8 +26859,28 @@ async function renderLicenseTab(body, d) {
         </div>
         ${verifyCallout}
       </div>
-    </div>
+    </div>`;
+}
 
+// Documents tab with the driver's-license section stacked on top. The DL
+// block moved here from Credentials so all driver paperwork — license,
+// signed documents, personnel file — sits together. Async only for the
+// signed image URLs; if those fail we still render the rest of the tab.
+async function renderDocumentsTabWithLicense(body, d, docs, envelopes) {
+  let dl = "";
+  try { dl = await _ddRenderDlSection(d); } catch (_) { dl = ""; }
+  body.innerHTML = dl + renderDocumentsTab(docs, envelopes);
+}
+
+async function renderLicenseTab(body, d) {
+  const hasId = !!d.id;
+  const boolToggle = (field, on) => {
+    const labelStyle = hasId ? "" : ` style="opacity:.45;pointer-events:none"`;
+    return `<label class="rr-toggle"${labelStyle}><input type="checkbox" data-rr-bool-toggle="${escapeHtml(d.id || "")}" data-rr-bool-field="${field}" ${on ? "checked" : ""}${hasId ? "" : " disabled"}/><span class="rr-toggle-track"><span class="rr-toggle-thumb"></span></span></label>`;
+  };
+  const certsHint = hasId ? "" : `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-2)">Save the driver record first, then you can flip these on.</div>`;
+
+  body.innerHTML = `
     <div class="dd-section">
       <div class="dd-section-head">
         <div>
@@ -30118,7 +30136,7 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // License-tab remove (front or back). Upload itself is handled on the
+  // Driver's-license image remove (front or back). Upload itself is handled on the
   // hidden <input>'s change event (registered separately below).
   const rmBtn = e.target.closest("[data-rr-dl-remove]");
   if (rmBtn) {
