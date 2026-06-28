@@ -7,12 +7,11 @@
 export { encryptSecret, decryptSecret, signState, verifyState } from "./google_crypto.ts";
 
 const FINCH_API = "https://api.tryfinch.com";
-const FINCH_CONNECT = "https://connect.tryfinch.com";
 
 // Products RouteReady requests from Finch — the HRIS roster a DSP needs to keep
 // drivers in sync. (PTO/time-off is a separate, provider-dependent product and
 // can be added later once the core sync is proven.)
-const PRODUCTS = "company directory individual employment";
+const PRODUCTS = ["directory", "individual", "employment"];
 
 export function apiVersion(): string {
   return Deno.env.get("FINCH_API_VERSION") || "2020-09-17";
@@ -40,19 +39,44 @@ export function isConfigured(): boolean {
   return !!(Deno.env.get("FINCH_CLIENT_ID") && Deno.env.get("FINCH_CLIENT_SECRET") && Deno.env.get("FINCH_REDIRECT_URI"));
 }
 
-// Finch Connect authorize URL (redirect flow). After the DSP authorizes their
-// ADP account, Finch redirects to FINCH_REDIRECT_URI with ?code & ?state.
-export function connectUrl(state: string): string {
-  const params = new URLSearchParams({
-    client_id: clientId(),
+function basicAuth(): string {
+  return "Basic " + btoa(`${clientId()}:${clientSecret()}`);
+}
+
+// Create a Finch Connect session and return its connect_url. Finch replaced the
+// old implicit authorize URL (connect.tryfinch.com/authorize?client_id=…) with
+// server-created sessions — hitting the bare URL now shows "Link Inactive". We
+// pass our HMAC-signed `state` so the callback can bind the result back to the
+// DSP, and customer_id = dsp_id so the connection is attributable in Finch.
+// After the DSP authorizes, Finch redirects to FINCH_REDIRECT_URI with ?code&state.
+export async function createConnectSession(opts: { state: string; dspId: string }): Promise<string> {
+  const body: Record<string, unknown> = {
+    customer_id: opts.dspId,
+    customer_name: opts.dspId,
     products: PRODUCTS,
     redirect_uri: redirectUri(),
-    state,
-  });
-  // Optional sandbox: set FINCH_SANDBOX=finch (Finch-simulated) or =provider.
+    state: opts.state,
+  };
+  // Sandbox session for a sandbox app (FINCH_SANDBOX=finch). Omit in production.
   const sandbox = Deno.env.get("FINCH_SANDBOX");
-  if (sandbox) params.set("sandbox", sandbox);
-  return `${FINCH_CONNECT}/authorize?${params.toString()}`;
+  if (sandbox) body.sandbox = sandbox;
+
+  // /connect/sessions/new is the redirect-flow endpoint (returns connect_url);
+  // fall back to /connect/sessions for older API surfaces.
+  let lastErr = "endpoint_not_found";
+  for (const path of ["/connect/sessions/new", "/connect/sessions"]) {
+    const res = await fetch(`${FINCH_API}${path}`, {
+      method: "POST",
+      headers: { "authorization": basicAuth(), "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 404) continue; // try the other path
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json.connect_url) return json.connect_url as string;
+    lastErr = json.message || json.error || ("http_" + res.status);
+    break;
+  }
+  throw new Error("connect_session_failed: " + lastErr);
 }
 
 function authHeaders(token: string): HeadersInit {
