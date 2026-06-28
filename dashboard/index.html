@@ -2177,39 +2177,6 @@ Evidence attached:
 </aside>
 
 <!-- ═══════════════════════════════════════════════════════════
-     FORMS QUICK-ACCESS TOOL · slide-out drawer
-     A clipboard/notes-style quick list of the operator's real forms.
-     Opened from the Forms icon on the Schedule right-side utility rail
-     (data-rr-forms-toggle), alongside the Notes / Tasks / Operations
-     Health tools. Reuses the shared .detail-drawer slide-out +
-     #ap-backdrop pattern. Wiring lives in mock-wiring.js
-     (openFormsTool / closeFormsTool); the rail click is wired in
-     live.js. (The earlier standalone floating #rr-forms-tab was
-     removed in favour of the rail icon.)
-     ═══════════════════════════════════════════════════════════ -->
-<aside class="detail-drawer" id="rr-forms-tool-drawer" aria-label="Forms">
-  <div class="detail-head">
-    <div style="display:flex;gap:var(--s-3-5);align-items:flex-start;flex:1;min-width:0">
-      <div class="form-card-icon" style="width:44px;height:44px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12l2 2 4-4"/></svg></div>
-      <div>
-        <h2 class="detail-name">Forms</h2>
-        <div class="detail-meta">Your checklists &amp; notes · tap any to open</div>
-      </div>
-    </div>
-    <button class="cd-close" onclick="closeFormsTool()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-  </div>
-  <div class="detail-body">
-    <div class="detail-section">
-      <div class="detail-section-label">All forms</div>
-      <div class="rr-ftool-list" id="rr-forms-tool-list"></div>
-    </div>
-  </div>
-  <div class="detail-foot">
-    <button class="btn" onclick="closeFormsTool()">Close</button>
-  </div>
-</aside>
-
-<!-- ═══════════════════════════════════════════════════════════
      SAFETY QUEUE DRAWER
      ═══════════════════════════════════════════════════════════ -->
 <aside class="detail-drawer" id="safety-drawer" aria-label="Safety queue">

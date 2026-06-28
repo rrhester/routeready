@@ -8483,7 +8483,7 @@ function _rrNtSanitize(html) {
 // Notes and Tasks are now two independent slide-out panels, each driven by
 // its own rail icon. Only one is open at a time (a panel manager enforces
 // it), so opening one closes the other.
-const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks" };
+const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks", forms: "rr-sched-forms" };
 
 let _rrNotesShowAll = false;
 const _RR_NTPIN = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg>`;
@@ -8542,7 +8542,7 @@ function _rrRenderTasks() {
     </div>`;
   }).join("");
 }
-function _rrNtRenderAll() { _rrRenderNotes(); _rrRenderTasks(); }
+function _rrNtRenderAll() { _rrRenderNotes(); _rrRenderTasks(); if (typeof window.rrFtoolRender === "function") { try { window.rrFtoolRender(); } catch (_) {} } }
 function _rrAddNoteFromInput() {
   const ed = document.querySelector("#rr-sched-notes [data-rr-note-input]");
   if (!ed) return;
@@ -8586,10 +8586,10 @@ function _rrNtFormat(kind) {
 // the sidebar starts level with the schedule rather than below the
 // ribbon. They're position:fixed, so we feed a viewport-relative top;
 // falls back to the CSS default when the schedule isn't laid out yet
-// (hidden view → rect top 0). Both panels (Notes + Tasks) get synced.
+// (hidden view → rect top 0). All panels (Notes + Tasks + Forms) get synced.
 function _rrSyncNotesRailTop() {
   const rail = document.getElementById("rr-sched-util-rail");
-  const panels = [document.getElementById("rr-sched-notes"), document.getElementById("rr-sched-tasks")];
+  const panels = [document.getElementById("rr-sched-notes"), document.getElementById("rr-sched-tasks"), document.getElementById("rr-sched-forms")];
   if (!rail && !panels.some(Boolean)) return;
   // Align with the visible "top of the content" for the ACTIVE sub-view:
   //  • Calendar → the sticky day-header row (.cal-grid.head, where SUN/MON…
@@ -8656,7 +8656,10 @@ window.addEventListener("resize", _rrSyncNotesRailTop);
 // schedule bouncing wider and back.
 function _rrNtPanelEl(which) { return document.getElementById(_RR_NT_PANELS[which] || ""); }
 function _rrNtToggleBtn(which) {
-  return document.querySelector(which === "tasks" ? "[data-rr-tasks-toggle]" : "[data-rr-notes-toggle]");
+  return document.querySelector(
+    which === "tasks" ? "[data-rr-tasks-toggle]"
+    : which === "forms" ? "[data-rr-forms-toggle]"
+    : "[data-rr-notes-toggle]");
 }
 function _rrNtPanelIsOpen(which) { const el = _rrNtPanelEl(which); return !!(el && el.classList.contains("is-open")); }
 function _rrNtAnyPanelOpen() { return Object.keys(_RR_NT_PANELS).some(_rrNtPanelIsOpen); }
@@ -8721,21 +8724,10 @@ document.addEventListener("click", (e) => {
   // closes the other (panel manager). Clicking an open panel's icon closes it.
   if (e.target.closest("[data-rr-notes-toggle]")) { e.preventDefault(); _rrNtPanelToggle("notes"); return; }
   if (e.target.closest("[data-rr-tasks-toggle]")) { e.preventDefault(); _rrNtPanelToggle("tasks"); return; }
-  // Forms — opens the global forms quick-access slide-out (defined in
-  // mock-wiring.js). It's a separate .detail-drawer (not a push panel),
-  // so it toggles its own open/close and sets aria-expanded on the rail
-  // button; no need to involve the Notes/Tasks push-panel manager.
-  if (e.target.closest("[data-rr-forms-toggle]")) {
-    e.preventDefault();
-    const drawer = document.getElementById("rr-forms-tool-drawer");
-    if (drawer && drawer.classList.contains("open")) {
-      if (typeof window.closeFormsTool === "function") window.closeFormsTool();
-    } else if (typeof window.openFormsTool === "function") {
-      window.openFormsTool();
-    }
-    return;
-  }
-  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
+  // Forms — same compact push panel as Notes/Tasks (one-at-a-time via the
+  // shared panel manager); its list renders the operator's REAL forms.
+  if (e.target.closest("[data-rr-forms-toggle]")) { e.preventDefault(); _rrNtPanelToggle("forms"); return; }
+  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]") || e.target.closest("[data-rr-forms-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
   // Composer
   if (e.target.closest("[data-rr-note-add]")) { e.preventDefault(); _rrAddNoteFromInput(); return; }
   const pinT = e.target.closest("[data-rr-note-pin-toggle]");

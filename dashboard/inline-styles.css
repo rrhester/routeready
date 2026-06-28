@@ -27281,36 +27281,3 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-adp-banner-s{ margin:1px 0 0; font-size:12px; color:var(--text-muted); }
 /* ──────────────────────────────────────────────────────────────────── */
 
-/* ─────────────────────────────────────────────────────────────
-   FORMS QUICK-ACCESS TOOL · slide-out list
-   Opened from the Forms icon on the Schedule right-side utility rail
-   (data-rr-forms-toggle). The earlier standalone floating #rr-forms-tab
-   was removed in favour of that rail icon.
-   ───────────────────────────────────────────────────────────── */
-.rr-ftool-list{display:flex;flex-direction:column;gap:var(--s-2)}
-.rr-ftool-row{
-  display:grid;grid-template-columns:32px 1fr auto;gap:var(--s-2-5);
-  align-items:center;padding:var(--s-2-5) var(--s-3);
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-md);cursor:pointer;text-align:left;width:100%;
-  transition:background 140ms ease,border-color 140ms ease;
-}
-.rr-ftool-row:hover{background:var(--canvas);border-color:var(--accent)}
-.rr-ftool-ico{
-  width:32px;height:32px;border-radius:var(--r-md);flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;
-  background:var(--canvas);color:var(--accent);
-}
-.rr-ftool-ico svg{width:16px;height:16px}
-.rr-ftool-main{min-width:0}
-.rr-ftool-title{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rr-ftool-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
-.rr-ftool-pill{
-  font-size:var(--fs-xs);font-weight:600;white-space:nowrap;
-  padding:2px 8px;border-radius:var(--r-lg);
-  background:var(--canvas);color:var(--text-subtle);
-}
-.rr-ftool-pill.published{background:var(--green-soft);color:var(--green)}
-.rr-ftool-pill.draft{background:var(--amber-soft);color:var(--amber)}
-.rr-ftool-pill.archived{background:var(--canvas);color:var(--text-subtle)}
-.rr-ftool-empty{font-size:var(--fs-sm);color:var(--text-subtle);padding:var(--s-3) 0}

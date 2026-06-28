@@ -2953,5 +2953,20 @@
             </div>
           </div>
         </aside>
+        <aside class="sched-notes-panel" id="rr-sched-forms" aria-label="Forms" aria-hidden="true">
+          <div class="ntp-head">
+            <div class="ntp-head-title">Forms</div>
+            <button type="button" class="ntp-icon-btn" data-rr-forms-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+
+          <div class="ntp-scroll">
+            <div class="ntp-forms-block" data-rr-nt-forms>
+              <div class="ntp-tasks-head">
+                <div class="ntp-section-title">All Forms</div>
+              </div>
+              <div class="ntp-formlist" id="rr-sched-forms-list" role="list"></div>
+            </div>
+          </div>
+        </aside>
       </div>
     
