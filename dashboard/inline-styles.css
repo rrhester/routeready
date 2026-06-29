@@ -27990,3 +27990,71 @@ body.rr-cmdk-open{ overflow:hidden }
   #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-dx[open] .oc-filters-body{ animation:none !important; }
   #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev:hover{ transform:none !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   CALENDAR toolbar · Work Week + Availability MATCH the Schedule buttons
+   ────────────────────────────────────────────────────────────────────────
+   The user wants the recruiting Calendar's "Work Week" view selector and the
+   "Availability" launcher to share the SAME box as the Schedule page's
+   command-bar tiles (Smart Fill / Assign-Unassign Fleet). Those tiles are the
+   transparent, borderless, column-layout ghost buttons defined in
+   schedule-rrx.css (`#view-schedule.rrx-schedule .sched-ribbon-actions--grouped
+   .sched-page-btn:not(#rr-sched-smartfill-h)`, the "Fleet Bridge .em-action"
+   baseline-lock v3 block) — NOT a white/hairline pill. Measured computed box of
+   the reference (#rr-sched-vans-h "Assign/Unassign Fleet"):
+       flex-direction:column · gap:4px · min-width:62px ·
+       padding:6px 10px 7px · height:auto · background:transparent ·
+       border:0 · border-radius:6px (var(--rr-radius-medium)) ·
+       label font 13px/500 · icon 28×28 · color var(--rr-fg-secondary).
+   We re-use those exact Schedule tokens/values here so the two controls can't
+   drift from the Schedule buttons. This intentionally walks back the M3 ghost
+   "white pill" treatment for these two controls only (block ~27782); every
+   other M3 toolbar change (single blue CTA, inline sync status, etc.) is left
+   intact. Scoped strictly to the Calendar sub-tab's #rr-cal-ribbon. Appended
+   last so it wins source order over the M3 block above; !important beats the
+   M3 !important declarations. ──────────────────────────────────────────── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger,
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle{
+  /* ── Box · copied from Schedule .sched-page-btn (Unassign Fleet) ──
+     Same padding / border / radius / background / font / color so the two
+     controls share the Schedule tile box. Layout stays row so the Work Week
+     caret sits inline (a dropdown selector reads left-label, right-caret), and
+     Availability is a single text label — both match the box without forcing
+     the icon-over-label column the Schedule glyph tiles use. */
+  display:inline-flex !important;
+  flex-direction:row !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:var(--rr-space-40, 4px) !important;
+  min-width:62px !important;
+  width:auto !important;
+  height:auto !important;
+  min-height:0 !important;
+  margin:0 !important;
+  padding:6px 10px 7px !important;
+  background:transparent !important;
+  border:0 !important;
+  border-radius:var(--rr-radius-medium, 6px) !important;
+  box-shadow:none !important;
+  color:var(--rr-fg-secondary, #6B7280) !important;
+  font-family:var(--rr-font-family) !important;
+  font-size:13px !important;
+  font-weight:500 !important;
+  line-height:1.2 !important;
+  letter-spacing:0 !important;
+  white-space:nowrap !important;
+  transition:background var(--rr-motion-fast, .15s ease),
+             color var(--rr-motion-fast, .15s ease) !important;
+}
+/* Label · same 13px/500 the Schedule tiles give their <span>. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger .rr-cal-viewdd-current{
+  font-size:13px !important; font-weight:500 !important;
+  color:var(--rr-fg-secondary, #6B7280) !important;
+}
+/* Hover · Schedule tiles use the soft neutral wash + primary-fg, no border. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger:hover,
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle:hover{
+  background:var(--rr-bg-hover, rgba(0,0,0,.04)) !important;
+  border:0 !important;
+  color:var(--rr-fg-primary, #111827) !important;
+}
