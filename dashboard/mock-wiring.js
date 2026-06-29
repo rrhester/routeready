@@ -304,6 +304,24 @@
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
     var target = document.getElementById('view-' + view);
     if (target) target.classList.add('active');
+    // Active-view signal for the shared right-edge utility rail. CSS gates the
+    // rail's visibility to schedule + onboarding-ops via this attribute, and
+    // live.js points the rail's top-sync / push effect at the live view.
+    try {
+      var _rrAV = target ? target.id : ('view-' + view);
+      document.body.dataset.rrActiveView = _rrAV;
+      // Leaving both rail host views: close any open panel so it can't linger
+      // over a view that doesn't host the rail.
+      if (_rrAV !== 'view-schedule' && _rrAV !== 'view-onboarding-ops' &&
+          typeof window._rrNtPanelCloseAll === 'function') {
+        window._rrNtPanelCloseAll();
+      }
+      // Re-align the rail/panels to the new host view's content top.
+      if (typeof window._rrSyncNotesRailTop === 'function') {
+        window._rrSyncNotesRailTop();
+        setTimeout(window._rrSyncNotesRailTop, 90);
+      }
+    } catch (_) {}
     document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
     // Forms / Checklists live under the Workspaces sidebar icon now.
     var navView = (view === 'forms' || view === 'checklists') ? 'workspaces' : view;

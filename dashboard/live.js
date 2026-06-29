@@ -79,6 +79,50 @@ window.debugDemand = async (weekStart) => {
 if (window.__RR_VIEWS_READY) await window.__RR_VIEWS_READY;
 if (window.__RR_VIEW_LOAD_FAILED) throw new Error("view partials failed to load");
 
+// ─── Shared utility rail · relocate out of the per-view subtree ─────────────
+// The right-edge utility rail (Notes / Tasks / Operations-Health / Forms) and
+// its slide-out panels ship as static markup inside view-schedule.frag, so
+// they're injected as descendants of #view-schedule — which is display:none
+// when that view is inactive. To let the SAME rail serve the recruiting /
+// onboarding view too, we hoist those four nodes (keeping their ids) into a
+// single fixed global mount that's a direct child of <body>, outside every
+// .view hidden subtree. CSS then view-gates the mount's visibility to
+// #view-schedule + #view-onboarding-ops via body[data-rr-active-view]; all
+// existing JS keeps resolving the rail/panels by their unchanged ids. Runs
+// BEFORE the auth gate below so the relocation happens even on the login
+// redirect path (harmless if the markup is missing).
+(function _rrHoistUtilRail() {
+  try {
+    const ids = ["rr-sched-util-rail", "rr-sched-notes", "rr-sched-tasks", "rr-sched-forms"];
+    const nodes = ids.map((id) => document.getElementById(id)).filter(Boolean);
+    if (!nodes.length) return;
+    let mount = document.getElementById("rr-util-rail-mount");
+    if (!mount) {
+      mount = document.createElement("div");
+      mount.id = "rr-util-rail-mount";
+      document.body.appendChild(mount);
+    }
+    nodes.forEach((n) => mount.appendChild(n));
+  } catch (_) {}
+})();
+// Seed the active-view signal from whichever view is active at boot (Schedule
+// by default), so the rail shows immediately without waiting for a goto().
+// goto() (mock-wiring.js) keeps this in sync on every navigation.
+(function _rrSeedActiveViewSignal() {
+  try {
+    const active = document.querySelector(".view.active");
+    if (active && active.id) document.body.dataset.rrActiveView = active.id;
+  } catch (_) {}
+})();
+// The active top-level view element, but ONLY when it's one the utility rail
+// serves (Schedule or Onboarding-Ops). Used so the rail's top-sync + push
+// effect target the live view instead of a hardcoded #view-schedule.
+function _rrUtilRailView() {
+  const id = document.body && document.body.dataset ? document.body.dataset.rrActiveView : "";
+  if (id === "view-schedule" || id === "view-onboarding-ops") return document.getElementById(id);
+  return null;
+}
+
 // ─── Auth gate ─────────────────────────────────────────────────────────────
 const { data: { session } } = await sb.auth.getSession();
 if (!session) {
@@ -8601,8 +8645,16 @@ function _rrSyncNotesRailTop() {
   // The inactive sub-view's nodes are display:none (rect top 0), so we walk
   // candidates and take the first that's actually laid out (top > 0), then
   // fall back to .tcp-body / the CSS default when nothing's measured yet.
+  // Anchor to the live rail view (Schedule or Onboarding-Ops). On Schedule we
+  // align to the calendar/grid header; on Onboarding-Ops (no calendar grid)
+  // we fall back to its page body. Default to #view-schedule when no rail view
+  // is active yet (boot), preserving the original schedule alignment.
+  const railView = _rrUtilRailView();
+  const onOnboarding = !!(railView && railView.id === "view-onboarding-ops");
   const onRoster = !!(window._schedRosterKpiActive && window._schedRosterKpiActive());
-  const sels = onRoster
+  const sels = onOnboarding
+    ? ["#view-onboarding-ops .tcp-body", "#view-onboarding-ops .page-header", "#view-onboarding-ops .page"]
+    : onRoster
     ? ["#ob-roster-mount #rr-roster-table-wrap", "#ob-roster-mount .table-wrap", "#view-schedule .tcp-body"]
     : ["#view-schedule .cal-grid.head", "#view-schedule .cal-wrap", "#view-schedule .tcp-body"];
   let t = 0;
@@ -8622,6 +8674,10 @@ function _rrSyncNotesRailTop() {
 // .tcp-body exists and never re-run. Retry until it's actually laid out,
 // then observe it (and the view) so they re-align on any reflow.
 window.addEventListener("resize", _rrSyncNotesRailTop);
+// Exposed so the view router (goto, mock-wiring.js) can re-align the rail when
+// the operator navigates between the rail's two host views (Schedule ↔
+// Onboarding-Ops), whose content tops differ.
+try { window._rrSyncNotesRailTop = _rrSyncNotesRailTop; } catch (_) {}
 (function _rrNotesRailInit(){
   let n = 0, wired = false;
   const tick = () => {
@@ -8671,9 +8727,14 @@ function _rrNtMarkClosed(which) {
 }
 function _rrNtPanelCloseAll() {
   Object.keys(_RR_NT_PANELS).forEach(_rrNtMarkClosed);
-  const view = document.getElementById("view-schedule");
-  if (view) view.classList.remove("rr-notes-open");
+  // Clear the body-push class wherever it may sit. Schedule reflows its grid
+  // into the narrower width (the rr-notes-open .tcp-body padding); Onboarding
+  // has no .tcp-body push target, so the panel simply overlays there.
+  document.querySelectorAll(".view.rr-notes-open").forEach((v) => v.classList.remove("rr-notes-open"));
 }
+// Exposed so the view router can dismiss an open panel when navigating away
+// from the rail's host views (Schedule / Onboarding-Ops).
+try { window._rrNtPanelCloseAll = _rrNtPanelCloseAll; } catch (_) {}
 function _rrNtPanelOpen(which) {
   const el = _rrNtPanelEl(which);
   if (!el) return;
@@ -8685,9 +8746,11 @@ function _rrNtPanelOpen(which) {
   el.setAttribute("aria-hidden", "false");
   const btn = _rrNtToggleBtn(which);
   if (btn) btn.setAttribute("aria-expanded", "true");
-  // Push, don't overlay: condense the schedule body left to make room
-  // (mirrors the Operations Health right dock).
-  const view = document.getElementById("view-schedule");
+  // Push, don't overlay: condense the active view's body left to make room
+  // (mirrors the Operations Health right dock). On Schedule this reflows the
+  // calendar grid; on Onboarding-Ops (no .tcp-body push target) the panel
+  // overlays — acceptable per product decision. Default to #view-schedule.
+  const view = _rrUtilRailView() || document.getElementById("view-schedule");
   if (view) view.classList.add("rr-notes-open");
   _rrNtRenderAll();
   if (which === "notes") {
@@ -8716,7 +8779,7 @@ function _rrNtSpawnRipple(btn) {
 // Ripple on press (pointerdown) for every rail utility icon, so it fires
 // the instant the user presses — ahead of the click that toggles the panel.
 document.addEventListener("pointerdown", (e) => {
-  const btn = e.target.closest && e.target.closest("#view-schedule .sched-util-btn");
+  const btn = e.target.closest && e.target.closest(".sched-util-btn");
   if (btn) _rrNtSpawnRipple(btn);
 });
 document.addEventListener("click", (e) => {
