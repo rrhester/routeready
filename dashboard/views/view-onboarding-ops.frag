@@ -404,6 +404,12 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><line x1="16" y1="13" x2="16" y2="19"/><line x1="13" y1="16" x2="19" y2="16"/></svg>
                   <span>Add calendar</span>
                 </button>
+                <!-- App-launcher dock · hosts the global #rr-applauncher in the
+                     calendar header (far right), so it sits in the same spot as
+                     the Schedule page instead of the fixed top-right corner.
+                     placeLauncher() only docks here when this is visible (i.e.
+                     on the Calendar subtab). -->
+                <span class="rr-launcher-dock" aria-hidden="true"></span>
                 <span class="rr-cal-sync" title="Connected to Google Calendar">
                   <span class="rr-cal-sync-dot" aria-hidden="true"></span>
                   Google Calendar synced
