@@ -27730,3 +27730,244 @@ body.rr-cmdk-open{ overflow:hidden }
   box-shadow:none !important;
 }
 
+
+/* ════════════════════════════════════════════════════════════════════════
+   CALENDAR · Material 3 / Google-Workspace refinement pass
+   ────────────────────────────────────────────────────────────────────────
+   A visual-weight reduction over the existing "premium calendar" block
+   (~26512). Scope is the onboarding Calendar sub-tab and its embedded
+   #rr-ivcal calendar ONLY — every selector is prefixed with
+   #view-onboarding-ops[data-obsub="calendar"], so the Overview / Funnel /
+   Interview / Work-auth tabs and the Schedule page (its own .cal-grid, not
+   #rr-ivcal) are untouched. This block sits LAST in inline-styles.css, which
+   is the last stylesheet loaded (index.html), so it wins on source order over
+   the earlier #rr-ivcal premium rules at equal-or-lower specificity. Tokens
+   from the design brief: primary #1A73E8, hairline #E9EDF3, bg #FFFFFF, hover
+   #F8FAFC, selected #E8F0FE; motion 180–220ms.
+   ════════════════════════════════════════════════════════════════════════ */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal{
+  /* M3 hairlines + neutral surfaces — lighter than the premium block. */
+  --oc-line:#E9EDF3; --oc-line2:#EFF2F7;
+  --oc-colsep:#E9EDF3; --oc-rowline:#EEF1F6; --oc-rowline2:#F3F5F9;
+  --oc-surface:#FFFFFF; --oc-surface-2:#FFFFFF;
+  --oc-hover:#F8FAFC; --oc-today:rgba(26,115,232,.05);
+  --oc-blue:#1A73E8; --oc-blue-strong:#1669D6;
+  /* GRID DOMINATES · drop the outer card so the grid sits on the page. */
+  background:#FFFFFF !important; border:0 !important; border-radius:0 !important;
+  box-shadow:none !important;
+}
+
+/* ── HEADER / TOOLBAR (recruiting ribbon) · tighter, lighter ──────────── */
+/* One primary blue button (Schedule Interview). Everything else → light
+   ghost. Slightly shorter (36px), larger radius (11px). Reduce control gap. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon > .subnav{
+  gap:8px !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup{ gap:6px !important; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup{ gap:6px !important; }
+/* Ghost/secondary controls: Add calendar, Availability, the view dropdown. */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item,
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .rr-cal-vtab,
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle,
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewdd-trigger{
+  height:36px !important; padding:0 14px !important; border-radius:11px !important;
+  background:#FFFFFF !important; color:#3C4043 !important;
+  border:1px solid #E9EDF3 !important; box-shadow:none !important;
+  font-size:13px !important; font-weight:500 !important;
+  transition:background .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:not(:first-child):hover,
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .rr-cal-vtab:not(.active):hover,
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle:hover,
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewdd-trigger:hover{
+  background:#F8FAFC !important; border-color:#E9EDF3 !important; color:#202124 !important;
+}
+/* Availability → de-emphasised text/ghost (kept; working control). */
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle{
+  font-weight:500 !important; color:#5F6368 !important;
+}
+/* The ONE primary blue CTA = Schedule Interview (#1A73E8). */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child{
+  height:36px !important; padding:0 16px !important; border-radius:11px !important;
+  background:#1A73E8 !important; color:#fff !important; border:1px solid #1A73E8 !important;
+  font-weight:600 !important; box-shadow:none !important;
+  transition:background .18s ease, box-shadow .18s ease !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child:hover{
+  background:#1669D6 !important; border-color:#1669D6 !important;
+  box-shadow:0 1px 3px rgba(26,115,232,.32) !important;
+}
+/* View dropdown · match the ghost weight + radius. */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewdd-trigger{
+  font-weight:500 !important; color:#3C4043 !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewdd-menu{
+  border:1px solid #E9EDF3 !important; border-radius:12px !important;
+  box-shadow:0 6px 20px rgba(15,23,42,.12), 0 2px 6px rgba(15,23,42,.06) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .rr-cal-viewdd-menu .rr-cal-vtab.active{
+  background:#E8F0FE !important; color:#1A73E8 !important; font-weight:500 !important;
+}
+
+/* Subtle inline sync status · replace the big green pill with "● Synced". */
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-sync{
+  height:auto !important; padding:0 4px !important;
+  background:transparent !important; border:0 !important; border-radius:0 !important;
+  gap:7px !important; font-size:12.5px !important; font-weight:500 !important;
+  color:#5F6368 !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-sync-dot{
+  width:7px !important; height:7px !important; background:#1E8E3E !important;
+  box-shadow:none !important;
+}
+
+/* ── CALENDAR BODY (#rr-ivcal) · borderless, hairline grid ────────────── */
+/* Toolbar · flat, hairline divider, tighter. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-bar{
+  padding:10px 4px 12px !important; background:#FFFFFF !important;
+  border-bottom:1px solid #E9EDF3 !important; gap:6px !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn{
+  border-radius:10px !important; border-color:#E9EDF3 !important;
+  background:#FFFFFF !important; color:#3C4043 !important; font-weight:500 !important;
+  transition:background .18s ease, border-color .18s ease, color .18s ease !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn:hover{ background:#F8FAFC !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-side-toggle.on{
+  color:#1A73E8 !important; background:#E8F0FE !important; border-color:#E8F0FE !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-seg{ border-color:#E9EDF3 !important; border-radius:10px !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-seg button{ border-color:#E9EDF3 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-period{
+  font-size:15px !important; font-weight:500 !important; color:#202124 !important; letter-spacing:0 !important;
+}
+
+/* Grid head + columns · white, hairline #E9EDF3, no neutral wash. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-head{ border-bottom:1px solid #E9EDF3 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col{ background:#FFFFFF !important; border-left:1px solid #E9EDF3 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.today{ background:rgba(26,115,232,.045) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-corner{ border-right:1px solid #E9EDF3 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-avail{ background:transparent !important; }
+
+/* DAY HEADERS · sentence case, reduced weight, more whitespace. The label is
+   uppercased by .oc-dh .dow (base CSS) — undo it to "Monday". */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh{
+  padding:16px 0 16px 14px !important; border-left:1px solid #E9EDF3 !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .dow{
+  text-transform:none !important; font-size:12px !important; font-weight:500 !important;
+  letter-spacing:0 !important; color:#5F6368 !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .dn{
+  font-size:21px !important; font-weight:500 !important; color:#202124 !important; margin-top:4px !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dn{
+  background:#1A73E8 !important; font-weight:500 !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dow{ color:#1A73E8 !important; font-weight:500 !important; }
+
+/* TIME LABELS · lighter, smaller, Google-Calendar style. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hr span{
+  font-size:10px !important; font-weight:400 !important; color:#9AA0A6 !important;
+  opacity:.9 !important; background:transparent !important;
+}
+
+/* LEFT SIDEBAR · white, no border, smaller headings, more spacing. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-side{
+  background:#FFFFFF !important; border-right:1px solid #E9EDF3 !important; padding:18px 16px !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-side > .oc-mini::before{ display:none !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini{ margin-bottom:16px !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-title{
+  font-size:14px !important; font-weight:500 !important; color:#202124 !important; letter-spacing:0 !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.today{ background:#1A73E8 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.in-range{ background:#E8F0FE !important; color:#1A73E8 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals{ border-top:1px solid #E9EDF3 !important; margin-top:18px !important; padding-top:16px !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals-h{
+  font-size:11px !important; font-weight:600 !important; letter-spacing:.04em !important; color:#80868B !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals-sub{
+  border-top:0 !important; padding-top:0 !important; margin-top:14px !important;
+  font-size:11px !important; font-weight:600 !important; color:#80868B !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await{ border-bottom:1px solid #E9EDF3 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await-count{ background:#1A73E8 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal-row:hover,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await-row:hover{ background:#F8FAFC !important; }
+
+/* ── FILTERS · collapsible disclosure (collapsed by default) ──────────── */
+/* The legend now renders inside .oc-leg with a <details class="oc-filters-dx">.
+   The summary is the "Filters" toggle; the body animates open via grid-rows. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-dx{ margin-top:14px; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-sum{
+  display:flex; align-items:center; gap:7px; cursor:pointer; list-style:none;
+  font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:#80868B;
+  padding:4px 2px; border-radius:8px; user-select:none;
+  transition:background .18s ease, color .18s ease;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-sum::-webkit-details-marker{ display:none; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-sum:hover{ background:#F8FAFC; color:#3C4043; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-caret{
+  width:14px; height:14px; flex:0 0 auto; margin-left:auto; color:#9AA0A6;
+  transition:transform .2s ease;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-dx[open] .oc-filters-caret{ transform:rotate(180deg); }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-body{
+  display:grid; grid-template-rows:1fr; padding-top:6px;
+}
+/* Smooth expand · animate the open via a height keyframe on the body. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-dx[open] .oc-filters-body{
+  animation:ocFiltersOpen .2s ease;
+}
+@keyframes ocFiltersOpen{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-leg .oc-cals-sub{ display:none; } /* "Status"/"Icons" subheads — summary replaces them */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-leg .oc-leg-tog:hover{ background:#F8FAFC !important; }
+
+/* ── CALENDAR EVENTS · Google-Calendar style ─────────────────────────── */
+/* 10px corners, soft fills, no heavy border, subtle hover-only shadow, more
+   internal padding. Soften every category fill + drop the side-bar weight. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev{
+  border-radius:10px !important; border-left-width:3px !important;
+  padding:5px 9px 5px 10px !important; box-shadow:none !important;
+  transition:box-shadow .18s ease, filter .18s ease, transform .18s ease !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev:hover{
+  filter:none !important; transform:translateY(-1px) !important;
+  box-shadow:0 2px 6px rgba(15,23,42,.12), 0 4px 12px rgba(15,23,42,.08) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .et{ font-weight:600 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.sel{
+  box-shadow:0 0 0 2px #FFFFFF, 0 0 0 3px #1A73E8 !important;
+}
+/* Softer category fills (very light), restrained borders. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-blue{ background:#E8F0FE !important; border-color:#D2E3FC !important; border-left-color:#1A73E8 !important; color:#174EA6 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-green{ background:#E6F4EA !important; border-color:#CEEAD6 !important; border-left-color:#1E8E3E !important; color:#137333 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-orange{ background:#FEF7E0 !important; border-color:#FEEFC3 !important; border-left-color:#E37400 !important; color:#A65300 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-gray{ background:#F1F3F4 !important; border-color:#E8EAED !important; border-left-color:#80868B !important; color:#5F6368 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-red{ background:#FCE8E6 !important; border-color:#F6CFCB !important; border-left-color:#D93025 !important; color:#A50E0E !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-teal{ background:#E4F7F5 !important; border-color:#CBEEEA !important; border-left-color:#12A29A !important; color:#0B6E68 !important; }
+
+/* ── MOTION · view-transition slide + event fade-in ──────────────────── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal{ animation:ocViewIn .2s ease; }
+@keyframes ocViewIn{ from{ opacity:0; transform:translateX(10px); } to{ opacity:1; transform:none; } }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col .oc-ev{ animation:ocEvIn .2s ease backwards; }
+@keyframes ocEvIn{ from{ opacity:0; } to{ opacity:1; } }
+
+/* ── ICONS · less prominent (18–20px, reduced opacity, more padding) ──── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .ei{ opacity:.75 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-leg-ico{ opacity:.7 !important; }
+
+/* Month view · hairline cells. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mhead{ border-bottom:1px solid #E9EDF3 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mcell{ border-color:#E9EDF3 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mcell.out{ background:#FAFBFC !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-pill{ border-radius:8px !important; }
+
+/* ── prefers-reduced-motion · nothing animates ───────────────────────── */
+@media (prefers-reduced-motion: reduce){
+  #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal,
+  #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col .oc-ev,
+  #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-dx[open] .oc-filters-body{ animation:none !important; }
+  #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev:hover{ transform:none !important; }
+}
