@@ -7533,102 +7533,45 @@ body.rr-cmdk-open{ overflow:hidden }
 .builder-device-btn.is-active{background:var(--surface);color:var(--accent-text);box-shadow:0 1px 2px rgba(15,23,42,.08)}
 .builder-preview-stage{flex:1;min-height:0;overflow-y:auto;padding:var(--s-4) var(--s-3-5);display:flex;justify-content:center;align-items:center;background:var(--canvas)}
 
-/* ── Realistic device mockup ───────────────────────────────────────
-   The Driver preview renders inside an actual phone (titanium bezel,
-   dynamic island, status bar) — adapted from the marketing iPhone frame
-   in terms.html / privacy.html, re-scoped as .builder-device / .bdev-*
-   so it can't leak into the driver app or other views.  The frame is the
-   device chrome; .bdev-screen is the rounded glass; .bdev-viewport is the
-   scrollable area that holds the live #rr-builder-preview-body. */
+/* ── Plain preview panel ───────────────────────────────────────────
+   The Driver preview renders inside a clean, plain card — a --surface
+   panel with a --border hairline and a subtle shadow.  No phone chrome
+   (no bezel, no dynamic island, no status bar).  The device toggles set
+   sizing classes on this panel to change its width/aspect; the inner
+   .bdev-viewport is the ONLY scroll area, so the panel keeps a definite
+   height and the form scrolls internally rather than growing the panel. */
 .builder-device{
   position:relative;align-self:center;
-  /* Definite phone shape — the device must ALWAYS look like a full, tall
-     phone, never size to its content.  Both width AND height are explicit
-     (per device/orientation below), so the device's size is independent of
-     how many fields are inside; the inner .bdev-viewport is the only scroll
-     area, so an empty preview shows a full-height phone (empty state
-     centered) and a full preview shows the same phone with the form
-     scrolling internally.  We use an explicit height rather than only
-     aspect-ratio because aspect-ratio is a *preferred* size that content can
-     override — an explicit height can't be grown by the content.
+  /* Definite panel shape — both width AND height are explicit (per device/
+     orientation below), so the panel never sizes to its content; an empty
+     preview shows the full-height card (empty state centered) and a full
+     preview shows the same card with the form scrolling inside.  Explicit
+     height (not just aspect-ratio) so content can't grow it.
      max-width:100% keeps it inside the column; max-height is a viewport cap
-     (vh, NOT a flex percentage — a % max-height stretches the item in this
-     flex row) so on a short screen the device shrinks and the inner viewport
-     keeps scrolling; in the normal tall modal the full shape shows. */
-  width:var(--bdev-w,268px);height:var(--bdev-h,581px);
+     (vh, NOT a flex %) so on a short screen the panel shrinks and the inner
+     viewport keeps scrolling. */
+  width:var(--bdev-w,300px);height:var(--bdev-h,560px);
   max-width:100%;max-height:78vh;min-height:0;flex:0 0 auto;
-  display:flex;flex-direction:column;
+  display:flex;flex-direction:column;overflow:hidden;
   margin:var(--s-2) auto;
-  /* Titanium frame */
-  background:linear-gradient(135deg,#374151 0%,#374151 8%,#1F2937 22%,#111827 42%,#111827 58%,#111827 72%,#374151 88%,#374151 100%);
-  border-radius:46px;padding:11px;
-  box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,.18),
-    inset 0 1px 0 rgba(255,255,255,.22),
-    inset 0 -1px 0 rgba(0,0,0,.5),
-    0 0 0 1px rgba(0,0,0,.6),
-    0 18px 38px rgba(15,23,42,.22);
-  transition:width var(--t-smooth),height var(--t-smooth),border-radius var(--t-smooth);
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r-xl);
+  box-shadow:0 1px 3px rgba(15,23,42,.06);
+  transition:width var(--t-smooth),height var(--t-smooth);
 }
-/* Specular highlight — the key to the metal read */
-.builder-device::before{
-  content:"";position:absolute;inset:0;border-radius:46px;pointer-events:none;z-index:4;
-  background:linear-gradient(155deg,rgba(255,255,255,.22) 0%,rgba(255,255,255,.09) 12%,transparent 32%,transparent 68%,rgba(255,255,255,.04) 84%,rgba(255,255,255,.11) 100%);
-}
-/* Side buttons */
-.builder-device .bdev-btn{position:absolute;background:linear-gradient(180deg,#374151 0%,#1F2937 25%,#1F2937 75%,#374151 100%);z-index:2}
-.builder-device .bdev-btn-power{right:-2px;top:30%;width:2px;height:18%;border-radius:0 2px 2px 0;box-shadow:inset -1px 0 0 rgba(255,255,255,.1),1px 0 2px rgba(0,0,0,.4)}
-.builder-device .bdev-btn-mute{left:-2px;top:23%;width:2px;height:8%;border-radius:2px 0 0 2px;box-shadow:inset 1px 0 0 rgba(255,255,255,.1),-1px 0 2px rgba(0,0,0,.4)}
-.builder-device .bdev-btn-vol-up{left:-2px;top:34%;width:2px;height:13%;border-radius:2px 0 0 2px;box-shadow:inset 1px 0 0 rgba(255,255,255,.1),-1px 0 2px rgba(0,0,0,.4)}
-.builder-device .bdev-btn-vol-down{left:-2px;top:50%;width:2px;height:13%;border-radius:2px 0 0 2px;box-shadow:inset 1px 0 0 rgba(255,255,255,.1),-1px 0 2px rgba(0,0,0,.4)}
-
-/* Screen (glass) */
-.builder-device .bdev-screen{
-  position:relative;display:flex;flex-direction:column;overflow:hidden;
-  /* Fill the device interior and bound the scrollable viewport so the
-     screen is fixed-height and only .bdev-viewport scrolls. */
-  flex:1 1 auto;min-height:0;
-  background:var(--canvas);border-radius:36px;
-}
-/* Glass glare */
-.builder-device .bdev-screen::before{
-  content:"";position:absolute;inset:0;z-index:6;pointer-events:none;border-radius:36px;
-  background:linear-gradient(150deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,.05) 20%,transparent 45%);
-}
-/* Dynamic island */
-.builder-device .bdev-island{
-  position:absolute;top:9px;left:50%;transform:translateX(-50%);
-  width:34%;max-width:108px;height:24px;background:#000;border-radius:14px;z-index:10;
-  display:flex;align-items:center;justify-content:space-between;padding:0 13px;
-  box-shadow:0 0 0 1px rgba(255,255,255,.04);
-}
-.builder-device .bdev-island-sensor{width:7px;height:7px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#1F2937,#111827);border:1px solid rgba(255,255,255,.05)}
-.builder-device .bdev-island-camera{width:8px;height:8px;border-radius:50%;background:radial-gradient(circle at 32% 30%,#1E293B,#0F172A);border:1px solid #2563EB;box-shadow:0 0 0 1px rgba(37,99,235,.18)}
-/* Status bar */
-.builder-device .bdev-statusbar{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:13px 20px 4px;background:var(--canvas);position:relative;z-index:5;
-}
-.builder-device .bdev-status-time{font-size:12px;font-weight:600;color:var(--text);letter-spacing:-.2px;font-variant-numeric:tabular-nums}
-.builder-device .bdev-status-icons{display:flex;align-items:center;gap:5px;color:var(--text)}
-.builder-device .bdev-status-signal{width:15px;height:10px}
-.builder-device .bdev-status-wifi{width:14px;height:10px}
-.builder-device .bdev-status-battery{position:relative;width:20px;height:10px;border:1px solid var(--text-subtle);border-radius:3px;padding:1.5px;display:flex;align-items:center}
-.builder-device .bdev-status-battery::after{content:"";position:absolute;right:-3px;top:50%;transform:translateY(-50%);width:1.5px;height:4px;border-radius:0 1px 1px 0;background:var(--text-subtle)}
-.builder-device .bdev-status-battery-fill{width:72%;height:100%;border-radius:1px;background:var(--text)}
-/* Scrollable form viewport — the live preview lives here */
+/* Scrollable form viewport — the live preview lives here.  This is the ONLY
+   scroll area, so the panel is fixed-height and a long form scrolls inside. */
 .builder-device .bdev-viewport{
-  position:relative;z-index:1;flex:1 1 auto;min-height:0;
-  /* The ONLY scroll area — status bar + island stay pinned above it.  A flex
-     column so a short body (the empty state) can fill the screen and centre
-     itself, while a long form scrolls. */
+  position:relative;flex:1 1 auto;min-height:0;
+  /* A flex column so a short body (the empty state) can fill the panel and
+     centre itself, while a long form scrolls. */
   display:flex;flex-direction:column;
   overflow-y:auto;overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
-  padding:var(--s-3-5) var(--s-3-5) var(--s-5);
+  padding:var(--s-4) var(--s-3-5) var(--s-5);
   background:var(--canvas);
-  /* Understated scrollbar so a long form scrolls inside the screen
-     without a heavy gutter breaking the device read. */
+  /* Understated scrollbar so a long form scrolls inside the panel without a
+     heavy gutter. */
   scrollbar-width:thin;scrollbar-color:var(--border) transparent;
 }
 .builder-device .bdev-viewport::-webkit-scrollbar{width:6px}
@@ -7636,31 +7579,21 @@ body.rr-cmdk-open{ overflow:hidden }
 .builder-device .bdev-viewport::-webkit-scrollbar-track{background:transparent}
 
 /* Device + orientation presets.  Each combination is a DEFINITE shape — an
-   explicit width (--bdev-w) AND height (--bdev-h) — so the device never sizes
-   to its content; it's always a full phone/tablet, empty or full, with the
-   inner .bdev-viewport scrolling.  Sizes are chosen to fit the ~291px-wide,
-   ~600px-tall preview stage so the normal modal shows the full shape; on a
-   shorter screen the base rule's max-height:78vh caps it and the viewport
-   still scrolls.
-   Default = phone portrait (set on the base rule).  Landscape swaps to a
-   wider, shorter shape of the same device. */
-.builder-device-phone{--bdev-w:268px;--bdev-h:581px}
-.builder-device-tablet{--bdev-w:288px;--bdev-h:384px;border-radius:30px;padding:13px}
-.builder-device-tablet::before{border-radius:30px}
-.builder-device-tablet .bdev-screen{border-radius:20px}
-.builder-device-tablet .bdev-screen::before{border-radius:20px}
-/* Tablets have no dynamic island; keep a thin status bar only */
-.builder-device-tablet .bdev-island{display:none}
-.builder-device-tablet .bdev-statusbar{padding:8px 16px 4px}
-.builder-device-tablet .bdev-viewport{padding:var(--s-3) var(--s-4) var(--s-5)}
-/* Landscape — wider + shorter shape of the active device.  Still a definite
-   shape (explicit width + height), still capped to the stage, still scrolling
-   internally; it just rotates the proportions. */
-.builder-device.is-landscape.builder-device-phone{--bdev-w:288px;--bdev-h:150px}
-.builder-device.is-landscape.builder-device-tablet{--bdev-w:288px;--bdev-h:220px}
+   explicit width (--bdev-w) AND height (--bdev-h) — so the panel never sizes
+   to its content; it's always a full card, empty or full, with the inner
+   .bdev-viewport scrolling.  Sizes fit the ~291px-wide, ~600px-tall preview
+   stage so the normal modal shows the full shape; on a shorter screen the
+   base rule's max-height:78vh caps it and the viewport still scrolls.
+   Default = phone portrait (set on the base rule).  The toggles just change
+   the panel's proportions — they no longer draw a phone. */
+.builder-device-phone{--bdev-w:300px;--bdev-h:560px}
+.builder-device-tablet{--bdev-w:288px;--bdev-h:420px}
+/* Landscape — wider + shorter proportion of the active device. */
+.builder-device.is-landscape.builder-device-phone{--bdev-w:288px;--bdev-h:200px}
+.builder-device.is-landscape.builder-device-tablet{--bdev-w:288px;--bdev-h:240px}
 
 /* Empty state fills the (flex-column) viewport and centres itself, so the
-   full-height phone reads as intentional rather than a stubby box. */
+   full-height panel reads as intentional rather than a stubby box. */
 .builder-preview-empty{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--s-2);padding:var(--s-8) var(--s-4);text-align:center;color:var(--text-subtle)}
 .builder-preview-empty svg{width:30px;height:30px;color:var(--text-disabled);stroke-width:1.5}
 .builder-preview-title{font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.005em;margin-bottom:var(--s-3)}
