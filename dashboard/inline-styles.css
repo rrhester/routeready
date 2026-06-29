@@ -7541,7 +7541,14 @@ body.rr-cmdk-open{ overflow:hidden }
    device chrome; .bdev-screen is the rounded glass; .bdev-viewport is the
    scrollable area that holds the live #rr-builder-preview-body. */
 .builder-device{
-  position:relative;width:100%;align-self:flex-start;
+  position:relative;width:100%;align-self:center;
+  /* Fixed-height device: fill the preview column's available vertical
+     space (it's a flex column with min-height:0) but never grow with the
+     rendered form — a max-height caps it to a phone aspect and the inner
+     .bdev-viewport scrolls.  flex:1 + min-height:0 lets the screen bound
+     the scroll area instead of expanding to fit content. */
+  display:flex;flex-direction:column;flex:1 1 auto;min-height:0;max-height:680px;
+  margin:var(--s-3) var(--s-3) var(--s-4);
   /* Titanium frame */
   background:linear-gradient(135deg,#374151 0%,#374151 8%,#1F2937 22%,#111827 42%,#111827 58%,#111827 72%,#374151 88%,#374151 100%);
   border-radius:46px;padding:11px;
@@ -7551,7 +7558,7 @@ body.rr-cmdk-open{ overflow:hidden }
     inset 0 -1px 0 rgba(0,0,0,.5),
     0 0 0 1px rgba(0,0,0,.6),
     0 18px 38px rgba(15,23,42,.22);
-  transition:max-width var(--t-smooth),border-radius var(--t-smooth);
+  transition:max-width var(--t-smooth),max-height var(--t-smooth),border-radius var(--t-smooth);
 }
 /* Specular highlight — the key to the metal read */
 .builder-device::before{
@@ -7568,6 +7575,9 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Screen (glass) */
 .builder-device .bdev-screen{
   position:relative;display:flex;flex-direction:column;overflow:hidden;
+  /* Fill the device interior and bound the scrollable viewport so the
+     screen is fixed-height and only .bdev-viewport scrolls. */
+  flex:1 1 auto;min-height:0;
   background:var(--canvas);border-radius:36px;
 }
 /* Glass glare */
@@ -7598,18 +7608,25 @@ body.rr-cmdk-open{ overflow:hidden }
 .builder-device .bdev-status-battery-fill{width:72%;height:100%;border-radius:1px;background:var(--text)}
 /* Scrollable form viewport — the live preview lives here */
 .builder-device .bdev-viewport{
-  position:relative;z-index:1;flex:1;min-height:0;overflow-y:auto;
+  position:relative;z-index:1;flex:1 1 auto;min-height:0;
+  overflow-y:auto;overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
   padding:var(--s-3-5) var(--s-3-5) var(--s-5);
   background:var(--canvas);
+  /* Understated scrollbar so a long form scrolls inside the screen
+     without a heavy gutter breaking the device read. */
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
 }
+.builder-device .bdev-viewport::-webkit-scrollbar{width:6px}
+.builder-device .bdev-viewport::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.builder-device .bdev-viewport::-webkit-scrollbar-track{background:transparent}
 
 /* Device + orientation presets.  The preview column is fixed-width (~320px),
    so devices are expressed as a max-width within it; portrait/landscape are
    width variants of the active device. Aspect read is reinforced by the
    screen height. Default = phone portrait. */
 .builder-device-phone{max-width:236px}
-.builder-device-tablet{max-width:280px;border-radius:30px;padding:13px}
+.builder-device-tablet{max-width:280px;border-radius:30px;padding:13px;max-height:760px}
 .builder-device-tablet::before{border-radius:30px}
 .builder-device-tablet .bdev-screen{border-radius:20px}
 .builder-device-tablet .bdev-screen::before{border-radius:20px}
@@ -7617,11 +7634,13 @@ body.rr-cmdk-open{ overflow:hidden }
 .builder-device-tablet .bdev-island{display:none}
 .builder-device-tablet .bdev-statusbar{padding:8px 16px 4px}
 .builder-device-tablet .bdev-viewport{padding:var(--s-3) var(--s-4) var(--s-5)}
-/* Portrait vs landscape — drive the screen aspect via min-height. */
-.builder-device.is-portrait .bdev-viewport{min-height:430px}
-.builder-device.is-landscape .bdev-viewport{min-height:230px}
-.builder-device.is-landscape.builder-device-phone{max-width:296px}
-.builder-device.is-landscape.builder-device-tablet{max-width:296px}
+/* Portrait vs landscape — drive the screen aspect via the device's
+   max-height (it fills the column up to this cap, then the viewport
+   scrolls).  Landscape is wider + shorter; portrait taller + narrower.
+   The cap keeps each variant fixed-height and bounded — it never grows
+   with the rendered form. */
+.builder-device.is-landscape.builder-device-phone{max-width:296px;max-height:380px}
+.builder-device.is-landscape.builder-device-tablet{max-width:296px;max-height:480px}
 
 .builder-preview-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--s-2);padding:var(--s-8) var(--s-4);text-align:center;color:var(--text-subtle)}
 .builder-preview-empty svg{width:30px;height:30px;color:var(--text-disabled);stroke-width:1.5}
