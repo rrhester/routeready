@@ -409,7 +409,7 @@
                      the Schedule page instead of the fixed top-right corner.
                      placeLauncher() only docks here when this is visible (i.e.
                      on the Calendar subtab). -->
-                <span class="rr-launcher-dock" aria-hidden="true"></span>
+                <span class="rr-launcher-dock" data-with-bell aria-hidden="true"></span>
                 <span class="rr-cal-sync" title="Connected to Google Calendar">
                   <span class="rr-cal-sync-dot" aria-hidden="true"></span>
                   Google Calendar synced
