@@ -18983,8 +18983,16 @@ function _ivcalLegend() {
   };
   const icon = (glyph, label) =>
     `<div class="oc-cal-row"><span class="oc-leg-ico">${glyph}</span><span class="oc-cal-name">${label}</span></div>`;
-  return `<div class="oc-cals-grp oc-leg">
-    <div class="oc-cals-sub oc-leg-h"><span>Status</span>${anyOff ? `<button type="button" class="oc-leg-all" data-ivcal-status-all>Show all</button>` : ""}</div>
+  // Filters live in a collapsible disclosure (collapsed by default). The same
+  // status-toggle buttons + handlers are preserved — only the wrapping chrome
+  // changed. The caret rotates via CSS on [open]; "Show all" surfaces in the
+  // summary row (outside the <summary> button so its own click isn't swallowed
+  // by the disclosure toggle).
+  const caret = `<svg class="oc-filters-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>`;
+  return `<details class="oc-cals-grp oc-leg oc-filters-dx">
+    <summary class="oc-filters-sum"><span>Filters</span>${anyOff ? `<button type="button" class="oc-leg-all" data-ivcal-status-all>Show all</button>` : ""}${caret}</summary>
+    <div class="oc-filters-body">
+    <div class="oc-cals-sub oc-leg-h"><span>Status</span></div>
     ${tog("blue", "Scheduled")}
     ${tog("green", "Accepted")}
     ${tog("orange", "Pending reply")}
@@ -18995,7 +19003,8 @@ function _ivcalLegend() {
     ${icon(_IVCAL_CAM_SVG, "Has video link")}
     ${icon("✓", "RSVP accepted")}
     ${icon("✉", "Awaiting reply")}
-  </div>`;
+    </div>
+  </details>`;
 }
 
 async function loadIvCalendar() {
@@ -19242,7 +19251,10 @@ function _ivcalRender() {
     _ivcalStatusFilters[c] = _ivcalStatusFilters[c] === false ? true : false;
     _ivcalSaveToggles(); _ivcalRender();
   });
-  host.querySelector("[data-ivcal-status-all]")?.addEventListener("click", () => {
+  host.querySelector("[data-ivcal-status-all]")?.addEventListener("click", (e) => {
+    // "Show all" lives inside the Filters <summary> — stop the click from also
+    // toggling the disclosure open/closed.
+    e.preventDefault(); e.stopPropagation();
     _IVCAL_STATUS_CATS.forEach(c => { _ivcalStatusFilters[c] = true; });
     _ivcalSaveToggles(); _ivcalRender();
   });
