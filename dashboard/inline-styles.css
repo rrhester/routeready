@@ -28256,30 +28256,34 @@ body.rr-cmdk-open{ overflow:hidden }
   --rrp-ease:cubic-bezier(.2,.7,.3,1);
 }
 
-/* ── Layer 1 · application shell tint + the two surfaces float on it ── */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal{ background:var(--rrp-bg) !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc{
-  background:var(--rrp-bg) !important;
-  gap:20px !important; padding:20px !important;
-  align-items:stretch !important;
-}
-
-/* ── Layer 2 · sidebar surface (floats slightly above the page) ── */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-side{
+/* ── One filling card (sidebar + calendar are panes inside it) ──
+   The calendar spans the full content width like the Schedule grid
+   card: #rr-ivcal is the single bounding surface; the sidebar and the
+   calendar fill it edge-to-edge with a hairline divider between them. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal{
   background:var(--rrp-surface) !important;
   border:1px solid var(--rrp-border) !important;
   border-radius:18px !important;
   box-shadow:var(--rrp-shadow) !important;
+  overflow:hidden !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc{
+  background:var(--rrp-surface) !important;
+  gap:0 !important; padding:0 !important;
+  align-items:stretch !important;
+}
+/* Sidebar pane · subtle tinted panel + hairline divider, fills height. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-side{
+  background:#FBFCFE !important;
+  border:0 !important; border-right:1px solid var(--rrp-border) !important;
+  border-radius:0 !important; box-shadow:none !important;
   padding:20px 16px !important;
   display:flex !important; flex-direction:column !important; gap:20px !important;
 }
-
-/* ── Layer 3 · calendar surface (the primary workspace) ── */
+/* Calendar pane · the primary workspace, fills the rest. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-main{
   background:var(--rrp-surface) !important;
-  border:1px solid var(--rrp-border) !important;
-  border-radius:18px !important;
-  box-shadow:var(--rrp-shadow) !important;
+  border:0 !important; border-radius:0 !important; box-shadow:none !important;
   overflow:hidden !important;
 }
 
@@ -28406,12 +28410,19 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.in-range{ background:var(--rrp-selected) !important; color:var(--rrp-blue) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.today{ background:var(--rrp-blue) !important; color:#fff !important; }
 
-/* ── Create pill · keep brand blue, add lift ── */
+/* ── Create button · white pill with the navy border the other page
+   buttons use (Smart Fill / Work Week / Availability), not a blue CTA. ── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-trigger{
-  height:44px !important; border-radius:14px !important;
-  box-shadow:0 1px 2px rgba(37,99,235,.18), 0 6px 16px rgba(37,99,235,.18) !important;
-  transition:box-shadow .18s var(--rrp-ease), transform .18s var(--rrp-ease) !important;
+  height:44px !important; border-radius:12px !important;
+  background:var(--rrp-surface) !important; color:var(--rrp-ink) !important;
+  border:1.5px solid var(--sidebar-bg, #0F172A) !important;
+  box-shadow:0 1px 1px rgba(16,24,40,.03) !important;
+  transition:background .18s var(--rrp-ease), box-shadow .18s var(--rrp-ease), transform .18s var(--rrp-ease) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-trigger:hover{
-  transform:translateY(-2px) !important; box-shadow:0 3px 8px rgba(37,99,235,.24), 0 12px 26px rgba(37,99,235,.26) !important;
+  background:#EFF6FF !important;
+  transform:translateY(-2px) !important; box-shadow:0 4px 12px rgba(16,24,40,.10) !important;
 }
+/* + and caret glyphs inherit the dark ink now the fill is white */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-plus,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-caret{ color:var(--rrp-ink) !important; }
