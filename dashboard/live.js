@@ -6346,6 +6346,120 @@ document.addEventListener("click", (e) => {
   if (m && !m.hidden && !e.target.closest("#rr-cal-viewdd")) _rrCloseCalViewMenu();
 });
 
+// Calendar "Create" pill (Google-style) · the accent pill in the sidebar that
+// drops a menu with Interview / Event / Task. Document-delegated (mirrors the
+// view-switcher handler above) so it survives sidebar re-renders. Each item
+// reuses existing functionality — the event composer for Interview/Event, the
+// rail Tasks system for Task (via the small _rrCalNewTaskDialog below).
+function _rrCloseCalCreateMenu() {
+  const m = document.getElementById("rr-cal-create-menu");
+  const t = document.getElementById("rr-cal-create-trigger");
+  if (m) m.hidden = true;
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  const trig = e.target.closest("#rr-cal-create-trigger");
+  if (trig) {
+    e.preventDefault(); e.stopPropagation();
+    const m = document.getElementById("rr-cal-create-menu");
+    if (m) {
+      const open = m.hidden;
+      m.hidden = !open;
+      trig.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    return;
+  }
+  const item = e.target.closest("#rr-cal-create-menu [data-rr-cal-create]");
+  if (item) {
+    const kind = item.getAttribute("data-rr-cal-create");
+    _rrCloseCalCreateMenu();
+    if (kind === "task") {
+      _rrCalNewTaskDialog();
+    } else if (typeof window.rrIvcalNewEvent === "function") {
+      // Interview and Event both open the existing event composer.
+      window.rrIvcalNewEvent();
+      // Interview additionally pre-triggers the composer's "Schedule Meeting"
+      // toggle so it seeds the video link + interview template (see the
+      // [data-ne-act="meeting"] handler in _ivcalNewEvent). Deferred a tick so
+      // the composer DOM has mounted; falls back to the plain composer if the
+      // button isn't present.
+      if (kind === "interview") {
+        setTimeout(() => {
+          try {
+            const meet = document.querySelector('#rr-ivcal-new [data-ne-act="meeting"]');
+            if (meet) meet.click();
+          } catch (_) {}
+        }, 0);
+      }
+    }
+    return;
+  }
+  const cm = document.getElementById("rr-cal-create-menu");
+  if (cm && !cm.hidden && !e.target.closest(".rr-cal-create")) _rrCloseCalCreateMenu();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const cm = document.getElementById("rr-cal-create-menu");
+  if (cm && !cm.hidden) _rrCloseCalCreateMenu();
+});
+
+// Compact "New task" dialog opened by the Create → Task menu item. Creates a
+// task in the EXACT rail-task shape and saves it via the existing helpers, so
+// it lands in the rail Tasks list and bumps the badge — see _rrAddTaskFromForm.
+function _rrCalNewTaskDialog() {
+  const old = document.getElementById("rr-cal-task-overlay");
+  if (old) old.remove();
+  const ov = document.createElement("div");
+  ov.className = "rr-cal-task-overlay";
+  ov.id = "rr-cal-task-overlay";
+  ov.setAttribute("role", "dialog");
+  ov.setAttribute("aria-modal", "true");
+  ov.setAttribute("aria-label", "New task");
+  ov.innerHTML = `<div class="rr-cal-task-card">
+    <h3>New task</h3>
+    <form id="rr-cal-task-form">
+      <div class="rr-cal-task-field">
+        <label for="rr-cal-task-title">Title</label>
+        <input type="text" id="rr-cal-task-title" autocomplete="off" placeholder="What needs doing?" required>
+      </div>
+      <div class="rr-cal-task-field">
+        <label for="rr-cal-task-due">Due date <span style="font-weight:400;color:#94A3B8">(optional)</span></label>
+        <input type="date" id="rr-cal-task-due">
+      </div>
+      <div class="rr-cal-task-actions">
+        <button type="button" class="rr-cal-task-btn rr-cal-task-cancel" data-rr-task-cancel>Cancel</button>
+        <button type="submit" class="rr-cal-task-btn rr-cal-task-add">Add task</button>
+      </div>
+    </form>
+  </div>`;
+  document.body.appendChild(ov);
+  const close = () => { ov.remove(); };
+  const titleInp = ov.querySelector("#rr-cal-task-title");
+  const dueInp = ov.querySelector("#rr-cal-task-due");
+  const focusTitle = () => { try { titleInp.focus(); } catch (_) {} };
+  focusTitle();
+  ov.addEventListener("click", (ev) => { if (ev.target === ov) close(); });
+  ov.querySelector("[data-rr-task-cancel]").addEventListener("click", close);
+  ov.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); close(); } });
+  ov.querySelector("#rr-cal-task-form").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const title = (titleInp.value || "").trim();
+    if (!title) { focusTitle(); return; }
+    const due = (dueInp && dueInp.value) || "";
+    // Exact rail-task shape + helpers (mirrors _rrAddTaskFromForm).
+    const a = _rrLoadTasks();
+    a.push({ id: _rrNtId("t"), title, due, done: false, ts: Date.now() });
+    _rrSaveTasks(a);
+    _rrRenderTasks();
+    close();
+    // Surface the new task: open the rail Tasks panel so the user sees it.
+    // Deferred so panel layout/render runs off the submit tick (and never
+    // blocks the dialog from closing).
+    setTimeout(() => { try { if (typeof _rrNtPanelOpen === "function") _rrNtPanelOpen("tasks"); } catch (_) {} }, 0);
+  });
+}
+
 // Any "Rules" popover (Onboarding, Funnel, Schedule) auto-closes when
 // the operator scrolls — the popover is anchored to a header tab, so a
 // scrolled-away popover would float disconnected from its trigger.
@@ -19138,6 +19252,25 @@ function _isoWeek(d) {
   firstThu.setUTCDate(firstThu.getUTCDate() - firstDay + 3);
   return 1 + Math.round((x - firstThu) / (7 * 24 * 3600 * 1000));
 }
+// Google-Calendar-style "Create" pill for the top of the .oc-side sidebar.
+// An accent-filled pill trigger + a dropdown menu (Interview / Event / Task).
+// Open/close is handled by a document-delegated listener (see below) so it
+// survives sidebar re-renders, mirroring the #rr-cal-viewdd handler.
+function _ivcalCreatePill() {
+  const plus = `<svg class="rr-cal-create-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+  const caret = `<svg class="rr-cal-create-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`;
+  const icoInterview = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l4.55-2.28A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>`;
+  const icoEvent = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+  const icoTask = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
+  return `<div class="rr-cal-create">
+    <button type="button" class="rr-cal-create-trigger" id="rr-cal-create-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="rr-cal-create-menu" title="Create">${plus}<span class="rr-cal-create-label">Create</span>${caret}</button>
+    <div class="rr-cal-create-menu" id="rr-cal-create-menu" role="menu" aria-label="Create" hidden>
+      <button type="button" class="rr-cal-create-item" role="menuitem" data-rr-cal-create="interview">${icoInterview}<span>Interview</span></button>
+      <button type="button" class="rr-cal-create-item" role="menuitem" data-rr-cal-create="event">${icoEvent}<span>Event</span></button>
+      <button type="button" class="rr-cal-create-item" role="menuitem" data-rr-cal-create="task">${icoTask}<span>Task</span></button>
+    </div>
+  </div>`;
+}
 function _ivcalMiniMonths() {
   const base = _ivcalMiniBase();
   const next = new Date(base.getFullYear(), base.getMonth()+1, 1);
@@ -19198,6 +19331,7 @@ function _ivcalRender() {
     <div class="oc${_ivcalSideOpen ? "" : " oc-side-closed"}">
       ${_ivcalSideOpen ? `<div class="oc-side">
         <button class="oc-side-x" data-ivcal-side title="Hide calendar panel" aria-label="Hide calendar panel">«</button>
+        ${_ivcalCreatePill()}
         ${_ivcalMiniMonths()}${_ivcalMyCalendars()}</div>` : ""}
       <div class="oc-main">
         <div class="oc-bar">
