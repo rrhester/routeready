@@ -28009,3 +28009,129 @@ body.rr-cmdk-open{ overflow:hidden }
   #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-filters-dx[open] .oc-filters-body{ animation:none !important; }
   #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev:hover{ transform:none !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   CALENDAR · "Create" pill (Google-Calendar style) — top of the .oc-side
+   sidebar. Pill trigger + dropdown menu (Interview / Event / Task) cloned
+   from the view-switcher dropdown (.rr-cal-viewdd-*), restyled on-brand as
+   an accent-filled rounded pill. Plus the compact "New task" dialog the
+   Task item opens. Scoped to the calendar view only.
+   ════════════════════════════════════════════════════════════════════════ */
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create{
+  position:relative !important; display:block !important; margin:2px 0 12px !important;
+}
+/* Trigger · accent-filled rounded pill with + icon, label and caret. */
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-trigger{
+  display:inline-flex !important; align-items:center !important; justify-content:flex-start !important;
+  gap:10px !important; height:46px !important; min-width:138px !important; padding:0 20px 0 16px !important; margin:0 !important;
+  background:var(--accent, #2563EB) !important; color:#FFFFFF !important;
+  border:0 !important; border-radius:24px !important;
+  box-shadow:0 10px 28px rgba(15,23,42,.16), 0 2px 6px rgba(15,23,42,.08) !important;
+  font-size:14px !important; font-weight:600 !important; line-height:1 !important; white-space:nowrap !important;
+  cursor:pointer !important; transition:box-shadow .15s ease, filter .15s ease !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-trigger:hover{
+  filter:brightness(1.04) !important;
+  box-shadow:0 14px 34px rgba(15,23,42,.2), 0 3px 8px rgba(15,23,42,.1) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-plus{
+  width:20px !important; height:20px !important; flex:0 0 auto !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-label{ flex:0 1 auto !important; }
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-caret{
+  width:12px !important; height:12px !important; flex:0 0 auto !important; margin-left:auto !important;
+  transition:transform .15s ease !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-trigger[aria-expanded="true"] .rr-cal-create-caret{
+  transform:rotate(180deg) !important;
+}
+/* Dropdown panel · white card, navy outline, drops under the pill. */
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-menu{
+  position:absolute !important; top:calc(100% + 6px) !important; left:0 !important; z-index:80 !important;
+  display:flex !important; flex-direction:column !important; gap:2px !important;
+  min-width:204px !important; width:max-content !important; padding:6px !important; margin:0 !important;
+  background:#FFFFFF !important; border:1.5px solid var(--sidebar-bg, #0F172A) !important; border-radius:14px !important;
+  box-shadow:0 10px 28px rgba(15,23,42,.16), 0 2px 6px rgba(15,23,42,.08) !important;
+  animation:rrCalCreateIn .14s ease !important;
+}
+@keyframes rrCalCreateIn{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-menu[hidden]{ display:none !important; }
+/* Menu rows · 34px, icon + label, light-blue hover (matches the viewdd menu). */
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-item{
+  display:flex !important; flex-direction:row !important; align-items:center !important; justify-content:flex-start !important;
+  gap:12px !important; width:100% !important; min-width:0 !important; height:34px !important; padding:0 12px !important; margin:0 !important;
+  background:transparent !important; color:var(--sidebar-bg, #0F172A) !important;
+  border:0 !important; border-radius:8px !important; box-shadow:none !important;
+  font-size:13px !important; font-weight:500 !important; line-height:1 !important; white-space:nowrap !important;
+  text-align:left !important; cursor:pointer !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-item svg{
+  width:18px !important; height:18px !important; flex:0 0 auto !important; opacity:.85 !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-item:hover,
+#view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-item:focus-visible{
+  background:#EFF6FF !important; color:#1E40AF !important; outline:none !important;
+}
+
+/* ── New-task dialog · compact centered modal (the Task menu item opens it). */
+.rr-cal-task-overlay{
+  position:fixed !important; inset:0 !important; z-index:4000 !important;
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  background:rgba(15,23,42,.42) !important; animation:rrCalTaskFade .14s ease !important;
+}
+@keyframes rrCalTaskFade{ from{ opacity:0; } to{ opacity:1; } }
+.rr-cal-task-card{
+  width:min(380px, calc(100vw - 32px)) !important; box-sizing:border-box !important;
+  background:#FFFFFF !important; border-radius:16px !important; padding:20px !important;
+  box-shadow:0 24px 60px rgba(15,23,42,.32), 0 4px 12px rgba(15,23,42,.16) !important;
+  animation:rrCalTaskPop .16s ease !important;
+  font-family:inherit !important;
+}
+@keyframes rrCalTaskPop{ from{ opacity:0; transform:translateY(8px) scale(.98); } to{ opacity:1; transform:none; } }
+.rr-cal-task-card h3{
+  margin:0 0 14px !important; font-size:17px !important; font-weight:700 !important;
+  color:var(--sidebar-bg, #0F172A) !important;
+}
+.rr-cal-task-card label{
+  display:block !important; margin:0 0 4px !important; font-size:12px !important; font-weight:600 !important;
+  color:#475569 !important;
+}
+.rr-cal-task-card .rr-cal-task-field{ margin-bottom:14px !important; }
+.rr-cal-task-card input[type="text"],
+.rr-cal-task-card input[type="date"]{
+  width:100% !important; box-sizing:border-box !important; height:40px !important; padding:0 12px !important;
+  background:#FFFFFF !important; color:var(--sidebar-bg, #0F172A) !important;
+  border:1.5px solid #CBD5E1 !important; border-radius:10px !important;
+  font-size:14px !important; font-family:inherit !important; outline:none !important;
+  transition:border-color .12s ease, box-shadow .12s ease !important;
+}
+.rr-cal-task-card input[type="text"]:focus,
+.rr-cal-task-card input[type="date"]:focus{
+  border-color:var(--accent, #2563EB) !important;
+  box-shadow:0 0 0 3px rgba(37,99,235,.16) !important;
+}
+.rr-cal-task-actions{
+  display:flex !important; align-items:center !important; justify-content:flex-end !important;
+  gap:10px !important; margin-top:18px !important;
+}
+.rr-cal-task-btn{
+  height:38px !important; padding:0 16px !important; border-radius:10px !important;
+  font-size:13.5px !important; font-weight:600 !important; line-height:1 !important; cursor:pointer !important;
+  font-family:inherit !important; transition:filter .12s ease, background .12s ease !important;
+}
+.rr-cal-task-cancel{
+  background:#FFFFFF !important; color:var(--sidebar-bg, #0F172A) !important;
+  border:1.5px solid #CBD5E1 !important;
+}
+.rr-cal-task-cancel:hover{ background:rgba(15,23,42,.05) !important; }
+.rr-cal-task-add{
+  background:var(--accent, #2563EB) !important; color:#FFFFFF !important; border:0 !important;
+}
+.rr-cal-task-add:hover{ filter:brightness(1.05) !important; }
+@media (prefers-reduced-motion: reduce){
+  #view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-menu,
+  #view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-trigger,
+  #view-onboarding-ops[data-obsub="calendar"] .oc-side .rr-cal-create-caret,
+  .rr-cal-task-overlay,
+  .rr-cal-task-card{ animation:none !important; transition:none !important; }
+}
