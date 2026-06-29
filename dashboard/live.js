@@ -8646,14 +8646,20 @@ function _rrSyncNotesRailTop() {
   // candidates and take the first that's actually laid out (top > 0), then
   // fall back to .tcp-body / the CSS default when nothing's measured yet.
   // Anchor to the live rail view (Schedule or Onboarding-Ops). On Schedule we
-  // align to the calendar/grid header; on Onboarding-Ops (no calendar grid)
-  // we fall back to its page body. Default to #view-schedule when no rail view
-  // is active yet (boot), preserving the original schedule alignment.
+  // align to the calendar/grid header; on Onboarding-Ops (no calendar grid /
+  // no .tcp-body) we align to the ACTIVE sub-view's content body — the
+  // scrollable Funnel / Overview / Work-auth container that sits BELOW the
+  // toolbar. The inactive sub-views are display:none (rect top 0), so the
+  // top>0 walk below picks whichever one is laid out. The old list anchored
+  // to .tcp-body (absent here) then fell through to .page-header (the
+  // toolbar), which rode the rail up into the header — too high. Falling back
+  // to .page only as a last resort. Default to #view-schedule when no rail
+  // view is active yet (boot), preserving the original schedule alignment.
   const railView = _rrUtilRailView();
   const onOnboarding = !!(railView && railView.id === "view-onboarding-ops");
   const onRoster = !!(window._schedRosterKpiActive && window._schedRosterKpiActive());
   const sels = onOnboarding
-    ? ["#view-onboarding-ops .tcp-body", "#view-onboarding-ops .page-header", "#view-onboarding-ops .page"]
+    ? ["#view-onboarding-ops #obsub-pipeline", "#view-onboarding-ops #obsub-overview", "#view-onboarding-ops #obsub-workauth", "#view-onboarding-ops .page"]
     : onRoster
     ? ["#ob-roster-mount #rr-roster-table-wrap", "#ob-roster-mount .table-wrap", "#view-schedule .tcp-body"]
     : ["#view-schedule .cal-grid.head", "#view-schedule .cal-wrap", "#view-schedule .tcp-body"];
@@ -39570,6 +39576,16 @@ function _rrObViewSegPoll() {
     const r = _legacyObSub.apply(this, arguments);
     _rrCurObSub = which;
     try { _rrEnsureObViewSeg(); _rrObViewSegPoll(); _rrSyncObViewSeg(which); } catch (e) {}
+    // Re-anchor the right utility rail/panels to the new onboarding sub-view's
+    // content body — Funnel / Overview / Work-auth bodies sit at different
+    // tops, so the rail would otherwise keep the previous sub-view's top.
+    // Mirrors the schedSub re-sync; deferred + repeated so the swapped-in
+    // sub-view has laid out first.
+    if (typeof _rrSyncNotesRailTop === "function") {
+      requestAnimationFrame(() => requestAnimationFrame(_rrSyncNotesRailTop));
+      setTimeout(_rrSyncNotesRailTop, 90);
+      setTimeout(_rrSyncNotesRailTop, 280);
+    }
     return r;
   };
   window.obSub.__rrViewSegHooked = true;
