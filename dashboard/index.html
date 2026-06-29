@@ -294,14 +294,33 @@
             // a dock that's display:none on the current sub-view (e.g. the
             // Onboarding calendar dock while on a non-calendar sub-tab) is
             // skipped and the launcher falls back to the bell / fixed corner.
+            var bell = document.getElementById('rr-hdr-notif');
+            // Remember the bell's true header home the first time we see it
+            // outside any launcher dock, so we can return it after parking it.
+            if (bell && !window.__rrBellHome && !bell.closest('.rr-launcher-dock')) {
+              window.__rrBellHome = { p: bell.parentNode, n: bell.nextSibling };
+            }
             var dock = document.querySelector('.view.active .rr-launcher-dock');
-            if (dock && dock.offsetParent !== null) {
+            var inDock = !!(dock && dock.offsetParent !== null);
+            var wantBell = inDock && dock.hasAttribute('data-with-bell') && bell;
+            // Return a previously-parked bell to its home once it's no longer wanted in a dock.
+            if (bell && bell.closest('.rr-launcher-dock') && !wantBell && window.__rrBellHome) {
+              var h = window.__rrBellHome;
+              if (h.n && h.n.parentNode === h.p) h.p.insertBefore(bell, h.n);
+              else if (h.p) h.p.appendChild(bell);
+              bell.style.removeProperty('order');
+            }
+            if (inDock) {
               L.classList.remove('rr-al-fixed');
               L.style.order = '';
               if (L.parentNode !== dock) dock.appendChild(L);
+              if (wantBell) {
+                bell.style.removeProperty('display');
+                bell.style.removeProperty('order');
+                dock.appendChild(bell);   // bell sits just after the launcher
+              }
               return;
             }
-            var bell = document.getElementById('rr-hdr-notif');
             if (bellVisible(bell)) {
               L.classList.remove('rr-al-fixed');
               if (L.parentNode !== bell.parentNode || L.nextElementSibling !== bell) {

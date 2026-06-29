@@ -28415,15 +28415,27 @@ body.rr-cmdk-open{ overflow:hidden }
    buttons use (Smart Fill / Work Week / Availability), not a blue CTA. ── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-trigger{
   height:44px !important; border-radius:12px !important;
-  background:var(--rrp-surface) !important; color:var(--rrp-ink) !important;
+  background:rgb(194,231,255) !important; color:var(--rrp-ink) !important;
   border:1.5px solid var(--sidebar-bg, #0F172A) !important;
   box-shadow:0 1px 1px rgba(16,24,40,.03) !important;
   transition:background .18s var(--rrp-ease), box-shadow .18s var(--rrp-ease), transform .18s var(--rrp-ease) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-trigger:hover{
-  background:#EFF6FF !important;
+  background:rgb(174,221,252) !important;
   transform:translateY(-2px) !important; box-shadow:0 4px 12px rgba(16,24,40,.10) !important;
 }
 /* + and caret glyphs inherit the dark ink now the fill is white */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-plus,
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-caret{ color:var(--rrp-ink) !important; }
+
+/* App-launcher dock in the calendar header · drop the hairline divider
+   (the global .rr-launcher-dock:not(:empty) border-left) per operator, and
+   space the launcher + bell that placeLauncher() parks here. */
+#view-onboarding-ops[data-obsub="calendar"] .rr-launcher-dock:not(:empty){
+  border-left:0 !important; padding-left:6px !important; margin-left:4px !important;
+  display:inline-flex !important; align-items:center !important; gap:4px !important;
+}
+/* Ensure the borrowed notification bell shows while docked here. */
+#view-onboarding-ops[data-obsub="calendar"] .rr-launcher-dock #rr-hdr-notif{
+  display:inline-flex !important;
+}
