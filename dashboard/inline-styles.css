@@ -28071,3 +28071,67 @@ body.rr-cmdk-open{ overflow:hidden }
   border-color:#E9EDF3 !important;
   color:#202124 !important;
 }
+
+/* ── SPLIT DROPDOWN-CHEVRON TREATMENT ──────────────────────────────────────
+   Mirror the Schedule page's Smart Fill / Unassign Fleet split buttons
+   (#view-schedule .rr-ab-caret, schedule-rrx.css ~L5152): a main label
+   segment + a thin vertical hairline divider + a chevron segment pinned to
+   the right edge, all inside the one white pill. The schedule divider is
+   `border-left:1px solid rgba(15,23,42,.25)` with `padding:0 8px` and an
+   11px chevron glyph; we reproduce that exactly inside the calendar pill.
+
+   Both Calendar controls keep their pill box (36px tall · 11px radius ·
+   #FFFFFF bg · 1px #E9EDF3 border) unchanged — only the right-hand caret
+   segment + divider are added. The segment is `align-self:stretch` so the
+   divider runs the pill's full inner height; a negative right margin pulls
+   it to the pill's inner edge (the pill keeps its 14px left padding for the
+   label). Visual only — the WHOLE button still fires its existing handler
+   (Work Week opens #rr-cal-viewdd-menu, Availability fires its toggle). ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger .rr-cal-split-caret,
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle .rr-cal-split-caret{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  align-self:stretch !important;
+  margin:0 -14px 0 4px !important;   /* cancel the pill's 14px right pad → flush right edge */
+  padding:0 9px !important;
+  border-left:1px solid rgba(15,23,42,.25) !important;  /* schedule divider colour/width */
+  border-radius:0 11px 11px 0 !important;               /* follow the pill's 11px corner */
+  color:#5F6368 !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger .rr-cal-split-caret svg,
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle .rr-cal-split-caret svg{
+  width:14px !important;            /* schedule caret reads ~11px in a denser bar; 14px keeps it legible at this pill size */
+  height:14px !important;
+  display:block !important;
+}
+/* Neither control needs space-between now the caret has its own pinned
+   segment — left-align the label so the segment hugs the right edge. The
+   ::after "Availability" label is dropped (now a real <span> so the caret
+   segment can sit after it). */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger,
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle{
+  justify-content:flex-start !important;
+  gap:0 !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle::after{ content:none !important; }
+/* Label segment · fills the pill so the caret segment is pushed to the edge. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger .rr-cal-viewdd-current,
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle .rr-cal-rl-label{
+  flex:1 1 auto !important;
+  text-align:left !important;
+  margin-right:8px !important;
+}
+/* Availability's real label needs the pill's 13px/500 type + muted colour
+   (Work Week's .rr-cal-viewdd-current already gets these above). */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle .rr-cal-rl-label{
+  font-size:13px !important;
+  font-weight:500 !important;
+  color:#5F6368 !important;
+  line-height:1 !important;
+}
+/* Hover · darken the caret segment glyph to match the label hover colour. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger:hover .rr-cal-split-caret,
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle:hover .rr-cal-split-caret{
+  color:#202124 !important;
+}

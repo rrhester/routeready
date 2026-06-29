@@ -427,7 +427,13 @@
                 <div class="rr-cal-viewdd" id="rr-cal-viewdd">
                   <button type="button" class="rr-cal-viewdd-trigger" id="rr-cal-viewdd-trigger" aria-haspopup="menu" aria-expanded="false" title="Change calendar view">
                     <span class="rr-cal-viewdd-current" id="rr-cal-viewdd-current">Work Week</span>
-                    <svg class="rr-cal-viewdd-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                    <!-- Split chevron segment · thin vertical hairline divider +
+                         caret on the right edge, mirroring the Schedule page's
+                         Smart Fill / Unassign Fleet .rr-ab-caret split. Purely
+                         visual — the whole trigger still opens #rr-cal-viewdd-menu. -->
+                    <span class="rr-cal-split-caret" aria-hidden="true">
+                      <svg class="rr-cal-viewdd-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg>
+                    </span>
                   </button>
                   <div class="rr-cal-viewdd-menu" id="rr-cal-viewdd-menu" role="menu" hidden>
                     <button class="subnav-item rr-cal-vtab" data-cal-view="day" type="button" role="menuitem" onclick="rrIvcalSetView('day')" title="Day view">
@@ -474,6 +480,16 @@
                   <span class="rr-cal-rules-cap" aria-hidden="true">Rules</span>
                   <button type="button" class="rr-cal-rules-launch" id="rr-iv-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-iv-rules-popover" title="Interview availability — days, times, capacity, and group sessions">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
+                    <!-- Explicit label so the split-caret segment can sit AFTER it
+                         (the old CSS ::after "Availability" would otherwise render
+                         past the caret). The ::after is suppressed in CSS. -->
+                    <span class="rr-cal-rl-label">Availability</span>
+                    <!-- Split chevron segment · matches the Work Week trigger +
+                         the Schedule split buttons. Visual only — clicking it (or
+                         anywhere on the button) still fires the existing toggle. -->
+                    <span class="rr-cal-split-caret" aria-hidden="true">
+                      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg>
+                    </span>
                   </button>
                 </div>
                 </div><!-- /.rr-cal-viewgroup -->
