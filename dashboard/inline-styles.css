@@ -27773,15 +27773,18 @@ body.rr-cmdk-open{ overflow:hidden }
   font-weight:500 !important; color:#5F6368 !important;
 }
 /* The ONE primary blue CTA = Schedule Interview (#1A73E8). */
+/* Schedule Interview · white pill with the navy border the other page
+   buttons use (Smart Fill / Work Week / Availability / Create) — not blue. */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child{
-  height:36px !important; padding:0 16px !important; border-radius:11px !important;
-  background:#1A73E8 !important; color:#fff !important; border:1px solid #1A73E8 !important;
-  font-weight:600 !important; box-shadow:none !important;
+  height:36px !important; padding:0 16px !important; border-radius:8px !important;
+  background:#FFFFFF !important; color:#111827 !important;
+  border:1.5px solid var(--sidebar-bg, #0F172A) !important;
+  font-weight:600 !important; font-size:12.5px !important; box-shadow:none !important;
   transition:background .18s ease, box-shadow .18s ease !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child:hover{
-  background:#1669D6 !important; border-color:#1669D6 !important;
-  box-shadow:0 1px 3px rgba(26,115,232,.32) !important;
+  background:#EFF6FF !important; border-color:var(--sidebar-bg, #0F172A) !important;
+  box-shadow:0 1px 3px rgba(15,23,42,.10) !important;
 }
 /* View dropdown · match the ghost weight + radius. */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewdd-trigger{
@@ -27795,12 +27798,9 @@ body.rr-cmdk-open{ overflow:hidden }
   background:#E8F0FE !important; color:#1A73E8 !important; font-weight:500 !important;
 }
 
-/* Subtle inline sync status · replace the big green pill with "● Synced". */
+/* Sync status indicator hidden per operator request. */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-sync{
-  height:auto !important; padding:0 4px !important;
-  background:transparent !important; border:0 !important; border-radius:0 !important;
-  gap:7px !important; font-size:12.5px !important; font-weight:500 !important;
-  color:#5F6368 !important;
+  display:none !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-sync-dot{
   width:7px !important; height:7px !important; background:#1E8E3E !important;
@@ -28351,10 +28351,11 @@ body.rr-cmdk-open{ overflow:hidden }
   font-size:22px !important; box-shadow:0 4px 10px rgba(37,99,235,.30) !important;
 }
 
-/* ── 9 · Grid · reduce contrast ── */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hline{ border-top-color:var(--rrp-grid) !important; }
+/* ── 9 · Grid · lines matched to the Schedule page (rgba(15,23,42,.07),
+   schedule-rrx.css .cal-cell/.cal-grid) so both pages read identically. ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hline{ border-top-color:rgba(15,23,42,.07) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hhline{ border-top-color:transparent !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col{ border-left-color:var(--rrp-grid) !important; transition:background .2s var(--rrp-ease) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col{ border-left-color:rgba(15,23,42,.07) !important; transition:background .2s var(--rrp-ease) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.today{ background:rgba(37,99,235,.035) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hr{ border:0 !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hr span{

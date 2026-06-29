@@ -289,9 +289,13 @@
           function placeLauncher () {
             // A view can host the launcher in-page via a .rr-launcher-dock
             // slot (used by Drive, which has no bell and where the floating
-            // fallback hides under the desktop title bar). Docking wins.
+            // fallback hides under the desktop title bar). Docking wins — but
+            // only when the dock is actually VISIBLE (offsetParent != null), so
+            // a dock that's display:none on the current sub-view (e.g. the
+            // Onboarding calendar dock while on a non-calendar sub-tab) is
+            // skipped and the launcher falls back to the bell / fixed corner.
             var dock = document.querySelector('.view.active .rr-launcher-dock');
-            if (dock) {
+            if (dock && dock.offsetParent !== null) {
               L.classList.remove('rr-al-fixed');
               L.style.order = '';
               if (L.parentNode !== dock) dock.appendChild(L);
