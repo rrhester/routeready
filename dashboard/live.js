@@ -6374,22 +6374,24 @@ document.addEventListener("click", (e) => {
   if (item) {
     const kind = item.getAttribute("data-rr-cal-create");
     _rrCloseCalCreateMenu();
-    if (kind === "interview") {
-      // Open the existing event composer, then pre-trigger its "Schedule
-      // Meeting" toggle so it seeds the video link + interview template
-      // (see the [data-ne-act="meeting"] handler in _ivcalNewEvent). Falls
-      // back gracefully to the plain composer if that button isn't present.
-      if (typeof window.rrIvcalNewEvent === "function") window.rrIvcalNewEvent();
-      setTimeout(() => {
-        try {
-          const meet = document.querySelector('#rr-ivcal-new [data-ne-act="meeting"]');
-          if (meet) meet.click();
-        } catch (_) {}
-      }, 0);
-    } else if (kind === "event") {
-      if (typeof window.rrIvcalNewEvent === "function") window.rrIvcalNewEvent();
-    } else if (kind === "task") {
+    if (kind === "task") {
       _rrCalNewTaskDialog();
+    } else if (typeof window.rrIvcalNewEvent === "function") {
+      // Interview and Event both open the existing event composer.
+      window.rrIvcalNewEvent();
+      // Interview additionally pre-triggers the composer's "Schedule Meeting"
+      // toggle so it seeds the video link + interview template (see the
+      // [data-ne-act="meeting"] handler in _ivcalNewEvent). Deferred a tick so
+      // the composer DOM has mounted; falls back to the plain composer if the
+      // button isn't present.
+      if (kind === "interview") {
+        setTimeout(() => {
+          try {
+            const meet = document.querySelector('#rr-ivcal-new [data-ne-act="meeting"]');
+            if (meet) meet.click();
+          } catch (_) {}
+        }, 0);
+      }
     }
     return;
   }
@@ -6435,14 +6437,15 @@ function _rrCalNewTaskDialog() {
   const close = () => { ov.remove(); };
   const titleInp = ov.querySelector("#rr-cal-task-title");
   const dueInp = ov.querySelector("#rr-cal-task-due");
-  try { titleInp.focus(); } catch (_) {}
+  const focusTitle = () => { try { titleInp.focus(); } catch (_) {} };
+  focusTitle();
   ov.addEventListener("click", (ev) => { if (ev.target === ov) close(); });
   ov.querySelector("[data-rr-task-cancel]").addEventListener("click", close);
   ov.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); close(); } });
   ov.querySelector("#rr-cal-task-form").addEventListener("submit", (ev) => {
     ev.preventDefault();
     const title = (titleInp.value || "").trim();
-    if (!title) { try { titleInp.focus(); } catch (_) {} return; }
+    if (!title) { focusTitle(); return; }
     const due = (dueInp && dueInp.value) || "";
     // Exact rail-task shape + helpers (mirrors _rrAddTaskFromForm).
     const a = _rrLoadTasks();
