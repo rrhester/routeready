@@ -28239,3 +28239,179 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle:hover .rr-cal-split-caret{
   color:#202124 !important;
 }
+
+
+/* ============================================================
+   PREMIUM CALENDAR POLISH — recruiting Calendar subtab
+   Additive refinement layer: 3 surfaces, soft borders, generous
+   spacing, type hierarchy, soft-blue accents, depth, motion.
+   Scoped to #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal.
+   ============================================================ */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal{
+  --rrp-bg:#F6F9FF; --rrp-surface:#FFFFFF; --rrp-border:#E8EDF5;
+  --rrp-grid:#EEF2F7; --rrp-hover:#F5F8FF; --rrp-selected:#EDF4FF;
+  --rrp-focus:#DCEBFF; --rrp-blue:#2563EB; --rrp-ink:#1F2937; --rrp-sub:#6B7280;
+  --rrp-shadow:0 1px 2px rgba(16,24,40,.04), 0 10px 28px rgba(16,24,40,.06);
+  --rrp-shadow-hi:0 3px 8px rgba(16,24,40,.09), 0 16px 36px rgba(16,24,40,.12);
+  --rrp-ease:cubic-bezier(.2,.7,.3,1);
+}
+
+/* ── Layer 1 · application shell tint + the two surfaces float on it ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal{ background:var(--rrp-bg) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc{
+  background:var(--rrp-bg) !important;
+  gap:20px !important; padding:20px !important;
+  align-items:stretch !important;
+}
+
+/* ── Layer 2 · sidebar surface (floats slightly above the page) ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-side{
+  background:var(--rrp-surface) !important;
+  border:1px solid var(--rrp-border) !important;
+  border-radius:18px !important;
+  box-shadow:var(--rrp-shadow) !important;
+  padding:20px 16px !important;
+  display:flex !important; flex-direction:column !important; gap:20px !important;
+}
+
+/* ── Layer 3 · calendar surface (the primary workspace) ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-main{
+  background:var(--rrp-surface) !important;
+  border:1px solid var(--rrp-border) !important;
+  border-radius:18px !important;
+  box-shadow:var(--rrp-shadow) !important;
+  overflow:hidden !important;
+}
+
+/* ── 5 · Toolbar · breathe + group controls, align vertically ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-bar{
+  padding:18px 24px !important;
+  gap:8px !important; align-items:center !important;
+  border-bottom:1px solid var(--rrp-grid) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-period{
+  font-size:18px !important; font-weight:600 !important; letter-spacing:-.01em !important;
+  color:var(--rrp-ink) !important; margin:0 6px !important;
+}
+
+/* ── 6 · Buttons · premium feel, lift on hover, press down ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn{
+  height:40px !important; min-height:40px !important; padding:0 16px !important;
+  border-radius:12px !important;
+  border:1px solid var(--rrp-border) !important; background:var(--rrp-surface) !important;
+  color:var(--rrp-ink) !important; font-weight:550 !important;
+  box-shadow:0 1px 1px rgba(16,24,40,.03) !important;
+  transition:background .18s var(--rrp-ease), box-shadow .18s var(--rrp-ease),
+             transform .18s var(--rrp-ease), border-color .18s var(--rrp-ease) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn.oc-ico{ width:40px !important; padding:0 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn:hover{
+  background:var(--rrp-hover) !important; border-color:#DCE5F2 !important;
+  box-shadow:0 4px 12px rgba(16,24,40,.10) !important; transform:translateY(-2px) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn:active{
+  transform:translateY(1px) !important; box-shadow:0 1px 2px rgba(16,24,40,.06) !important;
+  background:var(--rrp-selected) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn.oc-side-toggle.on{
+  background:var(--rrp-selected) !important; border-color:#CFE0F8 !important; color:var(--rrp-blue) !important;
+}
+
+/* ── 7 · Zoom segment as a single soft-gray pill ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-seg.oc-zoom{
+  height:40px !important; border-radius:12px !important; overflow:hidden !important;
+  border:1px solid var(--rrp-border) !important; background:#F4F7FC !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-seg.oc-zoom button{
+  width:38px !important; border:0 !important; background:transparent !important; color:var(--rrp-sub) !important;
+  transition:background .18s var(--rrp-ease) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-seg.oc-zoom button:hover{ background:var(--rrp-hover) !important; color:var(--rrp-ink) !important; }
+
+/* ── 4 · Day headers · type hierarchy ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-head{ padding:8px 0 6px !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh{ border:0 !important; padding:10px 0 12px !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .dow{
+  font-size:13px !important; font-weight:500 !important; color:var(--rrp-sub) !important;
+  letter-spacing:.01em !important; text-transform:none !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .dn{
+  font-size:32px !important; font-weight:600 !important; color:var(--rrp-ink) !important;
+  letter-spacing:-.02em !important; line-height:1.05 !important; margin-top:2px !important;
+}
+/* today's date number · Google-style blue circle */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dn{
+  color:#fff !important; background:var(--rrp-blue) !important;
+  width:42px !important; height:42px !important; line-height:42px !important;
+  border-radius:50% !important; display:inline-block !important; text-align:center !important;
+  font-size:22px !important; box-shadow:0 4px 10px rgba(37,99,235,.30) !important;
+}
+
+/* ── 9 · Grid · reduce contrast ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hline{ border-top-color:var(--rrp-grid) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hhline{ border-top-color:transparent !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col{ border-left-color:var(--rrp-grid) !important; transition:background .2s var(--rrp-ease) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.today{ background:rgba(37,99,235,.035) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hr{ border:0 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hr span{
+  font-size:11px !important; font-weight:500 !important; color:#9AA3B2 !important; letter-spacing:.02em !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-corner{ border:0 !important; }
+
+/* current-time line · Google-style thin blue line + rounded pill */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-now{ border-top:2px solid var(--rrp-blue) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-now::before{ background:var(--rrp-blue) !important; box-shadow:0 0 0 3px rgba(37,99,235,.18) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-now-lbl{
+  background:var(--rrp-blue) !important; color:#fff !important;
+  border-radius:999px !important; padding:2px 8px !important; font-weight:600 !important; font-size:11px !important;
+  box-shadow:0 2px 6px rgba(37,99,235,.35) !important;
+}
+
+/* ── 11 · Events · modern cards, left accent only, hover lift ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev{
+  border-radius:12px !important; border:0 !important;
+  border-left:3px solid currentColor !important;
+  padding:7px 10px !important;
+  box-shadow:0 1px 2px rgba(16,24,40,.10) !important;
+  transition:box-shadow .18s var(--rrp-ease), transform .18s var(--rrp-ease) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev:hover{
+  transform:translateY(-1px) !important; box-shadow:0 6px 16px rgba(16,24,40,.16) !important; z-index:5 !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .et{ font-weight:600 !important; }
+
+/* ── 8 · Sidebar refinement · spacing + small-caps section labels ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals{ display:flex !important; flex-direction:column !important; gap:20px !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals-h,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await-h{
+  font-size:11px !important; font-weight:700 !important; text-transform:uppercase !important;
+  letter-spacing:.06em !important; color:#8A93A3 !important; margin-bottom:8px !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal-row{
+  border-radius:10px !important; padding:6px 8px !important;
+  transition:background .18s var(--rrp-ease) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal-row:hover{ background:var(--rrp-hover) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await-empty,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals-empty{
+  color:var(--rrp-sub) !important; font-size:12.5px !important; line-height:1.5 !important;
+}
+
+/* ── Mini month · soft-blue range + hover ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-title{ font-weight:600 !important; color:var(--rrp-ink) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d{
+  border-radius:9px !important; transition:background .15s var(--rrp-ease) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d:hover{ background:var(--rrp-hover) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.in-range{ background:var(--rrp-selected) !important; color:var(--rrp-blue) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.today{ background:var(--rrp-blue) !important; color:#fff !important; }
+
+/* ── Create pill · keep brand blue, add lift ── */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-trigger{
+  height:44px !important; border-radius:14px !important;
+  box-shadow:0 1px 2px rgba(37,99,235,.18), 0 6px 16px rgba(37,99,235,.18) !important;
+  transition:box-shadow .18s var(--rrp-ease), transform .18s var(--rrp-ease) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-trigger:hover{
+  transform:translateY(-2px) !important; box-shadow:0 3px 8px rgba(37,99,235,.24), 0 12px 26px rgba(37,99,235,.26) !important;
+}
