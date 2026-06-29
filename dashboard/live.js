@@ -19457,7 +19457,12 @@ function _ivcalRender() {
     col.addEventListener("click", (e) => {
       if (e.target.closest("[data-ivcal-id]")) return;
       if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; }
-      _ivcalDeselect();
+      // Single click on an empty slot opens the quick-create popover (Google
+      // Calendar behaviour). If an event detail is open, the first click just
+      // dismisses it instead of creating.
+      if (_ivcalSelected) { _ivcalDeselect(); return; }
+      _ivcalCloseMenus();
+      _ivcalNewEvent(col.getAttribute("data-ivcal-date"), slotMin(col, e), slotMin(col, e) + 30);
     });
     col.addEventListener("dblclick", (e) => {
       if (e.target.closest("[data-ivcal-id]")) return;
