@@ -27992,69 +27992,82 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   CALENDAR toolbar · Work Week + Availability MATCH the Schedule buttons
+   CALENDAR toolbar · Work Week + Availability = WHITE BORDERED PILLS
    ────────────────────────────────────────────────────────────────────────
-   The user wants the recruiting Calendar's "Work Week" view selector and the
-   "Availability" launcher to share the SAME box as the Schedule page's
-   command-bar tiles (Smart Fill / Assign-Unassign Fleet). Those tiles are the
-   transparent, borderless, column-layout ghost buttons defined in
-   schedule-rrx.css (`#view-schedule.rrx-schedule .sched-ribbon-actions--grouped
-   .sched-page-btn:not(#rr-sched-smartfill-h)`, the "Fleet Bridge .em-action"
-   baseline-lock v3 block) — NOT a white/hairline pill. Measured computed box of
-   the reference (#rr-sched-vans-h "Assign/Unassign Fleet"):
-       flex-direction:column · gap:4px · min-width:62px ·
-       padding:6px 10px 7px · height:auto · background:transparent ·
-       border:0 · border-radius:6px (var(--rr-radius-medium)) ·
-       label font 13px/500 · icon 28×28 · color var(--rr-fg-secondary).
-   We re-use those exact Schedule tokens/values here so the two controls can't
-   drift from the Schedule buttons. This intentionally walks back the M3 ghost
-   "white pill" treatment for these two controls only (block ~27782); every
-   other M3 toolbar change (single blue CTA, inline sync status, etc.) is left
-   intact. Scoped strictly to the Calendar sub-tab's #rr-cal-ribbon. Appended
-   last so it wins source order over the M3 block above; !important beats the
-   M3 !important declarations. ──────────────────────────────────────────── */
+   The recruiting Calendar's "Work Week" view selector and the "Availability"
+   launcher must read as WHITE rounded pills with a light hairline border and a
+   ~10–11px radius — the same look the Schedule page's command-bar tiles (the
+   "Today" segmented control, Smart Fill, Unassign Fleet) present to the user.
+
+   NOTE ON THE EARLIER ATTEMPT: a prior pass measured the Schedule tiles in a
+   CSS harness and read them as transparent/borderless ghost tiles (that's what
+   schedule-rrx.css's "baseline-lock v3" block forces:
+   `#view-schedule.rrx-schedule .sched-ribbon-actions--grouped
+   .sched-page-btn:not(#rr-sched-smartfill-h)` → background:transparent;border:0),
+   and re-styled these two Calendar controls to match that transparent box. The
+   user's reference screenshot of the live Schedule page disagrees: those
+   buttons render as WHITE pills with a visible light-gray hairline and ~10px
+   radius. The user's image is authoritative, so this block REVERSES the
+   transparent treatment and restores the correct white-bordered-pill look — the
+   same direction the M3 refinement pass took (height:36px · padding:0 14px ·
+   border-radius:11px · background:#FFFFFF · border:1px solid #E9EDF3 · 13px/500).
+
+   Scoped strictly to the Calendar sub-tab's #rr-cal-ribbon and appended last so
+   it wins source order over the M3 block above; the extra #rr-cal-ribbon ID +
+   !important beat the M3 !important declarations. Work Week keeps its caret
+   inline (it's a dropdown selector → left label, right caret); Availability is a
+   single text label (its glyph is hidden + an ::after "Availability" label is
+   supplied by the rule near line 26395). Every other M3 toolbar change (single
+   blue CTA, inline sync status, etc.) is left intact. ──────────────────────── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger,
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle{
-  /* ── Box · copied from Schedule .sched-page-btn (Unassign Fleet) ──
-     Same padding / border / radius / background / font / color so the two
-     controls share the Schedule tile box. Layout stays row so the Work Week
-     caret sits inline (a dropdown selector reads left-label, right-caret), and
-     Availability is a single text label — both match the box without forcing
-     the icon-over-label column the Schedule glyph tiles use. */
+  /* ── White bordered pill · matches the Schedule toolbar tiles in the user's
+     reference (white bg, light hairline, ~10–11px radius, comfortable padding).
+     Row layout so the Work Week caret sits inline and Availability reads as a
+     single label. ── */
   display:inline-flex !important;
   flex-direction:row !important;
   align-items:center !important;
   justify-content:center !important;
-  gap:var(--rr-space-40, 4px) !important;
-  min-width:62px !important;
+  gap:7px !important;
   width:auto !important;
-  height:auto !important;
+  height:36px !important;
   min-height:0 !important;
   margin:0 !important;
-  padding:6px 10px 7px !important;
-  background:transparent !important;
-  border:0 !important;
-  border-radius:var(--rr-radius-medium, 6px) !important;
+  padding:0 14px !important;
+  background:#FFFFFF !important;
+  border:1px solid #E9EDF3 !important;
+  border-radius:11px !important;
   box-shadow:none !important;
-  color:var(--rr-fg-secondary, #6B7280) !important;
+  color:#3C4043 !important;
   font-family:var(--rr-font-family) !important;
   font-size:13px !important;
   font-weight:500 !important;
-  line-height:1.2 !important;
+  line-height:1 !important;
   letter-spacing:0 !important;
   white-space:nowrap !important;
-  transition:background var(--rr-motion-fast, .15s ease),
-             color var(--rr-motion-fast, .15s ease) !important;
+  transition:background .18s ease, border-color .18s ease, color .18s ease !important;
 }
-/* Label · same 13px/500 the Schedule tiles give their <span>. */
+/* Work Week trigger · caret sits on the right, label on the left (selector feel). */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger{
+  justify-content:space-between !important;
+  gap:10px !important;
+  min-width:124px !important;
+}
+/* Work Week label · same 13px/500 as the pill text. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger .rr-cal-viewdd-current{
   font-size:13px !important; font-weight:500 !important;
-  color:var(--rr-fg-secondary, #6B7280) !important;
+  color:#3C4043 !important;
 }
-/* Hover · Schedule tiles use the soft neutral wash + primary-fg, no border. */
+/* Availability launcher · slightly de-emphasised label colour (matches the M3
+   ghost weight), but still the same white bordered pill box. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle{
+  color:#5F6368 !important;
+}
+/* Hover · soft neutral wash, keep the hairline border (white pill, not flat). */
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger:hover,
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle:hover{
-  background:var(--rr-bg-hover, rgba(0,0,0,.04)) !important;
-  border:0 !important;
-  color:var(--rr-fg-primary, #111827) !important;
+  background:#F8FAFC !important;
+  border-color:#E9EDF3 !important;
+  color:#202124 !important;
 }
