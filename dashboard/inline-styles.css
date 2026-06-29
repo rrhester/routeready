@@ -27988,7 +27988,12 @@ body.rr-cmdk-open{ overflow:hidden }
   margin:0 !important;
   padding:0 14px !important;
   background:#FFFFFF !important;
-  border:1px solid #E9EDF3 !important;
+  /* Border matches the Schedule toolbar controls: the ‹ › date-nav week
+     arrows (.sched-week-arrow), cards (.sched-requests-card) and page
+     buttons all use border:1px solid var(--rr-border-primary) =
+     #E5E7EB (defined in app/rr-system.css). Previously #E9EDF3 — a cooler
+     blue-gray that read as a different gray from the Schedule buttons. */
+  border:1px solid #E5E7EB !important;
   border-radius:11px !important;
   box-shadow:none !important;
   color:#3C4043 !important;
@@ -28020,7 +28025,7 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-viewdd-trigger:hover,
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon #rr-iv-rules-toggle:hover{
   background:#F8FAFC !important;
-  border-color:#E9EDF3 !important;
+  border-color:#E5E7EB !important;   /* keep the Schedule-matching border on hover */
   color:#202124 !important;
 }
 
