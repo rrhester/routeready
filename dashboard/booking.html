@@ -112,9 +112,11 @@ async function init() {
   TZ = info.timezone || TZ;
   DUR = info.slot_minutes || DUR;
   const dspName = info?.dsp?.name || "Driver Application";
+  const schedName = (info.schedule_name || "").trim();
   document.getElementById("dsp-name").textContent = dspName;
   document.getElementById("logo").textContent = (dspName[0] || "R").toUpperCase();
-  document.getElementById("hdr-sub").textContent = `${DUR}-minute interview`;
+  // Lead with the schedule name (e.g. "30 min with Ryan") when set, else the duration.
+  document.getElementById("hdr-sub").textContent = schedName || `${DUR}-minute interview`;
   const first = info?.applicant?.first_name ? `, ${info.applicant.first_name}` : "";
 
   if (info.already_booked) {

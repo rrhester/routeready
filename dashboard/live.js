@@ -22234,23 +22234,53 @@ function _ivShowCopyMenu(btn, srcDay, srcWins, applyFn) {
   });
 }
 
+let _ivCurSchedId = null;   // the named schedule currently being edited
+let _ivLegacyMode = false;  // true until the 0400 named-schedules migration is applied
 async function loadInterviewAvailabilityEditor() {
   const body = document.getElementById("rr-iv-body");
   if (!body) return;
   body.innerHTML = `<div class="rr-loading">Loading…</div>`;
-  let av, sessions;
+  let schedules = [], sched = null, schedWins = [], sessions = [];
+  // Legacy mode keeps the single-config editor working when the named-schedules
+  // migration (0400) hasn't been applied yet, so a deploy can't break the editor.
+  const _missingFn = (err) => err && /does not exist|could not find|schema cache|pgrst202|not find the function/i.test(JSON.stringify(err));
+  _ivLegacyMode = false;
   try {
-    const [a, s] = await Promise.all([sb.rpc("interview_availability_get"), sb.rpc("interview_sessions_list")]);
-    if (a.error) throw a.error;
-    av = a.data || {}; sessions = s.data || [];
+    const ss = await sb.rpc("interview_sessions_list"); sessions = ss.data || [];
+    const sl = await sb.rpc("interview_schedules_list");
+    if (sl.error) {
+      if (_missingFn(sl.error)) { _ivLegacyMode = true; } else throw sl.error;
+    } else {
+      schedules = sl.data || [];
+    }
+    if (!_ivLegacyMode) {
+      if (_ivCurSchedId && _ivCurSchedId !== "__new" && !schedules.some(s => s.id === _ivCurSchedId)) _ivCurSchedId = null;
+      if (!_ivCurSchedId) { const a = schedules.find(s => s.is_active) || schedules[0]; _ivCurSchedId = a ? a.id : "__new"; }
+      if (_ivCurSchedId && _ivCurSchedId !== "__new") {
+        const g = await sb.rpc("interview_schedule_get", { p_id: _ivCurSchedId });
+        if (g.error) throw g.error;
+        sched = (g.data && g.data.schedule) || null;
+        schedWins = (g.data && g.data.windows) || [];
+        if (!sched) { _ivCurSchedId = "__new"; }
+      }
+    } else {
+      // Legacy: the old single per-DSP config + windows.
+      const a = await sb.rpc("interview_availability_get");
+      if (a.error) throw a.error;
+      const av = a.data || {};
+      sched = av.config || null;
+      schedWins = av.windows || [];
+    }
   } catch (e) {
     body.innerHTML = `<div class="rr-iv-err">Couldn't load: ${escapeHtml(e.message || String(e))}</div>`;
     return;
   }
-  const cfg = av.config || {};
+  const cfg = sched || {};
   const tz = cfg.timezone || "America/Chicago";
   const slot = cfg.slot_minutes || 30, lead = cfg.min_lead_hours ?? 12, windowDays = cfg.window_days ?? 21, buffer = cfg.buffer_minutes ?? 0;
-  const byDay = {}; (av.windows || []).forEach(w => { (byDay[w.weekday] = byDay[w.weekday] || []).push(w); });
+  const schedName = cfg.name || "";
+  const isActive = sched ? !!cfg.is_active : (schedules.length === 0);
+  const byDay = {}; (schedWins || []).forEach(w => { (byDay[w.weekday] = byDay[w.weekday] || []).push(w); });
   Object.values(byDay).forEach(arr => arr.sort((x, y) => x.start_min - y.start_min));
   const tzOpts = ["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix","America/Anchorage","Pacific/Honolulu"]
     .map(z => `<option value="${z}"${z===tz?" selected":""}>${z.replace(/^(America|Pacific)\//,"").replace("_"," ")}</option>`).join("");
@@ -22283,7 +22313,21 @@ async function loadInterviewAvailabilityEditor() {
       <button class="rr-iv-x" data-sess="${escapeHtml(se.id)}" title="Remove">×</button></div>`;
   }).join("") : `<div class="rr-iv-empty">No group sessions yet.</div>`;
 
+  // Schedule switcher: pick / name / create / delete a named schedule. The
+  // active one drives the public booking page.
+  const schedOpts = schedules.map(s => `<option value="${s.id}"${s.id===_ivCurSchedId?" selected":""}>${escapeHtml(s.name)}${s.is_active?" · active":""}</option>`).join("")
+    + `<option value="__new"${_ivCurSchedId==="__new"?" selected":""}>+ New schedule…</option>`;
+  // The named-schedule switcher only appears once the 0400 migration is live;
+  // before that we fall back to the original single-config editor.
+  const schedHtml = _ivLegacyMode ? "" : `
+    <div class="rr-iv-sched">
+      <input type="text" class="rr-iv-sched-name" placeholder="Schedule name (e.g. 30 min with Ryan)" value="${escapeHtml(schedName)}">
+      <select class="rr-iv-sched-pick" aria-label="Choose schedule">${schedOpts}</select>
+      ${(_ivCurSchedId!=="__new" && schedules.length>1) ? `<button type="button" class="rr-iv-sched-del" id="rr-iv-sched-del" title="Delete this schedule" aria-label="Delete schedule"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : ""}
+      <label class="rr-iv-sched-active"><input type="checkbox" class="rr-iv-active-cb" ${isActive?"checked":""}> Active booking schedule</label>
+    </div>`;
   body.innerHTML = `
+    ${schedHtml}
     <div class="rr-iv-cfg">
       <label>Timezone <select class="rr-iv-tz">${tzOpts}</select></label>
       <label>Length <select class="rr-iv-slot">${[15,20,30,45,60].map(n=>`<option value="${n}"${n===slot?" selected":""}>${n} min</option>`).join("")}</select></label>
@@ -22345,6 +22389,23 @@ async function loadInterviewAvailabilityEditor() {
       else { const cb = row.querySelector(".rr-iv-on"); cb.checked = false; setOn(false); }
     });
   });
+  // Switch schedules (and "+ New") — reload the editor for the chosen one.
+  body.querySelector(".rr-iv-sched-pick")?.addEventListener("change", (e) => {
+    _ivCurSchedId = e.target.value || "__new";
+    loadInterviewAvailabilityEditor();
+  });
+  document.getElementById("rr-iv-sched-del")?.addEventListener("click", async () => {
+    if (_ivCurSchedId === "__new") return;
+    if (!confirm("Delete this schedule?")) return;
+    try {
+      const { error } = await sb.rpc("interview_schedule_delete", { p_id: _ivCurSchedId });
+      if (error) throw error;
+      _ivCurSchedId = null;
+      toast("Schedule deleted", "success");
+      loadInterviewAvailabilityEditor();
+      if (typeof loadIvCalendar === "function") loadIvCalendar();
+    } catch (e) { toast("Couldn't delete: " + (e.message || e), "warn"); }
+  });
   document.getElementById("rr-iv-save").onclick = () => _ivSave(body);
   document.getElementById("rr-iv-add-btn").onclick = () => _ivAddSession(tz);
   body.querySelectorAll(".rr-iv-x").forEach(b => b.onclick = () => _ivRemoveSession(b.getAttribute("data-sess")));
@@ -22363,21 +22424,35 @@ async function _ivSave(body) {
     });
   });
   if (st){ st.textContent="Saving…"; st.className="rr-iv-save-status"; }
+  const common = {
+    p_timezone: body.querySelector(".rr-iv-tz").value,
+    p_slot_minutes: parseInt(body.querySelector(".rr-iv-slot").value)||30,
+    p_buffer_minutes: parseInt(body.querySelector(".rr-iv-buffer").value)||0,
+    p_min_lead_hours: parseInt(body.querySelector(".rr-iv-lead").value)||0,
+    p_window_days: parseInt(body.querySelector(".rr-iv-window").value)||21,
+    p_location: "whereby", p_windows: windows,
+  };
   try {
-    const { error } = await sb.rpc("interview_availability_set", {
-      p_timezone: body.querySelector(".rr-iv-tz").value,
-      p_slot_minutes: parseInt(body.querySelector(".rr-iv-slot").value)||30,
-      p_buffer_minutes: parseInt(body.querySelector(".rr-iv-buffer").value)||0,
-      p_min_lead_hours: parseInt(body.querySelector(".rr-iv-lead").value)||0,
-      p_window_days: parseInt(body.querySelector(".rr-iv-window").value)||21,
-      p_location: "whereby", p_windows: windows,
-    });
-    if (error) throw error;
+    if (_ivLegacyMode) {
+      // Pre-migration: save into the single per-DSP config.
+      const { error } = await sb.rpc("interview_availability_set", common);
+      if (error) throw error;
+    } else {
+      const makeActive = !!(body.querySelector(".rr-iv-active-cb") && body.querySelector(".rr-iv-active-cb").checked);
+      const { data: savedId, error } = await sb.rpc("interview_schedule_save", {
+        ...common,
+        p_id: (_ivCurSchedId === "__new" ? null : _ivCurSchedId),
+        p_name: (body.querySelector(".rr-iv-sched-name")?.value || "").trim() || "Interview",
+        p_make_active: makeActive,
+      });
+      if (error) throw error;
+      if (savedId) _ivCurSchedId = savedId;
+    }
     if (st){ st.textContent="Saved ✓"; st.className="rr-iv-save-status ok"; }
-    toast("Interview availability saved","success");
-    // Refresh the grid so the new windows shade in immediately (and the
-    // empty-state nudge clears). The editor popover lives outside #rr-ivcal-body,
-    // so re-rendering the calendar leaves it open.
+    toast(_ivLegacyMode ? "Availability saved" : "Schedule saved","success");
+    // Reload the editor (refreshes the schedule list + active flag) and the grid
+    // (the active schedule is mirrored into the booking windows it paints).
+    loadInterviewAvailabilityEditor();
     if (typeof loadIvCalendar === "function") loadIvCalendar();
   } catch(e){ if (st){ st.textContent="Save failed"; st.className="rr-iv-save-status err"; } toast("Save failed: "+(e.message||e),"warn"); }
 }
