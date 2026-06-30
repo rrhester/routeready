@@ -8737,10 +8737,11 @@ function _rrRenderTasks() {
   const init = (_rrNtUserName() || "").trim().slice(0, 1).toUpperCase() || "•";
   list.innerHTML = shown.map((t) => {
     const due = t.due ? `<span class="ntp-task-due${_rrNtDueClass(t.due)}">${escapeHtml(_rrNtFmtDue(t.due))}</span>` : "";
+    const rep = t.repeat ? `<span class="ntp-task-rep" title="Repeats ${escapeHtml(t.repeat)}">🔁</span>` : "";
     return `<div class="ntp-task${t.done ? " is-done" : ""}" role="listitem" data-rr-task-id="${escapeHtml(t.id)}">
       <button type="button" class="ntp-task-check" data-rr-task-toggle="${escapeHtml(t.id)}" role="checkbox" aria-checked="${t.done ? "true" : "false"}" aria-label="Toggle complete">${_RR_NTCHECK}</button>
       <span class="ntp-task-title">${escapeHtml(t.title || "")}</span>
-      ${due}
+      ${rep}${due}
       <span class="ntp-task-avatar" title="${escapeHtml(_rrNtUserName() || "")}">${escapeHtml(init)}</span>
     </div>`;
   }).join("");
@@ -8764,13 +8765,36 @@ function _rrAddNoteFromInput() {
 function _rrAddTaskFromForm() {
   const ti = document.querySelector("#rr-sched-tasks [data-rr-task-title]");
   const de = document.querySelector("#rr-sched-tasks [data-rr-task-due]");
+  const re = document.querySelector("#rr-sched-tasks [data-rr-task-repeat]");
+  const rc = document.querySelector("#rr-sched-tasks [data-rr-task-repeat-count]");
   if (!ti) return;
   const title = (ti.value || "").trim();
   if (!title) { try { ti.focus(); } catch (_) {} return; }
+  const due = (de && de.value) || "";
+  const repeat = (re && re.value) || "";
   const tasks = _rrLoadTasks();
-  tasks.push({ id: _rrNtId("t"), title, due: (de && de.value) || "", done: false, ts: Date.now() });
+  if (repeat && due) {
+    // Repeat on a schedule: materialize one task per occurrence across the range,
+    // each completable on its own, all sharing a series id.
+    const count = Math.max(1, Math.min(60, parseInt(rc && rc.value, 10) || 1));
+    const series = _rrNtId("s");
+    const base = new Date(due + "T12:00:00");
+    for (let i = 0; i < count; i++) {
+      const d = new Date(base);
+      if (repeat === "daily") d.setDate(base.getDate() + i);
+      else if (repeat === "weekly") d.setDate(base.getDate() + 7 * i);
+      else if (repeat === "monthly") d.setMonth(base.getMonth() + i);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      tasks.push({ id: _rrNtId("t"), title, due: iso, done: false, ts: Date.now() + i, series, repeat });
+    }
+    toast(`Added ${count} recurring task${count !== 1 ? "s" : ""}`, "success");
+  } else {
+    if (repeat && !due) toast("Pick a due date to repeat — added as a single task", "info");
+    tasks.push({ id: _rrNtId("t"), title, due, done: false, ts: Date.now() });
+  }
   _rrSaveTasks(tasks);
   ti.value = ""; if (de) de.value = "";
+  if (re) re.value = ""; if (rc) { rc.value = "8"; rc.hidden = true; }
   const form = document.querySelector("#rr-sched-tasks [data-rr-task-form]"); if (form) form.hidden = true;
   _rrRenderTasks();
 }
@@ -9001,6 +9025,13 @@ document.addEventListener("click", (e) => {
     if (t) { t.done = !t.done; _rrSaveTasks(tasks); _rrRenderTasks(); }
     return;
   }
+});
+// Reveal the occurrence-count input only once a repeat cadence is chosen.
+document.addEventListener("change", (e) => {
+  const re = e.target.closest("[data-rr-task-repeat]");
+  if (!re) return;
+  const rc = document.querySelector("#rr-sched-tasks [data-rr-task-repeat-count]");
+  if (rc) rc.hidden = !re.value;
 });
 document.addEventListener("input", (e) => {
   if (e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-search]")) _rrRenderNotes();
@@ -20207,6 +20238,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span><div class="rr-ne-gcell rr-ne-gtime">
           <input id="rr-ne-sdate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-stime" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}"><span class="rr-ne-gdash">–</span><input id="rr-ne-edate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-etime" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}"><label class="rr-ne-gallday"><input id="rr-ne-allday" type="checkbox"> All day</label>
         </div></div>
+        <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><div class="rr-ne-gcell">
+          <button type="button" class="rr-ne-glink" id="rr-ne-repeat" data-ne-repeat>Does not repeat</button>
+        </div></div>
         <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></span><div class="rr-ne-gcell">
           <input id="rr-ne-required" type="text" placeholder="Add guests" style="${fld};width:100%">
           <input id="rr-ne-optional" type="text" placeholder="Optional guests" style="${fld};width:100%;margin-top:4px">
@@ -20275,6 +20309,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   m.querySelector("[data-ne-more]")?.addEventListener("click", () => { card.classList.remove("is-gcard"); card.classList.add("is-restored"); });
   // "Add video conferencing" row proxies the ribbon's Schedule Meeting action.
   m.querySelector("[data-ne-vproxy]")?.addEventListener("click", () => m.querySelector('[data-ne-act="meeting"]')?.click());
+  // "Repeat" row opens the recurrence popover (works for events AND tasks — a
+  // recurring task creates one task occurrence per date in the rule).
+  m.querySelector("[data-ne-repeat]")?.addEventListener("click", () => m.querySelector('[data-ne-act="recur"]')?.click());
   // "Add attachment from Vault" opens the Vault picker; picked files become
   // attachment chips and persist on the event (metadata.attachments).
   m.querySelector("[data-ne-vaultattach]")?.addEventListener("click", () => {
@@ -20435,6 +20472,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     const el = document.getElementById("rr-ne-recsum");
     if (recurrence) { el.textContent = "🔁 " + recurSummary(recurrence); el.style.display = ""; }
     else { el.style.display = "none"; }
+    // Keep the compact card's Repeat row label in sync with the rule.
+    const rb = document.getElementById("rr-ne-repeat");
+    if (rb) rb.textContent = recurrence ? recurSummary(recurrence) : "Does not repeat";
   }
 
   // ── Dictation (Web Speech API) ──

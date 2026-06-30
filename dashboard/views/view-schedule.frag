@@ -2945,6 +2945,15 @@
                 <input type="text" class="ntp-task-input" data-rr-task-title placeholder="Task title…" aria-label="Task title" maxlength="200"/>
                 <div class="ntp-task-form-row">
                   <input type="date" class="ntp-task-date" data-rr-task-due aria-label="Due date"/>
+                  <select class="ntp-task-date" data-rr-task-repeat aria-label="Repeat" title="Repeat">
+                    <option value="">Does not repeat</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                  <input type="number" class="ntp-task-date ntp-task-repcount" data-rr-task-repeat-count min="1" max="60" value="8" aria-label="Number of occurrences" title="Number of occurrences" hidden/>
+                </div>
+                <div class="ntp-task-form-row">
                   <button type="button" class="ntp-add-btn ntp-add-btn-sm" data-rr-task-add>Add</button>
                   <button type="button" class="ntp-ghost-btn" data-rr-task-cancel>Cancel</button>
                 </div>

@@ -5705,6 +5705,8 @@ body[data-rr-active-view="view-onboarding-ops"] #rr-util-rail-mount{display:bloc
 #rr-util-rail-mount .ntp-task-input:focus,#rr-util-rail-mount .ntp-task-date:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 #rr-util-rail-mount .ntp-task-form-row{display:flex;align-items:center;gap:8px}
 #rr-util-rail-mount .ntp-task-date{flex:1;min-width:0}
+#rr-util-rail-mount .ntp-task-repcount{flex:0 0 64px;text-align:center}
+#rr-util-rail-mount .ntp-task-rep{flex:0 0 auto;font-size:11px;opacity:.7;margin-left:2px}
 #rr-util-rail-mount .ntp-ghost-btn{appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-muted,#64748b);font:inherit;font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:7px}
 #rr-util-rail-mount .ntp-ghost-btn:hover{background:rgba(15,23,42,.05)}
 #rr-util-rail-mount .ntp-tasklist{display:flex;flex-direction:column;gap:1px}
