@@ -19337,6 +19337,8 @@ async function loadIvCalendar() {
     const av = a.data || {};
     _ivcalCache = {
       tz: (av.config && av.config.timezone) || "America/Chicago",
+      slot: (av.config && av.config.slot_minutes) || 30,
+      buffer: (av.config && av.config.buffer_minutes) || 0,
       windows: av.windows || [],
       sessions: s.data || [],
       bookings: bookings,
@@ -21198,10 +21200,21 @@ function _ivcalTimeGrid(ndays) {
 
   const cols = days.map(d => {
     const isToday = d.getTime() === today.getTime();
+    // Bookable availability windows → Google-style light-blue columns,
+    // subdivided into the configured appointment-slot rows.
+    const _slotMin = _ivcalCache.slot || 30, _buf = _ivcalCache.buffer || 0;
+    const _bookIco = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>';
     let shade = "";
     for (const w of (_ivcalCache.windows||[]).filter(w => w.weekday === d.getDay())) {
       const top = _ivcalYpos(w.start_min), bot = _ivcalYpos(w.end_min);
-      if (bot > top) shade += `<div class="oc-avail" style="top:${top}px;height:${bot-top}px"></div>`;
+      if (bot <= top) continue;
+      let slots = "";
+      for (let mm = w.start_min; mm + _slotMin <= w.end_min; mm += _slotMin + _buf) {
+        const st = _ivcalYpos(mm), en = _ivcalYpos(mm + _slotMin);
+        if (en > st) slots += `<div class="oc-bk-slot" style="top:${Math.round(st - top)}px;height:${Math.max(6, Math.round(en - st - 2))}px"></div>`;
+      }
+      const cap = (w.capacity && w.capacity > 1) ? ` · up to ${w.capacity}` : "";
+      shade += `<div class="oc-avail" style="top:${top}px;height:${bot-top}px" title="Bookable · ${_slotMin}-min slots${cap}"><span class="oc-bk-tag">${_bookIco}</span>${slots}</div>`;
     }
     let lines = "";
     for (let h=_IVCAL_H0; h<_IVCAL_H1; h++) {

@@ -12578,7 +12578,11 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-now{position:absolute;left:0;right:0;height:0;border-top:2px solid #DC2626;z-index:5;pointer-events:none}
             #rr-ivcal .oc-now::before{content:"";position:absolute;left:-4px;top:-4px;width:8px;height:8px;border-radius:50%;background:#DC2626}
             #rr-ivcal .oc-now-lbl{position:absolute;left:4px;top:-15px;font-size:10px;font-weight:700;color:#fff;background:#DC2626;padding:0 4px;border-radius:3px;line-height:14px;font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:none}
-            #rr-ivcal .oc-avail{position:absolute;left:0;right:0;background:var(--oc-surface)}
+            /* Bookable availability window · Google-style light-blue column with
+               slot rows. pointer-events:none so a click still creates an event. */
+            #rr-ivcal .oc-avail{position:absolute;left:1px;right:1px;background:rgba(66,133,244,.09);border:1px solid rgba(66,133,244,.22);border-radius:6px;pointer-events:none;overflow:hidden;z-index:1}
+            #rr-ivcal .oc-bk-tag{position:absolute;top:2px;left:3px;color:#1a73e8;opacity:.85;display:inline-flex}
+            #rr-ivcal .oc-bk-slot{position:absolute;left:3px;right:3px;background:rgba(66,133,244,.16);border-radius:3px}
             /* event blocks · light category fill + colored left bar (modern Outlook) */
             /* right:16px leaves a clickable grid strip so you can still
                double-click the cell to create a new event at the same time. */
@@ -27989,7 +27993,7 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col{ background:#FFFFFF !important; border-left:1px solid #E9EDF3 !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.today{ background:rgba(26,115,232,.045) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-corner{ border-right:1px solid #E9EDF3 !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-avail{ background:transparent !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-avail{ background:rgba(66,133,244,.09) !important; border:1px solid rgba(66,133,244,.22) !important; }
 
 /* DAY HEADERS · sentence case, reduced weight, more whitespace. The label is
    uppercased by .oc-dh .dow (base CSS) — undo it to "Monday". */
