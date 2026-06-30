@@ -19349,6 +19349,19 @@ function _ivcalRender() {
       ${pane}
     </div>`;
 
+  // Operator: host the Create pill in the page header, to the LEFT of the
+  // Work Week / Availability view controls, instead of the calendar sidebar.
+  // The create menu is wired document-delegated, so it keeps working after the
+  // move; we drop any previously-relocated pill first to avoid stacking.
+  (function _ivcalDockCreate(){
+    var sub = document.querySelector("#rr-cal-ribbon .subnav");
+    if (!sub) return;
+    var stale = sub.querySelector(".rr-cal-create"); if (stale) stale.remove();
+    var cp = host.querySelector(".rr-cal-create");
+    var vg = sub.querySelector(".rr-cal-viewgroup");
+    if (cp && vg) sub.insertBefore(cp, vg);
+  })();
+
   // Keep the current-time line ticking (created once, cheap minute updates).
   if (!_ivcalNowTimer) _ivcalNowTimer = setInterval(_ivcalTickNow, 60000);
 
@@ -19962,8 +19975,29 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-days{display:flex;flex-wrap:wrap;gap:8px}
       #rr-ivcal-new .rr-ne-days label{gap:4px;font-size:12px}
       #rr-ivcal-new .rr-ne-pop-f{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.06))}
+      /* ── Google-style compact quick-create skin (operator). .is-gcard is the
+         default open state; "More options" switches to .is-restored (the full
+         Outlook-style composer with the ribbon + every field). ── */
+      #rr-ivcal-new .rr-ne-card.is-gcard{position:fixed;left:50%;top:12%;transform:translateX(-50%);width:min(468px,94vw);height:auto;max-height:84vh;border-radius:16px;box-shadow:0 24px 70px rgba(15,23,42,.28);border:1px solid rgba(15,23,42,.08);overflow:hidden;background:#fff;display:flex;flex-direction:column}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-titlebar{height:42px;background:transparent;border-bottom:0;cursor:default;padding:6px 6px 0 0;justify-content:flex-end}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-tt{display:none}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-win[data-ne-win="min"],#rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-win[data-ne-win="restore"]{display:none}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-ribbon{display:none}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-fields{padding:0 22px 8px;gap:6px;overflow-y:auto;flex:1 1 auto}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-fields > div > span:first-child{font-size:11px !important;color:var(--text-subtle) !important;min-width:60px !important;font-weight:600 !important}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-fields > div:first-child > span:first-child{display:none !important}
+      #rr-ivcal-new .rr-ne-card.is-gcard #rr-ne-title{border:0 !important;border-bottom:1.5px solid transparent !important;border-radius:0 !important;font-size:22px !important;font-weight:500 !important;padding:8px 0 6px !important;background:transparent !important}
+      #rr-ivcal-new .rr-ne-card.is-gcard #rr-ne-title::placeholder{color:#9AA3B2 !important}
+      #rr-ivcal-new .rr-ne-card.is-gcard #rr-ne-title:focus{border-bottom-color:#2563EB !important;outline:none !important}
+      #rr-ivcal-new .rr-ne-card.is-gcard #rr-ne-body{min-height:84px !important;font-family:inherit !important;font-size:13px !important;line-height:1.5 !important}
+      #rr-ivcal-new .rr-ne-gfoot{display:flex;align-items:center;gap:12px;padding:12px 18px 16px;border-top:1px solid rgba(15,23,42,.06);flex:0 0 auto}
+      #rr-ivcal-new .rr-ne-card.is-restored .rr-ne-gfoot,#rr-ivcal-new .rr-ne-card.is-max .rr-ne-gfoot,#rr-ivcal-new .rr-ne-card.is-min .rr-ne-gfoot,#rr-ivcal-new .rr-ne-card.is-float .rr-ne-gfoot{display:none}
+      #rr-ivcal-new .rr-ne-more{border:0;background:transparent;color:#2563EB;font-weight:600;font-size:13px;cursor:pointer;padding:8px 8px;border-radius:8px}
+      #rr-ivcal-new .rr-ne-more:hover{background:#EFF6FF}
+      #rr-ivcal-new .rr-ne-gsave{margin-left:auto;border:0;background:#2563EB;color:#fff;font-weight:600;font-size:14px;cursor:pointer;padding:9px 24px;border-radius:10px}
+      #rr-ivcal-new .rr-ne-gsave:hover{background:#1D4ED8}
     </style>
-    <div class="rr-ne-card is-restored" id="rr-ne-card">
+    <div class="rr-ne-card is-gcard" id="rr-ne-card">
       <div class="rr-ne-titlebar">
         <div class="rr-ne-tt" id="rr-ne-tt">Untitled event</div>
         <div class="rr-ne-wins">
@@ -20001,6 +20035,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)"></span>
         <div id="rr-ne-history" style="display:none"></div>
       </div>
+      <div class="rr-ne-gfoot">
+        <button type="button" class="rr-ne-more" data-ne-more>More options</button>
+        <button type="button" class="rr-ne-gsave" data-ne-gsave>Save</button>
+      </div>
       <input type="file" id="rr-ne-file" multiple style="display:none">
       <div class="rr-ne-pop" id="rr-ne-recur-pop" hidden>
         <div class="rr-ne-pop-h">Appointment Recurrence</div>
@@ -20036,6 +20074,11 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     </div>`;
   document.body.appendChild(m);
   const card = document.getElementById("rr-ne-card");
+  // Google quick-create footer: "Save" proxies the ribbon's save action so all
+  // the existing create/invite wiring runs unchanged; "More options" expands the
+  // compact card into the full Outlook-style composer (ribbon + every field).
+  m.querySelector("[data-ne-gsave]")?.addEventListener("click", () => m.querySelector('[data-ne-act="save"]')?.click());
+  m.querySelector("[data-ne-more]")?.addEventListener("click", () => { card.classList.remove("is-gcard"); card.classList.add("is-restored"); });
   const titleInp = document.getElementById("rr-ne-title");
   titleInp.focus();
   // Keep the title-bar caption in sync with the typed title.
