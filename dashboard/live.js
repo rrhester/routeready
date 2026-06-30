@@ -20630,7 +20630,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         const startISO = isAllDay ? _ivLocalToISO(sdate, "00:00", tz) : _ivLocalToISO(sdate, stime, tz);
         const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
         if (new Date(endISO) <= new Date(startISO)) { toast("End must be after start", "warn"); if (btn) btn.style.opacity = ""; return; }
-        const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done), attachments: attRefs } };
+        const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done), attachments: attRefs, all_day: isAllDay } };
         if (ev0.kind === "event") {
           patch.title = title;
           // Only touch calendar_id when assigning one or clearing a prior one,
@@ -20694,12 +20694,13 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         // Merge the task flag and/or Vault attachments into the freshly-created
         // events. Read-modify-write per id so the invitees/note the RPC set are
         // preserved (only the first occurrence of a series carries invitees).
-        if ((isTask || attRefs.length) && createdIds.length) {
+        if ((isTask || attRefs.length || isAllDay) && createdIds.length) {
           for (const cid of createdIds) {
             const { data: row } = await sb.from("cal_events").select("metadata").eq("id", cid).maybeSingle();
             const md = { ...((row && row.metadata) || {}) };
             if (isTask) { md.is_task = true; md.task_done = false; }
             if (attRefs.length) md.attachments = attRefs;
+            if (isAllDay) md.all_day = true;
             await sb.from("cal_events").update({ metadata: md }).eq("id", cid);
           }
         }
@@ -20988,6 +20989,28 @@ function _ivcalTickNow() {
   if (lbl) lbl.textContent = now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
+// An event is all-day when it was saved as such (metadata.all_day) or — for
+// events created before that flag existed — when it spans a full local day.
+function _ivcalIsAllDay(ev) {
+  if (ev && ev.metadata && ev.metadata.all_day) return true;
+  if (!ev || !ev.starts_at || !ev.ends_at) return false;
+  const s = new Date(ev.starts_at), e = new Date(ev.ends_at);
+  return s.getHours() === 0 && s.getMinutes() === 0 && (e - s) >= 23 * 3600 * 1000;
+}
+// Horizontal all-day chip for the top lane (Outlook/Google style).
+function _ivcalAllDayBar(ev, type) {
+  const kindAttr = type === "session" ? "session" : "booking";
+  const label = _ivcalEventLabel(ev, type);
+  const cat = _ivcalCat(ev, type);
+  const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
+  const cc = (ev.metadata && ev.metadata.color) || _ivcalCalColor(ev);
+  const ccStyle = cc ? `border-left-color:${cc};background:${cc}1f;color:${cc}` : "";
+  return `<div class="oc-adbar cat-${cat}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="${ccStyle}" title="${escapeHtml("All day · " + label)}"><span class="oc-adbar-t">${escapeHtml(label)}</span></div>`;
+}
+function _ivcalGoogleAllDayBar(ge) {
+  return `<div class="oc-adbar oc-adbar-google" data-ivcal-glink="${escapeHtml(ge.htmlLink || "")}" style="color:${_ivcalGoogleColor};border-left-color:${_ivcalGoogleColor};background:${_ivcalGoogleColor}1a" title="${escapeHtml((ge.title || "(busy)") + " · all day · Google")}"><span class="oc-pdot" style="background:${_ivcalGoogleColor}"></span><span class="oc-adbar-t">${escapeHtml(ge.title || "(busy)")}</span></div>`;
+}
+
 function _ivcalTimeGrid(ndays) {
   let startDay;
   if (ndays === 1) { startDay = new Date(_ivcalAnchor); startDay.setHours(0,0,0,0); }
@@ -21028,19 +21051,18 @@ function _ivcalTimeGrid(ndays) {
     const timed = [];
     let evs = "";
     for (const s of _ivcalDayItems(d, _ivcalCache.sessions, "starts_at")) {
-      if (!_ivcalFilterOk(s, "session")) continue;
+      if (!_ivcalFilterOk(s, "session") || _ivcalIsAllDay(s)) continue;
       const sp = _ivcalMinSpan(s.starts_at, s.ends_at);
       timed.push({ _sm: sp.sm, _em: sp.em, render: (lay) => _ivcalEventBlock(s, "session", lay) });
     }
     for (const b of _ivcalDayItems(d, _ivcalCache.bookings, "starts_at")) {
-      if (!_ivcalFilterOk(b, "booking")) continue;
+      if (!_ivcalFilterOk(b, "booking") || _ivcalIsAllDay(b)) continue;
       const sp = _ivcalMinSpan(b.starts_at, b.ends_at);
       timed.push({ _sm: sp.sm, _em: sp.em, render: (lay) => _ivcalEventBlock(b, "booking", lay) });
     }
     if (_ivcalGoogleVisible()) {
-      let _gad = 0;
       for (const ge of _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt")) {
-        if (ge.allDay) { evs += _ivcalGoogleBlock(ge, _gad++, null); continue; }
+        if (ge.allDay) continue;   // all-day Google chips live in the top lane now
         const sp = _ivcalMinSpan(ge.start, ge.end);
         timed.push({ _sm: sp.sm, _em: sp.em, render: (lay) => _ivcalGoogleBlock(ge, -1, lay) });
       }
@@ -21050,9 +21072,33 @@ function _ivcalTimeGrid(ndays) {
     return `<div class="oc-col${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${shade}${lines}${nowLine}${evs}</div>`;
   }).join("");
 
+  // All-day lane · one horizontal cell per day, pinned with the day headers.
+  let _anyAllDay = false;
+  const adCols = days.map(d => {
+    let bars = "";
+    for (const b of _ivcalDayItems(d, _ivcalCache.bookings, "starts_at")) {
+      if (!_ivcalFilterOk(b, "booking") || !_ivcalIsAllDay(b)) continue;
+      bars += _ivcalAllDayBar(b, "booking"); _anyAllDay = true;
+    }
+    for (const s of _ivcalDayItems(d, _ivcalCache.sessions, "starts_at")) {
+      if (!_ivcalFilterOk(s, "session") || !_ivcalIsAllDay(s)) continue;
+      bars += _ivcalAllDayBar(s, "session"); _anyAllDay = true;
+    }
+    if (_ivcalGoogleVisible()) {
+      for (const ge of _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt")) {
+        if (!ge.allDay) continue;
+        bars += _ivcalGoogleAllDayBar(ge); _anyAllDay = true;
+      }
+    }
+    return `<div class="oc-adcol" data-ivcal-date="${_ivcalISODate(d)}">${bars}</div>`;
+  }).join("");
+  // Render the lane whenever any all-day item exists this view (otherwise it
+  // stays out of the way, like Google/Outlook collapsing the empty row).
+  const adRow = _anyAllDay ? `<div class="oc-allday"><div class="oc-adgut">all-day</div>${adCols}</div>` : "";
+
   return `<div class="oc-cal" style="--days:${ndays};--rh:${_IVCAL_RH}px">
     <div class="oc-scroll" id="rr-ivcal-scroll">
-      <div class="oc-head">${head}</div>
+      <div class="oc-stick"><div class="oc-head">${head}</div>${adRow}</div>
       <div class="oc-grid" style="height:${gridH}px"><div class="oc-gutter">${gutter}</div>${cols}</div>
     </div>
   </div>`;
