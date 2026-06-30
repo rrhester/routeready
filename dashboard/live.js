@@ -20337,6 +20337,15 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-gtime input{width:auto !important}
       #rr-ivcal-new .rr-ne-card.is-gcard #rr-ne-edate{display:none !important}
       #rr-ivcal-new .rr-ne-card.is-task .rr-ne-evonly{display:none}
+      /* "Show my interview availability" — pickable open-slot chips */
+      #rr-ivcal-new .rr-ne-avail{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+      #rr-ivcal-new .rr-ne-avail[hidden]{display:none}
+      #rr-ivcal-new .rr-ne-aslot{border:1px solid #c7dbff;background:#eef4ff;color:#1d4ed8;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 11px;border-radius:999px;line-height:1}
+      #rr-ivcal-new .rr-ne-aslot:hover{background:#dbe7ff;border-color:#9bbcff}
+      #rr-ivcal-new .rr-ne-aslot.sel{background:#2563EB;border-color:#2563EB;color:#fff}
+      #rr-ivcal-new .rr-ne-aslot.taken{background:#F1F3F4;border-color:#E0E3E7;color:#9aa0a6;cursor:not-allowed;text-decoration:line-through}
+      #rr-ivcal-new .rr-ne-aday{flex:0 0 100%;font-size:12px;font-weight:600;color:#5F6368;margin:2px 0 0}
+      #rr-ivcal-new .rr-ne-anone{font-size:12.5px;color:#5F6368;line-height:1.5}
     </style>
     <div class="rr-ne-card is-gcard" id="rr-ne-card">
       <div class="rr-ne-titlebar">
@@ -20370,6 +20379,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         <input id="rr-ne-title" type="text" placeholder="Add title" style="${fld};width:100%">
         <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span><div class="rr-ne-gcell rr-ne-gtime">
           <input id="rr-ne-sdate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-stime" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}"><span class="rr-ne-gdash">–</span><input id="rr-ne-edate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-etime" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}"><label class="rr-ne-gallday"><input id="rr-ne-allday" type="checkbox"> All day</label>
+        </div></div>
+        <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><path d="m9 16 2 2 4-4"/></svg></span><div class="rr-ne-gcell">
+          <button type="button" class="rr-ne-glink" id="rr-ne-availtog" data-ne-availtog>Show my interview availability</button>
+          <div id="rr-ne-avail" class="rr-ne-avail" hidden></div>
         </div></div>
         <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><div class="rr-ne-gcell">
           <button type="button" class="rr-ne-glink" id="rr-ne-repeat" data-ne-repeat>Does not repeat</button>
@@ -20445,6 +20458,63 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   // "Repeat" row opens the recurrence popover (works for events AND tasks — a
   // recurring task creates one task occurrence per date in the rule).
   m.querySelector("[data-ne-repeat]")?.addEventListener("click", () => m.querySelector('[data-ne-act="recur"]')?.click());
+  // "Show my interview availability" — list the operator's own open interview
+  // slots for the selected day (from the active booking schedule, mirrored into
+  // _ivcalCache.windows). Clicking a slot snaps the event start/end to it, so
+  // events can be dropped onto bookable time without leaving the composer.
+  const _availBox = document.getElementById("rr-ne-avail");
+  const _availTog = document.getElementById("rr-ne-availtog");
+  const _neFmt = (mm) => { const h=Math.floor(mm/60), mn=mm%60, ap=h<12?"AM":"PM", h12=((h+11)%12)+1; return `${h12}:${String(mn).padStart(2,"0")} ${ap}`; };
+  function _neRenderAvail() {
+    if (!_availBox) return;
+    const sdEl = document.getElementById("rr-ne-sdate");
+    const dISO = sdEl && sdEl.value;
+    if (!_ivcalCache || !(_ivcalCache.windows || []).length) {
+      _availBox.innerHTML = `<div class="rr-ne-anone">No interview availability set yet — use the <strong>Availability</strong> button in the toolbar to add bookable times.</div>`;
+      return;
+    }
+    const d = dISO ? new Date(dISO + "T00:00:00") : null;
+    if (!d || isNaN(d.getTime())) { _availBox.innerHTML = `<div class="rr-ne-anone">Pick a date first.</div>`; return; }
+    const slotMin = _ivcalCache.slot || 30, buf = _ivcalCache.buffer || 0;
+    const wins = (_ivcalCache.windows || []).filter(w => w.weekday === d.getDay()).sort((a, b) => a.start_min - b.start_min);
+    if (!wins.length) { _availBox.innerHTML = `<div class="rr-ne-anone">No bookable times on ${d.toLocaleDateString(undefined, { weekday: "long" })}.</div>`; return; }
+    // Slot start-minutes already filled by a booking or group session that day.
+    const taken = new Set();
+    [].concat(_ivcalDayItems(d, _ivcalCache.bookings, "starts_at"), _ivcalDayItems(d, _ivcalCache.sessions, "starts_at"))
+      .forEach(it => { const t = new Date(it.starts_at); taken.add(t.getHours() * 60 + t.getMinutes()); });
+    const curStart = (() => { const v = (document.getElementById("rr-ne-stime") || {}).value; if (!v) return -1; const p = v.split(":"); return (+p[0]) * 60 + (+p[1]); })();
+    let chips = `<div class="rr-ne-aday">${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} · ${slotMin}-min slots</div>`;
+    let any = false;
+    for (const w of wins) {
+      for (let mm = w.start_min; mm + slotMin <= w.end_min; mm += slotMin + buf) {
+        const isTaken = taken.has(mm); any = true;
+        const sel = (!isTaken && mm === curStart) ? " sel" : "";
+        chips += `<button type="button" class="rr-ne-aslot${isTaken ? " taken" : ""}${sel}" data-mm="${mm}"${isTaken ? " disabled" : ""} title="${isTaken ? "Already booked" : "Use this time"}">${_neFmt(mm)}</button>`;
+      }
+    }
+    _availBox.innerHTML = any ? chips : `<div class="rr-ne-anone">No open slots that day.</div>`;
+  }
+  _availTog?.addEventListener("click", () => {
+    if (!_availBox) return;
+    const show = _availBox.hidden;
+    _availBox.hidden = !show;
+    _availTog.textContent = show ? "Hide my interview availability" : "Show my interview availability";
+    if (show) _neRenderAvail();
+  });
+  _availBox?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".rr-ne-aslot");
+    if (!btn || btn.disabled) return;
+    const mm = parseInt(btn.getAttribute("data-mm"), 10);
+    const slotMin = (_ivcalCache && _ivcalCache.slot) || 30;
+    const sEl = document.getElementById("rr-ne-stime"), eEl = document.getElementById("rr-ne-etime"), edEl = document.getElementById("rr-ne-edate"), sdEl = document.getElementById("rr-ne-sdate");
+    if (sEl) { sEl.value = _ivMinToHHMM(mm); sEl.dispatchEvent(new Event("change", { bubbles: true })); }
+    if (eEl) { eEl.value = _ivMinToHHMM(mm + slotMin); eEl.dispatchEvent(new Event("change", { bubbles: true })); }
+    if (edEl && sdEl) edEl.value = sdEl.value;
+    _availBox.querySelectorAll(".rr-ne-aslot.sel").forEach(x => x.classList.remove("sel"));
+    btn.classList.add("sel");
+  });
+  // Keep the slot list in sync when the event's date changes while it's open.
+  document.getElementById("rr-ne-sdate")?.addEventListener("change", () => { if (_availBox && !_availBox.hidden) _neRenderAvail(); });
   // "Add attachment from Vault" opens the Vault picker; picked files become
   // attachment chips and persist on the event (metadata.attachments).
   m.querySelector("[data-ne-vaultattach]")?.addEventListener("click", () => {
