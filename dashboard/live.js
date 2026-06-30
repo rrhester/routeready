@@ -19512,6 +19512,8 @@ function _ivcalRender() {
   host.querySelectorAll("[data-ivcal-id]").forEach(el => {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
+      // The task-complete circle toggles done instead of opening the editor.
+      if (e.target.closest("[data-oc-task-toggle]")) { _ivcalToggleTask(el.getAttribute("data-ivcal-id")); return; }
       if (e.target.closest(".ei-cam-hit")) { const ev = _ivcalFindEv(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); if (ev && ev.meeting_url) { _ivcalOpenRoom(ev); return; } }
       if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; }
       _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id"));
@@ -20240,6 +20242,11 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     if (e0) { document.getElementById("rr-ne-edate").value = _ivcalISODate(e0); }
     document.getElementById("rr-ne-location").value = ev0.location || "";
     document.getElementById("rr-ne-body").value = (ev0.metadata && ev0.metadata.note != null) ? String(ev0.metadata.note) : "";
+    // Re-open a task in Task mode so its composer matches how it was created.
+    if (ev0.metadata && ev0.metadata.is_task) {
+      card.classList.add("is-task");
+      m.querySelectorAll("[data-ne-type]").forEach(x => x.classList.toggle("active", x.getAttribute("data-ne-type") === "task"));
+    }
     // Clear the attendee placeholders' relevance + relabel ribbon for editing.
     const sendTile = m.querySelector('[data-ne-act="send"] span'); if (sendTile) sendTile.textContent = "Update";
     // Load the messages we've already sent for this event (booking
@@ -20475,6 +20482,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       // "Save" puts the event on the calendar without inviting/emailing anyone
       // (personal blocks); "Send" also invites the attendees.
       const isSave   = act === "save";
+      // Task mode (the Event/Task pill) is purely a class on the card. Tasks are
+      // stored as cal_events flagged is_task in metadata so they render as a
+      // checkable Google-style task on the grid.
+      const isTask   = card.classList.contains("is-task");
       const title    = titleInp.value.trim();
       const sdate    = document.getElementById("rr-ne-sdate").value;
       const edate    = document.getElementById("rr-ne-edate").value || sdate;
@@ -20494,7 +20505,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         const startISO = isAllDay ? _ivLocalToISO(sdate, "00:00", tz) : _ivLocalToISO(sdate, stime, tz);
         const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
         if (new Date(endISO) <= new Date(startISO)) { toast("End must be after start", "warn"); if (btn) btn.style.opacity = ""; return; }
-        const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null } };
+        const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done) } };
         if (ev0.kind === "event") {
           patch.title = title;
           // Only touch calendar_id when assigning one or clearing a prior one,
@@ -20519,6 +20530,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       const dates = recurrence ? expandOccurrences(recurrence, sdate) : [sdate];
       if (attachments.length) toast("Note: attachments show here but aren't sent with auto-invites yet", "info");
       let made = 0, firstId = null;
+      const createdIds = [];
       try {
         for (let i = 0; i < dates.length; i++) {
           const d = dates[i];
@@ -20549,9 +20561,19 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           const { data: newId, error } = await sb.rpc("create_calendar_event", rpcArgs);
           if (error) throw error;
           if (i === 0 && newId) firstId = newId;
+          if (newId) createdIds.push(newId);
           made++;
         }
-        toast(isSave ? (recurrence ? `Saved · ${made} event${made!==1?"s":""}` : "Event saved")
+        // Flag freshly-created task events so they render as checkable tasks.
+        // We know every metadata key the RPC set for a task (invitees:[] + note),
+        // so a straight overwrite is equivalent and adds the task fields.
+        if (isTask && createdIds.length) {
+          await sb.from("cal_events")
+            .update({ metadata: { invitees: [], note: bodyText || null, is_task: true, task_done: false } })
+            .in("id", createdIds);
+        }
+        toast(isTask ? (recurrence ? `Saved · ${made} task${made!==1?"s":""}` : "Task saved")
+          : isSave ? (recurrence ? `Saved · ${made} event${made!==1?"s":""}` : "Event saved")
           : (recurrence ? `Series created · ${made} event${made!==1?"s":""}` : (invitees.length ? `Event created · inviting ${invitees.length}` : "Event created")), "success");
         // Success toasts are globally suppressed, so make the save VISIBLE:
         // jump the calendar to the new event's day and select it so it's
@@ -20712,6 +20734,19 @@ function _ivcalEventLabel(ev, type) {
   return rrTitleCaseName((ev.applicants||{}).full_name) || (ev.kind === "orientation" ? "Orientation" : "Interview");
 }
 
+// Toggle a task's done state (the Google-style circle on a task chip). Optimistic
+// flip + re-render, then persist; the circle is excluded from drag + open so this
+// is the only thing a click on it does.
+async function _ivcalToggleTask(id) {
+  const ev = _ivcalFindEv("booking", id);
+  if (!ev) return;
+  const done = !(ev.metadata && ev.metadata.task_done);
+  ev.metadata = { ...(ev.metadata || {}), is_task: true, task_done: done };
+  _ivcalRender();
+  const { error } = await sb.from("cal_events").update({ metadata: ev.metadata }).eq("id", id);
+  if (error) { toast("Couldn't update task", "warn"); }
+}
+
 function _ivcalEventBlock(ev, type, lay) {
   if (!_ivcalFilterOk(ev, type)) return "";
   const s = new Date(ev.starts_at);
@@ -20725,6 +20760,17 @@ function _ivcalEventBlock(ev, type, lay) {
   const cat = _ivcalCat(ev, type);
   const rsvp = type === "session" ? "accepted" : (ev.rsvp || "accepted");
   const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
+  // Tasks (is_task in metadata) render as a checkable Google-style task: a
+  // circle you click to complete + the title (struck through when done).
+  const isTask = kindAttr === "booking" && ev.metadata && ev.metadata.is_task;
+  if (isTask) {
+    const done = !!ev.metadata.task_done;
+    const checkSvg = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    const check = `<span class="oc-task-check${done ? " on" : ""}" data-oc-task-toggle="1" role="button" tabindex="-1" title="${done ? "Mark not done" : "Mark complete"}">${done ? checkSvg : ""}</span>`;
+    const tInner = `<div class="oc-task-line">${check}<span class="oc-task-title">${escapeHtml(time)} ${escapeHtml(label)}</span></div>`;
+    const tRz = `<div class="oc-rz" data-oc-resize></div>`;
+    return `<div class="oc-ev oc-ev-task${done ? " is-done" : ""}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)}" title="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}">${tInner}${tRz}</div>`;
+  }
   let icons = "";
   // The camera glyph is its own hit target: clicking it opens the video
   // interview workspace (the rest of the chip opens the reading pane/editor).
@@ -21455,6 +21501,8 @@ function _ivcalInstallDrag() {
       const onHandle = !!e.target.closest("[data-oc-resize]");
       const col = e.target.closest(".oc-col[data-ivcal-date]");
       if (evEl) {
+        // The task-complete circle is its own hit target — don't start a drag.
+        if (e.target.closest("[data-oc-task-toggle]")) return;
         const kind = evEl.getAttribute("data-ivcal-kind"), id = evEl.getAttribute("data-ivcal-id");
         if (kind === "session") return;
         const ev = _ivcalFindEv(kind, id); if (!ev) return;
