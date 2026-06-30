@@ -22205,6 +22205,35 @@ function _ivLocalToISO(date, time, tz) {
   return new Date(asUTC - (wall - asUTC)).toISOString();
 }
 
+// "Copy times to other days" picker for the availability editor. srcWins are
+// {start,end,cap} in minutes; applyFn(targetDay, srcWins) writes them onto a day.
+function _ivShowCopyMenu(btn, srcDay, srcWins, applyFn) {
+  document.querySelectorAll(".rr-iv-copy-pop").forEach(p => p.remove());
+  const pop = document.createElement("div");
+  pop.className = "rr-iv-copy-pop";
+  const days = _IV_DAYS.map((nm, i) => i === srcDay ? "" : `<label class="rr-iv-copy-day"><input type="checkbox" value="${i}"><span>${escapeHtml(nm)}</span></label>`).join("");
+  pop.innerHTML = `<div class="rr-iv-copy-h">Copy times to…</div><div class="rr-iv-copy-days">${days}</div>
+    <div class="rr-iv-copy-f"><button type="button" class="rr-iv-copy-wd">Weekdays</button><span style="flex:1"></span><button type="button" class="rr-iv-copy-cancel">Cancel</button><button type="button" class="rr-iv-copy-go">Copy</button></div>`;
+  document.body.appendChild(pop);
+  const r = btn.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.top = `${Math.min(r.bottom + 6, window.innerHeight - pop.offsetHeight - 8)}px`;
+  pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 232))}px`;
+  const close = () => { pop.remove(); document.removeEventListener("click", onDoc, true); };
+  function onDoc(e) { if (!pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) close(); }
+  setTimeout(() => document.addEventListener("click", onDoc, true), 0);
+  pop.querySelector(".rr-iv-copy-wd").addEventListener("click", () => {
+    pop.querySelectorAll(".rr-iv-copy-days input").forEach(c => { c.checked = [1,2,3,4,5].includes(+c.value); });
+  });
+  pop.querySelector(".rr-iv-copy-cancel").addEventListener("click", close);
+  pop.querySelector(".rr-iv-copy-go").addEventListener("click", () => {
+    const targets = [...pop.querySelectorAll(".rr-iv-copy-days input:checked")].map(c => +c.value);
+    targets.forEach(t => applyFn(t, srcWins));
+    close();
+    if (targets.length) toast(`Copied times to ${targets.length} day${targets.length !== 1 ? "s" : ""}`, "success");
+  });
+}
+
 async function loadInterviewAvailabilityEditor() {
   const body = document.getElementById("rr-iv-body");
   if (!body) return;
@@ -22240,10 +22269,12 @@ async function loadInterviewAvailabilityEditor() {
   for (let d=0; d<7; d++) {
     const wins = byDay[d] || [], on = wins.length > 0;
     const list = on ? wins : [{ start_min:540, end_min:1020, capacity:1 }];
+    const copyIco = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
     rows += `<div class="rr-iv-day${on?"":" off"}" data-day="${d}">
       <label class="rr-iv-daylbl"><input type="checkbox" class="rr-iv-on" ${on?"checked":""}><span>${_IV_DAYS[d]}</span></label>
       <div class="rr-iv-wins">${list.map(w => winRow(w, on)).join("")}</div>
       <button type="button" class="rr-iv-addwin" ${on?"":"disabled"}>+ Add time</button>
+      <button type="button" class="rr-iv-copy" ${on?"":"disabled"} title="Copy times to other days" aria-label="Copy times to other days">${copyIco}</button>
     </div>`;
   }
   const sessHtml = sessions.length ? sessions.map(se => {
@@ -22272,10 +22303,19 @@ async function loadInterviewAvailabilityEditor() {
       <button class="rr-iv-btn is-ghost" id="rr-iv-add-btn">Add session</button>
     </div>`;
 
+  // Replace a day's windows with a copied set (used by "copy to other days").
+  const applyWinsToDay = (targetDay, srcWins) => {
+    const tgt = body.querySelector(`.rr-iv-day[data-day="${targetDay}"]`);
+    if (!tgt || !srcWins.length) return;
+    tgt.classList.remove("off");
+    tgt.querySelector(".rr-iv-on").checked = true;
+    tgt.querySelector(".rr-iv-wins").innerHTML = srcWins.map(w => winRow({ start_min: w.start, end_min: w.end, capacity: w.cap }, true)).join("");
+    tgt.querySelectorAll("input:not(.rr-iv-on), .rr-iv-winx, .rr-iv-addwin, .rr-iv-copy").forEach(el => { el.disabled = false; });
+  };
   body.querySelectorAll(".rr-iv-day").forEach(row => {
     const setOn = (on) => {
       row.classList.toggle("off", !on);
-      row.querySelectorAll("input:not(.rr-iv-on), .rr-iv-winx, .rr-iv-addwin").forEach(el => { el.disabled = !on; });
+      row.querySelectorAll("input:not(.rr-iv-on), .rr-iv-winx, .rr-iv-addwin, .rr-iv-copy").forEach(el => { el.disabled = !on; });
     };
     row.querySelector(".rr-iv-on").addEventListener("change", (e) => setOn(e.target.checked));
     // Add another time window for this day.
@@ -22284,6 +22324,18 @@ async function loadInterviewAvailabilityEditor() {
       const tmp = document.createElement("div");
       tmp.innerHTML = winRow({ start_min:540, end_min:1020, capacity:1 }, true);
       row.querySelector(".rr-iv-wins").appendChild(tmp.firstElementChild);
+    });
+    // Copy this day's time windows to other days (Google-style).
+    row.querySelector(".rr-iv-copy")?.addEventListener("click", (e) => {
+      if (!row.querySelector(".rr-iv-on").checked) return;
+      const srcDay = +row.getAttribute("data-day");
+      const srcWins = [...row.querySelectorAll(".rr-iv-win")].map(w => ({
+        start: _ivHHMMToMin(w.querySelector(".rr-iv-start").value),
+        end: _ivHHMMToMin(w.querySelector(".rr-iv-end").value),
+        cap: parseInt(w.querySelector(".rr-iv-cap").value, 10) || 1,
+      })).filter(w => w.end > w.start);
+      if (!srcWins.length) { toast("Add a valid time first", "warn"); return; }
+      _ivShowCopyMenu(e.currentTarget, srcDay, srcWins, applyWinsToDay);
     });
     // Remove a window (× on each); removing the last turns the day off.
     row.querySelector(".rr-iv-wins").addEventListener("click", (e) => {
