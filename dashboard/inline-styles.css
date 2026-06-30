@@ -26292,12 +26292,12 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon{ flex:1 1 auto !important; width:100% !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon > .subnav{
   display:flex !important; flex-direction:row !important; align-items:center !important; gap:10px !important;
-  width:100% !important; justify-content:space-between !important;
+  width:100% !important; justify-content:flex-start !important;
 }
-/* View/sorting tabs hard-left, New-event/Add-calendar actions hard-right
-   (operator: actions far right, sorting far left). */
+/* Create + Work Week + Availability group on the LEFT; the New-event /
+   Add-calendar actions push to the far right via an auto left margin. */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup{ order:1 !important; }
-#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup{ order:2 !important; }
+#view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup{ order:2 !important; margin-left:auto !important; }
 #view-onboarding-ops[data-obsub="interview"] .sched-ribbon-group[data-group="actions"] .subnav,
 #view-onboarding-ops[data-obsub="workauth"] .sched-ribbon-group[data-group="actions"] .subnav,
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup{
