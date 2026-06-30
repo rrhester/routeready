@@ -2951,7 +2951,28 @@
                     <option value="weekly">Weekly</option>
                     <option value="monthly">Monthly</option>
                   </select>
-                  <input type="number" class="ntp-task-date ntp-task-repcount" data-rr-task-repeat-count min="1" max="60" value="8" aria-label="Number of occurrences" title="Number of occurrences" hidden/>
+                </div>
+                <!-- Weekly: pick which day(s) of the week -->
+                <div class="ntp-task-form-row ntp-rep-extra" data-rr-task-rep-weekly hidden>
+                  <div class="ntp-dow" data-rr-task-dows role="group" aria-label="Repeat on">
+                    <button type="button" class="ntp-dow-b" data-dow="0" title="Sunday">S</button>
+                    <button type="button" class="ntp-dow-b" data-dow="1" title="Monday">M</button>
+                    <button type="button" class="ntp-dow-b" data-dow="2" title="Tuesday">T</button>
+                    <button type="button" class="ntp-dow-b" data-dow="3" title="Wednesday">W</button>
+                    <button type="button" class="ntp-dow-b" data-dow="4" title="Thursday">T</button>
+                    <button type="button" class="ntp-dow-b" data-dow="5" title="Friday">F</button>
+                    <button type="button" class="ntp-dow-b" data-dow="6" title="Saturday">S</button>
+                  </div>
+                </div>
+                <!-- Monthly: on day N, or on the Nth weekday -->
+                <div class="ntp-task-form-row ntp-rep-extra" data-rr-task-rep-monthly hidden>
+                  <select class="ntp-task-date" data-rr-task-monthly aria-label="Monthly pattern"></select>
+                </div>
+                <!-- How many occurrences to create -->
+                <div class="ntp-task-form-row ntp-rep-extra" data-rr-task-rep-count-row hidden>
+                  <span class="ntp-rep-lbl">for</span>
+                  <input type="number" class="ntp-task-date ntp-task-repcount" data-rr-task-repeat-count min="1" max="60" value="8" aria-label="Number of occurrences"/>
+                  <span class="ntp-rep-lbl">occurrences</span>
                 </div>
                 <div class="ntp-task-form-row">
                   <button type="button" class="ntp-add-btn ntp-add-btn-sm" data-rr-task-add>Add</button>

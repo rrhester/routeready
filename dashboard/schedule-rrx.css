@@ -5707,6 +5707,12 @@ body[data-rr-active-view="view-onboarding-ops"] #rr-util-rail-mount{display:bloc
 #rr-util-rail-mount .ntp-task-date{flex:1;min-width:0}
 #rr-util-rail-mount .ntp-task-repcount{flex:0 0 64px;text-align:center}
 #rr-util-rail-mount .ntp-task-rep{flex:0 0 auto;font-size:11px;opacity:.7;margin-left:2px}
+#rr-util-rail-mount .ntp-rep-extra{flex-wrap:wrap}
+#rr-util-rail-mount .ntp-rep-lbl{font-size:12.5px;color:var(--text-muted,#64748b)}
+#rr-util-rail-mount .ntp-dow{display:flex;gap:5px;flex-wrap:wrap}
+#rr-util-rail-mount .ntp-dow-b{width:30px;height:30px;border-radius:50%;border:1px solid var(--border,rgba(15,23,42,.14));background:#fff;color:var(--text,#0f172a);font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:0}
+#rr-util-rail-mount .ntp-dow-b:hover{background:#eef4ff}
+#rr-util-rail-mount .ntp-dow-b.on{background:#2563EB;border-color:#2563EB;color:#fff}
 #rr-util-rail-mount .ntp-ghost-btn{appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-muted,#64748b);font:inherit;font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:7px}
 #rr-util-rail-mount .ntp-ghost-btn:hover{background:rgba(15,23,42,.05)}
 #rr-util-rail-mount .ntp-tasklist{display:flex;flex-direction:column;gap:1px}

@@ -8773,28 +8773,56 @@ function _rrAddTaskFromForm() {
   const due = (de && de.value) || "";
   const repeat = (re && re.value) || "";
   const tasks = _rrLoadTasks();
+  const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   if (repeat && due) {
-    // Repeat on a schedule: materialize one task per occurrence across the range,
-    // each completable on its own, all sharing a series id.
+    // Repeat on a schedule: materialize one task per occurrence, each completable
+    // on its own, all sharing a series id. Honors weekday picks (weekly) and the
+    // day-of-month / Nth-weekday pattern (monthly).
     const count = Math.max(1, Math.min(60, parseInt(rc && rc.value, 10) || 1));
     const series = _rrNtId("s");
     const base = new Date(due + "T12:00:00");
-    for (let i = 0; i < count; i++) {
+    const dates = [];
+    if (repeat === "weekly") {
+      const root = document.getElementById("rr-sched-tasks");
+      let dows = Array.from(root.querySelectorAll("[data-rr-task-dows] .on")).map(c => +c.getAttribute("data-dow"));
+      if (!dows.length) dows = [base.getDay()];
+      const set = new Set(dows);
       const d = new Date(base);
-      if (repeat === "daily") d.setDate(base.getDate() + i);
-      else if (repeat === "weekly") d.setDate(base.getDate() + 7 * i);
-      else if (repeat === "monthly") d.setMonth(base.getMonth() + i);
-      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      tasks.push({ id: _rrNtId("t"), title, due: iso, done: false, ts: Date.now() + i, series, repeat });
+      let guard = 0;
+      while (dates.length < count && guard++ < 800) { if (set.has(d.getDay())) dates.push(new Date(d)); d.setDate(d.getDate() + 1); }
+    } else if (repeat === "monthly") {
+      const mode = (document.querySelector("#rr-sched-tasks [data-rr-task-monthly]") || {}).value || "dom";
+      const dom = base.getDate(), dow = base.getDay(), nth = Math.ceil(dom / 7);
+      for (let i = 0; dates.length < count && i < count + 6; i++) {
+        const y = base.getFullYear(), m = base.getMonth() + i;
+        if (mode === "nthdow") {
+          const first = new Date(y, m, 1);
+          const day = 1 + ((7 + dow - first.getDay()) % 7) + (nth - 1) * 7;
+          const dt = new Date(y, m, day);
+          if (dt.getMonth() === ((m % 12) + 12) % 12) dates.push(dt);   // skip months with no Nth weekday
+        } else {
+          const last = new Date(y, m + 1, 0).getDate();
+          dates.push(new Date(y, m, Math.min(dom, last)));
+        }
+      }
+    } else { // daily
+      for (let i = 0; i < count; i++) { const d = new Date(base); d.setDate(base.getDate() + i); dates.push(d); }
     }
-    toast(`Added ${count} recurring task${count !== 1 ? "s" : ""}`, "success");
+    dates.forEach((d, i) => tasks.push({ id: _rrNtId("t"), title, due: isoOf(d), done: false, ts: Date.now() + i, series, repeat }));
+    toast(`Added ${dates.length} recurring task${dates.length !== 1 ? "s" : ""}`, "success");
   } else {
     if (repeat && !due) toast("Pick a due date to repeat — added as a single task", "info");
     tasks.push({ id: _rrNtId("t"), title, due, done: false, ts: Date.now() });
   }
   _rrSaveTasks(tasks);
   ti.value = ""; if (de) de.value = "";
-  if (re) re.value = ""; if (rc) { rc.value = "8"; rc.hidden = true; }
+  if (re) re.value = "";
+  if (rc) rc.value = "8";
+  const root = document.getElementById("rr-sched-tasks");
+  if (root) {
+    root.querySelectorAll("[data-rr-task-dows] .on").forEach(c => c.classList.remove("on"));
+    ["[data-rr-task-rep-weekly]", "[data-rr-task-rep-monthly]", "[data-rr-task-rep-count-row]"].forEach(s => { const el = root.querySelector(s); if (el) el.hidden = true; });
+  }
   const form = document.querySelector("#rr-sched-tasks [data-rr-task-form]"); if (form) form.hidden = true;
   _rrRenderTasks();
 }
@@ -9026,12 +9054,50 @@ document.addEventListener("click", (e) => {
     return;
   }
 });
-// Reveal the occurrence-count input only once a repeat cadence is chosen.
+// Keep the recurrence sub-controls (weekday picker / monthly pattern / count) in
+// step with the chosen cadence + due date.
+const _RR_DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function _rrOrdinal(n) { return ["1st", "2nd", "3rd", "4th", "5th"][n - 1] || (n + "th"); }
+function _rrTaskRepSync() {
+  const root = document.getElementById("rr-sched-tasks"); if (!root) return;
+  const repeat = (root.querySelector("[data-rr-task-repeat]") || {}).value || "";
+  const dueVal = (root.querySelector("[data-rr-task-due]") || {}).value || "";
+  const due = dueVal ? new Date(dueVal + "T12:00:00") : null;
+  const wk = root.querySelector("[data-rr-task-rep-weekly]");
+  const mo = root.querySelector("[data-rr-task-rep-monthly]");
+  const cr = root.querySelector("[data-rr-task-rep-count-row]");
+  if (wk) wk.hidden = repeat !== "weekly";
+  if (mo) mo.hidden = repeat !== "monthly";
+  if (cr) cr.hidden = !repeat;
+  // Weekly: default-select the due date's weekday if nothing is chosen yet.
+  if (repeat === "weekly" && due) {
+    const chips = root.querySelectorAll("[data-rr-task-dows] [data-dow]");
+    if (!root.querySelector("[data-rr-task-dows] .on")) {
+      chips.forEach(c => c.classList.toggle("on", +c.getAttribute("data-dow") === due.getDay()));
+    }
+  }
+  // Monthly: offer "on day N" and "on the Nth <weekday>", derived from the due date.
+  if (repeat === "monthly" && mo && due) {
+    const sel = mo.querySelector("[data-rr-task-monthly]");
+    const dom = due.getDate();
+    const dow = due.getDay();
+    const nth = Math.ceil(dom / 7);
+    const prev = sel.value;
+    sel.innerHTML =
+      `<option value="dom">Monthly on day ${dom}</option>` +
+      `<option value="nthdow">Monthly on the ${_rrOrdinal(nth)} ${_RR_DOW_NAMES[dow]}</option>`;
+    if (prev) sel.value = prev;
+  }
+}
 document.addEventListener("change", (e) => {
-  const re = e.target.closest("[data-rr-task-repeat]");
-  if (!re) return;
-  const rc = document.querySelector("#rr-sched-tasks [data-rr-task-repeat-count]");
-  if (rc) rc.hidden = !re.value;
+  if (e.target.closest && (e.target.closest("[data-rr-task-repeat]") || e.target.closest("#rr-sched-tasks [data-rr-task-due]"))) _rrTaskRepSync();
+});
+// Weekday chips toggle.
+document.addEventListener("click", (e) => {
+  const chip = e.target.closest && e.target.closest("[data-rr-task-dows] [data-dow]");
+  if (!chip) return;
+  e.preventDefault();
+  chip.classList.toggle("on");
 });
 document.addEventListener("input", (e) => {
   if (e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-search]")) _rrRenderNotes();
@@ -20154,9 +20220,11 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-chip-link:hover{text-decoration:underline}
       #rr-ivcal-new .rr-ne-recsum{font-size:12px;color:var(--accent-text);background:var(--accent-soft);border-radius:6px;padding:6px 10px;display:none}
       /* Recurrence popover · anchored, no backdrop. */
-      #rr-ivcal-new .rr-ne-pop{position:absolute;z-index:5;top:96px;left:18px;width:340px;background:var(--surface);border:1px solid var(--border-strong,rgba(15,23,42,.26));border-radius:10px;box-shadow:0 18px 44px rgba(15,23,42,.28);overflow:hidden}
-      #rr-ivcal-new .rr-ne-pop-h{padding:11px 14px;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,#2563EB,#1D4ED8)}
-      #rr-ivcal-new .rr-ne-pop-b{padding:12px 14px;display:flex;flex-direction:column;gap:14px;max-height:60vh;overflow-y:auto}
+      /* Centered fixed modal (not anchored to the card) so its footer — and the
+         OK button — is always reachable, even from the compact quick-create. */
+      #rr-ivcal-new .rr-ne-pop{position:fixed;z-index:10040;top:50%;left:50%;transform:translate(-50%,-50%);width:340px;max-width:calc(100vw - 32px);max-height:90vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border-strong,rgba(15,23,42,.26));border-radius:10px;box-shadow:0 18px 44px rgba(15,23,42,.28);overflow:hidden}
+      #rr-ivcal-new .rr-ne-pop-h{padding:11px 14px;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,#2563EB,#1D4ED8);flex:0 0 auto}
+      #rr-ivcal-new .rr-ne-pop-b{padding:12px 14px;display:flex;flex-direction:column;gap:14px;flex:1 1 auto;min-height:0;overflow-y:auto}
       #rr-ivcal-new .rr-ne-pop-sec{display:flex;flex-direction:column;gap:6px}
       #rr-ivcal-new .rr-ne-pop-t{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)}
       #rr-ivcal-new .rr-ne-pop label{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);flex-wrap:wrap}
@@ -20164,7 +20232,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-prow{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted)}
       #rr-ivcal-new .rr-ne-days{display:flex;flex-wrap:wrap;gap:8px}
       #rr-ivcal-new .rr-ne-days label{gap:4px;font-size:12px}
-      #rr-ivcal-new .rr-ne-pop-f{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.06))}
+      #rr-ivcal-new .rr-ne-pop-f{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.06));flex:0 0 auto;background:var(--surface)}
       /* ── Google-style compact quick-create skin (operator). .is-gcard is the
          default open state; "More options" switches to .is-restored (the full
          Outlook-style composer with the ribbon + every field). ── */
