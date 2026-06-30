@@ -20115,6 +20115,32 @@ async function _ivcalVaultPicker(onPick) {
   setTimeout(() => qEl.focus(), 30);
 }
 
+// Google-style "send invitation emails to guests?" confirmation, shown when an
+// event with guests is saved. Resolves "send" | "dont" | "back".
+function _ivcalConfirmInvites(count) {
+  return new Promise((resolve) => {
+    const back = document.createElement("div");
+    back.className = "rr-invite-confirm-back";
+    back.innerHTML = `<div class="rr-invite-confirm" role="dialog" aria-modal="true" aria-label="Send invitation emails?">
+      <div class="rr-ic-title">Would you like to send invitation emails to ${count === 1 ? "the guest" : "guests"}?</div>
+      <div class="rr-ic-acts">
+        <button type="button" class="rr-ic-btn rr-ic-link" data-ic="back">Back to editing</button>
+        <button type="button" class="rr-ic-btn rr-ic-link" data-ic="dont">Don't send</button>
+        <button type="button" class="rr-ic-btn rr-ic-send" data-ic="send">Send</button>
+      </div>
+    </div>`;
+    document.body.appendChild(back);
+    const done = (v) => { back.remove(); document.removeEventListener("keydown", onKey, true); resolve(v); };
+    function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); done("back"); } }
+    document.addEventListener("keydown", onKey, true);
+    back.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-ic]");
+      if (b) { done(b.getAttribute("data-ic")); return; }
+      if (e.target === back) done("back");
+    });
+  });
+}
+
 // Outlook-style click-to-create. Opens a pop-out event editor (To / Subject
 // / date-time / body). By default the event is a plain calendar invite; the
 // user adds a video meeting on demand via the blue "Schedule Meeting" button.
@@ -20753,7 +20779,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       if (!sdate || (!isAllDay && !stime)) { toast("Pick a start date and time", "warn"); return; }
       const required = document.getElementById("rr-ne-required").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
       const optional = document.getElementById("rr-ne-optional").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
-      const invitees = isSave ? [] : Array.from(new Set([...required, ...optional]));
+      const allGuests = Array.from(new Set([...required, ...optional]));
+      let invitees = isSave ? [] : allGuests;
       const btn = e.target.closest(".rr-ne-ico"); if (btn) btn.style.opacity = ".5";
       // Editing an existing event → update cal_events in place (no re-invite).
       if (isEdit) {
@@ -20777,6 +20804,14 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           if (typeof loadCalBookingsList === "function") loadCalBookingsList();
         } catch (err) { toast("Couldn't save: " + (err.message || err), "warn"); if (btn) btn.style.opacity = ""; }
         return;
+      }
+      // Guests present → ask whether to email them (Google-style), unless this is
+      // a Task (no guests). Send → invite all; Don't send → save without emailing;
+      // Back to editing → abort and return to the composer.
+      if (allGuests.length && !isTask) {
+        const choice = await _ivcalConfirmInvites(allGuests.length);
+        if (choice === "back") { if (btn) btn.style.opacity = ""; return; }
+        invitees = choice === "send" ? allGuests : [];
       }
       // No forced video link — roomUrl is set only when the user pressed
       // Schedule Meeting. An untouched event stays a plain calendar invite.
