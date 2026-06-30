@@ -23804,10 +23804,41 @@ async function _ddAutosaveCommit() {
       }
     }
     _ddSetAutosaveStatus("saved");
+    // Keep the roster table in sync with edits made in the record. Autosave
+    // writes straight to the DB but used to leave _rosterRows untouched, so a
+    // status change (e.g. → Terminated) saved here didn't move the driver into
+    // the matching Status filter until a full page reload. Patch the in-memory
+    // row + re-render so the roster reflects the change immediately.
+    _ddSyncRosterRowFromPayload(drv.id, payload);
   } finally {
     _ddAutosaveInflight = false;
     if (_ddAutosaveQueued) { _ddAutosaveQueued = false; _ddAutosaveForTab(); }
   }
+}
+// Merge the just-autosaved scalar fields onto the matching roster row (and the
+// open record's own copy) and re-render the roster, so status / name / cert
+// edits show up in the table + Status filters without a full reload. Only
+// roster-visible fields are patched, and only those actually present in the
+// payload — so editing an off-roster field (e.g. address) is a no-op here.
+function _ddSyncRosterRowFromPayload(driverId, payload) {
+  if (!driverId || !payload) return;
+  const ROSTER_FIELDS = [
+    "status", "tier", "full_name", "first_name", "last_name", "preferred_name",
+    "email", "phone", "hire_date", "dl_expires_on",
+    "dot_certified", "xl_certified", "edv_certified",
+  ];
+  const patch = {};
+  for (const k of ROSTER_FIELDS) {
+    if (payload[k] !== undefined) patch[k] = payload[k];
+  }
+  if (!Object.keys(patch).length) return;
+  if (_ddDriver?.driver && _ddDriver.driver.id === driverId) Object.assign(_ddDriver.driver, patch);
+  const row = (_rosterRows || []).find((r) => r && r.id === driverId);
+  if (!row) return;
+  Object.assign(row, patch);
+  if (typeof refreshDriverStatRow === "function") refreshDriverStatRow(_rosterRows);
+  if (typeof renderDriverTable === "function") renderDriverTable(_rosterRows, null);
+  if (typeof _rrMarkActiveRosterRow === "function") _rrMarkActiveRosterRow(driverId);
 }
 // Debounced on text input; immediate on select/date change. Existing records only.
 document.addEventListener("input", (e) => {
