@@ -12621,6 +12621,19 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-pill.cat-teal .oc-pdot{background:#0D9488} #rr-ivcal .oc-pill.cat-red .oc-pdot{background:#B91C1C}
             #rr-ivcal .oc-pill.declined{text-decoration:line-through;color:var(--oc-sub)}
             #rr-ivcal .oc-more{font-size:10px;color:var(--oc-sub);padding:0 4px;cursor:pointer}
+            /* Year view · responsive grid of 12 compact month cards */
+            #rr-ivcal .oc-year{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:20px 22px;padding:18px 20px 28px;align-content:start}
+            #rr-ivcal .oc-ymonth{min-width:0}
+            #rr-ivcal .oc-ymname{display:block;width:100%;text-align:left;background:none;border:0;padding:0 2px 7px;margin:0;font-size:13px;font-weight:700;color:var(--oc-blue);letter-spacing:.01em;cursor:pointer;border-radius:6px}
+            #rr-ivcal .oc-ymname:hover{text-decoration:underline}
+            #rr-ivcal .oc-ydow-row,#rr-ivcal .oc-ygrid{display:grid;grid-template-columns:repeat(7,1fr)}
+            #rr-ivcal .oc-ydow{text-align:center;font-size:10px;font-weight:700;color:var(--text-muted);padding-bottom:3px}
+            #rr-ivcal .oc-ycell{position:relative;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;background:none;border:0;padding:0;margin:0;font-size:11.5px;font-weight:500;color:var(--oc-ink);cursor:pointer;border-radius:50%;line-height:1}
+            #rr-ivcal .oc-ycell:hover{background:var(--oc-hover)}
+            #rr-ivcal .oc-ycell.out{color:var(--oc-sub);opacity:.45}
+            #rr-ivcal .oc-ycell.today{background:var(--oc-blue);color:#fff;font-weight:700}
+            #rr-ivcal .oc-ycell.has::after{content:"";position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--oc-blue)}
+            #rr-ivcal .oc-ycell.today.has::after{background:#fff}
             /* reading pane */
             #rr-ivcal .oc-pane{flex:0 0 320px;width:320px;border-left:1px solid var(--oc-line);display:flex;flex-direction:column;background:var(--oc-surface)}
             #rr-ivcal .oc-pane-h{display:flex;align-items:flex-start;gap:8px;padding:12px 14px;border-bottom:1px solid var(--oc-line2)}
@@ -26284,6 +26297,12 @@ body.rr-cmdk-open{ overflow:hidden }
   font-size:13px !important; color:#111827 !important; cursor:pointer !important; text-align:left !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-item:hover{ background:#F5F8FF !important; }
+/* The menu icons carry no width/height attrs (they're sized in CSS like the
+   sidebar variant). Without this rule the ribbon-docked Create menu rendered
+   each SVG at its unconstrained intrinsic size — giant icons filling each row. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-cal-ribbon .rr-cal-create-item svg{
+  width:18px !important; height:18px !important; flex:0 0 auto !important; opacity:.85 !important;
+}
 /* Collapse the 115px tcp-strip height lock (onboarding-rrx.css:258) so the
    hidden-title calendar header hugs its controls instead of leaving a tall
    empty transparent band — same compact bar the funnel produces. Equal

@@ -458,6 +458,10 @@
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="2" x2="7" y2="6"/><line x1="17" y1="2" x2="17" y2="6"/><rect x="6" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="11" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="16" y="12" width="2" height="2" fill="currentColor" stroke="none"/><rect x="6" y="17" width="2" height="2" fill="currentColor" stroke="none"/><rect x="11" y="17" width="2" height="2" fill="currentColor" stroke="none"/></svg>
                       <span>Month</span>
                     </button>
+                    <button class="subnav-item rr-cal-vtab" data-cal-view="year" type="button" role="menuitem" onclick="rrIvcalSetView('year')" title="Year view (12 months)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="7" height="7"/><rect x="14" y="4" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                      <span>Year</span>
+                    </button>
                   </div>
                 </div>
                 <!-- Interview-availability popover · moved OUT of the (now

@@ -6304,11 +6304,14 @@ function _ivToggleRules(force) {
   // own resize handler that would otherwise reset this popover to the narrow
   // right:16/720 default.
   if (next) {
+    // Center the panel horizontally instead of letting it hug the right edge,
+    // so the whole card sits in view and reads like an intentional dialog
+    // rather than a half-off-screen flyout. left = (100vw - width) / 2.
     const fitIv = () => {
-      pop.style.setProperty("left", "auto", "important");
-      pop.style.setProperty("right", "40px", "important");
-      pop.style.setProperty("width", "min(900px, calc(100vw - 80px))", "important");
-      pop.style.setProperty("max-width", "calc(100vw - 80px)", "important");
+      pop.style.setProperty("right", "auto", "important");
+      pop.style.setProperty("left", "max(20px, calc(50vw - 450px))", "important");
+      pop.style.setProperty("width", "min(900px, calc(100vw - 40px))", "important");
+      pop.style.setProperty("max-width", "calc(100vw - 40px)", "important");
     };
     fitIv();
     if (!pop._rrIvFitBound) {
@@ -19218,6 +19221,7 @@ function _ivcalHourLabel(h) { const ampm = h>=12?"PM":"AM"; const h12=(h%12)||12
 
 function _ivcalPeriodLabel() {
   const a = _ivcalAnchor;
+  if (_ivcalView === "year") return String(a.getFullYear());
   if (_ivcalView === "day") return a.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
   if (_ivcalView === "month") return a.toLocaleDateString(undefined, { month:"long", year:"numeric" });
   // Within the same month, show "Jun 8 – 12, 2026" — built by hand because
@@ -19243,6 +19247,7 @@ function _ivcalNav(dir) {
   if (dir === 0) _ivcalAnchor = new Date();
   else if (_ivcalView === "day") { a.setDate(a.getDate()+dir); _ivcalAnchor = a; }
   else if (_ivcalView === "week" || _ivcalView === "workweek") { a.setDate(a.getDate()+7*dir); _ivcalAnchor = a; }
+  else if (_ivcalView === "year") { a.setFullYear(a.getFullYear()+dir); _ivcalAnchor = a; }
   else { a.setMonth(a.getMonth()+dir); _ivcalAnchor = a; }
   _ivcalMiniAnchor = null; // re-sync the date navigator to the new anchor
   _ivcalRender();
@@ -19258,6 +19263,9 @@ function _ivcalViewRange() {
   if (_ivcalView === "day") { const s = new Date(a); s.setHours(0,0,0,0); return { start: s, end: s }; }
   if (_ivcalView === "workweek") { const s = _ivcalWeekStart(a); s.setDate(s.getDate()+1); const e = new Date(s); e.setDate(s.getDate()+4); return { start: s, end: e }; }
   if (_ivcalView === "week") { const s = _ivcalWeekStart(a); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(0,0,0,0); return { start: s, end: e }; }
+  // Year view shades only the anchor day in the mini-calendar — shading all 365
+  // days would just flood the navigator.
+  if (_ivcalView === "year") { const s = new Date(a); s.setHours(0,0,0,0); return { start: s, end: s }; }
   const ms = new Date(a.getFullYear(), a.getMonth(), 1);
   const me = new Date(a.getFullYear(), a.getMonth()+1, 0);
   return { start: ms, end: me };
@@ -19342,7 +19350,8 @@ function _ivcalRender() {
   const _prevScroll = document.getElementById("rr-ivcal-scroll") ? document.getElementById("rr-ivcal-scroll").scrollTop : null;
   const seg = (v, t) => `<button class="${_ivcalView===v?"on":""}" data-ivcal-view="${v}">${t}</button>`;
   const flt = (k, label, cat) => `<label><input type="checkbox" data-ivcal-filter="${k}"${_ivcalFilters[k]?" checked":""}><span class="dot" style="background:${_IVCAL_CAT_COLOR[cat]}"></span>${label}</label>`;
-  const inner = _ivcalView === "month" ? _ivcalMonth()
+  const inner = _ivcalView === "year" ? _ivcalYear()
+    : _ivcalView === "month" ? _ivcalMonth()
     : _ivcalTimeGrid(_ivcalView === "day" ? 1 : (_ivcalView === "workweek" ? 5 : 7));
   const pane = _ivcalSelected ? _ivcalPaneHtml() : "";
 
@@ -19360,7 +19369,7 @@ function _ivcalRender() {
           <button class="oc-btn oc-ico" data-ivcal-nav="-1" title="Previous">‹</button>
           <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next">›</button>
           <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
-          ${_ivcalView === "month" ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
+          ${(_ivcalView === "month" || _ivcalView === "year") ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
           <span class="oc-sp"></span>
         </div>
         ${_ivcalAvailNudge()}
@@ -19402,6 +19411,16 @@ function _ivcalRender() {
   host.querySelectorAll("[data-mini-week]").forEach(b => b.onclick = () => {
     const [Y, M, D] = b.getAttribute("data-mini-week").split("-").map(Number);
     _ivcalView = "week"; _ivcalAnchor = new Date(Y, M - 1, D); _ivcalMiniAnchor = null; _ivcalRender();
+  });
+  // Year view · click a day → Day view for that date; click a month name →
+  // Month view for that month.
+  host.querySelectorAll("[data-ivcal-yday]").forEach(b => b.onclick = () => {
+    const [Y, M, D] = b.getAttribute("data-ivcal-yday").split("-").map(Number);
+    _ivcalView = "day"; _ivcalAnchor = new Date(Y, M - 1, D); _ivcalMiniAnchor = null; _ivcalRender();
+  });
+  host.querySelectorAll("[data-ivcal-ymonth]").forEach(b => b.onclick = () => {
+    const [Y, M] = b.getAttribute("data-ivcal-ymonth").split("-").map(Number);
+    _ivcalView = "month"; _ivcalAnchor = new Date(Y, M - 1, 1); _ivcalMiniAnchor = null; _ivcalRender();
   });
   host.querySelector("[data-ivcal-new]")?.addEventListener("click", () => _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30));
 
@@ -19512,7 +19531,7 @@ function _ivcalRender() {
   if (_ivcalSelected) _ivcalWirePane(host);
   _ivcalFitHeightSoon();
   const sc = document.getElementById("rr-ivcal-scroll");
-  if (sc) { if (_prevScroll != null) sc.scrollTop = _prevScroll; else if (_ivcalView !== "month") _ivcalAutoScroll(); else sc.scrollTop = 0; }
+  if (sc) { if (_prevScroll != null) sc.scrollTop = _prevScroll; else if (_ivcalView !== "month" && _ivcalView !== "year") _ivcalAutoScroll(); else sc.scrollTop = 0; }
   _ivcalInstallKeys();
   _ivcalSyncStripView();
   _ivcalEnsureGoogle();
@@ -20863,6 +20882,45 @@ function _ivcalMonth() {
     cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${pills}${more}</div>`;
   }
   return `<div class="oc-cal"><div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-mhead">${dowHead}</div><div class="oc-mgrid">${cells}</div></div></div>`;
+}
+
+// Year view · a 12-month overview (Google-style). Each month is a compact
+// day grid; days with at least one event get a dot, today is ringed. Clicking
+// a day jumps to Day view; clicking a month name jumps to that Month.
+function _ivcalYear() {
+  const year = _ivcalAnchor.getFullYear();
+  const today = new Date(); today.setHours(0,0,0,0);
+  // One pass over the cache to collect ISO dates that carry a (filtered) event,
+  // so each of the ~366 cells is a cheap Set lookup rather than a re-scan.
+  const busy = new Set();
+  const mark = (arr, key, kind) => (arr || []).forEach(x => {
+    if (kind && !_ivcalFilterOk(x, kind)) return;
+    const t = x[key]; if (!t) return;
+    const d = new Date(t); if (d.getFullYear() === year) busy.add(_ivcalISODate(d));
+  });
+  mark(_ivcalCache.sessions, "starts_at", "session");
+  mark(_ivcalCache.bookings, "starts_at", "booking");
+  if (_ivcalGoogleVisible()) mark(_ivcalCache.googleEvents || [], "sortAt", null);
+
+  const dow = CAL_DAY_LABELS.map(d => `<span class="oc-ydow">${d[0]}</span>`).join("");
+  let months = "";
+  for (let m = 0; m < 12; m++) {
+    const first = new Date(year, m, 1);
+    const gridStart = _ivcalWeekStart(first);
+    let cells = "";
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(gridStart); d.setDate(gridStart.getDate() + i);
+      if (i >= 35 && d.getMonth() !== m) continue; // trim an all-overflow 6th row
+      const out = d.getMonth() !== m;
+      const iso = _ivcalISODate(d);
+      const isToday = !out && d.getTime() === today.getTime();
+      const hasEv = !out && busy.has(iso);
+      cells += `<button type="button" class="oc-ycell${out ? " out" : ""}${isToday ? " today" : ""}${hasEv ? " has" : ""}" data-ivcal-yday="${iso}" title="${escapeHtml(d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"}))}">${d.getDate()}</button>`;
+    }
+    const mname = first.toLocaleDateString(undefined, { month: "long" });
+    months += `<div class="oc-ymonth"><button type="button" class="oc-ymname" data-ivcal-ymonth="${year}-${m + 1}">${escapeHtml(mname)}</button><div class="oc-ydow-row">${dow}</div><div class="oc-ygrid">${cells}</div></div>`;
+  }
+  return `<div class="oc-cal"><div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-year">${months}</div></div></div>`;
 }
 
 // ── Outlook-style helpers: selection/reading-pane, context menu, hover,
