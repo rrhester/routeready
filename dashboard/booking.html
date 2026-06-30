@@ -19,15 +19,19 @@
     align-items:center;justify-content:center;font-weight:800;font-size:18px;flex:0 0 auto}
   .hdr-t{font-size:18px;font-weight:700;line-height:1.2}
   .hdr-s{font-size:13px;color:var(--muted);margin-top:2px}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;margin-top:16px}
-  .lead{font-size:16px;font-weight:600;margin:0 0 4px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;margin-top:16px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.05)}
+  .lead{font-size:17px;font-weight:700;margin:0 0 4px}
   .sub{font-size:13px;color:var(--muted);margin:0 0 14px}
+  /* Meeting-details meta line (duration + timezone) */
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+  .meta-chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--muted);background:var(--canvas);border:1px solid var(--border);border-radius:999px;padding:5px 11px}
+  .meta-chip svg{color:var(--accent);flex:0 0 auto}
   .day{margin-top:18px}
   .day-h{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);margin:0 0 8px}
   .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
   .slot{appearance:none;cursor:pointer;font:inherit;font-weight:600;font-size:14px;color:var(--accent);
-    background:#fff;border:1px solid #BBD3EA;border-radius:6px;padding:11px 8px;transition:.12s}
-  .slot:hover{background:#F2F8FE;border-color:var(--accent)}
+    background:#fff;border:1px solid #BBD3EA;border-radius:8px;padding:11px 8px;transition:.12s}
+  .slot:hover{background:#F2F8FE;border-color:var(--accent);transform:translateY(-1px);box-shadow:0 2px 8px rgba(37,99,235,.14)}
   .slot:disabled{opacity:.5;cursor:default}
   .slot .spots{display:block;font-size:11px;font-weight:600;color:var(--green);margin-top:3px}
   /* Date-first accordion: pick a date, its times drop down. */
@@ -60,7 +64,7 @@
       <div class="logo" id="logo">R</div>
       <div>
         <div class="hdr-t" id="dsp-name">Interview</div>
-        <div class="hdr-s">Schedule your interview</div>
+        <div class="hdr-s" id="hdr-sub">Schedule your interview</div>
       </div>
     </div>
     <div id="root"><div class="spin"></div></div>
@@ -82,6 +86,8 @@ const pathMatch = location.pathname.match(/^\/b\/([^/?#]+)/);
 const token = params.get("t") || params.get("token") || (pathMatch && pathMatch[1]) || "";
 
 let TZ = "America/Chicago";
+let DUR = 30;
+function tzLabel(tz) { return String(tz || "").replace(/^[^/]+\//, "").replace(/_/g, " "); }
 
 function showError(msg) {
   root.innerHTML = `<div class="card"><div class="msg"><strong>Something went wrong</strong><span class="err">${esc(msg)}</span></div></div>`;
@@ -104,9 +110,11 @@ async function init() {
     return showError((e && e.message) || "Could not load this scheduling link.");
   }
   TZ = info.timezone || TZ;
+  DUR = info.slot_minutes || DUR;
   const dspName = info?.dsp?.name || "Driver Application";
   document.getElementById("dsp-name").textContent = dspName;
   document.getElementById("logo").textContent = (dspName[0] || "R").toUpperCase();
+  document.getElementById("hdr-sub").textContent = `${DUR}-minute interview`;
   const first = info?.applicant?.first_name ? `, ${info.applicant.first_name}` : "";
 
   if (info.already_booked) {
@@ -117,9 +125,15 @@ async function init() {
     return;
   }
 
+  const clockIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>`;
+  const globeIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/></svg>`;
   root.innerHTML = `<div class="card">
-    <p class="lead">Pick a date${esc(first)}</p>
-    <p class="sub">Choose a day, then a time that works for you. Times shown in ${esc(TZ.replace("_"," "))}.</p>
+    <p class="lead">Pick a time${esc(first)}</p>
+    <p class="sub">Choose a day, then a time that works for you.</p>
+    <div class="meta">
+      <span class="meta-chip">${clockIco}${DUR} min</span>
+      <span class="meta-chip">${globeIco}${esc(tzLabel(TZ))}</span>
+    </div>
     <div id="slots-host"><div class="spin"></div></div></div>`;
   await renderSlots();
 }
