@@ -19909,6 +19909,95 @@ Add to calendar: ${o.gcalUrl}`;
   return { html, text };
 }
 
+// Small file glyph for the Vault picker / attachment chips.
+function _ivcalVaultIco(d) {
+  if (d && d.isGoogle) return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h5"/></svg>';
+  return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+}
+
+// Open a Vault attachment reference (stored on an event) in a new tab. Google
+// files open in Google; everything else gets a short-lived signed URL.
+async function _ivcalOpenAttachment(ref) {
+  if (!ref) return;
+  if (ref.isGoogle && ref.googleUrl) { window.open(ref.googleUrl, "_blank", "noreferrer"); return; }
+  if (!ref.path) { toast("This file is no longer available", "warn"); return; }
+  try {
+    const { data, error } = await sb.storage.from(ref.bucket || "driver-documents").createSignedUrl(ref.path, 3600);
+    if (error || !data || !data.signedUrl) throw error || new Error("no url");
+    window.open(data.signedUrl, "_blank", "noreferrer");
+  } catch (e) { toast("Couldn't open that attachment", "warn"); }
+}
+
+// Vault file picker · a modal listing the Documents (Vault) so the operator can
+// attach an existing file to a calendar event. onPick gets an array of
+// reference objects { vaultId, name, path, bucket, isGoogle, googleUrl }.
+async function _ivcalVaultPicker(onPick) {
+  const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+  if (!dspId) { toast("Not ready yet — try again", "warn"); return; }
+  const back = document.createElement("div");
+  back.className = "rr-vault-pick-back";
+  back.innerHTML = `<div class="rr-vault-pick" role="dialog" aria-modal="true" aria-label="Attach from Vault">
+    <div class="rr-vp-head"><span>Attach from Vault</span><button type="button" class="rr-vp-x" data-vp-close aria-label="Close">×</button></div>
+    <div class="rr-vp-search"><input type="text" id="rr-vp-q" placeholder="Search documents…" autocomplete="off"></div>
+    <div class="rr-vp-list" id="rr-vp-list"><div class="rr-vp-empty">Loading documents…</div></div>
+    <div class="rr-vp-foot"><span class="rr-vp-count" id="rr-vp-count"></span><span style="flex:1"></span><button type="button" class="btn btn-sm" data-vp-close>Cancel</button><button type="button" class="btn btn-primary btn-sm" id="rr-vp-add" disabled>Attach</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  const close = () => { back.remove(); document.removeEventListener("keydown", onEsc); };
+  function onEsc(e) { if (e.key === "Escape") close(); }
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-vp-close]")) close(); });
+  document.addEventListener("keydown", onEsc);
+
+  if (!_driveData || !_driveData.docs) { try { await _driveLoadData(dspId); } catch (_) {} }
+  const all = (_driveData && _driveData.docs ? _driveData.docs : [])
+    .filter(d => d && !d.archivedAt && !d.deletedAt && (d.path || d.googleUrl));
+  const selected = new Map();
+  const listEl = back.querySelector("#rr-vp-list");
+  const countEl = back.querySelector("#rr-vp-count");
+  const addBtn = back.querySelector("#rr-vp-add");
+  const qEl = back.querySelector("#rr-vp-q");
+
+  function render() {
+    const ql = (qEl.value || "").toLowerCase().trim();
+    const rows = all.filter(d => !ql
+      || (d.name || "").toLowerCase().includes(ql)
+      || (d.docType || "").toLowerCase().includes(ql)
+      || (d.driverName || "").toLowerCase().includes(ql));
+    if (!rows.length) { listEl.innerHTML = `<div class="rr-vp-empty">${all.length ? "No documents match." : "No documents in the Vault yet."}</div>`; return; }
+    listEl.innerHTML = rows.slice(0, 300).map(d => {
+      const on = selected.has(String(d.id));
+      const sub = [d.docType, d.driverName].filter(Boolean).join(" · ");
+      return `<button type="button" class="rr-vp-item${on ? " on" : ""}" data-vp-id="${escapeHtml(String(d.id))}">
+        <span class="rr-vp-ico">${_ivcalVaultIco(d)}</span>
+        <span class="rr-vp-name"><span class="rr-vp-t">${escapeHtml(d.name || "Document")}</span>${sub ? `<span class="rr-vp-s">${escapeHtml(sub)}</span>` : ""}</span>
+        <span class="rr-vp-ck" aria-hidden="true">${on ? "✓" : ""}</span>
+      </button>`;
+    }).join("");
+  }
+  function syncFoot() {
+    countEl.textContent = selected.size ? `${selected.size} selected` : "";
+    addBtn.disabled = selected.size === 0;
+  }
+  listEl.addEventListener("click", (e) => {
+    const it = e.target.closest("[data-vp-id]"); if (!it) return;
+    const id = it.getAttribute("data-vp-id");
+    const doc = all.find(d => String(d.id) === id); if (!doc) return;
+    if (selected.has(id)) selected.delete(id); else selected.set(id, doc);
+    render(); syncFoot();
+  });
+  qEl.addEventListener("input", render);
+  addBtn.addEventListener("click", () => {
+    const refs = Array.from(selected.values()).map(d => ({
+      vaultId: d.id, name: d.name || "Document", path: d.path || null,
+      bucket: d.bucket || "driver-documents", isGoogle: !!d.isGoogle, googleUrl: d.googleUrl || null,
+    }));
+    close();
+    if (typeof onPick === "function") onPick(refs);
+  });
+  render(); syncFoot();
+  setTimeout(() => qEl.focus(), 30);
+}
+
 // Outlook-style click-to-create. Opens a pop-out event editor (To / Subject
 // / date-time / body). By default the event is a plain calendar invite; the
 // user adds a video meeting on demand via the blue "Schedule Meeting" button.
@@ -20029,6 +20118,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-fields{flex:1;min-height:0;display:flex;flex-direction:column;gap:11px;padding:16px 22px;box-sizing:border-box;overflow-y:auto}
       #rr-ivcal-new .rr-ne-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-secondary,#F3F4F6);border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12px}
       #rr-ivcal-new .rr-ne-chip button{border:0;background:none;cursor:pointer;color:var(--text-subtle);font-size:14px;line-height:1}
+      #rr-ivcal-new .rr-ne-chip-link{color:var(--accent-text,#1D4ED8);text-decoration:none;cursor:pointer}
+      #rr-ivcal-new .rr-ne-chip-link:hover{text-decoration:underline}
       #rr-ivcal-new .rr-ne-recsum{font-size:12px;color:var(--accent-text);background:var(--accent-soft);border-radius:6px;padding:6px 10px;display:none}
       /* Recurrence popover · anchored, no backdrop. */
       #rr-ivcal-new .rr-ne-pop{position:absolute;z-index:5;top:96px;left:18px;width:340px;background:var(--surface);border:1px solid var(--border-strong,rgba(15,23,42,.26));border-radius:10px;box-shadow:0 18px 44px rgba(15,23,42,.28);overflow:hidden}
@@ -20129,6 +20220,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg></span><div class="rr-ne-gcell">
           <textarea id="rr-ne-body" placeholder="Add description" style="${fld};width:100%;min-height:84px;resize:none;line-height:1.5"></textarea>
         </div></div>
+        <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span><div class="rr-ne-gcell">
+          <button type="button" class="rr-ne-glink" data-ne-vaultattach>Add attachment from Vault</button>
+        </div></div>
         ${showCalPicker ? `<div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg></span><div class="rr-ne-gcell"><select id="rr-ne-calendar" style="${fld};width:100%">${_calOptions}</select></div></div>` : ""}
         <div id="rr-ne-recsum" class="rr-ne-recsum"></div>
         <div id="rr-ne-chips" style="display:none;flex-wrap:wrap;gap:6px"></div>
@@ -20180,6 +20274,17 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   m.querySelector("[data-ne-more]")?.addEventListener("click", () => { card.classList.remove("is-gcard"); card.classList.add("is-restored"); });
   // "Add video conferencing" row proxies the ribbon's Schedule Meeting action.
   m.querySelector("[data-ne-vproxy]")?.addEventListener("click", () => m.querySelector('[data-ne-act="meeting"]')?.click());
+  // "Add attachment from Vault" opens the Vault picker; picked files become
+  // attachment chips and persist on the event (metadata.attachments).
+  m.querySelector("[data-ne-vaultattach]")?.addEventListener("click", () => {
+    _ivcalVaultPicker((refs) => {
+      if (!refs || !refs.length) return;
+      const have = new Set(attachments.filter(a => a.vaultId).map(a => a.vaultId));
+      for (const r of refs) { if (!have.has(r.vaultId)) attachments.push(r); }
+      renderChips();
+      toast(`Attached ${refs.length} file${refs.length !== 1 ? "s" : ""} from Vault`, "success");
+    });
+  });
   // Event / Task type pills (visual): Task collapses to the simple form.
   m.querySelectorAll("[data-ne-type]").forEach(b => b.addEventListener("click", () => {
     m.querySelectorAll("[data-ne-type]").forEach(x => x.classList.toggle("active", x === b));
@@ -20246,6 +20351,11 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     if (ev0.metadata && ev0.metadata.is_task) {
       card.classList.add("is-task");
       m.querySelectorAll("[data-ne-type]").forEach(x => x.classList.toggle("active", x.getAttribute("data-ne-type") === "task"));
+    }
+    // Restore previously-attached Vault files so they show as chips and persist.
+    if (ev0.metadata && Array.isArray(ev0.metadata.attachments)) {
+      for (const r of ev0.metadata.attachments) attachments.push(r);
+      renderChips();
     }
     // Clear the attendee placeholders' relevance + relabel ribbon for editing.
     const sendTile = m.querySelector('[data-ne-act="send"] span'); if (sendTile) sendTile.textContent = "Update";
@@ -20352,7 +20462,18 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     const host = document.getElementById("rr-ne-chips");
     if (!attachments.length) { host.style.display = "none"; host.innerHTML = ""; return; }
     host.style.display = "flex";
-    host.innerHTML = attachments.map((a,i)=>`<span class="rr-ne-chip">📎 ${escapeHtml(a.name)}<button data-ne-chip="${i}" aria-label="Remove">×</button></span>`).join("");
+    host.innerHTML = attachments.map((a,i)=>{
+      // Vault attachments get a clickable name (opens the file); local picks stay plain text.
+      const nm = a.vaultId
+        ? `<a href="#" class="rr-ne-chip-link" data-ne-att-open="${i}">${escapeHtml(a.name)}</a>`
+        : escapeHtml(a.name);
+      return `<span class="rr-ne-chip">📎 ${nm}<button data-ne-chip="${i}" aria-label="Remove">×</button></span>`;
+    }).join("");
+    host.querySelectorAll("[data-ne-att-open]").forEach(el => el.onclick = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const a = attachments[+el.getAttribute("data-ne-att-open")];
+      if (a) _ivcalOpenAttachment(a);
+    });
   }
   filePicker.addEventListener("change", () => {
     for (const f of filePicker.files) attachments.push({ name: f.name, file: f });
@@ -20494,6 +20615,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       const isAllDay = document.getElementById("rr-ne-allday").checked;
       const location = document.getElementById("rr-ne-location").value.trim();
       const bodyText = document.getElementById("rr-ne-body").value;
+      // Vault attachments to persist on the event (references, not file copies).
+      const attRefs = attachments.filter(a => a && a.vaultId)
+        .map(a => ({ vaultId: a.vaultId, name: a.name || "Document", path: a.path || null, bucket: a.bucket || "driver-documents", isGoogle: !!a.isGoogle, googleUrl: a.googleUrl || null }));
       if (!title) { toast("Add a title", "warn"); return; }
       if (!sdate || (!isAllDay && !stime)) { toast("Pick a start date and time", "warn"); return; }
       const required = document.getElementById("rr-ne-required").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
@@ -20505,7 +20629,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         const startISO = isAllDay ? _ivLocalToISO(sdate, "00:00", tz) : _ivLocalToISO(sdate, stime, tz);
         const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
         if (new Date(endISO) <= new Date(startISO)) { toast("End must be after start", "warn"); if (btn) btn.style.opacity = ""; return; }
-        const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done) } };
+        const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done), attachments: attRefs } };
         if (ev0.kind === "event") {
           patch.title = title;
           // Only touch calendar_id when assigning one or clearing a prior one,
@@ -20528,7 +20652,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       const subjTitle = highImportance ? ("❗ " + title) : title;
       // Occurrence dates: a single one, or the recurrence series.
       const dates = recurrence ? expandOccurrences(recurrence, sdate) : [sdate];
-      if (attachments.length) toast("Note: attachments show here but aren't sent with auto-invites yet", "info");
+      // Vault attachments persist on the event; only locally-picked files (no
+      // vaultId) are the ones that aren't carried into the invite email.
+      if (attachments.some(a => a && !a.vaultId)) toast("Note: locally-attached files show here but aren't sent with auto-invites yet", "info");
       let made = 0, firstId = null;
       const createdIds = [];
       try {
@@ -20564,13 +20690,17 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           if (newId) createdIds.push(newId);
           made++;
         }
-        // Flag freshly-created task events so they render as checkable tasks.
-        // We know every metadata key the RPC set for a task (invitees:[] + note),
-        // so a straight overwrite is equivalent and adds the task fields.
-        if (isTask && createdIds.length) {
-          await sb.from("cal_events")
-            .update({ metadata: { invitees: [], note: bodyText || null, is_task: true, task_done: false } })
-            .in("id", createdIds);
+        // Merge the task flag and/or Vault attachments into the freshly-created
+        // events. Read-modify-write per id so the invitees/note the RPC set are
+        // preserved (only the first occurrence of a series carries invitees).
+        if ((isTask || attRefs.length) && createdIds.length) {
+          for (const cid of createdIds) {
+            const { data: row } = await sb.from("cal_events").select("metadata").eq("id", cid).maybeSingle();
+            const md = { ...((row && row.metadata) || {}) };
+            if (isTask) { md.is_task = true; md.task_done = false; }
+            if (attRefs.length) md.attachments = attRefs;
+            await sb.from("cal_events").update({ metadata: md }).eq("id", cid);
+          }
         }
         toast(isTask ? (recurrence ? `Saved · ${made} task${made!==1?"s":""}` : "Task saved")
           : isSave ? (recurrence ? `Saved · ${made} event${made!==1?"s":""}` : "Event saved")
@@ -21023,6 +21153,12 @@ function _ivcalPaneHtml() {
   if (type !== "session") rows += drow("●", `${escapeHtml(catLabel)}`);
   const note = ev.metadata && ev.metadata.note;
   if (note) rows += drow("🗒", `<span style="white-space:pre-wrap;color:#3a3a45">${escapeHtml(String(note))}</span>`);
+  // Vault attachments → clickable links that open the file (signed URL / Google).
+  const atts = (ev.metadata && Array.isArray(ev.metadata.attachments)) ? ev.metadata.attachments : [];
+  if (atts.length) {
+    const links = atts.map((at, i) => `<a href="#" class="oc-att-link" data-oc-att="${i}">${escapeHtml(at.name || "Attachment")}</a>`).join("");
+    rows += drow("📎", `<div class="oc-att-list">${links}</div>`);
+  }
   const acts = [
     `<button class="oc-btn pri" data-oc-pane="email">✉ Email</button>`,
     type !== "session" ? `<button class="oc-btn" data-oc-pane="edit">✎ Edit</button>` : "",
@@ -21037,6 +21173,13 @@ function _ivcalPaneHtml() {
   </div>`;
 }
 function _ivcalWirePane(host) {
+  host.querySelectorAll("[data-oc-att]").forEach(a => a.onclick = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const sel = _ivcalSelected; if (!sel) return;
+    const ev = _ivcalFindEv(sel.kind, sel.id); if (!ev || !ev.metadata) return;
+    const ref = (ev.metadata.attachments || [])[+a.getAttribute("data-oc-att")];
+    if (ref) _ivcalOpenAttachment(ref);
+  });
   host.querySelectorAll("[data-oc-pane]").forEach(b => b.onclick = (e) => {
     e.stopPropagation();
     const act = b.getAttribute("data-oc-pane");
