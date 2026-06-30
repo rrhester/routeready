@@ -8795,7 +8795,12 @@ function _rrAddTaskFromForm() {
       const dom = base.getDate(), dow = base.getDay(), nth = Math.ceil(dom / 7);
       for (let i = 0; dates.length < count && i < count + 6; i++) {
         const y = base.getFullYear(), m = base.getMonth() + i;
-        if (mode === "nthdow") {
+        if (mode === "lastdow") {
+          // Last <weekday> of month m: walk back from the last day.
+          const last = new Date(y, m + 1, 0);
+          last.setDate(last.getDate() - ((7 + last.getDay() - dow) % 7));
+          dates.push(last);
+        } else if (mode === "nthdow") {
           const first = new Date(y, m, 1);
           const day = 1 + ((7 + dow - first.getDay()) % 7) + (nth - 1) * 7;
           const dt = new Date(y, m, day);
@@ -9086,11 +9091,18 @@ function _rrTaskRepSync() {
       const dom = base.getDate();
       const dow = base.getDay();
       const nth = Math.ceil(dom / 7);
+      // If this is the final occurrence of that weekday in the month, label it
+      // "last" (most months lack a 5th week) — matching Google.
+      const daysInMonth = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+      const isLast = dom + 7 > daysInMonth;
+      const wd = _RR_DOW_NAMES[dow];
       const prev = sel.value;
       sel.innerHTML =
         `<option value="dom">Monthly on day ${dom}</option>` +
-        `<option value="nthdow">Monthly on the ${_rrOrdinal(nth)} ${_RR_DOW_NAMES[dow]}</option>`;
-      if (prev) sel.value = prev;
+        (isLast
+          ? `<option value="lastdow">Monthly on the last ${wd}</option>`
+          : `<option value="nthdow">Monthly on the ${_rrOrdinal(nth)} ${wd}</option>`);
+      if (prev && sel.querySelector(`option[value="${prev}"]`)) sel.value = prev;
     }
   }
 }
@@ -20228,6 +20240,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       /* Centered fixed modal (not anchored to the card) so its footer — and the
          OK button — is always reachable, even from the compact quick-create. */
       #rr-ivcal-new .rr-ne-pop{position:fixed;z-index:10040;top:50%;left:50%;transform:translate(-50%,-50%);width:340px;max-width:calc(100vw - 32px);max-height:90vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border-strong,rgba(15,23,42,.26));border-radius:10px;box-shadow:0 18px 44px rgba(15,23,42,.28);overflow:hidden}
+      /* display:flex above outranks the UA [hidden]{display:none}, so without
+         this the popover never hides (Cancel/OK/Remove couldn't close it). */
+      #rr-ivcal-new .rr-ne-pop[hidden]{display:none}
       #rr-ivcal-new .rr-ne-pop-h{padding:11px 14px;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,#2563EB,#1D4ED8);flex:0 0 auto}
       #rr-ivcal-new .rr-ne-pop-b{padding:12px 14px;display:flex;flex-direction:column;gap:14px;flex:1 1 auto;min-height:0;overflow-y:auto}
       #rr-ivcal-new .rr-ne-pop-sec{display:flex;flex-direction:column;gap:6px}
