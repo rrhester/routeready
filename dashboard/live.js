@@ -8530,13 +8530,20 @@ function _rrOpenRowMore(trigger, driverId) {
   const msgIcon   = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
   const coachIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>';
   const termIcon  = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  const reactIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/></svg>';
+  // A terminated driver can't be terminated again — swap that last item for a
+  // Reactivate action that flips them back to Active.
+  const _drv = (_rosterRows || []).find((row) => row.id === driverId);
+  const _isTerminated = _drv && _drv.status === "terminated";
   pop.innerHTML =
     _RR_ROW_MORE_TABS.map(([a, l, ic]) => item(a, l, ic)).join("") +
     sep +
     item("message", "Message", msgIcon) +
     item("coach", "Create coaching", coachIcon) +
     sep +
-    item("terminate", "Terminate driver", termIcon, true);
+    (_isTerminated
+      ? item("reactivate", "Reactivate driver", reactIcon)
+      : item("terminate", "Terminate driver", termIcon, true));
   // Right-align to the trigger (it sits at the far right of the row),
   // clamp to the viewport, and flip above / scroll when the tall menu
   // would run off the bottom for lower rows.
@@ -8571,9 +8578,24 @@ function _rrRowMoreDispatch(action, id) {
     else toast("Driver not found", "warn");
     return;
   }
+  if (action === "reactivate") { _rrReactivateDriver(id); return; }
   // Anything else is a driver-record tab → open it in a compact peek
   // popup (that single tab only, not the full record workspace).
   if (typeof openDriverDrawer === "function") openDriverDrawer(id, { tab: action, peek: true });
+}
+// Flip a terminated driver back to Active from the roster ⋯ menu. Stamps the
+// status-effective date (like the status picker) and reloads so the row leaves
+// the Terminated filter and rejoins the active roster.
+async function _rrReactivateDriver(id) {
+  const drv = (_rosterRows || []).find((r) => r.id === id);
+  const name = drv ? displayDriverName(drv) : "this driver";
+  if (!window.confirm(`Reactivate ${name}? Their status will be set back to Active.`)) return;
+  const meta = Object.assign({}, (drv && drv.metadata) || {});
+  meta.status_effective_date = fmtIsoDate(new Date());
+  const { error } = await sb.from("drivers").update({ status: "active", metadata: meta }).eq("id", id);
+  if (error) { toast("Couldn't reactivate: " + (error.message || ""), "warn"); return; }
+  toast(`${name} reactivated`, "success");
+  if (typeof loadDriversRoster === "function") loadDriversRoster();
 }
 document.addEventListener("click", (e) => {
   const moreTrigger = e.target.closest("[data-rr-row-more]");
@@ -9112,7 +9134,11 @@ function _rowActionsFor(d) {
     const id = escapeHtml(d.id);
     const ueBtn = `<button type="button" class="rr-row-action" data-rr-term-report="unemployment" data-rr-driver-id="${id}" title="Download Unemployment Separation Statement (PDF)" aria-label="Download Unemployment Separation Statement">${ueIcon}</button>`;
     const attBtn = `<button type="button" class="rr-row-action" data-rr-term-report="attendance" data-rr-driver-id="${id}" title="Download Attendance Record (PDF)" aria-label="Download Attendance Record">${attIcon}</button>`;
-    return `<div class="rr-row-actions-bar is-persistent">${ueBtn}${attBtn}</div>`;
+    // Same ⋯ overflow as active rows so a terminated driver can still be opened
+    // per-tab and — most importantly — reactivated from the menu.
+    const moreIco = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
+    const moreB = `<button type="button" class="rr-row-action rr-row-action--more" data-rr-row-more="1" data-rr-driver-id="${id}" title="More actions" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for ${escapeHtml(displayDriverName(d))}">${moreIco}</button>`;
+    return `<div class="rr-row-actions-bar is-persistent">${ueBtn}${attBtn}${moreB}</div>`;
   }
   // Overflow menu (⋯) at the end of the row. Opens a popover that deep-
   // links to each driver-record tab (click a tab → the record opens on
