@@ -5704,6 +5704,10 @@ body[data-rr-active-view="view-onboarding-ops"] #rr-util-rail-mount{display:bloc
 #rr-util-rail-mount .ntp-task-input,#rr-util-rail-mount .ntp-task-date{border:1px solid var(--border,rgba(15,23,42,.12));border-radius:7px;background:#fff;font:inherit;font-size:13px;color:var(--text,#0f172a);padding:7px 9px;outline:none}
 #rr-util-rail-mount .ntp-task-input:focus,#rr-util-rail-mount .ntp-task-date:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 #rr-util-rail-mount .ntp-task-form-row{display:flex;align-items:center;gap:8px}
+/* The class's display:flex outranks the UA [hidden]{display:none}, so the
+   conditional recurrence rows (weekday picker / monthly pattern / count) would
+   never hide. Restore hide-on-[hidden] for these rows. */
+#rr-util-rail-mount .ntp-task-form-row[hidden]{display:none}
 #rr-util-rail-mount .ntp-task-date{flex:1;min-width:0}
 #rr-util-rail-mount .ntp-task-repcount{flex:0 0 64px;text-align:center}
 #rr-util-rail-mount .ntp-task-rep{flex:0 0 auto;font-size:11px;opacity:.7;margin-left:2px}
