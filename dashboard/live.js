@@ -6296,6 +6296,14 @@ function _ivToggleRules(force) {
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next && typeof loadInterviewAvailabilityEditor === "function") loadInterviewAvailabilityEditor();
   if (next && typeof _rrFitRulesPopover === "function") _rrFitRulesPopover(pop);
+  // The interview-availability day rows are wider than the shared 720px popover
+  // width, so the right-hand controls (Add time / Save / Add session) were
+  // clipped off the right edge. Widen this popover (anchored right, so its LEFT
+  // edge moves farther left) and clamp to the viewport so it always fits.
+  if (next) {
+    pop.style.setProperty("width", "min(1040px, calc(100vw - 40px))", "important");
+    pop.style.setProperty("right", "20px", "important");
+  }
   return next;
 }
 window._rrToggleIvRules = _ivToggleRules;
