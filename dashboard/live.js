@@ -9076,17 +9076,22 @@ function _rrTaskRepSync() {
       chips.forEach(c => c.classList.toggle("on", +c.getAttribute("data-dow") === due.getDay()));
     }
   }
-  // Monthly: offer "on day N" and "on the Nth <weekday>", derived from the due date.
-  if (repeat === "monthly" && mo && due) {
+  // Monthly: offer "on day N" and "on the Nth <weekday>". Derive from the due
+  // date when set, otherwise from today so the dropdown is never blank (the
+  // actual series still starts from the due date the operator picks).
+  if (repeat === "monthly" && mo) {
     const sel = mo.querySelector("[data-rr-task-monthly]");
-    const dom = due.getDate();
-    const dow = due.getDay();
-    const nth = Math.ceil(dom / 7);
-    const prev = sel.value;
-    sel.innerHTML =
-      `<option value="dom">Monthly on day ${dom}</option>` +
-      `<option value="nthdow">Monthly on the ${_rrOrdinal(nth)} ${_RR_DOW_NAMES[dow]}</option>`;
-    if (prev) sel.value = prev;
+    if (sel) {
+      const base = due || new Date();
+      const dom = base.getDate();
+      const dow = base.getDay();
+      const nth = Math.ceil(dom / 7);
+      const prev = sel.value;
+      sel.innerHTML =
+        `<option value="dom">Monthly on day ${dom}</option>` +
+        `<option value="nthdow">Monthly on the ${_rrOrdinal(nth)} ${_RR_DOW_NAMES[dow]}</option>`;
+      if (prev) sel.value = prev;
+    }
   }
 }
 document.addEventListener("change", (e) => {
