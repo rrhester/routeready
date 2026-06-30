@@ -20895,11 +20895,12 @@ function _ivcalEventBlock(ev, type, lay) {
   const isTask = kindAttr === "booking" && ev.metadata && ev.metadata.is_task;
   if (isTask) {
     const done = !!ev.metadata.task_done;
+    const tColor = ev.metadata.color || "#2563EB";
     const checkSvg = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-    const check = `<span class="oc-task-check${done ? " on" : ""}" data-oc-task-toggle="1" role="button" tabindex="-1" title="${done ? "Mark not done" : "Mark complete"}">${done ? checkSvg : ""}</span>`;
+    const check = `<span class="oc-task-check${done ? " on" : ""}" data-oc-task-toggle="1" role="button" tabindex="-1" style="border-color:${tColor}${done ? `;background:${tColor}` : ""}" title="${done ? "Mark not done" : "Mark complete"}">${done ? checkSvg : ""}</span>`;
     const tInner = `<div class="oc-task-line">${check}<span class="oc-task-title">${escapeHtml(time)} ${escapeHtml(label)}</span></div>`;
     const tRz = `<div class="oc-rz" data-oc-resize></div>`;
-    return `<div class="oc-ev oc-ev-task${done ? " is-done" : ""}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)}" title="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}">${tInner}${tRz}</div>`;
+    return `<div class="oc-ev oc-ev-task${done ? " is-done" : ""}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};border-left-color:${tColor};background:${tColor}14;color:${tColor}" title="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}">${tInner}${tRz}</div>`;
   }
   let icons = "";
   // The camera glyph is its own hit target: clicking it opens the video
@@ -20911,9 +20912,9 @@ function _ivcalEventBlock(ev, type, lay) {
     ? `<div class="en"><span class="et">${escapeHtml(time)}</span> ${escapeHtml(label)}${ico}</div>`
     : `<div class="et">${escapeHtml(time)}${ico}</div><div class="en">${escapeHtml(label)}</div>`;
   const rz = kindAttr === "booking" ? `<div class="oc-rz" data-oc-resize></div>` : "";
-  // Custom-calendar events take their calendar's color, overriding the
-  // status-based category palette (left bar + faint fill + text).
-  const cc = _ivcalCalColor(ev);
+  // A per-event color (right-click → recolor) wins over the custom-calendar
+  // color, which in turn overrides the status-based category palette.
+  const cc = (ev.metadata && ev.metadata.color) || _ivcalCalColor(ev);
   const ccStyle = cc ? `;border-left-color:${cc};border-color:${cc}55;background:${cc}1f;color:${cc}` : "";
   return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)}${ccStyle}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
 }
@@ -21064,7 +21065,7 @@ function _ivcalMonth() {
     const isToday = d.getTime() === today.getTime();
     const items = [];
     _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => { if (_ivcalFilterOk(s,"session")) items.push({ t:new Date(s.starts_at), label:_ivcalEventLabel(s,"session"), cat:_ivcalCat(s,"session"), kind:"session", id:s.id, declined:false }); });
-    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ t:new Date(b.starts_at), label:_ivcalEventLabel(b,"booking"), cat:_ivcalCat(b,"booking"), kind:"booking", id:b.id, declined:(b.rsvp==="declined"), color:_ivcalCalColor(b) }); });
+    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ t:new Date(b.starts_at), label:_ivcalEventLabel(b,"booking"), cat:_ivcalCat(b,"booking"), kind:"booking", id:b.id, declined:(b.rsvp==="declined"), color:((b.metadata && b.metadata.color) || _ivcalCalColor(b)) }); });
     if (_ivcalGoogleVisible()) {
       _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt").forEach(ge => { items.push({ t:new Date(ge.sortAt), label:ge.title || "(busy)", google:true, link:ge.htmlLink || "", allDay:ge.allDay }); });
     }
@@ -21456,12 +21457,30 @@ function _ivcalOpenApplicant(id) {
 function _ivcalCloseMenus() {
   document.querySelectorAll(".oc-menu,.oc-hover,.oc-quick").forEach(el => el.remove());
 }
+// Google-Calendar-style event color palette (right-click → recolor). Stored on
+// the event as metadata.color and applied as a chip-color override.
+const _IVCAL_EVENT_COLORS = [
+  { name: "Tomato",    hex: "#D50000" }, { name: "Flamingo",  hex: "#E67C73" },
+  { name: "Tangerine", hex: "#F4511E" }, { name: "Banana",    hex: "#F6BF26" },
+  { name: "Sage",      hex: "#33B679" }, { name: "Basil",     hex: "#0B8043" },
+  { name: "Peacock",   hex: "#039BE5" }, { name: "Blueberry", hex: "#3F51B5" },
+  { name: "Lavender",  hex: "#7986CB" }, { name: "Grape",     hex: "#8E24AA" },
+  { name: "Graphite",  hex: "#616161" },
+];
 function _ivcalContextMenu(e, kind, id) {
   _ivcalCloseMenus();
   const ev = _ivcalFindEv(kind, id); if (!ev) return;
   const item = (act, label, danger) => `<button data-oc-ctx="${act}"${danger?' class="danger"':""}>${label}</button>`;
   const menu = document.createElement("div");
   menu.className = "oc-menu";
+  const curColor = (ev.metadata && ev.metadata.color) || "";
+  // The color row only applies to RouteReady cal_events (bookings), not the
+  // read-only group sessions.
+  const colorRow = kind === "session" ? "" :
+    `<div class="sep"></div><div class="oc-ctx-colors" role="group" aria-label="Event color">`
+    + _IVCAL_EVENT_COLORS.map(c => `<button type="button" class="oc-ctx-sw${curColor.toLowerCase()===c.hex.toLowerCase()?" on":""}" data-oc-color="${c.hex}" title="${c.name}" aria-label="${c.name}" style="background:${c.hex}"></button>`).join("")
+    + `<button type="button" class="oc-ctx-sw oc-ctx-sw-clear${curColor?"":" on"}" data-oc-color="" title="Default" aria-label="Default color"></button>`
+    + `</div>`;
   menu.innerHTML =
     item("open", "Open") +
     (kind !== "session" ? item("edit", "Edit") : "") +
@@ -21469,12 +21488,16 @@ function _ivcalContextMenu(e, kind, id) {
     item("duplicate", "Duplicate") +
     (ev.applicant_id ? item("applicant", "Open applicant") : "") +
     `<div class="sep"></div>` +
-    item("delete", kind === "session" ? "Remove" : "Cancel / delete", true);
+    item("delete", kind === "session" ? "Remove" : "Cancel / delete", true) +
+    colorRow;
   document.body.appendChild(menu);
   const mw = menu.offsetWidth, mh = menu.offsetHeight;
   menu.style.left = Math.min(e.clientX, window.innerWidth - mw - 6) + "px";
   menu.style.top = Math.min(e.clientY, window.innerHeight - mh - 6) + "px";
   menu.addEventListener("click", (ev2) => {
+    // Color swatch → recolor the event (or clear back to the status palette).
+    const sw = ev2.target.closest("[data-oc-color]");
+    if (sw) { ev2.stopPropagation(); _ivcalCloseMenus(); _ivcalSetEventColor(id, sw.getAttribute("data-oc-color") || null); return; }
     const b = ev2.target.closest("[data-oc-ctx]"); if (!b) return;
     const act = b.getAttribute("data-oc-ctx");
     _ivcalCloseMenus();
@@ -21486,6 +21509,18 @@ function _ivcalContextMenu(e, kind, id) {
     else if (act === "delete") _ivcalDeleteEvent(kind, id, true);
   });
   setTimeout(() => document.addEventListener("click", function off() { _ivcalCloseMenus(); document.removeEventListener("click", off); }, { once: true }), 0);
+}
+
+// Set (or clear) a per-event color override. Optimistic re-render then persist.
+async function _ivcalSetEventColor(id, color) {
+  const ev = _ivcalFindEv("booking", id);
+  if (!ev) return;
+  const md = { ...(ev.metadata || {}) };
+  if (color) md.color = color; else delete md.color;
+  ev.metadata = md;
+  _ivcalRender();
+  const { error } = await sb.from("cal_events").update({ metadata: md }).eq("id", id);
+  if (error) toast("Couldn't change the color", "warn");
 }
 
 // Hover preview card.
