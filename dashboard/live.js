@@ -19996,6 +19996,24 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-more:hover{background:#EFF6FF}
       #rr-ivcal-new .rr-ne-gsave{margin-left:auto;border:0;background:#2563EB;color:#fff;font-weight:600;font-size:14px;cursor:pointer;padding:9px 24px;border-radius:10px}
       #rr-ivcal-new .rr-ne-gsave:hover{background:#1D4ED8}
+      /* Google-style type tabs + icon rows */
+      #rr-ivcal-new .rr-ne-gtabs{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}
+      #rr-ivcal-new .rr-ne-gtab{border:0;background:#F1F3F4;color:#3C4043;border-radius:999px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer}
+      #rr-ivcal-new .rr-ne-gtab.active{background:#E8F0FE;color:#1A73E8}
+      #rr-ivcal-new .rr-ne-grow{display:flex;align-items:flex-start;gap:16px;padding:3px 0}
+      #rr-ivcal-new .rr-ne-gico{flex:0 0 24px;color:#5F6368;display:inline-flex;align-items:center;justify-content:center;height:38px}
+      #rr-ivcal-new .rr-ne-gcell{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+      #rr-ivcal-new .rr-ne-gtime{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px}
+      #rr-ivcal-new .rr-ne-gdash{color:#5F6368}
+      #rr-ivcal-new .rr-ne-gallday{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#5F6368;margin-left:6px}
+      #rr-ivcal-new .rr-ne-glink{border:0;background:#F1F3F4;color:#3C4043;font-size:14px;cursor:pointer;text-align:left;padding:9px 12px;border-radius:8px}
+      #rr-ivcal-new .rr-ne-glink:hover{background:#E8EAED}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-gcell input,#rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-gcell textarea,#rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-gcell select{border:0 !important;background:transparent !important;padding:9px 10px !important;border-radius:8px !important;font-size:14px !important}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-gcell input:hover,#rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-gcell textarea:hover{background:#F8F9FA !important}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-gcell input:focus,#rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-gcell textarea:focus,#rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-gcell select:focus{background:#F1F3F4 !important;outline:none !important}
+      #rr-ivcal-new .rr-ne-card.is-gcard .rr-ne-gtime input{width:auto !important}
+      #rr-ivcal-new .rr-ne-card.is-gcard #rr-ne-edate{display:none !important}
+      #rr-ivcal-new .rr-ne-card.is-task .rr-ne-evonly{display:none}
     </style>
     <div class="rr-ne-card is-gcard" id="rr-ne-card">
       <div class="rr-ne-titlebar">
@@ -20022,17 +20040,31 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         ${tile("delete","Delete",SVG.trash,"danger")}
       </div>
       <div class="rr-ne-fields">
-        ${row("Title *", `<input id="rr-ne-title" type="text" placeholder="e.g. Driver interview" style="${fld};flex:1;min-width:220px">`)}
-        ${row("Required", `<input id="rr-ne-required" type="text" placeholder="name@example.com, …" style="${fld};flex:1;min-width:220px">`)}
-        ${row("Optional", `<input id="rr-ne-optional" type="text" placeholder="optional attendees (comma-separated)" style="${fld};flex:1;min-width:220px">`)}
-        ${row("Start", `<input id="rr-ne-sdate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-stime" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}"><label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);margin-left:8px;cursor:pointer"><input id="rr-ne-allday" type="checkbox"> All day</label>`)}
-        ${row("End", `<input id="rr-ne-edate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-etime" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}">`)}
-        ${row("Location", `<input id="rr-ne-location" type="text" placeholder="Add a location (optional) — or press Schedule Meeting for a video link" style="${fld};flex:1;min-width:220px">`)}
-        ${showCalPicker ? row("Calendar", `<select id="rr-ne-calendar" style="${fld};flex:1;min-width:220px">${_calOptions}</select>`) : ""}
+        <div class="rr-ne-gtabs" aria-hidden="false">
+          <button type="button" class="rr-ne-gtab active" data-ne-type="event">Event</button>
+          <button type="button" class="rr-ne-gtab" data-ne-type="task">Task</button>
+        </div>
+        <input id="rr-ne-title" type="text" placeholder="Add title" style="${fld};width:100%">
+        <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span><div class="rr-ne-gcell rr-ne-gtime">
+          <input id="rr-ne-sdate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-stime" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}"><span class="rr-ne-gdash">–</span><input id="rr-ne-edate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-etime" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}"><label class="rr-ne-gallday"><input id="rr-ne-allday" type="checkbox"> All day</label>
+        </div></div>
+        <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></span><div class="rr-ne-gcell">
+          <input id="rr-ne-required" type="text" placeholder="Add guests" style="${fld};width:100%">
+          <input id="rr-ne-optional" type="text" placeholder="Optional guests" style="${fld};width:100%;margin-top:4px">
+        </div></div>
+        <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M22 8l-5 4 5 4z"/></svg></span><div class="rr-ne-gcell">
+          <button type="button" class="rr-ne-glink" data-ne-vproxy>Add video conferencing</button>
+          <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)"></span>
+        </div></div>
+        <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></span><div class="rr-ne-gcell">
+          <input id="rr-ne-location" type="text" placeholder="Add location" style="${fld};width:100%">
+        </div></div>
+        <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg></span><div class="rr-ne-gcell">
+          <textarea id="rr-ne-body" placeholder="Add description" style="${fld};width:100%;min-height:84px;resize:none;line-height:1.5"></textarea>
+        </div></div>
+        ${showCalPicker ? `<div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg></span><div class="rr-ne-gcell"><select id="rr-ne-calendar" style="${fld};width:100%">${_calOptions}</select></div></div>` : ""}
         <div id="rr-ne-recsum" class="rr-ne-recsum"></div>
         <div id="rr-ne-chips" style="display:none;flex-wrap:wrap;gap:6px"></div>
-        <textarea id="rr-ne-body" placeholder="Add a message — Dictate to speak it aloud" style="${fld};flex:1;min-height:160px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
-        <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)"></span>
         <div id="rr-ne-history" style="display:none"></div>
       </div>
       <div class="rr-ne-gfoot">
@@ -20079,6 +20111,13 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   // compact card into the full Outlook-style composer (ribbon + every field).
   m.querySelector("[data-ne-gsave]")?.addEventListener("click", () => m.querySelector('[data-ne-act="save"]')?.click());
   m.querySelector("[data-ne-more]")?.addEventListener("click", () => { card.classList.remove("is-gcard"); card.classList.add("is-restored"); });
+  // "Add video conferencing" row proxies the ribbon's Schedule Meeting action.
+  m.querySelector("[data-ne-vproxy]")?.addEventListener("click", () => m.querySelector('[data-ne-act="meeting"]')?.click());
+  // Event / Task type pills (visual): Task collapses to the simple form.
+  m.querySelectorAll("[data-ne-type]").forEach(b => b.addEventListener("click", () => {
+    m.querySelectorAll("[data-ne-type]").forEach(x => x.classList.toggle("active", x === b));
+    card.classList.toggle("is-task", b.getAttribute("data-ne-type") === "task");
+  }));
   const titleInp = document.getElementById("rr-ne-title");
   titleInp.focus();
   // Keep the title-bar caption in sync with the typed title.
