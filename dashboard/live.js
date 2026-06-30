@@ -8791,24 +8791,27 @@ function _rrAddTaskFromForm() {
       let guard = 0;
       while (dates.length < count && guard++ < 800) { if (set.has(d.getDay())) dates.push(new Date(d)); d.setDate(d.getDate() + 1); }
     } else if (repeat === "monthly") {
-      const mode = (document.querySelector("#rr-sched-tasks [data-rr-task-monthly]") || {}).value || "dom";
-      const dom = base.getDate(), dow = base.getDay(), nth = Math.ceil(dom / 7);
-      for (let i = 0; dates.length < count && i < count + 6; i++) {
+      const mode = (document.querySelector("#rr-sched-tasks [data-rr-task-monthly]") || {}).value || `dom-${base.getDate()}`;
+      const dow = base.getDay(), nth = Math.ceil(base.getDate() / 7);
+      const pickDay = mode.startsWith("dom-") ? (parseInt(mode.slice(4), 10) || base.getDate()) : null;
+      const base0 = new Date(base.getFullYear(), base.getMonth(), base.getDate());   // midnight, for "on/after due" compare
+      for (let i = 0; dates.length < count && i < count + 18; i++) {
         const y = base.getFullYear(), m = base.getMonth() + i;
+        let dt = null;
         if (mode === "lastdow") {
-          // Last <weekday> of month m: walk back from the last day.
           const last = new Date(y, m + 1, 0);
           last.setDate(last.getDate() - ((7 + last.getDay() - dow) % 7));
-          dates.push(last);
+          dt = last;
         } else if (mode === "nthdow") {
           const first = new Date(y, m, 1);
           const day = 1 + ((7 + dow - first.getDay()) % 7) + (nth - 1) * 7;
-          const dt = new Date(y, m, day);
-          if (dt.getMonth() === ((m % 12) + 12) % 12) dates.push(dt);   // skip months with no Nth weekday
-        } else {
+          const cand = new Date(y, m, day);
+          if (cand.getMonth() === ((m % 12) + 12) % 12) dt = cand;   // skip months with no Nth weekday
+        } else { // day-of-month
           const last = new Date(y, m + 1, 0).getDate();
-          dates.push(new Date(y, m, Math.min(dom, last)));
+          dt = new Date(y, m, Math.min(pickDay, last));
         }
+        if (dt && dt >= base0) dates.push(dt);   // don't create occurrences before the due date
       }
     } else { // daily
       for (let i = 0; i < count; i++) { const d = new Date(base); d.setDate(base.getDate() + i); dates.push(d); }
@@ -9081,9 +9084,8 @@ function _rrTaskRepSync() {
       chips.forEach(c => c.classList.toggle("on", +c.getAttribute("data-dow") === due.getDay()));
     }
   }
-  // Monthly: offer "on day N" and "on the Nth <weekday>". Derive from the due
-  // date when set, otherwise from today so the dropdown is never blank (the
-  // actual series still starts from the due date the operator picks).
+  // Monthly: let the operator pick the day of the month (1–31) directly, plus a
+  // "Nth/last weekday" pattern. Default to the due date's day (or today's).
   if (repeat === "monthly" && mo) {
     const sel = mo.querySelector("[data-rr-task-monthly]");
     if (sel) {
@@ -9091,18 +9093,18 @@ function _rrTaskRepSync() {
       const dom = base.getDate();
       const dow = base.getDay();
       const nth = Math.ceil(dom / 7);
-      // If this is the final occurrence of that weekday in the month, label it
-      // "last" (most months lack a 5th week) — matching Google.
       const daysInMonth = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
-      const isLast = dom + 7 > daysInMonth;
+      const isLast = dom + 7 > daysInMonth;   // most months lack a 5th week
       const wd = _RR_DOW_NAMES[dow];
       const prev = sel.value;
-      sel.innerHTML =
-        `<option value="dom">Monthly on day ${dom}</option>` +
-        (isLast
-          ? `<option value="lastdow">Monthly on the last ${wd}</option>`
-          : `<option value="nthdow">Monthly on the ${_rrOrdinal(nth)} ${wd}</option>`);
+      let opts = "";
+      for (let d = 1; d <= 31; d++) opts += `<option value="dom-${d}">On day ${d}</option>`;
+      opts += isLast
+        ? `<option value="lastdow">On the last ${wd}</option>`
+        : `<option value="nthdow">On the ${_rrOrdinal(nth)} ${wd}</option>`;
+      sel.innerHTML = opts;
       if (prev && sel.querySelector(`option[value="${prev}"]`)) sel.value = prev;
+      else sel.value = `dom-${dom}`;
     }
   }
 }
