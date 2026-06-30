@@ -6296,13 +6296,25 @@ function _ivToggleRules(force) {
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next && typeof loadInterviewAvailabilityEditor === "function") loadInterviewAvailabilityEditor();
   if (next && typeof _rrFitRulesPopover === "function") _rrFitRulesPopover(pop);
-  // The interview-availability day rows are wider than the shared 720px popover
-  // width, so the right-hand controls (Add time / Save / Add session) were
-  // clipped off the right edge. Widen this popover (anchored right, so its LEFT
-  // edge moves farther left) and clamp to the viewport so it always fits.
+  // The interview-availability day rows need more room than the shared 720px
+  // popover, but the previous (wider) override still let the right-hand controls
+  // (Save availability / Add session / + Add time) run off the right edge on
+  // wide screens. Pin BOTH edges with a comfortable margin so the whole card is
+  // always fully on screen, and re-apply on resize — the shared fitter binds its
+  // own resize handler that would otherwise reset this popover to the narrow
+  // right:16/720 default.
   if (next) {
-    pop.style.setProperty("width", "min(1040px, calc(100vw - 40px))", "important");
-    pop.style.setProperty("right", "20px", "important");
+    const fitIv = () => {
+      pop.style.setProperty("left", "auto", "important");
+      pop.style.setProperty("right", "40px", "important");
+      pop.style.setProperty("width", "min(900px, calc(100vw - 80px))", "important");
+      pop.style.setProperty("max-width", "calc(100vw - 80px)", "important");
+    };
+    fitIv();
+    if (!pop._rrIvFitBound) {
+      pop._rrIvFitBound = true;
+      window.addEventListener("resize", () => { if (!pop.hidden) fitIv(); });
+    }
   }
   return next;
 }
