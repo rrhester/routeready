@@ -19372,6 +19372,7 @@ function _ivcalDayItems(day, arr, key) {
 function _ivcalRender() {
   const host = document.getElementById("rr-ivcal-body");
   if (!host || !_ivcalCache) return;
+  _rrHiddenLabelSet = _rrHiddenLabelColors();
   _ivcalCloseMenus();
   const _prevScroll = document.getElementById("rr-ivcal-scroll") ? document.getElementById("rr-ivcal-scroll").scrollTop : null;
   const seg = (v, t) => `<button class="${_ivcalView===v?"on":""}" data-ivcal-view="${v}">${t}</button>`;
@@ -20844,7 +20845,11 @@ async function _ivcalLoadEventMessages(eventId, host) {
   host.innerHTML = head + `<div style="display:flex;flex-direction:column;gap:8px">${rowsHtml}</div>`;
 }
 
+let _rrHiddenLabelSet = new Set();   // colors of labels toggled off (hidden) in the manager
 function _ivcalFilterOk(ev, type) {
+  // A label toggled off in the Labels manager hides every event wearing its color.
+  if (type !== "session" && _rrHiddenLabelSet.size && ev.metadata && ev.metadata.color
+      && _rrHiddenLabelSet.has(String(ev.metadata.color).toLowerCase())) return false;
   // Legend status toggles apply to every source: a hidden status stays hidden
   // whether the event sits on a built-in or a custom calendar.
   if (_ivcalStatusFilters[_ivcalCat(ev, type)] === false) return false;
@@ -21457,16 +21462,6 @@ function _ivcalOpenApplicant(id) {
 function _ivcalCloseMenus() {
   document.querySelectorAll(".oc-menu,.oc-hover,.oc-quick").forEach(el => el.remove());
 }
-// Google-Calendar-style event color palette (right-click → recolor). Stored on
-// the event as metadata.color and applied as a chip-color override.
-const _IVCAL_EVENT_COLORS = [
-  { name: "Tomato",    hex: "#D50000" }, { name: "Flamingo",  hex: "#E67C73" },
-  { name: "Tangerine", hex: "#F4511E" }, { name: "Banana",    hex: "#F6BF26" },
-  { name: "Sage",      hex: "#33B679" }, { name: "Basil",     hex: "#0B8043" },
-  { name: "Peacock",   hex: "#039BE5" }, { name: "Blueberry", hex: "#3F51B5" },
-  { name: "Lavender",  hex: "#7986CB" }, { name: "Grape",     hex: "#8E24AA" },
-  { name: "Graphite",  hex: "#616161" },
-];
 function _ivcalContextMenu(e, kind, id) {
   _ivcalCloseMenus();
   const ev = _ivcalFindEv(kind, id); if (!ev) return;
@@ -21474,13 +21469,19 @@ function _ivcalContextMenu(e, kind, id) {
   const menu = document.createElement("div");
   menu.className = "oc-menu";
   const curColor = (ev.metadata && ev.metadata.color) || "";
-  // The color row only applies to RouteReady cal_events (bookings), not the
-  // read-only group sessions.
+  // Label / color section (cal_events only, not read-only group sessions).
+  // Swatches come from the operator's labels; the pencil opens the Labels
+  // manager; Default clears back to the automatic status color.
+  const pencilSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  const ckSvg = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  const labels = _rrLoadCalLabels();
   const colorRow = kind === "session" ? "" :
-    `<div class="sep"></div><div class="oc-ctx-colors" role="group" aria-label="Event color">`
-    + _IVCAL_EVENT_COLORS.map(c => `<button type="button" class="oc-ctx-sw${curColor.toLowerCase()===c.hex.toLowerCase()?" on":""}" data-oc-color="${c.hex}" title="${c.name}" aria-label="${c.name}" style="background:${c.hex}"></button>`).join("")
-    + `<button type="button" class="oc-ctx-sw oc-ctx-sw-clear${curColor?"":" on"}" data-oc-color="" title="Default" aria-label="Default color"></button>`
-    + `</div>`;
+    `<div class="sep"></div>`
+    + `<div class="oc-ctx-lblhead"><span>Label</span><button type="button" class="oc-ctx-pencil" data-oc-managelabels title="Manage labels" aria-label="Manage labels">${pencilSvg}</button></div>`
+    + `<div class="oc-ctx-colors" role="group" aria-label="Label">`
+    + labels.map(l => `<button type="button" class="oc-ctx-sw${curColor.toLowerCase()===String(l.color).toLowerCase()?" on":""}" data-oc-color="${l.color}" data-oc-label="${escapeHtml(l.id)}" title="${escapeHtml(l.name||l.color)}" aria-label="${escapeHtml(l.name||l.color)}" style="background:${l.color}"></button>`).join("")
+    + `</div>`
+    + `<button type="button" class="oc-ctx-default${curColor?"":" on"}" data-oc-color="" data-oc-default><span class="oc-ctx-defck">${ckSvg}</span>Default</button>`;
   menu.innerHTML =
     item("open", "Open") +
     (kind !== "session" ? item("edit", "Edit") : "") +
@@ -21495,9 +21496,11 @@ function _ivcalContextMenu(e, kind, id) {
   menu.style.left = Math.min(e.clientX, window.innerWidth - mw - 6) + "px";
   menu.style.top = Math.min(e.clientY, window.innerHeight - mh - 6) + "px";
   menu.addEventListener("click", (ev2) => {
-    // Color swatch → recolor the event (or clear back to the status palette).
+    // Pencil → open the Labels manager.
+    if (ev2.target.closest("[data-oc-managelabels]")) { ev2.stopPropagation(); _ivcalCloseMenus(); _rrOpenLabelsManager(); return; }
+    // Color/label swatch → recolor the event (or clear back to the status palette).
     const sw = ev2.target.closest("[data-oc-color]");
-    if (sw) { ev2.stopPropagation(); _ivcalCloseMenus(); _ivcalSetEventColor(id, sw.getAttribute("data-oc-color") || null); return; }
+    if (sw) { ev2.stopPropagation(); _ivcalCloseMenus(); _ivcalSetEventColor(id, sw.getAttribute("data-oc-color") || null, sw.getAttribute("data-oc-label") || null); return; }
     const b = ev2.target.closest("[data-oc-ctx]"); if (!b) return;
     const act = b.getAttribute("data-oc-ctx");
     _ivcalCloseMenus();
@@ -21511,16 +21514,226 @@ function _ivcalContextMenu(e, kind, id) {
   setTimeout(() => document.addEventListener("click", function off() { _ivcalCloseMenus(); document.removeEventListener("click", off); }, { once: true }), 0);
 }
 
-// Set (or clear) a per-event color override. Optimistic re-render then persist.
-async function _ivcalSetEventColor(id, color) {
+// Set (or clear) a per-event color override + optional label id. Optimistic
+// re-render then persist.
+async function _ivcalSetEventColor(id, color, labelId) {
   const ev = _ivcalFindEv("booking", id);
   if (!ev) return;
   const md = { ...(ev.metadata || {}) };
   if (color) md.color = color; else delete md.color;
+  if (labelId) md.label = labelId; else delete md.label;
   ev.metadata = md;
   _ivcalRender();
   const { error } = await sb.from("cal_events").update({ metadata: md }).eq("id", id);
   if (error) toast("Couldn't change the color", "warn");
+}
+
+// ── Calendar labels (Google-style) ─────────────────────────────────────────
+// Named, colored labels managed from the event right-click menu's pencil. Stored
+// device-local per DSP (like the calendar toggles / notes panel) — no migration.
+// An event references a label by id in metadata.label and takes its color.
+function _rrCalLabelsKey() { return "rr.cal.labels." + ((window.RR && window.RR.dsp && window.RR.dsp.id) || "anon"); }
+function _rrDefaultCalLabels() {
+  return ["#AD1457", "#D81B60", "#E67C73", "#D50000", "#F4511E", "#0B8043"]
+    .map((c, i) => ({ id: "lbl_seed" + i, name: "", color: c, hidden: false }));
+}
+function _rrLoadCalLabels() {
+  try { const r = JSON.parse(localStorage.getItem(_rrCalLabelsKey())); if (Array.isArray(r) && r.length) return r; } catch (_) {}
+  return _rrDefaultCalLabels();
+}
+function _rrSaveCalLabels(list) { try { localStorage.setItem(_rrCalLabelsKey(), JSON.stringify(list)); } catch (_) {} }
+function _rrNewLabelId() { return "lbl_" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
+// Map of hidden label colors, for filtering events whose label is toggled off.
+function _rrHiddenLabelColors() {
+  const out = new Set();
+  for (const l of _rrLoadCalLabels()) if (l.hidden && l.color) out.add(String(l.color).toLowerCase());
+  return out;
+}
+
+// Google's 24-swatch event palette, for the custom color picker grid.
+const _RR_LABEL_PALETTE = [
+  "#AC1457", "#D81B60", "#E67C73", "#D50000", "#E4C441", "#F4511E", "#EF6C00", "#F09300",
+  "#F6BF26", "#C0CA33", "#7CB342", "#33B679", "#0B8043", "#009688", "#039BE5", "#4285F4",
+  "#3F51B5", "#7986CB", "#B39DDB", "#9E69AF", "#8E24AA", "#795548", "#616161", "#A79B8E",
+];
+
+// ── color math (hex ⇄ hsv) for the custom picker ──
+function _rrHexToRgb(hex) {
+  let h = String(hex || "").replace("#", "").trim();
+  if (h.length === 3) h = h.split("").map(c => c + c).join("");
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+}
+function _rrRgbToHex(r, g, b) {
+  const c = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+  return "#" + c(r) + c(g) + c(b);
+}
+function _rrRgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d) {
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  return { h, s: mx ? d / mx : 0, v: mx };
+}
+function _rrHsvToRgb(h, s, v) {
+  const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; } else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+  return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
+}
+// Pick black/white text for legibility on a background color.
+function _rrTextOn(hex) {
+  const rgb = _rrHexToRgb(hex); if (!rgb) return "#fff";
+  const L = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+  return L > 0.6 ? "#1f2430" : "#ffffff";
+}
+
+// Custom color picker · palette grid + HSV square + hue slider + hex + eyedropper.
+// Calls onPick(hex) on Select.
+function _rrColorPicker(initialHex, onPick) {
+  const back = document.createElement("div");
+  back.className = "rr-cpick-back";
+  back.innerHTML = `<div class="rr-cpick" role="dialog" aria-label="Select a color">
+    <div class="rr-cpick-h">Select a color</div>
+    <div class="rr-cpick-sub">Text color will be automatically adjusted.</div>
+    <div class="rr-cpick-pal" id="rr-cp-pal">${_RR_LABEL_PALETTE.map(c => `<button type="button" class="rr-cp-sw" data-cp-pal="${c}" title="${c}" style="background:${c}"></button>`).join("")}</div>
+    <div class="rr-cpick-mix">
+      <div class="rr-cpick-left">
+        <div class="rr-cp-prev" id="rr-cp-prev">A</div>
+        <button type="button" class="rr-cp-eye" id="rr-cp-eye" title="Pick from screen" aria-label="Eyedropper"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3-3a2.83 2.83 0 0 1 4 4l-3 3"/><path d="m18 9-3-3"/></svg></button>
+      </div>
+      <div class="rr-cpick-sv" id="rr-cp-sv"><div class="rr-cp-sv-thumb" id="rr-cp-sv-thumb"></div></div>
+    </div>
+    <div class="rr-cp-hue" id="rr-cp-hue"><div class="rr-cp-hue-thumb" id="rr-cp-hue-thumb"></div></div>
+    <div class="rr-cp-hexrow"><label class="rr-cp-hexlbl">Hex</label><input type="text" id="rr-cp-hex" class="rr-cp-hex" value="${escapeHtml(initialHex || "#039BE5")}" autocomplete="off"></div>
+    <div class="rr-cpick-foot"><span style="flex:1"></span><button type="button" class="btn btn-sm" data-cp-cancel>Cancel</button><button type="button" class="btn btn-primary btn-sm" id="rr-cp-ok">Select</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  const close = () => { back.remove(); document.removeEventListener("keydown", onEsc); };
+  function onEsc(e) { if (e.key === "Escape") { e.stopPropagation(); close(); } }
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-cp-cancel]")) close(); });
+  document.addEventListener("keydown", onEsc);
+
+  const svEl = back.querySelector("#rr-cp-sv");
+  const svThumb = back.querySelector("#rr-cp-sv-thumb");
+  const hueEl = back.querySelector("#rr-cp-hue");
+  const hueThumb = back.querySelector("#rr-cp-hue-thumb");
+  const hexEl = back.querySelector("#rr-cp-hex");
+  const prev = back.querySelector("#rr-cp-prev");
+  let hsv = (() => { const rgb = _rrHexToRgb(initialHex) || { r: 3, g: 155, b: 229 }; return _rrRgbToHsv(rgb.r, rgb.g, rgb.b); })();
+
+  function curHex() { const c = _rrHsvToRgb(hsv.h, hsv.s, hsv.v); return _rrRgbToHex(c.r, c.g, c.b); }
+  function paint(syncHex) {
+    const hueRgb = _rrHsvToRgb(hsv.h, 1, 1);
+    svEl.style.background = `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent), ${_rrRgbToHex(hueRgb.r, hueRgb.g, hueRgb.b)}`;
+    svThumb.style.left = (hsv.s * 100) + "%";
+    svThumb.style.top = ((1 - hsv.v) * 100) + "%";
+    hueThumb.style.left = (hsv.h / 360 * 100) + "%";
+    const hx = curHex();
+    prev.style.background = hx; prev.style.color = _rrTextOn(hx);
+    if (syncHex) hexEl.value = hx;
+  }
+  function setHex(hx) { const rgb = _rrHexToRgb(hx); if (!rgb) return; hsv = _rrRgbToHsv(rgb.r, rgb.g, rgb.b); paint(true); }
+
+  // SV square drag.
+  function svFromEvent(e) {
+    const r = svEl.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    hsv.s = x; hsv.v = 1 - y; paint(true);
+  }
+  function hueFromEvent(e) {
+    const r = hueEl.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    hsv.h = x * 360; paint(true);
+  }
+  function drag(el, handler) {
+    el.addEventListener("mousedown", (e) => {
+      e.preventDefault(); handler(e);
+      const mv = (ev) => handler(ev);
+      const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up); };
+      document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+    });
+  }
+  drag(svEl, svFromEvent); drag(hueEl, hueFromEvent);
+  back.querySelector("#rr-cp-pal").addEventListener("click", (e) => { const b = e.target.closest("[data-cp-pal]"); if (b) setHex(b.getAttribute("data-cp-pal")); });
+  hexEl.addEventListener("input", () => { const v = hexEl.value.trim(); if (_rrHexToRgb(v)) setHex(v.startsWith("#") ? v : "#" + v); });
+  back.querySelector("#rr-cp-eye").addEventListener("click", async () => {
+    if (!window.EyeDropper) { toast("Your browser doesn't support the eyedropper", "info"); return; }
+    try { const res = await new window.EyeDropper().open(); if (res && res.sRGBHex) setHex(res.sRGBHex); } catch (_) {}
+  });
+  back.querySelector("#rr-cp-ok").addEventListener("click", () => { const hx = curHex(); close(); if (typeof onPick === "function") onPick(hx); });
+  paint(true);
+}
+
+// Labels manager · add / rename / recolor / hide / delete the operator's labels.
+function _rrOpenLabelsManager() {
+  let labels = _rrLoadCalLabels().map(l => ({ ...l }));
+  const back = document.createElement("div");
+  back.className = "rr-labels-back";
+  back.innerHTML = `<div class="rr-labels" role="dialog" aria-label="Labels">
+    <div class="rr-lbl-h">Labels</div>
+    <div class="rr-lbl-sub">Labels are only visible to you and people who can make changes on this calendar.</div>
+    <div class="rr-lbl-list" id="rr-lbl-list"></div>
+    <div class="rr-lbl-foot">
+      <button type="button" class="rr-lbl-add" id="rr-lbl-add" title="Add a label" aria-label="Add a label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn btn-sm" data-lbl-cancel>Cancel</button>
+      <button type="button" class="btn btn-primary btn-sm" id="rr-lbl-save">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(back);
+  const close = () => { back.remove(); document.removeEventListener("keydown", onEsc); };
+  function onEsc(e) { if (e.key === "Escape" && !document.querySelector(".rr-cpick-back")) close(); }
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-lbl-cancel]")) close(); });
+  document.addEventListener("keydown", onEsc);
+  const listEl = back.querySelector("#rr-lbl-list");
+  const eyeOpen = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const eyeOff = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  const trash = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+  const chev = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  function renderRows() {
+    listEl.innerHTML = labels.map((l, i) => `
+      <div class="rr-lbl-row" data-i="${i}">
+        <button type="button" class="rr-lbl-color" data-lbl-color title="Customize color"><span class="rr-lbl-dot" style="background:${escapeHtml(l.color)}"></span>${chev}</button>
+        <input type="text" class="rr-lbl-name" placeholder="Add a label" value="${escapeHtml(l.name || "")}">
+        <button type="button" class="rr-lbl-eye${l.hidden ? " off" : ""}" data-lbl-eye title="${l.hidden ? "Hidden — click to show" : "Visible — click to hide"}">${l.hidden ? eyeOff : eyeOpen}</button>
+        <button type="button" class="rr-lbl-del" data-lbl-del title="Delete label">${trash}</button>
+      </div>`).join("");
+  }
+  listEl.addEventListener("input", (e) => {
+    const row = e.target.closest(".rr-lbl-row"); if (!row) return;
+    if (e.target.classList.contains("rr-lbl-name")) labels[+row.getAttribute("data-i")].name = e.target.value;
+  });
+  listEl.addEventListener("click", (e) => {
+    const row = e.target.closest(".rr-lbl-row"); if (!row) return;
+    const i = +row.getAttribute("data-i");
+    if (e.target.closest("[data-lbl-color]")) {
+      _rrColorPicker(labels[i].color, (hex) => { labels[i].color = hex; renderRows(); });
+    } else if (e.target.closest("[data-lbl-eye]")) {
+      labels[i].hidden = !labels[i].hidden; renderRows();
+    } else if (e.target.closest("[data-lbl-del]")) {
+      labels.splice(i, 1); renderRows();
+    }
+  });
+  back.querySelector("#rr-lbl-add").addEventListener("click", () => {
+    labels.push({ id: _rrNewLabelId(), name: "", color: _RR_LABEL_PALETTE[labels.length % _RR_LABEL_PALETTE.length], hidden: false });
+    renderRows();
+  });
+  back.querySelector("#rr-lbl-save").addEventListener("click", () => {
+    _rrSaveCalLabels(labels);
+    close();
+    if (typeof _ivcalRender === "function") _ivcalRender();
+    toast("Labels saved", "success");
+  });
+  renderRows();
 }
 
 // Hover preview card.
