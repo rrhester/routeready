@@ -12781,6 +12781,14 @@ body.rr-cmdk-open{ overflow:hidden }
             .rr-iv-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin:0 0 var(--s-4)}
             .rr-iv-card .rr-iv-title{font-weight:700;color:var(--text);margin-bottom:4px}
             .rr-iv-card .rr-iv-cardsub{font-size:13px;color:var(--text-subtle);margin-bottom:14px}
+            /* Named-schedule switcher row */
+            .rr-iv-sched{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+            .rr-iv-sched .rr-iv-sched-name{flex:1;min-width:180px;border:1px solid var(--border);border-radius:8px;padding:9px 12px;font:inherit;font-size:15px;font-weight:600;color:var(--text);background:var(--canvas)}
+            .rr-iv-sched .rr-iv-sched-name:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+            .rr-iv-sched .rr-iv-sched-pick{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:#fff;color:var(--text);cursor:pointer}
+            .rr-iv-sched .rr-iv-sched-del{border:0;background:transparent;color:var(--text-subtle);cursor:pointer;padding:6px;border-radius:7px;display:inline-flex}
+            .rr-iv-sched .rr-iv-sched-del:hover{background:rgba(220,38,38,.10);color:#dc2626}
+            .rr-iv-sched .rr-iv-sched-active{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--text-muted);cursor:pointer;white-space:nowrap}
             .rr-iv-cfg{display:flex;flex-wrap:wrap;gap:14px 18px;margin-bottom:14px;font-size:13px;color:var(--text-muted)}
             .rr-iv-cfg label{display:inline-flex;align-items:center;gap:6px}
             .rr-iv-cfg select,.rr-iv-cfg input,
