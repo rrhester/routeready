@@ -19349,6 +19349,19 @@ function _ivcalRender() {
       ${pane}
     </div>`;
 
+  // Operator: host the Create pill in the page header, to the LEFT of the
+  // Work Week / Availability view controls, instead of the calendar sidebar.
+  // The create menu is wired document-delegated, so it keeps working after the
+  // move; we drop any previously-relocated pill first to avoid stacking.
+  (function _ivcalDockCreate(){
+    var sub = document.querySelector("#rr-cal-ribbon .subnav");
+    if (!sub) return;
+    var stale = sub.querySelector(".rr-cal-create"); if (stale) stale.remove();
+    var cp = host.querySelector(".rr-cal-create");
+    var vg = sub.querySelector(".rr-cal-viewgroup");
+    if (cp && vg) sub.insertBefore(cp, vg);
+  })();
+
   // Keep the current-time line ticking (created once, cheap minute updates).
   if (!_ivcalNowTimer) _ivcalNowTimer = setInterval(_ivcalTickNow, 60000);
 
