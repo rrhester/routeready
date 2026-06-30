@@ -12600,6 +12600,15 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-ev{cursor:pointer;user-select:none}
             #rr-ivcal .oc-rz{position:absolute;left:0;right:0;bottom:0;height:7px;cursor:ns-resize}
             #rr-ivcal .oc-ev.dragging{opacity:.9;box-shadow:0 6px 16px rgba(0,0,0,.28);z-index:7;cursor:grabbing}
+            /* Tasks · Google-style checkable chip (a circle you click to complete). */
+            #rr-ivcal .oc-ev-task{background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.20);border-left:4px solid #2563EB;border-radius:3px;color:#1E40AF;display:flex;align-items:center}
+            #rr-ivcal .oc-ev-task .oc-task-line{display:flex;align-items:center;gap:6px;min-width:0;width:100%}
+            #rr-ivcal .oc-ev-task .oc-task-check{flex:0 0 auto;width:14px;height:14px;border:1.5px solid #2563EB;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;background:transparent;cursor:pointer;transition:background .12s}
+            #rr-ivcal .oc-ev-task .oc-task-check:hover{background:rgba(37,99,235,.18)}
+            #rr-ivcal .oc-ev-task .oc-task-check.on{background:#2563EB;border-color:#2563EB}
+            #rr-ivcal .oc-ev-task .oc-task-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+            #rr-ivcal .oc-ev-task.is-done{opacity:.62}
+            #rr-ivcal .oc-ev-task.is-done .oc-task-title{text-decoration:line-through;color:var(--oc-sub)}
             #rr-ivcal .oc-cghost{position:absolute;left:2px;right:2px;background:rgba(37,99,235,.16);border:1px solid #2563EB;border-radius:2px;z-index:3;pointer-events:none;font-size:11px;color:#0F3D63;padding:1px 5px;overflow:hidden;font-weight:600}
             /* month */
             #rr-ivcal .oc-mhead{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--oc-colsep);background:#fff;position:sticky;top:0;z-index:6}
