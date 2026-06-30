@@ -6304,14 +6304,29 @@ function _ivToggleRules(force) {
   // own resize handler that would otherwise reset this popover to the narrow
   // right:16/720 default.
   if (next) {
-    // Center the panel horizontally instead of letting it hug the right edge,
-    // so the whole card sits in view and reads like an intentional dialog
-    // rather than a half-off-screen flyout. left = (100vw - width) / 2.
+    // Anchor the panel UNDER its "Availability" launcher, left-aligned to the
+    // button — the way Google floats its create / appointment popover next to
+    // the control that opened it — instead of a centered full-width dialog.
+    // Clamp so the card stays fully on screen on narrow viewports.
     const fitIv = () => {
+      const tog = document.getElementById("rr-iv-rules-toggle");
+      const vw = window.innerWidth;
+      const width = Math.min(820, vw - 32);
+      let left = 20, top = 72;
+      if (tog) {
+        const r = tog.getBoundingClientRect();
+        if (r.bottom > 0) top = Math.round(r.bottom + 8);
+        left = Math.round(r.left);
+      }
+      if (left + width > vw - 16) left = vw - 16 - width;
+      if (left < 16) left = 16;
       pop.style.setProperty("right", "auto", "important");
-      pop.style.setProperty("left", "max(20px, calc(50vw - 450px))", "important");
-      pop.style.setProperty("width", "min(900px, calc(100vw - 40px))", "important");
-      pop.style.setProperty("max-width", "calc(100vw - 40px)", "important");
+      pop.style.setProperty("left", left + "px", "important");
+      pop.style.setProperty("top", top + "px", "important");
+      pop.style.setProperty("width", width + "px", "important");
+      pop.style.setProperty("max-width", "calc(100vw - 32px)", "important");
+      pop.style.setProperty("max-height", "calc(100vh - " + (top + 16) + "px)", "important");
+      pop.style.setProperty("overflow-y", "auto", "important");
     };
     fitIv();
     if (!pop._rrIvFitBound) {
