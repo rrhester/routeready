@@ -18978,11 +18978,37 @@ function _ivcalMyCalendars() {
   }).join("");
   return `<div class="oc-cals">
     ${_ivcalAwaiting()}
+    ${_ivcalBookingPages()}
     <div class="oc-cals-h"><span>My Calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
     <div class="oc-cals-grp">${builtin}</div>
     ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
     ${_ivcalGoogleRow()}
     ${_ivcalLegend()}
+  </div>`;
+}
+
+// ── "Booking pages" sidebar section (Google-style). Lists the DSP's named
+//    interview schedules; clicking one opens the Availability editor focused on
+//    that schedule, and "+" starts a new one. Hidden until schedules exist
+//    (i.e. the 0400 migration is applied). Collapsible like Google's rail.
+let _ivcalBPCollapsed = (() => { try { return localStorage.getItem("rr_ivcal_bp_collapsed") === "1"; } catch (_) { return false; } })();
+function _ivcalBookingPages() {
+  const scheds = (_ivcalCache && _ivcalCache.schedules) || [];
+  if (!scheds.length) return "";
+  const pageIco = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>`;
+  const chev = `<svg class="oc-bp-chev${_ivcalBPCollapsed ? " c" : ""}" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 6 8 10 12 6"/></svg>`;
+  const rows = _ivcalBPCollapsed ? "" : scheds.map(s =>
+    `<div class="oc-bp-row" data-ivcal-bp="${escapeHtml(s.id)}" title="Edit “${escapeHtml(s.name)}”">
+      <span class="oc-bp-ico">${pageIco}</span>
+      <span class="oc-bp-name">${escapeHtml(s.name)}</span>
+      ${s.is_active ? `<span class="oc-bp-active" title="Active booking schedule">active</span>` : ""}
+    </div>`).join("");
+  return `<div class="oc-cals-grp oc-bp">
+    <div class="oc-cals-h oc-bp-h" data-ivcal-bp-toggle role="button" tabindex="0" aria-expanded="${_ivcalBPCollapsed ? "false" : "true"}">
+      ${chev}<span>Booking pages</span>
+      <button type="button" class="oc-cals-add oc-bp-add" data-ivcal-bp-add title="New booking page" aria-label="New booking page">+</button>
+    </div>
+    ${rows}
   </div>`;
 }
 
@@ -18996,9 +19022,11 @@ function _ivcalAwaiting() {
   const rows = list.slice(0, LIM).map(a => {
     const name = rrTitleCaseName(a.full_name) || "Unnamed candidate";
     const sub = a.email ? escapeHtml(a.email) : "Invited — no time booked";
+    const linkIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
     return `<div class="oc-await-row" data-ivcal-await="${escapeHtml(a.id)}" title="Open ${escapeHtml(name)}">
       <span class="oc-await-dot" aria-hidden="true"></span>
       <span class="oc-await-main"><span class="oc-await-name">${escapeHtml(name)}</span><span class="oc-await-sub">${sub}</span></span>
+      <button type="button" class="oc-await-copy" data-ivcal-await-copy="${escapeHtml(a.id)}" title="Copy ${escapeHtml(name)}'s booking link" aria-label="Copy booking link">${linkIco}</button>
       <button type="button" class="oc-await-send" data-ivcal-await-send="${escapeHtml(a.id)}" title="Resend booking link to ${escapeHtml(name)}">Send link</button>
     </div>`;
   }).join("");
@@ -19310,7 +19338,7 @@ async function loadIvCalendar() {
   const firstLoad = !_ivcalCache || !host.querySelector(".oc");
   if (firstLoad) host.innerHTML = `<div class="rr-loading">Loading calendar…</div>`;
   try {
-    const [a, s, b, c, g, w] = await Promise.all([
+    const [a, s, b, c, g, w, sch] = await Promise.all([
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
@@ -19333,6 +19361,9 @@ async function loadIvCalendar() {
         .eq("status", "interview_invited")
         .order("created_at", { ascending: true })
         .limit(50),
+      // Named booking schedules for the "Booking pages" sidebar section.
+      // Tolerated as empty until the 0400 migration is applied.
+      sb.rpc("interview_schedules_list"),
     ]);
     if (a.error) throw a.error;
     let bookings = b.data || [];
@@ -19359,6 +19390,7 @@ async function loadIvCalendar() {
       bookings: bookings,
       calendars: (c && !c.error && c.data) ? c.data : [],
       awaiting: (w && !w.error && Array.isArray(w.data)) ? w.data : [],
+      schedules: (sch && !sch.error && Array.isArray(sch.data)) ? sch.data : [],
       gcal: (g && !g.error && g.data) ? (Array.isArray(g.data) ? g.data[0] : g.data) : null,
       // Carry overlaid Google events across refreshes so minor reloads don't
       // refetch; _ivcalEnsureGoogle refetches only when the window/toggle changes.
@@ -19607,9 +19639,52 @@ function _ivcalRender() {
   // Awaiting scheduling rail: open the applicant, resend their booking link, or
   // jump to the full Funnel when the list overflows.
   host.querySelectorAll("[data-ivcal-await]").forEach(r => r.onclick = (e) => {
-    if (e.target.closest("[data-ivcal-await-send]")) return;
+    if (e.target.closest("[data-ivcal-await-send]") || e.target.closest("[data-ivcal-await-copy]")) return;
     _ivcalOpenApplicant(r.getAttribute("data-ivcal-await"));
   });
+  // Copy a candidate's own /b/<token> booking link (mints it if needed, without
+  // sending anything) — the sidebar way to grab a link and paste it yourself.
+  host.querySelectorAll("[data-ivcal-await-copy]").forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    const id = b.getAttribute("data-ivcal-await-copy");
+    try {
+      const { data, error } = await sb.rpc("booking_link_get", { p_id: id });
+      if (error) throw error;
+      const link = (data && data.link) || "";
+      if (!link) throw new Error("No link returned");
+      try { await navigator.clipboard.writeText(link); } catch (_) {
+        const ta = document.createElement("textarea"); ta.value = link; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+      }
+      toast("Booking link copied", "success");
+    } catch (err) {
+      const msg = /booking_link_get|does not exist|schema cache|pgrst202|not find the function/i.test(JSON.stringify(err))
+        ? "Update needed — run the latest Supabase migration to enable link copying."
+        : "Couldn't get the link: " + (err.message || err);
+      toast(msg, "warn");
+    }
+  });
+  // Booking pages: open the Availability editor focused on a schedule, add a new
+  // one, or collapse the section.
+  host.querySelectorAll("[data-ivcal-bp]").forEach(r => r.onclick = () => {
+    _ivCurSchedId = r.getAttribute("data-ivcal-bp");
+    if (typeof _ivToggleRules === "function") _ivToggleRules(true);
+  });
+  host.querySelector("[data-ivcal-bp-add]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    _ivCurSchedId = "__new";
+    if (typeof _ivToggleRules === "function") _ivToggleRules(true);
+  });
+  const _bpToggle = host.querySelector("[data-ivcal-bp-toggle]");
+  if (_bpToggle) {
+    const doToggle = (e) => {
+      if (e.target.closest("[data-ivcal-bp-add]")) return;
+      _ivcalBPCollapsed = !_ivcalBPCollapsed;
+      try { localStorage.setItem("rr_ivcal_bp_collapsed", _ivcalBPCollapsed ? "1" : "0"); } catch (_) {}
+      _ivcalRender();
+    };
+    _bpToggle.addEventListener("click", doToggle);
+    _bpToggle.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); doToggle(e); } });
+  }
   host.querySelectorAll("[data-ivcal-await-send]").forEach(b => b.onclick = async (e) => {
     e.stopPropagation();
     if (!confirm("Resend the interview booking link so they can pick a time?")) return;

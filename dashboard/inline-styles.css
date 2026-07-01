@@ -12389,6 +12389,21 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-await-more{display:block;width:100%;text-align:left;appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-blue);font:inherit;font-size:12px;font-weight:600;padding:4px 6px;border-radius:5px}
             #rr-ivcal .oc-await-more:hover{background:var(--oc-hover)}
             #rr-ivcal .oc-await-empty{font-size:12px;color:var(--oc-sub);line-height:1.4;padding:2px 6px}
+            /* Copy-booking-link icon on each awaiting-candidate row */
+            #rr-ivcal .oc-await-copy{flex:0 0 auto;appearance:none;border:0;background:transparent;color:var(--oc-sub);cursor:pointer;padding:4px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;transition:background var(--t-fast),color var(--t-fast)}
+            #rr-ivcal .oc-await-copy:hover{background:rgba(37,99,235,.10);color:var(--oc-blue)}
+            /* "Booking pages" section */
+            #rr-ivcal .oc-bp{margin-top:2px}
+            #rr-ivcal .oc-bp-h{cursor:pointer;user-select:none;gap:6px}
+            #rr-ivcal .oc-bp-h>span{flex:1 1 auto}
+            #rr-ivcal .oc-bp-chev{flex:0 0 auto;color:var(--oc-sub);transition:transform var(--t-fast)}
+            #rr-ivcal .oc-bp-chev.c{transform:rotate(-90deg)}
+            #rr-ivcal .oc-bp-add{flex:0 0 auto}
+            #rr-ivcal .oc-bp-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer}
+            #rr-ivcal .oc-bp-row:hover{background:var(--oc-hover)}
+            #rr-ivcal .oc-bp-ico{flex:0 0 auto;color:var(--oc-blue);display:inline-flex}
+            #rr-ivcal .oc-bp-name{flex:1 1 auto;min-width:0;font-size:13px;font-weight:600;color:var(--oc-ink);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+            #rr-ivcal .oc-bp-active{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--oc-blue);background:rgba(37,99,235,.10);padding:2px 6px;border-radius:999px}
             /* Empty-state nudge — shown above the grid when no availability is set. */
             #rr-ivcal .oc-nudge{display:flex;align-items:center;gap:11px;margin:0 0 10px;padding:10px 12px;border:1px solid var(--oc-colsep);border-radius:8px;background:var(--oc-hover);color:var(--oc-ink)}
             #rr-ivcal .oc-nudge-ic{width:20px;height:20px;flex:0 0 auto;color:var(--oc-blue)}
