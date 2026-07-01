@@ -28114,6 +28114,8 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 @keyframes ocFiltersOpen{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-leg .oc-cals-sub{ display:none; } /* "Status"/"Icons" subheads — summary replaces them */
+/* …except the "Labels" divider, which separates label toggles from status. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-leg .oc-cals-sub.oc-leg-lbls{ display:flex !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-leg .oc-leg-tog:hover{ background:#F8FAFC !important; }
 
 /* ── CALENDAR EVENTS · Google-Calendar style ─────────────────────────── */
