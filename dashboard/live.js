@@ -18962,9 +18962,22 @@ function _ivcalCalColor(ev) {
   return c ? c.color : null;
 }
 
-// ── "My Calendars" sidebar section (below the mini-months). Built-in event
-//    kinds toggle via _ivcalFilters; custom calendars toggle via _ivcalCalVis
-//    and overlap like Outlook. ───────────────────────────────────────────────
+// ── "Availability" sidebar section · a single entry into the weekly-hours /
+//    group-sessions editor (same editor the toolbar "Availability" opens). ──
+function _ivcalAvailabilityRow() {
+  const ico = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01"/></svg>`;
+  return `<div class="oc-cals-grp oc-avail-sec">
+    <div class="oc-cals-h"><span>Availability</span></div>
+    <button type="button" class="oc-bp-row oc-avail-open" data-ivcal-avail-open title="Edit weekly hours & group sessions">
+      <span class="oc-bp-ico">${ico}</span>
+      <span class="oc-bp-name">Weekly hours &amp; sessions</span>
+    </button>
+  </div>`;
+}
+
+// ── "Connected calendars" sidebar section (below the mini-months). Built-in
+//    event kinds toggle via _ivcalFilters; custom calendars toggle via
+//    _ivcalCalVis and overlap like Outlook. ────────────────────────────────
 function _ivcalMyCalendars() {
   const cals = (_ivcalCache && _ivcalCache.calendars) || [];
   // Only Interviews ships as a built-in calendar; the DSP creates the rest as
@@ -18978,8 +18991,9 @@ function _ivcalMyCalendars() {
   }).join("");
   return `<div class="oc-cals">
     ${_ivcalAwaiting()}
+    ${_ivcalAvailabilityRow()}
     ${_ivcalBookingPages()}
-    <div class="oc-cals-h"><span>My Calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
+    <div class="oc-cals-h"><span>Connected calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
     <div class="oc-cals-grp">${builtin}</div>
     ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
     ${_ivcalGoogleRow()}
@@ -19064,7 +19078,7 @@ function _ivcalAwaiting() {
     ? rows + more
     : `<div class="oc-await-empty">All caught up — nobody's waiting on a time.</div>`;
   return `<div class="oc-cals-grp oc-await">
-    <div class="oc-cals-h oc-await-h"><span>Awaiting scheduling</span>${list.length ? `<span class="oc-await-count">${list.length}</span>` : ""}</div>
+    <div class="oc-cals-h oc-await-h"><span>Interview booking</span>${list.length ? `<span class="oc-await-count">${list.length}</span>` : ""}</div>
     ${body}
   </div>`;
 }
@@ -19749,6 +19763,11 @@ function _ivcalRender() {
   host.querySelector("[data-ivcal-bp-add]")?.addEventListener("click", (e) => {
     e.stopPropagation();
     _ivCurSchedId = "__new";
+    if (typeof _ivToggleRules === "function") _ivToggleRules(true);
+  });
+  // Availability section row → open the weekly-hours / sessions editor.
+  host.querySelector("[data-ivcal-avail-open]")?.addEventListener("click", () => {
+    _ivCurSchedId = null;
     if (typeof _ivToggleRules === "function") _ivToggleRules(true);
   });
   const _bpToggle = host.querySelector("[data-ivcal-bp-toggle]");
