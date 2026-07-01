@@ -83,6 +83,10 @@
     border-radius:50%;animation:s .7s linear infinite;margin:24px auto}
   @keyframes s{to{transform:rotate(360deg)}}
   .foot{text-align:center;font-size:12px;color:var(--subtle);margin-top:32px}
+  /* Operator preview banner + note */
+  .pv-banner{display:flex;align-items:center;gap:9px;background:#FEF7E0;border:1px solid #FCE8B2;color:#7A5B00;border-radius:10px;padding:10px 14px;font-size:13px;margin:0 0 4px}
+  .pv-banner svg{flex:0 0 auto;color:#B7791F}
+  .pv-note{background:var(--availbg);color:var(--accent-d);border:1px solid #c7dbff;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600;margin-bottom:14px}
 
   @media (max-width:860px){
     .wrap{padding:20px 16px 56px}
@@ -129,6 +133,11 @@ const token = params.get("t") || params.get("token") || (pathMatch && pathMatch[
 
 let TZ = "America/Chicago";
 let DUR = 30;
+// Operator preview: /dashboard/booking.html?preview=<schedule_id> renders the
+// page from a token-free booking_preview() call, with booking disabled.
+const PREVIEW_ID = params.get("preview") || "";
+const PREVIEW = !!PREVIEW_ID;
+let PREVIEW_SLOTS = [];
 
 // ── Date helpers ──────────────────────────────────────────────────────────
 // A "day key" is the slot's calendar date in the host timezone (YYYY-MM-DD).
@@ -170,12 +179,19 @@ let selKey = null;       // currently highlighted day
 let miniAnchor = null;   // first-of-month shown in the mini calendar
 
 async function init() {
-  if (!token) return showError("This scheduling link looks invalid. Please use the link we sent you.");
+  if (!PREVIEW && !token) return showError("This scheduling link looks invalid. Please use the link we sent you.");
   let info;
   try {
-    const { data, error } = await sb.rpc("booking_load", { p_token: token });
-    if (error) throw error;
-    info = data;
+    if (PREVIEW) {
+      const { data, error } = await sb.rpc("booking_preview", { p_schedule_id: PREVIEW_ID });
+      if (error) throw error;
+      info = data;
+      PREVIEW_SLOTS = (data && data.slots) || [];
+    } else {
+      const { data, error } = await sb.rpc("booking_load", { p_token: token });
+      if (error) throw error;
+      info = data;
+    }
   } catch (e) {
     return showError((e && e.message) || "Could not load this scheduling link.");
   }
@@ -193,7 +209,7 @@ async function init() {
     `<div class="host-mrow">${clockIco}<span>${DUR} min appointments</span></div>
      <div class="host-mrow">${camIco}<span>Video conference details added after booking</span></div>`;
 
-  if (info.already_booked) {
+  if (!PREVIEW && info.already_booked) {
     root.innerHTML = `<div class="card"><div class="msg">
       <div class="ok-ico"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
       <strong>You're already scheduled</strong>
@@ -201,7 +217,8 @@ async function init() {
     return;
   }
 
-  root.innerHTML = `<hr class="div">
+  const pvBanner = PREVIEW ? `<div class="pv-banner"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span><strong>Preview</strong> — this is what applicants see. Times aren't bookable here.</span></div>` : "";
+  root.innerHTML = `${pvBanner}<hr class="div">
     <div class="bcard">
       <div class="bcard-h"><h2>Select an appointment time</h2><span class="tz" id="tz-label">${esc(tzPretty(TZ))}</span></div>
       <div id="cal-host"><div class="spin"></div></div>
@@ -212,13 +229,17 @@ async function init() {
 async function loadAndRender() {
   const host = document.getElementById("cal-host");
   let slots;
-  try {
-    const { data, error } = await sb.rpc("interview_open_slots", { p_token: token });
-    if (error) throw error;
-    slots = data || [];
-  } catch (e) {
-    host.innerHTML = `<div class="err" style="font-size:13px">Couldn't load times: ${esc(e.message || e)}</div>`;
-    return;
+  if (PREVIEW) {
+    slots = PREVIEW_SLOTS;
+  } else {
+    try {
+      const { data, error } = await sb.rpc("interview_open_slots", { p_token: token });
+      if (error) throw error;
+      slots = data || [];
+    } catch (e) {
+      host.innerHTML = `<div class="err" style="font-size:13px">Couldn't load times: ${esc(e.message || e)}</div>`;
+      return;
+    }
   }
   BYDAY = new Map(); AVAIL = new Set();
   for (const s of slots) {
@@ -337,6 +358,13 @@ function wire(host) {
 }
 
 async function book(btn) {
+  if (PREVIEW) {
+    const host = document.getElementById("cal-host");
+    let n = document.getElementById("pv-note");
+    if (!n && host) { n = document.createElement("div"); n.id = "pv-note"; n.className = "pv-note"; host.prepend(n); }
+    if (n) n.textContent = "Preview only — applicants pick a time from their own booking link.";
+    return;
+  }
   const start = btn.getAttribute("data-start");
   const session = btn.getAttribute("data-session") || null;
   document.querySelectorAll(".gslot").forEach((b) => (b.disabled = true));

@@ -18987,6 +18987,34 @@ function _ivcalMyCalendars() {
   </div>`;
 }
 
+// Preview what an applicant sees for a schedule — loads the public booking
+// page in an iframe in preview mode (booking disabled). Mirrors Google's
+// "Preview" on an appointment schedule.
+function _ivcalBookingPreview(id, name) {
+  if (!id) return;
+  document.getElementById("rr-bp-preview")?.remove();
+  const url = `/dashboard/booking.html?preview=${encodeURIComponent(id)}`;
+  const ov = document.createElement("div");
+  ov.id = "rr-bp-preview";
+  ov.className = "rr-bp-pv-ov";
+  ov.innerHTML = `<div class="rr-bp-pv-card" role="dialog" aria-modal="true" aria-label="Booking page preview">
+    <div class="rr-bp-pv-head">
+      <div class="rr-bp-pv-t"><span class="rr-bp-pv-badge">Preview</span> What applicants see${name ? ` · ${escapeHtml(name)}` : ""}</div>
+      <div class="rr-bp-pv-actions">
+        <button type="button" class="rr-bp-pv-open" data-open>Open in new tab</button>
+        <button type="button" class="rr-bp-pv-x" data-close title="Close" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <iframe class="rr-bp-pv-frame" src="${escapeHtml(url)}" title="Booking page preview"></iframe>
+  </div>`;
+  document.body.appendChild(ov);
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  ov.addEventListener("click", (e) => { if (e.target === ov || e.target.closest("[data-close]")) close(); });
+  ov.querySelector("[data-open]")?.addEventListener("click", () => window.open(url, "_blank", "noopener"));
+  document.addEventListener("keydown", onKey);
+}
+
 // ── "Booking pages" sidebar section (Google-style). Lists the DSP's named
 //    interview schedules; clicking one opens the Availability editor focused on
 //    that schedule, and "+" starts a new one. Hidden until schedules exist
@@ -19663,11 +19691,11 @@ function _ivcalRender() {
       toast(msg, "warn");
     }
   });
-  // Booking pages: open the Availability editor focused on a schedule, add a new
-  // one, or collapse the section.
+  // Booking pages: clicking a schedule previews exactly what an applicant sees
+  // (the public booking page, booking disabled). "+" opens the editor to add a
+  // new one; the header collapses the section.
   host.querySelectorAll("[data-ivcal-bp]").forEach(r => r.onclick = () => {
-    _ivCurSchedId = r.getAttribute("data-ivcal-bp");
-    if (typeof _ivToggleRules === "function") _ivToggleRules(true);
+    _ivcalBookingPreview(r.getAttribute("data-ivcal-bp"), r.querySelector(".oc-bp-name")?.textContent || "");
   });
   host.querySelector("[data-ivcal-bp-add]")?.addEventListener("click", (e) => {
     e.stopPropagation();
