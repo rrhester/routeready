@@ -19324,12 +19324,20 @@ const _IVCAL_CAM_SVG = '<svg class="ei-cam" viewBox="0 0 24 24" fill="#2563EB" a
 // "My Calendars" kind-dots explain — so spell both out under the calendar list.
 function _ivcalLegend() {
   const C = _IVCAL_CAT_COLOR;
+  // Named labels (the colors you assign by double-clicking an event) surface
+  // here too, so the Filters list matches those colors and each label can be
+  // shown/hidden right alongside the status toggles.
+  const labels = _rrLoadCalLabels().filter(l => (l.name || "").trim());
   // Each status row is a toggle: click to hide that status on the grid, click
   // again to restore. "Show all" appears once anything is hidden.
-  const anyOff = _IVCAL_STATUS_CATS.some(c => _ivcalStatusFilters[c] === false);
+  const anyOff = _IVCAL_STATUS_CATS.some(c => _ivcalStatusFilters[c] === false) || labels.some(l => l.hidden);
   const tog = (cat, label) => {
     const off = _ivcalStatusFilters[cat] === false;
     return `<button type="button" class="oc-cal-row oc-leg-tog${off ? " off" : ""}" data-ivcal-status="${cat}" aria-pressed="${off ? "false" : "true"}" title="${off ? "Show" : "Hide"} ${escapeHtml(label)}"><span class="oc-cal-dot" style="background:${C[cat]}"></span><span class="oc-cal-name">${escapeHtml(label)}</span></button>`;
+  };
+  const labTog = (l) => {
+    const off = !!l.hidden;
+    return `<button type="button" class="oc-cal-row oc-leg-tog${off ? " off" : ""}" data-ivcal-label="${escapeHtml(l.id)}" aria-pressed="${off ? "false" : "true"}" title="${off ? "Show" : "Hide"} ${escapeHtml(l.name)}"><span class="oc-cal-dot" style="background:${escapeHtml(l.color)}"></span><span class="oc-cal-name">${escapeHtml(l.name)}</span></button>`;
   };
   const icon = (glyph, label) =>
     `<div class="oc-cal-row"><span class="oc-leg-ico">${glyph}</span><span class="oc-cal-name">${label}</span></div>`;
@@ -19349,6 +19357,7 @@ function _ivcalLegend() {
     ${tog("gray", "Declined")}
     ${tog("red", "No-show")}
     ${tog("teal", "Group session")}
+    ${labels.length ? `<div class="oc-cals-sub oc-leg-h oc-leg-lbls"><span>Labels</span></div>${labels.map(labTog).join("")}` : ""}
     <div class="oc-cals-sub">Icons</div>
     ${icon(_IVCAL_CAM_SVG, "Has video link")}
     ${icon("✓", "RSVP accepted")}
@@ -19681,11 +19690,27 @@ function _ivcalRender() {
     _ivcalStatusFilters[c] = _ivcalStatusFilters[c] === false ? true : false;
     _ivcalSaveToggles(); _ivcalRender();
   });
+  // Label filter toggles: hide/show every event wearing a label's color. Flips
+  // the label's `hidden` flag (shared with the Labels manager) and re-renders.
+  host.querySelectorAll("[data-ivcal-label]").forEach(b => b.onclick = () => {
+    const id = b.getAttribute("data-ivcal-label");
+    const list = _rrLoadCalLabels();
+    const l = list.find(x => x.id === id);
+    if (!l) return;
+    l.hidden = !l.hidden;
+    _rrSaveCalLabels(list);
+    _rrHiddenLabelSet = _rrHiddenLabelColors();
+    _ivcalRender();
+  });
   host.querySelector("[data-ivcal-status-all]")?.addEventListener("click", (e) => {
     // "Show all" lives inside the Filters <summary> — stop the click from also
     // toggling the disclosure open/closed.
     e.preventDefault(); e.stopPropagation();
     _IVCAL_STATUS_CATS.forEach(c => { _ivcalStatusFilters[c] = true; });
+    const list = _rrLoadCalLabels();
+    let changed = false;
+    list.forEach(l => { if (l.hidden) { l.hidden = false; changed = true; } });
+    if (changed) { _rrSaveCalLabels(list); _rrHiddenLabelSet = _rrHiddenLabelColors(); }
     _ivcalSaveToggles(); _ivcalRender();
   });
   // Awaiting scheduling rail: open the applicant, resend their booking link, or
