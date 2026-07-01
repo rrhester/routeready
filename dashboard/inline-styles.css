@@ -12404,6 +12404,18 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-bp-ico{flex:0 0 auto;color:var(--oc-blue);display:inline-flex}
             #rr-ivcal .oc-bp-name{flex:1 1 auto;min-width:0;font-size:13px;font-weight:600;color:var(--oc-ink);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
             #rr-ivcal .oc-bp-active{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--oc-blue);background:rgba(37,99,235,.10);padding:2px 6px;border-radius:999px}
+            /* Booking-page preview modal (iframes the public booking page) */
+            .rr-bp-pv-ov{position:fixed;inset:0;z-index:10050;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:24px}
+            .rr-bp-pv-card{background:#fff;border-radius:14px;box-shadow:0 24px 70px rgba(15,23,42,.35);width:min(1040px,96vw);height:min(88vh,900px);display:flex;flex-direction:column;overflow:hidden}
+            .rr-bp-pv-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid #E4E4E9;flex:0 0 auto}
+            .rr-bp-pv-t{font-size:14px;font-weight:600;color:#1f2430;display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+            .rr-bp-pv-badge{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#B7791F;background:#FEF7E0;border:1px solid #FCE8B2;padding:2px 7px;border-radius:999px}
+            .rr-bp-pv-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+            .rr-bp-pv-open{appearance:none;border:1px solid #DADCE0;background:#fff;color:#2563EB;font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer}
+            .rr-bp-pv-open:hover{background:#F1F5FF;border-color:#2563EB}
+            .rr-bp-pv-x{appearance:none;border:0;background:transparent;color:#5F6368;font-size:16px;cursor:pointer;width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center}
+            .rr-bp-pv-x:hover{background:#F1F3F4}
+            .rr-bp-pv-frame{flex:1 1 auto;width:100%;border:0;background:#fff}
             /* Empty-state nudge — shown above the grid when no availability is set. */
             #rr-ivcal .oc-nudge{display:flex;align-items:center;gap:11px;margin:0 0 10px;padding:10px 12px;border:1px solid var(--oc-colsep);border-radius:8px;background:var(--oc-hover);color:var(--oc-ink)}
             #rr-ivcal .oc-nudge-ic{width:20px;height:20px;flex:0 0 auto;color:var(--oc-blue)}
