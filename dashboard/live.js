@@ -19357,9 +19357,33 @@ function _ivcalLegend() {
   </details>`;
 }
 
+// Live calendar: subscribe to cal_events for this DSP so a candidate booking
+// (made on their own device) refreshes the grid without an F5, plus a
+// refresh-on-focus fallback for when Realtime was disconnected in the meantime.
+let _ivcalChannel = null, _ivcalLiveBound = false, _ivcalRefreshTimer = null;
+function _ivcalRefreshSoon() {
+  clearTimeout(_ivcalRefreshTimer);
+  _ivcalRefreshTimer = setTimeout(() => { if (typeof _ivcalOnCalendar === "function" && _ivcalOnCalendar()) loadIvCalendar(); }, 400);
+}
+function _ivcalEnsureLive() {
+  if (_ivcalLiveBound) return;
+  _ivcalLiveBound = true;
+  try {
+    const dspId = window.RR && window.RR.dsp && window.RR.dsp.id;
+    if (dspId && sb.channel) {
+      _ivcalChannel = sb.channel("rr-ivcal-" + dspId)
+        .on("postgres_changes", { event: "*", schema: "public", table: "cal_events", filter: "dsp_id=eq." + dspId }, _ivcalRefreshSoon)
+        .subscribe();
+    }
+  } catch (_) {}
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) _ivcalRefreshSoon(); });
+  window.addEventListener("focus", _ivcalRefreshSoon);
+}
+
 async function loadIvCalendar() {
   const host = document.getElementById("rr-ivcal-body");
   if (!host) return;
+  _ivcalEnsureLive();
   // Only show the loading placeholder on the very first paint. On refreshes
   // (after add/move/delete) we fetch silently and swap in the new render in a
   // single paint, so the calendar doesn't blink out to a spinner and back.
