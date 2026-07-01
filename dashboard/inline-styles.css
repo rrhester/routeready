@@ -28132,15 +28132,17 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .et{ font-weight:600 !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.sel{
-  box-shadow:0 0 0 2px #FFFFFF, 0 0 0 3px #1A73E8 !important;
+  box-shadow:0 0 0 2px #FFFFFF, 0 0 0 3px var(--rrp-blue) !important;
 }
-/* Softer category fills (very light), restrained borders. */
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-blue{ background:#E8F0FE !important; border-color:#D2E3FC !important; border-left-color:#1A73E8 !important; color:#174EA6 !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-green{ background:#E6F4EA !important; border-color:#CEEAD6 !important; border-left-color:#1E8E3E !important; color:#137333 !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-orange{ background:#FEF7E0 !important; border-color:#FEEFC3 !important; border-left-color:#E37400 !important; color:#A65300 !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-gray{ background:#F1F3F4 !important; border-color:#E8EAED !important; border-left-color:#80868B !important; color:#5F6368 !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-red{ background:#FCE8E6 !important; border-color:#F6CFCB !important; border-left-color:#D93025 !important; color:#A50E0E !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-teal{ background:#E4F7F5 !important; border-color:#CBEEEA !important; border-left-color:#12A29A !important; color:#0B6E68 !important; }
+/* RouteReady soft category fills — the same soft-blue tint + hairline the
+   Schedule chips use (var(--sch-blue-soft) etc.), uniform border (no heavy
+   left accent), so interviews read as RouteReady assignment cards. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-blue{ background:var(--sch-blue-soft) !important; border-color:rgba(37,99,235,.20) !important; border-left-color:rgba(37,99,235,.20) !important; color:#1E40AF !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-green{ background:rgba(22,163,74,.10) !important; border-color:rgba(22,163,74,.22) !important; border-left-color:rgba(22,163,74,.22) !important; color:#15803D !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-orange{ background:rgba(180,83,9,.10) !important; border-color:rgba(180,83,9,.24) !important; border-left-color:rgba(180,83,9,.24) !important; color:#7C3A06 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-gray{ background:#F3F4F6 !important; border-color:#E5E7EB !important; border-left-color:#E5E7EB !important; color:#5F6368 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-red{ background:rgba(185,28,28,.08) !important; border-color:rgba(185,28,28,.22) !important; border-left-color:rgba(185,28,28,.22) !important; color:#7D1717 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-teal{ background:rgba(13,148,136,.10) !important; border-color:rgba(13,148,136,.22) !important; border-left-color:rgba(13,148,136,.22) !important; color:#115E59 !important; }
 
 /* ── MOTION · view-transition slide + event fade-in ──────────────────── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal{ animation:ocViewIn .2s ease; }
@@ -28508,21 +28510,20 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* ── 6 · Buttons · premium feel, lift on hover, press down ── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn{
-  height:40px !important; min-height:40px !important; padding:0 16px !important;
-  border-radius:12px !important;
+  height:38px !important; min-height:38px !important; padding:0 14px !important;
+  border-radius:8px !important;
   border:1px solid var(--rrp-border) !important; background:var(--rrp-surface) !important;
-  color:var(--rrp-ink) !important; font-weight:550 !important;
-  box-shadow:0 1px 1px rgba(16,24,40,.03) !important;
-  transition:background .18s var(--rrp-ease), box-shadow .18s var(--rrp-ease),
-             transform .18s var(--rrp-ease), border-color .18s var(--rrp-ease) !important;
+  color:var(--rrp-ink) !important; font-weight:500 !important;
+  box-shadow:none !important;
+  transition:background .15s var(--rrp-ease), border-color .15s var(--rrp-ease) !important;
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn.oc-ico{ width:40px !important; padding:0 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn.oc-ico{ width:38px !important; padding:0 !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn:hover{
   background:var(--rrp-hover) !important; border-color:#DCE5F2 !important;
-  box-shadow:0 4px 12px rgba(16,24,40,.10) !important; transform:translateY(-2px) !important;
+  box-shadow:none !important; transform:none !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn:active{
-  transform:translateY(1px) !important; box-shadow:0 1px 2px rgba(16,24,40,.06) !important;
+  transform:none !important; box-shadow:none !important;
   background:var(--rrp-selected) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn.oc-side-toggle.on{
@@ -28531,7 +28532,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* ── 7 · Zoom segment as a single soft-gray pill ── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-seg.oc-zoom{
-  height:40px !important; border-radius:12px !important; overflow:hidden !important;
+  height:38px !important; border-radius:8px !important; overflow:hidden !important;
   border:1px solid var(--rrp-border) !important; background:#F4F7FC !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-seg.oc-zoom button{
@@ -28542,21 +28543,35 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* ── 4 · Day headers · type hierarchy ── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-head{ padding:8px 0 6px !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh{ border:0 !important; padding:10px 0 12px !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh{ border:0 !important; padding:10px 0 12px 14px !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .dow{
   font-size:13px !important; font-weight:500 !important; color:var(--rrp-sub) !important;
   letter-spacing:.01em !important; text-transform:none !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .dn{
-  font-size:32px !important; font-weight:600 !important; color:var(--rrp-ink) !important;
-  letter-spacing:-.02em !important; line-height:1.05 !important; margin-top:2px !important;
+  font-size:22px !important; font-weight:600 !important; color:var(--rrp-ink) !important;
+  letter-spacing:-.01em !important; line-height:1.1 !important; margin-top:2px !important;
 }
-/* today's date number · Google-style blue circle */
+/* Per-day secondary line (interview count) — small, understated, like the
+   Schedule column subhead. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh .oc-dh-meta{
+  margin-top:3px !important; font-size:11px !important; font-weight:500 !important;
+  color:var(--rrp-sub) !important; letter-spacing:.01em !important;
+  white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important;
+}
+/* Selected / today · thin blue underline beneath the header (no circle, no
+   layout shift) + blue weekday + blue date number. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today{
+  box-shadow:inset 0 -2px 0 var(--rrp-blue) !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dow{
+  color:var(--rrp-blue) !important; font-weight:600 !important;
+}
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dn{
-  color:#fff !important; background:var(--rrp-blue) !important;
-  width:42px !important; height:42px !important; line-height:42px !important;
-  border-radius:50% !important; display:inline-block !important; text-align:center !important;
-  font-size:22px !important; box-shadow:0 4px 10px rgba(37,99,235,.30) !important;
+  color:var(--rrp-blue) !important; background:none !important;
+  width:auto !important; height:auto !important; line-height:1.1 !important;
+  border-radius:0 !important; box-shadow:none !important; display:block !important;
+  font-size:22px !important; text-align:left !important;
 }
 
 /* ── 9 · Grid · lines matched to the Schedule page (rgba(15,23,42,.07),
@@ -28580,18 +28595,25 @@ body.rr-cmdk-open{ overflow:hidden }
   box-shadow:0 2px 6px rgba(37,99,235,.35) !important;
 }
 
-/* ── 11 · Events · modern cards, left accent only, hover lift ── */
+/* ── 11 · Events · RouteReady assignment cards · uniform hairline border,
+   8px radius, generous padding, very soft shadow, calm hover (no lift). ── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev{
-  border-radius:12px !important; border:0 !important;
-  border-left:3px solid currentColor !important;
-  padding:7px 10px !important;
-  box-shadow:0 1px 2px rgba(16,24,40,.10) !important;
-  transition:box-shadow .18s var(--rrp-ease), transform .18s var(--rrp-ease) !important;
+  border-radius:8px !important;
+  border:1px solid !important; border-left-width:1px !important;
+  padding:6px 10px !important;
+  box-shadow:0 1px 2px rgba(15,23,42,.05) !important;
+  transition:box-shadow .15s var(--rrp-ease), border-color .15s var(--rrp-ease) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev:hover{
-  transform:translateY(-1px) !important; box-shadow:0 6px 16px rgba(16,24,40,.16) !important; z-index:5 !important;
+  box-shadow:0 1px 2px rgba(15,23,42,.05), 0 4px 10px rgba(15,23,42,.08) !important; z-index:5 !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .et{ font-weight:600 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .en{ font-weight:500 !important; opacity:1 !important; }
+/* role / kind sub-line — small secondary text, like the Schedule chip's route */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev .er{
+  margin-top:1px !important; font-size:10.5px !important; font-weight:500 !important;
+  opacity:.72 !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important;
+}
 
 /* ── 8 · Sidebar refinement · spacing + small-caps section labels ── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals{ display:flex !important; flex-direction:column !important; gap:20px !important; }
@@ -28622,15 +28644,15 @@ body.rr-cmdk-open{ overflow:hidden }
 /* ── Create button · white pill with the navy border the other page
    buttons use (Smart Fill / Work Week / Availability), not a blue CTA. ── */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-trigger{
-  height:44px !important; border-radius:12px !important;
+  height:38px !important; border-radius:8px !important;
   background:rgb(194,231,255) !important; color:var(--rrp-ink) !important;
   border:1.5px solid var(--sidebar-bg, #0F172A) !important;
-  box-shadow:0 1px 1px rgba(16,24,40,.03) !important;
-  transition:background .18s var(--rrp-ease), box-shadow .18s var(--rrp-ease), transform .18s var(--rrp-ease) !important;
+  box-shadow:none !important;
+  transition:background .15s var(--rrp-ease) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-trigger:hover{
   background:rgb(174,221,252) !important;
-  transform:translateY(-2px) !important; box-shadow:0 4px 12px rgba(16,24,40,.10) !important;
+  transform:none !important; box-shadow:none !important;
 }
 /* + and caret glyphs inherit the dark ink now the fill is white */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .rr-cal-create-plus,

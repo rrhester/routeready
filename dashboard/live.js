@@ -21429,7 +21429,12 @@ function _ivcalTimeGrid(ndays) {
   let head = `<div class="oc-corner"></div>`;
   head += days.map(d => {
     const isToday = d.getTime() === today.getTime();
-    return `<div class="oc-dh${isToday?" today":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div></div>`;
+    // Small secondary line, like the Schedule column subhead: how many
+    // interviews sit on this day (respecting the active filters).
+    const n = _ivcalDayItems(d, (_ivcalCache && _ivcalCache.bookings) || [], "starts_at")
+      .filter(b => _ivcalFilterOk(b, "booking") && !_ivcalIsAllDay(b)).length;
+    const meta = n ? `${n} interview${n === 1 ? "" : "s"}` : "—";
+    return `<div class="oc-dh${isToday?" today":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta">${meta}</div></div>`;
   }).join("");
 
   let gutter = "";
