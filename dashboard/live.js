@@ -21125,6 +21125,17 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
         if (new Date(endISO) <= new Date(startISO)) { toast("End must be after start", "warn"); if (btn) btn.style.opacity = ""; return; }
         const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done), attachments: attRefs, all_day: isAllDay } };
+        // Did the time actually move? A rescheduled meeting should (a) be flagged
+        // 'rescheduled' and (b) prompt to notify the attendee — Outlook/Google
+        // both do this. Previously an edit silently stranded the candidate on the
+        // old time.
+        const timeChanged = new Date(startISO).getTime() !== new Date(ev0.starts_at).getTime()
+          || new Date(endISO).getTime() !== new Date(ev0.ends_at || ev0.starts_at).getTime();
+        // Who to notify: the applicant (interview/orientation) or the invitee list.
+        const notifyEmails = ev0.kind === "event"
+          ? ((ev0.metadata && Array.isArray(ev0.metadata.invitees)) ? ev0.metadata.invitees.filter(x => typeof x === "string" && x.includes("@")) : [])
+          : ((ev0.applicants && ev0.applicants.email) ? [ev0.applicants.email] : []);
+        if (timeChanged && !isTask && notifyEmails.length) patch.status = "rescheduled";
         if (ev0.kind === "event") {
           patch.title = title;
           // Only touch calendar_id when assigning one or clearing a prior one,
@@ -21136,7 +21147,23 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         try {
           const { error } = await sb.from("cal_events").update(patch).eq("id", editEv.id);
           if (error) throw error;
-          toast("Event updated", "success");
+          // Offer to email the attendee(s) the new time when it moved.
+          if (timeChanged && !isTask && notifyEmails.length) {
+            const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+            if (dsp && confirm(`The time changed — email the new time to ${notifyEmails.length === 1 ? "the attendee" : notifyEmails.length + " attendees"}?`)) {
+              const evTitle = ev0.kind === "event" ? (title || "Event") : (ev0.kind === "orientation" ? "Orientation" : "Interview");
+              const whenStr = new Date(startISO).toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+              const bodyTxt = `Hi,\n\nYour ${evTitle.toLowerCase()} has been rescheduled to:\n${whenStr}\n\n${roomUrl ? "Join the video meeting: " + roomUrl + "\n\n" : ""}Reply to this email if that time doesn't work.`;
+              const rows = notifyEmails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em, subject: "Updated time: " + evTitle, body_text: bodyTxt, body_html: bodyTxt.replace(/\n/g, "<br>"), cal_event_id: editEv.id }));
+              const { error: mailErr } = await sb.from("email_messages").insert(rows);
+              if (mailErr) toast("Saved, but couldn't queue the notification: " + (mailErr.message || mailErr), "warn");
+              else toast(`Rescheduled · notified ${notifyEmails.length}`, "success");
+            } else {
+              toast("Event updated", "success");
+            }
+          } else {
+            toast("Event updated", "success");
+          }
           closeEditor(); loadIvCalendar();
           if (typeof loadCalBookingsList === "function") loadCalBookingsList();
         } catch (err) { toast("Couldn't save: " + (err.message || err), "warn"); if (btn) btn.style.opacity = ""; }
