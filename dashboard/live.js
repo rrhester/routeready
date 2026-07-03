@@ -19014,11 +19014,16 @@ function _ivcalCalColor(ev) {
 //    group-sessions editor (same editor the toolbar "Availability" opens). ──
 function _ivcalAvailabilityRow() {
   const ico = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01"/></svg>`;
+  const holIco = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="15" x2="16" y2="15"/></svg>`;
   return `<div class="oc-cals-grp oc-avail-sec">
     <div class="oc-cals-h"><span>Availability</span></div>
     <button type="button" class="oc-bp-row oc-avail-open" data-ivcal-avail-open title="Edit weekly hours & group sessions">
       <span class="oc-bp-ico">${ico}</span>
       <span class="oc-bp-name">Weekly hours &amp; sessions</span>
+    </button>
+    <button type="button" class="oc-bp-row oc-avail-overrides" data-ivcal-overrides title="Close specific dates (holidays) or set one-off hours">
+      <span class="oc-bp-ico">${holIco}</span>
+      <span class="oc-bp-name">Holidays &amp; date overrides</span>
     </button>
   </div>`;
 }
@@ -19830,6 +19835,7 @@ function _ivcalRender() {
     _ivCurSchedId = null;
     if (typeof _ivToggleRules === "function") _ivToggleRules(true);
   });
+  host.querySelector("[data-ivcal-overrides]")?.addEventListener("click", () => _rrOpenDateOverrides());
   const _bpToggle = host.querySelector("[data-ivcal-bp-toggle]");
   if (_bpToggle) {
     const doToggle = (e) => {
@@ -22326,6 +22332,111 @@ function _rrOpenLabelsManager() {
   });
   renderRows();
 }
+
+// ── Date overrides manager (holidays / one-off hours) ───────────────────────
+// A standalone modal (like the Labels manager) backed by the interview_override_*
+// RPCs. Operators close specific dates or set custom hours for a date; the
+// booking engine (0407) honors these over the weekly pattern.
+async function _rrOpenDateOverrides() {
+  const old = document.getElementById("rr-ovr-back"); if (old) old.remove();
+  const back = document.createElement("div");
+  back.id = "rr-ovr-back";
+  back.className = "rr-labels-back";
+  back.innerHTML = `<div class="rr-labels" role="dialog" aria-modal="true" aria-label="Holidays & date overrides" style="max-width:460px">
+    <div class="rr-lbl-h">Holidays &amp; date overrides</div>
+    <div class="rr-lbl-sub">Close a date so nobody can book it, or set one-off hours that replace the weekly pattern for that day.</div>
+    <div class="rr-ovr-add" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0 12px">
+      <input type="date" id="rr-ovr-date" style="padding:7px 9px;border:1px solid var(--border);border-radius:6px;font:inherit;background:var(--surface);color:var(--text)">
+      <select id="rr-ovr-mode" style="padding:7px 9px;border:1px solid var(--border);border-radius:6px;font:inherit;background:var(--surface);color:var(--text)">
+        <option value="closed">Closed all day</option>
+        <option value="custom">Custom hours</option>
+      </select>
+      <span id="rr-ovr-times" style="display:none;align-items:center;gap:6px">
+        <input type="time" id="rr-ovr-start" value="09:00" style="padding:7px 9px;border:1px solid var(--border);border-radius:6px;font:inherit;background:var(--surface);color:var(--text)">
+        <span style="color:var(--text-subtle)">–</span>
+        <input type="time" id="rr-ovr-end" value="17:00" style="padding:7px 9px;border:1px solid var(--border);border-radius:6px;font:inherit;background:var(--surface);color:var(--text)">
+      </span>
+      <button type="button" class="btn btn-primary btn-sm" id="rr-ovr-add-btn">Add</button>
+    </div>
+    <div class="rr-lbl-list" id="rr-ovr-list"><div class="rr-loading">Loading…</div></div>
+    <div class="rr-lbl-foot"><span style="flex:1"></span><button type="button" class="btn btn-sm" data-ovr-close>Done</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  const close = () => { back.remove(); document.removeEventListener("keydown", onEsc); };
+  function onEsc(e) { if (e.key === "Escape") close(); }
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-ovr-close]")) close(); });
+  document.addEventListener("keydown", onEsc);
+
+  const listEl = back.querySelector("#rr-ovr-list");
+  const modeSel = back.querySelector("#rr-ovr-mode");
+  const timesEl = back.querySelector("#rr-ovr-times");
+  modeSel.addEventListener("change", () => { timesEl.style.display = modeSel.value === "custom" ? "inline-flex" : "none"; });
+
+  const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const fmtMin = (m) => { const h = Math.floor(m / 60), mn = m % 60, ap = h < 12 ? "AM" : "PM", h12 = ((h + 11) % 12) + 1; return `${h12}:${String(mn).padStart(2, "0")} ${ap}`; };
+  const hhmmToMin = (s) => { const [h, m] = String(s || "").split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+
+  async function refresh() {
+    let rows = [];
+    try {
+      const { data, error } = await sb.rpc("interview_overrides_list");
+      if (error) throw error;
+      rows = data || [];
+    } catch (e) {
+      const missing = /does not exist|schema cache|pgrst202|not find the function/i.test(JSON.stringify(e));
+      listEl.innerHTML = `<div class="rr-iv-err">${missing ? "Update needed — run the latest Supabase migration to enable date overrides." : "Couldn't load: " + escapeHtml(e.message || String(e))}</div>`;
+      return;
+    }
+    if (!rows.length) { listEl.innerHTML = `<div class="oc-cals-empty" style="padding:12px">No date overrides yet. Add one above to close a holiday or set special hours.</div>`; return; }
+    listEl.innerHTML = rows.map(o => {
+      let desc;
+      if (o.is_closed) desc = `<span style="color:var(--red,#B91C1C);font-weight:600">Closed all day</span>`;
+      else {
+        const wins = Array.isArray(o.windows) ? o.windows : [];
+        desc = wins.length ? wins.map(w => `${fmtMin(w.start_min)} – ${fmtMin(w.end_min)}`).join(", ") : "Custom hours";
+      }
+      return `<div class="rr-lbl-row" style="justify-content:space-between">
+        <div><div style="font-weight:600">${escapeHtml(fmtDate(o.override_date))}</div><div style="font-size:12px;color:var(--text-subtle)">${desc}</div></div>
+        <button type="button" class="rr-lbl-del" data-ovr-del="${escapeHtml(o.override_date)}" title="Remove override"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+      </div>`;
+    }).join("");
+    listEl.querySelectorAll("[data-ovr-del]").forEach(b => b.onclick = async () => {
+      const d = b.getAttribute("data-ovr-del");
+      b.disabled = true;
+      try { const { error } = await sb.rpc("interview_override_remove", { p_date: d }); if (error) throw error; await refresh(); if (typeof loadIvCalendar === "function") loadIvCalendar(); }
+      catch (e) { toast("Couldn't remove: " + (e.message || e), "warn"); b.disabled = false; }
+    });
+  }
+
+  back.querySelector("#rr-ovr-add-btn").addEventListener("click", async () => {
+    const dateEl = back.querySelector("#rr-ovr-date");
+    const date = dateEl.value;
+    if (!date) { toast("Pick a date", "warn"); dateEl.focus(); return; }
+    const isClosed = modeSel.value === "closed";
+    let windows = [];
+    if (!isClosed) {
+      const s = hhmmToMin(back.querySelector("#rr-ovr-start").value);
+      const e = hhmmToMin(back.querySelector("#rr-ovr-end").value);
+      if (e <= s) { toast("End time must be after start", "warn"); return; }
+      windows = [{ start_min: s, end_min: e, capacity: 1 }];
+    }
+    const btn = back.querySelector("#rr-ovr-add-btn"); btn.disabled = true;
+    try {
+      const { error } = await sb.rpc("interview_override_set", { p_date: date, p_is_closed: isClosed, p_windows: windows, p_note: null });
+      if (error) throw error;
+      dateEl.value = "";
+      await refresh();
+      if (typeof loadIvCalendar === "function") loadIvCalendar();
+      toast("Date override saved", "success");
+    } catch (e) {
+      const missing = /does not exist|schema cache|pgrst202|not find the function/i.test(JSON.stringify(e));
+      toast(missing ? "Update needed — run the latest Supabase migration." : "Couldn't save: " + (e.message || e), "warn");
+    } finally { btn.disabled = false; }
+  });
+
+  refresh();
+}
+window._rrOpenDateOverrides = _rrOpenDateOverrides;
 
 // Hover preview card.
 let _ivcalHoverTimer = null;
