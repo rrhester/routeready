@@ -5809,7 +5809,7 @@ function _obMxStylesOnce() {
     ".ob-mxdot.readonly:hover{transform:none;box-shadow:0 1px 0 rgba(255,255,255,.9) inset}" +
     ".ob-mxdot[disabled]{cursor:not-allowed;opacity:.5}" +
     ".ob-mx-action{appearance:none;background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:var(--sch-radius,6px);width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color var(--t-fast),border-color .12s,background .12s,transform .12s,box-shadow .12s;line-height:0}" +
-    ".ob-mx-action:hover{color:var(--accent-text);border-color:var(--accent-border);background:var(--surface);transform:translateY(-1px);box-shadow:0 10px 18px -16px rgba(15,23,42,.65)}" +
+    ".ob-mx-action:hover{color:var(--accent-text);border-color:var(--accent-border);background:var(--rr-bg-hover,#F3F4F6)}" +
     ".ob-mx-action.ob-mx-remove:hover{color:var(--red);border-color:rgba(220,38,38,.40);background:var(--red-soft)}" +
     /* ── Onboarding builder ──────────────────────────────────── */
     ".ob-bld-list{display:flex;flex-direction:column;gap:6px}" +

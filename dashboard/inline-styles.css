@@ -13515,7 +13515,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-onboarding-ops .ob-placeholder-card {
             background: var(--surface, #fff);
             border: 1px dashed var(--border-strong, #d1d5db);
-            border-radius: 12px;
+            border-radius: var(--rr-radius-large, 8px);
             min-height: 880px;
             display: flex;
             align-items: center;
@@ -13537,10 +13537,10 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size: 13px;
             line-height: 1.5;
           }
-          @media (max-width: 1180px) {
-            #view-onboarding-ops .ob-overview-cols {
-              grid-template-columns: 1fr !important;
-            }
+          /* Breakpoint kept in sync with the .ob-overview-cols stack rule
+             in onboarding-rrx.css (1024px). Below it, the Documents card
+             drops under the matrix and no longer needs its tall min-height. */
+          @media (max-width: 1024px) {
             #view-onboarding-ops .ob-placeholder-card {
               min-height: 240px;
             }
@@ -13558,8 +13558,8 @@ body.rr-cmdk-open{ overflow:hidden }
             min-width: 0;
             overflow: hidden;
             background: var(--surface, #fff);
-            border: 1px solid var(--border, #e5e7eb);
-            border-radius: 12px;
+            border: 1px solid var(--rr-border-secondary, #e5e7eb);
+            border-radius: var(--rr-radius-large, 8px);
             padding: 18px 18px 16px;
           }
           #view-onboarding-ops #ob-docs-mount #view-documents,
