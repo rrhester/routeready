@@ -925,11 +925,11 @@ function renderApplicantCard(a) {
     ? `<button type="button" class="pa-act-ico pa-act-video${_vidWatched ? "" : " is-unwatched"}" data-rr-action="play_video" data-applicant-id="${escapeHtml(a.id)}" data-video-url="${escapeHtml(a.video_url)}" title="${_vidWatched ? "Re-watch screening video" : "Review screening video"}" aria-label="${_vidWatched ? "Re-watch screening video" : "Review screening video"}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg></button>`
     : "";
 
-  // Decline · the single Actions-column control (operator replaced the ⋯
-  // overflow with a direct Decline button). Small red-tinted labelled button;
-  // same decline dispatcher (opens the decline email in the composer for
-  // review — nothing is sent until the operator hits send).
-  const declineBtn = `<button class="pa-act-decline-btn" type="button" data-rr-action="decline" data-applicant-id="${escapeHtml(a.id)}" title="Decline applicant" aria-label="Decline applicant">Decline</button>`;
+  // Decline · an icon button in the Actions column (operator wants it as an
+  // icon, matching the video icon). Red circle-slash glyph; same decline
+  // dispatcher (opens the decline email in the composer for review — nothing
+  // is sent until the operator hits send).
+  const declineBtn = `<button class="pa-act-ico pa-act-decline" type="button" data-rr-action="decline" data-applicant-id="${escapeHtml(a.id)}" title="Decline applicant" aria-label="Decline applicant"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>`;
 
   // Quiet ⋯ overflow · Phone / Email / Note utilities. Tertiary color,
   // no border, only reads on hover. Menu opens via _paOpenMoreMenu below.
