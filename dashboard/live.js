@@ -5775,7 +5775,7 @@ function _obMxStylesOnce() {
     ".ob-matrix td{padding:15px 9px;border-top:1px solid var(--sch-line-subtle,var(--border-subtle));text-align:center;vertical-align:middle;background:var(--surface-elevated)}" +
     ".ob-matrix tbody tr:first-child td{border-top:0}" +
     ".ob-matrix td.ob-mx-namecell{padding-left:18px;text-align:left;min-width:264px;position:sticky;left:0;background:var(--surface-elevated);z-index:1;box-shadow:8px 0 16px -18px rgba(15,23,42,.6)}" +
-    ".ob-mx-namecell .avatar-sm{width:30px;height:30px;font-size:12px;flex:0 0 auto}" +
+    ".ob-mx-namecell .avatar-sm{width:40px;height:40px;font-size:14px;flex:0 0 auto}" +
     ".ob-matrix td.ob-mx-statuscell{text-align:left}" +
     ".ob-matrix tr:hover td{background:rgba(37,99,235,.06)}" +
     ".ob-matrix tr:hover td.ob-mx-namecell{background:rgba(37,99,235,.06)}" +
@@ -5797,9 +5797,9 @@ function _obMxStylesOnce() {
     /* Label spans hidden (kept in markup as aria fallback so screen
        readers still get the action name). */
     ".ob-tb-btn-label{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}" +
-    ".ob-mx-name{font-size:15px;font-weight:600;color:var(--text);cursor:pointer;letter-spacing:-.005em}" +
+    ".ob-mx-name{font-size:14px;font-weight:600;color:var(--text);cursor:pointer;letter-spacing:-.005em}" +
     ".ob-mx-name:hover{color:var(--accent-text)}" +
-    ".ob-mx-meta{font-size:12px;color:var(--text-subtle);margin-top:3px;line-height:1.35}" +
+    ".ob-mx-meta{font-size:11px;color:var(--text-subtle);margin-top:2px;line-height:1.35}" +
     ".ob-mxdot{appearance:none;position:relative;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-elevated);border:1.75px solid var(--text-disabled);width:17px;height:17px;border-radius:50%;cursor:pointer;padding:0;transition:background var(--t-fast),border-color .12s,transform .1s,box-shadow .12s}" +
     ".ob-mxdot:hover{transform:scale(1.16);border-color:var(--accent-border);box-shadow:0 0 0 4px var(--accent-soft)}" +
     ".ob-mxdot:focus-visible{outline:2px solid var(--accent);outline-offset:2px}" +
