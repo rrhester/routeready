@@ -11358,6 +11358,32 @@ body.rr-cmdk-open{ overflow:hidden }
                just a hairline column divider (consistent with Last updated). */
             border-left:1px solid var(--border);
           }
+          /* Compact icon action row · the primary action, Decline, and ⋯ as
+             small square icon buttons, right-aligned, labels in tooltips. */
+          #view-pipeline .pa-zone-action-icons{
+            flex-direction:row;align-items:center;justify-content:flex-end;gap:2px;
+          }
+          #view-pipeline .pa-act-ico{
+            display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+            width:30px;height:30px;padding:0;border-radius:7px;
+            border:1px solid transparent;background:transparent;color:var(--text-subtle);
+            cursor:pointer;transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+          }
+          #view-pipeline .pa-act-ico svg{width:16px;height:16px;flex:0 0 auto}
+          #view-pipeline .pa-act-ico:hover{background:var(--surface-hover,#F3F4F6);color:var(--text)}
+          #view-pipeline .pa-act-ico:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px #2563EB}
+          /* Primary action · the one accented icon. is-action (ball in our court)
+             gets a soft blue chip; is-followup is a quiet blue that fills on hover. */
+          #view-pipeline .pa-act-ico.pa-act-adv{color:#2563EB}
+          #view-pipeline .pa-act-ico.pa-act-adv.is-action{background:rgba(37,99,235,.10)}
+          #view-pipeline .pa-act-ico.pa-act-adv:hover{background:rgba(37,99,235,.16);color:#1D4ED8}
+          /* Decline · destructive colour only on intent (hover/focus). */
+          #view-pipeline .pa-act-ico.pa-act-decline:hover{background:#FEF2F2;color:#B42318}
+          /* Keep the ⋯ the same size/shape as the other two icon buttons
+             (its base rule is 28px/4 — match to 30px/7 here). */
+          #view-pipeline .pa-zone-action-icons .pa-act-more{
+            width:30px;height:30px;border-radius:7px;flex:0 0 auto;
+          }
           /* V4 action zone · stacked workflow buttons (Fluent hierarchy:
              strong primary, tertiary utility). The CTA, Review video, and
              Decline each take the full column width so they read as one
