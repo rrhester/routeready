@@ -668,6 +668,30 @@ function _addedBadge(a) {
   return `<div class="pa-id-added" style="color:${tone};font-variant-numeric:tabular-nums;font-size:var(--fs-xs)">Added ${escapeHtml(date)} · ${escapeHtml(ageTxt)}</div>`;
 }
 
+// Time-in-stage chip · how long the applicant has sat in their CURRENT stage
+// (distinct from the neutral "Added" age above). Only the stages where waiting
+// is actionable age — applied / screened / booking_pending — since scheduled
+// and hired are settled. Stays a quiet neutral duration until it passes a
+// per-stage target, then picks up a subtle amber "overdue" chip so a recruiter
+// can scan the list for who's stuck without the whole page shouting.
+const _STAGE_SLA_DAYS = { applied: 2, screened: 2, booking_pending: 3 };
+function _stageAgeChip(a) {
+  const stage = a.pipeline_stage;
+  if (!(stage in _STAGE_SLA_DAYS)) return "";
+  const iso = _stageAnchorIso(a);
+  const t = iso ? new Date(iso).getTime() : NaN;
+  if (isNaN(t)) return "";
+  const days = Math.floor((Date.now() - t) / 86400000);
+  if (days < 0) return "";
+  const overdue = days >= _STAGE_SLA_DAYS[stage];
+  const label = days === 0 ? "New today" : days === 1 ? "1d in stage" : `${days}d in stage`;
+  const stageName = STAGE_LABELS[stage] || stage;
+  const title = overdue
+    ? `Waiting ${days} day${days === 1 ? "" : "s"} in ${stageName} — past the ${_STAGE_SLA_DAYS[stage]}-day target`
+    : `${days} day${days === 1 ? "" : "s"} in ${stageName}`;
+  return `<span class="pa-stage-age${overdue ? " is-overdue" : ""}" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
+}
+
 // "Screening invite sent" / "Video completed" / "Applicant added" — pick
 // the verb tied to the latest activity so the Last touch column reads
 // like a verb, not a timestamp.
@@ -877,6 +901,7 @@ function renderApplicantCard(a) {
             <div class="pa-id-pills">
               <span class="pa-stage-pill ${stage}">${escapeHtml(stageLabel)}</span>
               ${scoreChip}
+              ${_stageAgeChip(a)}
             </div>
             <div class="pa-stage-next">${escapeHtml(stageNextTxt)}</div>
           </div>
