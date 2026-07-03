@@ -22230,10 +22230,31 @@ function _ivcalOpenRoom(ev) {
     }
   });
 }
-function _ivcalOpenApplicant(id) {
-  if (typeof window.openApplicant === "function") window.openApplicant(id);
-  else if (typeof openApplicantModal === "function") openApplicantModal(id);
-  else toast("Open the applicant from the Funnel list", "info");
+async function _ivcalOpenApplicant(id) {
+  if (!id) return;
+  // Prefer a host-provided modal if one is ever wired up.
+  if (typeof window.openApplicant === "function") { window.openApplicant(id); return; }
+  if (typeof openApplicantModal === "function") { openApplicantModal(id); return; }
+  // Otherwise land the operator on the candidate's card in the Funnel — the
+  // richest existing view (stage, history, one-click actions). Switch to the
+  // Funnel sub-tab, load every stage, then scroll to + flash the card. obSub
+  // kicks off its own stage load, so force "all" (and reload once if that race
+  // clobbered it) to be sure the card is present.
+  try {
+    if (typeof window.obSub === "function") window.obSub("funnel");
+    const findCard = () => Array.from(document.querySelectorAll(".pa-card"))
+      .find(c => c.getAttribute("data-applicant") === String(id));
+    if (typeof loadPipeline === "function") await loadPipeline("all");
+    let card = findCard();
+    if (!card && typeof loadPipeline === "function") { await loadPipeline("all"); card = findCard(); }
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.classList.add("rr-pa-flash");
+      setTimeout(() => card.classList.remove("rr-pa-flash"), 1600);
+      return;
+    }
+  } catch (_) {}
+  toast("Couldn't jump to this applicant — they may have been hired or declined.", "info");
 }
 
 // Context menu (right-click an event).

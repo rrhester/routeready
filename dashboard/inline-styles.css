@@ -12575,6 +12575,11 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-filters .dot{width:9px;height:9px;border-radius:2px;display:inline-block}
             /* day/week grid */
             #rr-ivcal .oc-head{display:grid;grid-template-columns:50px repeat(var(--days),1fr);border-bottom:1px solid var(--oc-colsep);background:#fff;position:sticky;top:0;z-index:6}
+            /* Brief highlight when the Funnel is opened to a specific applicant
+               (e.g. from the calendar's "Open applicant"), so the eye lands on
+               the right card. */
+            @keyframes rr-pa-flash{0%{box-shadow:0 0 0 0 rgba(37,99,235,.45)}100%{box-shadow:0 0 0 6px rgba(37,99,235,0)}}
+            .pa-card.rr-pa-flash{animation:rr-pa-flash 1.4s ease-out 1;border-color:var(--accent,#2563EB) !important}
             #rr-ivcal .oc-corner{border-right:1px solid var(--oc-colsep);background:#fff;position:relative}
             /* Timezone label · Google-style abbreviation pinned to the bottom of
                the top-left corner, so every time on the grid is unambiguous. */
