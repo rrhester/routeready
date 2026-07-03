@@ -8753,11 +8753,13 @@ function _rrRenderTasks() {
   list.innerHTML = shown.map((t) => {
     const due = t.due ? `<span class="ntp-task-due${_rrNtDueClass(t.due)}">${escapeHtml(_rrNtFmtDue(t.due))}</span>` : "";
     const rep = t.repeat ? `<span class="ntp-task-rep" title="Repeats ${escapeHtml(t.repeat)}">🔁</span>` : "";
+    const del = `<button type="button" class="ntp-task-del" data-rr-task-del="${escapeHtml(t.id)}" title="Delete task" aria-label="Delete task"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
     return `<div class="ntp-task${t.done ? " is-done" : ""}" role="listitem" data-rr-task-id="${escapeHtml(t.id)}">
       <button type="button" class="ntp-task-check" data-rr-task-toggle="${escapeHtml(t.id)}" role="checkbox" aria-checked="${t.done ? "true" : "false"}" aria-label="Toggle complete">${_RR_NTCHECK}</button>
       <span class="ntp-task-title">${escapeHtml(t.title || "")}</span>
       ${rep}${due}
       <span class="ntp-task-avatar" title="${escapeHtml(_rrNtUserName() || "")}">${escapeHtml(init)}</span>
+      ${del}
     </div>`;
   }).join("");
 }
@@ -9076,7 +9078,44 @@ document.addEventListener("click", (e) => {
     if (t) { t.done = !t.done; _rrSaveTasks(tasks); _rrRenderTasks(); }
     return;
   }
+  // Delete a task. Repeating tasks are materialized occurrences sharing a
+  // series id, so those get a choice: just this one, or the whole series.
+  const dl = e.target.closest("[data-rr-task-del]");
+  if (dl) {
+    e.preventDefault();
+    const id = dl.getAttribute("data-rr-task-del");
+    const tasks = _rrLoadTasks();
+    const t = tasks.find((x) => x.id === id);
+    if (!t) return;
+    const kin = t.series ? tasks.filter((x) => x.series === t.series) : [t];
+    if (kin.length > 1) { _rrTaskDelMenu(dl, t, kin.length); return; }
+    if (window.confirm("Delete this task?")) { _rrSaveTasks(tasks.filter((x) => x.id !== id)); _rrRenderTasks(); }
+    return;
+  }
 });
+// Tiny chooser for deleting one occurrence of a repeating task vs. the series.
+function _rrTaskDelMenu(btn, task, count) {
+  document.querySelectorAll(".ntp-task-del-pop").forEach((p) => p.remove());
+  const pop = document.createElement("div");
+  pop.className = "ntp-task-del-pop";
+  pop.innerHTML = `
+    <button type="button" data-del="one">Delete this task</button>
+    <button type="button" data-del="series">Delete all ${count} in this series</button>`;
+  document.body.appendChild(pop);
+  const r = btn.getBoundingClientRect();
+  pop.style.top = `${Math.min(r.bottom + 6, window.innerHeight - pop.offsetHeight - 8)}px`;
+  pop.style.left = `${Math.max(8, Math.min(r.right - pop.offsetWidth, window.innerWidth - pop.offsetWidth - 8))}px`;
+  const close = () => { pop.remove(); document.removeEventListener("click", onDoc, true); };
+  function onDoc(ev) { if (!pop.contains(ev.target)) close(); }
+  setTimeout(() => document.addEventListener("click", onDoc, true), 0);
+  pop.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-del]"); if (!b) return;
+    const all = b.getAttribute("data-del") === "series";
+    _rrSaveTasks(_rrLoadTasks().filter((x) => all ? x.series !== task.series : x.id !== task.id));
+    close(); _rrRenderTasks();
+    toast(all ? "Series deleted" : "Task deleted", "success");
+  });
+}
 // Keep the recurrence sub-controls (weekday picker / monthly pattern / count) in
 // step with the chosen cadence + due date.
 const _RR_DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
