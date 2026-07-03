@@ -6385,6 +6385,7 @@ function _rrBuildAvailMenu() {
   const eyeIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
   const addIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
   const bellIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`;
+  const gearIco = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
   const scheds = (_ivcalCache && _ivcalCache.schedules) || [];
   // Reminders toggle · automatic 24h + 1h candidate reminders (migration 0406).
   // Only shown once the get/set RPCs exist (so it's invisible until applied).
@@ -6397,6 +6398,8 @@ function _rrBuildAvailMenu() {
         `<span class="rr-avail-mi-lbl">Interview reminders</span>` +
         `<span class="rr-avail-switch${on ? " on" : ""}" aria-hidden="true"><span class="rr-avail-knob"></span></span>` +
       `</button>` +
+      `<button type="button" class="rr-avail-mi rr-avail-mi-sub" data-avail-mi="reminders-edit" role="menuitem">` +
+        `<span class="rr-avail-mi-ico">${gearIco}</span><span class="rr-avail-mi-lbl">Customize reminders…</span></button>` +
       `<div class="rr-avail-mi-sep" role="separator"></div>`;
   }
   // "Weekly hours & sessions" was removed — a booking page opens exactly that
@@ -6457,6 +6460,88 @@ async function _rrLoadRemindersState(rebuild) {
   const menu = document.getElementById("rr-iv-avail-menu");
   if (rebuild && menu && !menu.hidden) _rrBuildAvailMenu();
 }
+
+// Reminder customization dialog · edit which reminders send (24h / 1h), over
+// which channels, and the message wording. Backed by the interview_reminders_
+// config_get/set RPCs (migration 0410); degrades to a toast if not applied.
+async function _rrOpenReminderSettings() {
+  let cfg = {};
+  try {
+    const { data, error } = await sb.rpc("interview_reminders_config_get");
+    if (error) throw error;
+    cfg = data || {};
+  } catch (_) {
+    toast("Reminder customization needs migration 0410 — apply it, then try again.", "warn");
+    return;
+  }
+  const d = cfg.defaults || {};
+  const stepsArr = Array.isArray(cfg.steps) ? cfg.steps : null;   // null ⇒ unconfigured (both on)
+  const findStep = (label) => stepsArr ? stepsArr.find(s => s && s.label === label) : { email: true, sms: true };
+  const s24 = findStep("r24h"), s1 = findStep("r1h");
+  const chStr = (v) => v !== false;   // default checked
+  const subj  = cfg.email_subject != null ? cfg.email_subject : (d.email_subject || "");
+  const ebody = cfg.email_body    != null ? cfg.email_body    : (d.email_body || "");
+  const sbody = cfg.sms_body      != null ? cfg.sms_body      : (d.sms_body || "");
+
+  document.getElementById("rr-rem-settings")?.remove();
+  const ov = document.createElement("div");
+  ov.id = "rr-rem-settings";
+  ov.style.cssText = "position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.42);display:flex;align-items:center;justify-content:center;padding:20px";
+  const cb = (id, on) => `<input type="checkbox" id="${id}"${on ? " checked" : ""} style="width:15px;height:15px;accent-color:#2563EB">`;
+  const stepRow = (key, title, sOn, s) => `
+    <div style="display:flex;align-items:center;gap:14px;padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:8px">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;flex:1 1 auto;cursor:pointer">${cb("rs-"+key+"-on", sOn)} ${title}</label>
+      <label style="display:flex;align-items:center;gap:6px;color:var(--text-subtle,#6b7280);cursor:pointer">${cb("rs-"+key+"-email", chStr(s && s.email))} Email</label>
+      <label style="display:flex;align-items:center;gap:6px;color:var(--text-subtle,#6b7280);cursor:pointer">${cb("rs-"+key+"-sms", chStr(s && s.sms))} Text</label>
+    </div>`;
+  const fld = "width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#e5e7eb);border-radius:6px;font:inherit;font-size:13px;background:var(--surface,#fff);color:var(--text,#111)";
+  const lbl = "display:block;font-size:12px;font-weight:600;color:var(--text-subtle,#6b7280);margin:0 0 4px";
+  ov.innerHTML = `
+    <div role="dialog" aria-modal="true" aria-label="Customize interview reminders" style="width:min(560px,96vw);max-height:92vh;overflow:auto;background:var(--surface,#fff);border-radius:12px;box-shadow:0 24px 70px rgba(15,23,42,.36);padding:20px 22px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 4px">
+        <h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text,#111)">Customize interview reminders</h3>
+        <button type="button" data-rs-close style="border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:var(--text-subtle,#6b7280)" aria-label="Close">✕</button>
+      </div>
+      <p style="margin:0 0 14px;font-size:12.5px;color:var(--text-subtle,#6b7280)">Automatic reminders to candidates before their interview. Timing is fixed at 24 hours and 1 hour before; choose which send, over which channels, and the wording.</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin:0 0 16px">
+        ${stepRow("24", "24 hours before", !!s24, s24)}
+        ${stepRow("1", "1 hour before", !!s1, s1)}
+      </div>
+      <div style="margin:0 0 12px"><label style="${lbl}">Email subject</label><input id="rs-subj" type="text" style="${fld}" value="${escapeHtml(subj)}"></div>
+      <div style="margin:0 0 12px"><label style="${lbl}">Email message</label><textarea id="rs-ebody" rows="6" style="${fld};resize:vertical">${escapeHtml(ebody)}</textarea></div>
+      <div style="margin:0 0 8px"><label style="${lbl}">Text message</label><textarea id="rs-sbody" rows="3" style="${fld};resize:vertical">${escapeHtml(sbody)}</textarea></div>
+      <div style="font-size:11.5px;color:var(--text-subtle,#6b7280);line-height:1.6;margin:0 0 16px">
+        Placeholders: <code>{{first_name}}</code> <code>{{kind}}</code> (interview/orientation) <code>{{when}}</code> (date &amp; time) <code>{{join}}</code> (video link) <code>{{dsp}}</code>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" data-rs-close style="padding:8px 14px;border:1px solid var(--border,#e5e7eb);background:var(--surface,#fff);border-radius:8px;font:inherit;font-weight:600;cursor:pointer;color:var(--text,#111)">Cancel</button>
+        <button type="button" data-rs-save style="padding:8px 16px;border:0;background:#2563EB;color:#fff;border-radius:8px;font:inherit;font-weight:600;cursor:pointer">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  ov.addEventListener("click", (e) => {
+    if (e.target === ov || e.target.closest("[data-rs-close]")) { close(); return; }
+    if (e.target.closest("[data-rs-save]")) {
+      const chk = (id) => !!document.getElementById(id)?.checked;
+      const val = (id) => document.getElementById(id)?.value ?? "";
+      const stepsOut = [];
+      if (chk("rs-24-on")) stepsOut.push({ label: "r24h", email: chk("rs-24-email"), sms: chk("rs-24-sms") });
+      if (chk("rs-1-on"))  stepsOut.push({ label: "r1h",  email: chk("rs-1-email"),  sms: chk("rs-1-sms") });
+      const out = { steps: stepsOut, email_subject: val("rs-subj"), email_body: val("rs-ebody"), sms_body: val("rs-sbody") };
+      const btn = e.target.closest("[data-rs-save]");
+      btn.disabled = true; btn.textContent = "Saving…";
+      sb.rpc("interview_reminders_config_set", { p_config: out }).then(({ error }) => {
+        if (error) { btn.disabled = false; btn.textContent = "Save"; toast("Couldn't save: " + (error.message || error), "warn"); return; }
+        toast("Reminder settings saved", "success");
+        close();
+      });
+    }
+  });
+}
+
 document.addEventListener("click", (e) => {
   if (!e.target.closest) return;
   // Toolbar Availability button → open/close the menu (was: open editor).
@@ -6491,7 +6576,8 @@ document.addEventListener("click", (e) => {
       return;
     }
     _rrToggleAvailMenu(false);
-    if (act === "overrides") { if (typeof _rrOpenDateOverrides === "function") _rrOpenDateOverrides(); }
+    if (act === "reminders-edit") { if (typeof _rrOpenReminderSettings === "function") _rrOpenReminderSettings(); }
+    else if (act === "overrides") { if (typeof _rrOpenDateOverrides === "function") _rrOpenDateOverrides(); }
     else if (act === "bp") { _ivCurSchedId = mi.getAttribute("data-bp-id"); if (typeof _ivToggleRules === "function") _ivToggleRules(true); }
     else if (act === "bp-new") { _ivCurSchedId = "__new"; if (typeof _ivToggleRules === "function") _ivToggleRules(true); }
     return;

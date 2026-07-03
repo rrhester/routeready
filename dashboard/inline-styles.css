@@ -26580,6 +26580,8 @@ body.rr-cmdk-open{ overflow:hidden }
   transition:transform .15s ease !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-switch.on .rr-avail-knob{ transform:translateX(12px) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-mi-sub{ font-size:12.5px !important; color:var(--text-subtle, #6b7280) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-mi-sub .rr-avail-mi-ico{ opacity:.85 !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-mi-sep{
   height:1px !important; margin:5px 6px !important; background:rgba(15,23,42,.10) !important;
 }
