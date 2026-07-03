@@ -6380,15 +6380,15 @@ window._rrToggleIvRules = _ivToggleRules;
 function _rrBuildAvailMenu() {
   const menu = document.getElementById("rr-iv-avail-menu");
   if (!menu) return;
-  const calIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01"/></svg>`;
   const holIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="15" x2="16" y2="15"/></svg>`;
   const pageIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>`;
   const eyeIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
   const addIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
   const scheds = (_ivcalCache && _ivcalCache.schedules) || [];
+  // "Weekly hours & sessions" was removed — a booking page opens exactly that
+  // editor (weekly hours are stored per booking page), so it was redundant.
+  // Edit hours by clicking a booking page below; the eye previews it.
   let html =
-    `<button type="button" class="rr-avail-mi" data-avail-mi="weekly" role="menuitem">` +
-      `<span class="rr-avail-mi-ico">${calIco}</span><span class="rr-avail-mi-lbl">Weekly hours &amp; sessions</span></button>` +
     `<button type="button" class="rr-avail-mi" data-avail-mi="overrides" role="menuitem">` +
       `<span class="rr-avail-mi-ico">${holIco}</span><span class="rr-avail-mi-lbl">Holidays &amp; date overrides</span></button>` +
     `<div class="rr-avail-mi-sep" role="separator"></div>` +
@@ -6443,8 +6443,7 @@ document.addEventListener("click", (e) => {
     }
     const act = mi.getAttribute("data-avail-mi");
     _rrToggleAvailMenu(false);
-    if (act === "weekly") { _ivCurSchedId = null; if (typeof _ivToggleRules === "function") _ivToggleRules(true); }
-    else if (act === "overrides") { if (typeof _rrOpenDateOverrides === "function") _rrOpenDateOverrides(); }
+    if (act === "overrides") { if (typeof _rrOpenDateOverrides === "function") _rrOpenDateOverrides(); }
     else if (act === "bp") { _ivCurSchedId = mi.getAttribute("data-bp-id"); if (typeof _ivToggleRules === "function") _ivToggleRules(true); }
     else if (act === "bp-new") { _ivCurSchedId = "__new"; if (typeof _ivToggleRules === "function") _ivToggleRules(true); }
     return;
