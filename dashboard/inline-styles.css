@@ -11172,6 +11172,11 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-card-tag.score{background:var(--canvas);color:var(--text);font-weight:700;font-variant-numeric:tabular-nums;border:1px solid var(--border)}
           .pa-card-tag.score-low{color:var(--red);border-color:var(--red-border)}
           .pa-card-tag.score-mid{color:var(--amber);border-color:var(--amber-border)}
+          /* Time-in-stage · quiet neutral duration; subtle amber chip only once
+             it passes the per-stage target so "who's stuck" scans at a glance
+             without colouring the whole page. */
+          .pa-stage-age{display:inline-flex;align-items:center;font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;line-height:1}
+          .pa-stage-age.is-overdue{padding:2px var(--s-2);border-radius:999px;background:var(--amber-soft,#FEF3C7);color:var(--amber-dark,#B45309);font-weight:600}
           /* Actions cluster on the strip — icon group + action button
              group, separated by a hairline so they read as two
              functional zones (contact / disposition) instead of seven
