@@ -684,7 +684,10 @@ function _stageAgeChip(a) {
   const days = Math.floor((Date.now() - t) / 86400000);
   if (days < 0) return "";
   const overdue = days >= _STAGE_SLA_DAYS[stage];
-  const label = days === 0 ? "New today" : days === 1 ? "1d in stage" : `${days}d in stage`;
+  // Short label (just the duration) so it never overflows the dense nowrap pills
+  // row; the stage pill beside it already names the stage, and the tooltip
+  // carries the full "N days in {stage}" context.
+  const label = days === 0 ? "today" : `${days}d`;
   const stageName = STAGE_LABELS[stage] || stage;
   const title = overdue
     ? `Waiting ${days} day${days === 1 ? "" : "s"} in ${stageName} — past the ${_STAGE_SLA_DAYS[stage]}-day target`
