@@ -695,6 +695,23 @@ function _stageAgeChip(a) {
   return `<span class="pa-stage-age${overdue ? " is-overdue" : ""}" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
 }
 
+// Attention score · a single derived urgency number used to rank the "Action
+// needed" inbox most-urgent-first. Built only from signals already on the
+// applicant row: how long they've waited in stage, whether that's past the
+// stage target, how much leverage the stage has (screened is one step from
+// booked), and quality (chase strong candidates first). Higher = more urgent.
+function _attentionScore(a) {
+  const iso = _stageAnchorIso(a);
+  const t = iso ? new Date(iso).getTime() : NaN;
+  const days = isNaN(t) ? 0 : Math.max(0, Math.floor((Date.now() - t) / 86400000));
+  const sla = _STAGE_SLA_DAYS[a.pipeline_stage] || 3;
+  let s = days * 10;                                   // longer wait ⇒ more urgent
+  if (days >= sla) s += 40;                            // past the stage target
+  if (a.pipeline_stage === "screened") s += 15;        // one step from booked — high leverage
+  if (a.score != null && a.screening_completed_at) s += Math.min(20, a.score * 2); // chase quality
+  return s;
+}
+
 // "Screening invite sent" / "Video completed" / "Applicant added" — pick
 // the verb tied to the latest activity so the Last touch column reads
 // like a verb, not a timestamp.
@@ -1730,8 +1747,15 @@ async function loadPipeline(stage = "all") {
   const emptyMsg = stage === "action_needed"
     ? "You're all caught up — nothing needs action right now."
     : "No applicants yet — share your apply link or add one manually.";
-  list.innerHTML = (rows && rows.length)
-    ? rows.map(renderApplicantCard).join("")
+  // Ranked triage · in the "Action needed" inbox, order most-urgent-first by a
+  // derived attention score (time-in-stage + overdue + stage leverage + quality)
+  // so the recruiter works top-down instead of scrolling to hunt. Other tabs
+  // keep the server order.
+  const ordered = (stage === "action_needed" && rows && rows.length)
+    ? [...rows].sort((x, y) => _attentionScore(y) - _attentionScore(x))
+    : rows;
+  list.innerHTML = (ordered && ordered.length)
+    ? ordered.map(renderApplicantCard).join("")
     : `<div class="rr-empty-inline">${emptyMsg}</div>`;
   // Workspace header count.
   const nRows = (rows && rows.length) || 0;
