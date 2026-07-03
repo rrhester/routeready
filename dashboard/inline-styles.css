@@ -23413,7 +23413,7 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--accent-soft);border:1px solid rgba(37,99,235,.16);
           }
           .docs-empty .ic svg{ width:22px;height:22px; }
-          .docs-empty h3{ margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text); }
+          .docs-empty h3{ margin:0 0 4px;font-size:var(--fs-base);font-weight:600;color:var(--text); }
           .docs-empty p{ margin:0 auto;max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55; }
           .docs-empty.is-error{ border-color:rgba(220,38,38,.30); }
           .docs-empty.is-error .ic{ background:var(--red-soft);color:var(--red);border-color:var(--red-border); }

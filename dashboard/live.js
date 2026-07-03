@@ -6096,14 +6096,23 @@ function _fillObMatrixSkeletonRows(body) {
     #view-onboarding-ops .ob-sk-row {
       display: flex; align-items: center; gap: 12px;
     }
-    /* Skeleton fills · explicit cool gray (#E5E7EB) instead of
-       --canvas. The canvas was brightened to a near-white #F2F7FC
-       cool tint, which made canvas-tinted skeletons disappear
-       against the white card background. Pin to a fixed gray so
-       the ghost rows are always visible. */
+    /* Skeleton fills · share the canonical .rr-skel shimmer so the
+       matrix ghost rows animate identically to the overview cards and
+       the Documents list (one loading language across the page). The
+       gradient mirrors .rr-skel exactly; kept inline here because the
+       ob-sk-* selectors are id-scoped and outrank the .rr-skel class. */
+    #view-onboarding-ops .ob-sk-avatar,
+    #view-onboarding-ops .ob-sk-line,
+    #view-onboarding-ops .ob-sk-icon {
+      background: linear-gradient(90deg,
+        var(--surface-elevated) 0%,
+        rgba(15,23,42,.05) 50%,
+        var(--surface-elevated) 100%);
+      background-size: 200% 100%;
+      animation: rr-skel-shimmer 1.4s ease-in-out infinite;
+    }
     #view-onboarding-ops .ob-sk-avatar {
       width: 28px; height: 28px; border-radius: 50%;
-      background: #E5E7EB;
       display: inline-block;
     }
     #view-onboarding-ops .ob-sk-text {
@@ -6111,7 +6120,6 @@ function _fillObMatrixSkeletonRows(body) {
     }
     #view-onboarding-ops .ob-sk-line {
       display: inline-block;
-      background: #E5E7EB;
       border-radius: 4px;
       height: 9px;
     }
@@ -6133,8 +6141,15 @@ function _fillObMatrixSkeletonRows(body) {
       display: inline-block;
       width: 16px; height: 16px;
       border-radius: 3px;
-      background: #E5E7EB;
       opacity: .8;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #view-onboarding-ops .ob-sk-avatar,
+      #view-onboarding-ops .ob-sk-line,
+      #view-onboarding-ops .ob-sk-icon {
+        animation: none;
+        background: var(--surface-elevated);
+      }
     }
   `;
   document.head?.appendChild(css);
