@@ -11380,6 +11380,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-act-ico.pa-act-adv:hover{background:rgba(37,99,235,.16);color:#1D4ED8}
           /* Decline · destructive colour only on intent (hover/focus). */
           #view-pipeline .pa-act-ico.pa-act-decline:hover{background:#FEF2F2;color:#B42318}
+          /* Review video · blue while unwatched (draws the eye), calms to grey
+             once viewed. */
+          #view-pipeline .pa-act-ico.pa-act-video.is-unwatched{color:#2563EB}
+          #view-pipeline .pa-act-ico.pa-act-video:hover{background:rgba(37,99,235,.10);color:#1D4ED8}
           /* Keep the ⋯ the same size/shape as the other two icon buttons
              (its base rule is 28px/4 — match to 30px/7 here). */
           #view-pipeline .pa-zone-action-icons .pa-act-more{
