@@ -6226,3 +6226,14 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   color: var(--text-subtle);
 }
 
+
+/* ── Keyboard focus rings on the schedule grid (a11y) ─────────────────────────
+   Shift chips are now focusable (tabindex/role=button) and operable with
+   Enter/Space; give them a clear focus ring. :focus-visible only paints under
+   keyboard focus, so this is inert for mouse users. */
+#view-schedule .shift-chip:focus-visible{
+  outline:2px solid var(--rr-brand-primary, #2563EB) !important;
+  outline-offset:2px !important;
+  z-index:3;
+}
+#view-schedule .cal-cell:focus-within{ position:relative; z-index:2; }
