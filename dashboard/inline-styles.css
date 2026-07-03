@@ -11367,7 +11367,13 @@ body.rr-cmdk-open{ overflow:hidden }
              at the bottom-right below them. Operator asked for the Decline
              to line up flush with the CTA above it. */
           #view-pipeline .pa-zone-action-v4{
-            flex-direction:column;align-items:stretch;gap:8px;
+            flex-direction:column;align-items:stretch;gap:6px;
+          }
+          /* Footer row · Decline (ghost) + ⋯ share ONE tight right-aligned line
+             under the primary CTA, so the cluster is a button + a thin footer
+             instead of three stacked full-width elements. */
+          #view-pipeline .pa-zone-action-v4 .pa-act-foot{
+            display:flex;align-items:center;justify-content:flex-end;gap:2px;
           }
           #view-pipeline .pa-zone-action-v4 .pa-btn-advance,
           #view-pipeline .pa-zone-action-v4 .pa-btn-video,

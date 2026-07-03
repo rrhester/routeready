@@ -937,10 +937,8 @@ function renderApplicantCard(a) {
         </div>
 
         <div class="pa-zone pa-zone-action pa-zone-action-v4">
-          ${reviewVideoBtn}
           ${advanceBtn}
-          ${declineBtn}
-          ${moreBtn}
+          <div class="pa-act-foot">${declineBtn}${moreBtn}</div>
         </div>
 
       </div>
@@ -1348,6 +1346,19 @@ function _paOpenMoreMenu(anchor, a) {
   const emailIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>';
   const noteIcon  = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>';
   const declineIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
+  const videoIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>';
+  // Review video · lives in the ⋯ menu (a secondary action) rather than a third
+  // full-width button on the card. Only when a screening video is on file.
+  const videoRow = a.video_url
+    ? `<button class="pa-pop-mi" type="button" data-rr-action="play_video" data-applicant-id="${escapeHtml(a.id)}" data-video-url="${escapeHtml(a.video_url)}">
+        <span class="pa-pop-mi-icon">${videoIcon}</span>
+        <span class="pa-pop-mi-body">
+          <span class="pa-pop-mi-label">${_paVideoWatched(a.id) ? "Re-watch video" : "Review video"}</span>
+          <span class="pa-pop-mi-sub">Screening video</span>
+        </span>
+      </button>
+      <div class="pa-pop-sep" style="height:1px;background:var(--border);margin:5px 8px" role="separator"></div>`
+    : "";
   const row = (act, icon, label, sub, disabled) => `
     <button class="pa-pop-mi${disabled ? " is-disabled" : ""}" type="button" data-rr-more-act="${act}"${disabled ? " disabled" : ""}>
       <span class="pa-pop-mi-icon">${icon}</span>
@@ -1359,7 +1370,8 @@ function _paOpenMoreMenu(anchor, a) {
   // Decline is NOT in this menu — it's a visible (quiet) action on the card, so
   // duplicating it here just added clutter. The ⋯ menu is contact utilities only.
   const html =
-      row("phone", phoneIcon, "Phone", phoneSub, !a.phone)
+      videoRow
+    + row("phone", phoneIcon, "Phone", phoneSub, !a.phone)
     + row("email", emailIcon, "Email", emailSub, !a.email)
     + row("note",  noteIcon,  "Note",  "Add an internal note", false);
   const pop = _paOpenPopover(anchor, html);
