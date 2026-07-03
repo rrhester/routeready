@@ -4,14 +4,42 @@
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
 import { getAccessToken, gcalCreate, gcalUpdate, gcalDelete } from "../_shared/google_calendar.ts";
 
+// A 404/410 from Google means the event is already gone — for a delete that's
+// success, not a failure to record forever.
+const isGone = (e: unknown) => /\b(404|410)\b|not.?found|\bgone\b/i.test(String(e));
+
 Deno.serve(async (req) => {
   if (req.headers.get("x-rr-sync-token") !== Deno.env.get("GOOGLE_SYNC_TRIGGER_TOKEN")) {
     return jsonResponse({ error: "unauthorized" }, { status: 401 });
   }
-  const { cal_event_id, op } = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => ({}));
+  const { cal_event_id, op } = body;
   if (!cal_event_id) return jsonResponse({ error: "cal_event_id required" }, { status: 400 });
 
   const supa = serviceClient();
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  // The trigger fires AFTER DELETE, so the row is already gone and cannot be
+  // re-fetched. The trigger therefore ships the deleted row's Google IDs in the
+  // payload; act on those directly (the previous code re-read the missing row,
+  // found null, and silently skipped — orphaning every deleted event on Google).
+  if (op === "delete") {
+    const dspId = body.dsp_id;
+    const gid = body.google_event_id;
+    const gcal = body.google_calendar_id;
+    if (!dspId || !gid) return jsonResponse({ ok: true, skipped: "nothing_to_delete" });
+    const { data: acct } = await supa.from("google_calendar_accounts")
+      .select("*").eq("dsp_id", dspId).maybeSingle();
+    if (!acct) return jsonResponse({ ok: true, skipped: "not_connected" });
+    try {
+      const token = await getAccessToken(supa, acct);
+      await gcalDelete(token, gcal || acct.calendar_id, gid);
+      return jsonResponse({ ok: true, deleted: true });
+    } catch (e) {
+      if (isGone(e)) return jsonResponse({ ok: true, deleted: "already_gone" });
+      return jsonResponse({ error: String(e) }, { status: 500 });
+    }
+  }
 
   const { data: ev } = await supa.from("cal_events")
     .select("id,dsp_id,applicant_id,kind,status,starts_at,ends_at,timezone,location,meeting_url,google_event_id,google_calendar_id")
@@ -28,25 +56,39 @@ Deno.serve(async (req) => {
     const token = await getAccessToken(supa, acct);
     const cal = ev?.google_calendar_id || acct.calendar_id;
 
+    // Only the applicant's name goes to Google — NEVER internal recruiter notes.
+    // The event lands on the connecting user's primary calendar, which may be
+    // shared, so screening notes/PII must not leak into the description.
     const { data: app } = ev?.applicant_id
-      ? await supa.from("applicants").select("full_name,notes").eq("id", ev.applicant_id).maybeSingle()
+      ? await supa.from("applicants").select("full_name").eq("id", ev.applicant_id).maybeSingle()
       : { data: null };
-    const title = `Interview · ${app?.full_name || "Applicant"}`;
-    const description = [app?.notes, ev?.location, ev?.meeting_url].filter(Boolean).join("\n\n");
+    const word = ev?.kind === "orientation" ? "Orientation" : "Interview";
+    const title = `${word} · ${app?.full_name || "Applicant"}`;
+    const description = [ev?.location, ev?.meeting_url].filter(Boolean).join("\n\n");
     const payload = { title, description, startsAt: ev!.starts_at, endsAt: ev!.ends_at, timezone: ev!.timezone };
 
-    const cancelled = op === "delete" || ["cancelled", "no_show"].includes(ev?.status ?? "");
+    const cancelled = ["cancelled", "no_show"].includes(ev?.status ?? "");
 
     if (cancelled && ev?.google_event_id) {
-      await gcalDelete(token, cal, ev.google_event_id);
-      if (op !== "delete") {
-        await supa.from("cal_events").update({
-          google_event_id: null, google_sync_status: "synced", google_sync_error: null,
-          google_synced_at: new Date().toISOString(),
-        }).eq("id", cal_event_id);
+      try {
+        await gcalDelete(token, cal, ev.google_event_id);
+      } catch (e) {
+        if (!isGone(e)) throw e; // already-deleted on Google → treat as done
       }
+      await supa.from("cal_events").update({
+        google_event_id: null, google_sync_status: "synced", google_sync_error: null,
+        google_synced_at: new Date().toISOString(),
+      }).eq("id", cal_event_id);
     } else if (!cancelled && ev?.google_event_id) {
-      await gcalUpdate(token, cal, ev.google_event_id, payload);
+      try {
+        await gcalUpdate(token, cal, ev.google_event_id, payload);
+      } catch (e) {
+        // The Google copy was deleted out from under us — recreate it so the
+        // link self-heals instead of sticking at 'error' forever.
+        if (!isGone(e)) throw e;
+        const created = await gcalCreate(token, cal, payload);
+        await supa.from("cal_events").update({ google_event_id: (created as { id: string }).id, google_calendar_id: cal }).eq("id", cal_event_id);
+      }
       await supa.from("cal_events").update({
         google_sync_status: "synced", google_sync_error: null, google_synced_at: new Date().toISOString(),
       }).eq("id", cal_event_id);

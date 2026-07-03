@@ -29,9 +29,19 @@ export async function decryptSecret(ctB64: string, ivB64: string): Promise<strin
   return new TextDecoder().decode(pt);
 }
 
+// The OAuth `state` HMAC key. A missing secret MUST hard-fail: an empty-key
+// fallback makes `state` forgeable, letting an attacker bind their own Google
+// account to an arbitrary dsp_id via the public callback (calendar takeover).
+// Mirrors keyBytes()'s fail-closed posture.
+function stateSecret(): string {
+  const s = Deno.env.get("OAUTH_STATE_SECRET");
+  if (!s) throw new Error("OAUTH_STATE_SECRET not set");
+  return s;
+}
+
 // Stateless, signed OAuth state (CSRF + binds the connection to a dsp/user).
 export async function signState(payload: Record<string, unknown>): Promise<string> {
-  const secret = Deno.env.get("OAUTH_STATE_SECRET") || "";
+  const secret = stateSecret();
   const body = b64(new TextEncoder().encode(JSON.stringify(payload)));
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
@@ -39,7 +49,7 @@ export async function signState(payload: Record<string, unknown>): Promise<strin
   return `${body}.${b64(sig)}`;
 }
 export async function verifyState(state: string): Promise<Record<string, unknown> | null> {
-  const secret = Deno.env.get("OAUTH_STATE_SECRET") || "";
+  const secret = stateSecret();
   const [body, sig] = (state || "").split(".");
   if (!body || !sig) return null;
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret),

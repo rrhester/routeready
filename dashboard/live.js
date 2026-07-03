@@ -18913,6 +18913,12 @@ async function loadCalendarTab() {
 // one-off group sessions. Rendered in browser-local time (operator ≈ DSP tz).
 let _ivcalView = "workweek";
 let _ivcalAnchor = new Date();
+// Lower bound for the events fetch (see loadIvCalendar). ~90 days of history
+// keeps the grid navigable into the recent past while guaranteeing all future
+// events load regardless of how many past events have accumulated — without a
+// floor, ascending order + a row limit returns the OLDEST rows and upcoming
+// events silently fall off. History older than this window isn't loaded.
+function _ivcalQueryFloorISO() { return new Date(Date.now() - 90 * 864e5).toISOString(); }
 let _ivcalMiniAnchor = null; // month shown in the mini date navigator (null = follow anchor)
 let _ivcalCache = null; // { tz, windows, sessions, bookings }
 const _IVCAL_H0 = 0, _IVCAL_H1 = 24; // full 24h, scrollable
@@ -18994,6 +19000,9 @@ const _IVCAL_KIND_COLOR = { interview:"#2563EB", orientation:"#B45309", event:"#
 const _IVCAL_KIND_LABEL = { interview:"Interviews", orientation:"Orientations", event:"Events", session:"Group sessions" };
 // Swatches offered in the Add/Edit calendar dialog.
 const _IVCAL_PALETTE = ["#2563EB","#16A34A","#B45309","#B91C1C","#0D9488","#7C3AED","#C2410C","#0891B2","#BE185D","#4338CA","#65A30D","#475569"];
+// Only ever treat https:// links as clickable meeting URLs — a stored
+// javascript:/data: URL must never become an href or iframe src.
+function _ivcalHttps(u) { return /^https:\/\//i.test(String(u || "")) ? String(u) : ""; }
 // Resolve a custom calendar's color for an event (null if none / not custom).
 function _ivcalCalColor(ev) {
   if (!ev || !ev.calendar_id || !_ivcalCache || !_ivcalCache.calendars) return null;
@@ -19459,8 +19468,13 @@ async function loadIvCalendar() {
         .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
+        // Lower bound is critical: without it, ascending order + limit(500)
+        // returns the OLDEST 500 events, so once a DSP accumulates 500+ past
+        // events the upcoming ones fall off the query and the grid goes blank.
+        // Anchor the window to recent-past-through-future instead.
+        .gte("starts_at", _ivcalQueryFloorISO())
         .order("starts_at", { ascending: true })
-        .limit(500),
+        .limit(1000),
       sb.from("calendars")
         .select("id, name, color, sort_order")
         .eq("dsp_id", window.RR.dsp.id)
@@ -19489,8 +19503,9 @@ async function loadIvCalendar() {
         .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
+        .gte("starts_at", _ivcalQueryFloorISO())
         .order("starts_at", { ascending: true })
-        .limit(500);
+        .limit(1000);
       if (b2.error) throw b2.error;
       bookings = b2.data || [];
     }
@@ -19894,8 +19909,18 @@ function _ivcalRender() {
     });
   });
   host.querySelectorAll(".oc-mcell[data-ivcal-date]").forEach(cell => {
-    cell.addEventListener("click", (e) => { if (e.target.closest("[data-ivcal-id]")) return; _ivcalDeselect(); });
-    cell.addEventListener("dblclick", (e) => { if (e.target.closest("[data-ivcal-id]")) return; _ivcalNewEvent(cell.getAttribute("data-ivcal-date"), 9*60, 9*60+30); });
+    cell.addEventListener("click", (e) => {
+      if (e.target.closest("[data-ivcal-id]")) return;
+      // "+N more" (and clicking the day number) jumps to Day view for that date
+      // so overflow events are reachable instead of silently hidden.
+      if (e.target.closest(".oc-more") || e.target.closest(".oc-mnum")) {
+        const [Y, M, D] = cell.getAttribute("data-ivcal-date").split("-").map(Number);
+        _ivcalView = "day"; _ivcalAnchor = new Date(Y, M - 1, D); _ivcalMiniAnchor = null; _ivcalRender();
+        return;
+      }
+      _ivcalDeselect();
+    });
+    cell.addEventListener("dblclick", (e) => { if (e.target.closest("[data-ivcal-id]") || e.target.closest(".oc-more")) return; _ivcalNewEvent(cell.getAttribute("data-ivcal-date"), 9*60, 9*60+30); });
   });
 
   // Reading pane wiring; preserve scroll across re-renders, else scroll to now.
@@ -21678,7 +21703,7 @@ function _ivcalPaneHtml() {
   let rows = drow("🕑", `<strong>${escapeHtml(dateStr)}</strong><br><span style="color:var(--oc-sub)">${escapeHtml(timeStr)}</span>`);
   if (a.email) rows += drow("✉", `<a href="mailto:${escapeHtml(a.email)}">${escapeHtml(a.email)}</a>`);
   if (a.phone) rows += drow("📞", `<a href="tel:${escapeHtml(a.phone)}">${escapeHtml(a.phone)}</a>`);
-  if (ev.meeting_url) rows += drow(_IVCAL_CAM_SVG, `<a href="${escapeHtml(ev.meeting_url)}" target="_blank" rel="noreferrer">Join video meeting</a>`);
+  if (_ivcalHttps(ev.meeting_url)) rows += drow(_IVCAL_CAM_SVG, `<a href="${escapeHtml(_ivcalHttps(ev.meeting_url))}" target="_blank" rel="noreferrer noopener">Join video meeting</a>`);
   else rows += drow(_IVCAL_CAM_SVG, `<span style="color:var(--oc-sub)">No video link yet</span>`);
   if (type !== "session") rows += drow("●", `${escapeHtml(catLabel)}`);
   const note = ev.metadata && ev.metadata.note;
@@ -21758,7 +21783,7 @@ function _ivrJourney(appl) {
   return rows.map(r => `<div class="ivr-jrow${r.cur ? " cur" : ""}">${r.dot}<div class="ivr-jbody"><div class="ivr-jlabel">${escapeHtml(r.label)}</div>${r.sub ? `<div class="ivr-jsub">${escapeHtml(r.sub)}</div>` : ""}</div></div>`).join("");
 }
 function _ivcalOpenRoom(ev) {
-  if (!ev || !ev.meeting_url) { toast("No video link for this interview yet", "warn"); return; }
+  if (!ev || !_ivcalHttps(ev.meeting_url)) { toast("No video link for this interview yet", "warn"); return; }
   const old = document.getElementById("rr-ivroom"); if (old) old.remove();
   const a0 = ev.applicants || {};
   const who = rrTitleCaseName(a0.full_name) || (ev.kind === "event" ? (ev.title || "Interview") : "Interview");

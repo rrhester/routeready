@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#FFFFFF">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
 <title>Respond to your invitation</title>
 <style>
     @font-face{font-family:'Inter';font-style:normal;font-weight:400 700;font-display:swap;src:url(../app/fonts/inter-var-latin.woff2) format('woff2')}
@@ -42,9 +44,14 @@
   .msg{text-align:center;padding:36px 16px;color:var(--muted)}
   .msg strong{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
   .err{color:var(--red)}
+  .inlineerr{color:var(--red);font-size:13px;text-align:center;margin-top:12px}
+  .btn.sel{outline:3px solid rgba(37,99,235,.35);outline-offset:1px}
+  .changelink{display:inline-block;margin-top:14px;background:none;border:0;color:var(--accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline}
+  .confirmhint{font-size:13px;color:var(--muted);text-align:center;margin-top:14px}
   .spin{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--accent);
     border-radius:50%;animation:s .7s linear infinite;margin:30px auto}
   @keyframes s{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none}}
   .foot{text-align:center;font-size:12px;color:var(--subtle);margin-top:22px}
 </style>
 </head>
@@ -75,6 +82,17 @@ const pathMatch = location.pathname.match(/^\/rsvp\/([^/?#]+)/);
 const token = params.get("t") || params.get("token") || (pathMatch && pathMatch[1]) || "";
 const preset = (params.get("r") || "").toLowerCase(); // optional ?r=accept|decline
 
+function tzPretty(tz) {
+  try {
+    const long = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "long" }).formatToParts(new Date()).find(p => p.type === "timeZoneName")?.value || "";
+    const city = String(tz).replace(/^[^/]+\//, "").replace(/_/g, " ");
+    return long ? `${long}${city ? " · " + city : ""}` : city;
+  } catch (_) { return String(tz || "").replace(/^[^/]+\//, "").replace(/_/g, " "); }
+}
+// Only render https meeting links as clickable — a stored javascript:/data: URL
+// must never become an href a candidate can click.
+const safeUrl = (u) => (/^https:\/\//i.test(String(u || "")) ? String(u) : "");
+
 function fmtWhen(ev) {
   const tz = ev.timezone || "America/Chicago";
   const s = new Date(ev.starts_at);
@@ -83,64 +101,111 @@ function fmtWhen(ev) {
   const time = t(s) + (ev.ends_at ? " – " + t(new Date(ev.ends_at)) : "");
   return { date, time, tz };
 }
+const isPast = (ev) => { try { return new Date(ev.ends_at || ev.starts_at).getTime() < Date.now(); } catch (_) { return false; } }
+const isLive = (ev) => ev.status === "scheduled" || ev.status === "rescheduled";
 
 function showError(msg) {
   root.innerHTML = `<div class="card"><div class="msg"><strong>This invitation link looks invalid</strong><span class="err">${esc(msg)}</span></div></div>`;
+}
+// A terminal, non-actionable state (cancelled / passed) — no live buttons.
+function showState(strong, span, kind) {
+  const ico = kind === "ok"
+    ? `<div class="ico ok"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>`
+    : `<div class="ico no"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>`;
+  root.innerHTML = `<div class="card"><div class="result">${ico}<strong>${esc(strong)}</strong><span>${span}</span></div></div>`;
 }
 
 function renderEvent(ev) {
   if (ev.dsp_name) { document.getElementById("hdr-t").textContent = ev.dsp_name; document.getElementById("logo").textContent = (ev.dsp_name[0] || "R").toUpperCase(); }
   const { date, time, tz } = fmtWhen(ev);
-  const join = (ev.rsvp === "accepted" && ev.meeting_url)
-    ? `<a class="join" href="${esc(ev.meeting_url)}" target="_blank" rel="noreferrer">Join the video meeting →</a>` : "";
+
+  // Cancelled / removed event: never show working Accept/Decline (they'd no-op).
+  if (!isLive(ev)) {
+    showState("This event is no longer active",
+      "This invitation was cancelled or is no longer available. If you think this is a mistake, reply to the email or text we sent you.", "no");
+    return;
+  }
+  // Past event.
+  if (isPast(ev)) {
+    showState("This invitation has passed", `${esc(ev.title || "Your interview")} was scheduled for ${esc(date)}.`, "no");
+    return;
+  }
+
+  const join = (ev.rsvp === "accepted" && safeUrl(ev.meeting_url))
+    ? `<a class="join" href="${esc(safeUrl(ev.meeting_url))}" target="_blank" rel="noreferrer noopener">Join the video meeting →</a>` : "";
+  const changeLink = `<button class="changelink" data-change>Change my response</button>`;
 
   if (ev.rsvp === "accepted") {
     root.innerHTML = `<div class="card"><div class="result">
       <div class="ico ok"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
       <strong>You're confirmed</strong><span>${esc(ev.title || "Your interview")}</span>
-      <div class="when" style="margin-top:12px"><b>${esc(date)}</b></div><div class="when">${esc(time)}</div><div class="tz">${esc(tz)}</div>
+      <div class="when" style="margin-top:12px"><b>${esc(date)}</b></div><div class="when">${esc(time)}</div><div class="tz">${esc(tzPretty(tz))}</div>
       ${join}
+      <div>${changeLink}</div>
     </div></div>`;
+    root.querySelector("[data-change]")?.addEventListener("click", () => renderPending(ev, "decline"));
     return;
   }
   if (ev.rsvp === "declined") {
     root.innerHTML = `<div class="card"><div class="result">
       <div class="ico no"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
-      <strong>You've declined</strong><span>We've let the team know. Reply to the email if you'd like to find another time.</span>
+      <strong>You've declined</strong><span>We've let the team know.</span>
+      <div>${changeLink}</div>
     </div></div>`;
+    root.querySelector("[data-change]")?.addEventListener("click", () => renderPending(ev, "accept"));
     return;
   }
-  // pending → show details + Accept / Decline
+  renderPending(ev, preset === "accept" || preset === "decline" ? preset : null);
+}
+
+// pending → details + Accept / Decline. `presel` pre-highlights a choice (from
+// the email's ?r= link or a "change response" click) but ALWAYS requires an
+// on-page click to record it — so mail-scanner prefetches and mis-taps can't
+// silently RSVP.
+function renderPending(ev, presel) {
+  const { date, time, tz } = fmtWhen(ev);
+  const hint = presel ? `<div class="confirmhint">Tap <b>${presel === "accept" ? "Accept" : "Decline"}</b> to confirm your response.</div>` : "";
   root.innerHTML = `<div class="card">
     <h1 class="title">${esc(ev.title || "You're invited")}</h1>
     <div class="when"><b>${esc(date)}</b></div>
     <div class="when">${esc(time)}</div>
-    <div class="tz">${esc(tz)}</div>
+    <div class="tz">${esc(tzPretty(tz))}</div>
     <div class="row">
-      <button class="btn accept" data-r="accept">Accept</button>
-      <button class="btn decline" data-r="decline">Decline</button>
+      <button class="btn accept${presel === "accept" ? " sel" : ""}" data-r="accept">Accept</button>
+      <button class="btn decline${presel === "decline" ? " sel" : ""}" data-r="decline">Decline</button>
     </div>
+    ${hint}
+    <div id="rsvp-err" class="inlineerr"></div>
   </div>`;
   root.querySelectorAll("[data-r]").forEach(b => b.addEventListener("click", () => respond(b.getAttribute("data-r"))));
 }
 
 async function respond(resp) {
-  root.querySelectorAll("button").forEach(b => b.disabled = true);
+  const btns = root.querySelectorAll("[data-r]");
+  btns.forEach(b => b.disabled = true);
+  const errEl = document.getElementById("rsvp-err");
+  if (errEl) errEl.textContent = "";
   try {
     const { data, error } = await sb.rpc("rsvp_respond", { p_token: token, p_response: resp });
     if (error) throw error;
     if (!data || data.ok === false) { showError((data && data.error) || "not found"); return; }
     renderEvent(data);
-  } catch (e) { showError(e.message || String(e)); root.querySelectorAll("button").forEach(b => b.disabled = false); }
+  } catch (e) {
+    // A transient network error must NOT brick the page or claim the link is
+    // invalid — keep the buttons and show an inline, retryable message.
+    console.warn("rsvp failed:", e && (e.message || e));
+    if (errEl) errEl.textContent = "Couldn't save your response — check your connection and try again.";
+    btns.forEach(b => b.disabled = false);
+  }
 }
 
 async function load() {
   if (!token) { showError("missing token"); return; }
   try {
-    // preset response (from an Accept/Decline email link) records immediately;
-    // otherwise just load the event and show the buttons.
-    const resp = (preset === "accept" || preset === "decline") ? preset : null;
-    const { data, error } = await sb.rpc("rsvp_respond", { p_token: token, p_response: resp });
+    // Always LOAD read-only (p_response omitted). The email's ?r= preset is
+    // applied as a pre-highlight in renderPending and only recorded on an
+    // explicit tap — closing the mail-scanner auto-RSVP hole.
+    const { data, error } = await sb.rpc("rsvp_respond", { p_token: token });
     if (error) throw error;
     if (!data || data.ok === false) { showError((data && data.error) || "not found"); return; }
     renderEvent(data);
