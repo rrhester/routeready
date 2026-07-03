@@ -52902,17 +52902,11 @@ async function renderScheduleWeek() {
       `<span class="cal-row-label-hours">${netHoursRounded}h<span class="cal-row-label-hours-word"> scheduled</span></span>`;
     // Overtime warning · gold circle with a white "OT" when this driver is
     // scheduled over the weekly OT threshold (default 40h). Lives in the
-    // right-edge warning cluster alongside the DL + no-van circles.
-    // Headroom to the OT threshold, so a dispatcher can see BEFORE they tip a
-    // driver into overtime. Over threshold → the existing OT badge (now with
-    // how many hours into OT); within 5h below → an amber "near OT" marker
-    // ("Xh until overtime"); otherwise nothing.
-    const _otHeadroom = Math.round((_otThresholdHours - netHoursRounded) * 10) / 10;
+    // right-edge warning cluster alongside the DL + no-van circles. The over-
+    // threshold tooltip states how many hours into overtime the driver is.
     const otWarnIcon = (netHoursRounded > _otThresholdHours)
       ? `<span class="cal-row-label-otwarn" title="Scheduled ${netHoursRounded}h this week — ${Math.round((netHoursRounded - _otThresholdHours) * 10) / 10}h into overtime" aria-label="Scheduled ${netHoursRounded} hours this week — overtime" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrOtWarnIcon("Overtime — " + netHoursRounded + "h scheduled")}</span>`
-      : (netHoursRounded > 0 && _otHeadroom >= 0 && _otHeadroom <= 5)
-        ? `<span class="cal-row-label-nearotwarn" role="img" title="Scheduled ${netHoursRounded}h — ${_otHeadroom}h until overtime (${_otThresholdHours}h)" aria-label="${_otHeadroom} hours until overtime" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0;color:var(--amber-dark,#B45309)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span>`
-        : "";
+      : "";
     const otIcon = ""; // legacy placeholder kept in the row template below
     // No-van warning · red circle with a white "V" when this driver has any
     // scheduled day this week without a van assigned. Sits at the card's
