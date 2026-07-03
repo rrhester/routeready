@@ -863,11 +863,12 @@ function renderApplicantCard(a) {
   else if (stage === "booking_pending") { ctaAction = "resend_link";   ctaLabel = "Resend booking link"; }
   else if (stage === "booking_scheduled") { ctaAction = "reschedule";  ctaLabel = "Reschedule"; }
 
+  // Compact icon-button action row (operator preference): the primary action,
+  // Decline, and ⋯ as small square icon buttons with the label in the tooltip.
+  const _sendIco = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
+  const _calIco  = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
   const advanceBtn = ctaAction
-    ? `<button class="pa-btn-advance ${ctaNeedsAction ? "is-primary is-action" : "is-followup"}" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">
-         <svg class="pa-adv-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-         ${escapeHtml(ctaLabel)}
-       </button>`
+    ? `<button class="pa-act-ico pa-act-adv ${ctaNeedsAction ? "is-action" : "is-followup"}" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}" title="${escapeHtml(ctaLabel)}" aria-label="${escapeHtml(ctaLabel)}">${ctaAction === "reschedule" ? _calIco : _sendIco}</button>`
     : "";
 
   // Review video · secondary button alongside the primary CTA when
@@ -890,14 +891,13 @@ function renderApplicantCard(a) {
 
   // Decline · a visible secondary action (operator asked for it not to be
   // buried in the ⋯ menu). Same confirm + decline_applicant dispatcher.
-  const declineBtn = `<button class="pa-btn-decline" type="button" data-rr-action="decline" data-applicant-id="${escapeHtml(a.id)}" title="Decline applicant">
-       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-       Decline
+  const declineBtn = `<button class="pa-act-ico pa-act-decline" type="button" data-rr-action="decline" data-applicant-id="${escapeHtml(a.id)}" title="Decline applicant" aria-label="Decline applicant">
+       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
      </button>`;
 
   // Quiet ⋯ overflow · Phone / Email / Note utilities. Tertiary color,
   // no border, only reads on hover. Menu opens via _paOpenMoreMenu below.
-  const moreBtn = `<button class="pa-act-more" type="button" data-rr-pa-more aria-label="More actions" title="More actions">
+  const moreBtn = `<button class="pa-act-ico pa-act-more" type="button" data-rr-pa-more aria-label="More actions" title="More actions">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
         <circle cx="5"  cy="12" r="1.7"/>
         <circle cx="12" cy="12" r="1.7"/>
@@ -936,9 +936,8 @@ function renderApplicantCard(a) {
           <div class="pa-upd-time">${escapeHtml(updTime)}</div>
         </div>
 
-        <div class="pa-zone pa-zone-action pa-zone-action-v4">
-          ${advanceBtn}
-          <div class="pa-act-foot">${declineBtn}${moreBtn}</div>
+        <div class="pa-zone pa-zone-action pa-zone-action-icons">
+          ${advanceBtn}${declineBtn}${moreBtn}
         </div>
 
       </div>
