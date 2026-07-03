@@ -12473,8 +12473,51 @@ body.rr-cmdk-open{ overflow:hidden }
             overflow:hidden;
           }
           #view-pipeline .pipe-applicants .pa-card + .pa-card{border-top:1px solid var(--border)}
-          #view-pipeline .pa-card:hover{background:rgba(37,99,235,.035)}
           #view-pipeline .pa-card.expanded{background:rgba(37,99,235,.05);box-shadow:none;border:0}
+
+          /* ══ Enterprise selection state ══════════════════════════════════
+             A 4px RouteReady-blue accent bar on the left edge is the primary
+             "this record is active" indicator (Outlook / Linear / Salesforce),
+             backed by a whisper-subtle blue ring + soft shadow. Calm, not
+             colourful — the rest of the list recedes naturally. */
+          #view-pipeline .pa-card{position:relative}
+          /* The accent bar · absolutely placed so it never shifts layout;
+             animates 0 → 4px on select and 4 → 0 on deselect. Left corners
+             lightly rounded to sit cleanly against the list's rounded frame. */
+          #view-pipeline .pa-card::before{
+            content:"";position:absolute;left:0;top:0;bottom:0;width:0;z-index:3;
+            background:#2563EB;border-radius:2px 0 0 2px;pointer-events:none;
+            transition:width 180ms cubic-bezier(.2,0,.2,1);
+          }
+          #view-pipeline .pa-card.is-selected::before,
+          #view-pipeline .pa-card:focus-visible::before{width:4px}
+          /* Hover · gentle raise + pointer; stays flat on the row list (no
+             layout shift) — the soft shadow reads as a light lift. */
+          #view-pipeline .pa-card:hover{
+            background:rgba(37,99,235,.035);
+            box-shadow:0 2px 9px rgba(37,99,235,.06);
+          }
+          /* Selected row · a hair brighter, a very subtle blue ring (inset so
+             the row model keeps its dividers) and a soft shadow. The bar leads;
+             the fill stays near-white so it never reads as a heavy highlight. */
+          #view-pipeline .pa-card.is-selected{
+            background:rgba(37,99,235,.045);
+            box-shadow:inset 0 0 0 1px rgba(37,99,235,.18),0 2px 8px rgba(37,99,235,.07);
+            transition:background var(--t-fast),box-shadow var(--t-smooth);
+          }
+          #view-pipeline .pa-card.is-selected:hover{
+            box-shadow:inset 0 0 0 1px rgba(37,99,235,.18),0 3px 11px rgba(37,99,235,.10);
+          }
+          /* Keyboard focus · same obvious selected chrome without the default
+             outline, so the active record is clear without a pointer. */
+          #view-pipeline .pa-card:focus-visible{
+            outline:none;
+            background:rgba(37,99,235,.045);
+            box-shadow:inset 0 0 0 1px rgba(37,99,235,.30),0 2px 8px rgba(37,99,235,.08);
+          }
+          @media (prefers-reduced-motion:reduce){
+            #view-pipeline .pa-card::before{transition:none}
+          }
           #view-pipeline .pa-row{padding:13px 16px;gap:var(--s-3)}
           /* Stage badge · Fluent — a compact rectangle chip, one line. */
           #view-pipeline .pa-stage-pill{
