@@ -995,9 +995,10 @@ async function _paOpenRecord(id) {
     <style>
       #rr-pa-record{position:fixed;inset:0;z-index:9600}
       #rr-pa-record .rec-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.34)}
-      #rr-pa-record .rec-panel{position:absolute;top:0;right:0;bottom:0;width:min(440px,94vw);background:var(--surface,#fff);
-        box-shadow:-16px 0 48px rgba(15,23,42,.22);display:flex;flex-direction:column;animation:recIn .18s ease}
-      @keyframes recIn{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
+      #rr-pa-record .rec-panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+        width:min(460px,94vw);max-height:88vh;background:var(--surface,#fff);border-radius:14px;
+        box-shadow:0 24px 70px rgba(15,23,42,.30);display:flex;flex-direction:column;overflow:hidden;animation:recIn .16s ease}
+      @keyframes recIn{from{transform:translate(-50%,-50%) scale(.96);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
       @media(prefers-reduced-motion:reduce){#rr-pa-record .rec-panel{animation:none}}
       #rr-pa-record .rec-head{display:flex;gap:12px;align-items:flex-start;padding:18px 18px 14px;border-bottom:1px solid var(--border,#e5e7eb)}
       #rr-pa-record .rec-av{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:0 0 auto}
