@@ -598,7 +598,7 @@
                .ob-overview-left (loadOnboardingOps writes there);
                .ob-overview-right is a sibling placeholder card the
                operator will populate with moved-in items shortly. -->
-          <div class="ob-overview-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+          <div class="ob-overview-cols">
             <div id="obsub-overview-left" class="ob-overview-left">
               <!-- Skeleton readiness matrix — 4 cohort cards stacked.
                    Replaced by loadOnboardingOps() once data arrives. -->

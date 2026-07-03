@@ -1828,3 +1828,19 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   outline-offset: -3px;
   border-radius: 4px;
 }
+
+/* ── Onboarding overview: readiness matrix + Documents, two equal columns ─────
+   Moved off inline styles so the layout is responsive. Below 1024px the two
+   columns stack (Documents under the matrix), mirroring how the Schedule page
+   collapses its right rail on narrow widths. */
+#view-onboarding-ops .ob-overview-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--rr-space-160, 16px);
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  #view-onboarding-ops .ob-overview-cols {
+    grid-template-columns: 1fr;
+  }
+}
