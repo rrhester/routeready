@@ -11359,9 +11359,10 @@ body.rr-cmdk-open{ overflow:hidden }
             border-left:1px solid var(--border);
           }
           /* Compact icon action row · the primary action, Decline, and ⋯ as
-             small square icon buttons, right-aligned, labels in tooltips. */
+             small square icon buttons, left-aligned in the action column so they
+             sit closer to the content (not pinned to the far-right edge). */
           #view-pipeline .pa-zone-action-icons{
-            flex-direction:row;align-items:center;justify-content:flex-end;gap:2px;
+            flex-direction:row;align-items:center;justify-content:flex-start;gap:2px;
           }
           #view-pipeline .pa-act-ico{
             display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
