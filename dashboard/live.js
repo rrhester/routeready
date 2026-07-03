@@ -1356,21 +1356,12 @@ function _paOpenMoreMenu(anchor, a) {
         <span class="pa-pop-mi-sub">${sub}</span>
       </span>
     </button>`;
+  // Decline is NOT in this menu — it's a visible (quiet) action on the card, so
+  // duplicating it here just added clutter. The ⋯ menu is contact utilities only.
   const html =
       row("phone", phoneIcon, "Phone", phoneSub, !a.phone)
     + row("email", emailIcon, "Email", emailSub, !a.email)
-    + row("note",  noteIcon,  "Note",  "Add an internal note", false)
-    // Decline → reuses the global data-rr-action dispatcher (confirm +
-    // decline_applicant RPC + funnel refresh). The capture listener above
-    // closes this popover before the action fires.
-    + `<div class="pa-pop-sep" style="height:1px;background:var(--border);margin:5px 8px" role="separator"></div>`
-    + `<button class="pa-pop-mi" type="button" data-rr-action="decline" data-applicant-id="${escapeHtml(a.id)}" style="color:var(--red)">
-        <span class="pa-pop-mi-icon" style="color:var(--red)">${declineIcon}</span>
-        <span class="pa-pop-mi-body">
-          <span class="pa-pop-mi-label" style="color:var(--red)">Decline</span>
-          <span class="pa-pop-mi-sub">Reject &amp; remove from the funnel</span>
-        </span>
-      </button>`;
+    + row("note",  noteIcon,  "Note",  "Add an internal note", false);
   const pop = _paOpenPopover(anchor, html);
   if (!pop) return;
   pop.classList.add("pa-pop-menu");

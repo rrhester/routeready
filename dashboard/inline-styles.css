@@ -11377,6 +11377,17 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-zone-action-v4 .pa-act-more{
             flex:0 0 auto;align-self:flex-end;
           }
+          /* Decline · a quiet ghost link, not a second full-width bordered
+             button. Stays visible (an operator wanted it out of the ⋯ menu)
+             but reads clearly secondary to the primary CTA above it, so the
+             cluster no longer looks like two equal-weight stacked buttons. */
+          #view-pipeline .pa-zone-action-v4 .pa-btn-decline{
+            width:auto;align-self:flex-end;border:0;background:transparent;
+            padding:4px 8px;font-weight:500;color:#B42318;box-shadow:none;
+          }
+          #view-pipeline .pa-zone-action-v4 .pa-btn-decline:hover{
+            background:#FEF2F2;border-color:transparent;
+          }
           /* Review video · secondary action that sits next to the
              primary CTA on screened applicants. Subtle Fluent
              outline button — clear it's a button but visually
