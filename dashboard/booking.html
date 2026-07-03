@@ -294,7 +294,10 @@ async function init() {
       <div class="ok-ico"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
       <strong>You're already scheduled</strong>
       <span>${detail}</span>${extras}
-      <div style="margin-top:18px;font-size:13px;color:var(--subtle)">Need to change it? Reply to the email or text we sent you.</div></div></div>`;
+      <div class="cbtns" style="justify-content:center"><button class="btn" data-ab="reschedule">Reschedule</button><button class="btn" data-ab="cancel" style="color:var(--red);border-color:#E6C3C0">Cancel interview</button></div>
+      <div id="ab-err" class="err" style="font-size:13px;margin-top:10px"></div></div></div>`;
+    root.querySelector('[data-ab="reschedule"]').addEventListener("click", () => changeBooking("reschedule"));
+    root.querySelector('[data-ab="cancel"]').addEventListener("click", () => changeBooking("cancel"));
     return;
   }
 
@@ -319,6 +322,32 @@ function wireTz() {
     wireTz();
     if (document.querySelector(".confirm")) renderConfirm(); else renderBooking();
   });
+}
+
+// Cancel (and optionally re-book) the existing interview. Reschedule = cancel
+// then re-enter the picker; the server frees the slot and lets them book again.
+async function changeBooking(mode) {
+  if (mode === "cancel" && !confirm("Cancel your interview? This frees your time slot.")) return;
+  const errEl = document.getElementById("ab-err");
+  document.querySelectorAll("[data-ab]").forEach(b => b.disabled = true);
+  if (errEl) errEl.textContent = "";
+  try {
+    const { data, error } = await sb.rpc("cancel_interview_booking", { p_token: token });
+    if (error) throw error;
+    if (!data?.ok) throw new Error("Could not update your booking.");
+    if (mode === "reschedule") {
+      root.innerHTML = `<div class="spin"></div>`;
+      await init();   // reloads booking_load (now unbooked) → shows the picker
+    } else {
+      root.innerHTML = `<div class="card"><div class="msg">
+        <strong>Your interview is cancelled</strong>
+        <span>If you'd like to book a new time, reply to the email or text we sent you.</span></div></div>`;
+    }
+  } catch (e) {
+    console.warn("change booking failed:", e && (e.message || e));
+    if (errEl) errEl.textContent = bookErrorCopy(e && e.message);
+    document.querySelectorAll("[data-ab]").forEach(b => b.disabled = false);
+  }
 }
 
 async function loadAndRender() {

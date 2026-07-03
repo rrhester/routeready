@@ -28683,3 +28683,19 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-ivcal input[type="checkbox"],#rr-ivcal .oc-more,#rr-ivcal .oc-mnum{ cursor:pointer !important; }
 .rr-cp-sv,.rr-cp-hue,.rr-cp-sv *,.rr-cp-hue *{ cursor:crosshair !important; }
 .oc-menu button:not(:disabled),.oc-menu [role="button"]{ cursor:pointer !important; }
+
+/* ── Design-review fix (2026-07): keyboard focus visibility ───────────────────
+   The oc- namespace had no real focus-visible styling — event chips, grid
+   controls, and swatches relied on UA defaults (and several killed them). Give
+   every focusable calendar control a clear ring so the now-keyboard-operable
+   grid is actually navigable. */
+#rr-ivcal :is(button,[role="button"],[tabindex="0"],a[href],input,select):focus-visible{
+  outline:2px solid #2563EB !important; outline-offset:2px !important;
+  border-radius:4px;
+}
+#rr-ivcal .oc-ev:focus-visible,#rr-ivcal .oc-adbar:focus-visible,#rr-ivcal .oc-pill:focus-visible{
+  outline:2px solid #1D4ED8 !important; outline-offset:1px !important; z-index:5;
+}
+/* Menus/dialogs rendered on <body> (outside #rr-ivcal) still need a ring. */
+.oc-menu button:focus-visible,.oc-caldlg-sw .oc-sw:focus-visible,.oc-menu .oc-sw:focus-visible,
+.rr-cp-sw:focus-visible{ outline:2px solid #2563EB !important; outline-offset:2px !important; }

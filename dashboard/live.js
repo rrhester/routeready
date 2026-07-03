@@ -19149,13 +19149,19 @@ function _ivcalGoogleRow() {
   const head = `<div class="oc-cals-sub">Google Calendar</div>`;
   if (connected) {
     const on = _ivcalCalVis["google"] !== false;
+    // Surface push-sync failures (events that didn't reach Google). Without this
+    // a failed sync is indistinguishable from a successful one from every screen.
+    const syncFails = ((_ivcalCache && _ivcalCache.bookings) || []).filter(b => b && b.google_sync_status === "error").length;
+    const syncNote = syncFails
+      ? `<div class="oc-gcal-err" title="These interviews didn't sync to Google. They'll retry automatically the next time they're edited.">⚠ ${syncFails} event${syncFails === 1 ? "" : "s"} didn't sync to Google</div>`
+      : "";
     const errNote = (on && _ivcalGoogleErr)
       ? `<div class="oc-gcal-err" title="${escapeHtml(_ivcalGoogleErr)}">⚠ Couldn't load Google events — is the google-calendar-events function deployed?</div>`
       : "";
     return head + `<div class="oc-cal-row oc-gcal-row">
       <label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="google"${on?" checked":""}><span class="oc-cal-dot" style="background:${_ivcalGoogleColor}"></span><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span><span class="oc-cal-name" title="${escapeHtml(g.email||"")}">${escapeHtml(g.email||"Google")}</span></label>
       <button class="oc-cal-menu" data-ivcal-gcal="menu" title="Calendar options" aria-label="Google calendar options">⋯</button>
-    </div>${errNote}`;
+    </div>${syncNote}${errNote}`;
   }
   return head + `<button class="oc-gcal-connect" data-ivcal-gcal="connect"><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span>Connect Google Calendar</button>`;
 }
@@ -19465,7 +19471,7 @@ async function loadIvCalendar() {
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         // Lower bound is critical: without it, ascending order + limit(500)
@@ -19879,6 +19885,15 @@ function _ivcalRender() {
     });
     el.addEventListener("dblclick", (e) => { e.stopPropagation(); _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
     el.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); _ivcalContextMenu(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
+    // Keyboard: Enter/Space opens the event; the whole grid is now operable
+    // without a mouse. (Chips carry tabindex/role="button" from render.)
+    el.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault(); e.stopPropagation();
+      const kind = el.getAttribute("data-ivcal-kind"), id = el.getAttribute("data-ivcal-id");
+      if (kind === "session") { _ivcalSelect(kind, id); return; }
+      _ivcalEditEvent(kind, id);
+    });
   });
   // Read-only Google events open in Google Calendar.
   host.querySelectorAll("[data-ivcal-glink]").forEach(el => {
@@ -21393,7 +21408,7 @@ function _ivcalEventBlock(ev, type, lay) {
     const check = `<span class="oc-task-check${done ? " on" : ""}" data-oc-task-toggle="1" role="button" tabindex="-1" style="border-color:${tColor}${done ? `;background:${tColor}` : ""}" title="${done ? "Mark not done" : "Mark complete"}">${done ? checkSvg : ""}</span>`;
     const tInner = `<div class="oc-task-line">${check}<span class="oc-task-title">${escapeHtml(time)} ${escapeHtml(label)}</span></div>`;
     const tRz = `<div class="oc-rz" data-oc-resize></div>`;
-    return `<div class="oc-ev oc-ev-task${done ? " is-done" : ""}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};border-left-color:${tColor};background:${tColor}14;color:${tColor}" title="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}">${tInner}${tRz}</div>`;
+    return `<div class="oc-ev oc-ev-task${done ? " is-done" : ""}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};border-left-color:${tColor};background:${tColor}14;color:${tColor}" title="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}">${tInner}${tRz}</div>`;
   }
   let icons = "";
   // The camera glyph is its own hit target: clicking it opens the video
@@ -21409,7 +21424,7 @@ function _ivcalEventBlock(ev, type, lay) {
   // color, which in turn overrides the status-based category palette.
   const cc = (ev.metadata && ev.metadata.color) || _ivcalCalColor(ev);
   const ccStyle = cc ? `;border-left-color:${cc};border-color:${cc}55;background:${cc}1f;color:${cc}` : "";
-  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)}${ccStyle}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
+  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time+" · "+label)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)}${ccStyle}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
 }
 
 // Side-by-side column layout: when timed events overlap, split the column so
@@ -21492,7 +21507,7 @@ function _ivcalAllDayBar(ev, type) {
   const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
   const cc = (ev.metadata && ev.metadata.color) || _ivcalCalColor(ev);
   const ccStyle = cc ? `border-left-color:${cc};background:${cc}1f;color:${cc}` : "";
-  return `<div class="oc-adbar cat-${cat}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="${ccStyle}" title="${escapeHtml("All day · " + label)}"><span class="oc-adbar-t">${escapeHtml(label)}</span></div>`;
+  return `<div class="oc-adbar cat-${cat}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml("All day · " + label)}" style="${ccStyle}" title="${escapeHtml("All day · " + label)}"><span class="oc-adbar-t">${escapeHtml(label)}</span></div>`;
 }
 function _ivcalGoogleAllDayBar(ge) {
   return `<div class="oc-adbar oc-adbar-google" data-ivcal-glink="${escapeHtml(ge.htmlLink || "")}" style="color:${_ivcalGoogleColor};border-left-color:${_ivcalGoogleColor};background:${_ivcalGoogleColor}1a" title="${escapeHtml((ge.title || "(busy)") + " · all day · Google")}"><span class="oc-pdot" style="background:${_ivcalGoogleColor}"></span><span class="oc-adbar-t">${escapeHtml(ge.title || "(busy)")}</span></div>`;
@@ -21633,7 +21648,7 @@ function _ivcalMonth() {
       const sel = _ivcalSelected && _ivcalSelected.kind === it.kind && String(_ivcalSelected.id) === String(it.id);
       const dotStyle = it.color ? ` style="background:${it.color}"` : "";
       const pillStyle = it.color ? ` style="color:${it.color}"` : "";
-      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${sel?" sel":""}"${pillStyle} data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"${dotStyle}></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
+      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${sel?" sel":""}"${pillStyle} data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" tabindex="0" role="button" aria-label="${escapeHtml(tm+" "+it.label)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"${dotStyle}></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
     }).join("");
     const more = items.length > 4 ? `<div class="oc-more">+${items.length-4} more</div>` : "";
     cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${pills}${more}</div>`;
