@@ -18791,6 +18791,22 @@ function renderInterviewDay(day, rows) {
     ? `Day closed · ${new Date(day.closed_at).toLocaleString()}`
     : "Close interview day";
 
+  // No-show recovery toggle · sits by the Close-day link. When on (default),
+  // marking a no-show resends a booking link and returns the candidate to the
+  // Awaiting rail. Per-browser preference (rr_noshow_rebook).
+  let rebookWrap = wrap.querySelector("[data-rr-noshow-rebook-wrap]");
+  if (!rebookWrap) {
+    rebookWrap = document.createElement("label");
+    rebookWrap.dataset.rrNoshowRebookWrap = "1";
+    rebookWrap.style.cssText = "display:inline-flex;align-items:center;gap:7px;margin:14px 0 0 14px;font-size:var(--fs-sm);color:var(--text-subtle);cursor:pointer";
+    rebookWrap.innerHTML = `<input type="checkbox" data-rr-noshow-rebook style="width:14px;height:14px;accent-color:#2563EB"><span>Resend booking link on no-show</span>`;
+    wrap.insertBefore(rebookWrap, closeBtn.nextSibling);
+    const rebookCb = rebookWrap.querySelector("[data-rr-noshow-rebook]");
+    rebookCb.onchange = () => { try { localStorage.setItem("rr_noshow_rebook", rebookCb.checked ? "1" : "0"); } catch (_) {} };
+  }
+  const rebookCb = rebookWrap.querySelector("[data-rr-noshow-rebook]");
+  if (rebookCb) rebookCb.checked = _noShowRebookOn();
+
   // Show "done" state once everyone is decided + day is closed.
   const done = document.getElementById("iv-done");
   if (done) {
@@ -18915,6 +18931,12 @@ function setText(id, txt) {
   if (el) el.textContent = txt;
 }
 
+// Whether marking a no-show also resends a booking link + re-queues the
+// candidate in Awaiting (per-browser preference, default on).
+function _noShowRebookOn() {
+  try { return localStorage.getItem("rr_noshow_rebook") !== "0"; } catch (_) { return true; }
+}
+
 // Capture-phase delegate for outcome + close-day buttons.
 document.addEventListener("click", async (e) => {
   const outcomeBtn = e.target.closest("[data-rr-outcome]");
@@ -18936,10 +18958,21 @@ document.addEventListener("click", async (e) => {
       return;
     }
     const msgFailed = result && result.message_error;
+    // No-show recovery · unless turned off, resend a booking link and return the
+    // candidate to the Awaiting rail so a no-show gets another chance instead of
+    // silently dropping out. Best-effort: never blocks the recorded outcome.
+    let rebookMsg = "";
+    if (outcome === "no_show" && _noShowRebookOn()) {
+      try {
+        const { error: rbErr } = await sb.rpc("no_show_rebook", { p_applicant_id: id });
+        if (rbErr) throw rbErr;
+        rebookMsg = " · booking link resent";
+      } catch (rb) { console.warn("no_show_rebook:", rb && (rb.message || rb)); }
+    }
     toast(
       (outcome === "hired" ? "Hired ✓ · driver record created"
        : outcome === "no_hire" ? "Marked no hire"
-       : "Marked no show")
+       : "Marked no show" + rebookMsg)
       + (msgFailed ? " · applicant message not sent (no outcome template configured)" : ""),
       outcome === "hired" && !msgFailed ? "success" : "warn",
     );
