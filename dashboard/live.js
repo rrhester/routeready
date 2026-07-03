@@ -2951,6 +2951,20 @@ async function _rrUndoTo(targetIndex) {
   }
 }
 
+// Cmd/Ctrl+Z → undo the last schedule action. Dispatchers expect this; without
+// it the undo affordance is effectively invisible mid-task. Ignored while typing
+// in a field and only when there's something to undo.
+document.addEventListener("keydown", (e) => {
+  if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+    const tag = (document.activeElement && document.activeElement.tagName) || "";
+    if (/INPUT|TEXTAREA|SELECT/.test(tag) || document.activeElement?.isContentEditable) return;
+    if (Array.isArray(_rrUndoStack) && _rrUndoStack.length) {
+      e.preventDefault();
+      _rrUndoOne();
+    }
+  }
+});
+
 document.addEventListener("click", (e) => {
   const menu = document.getElementById("rr-undo-menu");
   if (e.target.closest("#rr-undo-btn"))   { _rrUndoOne(); return; }
@@ -10082,18 +10096,26 @@ async function _rrSmartFillDiagnostics(opts = {}) {
   if (opts.log !== false) {
     console.log("%c[Smart Fill diagnostics]", "font-weight:bold", "\n" + report);
   }
-  try {
-    _downloadBlob(`smart-fill-trace-${week}-${stamp}.txt`,
-      new Blob([report], { type: "text/plain" }));
-    _downloadBlob(`smart-fill-trace-${week}-${stamp}.json`,
-      new Blob([JSON.stringify(trace, null, 2)], { type: "application/json" }));
-  } catch (e) {
-    console.warn("[Smart Fill diagnostics] download failed:", e);
+  // Writing .txt/.json to the operator's disk is developer tooling — only do it
+  // when explicitly requested (opts.download) or a debug flag is set, so an
+  // operator who runs this from the console doesn't get mystery downloads.
+  let _downloaded = false;
+  const _dbg = opts.download === true || (typeof window !== "undefined" && (window.__RR_DEBUG || (() => { try { return localStorage.getItem("rr_debug") === "1"; } catch (_) { return false; } })()));
+  if (_dbg) {
+    try {
+      _downloadBlob(`smart-fill-trace-${week}-${stamp}.txt`,
+        new Blob([report], { type: "text/plain" }));
+      _downloadBlob(`smart-fill-trace-${week}-${stamp}.json`,
+        new Blob([JSON.stringify(trace, null, 2)], { type: "application/json" }));
+      _downloaded = true;
+    } catch (e) {
+      console.warn("[Smart Fill diagnostics] download failed:", e);
+    }
   }
   if (typeof toast === "function") {
     const c = (trace.run_summary && trace.run_summary.counts) || {};
     toast(`Diagnostics ready — ${c.drivers_excluded ?? "?"} drivers excluded, ` +
-          `${c.shifts_unfilled ?? "?"} shifts open. Report downloaded.`, "success");
+          `${c.shifts_unfilled ?? "?"} shifts open.${_downloaded ? " Report downloaded." : " (See console.)"}`, "success");
   }
   return trace;
 }
@@ -35184,6 +35206,23 @@ async function _runUnassignAllShiftsForWeek(triggerEl) {
       .not("shift_kind", "in", "(training,ride_along)");
     _priorAssign = _pa || [];
   } catch (_) {}
+  // Confirm before wiping a finalized (live) week or a large number of
+  // assignments — this instantly de-publishes and clears the week. (Undo
+  // exists, but a mis-click on a live week is costly enough to gate.)
+  const _isFinalized = !!window._rrWeekFinalized;
+  if ((_isFinalized || _priorAssign.length >= 10) && typeof _rrConfirmDialog === "function") {
+    const ok = await _rrConfirmDialog({
+      title: "Unassign every shift this week?",
+      body: (_isFinalized ? "This week is LIVE. Unassigning all shifts will unpublish it and " : "This will ")
+        + `clear ${_priorAssign.length} driver assignment${_priorAssign.length === 1 ? "" : "s"}. You can undo this.`,
+      confirmLabel: "Unassign all",
+      cancelLabel: "Cancel",
+    });
+    if (!ok) {
+      if (triggerEl) { triggerEl.disabled = false; triggerEl.removeAttribute("aria-busy"); if (isTextBtn) triggerEl.textContent = "Unassign all shifts this week"; }
+      return;
+    }
+  }
   // Only clear route shifts. Classroom training + ride-alongs are deliberate
   // driver↔driver pairings (trainee/trainer) and must survive Unassign all,
   // same as PTO / time-off (which live in time_off_requests, not shifts).
@@ -41070,7 +41109,17 @@ document.addEventListener("click", async (e) => {
     const ok = target
       ? await _rrConfirmDialog({
           title: "Finalize this week?",
-          body: "This marks the schedule live for drivers. Edits after this will trigger a warning prompt.",
+          body: (() => {
+            const open = Number(window._rrOpenShiftsCount) || 0;
+            const viol = Number(window._rrWeekViolationCount) || 0;
+            const flags = [];
+            if (open) flags.push(`${open} open route${open === 1 ? "" : "s"}`);
+            if (viol) flags.push(`${viol} rule violation${viol === 1 ? "" : "s"}`);
+            const preflight = flags.length
+              ? `<strong>Publishing with ${flags.join(" and ")}.</strong><br>`
+              : "";
+            return preflight + "This marks the schedule live for drivers. Edits after this will trigger a warning prompt.";
+          })(),
           confirmLabel: "Finalize",
           cancelLabel: "Cancel",
         })
@@ -51465,9 +51514,24 @@ async function renderScheduleWeek() {
     sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart }),
   ]);
 
-  if (gridRes.error)    { console.warn("schedule_grid:", gridRes.error.message); return; }
-  if (driversRes.error) { console.warn("drivers load:", driversRes.error.message); return; }
-  if (toRes.error)      { console.warn("time_off load:", toRes.error.message); return; }
+  // A load failure must NOT silently leave a blank or stale grid — the
+  // dispatcher could schedule against nothing (or last week's data). Show a
+  // visible error with a retry instead of returning quietly.
+  const _schedLoadError = (which, err) => {
+    console.warn(which + ":", err && err.message);
+    const wrap = sub.querySelector(".cal-wrap");
+    if (wrap) {
+      wrap.innerHTML = `<div class="rr-sched-load-err" role="alert" style="padding:32px 24px;text-align:center;color:var(--text-muted)">
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">Couldn't load the schedule</div>
+        <div style="font-size:13px;margin-bottom:14px">${escapeHtml((err && err.message) || "Please check your connection and try again.")}</div>
+        <button type="button" class="btn btn-sm" id="rr-sched-retry">Retry</button>
+      </div>`;
+      wrap.querySelector("#rr-sched-retry")?.addEventListener("click", () => { try { renderScheduleWeek(); } catch (_) {} });
+    }
+  };
+  if (gridRes.error)    { _schedLoadError("schedule_grid", gridRes.error); return; }
+  if (driversRes.error) { _schedLoadError("drivers load", driversRes.error); return; }
+  if (toRes.error)      { _schedLoadError("time_off load", toRes.error); return; }
   if (femVehRes?.error)    console.warn("FEM vehicles load:", femVehRes.error.message);
   if (femAssignRes?.error) console.warn("FEM assignments load:", femAssignRes.error.message);
 
@@ -51996,6 +52060,9 @@ async function renderScheduleWeek() {
 
   // Rule violations across assigned shifts in the week (now includes WOC).
   const violations = await _computeWeekViolations(grid.shifts || [], drivers, timeOff, _schedStart, fmtIsoDate(weekEnd));
+  // Expose the violation count so the Finalize pre-flight can warn before
+  // publishing a week with open routes / rule breaches.
+  window._rrWeekViolationCount = violations.length;
 
   // Preferred-day coverage: of the shifts assigned to drivers who flagged
   // preferred days, how many landed on one of those days.
@@ -56894,7 +56961,7 @@ document.addEventListener("drop", async (e) => {
     if (pool && _dragShift.fromDriver) {
       e.preventDefault();
       pool.classList.remove("rr-pool-drop-active");
-      const { shiftId, sourceEl } = _dragShift;
+      const { shiftId, sourceEl, fromDriver, fromDate } = _dragShift;
       _dragShift = null;
       if (sourceEl) sourceEl.style.opacity = "";
       if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) return;
@@ -56906,6 +56973,20 @@ document.addEventListener("drop", async (e) => {
         toast("Couldn't unassign: " + (error.message || "unknown"), "warn");
       } else {
         toast("Shift moved to open shifts", "success");
+        // Make the unassign undoable (this drop path previously had no undo).
+        if (fromDriver && typeof _rrPushUndo === "function") {
+          _rrPushUndo({
+            label: "Shift unassigned" + (fromDate ? " · " + fromDate : ""),
+            undo: async () => {
+              _markLocalShiftMutation();
+              const { error: undoErr } = await sb.from("shifts")
+                .update({ driver_id: fromDriver, updated_at: new Date().toISOString() })
+                .eq("id", shiftId);
+              if (undoErr) throw new Error(undoErr.message);
+              if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+            },
+          });
+        }
       }
       if (typeof renderScheduleWeek === "function") renderScheduleWeek();
       if (typeof loadCoverageRadar === "function") loadCoverageRadar();
@@ -56975,9 +57056,28 @@ document.addEventListener("drop", async (e) => {
     }
   } catch { /* render reconciles */ }
 
+  // Capture the prior state up front so (a) a cross-day move can shift the
+  // start/end timestamps onto the new day — leaving them on the old day breaks
+  // payroll windows and day grouping — and (b) the move becomes undoable.
+  let _prior = null;
+  try {
+    const { data: cur } = await sb.from("shifts").select("driver_id, date, starts_at, ends_at").eq("id", shiftId).maybeSingle();
+    _prior = cur || null;
+  } catch (_) {}
+
   const patch = { updated_at: new Date().toISOString() };
   if (toDriver !== fromDriver) patch.driver_id = toDriver;
-  if (toDate   !== fromDate)   patch.date      = toDate;
+  if (toDate   !== fromDate) {
+    patch.date = toDate;
+    // Move starts_at/ends_at by the same whole-day delta so the timestamps
+    // track the new calendar day instead of stranding on the original day.
+    const dayMs = 86400000;
+    const delta = Math.round((Date.parse(toDate + "T00:00:00Z") - Date.parse(fromDate + "T00:00:00Z")) / dayMs);
+    if (_prior && delta) {
+      if (_prior.starts_at) patch.starts_at = new Date(Date.parse(_prior.starts_at) + delta * dayMs).toISOString();
+      if (_prior.ends_at)   patch.ends_at   = new Date(Date.parse(_prior.ends_at)   + delta * dayMs).toISOString();
+    }
+  }
 
   _markLocalShiftMutation();
   const { error } = await sb.from("shifts").update(patch).eq("id", shiftId);
@@ -56986,6 +57086,21 @@ document.addEventListener("drop", async (e) => {
     if (typeof loadScheduleView === "function") loadScheduleView();
   } else {
     toast("Shift moved", "success");
+    // Make the move undoable (this fast path previously had no undo).
+    if (_prior && typeof _rrPushUndo === "function") {
+      _rrPushUndo({
+        label: "Shift moved" + (toDate ? " · " + toDate : ""),
+        undo: async () => {
+          _markLocalShiftMutation();
+          const restore = { updated_at: new Date().toISOString(), driver_id: _prior.driver_id, date: _prior.date };
+          if (_prior.starts_at) restore.starts_at = _prior.starts_at;
+          if (_prior.ends_at)   restore.ends_at   = _prior.ends_at;
+          const { error: undoErr } = await sb.from("shifts").update(restore).eq("id", shiftId);
+          if (undoErr) throw new Error(undoErr.message);
+          if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+        },
+      });
+    }
     // Re-render the week so the KPI strip (Coverage / filled count)
     // reflects the move. _markLocalShiftMutation above suppresses the
     // redundant realtime echo, so this is the single authoritative
