@@ -19703,6 +19703,7 @@ function _ivcalRender() {
           <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
           ${(_ivcalView === "month" || _ivcalView === "year") ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
           <span class="oc-sp"></span>
+          <button class="oc-btn oc-ico oc-search-btn" data-ivcal-search title="Search events (/)" aria-label="Search events"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         </div>
         ${_ivcalAvailNudge()}
         ${inner}
@@ -19729,6 +19730,7 @@ function _ivcalRender() {
   host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
   host.querySelectorAll("[data-ivcal-side]").forEach(btn => btn.onclick = (e) => { e.stopPropagation(); _ivcalToggleSide(); });
   host.querySelectorAll("[data-ivcal-zoom]").forEach(btn => btn.onclick = () => _ivcalSetZoom(parseInt(btn.getAttribute("data-ivcal-zoom"), 10)));
+  host.querySelector("[data-ivcal-search]")?.addEventListener("click", () => _ivcalOpenSearch());
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
   // Mini-calendar (date navigator) wiring.
   host.querySelectorAll("[data-mini-nav]").forEach(b => b.onclick = () => {
@@ -22333,6 +22335,90 @@ function _rrOpenLabelsManager() {
   renderRows();
 }
 
+// ── Event search (command-palette style) ────────────────────────────────────
+// Searches the loaded calendar window (interviews, orientations, events, group
+// sessions) by candidate name, title, email, phone, or location. Picking a
+// result jumps the calendar to that event's day and selects it. Opened by the
+// toolbar search button or the "/" shortcut.
+function _ivcalSearchIndex() {
+  const out = [];
+  const cache = _ivcalCache || {};
+  for (const b of (cache.bookings || [])) {
+    const a = b.applicants || {};
+    const name = rrTitleCaseName(a.full_name) || "";
+    const title = b.kind === "event" ? (b.title || "Event") : (name || (b.kind === "orientation" ? "Orientation" : "Interview"));
+    out.push({
+      kind: "booking", id: b.id, at: b.starts_at, title,
+      sub: [name && b.kind !== "event" ? "" : name, a.email, a.phone, b.location].filter(Boolean).join(" · "),
+      hay: [title, name, a.email, a.phone, b.location, b.kind].filter(Boolean).join(" ").toLowerCase(),
+    });
+  }
+  for (const s of (cache.sessions || [])) {
+    const label = s.label || "Group session";
+    out.push({
+      kind: "session", id: s.id, at: s.starts_at, title: label,
+      sub: `Group session · up to ${s.capacity || 1}`,
+      hay: [label, "group session", s.location].filter(Boolean).join(" ").toLowerCase(),
+    });
+  }
+  return out;
+}
+function _ivcalOpenSearch() {
+  document.getElementById("rr-ivcal-search")?.remove();
+  const idx = _ivcalSearchIndex();
+  const back = document.createElement("div");
+  back.id = "rr-ivcal-search";
+  back.className = "oc-search-back";
+  back.innerHTML = `<div class="oc-search-modal" role="dialog" aria-modal="true" aria-label="Search events">
+    <div class="oc-search-inp"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="oc-search-q" placeholder="Search interviews, events, people…" autocomplete="off" aria-label="Search events">
+      <button type="button" class="oc-search-x" data-search-close aria-label="Close">×</button></div>
+    <div class="oc-search-list" id="oc-search-list"></div>
+  </div>`;
+  document.body.appendChild(back);
+  const listEl = back.querySelector("#oc-search-list");
+  const inp = back.querySelector("#oc-search-q");
+  const fmt = (iso) => { const d = new Date(iso); return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + " · " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
+  let results = [], active = -1;
+  function render() {
+    const q = (inp.value || "").toLowerCase().trim();
+    if (!q) { results = idx.slice().sort((a, b) => new Date(a.at) - new Date(b.at)).slice(0, 20); }
+    else { results = idx.filter(r => r.hay.includes(q)).sort((a, b) => new Date(a.at) - new Date(b.at)).slice(0, 40); }
+    active = results.length ? 0 : -1;
+    if (!results.length) { listEl.innerHTML = `<div class="oc-search-empty">${q ? "No matching events in the loaded range." : "No events to search yet."}</div>`; return; }
+    listEl.innerHTML = results.map((r, i) => `<button type="button" class="oc-search-row${i === active ? " on" : ""}" data-si="${i}">
+      <span class="oc-search-when">${escapeHtml(fmt(r.at))}</span>
+      <span class="oc-search-main"><span class="oc-search-t">${escapeHtml(r.title)}</span>${r.sub ? `<span class="oc-search-s">${escapeHtml(r.sub)}</span>` : ""}</span>
+    </button>`).join("");
+    listEl.querySelectorAll("[data-si]").forEach(b => b.onclick = () => pick(+b.getAttribute("data-si")));
+  }
+  function pick(i) {
+    const r = results[i]; if (!r) return;
+    const d = new Date(r.at);
+    _ivcalView = (_ivcalView === "month" || _ivcalView === "year") ? "day" : _ivcalView;
+    _ivcalAnchor = d; _ivcalMiniAnchor = null;
+    _ivcalSelected = { kind: r.kind, id: r.id };
+    close(); _ivcalRender();
+  }
+  const close = () => { back.remove(); document.removeEventListener("keydown", onKey, true); };
+  function onKey(e) {
+    if (e.key === "Escape") { e.stopPropagation(); close(); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(results.length - 1, active + 1); syncActive(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(0, active - 1); syncActive(); }
+    else if (e.key === "Enter") { e.preventDefault(); if (active >= 0) pick(active); }
+  }
+  function syncActive() {
+    listEl.querySelectorAll(".oc-search-row").forEach((el, i) => el.classList.toggle("on", i === active));
+    const on = listEl.querySelector(".oc-search-row.on"); if (on) on.scrollIntoView({ block: "nearest" });
+  }
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-search-close]")) close(); });
+  inp.addEventListener("input", render);
+  document.addEventListener("keydown", onKey, true);
+  render();
+  setTimeout(() => inp.focus(), 30);
+}
+window._ivcalOpenSearch = _ivcalOpenSearch;
+
 // ── Date overrides manager (holidays / one-off hours) ───────────────────────
 // A standalone modal (like the Labels manager) backed by the interview_override_*
 // RPCs. Operators close specific dates or set custom hours for a date; the
@@ -22548,6 +22634,7 @@ function _ivcalInstallKeys() {
     if (/INPUT|TEXTAREA|SELECT/.test(tag) || document.activeElement?.isContentEditable) return;
     if (document.getElementById("rr-ivcal-new") || document.getElementById("rr-ivcal-edit") || document.getElementById("rr-em-composer")) return; // editor/composer open
     if (e.key === "Escape") { if (document.querySelector(".oc-menu,.oc-quick,.oc-hover")) { _ivcalCloseMenus(); } else _ivcalDeselect(); }
+    else if (e.key === "/") { e.preventDefault(); _ivcalOpenSearch(); }
     else if (e.key === "n" || e.key === "N") { e.preventDefault(); _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30); }
     else if ((e.key === "e" || e.key === "E") && _ivcalSelected && _ivcalSelected.kind !== "session") { e.preventDefault(); _ivcalEditEvent(_ivcalSelected.kind, _ivcalSelected.id); }
     else if (e.key === "t" || e.key === "T") { _ivcalNav(0); }
