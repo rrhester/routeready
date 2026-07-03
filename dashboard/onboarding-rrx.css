@@ -1564,7 +1564,7 @@
    reads as part of the canvas, same as Schedule's grid wrap. */
 #view-onboarding-ops.rrx-onboarding .ob-mx-wrap {
   border: 1px solid var(--rr-border-secondary, #E5E7EB) !important;
-  border-radius: var(--rr-radius-medium, 4px) !important;
+  border-radius: var(--rr-radius-large, 8px) !important;
   box-shadow: none !important;
 }
 
@@ -1744,7 +1744,10 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
 
 #view-onboarding-ops.rrx-onboarding .ob-matrix th,
 #view-onboarding-ops.rrx-onboarding .ob-matrix td {
-  border-right: 1px solid var(--rr-border-secondary, #E5E7EB) !important;
+  /* Horizontal rules only — the Schedule grid and Calendar use row separators
+     without vertical grid lines. Dropping the per-cell right hairline makes the
+     matrix calmer and consistent with the rest of the app. */
+  border-right: 0 !important;
 }
 /* Last column in each row gets no trailing edge — the wrap's own
    right border closes it off. */
