@@ -19092,11 +19092,13 @@ function _ivcalBookingPages() {
   if (!scheds.length) return "";
   const pageIco = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>`;
   const chev = `<svg class="oc-bp-chev${_ivcalBPCollapsed ? " c" : ""}" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 6 8 10 12 6"/></svg>`;
+  const eyeIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
   const rows = _ivcalBPCollapsed ? "" : scheds.map(s =>
     `<div class="oc-bp-row" data-ivcal-bp="${escapeHtml(s.id)}" title="Edit “${escapeHtml(s.name)}”">
       <span class="oc-bp-ico">${pageIco}</span>
       <span class="oc-bp-name">${escapeHtml(s.name)}</span>
       ${s.is_active ? `<span class="oc-bp-active" title="Active booking schedule">active</span>` : ""}
+      <button type="button" class="oc-cal-menu oc-bp-preview" data-ivcal-bp-preview="${escapeHtml(s.id)}" title="Preview what applicants see" aria-label="Preview booking page">${eyeIco}</button>
     </div>`).join("");
   return `<div class="oc-cals-grp oc-bp">
     <div class="oc-cals-h oc-bp-h" data-ivcal-bp-toggle role="button" tabindex="0" aria-expanded="${_ivcalBPCollapsed ? "false" : "true"}">
@@ -19111,18 +19113,28 @@ function _ivcalBookingPages() {
 //    invited to interview but haven't booked a slot yet, so the empty calendar
 //    becomes a queue of who to chase instead of a passive grid. Clicking a row
 //    opens the applicant; "Send link" resends the booking link.
+// Per-browser record of when a booking link was last resent to each applicant,
+// so the awaiting rail can show "sent" state and throttle re-blasting (#22).
+function _ivcalSentMap() { try { return JSON.parse(localStorage.getItem("rr_ivcal_sent") || "{}"); } catch (_) { return {}; } }
+function _ivcalMarkSent(id) { try { const m = _ivcalSentMap(); m[id] = Date.now(); localStorage.setItem("rr_ivcal_sent", JSON.stringify(m)); } catch (_) {} }
+function _ivcalSentAgo(id) {
+  const t = _ivcalSentMap()[id]; if (!t) return null;
+  const h = (Date.now() - t) / 3600000;
+  return h > 24 ? null : (h < 1 ? "just now" : Math.round(h) + "h ago");
+}
 function _ivcalAwaiting() {
   const list = (_ivcalCache && _ivcalCache.awaiting) || [];
   const LIM = 8;
   const rows = list.slice(0, LIM).map(a => {
     const name = rrTitleCaseName(a.full_name) || "Unnamed candidate";
-    const sub = a.email ? escapeHtml(a.email) : "Invited — no time booked";
+    const ago = _ivcalSentAgo(a.id);
+    const sub = ago ? `Link sent ${escapeHtml(ago)}` : (a.email ? escapeHtml(a.email) : "Invited — no time booked");
     const linkIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
     return `<div class="oc-await-row" data-ivcal-await="${escapeHtml(a.id)}" title="Open ${escapeHtml(name)}">
       <span class="oc-await-dot" aria-hidden="true"></span>
       <span class="oc-await-main"><span class="oc-await-name">${escapeHtml(name)}</span><span class="oc-await-sub">${sub}</span></span>
       <button type="button" class="oc-await-copy" data-ivcal-await-copy="${escapeHtml(a.id)}" title="Copy ${escapeHtml(name)}'s booking link" aria-label="Copy booking link">${linkIco}</button>
-      <button type="button" class="oc-await-send" data-ivcal-await-send="${escapeHtml(a.id)}" title="Resend booking link to ${escapeHtml(name)}">Send link</button>
+      <button type="button" class="oc-await-send" data-ivcal-await-send="${escapeHtml(a.id)}"${ago ? " disabled" : ""} title="${ago ? `Link sent ${escapeHtml(ago)} — resend from the candidate's profile if needed` : `Resend booking link to ${escapeHtml(name)}`}">${ago ? "Sent ✓" : "Send link"}</button>
     </div>`;
   }).join("");
   const more = list.length > LIM
@@ -19824,8 +19836,18 @@ function _ivcalRender() {
   // Booking pages: clicking a schedule previews exactly what an applicant sees
   // (the public booking page, booking disabled). "+" opens the editor to add a
   // new one; the header collapses the section.
-  host.querySelectorAll("[data-ivcal-bp]").forEach(r => r.onclick = () => {
-    _ivcalBookingPreview(r.getAttribute("data-ivcal-bp"), r.querySelector(".oc-bp-name")?.textContent || "");
+  // Row click opens the editor focused on that schedule (matching the "Edit"
+  // tooltip); the eye button previews what applicants see.
+  host.querySelectorAll("[data-ivcal-bp]").forEach(r => r.onclick = (e) => {
+    if (e.target.closest("[data-ivcal-bp-preview]")) return;
+    _ivCurSchedId = r.getAttribute("data-ivcal-bp");
+    if (typeof _ivToggleRules === "function") _ivToggleRules(true);
+  });
+  host.querySelectorAll("[data-ivcal-bp-preview]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    const id = b.getAttribute("data-ivcal-bp-preview");
+    const name = b.closest("[data-ivcal-bp]")?.querySelector(".oc-bp-name")?.textContent || "";
+    _ivcalBookingPreview(id, name);
   });
   host.querySelector("[data-ivcal-bp-add]")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -19857,6 +19879,7 @@ function _ivcalRender() {
     try {
       const { error } = await sb.rpc("send_booking_link", { p_id: id, p_kind: "interview" });
       if (error) throw error;
+      _ivcalMarkSent(id);
       toast("Booking link sent", "success");
       b.textContent = "Sent ✓";
     } catch (err) {
@@ -22804,6 +22827,7 @@ let _ivLegacyMode = false;  // true until the 0400 named-schedules migration is 
 async function loadInterviewAvailabilityEditor() {
   const body = document.getElementById("rr-iv-body");
   if (!body) return;
+  _ivEditSessId = null;   // fresh load ⇒ add mode (not mid-edit)
   body.innerHTML = `<div class="rr-loading">Loading…</div>`;
   let schedules = [], sched = null, schedWins = [], sessions = [];
   // Legacy mode keeps the single-config editor working when the named-schedules
@@ -22875,7 +22899,10 @@ async function loadInterviewAvailabilityEditor() {
   const sessHtml = sessions.length ? sessions.map(se => {
     const when = new Intl.DateTimeFormat(undefined,{timeZone:tz,weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}).format(new Date(se.starts_at));
     return `<div class="rr-iv-sess"><div><strong>${escapeHtml(when)}</strong> · ${se.capacity} spots${se.label?` · ${escapeHtml(se.label)}`:""}</div>
-      <button class="rr-iv-x" data-sess="${escapeHtml(se.id)}" title="Remove">×</button></div>`;
+      <div style="display:flex;gap:4px;align-items:center">
+        <button class="rr-iv-btn is-ghost" data-sess-edit="${escapeHtml(se.id)}" title="Edit session" style="padding:2px 8px;font-size:12px">Edit</button>
+        <button class="rr-iv-x" data-sess="${escapeHtml(se.id)}" title="Remove">×</button>
+      </div></div>`;
   }).join("") : `<div class="rr-iv-empty">No group sessions yet.</div>`;
 
   // Schedule switcher: pick / name / create / delete a named schedule. The
@@ -22974,6 +23001,23 @@ async function loadInterviewAvailabilityEditor() {
   document.getElementById("rr-iv-save").onclick = () => _ivSave(body);
   document.getElementById("rr-iv-add-btn").onclick = () => _ivAddSession(tz);
   body.querySelectorAll(".rr-iv-x").forEach(b => b.onclick = () => _ivRemoveSession(b.getAttribute("data-sess")));
+  // Edit a group session: prefill the add row with its values, in edit mode.
+  body.querySelectorAll("[data-sess-edit]").forEach(b => b.onclick = () => {
+    const se = (sessions || []).find(x => String(x.id) === String(b.getAttribute("data-sess-edit")));
+    if (!se) return;
+    _ivEditSessId = se.id;
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(se.starts_at)).reduce((a, p) => (a[p.type] = p.value, a), {});
+    const eParts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(se.ends_at)).reduce((a, p) => (a[p.type] = p.value, a), {});
+    const wrap = document.getElementById("rr-iv-add-sess");
+    wrap.querySelector(".rr-iv-s-date").value = `${parts.year}-${parts.month}-${parts.day}`;
+    wrap.querySelector(".rr-iv-s-start").value = `${parts.hour}:${parts.minute}`;
+    wrap.querySelector(".rr-iv-s-end").value = `${eParts.hour}:${eParts.minute}`;
+    wrap.querySelector(".rr-iv-s-cap").value = se.capacity || 1;
+    wrap.querySelector(".rr-iv-s-label").value = se.label || "";
+    document.getElementById("rr-iv-add-btn").textContent = "Update session";
+    wrap.scrollIntoView({ block: "nearest" });
+    wrap.querySelector(".rr-iv-s-date").focus();
+  });
 }
 
 async function _ivSave(body) {
@@ -22995,7 +23039,9 @@ async function _ivSave(body) {
     p_buffer_minutes: parseInt(body.querySelector(".rr-iv-buffer").value)||0,
     p_min_lead_hours: parseInt(body.querySelector(".rr-iv-lead").value)||0,
     p_window_days: parseInt(body.querySelector(".rr-iv-window").value)||21,
-    p_location: "whereby", p_windows: windows,
+    // Location is the meeting place, not the video provider — the join link is
+    // generated separately (Jitsi), so leave it unset rather than "whereby".
+    p_location: null, p_windows: windows,
   };
   try {
     if (_ivLegacyMode) {
@@ -23022,20 +23068,38 @@ async function _ivSave(body) {
   } catch(e){ if (st){ st.textContent="Save failed"; st.className="rr-iv-save-status err"; } toast("Save failed: "+(e.message||e),"warn"); }
 }
 
+let _ivEditSessId = null;   // group session currently being edited (null = add mode)
 async function _ivAddSession(tz) {
   const wrap = document.getElementById("rr-iv-add-sess");
   const date = wrap.querySelector(".rr-iv-s-date").value, start = wrap.querySelector(".rr-iv-s-start").value, end = wrap.querySelector(".rr-iv-s-end").value;
   const cap = Math.max(1, parseInt(wrap.querySelector(".rr-iv-s-cap").value)||20), label = wrap.querySelector(".rr-iv-s-label").value;
   if (!date || !start || !end) return toast("Pick a date and start/end time","warn");
+  if (_ivHHMMToMin(end) <= _ivHHMMToMin(start)) return toast("End time must be after start","warn");
   try {
-    const { error } = await sb.rpc("interview_session_add", {
-      p_starts_at: _ivLocalToISO(date, start, tz), p_ends_at: _ivLocalToISO(date, end, tz),
-      p_capacity: cap, p_location: "whereby", p_label: label || null,
-    });
-    if (error) throw error;
-    toast("Group session added","success");
+    if (_ivEditSessId) {
+      const { error } = await sb.rpc("interview_session_update", {
+        p_id: _ivEditSessId, p_starts_at: _ivLocalToISO(date, start, tz), p_ends_at: _ivLocalToISO(date, end, tz),
+        p_capacity: cap, p_label: label || null,
+      });
+      if (error) throw error;
+      _ivEditSessId = null;
+      toast("Group session updated","success");
+    } else {
+      const { error } = await sb.rpc("interview_session_add", {
+        p_starts_at: _ivLocalToISO(date, start, tz), p_ends_at: _ivLocalToISO(date, end, tz),
+        p_capacity: cap, p_location: null, p_label: label || null,
+      });
+      if (error) throw error;
+      toast("Group session added","success");
+    }
     loadInterviewAvailabilityEditor();
-  } catch(e){ toast("Couldn't add session: "+(e.message||e),"warn"); }
+    if (typeof loadIvCalendar === "function") loadIvCalendar();
+  } catch(e){
+    const msg = /capacity_below_booked/.test(String(e && e.message)) ? "Capacity can't be lower than the number already booked."
+      : /end_before_start/.test(String(e && e.message)) ? "End time must be after start."
+      : (_ivEditSessId ? "Couldn't update session: " : "Couldn't add session: ") + (e.message||e);
+    toast(msg,"warn");
+  }
 }
 
 async function _ivRemoveSession(id) {
