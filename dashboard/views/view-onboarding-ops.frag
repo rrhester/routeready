@@ -484,7 +484,14 @@
                      Schedule's "Go To" + launcher. -->
                 <div class="rr-cal-rules-foot" aria-hidden="false">
                   <span class="rr-cal-rules-cap" aria-hidden="true">Availability</span>
-                  <button type="button" class="rr-cal-rules-launch" id="rr-iv-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-iv-rules-popover" title="Interview availability — days, times, capacity, and group sessions">
+                  <!-- Availability = a dropdown MENU (Weekly hours & sessions,
+                       Holidays & date overrides, Booking pages). The individual
+                       actions moved here off the calendar sidebar so everything
+                       availability-related lives under this one control. The menu
+                       body (#rr-iv-avail-menu) is populated by _rrBuildAvailMenu()
+                       on open so the Booking-pages list stays current; open/close
+                       is document-delegated in live.js like the Work Week menu. -->
+                  <button type="button" class="rr-cal-rules-launch" id="rr-iv-rules-toggle" aria-haspopup="menu" aria-expanded="false" aria-controls="rr-iv-avail-menu" title="Availability — weekly hours, group sessions, date overrides, and booking pages">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
                     <!-- Explicit label so the split-caret segment can sit AFTER it
                          (the old CSS ::after "Availability" would otherwise render
@@ -492,11 +499,12 @@
                     <span class="rr-cal-rl-label">Availability</span>
                     <!-- Split chevron segment · matches the Work Week trigger +
                          the Schedule split buttons. Visual only — clicking it (or
-                         anywhere on the button) still fires the existing toggle. -->
+                         anywhere on the button) opens the menu. -->
                     <span class="rr-cal-split-caret" aria-hidden="true">
                       <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg>
                     </span>
                   </button>
+                  <div class="rr-cal-viewdd-menu rr-iv-avail-menu" id="rr-iv-avail-menu" role="menu" aria-label="Availability" hidden></div>
                 </div>
                 </div><!-- /.rr-cal-viewgroup -->
               </div>
