@@ -52937,10 +52937,11 @@ async function renderScheduleWeek() {
         dlWarnIcon = `<span class="cal-row-label-dlwarn" data-rr-dl-pop data-rr-no-drawer data-dl-driver="${d.id}" data-dl-exp="${d.dl_expires_on}" data-dl-days="${dlDays}" data-dl-expired="${dlExpired ? "1" : "0"}" data-dl-name="${escapeHtml(display)}" role="button" tabindex="0" title="${dlTitle}" aria-label="${dlTitle}" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0;cursor:pointer">${_rrDlWarnIcon(dlTitle, dlCritical)}</span>`;
       }
     }
-    // Right-edge warning cluster (OT + DL + no-van), pushed to the card's right.
-    const rightCluster = (otWarnIcon || dlWarnIcon || vanWarnIcon)
-      ? `<span class="cal-row-label-warns" style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0">${otWarnIcon}${dlWarnIcon}${vanWarnIcon}</span>`
-      : "";
+    // Right-edge warning cluster (attendance risk + OT + DL + no-van), pushed
+    // to the card's right. The risk slot is filled async by _rrRiskPaint so a
+    // dispatcher planning the week can see no-show risk without leaving the grid.
+    const riskSlot = `<span data-rr-risk-driver-compact="${d.id}"></span>`;
+    const rightCluster = `<span class="cal-row-label-warns" style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0">${riskSlot}${otWarnIcon}${dlWarnIcon}${vanWarnIcon}</span>`;
     const prefSet = _prefByDriver.get(d.id) || null;
     // The driver's available weekdays (drivers.metadata.availability.days,
     // e.g. ["mon","tue",…]). null ⇒ not configured, so we never flag N/A.
@@ -53188,6 +53189,11 @@ async function renderScheduleWeek() {
   // Re-apply the saved nav-tile order so a full page refresh always
   // restores the operator's preferred layout.
   if (typeof window._rrRestoreSchedTileOrder === "function") window._rrRestoreSchedTileOrder();
+  // Paint attendance no-show risk markers on the driver rows (async + cached),
+  // so the dispatcher sees who's a flight risk while planning the week.
+  if (typeof _rrRiskLoad === "function") {
+    _rrRiskLoad().then(() => { try { _rrRiskPaint(sub); } catch (_) {} }).catch(() => {});
+  }
 }
 
 let _poolSortMode = "day"; // 'day' | 'wave'
@@ -55974,7 +55980,7 @@ async function _rrRiskLoad() {
   _rrRiskFetchedAt = Date.now();
   return _rrRiskCache;
 }
-function _rrRiskPill(driverId) {
+function _rrRiskPill(driverId, compact) {
   if (!_rrRiskCache) return "";
   const r = _rrRiskCache[driverId];
   if (!r || (r.label !== "high" && r.label !== "moderate")) return "";
@@ -55982,22 +55988,29 @@ function _rrRiskPill(driverId) {
     ? { fg: "var(--red)",        bg: "var(--red-soft)",   border: "rgba(220,38,38,.20)" }
     : { fg: "var(--amber-dark)", bg: "var(--amber-soft)", border: "rgba(245,158,11,.20)" };
   const label = r.label === "high" ? "High no-show risk" : "Watch list";
-  const title = `${r.incidents} incident${r.incidents === 1 ? "" : "s"} in last ${r.total} shifts (${r.rate_pct}%)`;
-  return `<span title="${escapeHtml(title)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:var(--r-lg);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:${tone.bg};color:${tone.fg};border:1px solid ${tone.border};white-space:nowrap"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${escapeHtml(label)}</span>`;
+  const title = `${label} · ${r.incidents} incident${r.incidents === 1 ? "" : "s"} in last ${r.total} shifts (${r.rate_pct}%)`;
+  const tri = `<svg viewBox="0 0 24 24" width="${compact ? 12 : 9}" height="${compact ? 12 : 9}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+  // Compact = icon-only marker for the dense week-grid row cluster (the OT/DL
+  // warning icons live there); full = the labelled pill for roomier surfaces.
+  if (compact) {
+    return `<span class="cal-row-label-riskwarn" role="img" aria-label="${escapeHtml(title)}" title="${escapeHtml(title)}" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0;color:${tone.fg}">${tri}</span>`;
+  }
+  return `<span title="${escapeHtml(title)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:var(--r-lg);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:${tone.bg};color:${tone.fg};border:1px solid ${tone.border};white-space:nowrap">${tri}${escapeHtml(label)}</span>`;
 }
-// Paint risk pills into rendered surfaces that opt-in via
-// data-rr-risk-driver. Idempotent — only fills empty slots so re-runs
-// after a refresh don't double-stamp.
+// Paint risk pills into rendered surfaces that opt-in via data-rr-risk-driver
+// (full pill) or data-rr-risk-driver-compact (icon-only, for the week grid).
+// Idempotent — only fills empty slots so re-runs don't double-stamp.
 function _rrRiskPaint(scope) {
   const root = scope && scope.querySelectorAll ? scope : document;
   root.querySelectorAll("[data-rr-risk-driver]").forEach((el) => {
     if (el.dataset.rrRiskPainted) return;
-    const id = el.getAttribute("data-rr-risk-driver");
-    const pill = _rrRiskPill(id);
-    if (pill) {
-      el.innerHTML = pill;
-      el.dataset.rrRiskPainted = "1";
-    }
+    const pill = _rrRiskPill(el.getAttribute("data-rr-risk-driver"));
+    if (pill) { el.innerHTML = pill; el.dataset.rrRiskPainted = "1"; }
+  });
+  root.querySelectorAll("[data-rr-risk-driver-compact]").forEach((el) => {
+    if (el.dataset.rrRiskPainted) return;
+    const pill = _rrRiskPill(el.getAttribute("data-rr-risk-driver-compact"), true);
+    if (pill) { el.innerHTML = pill; el.dataset.rrRiskPainted = "1"; }
   });
 }
 
