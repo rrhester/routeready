@@ -11621,6 +11621,149 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-pipeline .pa-act-contact{justify-content:flex-start}
           }
 
+          /* ═══════════════════════════════════════════════════════════════
+             Applicant row · v5 · enterprise 5-column table
+             Applicant | Pipeline | Last contact | Next step | Actions
+             Restrained ATS treatment (Ashby / Linear / Stripe): bold name,
+             an at-a-glance pipeline timeline, quiet secondary text, a single
+             contextual next-step action, and a whisper-quiet ⋯ overflow.
+             ═══════════════════════════════════════════════════════════════ */
+          #view-pipeline .pa-row-v5{
+            display:grid;
+            grid-template-columns:264px minmax(300px,1fr) 116px 226px 74px;
+            gap:0;align-items:center;
+          }
+          #view-pipeline .pa-row-v5 .pa-zone{padding:11px 16px;min-width:0}
+          /* Reduced row height + calmer hover (soft blue border + very soft
+             shadow + a hair of lift), matching the enterprise reference. */
+          #view-pipeline .pa-card{
+            transition:border-color var(--t-smooth),box-shadow var(--t-smooth),transform var(--t-smooth);
+          }
+          #view-pipeline .pa-card:hover{
+            border-color:rgba(37,99,235,.34);
+            box-shadow:0 2px 10px rgba(37,99,235,.07),0 1px 2px rgba(15,23,42,.05);
+            transform:translateY(-1px);
+          }
+
+          /* Header · small uppercase medium-weight column labels, aligned to
+             the same 5-column grid. */
+          #view-pipeline .pa-listhead.pa-row-v5{
+            position:sticky;top:0;z-index:2;background:var(--surface);
+            border-bottom:1px solid var(--border);
+          }
+          #view-pipeline .pa-listhead.pa-row-v5 .pa-zone{
+            font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+            color:var(--text-subtle);padding-top:10px;padding-bottom:10px;
+          }
+
+          /* ── Applicant column · avatar · name (+badge) · phone · email · added ── */
+          #view-pipeline .pa-c-applicant{display:flex;align-items:center;gap:11px}
+          #view-pipeline .pa-c-applicant .pa-card-avatar{
+            width:36px;height:36px;flex:0 0 auto;font-size:12px;
+          }
+          #view-pipeline .pa-a-main{min-width:0;display:flex;flex-direction:column;gap:1px}
+          #view-pipeline .pa-a-nameline{display:flex;align-items:center;gap:7px;min-width:0}
+          #view-pipeline .pa-a-name{
+            font-size:14px;font-weight:700;color:#111827;line-height:1.25;letter-spacing:-.01em;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
+          }
+          #view-pipeline .pa-a-badge{
+            flex:0 0 auto;display:inline-flex;align-items:center;
+            font-size:10px;font-weight:600;letter-spacing:.02em;line-height:1;
+            padding:2px 7px;border-radius:999px;
+            background:rgba(37,99,235,.08);color:#2563EB;border:1px solid rgba(37,99,235,.18);
+          }
+          #view-pipeline .pa-a-contact{
+            font-size:12.5px;color:#6B7280;line-height:1.3;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-pipeline .pa-a-contact a{color:inherit;text-decoration:none}
+          #view-pipeline .pa-a-contact a:hover{color:#2563EB;text-decoration:underline}
+          #view-pipeline .pa-c-applicant .pa-id-added{margin-top:1px}
+
+          /* ── Pipeline column · Applied → Screening → Interview → Offer → Hired.
+                Nodes in a row connected by a thin line, labels centred beneath.
+                done = green check + green line · current = blue outlined circle +
+                highlighted label · future = light-gray circle + muted label. ── */
+          #view-pipeline .pa-pl{display:flex;align-items:flex-start;width:100%;max-width:340px}
+          #view-pipeline .pa-pl-step{
+            flex:1 1 0;min-width:0;position:relative;
+            display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;
+          }
+          /* connector line INTO each node (segment from the previous node) */
+          #view-pipeline .pa-pl-step:not(:first-child)::before{
+            content:"";position:absolute;top:8px;left:-50%;width:100%;height:2px;
+            background:#E2E8F0;z-index:0;border-radius:2px;
+          }
+          #view-pipeline .pa-pl-step.is-reached:not(:first-child)::before{background:#16A34A}
+          #view-pipeline .pa-pl-node{
+            position:relative;z-index:1;width:18px;height:18px;border-radius:50%;box-sizing:border-box;
+            display:flex;align-items:center;justify-content:center;
+            background:var(--surface,#fff);border:1.5px solid #E2E8F0;color:#fff;
+          }
+          #view-pipeline .pa-pl-step.is-done .pa-pl-node{background:#16A34A;border-color:#16A34A;color:#fff}
+          #view-pipeline .pa-pl-step.is-current .pa-pl-node{background:var(--surface,#fff);border:2px solid #2563EB}
+          #view-pipeline .pa-pl-lbl{
+            font-size:10.5px;line-height:1.15;color:#94A3B8;font-weight:500;white-space:nowrap;
+          }
+          #view-pipeline .pa-pl-step.is-done .pa-pl-lbl{color:#64748B}
+          #view-pipeline .pa-pl-step.is-current .pa-pl-lbl{color:#1D4ED8;font-weight:700}
+
+          /* ── Last contact column · date · time · channel chip ── */
+          #view-pipeline .pa-c-contact{display:flex;flex-direction:column;gap:1px;min-width:0}
+          #view-pipeline .pa-lc-date{font-size:12.5px;font-weight:600;color:#111827;line-height:1.3}
+          #view-pipeline .pa-lc-time{font-size:11px;color:#6B7280;line-height:1.25}
+          #view-pipeline .pa-lc-ch{
+            display:inline-flex;align-items:center;gap:4px;margin-top:2px;
+            font-size:10.5px;font-weight:500;color:#94A3B8;
+          }
+          #view-pipeline .pa-lc-ch svg{flex:0 0 auto;opacity:.85}
+
+          /* ── Next step column · headline · sub · one small understated button ── */
+          #view-pipeline .pa-c-next{display:flex;flex-direction:column;gap:2px;min-width:0}
+          #view-pipeline .pa-ns-head{
+            font-size:12.5px;font-weight:600;color:#111827;line-height:1.3;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-pipeline .pa-ns-sub{
+            font-size:11.5px;color:#6B7280;line-height:1.3;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-pipeline .pa-ns-btn{
+            align-self:flex-start;margin-top:5px;
+            appearance:none;cursor:pointer;font:inherit;
+            display:inline-flex;align-items:center;
+            padding:5px 12px;border-radius:7px;
+            font-size:12px;font-weight:600;white-space:nowrap;
+            background:#fff;color:#2563EB;border:1px solid rgba(37,99,235,.28);
+            transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
+          }
+          #view-pipeline .pa-ns-btn:hover{background:rgba(37,99,235,.07);border-color:rgba(37,99,235,.42)}
+          #view-pipeline .pa-ns-btn:active{background:rgba(37,99,235,.12)}
+          #view-pipeline .pa-ns-btn:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(37,99,235,.55)}
+
+          /* ── Actions column · far-right, video (when present) + a quiet ⋯. ── */
+          #view-pipeline .pa-c-actions{
+            display:flex;align-items:center;justify-content:flex-end;gap:2px;
+          }
+
+          /* Danger row + separator inside the ⋯ overflow (Decline lives here now). */
+          .pa-pop-sep{height:1px;background:var(--border);margin:6px 6px}
+          .pa-pop-mi.pa-pop-mi-danger .pa-pop-mi-icon{color:#DC2626}
+          .pa-pop-mi.pa-pop-mi-danger .pa-pop-mi-label{color:#B42318}
+          .pa-pop-mi.pa-pop-mi-danger:hover:not(:disabled){background:#FDF3F2}
+
+          @media (max-width:1040px){
+            #view-pipeline .pa-row-v5{
+              grid-template-columns:1fr;
+            }
+            #view-pipeline .pa-row-v5 .pa-zone{border-top:1px solid var(--surface-hover)}
+            #view-pipeline .pa-row-v5 .pa-c-applicant{border-top:0}
+            #view-pipeline .pa-listhead.pa-row-v5{display:none}
+            #view-pipeline .pa-pl{max-width:none}
+            #view-pipeline .pa-c-actions{justify-content:flex-start}
+          }
+
           /* Popover surface shared by phone / notes / more icons. */
           .pa-pop{
             position:fixed;z-index:9998;background:var(--surface);
