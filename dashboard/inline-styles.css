@@ -25167,18 +25167,22 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"],
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"]{align-self:center}
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"]{order:-1}
+/* Import / Add applicant · clear white pills with the same navy edge as the
+   filter tabs (operator wants no solid-blue buttons on the Funnel). Dark label,
+   brand-blue glyph, soft blue hover wash. */
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item,
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item{
   flex-direction:row!important;align-items:center;gap:8px;min-width:0!important;height:40px;padding:0 16px!important;
-  background:var(--accent)!important;color:#fff!important;border:0!important;border-radius:var(--r-lg)!important;
-  box-shadow:0 1px 2px rgba(37,99,235,.18);font-weight:600!important;font-size:var(--fs-sm);cursor:pointer;
+  background:var(--surface)!important;color:var(--text)!important;
+  border:1.5px solid var(--sidebar-bg,#0F172A)!important;border-radius:var(--r-lg)!important;
+  box-shadow:none!important;font-weight:600!important;font-size:var(--fs-sm);cursor:pointer;
 }
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item span,
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item span{color:#fff}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item span{color:var(--text)}
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item svg,
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item svg{width:16px!important;height:16px!important;color:#fff!important;stroke-width:1.6}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item svg{width:16px!important;height:16px!important;color:var(--accent)!important;stroke-width:1.6}
 #view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-addapplicant"] .subnav-item:hover,
-#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item:hover{background:var(--accent-hover,#1d4ed8)!important;color:#fff!important}
+#view-onboarding-ops[data-obsub="funnel"] .ob-tab-wrap[data-rr-tile="ob-pdf-upload"] .subnav-item:hover{background:#EFF6FF!important;border-color:var(--sidebar-bg,#0F172A)!important;color:var(--text)!important}
 /* No hairline dividers around the funnel actions: the explicit divider
    element, the ribbon-group border-left (incl. the :first-child rule, which
    needs equal specificity + later source order to beat), and the ::before. */
