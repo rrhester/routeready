@@ -5734,6 +5734,17 @@ body[data-rr-active-view="view-onboarding-ops"] #rr-util-rail-mount{display:bloc
 #rr-util-rail-mount .ntp-task-due.is-over{color:#DC2626}
 #rr-util-rail-mount .ntp-task-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:var(--text-muted,#64748b);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;overflow:hidden}
 #rr-util-rail-mount .ntp-task-avatar img{width:100%;height:100%;object-fit:cover}
+/* Delete (trash) — appears on row hover, red on its own hover. */
+#rr-util-rail-mount .ntp-task-del{appearance:none;cursor:pointer;flex:0 0 auto;border:0;background:transparent;color:var(--text-subtle,#94a3b8);padding:4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,background .15s,color .15s}
+#rr-util-rail-mount .ntp-task:hover .ntp-task-del{opacity:1}
+#rr-util-rail-mount .ntp-task-del:hover{background:rgba(220,38,38,.10);color:#DC2626}
+#rr-util-rail-mount .ntp-task-del:focus-visible{opacity:1;outline:2px solid #2563EB;outline-offset:1px}
+
+/* Delete chooser for repeating tasks — appended to <body> (not the rail),
+   so styled unscoped. "This task" vs. "all N in this series". */
+.ntp-task-del-pop{position:fixed;z-index:10060;background:#fff;border:1px solid rgba(15,23,42,.12);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:4px;display:flex;flex-direction:column;gap:1px;min-width:210px}
+.ntp-task-del-pop button{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:13px;color:#111827;text-align:left;padding:8px 12px;border-radius:7px}
+.ntp-task-del-pop button:hover{background:rgba(220,38,38,.08);color:#DC2626}
 
 /* ── Driver Forms panel · enterprise card list ──────────────────────
    The Forms rail icon opens #rr-sched-forms (a .sched-notes-panel like
