@@ -50773,7 +50773,7 @@ function _schedShiftChip(sh, extras) {
     const hasRouteClass = !!(sh.route_classification);
     const colorRoutesOn = document.body.classList.contains("rr-sched-color-routes");
     const inlineBg = (hasRouteClass || colorRoutesOn) ? "" : `background:${bg};border-color:${bg};color:${fg};`;
-    return `<div class="shift-chip" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" style="${inlineBg}cursor:default" title="${titleText}"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
+    return `<div class="shift-chip" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" tabindex="0" role="button" aria-label="${escapeHtml(label + (sub ? " · " + sub : ""))}" style="${inlineBg}cursor:default" title="${titleText}"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
   }
   // The DB stores starts_at = wave_time − report_lead (driver clock-in)
   // and ends_at = starts_at + block_hours (driver clock-out). The chip
@@ -50898,7 +50898,8 @@ function _schedShiftChip(sh, extras) {
     : ((RC_BADGE[_rc] && RC_BADGE[_rc].c) || "#2563EB");
   const routineCls = extras?.routine ? ' is-routine' : '';
   const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
-  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;--chip-accent:${accentColor};${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${secondLine}${cornerBadges}</div>`;
+  const _ariaLabel = [sh.route_code ? "Route " + sh.route_code : "Shift", range, (extras && extras.van) ? "Van " + extras.van : ""].filter(Boolean).join(" · ");
+  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" tabindex="0" role="button" aria-label="${escapeHtml(_ariaLabel)}" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;--chip-accent:${accentColor};${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${secondLine}${cornerBadges}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -53669,6 +53670,23 @@ function bindSchedWeekNav() {
       openShiftEditModal({ date, stationId, driverId, anchorX: e.clientX, anchorY: e.clientY });
     }
   });
+
+  // Keyboard: Enter/Space on a focused shift chip opens it, reusing the exact
+  // click routing above (assigned / open / PTO / add) by synthesizing a click
+  // anchored at the chip so the editor popover positions correctly. Makes the
+  // grid operable without a mouse.
+  if (!window._rrSchedChipKeyInstalled) {
+    window._rrSchedChipKeyInstalled = true;
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const ae = document.activeElement;
+      const chip = ae && ae.closest && ae.closest(".shift-chip");
+      if (!chip || !chip.closest("#view-schedule")) return;
+      e.preventDefault();
+      const r = chip.getBoundingClientRect();
+      chip.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.bottom }));
+    });
+  }
 
   // ── KPI: clicking the Rule violations pill opens a centered modal —
   // the same card treatment as the Improve Coverage drill-down.
