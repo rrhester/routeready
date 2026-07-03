@@ -11630,7 +11630,7 @@ body.rr-cmdk-open{ overflow:hidden }
              ═══════════════════════════════════════════════════════════════ */
           #view-pipeline .pa-row-v5{
             display:grid;
-            grid-template-columns:264px minmax(300px,1fr) 116px 226px 74px;
+            grid-template-columns:264px minmax(280px,1fr) 116px 214px 118px;
             gap:0;align-items:center;
           }
           #view-pipeline .pa-row-v5 .pa-zone{padding:11px 16px;min-width:0}
@@ -11742,10 +11742,22 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-ns-btn:active{background:rgba(37,99,235,.12)}
           #view-pipeline .pa-ns-btn:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(37,99,235,.55)}
 
-          /* ── Actions column · far-right, video (when present) + a quiet ⋯. ── */
+          /* ── Actions column · far-right, video (when present) + a Decline
+                button (replaced the ⋯ overflow per operator). ── */
           #view-pipeline .pa-c-actions{
-            display:flex;align-items:center;justify-content:flex-end;gap:2px;
+            display:flex;align-items:center;justify-content:flex-end;gap:6px;
           }
+          #view-pipeline .pa-act-decline-btn{
+            appearance:none;cursor:pointer;font:inherit;
+            display:inline-flex;align-items:center;
+            padding:5px 12px;border-radius:7px;
+            font-size:12px;font-weight:600;white-space:nowrap;
+            background:#fff;color:#B42318;border:1px solid #EFC9C6;
+            transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
+          }
+          #view-pipeline .pa-act-decline-btn:hover{background:#FDF3F2;border-color:#DC2626;color:#B91C1C}
+          #view-pipeline .pa-act-decline-btn:active{background:#F8D7D4}
+          #view-pipeline .pa-act-decline-btn:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(220,38,38,.5)}
 
           /* ── Inline notes drawer · drops down under a row on click ──
                 The whole row is clickable; clicking it expands a private-notes
