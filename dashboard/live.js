@@ -19109,11 +19109,18 @@ const _IVCAL_STATUS_CATS = ["blue", "green", "orange", "gray", "red", "teal"];
 const _ivcalStatusFilters = (() => {
   try { return JSON.parse(localStorage.getItem("rr_ivcal_statusfilters") || "{}"); } catch (_) { return {}; }
 })();
+// Whether the light-blue "bookable hours" availability overlay is painted on
+// the grid. Off by default — operators found the always-on shading noisy — and
+// remembered per browser once toggled from the sidebar "Bookable hours" row.
+let _ivcalShowAvail = (() => {
+  try { return localStorage.getItem("rr_ivcal_showavail") === "1"; } catch (_) { return false; }
+})();
 function _ivcalSaveToggles() {
   try {
     localStorage.setItem("rr_ivcal_filters", JSON.stringify(_ivcalFilters));
     localStorage.setItem("rr_ivcal_calvis", JSON.stringify(_ivcalCalVis));
     localStorage.setItem("rr_ivcal_statusfilters", JSON.stringify(_ivcalStatusFilters));
+    localStorage.setItem("rr_ivcal_showavail", _ivcalShowAvail ? "1" : "0");
   } catch (_) {}
 }
 // Legend swatch per built-in calendar (events keep their status-based color;
@@ -19160,6 +19167,11 @@ function _ivcalMyCalendars() {
   const builtin = ["interview"].map(k =>
     `<label class="oc-cal-row"><input type="checkbox" data-ivcal-filter="${k}"${_ivcalFilters[k]?" checked":""}><span class="oc-cal-dot" style="background:${_IVCAL_KIND_COLOR[k]}"></span><span class="oc-cal-name">${escapeHtml(_IVCAL_KIND_LABEL[k])}</span></label>`
   ).join("");
+  // Bookable-hours overlay toggle · the light-blue availability shading on the
+  // grid. Off by default; this row lets the operator paint it on when they want
+  // to see when applicants can book.
+  const availRow =
+    `<label class="oc-cal-row" title="Show the light-blue bookable-hours shading on the calendar"><input type="checkbox" data-ivcal-showavail${_ivcalShowAvail?" checked":""}><span class="oc-cal-dot" style="background:#93C5FD"></span><span class="oc-cal-name">Bookable hours</span></label>`;
   const custom = cals.map(c => {
     const on = _ivcalCalVis[c.id] !== false;
     return `<div class="oc-cal-row"><label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="${escapeHtml(c.id)}"${on?" checked":""}><span class="oc-cal-dot" style="background:${escapeHtml(c.color||'#2563EB')}"></span><span class="oc-cal-name">${escapeHtml(c.name)}</span></label><button class="oc-cal-menu" data-ivcal-calmenu="${escapeHtml(c.id)}" title="Calendar options" aria-label="Calendar options">⋯</button></div>`;
@@ -19172,7 +19184,7 @@ function _ivcalMyCalendars() {
   return `<div class="oc-cals">
     ${_ivcalAwaiting()}
     <div class="oc-cals-h"><span>Connected calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
-    <div class="oc-cals-grp">${builtin}</div>
+    <div class="oc-cals-grp">${builtin}${availRow}</div>
     ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
     ${_ivcalGoogleRow()}
     ${_ivcalLegend()}
@@ -19901,6 +19913,10 @@ function _ivcalRender() {
   });
   host.querySelectorAll("[data-ivcal-cal]").forEach(cb => cb.onchange = () => {
     _ivcalCalVis[cb.getAttribute("data-ivcal-cal")] = cb.checked; _ivcalSaveToggles(); _ivcalRender();
+  });
+  // Bookable-hours overlay toggle.
+  host.querySelector("[data-ivcal-showavail]") && (host.querySelector("[data-ivcal-showavail]").onchange = (e) => {
+    _ivcalShowAvail = e.target.checked; _ivcalSaveToggles(); _ivcalRender();
   });
   // Status legend toggles (and "Show all" reset).
   host.querySelectorAll("[data-ivcal-status]").forEach(b => b.onclick = () => {
@@ -21728,7 +21744,7 @@ function _ivcalTimeGrid(ndays) {
     const _slotMin = _ivcalCache.slot || 30, _buf = _ivcalCache.buffer || 0;
     const _bookIco = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>';
     let shade = "";
-    for (const w of (_ivcalCache.windows||[]).filter(w => w.weekday === d.getDay())) {
+    for (const w of (_ivcalShowAvail ? (_ivcalCache.windows||[]) : []).filter(w => w.weekday === d.getDay())) {
       const top = _ivcalYpos(w.start_min), bot = _ivcalYpos(w.end_min);
       if (bot <= top) continue;
       let slots = "";
