@@ -21712,6 +21712,19 @@ function _ivcalGoogleAllDayBar(ge) {
   return `<div class="oc-adbar oc-adbar-google" data-ivcal-glink="${escapeHtml(ge.htmlLink || "")}" style="color:${_ivcalGoogleColor};border-left-color:${_ivcalGoogleColor};background:${_ivcalGoogleColor}1a" title="${escapeHtml((ge.title || "(busy)") + " · all day · Google")}"><span class="oc-pdot" style="background:${_ivcalGoogleColor}"></span><span class="oc-adbar-t">${escapeHtml(ge.title || "(busy)")}</span></div>`;
 }
 
+// Short timezone abbreviation (e.g. "CDT") for the grid's top-left corner, so
+// interview times are never ambiguous about which zone they're in. Computed for
+// the visible week so DST is correct; falls back to the zone's city name.
+function _ivcalTzAbbr(tz, when) {
+  const z = tz || (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+  try {
+    const nm = new Intl.DateTimeFormat("en-US", { timeZone: z, timeZoneName: "short" })
+      .formatToParts(when || new Date()).find(p => p.type === "timeZoneName");
+    if (nm && nm.value) return nm.value;
+  } catch (_) {}
+  return String(z).split("/").pop().replace(/_/g, " ");
+}
+
 function _ivcalTimeGrid(ndays) {
   let startDay;
   if (ndays === 1) { startDay = new Date(_ivcalAnchor); startDay.setHours(0,0,0,0); }
@@ -21723,7 +21736,9 @@ function _ivcalTimeGrid(ndays) {
   const days = [];
   for (let i=0;i<ndays;i++){ const d=new Date(startDay); d.setDate(startDay.getDate()+i); days.push(d); }
 
-  let head = `<div class="oc-corner"></div>`;
+  const _tzFull = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+  const _tzAbbr = _ivcalTzAbbr(_tzFull, startDay);
+  let head = `<div class="oc-corner"><span class="oc-corner-tz" title="All times shown in ${escapeHtml(_tzFull)}">${escapeHtml(_tzAbbr)}</span></div>`;
   head += days.map(d => {
     const isToday = d.getTime() === today.getTime();
     // Small secondary line, like the Schedule column subhead: how many

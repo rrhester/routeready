@@ -12575,7 +12575,10 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-filters .dot{width:9px;height:9px;border-radius:2px;display:inline-block}
             /* day/week grid */
             #rr-ivcal .oc-head{display:grid;grid-template-columns:50px repeat(var(--days),1fr);border-bottom:1px solid var(--oc-colsep);background:#fff;position:sticky;top:0;z-index:6}
-            #rr-ivcal .oc-corner{border-right:1px solid var(--oc-colsep);background:#fff}
+            #rr-ivcal .oc-corner{border-right:1px solid var(--oc-colsep);background:#fff;position:relative}
+            /* Timezone label · Google-style abbreviation pinned to the bottom of
+               the top-left corner, so every time on the grid is unambiguous. */
+            #rr-ivcal .oc-corner-tz{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--oc-sub,#6b7280);cursor:default}
             #rr-ivcal .oc-dh{text-align:left;padding:7px 0 8px 12px;border-left:1px solid var(--oc-colsep);background:#fff;cursor:pointer}
             #rr-ivcal .oc-dh .dow{font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase}
             #rr-ivcal .oc-dh .dn{font-size:21px;font-weight:700;color:var(--oc-ink);line-height:1.05;margin-top:2px}
