@@ -1161,17 +1161,67 @@ async function _paOpenRecord(id) {
     if (msgs) msgs.innerHTML = `<div class="rec-msg-empty">Couldn't load messages: ${escapeHtml(e.message || String(e))}</div>`;
   }
 }
-// Click a card's identity area (name/avatar/meta) → open the record drawer.
-// Buttons, links, pills, and the ⋯ menu keep their own behaviour.
+// Click anywhere on an applicant row → drop down an inline notes drawer.
+// Buttons, links, inputs, the Next-step CTA, the ⋯ menu, and clicks inside an
+// already-open drawer keep their own behaviour (typing notes must not collapse
+// it). Re-clicking the row toggles the drawer shut.
 document.addEventListener("click", (e) => {
   if (!e.target.closest) return;
-  const idz = e.target.closest("#view-pipeline .pa-zone-identity");
-  if (!idz) return;
-  if (e.target.closest("button, a, input, label, [data-rr-action], [data-rr-pa-more], [data-rr-more-act]")) return;
-  const card = idz.closest(".pa-card");
-  const id = card && card.getAttribute("data-applicant");
-  if (id) { e.preventDefault(); _paOpenRecord(id); }
+  const card = e.target.closest("#view-pipeline .pa-card");
+  if (!card) return;
+  if (e.target.closest("button, a, input, textarea, label, select, [data-rr-action], [data-rr-pa-more], [data-rr-pa-pop], [data-rr-more-act], .pa-drawer, .pa-pop")) return;
+  e.preventDefault();
+  _paToggleNotesDrawer(card);
 });
+
+// Build (once) / toggle the inline notes drawer under a funnel row. Acts as an
+// accordion — opening one row collapses any other open drawer in the list.
+function _paToggleNotesDrawer(card) {
+  if (!card) return;
+  const id = card.getAttribute("data-applicant");
+  if (!id) return;
+
+  const existing = card.querySelector(":scope > .pa-drawer");
+  if (existing) {
+    const open = existing.classList.toggle("is-open");
+    card.classList.toggle("is-open", open);
+    return;
+  }
+
+  // Accordion: close whatever else is open first.
+  document.querySelectorAll("#view-pipeline .pa-card.is-open").forEach((c) => {
+    c.classList.remove("is-open");
+    const d = c.querySelector(":scope > .pa-drawer");
+    if (d) d.classList.remove("is-open");
+  });
+
+  const name = card.querySelector(".pa-a-name")?.textContent || "";
+  const drawer = document.createElement("div");
+  drawer.className = "pa-drawer";
+  drawer.setAttribute("data-rr-drawer", "");
+  drawer.innerHTML = `
+    <div class="pa-drawer-inner">
+      <div class="pa-drawer-body">
+        <div class="pa-drawer-label">Private notes${name ? " · " + escapeHtml(name) : ""}</div>
+        <div class="pa-pop-notes" data-rr-notes-slot>
+          <textarea class="pa-notes-input" data-rr-notes-input placeholder="Private notes for your team — call summaries, follow-ups, gut checks…" disabled></textarea>
+          <div class="pa-pop-status" data-rr-notes-status>Loading…</div>
+        </div>
+      </div>
+    </div>`;
+  card.appendChild(drawer);
+
+  const slot = drawer.querySelector("[data-rr-notes-slot]");
+  if (slot) _initApplicantNotes(slot, id);
+
+  // Open on the next frame so the 0fr→1fr row transition actually runs.
+  requestAnimationFrame(() => {
+    drawer.classList.add("is-open");
+    card.classList.add("is-open");
+  });
+  const ta = drawer.querySelector("[data-rr-notes-input]");
+  if (ta) setTimeout(() => { if (!ta.disabled) ta.focus(); }, 320);
+}
 
 // Most recent activity timestamp for the "Last updated" column.
 function _lastUpdatedAt(a) {
