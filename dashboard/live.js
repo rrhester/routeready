@@ -947,6 +947,176 @@ function renderApplicantCard(a) {
     </div>`;
 }
 
+// ── Candidate record · a right-side drawer opened by clicking a card's
+//    identity area. The #1 gap the funnel audit flagged: one place to see a
+//    person's full record — identity, journey, next step, and the whole message
+//    history — instead of hunting across popovers. Additive and reuse-first:
+//    core fields come from the cached pipeline row (window._rrPipelineById), the
+//    stepper/actions reuse the card's own helpers + the global data-rr-action
+//    dispatcher, and the message thread reuses applicant_email_thread +
+//    _renderEmailRow + openEmailThreadModal. (Screening answers + interview
+//    scorecard are a natural v2 once those are on the row/an RPC.) ──────────────
+function _paRecordCta(a) {
+  switch (a.pipeline_stage) {
+    case "applied": { const sent = _screeningInviteSent(a); return { action: "resend_screening", label: sent ? "Resend screening" : "Send screening", primary: !sent }; }
+    case "screened":          return { action: "send_link",   label: "Send booking link",   primary: true };
+    case "booking_pending":   return { action: "resend_link", label: "Resend booking link", primary: false };
+    case "booking_scheduled": return { action: "reschedule",  label: "Reschedule",          primary: false };
+    default:                  return null;
+  }
+}
+async function _paOpenRecord(id) {
+  const a = window._rrPipelineById && window._rrPipelineById.get(id);
+  if (!a) { toast("Open the applicant from the list first", "info"); return; }
+  document.getElementById("rr-pa-record")?.remove();
+
+  const name = rrTitleCaseName(a.full_name) || "Applicant";
+  const stage = a.pipeline_stage;
+  const stageLabel = STAGE_LABELS[stage] ?? stage;
+  const next = _recommendedNextStep(a);
+  const cta = _paRecordCta(a);
+  const esc = escapeHtml;
+  const kv = (label, val) => `<div class="rec-kv"><span class="rec-kv-k">${esc(label)}</span><span class="rec-kv-v">${val}</span></div>`;
+  const appliedTxt = a.created_at ? new Date(a.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+  const nextEvt = a.next_event_starts_at ? fmtDate(a.next_event_starts_at) : "—";
+  const upd = _lastUpdatedAt(a);
+  const updTxt = upd ? _fmtAbsTouch(upd.toISOString()) : "—";
+  const scoreTxt = (a.score != null && a.screening_completed_at) ? `${a.score}/10` : "Not screened yet";
+
+  const ctaBtn = cta
+    ? `<button class="rec-cta ${cta.primary ? "is-primary" : ""}" type="button" data-rr-action="${cta.action}" data-applicant-id="${esc(a.id)}">${esc(cta.label)}</button>`
+    : "";
+  const videoBtn = a.video_url
+    ? `<button class="rec-act" type="button" data-rr-action="play_video" data-applicant-id="${esc(a.id)}" data-video-url="${esc(a.video_url)}">▶ Review video</button>` : "";
+
+  const ov = document.createElement("div");
+  ov.id = "rr-pa-record";
+  ov.innerHTML = `
+    <style>
+      #rr-pa-record{position:fixed;inset:0;z-index:9600}
+      #rr-pa-record .rec-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.34)}
+      #rr-pa-record .rec-panel{position:absolute;top:0;right:0;bottom:0;width:min(440px,94vw);background:var(--surface,#fff);
+        box-shadow:-16px 0 48px rgba(15,23,42,.22);display:flex;flex-direction:column;animation:recIn .18s ease}
+      @keyframes recIn{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
+      @media(prefers-reduced-motion:reduce){#rr-pa-record .rec-panel{animation:none}}
+      #rr-pa-record .rec-head{display:flex;gap:12px;align-items:flex-start;padding:18px 18px 14px;border-bottom:1px solid var(--border,#e5e7eb)}
+      #rr-pa-record .rec-av{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:0 0 auto}
+      #rr-pa-record .rec-h-main{min-width:0;flex:1 1 auto}
+      #rr-pa-record .rec-name{font-size:17px;font-weight:680;color:var(--text,#111);line-height:1.2}
+      #rr-pa-record .rec-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center}
+      #rr-pa-record .rec-x{flex:0 0 auto;border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:var(--text-subtle,#6b7280);padding:2px 4px}
+      #rr-pa-record .rec-body{flex:1 1 auto;overflow-y:auto;padding:16px 18px 24px;display:flex;flex-direction:column;gap:18px}
+      #rr-pa-record .rec-sec-t{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle,#6b7280);margin:0 0 8px}
+      #rr-pa-record .rec-contact{display:flex;flex-wrap:wrap;gap:8px}
+      #rr-pa-record .rec-contact a{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--accent-text,#1d4ed8);background:var(--accent-soft,#eaf1fe);border-radius:8px;padding:6px 10px;text-decoration:none}
+      #rr-pa-record .rec-kv{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:4px 0}
+      #rr-pa-record .rec-kv-k{color:var(--text-subtle,#6b7280)}
+      #rr-pa-record .rec-kv-v{color:var(--text,#111);font-weight:560;text-align:right}
+      #rr-pa-record .rec-next{background:var(--surface-secondary,#f5f7fa);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:12px 14px}
+      #rr-pa-record .rec-next-h{font-size:14px;font-weight:640;color:var(--text,#111)}
+      #rr-pa-record .rec-next-s{font-size:12.5px;color:var(--text-subtle,#6b7280);margin-top:2px}
+      #rr-pa-record .rec-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+      #rr-pa-record .rec-cta,#rr-pa-record .rec-act{font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:8px 13px;cursor:pointer;border:1px solid var(--border,#e5e7eb);background:var(--surface,#fff);color:var(--text,#111)}
+      #rr-pa-record .rec-cta.is-primary{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);color:#fff}
+      #rr-pa-record .rec-act:hover,#rr-pa-record .rec-cta:hover{background:var(--surface-hover,#f3f4f6)}
+      #rr-pa-record .rec-cta.is-primary:hover{background:#1d4ed8}
+      #rr-pa-record .rec-act.rec-danger{color:var(--red,#b91c1c)}
+      #rr-pa-record .rec-steps{display:block}
+      #rr-pa-record .rec-msgs{display:flex;flex-direction:column;gap:10px}
+      #rr-pa-record .rec-msg-empty{font-size:13px;color:var(--text-subtle,#6b7280)}
+    </style>
+    <div class="rec-backdrop" data-rec-close></div>
+    <aside class="rec-panel" role="dialog" aria-modal="true" aria-label="Candidate record">
+      <div class="rec-head">
+        <div class="rec-av ${_tierClassFromScore(a.score)} pa-card-avatar">${esc(_initialsOf(name))}</div>
+        <div class="rec-h-main">
+          <div class="rec-name">${esc(name)}</div>
+          <div class="rec-pills">
+            <span class="pa-stage-pill ${stage}">${esc(stageLabel)}</span>
+            ${_stageAgeChip(a)}
+          </div>
+        </div>
+        <button class="rec-x" type="button" data-rec-close aria-label="Close">✕</button>
+      </div>
+      <div class="rec-body">
+        <section>
+          <div class="rec-contact">
+            ${a.phone ? `<a href="tel:${esc(a.phone)}">📞 ${esc(a.phone)}</a>` : ""}
+            ${a.email ? `<a href="mailto:${esc(a.email)}">✉ ${esc(a.email)}</a>` : ""}
+            ${(!a.phone && !a.email) ? `<span class="rec-msg-empty">No contact info on file.</span>` : ""}
+          </div>
+        </section>
+        <section>
+          ${kv("Source", esc(a.source ? rrTitleCaseName(a.source) : "Direct applicant"))}
+          ${kv("Applied", esc(appliedTxt))}
+          ${kv("Screening score", esc(scoreTxt))}
+          ${kv("Interview", esc(nextEvt))}
+          ${kv("Last activity", esc(updTxt))}
+        </section>
+        <section>
+          <div class="rec-sec-t">Progress</div>
+          <div class="rec-steps">${_milestoneStepper(a)}</div>
+        </section>
+        <section>
+          <div class="rec-next">
+            <div class="rec-next-h">${esc(next.headline)}</div>
+            <div class="rec-next-s">${esc(next.sub)}</div>
+          </div>
+          <div class="rec-actions">
+            ${ctaBtn}
+            <button class="rec-act" type="button" data-rec-email>✉ Message</button>
+            <button class="rec-act" type="button" data-rec-note>📝 Note</button>
+            ${videoBtn}
+            <button class="rec-act rec-danger" type="button" data-rr-action="decline" data-applicant-id="${esc(a.id)}">Decline</button>
+          </div>
+        </section>
+        <section>
+          <div class="rec-sec-t">Message history</div>
+          <div class="rec-msgs" data-rec-msgs><div class="rec-msg-empty">Loading…</div></div>
+        </section>
+      </div>
+    </aside>`;
+  document.body.appendChild(ov);
+
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  ov.addEventListener("click", (e) => {
+    if (e.target.closest("[data-rec-close]")) { close(); return; }
+    if (e.target.closest("[data-rec-email]")) { close(); openEmailThreadModal(a.id, a.full_name || "", a.email || ""); return; }
+    if (e.target.closest("[data-rec-note]")) { _paOpenNotesPopover(e.target.closest("[data-rec-note]"), a); return; }
+    // A funnel action (CTA / decline / video) fires via the global data-rr-action
+    // handler, which reloads the list — close the drawer so it doesn't show stale
+    // state (video keeps the drawer; it opens its own modal).
+    const act = e.target.closest("[data-rr-action]");
+    if (act && act.getAttribute("data-rr-action") !== "play_video") setTimeout(close, 60);
+  });
+
+  // Message history — reuse the applicant email thread.
+  const msgs = ov.querySelector("[data-rec-msgs]");
+  try {
+    const { data: rows, error } = await sb.rpc("applicant_email_thread", { p_applicant_id: a.id });
+    if (error) throw error;
+    if (!msgs) return;
+    msgs.innerHTML = (rows && rows.length)
+      ? rows.map(_renderEmailRow).join("")
+      : `<div class="rec-msg-empty">No messages yet.</div>`;
+  } catch (e) {
+    if (msgs) msgs.innerHTML = `<div class="rec-msg-empty">Couldn't load messages: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+// Click a card's identity area (name/avatar/meta) → open the record drawer.
+// Buttons, links, pills, and the ⋯ menu keep their own behaviour.
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  const idz = e.target.closest("#view-pipeline .pa-zone-identity");
+  if (!idz) return;
+  if (e.target.closest("button, a, input, label, [data-rr-action], [data-rr-pa-more], [data-rr-more-act]")) return;
+  const card = idz.closest(".pa-card");
+  const id = card && card.getAttribute("data-applicant");
+  if (id) { e.preventDefault(); _paOpenRecord(id); }
+});
+
 // Most recent activity timestamp for the "Last updated" column.
 function _lastUpdatedAt(a) {
   const ts = [a.created_at, a.last_sms_at, a.screening_completed_at, a.next_event_starts_at]
