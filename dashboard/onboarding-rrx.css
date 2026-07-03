@@ -1339,6 +1339,14 @@
   padding: 0 !important;
 }
 
+/* Reserve the fixed 52px utility rail (Notes / Tasks / Ops / Forms) that
+   overlays the right edge on onboarding-ops — without this the Funnel
+   applicant rows run under it and the Decline icon gets clipped. Mirrors the
+   Schedule page's #view-schedule .tcp-body{padding-right:52px}. */
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline {
+  padding-right: 52px !important;
+}
+
 /* Re-skin every inner card surface that lands inside an
    onboarding sub-page so they pick up the Schedule treatment:
    white surface, hairline border using --rr-border-secondary,
