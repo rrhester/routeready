@@ -25226,17 +25226,13 @@ body.rr-cmdk-open{ overflow:hidden }
   display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;
   border-radius:999px;background:rgb(194,231,255)!important;color:#0C4A6E!important;font-size:11px;font-weight:700;
 }
-/* No pill is a solid dark-blue block — the selected one reads as a soft,
-   "clear" light-blue tint (the same rgb(194,231,255)) with the navy edge,
-   never the heavy accent fill. Its count flips to a white circle so it stays
-   legible against the tint. */
+/* Every pill is a clear (white) surface with the navy edge — no fill on any,
+   including the selected one. The active pill is cued only by a brand-blue
+   label; its count keeps the same light-blue circle as the rest. */
 #view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs .hp-stage-btn.active{
-  background:rgb(194,231,255)!important;color:#0C4A6E!important;border-color:var(--sidebar-bg,#0F172A)!important;
+  background:var(--surface)!important;color:var(--accent)!important;border-color:var(--sidebar-bg,#0F172A)!important;
 }
 #view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs .hp-stage-btn.active .hp-stage-ico{color:var(--accent)!important}
-#view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs .hp-stage-btn.active .hp-stage-btn-count{
-  background:#fff!important;color:#0C4A6E!important;
-}
 
 /* Grid to the very top: drop the zero-height .tcp block's 12px margin and
    the empty intel host's 16px margin (populated intel content self-spaces). */
