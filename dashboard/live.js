@@ -967,7 +967,7 @@ function renderApplicantCard(a) {
     : "";
 
   return `
-    <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
+    <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}" tabindex="0">
       <div class="pa-row pa-row-v5">
 
         <div class="pa-zone pa-c-applicant">
@@ -1174,6 +1174,17 @@ document.addEventListener("click", (e) => {
   _paToggleNotesDrawer(card);
 });
 
+// Keyboard select · Enter / Space on a focused applicant row selects it (same
+// as a click). Only fires when the card itself holds focus — a focused button
+// inside the row keeps its own behaviour.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+  const card = e.target.closest && e.target.closest("#view-pipeline .pa-card");
+  if (!card || e.target !== card) return;
+  e.preventDefault();
+  _paToggleNotesDrawer(card);
+});
+
 // Build (once) / toggle the inline notes drawer under a funnel row. Acts as an
 // accordion — opening one row collapses any other open drawer in the list.
 function _paToggleNotesDrawer(card) {
@@ -1185,12 +1196,16 @@ function _paToggleNotesDrawer(card) {
   if (existing) {
     const open = existing.classList.toggle("is-open");
     card.classList.toggle("is-open", open);
+    // Selection tracks the active card — the enterprise accent bar stays while
+    // the record is active, clears when it's toggled shut.
+    card.classList.toggle("is-selected", open);
     return;
   }
 
-  // Accordion: close whatever else is open first.
-  document.querySelectorAll("#view-pipeline .pa-card.is-open").forEach((c) => {
+  // Accordion: only one applicant is the active/selected record at a time.
+  document.querySelectorAll("#view-pipeline .pa-card.is-open, #view-pipeline .pa-card.is-selected").forEach((c) => {
     c.classList.remove("is-open");
+    c.classList.remove("is-selected");
     const d = c.querySelector(":scope > .pa-drawer");
     if (d) d.classList.remove("is-open");
   });
@@ -1214,10 +1229,12 @@ function _paToggleNotesDrawer(card) {
   const slot = drawer.querySelector("[data-rr-notes-slot]");
   if (slot) _initApplicantNotes(slot, id);
 
-  // Open on the next frame so the 0fr→1fr row transition actually runs.
+  // Open on the next frame so the 0fr→1fr row transition (and the accent bar's
+  // 0→4px animation) actually runs.
   requestAnimationFrame(() => {
     drawer.classList.add("is-open");
     card.classList.add("is-open");
+    card.classList.add("is-selected");
   });
   const ta = drawer.querySelector("[data-rr-notes-input]");
   if (ta) setTimeout(() => { if (!ta.disabled) ta.focus(); }, 320);
