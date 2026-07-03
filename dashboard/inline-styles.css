@@ -28699,3 +28699,53 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Menus/dialogs rendered on <body> (outside #rr-ivcal) still need a ring. */
 .oc-menu button:focus-visible,.oc-caldlg-sw .oc-sw:focus-visible,.oc-menu .oc-sw:focus-visible,
 .rr-cp-sw:focus-visible{ outline:2px solid #2563EB !important; outline-offset:2px !important; }
+
+/* ── Event search overlay (command-palette style) ────────────────────────── */
+.oc-search-back{ position:fixed; inset:0; z-index:10050; background:rgba(15,23,42,.34);
+  display:flex; align-items:flex-start; justify-content:center; padding:10vh 16px 16px; }
+.oc-search-modal{ width:min(560px,100%); background:var(--surface,#fff); border:1px solid var(--border,#E4E4E9);
+  border-radius:12px; box-shadow:0 24px 70px rgba(15,23,42,.30); overflow:hidden; display:flex; flex-direction:column; max-height:70vh; }
+.oc-search-inp{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border,#E4E4E9); color:var(--text-subtle,#6B7280); }
+.oc-search-inp input{ flex:1; border:0; outline:0; background:transparent; font:inherit; font-size:16px; color:var(--text,#111827); }
+.oc-search-x{ border:0; background:transparent; font-size:22px; line-height:1; color:var(--text-subtle,#6B7280); cursor:pointer; padding:0 4px; }
+.oc-search-list{ overflow-y:auto; }
+.oc-search-empty{ padding:20px 16px; color:var(--text-subtle,#6B7280); font-size:14px; text-align:center; }
+.oc-search-row{ display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; background:transparent;
+  padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.05)); font:inherit; }
+.oc-search-row:hover,.oc-search-row.on{ background:var(--accent-soft,#EFF6FF); }
+.oc-search-when{ flex:0 0 auto; width:132px; font-size:12px; color:var(--text-subtle,#6B7280); font-variant-numeric:tabular-nums; }
+.oc-search-main{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+.oc-search-t{ font-size:14px; font-weight:600; color:var(--text,#111827); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.oc-search-s{ font-size:12px; color:var(--text-subtle,#6B7280); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@media (prefers-color-scheme:dark){
+  .oc-search-modal{ background:#1f2430; border-color:rgba(255,255,255,.12); }
+  .oc-search-inp input,.oc-search-t{ color:#e8eaed; }
+}
+
+/* ── Calendar responsive behavior ─────────────────────────────────────────────
+   The calendar was fixed-geometry (240px sidebar + 320px reading pane + 50px
+   gutter) with no width queries, so it crushed below ~1100px. Collapse the
+   sidebar, overlay the reading pane, and tighten the grid as width drops. */
+@media (max-width:1100px){
+  #rr-ivcal .oc-side{ position:absolute; left:0; top:0; z-index:20; width:240px; max-width:82vw;
+    box-shadow:6px 0 24px rgba(15,23,42,.16); background:var(--surface,#fff); }
+  #rr-ivcal .oc.oc-side-closed .oc-side{ display:none; }
+  #rr-ivcal .oc-pane{ position:absolute; right:0; top:0; z-index:20; width:min(340px,90vw); height:100%;
+    box-shadow:-6px 0 24px rgba(15,23,42,.16); background:var(--surface,#fff); }
+}
+@media (max-width:760px){
+  #rr-ivcal .oc-gutter,#rr-ivcal .oc-corner{ width:44px; min-width:44px; }
+  #rr-ivcal .oc-side{ width:88vw; max-width:88vw; }
+  #rr-ivcal .oc-pane{ width:100vw; }
+  #rr-ivcal .oc-bar{ flex-wrap:wrap; row-gap:6px; }
+  #rr-ivcal .oc-period{ font-size:15px; }
+  /* Week/work-week columns get their own min width and scroll horizontally
+     rather than compressing into unreadable slivers. */
+  #rr-ivcal .oc-head,#rr-ivcal .oc-grid{ min-width:640px; }
+  #rr-ivcal .oc-scroll{ overflow-x:auto; }
+}
+/* Anchor the responsive sidebar/pane drawers to the calendar root. */
+#rr-ivcal .oc{ position:relative; }
+@media (max-width:1100px){
+  #rr-ivcal .oc-main{ width:100%; min-width:0; }
+}
