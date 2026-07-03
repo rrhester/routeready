@@ -6237,3 +6237,19 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   z-index:3;
 }
 #view-schedule .cal-cell:focus-within{ position:relative; z-index:2; }
+
+/* ── Hard-rule conflict marker on grid cells (PTO / expired DL / missing cert /
+   double-book). Classes are added by _rrPaintCellConflicts at runtime only, so
+   these rules are inert on the static/offline render. ── */
+#view-schedule .shift-chip.rr-chip-conflict{
+  outline:2px solid var(--rr-danger, #DC2626) !important;
+  outline-offset:-1px;
+}
+#view-schedule .rr-cell-conflict{
+  position:absolute; top:-6px; left:-6px; z-index:4;
+  display:inline-flex; align-items:center; justify-content:center;
+  width:18px; height:18px; border-radius:50%;
+  background:var(--rr-danger, #DC2626); color:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.28);
+}
+#view-schedule .rr-cell-conflict svg{ width:11px; height:11px; }
