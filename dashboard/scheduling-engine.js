@@ -2255,7 +2255,21 @@ function buildContext(input) {
     }
     seenShift.add(s.shift_id);
   }
-  const drivers = input.drivers.map(normalizeDriver);
+  // Isolate malformed driver records: one bad field (hire_date, PTO date,
+  // affinity, …) previously threw and nuked scheduling for the ENTIRE DSP.
+  // Drop the offending driver with a warning and continue instead.
+  const droppedDrivers = [];
+  const drivers = [];
+  for (const raw of input.drivers) {
+    try {
+      drivers.push(normalizeDriver(raw));
+    } catch (e) {
+      droppedDrivers.push({ driver_id: raw && raw.driver_id != null ? String(raw.driver_id) : "(no id)", error: (e && e.message) || String(e) });
+    }
+  }
+  if (droppedDrivers.length && typeof console !== "undefined" && console.warn) {
+    console.warn(`[scheduling-engine] dropped ${droppedDrivers.length} malformed driver record(s):`, droppedDrivers);
+  }
   drivers.sort(
     (a, b) => a.driver_id < b.driver_id ? -1 : a.driver_id > b.driver_id ? 1 : 0
   );
@@ -2298,6 +2312,7 @@ function buildContext(input) {
     settings,
     drivers,
     driverById,
+    droppedDrivers,
     shifts,
     blackout,
     weekStartDay,
@@ -2476,7 +2491,12 @@ function mapDriver(raw, ptoByDriver) {
     last_name: name.last,
     status: status === "onboarding" ? "onboarding" : "active",
     employment_type: "full_time",
-    hire_date: raw.hire_date && raw.hire_date.length >= 10 ? raw.hire_date.slice(0, 10) : "2000-01-01",
+    // A MISSING hire date must not make the driver the most senior (seniority
+    // sorts ascending, so "2000-01-01" put unknown-tenure drivers at the front
+    // of every priority queue — a data gap becoming top scheduling priority).
+    // Default unknown tenure to a far-future date so they sort LEAST senior;
+    // hire_date is only used for seniority ordering in the engine.
+    hire_date: raw.hire_date && raw.hire_date.length >= 10 ? raw.hire_date.slice(0, 10) : "2999-12-31",
     license_expiration_date: raw.dl_expires_on ? raw.dl_expires_on.slice(0, 10) : null,
     dot_certified: raw.dot_certified === true,
     xl_certified: raw.xl_certified === true,
