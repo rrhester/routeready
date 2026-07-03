@@ -5758,17 +5758,18 @@ function _obMxStylesOnce() {
     /* ── Onboarding matrix — the page itself ─────────────────── */
     ".ob-mx-wrap{background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,.04);display:flex;flex-direction:column;height:calc(100vh - 200px);min-height:480px}" +
     ".ob-mx-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);padding:16px 18px 14px;border-bottom:1px solid var(--sch-line,var(--border-subtle));background:transparent}" +
-    ".ob-mx-head-title{font-size:var(--fs-lg);font-weight:760;letter-spacing:-.02em;color:var(--text)}" +
+    ".ob-mx-head-title{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;color:var(--text)}" +
     ".ob-mx-head-sub{margin-top:3px;font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.45}" +
-    ".ob-mx-head-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-pill);background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:680;white-space:nowrap}" +
-    ".ob-mx-head-chip::before{content:'';width:7px;height:7px;border-radius:var(--r-pill);background:var(--accent)}" +
+    /* Count chip aligned to the Calendar/KPI pill language: brand text on a soft brand fill, no border. */
+    ".ob-mx-head-chip{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border:0;border-radius:var(--r-pill);background:rgba(37,99,235,.10);color:#2563EB;font-size:var(--fs-xs);font-weight:600;white-space:nowrap}" +
+    ".ob-mx-head-chip::before{content:'';width:7px;height:7px;border-radius:var(--r-pill);background:#2563EB}" +
     ".ob-mx-scroll{overflow-x:auto;overflow-y:auto;flex:1 1 auto;min-height:0;scrollbar-width:thin;scrollbar-color:var(--border-strong,#d1d5db) transparent}" +
     ".ob-mx-scroll::-webkit-scrollbar{width:8px;height:8px}" +
     ".ob-mx-scroll::-webkit-scrollbar-track{background:transparent}" +
     ".ob-mx-scroll::-webkit-scrollbar-thumb{background:var(--border-strong,#d1d5db);border-radius:var(--r-sm,4px)}" +
     ".ob-mx-scroll::-webkit-scrollbar-thumb:hover{background:var(--text-subtle,#6b7280)}" +
     ".ob-matrix{width:100%;min-width:1080px;border-collapse:separate;border-spacing:0;font-size:var(--fs-sm)}" +
-    ".ob-matrix th{font-size:11.5px;font-weight:680;letter-spacing:.01em;text-transform:lowercase;color:var(--text-muted);padding:14px 9px;text-align:center;white-space:nowrap;background:var(--canvas);border-bottom:1px solid var(--border-subtle);position:sticky;top:0;z-index:2}" +
+    ".ob-matrix th{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-muted);padding:14px 9px;text-align:center;white-space:nowrap;background:var(--canvas);border-bottom:1px solid var(--border-subtle);position:sticky;top:0;z-index:2}" +
     ".ob-matrix th.ob-mx-namecol{text-align:left;padding-left:18px;position:sticky;left:0;top:0;background:var(--canvas);z-index:3;box-shadow:8px 0 16px -18px rgba(15,23,42,.6)}" +
     ".ob-matrix th.ob-mx-statuscol{text-align:left}" +
     ".ob-matrix td{padding:15px 9px;border-top:1px solid var(--sch-line-subtle,var(--border-subtle));text-align:center;vertical-align:middle;background:var(--surface-elevated)}" +
@@ -5789,18 +5790,19 @@ function _obMxStylesOnce() {
        still read as sharp clear shapes. */
     ".ob-mx-toolbar{display:inline-flex;align-items:center;gap:2px}" +
     ".ob-tb-btn{position:relative;appearance:none;background:transparent;border:0;border-radius:4px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;flex:0 0 auto;transition:color var(--t-fast),background var(--t-fast)}" +
-    ".ob-tb-btn:hover{color:#2563EB;background:#F9FAFB}" +
-    ".ob-tb-btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft)}" +
+    ".ob-tb-btn:hover{color:#2563EB;background:var(--rr-bg-hover,#F3F4F6)}" +
+    ".ob-tb-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}" +
     ".ob-tb-btn.ob-tb-remove:hover{color:var(--red);background:var(--red-soft)}" +
     ".ob-tb-btn svg{width:22px;height:22px}" +
     /* Label spans hidden (kept in markup as aria fallback so screen
        readers still get the action name). */
     ".ob-tb-btn-label{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}" +
-    ".ob-mx-name{font-size:15px;font-weight:680;color:var(--text);cursor:pointer;letter-spacing:-.01em}" +
+    ".ob-mx-name{font-size:15px;font-weight:600;color:var(--text);cursor:pointer;letter-spacing:-.005em}" +
     ".ob-mx-name:hover{color:var(--accent-text)}" +
     ".ob-mx-meta{font-size:12px;color:var(--text-subtle);margin-top:3px;line-height:1.35}" +
     ".ob-mxdot{appearance:none;position:relative;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-elevated);border:1.75px solid var(--text-disabled);width:17px;height:17px;border-radius:50%;cursor:pointer;padding:0;transition:background var(--t-fast),border-color .12s,transform .1s,box-shadow .12s}" +
     ".ob-mxdot:hover{transform:scale(1.16);border-color:var(--accent-border);box-shadow:0 0 0 4px var(--accent-soft)}" +
+    ".ob-mxdot:focus-visible{outline:2px solid var(--accent);outline-offset:2px}" +
     ".ob-mxdot.done{background:var(--green);border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft)}" +
     ".ob-mxdot.done::after{content:'';display:block;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);margin-top:-2px}" +
     ".ob-mxdot.readonly{cursor:default;opacity:.75}" +

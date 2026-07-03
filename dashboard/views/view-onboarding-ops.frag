@@ -28,7 +28,7 @@
                  operator request — title alone reads cleaner and
                  matches the Schedule page's text-only header. -->
             <div>
-              <h1 class="page-title" id="rr-onboardops-title">On-boarding</h1>
+              <h1 class="page-title" id="rr-onboardops-title">Onboarding</h1>
               <p class="page-sub" id="rr-onboardops-sub">Every driver getting ready to drive — readiness at a glance.</p>
             </div>
           </div>
