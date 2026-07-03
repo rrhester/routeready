@@ -26567,6 +26567,19 @@ body.rr-cmdk-open{ overflow:hidden }
   flex:1 1 auto !important; min-width:0 !important; overflow:hidden !important; text-overflow:ellipsis !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-mi-add .rr-avail-mi-ico{ color:var(--accent, #2563EB) !important; }
+/* Reminders toggle · label + right-aligned switch. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-toggle .rr-avail-mi-lbl{ flex:1 1 auto !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-switch{
+  flex:0 0 auto !important; position:relative !important; width:30px !important; height:18px !important;
+  border-radius:999px !important; background:rgba(15,23,42,.22) !important; transition:background .15s ease !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-switch.on{ background:var(--accent, #2563EB) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-knob{
+  position:absolute !important; top:2px !important; left:2px !important; width:14px !important; height:14px !important;
+  border-radius:50% !important; background:#fff !important; box-shadow:0 1px 2px rgba(15,23,42,.3) !important;
+  transition:transform .15s ease !important;
+}
+#view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-switch.on .rr-avail-knob{ transform:translateX(12px) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-avail-menu .rr-avail-mi-sep{
   height:1px !important; margin:5px 6px !important; background:rgba(15,23,42,.10) !important;
 }

@@ -6384,11 +6384,25 @@ function _rrBuildAvailMenu() {
   const pageIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>`;
   const eyeIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
   const addIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+  const bellIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`;
   const scheds = (_ivcalCache && _ivcalCache.schedules) || [];
+  // Reminders toggle · automatic 24h + 1h candidate reminders (migration 0406).
+  // Only shown once the get/set RPCs exist (so it's invisible until applied).
+  let remRow = "";
+  if (_ivcalRemindersAvail) {
+    const on = !!_ivcalRemindersEnabled;
+    remRow =
+      `<button type="button" class="rr-avail-mi rr-avail-toggle" data-avail-mi="reminders" role="menuitemcheckbox" aria-checked="${on ? "true" : "false"}" title="Automatically text & email candidates 24 hours and 1 hour before their interview">` +
+        `<span class="rr-avail-mi-ico">${bellIco}</span>` +
+        `<span class="rr-avail-mi-lbl">Interview reminders</span>` +
+        `<span class="rr-avail-switch${on ? " on" : ""}" aria-hidden="true"><span class="rr-avail-knob"></span></span>` +
+      `</button>` +
+      `<div class="rr-avail-mi-sep" role="separator"></div>`;
+  }
   // "Weekly hours & sessions" was removed — a booking page opens exactly that
   // editor (weekly hours are stored per booking page), so it was redundant.
   // Edit hours by clicking a booking page below; the eye previews it.
-  let html =
+  let html = remRow +
     `<button type="button" class="rr-avail-mi" data-avail-mi="overrides" role="menuitem">` +
       `<span class="rr-avail-mi-ico">${holIco}</span><span class="rr-avail-mi-lbl">Holidays &amp; date overrides</span></button>` +
     `<div class="rr-avail-mi-sep" role="separator"></div>` +
@@ -6414,12 +6428,35 @@ function _rrToggleAvailMenu(force) {
   const trig = document.getElementById("rr-iv-rules-toggle");
   if (!menu) return false;
   const next = (typeof force === "boolean") ? force : menu.hidden;
-  if (next) _rrBuildAvailMenu();
+  if (next) {
+    _rrBuildAvailMenu();
+    // Lazily learn whether the interview-reminders toggle is available + its
+    // state the first time the menu opens; rebuild the menu once known.
+    if (_ivcalRemindersEnabled === null) _rrLoadRemindersState(true);
+  }
   menu.hidden = !next;
   if (trig) trig.setAttribute("aria-expanded", next ? "true" : "false");
   return next;
 }
 window._rrToggleAvailMenu = _rrToggleAvailMenu;
+// Interview reminders (migration 0406) on/off, surfaced in the Availability
+// menu. Tolerant of the get/set RPCs not being applied yet: _avail stays false
+// and the toggle row simply doesn't render.
+let _ivcalRemindersEnabled = null;   // null = unknown; then true/false
+let _ivcalRemindersAvail = false;    // whether the interview_reminders_get RPC exists
+async function _rrLoadRemindersState(rebuild) {
+  try {
+    const { data, error } = await sb.rpc("interview_reminders_get");
+    if (error) throw error;
+    _ivcalRemindersAvail = true;
+    _ivcalRemindersEnabled = !!data;
+  } catch (_) {
+    _ivcalRemindersAvail = false;    // RPC missing → migration not applied yet
+    _ivcalRemindersEnabled = false;
+  }
+  const menu = document.getElementById("rr-iv-avail-menu");
+  if (rebuild && menu && !menu.hidden) _rrBuildAvailMenu();
+}
 document.addEventListener("click", (e) => {
   if (!e.target.closest) return;
   // Toolbar Availability button → open/close the menu (was: open editor).
@@ -6442,6 +6479,17 @@ document.addEventListener("click", (e) => {
       return;
     }
     const act = mi.getAttribute("data-avail-mi");
+    // Reminders is an in-place toggle — flip it and keep the menu open.
+    if (act === "reminders") {
+      const next = !_ivcalRemindersEnabled;
+      _ivcalRemindersEnabled = next;   // optimistic
+      _rrBuildAvailMenu();
+      sb.rpc("interview_reminders_set", { p_enabled: next }).then(({ error }) => {
+        if (error) { _ivcalRemindersEnabled = !next; _rrBuildAvailMenu(); toast("Couldn't update reminders: " + (error.message || error), "warn"); }
+        else { toast(next ? "Interview reminders on" : "Interview reminders off", "success"); }
+      });
+      return;
+    }
     _rrToggleAvailMenu(false);
     if (act === "overrides") { if (typeof _rrOpenDateOverrides === "function") _rrOpenDateOverrides(); }
     else if (act === "bp") { _ivCurSchedId = mi.getAttribute("data-bp-id"); if (typeof _ivToggleRules === "function") _ivToggleRules(true); }
@@ -21513,6 +21561,13 @@ async function _ivcalLoadEventMessages(eventId, host) {
     // Tag the booking-link invite so it's distinguishable from the confirmation.
     const kindTag = (it.invite && !inbound)
       ? `<span style="font-size:11px;font-weight:600;color:#2563EB;background:#E3F0FA;border-radius:999px;padding:1px 8px">Booking invite</span>` : "";
+    // Tag the automatic 24h/1h interview reminders (queued by interview_reminders_run,
+    // no template, subject/body start with "Reminder:") so the operator can see the
+    // reminder system actually fired for this booking.
+    const isReminder = !it.invite && !inbound
+      && /^\s*reminder\b/i.test(((it.subject || "") + " " + (it.body || "")).trim());
+    const remTag = isReminder
+      ? `<span style="font-size:11px;font-weight:600;color:#B45309;background:#FEF3C7;border-radius:999px;padding:1px 8px">Reminder</span>` : "";
     const subjLine = it.subject
       ? `<div style="font-weight:600;color:var(--text);margin-top:2px">${escapeHtml(it.subject)}</div>` : "";
     const body = (it.body || "").trim();
@@ -21535,7 +21590,7 @@ async function _ivcalLoadEventMessages(eventId, host) {
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:14px">${icon}</span>
         <span style="font-size:13px;color:var(--text-muted)">${escapeHtml(dirLabel)} <strong style="color:var(--text)">${escapeHtml(it.to || "—")}</strong></span>
-        ${kindTag}
+        ${kindTag}${remTag}
         <span style="flex:1"></span>
         ${pill}
         <span style="font-size:12px;color:var(--text-subtle)">${escapeHtml(_ivcalMsgWhen(it.when))}</span>
