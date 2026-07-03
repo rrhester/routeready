@@ -11747,6 +11747,43 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;align-items:center;justify-content:flex-end;gap:2px;
           }
 
+          /* ── Inline notes drawer · drops down under a row on click ──
+                The whole row is clickable; clicking it expands a private-notes
+                panel beneath (accordion — one open at a time). Animates via a
+                0fr→1fr grid row so it eases open to its natural height. */
+          #view-pipeline .pa-row-v5{cursor:pointer}
+          #view-pipeline .pa-listhead.pa-row-v5{cursor:default}
+          #view-pipeline .pa-card.is-open{
+            border-color:rgba(37,99,235,.34);
+            box-shadow:0 2px 10px rgba(37,99,235,.07),0 1px 2px rgba(15,23,42,.05);
+          }
+          #view-pipeline .pa-drawer{
+            display:grid;grid-template-rows:0fr;
+            transition:grid-template-rows .28s cubic-bezier(.4,0,.2,1);
+          }
+          #view-pipeline .pa-drawer.is-open{grid-template-rows:1fr}
+          #view-pipeline .pa-drawer-inner{overflow:hidden;min-height:0}
+          #view-pipeline .pa-drawer-body{
+            padding:13px 16px 16px;
+            border-top:1px dashed var(--border);
+            background:linear-gradient(180deg,rgba(37,99,235,.035),transparent 46%);
+          }
+          #view-pipeline .pa-drawer-label{
+            font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+            color:var(--text-subtle);margin-bottom:7px;
+          }
+          #view-pipeline .pa-drawer .pa-notes-input{
+            width:100%;min-height:96px;resize:vertical;box-sizing:border-box;
+            border:1px solid var(--border);border-radius:8px;padding:9px 11px;
+            font:inherit;font-size:13px;line-height:1.45;color:var(--text);background:var(--surface);
+          }
+          #view-pipeline .pa-drawer .pa-notes-input:focus{
+            outline:none;border-color:rgba(37,99,235,.5);box-shadow:0 0 0 3px rgba(37,99,235,.12);
+          }
+          #view-pipeline .pa-drawer .pa-pop-status{
+            font-size:11px;color:var(--text-subtle);margin-top:6px;min-height:14px;
+          }
+
           /* Danger row + separator inside the ⋯ overflow (Decline lives here now). */
           .pa-pop-sep{height:1px;background:var(--border);margin:6px 6px}
           .pa-pop-mi.pa-pop-mi-danger .pa-pop-mi-icon{color:#DC2626}
