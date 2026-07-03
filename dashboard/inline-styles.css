@@ -27934,7 +27934,7 @@ body.rr-cmdk-open{ overflow:hidden }
    #rr-ivcal) are untouched. This block sits LAST in inline-styles.css, which
    is the last stylesheet loaded (index.html), so it wins on source order over
    the earlier #rr-ivcal premium rules at equal-or-lower specificity. Tokens
-   from the design brief: primary #1A73E8, hairline #E9EDF3, bg #FFFFFF, hover
+   from the design brief: primary #2563EB, hairline #E9EDF3, bg #FFFFFF, hover
    #F8FAFC, selected #E8F0FE; motion 180–220ms.
    ════════════════════════════════════════════════════════════════════════ */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal{
@@ -27943,7 +27943,7 @@ body.rr-cmdk-open{ overflow:hidden }
   --oc-colsep:#E9EDF3; --oc-rowline:#EEF1F6; --oc-rowline2:#F3F5F9;
   --oc-surface:#FFFFFF; --oc-surface-2:#FFFFFF;
   --oc-hover:#F8FAFC; --oc-today:rgba(26,115,232,.05);
-  --oc-blue:#1A73E8; --oc-blue-strong:#1669D6;
+  --oc-blue:#2563EB; --oc-blue-strong:#1D4ED8;
   /* GRID DOMINATES · drop the outer card so the grid sits on the page. */
   background:#FFFFFF !important; border:0 !important; border-radius:0 !important;
   box-shadow:none !important;
@@ -27978,7 +27978,7 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-iv-rules-toggle{
   font-weight:500 !important; color:#5F6368 !important;
 }
-/* The ONE primary blue CTA = Schedule Interview (#1A73E8). */
+/* The ONE primary blue CTA = Schedule Interview (#2563EB). */
 /* Schedule Interview · white pill with the navy border the other page
    buttons use (Smart Fill / Work Week / Availability / Create) — not blue. */
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-newgroup .subnav-item:first-child{
@@ -28001,7 +28001,7 @@ body.rr-cmdk-open{ overflow:hidden }
   box-shadow:0 6px 20px rgba(15,23,42,.12), 0 2px 6px rgba(15,23,42,.06) !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] .rr-cal-viewgroup .rr-cal-viewdd-menu .rr-cal-vtab.active{
-  background:#E8F0FE !important; color:#1A73E8 !important; font-weight:500 !important;
+  background:#E8F0FE !important; color:#2563EB !important; font-weight:500 !important;
 }
 
 /* Sync status indicator hidden per operator request. */
@@ -28026,7 +28026,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-btn:hover{ background:#F8FAFC !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-side-toggle.on{
-  color:#1A73E8 !important; background:#E8F0FE !important; border-color:#E8F0FE !important;
+  color:#2563EB !important; background:#E8F0FE !important; border-color:#E8F0FE !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-seg{ border-color:#E9EDF3 !important; border-radius:10px !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-seg button{ border-color:#E9EDF3 !important; }
@@ -28054,9 +28054,9 @@ body.rr-cmdk-open{ overflow:hidden }
   font-size:21px !important; font-weight:500 !important; color:#202124 !important; margin-top:4px !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dn{
-  background:#1A73E8 !important; font-weight:500 !important;
+  background:#2563EB !important; font-weight:500 !important;
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dow{ color:#1A73E8 !important; font-weight:500 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.today .dow{ color:#2563EB !important; font-weight:500 !important; }
 
 /* TIME LABELS · lighter, smaller, Google-Calendar style. */
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hr span{
@@ -28073,8 +28073,8 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-title{
   font-size:14px !important; font-weight:500 !important; color:#202124 !important; letter-spacing:0 !important;
 }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.today{ background:#1A73E8 !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.in-range{ background:#E8F0FE !important; color:#1A73E8 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.today{ background:#2563EB !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mini-d.in-range{ background:#E8F0FE !important; color:#2563EB !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals{ border-top:1px solid #E9EDF3 !important; margin-top:18px !important; padding-top:16px !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals-h{
   font-size:11px !important; font-weight:600 !important; letter-spacing:.04em !important; color:#80868B !important;
@@ -28084,7 +28084,7 @@ body.rr-cmdk-open{ overflow:hidden }
   font-size:11px !important; font-weight:600 !important; color:#80868B !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await{ border-bottom:1px solid #E9EDF3 !important; }
-#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await-count{ background:#1A73E8 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await-count{ background:#2563EB !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal-row:hover,
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await-row:hover{ background:#F8FAFC !important; }
 
@@ -28582,7 +28582,7 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.today{ background:rgba(37,99,235,.035) !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hr{ border:0 !important; }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-hr span{
-  font-size:11px !important; font-weight:500 !important; color:#9AA3B2 !important; letter-spacing:.02em !important;
+  font-size:11px !important; font-weight:500 !important; color:#4B5563 !important; letter-spacing:.02em !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-corner{ border:0 !important; }
 
@@ -28620,7 +28620,7 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cals-h,
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-await-h{
   font-size:11px !important; font-weight:700 !important; text-transform:uppercase !important;
-  letter-spacing:.06em !important; color:#8A93A3 !important; margin-bottom:8px !important;
+  letter-spacing:.06em !important; color:#6B7280 !important; margin-bottom:8px !important;
 }
 #view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-cal-row{
   border-radius:10px !important; padding:6px 8px !important;
@@ -28669,3 +28669,33 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="calendar"] .rr-launcher-dock #rr-hdr-notif{
   display:inline-flex !important;
 }
+
+/* ── Design-review fix (2026-07): restore functional cursors ──────────────────
+   The global `* { cursor: default !important }` operator preference was
+   overriding every meaningful cursor in the calendar — the resize handle gave
+   no ns-resize hint (making the resize feature undiscoverable), event chips and
+   the color-picker fields lost their affordance. Re-assert them, scoped. */
+#rr-ivcal .oc-rz{ cursor:ns-resize !important; }
+#rr-ivcal .oc-ev.dragging,#rr-ivcal .oc-ev.oc-ev-dragging{ cursor:grabbing !important; }
+#rr-ivcal .oc-ev,#rr-ivcal .oc-adbar,#rr-ivcal .oc-pill,
+#rr-ivcal .oc-col[data-ivcal-date],#rr-ivcal .oc-mcell[data-ivcal-date],
+#rr-ivcal button:not(:disabled),#rr-ivcal [role="button"],#rr-ivcal a[href],#rr-ivcal label,
+#rr-ivcal input[type="checkbox"],#rr-ivcal .oc-more,#rr-ivcal .oc-mnum{ cursor:pointer !important; }
+.rr-cp-sv,.rr-cp-hue,.rr-cp-sv *,.rr-cp-hue *{ cursor:crosshair !important; }
+.oc-menu button:not(:disabled),.oc-menu [role="button"]{ cursor:pointer !important; }
+
+/* ── Design-review fix (2026-07): keyboard focus visibility ───────────────────
+   The oc- namespace had no real focus-visible styling — event chips, grid
+   controls, and swatches relied on UA defaults (and several killed them). Give
+   every focusable calendar control a clear ring so the now-keyboard-operable
+   grid is actually navigable. */
+#rr-ivcal :is(button,[role="button"],[tabindex="0"],a[href],input,select):focus-visible{
+  outline:2px solid #2563EB !important; outline-offset:2px !important;
+  border-radius:4px;
+}
+#rr-ivcal .oc-ev:focus-visible,#rr-ivcal .oc-adbar:focus-visible,#rr-ivcal .oc-pill:focus-visible{
+  outline:2px solid #1D4ED8 !important; outline-offset:1px !important; z-index:5;
+}
+/* Menus/dialogs rendered on <body> (outside #rr-ivcal) still need a ring. */
+.oc-menu button:focus-visible,.oc-caldlg-sw .oc-sw:focus-visible,.oc-menu .oc-sw:focus-visible,
+.rr-cp-sw:focus-visible{ outline:2px solid #2563EB !important; outline-offset:2px !important; }

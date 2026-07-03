@@ -18913,6 +18913,12 @@ async function loadCalendarTab() {
 // one-off group sessions. Rendered in browser-local time (operator ≈ DSP tz).
 let _ivcalView = "workweek";
 let _ivcalAnchor = new Date();
+// Lower bound for the events fetch (see loadIvCalendar). ~90 days of history
+// keeps the grid navigable into the recent past while guaranteeing all future
+// events load regardless of how many past events have accumulated — without a
+// floor, ascending order + a row limit returns the OLDEST rows and upcoming
+// events silently fall off. History older than this window isn't loaded.
+function _ivcalQueryFloorISO() { return new Date(Date.now() - 90 * 864e5).toISOString(); }
 let _ivcalMiniAnchor = null; // month shown in the mini date navigator (null = follow anchor)
 let _ivcalCache = null; // { tz, windows, sessions, bookings }
 const _IVCAL_H0 = 0, _IVCAL_H1 = 24; // full 24h, scrollable
@@ -18994,6 +19000,9 @@ const _IVCAL_KIND_COLOR = { interview:"#2563EB", orientation:"#B45309", event:"#
 const _IVCAL_KIND_LABEL = { interview:"Interviews", orientation:"Orientations", event:"Events", session:"Group sessions" };
 // Swatches offered in the Add/Edit calendar dialog.
 const _IVCAL_PALETTE = ["#2563EB","#16A34A","#B45309","#B91C1C","#0D9488","#7C3AED","#C2410C","#0891B2","#BE185D","#4338CA","#65A30D","#475569"];
+// Only ever treat https:// links as clickable meeting URLs — a stored
+// javascript:/data: URL must never become an href or iframe src.
+function _ivcalHttps(u) { return /^https:\/\//i.test(String(u || "")) ? String(u) : ""; }
 // Resolve a custom calendar's color for an event (null if none / not custom).
 function _ivcalCalColor(ev) {
   if (!ev || !ev.calendar_id || !_ivcalCache || !_ivcalCache.calendars) return null;
@@ -19140,13 +19149,19 @@ function _ivcalGoogleRow() {
   const head = `<div class="oc-cals-sub">Google Calendar</div>`;
   if (connected) {
     const on = _ivcalCalVis["google"] !== false;
+    // Surface push-sync failures (events that didn't reach Google). Without this
+    // a failed sync is indistinguishable from a successful one from every screen.
+    const syncFails = ((_ivcalCache && _ivcalCache.bookings) || []).filter(b => b && b.google_sync_status === "error").length;
+    const syncNote = syncFails
+      ? `<div class="oc-gcal-err" title="These interviews didn't sync to Google. They'll retry automatically the next time they're edited.">⚠ ${syncFails} event${syncFails === 1 ? "" : "s"} didn't sync to Google</div>`
+      : "";
     const errNote = (on && _ivcalGoogleErr)
       ? `<div class="oc-gcal-err" title="${escapeHtml(_ivcalGoogleErr)}">⚠ Couldn't load Google events — is the google-calendar-events function deployed?</div>`
       : "";
     return head + `<div class="oc-cal-row oc-gcal-row">
       <label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="google"${on?" checked":""}><span class="oc-cal-dot" style="background:${_ivcalGoogleColor}"></span><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span><span class="oc-cal-name" title="${escapeHtml(g.email||"")}">${escapeHtml(g.email||"Google")}</span></label>
       <button class="oc-cal-menu" data-ivcal-gcal="menu" title="Calendar options" aria-label="Google calendar options">⋯</button>
-    </div>${errNote}`;
+    </div>${syncNote}${errNote}`;
   }
   return head + `<button class="oc-gcal-connect" data-ivcal-gcal="connect"><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span>Connect Google Calendar</button>`;
 }
@@ -19456,11 +19471,16 @@ async function loadIvCalendar() {
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
+        // Lower bound is critical: without it, ascending order + limit(500)
+        // returns the OLDEST 500 events, so once a DSP accumulates 500+ past
+        // events the upcoming ones fall off the query and the grid goes blank.
+        // Anchor the window to recent-past-through-future instead.
+        .gte("starts_at", _ivcalQueryFloorISO())
         .order("starts_at", { ascending: true })
-        .limit(500),
+        .limit(1000),
       sb.from("calendars")
         .select("id, name, color, sort_order")
         .eq("dsp_id", window.RR.dsp.id)
@@ -19489,8 +19509,9 @@ async function loadIvCalendar() {
         .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
+        .gte("starts_at", _ivcalQueryFloorISO())
         .order("starts_at", { ascending: true })
-        .limit(500);
+        .limit(1000);
       if (b2.error) throw b2.error;
       bookings = b2.data || [];
     }
@@ -19864,6 +19885,15 @@ function _ivcalRender() {
     });
     el.addEventListener("dblclick", (e) => { e.stopPropagation(); _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
     el.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); _ivcalContextMenu(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
+    // Keyboard: Enter/Space opens the event; the whole grid is now operable
+    // without a mouse. (Chips carry tabindex/role="button" from render.)
+    el.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault(); e.stopPropagation();
+      const kind = el.getAttribute("data-ivcal-kind"), id = el.getAttribute("data-ivcal-id");
+      if (kind === "session") { _ivcalSelect(kind, id); return; }
+      _ivcalEditEvent(kind, id);
+    });
   });
   // Read-only Google events open in Google Calendar.
   host.querySelectorAll("[data-ivcal-glink]").forEach(el => {
@@ -19894,8 +19924,18 @@ function _ivcalRender() {
     });
   });
   host.querySelectorAll(".oc-mcell[data-ivcal-date]").forEach(cell => {
-    cell.addEventListener("click", (e) => { if (e.target.closest("[data-ivcal-id]")) return; _ivcalDeselect(); });
-    cell.addEventListener("dblclick", (e) => { if (e.target.closest("[data-ivcal-id]")) return; _ivcalNewEvent(cell.getAttribute("data-ivcal-date"), 9*60, 9*60+30); });
+    cell.addEventListener("click", (e) => {
+      if (e.target.closest("[data-ivcal-id]")) return;
+      // "+N more" (and clicking the day number) jumps to Day view for that date
+      // so overflow events are reachable instead of silently hidden.
+      if (e.target.closest(".oc-more") || e.target.closest(".oc-mnum")) {
+        const [Y, M, D] = cell.getAttribute("data-ivcal-date").split("-").map(Number);
+        _ivcalView = "day"; _ivcalAnchor = new Date(Y, M - 1, D); _ivcalMiniAnchor = null; _ivcalRender();
+        return;
+      }
+      _ivcalDeselect();
+    });
+    cell.addEventListener("dblclick", (e) => { if (e.target.closest("[data-ivcal-id]") || e.target.closest(".oc-more")) return; _ivcalNewEvent(cell.getAttribute("data-ivcal-date"), 9*60, 9*60+30); });
   });
 
   // Reading pane wiring; preserve scroll across re-renders, else scroll to now.
@@ -21085,6 +21125,17 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
         if (new Date(endISO) <= new Date(startISO)) { toast("End must be after start", "warn"); if (btn) btn.style.opacity = ""; return; }
         const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done), attachments: attRefs, all_day: isAllDay } };
+        // Did the time actually move? A rescheduled meeting should (a) be flagged
+        // 'rescheduled' and (b) prompt to notify the attendee — Outlook/Google
+        // both do this. Previously an edit silently stranded the candidate on the
+        // old time.
+        const timeChanged = new Date(startISO).getTime() !== new Date(ev0.starts_at).getTime()
+          || new Date(endISO).getTime() !== new Date(ev0.ends_at || ev0.starts_at).getTime();
+        // Who to notify: the applicant (interview/orientation) or the invitee list.
+        const notifyEmails = ev0.kind === "event"
+          ? ((ev0.metadata && Array.isArray(ev0.metadata.invitees)) ? ev0.metadata.invitees.filter(x => typeof x === "string" && x.includes("@")) : [])
+          : ((ev0.applicants && ev0.applicants.email) ? [ev0.applicants.email] : []);
+        if (timeChanged && !isTask && notifyEmails.length) patch.status = "rescheduled";
         if (ev0.kind === "event") {
           patch.title = title;
           // Only touch calendar_id when assigning one or clearing a prior one,
@@ -21096,7 +21147,23 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         try {
           const { error } = await sb.from("cal_events").update(patch).eq("id", editEv.id);
           if (error) throw error;
-          toast("Event updated", "success");
+          // Offer to email the attendee(s) the new time when it moved.
+          if (timeChanged && !isTask && notifyEmails.length) {
+            const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+            if (dsp && confirm(`The time changed — email the new time to ${notifyEmails.length === 1 ? "the attendee" : notifyEmails.length + " attendees"}?`)) {
+              const evTitle = ev0.kind === "event" ? (title || "Event") : (ev0.kind === "orientation" ? "Orientation" : "Interview");
+              const whenStr = new Date(startISO).toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+              const bodyTxt = `Hi,\n\nYour ${evTitle.toLowerCase()} has been rescheduled to:\n${whenStr}\n\n${roomUrl ? "Join the video meeting: " + roomUrl + "\n\n" : ""}Reply to this email if that time doesn't work.`;
+              const rows = notifyEmails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em, subject: "Updated time: " + evTitle, body_text: bodyTxt, body_html: bodyTxt.replace(/\n/g, "<br>"), cal_event_id: editEv.id }));
+              const { error: mailErr } = await sb.from("email_messages").insert(rows);
+              if (mailErr) toast("Saved, but couldn't queue the notification: " + (mailErr.message || mailErr), "warn");
+              else toast(`Rescheduled · notified ${notifyEmails.length}`, "success");
+            } else {
+              toast("Event updated", "success");
+            }
+          } else {
+            toast("Event updated", "success");
+          }
           closeEditor(); loadIvCalendar();
           if (typeof loadCalBookingsList === "function") loadCalBookingsList();
         } catch (err) { toast("Couldn't save: " + (err.message || err), "warn"); if (btn) btn.style.opacity = ""; }
@@ -21368,7 +21435,7 @@ function _ivcalEventBlock(ev, type, lay) {
     const check = `<span class="oc-task-check${done ? " on" : ""}" data-oc-task-toggle="1" role="button" tabindex="-1" style="border-color:${tColor}${done ? `;background:${tColor}` : ""}" title="${done ? "Mark not done" : "Mark complete"}">${done ? checkSvg : ""}</span>`;
     const tInner = `<div class="oc-task-line">${check}<span class="oc-task-title">${escapeHtml(time)} ${escapeHtml(label)}</span></div>`;
     const tRz = `<div class="oc-rz" data-oc-resize></div>`;
-    return `<div class="oc-ev oc-ev-task${done ? " is-done" : ""}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};border-left-color:${tColor};background:${tColor}14;color:${tColor}" title="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}">${tInner}${tRz}</div>`;
+    return `<div class="oc-ev oc-ev-task${done ? " is-done" : ""}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};border-left-color:${tColor};background:${tColor}14;color:${tColor}" title="${escapeHtml(time + " · " + label + (done ? " · done" : ""))}">${tInner}${tRz}</div>`;
   }
   let icons = "";
   // The camera glyph is its own hit target: clicking it opens the video
@@ -21384,7 +21451,7 @@ function _ivcalEventBlock(ev, type, lay) {
   // color, which in turn overrides the status-based category palette.
   const cc = (ev.metadata && ev.metadata.color) || _ivcalCalColor(ev);
   const ccStyle = cc ? `;border-left-color:${cc};border-color:${cc}55;background:${cc}1f;color:${cc}` : "";
-  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)}${ccStyle}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
+  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time+" · "+label)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)}${ccStyle}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
 }
 
 // Side-by-side column layout: when timed events overlap, split the column so
@@ -21467,7 +21534,7 @@ function _ivcalAllDayBar(ev, type) {
   const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
   const cc = (ev.metadata && ev.metadata.color) || _ivcalCalColor(ev);
   const ccStyle = cc ? `border-left-color:${cc};background:${cc}1f;color:${cc}` : "";
-  return `<div class="oc-adbar cat-${cat}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="${ccStyle}" title="${escapeHtml("All day · " + label)}"><span class="oc-adbar-t">${escapeHtml(label)}</span></div>`;
+  return `<div class="oc-adbar cat-${cat}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml("All day · " + label)}" style="${ccStyle}" title="${escapeHtml("All day · " + label)}"><span class="oc-adbar-t">${escapeHtml(label)}</span></div>`;
 }
 function _ivcalGoogleAllDayBar(ge) {
   return `<div class="oc-adbar oc-adbar-google" data-ivcal-glink="${escapeHtml(ge.htmlLink || "")}" style="color:${_ivcalGoogleColor};border-left-color:${_ivcalGoogleColor};background:${_ivcalGoogleColor}1a" title="${escapeHtml((ge.title || "(busy)") + " · all day · Google")}"><span class="oc-pdot" style="background:${_ivcalGoogleColor}"></span><span class="oc-adbar-t">${escapeHtml(ge.title || "(busy)")}</span></div>`;
@@ -21608,7 +21675,7 @@ function _ivcalMonth() {
       const sel = _ivcalSelected && _ivcalSelected.kind === it.kind && String(_ivcalSelected.id) === String(it.id);
       const dotStyle = it.color ? ` style="background:${it.color}"` : "";
       const pillStyle = it.color ? ` style="color:${it.color}"` : "";
-      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${sel?" sel":""}"${pillStyle} data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"${dotStyle}></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
+      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${sel?" sel":""}"${pillStyle} data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" tabindex="0" role="button" aria-label="${escapeHtml(tm+" "+it.label)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"${dotStyle}></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
     }).join("");
     const more = items.length > 4 ? `<div class="oc-more">+${items.length-4} more</div>` : "";
     cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${pills}${more}</div>`;
@@ -21678,7 +21745,7 @@ function _ivcalPaneHtml() {
   let rows = drow("🕑", `<strong>${escapeHtml(dateStr)}</strong><br><span style="color:var(--oc-sub)">${escapeHtml(timeStr)}</span>`);
   if (a.email) rows += drow("✉", `<a href="mailto:${escapeHtml(a.email)}">${escapeHtml(a.email)}</a>`);
   if (a.phone) rows += drow("📞", `<a href="tel:${escapeHtml(a.phone)}">${escapeHtml(a.phone)}</a>`);
-  if (ev.meeting_url) rows += drow(_IVCAL_CAM_SVG, `<a href="${escapeHtml(ev.meeting_url)}" target="_blank" rel="noreferrer">Join video meeting</a>`);
+  if (_ivcalHttps(ev.meeting_url)) rows += drow(_IVCAL_CAM_SVG, `<a href="${escapeHtml(_ivcalHttps(ev.meeting_url))}" target="_blank" rel="noreferrer noopener">Join video meeting</a>`);
   else rows += drow(_IVCAL_CAM_SVG, `<span style="color:var(--oc-sub)">No video link yet</span>`);
   if (type !== "session") rows += drow("●", `${escapeHtml(catLabel)}`);
   const note = ev.metadata && ev.metadata.note;
@@ -21758,7 +21825,7 @@ function _ivrJourney(appl) {
   return rows.map(r => `<div class="ivr-jrow${r.cur ? " cur" : ""}">${r.dot}<div class="ivr-jbody"><div class="ivr-jlabel">${escapeHtml(r.label)}</div>${r.sub ? `<div class="ivr-jsub">${escapeHtml(r.sub)}</div>` : ""}</div></div>`).join("");
 }
 function _ivcalOpenRoom(ev) {
-  if (!ev || !ev.meeting_url) { toast("No video link for this interview yet", "warn"); return; }
+  if (!ev || !_ivcalHttps(ev.meeting_url)) { toast("No video link for this interview yet", "warn"); return; }
   const old = document.getElementById("rr-ivroom"); if (old) old.remove();
   const a0 = ev.applicants || {};
   const who = rrTitleCaseName(a0.full_name) || (ev.kind === "event" ? (ev.title || "Interview") : "Interview");

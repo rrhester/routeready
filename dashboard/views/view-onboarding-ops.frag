@@ -410,10 +410,6 @@
                      placeLauncher() only docks here when this is visible (i.e.
                      on the Calendar subtab). -->
                 <span class="rr-launcher-dock" data-with-bell aria-hidden="true"></span>
-                <span class="rr-cal-sync" title="Connected to Google Calendar">
-                  <span class="rr-cal-sync-dot" aria-hidden="true"></span>
-                  Google Calendar synced
-                </span>
                 <span class="rr-cal-newgroup-cap" aria-hidden="true">New</span>
                 </div><!-- /.rr-cal-newgroup -->
                 <div class="ob-tab-divider" aria-hidden="true"></div>
@@ -487,7 +483,7 @@
                      pinned bottom-right by the hairline) — same arrangement as
                      Schedule's "Go To" + launcher. -->
                 <div class="rr-cal-rules-foot" aria-hidden="false">
-                  <span class="rr-cal-rules-cap" aria-hidden="true">Rules</span>
+                  <span class="rr-cal-rules-cap" aria-hidden="true">Availability</span>
                   <button type="button" class="rr-cal-rules-launch" id="rr-iv-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-iv-rules-popover" title="Interview availability — days, times, capacity, and group sessions">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
                     <!-- Explicit label so the split-caret segment can sit AFTER it
