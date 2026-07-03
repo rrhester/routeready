@@ -52903,9 +52903,16 @@ async function renderScheduleWeek() {
     // Overtime warning · gold circle with a white "OT" when this driver is
     // scheduled over the weekly OT threshold (default 40h). Lives in the
     // right-edge warning cluster alongside the DL + no-van circles.
+    // Headroom to the OT threshold, so a dispatcher can see BEFORE they tip a
+    // driver into overtime. Over threshold → the existing OT badge (now with
+    // how many hours into OT); within 5h below → an amber "near OT" marker
+    // ("Xh until overtime"); otherwise nothing.
+    const _otHeadroom = Math.round((_otThresholdHours - netHoursRounded) * 10) / 10;
     const otWarnIcon = (netHoursRounded > _otThresholdHours)
-      ? `<span class="cal-row-label-otwarn" title="Scheduled ${netHoursRounded}h this week — overtime" aria-label="Scheduled ${netHoursRounded} hours this week — overtime" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrOtWarnIcon("Overtime — " + netHoursRounded + "h scheduled")}</span>`
-      : "";
+      ? `<span class="cal-row-label-otwarn" title="Scheduled ${netHoursRounded}h this week — ${Math.round((netHoursRounded - _otThresholdHours) * 10) / 10}h into overtime" aria-label="Scheduled ${netHoursRounded} hours this week — overtime" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrOtWarnIcon("Overtime — " + netHoursRounded + "h scheduled")}</span>`
+      : (netHoursRounded > 0 && _otHeadroom >= 0 && _otHeadroom <= 5)
+        ? `<span class="cal-row-label-nearotwarn" role="img" title="Scheduled ${netHoursRounded}h — ${_otHeadroom}h until overtime (${_otThresholdHours}h)" aria-label="${_otHeadroom} hours until overtime" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0;color:var(--amber-dark,#B45309)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span>`
+        : "";
     const otIcon = ""; // legacy placeholder kept in the row template below
     // No-van warning · red circle with a white "V" when this driver has any
     // scheduled day this week without a van assigned. Sits at the card's
@@ -53194,6 +53201,10 @@ async function renderScheduleWeek() {
   if (typeof _rrRiskLoad === "function") {
     _rrRiskLoad().then(() => { try { _rrRiskPaint(sub); } catch (_) {} }).catch(() => {});
   }
+  // Stamp hard-rule conflicts (PTO / expired DL / missing cert / double-book)
+  // onto the offending cells so they're visible on the grid, not just in a
+  // drill-down. `violations` was computed above for this week.
+  try { _rrPaintCellConflicts(sub, violations); } catch (_) {}
 }
 
 let _poolSortMode = "day"; // 'day' | 'wave'
@@ -55307,7 +55318,7 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
     const seenDates = new Set();
     for (const sh of list) {
       if (seenDates.has(sh.date)) {
-        violations.push({ driver: display, date: sh.date, kind: "double_book", note: `Two shifts on ${sh.date}` });
+        violations.push({ driver: display, driver_id: driverId, date: sh.date, kind: "double_book", note: `Two shifts on ${sh.date}` });
       }
       seenDates.add(sh.date);
 
@@ -55316,7 +55327,7 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
       // driver scheduled with an expired DL surfaces in the weekly card.
       if (d.dl_expires_on && d.dl_expires_on < sh.date) {
         const expDate = new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString();
-        violations.push({ driver: display, date: sh.date, kind: "expired_dl", note: `License expired ${expDate}` });
+        violations.push({ driver: display, driver_id: driverId, date: sh.date, kind: "expired_dl", note: `License expired ${expDate}` });
       }
 
       // Service-type cert gate: same logic Smart Fill uses to skip
@@ -55326,15 +55337,15 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
       if (cert) {
         const stLabel = cert.label || cert.code || "this service type";
         if (cert.requires_dot && !d.dot_certified) {
-          violations.push({ driver: display, date: sh.date, kind: "missing_dot",
+          violations.push({ driver: display, driver_id: driverId, date: sh.date, kind: "missing_dot",
             note: `${stLabel} requires DOT certification` });
         }
         if (cert.requires_xl && !d.xl_certified) {
-          violations.push({ driver: display, date: sh.date, kind: "missing_xl",
+          violations.push({ driver: display, driver_id: driverId, date: sh.date, kind: "missing_xl",
             note: `${stLabel} requires XL certification` });
         }
         if (cert.requires_edv && !d.edv_certified) {
-          violations.push({ driver: display, date: sh.date, kind: "missing_edv",
+          violations.push({ driver: display, driver_id: driverId, date: sh.date, kind: "missing_edv",
             note: `${stLabel} requires EDV certification` });
         }
       }
@@ -55342,7 +55353,7 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
       // PTO
       const ptos = ptoByDriver.get(driverId) || [];
       if (ptos.some(t => sh.date >= t.start_date && sh.date <= t.end_date)) {
-        violations.push({ driver: display, date: sh.date, kind: "pto", note: `Approved PTO on ${sh.date}` });
+        violations.push({ driver: display, driver_id: driverId, date: sh.date, kind: "pto", note: `Approved PTO on ${sh.date}` });
       }
 
       // Availability (skipped when override on)
@@ -55351,7 +55362,7 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
         if (days.length > 0) {
           const dt = new Date(sh.date + "T12:00:00");
           if (!days.includes(DOW[dt.getDay()])) {
-            violations.push({ driver: display, date: sh.date, kind: "availability", note: `Not available on ${dt.toLocaleDateString(undefined, { weekday: "long" })}` });
+            violations.push({ driver: display, driver_id: driverId, date: sh.date, kind: "availability", note: `Not available on ${dt.toLocaleDateString(undefined, { weekday: "long" })}` });
           }
         }
       }
@@ -55363,7 +55374,7 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
         const es  = d.metadata?.availability?.earliest_start;
         const shm = _shiftStartHM(sh.starts_at);
         if (es && shm && _startsBeforeEarliest(shm, es)) {
-          violations.push({ driver: display, date: sh.date, kind: "earliest_start",
+          violations.push({ driver: display, driver_id: driverId, date: sh.date, kind: "earliest_start",
             note: `Shift starts ${_fmtTime12(shm) || shm}; available from ${_fmtTime12(es) || es}` });
         }
       }
@@ -56011,6 +56022,39 @@ function _rrRiskPaint(scope) {
     if (el.dataset.rrRiskPainted) return;
     const pill = _rrRiskPill(el.getAttribute("data-rr-risk-driver-compact"), true);
     if (pill) { el.innerHTML = pill; el.dataset.rrRiskPainted = "1"; }
+  });
+}
+
+// Paint hard-rule conflicts (PTO overlap, expired DL, missing cert, double-book)
+// directly onto the offending grid cell so a dispatcher sees the problem AT the
+// assignment — not only inside a drill-down. Keyed by driver_id|date from the
+// weekly violations. Idempotent: clears prior markers each pass.
+const _RR_CELL_CONFLICT_KINDS = new Set(["double_book", "expired_dl", "missing_dot", "missing_xl", "missing_edv", "pto"]);
+function _rrPaintCellConflicts(scope, violations) {
+  const root = scope && scope.querySelectorAll ? scope : document;
+  const byCell = new Map();
+  for (const v of (violations || [])) {
+    if (!v || !v.driver_id || !v.date || !_RR_CELL_CONFLICT_KINDS.has(v.kind)) continue;
+    const k = v.driver_id + "|" + v.date;
+    if (!byCell.has(k)) byCell.set(k, []);
+    byCell.get(k).push(v.note || v.kind);
+  }
+  const tri = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+  root.querySelectorAll('[data-rr-cell="driver-day"]').forEach((cell) => {
+    cell.querySelectorAll(".rr-cell-conflict").forEach((el) => el.remove());
+    const chip = cell.querySelector('.shift-chip[data-rr-shift-id]:not(.off):not(.timeoff)');
+    if (chip) chip.classList.remove("rr-chip-conflict");
+    const notes = byCell.get((cell.dataset.rrCellDriver || "") + "|" + (cell.dataset.rrCellDate || ""));
+    if (!notes || !chip) return;
+    chip.classList.add("rr-chip-conflict");
+    const badge = document.createElement("span");
+    badge.className = "rr-cell-conflict";
+    badge.setAttribute("role", "img");
+    const label = "Rule conflict: " + notes.join("; ");
+    badge.setAttribute("aria-label", label);
+    badge.title = label;
+    badge.innerHTML = tri;
+    chip.appendChild(badge);
   });
 }
 
