@@ -6368,12 +6368,91 @@ function _ivToggleRules(force) {
   return next;
 }
 window._rrToggleIvRules = _ivToggleRules;
+
+// ── "Availability" dropdown menu · the toolbar Availability button opens a
+//    small menu (Weekly hours & sessions · Holidays & date overrides ·
+//    Booking pages) instead of jumping straight into the editor. These items
+//    used to live in the calendar sidebar; they were consolidated under this
+//    one control. The menu body is rebuilt on each open so the Booking-pages
+//    list reflects the current _ivcalCache; each item reuses the same handlers
+//    the sidebar rows did (_ivToggleRules / _rrOpenDateOverrides /
+//    _ivcalBookingPreview), keyed off _ivCurSchedId. ────────────────────────
+function _rrBuildAvailMenu() {
+  const menu = document.getElementById("rr-iv-avail-menu");
+  if (!menu) return;
+  const calIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01"/></svg>`;
+  const holIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="15" x2="16" y2="15"/></svg>`;
+  const pageIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>`;
+  const eyeIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const addIco = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+  const scheds = (_ivcalCache && _ivcalCache.schedules) || [];
+  let html =
+    `<button type="button" class="rr-avail-mi" data-avail-mi="weekly" role="menuitem">` +
+      `<span class="rr-avail-mi-ico">${calIco}</span><span class="rr-avail-mi-lbl">Weekly hours &amp; sessions</span></button>` +
+    `<button type="button" class="rr-avail-mi" data-avail-mi="overrides" role="menuitem">` +
+      `<span class="rr-avail-mi-ico">${holIco}</span><span class="rr-avail-mi-lbl">Holidays &amp; date overrides</span></button>` +
+    `<div class="rr-avail-mi-sep" role="separator"></div>` +
+    `<div class="rr-avail-mi-head">Booking pages</div>`;
+  if (scheds.length) {
+    html += scheds.map(s =>
+      `<div class="rr-avail-mi rr-avail-bp" data-avail-mi="bp" data-bp-id="${escapeHtml(s.id)}" role="menuitem" tabindex="0" title="Edit “${escapeHtml(s.name)}”">` +
+        `<span class="rr-avail-mi-ico">${pageIco}</span>` +
+        `<span class="rr-avail-mi-lbl">${escapeHtml(s.name)}</span>` +
+        `${s.is_active ? `<span class="oc-bp-active" title="Active booking schedule">active</span>` : ""}` +
+        `<button type="button" class="rr-avail-bp-preview" data-bp-preview="${escapeHtml(s.id)}" title="Preview what applicants see" aria-label="Preview booking page">${eyeIco}</button>` +
+      `</div>`).join("");
+  } else {
+    html += `<div class="rr-avail-mi-empty">No booking pages yet.</div>`;
+  }
+  html +=
+    `<button type="button" class="rr-avail-mi rr-avail-mi-add" data-avail-mi="bp-new" role="menuitem">` +
+      `<span class="rr-avail-mi-ico">${addIco}</span><span class="rr-avail-mi-lbl">New booking page</span></button>`;
+  menu.innerHTML = html;
+}
+function _rrToggleAvailMenu(force) {
+  const menu = document.getElementById("rr-iv-avail-menu");
+  const trig = document.getElementById("rr-iv-rules-toggle");
+  if (!menu) return false;
+  const next = (typeof force === "boolean") ? force : menu.hidden;
+  if (next) _rrBuildAvailMenu();
+  menu.hidden = !next;
+  if (trig) trig.setAttribute("aria-expanded", next ? "true" : "false");
+  return next;
+}
+window._rrToggleAvailMenu = _rrToggleAvailMenu;
 document.addEventListener("click", (e) => {
   if (!e.target.closest) return;
+  // Toolbar Availability button → open/close the menu (was: open editor).
   if (e.target.closest("#rr-iv-rules-toggle")) {
     e.preventDefault(); e.stopPropagation();
-    _ivToggleRules();
+    _rrToggleAvailMenu();
     return;
+  }
+  // Menu item actions.
+  const mi = e.target.closest("#rr-iv-avail-menu [data-avail-mi]");
+  if (mi) {
+    e.preventDefault(); e.stopPropagation();
+    // Preview eye — don't open the editor, just show the applicant preview.
+    const eye = e.target.closest("[data-bp-preview]");
+    if (eye) {
+      const id = eye.getAttribute("data-bp-preview");
+      const name = mi.querySelector(".rr-avail-mi-lbl")?.textContent || "";
+      _rrToggleAvailMenu(false);
+      _ivcalBookingPreview(id, name);
+      return;
+    }
+    const act = mi.getAttribute("data-avail-mi");
+    _rrToggleAvailMenu(false);
+    if (act === "weekly") { _ivCurSchedId = null; if (typeof _ivToggleRules === "function") _ivToggleRules(true); }
+    else if (act === "overrides") { if (typeof _rrOpenDateOverrides === "function") _rrOpenDateOverrides(); }
+    else if (act === "bp") { _ivCurSchedId = mi.getAttribute("data-bp-id"); if (typeof _ivToggleRules === "function") _ivToggleRules(true); }
+    else if (act === "bp-new") { _ivCurSchedId = "__new"; if (typeof _ivToggleRules === "function") _ivToggleRules(true); }
+    return;
+  }
+  // Outside click closes the Availability menu.
+  const menu = document.getElementById("rr-iv-avail-menu");
+  if (menu && !menu.hidden && !e.target.closest("#rr-iv-avail-menu") && !e.target.closest("#rr-iv-rules-toggle")) {
+    _rrToggleAvailMenu(false);
   }
   const pop = document.getElementById("rr-iv-rules-popover");
   if (pop && !pop.hidden
@@ -6382,6 +6461,11 @@ document.addEventListener("click", (e) => {
       && !e.target.closest("#rr-ob-rules-chooser")) {
     _ivToggleRules(false);
   }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const menu = document.getElementById("rr-iv-avail-menu");
+  if (menu && !menu.hidden) _rrToggleAvailMenu(false);
 });
 // Calendar view-switcher dropdown · the Day / Week / Work Week / Month
 // buttons collapsed into one trigger (#rr-cal-viewdd-trigger) + menu
@@ -19081,10 +19165,13 @@ function _ivcalMyCalendars() {
     const on = _ivcalCalVis[c.id] !== false;
     return `<div class="oc-cal-row"><label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="${escapeHtml(c.id)}"${on?" checked":""}><span class="oc-cal-dot" style="background:${escapeHtml(c.color||'#2563EB')}"></span><span class="oc-cal-name">${escapeHtml(c.name)}</span></label><button class="oc-cal-menu" data-ivcal-calmenu="${escapeHtml(c.id)}" title="Calendar options" aria-label="Calendar options">⋯</button></div>`;
   }).join("");
+  // Availability (weekly hours & sessions, holidays & date overrides) and
+  // Booking pages moved out of the sidebar into the toolbar "Availability"
+  // dropdown menu (_rrBuildAvailMenu). The _ivcalAvailabilityRow /
+  // _ivcalBookingPages builders are retained for reference but no longer
+  // rendered here.
   return `<div class="oc-cals">
     ${_ivcalAwaiting()}
-    ${_ivcalAvailabilityRow()}
-    ${_ivcalBookingPages()}
     <div class="oc-cals-h"><span>Connected calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
     <div class="oc-cals-grp">${builtin}</div>
     ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
