@@ -25209,6 +25209,11 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs .hp-stage-btn:hover:not(.active){
   background:#EFF6FF!important;border-color:var(--sidebar-bg,#0F172A)!important;
 }
+/* Glyphs render in the brand blue (the selected pill's fill colour) on the
+   unselected pills; the active pill keeps its white-on-blue glyph (rule below). */
+#view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs .hp-stage-btn .hp-stage-ico{
+  color:var(--accent)!important;
+}
 #view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs .hp-stage-btn::after,
 #view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs .hp-stage-btn::before{display:none!important;content:none!important}
 #view-onboarding-ops[data-obsub="funnel"] #pipeline-stage-tabs .hp-stage-ico{width:16px!important;height:16px!important;flex:0 0 auto}
