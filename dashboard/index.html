@@ -946,15 +946,16 @@
                 else shell.style.removeProperty('grid-template-columns');
               }
             }
-            // Add applicant + Import → the Schedule action-button look, forced with
-            // !important so the command-strip tile rules can't win. Queried
-            // globally for the same relocation reason.
+            // Add applicant + Import → clear white pills with the navy edge (the
+            // same look as the Funnel filter tabs), forced with !important so the
+            // command-strip tile rules can't win. Queried globally for the same
+            // relocation reason. (Operator: no solid-blue buttons on the Funnel.)
             var css = {
               'display': 'inline-flex', 'flex-direction': 'row', 'align-items': 'center',
               'gap': '8px', 'height': '40px', 'min-width': '0', 'padding': '0 16px',
-              'background': 'var(--accent)', 'color': '#fff',
-              'border': '0', 'border-radius': 'var(--r-lg)',
-              'box-shadow': '0 1px 2px rgba(37,99,235,.18)', 'font-weight': '600',
+              'background': 'var(--surface)', 'color': 'var(--text)',
+              'border': '1.5px solid var(--sidebar-bg,#0F172A)', 'border-radius': 'var(--r-lg)',
+              'box-shadow': 'none', 'font-weight': '600',
               'font-size': 'var(--fs-sm)'
             };
             var keys = Object.keys(css);
@@ -964,11 +965,11 @@
               var sp = btn.querySelector('span'), sv = btn.querySelector('svg');
               if (isFunnel) {
                 keys.forEach(function (p) { btn.style.setProperty(p, css[p], 'important'); });
-                if (sp) sp.style.setProperty('color', '#fff', 'important');
+                if (sp) sp.style.setProperty('color', 'var(--text)', 'important');
                 if (sv) {
                   sv.style.setProperty('width', '16px', 'important');
                   sv.style.setProperty('height', '16px', 'important');
-                  sv.style.setProperty('color', '#fff', 'important');
+                  sv.style.setProperty('color', 'var(--accent)', 'important');
                 }
               } else {
                 keys.forEach(function (p) { btn.style.removeProperty(p); });
