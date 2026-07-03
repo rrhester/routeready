@@ -764,6 +764,44 @@ function _paMarkVideoWatched(id) {
   try { localStorage.setItem("rr-pa-vid-" + id, "1"); } catch (_) {}
 }
 
+// ── 5-column funnel row helpers (enterprise redesign) ──────────────────────
+// A modern hiring timeline: Applied → Screening → Interview → Offer → Hired.
+// Completed = green check + line, current = blue-outlined circle + bold label,
+// future = light-grey circle. RouteReady's stages map onto these five.
+const _PIPE_STAGES = ["Applied", "Screening", "Interview", "Offer", "Hired"];
+function _pipelineStageIndex(stage) {
+  switch (stage) {
+    case "applied": return 0;
+    case "screened": return 1;
+    case "booking_pending":
+    case "booking_scheduled": return 2;
+    case "hired": return 4;
+    default: return 0;
+  }
+}
+function _pipelineTimeline(a) {
+  const cur = _pipelineStageIndex(a.pipeline_stage);
+  const chk = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  return `<div class="pa-pl">` + _PIPE_STAGES.map((label, i) => {
+    const state = i < cur ? "done" : i === cur ? "current" : "future";
+    // "reached" colours the connector running INTO this node (green up to the
+    // current step). The connector is drawn by CSS (::before) so the node/label
+    // stay a clean two-row stack with the label centred under its node.
+    const reached = i <= cur ? " is-reached" : "";
+    return `<div class="pa-pl-step is-${state}${reached}">` +
+      `<span class="pa-pl-node">${state === "done" ? chk : ""}</span>` +
+      `<span class="pa-pl-lbl">${label}</span>` +
+    `</div>`;
+  }).join("") + `</div>`;
+}
+// Relative date label for the Last Contact column (Today / Yesterday / Jun 7).
+function _lcRelDate(d) {
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return "Today";
+  if (new Date(now.getTime() - 86400000).toDateString() === d.toDateString()) return "Yesterday";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 // Fixed-milestone progress stepper: Applied → Screening invite sent →
 // Screening → Interview → Hired. Each node is "done" (green check, behind the
 // current step), "current" (accent, the furthest reached), or "upcoming"
@@ -903,39 +941,61 @@ function renderApplicantCard(a) {
       </svg>
     </button>`;
 
-  // Progress stepper markup is built above (timelineHtml = _milestoneStepper).
+  // ── Applicant badge · subtle, at most one, derived from data we have. ──
+  let _badgeTxt = "";
+  if (a.score != null && a.screening_completed_at && a.score >= 8) _badgeTxt = "Top Candidate";
+  else if (/refer/i.test(String(a.source || ""))) _badgeTxt = "Referral";
+  const _badgeHtml = _badgeTxt ? `<span class="pa-a-badge">${escapeHtml(_badgeTxt)}</span>` : "";
+
+  // ── Last Contact · the last outbound SMS we sent (the one contact channel
+  //    tracked on the row; email history lives in the record). ──
+  const _lc = a.last_sms_at ? new Date(a.last_sms_at) : null;
+  const _lcOk = _lc && !isNaN(_lc.getTime());
+  const _lcDate = _lcOk ? _lcRelDate(_lc) : "—";
+  const _lcTime = _lcOk ? _lc.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+  const _smsIco = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+  const _lcChannel = _lcOk ? `<span class="pa-lc-ch">${_smsIco} SMS</span>` : "";
+
+  // ── Next Step · contextual headline + sub + one small button. ──
+  const _ageIso = _stageAnchorIso(a);
+  const _ageDays = _ageIso ? Math.max(0, Math.floor((Date.now() - new Date(_ageIso).getTime()) / 86400000)) : 0;
+  let _nsSub = nextStep.sub;
+  if (stage === "booking_scheduled" && a.next_event_starts_at) _nsSub = fmtDate(a.next_event_starts_at);
+  else if (stage === "applied" || stage === "screened" || stage === "booking_pending") _nsSub = `Waiting ${_ageDays}d`;
+  const _nsBtn = ctaAction
+    ? `<button class="pa-ns-btn" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">${escapeHtml(ctaLabel)}</button>`
+    : "";
 
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
-      <div class="pa-row pa-row-v3">
+      <div class="pa-row pa-row-v5">
 
-        <div class="pa-zone pa-zone-identity">
+        <div class="pa-zone pa-c-applicant">
           <div class="pa-card-avatar ${_tierClassFromScore(a.score)}">${escapeHtml(_initialsOf(name))}</div>
-          <div class="pa-id-main">
-            <div class="pa-card-name">${escapeHtml(name)}</div>
-            <div class="pa-id-meta">${escapeHtml(sourceMetaTxt)}</div>
+          <div class="pa-a-main">
+            <div class="pa-a-nameline"><span class="pa-a-name">${escapeHtml(name)}</span>${_badgeHtml}</div>
+            ${a.phone ? `<div class="pa-a-contact">${phoneCell(a.phone)}</div>` : ""}
+            ${a.email ? `<div class="pa-a-contact">${escapeHtml(a.email)}</div>` : ""}
             ${_addedBadge(a)}
-            ${a.phone ? `<div class="pa-id-email">${phoneCell(a.phone)}</div>` : (a.email ? `<div class="pa-id-email">${escapeHtml(a.email)}</div>` : "")}
-            <div class="pa-id-pills">
-              <span class="pa-stage-pill ${stage}">${escapeHtml(stageLabel)}</span>
-              ${scoreChip}
-              ${_stageAgeChip(a)}
-            </div>
-            <div class="pa-stage-next">${escapeHtml(stageNextTxt)}</div>
           </div>
         </div>
 
-        <div class="pa-zone pa-zone-timeline">
-          <div class="pa-steps">${timelineHtml}</div>
+        <div class="pa-zone pa-c-pipeline">${_pipelineTimeline(a)}</div>
+
+        <div class="pa-zone pa-c-contact">
+          <div class="pa-lc-date">${escapeHtml(_lcDate)}</div>
+          ${_lcTime ? `<div class="pa-lc-time">${escapeHtml(_lcTime)}</div>` : ""}
+          ${_lcChannel}
         </div>
 
-        <div class="pa-zone pa-zone-updated">
-          <div class="pa-upd-date">${escapeHtml(updDate)}</div>
-          <div class="pa-upd-time">${escapeHtml(updTime)}</div>
+        <div class="pa-zone pa-c-next">
+          <div class="pa-ns-head">${escapeHtml(stageNextTxt)}</div>
+          <div class="pa-ns-sub">${escapeHtml(_nsSub)}</div>
+          ${_nsBtn}
         </div>
 
-        <div class="pa-zone pa-zone-action pa-zone-action-icons">
-          ${reviewVideoBtn}${advanceBtn}${declineBtn}${moreBtn}
+        <div class="pa-zone pa-c-actions">
+          ${reviewVideoBtn}${moreBtn}
         </div>
 
       </div>
@@ -1122,10 +1182,11 @@ function _lastUpdatedAt(a) {
 
 // Column header row, prepended to the list so it aligns with the card grid.
 function _paListHeader() {
-  return `<div class="pa-listhead pa-row-v3" aria-hidden="true">
+  return `<div class="pa-listhead pa-row-v5" aria-hidden="true">
     <div class="pa-zone">Applicant</div>
-    <div class="pa-zone">Progress</div>
-    <div class="pa-zone">Last updated</div>
+    <div class="pa-zone">Pipeline</div>
+    <div class="pa-zone">Last contact</div>
+    <div class="pa-zone">Next step</div>
     <div class="pa-zone"></div>
   </div>`;
 }
@@ -1353,12 +1414,22 @@ function _paOpenMoreMenu(anchor, a) {
         <span class="pa-pop-mi-sub">${sub}</span>
       </span>
     </button>`;
-  // Decline is NOT in this menu — it's a visible (quiet) action on the card, so
-  // duplicating it here just added clutter. The ⋯ menu is contact utilities only.
+  // The primary workflow button now lives in the Next Step column and the video
+  // icon sits in the Actions column, so the ⋯ menu carries the quiet secondary
+  // utilities: Phone / Email / Note, plus Decline (which was previously a visible
+  // icon but reads better tucked at the bottom of the overflow, set apart).
   const html =
       row("phone", phoneIcon, "Phone", phoneSub, !a.phone)
     + row("email", emailIcon, "Email", emailSub, !a.email)
-    + row("note",  noteIcon,  "Note",  "Add an internal note", false);
+    + row("note",  noteIcon,  "Note",  "Add an internal note", false)
+    + `<div class="pa-pop-sep" role="separator"></div>`
+    + `<button class="pa-pop-mi pa-pop-mi-danger" type="button" data-rr-more-act="decline">
+        <span class="pa-pop-mi-icon">${declineIcon}</span>
+        <span class="pa-pop-mi-body">
+          <span class="pa-pop-mi-label">Decline</span>
+          <span class="pa-pop-mi-sub">Remove from the funnel</span>
+        </span>
+      </button>`;
   const pop = _paOpenPopover(anchor, html);
   if (!pop) return;
   pop.classList.add("pa-pop-menu");
@@ -1370,6 +1441,7 @@ function _paOpenMoreMenu(anchor, a) {
     if (act === "phone" && a.phone)  _paOpenPhonePopover(anchor, a);
     else if (act === "email" && a.email) _rrComposeFreeEmail(a.id, a.email, a.full_name || "");
     else if (act === "note")          _paOpenNotesPopover(anchor, a);
+    else if (act === "decline")       _rrComposeDeclineEmail(a.id);
   });
 }
 
