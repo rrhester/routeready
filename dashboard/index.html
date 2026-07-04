@@ -112,6 +112,7 @@
 <link rel="modulepreload" href="./scheduling-engine.js?v=b38b7853961d">
 <link rel="modulepreload" href="./flex-capacity.js?v=b38b7853961d">
 <link rel="modulepreload" href="./workbook.js?v=b38b7853961d">
+<link rel="modulepreload" href="./reports.js?v=b38b7853961d">
 <link rel="stylesheet" href="../app/rr-system.css?v=b38b7853961d">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
@@ -239,11 +240,11 @@
             <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
             <span class="rr-al-lbl">Vault</span>
           </button>
-          <!-- Reports · downloadable reports (not built yet — "coming soon"). -->
+          <!-- Reports · opens the Reports Builder modal (reports.js via
+               window.openReportsBuilder). -->
           <button type="button" class="rr-al-item" role="menuitem" data-al-act="reports">
             <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></span>
             <span class="rr-al-lbl">Reports</span>
-            <span class="rr-al-soon">Soon</span>
           </button>
           <!-- Indeed Import · bulk-ingest applicants from Indeed (built) —
                opens #modal-bulk-ingest. -->
@@ -386,7 +387,7 @@
               if (act === 'indeed') { if (window.openPdfUploadPicker) window.openPdfUploadPicker(); }
               else if (act === 'adpsync') { if (window.openAdpSync) window.openAdpSync(); }
               else if (act === 'drive') { if (window.openDrive) window.openDrive(); else if (window.goto) window.goto('drive'); }
-              else if (act === 'reports') { if (window.toast) window.toast('Reports are coming soon'); }
+              else if (act === 'reports') { if (window.openReportsBuilder) window.openReportsBuilder(); else if (window.toast) window.toast('Reports are coming soon'); }
               else if (go && window.goto) { window.goto(go); }
               else if (sub) {
                 if (window.goto) window.goto('schedule');
