@@ -2727,3 +2727,22 @@ body.is-home main > .home-hero{
 .rr-vd-sheet-btn-primary{ background:var(--accent);color:#FFFFFF;border-color:var(--accent) }
 .rr-vd-sheet-btn-primary:hover{ background:var(--accent-hover);border-color:var(--accent-hover) }
 .rr-vd-sheet-btn-primary:disabled{ opacity:.6;cursor:default }
+
+/* ── Checklist fill-out (.clk-*) — extends the form-fill styles ────── */
+.clk-helper{font-size:12.5px;color:var(--text-subtle,#6B7280);line-height:1.4;margin:-2px 0 6px}
+.clk-checkrow{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border,#E5E7EB);border-radius:12px;background:var(--surface,#fff);cursor:pointer;font-size:15px}
+.clk-checkrow input{width:20px;height:20px;accent-color:var(--accent,#2563EB);margin:0;flex:0 0 auto}
+.clk-sigwrap{position:relative}
+.clk-sigpad{display:block;width:100%;height:140px;border:1px dashed var(--border-strong,#D1D5DB);border-radius:12px;background:#fff;touch-action:none}
+.clk-sigclear{position:absolute;top:8px;right:8px;appearance:none;border:1px solid var(--border,#E5E7EB);background:var(--surface,#fff);border-radius:8px;font:inherit;font-size:12px;color:var(--text-muted,#4B5563);padding:4px 10px;cursor:pointer}
+.clk-photo-note{font-size:12px;color:var(--text-subtle,#6B7280);margin-top:6px}
+.clk-banner{display:flex;align-items:flex-start;gap:10px;border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.45;margin-bottom:14px;border:1px solid}
+.clk-banner-sub{font-size:12.5px;color:inherit;opacity:.85;font-weight:400;margin-top:2px}
+.clk-banner-done{background:#F0F7F2;border-color:#CDE3D4;color:#2F5E42}
+.clk-banner-due{background:#F3F7FE;border-color:#D3E1F8;color:#1E40AF}
+.clk-banner-overdue{background:#FDF1F1;border-color:#F3CFCF;color:#B91C1C;font-weight:600}
+.clk-readonly{display:flex;flex-direction:column;gap:10px}
+.clk-ro-row{border:1px solid var(--border,#E5E7EB);border-radius:12px;background:var(--surface,#fff);padding:12px 14px}
+.clk-ro-label{font-size:12.5px;font-weight:600;color:var(--text-subtle,#6B7280);margin-bottom:4px}
+.clk-ro-val{font-size:15px;color:var(--text,#111827);overflow-wrap:anywhere}
+.clk-sig-img{max-width:220px;max-height:80px;border:1px solid var(--border,#E5E7EB);border-radius:8px;background:#fff}

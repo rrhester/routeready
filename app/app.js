@@ -821,6 +821,7 @@ const routes = {
   "/tasks/onboarding":  { render: renderOnboarding,      tab: "/tasks", back: "/tasks", title: "Onboarding" },
   "/tasks/onboarding/step": { render: renderOnboardingStep, tab: "/tasks", back: "/tasks/onboarding", title: "Onboarding step" },
   "/tasks/form":        { render: renderFormFill,        tab: "/tasks", back: "/tasks", title: "Form" },
+  "/tasks/checklist":   { render: renderChecklistFill,   tab: "/tasks", back: "/tasks", title: "Checklist" },
   "/tasks/coaching":    { render: renderCoachingFeed,    tab: "/tasks", back: "/tasks", title: "Coaching" },
   "/tasks/coaching/one":{ render: renderCoachingDetail,  tab: "/tasks", back: "/tasks/coaching", title: "Coaching" },
   "/tasks/documents":   { render: renderDocumentsList,   tab: "/tasks", back: "/tasks", title: "Documents" },
@@ -2527,6 +2528,7 @@ function renderTasksHub() {
     <div id="rr-tasks-assignments-slot"></div>
     ${baseCards.map(taskCardHtml).join("")}
     <div id="rr-tasks-forms-slot"></div>
+    <div id="rr-tasks-checklists-slot"></div>
     <div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md);display:none">Nothing to do right now — you're all set.</div>`;
   // Skeleton-removal strategy:
   //   • The instant the first real card lands, drop the skeleton.
@@ -2537,11 +2539,11 @@ function renderTasksHub() {
   //   • If every RPC settles with nothing to show, drop the skeleton
   //     and reveal the "Nothing to do" empty state instead.
   //   • 3 s safety net for genuinely-stuck networks.
-  const TASKS_RPC_COUNT = 6;
+  const TASKS_RPC_COUNT = 7;
   let _tasksPending = TASKS_RPC_COUNT;
   let _tasksRevealed = false;
   const slotHasContent = () => {
-    const slots = ["rr-tasks-onboarding-slot", "rr-tasks-assignments-slot", "rr-tasks-forms-slot"];
+    const slots = ["rr-tasks-onboarding-slot", "rr-tasks-assignments-slot", "rr-tasks-forms-slot", "rr-tasks-checklists-slot"];
     return slots.some(id => {
       const el = document.getElementById(id);
       return el && el.children.length > 0;
@@ -2661,6 +2663,47 @@ function renderTasksHub() {
     // Network / runtime failure — log and stay silent in the UI.
     // The Tasks hub still shows what loaded; pull-to-refresh re-tries.
     console.warn("driver_list_forms rejected:", err);
+  }).finally(rpcSettled);
+
+  // Assigned checklists — cards mirror the forms cards above. Status +
+  // due badges come precomputed from driver_list_checklists (which
+  // resolves assignment scopes and repeat/due rules for today).
+  sb.rpc("driver_list_checklists", { p_token: session.token }).then(({ data, error }) => {
+    const slot = document.getElementById("rr-tasks-checklists-slot");
+    if (!slot) return;
+    if (error) {
+      // Silent like forms — likely just a tenant that hasn't run the
+      // checklist migration yet. The next render re-tries.
+      console.warn("driver_list_checklists error:", error);
+      return;
+    }
+    const lists = Array.isArray(data) ? data : [];
+    if (lists.length === 0) return;
+    const dueTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    slot.innerHTML = lists.map(c => {
+      let sub;
+      if (c.status === "completed") {
+        sub = `Completed${c.submitted_at ? " · " + dueTime(c.submitted_at) : ""}`;
+      } else if (c.status === "overdue") {
+        sub = `Overdue — was due ${c.due_at ? dueTime(c.due_at) : "earlier"}`;
+      } else {
+        const bits = [c.required ? "Required" : "Optional",
+                      `${c.item_count} item${c.item_count === 1 ? "" : "s"}`];
+        if (c.due_at) bits.push(`Due ${dueTime(c.due_at)}`);
+        if (c.status === "in_progress") bits.push("In progress");
+        sub = bits.join(" · ");
+      }
+      return taskCardHtml({
+        route: `/tasks/checklist?id=${encodeURIComponent(c.assignment_id)}`,
+        title: c.name || "Checklist",
+        sub,
+        icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7.5 12.4l3 3 6-6.4"/></svg>',
+      });
+    }).join("");
+    slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
+    onContent();
+  }).catch((err) => {
+    console.warn("driver_list_checklists rejected:", err);
   }).finally(rpcSettled);
 
   // Documents to sign — single card surfacing the count of pending
@@ -5644,6 +5687,296 @@ async function _collectFormAnswers(fields, opts = {}) {
   // submission's answers contain the final paths.
   if (photoUploads.length) await Promise.all(photoUploads);
   return out;
+}
+
+
+// ── Checklist fill-out ──────────────────────────────────────────────
+//
+// Assigned checklists open from their Forms-hub card. Same skeleton as
+// renderFormFill (draft restore, required validation, photo upload to
+// driver-documents) plus: server-side progress save (dispatch sees
+// "In progress"), a real canvas signature pad (_initSignaturePad), and
+// a locked read-only view once submitted — until dispatch reopens it.
+// Answers post as { <item_id>: { v, note?, photos? } } to
+// driver_save_checklist / driver_submit_checklist.
+
+function _clkItemHtml(item) {
+  const req = item.required ? ' <span style="color:#dc2626">*</span>' : "";
+  const help = item.helper_text ? `<div class="clk-helper">${escapeHtml(item.helper_text)}</div>` : "";
+  const id = escapeHtml(item.id);
+  let control = "";
+  if (item.item_type === "checkbox") {
+    control = `<label class="clk-checkrow"><input type="checkbox" data-rr-clk="${id}" data-rr-clk-type="checkbox"/><span>Mark as done</span></label>`;
+  } else if (item.item_type === "yes_no") {
+    control = `<div class="form-fill-choice-row" data-rr-clk="${id}" data-rr-clk-type="yes_no">
+      <label><input type="radio" name="clk-${id}" value="yes"/><span>Yes</span></label>
+      <label><input type="radio" name="clk-${id}" value="no"/><span>No</span></label>
+    </div>`;
+  } else if (item.item_type === "number") {
+    control = `<input type="number" inputmode="decimal" step="any" data-rr-clk="${id}" data-rr-clk-type="number"/>`;
+  } else if (item.item_type === "photo") {
+    control = `<input type="file" accept="image/*" capture="environment" data-rr-clk="${id}" data-rr-clk-type="photo"/><div class="clk-photo-note" data-rr-clk-photonote="${id}" hidden></div>`;
+  } else if (item.item_type === "signature") {
+    control = `<div class="clk-sigwrap">
+      <canvas class="clk-sigpad" id="clk-sig-${id}" data-rr-clk="${id}" data-rr-clk-type="signature" height="140"></canvas>
+      <button type="button" class="clk-sigclear" id="clk-sigclear-${id}">Clear</button>
+    </div>`;
+  } else if (item.item_type === "note") {
+    control = `<textarea rows="3" data-rr-clk="${id}" data-rr-clk-type="note"></textarea>`;
+  } else {
+    control = `<input type="text" data-rr-clk="${id}" data-rr-clk-type="short_text"/>`;
+  }
+  return `<div class="form-fill-row clk-row">
+    <label class="form-fill-label">${escapeHtml(item.label || "Untitled item")}${req}</label>
+    ${help}
+    ${control}
+  </div>`;
+}
+
+function _clkAnswerDisplay(item, ans) {
+  const v = ans && ans.v != null ? ans.v : null;
+  if (item.item_type === "checkbox") return (v === true || v === "true") ? "✓ Done" : "Not done";
+  if (item.item_type === "yes_no") return v === "yes" ? "Yes" : v === "no" ? "No" : "—";
+  if (item.item_type === "photo") {
+    const n = Array.isArray(ans?.photos) ? ans.photos.length : 0;
+    return n ? `${n} photo${n === 1 ? "" : "s"} attached` : "No photo";
+  }
+  if (item.item_type === "signature") {
+    return (typeof v === "string" && v.startsWith("data:image"))
+      ? `<img class="clk-sig-img" src="${escapeHtml(v)}" alt="Signature"/>` : "Signed";
+  }
+  const s = v == null || v === "" ? "—" : String(v);
+  return escapeHtml(s);
+}
+
+async function _clkCollect(items, opts = {}) {
+  const out = {};
+  const session = readSession();
+  const driverId = session?.driver_id || null;
+  const dspId    = session?.dsp_id    || null;
+  const skipUploads = !!opts.skipUploads;
+  const uploads = [];
+  for (const item of items) {
+    const el = document.querySelector(`#rr-clk-fill [data-rr-clk="${CSS.escape(item.id)}"]`);
+    if (!el) continue;
+    const t = el.getAttribute("data-rr-clk-type");
+    if (t === "checkbox") {
+      out[item.id] = { v: el.checked ? "true" : "false" };
+    } else if (t === "yes_no") {
+      const sel = el.querySelector("input[type=radio]:checked");
+      if (sel) out[item.id] = { v: sel.value };
+    } else if (t === "photo") {
+      const existing = el.dataset.rrExisting ? JSON.parse(el.dataset.rrExisting) : [];
+      const f = el.files?.[0];
+      if (f && !skipUploads) {
+        // Same bucket + dsp-prefixed path contract as form photo fields:
+        // the FIRST folder must be the DSP id so dispatch can sign URLs.
+        const ts = Date.now();
+        const safe = (f.name || "photo").replace(/[^A-Za-z0-9._-]+/g, "-");
+        const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        out[item.id] = { photos: existing };
+        uploads.push(
+          sb.storage.from("driver-documents").upload(path, f, { contentType: f.type, upsert: false })
+            .then(({ error }) => {
+              if (error) console.warn("checklist photo upload failed:", error.message);
+              else out[item.id] = { photos: existing.concat([path]) };
+            })
+            .catch((e) => console.warn("checklist photo upload error:", e))
+        );
+      } else if (existing.length) {
+        out[item.id] = { photos: existing };
+      }
+    } else if (t === "signature") {
+      if (el._rrHasInk) out[item.id] = { v: el.toDataURL("image/png") };
+      else if (el.dataset.rrExistingSig) out[item.id] = { v: el.dataset.rrExistingSig };
+    } else {
+      const v = (el.value || "").trim();
+      if (v !== "") out[item.id] = { v };
+    }
+  }
+  if (uploads.length) await Promise.all(uploads);
+  return out;
+}
+
+async function renderChecklistFill() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const id = routeQuery().get("id");
+  if (!id) { navigate("/tasks"); return; }
+
+  const { data: cl, error } = await sb.rpc("driver_get_checklist", { p_token: session.token, p_assignment_id: id });
+  if (error || !cl) {
+    main.innerHTML = errorStateHtml(error ? "Couldn't load this checklist" : "Checklist not found", error);
+    return;
+  }
+
+  setHeader(cl.name || "Checklist", "");
+  const items = Array.isArray(cl.items) ? cl.items : [];
+  const answers = (cl.answers && typeof cl.answers === "object") ? cl.answers : {};
+  const submitted = cl.submission?.status === "submitted";
+
+  // ── Locked read-only view after submission ──
+  if (submitted) {
+    main.innerHTML = `
+      <div class="form-fill-page">
+        <div class="clk-banner clk-banner-done">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <div><strong>Submitted</strong> · ${cl.submission.submitted_at ? new Date(cl.submission.submitted_at).toLocaleString() : ""}<div class="clk-banner-sub">Answers are locked. Ask dispatch to reopen it if something needs a correction.</div></div>
+        </div>
+        ${cl.description ? `<div class="form-fill-desc">${escapeHtml(cl.description)}</div>` : ""}
+        <div class="clk-readonly">
+          ${items.map(it => `
+            <div class="clk-ro-row">
+              <div class="clk-ro-label">${escapeHtml(it.label || "Untitled item")}</div>
+              <div class="clk-ro-val">${_clkAnswerDisplay(it, answers[it.id])}${answers[it.id]?.note ? `<div class="clk-helper">Note: ${escapeHtml(answers[it.id].note)}</div>` : ""}</div>
+            </div>`).join("")}
+        </div>
+      </div>`;
+    return;
+  }
+
+  const dueLine = cl.due_at
+    ? (new Date(cl.due_at) < new Date()
+        ? `<div class="clk-banner clk-banner-overdue">Overdue — was due ${new Date(cl.due_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</div>`
+        : `<div class="clk-banner clk-banner-due">Due by ${new Date(cl.due_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</div>`)
+    : "";
+  const reopened = cl.submission?.status === "reopened"
+    ? `<div class="clk-banner clk-banner-due">Dispatch reopened this checklist — review your answers and resubmit.</div>` : "";
+
+  main.innerHTML = `
+    <div class="form-fill-page">
+      ${reopened}${dueLine}
+      ${cl.description ? `<div class="form-fill-desc">${escapeHtml(cl.description)}</div>` : ""}
+      <form id="rr-clk-fill">
+        ${items.map(_clkItemHtml).join("")}
+        <button class="btn btn-primary btn-block" type="submit" style="margin-top:18px">Submit checklist</button>
+        <button class="btn btn-block" type="button" id="rr-clk-save" style="margin-top:10px">Save progress</button>
+      </form>
+    </div>`;
+
+  const formEl = document.getElementById("rr-clk-fill");
+
+  // Signature pads first (before restore paints saved ink back on).
+  items.filter(i => i.item_type === "signature").forEach(i => {
+    _initSignaturePad(`clk-sig-${i.id}`, `clk-sigclear-${i.id}`);
+  });
+
+  // Restore answers: server-saved progress first, then any local draft
+  // (typed after the last "Save progress") wins on top.
+  const DRAFT_KEY = `checklist:${id}`;
+  const draft = getDraft(DRAFT_KEY);
+  const restore = Object.assign({}, answers, (draft && typeof draft === "object") ? draft : {});
+  let restoredAny = false;
+  for (const item of items) {
+    const ans = restore[item.id];
+    if (!ans) continue;
+    const el = formEl.querySelector(`[data-rr-clk="${CSS.escape(item.id)}"]`);
+    if (!el) continue;
+    const t = el.getAttribute("data-rr-clk-type");
+    if (t === "checkbox") { el.checked = ans.v === true || ans.v === "true"; restoredAny = true; }
+    else if (t === "yes_no") {
+      el.querySelectorAll("input[type=radio]").forEach(r => { r.checked = String(r.value) === String(ans.v); });
+      if (ans.v != null) restoredAny = true;
+    } else if (t === "photo") {
+      const photos = Array.isArray(ans.photos) ? ans.photos : [];
+      if (photos.length) {
+        el.dataset.rrExisting = JSON.stringify(photos);
+        const note = formEl.querySelector(`[data-rr-clk-photonote="${CSS.escape(item.id)}"]`);
+        if (note) { note.hidden = false; note.textContent = `${photos.length} photo${photos.length === 1 ? "" : "s"} already attached — adding another keeps them.`; }
+        restoredAny = true;
+      }
+    } else if (t === "signature") {
+      const v = ans.v;
+      if (typeof v === "string" && v.startsWith("data:image")) {
+        el.dataset.rrExistingSig = v;
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const ctx = el.getContext("2d");
+            ctx.drawImage(img, 0, 0, el.clientWidth || el.width, el.clientHeight || 140);
+            el._rrHasInk = true;
+          } catch (_) {}
+        };
+        img.src = v;
+        restoredAny = true;
+      }
+    } else {
+      if ("value" in el) { el.value = ans.v ?? ""; if (ans.v) restoredAny = true; }
+    }
+  }
+  if (restoredAny && draft) toast("Restored your in-progress answers", "ok");
+
+  // Debounced local draft on any change (photos/signatures excluded —
+  // they carry via dataset + server saves instead).
+  let draftTimer = null;
+  const saveLocal = () => {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(async () => {
+      try { setDraft(DRAFT_KEY, await _clkCollect(items, { skipUploads: true })); } catch (_) {}
+    }, 400);
+  };
+  formEl.addEventListener("input", saveLocal);
+  formEl.addEventListener("change", saveLocal);
+
+  // Save progress → server, so dispatch sees "In progress".
+  document.getElementById("rr-clk-save")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      const cur = await _clkCollect(items, { skipUploads: true });
+      const { error: saveErr } = await sb.rpc("driver_save_checklist", {
+        p_token: session.token, p_assignment_id: id, p_answers: cur,
+      });
+      if (saveErr) throw saveErr;
+      setDraft(DRAFT_KEY, cur);
+      toast("Progress saved", "ok");
+    } catch (err) {
+      toast(_friendlyError(err, "Couldn't save progress — it's still on this phone."), "warn");
+    } finally {
+      btn.disabled = false; btn.textContent = "Save progress";
+    }
+  });
+
+  formEl.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector("button[type=submit]");
+    if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+    const cur = await _clkCollect(items);
+    if (btn) btn.textContent = "Submitting…";
+    for (const item of items) {
+      if (!item.required) continue;
+      const a = cur[item.id];
+      let empty = !a;
+      if (!empty) {
+        if (item.item_type === "photo") empty = !Array.isArray(a.photos) || a.photos.length === 0;
+        else if (item.item_type === "checkbox") empty = a.v !== "true";
+        else empty = a.v == null || a.v === "";
+      }
+      if (empty) {
+        toast(`"${item.label || "Untitled item"}" is required`, "warn");
+        if (btn) { btn.disabled = false; btn.textContent = "Submit checklist"; }
+        return;
+      }
+    }
+    const { error: subErr } = await sb.rpc("driver_submit_checklist", {
+      p_token: session.token, p_assignment_id: id, p_answers: cur,
+    });
+    if (subErr) {
+      if (btn) { btn.disabled = false; btn.textContent = "Submit checklist"; }
+      const msg = String(subErr.message || "");
+      toast(msg.startsWith("missing_required:")
+        ? `"${msg.slice("missing_required:".length)}" is required`
+        : _friendlyError(subErr, "Couldn't submit. Your answers are still here — try again."), "warn");
+      return;
+    }
+    clearDraft(DRAFT_KEY);
+    _haptic("success");
+    toast("Checklist submitted", "ok");
+    navigate("/tasks");
+  });
 }
 
 
