@@ -2885,6 +2885,9 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4.5" fill="currentColor"/><polyline points="7.5 12.4 10.5 15.4 16.5 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span class="sched-util-badge" id="rr-nt-task-badge" aria-hidden="true">0</span>
           </button>
+          <button type="button" class="sched-util-btn sched-util-btn--contacts" data-rr-contacts-toggle title="Contacts" aria-label="Contacts" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.34 0-8 1.67-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-3.33-4.66-5-8-5z"/></svg>
+          </button>
           <button type="button" class="sched-util-btn sched-util-btn--ops" data-rr-ophealth-toggle title="Operations Health" aria-label="Operations Health" aria-expanded="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor"/><polyline points="8.5 12 11 14.5 15.5 9.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
@@ -3026,6 +3029,35 @@
               <button type="button" class="rr-fp-pager-btn" data-rr-fp-page="prev" aria-label="Previous page"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
               <button type="button" class="rr-fp-pager-btn" data-rr-fp-page="next" aria-label="Next page"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg></button>
             </div>
+          </div>
+        </aside>
+        <!-- Contacts slide-out · Google-Contacts-style companion panel on
+             the shared utility rail: create / search / list, with quick
+             call + email actions per row. Same panel chrome + manager as
+             Notes/Tasks/Forms; contacts persist in localStorage
+             (namespaced per DSP) via the same _rrNt* storage helpers. -->
+        <aside class="sched-notes-panel" id="rr-sched-contacts" aria-label="Contacts" aria-hidden="true">
+          <div class="ntp-head">
+            <div class="ntp-head-title">Contacts</div>
+            <button type="button" class="ntp-icon-btn" data-rr-contacts-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <div class="ntp-scroll">
+            <button type="button" class="ctp-create" data-rr-contact-createtoggle>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Create contact</span>
+            </button>
+            <div class="ctp-form" data-rr-contact-form hidden>
+              <input type="text" class="ctp-input" data-rr-contact-name placeholder="Name" aria-label="Name" maxlength="80" autocomplete="off">
+              <input type="text" class="ctp-input" data-rr-contact-company placeholder="Company · role" aria-label="Company or role" maxlength="80" autocomplete="off">
+              <input type="text" class="ctp-input" data-rr-contact-phone placeholder="Phone" aria-label="Phone" maxlength="30" inputmode="tel" autocomplete="off">
+              <input type="text" class="ctp-input" data-rr-contact-email placeholder="Email" aria-label="Email" maxlength="120" inputmode="email" autocomplete="off">
+              <div class="ctp-form-foot">
+                <button type="button" class="ctp-btn" data-rr-contact-cancel>Cancel</button>
+                <button type="button" class="ctp-btn ctp-btn-primary" data-rr-contact-save>Save</button>
+              </div>
+            </div>
+            <div class="ntp-search ctp-search"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" data-rr-contact-search placeholder="Search contacts…" aria-label="Search contacts"/></div>
+            <div class="ctp-list" id="rr-sched-contacts-list" role="list"></div>
           </div>
         </aside>
       </div>
