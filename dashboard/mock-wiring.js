@@ -305,14 +305,17 @@
     var target = document.getElementById('view-' + view);
     if (target) target.classList.add('active');
     // Active-view signal for the shared right-edge utility rail. CSS gates the
-    // rail's visibility to schedule + onboarding-ops via this attribute, and
-    // live.js points the rail's top-sync / push effect at the live view.
+    // rail's visibility to schedule + onboarding-ops + fleet via this
+    // attribute, and live.js points the rail's top-sync / push effect at the
+    // live view.
     try {
       var _rrAV = target ? target.id : ('view-' + view);
       document.body.dataset.rrActiveView = _rrAV;
-      // Leaving both rail host views: close any open panel so it can't linger
-      // over a view that doesn't host the rail.
+      // Leaving the rail host views (Schedule / Onboarding-Ops / Fleet):
+      // close any open panel so it can't linger over a view that doesn't
+      // host the rail.
       if (_rrAV !== 'view-schedule' && _rrAV !== 'view-onboarding-ops' &&
+          _rrAV !== 'view-fleet2' &&
           typeof window._rrNtPanelCloseAll === 'function') {
         window._rrNtPanelCloseAll();
       }

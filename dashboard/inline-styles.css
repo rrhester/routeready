@@ -21351,10 +21351,22 @@ body.rr-cmdk-open{ overflow:hidden }
         }
         #view-fleet2.rrx-schedule > .page {
           padding: var(--rr-space-200);
+          /* Reserve the fixed 52px right utility rail (Notes / Tasks /
+             Ops / Forms) that overlays the viewport's right edge —
+             same reservation Schedule makes on its .tcp-body
+             (schedule-rrx.css:5628). */
+          padding-right: 52px;
+          transition: padding-right 240ms cubic-bezier(.2, 0, .2, 1);
           overflow: hidden;
           display: flex;
           flex-direction: column;
           min-height: 0;
+        }
+        /* Push, don't overlay: when a rail panel (Notes / Tasks / Forms)
+           slides out, condense the Fleet workspace left to make room —
+           the exact Schedule push (schedule-rrx.css:5629). */
+        #view-fleet2.rr-notes-open > .page {
+          padding-right: calc(min(360px, 86vw) + 52px);
         }
 
         /* ── Row 1 · Fleet view tabs · verbatim twin of Schedule's

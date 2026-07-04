@@ -115,11 +115,11 @@ if (window.__RR_VIEW_LOAD_FAILED) throw new Error("view partials failed to load"
   } catch (_) {}
 })();
 // The active top-level view element, but ONLY when it's one the utility rail
-// serves (Schedule or Onboarding-Ops). Used so the rail's top-sync + push
-// effect target the live view instead of a hardcoded #view-schedule.
+// serves (Schedule, Onboarding-Ops or Fleet). Used so the rail's top-sync +
+// push effect target the live view instead of a hardcoded #view-schedule.
 function _rrUtilRailView() {
   const id = document.body && document.body.dataset ? document.body.dataset.rrActiveView : "";
-  if (id === "view-schedule" || id === "view-onboarding-ops") return document.getElementById(id);
+  if (id === "view-schedule" || id === "view-onboarding-ops" || id === "view-fleet2") return document.getElementById(id);
   return null;
 }
 
@@ -9490,8 +9490,15 @@ function _rrSyncNotesRailTop() {
   // view is active yet (boot), preserving the original schedule alignment.
   const railView = _rrUtilRailView();
   const onOnboarding = !!(railView && railView.id === "view-onboarding-ops");
+  const onFleet = !!(railView && railView.id === "view-fleet2");
   const onRoster = !!(window._schedRosterKpiActive && window._schedRosterKpiActive());
-  const sels = onOnboarding
+  const sels = onFleet
+    // Fleet → the planted workspace card of the ACTIVE sub-view (the
+    // table card top is the Fleet analog of Schedule's grid header);
+    // Calendar / Assignments subs have no .table-wrap, so fall through
+    // to the sub container, then the page.
+    ? ["#view-fleet2 .fl-sub.active .table-wrap", "#view-fleet2 .fl-sub.active", "#view-fleet2 > .page"]
+    : onOnboarding
     ? ["#view-onboarding-ops #obsub-pipeline", "#view-onboarding-ops #obsub-overview", "#view-onboarding-ops #obsub-workauth", "#view-onboarding-ops .page"]
     : onRoster
     ? ["#ob-roster-mount #rr-roster-table-wrap", "#ob-roster-mount .table-wrap", "#view-schedule .tcp-body"]
@@ -65328,6 +65335,12 @@ window.fleetSub = function (sub) {
     if (typeof renderSchedVanAssignmentsBoard === "function") renderSchedVanAssignmentsBoard();
   }
   else if (sub === "rotation") _flRenderVanRotation();
+  // Re-align the shared right utility rail to the new sub-view's card top
+  // (Calendar / Assignments cards sit at a different Y than the tables).
+  if (typeof window._rrSyncNotesRailTop === "function") {
+    window._rrSyncNotesRailTop();
+    setTimeout(window._rrSyncNotesRailTop, 90);
+  }
 };
 
 // ─── Master loader (entry point from refreshActiveView) ──────────────
@@ -65494,6 +65507,9 @@ function _flRenderExecKpis() {
     vorr.threshold_status === "warning"  ? "amber" : "green"
   );
   document.getElementById("rr-vorr-sub").textContent = _flVorrSubText(vorr);
+  // Unhiding the KPI strip pushes the workspace card down — re-align the
+  // shared right utility rail to the new card top.
+  if (typeof window._rrSyncNotesRailTop === "function") window._rrSyncNotesRailTop();
 }
 
 function _flFemSubText(fem) {
