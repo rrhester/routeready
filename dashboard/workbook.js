@@ -443,6 +443,9 @@ const FUNCS = {
   MEDIAN: (vals) => { const xs = flatNumeric(vals).sort((a, b) => a - b); if (!xs.length) throw new FormulaError("#DIV/0", "MEDIAN of empty"); const m = xs.length >> 1; return xs.length % 2 ? xs[m] : (xs[m - 1] + xs[m]) / 2; },
   COUNTA: (vals) => vals.filter((v) => v != null && v !== "").length,
   ABS: (vals) => Math.abs(toNum(vals[0])),
+  INT: (vals) => Math.floor(toNum(vals[0])),
+  POWER: (vals) => { const r = Math.pow(toNum(vals[0]), toNum(vals[1])); if (!isFinite(r)) throw new FormulaError("#VALUE", "overflow"); return r; },
+  MOD: (vals) => { const d = toNum(vals[1]); if (d === 0) throw new FormulaError("#DIV/0", "MOD by zero"); const a = toNum(vals[0]); return a - d * Math.floor(a / d); },
   SQRT: (vals) => { const n = toNum(vals[0]); if (n < 0) throw new FormulaError("#VALUE", "SQRT of negative"); return Math.sqrt(n); },
 };
 
@@ -585,6 +588,206 @@ function callFunc(node, ctx) {
         if (eq) return ctx.getCell(r, c0 + idx - 1, args[1].sheet);
       }
       throw new FormulaError("#N/A", "no match found");
+    }
+    case "IFERROR": {
+      if (args.length !== 2) throw new FormulaError("#ERROR", "IFERROR takes 2 args");
+      try { return evalNode(args[0], ctx); } catch (e) { if (e instanceof FormulaError) return evalNode(args[1], ctx); throw e; }
+    }
+    case "IFS": {
+      if (args.length < 2 || args.length % 2 !== 0) throw new FormulaError("#ERROR", "IFS takes condition/value pairs");
+      for (let i = 0; i < args.length; i += 2) {
+        if (truthy(evalNode(args[i], ctx))) return evalNode(args[i + 1], ctx);
+      }
+      throw new FormulaError("#N/A", "no IFS condition matched");
+    }
+    case "LEFT": case "RIGHT": {
+      if (args.length < 1 || args.length > 2) throw new FormulaError("#ERROR", `${name} takes 1-2 args`);
+      const s = fmtScalar(evalNode(args[0], ctx));
+      const k = args.length === 2 ? Math.max(0, Math.trunc(toNum(evalNode(args[1], ctx)))) : 1;
+      return name === "LEFT" ? s.slice(0, k) : k === 0 ? "" : s.slice(-k);
+    }
+    case "MID": {
+      if (args.length !== 3) throw new FormulaError("#ERROR", "MID takes 3 args");
+      const s = fmtScalar(evalNode(args[0], ctx));
+      const start = Math.trunc(toNum(evalNode(args[1], ctx)));
+      const len = Math.trunc(toNum(evalNode(args[2], ctx)));
+      if (start < 1 || len < 0) throw new FormulaError("#VALUE", "bad MID bounds");
+      return s.slice(start - 1, start - 1 + len);
+    }
+    case "FIND": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "FIND takes 2-3 args");
+      const needle = fmtScalar(evalNode(args[0], ctx));
+      const hay = fmtScalar(evalNode(args[1], ctx));
+      const start = args.length === 3 ? Math.max(1, Math.trunc(toNum(evalNode(args[2], ctx)))) : 1;
+      const idx = hay.indexOf(needle, start - 1);
+      if (idx < 0) throw new FormulaError("#VALUE", "text not found");
+      return idx + 1;
+    }
+    case "SUBSTITUTE": {
+      if (args.length < 3 || args.length > 4) throw new FormulaError("#ERROR", "SUBSTITUTE takes 3-4 args");
+      const s = fmtScalar(evalNode(args[0], ctx));
+      const from = fmtScalar(evalNode(args[1], ctx));
+      const to = fmtScalar(evalNode(args[2], ctx));
+      if (from === "") return s;
+      if (args.length === 4) {
+        const nth = Math.trunc(toNum(evalNode(args[3], ctx)));
+        if (nth < 1) throw new FormulaError("#VALUE", "instance must be ≥ 1");
+        let i = -1;
+        for (let k = 0; k < nth; k++) { i = s.indexOf(from, i + 1); if (i < 0) return s; }
+        return s.slice(0, i) + to + s.slice(i + from.length);
+      }
+      return s.split(from).join(to);
+    }
+    case "TEXT": {
+      if (args.length !== 2) throw new FormulaError("#ERROR", "TEXT takes 2 args");
+      const v = evalNode(args[0], ctx);
+      const fmt = fmtScalar(evalNode(args[1], ctx));
+      const num = cellNumeric(v);
+      if (/^0+$/.test(fmt) && num != null) return String(Math.round(num)).padStart(fmt.length, "0");
+      if (fmt === "0.00" && num != null) return num.toFixed(2);
+      if (fmt === "0.0" && num != null) return num.toFixed(1);
+      if (fmt === "#,##0" && num != null) return Math.round(num).toLocaleString("en-US");
+      if (fmt === "#,##0.00" && num != null) return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (fmt === "0%" && num != null) return Math.round(num * 100) + "%";
+      if (fmt === "$#,##0.00" && num != null) return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const d = parseDateLoose(String(v));
+      if (d) {
+        const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        if (/^m+\/d+\/y+$/i.test(fmt)) return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+        if (/^mmm d$/i.test(fmt)) return `${MO[d.getMonth()]} ${d.getDate()}`;
+        if (/^yyyy-mm-dd$/i.test(fmt)) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      }
+      return fmtScalar(v);
+    }
+    case "DATE": {
+      if (args.length !== 3) throw new FormulaError("#ERROR", "DATE takes 3 args");
+      const y = Math.trunc(toNum(evalNode(args[0], ctx)));
+      const mo = Math.trunc(toNum(evalNode(args[1], ctx)));
+      const da = Math.trunc(toNum(evalNode(args[2], ctx)));
+      const d = new Date(y, mo - 1, da);
+      if (isNaN(d)) throw new FormulaError("#VALUE", "bad date");
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    case "DAY": case "MONTH": case "YEAR": case "WEEKDAY": {
+      if (args.length < 1 || args.length > 2) throw new FormulaError("#ERROR", `${name} takes 1 arg`);
+      const d = parseDateLoose(fmtScalar(evalNode(args[0], ctx)));
+      if (!d) throw new FormulaError("#VALUE", "not a date");
+      if (name === "DAY") return d.getDate();
+      if (name === "MONTH") return d.getMonth() + 1;
+      if (name === "YEAR") return d.getFullYear();
+      return d.getDay() + 1; // WEEKDAY type 1: Sunday=1
+    }
+    case "INDEX": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "INDEX takes 2-3 args");
+      if (args[0].k !== "range") throw new FormulaError("#VALUE", "INDEX needs a range");
+      const a = args[0].a, b = args[0].b;
+      const r0 = Math.min(a.row, b.row), c0 = Math.min(a.col, b.col);
+      const rIdx = Math.trunc(toNum(evalNode(args[1], ctx)));
+      const cIdx = args.length === 3 ? Math.trunc(toNum(evalNode(args[2], ctx))) : 1;
+      const r1 = Math.max(a.row, b.row), c1 = Math.max(a.col, b.col);
+      if (rIdx < 1 || r0 + rIdx - 1 > r1 || cIdx < 1 || c0 + cIdx - 1 > c1) throw new FormulaError("#REF", "INDEX out of range");
+      return ctx.getCell(r0 + rIdx - 1, c0 + cIdx - 1, args[0].sheet);
+    }
+    case "MATCH": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "MATCH takes 2-3 args");
+      if (args[1].k !== "range") throw new FormulaError("#VALUE", "MATCH needs a range");
+      if (args.length === 3) {
+        const mt = Math.trunc(toNum(evalNode(args[2], ctx)));
+        if (mt !== 0) throw new FormulaError("#VALUE", "only exact MATCH (0) is supported");
+      }
+      const needle = evalNode(args[0], ctx);
+      const cellsIn = [...rangeCells(args[1].a, args[1].b)];
+      for (let i = 0; i < cellsIn.length; i++) {
+        let eq = false;
+        try { eq = cmp("=", ctx.getCell(cellsIn[i].row, cellsIn[i].col, args[1].sheet) ?? "", needle ?? ""); } catch (_) {}
+        if (eq) return i + 1;
+      }
+      throw new FormulaError("#N/A", "no match found");
+    }
+    case "HLOOKUP": {
+      if (args.length < 3 || args.length > 4) throw new FormulaError("#ERROR", "HLOOKUP takes 3-4 args");
+      if (args[1].k !== "range") throw new FormulaError("#VALUE", "HLOOKUP needs a range");
+      const needle = evalNode(args[0], ctx);
+      const idx = Math.trunc(toNum(evalNode(args[2], ctx)));
+      const a = args[1].a, b = args[1].b;
+      const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
+      const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
+      if (idx < 1 || r0 + idx - 1 > r1) throw new FormulaError("#REF", "HLOOKUP row index out of range");
+      for (let c = c0; c <= c1; c++) {
+        let eq = false;
+        try { eq = cmp("=", ctx.getCell(r0, c, args[1].sheet) ?? "", needle ?? ""); } catch (_) {}
+        if (eq) return ctx.getCell(r0 + idx - 1, c, args[1].sheet);
+      }
+      throw new FormulaError("#N/A", "no match found");
+    }
+    case "XLOOKUP": {
+      if (args.length < 3 || args.length > 4) throw new FormulaError("#ERROR", "XLOOKUP takes 3-4 args");
+      if (args[1].k !== "range" || args[2].k !== "range") throw new FormulaError("#VALUE", "XLOOKUP needs lookup and return ranges");
+      const needle = evalNode(args[0], ctx);
+      const look = [...rangeCells(args[1].a, args[1].b)];
+      const ret = [...rangeCells(args[2].a, args[2].b)];
+      if (ret.length < look.length) throw new FormulaError("#REF", "return range too small");
+      for (let i = 0; i < look.length; i++) {
+        let eq = false;
+        try { eq = cmp("=", ctx.getCell(look[i].row, look[i].col, args[1].sheet) ?? "", needle ?? ""); } catch (_) {}
+        if (eq) return ctx.getCell(ret[i].row, ret[i].col, args[2].sheet);
+      }
+      if (args.length === 4) return evalNode(args[3], ctx);
+      throw new FormulaError("#N/A", "no match found");
+    }
+    case "COUNTIFS": case "SUMIFS": case "AVERAGEIFS": {
+      const isSum = name === "SUMIFS", isAvg = name === "AVERAGEIFS";
+      const base = isSum || isAvg ? 1 : 0;
+      if (args.length < base + 2 || (args.length - base) % 2 !== 0) throw new FormulaError("#ERROR", `${name} takes ${isSum || isAvg ? "a sum range plus " : ""}range/criteria pairs`);
+      let sumCells2 = null;
+      if (isSum || isAvg) {
+        if (args[0].k !== "range") throw new FormulaError("#VALUE", `${name} needs a range first`);
+        sumCells2 = [...rangeCells(args[0].a, args[0].b)].map((rc) => ({ ...rc, sheet: args[0].sheet }));
+      }
+      const pairs = [];
+      for (let i = base; i < args.length; i += 2) {
+        if (args[i].k !== "range") throw new FormulaError("#VALUE", `${name} criteria range must be a range`);
+        pairs.push({ cellsIn: [...rangeCells(args[i].a, args[i].b)], sheet: args[i].sheet, crit: evalNode(args[i + 1], ctx) });
+      }
+      const len = pairs[0].cellsIn.length;
+      if (pairs.some((p) => p.cellsIn.length !== len) || (sumCells2 && sumCells2.length < len)) throw new FormulaError("#REF", "ranges must be the same size");
+      let count = 0, total = 0, nnum = 0;
+      for (let i = 0; i < len; i++) {
+        if (pairs.every((p) => matchesCriterion(ctx.getCell(p.cellsIn[i].row, p.cellsIn[i].col, p.sheet), p.crit))) {
+          count++;
+          if (sumCells2) {
+            const sv = ctx.getCell(sumCells2[i].row, sumCells2[i].col, sumCells2[i].sheet);
+            const num = Number(String(sv ?? "").replace(/[$,\s]/g, ""));
+            if (isFinite(num) && String(sv ?? "").trim() !== "") { total += num; nnum++; }
+          }
+        }
+      }
+      if (name === "COUNTIFS") return count;
+      if (isAvg) { if (!nnum) throw new FormulaError("#DIV/0", "no numeric matches"); return total / nnum; }
+      return total;
+    }
+    case "AVERAGEIF": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "AVERAGEIF takes 2-3 args");
+      if (args[0].k !== "range") throw new FormulaError("#VALUE", "AVERAGEIF needs a range");
+      const cellsIn = [...rangeCells(args[0].a, args[0].b)];
+      const crit = evalNode(args[1], ctx);
+      let avgCells = cellsIn.map((rc) => ({ ...rc, sheet: args[0].sheet }));
+      if (args.length === 3) {
+        if (args[2].k !== "range") throw new FormulaError("#VALUE", "AVERAGEIF avg_range must be a range");
+        const s2 = [...rangeCells(args[2].a, args[2].b)].map((rc) => ({ ...rc, sheet: args[2].sheet }));
+        if (s2.length < cellsIn.length) throw new FormulaError("#REF", "avg_range too small");
+        avgCells = s2;
+      }
+      let total = 0, nnum = 0;
+      cellsIn.forEach((rc, i) => {
+        if (matchesCriterion(ctx.getCell(rc.row, rc.col, args[0].sheet), crit)) {
+          const sv = ctx.getCell(avgCells[i].row, avgCells[i].col, avgCells[i].sheet);
+          const num = Number(String(sv ?? "").replace(/[$,\s]/g, ""));
+          if (isFinite(num) && String(sv ?? "").trim() !== "") { total += num; nnum++; }
+        }
+      });
+      if (!nnum) throw new FormulaError("#DIV/0", "no numeric matches");
+      return total / nnum;
     }
     default: {
       const fn = FUNCS[name];
@@ -941,6 +1144,13 @@ async function wbLog(action, summary, extra) {
 
 function markSaveState(state) {
   WB.saveState = state;
+  const modeText = { saved: "Ready", dirty: "Unsaved changes", saving: "Saving…", error: "Save failed" }[state] || "Ready";
+  for (const g of GRIDS.values()) {
+    if (g.els.sbmode) {
+      g.els.sbmode.textContent = modeText;
+      g.els.sbmode.classList.toggle("is-error", state === "error");
+    }
+  }
   const el = document.querySelector("[data-wb-savestate]");
   if (!el) return;
   const map = {
@@ -1047,9 +1257,24 @@ const saveSheetMeta = debounce(async (sheetId) => {
       frozen_cols: sheet.frozenCols,
       col_widths: sheet.colWidths || {},
       row_heights: sheet.rowHeights || {},
+      meta: { ...(sheet.meta || {}), hiddenRows: [...(sheet.hiddenRows || [])], hiddenCols: [...(sheet.hiddenCols || [])] },
     }).eq("id", sheetId);
     if (res.error) throw res.error;
-  } catch (e) { console.warn("sheet meta save:", e && e.message); _toast("Couldn't save sheet settings", "warn"); }
+  } catch (e) {
+    // migration 0414 adds workbook_sheets.meta — until it's applied,
+    // retry without it so widths/frozen panes still save
+    if (/'meta' column|meta.*schema cache/i.test(String(e && e.message))) {
+      try {
+        const res2 = await _sb().from("workbook_sheets").update({
+          name: sheet.name, position: sheet.position, row_count: sheet.rowCount, col_count: sheet.colCount,
+          frozen_rows: sheet.frozenRows, frozen_cols: sheet.frozenCols,
+          col_widths: sheet.colWidths || {}, row_heights: sheet.rowHeights || {},
+        }).eq("id", sheetId);
+        if (!res2.error) { _toast("Hidden rows and rules need migration 0414 to persist", "warn"); return; }
+      } catch (_) {}
+    }
+    console.warn("sheet meta save:", e && e.message); _toast("Couldn't save sheet settings", "warn");
+  }
 }, 700);
 
 const saveWbMeta = debounce(async () => {
@@ -1104,6 +1329,9 @@ function normalizeSheet(row) {
     frozenCols: row.frozen_cols || 0,
     colWidths: row.col_widths && typeof row.col_widths === "object" ? row.col_widths : {},
     rowHeights: row.row_heights && typeof row.row_heights === "object" ? row.row_heights : {},
+    meta: row.meta && typeof row.meta === "object" ? row.meta : {},
+    hiddenRows: new Set(Array.isArray(row.meta?.hiddenRows) ? row.meta.hiddenRows : []),
+    hiddenCols: new Set(Array.isArray(row.meta?.hiddenCols) ? row.meta.hiddenCols : []),
     cells: new Map(),
   };
 }
@@ -2255,7 +2483,11 @@ const DEF_ROW_H = 28, MIN_ROW_H = 22, MAX_ROW_H = 300;
 const HDR_COL_W = 46, HDR_ROW_H = 26;
 const GRID_MAX_H = 460;
 
-function colW(sheet, c) { const w = sheet.colWidths && sheet.colWidths[c]; return typeof w === "number" ? Math.min(MAX_COL_W, Math.max(MIN_COL_W, w)) : DEF_COL_W; }
+function colW(sheet, c) {
+  if (sheet.hiddenCols && sheet.hiddenCols.has(c)) return 0;
+  const w = sheet.colWidths && sheet.colWidths[c];
+  return typeof w === "number" ? Math.min(MAX_COL_W, Math.max(MIN_COL_W, w)) : DEF_COL_W;
+}
 function rowH(sheet, r) { const h = sheet.rowHeights && sheet.rowHeights[r]; return typeof h === "number" ? Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, h)) : DEF_ROW_H; }
 
 function mountSheetBlock(block, body) {
@@ -2289,7 +2521,12 @@ function mountSheetBlock(block, body) {
       </div>
       <div class="wb-gr-filterchip" hidden></div>
     </div>
-    <div class="wb-tabs" data-wb-tabs="${block.id}"></div>`;
+    <div class="wb-tabs" data-wb-tabs="${block.id}"></div>
+    <div class="wb-statusbar" data-wb-statusbar>
+      <span class="wb-sb-mode" data-wb-sbmode>Ready</span>
+      <span class="wb-sb-filter" data-wb-sbfilter></span>
+      <span class="wb-selstats" data-wb-selstats aria-live="polite"></span>
+    </div>`;
 
   const g = {
     blockId: block.id,
@@ -2338,7 +2575,7 @@ function mountSheetBlock(block, body) {
 }
 
 function sheetToolbarHtml(block, ro) {
-  const btn = (act, title, svg, extra) => `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="${act}" ${extra || ""} title="${esc(title)}" aria-label="${esc(title)}" ${ro && act !== "export-csv" ? "disabled" : ""}>${svg}</button>`;
+  const btn = (act, title, svg, extra) => `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="${act}" ${extra || ""} title="${esc(title)}" aria-label="${esc(title)}" ${ro && act !== "export-csv" && act !== "find" ? "disabled" : ""}>${svg}</button>`;
   const I = {
     undo: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>`,
     redo: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>`,
@@ -2361,6 +2598,9 @@ function sheetToolbarHtml(block, ro) {
     sortDesc: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5h4"/><path d="M11 9h7"/><path d="M11 13h10"/><path d="M3 7l3-3 3 3"/><path d="M6 6v14"/></svg>`,
     filter: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg>`,
     more: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`,
+    find: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>`,
+    dv: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7.5 12l2.5 2.5 5-5"/></svg>`,
+    cf: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.6 6 11a6 6 0 0 1-12 0c0-4.4 6-11 6-11z"/></svg>`,
   };
   return `<div class="wb-toolbar" role="toolbar" aria-label="Spreadsheet tools" data-wb-toolbar="${block.id}">
     <div class="wb-tgrp">${btn("undo", "Undo (Ctrl+Z)", I.undo)}${btn("redo", "Redo (Ctrl+Y)", I.redo)}</div>
@@ -2404,7 +2644,7 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-freeze="col" role="menuitem">Freeze first column</button>
           <button type="button" class="popover-item" data-wb-freeze="none" role="menuitem">Unfreeze</button>
         </div></span>
-      ${btn("sort-asc", "Sort by active column, A→Z", I.sortAsc)}${btn("sort-desc", "Sort by active column, Z→A", I.sortDesc)}${btn("filter", "Filter by active column", I.filter)}
+      ${btn("sort-asc", "Sort by active column, A→Z", I.sortAsc)}${btn("sort-desc", "Sort by active column, Z→A", I.sortDesc)}${btn("filter", "Filter by active column", I.filter)}${btn("find", "Find and replace (Ctrl+F)", I.find)}${btn("validation", "Data validation", I.dv)}${btn("condfmt", "Conditional formatting", I.cf)}
     </div>
     <div class="wb-tgrp">
       <span class="popover-anchor">
@@ -2424,16 +2664,18 @@ function computeGeometry(g) {
   const sheet = g.sheet;
   // visible rows (filter-aware; header row 0 always visible)
   const rows = [];
+  const rowHidden = (r) => sheet.hiddenRows && sheet.hiddenRows.has(r);
   if (g.filter && g.filter.text) {
     const needle = g.filter.text.toLowerCase();
     for (let r = 0; r < sheet.rowCount; r++) {
+      if (rowHidden(r)) continue;
       if (r === 0) { rows.push(r); continue; }
       const cell = sheet.cells.get(cellKey(r, g.filter.col));
       const disp = cell ? String(cell.formula ? (cell.err || (cell.computed ?? "")) : (cell.value ?? "")) : "";
       if (disp.toLowerCase().includes(needle)) rows.push(r);
     }
   } else {
-    for (let r = 0; r < sheet.rowCount; r++) rows.push(r);
+    for (let r = 0; r < sheet.rowCount; r++) if (!rowHidden(r)) rows.push(r);
   }
   g.rows = rows;
   g.rowY = new Array(rows.length + 1);
@@ -2524,6 +2766,7 @@ function paintNow(g) {
   let colsHtml = "";
   for (let c = c0; c <= c1; c++) {
     const w = g.colX[c + 1] - g.colX[c];
+    if (w === 0) continue; // hidden column
     const isSel = c >= Math.min(g.sel.c0, g.sel.c1) && c <= Math.max(g.sel.c0, g.sel.c1);
     colsHtml += `<div class="wb-hcell wb-hcol ${isSel ? "is-sel" : ""}" data-wb-col="${c}" style="left:${g.colX[c]}px;width:${w}px;height:${HDR_ROW_H}px">${colLabel(c)}<span class="wb-rz-col" data-wb-rzcol="${c}"></span></div>`;
   }
@@ -2548,12 +2791,14 @@ function paintNow(g) {
     const r = g.rows[di];
     const top = g.rowY[di], h = g.rowY[di + 1] - top;
     for (let c = c0; c <= c1; c++) {
+      const w = g.colX[c + 1] - g.colX[c];
+      if (w === 0) continue; // hidden column
       const key = cellKey(r, c);
       const cell = sheet.cells.get(key);
-      const w = g.colX[c + 1] - g.colX[c];
       const disp = cell ? displayValue(sheet, r, c) : "";
       const err = cell && cell.err;
-      html += `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""}" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}">${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${esc(disp)}</div>`;
+      const inval = cellInvalid(sheet, r, c, cell);
+      html += `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""}" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${esc(disp)}</div>`;
     }
   }
   g.els.cells.innerHTML = html;
@@ -2586,6 +2831,13 @@ function paintSelection(g) {
     const hx = g.colX[Math.max(c0, c1) + 1], hy = g.rowY[di1 + 1];
     html += `<div class="wb-fill-handle" data-wb-fillhandle title="Drag to fill" style="left:${hx - 4}px;top:${hy - 4}px"></div>`;
   }
+  // dropdown affordance on list-validated cells
+  if (WB.canEdit && !g.editing && adi >= 0) {
+    const dvRule = findValidationRule(g.sheet, a.r, a.c);
+    if (dvRule && dvRule.type === "list") {
+      html += `<button type="button" class="wb-dv-btn" data-wb-dvbtn title="Pick from list" aria-label="Pick from list" style="left:${g.colX[a.c + 1] + 2}px;top:${g.rowY[adi]}px;height:${g.rowY[adi + 1] - g.rowY[adi]}px">▾</button>`;
+    }
+  }
   g.els.sel.innerHTML = html;
   updateSelStats(g);
 }
@@ -2594,8 +2846,11 @@ function paintSelection(g) {
 function updateSelStats(g) {
   const el = g.els.selstats;
   if (!el) return;
+  if (g.els.sbfilter) {
+    g.els.sbfilter.textContent = g.filter && g.filter.text ? `${g.rows.length - 1} of ${g.sheet.rowCount} rows` : "";
+  }
   const { r0, r1, c0, c1 } = selRect(g);
-  if (r0 === r1 && c0 === c1) { el.textContent = ""; return; }
+  if (r0 === r1 && c0 === c1) { el.textContent = `${colLabel(c0)}${r0 + 1}`; return; }
   let sum = 0, nnum = 0, cnt = 0;
   for (const [key, cell] of g.sheet.cells) {
     const { r, c } = keyRC(key);
@@ -2626,7 +2881,7 @@ function paintFrozen(g, sx, sy, c0, c1) {
     for (let c = c0; c <= c1; c++) {
       const cell = sheet.cells.get(cellKey(r, c));
       const w = g.colX[c + 1] - g.colX[c];
-      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}">${esc(cell ? displayValue(sheet, r, c) : "")}</div>`;
+      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${esc(cell ? displayValue(sheet, r, c) : "")}</div>`;
     }
     g.els.frozenTop.hidden = false;
     g.els.frozenTop.style.height = h + "px";
@@ -2645,7 +2900,7 @@ function paintFrozen(g, sx, sy, c0, c1) {
       const r = g.rows[di];
       const cell = sheet.cells.get(cellKey(r, 0));
       const h = g.rowY[di + 1] - g.rowY[di];
-      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}">${esc(cell ? displayValue(sheet, r, 0) : "")}</div>`;
+      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${esc(cell ? displayValue(sheet, r, 0) : "")}</div>`;
     }
     g.els.frozenLeft.hidden = false;
     g.els.frozenLeft.style.left = HDR_COL_W + "px";
@@ -2666,6 +2921,69 @@ function paintFilterChip(g) {
   } else {
     chip.hidden = true;
   }
+}
+
+// Hide/unhide rows or columns across a span; persisted in sheet.meta.
+function setHidden(g, axis, from, to, hidden) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const set = axis === "row" ? sheet.hiddenRows : sheet.hiddenCols;
+  for (let i = from; i <= to; i++) {
+    if (hidden) set.add(i);
+    else set.delete(i);
+  }
+  // never hide everything
+  if (axis === "row" && set.size >= sheet.rowCount) set.delete(from);
+  if (axis === "col" && set.size >= sheet.colCount) set.delete(from);
+  saveSheetMeta(sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+}
+
+// Paste Special: values only — computed results land, formulas don't.
+async function pasteValuesOnly(g) {
+  const cb = WB.clipboard;
+  if (!cb || !cb.rows.length || !WB.canEdit) { _toast("Copy a range first", "info"); return; }
+  const sel = selRect(g);
+  const changes = [];
+  for (let i = 0; i < cb.rows.length; i++) {
+    for (let j = 0; j < cb.rows[i].length; j++) {
+      const tr = sel.r0 + i, tc = sel.c0 + j;
+      if (tr >= g.sheet.rowCount || tc >= g.sheet.colCount) continue;
+      const srcCell = cb.rows[i][j];
+      let next = null;
+      if (srcCell) {
+        const v = srcCell.formula ? (srcCell.computed ?? null) : srcCell.value;
+        next = v == null || v === ""
+          ? null
+          : { value: String(v), formula: null, type: detectType(String(v)).type, format: srcCell.format ? { ...srcCell.format } : {} };
+      }
+      changes.push({ r: tr, c: tc, cell: next });
+    }
+  }
+  setCells(g, changes);
+}
+
+// Formula auditing: light one — reuse the reference-highlight layer.
+function tracePrecedents(g) {
+  const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
+  if (!cell || !cell.formula) { _toast("The active cell has no formula", "info"); return; }
+  paintRefsFromText(g, cell.formula);
+}
+
+function traceDependents(g) {
+  const target = { r: g.active.r, c: g.active.c };
+  const hits = [];
+  for (const [key, cell] of g.sheet.cells) {
+    if (!cell.formula) continue;
+    if (extractRefs(cell.formula).some((rc) => rc.row === target.r && rc.col === target.c)) {
+      const { r, c } = keyRC(key);
+      hits.push(colLabel(c) + (r + 1));
+      if (hits.length >= 10) break;
+    }
+  }
+  if (!hits.length) { _toast("No formulas reference this cell", "info"); return; }
+  paintRefsFromText(g, "=" + hits.join("+")); // reuse highlighter on the dependent refs
 }
 
 // Step the selection's decimal places (Sheets' .0 / .00 buttons).
@@ -2925,10 +3243,14 @@ function insertPointRef(g, st, refText) {
 const REFHL_COLORS = ["#2563EB", "#16A34A", "#7C3AED", "#D97706", "#DC2626"];
 
 function paintFormulaRefs(g) {
-  const layer = g.els.refhl;
-  if (!layer) return;
   const input = formulaEditInput(g) || (g.editing && g.editing.input);
   const v = input && input.value.startsWith("=") ? input.value : null;
+  paintRefsFromText(g, v);
+}
+
+function paintRefsFromText(g, v) {
+  const layer = g.els.refhl;
+  if (!layer) return;
   if (!v) { layer.innerHTML = ""; return; }
   const parts = v.split(/("(?:[^"]|"")*")/);
   const found = [];
@@ -2994,6 +3316,30 @@ const FUNCTION_META = [
   { n: "LOWER", sig: "LOWER(text)", d: "Lowercase" },
   { n: "TRIM", sig: "TRIM(text)", d: "Strip extra spaces" },
   { n: "CONCAT", sig: "CONCAT(a, b, …)", d: "Join values into text" },
+  { n: "INT", sig: "INT(number)", d: "Round down to a whole number" },
+  { n: "MOD", sig: "MOD(number, divisor)", d: "Remainder after division" },
+  { n: "POWER", sig: "POWER(number, exponent)", d: "Raise to a power" },
+  { n: "IFERROR", sig: "IFERROR(value, fallback)", d: "Fallback when a formula errors" },
+  { n: "IFS", sig: "IFS(cond1, val1, …)", d: "First value whose condition holds" },
+  { n: "LEFT", sig: "LEFT(text, count)", d: "Leading characters" },
+  { n: "RIGHT", sig: "RIGHT(text, count)", d: "Trailing characters" },
+  { n: "MID", sig: "MID(text, start, count)", d: "Characters from the middle" },
+  { n: "FIND", sig: "FIND(needle, text)", d: "Position of text (case-sensitive)" },
+  { n: "SUBSTITUTE", sig: "SUBSTITUTE(text, old, new)", d: "Replace text" },
+  { n: "TEXT", sig: "TEXT(value, format)", d: "Format a number as text" },
+  { n: "DATE", sig: "DATE(year, month, day)", d: "Build a date" },
+  { n: "DAY", sig: "DAY(date)", d: "Day of month" },
+  { n: "MONTH", sig: "MONTH(date)", d: "Month number" },
+  { n: "YEAR", sig: "YEAR(date)", d: "Year" },
+  { n: "WEEKDAY", sig: "WEEKDAY(date)", d: "Day of week (Sun=1)" },
+  { n: "INDEX", sig: "INDEX(range, row, [col])", d: "Value at a position in a range" },
+  { n: "MATCH", sig: "MATCH(value, range, 0)", d: "Position of a value in a range" },
+  { n: "HLOOKUP", sig: "HLOOKUP(value, range, row, FALSE)", d: "Find a column by its first row" },
+  { n: "XLOOKUP", sig: "XLOOKUP(value, lookup, return, [if_missing])", d: "Modern lookup" },
+  { n: "COUNTIFS", sig: "COUNTIFS(range1, crit1, …)", d: "Count rows matching every condition" },
+  { n: "SUMIFS", sig: "SUMIFS(sum_range, range1, crit1, …)", d: "Sum rows matching every condition" },
+  { n: "AVERAGEIF", sig: "AVERAGEIF(range, criteria, [avg_range])", d: "Average of matches" },
+  { n: "AVERAGEIFS", sig: "AVERAGEIFS(avg_range, range1, crit1, …)", d: "Average matching every condition" },
   { n: "TODAY", sig: "TODAY()", d: "Today's date" },
   { n: "NOW", sig: "NOW()", d: "Current date & time" },
 ];
@@ -3093,9 +3439,10 @@ function renderSheetTabs(g) {
     </div>
     ${ro ? "" : `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tab-add" data-wb-act="sheet-add" data-block="${g.blockId}" title="Add sheet" aria-label="Add sheet">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>`}
-    <span class="wb-selstats" data-wb-selstats aria-live="polite"></span>`;
-  g.els.selstats = g.els.tabs.querySelector("[data-wb-selstats]");
+    </button>`}`;
+  g.els.selstats = g.els.body.querySelector("[data-wb-selstats]");
+  g.els.sbmode = g.els.body.querySelector("[data-wb-sbmode]");
+  g.els.sbfilter = g.els.body.querySelector("[data-wb-sbfilter]");
 }
 
 function switchSheet(g, sheetId) {
@@ -3105,6 +3452,7 @@ function switchSheet(g, sheetId) {
   cancelEdit(g);
   g.sheet = sheet;
   recalcSheet(sheet); // cross-sheet inputs may have changed while hidden
+  closeFindPanel(g);
   g.filter = null;
   g.active = { r: 0, c: 0 };
   g.sel = { r0: 0, c0: 0, r1: 0, c1: 0 };
@@ -3127,6 +3475,7 @@ function setActive(g, r, c, opts) {
   c = Math.max(0, Math.min(sheet.colCount - 1, c));
   g.active = { r, c };
   if (!opts || !opts.keepSel) g.sel = { r0: r, c0: c, r1: r, c1: c };
+  if (!g.editing && g.els.refhl && g.els.refhl.innerHTML) g.els.refhl.innerHTML = "";
   paintSelection(g);
   // headers repaint for the sel highlight (cheap — reuse main paint)
   repaintGrid(g);
@@ -3156,6 +3505,14 @@ function moveActive(g, dr, dc, extend) {
     r = g.rows[nd];
   }
   c = Math.max(0, Math.min(g.sheet.colCount - 1, c + dc));
+  if (dc !== 0 && g.sheet.hiddenCols && g.sheet.hiddenCols.size) {
+    let guard = 0;
+    while (g.sheet.hiddenCols.has(c) && guard++ < g.sheet.colCount) {
+      const nxt = c + (dc > 0 ? 1 : -1);
+      if (nxt < 0 || nxt >= g.sheet.colCount) break;
+      c = nxt;
+    }
+  }
   if (extend) {
     g.sel.r1 = r; g.sel.c1 = c;
     paintSelection(g);
@@ -3164,6 +3521,30 @@ function moveActive(g, dr, dc, extend) {
   } else {
     setActive(g, r, c);
   }
+}
+
+// Ctrl+Arrow: jump to the edge of the current data block (Excel).
+function dataEdge(g, from, dr, dc) {
+  const sheet = g.sheet;
+  const filled = (r, c) => {
+    const cl = sheet.cells.get(cellKey(r, c));
+    return !!(cl && ((cl.value != null && cl.value !== "") || cl.formula));
+  };
+  const inB = (r, c) => r >= 0 && c >= 0 && r < sheet.rowCount && c < sheet.colCount;
+  let { r, c } = from;
+  let nr = r + dr, nc = c + dc;
+  if (!inB(nr, nc)) return { r, c };
+  if (filled(r, c) && filled(nr, nc)) {
+    while (inB(nr + dr, nc + dc) && filled(nr + dr, nc + dc)) { nr += dr; nc += dc; }
+    return { r: nr, c: nc };
+  }
+  while (inB(nr, nc) && !filled(nr, nc)) { nr += dr; nc += dc; }
+  if (inB(nr, nc)) return { r: nr, c: nc };
+  // nothing ahead: go to the sheet edge
+  return {
+    r: dr < 0 ? 0 : dr > 0 ? sheet.rowCount - 1 : r,
+    c: dc < 0 ? 0 : dc > 0 ? sheet.colCount - 1 : c,
+  };
 }
 
 function selRect(g) {
@@ -3182,7 +3563,9 @@ function selVisibleRows(g) {
 // ─── Central mutation (undo/redo + persistence + recalc) ───────────────────
 
 function cloneCell(cell) {
-  return cell ? { value: cell.value, formula: cell.formula, type: cell.type, format: cell.format ? { ...cell.format } : {} } : null;
+  // carries computed/err so clipboard snapshots can paste-as-values;
+  // every write path re-nulls them before storing into the cell map
+  return cell ? { value: cell.value, formula: cell.formula, type: cell.type, computed: cell.computed ?? null, err: cell.err ?? null, format: cell.format ? { ...cell.format } : {} } : null;
 }
 
 function setCells(g, changes, opts) {
@@ -3368,7 +3751,19 @@ function commitEdit(g, dr, dc, opts) {
   ed.input.remove();
   if (raw !== ed.orig) {
     const prev = g.sheet.cells.get(cellKey(ed.r, ed.c));
-    setCells(g, [{ r: ed.r, c: ed.c, cell: cellFromInput(raw, prev) }]);
+    const nextCell = cellFromInput(raw, prev);
+    const v = validateCommit(g.sheet, ed.r, ed.c, nextCell);
+    if (!v.ok && v.strict) {
+      _toast(v.msg, "error");
+      // re-open the editor so the entry can be fixed — except on blur,
+      // where fighting for focus would be worse than reverting
+      if (!opts || opts.refocus !== false) { startEdit(g, ed.r, ed.c, raw); return; }
+      paintSelection(g);
+      syncFormulaBar(g);
+      return;
+    }
+    if (!v.ok) _toast(v.msg, "warn");
+    setCells(g, [{ r: ed.r, c: ed.c, cell: nextCell }]);
   }
   if (!opts || opts.refocus !== false) g.els.grid.focus();
   if (dr || dc) moveActive(g, dr, dc, false);
@@ -3636,13 +4031,16 @@ function shiftFormulaRefs(formula, axis, index, delta) {
   // other sheets are untouched; refs to a deleted row/col become #REF.
   return rewriteRefs(formula, (ref) => {
     if (ref.sheet) return null;
+    const cut = delta < 0 ? -delta : 0;
     let { row, col } = ref;
     if (axis === "row") {
-      if (delta < 0 && row === index) return "#REF";
-      if (row >= index) row += delta;
+      if (delta < 0 && row >= index && row < index + cut) return "#REF";
+      if (row >= index + cut) row += delta;
+      else if (delta > 0 && row >= index) row += delta;
     } else {
-      if (delta < 0 && col === index) return "#REF";
-      if (col >= index) col += delta;
+      if (delta < 0 && col >= index && col < index + cut) return "#REF";
+      if (col >= index + cut) col += delta;
+      else if (delta > 0 && col >= index) col += delta;
     }
     if (row < 0 || col < 0) return "#REF";
     return (ref.colAbs ? "$" : "") + colLabel(col) + (ref.rowAbs ? "$" : "") + (row + 1);
@@ -3662,12 +4060,15 @@ function restructure(g, axis, index, delta) {
   for (const [key, cell] of oldCells) {
     const { r, c } = keyRC(key);
     let nr = r, nc = c;
+    const cut = delta < 0 ? -delta : 0; // width of the deleted band
     if (axis === "row") {
-      if (delta < 0 && r === index) { changes.push({ r, c, prevCell: cloneCell(cell), nextCell: null }); touched.add(key); continue; }
-      if (r >= index) nr = r + delta;
+      if (delta < 0 && r >= index && r < index + cut) { changes.push({ r, c, prevCell: cloneCell(cell), nextCell: null }); touched.add(key); continue; }
+      if (r >= index + cut) nr = r + delta;
+      else if (delta > 0 && r >= index) nr = r + delta;
     } else {
-      if (delta < 0 && c === index) { changes.push({ r, c, prevCell: cloneCell(cell), nextCell: null }); touched.add(key); continue; }
-      if (c >= index) nc = c + delta;
+      if (delta < 0 && c >= index && c < index + cut) { changes.push({ r, c, prevCell: cloneCell(cell), nextCell: null }); touched.add(key); continue; }
+      if (c >= index + cut) nc = c + delta;
+      else if (delta > 0 && c >= index) nc = c + delta;
     }
     const moved = nr !== r || nc !== c;
     const newCell = { ...cloneCell(cell), computed: null, err: null };
@@ -3687,10 +4088,13 @@ function restructure(g, axis, index, delta) {
   if (axis === "row") {
     sheet.rowCount = Math.max(1, sheet.rowCount + delta);
     sheet.rowHeights = shiftIndexMap(sheet.rowHeights, index, delta);
+    sheet.hiddenRows = shiftIndexSet(sheet.hiddenRows, index, delta);
   } else {
     sheet.colCount = Math.max(1, sheet.colCount + delta);
     sheet.colWidths = shiftIndexMap(sheet.colWidths, index, delta);
+    sheet.hiddenCols = shiftIndexSet(sheet.hiddenCols, index, delta);
   }
+  shiftRuleRanges(sheet, axis, index, delta);
   // undo entry (bespoke: restores both maps' touched keys)
   g.undo.push({ changes: changes.map((ch) => ({ r: ch.r, c: ch.c, key: cellKey(ch.r, ch.c), prev: ch.prevCell, next: ch.nextCell })) });
   if (g.undo.length > 100) g.undo.shift();
@@ -3706,13 +4110,566 @@ function restructure(g, axis, index, delta) {
 }
 
 function shiftIndexMap(map, index, delta) {
+  const cut = delta < 0 ? -delta : 0;
   const out = {};
   for (const [k, v] of Object.entries(map || {})) {
     const i = +k;
-    if (delta < 0 && i === index) continue;
-    out[i >= index ? i + delta : i] = v;
+    if (delta < 0 && i >= index && i < index + cut) continue;
+    out[i >= index + cut ? i + delta : delta > 0 && i >= index ? i + delta : i] = v;
   }
   return out;
+}
+
+function shiftIndexSet(set, index, delta) {
+  const cut = delta < 0 ? -delta : 0;
+  const out = new Set();
+  for (const i of set || []) {
+    if (delta < 0 && i >= index && i < index + cut) continue;
+    out.add(i >= index + cut ? i + delta : delta > 0 && i >= index ? i + delta : i);
+  }
+  return out;
+}
+
+// ─── Sheet rules: data validation + conditional formatting ──────────────────
+// Rules live in sheet.meta.validation / sheet.meta.condFormat (jsonb via
+// migration 0414) as {id, r0, c0, r1, c1, ...} rectangles. The LAST rule
+// covering a cell wins, so re-applying to a selection overrides without
+// destroying larger overlapping rules.
+
+function sheetRules(sheet, key) {
+  const v = sheet.meta && sheet.meta[key];
+  return Array.isArray(v) ? v : [];
+}
+
+function setSheetRules(g, key, rules) {
+  g.sheet.meta = { ...(g.sheet.meta || {}), [key]: rules };
+  saveSheetMeta(g.sheet.id);
+  repaintGrid(g);
+}
+
+function ruleCovers(rule, r, c) {
+  return r >= rule.r0 && r <= rule.r1 && c >= rule.c0 && c <= rule.c1;
+}
+
+function ruleRefText(rule) {
+  return colLabel(rule.c0) + (rule.r0 + 1) + (rule.r1 !== rule.r0 || rule.c1 !== rule.c0 ? ":" + colLabel(rule.c1) + (rule.r1 + 1) : "");
+}
+
+function findValidationRule(sheet, r, c) {
+  const rules = sheetRules(sheet, "validation");
+  for (let i = rules.length - 1; i >= 0; i--) if (ruleCovers(rules[i], r, c)) return rules[i];
+  return null;
+}
+
+function valueSatisfiesRule(rule, raw) {
+  if (raw == null || raw === "") return true;
+  if (rule.type === "list") {
+    const s = String(raw).trim().toLowerCase();
+    return (rule.list || []).some((it) => String(it).trim().toLowerCase() === s);
+  }
+  const x = cellNumeric(raw);
+  if (x == null) return false;
+  const a = +rule.v1, b = +rule.v2;
+  switch (rule.op) {
+    case "between": return x >= Math.min(a, b) && x <= Math.max(a, b);
+    case ">": return x > a;
+    case ">=": return x >= a;
+    case "<": return x < a;
+    case "<=": return x <= a;
+    case "=": return x === a;
+    default: return true;
+  }
+}
+
+function validationMsg(rule) {
+  if (rule.type === "list") {
+    const opts = (rule.list || []).slice(0, 6).join(", ");
+    return `Value must be one of: ${opts}${(rule.list || []).length > 6 ? ", …" : ""}`;
+  }
+  const opText = rule.op === "between" ? `between ${rule.v1} and ${rule.v2}` : `${rule.op} ${rule.v1}`;
+  return `Value must be a number ${opText}`;
+}
+
+// Enforced on typed commits only — paste and fill bypass validation,
+// which matches Excel. Formula cells are never blocked; their results
+// just get the red invalid marker if they violate the rule.
+function validateCommit(sheet, r, c, cell) {
+  const rule = findValidationRule(sheet, r, c);
+  if (!rule || !cell || cell.formula || cell.value == null || cell.value === "") return { ok: true };
+  if (valueSatisfiesRule(rule, cell.value)) return { ok: true };
+  return { ok: false, strict: rule.mode !== "warn", msg: validationMsg(rule) };
+}
+
+function cellInvalid(sheet, r, c, cell) {
+  if (!cell) return false;
+  const rules = sheet.meta && sheet.meta.validation;
+  if (!Array.isArray(rules) || !rules.length) return false;
+  const rule = findValidationRule(sheet, r, c);
+  if (!rule) return false;
+  const raw = cell.formula ? (cell.err ? null : cell.computed) : cell.value;
+  if (raw == null || raw === "") return false;
+  return !valueSatisfiesRule(rule, raw);
+}
+
+const WB_CF_STYLES = {
+  green: { bg: "rgba(22,163,74,.15)", fg: "#166534", label: "Green" },
+  amber: { bg: "rgba(217,119,6,.16)", fg: "#92400E", label: "Amber" },
+  red: { bg: "rgba(220,38,38,.14)", fg: "#B91C1C", label: "Red" },
+  blue: { bg: "rgba(37,99,235,.13)", fg: "#1E40AF", label: "Blue" },
+  violet: { bg: "rgba(124,58,237,.14)", fg: "#5B21B6", label: "Violet" },
+  gray: { bg: "#E5E7EB", fg: "#374151", label: "Gray" },
+};
+
+const WB_CF_KINDS = {
+  gt: "Greater than", lt: "Less than", between: "Between", eq: "Equal to",
+  contains: "Text contains", notempty: "Is not empty", empty: "Is empty",
+};
+
+function condRuleHits(rule, raw) {
+  const empty = raw == null || raw === "";
+  if (rule.kind === "empty") return empty;
+  if (rule.kind === "notempty") return !empty;
+  if (empty) return false;
+  if (rule.kind === "contains") return String(raw).toLowerCase().includes(String(rule.v1 ?? "").toLowerCase());
+  const x = cellNumeric(raw);
+  const a = +rule.v1, b = +rule.v2;
+  switch (rule.kind) {
+    case "gt": return x != null && x > a;
+    case "lt": return x != null && x < a;
+    case "between": return x != null && x >= Math.min(a, b) && x <= Math.max(a, b);
+    case "eq": {
+      if (x != null && rule.v1 !== "" && !isNaN(a)) return x === a;
+      return String(raw).trim().toLowerCase() === String(rule.v1 ?? "").trim().toLowerCase();
+    }
+    default: return false;
+  }
+}
+
+// Extra inline style for a painted cell; conditional formats win over
+// manual fills (Excel's precedence), so this appends AFTER cellStyle.
+function condStyleFor(sheet, r, c, cell) {
+  const rules = sheet.meta && sheet.meta.condFormat;
+  if (!Array.isArray(rules) || !rules.length) return "";
+  let out = "";
+  for (const rule of rules) {
+    if (!ruleCovers(rule, r, c)) continue;
+    const raw = cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
+    if (condRuleHits(rule, raw)) {
+      const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
+      out = `background:${st.bg};color:${st.fg};`;
+    }
+  }
+  return out;
+}
+
+// Keep rule rectangles anchored through row/column insert/delete.
+function shiftRuleRanges(sheet, axis, index, delta) {
+  const meta = sheet.meta || {};
+  const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
+  const cut = delta < 0 ? -delta : 0;
+  for (const key of ["validation", "condFormat"]) {
+    if (!Array.isArray(meta[key]) || !meta[key].length) continue;
+    const next = [];
+    for (const rule of meta[key]) {
+      let x0 = rule[lo], x1 = rule[hi];
+      if (delta < 0) {
+        if (x0 >= index && x1 < index + cut) continue; // fully deleted
+        x0 = x0 >= index + cut ? x0 + delta : x0 > index ? index : x0;
+        x1 = x1 >= index + cut ? x1 + delta : x1 >= index ? index - 1 : x1;
+        if (x1 < x0) continue;
+      } else {
+        if (x0 >= index) x0 += delta;
+        if (x1 >= index) x1 += delta;
+      }
+      next.push({ ...rule, [lo]: x0, [hi]: x1 });
+    }
+    meta[key] = next;
+  }
+  sheet.meta = meta;
+}
+
+// Dropdown picker for list-validated cells (the ▾ beside the active cell).
+function openValidationPicker(g, btnEl) {
+  const { r, c } = g.active;
+  const rule = findValidationRule(g.sheet, r, c);
+  if (!rule || rule.type !== "list" || !WB.canEdit) return;
+  const rect = btnEl.getBoundingClientRect();
+  const m = ctxMenu(rect.left - 120, rect.bottom + 2, (rule.list || []).map((opt) =>
+    `<button type="button" class="popover-item" data-dv-opt="${esc(String(opt))}" role="menuitem">${esc(String(opt))}</button>`).join("") +
+    `<div class="popover-section"></div><button type="button" class="popover-item" data-dv-clear role="menuitem">Clear value</button>`);
+  m.addEventListener("click", (e) => {
+    const opt = e.target.closest("[data-dv-opt]");
+    const clr = e.target.closest("[data-dv-clear]");
+    if (!opt && !clr) return;
+    const text = opt ? opt.getAttribute("data-dv-opt") : "";
+    closeAllPopovers();
+    const prev = g.sheet.cells.get(cellKey(r, c));
+    setCells(g, [{ r, c, cell: cellFromInput(text, prev) }]);
+    g.els.grid.focus();
+  });
+}
+
+// ─── Data validation dialog ──────────────────────────────────────────────────
+
+function openValidationDialog(g) {
+  if (!WB.canEdit) return;
+  document.getElementById("wb-dv-modal")?.remove();
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const existing = findValidationRule(sheet, g.active.r, g.active.c);
+  const cur = existing || { type: "list", list: [], op: "between", v1: "", v2: "", mode: "reject" };
+  const refText = colLabel(rect.c0) + (rect.r0 + 1) + ":" + colLabel(rect.c1) + (rect.r1 + 1);
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-dv-modal";
+  const opSel = (v, label) => `<option value="${v}" ${cur.op === v ? "selected" : ""}>${label}</option>`;
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Data validation" style="width:480px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Data validation</p><p class="rr-modal-sub">Applies to ${esc(refText)}</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Criteria</span>
+            <select class="wb-input" id="wb-dv-type">
+              <option value="list" ${cur.type === "list" ? "selected" : ""}>Dropdown from a list</option>
+              <option value="number" ${cur.type === "number" ? "selected" : ""}>Number</option>
+            </select></label>
+          <label class="wb-field" style="flex:0 0 168px"><span class="wb-field-label">On invalid input</span>
+            <select class="wb-input" id="wb-dv-mode">
+              <option value="reject" ${cur.mode !== "warn" ? "selected" : ""}>Reject the input</option>
+              <option value="warn" ${cur.mode === "warn" ? "selected" : ""}>Show a warning</option>
+            </select></label>
+        </div>
+        <div id="wb-dv-list-row">
+          <label class="wb-field"><span class="wb-field-label">List items (comma-separated)</span>
+            <input type="text" class="wb-input" id="wb-dv-list" placeholder="Pending, In progress, Done" value="${esc((cur.list || []).join(", "))}"></label>
+        </div>
+        <div class="wb-field-row" id="wb-dv-num-row" hidden>
+          <label class="wb-field"><span class="wb-field-label">Condition</span>
+            <select class="wb-input" id="wb-dv-op">
+              ${opSel("between", "Between")}${opSel(">=", "Greater or equal")}${opSel("<=", "Less or equal")}${opSel(">", "Greater than")}${opSel("<", "Less than")}${opSel("=", "Equal to")}
+            </select></label>
+          <label class="wb-field" style="flex:0 0 100px"><span class="wb-field-label">Value</span>
+            <input type="number" class="wb-input" id="wb-dv-v1" value="${cur.v1 ?? ""}"></label>
+          <label class="wb-field" style="flex:0 0 100px" id="wb-dv-v2-field"><span class="wb-field-label">and</span>
+            <input type="number" class="wb-input" id="wb-dv-v2" value="${cur.v2 ?? ""}"></label>
+        </div>
+        <p class="wb-dv-hint">Cells that break the rule get a red corner marker. Typed input is checked as you enter it; pasted data is only flagged.</p>
+      </div>
+      <div class="rr-modal-foot">
+        ${existing ? `<button class="rr-modal-btn" type="button" data-wb-dv-remove style="margin-right:auto">Remove rule</button>` : ""}
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-dv-apply>Apply</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const syncRows = () => {
+    const t = wrap.querySelector("#wb-dv-type").value;
+    wrap.querySelector("#wb-dv-list-row").hidden = t !== "list";
+    wrap.querySelector("#wb-dv-num-row").hidden = t !== "number";
+    wrap.querySelector("#wb-dv-v2-field").style.display = wrap.querySelector("#wb-dv-op").value === "between" ? "" : "none";
+  };
+  syncRows();
+  wrap.addEventListener("input", syncRows);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (e.target.closest("[data-wb-dv-remove]")) {
+      setSheetRules(g, "validation", sheetRules(sheet, "validation").filter((x) => !ruleCovers(x, g.active.r, g.active.c)));
+      wbLog("sheet.validation", `removed a data-validation rule in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+      wrap.remove();
+      g.els.grid.focus();
+      return;
+    }
+    if (e.target.closest("[data-wb-dv-apply]")) {
+      const type = wrap.querySelector("#wb-dv-type").value;
+      const rule = {
+        id: "dv" + Math.random().toString(36).slice(2, 8),
+        r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1,
+        type, mode: wrap.querySelector("#wb-dv-mode").value,
+      };
+      if (type === "list") {
+        rule.list = wrap.querySelector("#wb-dv-list").value.split(",").map((s) => s.trim()).filter(Boolean);
+        if (!rule.list.length) { _toast("Add at least one list item", "warn"); return; }
+      } else {
+        rule.op = wrap.querySelector("#wb-dv-op").value;
+        rule.v1 = wrap.querySelector("#wb-dv-v1").value;
+        rule.v2 = wrap.querySelector("#wb-dv-v2").value;
+        if (rule.v1 === "" || (rule.op === "between" && rule.v2 === "")) { _toast("Enter the limit value", "warn"); return; }
+      }
+      const rules = sheetRules(sheet, "validation").filter((x) =>
+        !(x.r0 === rect.r0 && x.c0 === rect.c0 && x.r1 === rect.r1 && x.c1 === rect.c1));
+      rules.push(rule);
+      setSheetRules(g, "validation", rules);
+      wbLog("sheet.validation", `set a data-validation rule on ${refText} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+      wrap.remove();
+      g.els.grid.focus();
+    }
+  });
+  setTimeout(() => wrap.querySelector("#wb-dv-type")?.focus(), 30);
+}
+
+// ─── Conditional formatting dialog ───────────────────────────────────────────
+
+function openCondFormatDialog(g) {
+  if (!WB.canEdit) return;
+  document.getElementById("wb-cf-modal")?.remove();
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const refText = colLabel(rect.c0) + (rect.r0 + 1) + ":" + colLabel(rect.c1) + (rect.r1 + 1);
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-cf-modal";
+  const kindOpts = Object.entries(WB_CF_KINDS).map(([k, label]) => `<option value="${k}">${label}</option>`).join("");
+  const chips = Object.entries(WB_CF_STYLES).map(([k, st], i) =>
+    `<button type="button" class="wb-cf-chip ${i === 0 ? "is-on" : ""}" data-cf-style="${k}" style="background:${st.bg};color:${st.fg}" title="${st.label}" aria-pressed="${i === 0}">Aa</button>`).join("");
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Conditional formatting" style="width:520px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Conditional formatting</p><p class="rr-modal-sub">New rules apply to ${esc(refText)}</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Format cells if…</span>
+            <select class="wb-input" id="wb-cf-kind">${kindOpts}</select></label>
+          <label class="wb-field" style="flex:0 0 110px" id="wb-cf-v1-field"><span class="wb-field-label">Value</span>
+            <input type="text" class="wb-input" id="wb-cf-v1"></label>
+          <label class="wb-field" style="flex:0 0 110px" id="wb-cf-v2-field"><span class="wb-field-label">and</span>
+            <input type="text" class="wb-input" id="wb-cf-v2"></label>
+        </div>
+        <div class="wb-field"><span class="wb-field-label">Style</span>
+          <div class="wb-cf-chips" id="wb-cf-chips">${chips}</div></div>
+        <button type="button" class="btn btn-primary btn-sm" data-wb-cf-add>Add rule</button>
+        <div class="wb-cf-rules" id="wb-cf-rules"></div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn primary" type="button" data-wb-close>Done</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const paintRules = () => {
+    const rules = sheetRules(sheet, "condFormat");
+    wrap.querySelector("#wb-cf-rules").innerHTML = !rules.length
+      ? `<p class="wb-cf-none">No rules on this sheet yet.</p>`
+      : rules.map((rule, i) => {
+          const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
+          const what = rule.kind === "empty" || rule.kind === "notempty" ? WB_CF_KINDS[rule.kind]
+            : rule.kind === "between" ? `${WB_CF_KINDS.between} ${rule.v1} and ${rule.v2}`
+            : `${WB_CF_KINDS[rule.kind] || rule.kind} ${rule.v1}`;
+          return `<div class="wb-cf-rule"><span class="wb-cf-swatch" style="background:${st.bg};color:${st.fg}">Aa</span><span class="wb-cf-what">${esc(ruleRefText(rule))} · ${esc(what)}</span><button type="button" class="wb-cf-del" data-cf-del="${i}" aria-label="Delete rule">×</button></div>`;
+        }).join("");
+  };
+  const syncFields = () => {
+    const k = wrap.querySelector("#wb-cf-kind").value;
+    wrap.querySelector("#wb-cf-v1-field").style.display = k === "empty" || k === "notempty" ? "none" : "";
+    wrap.querySelector("#wb-cf-v2-field").style.display = k === "between" ? "" : "none";
+  };
+  paintRules();
+  syncFields();
+  wrap.addEventListener("input", syncFields);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); g.els.grid.focus(); return; }
+    const chip = e.target.closest("[data-cf-style]");
+    if (chip) {
+      wrap.querySelectorAll(".wb-cf-chip").forEach((el) => { el.classList.toggle("is-on", el === chip); el.setAttribute("aria-pressed", String(el === chip)); });
+      return;
+    }
+    const del = e.target.closest("[data-cf-del]");
+    if (del) {
+      const rules = sheetRules(sheet, "condFormat").slice();
+      rules.splice(+del.getAttribute("data-cf-del"), 1);
+      setSheetRules(g, "condFormat", rules);
+      paintRules();
+      return;
+    }
+    if (e.target.closest("[data-wb-cf-add]")) {
+      const kind = wrap.querySelector("#wb-cf-kind").value;
+      const v1 = wrap.querySelector("#wb-cf-v1").value.trim();
+      const v2 = wrap.querySelector("#wb-cf-v2").value.trim();
+      if (kind !== "empty" && kind !== "notempty" && v1 === "") { _toast("Enter a value for the condition", "warn"); return; }
+      if (kind === "between" && v2 === "") { _toast("Enter both limits", "warn"); return; }
+      const style = wrap.querySelector(".wb-cf-chip.is-on")?.getAttribute("data-cf-style") || "green";
+      const rules = sheetRules(sheet, "condFormat").slice();
+      rules.push({ id: "cf" + Math.random().toString(36).slice(2, 8), r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1, kind, v1, v2, style });
+      setSheetRules(g, "condFormat", rules);
+      wbLog("sheet.condformat", `added a conditional-format rule on ${refText} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+      paintRules();
+    }
+  });
+}
+
+// ─── Find & replace ──────────────────────────────────────────────────────────
+
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+function closeFindPanel(g) {
+  if (g.els.findPanel) { g.els.findPanel.remove(); g.els.findPanel = null; }
+  g.find = null;
+}
+
+function computeFindMatches(g) {
+  const f = g.find;
+  if (!f) return;
+  f.matches = [];
+  if (f.text) {
+    const needle = f.matchCase ? f.text : f.text.toLowerCase();
+    const entries = [...g.sheet.cells.entries()].map(([key, cell]) => ({ ...keyRC(key), cell })).sort((a, b) => a.r - b.r || a.c - b.c);
+    for (const { r, c, cell } of entries) {
+      if (dispIndexOfRow(g, r) < 0 || colW(g.sheet, c) === 0) continue; // hidden/filtered out
+      const texts = [];
+      if (cell.formula) { texts.push(String(cell.err ? "" : cell.computed ?? "")); if (f.inFormulas) texts.push(cell.formula); }
+      else texts.push(String(cell.value ?? ""));
+      const hit = texts.some((t) => {
+        const hay = f.matchCase ? t : t.toLowerCase();
+        return f.entire ? hay === needle : hay.includes(needle);
+      });
+      if (hit) f.matches.push({ r, c });
+    }
+  }
+  f.idx = f.matches.length ? 0 : -1;
+}
+
+function paintFindCount(g) {
+  const f = g.find;
+  const el = g.els.findPanel && g.els.findPanel.querySelector("[data-wb-find-count]");
+  if (!el || !f) return;
+  el.textContent = !f.text ? "" : !f.matches.length ? "No matches" : `${f.idx + 1} of ${f.matches.length}`;
+}
+
+function stepFind(g, dir) {
+  const f = g.find;
+  if (!f || !f.matches.length) { paintFindCount(g); return; }
+  f.idx = (f.idx + dir + f.matches.length) % f.matches.length;
+  const m = f.matches[f.idx];
+  setActive(g, m.r, m.c);
+  paintFindCount(g);
+}
+
+function replaceInText(t, f, replText) {
+  if (f.entire) {
+    const hay = f.matchCase ? t : t.toLowerCase();
+    const nd = f.matchCase ? f.text : f.text.toLowerCase();
+    return hay === nd ? replText : t;
+  }
+  return t.replace(new RegExp(escapeRegExp(f.text), f.matchCase ? "g" : "gi"), replText);
+}
+
+function replacementFor(g, m, replText) {
+  const f = g.find;
+  const cell = g.sheet.cells.get(cellKey(m.r, m.c));
+  if (!cell) return null;
+  if (cell.formula) {
+    if (!f.inFormulas) return null; // matched the computed result — nothing editable
+    const nf = replaceInText(cell.formula, f, replText);
+    return nf === cell.formula ? null : { r: m.r, c: m.c, cell: cellFromInput(nf, cell) };
+  }
+  const nv = replaceInText(String(cell.value ?? ""), f, replText);
+  return nv === String(cell.value ?? "") ? null : { r: m.r, c: m.c, cell: cellFromInput(nv, cell) };
+}
+
+function replaceCurrent(g, replText) {
+  const f = g.find;
+  if (!WB.canEdit || !f || f.idx < 0) return;
+  const m = f.matches[f.idx];
+  const change = replacementFor(g, m, replText);
+  if (!change) { _toast("This match is a formula result — turn on the Formulas option to edit it", "warn"); stepFind(g, 1); return; }
+  setCells(g, [change]);
+  const keep = f.idx;
+  computeFindMatches(g);
+  f.idx = f.matches.length ? Math.min(keep, f.matches.length - 1) : -1;
+  if (f.idx >= 0) { const nm = f.matches[f.idx]; setActive(g, nm.r, nm.c); }
+  paintFindCount(g);
+}
+
+function replaceAll(g, replText) {
+  const f = g.find;
+  if (!WB.canEdit || !f || !f.matches.length) return;
+  const changes = [];
+  let skipped = 0;
+  for (const m of f.matches) {
+    const change = replacementFor(g, m, replText);
+    if (change) changes.push(change); else skipped++;
+  }
+  if (changes.length) setCells(g, changes);
+  _toast(changes.length ? `Replaced in ${changes.length} cell${changes.length === 1 ? "" : "s"}${skipped ? ` · ${skipped} formula result${skipped === 1 ? "" : "s"} skipped` : ""}` : "Nothing to replace", changes.length ? "success" : "info");
+  computeFindMatches(g);
+  paintFindCount(g);
+}
+
+function openFindPanel(g, withReplace) {
+  const ro = !WB.canEdit;
+  if (g.els.findPanel) {
+    if (withReplace && !ro) g.els.findPanel.classList.add("has-replace");
+    g.els.findPanel.querySelector("[data-wb-find-input]").focus();
+    g.els.findPanel.querySelector("[data-wb-find-input]").select();
+    return;
+  }
+  const panel = document.createElement("div");
+  panel.className = "wb-find-panel" + (withReplace && !ro ? " has-replace" : "");
+  panel.innerHTML = `
+    <div class="wb-find-row">
+      <input type="text" class="wb-input" data-wb-find-input placeholder="Find in sheet" aria-label="Find in sheet" autocomplete="off" spellcheck="false">
+      <span class="wb-find-count" data-wb-find-count></span>
+      <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-find="prev" title="Previous match (Shift+Enter)" aria-label="Previous match">↑</button>
+      <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-find="next" title="Next match (Enter)" aria-label="Next match">↓</button>
+      <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-find="close" title="Close (Esc)" aria-label="Close find">×</button>
+    </div>
+    <div class="wb-find-opts">
+      <label><input type="checkbox" data-wb-find-opt="matchCase"> Match case</label>
+      <label><input type="checkbox" data-wb-find-opt="entire"> Entire cell</label>
+      <label><input type="checkbox" data-wb-find-opt="inFormulas"> Formulas</label>
+      ${ro ? "" : `<button type="button" class="wb-find-toggle" data-wb-find="toggle-replace">Replace…</button>`}
+    </div>
+    ${ro ? "" : `<div class="wb-find-row wb-find-replace-row">
+      <input type="text" class="wb-input" data-wb-find-rinput placeholder="Replace with" aria-label="Replace with" autocomplete="off" spellcheck="false">
+      <button type="button" class="btn btn-ghost btn-sm" data-wb-find="replace">Replace</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-wb-find="replace-all">All</button>
+    </div>`}`;
+  g.els.grid.appendChild(panel);
+  g.els.findPanel = panel;
+  g.find = { text: "", matchCase: false, entire: false, inFormulas: false, matches: [], idx: -1 };
+  const input = panel.querySelector("[data-wb-find-input]");
+  const rinput = panel.querySelector("[data-wb-find-rinput]");
+  panel.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") { e.preventDefault(); closeFindPanel(g); g.els.grid.focus(); return; }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (rinput && document.activeElement === rinput) replaceCurrent(g, rinput.value);
+      else stepFind(g, e.shiftKey ? -1 : 1);
+    }
+  });
+  input.addEventListener("input", () => {
+    g.find.text = input.value;
+    computeFindMatches(g);
+    if (g.find.idx >= 0) { const m = g.find.matches[g.find.idx]; setActive(g, m.r, m.c); }
+    paintFindCount(g);
+  });
+  panel.addEventListener("change", (e) => {
+    const opt = e.target.closest("[data-wb-find-opt]");
+    if (!opt) return;
+    g.find[opt.getAttribute("data-wb-find-opt")] = opt.checked;
+    computeFindMatches(g);
+    if (g.find.idx >= 0) { const m = g.find.matches[g.find.idx]; setActive(g, m.r, m.c); }
+    paintFindCount(g);
+  });
+  panel.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-wb-find]");
+    if (!btn) return;
+    switch (btn.getAttribute("data-wb-find")) {
+      case "prev": stepFind(g, -1); break;
+      case "next": stepFind(g, 1); break;
+      case "close": closeFindPanel(g); g.els.grid.focus(); break;
+      case "toggle-replace": panel.classList.toggle("has-replace"); if (panel.classList.contains("has-replace")) rinput?.focus(); break;
+      case "replace": replaceCurrent(g, rinput ? rinput.value : ""); break;
+      case "replace-all": replaceAll(g, rinput ? rinput.value : ""); break;
+    }
+  });
+  input.focus();
 }
 
 // ─── Sort ────────────────────────────────────────────────────────────────────
@@ -4106,6 +5063,10 @@ function bindGridEvents(g) {
       }
     }
 
+    // ── validation dropdown ── (opened from the document click delegate —
+    // opening here on mousedown would be undone by the click-away closer)
+    if (e.target.closest("[data-wb-dvbtn]")) { e.preventDefault(); return; }
+
     // ── drag-fill handle ──
     const fh = e.target.closest("[data-wb-fillhandle]");
     if (fh && WB.canEdit) {
@@ -4178,12 +5139,33 @@ function bindGridEvents(g) {
       return;
     }
 
+    if (e.target.closest(".wb-gr-corner")) {
+      commitEdit(g, 0, 0, { refocus: false });
+      g.active = { r: g.rows[0] ?? 0, c: 0 };
+      g.sel = { r0: 0, c0: 0, r1: g.sheet.rowCount - 1, c1: g.sheet.colCount - 1 };
+      grid.focus();
+      repaintGrid(g);
+      syncFormulaBar(g);
+      return;
+    }
     const hcol = e.target.closest(".wb-hcol");
     if (hcol) {
       const c = +hcol.getAttribute("data-wb-col");
       commitEdit(g, 0, 0, { refocus: false });
-      g.active = { r: g.rows[0] ?? 0, c };
-      g.sel = { r0: 0, c0: c, r1: g.sheet.rowCount - 1, c1: c };
+      if (e.shiftKey) {
+        g.sel = { r0: 0, c0: Math.min(g.sel.c0, c), r1: g.sheet.rowCount - 1, c1: Math.max(g.sel.c1, c) };
+      } else {
+        g.active = { r: g.rows[0] ?? 0, c };
+        g.sel = { r0: 0, c0: c, r1: g.sheet.rowCount - 1, c1: c };
+        const onMove = (ev) => {
+          const rect = g.els.scroll.getBoundingClientRect();
+          const c2 = colAt(g, ev.clientX - rect.left + g.els.scroll.scrollLeft);
+          if (c2 !== g.sel.c1) { g.sel.c1 = c2; paintSelection(g); repaintGrid(g); }
+        };
+        const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+      }
       grid.focus();
       repaintGrid(g);
       syncFormulaBar(g);
@@ -4193,8 +5175,20 @@ function bindGridEvents(g) {
     if (hrow) {
       const r = +hrow.getAttribute("data-wb-row");
       commitEdit(g, 0, 0, { refocus: false });
-      g.active = { r, c: 0 };
-      g.sel = { r0: r, c0: 0, r1: r, c1: g.sheet.colCount - 1 };
+      if (e.shiftKey) {
+        g.sel = { r0: Math.min(g.sel.r0, r), c0: 0, r1: Math.max(g.sel.r1, r), c1: g.sheet.colCount - 1 };
+      } else {
+        g.active = { r, c: 0 };
+        g.sel = { r0: r, c0: 0, r1: r, c1: g.sheet.colCount - 1 };
+        const onMove = (ev) => {
+          const rect = g.els.scroll.getBoundingClientRect();
+          const r2 = g.rows[dispRowAt(g, ev.clientY - rect.top + g.els.scroll.scrollTop)] ?? r;
+          if (r2 !== g.sel.r1) { g.sel.r1 = r2; paintSelection(g); repaintGrid(g); }
+        };
+        const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+      }
       grid.focus();
       repaintGrid(g);
       syncFormulaBar(g);
@@ -4268,13 +5262,20 @@ function bindGridEvents(g) {
     if (hcol) {
       kind = "col";
       const c = +hcol.getAttribute("data-wb-col");
-      g.active = { r: g.rows[0] ?? 0, c };
-      g.sel = { r0: 0, c0: c, r1: g.sheet.rowCount - 1, c1: c };
+      const rect = selRect(g);
+      // right-click inside a multi-column selection keeps it (Excel)
+      if (c < rect.c0 || c > rect.c1 || rect.r1 - rect.r0 !== g.sheet.rowCount - 1) {
+        g.active = { r: g.rows[0] ?? 0, c };
+        g.sel = { r0: 0, c0: c, r1: g.sheet.rowCount - 1, c1: c };
+      }
     } else if (hrow) {
       kind = "row";
       const r = +hrow.getAttribute("data-wb-row");
-      g.active = { r, c: 0 };
-      g.sel = { r0: r, c0: 0, r1: r, c1: g.sheet.colCount - 1 };
+      const rect = selRect(g);
+      if (r < rect.r0 || r > rect.r1 || rect.c1 - rect.c0 !== g.sheet.colCount - 1) {
+        g.active = { r, c: 0 };
+        g.sel = { r0: r, c0: 0, r1: r, c1: g.sheet.colCount - 1 };
+      }
     } else {
       const r = +cellEl.getAttribute("data-r"), c = +cellEl.getAttribute("data-c");
       const rect = selRect(g);
@@ -4303,7 +5304,30 @@ function bindGridEvents(g) {
     if (meta && (k === "b" || k === "B")) { e.preventDefault(); toggleFormat(g, "bold"); return; }
     if (meta && (k === "i" || k === "I")) { e.preventDefault(); toggleFormat(g, "italic"); return; }
     if (meta && (k === "u" || k === "U")) { e.preventDefault(); toggleFormat(g, "underline"); return; }
-    if (meta && (k === "a" || k === "A")) { e.preventDefault(); g.sel = { r0: 0, c0: 0, r1: g.sheet.rowCount - 1, c1: g.sheet.colCount - 1 }; paintSelection(g); repaintGrid(g); return; }
+    if (meta && (k === "a" || k === "A")) {
+      e.preventDefault();
+      const { maxR, maxC } = usedRange(g.sheet);
+      const cur = selRect(g);
+      const isRegion = maxR >= 0 && cur.r0 === 0 && cur.c0 === 0 && cur.r1 === Math.max(0, maxR) && cur.c1 === Math.max(0, maxC);
+      if (maxR >= 0 && !isRegion) g.sel = { r0: 0, c0: 0, r1: maxR, c1: maxC };            // data region first
+      else g.sel = { r0: 0, c0: 0, r1: g.sheet.rowCount - 1, c1: g.sheet.colCount - 1 };   // then whole sheet
+      paintSelection(g);
+      repaintGrid(g);
+      return;
+    }
+    if (meta && (k === "s" || k === "S")) { e.preventDefault(); scheduleCellFlush.flushNow(); return; }
+    if (meta && (k === "f" || k === "F")) { e.preventDefault(); openFindPanel(g, false); return; }
+    if (meta && (k === "h" || k === "H")) { e.preventDefault(); if (WB.canEdit) openFindPanel(g, true); return; }
+    if (meta && k.startsWith("Arrow")) {
+      e.preventDefault();
+      const dir = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[k];
+      const edge = dataEdge(g, e.shiftKey ? { r: g.sel.r1, c: g.sel.c1 } : g.active, dir[0], dir[1]);
+      if (e.shiftKey) {
+        g.sel.r1 = edge.r; g.sel.c1 = edge.c;
+        paintSelection(g); repaintGrid(g); scrollCellIntoView(g, edge.r, edge.c);
+      } else setActive(g, edge.r, edge.c);
+      return;
+    }
 
     switch (k) {
       case "ArrowUp": e.preventDefault(); moveActive(g, -1, 0, e.shiftKey); return;
@@ -4462,6 +5486,9 @@ function bindGridEvents(g) {
       case "clear-format": clearFormatting(g); break;
       case "dec-minus": adjustDecimals(g, -1); break;
       case "dec-plus": adjustDecimals(g, 1); break;
+      case "find": openFindPanel(g, false); break;
+      case "validation": openValidationDialog(g); break;
+      case "condfmt": openCondFormatDialog(g); break;
       case "row-add": restructure(g, "row", g.active.r + 1, 1); break;
       case "row-del": restructure(g, "row", g.active.r, -1); break;
       case "col-add": restructure(g, "col", g.active.c + 1, 1); break;
@@ -4543,6 +5570,13 @@ function ctxMenu(x, y, itemsHtml) {
 function openCellContextMenu(g, x, y, kind) {
   const ro = !WB.canEdit;
   const { r, c } = g.active;
+  const rect0 = selRect(g);
+  const nRows = rect0.r1 - rect0.r0 + 1;
+  const nCols = rect0.c1 - rect0.c0 + 1;
+  const rowsLabel = kind === "row" && nRows > 1 ? `${nRows} rows` : "row";
+  const colsLabel = kind === "col" && nCols > 1 ? `${nCols} columns` : "column";
+  const hasHiddenRows = g.sheet.hiddenRows && [...g.sheet.hiddenRows].some((i) => i >= rect0.r0 && i <= rect0.r1);
+  const hasHiddenCols = g.sheet.hiddenCols && [...g.sheet.hiddenCols].some((i) => i >= rect0.c0 && i <= rect0.c1);
   const ref = colLabel(c) + (r + 1);
   const item = (act, label, danger, disabled) => `<button type="button" class="popover-item ${danger ? "is-danger" : ""}" data-ctx="${act}" role="menuitem" ${disabled || (ro && act !== "copy" && act !== "copy-ref") ? "disabled" : ""}>${label}</button>`;
   const sep = `<div class="popover-section"></div>`;
@@ -4551,23 +5585,32 @@ function openCellContextMenu(g, x, y, kind) {
     item("copy", "Copy"),
     item("paste", "Paste"),
     sep,
-    item("insert-row-above", "Insert row above"),
-    item("insert-row-below", "Insert row below"),
-    item("insert-col-left", "Insert column left"),
-    item("insert-col-right", "Insert column right"),
+    item("insert-row-above", `Insert ${rowsLabel} above`),
+    item("insert-row-below", `Insert ${rowsLabel} below`),
+    item("insert-col-left", `Insert ${colsLabel} left`),
+    item("insert-col-right", `Insert ${colsLabel} right`),
     sep,
     item("clear-contents", "Clear contents"),
     item("clear-format", "Clear formatting"),
     item("format-cells", "Format cells…"),
     item("comment", "Add comment"),
     item("copy-ref", "Copy cell reference"),
+    item("paste-values", "Paste values only"),
+    item("trace-precedents", "Highlight precedents"),
+    item("trace-dependents", "Highlight dependents"),
+    item("data-validation", "Data validation…"),
+    item("cond-format", "Conditional formatting…"),
+    kind === "row" ? item("hide-rows", `Hide ${rowsLabel}`) : "",
+    kind === "row" && hasHiddenRows ? item("unhide-rows", "Unhide rows in selection") : "",
+    kind === "col" ? item("hide-cols", `Hide ${colsLabel}`) : "",
+    kind === "col" && hasHiddenCols ? item("unhide-cols", "Unhide columns in selection") : "",
     kind === "col" ? item("resize-col", "Resize column…") : "",
     kind === "row" ? item("resize-row", "Resize row…") : "",
     kind === "col" ? item("freeze-col", g.sheet.frozenCols ? "Unfreeze first column" : "Freeze first column") : "",
     kind === "row" ? item("freeze-row", g.sheet.frozenRows ? "Unfreeze top row" : "Freeze top row") : "",
     sep,
-    item("delete-row", "Delete row", true),
-    item("delete-col", "Delete column", true),
+    item("delete-row", `Delete ${rowsLabel}`, true),
+    item("delete-col", `Delete ${colsLabel}`, true),
   ].join(""));
   m.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-ctx]");
@@ -4578,10 +5621,10 @@ function openCellContextMenu(g, x, y, kind) {
       case "cut": await copySelection(g, "cut"); break;
       case "copy": await copySelection(g); break;
       case "paste": await pasteFromClipboard(g); break;
-      case "insert-row-above": restructure(g, "row", r, 1); break;
-      case "insert-row-below": restructure(g, "row", r + 1, 1); break;
-      case "insert-col-left": restructure(g, "col", c, 1); break;
-      case "insert-col-right": restructure(g, "col", c + 1, 1); break;
+      case "insert-row-above": restructure(g, "row", rect0.r0, kind === "row" ? nRows : 1); break;
+      case "insert-row-below": restructure(g, "row", rect0.r1 + 1, kind === "row" ? nRows : 1); break;
+      case "insert-col-left": restructure(g, "col", rect0.c0, kind === "col" ? nCols : 1); break;
+      case "insert-col-right": restructure(g, "col", rect0.c1 + 1, kind === "col" ? nCols : 1); break;
       case "clear-contents": clearSelection(g); break;
       case "clear-format": clearFormatting(g); break;
       case "format-cells": openFormatCellsDialog(g); break;
@@ -4599,8 +5642,17 @@ function openCellContextMenu(g, x, y, kind) {
       }
       case "freeze-col": setFreeze(g, "col"); break;
       case "freeze-row": setFreeze(g, "row"); break;
-      case "delete-row": restructure(g, "row", r, -1); break;
-      case "delete-col": restructure(g, "col", c, -1); break;
+      case "delete-row": restructure(g, "row", rect0.r0, kind === "row" ? -nRows : -1); break;
+      case "delete-col": restructure(g, "col", rect0.c0, kind === "col" ? -nCols : -1); break;
+      case "hide-rows": setHidden(g, "row", rect0.r0, rect0.r1, true); break;
+      case "unhide-rows": setHidden(g, "row", rect0.r0, rect0.r1, false); break;
+      case "hide-cols": setHidden(g, "col", rect0.c0, rect0.c1, true); break;
+      case "unhide-cols": setHidden(g, "col", rect0.c0, rect0.c1, false); break;
+      case "paste-values": await pasteValuesOnly(g); break;
+      case "trace-precedents": tracePrecedents(g); break;
+      case "trace-dependents": traceDependents(g); break;
+      case "data-validation": openValidationDialog(g); break;
+      case "cond-format": openCondFormatDialog(g); break;
     }
     g.els.grid.focus();
   });
@@ -5020,6 +6072,14 @@ function installRootListeners() {
       closeAllPopovers();
     }
     if (!root.contains(e.target) && !e.target.closest("#wb-panel")) return;
+
+    const dvb = e.target.closest("[data-wb-dvbtn]");
+    if (dvb) {
+      const gridEl = dvb.closest("[data-wb-gridfocus]");
+      const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
+      if (g) openValidationPicker(g, dvb);
+      return;
+    }
 
     const open = e.target.closest("[data-wb-open]");
     if (open) { openWorkbook(open.getAttribute("data-wb-open")); return; }
