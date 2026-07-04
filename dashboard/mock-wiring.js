@@ -349,6 +349,7 @@
       email: 'Email',
       recognition: 'Recognition',
       workspaces: 'Workspaces',
+      workbooks: 'Operations Workbook',
       forms: 'Workspaces',
       checklists: 'Workspaces',
       documents: 'Documents',

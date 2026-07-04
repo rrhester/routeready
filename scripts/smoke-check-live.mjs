@@ -36,6 +36,7 @@ try {
 
 const targets = [
   path.join(import.meta.dirname, "..", "dashboard", "live.js"),
+  path.join(import.meta.dirname, "..", "dashboard", "workbook.js"),
   path.join(import.meta.dirname, "..", "app",       "app.js"),
 ];
 
