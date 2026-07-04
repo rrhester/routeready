@@ -77775,6 +77775,7 @@ function _clfRenderItems() {
   if (empty) empty.style.display = _clfState.items.length ? "none" : "";
   if (dz) dz.style.display = _clfState.items.length ? "" : "none";
   _clfPaintSaved();
+  if (typeof _clfRenderPreview === "function") _clfRenderPreview();
 }
 
 function _clfAddItem(type, atIdx) {
@@ -78331,7 +78332,7 @@ document.addEventListener("change", async (e) => {
   if (prop && prop.type === "checkbox") {
     const idx = parseInt(prop.getAttribute("data-idx"), 10);
     const it = _clfState.items[idx];
-    if (it) { it[prop.getAttribute("data-rr-clf-prop")] = prop.checked; _clfMarkDirty(); }
+    if (it) { it[prop.getAttribute("data-rr-clf-prop")] = prop.checked; _clfMarkDirty(); _clfRenderPreview(); }
     return;
   }
   const flag = e.target.closest?.("[data-rr-clf-flag]");
@@ -78441,3 +78442,92 @@ document.addEventListener("change", async (e) => {
 
   document.addEventListener("dragend", () => { clearMarks(); dragIdx = null; paletteType = null; });
 })();
+
+
+// ── Checklist builder · live Driver-App preview ──────────────────────
+// Mirrors the Form Builder's preview column: a phone/tablet frame that
+// re-renders the checklist exactly as the driver fill-out screen lays
+// it out, on every item / name / description change.
+
+let _clfPreviewDevice = "phone";
+let _clfPreviewOrient = "portrait";
+
+function _clfPreviewItemHtml(item) {
+  const req = item.required ? ' <span style="color:#dc2626">*</span>' : "";
+  const help = item.helper_text ? `<div class="form-fill-help">${escapeHtml(item.helper_text)}</div>` : "";
+  const label = `<div class="form-fill-label">${escapeHtml(item.label || "Untitled item")}${req}</div>`;
+  const inputCss = "width:100%;box-sizing:border-box;font:inherit;font-size:var(--fs-sm);color:var(--text-subtle);border:1px solid var(--border);border-radius:8px;background:var(--canvas);padding:8px 10px";
+  let control = "";
+  if (item.item_type === "checkbox") {
+    control = `<label style="display:flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:var(--text-muted)"><input type="checkbox" disabled style="width:17px;height:17px;margin:0"/> Mark as done</label>`;
+  } else if (item.item_type === "yes_no") {
+    control = `<div style="display:flex;gap:16px;font-size:var(--fs-sm);color:var(--text-muted)">
+      <label style="display:flex;align-items:center;gap:6px"><input type="radio" disabled style="margin:0"/> Yes</label>
+      <label style="display:flex;align-items:center;gap:6px"><input type="radio" disabled style="margin:0"/> No</label>
+    </div>`;
+  } else if (item.item_type === "short_text") {
+    control = `<input type="text" disabled placeholder="Driver types here…" style="${inputCss}"/>`;
+  } else if (item.item_type === "number") {
+    control = `<input type="text" disabled placeholder="0" style="${inputCss};max-width:120px"/>`;
+  } else if (item.item_type === "photo") {
+    control = `<div style="display:flex;align-items:center;justify-content:center;gap:8px;border:1px dashed var(--border-strong,#D1D5DB);border-radius:10px;background:var(--canvas);padding:14px;font-size:var(--fs-sm);color:var(--text-subtle)">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Take photo</div>`;
+  } else if (item.item_type === "signature") {
+    control = `<div style="height:74px;border:1px dashed var(--border-strong,#D1D5DB);border-radius:10px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:var(--fs-sm);color:var(--text-disabled)">Sign with your finger</div>`;
+  } else {
+    control = `<textarea disabled rows="2" placeholder="Driver's notes…" style="${inputCss};resize:none"></textarea>`;
+  }
+  return `<div class="form-fill-row">${label}${help}${control}</div>`;
+}
+
+function _clfRenderPreview() {
+  const body = document.getElementById("rr-clf-preview-body");
+  if (!body) return;
+  const device = document.getElementById("rr-clf-preview-device");
+  if (device) {
+    device.className = "builder-device builder-device-" + _clfPreviewDevice + " is-" + _clfPreviewOrient;
+  }
+  const title = (document.getElementById("rr-clf-name")?.value || "").trim() || "Untitled checklist";
+  const desc  = (document.getElementById("rr-clf-desc")?.value || "").trim();
+  const items = _clfState.items;
+  if (!items.length) {
+    body.innerHTML = `<div class="builder-preview-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7.5 9.5l1.7 1.7 3-3.2"/><line x1="14" y1="10" x2="17" y2="10"/></svg>
+      <div style="font-weight:600;color:var(--text)">Nothing to preview yet</div>
+      <div style="font-size:var(--fs-sm)">Add an item to see how the checklist looks to drivers.</div>
+    </div>`;
+    return;
+  }
+  body.innerHTML = `
+    <div class="builder-preview-title">${escapeHtml(title)}</div>
+    ${desc ? `<div class="form-fill-desc">${escapeHtml(desc)}</div>` : ""}
+    ${items.map(_clfPreviewItemHtml).join("")}
+    <button class="btn btn-primary btn-block" type="button" disabled style="margin-top:16px">Submit checklist</button>
+    <button class="btn btn-block" type="button" disabled style="margin-top:8px">Save progress</button>`;
+}
+
+document.addEventListener("click", (e) => {
+  const dev = e.target.closest("[data-rr-clf-preview-device]");
+  if (dev) {
+    _clfPreviewDevice = dev.getAttribute("data-rr-clf-preview-device");
+    document.querySelectorAll("[data-rr-clf-preview-device]").forEach((b) =>
+      b.classList.toggle("is-active", b === dev));
+    _clfRenderPreview();
+    return;
+  }
+  const ori = e.target.closest("[data-rr-clf-preview-orient]");
+  if (ori) {
+    _clfPreviewOrient = ori.getAttribute("data-rr-clf-preview-orient");
+    document.querySelectorAll("[data-rr-clf-preview-orient]").forEach((b) =>
+      b.classList.toggle("is-active", b === ori));
+    _clfRenderPreview();
+  }
+});
+
+document.addEventListener("input", (e) => {
+  if (!e.target) return;
+  if (e.target.id === "rr-clf-name" || e.target.id === "rr-clf-desc" || e.target.closest?.("[data-rr-clf-prop]")) {
+    _clfRenderPreview();
+  }
+});
