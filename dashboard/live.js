@@ -3405,7 +3405,6 @@ window.goto = function (view) {
   if ((view === "fleet" || view === "fleet2") && typeof loadFleetView === "function") {
     loadFleetView();
     if (typeof window.fleetSub === "function") window.fleetSub(_fleetSub || "vehicles");
-    if (typeof _f2CmdTab === "function") _f2CmdTab("fleet");  // land on Fleet mode, print bar hidden
   }
   if (view === "recognition" && typeof loadRecognitionView === "function") loadRecognitionView();
   if (view === "compliance" && typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
@@ -65067,7 +65066,7 @@ function _flDocCell(v) {
 // resolve to issues + photos.  Healthy state is a calm em-dash.
 function _flDriverReportsCell(v) {
   const dr = Number(v.driver_reported_open_count || 0);
-  if (!dr) return `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">—</span>`;
+  if (!dr) return `<span class="fl-cell-none">No reports</span>`;
   return `<button type="button" class="fl-drrep-chip" data-rr-veh-driver-reports="${escapeHtml(v.id)}" title="Driver-reported concern${dr === 1 ? "" : "s"} awaiting review">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex:0 0 auto"><path d="M4 22V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v18l-8-4-8 4z"/></svg>
     <span>${dr} driver-reported</span>
@@ -65303,10 +65302,13 @@ function _flVanTypeLabel(t) {
 // ─── Sub-tab routing ─────────────────────────────────────────────────
 window.fleetSub = function (sub) {
   _fleetSub = sub;
-  // The Fleet page now lives in #view-fleet2; its strip tiles (.f2-tile)
-  // are the sub-view switchers. Toggle the active tile by data-sub.
-  document.querySelectorAll("#view-fleet2 .f2-tile[data-sub]").forEach((b) => {
-    b.classList.toggle("active", b.getAttribute("data-sub") === sub);
+  // The Fleet page now lives in #view-fleet2; its viewseg tabs (the
+  // #rr-fleet-viewseg twin of Schedule's tab bar) are the sub-view
+  // switchers. Toggle the active tab by data-sub.
+  document.querySelectorAll("#rr-fleet-viewseg .rr-viewseg-btn[data-sub]").forEach((b) => {
+    const on = b.getAttribute("data-sub") === sub;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
   });
   // Sub-view containers (#fl-sub-*) are unique ids, so an unscoped toggle
   // is safe and view-agnostic after the move into #view-fleet2.
@@ -65358,8 +65360,23 @@ function _flPaintTabCounts() {
     ic.textContent = String(n);
     ic.style.display = n > 0 ? "" : "none";
   }
-  const sub = document.getElementById("rr-fleet-page-sub");
-  if (sub) {
+  // Fleet status stat card (action bar, right edge) — the Schedule
+  // coverage-card pattern: count leads, sub line flags grounded
+  // exposure in red or reads a quiet all-clear.
+  const card = document.getElementById("rr-fleet-coverage");
+  const num  = document.getElementById("rr-fleet-cov-num");
+  const sub  = document.getElementById("rr-fleet-page-sub");
+  if (card && num && sub) {
+    const total    = _fleetRows.length;
+    const grounded = _fleetRows.filter((v) => v.operational_status === "grounded").length;
+    num.textContent = String(total);
+    sub.textContent = grounded > 0
+      ? `${grounded} grounded`
+      : "All operational";
+    sub.classList.toggle("is-ok", grounded === 0);
+    card.hidden = false;
+  } else if (sub) {
+    // Fallback for any host still carrying the plain-text sub line.
     const total    = _fleetRows.length;
     const grounded = _fleetRows.filter((v) => v.operational_status === "grounded").length;
     const bits = [`${total} van${total === 1 ? "" : "s"}`];
@@ -65378,7 +65395,7 @@ async function _flLoadRoster() {
   _flLoadExecSummary();
   const { data, error } = await sb.rpc("vehicles_roster");
   if (error) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="fl-empty"><h3>Couldn't load fleet</h3><p>${escapeHtml(error.message || "Try again")}</p></div></td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7"><div class="fl-empty"><h3>Couldn't load fleet</h3><p>${escapeHtml(error.message || "Try again")}</p></div></td></tr>`;
     return;
   }
   _fleetRows = Array.isArray(data) ? data : [];
@@ -65403,9 +65420,8 @@ async function _flRenderUngroundAlerts() {
   } catch (e) { host.innerHTML = ""; return; }
   if (!rows.length) { host.innerHTML = ""; return; }
   host.innerHTML = rows.map((r) => `
-    <div class="fl-unground-alert" data-rr-unground-event="${escapeHtml(r.event_id)}"
-         style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:8px;border:1px solid var(--amber,#E6A100);background:var(--amber-soft,#FFF7E6);border-radius:var(--r-md,8px)">
-      <span style="flex:1;font-size:var(--fs-sm)">
+    <div class="fl-unground-alert" data-rr-unground-event="${escapeHtml(r.event_id)}">
+      <span class="fl-unground-msg">
         <strong>${escapeHtml(r.vehicle_name || "Van")}</strong> was grounded for ${escapeHtml(r.title || "service")} (through ${escapeHtml(r.end_date)}). Its service window has ended — return it to service?
       </span>
       <button type="button" class="btn btn-sm" data-rr-unground-dismiss="${escapeHtml(r.event_id)}">Keep grounded</button>
@@ -65700,7 +65716,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 function _flRosterSkeleton(n) {
-  const row = `<tr style="pointer-events:none"><td><div style="display:flex;align-items:center;gap:var(--s-2-5)"><div class="fl-skel-thumb"></div><div style="flex:1"><div class="fl-skel-cell" style="width:50%"></div><div class="fl-skel-cell" style="width:35%;margin-top:6px;height:10px"></div></div></div></td><td><div class="fl-skel-cell" style="width:80%"></div></td><td><div class="fl-skel-cell" style="width:60%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:40%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:55%"></div></td><td><div class="fl-skel-cell" style="width:45%"></div></td></tr>`;
+  const row = `<tr style="pointer-events:none"><td><div class="fl-veh-cell"><div class="fl-skel-thumb"></div><div style="flex:1"><div class="fl-skel-cell" style="width:50%"></div><div class="fl-skel-cell" style="width:35%;margin-top:6px;height:10px"></div></div></div></td><td><div class="fl-skel-cell" style="width:80%"></div></td><td><div class="fl-skel-cell" style="width:60%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:40%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:55%"></div></td></tr>`;
   return row.repeat(n);
 }
 
@@ -65781,7 +65797,7 @@ function _flClockChip(deadline, hasRO) {
 }
 function _flRepairStatusCell(v) {
   if ((v.operational_status || "operational") === "operational") {
-    return `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">—</span>`;
+    return `<span class="fl-cell-none">—</span>`;
   }
   // Only Warranty work drives the RO request + repair clock. Other
   // categories just show the category + days grounded. Legacy grounds
@@ -65832,7 +65848,7 @@ function _flRenderRoster() {
           <p>Add your first van to start tracking service, inspections, and driver assignments.</p>
           <button class="btn btn-primary" data-rr-fleet-add-empty><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add van</button>
         </div></td></tr>`
-      : `<tr><td colspan="7" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
+      : `<tr><td colspan="7" class="fl-table-empty">No vans match the current filters.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((v) => {
@@ -65840,13 +65856,13 @@ function _flRenderRoster() {
     const ownershipLine = `${_flOwnershipLabel(v.ownership)}${_flVanTypeLabel(v.van_type) ? ` · ${_flVanTypeLabel(v.van_type)}` : ""}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
     const vehSub = v.station_code || "";
     return `<tr data-rr-vehicle-id="${escapeHtml(v.id)}">
-      <td><div style="display:flex;align-items:center;gap:var(--s-2-5)">${_flVehThumb(v)}<div>
+      <td><div class="fl-veh-cell">${_flVehThumb(v)}<div>
         <div class="cell-name">${escapeHtml(v.name)}</div>
         ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
         <div class="cell-chips">${_dvicChipHtml(v)}</div>
       </div></div></td>
-      <td>${v.vin ? `<span style="font-family:var(--ff-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:var(--fs-sm)">${escapeHtml(v.vin)}</span>` : `<span style="color:var(--text-subtle)">—</span>`}</td>
-      <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
+      <td>${v.vin ? `<span style="font-family:var(--ff-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:var(--fs-sm)">${escapeHtml(v.vin)}</span>` : `<span class="fl-cell-none">—</span>`}</td>
+      <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div class="cell-name-sub" style="margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
       <td>${_flOpStatCell(v)}</td>
       <td>${_flDocCell(v)}</td>
       <td>${_flDriverReportsCell(v)}</td>
@@ -66014,7 +66030,7 @@ function _flRenderVanRotation() {
   const sel = document.getElementById("rr-rotation-type");
   if (sel && sel.value !== _flRotationFilter) sel.value = _flRotationFilter;
   if (!_fleetRows || _fleetRows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="fl-table-empty">No vans yet.</td></tr>`;
     const count = document.getElementById("rr-rotation-count");
     if (count) count.textContent = "";
     return;
@@ -66026,7 +66042,7 @@ function _flRenderVanRotation() {
     count.textContent = `${rows.length} of ${_fleetRows.length} vans · ${branded} branded`;
   }
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current type filter.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="fl-table-empty">No vans match the current type filter.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((v) => {
@@ -66034,11 +66050,11 @@ function _flRenderVanRotation() {
     const ownershipLine = `${_flOwnershipLabel(v.ownership)}${_flVanTypeLabel(v.van_type) ? ` · ${_flVanTypeLabel(v.van_type)}` : ""}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
     const vehSub = v.station_code || "";
     return `<tr data-rr-vehicle-id="${escapeHtml(v.id)}" data-rr-rotation-row>
-      <td><div style="display:flex;align-items:center;gap:var(--s-2-5)">${_flVehThumb(v)}<div>
+      <td><div class="fl-veh-cell">${_flVehThumb(v)}<div>
         <div class="cell-name">${escapeHtml(v.name)}</div>
         ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
       </div></div></td>
-      <td>${v.vin ? `<span style="font-family:var(--ff-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:var(--fs-sm)">${escapeHtml(v.vin)}</span>` : `<span style="color:var(--text-subtle)">—</span>`}</td>
+      <td>${v.vin ? `<span style="font-family:var(--ff-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:var(--fs-sm)">${escapeHtml(v.vin)}</span>` : `<span class="fl-cell-none">—</span>`}</td>
       <td>${ownershipLine}</td>
       <td class="fl-util-cell" data-rr-util-veh="${escapeHtml(v.id)}"><span class="rr-heatmap-loading">Loading…</span></td>
     </tr>`;
@@ -66344,64 +66360,13 @@ function _flOpenProofModal() {
 }
 window._flOpenProofModal = _flOpenProofModal;
 
-// New Fleet page (#view-fleet2) command-mode tabs (Schedule / Fleet /
-// Workflows / Print-Download). Fleet stays in-page; Schedule + Workflows
-// navigate to their hubs; Print toggles the print/download toolbar.
-function _f2CmdTab(mode) {
-  document.querySelectorAll("#view-fleet2 .f2-cmd-tab").forEach((t) => {
-    const on = t.getAttribute("data-f2-cmd-tab") === mode;
-    t.classList.toggle("active", on);
-    t.setAttribute("aria-selected", on ? "true" : "false");
-  });
-  const printBar = document.getElementById("rr-f2-print-actions");
-  if (printBar) printBar.hidden = (mode !== "print");
-}
-window._f2CmdTab = _f2CmdTab;
+// The old Fleet command-mode tabs (Fleet / Print-Download) retired with
+// the strip-card chrome — Print / Download / Proof of Use now live as
+// always-visible .rr-ab-btn actions in the Fleet action bar, wired to
+// the same #rr-fl-* delegated handlers below.
 
 document.addEventListener("click", (e) => {
   if (!e.target.closest) return;
-  const f2tab = e.target.closest("#view-fleet2 .f2-cmd-tab");
-  if (f2tab) {
-    e.preventDefault();
-    const mode = f2tab.getAttribute("data-f2-cmd-tab");
-    if (mode === "schedule" || mode === "workflows") {
-      _f2CmdTab("fleet");  // reset local state so returning shows Fleet
-      try { window.goto(mode === "workflows" ? "forms" : "schedule"); } catch (_) {}
-      return;
-    }
-    // fleet / print stay in-page.
-    _f2CmdTab(mode);
-    return;
-  }
-  const tab = e.target.closest(".fl-cmd-tab");
-  if (tab) {
-    e.preventDefault();
-    const flMode = tab.getAttribute("data-fl-cmd-tab");
-    // Anything that isn't fleet/print navigates back to the
-    // unified Schedule hub. Sidebar stays lit on Schedule.
-    if (flMode === "schedule" ||
-        flMode === "roster" || flMode === "onboarding" ||
-        flMode === "workflows") {
-      const dest =
-        flMode === "workflows" ? "forms" :
-        (flMode === "roster" || flMode === "onboarding") ? "onboarding-ops" :
-                                  "schedule";
-      try { window.goto(dest); } catch (_) {}
-      setTimeout(() => {
-        if (flMode === "roster" || flMode === "onboarding") {
-          if (typeof _obCmdTab === "function") _obCmdTab(flMode === "roster" ? "roster" : "ops");
-        } else if (flMode !== "workflows" && typeof _schedCmdTab === "function") {
-          _schedCmdTab("schedule");
-        }
-        document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
-        const schedNav = document.querySelector('.nav-item[data-view="schedule"]');
-        if (schedNav) schedNav.classList.add("active");
-      }, 0);
-      return;
-    }
-    _flCmdTab(flMode);
-    return;
-  }
   if (e.target.closest("#rr-fl-print-btn"))    { e.preventDefault(); _flPrintActive(); return; }
   if (e.target.closest("#rr-fl-download-btn")) { e.preventDefault(); _flDownloadActive(); return; }
   if (e.target.closest("#rr-fl-proof-btn"))    { e.preventDefault(); _flOpenProofModal(); }
@@ -66440,10 +66405,10 @@ document.addEventListener("keydown", (e) => {
 // ─── Issues sub-tab ──────────────────────────────────────────────────
 async function _flLoadIssues() {
   const tbody = document.getElementById("fleet-issues-tbody");
-  if (tbody) tbody.innerHTML = `<tr style="pointer-events:none"><td colspan="7" style="padding:var(--s-6);text-align:center;color:var(--text-subtle)">Loading…</td></tr>`;
+  if (tbody) tbody.innerHTML = `<tr style="pointer-events:none"><td colspan="8" class="fl-table-empty">Loading…</td></tr>`;
   const { data, error } = await sb.rpc("vehicles_issues_list", { p_status: _fleetIssueFilters.state || "open" });
   if (error) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="padding:var(--s-6);text-align:center;color:var(--red)">Couldn't load issues: ${escapeHtml(error.message)}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="fl-table-empty" style="color:var(--red)">Couldn't load issues: ${escapeHtml(error.message)}</td></tr>`;
     return;
   }
   _fleetIssues = Array.isArray(data) ? data : [];
@@ -66467,7 +66432,7 @@ function _flRenderIssues() {
   if (!tbody) return;
   const rows = _flApplyIssueFilters(_fleetIssues);
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">${
+    tbody.innerHTML = `<tr><td colspan="8" class="fl-table-empty">${
       _fleetIssues.length === 0 ? "No issues — fleet is clean." : "No issues match the current filters."
     }</td></tr>`;
     return;
@@ -66475,30 +66440,32 @@ function _flRenderIssues() {
   tbody.innerHTML = rows.map((i) => {
     const reported = i.reported_at ? new Date(i.reported_at).toLocaleDateString() : "—";
     const due = i.due_at ? _flDateCell(i.due_at, { compliance: true }).replace(/^<span/, '<span style="display:inline"') : `<span class="fl-date dim">—</span>`;
+    // Status renders through the app-wide .status-pill system (the
+    // same pills Schedule uses) — amber = pending work, blue = in
+    // motion, green = done, neutral for anything unknown.
     const statusMap = {
-      open:         ["amber",  "Open"],
-      needs_repair: ["amber",  "Needs repair"],
-      in_repair:    ["accent", "In repair"],
-      completed:    ["green",  "Completed"],
+      open:         ["status-pill-pending", "Open"],
+      needs_repair: ["status-pill-pending", "Needs repair"],
+      in_repair:    ["status-pill-info",    "In repair"],
+      completed:    ["status-pill-success", "Completed"],
     };
-    const [sk, sl] = statusMap[i.status] || ["text-subtle", i.status];
-    const colorVar = sk === "amber" ? "var(--amber-dark)" : sk === "green" ? "var(--green)" : sk === "accent" ? "var(--accent-text)" : "var(--text-subtle)";
+    const [sk, sl] = statusMap[i.status] || ["status-pill-neutral", i.status];
     // RO cell: either the linked RO code as a clickable chip, or an "Open RO" CTA
     // when none has been opened yet.  Click is captured by document-level
     // handler `data-rr-ro-action` so we don't fight the row-click → drawer.
     const roCell = i.work_order
-      ? `<button type="button" class="btn btn-ghost btn-sm" data-rr-ro-action="manage" data-rr-issue-id="${escapeHtml(i.id)}" data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" data-rr-ro-code="${escapeHtml(i.work_order)}" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-xs);padding:3px 8px">${escapeHtml(i.work_order)}</button>`
+      ? `<button type="button" class="btn btn-ghost btn-sm" data-rr-ro-action="manage" data-rr-issue-id="${escapeHtml(i.id)}" data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" data-rr-ro-code="${escapeHtml(i.work_order)}" style="font-family:var(--ff-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:var(--fs-xs);padding:3px 8px">${escapeHtml(i.work_order)}</button>`
       : (i.status === "completed"
-          ? `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">—</span>`
+          ? `<span class="fl-cell-none">—</span>`
           : `<button type="button" class="btn btn-sm" data-rr-ro-action="open" data-rr-issue-id="${escapeHtml(i.id)}" data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" style="font-size:var(--fs-xs);padding:3px 8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Open RO</button>`);
     return `<tr data-rr-vehicle-id="${escapeHtml(i.vehicle_id)}" data-rr-issue-id="${escapeHtml(i.id)}">
       <td><div class="cell-name">${escapeHtml(i.vehicle_name)}${i.plate ? ` <span style="color:var(--text-subtle);font-weight:500">| ${escapeHtml(i.plate)}</span>` : ""}</div>${i.make || i.model ? `<div class="cell-name-sub">${escapeHtml([i.make, i.model].filter(Boolean).join(" "))}</div>` : ""}</td>
-      <td><div style="font-weight:600">${escapeHtml(i.title)}</div>${i.description ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml((i.description || "").slice(0, 80))}${(i.description || "").length > 80 ? "…" : ""}</div>` : ""}</td>
+      <td><div style="font-weight:600">${escapeHtml(i.title)}</div>${i.description ? `<div class="cell-name-sub" style="margin-top:2px">${escapeHtml((i.description || "").slice(0, 80))}${(i.description || "").length > 80 ? "…" : ""}</div>` : ""}</td>
       <td><span class="fl-sev ${escapeHtml(i.severity)}">${escapeHtml(i.severity)}</span></td>
       <td style="text-transform:capitalize">${escapeHtml((i.category || "").replace(/_/g, " "))}</td>
       <td><span class="fl-date">${escapeHtml(reported)}</span></td>
       <td>${due}</td>
-      <td><span style="font-size:var(--fs-xs);font-weight:600;color:${colorVar}">${escapeHtml(sl)}</span></td>
+      <td><span class="status-pill ${sk}">${escapeHtml(sl)}</span></td>
       <td>${roCell}</td>
     </tr>`;
   }).join("");

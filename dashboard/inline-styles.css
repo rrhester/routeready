@@ -712,7 +712,6 @@ textarea,
 .view .cmd-tab svg,
 .view .ob-cmd-tab svg,
 .view .sched-cmd-tab svg,
-.view .fl-cmd-tab svg,
 .view .wf-cmd-tab svg,
 .view .pipe-cmd-tab svg,
 .view .sched-print-btn svg,
@@ -725,7 +724,6 @@ textarea,
 .view .cmd-tab:hover svg,
 .view .ob-cmd-tab:hover svg,
 .view .sched-cmd-tab:hover svg,
-.view .fl-cmd-tab:hover svg,
 .view .wf-cmd-tab:hover svg,
 .view .pipe-cmd-tab:hover svg,
 .view .ob-rules-foot:hover svg,
@@ -755,7 +753,6 @@ textarea,
    Onboarding, Roster, Fleet, and Workflows all match the Schedule
    ribbon at every width. */
 .view .subnav-item svg,
-.view .fl-ribbon-btn svg,
 .view .wf-strip-tile svg,
 .view .ws-strip-tile svg{
   width:32px !important;height:32px !important;flex-shrink:0;
@@ -771,8 +768,6 @@ textarea,
    • Hover: a subtle gray highlight (the Schedule ribbon's --sch-hover),
      same on every page, with no blue icon. */
 .view .subnav-item.active,
-.view .fl-ribbon-btn.active,
-.view .fl-ribbon-view.active,
 .view .wf-strip-tile.active,
 .view .ws-strip-tile.active{
   background:transparent !important;
@@ -784,17 +779,13 @@ textarea,
   font-weight:500 !important;
 }
 .view .subnav-item.active svg,
-.view .fl-ribbon-btn.active svg,
-.view .fl-ribbon-view.active svg,
 .view .wf-strip-tile.active svg,
 .view .ws-strip-tile.active svg{
   color:var(--text) !important;
 }
-/* Label spans carry their own font-weight on some pages (e.g. Fleet's
-   .active span{font-weight:600}) — kill the bold there too. */
+/* Label spans carry their own font-weight on some pages — kill the
+   bold there too. */
 .view .subnav-item.active span,
-.view .fl-ribbon-btn.active span,
-.view .fl-ribbon-view.active span,
 .view .wf-strip-tile.active span,
 .view .ws-strip-tile.active span{
   font-weight:500 !important;
@@ -802,16 +793,12 @@ textarea,
 /* Kill the blue underline/box marker pseudo-elements on the active tile. */
 .view .subnav-item.active::after,
 .view .subnav-item.active::before,
-.view .fl-ribbon-btn.active::after,
-.view .fl-ribbon-view.active::after,
 .view .wf-strip-tile.active::after,
 .view .ws-strip-tile.active::after{
   display:none !important;
   background:transparent !important;
 }
 .view .subnav-item:hover,
-.view .fl-ribbon-btn:hover,
-.view .fl-ribbon-view:hover,
 .view .wf-strip-tile:hover,
 .view .ws-strip-tile:hover{
   background:rgba(15,23,42,.08) !important;
@@ -819,8 +806,6 @@ textarea,
   color:var(--text) !important;
 }
 .view .subnav-item:hover svg,
-.view .fl-ribbon-btn:hover svg,
-.view .fl-ribbon-view:hover svg,
 .view .wf-strip-tile:hover svg,
 .view .ws-strip-tile:hover svg{
   color:var(--text) !important;
@@ -1306,8 +1291,6 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .btn-icon,
 .rr-tf-icon,
 .settings-nav-item,
-#view-fleet .fl-ribbon-btn,
-#view-fleet2 .fl-ribbon-btn,
 #view-schedule .sched-tool-btn,
 #view-schedule .sched-page-btn{
   /* Comprehensive list so this doesn't drop each class's existing
@@ -1322,8 +1305,6 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .btn-icon:active,
 .rr-tf-icon:active,
 .settings-nav-item:active,
-#view-fleet .fl-ribbon-btn:active,
-#view-fleet2 .fl-ribbon-btn:active,
 #view-schedule .sched-tool-btn:active,
 #view-schedule .sched-page-btn:active{
   transform:translateY(1px) scale(.97);
@@ -1336,8 +1317,6 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   .rr-tf-icon:active,
   .settings-nav-item:active,
   .icon-btn:active,
-  #view-fleet .fl-ribbon-btn:active,
-  #view-fleet2 .fl-ribbon-btn:active,
   #view-schedule .sched-tool-btn:active,
   #view-schedule .sched-page-btn:active{
     transform:none;
@@ -19075,10 +19054,13 @@ body.rr-cmdk-open{ overflow:hidden }
              match the block groups so each label sits over its run. */
           #view-fleet2 .rr-heatmap-headsub{
             display:inline-flex;align-items:center;gap:36px;
-            margin-top:5px;text-transform:none;
+            margin-top:5px;
           }
+          /* Group labels · Schedule's day-of-week micro-label voice
+             (10px / 600 / .07em / uppercase). */
           #view-fleet2 .rr-heatmap-hs{
-            font-size:9px;font-weight:600;letter-spacing:.02em;
+            font-size:10px;font-weight:600;letter-spacing:.07em;
+            text-transform:uppercase;
             color:var(--text-subtle);
           }
           #view-fleet2 .rr-heatmap-hs.hs-past{width:152px;text-align:center}
@@ -19101,8 +19083,8 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:background var(--t-fast);
           }
           #view-fleet2 .rr-heatmap-cell.is-used{
-            background:var(--sch-green, #16A34A);
-            border-color:rgba(22,163,74,.32);
+            background:var(--green);
+            border-color:var(--green-border);
           }
           /* Today marker — a quiet 1 px hairline between past + future. */
           #view-fleet2 .rr-heatmap-div{
@@ -19116,12 +19098,12 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid rgba(15,23,42,.22);
           }
           #view-fleet2 .rr-heatmap-cell.is-future.is-service{
-            background:rgba(180,83,9,.08);
-            border-color:rgba(180,83,9,.55);
+            background:var(--amber-soft);
+            border-color:var(--amber-border);
           }
           #view-fleet2 .rr-heatmap-cell.is-future.is-grounded{
-            background:rgba(185,28,28,.07);
-            border-color:rgba(185,28,28,.55);
+            background:var(--red-soft);
+            border-color:var(--red-border);
           }
           #view-fleet2 .rr-heatmap-sub{
             font-size:11px;color:var(--text-subtle);
@@ -19141,11 +19123,15 @@ body.rr-cmdk-open{ overflow:hidden }
             gap:var(--s-3);align-items:stretch;
           }
           #view-fleet2 .fl-rotation-main{min-width:0}
+          /* Control row inside the planted container — same recipe as
+             the roster bar: 46px band, #ECEFF5 seam, no chrome of its
+             own. */
           #view-fleet2 .fl-rotation-bar{
-            display:flex;align-items:center;gap:10px;
-            padding:10px 14px;background:var(--canvas);
-            border:1px solid var(--sch-line,var(--border));border-bottom:0;
-            border-radius:8px 8px 0 0;
+            display:flex;align-items:center;gap:var(--s-3);
+            min-height:46px;padding:7px var(--s-4);
+            background:var(--surface);
+            border-bottom:1px solid #ECEFF5;
+            flex:0 0 auto;
           }
           #view-fleet2 .fl-rotation-bar-lbl{
             font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;
@@ -19157,25 +19143,26 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-fleet2 #fl-rotation-tbody tr[data-rr-rotation-row]{cursor:default}
           #view-fleet2 #fl-rotation-tbody tr[data-rr-rotation-row]:hover{
-            background:rgba(37,99,235,.06);
+            background:var(--surface-hover);
           }
           #view-fleet2 #fl-rotation-tbody tr.is-detail-active{
-            background:rgba(37,99,235,.10);
+            background:rgba(37,99,235,.06);
           }
           /* Van Details · stretches to the full length of the table so
-             the panel and the data read as one continuous surface. */
+             the panel and the data read as one continuous surface.
+             Planted-container chrome (1px #E6EAF2, r12, whisper). */
           #view-fleet2 .fl-vandetails{
             position:sticky;top:80px;align-self:stretch;
             display:flex;flex-direction:column;
             max-height:calc(100vh - 120px);
             background:var(--surface);
-            border:1px solid var(--sch-line,var(--border));
-            border-radius:8px;box-shadow:0 1px 4px rgba(15,23,42,.04);
+            border:1px solid #E6EAF2;
+            border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.04);
             overflow:hidden;
           }
           #view-fleet2 .fl-vandetails-head{
             font-size:13px;font-weight:600;color:var(--text);
-            padding:12px 16px;border-bottom:1px solid rgba(15,23,42,.06);
+            padding:12px 16px;border-bottom:1px solid #ECEFF5;
             flex:0 0 auto;
           }
           #view-fleet2 .fl-vandetails-body{
@@ -21343,27 +21330,22 @@ body.rr-cmdk-open{ overflow:hidden }
         
 /* ── block 33 · #rr-fleet2-style · index.html:25182 ── */
 
-        /* ── Self-contained chrome for the new Fleet page ──────────
-           Replicates the Schedule page look (which lives in
-           schedule-rrx.css scoped to #view-schedule.rrx-schedule).
-           Scoped to #view-fleet2 so it can't reach the Schedule view. */
+        /* ── Fleet chrome · Schedule's VISIBLE design system ────────
+           Fleet renders the same chrome generation the Schedule page
+           actually shows today: a flat view-switcher tab row (twin of
+           #rr-sched-viewseg, schedule-rrx.css:435-491) over a .rr-ab
+           action bar (schedule-rrx.css:4910-4956 + 5898 + the premium
+           polish pass at the end of this sheet). Every recipe below is
+           a verbatim copy re-scoped to the Fleet page so the two views
+           can never read differently. The old strip-card replica
+           (.f2-strip) copied Schedule's RETIRED V2 chrome — Schedule
+           hides that whole generation, so Fleet dropped it too. */
 
-        /* Local token aliases · the --sch-* tokens are defined only
-           inside #view-schedule scopes, so redeclare the few we use
-           here on the view root. */
-        #view-fleet2 {
-          --f2-sch-blue: #2563EB;
-          --f2-sch-blue-softer: rgba(37,99,235,.05);
-          --f2-sch-line-subtle: rgba(15,23,42,.07);
-          --f2-sch-radius: 8px;
-          --f2-divider: rgba(15,23,42,.16);
-        }
-
-        /* Page ground · neutral near-white canvas (kept in sync with
-           the Schedule ground — see the modernization note in
-           schedule-rrx.css). */
+        /* Page ground · identical to Schedule's grounded-surface pass
+           (#view-schedule.rrx-schedule{background:#F6F8FB},
+           schedule-rrx.css:5859). */
         #view-fleet2.rrx-schedule {
-          background: #F9FAFB;
+          background: #F6F8FB;
           font-family: var(--rr-font-family);
           color: var(--rr-fg-primary);
         }
@@ -21375,332 +21357,169 @@ body.rr-cmdk-open{ overflow:hidden }
           min-height: 0;
         }
 
-        /* ── Command-mode tabs (Fleet) ──────────────────────────────
-           1:1 with Schedule's .sched-v2-cmd-tabs (schedule-rrx.css:2572):
-           absolutely anchored to the strip card's top-LEFT edge at
-           top:-28px so they hang above the card without taking flow
-           space. Tab cosmetics copied from .sched-cmd-tab — caption
-           font 600 uppercase, 6px/12px padding, var(--text) color in
-           every state (Schedule forces var(--text) !important on all
-           cmd-tabs, active included; only the navy underline marks
-           the active tab). */
-        #view-fleet2 .f2-cmd-tabs {
-          position: absolute;
-          top: -28px;
-          left: 0;
-          margin: 0;
-          display: inline-flex;
-          gap: 2px;
-          z-index: 2;
-        }
-        #view-fleet2 .f2-cmd-tab {
-          appearance: none;
-          background: transparent;
-          cursor: pointer;
-          font: var(--rr-font-caption);
-          font-weight: 600;
-          letter-spacing: 0.04em;
-          text-transform: uppercase;
-          color: var(--text);
-          padding: var(--rr-space-60) var(--rr-space-120);
-          border: 1px solid transparent;
-          border-bottom: 0;
-          border-radius: var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
-          position: relative;
-          transition:
-            color var(--rr-motion-fast),
-            background var(--rr-motion-fast),
-            border-color var(--rr-motion-fast);
-        }
-        #view-fleet2 .f2-cmd-tab:hover:not(.active) { background: transparent; }
-        #view-fleet2 .f2-cmd-tab.active {
-          color: var(--text);
-          background: transparent;
-          border-color: transparent;
-        }
-        #view-fleet2 .f2-cmd-tab.active::after {
-          content: "";
-          position: absolute;
-          left: var(--rr-space-120);
-          right: var(--rr-space-120);
-          bottom: 3px;
-          height: 2px;
-          border-radius: 2px;
-          background: var(--rr-comm-blue, #2563EB);
-        }
-
-        /* ── Command/header strip card ──────────────────────────────
-           Geometry 1:1 with Schedule's visible strip (.sched-v2-strip,
-           schedule-rrx.css:1892). Headless-Chromium-verified: Schedule's
-           strip top = page padding 20px + 12px (the hidden legacy
-           cmd-shell renders 0px tall with a 12px margin-bottom from
-           schedule-rrx.css:106 — the higher-specificity rule; the 17px
-           at index.html:19463 loses the cascade and the "37px" comment
-           at index.html:19541 is stale). Fleet has no hidden shell, so
-           the 12px is a margin-top here. position:relative anchors the
-           absolute cmd-tabs above; the triple height lock matches
-           Schedule's lock on --tcp-strip-h. */
-        #view-fleet2 .f2-strip {
-          position: relative;
+        /* ── Row 1 · Fleet view tabs · verbatim twin of Schedule's
+           #rr-sched-viewseg tab bar (schedule-rrx.css:435-491): flat
+           transparent row, 14px/600 labels, 18px glyphs, light-blue
+           underline + primary ink on the active tab. ─────────────── */
+        #rr-fleet-viewseg {
           display: flex;
           align-items: stretch;
-          flex-wrap: nowrap;
-          gap: 8px;
-          padding: 8px 18px 6px;
-          margin: 12px 0 0;
-          background: var(--rr-bg-surface-1);
-          border: 1px solid var(--f2-sch-line-subtle);
-          border-radius: var(--f2-sch-radius);
-          box-shadow: 0 1px 2px rgba(15,23,42,.05);
-          min-height: var(--tcp-strip-h, 106px);
-          height: var(--tcp-strip-h, 106px);
-          max-height: var(--tcp-strip-h, 106px);
-          overflow: visible;
+          gap: 6px;
           width: 100%;
           box-sizing: border-box;
-        }
-
-        /* ── Title block (header) ───────────────────────────────── */
-        #view-fleet2 .f2-title {
-          flex: 0 0 240px;
-          align-self: center;
-          margin-right: var(--rr-space-160);
-          padding-right: var(--rr-space-120);
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          min-width: 0;
-        }
-        #view-fleet2 .f2-title .page-title {
-          font: var(--rr-font-subtitle);
-          color: var(--rr-fg-primary);
-          margin: 0;
-          letter-spacing: -0.01em;
-          white-space: nowrap;
-          display: flex;
-          align-items: center;
-        }
-        #view-fleet2 .f2-title .page-sub {
-          font: var(--rr-font-caption);
-          color: var(--rr-fg-secondary);
-          margin: 2px 0 0;
-          white-space: nowrap;
-        }
-
-        /* ── Live status pill (green) ───────────────────────────── */
-        #view-fleet2 .f2-status-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: var(--rr-space-40);
-          height: 22px;
-          padding: 0 var(--rr-space-100);
-          border-radius: var(--rr-radius-pill);
-          font: var(--rr-font-caption);
-          font-weight: 600;
-          margin-left: var(--rr-space-80);
-          white-space: nowrap;
-          vertical-align: middle;
-          background: rgba(34,197,94,.15);
-          color: #15803D;
-          border: 1px solid rgba(21,128,61,.35);
-          transform-origin: center;
-          animation: f2-live-pulse 4s ease-in-out infinite;
-        }
-        @keyframes f2-live-pulse {
-          0%   { transform: scale(1); }
-          10%  { transform: scale(1.03); }
-          20%  { transform: scale(1); }
-          100% { transform: scale(1); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          #view-fleet2 .f2-status-pill { animation: none; }
-        }
-        #view-fleet2 .f2-status-pill svg { width: 12px; height: 12px; }
-
-        /* ── Tiles (icon-over-label) ────────────────────────────── */
-        #view-fleet2 .f2-split {
-          display: inline-flex;
-          flex-direction: column;
-          align-items: stretch;
-          flex: 0 0 auto;
-          position: relative;
-        }
-        #view-fleet2 .f2-tile {
-          appearance: none;
-          cursor: pointer;
-          font: inherit;
-          display: inline-flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-          min-width: 62px;
-          padding: 6px 10px 7px;
+          padding: 0 8px;
           background: transparent;
           border: 0;
-          border-radius: var(--rr-radius-medium);
-          color: var(--rr-fg-secondary);
-          font-size: 13px;
-          font-weight: 500;
-          line-height: 1.2;
-          /* Tactile press feedback · same spring as Schedule's
-             .sched-v2-tile (schedule-rrx.css:1993). */
-          transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
-                      box-shadow 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
-                      background 0.12s ease;
+          border-radius: 0;
+          overflow: visible;
+          margin-bottom: 14px;
         }
-        /* Press / sink — real-button feedback on click, 1:1 with
-           Schedule's .sched-v2-tile:active. */
-        #view-fleet2 .f2-tile:active {
-          transform: translateY(1px) scale(0.97);
-          transition-duration: 0.04s;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          #view-fleet2 .f2-tile { transition: none; }
-          #view-fleet2 .f2-tile:active { transform: none; }
-        }
-        #view-fleet2 .f2-tile svg {
-          /* Size/color 1:1 with the VISIBLE Schedule strip tiles
-             (.sched-v2-tile svg): base 42px / butt / miter
-             (schedule-rrx.css:2010) + the inline override forcing
-             color var(--text) and stroke-width 1.1.
-             stroke-width MUST be !important: these SVGs carry the
-             stroke-width="1.6" markup attribute, which the dashboard-
-             wide sharpness rule `.view svg[stroke-width="1.6"]`
-             (index.html:753) bumps to 1.9 !important. This ID-scoped
-             rule out-specifies it — same trick Schedule's own
-             1.1 !important rule (index.html:18858) uses.
-             Operator preference: the thin 1.1 stroke at ALL times —
-             deliberately NO hover thicken (this also out-specifies the
-             global button:hover 1.25 bump; Schedule keeps its hover
-             bump, Fleet does not). */
-          width: 32px;
-          height: 32px;
-          flex: 0 0 auto;
-          color: var(--text);
-          stroke-width: 1.35 !important;  /* variant B */
-          stroke-linecap: butt;
-          stroke-linejoin: miter;
-        }
-        #view-fleet2 .f2-tile span {
-          white-space: nowrap;
-          font-size: 13px;
-          font-weight: 500;
-        }
-        #view-fleet2 .f2-tile:hover {
-          background: rgba(15,23,42,.04);
-          color: var(--rr-fg-primary);
-        }
-        #view-fleet2 .f2-tile:focus-visible {
-          outline: 2px solid var(--rr-brand-primary);
-          outline-offset: 1px;
-        }
-
-        /* ── Group wrapper + caption + expand launcher ──────────── */
-        #view-fleet2 .f2-viewgroup {
+        #rr-fleet-viewseg .rr-viewseg-btn {
           display: inline-flex;
-          align-items: stretch;
+          align-items: center;
+          justify-content: center;
           gap: 8px;
-          position: relative;
-          flex: 0 0 auto;
-        }
-        #view-fleet2 .f2-group-label {
-          position: absolute;
-          left: 0;
-          right: 0;
-          bottom: -4px;
-          text-align: center;
-          font-size: 11px;
+          width: auto;
+          height: auto;
+          padding: 13px 16px 12px;
+          margin-bottom: -1px;
+          border: 0;
+          border-bottom: 2px solid transparent;
+          border-radius: 0;
+          background: transparent;
+          color: var(--rr-fg-secondary, #6B7280);
+          font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
+          font-size: 14px;
           font-weight: 600;
-          letter-spacing: .01em;
-          color: #111827;
-          pointer-events: none;
-          white-space: nowrap;
-        }
-        #view-fleet2 .f2-group-launcher {
-          appearance: none;
           cursor: pointer;
-          font: inherit;
-          position: absolute;
-          right: -18px;
-          bottom: -3px;
+          white-space: nowrap;
+          transition: color var(--rr-motion-fast, .12s), border-color var(--rr-motion-fast, .12s);
+        }
+        #rr-fleet-viewseg .rr-viewseg-btn svg {
+          width: 18px;
+          height: 18px;
+          flex: 0 0 auto;
+          stroke-width: 1.8;
+        }
+        #rr-fleet-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, #1F2937); }
+        #rr-fleet-viewseg .rr-viewseg-btn.active {
+          color: var(--rr-fg-primary, #1F2937);
+          border-bottom-color: rgb(194, 231, 255);
+        }
+        #rr-fleet-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, #1F2937); }
+        #rr-fleet-viewseg .rr-viewseg-btn:focus-visible {
+          outline: 2px solid var(--accent, #2563EB);
+          outline-offset: -3px;
+          border-radius: 4px;
+        }
+
+        /* ── Row 2 · action bar · verbatim twin of Schedule's .rr-ab
+           (schedule-rrx.css:4910-4956, hairline pass 5898-5902, and
+           the premium-polish shadow/hover/press pass at the end of
+           this sheet). ─────────────────────────────────────────────── */
+        #view-fleet2 .rr-ab {
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+          gap: 12px;
+          flex-wrap: wrap;
+          position: relative;
+          padding-bottom: 10px;
+          margin: 0 0 14px;
+          border-bottom: 1px solid #ECEFF5;
+        }
+        #view-fleet2 .rr-ab-btn {
           display: inline-flex;
           align-items: center;
-          justify-content: center;
-          padding: 1px 4px;
-          margin: 0;
-          background: transparent;
-          border: 0;
-          border-radius: 999px;
-          color: #111827;
-          opacity: 0.85;
-          z-index: 1;
-          transition: opacity .12s, background .12s, color .12s;
+          gap: 7px;
+          height: 36px;
+          padding: 0 13px;
+          border: 1px solid var(--rr-border-primary, #E5E7EB);
+          border-radius: 8px;
+          background: #FFFFFF;
+          color: var(--rr-fg-primary, #111827);
+          font: inherit;
+          font-size: 12.5px;
+          font-weight: 600;
+          line-height: 1;
+          cursor: pointer;
+          white-space: nowrap;
+          box-shadow: var(--shadow-xs);
+          transition: background-color .16s ease, border-color .16s ease,
+                      box-shadow .16s ease, transform .12s ease;
         }
-        #view-fleet2 .f2-viewgroup:hover .f2-group-launcher { opacity: 0.9; }
-        #view-fleet2 .f2-group-launcher:hover,
-        #view-fleet2 .f2-group-launcher:focus-visible {
-          opacity: 1;
-          color: var(--f2-sch-blue);
-          background: var(--f2-sch-blue-softer);
+        #view-fleet2 .rr-ab-btn:hover {
+          background: #FCFDFE;
+          border-color: rgba(15, 23, 42, .16);
+          box-shadow: var(--shadow-sm);
+        }
+        #view-fleet2 .rr-ab-btn:active { transform: scale(.97); box-shadow: var(--shadow-xs); }
+        #view-fleet2 .rr-ab-btn:focus-visible {
           outline: none;
+          box-shadow: 0 0 0 3px rgba(15, 23, 42, .22);
         }
-        #view-fleet2 .f2-group-launcher svg {
-          width: 14px;
-          height: 14px;
-          flex: 0 0 auto;
-          stroke-linecap: butt;
-          stroke-linejoin: miter;
+        #view-fleet2 .rr-ab-btn svg { width: 15px; height: 15px; flex: 0 0 auto; }
+        /* Add van · the page's lead action — Schedule's "Smart Fill"
+           emphasis recipe (schedule-rrx.css:5395-5404): same box, navy
+           1.5px outline, slightly heavier label, brand-blue glyph. */
+        #view-fleet2 .rr-ab-btn.rr-ab-emph {
+          border: 1.5px solid var(--sidebar-bg, #0F172A);
+          font-weight: 650;
+        }
+        #view-fleet2 .rr-ab-btn.rr-ab-emph > svg:first-child { color: #2563EB; }
+        #view-fleet2 .rr-ab-btn.rr-ab-emph:hover { background: #EFF6FF; }
+        /* Fleet status stat (painted by _flPaintTabCounts) — rides the
+           action bar's right edge as a compact floating stat card,
+           the exact twin of Schedule's coverage card (.rr-ab-coverage
+           base recipe schedule-rrx.css:4972-5005 + the premium
+           floating-card pass later in this sheet). */
+        #view-fleet2 .fl-ab-coverage {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          margin-left: auto;
+          min-height: 36px;
+          gap: 2px;
+          padding: 9px 14px;
+          background: #FFFFFF;
+          border: 1px solid var(--rr-border-primary, #E5E7EB);
+          border-radius: 14px;
+          box-shadow: var(--shadow-md);
+          line-height: 1.2;
+        }
+        #view-fleet2 .fl-ab-coverage[hidden] { display: none; }
+        #view-fleet2 .fl-ab-coverage-main { display: flex; align-items: baseline; gap: 6px; }
+        #view-fleet2 .fl-ab-cov-num {
+          font-size: 18px; font-weight: 700; letter-spacing: -.01em;
+          color: var(--rr-fg-primary, #111827); font-variant-numeric: tabular-nums;
+        }
+        #view-fleet2 .fl-ab-cov-unit {
+          font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+          color: var(--rr-fg-secondary, #6B7280);
+        }
+        #view-fleet2 .fl-ab-coverage-sub {
+          font-size: 11.5px; font-weight: 500; margin-top: 1px;
+          color: var(--red, #DC2626);
+          font-variant-numeric: tabular-nums;
+        }
+        /* Clean fleet reads as a quiet green check + muted label; red
+           is reserved for the warning state (grounded vans). */
+        #view-fleet2 .fl-ab-coverage-sub.is-ok { color: var(--rr-fg-secondary, #6B7280); }
+        #view-fleet2 .fl-ab-coverage-sub.is-ok::before {
+          content: "✓";
+          color: #16A34A;
+          font-weight: 700;
+          margin-right: 4px;
         }
 
-        /* ── Hairline group dividers · left-border on the first tile
-             of each group, right-border on the trailing tile. ───── */
-        #view-fleet2 .f2-strip .f2-split.f2-divides {
-          margin-left: var(--rr-space-160);
-          padding-left: var(--rr-space-160);
-          border-left: 1px solid var(--f2-divider);
-        }
-        #view-fleet2 .f2-strip .f2-split.f2-divides-end {
-          margin-right: var(--rr-space-160);
-          padding-right: var(--rr-space-160);
-          border-right: 1px solid var(--f2-divider);
-        }
-
-        /* ── Active strip tile · 1:1 with Schedule's selected-view tile
-             (.sched-v2-tile.rr-v2-current, schedule-rrx.css:2179):
-             soft gray rounded box via inset ring — no blue glyph, no
-             label-weight bump; the icon keeps var(--text) like every
-             other tile. Set by fleetSub() in live.js. ─── */
-        #view-fleet2 .f2-tile.active {
-          box-shadow: inset 0 0 0 1px rgba(15,23,42,.16);
-          background: rgba(15, 23, 42, 0.04);
-        }
-        #view-fleet2 .f2-tile.active:hover {
-          background: rgba(15, 23, 42, 0.06);
-        }
-
-        /* ── Print / Download toolbar · shown only when the Print/Download
-             command tab is active (toggled by the cmd-tab handler in
-             live.js). Sits just under the strip card. The buttons reuse
-             the .fl-ribbon-btn tile cosmetics from the moved Fleet CSS. */
-        #view-fleet2 .f2-print-actions {
-          display: inline-flex;
-          gap: 8px;
-          align-items: stretch;
-          margin: 6px 0 0;
-          flex: 0 0 auto;
-        }
-        #view-fleet2 .f2-print-actions[hidden] { display: none; }
-
-        /* ── Page flex glue · the new .page is a viewport-tall flex column
+        /* ── Page flex glue · the .page is a viewport-tall flex column
              (set above on #view-fleet2.rrx-schedule > .page). Lock the
-             chrome rows and let the active sub-tab own the scroll, exactly
-             like the Schedule page + the retired Fleet page. The detailed
-             inner rules (.fl-sub.active / .table-wrap / .fl-table-scroll)
-             come from the re-scoped Fleet style block below. */
-        #view-fleet2 .f2-cmd-tabs,
-        #view-fleet2 .f2-strip,
-        #view-fleet2 .f2-print-actions,
+             chrome rows and let the active sub-tab own the scroll,
+             exactly like the Schedule page. The detailed inner rules
+             (.fl-sub.active / .table-wrap / .fl-table-scroll) live in
+             the roster style block below. */
+        #rr-fleet-viewseg,
+        #view-fleet2 .rr-ab,
         #view-fleet2 #rr-fleet-print-area,
         #view-fleet2 .fl-kpi-pills,
         #view-fleet2 #rr-fleet-exec-detail { flex: 0 0 auto; }
@@ -21720,53 +21539,75 @@ body.rr-cmdk-open{ overflow:hidden }
       
 /* ── block 34 · index.html:25875 ── */
 
-          /* ── Fleet · roster refinements (scoped) ─────────────────── */
-          /* Search + filters · the table card's header strip. Sits
-             inside .table-wrap, above the column headers. */
+          /* ── Fleet · roster card internals (Schedule design system) ──
+             The toolbar, search field and filter controls are verbatim
+             twins of Schedule's roster toolbar recipe
+             (.rr-roster-toolbar / .dr-search / .rr-roster-status-filter-btn
+             in this sheet + the #ECEFF5 seam pass, schedule-rrx.css:6051)
+             re-scoped to the Fleet page. */
           #view-fleet2 .fl-roster-bar{
             display:flex;align-items:center;gap:var(--s-3);flex-wrap:wrap;
-            padding:12px 16px;
+            min-height:46px;padding:7px var(--s-4);
             background:var(--surface);
-            border-bottom:1px solid var(--border);
+            border-bottom:1px solid #ECEFF5;
           }
-          #view-fleet2 .fl-roster-bar .fl-search{position:relative;flex:1;min-width:220px;max-width:380px}
-          #view-fleet2 .fl-roster-bar .fl-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-subtle);pointer-events:none}
+          #view-fleet2 .fl-roster-bar .fl-search{position:relative;flex:0 1 auto;width:min(360px,100%);min-width:220px}
+          #view-fleet2 .fl-roster-bar .fl-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-subtle);pointer-events:none}
           #view-fleet2 .fl-roster-bar .fl-search input{
-            width:100%;padding:var(--s-2) 11px 8px 32px;border:1px solid var(--border);border-radius:var(--r-lg);
-            font:inherit;font-size:var(--fs-md);background:var(--canvas);color:var(--text);
-            transition:border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
-          }
-          #view-fleet2 .fl-roster-bar .fl-search input:focus{outline:none;background:var(--surface);border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-          #view-fleet2 .fl-roster-bar .fl-bar-spacer{flex:1}
-          #view-fleet2 .fl-roster-bar select.fl-filter{
-            padding:var(--s-2) 28px 8px 11px;border:1px solid var(--border);border-radius:var(--r-lg);
-            font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text-muted);background:var(--canvas);
-            cursor:pointer;appearance:none;-webkit-appearance:none;
-            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-            background-repeat:no-repeat;background-position:right 9px center;
+            width:100%;height:32px;padding:0 10px 0 30px;
+            border:1px solid var(--border);border-radius:var(--r-md);
+            background:var(--surface);color:var(--text);
+            font:inherit;font-size:var(--fs-sm);
             transition:border-color var(--t-fast), box-shadow var(--t-fast);
           }
-          #view-fleet2 .fl-roster-bar select.fl-filter:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-          #view-fleet2 .fl-roster-bar select.fl-filter.is-set{color:var(--accent-text);border-color:rgba(37,99,235,.30);background-color:var(--accent-soft)}
-          /* Vehicle photo / fallback icon in roster + drawer */
-          #view-fleet2 .fl-veh-thumb{width:38px;height:38px;border-radius:var(--r-md);background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+          #view-fleet2 .fl-roster-bar .fl-search input::placeholder{color:var(--text-subtle)}
+          #view-fleet2 .fl-roster-bar .fl-search input:hover{border-color:var(--border-strong)}
+          #view-fleet2 .fl-roster-bar .fl-search input:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
+          #view-fleet2 .fl-roster-bar .fl-bar-spacer{flex:1}
+          /* Filter selects · Schedule's 32px quiet toolbar control
+             (.rr-roster-status-filter-btn): hairline border, 6px radius,
+             12px/600 label, canvas hover, accent border+ink when set. */
+          #view-fleet2 select.fl-filter{
+            height:32px;padding:0 26px 0 12px;
+            border:1px solid var(--border);border-radius:var(--r-md);
+            font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text);
+            background-color:var(--surface);
+            cursor:pointer;appearance:none;-webkit-appearance:none;
+            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat:no-repeat;background-position:right 10px center;
+            transition:background-color var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
+          }
+          #view-fleet2 select.fl-filter:hover{background-color:var(--canvas)}
+          #view-fleet2 select.fl-filter:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
+          #view-fleet2 select.fl-filter.is-set{border-color:var(--accent);color:var(--accent-text)}
+          /* Vehicle photo / fallback icon in roster + drawer · 40px to
+             match Schedule's 40px row avatars; flat sidebar-navy fill. */
+          #view-fleet2 .fl-veh-thumb{width:40px;height:40px;border-radius:var(--r-md);background:var(--sidebar-bg,#0F172A);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
           #view-fleet2 .fl-veh-thumb img{width:100%;height:100%;object-fit:cover}
           #view-fleet2 .fl-veh-thumb svg{width:18px;height:18px}
-          /* Roster table tightening — matches the global table governance */
-          #view-fleet2 .table tbody td{padding-top:var(--s-2-5);padding-bottom:var(--s-2-5)}
-          #view-fleet2 .table tbody tr{cursor:pointer;transition:background var(--t-fast)}
+          /* Vehicle identity block — icon + id + meta grouped as one
+             unit, the way Schedule groups its driver rows. */
+          #view-fleet2 .fl-veh-cell{display:flex;align-items:center;gap:var(--s-2-5);min-width:0}
+          /* Rows are click targets (drawer) — same interaction model as
+             Schedule's request rows. */
+          #view-fleet2 .table tbody tr{cursor:pointer;transition:background var(--t-fast),box-shadow var(--t-fast)}
           #view-fleet2 .table tbody tr:hover{background:var(--surface-hover)}
-          #view-fleet2 .table thead th{letter-spacing:.04em}
-          /* Empty state */
-          #view-fleet2 .fl-empty{padding:var(--s-10) var(--s-6);text-align:center}
-          #view-fleet2 .fl-empty .ic{width:44px;height:44px;border-radius:var(--r-lg);margin:0 auto var(--s-3-5);display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-border)}
-          #view-fleet2 .fl-empty .ic svg{width:22px;height:22px}
-          #view-fleet2 .fl-empty h3{margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text)}
-          #view-fleet2 .fl-empty p{margin:0 auto var(--s-3-5);max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55}
+          /* Empty state · canonical .rr-empty voice (this sheet, :439). */
+          #view-fleet2 .fl-empty{padding:var(--s-8) var(--s-5);text-align:center}
+          #view-fleet2 .fl-empty .ic{width:40px;height:40px;border-radius:var(--r-lg);margin:0 auto var(--s-3);display:flex;align-items:center;justify-content:center;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border-subtle)}
+          #view-fleet2 .fl-empty .ic svg{width:18px;height:18px;stroke-width:1.8}
+          #view-fleet2 .fl-empty h3{margin:0 0 4px;font-size:var(--fs-base);font-weight:600;color:var(--text)}
+          #view-fleet2 .fl-empty p{margin:0 auto var(--s-3-5);max-width:380px;font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5}
+          /* Loading / no-match rows inside the tables. */
+          #view-fleet2 .fl-table-empty{padding:var(--s-8) var(--s-4);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)}
+          /* Quiet enterprise empty values ("—", "No reports") — muted
+             ink at the cell's own size, matching Schedule's empty-cell
+             treatment. */
+          #view-fleet2 .fl-cell-none{color:var(--text-subtle)}
           /* Skeleton */
           #view-fleet2 .fl-skel-cell{height:13px;border-radius:var(--r-sm);background:var(--canvas);position:relative;overflow:hidden}
           #view-fleet2 .fl-skel-cell::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);transform:translateX(-100%);animation:flShimmer 1.4s ease-in-out infinite}
-          #view-fleet2 .fl-skel-thumb{width:38px;height:38px;border-radius:var(--r-md);background:var(--canvas);position:relative;overflow:hidden}
+          #view-fleet2 .fl-skel-thumb{width:40px;height:40px;border-radius:var(--r-md);background:var(--canvas);position:relative;overflow:hidden}
           #view-fleet2 .fl-skel-thumb::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);transform:translateX(-100%);animation:flShimmer 1.4s ease-in-out infinite}
           @keyframes flShimmer{to{transform:translateX(100%)}}
           /* Initial roster skeleton — rows of .rr-skel bars matching
@@ -21785,7 +21626,9 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet2 .fl-sub{display:none}
           #view-fleet2 .fl-sub.active{display:block}
 
-          /* Operational status pill (Operational / Grounded) — for roster + drawer */
+          /* Operational status pill (Operational / Grounded) — for
+             roster + drawer. Schedule's dot-pill voice: green means
+             healthy, red means action required (semantic tokens only). */
           #view-fleet2 .fl-opstat{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;line-height:1.5;white-space:nowrap}
           #view-fleet2 .fl-opstat .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
           #view-fleet2 .fl-opstat.operational{color:var(--green)}
@@ -21803,7 +21646,7 @@ body.rr-cmdk-open{ overflow:hidden }
             color:inherit;cursor:pointer;font:inherit;line-height:1.4;
             transition:background var(--t-fast), border-color var(--t-fast);
           }
-          #view-fleet2 .fl-opstat-btn:hover{background:var(--canvas);border-color:var(--border)}
+          #view-fleet2 .fl-opstat-btn:hover{background:var(--surface-hover);border-color:var(--border)}
           #view-fleet2 .fl-opstat-btn:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
           #view-fleet2 .fl-opstat-row{display:inline-flex;align-items:center;gap:6px}
           #view-fleet2 .fl-opstat-chev{width:11px;height:11px;color:var(--text-subtle);flex:0 0 auto}
@@ -21817,11 +21660,11 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:var(--r-sm);
             font-size:var(--fs-xs);font-weight:700;letter-spacing:.02em;line-height:1.4;
             background:var(--red-soft);color:var(--red);
-            border:1px solid rgba(220,38,38,.18);
+            border:1px solid var(--red-border);
             font-variant-numeric:tabular-nums;
           }
           #view-fleet2 .fl-down-badge.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:var(--amber-border)}
-          #view-fleet2 .fl-down-badge.crit{background:var(--red-dark);color:#fff;border-color:var(--red-dark)}
+          #view-fleet2 .fl-down-badge.crit{background:var(--red);color:#fff;border-color:var(--red)}
 
           /* Repair-status cell · two labelled clocks + RO entry box.
              Stacked rows so each clock has its own label header. */
@@ -21857,14 +21700,14 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-fl-ground-cat-hint{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4}
           #view-fleet2 .fl-rs-row{display:grid;grid-template-columns:120px 1fr;gap:var(--s-2);align-items:center}
           #view-fleet2 .fl-rs-label{
-            font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;
             color:var(--text-subtle);
           }
           #view-fleet2 .fl-rs-ro-input{
             width:100%;height:24px;padding:2px 7px;
             border:1px solid var(--border);border-radius:var(--r-sm);
             background:var(--surface);color:var(--text);
-            font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+            font-family:var(--ff-mono,ui-monospace,SFMono-Regular,Menlo,monospace);
             font-size:var(--fs-sm);letter-spacing:.02em;
             transition:border-color var(--t-fast), box-shadow var(--t-fast);
           }
@@ -21878,216 +21721,86 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-fleet2 .fl-clock.fl-clock-ok{background:var(--green-soft);color:var(--green);border-color:transparent}
           #view-fleet2 .fl-clock.fl-clock-warn{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
-          #view-fleet2 .fl-clock.fl-clock-crit{background:var(--red-dark);color:#fff;border-color:var(--red-dark)}
+          #view-fleet2 .fl-clock.fl-clock-crit{background:var(--red);color:#fff;border-color:var(--red)}
           #view-fleet2 .fl-clock.fl-clock-met{background:var(--green-soft);color:var(--green);border-color:transparent}
           #view-fleet2 .fl-clock.fl-clock-dim{background:transparent;color:var(--text-subtle);border-color:transparent}
 
+          /* Service-grounding un-ground alert · amber advisory bar
+             above the roster (painted by _flRenderUngroundAlerts). */
+          #view-fleet2 .fl-unground-alert{
+            display:flex;align-items:center;gap:var(--s-3);
+            padding:10px var(--s-4);margin:0 0 var(--s-2);
+            background:var(--amber-soft);border:1px solid var(--amber-border);
+            border-radius:var(--r-md);
+          }
+          #view-fleet2 .fl-unground-alert .fl-unground-msg{flex:1;font-size:var(--fs-sm);color:var(--text)}
+
           /* Floating inline status menu — appended to <body> so it
-             escapes table-cell overflow.  Positioned in JS. */
+             escapes table-cell overflow.  Positioned in JS. Chrome
+             matches Schedule's .rr-ab-menu dropdown recipe
+             (schedule-rrx.css:5059-5085). */
           .fl-opstat-menu{
             position:absolute;z-index:9000;
-            background:var(--surface);border:1px solid var(--border);
-            border-radius:var(--r-lg);box-shadow:var(--shadow-lg);
-            padding:var(--s-2);min-width:200px;
+            background:#FFFFFF;border:1px solid var(--border);
+            border-radius:10px;box-shadow:0 10px 28px rgba(2,6,23,.14);
+            padding:6px;min-width:200px;
           }
           .fl-opstat-menu .row{
             display:flex;align-items:center;gap:var(--s-2-5);width:100%;
-            padding:var(--s-2) var(--s-2-5);border-radius:var(--r-md);
+            padding:8px 10px;border-radius:7px;
             background:transparent;border:none;cursor:pointer;text-align:left;
             font-size:var(--fs-md);color:var(--text);font-weight:500;
             transition:background var(--t-fast);
           }
-          .fl-opstat-menu .row:hover{background:var(--canvas)}
+          .fl-opstat-menu .row:hover{background:rgba(15,23,42,.05)}
           .fl-opstat-menu .row[disabled]{opacity:.55;cursor:default}
           .fl-opstat-menu .row[disabled]:hover{background:transparent}
           .fl-opstat-menu .pip{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
           .fl-opstat-menu .pip.green{background:var(--green)}
           .fl-opstat-menu .pip.red{background:var(--red)}
           .fl-opstat-menu .row .sub{
-            margin-left:auto;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;
+            margin-left:auto;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;
             text-transform:uppercase;color:var(--text-subtle);
           }
           .fl-opstat-menu .row.is-active .sub{color:var(--green)}
 
-          /* Issue severity chip */
-          #view-fleet2 .fl-sev{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px var(--s-2);border-radius:var(--r-sm);white-space:nowrap}
-          #view-fleet2 .fl-sev.low{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+          /* Issue severity chip · the app-wide .status-pill box
+             (this sheet, :1485) with the semantic soft tints Schedule
+             uses: neutral / info / warning / danger. */
+          #view-fleet2 .fl-sev{display:inline-flex;align-items:center;gap:var(--s-1);padding:2px 8px;border-radius:var(--r-lg);font-size:var(--fs-xs);font-weight:700;line-height:1.5;letter-spacing:.04em;text-transform:uppercase;border:1px solid transparent;white-space:nowrap}
+          #view-fleet2 .fl-sev.low{background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
           #view-fleet2 .fl-sev.medium{background:var(--accent-soft);color:var(--accent-text)}
-          #view-fleet2 .fl-sev.high{background:var(--amber-soft);color:var(--amber-dark)}
+          #view-fleet2 .fl-sev.high{background:var(--amber-soft);color:var(--amber)}
           #view-fleet2 .fl-sev.critical{background:var(--red-soft);color:var(--red)}
 
-          /* ── Fluent 2 restyle · Fleet roster ───────────────────────────
-             Microsoft 365 / Windows 11 surface language: Segoe UI,
-             crisp 4px corners, Fluent neutral + brand-blue palette,
-             quiet 1px strokes, and the signature animated accent
-             underline on text fields. Scoped to #view-fleet2 so the
-             rest of the app's design system is untouched. */
-          #view-fleet2{
-            /* Match the Schedule page ground exactly (#view-schedule.rrx-schedule
-               uses background:#F9FAFB — the unified neutral canvas). Fleet
-               previously inherited the global body --canvas (#FEFEFF); pin it to
-               the Schedule value so the two pages read identically.
-               (Re-scoped from #view-fleet2 → #view-fleet2 when the Fleet
-               content moved; defines the --flu-* tokens the moved roster/
-               table/drawer markup depends on.) */
-            background:#F9FAFB;
-            --flu-brand:#2563EB;
-            --flu-brand-hover:#1D4ED8;
-            --flu-stroke:var(--border);
-            --flu-stroke-strong:#D1D5DB;
-            --flu-bg-hover:#F3F4F6;
-            --flu-bg-selected:#EFF6FF;
-            --flu-fg:#111827;
-            --flu-fg-2:#6B7280;
-            --flu-radius:10px;
-            --flu-success-fg:#15803D;  --flu-success-bg:#DCFCE7;  --flu-success-bd:#BBF7D0;
-            --flu-danger-fg:#B91C1C;   --flu-danger-bg:#FEE2E2;   --flu-danger-bd:#FECACA;
-            --flu-warning-fg:#92400E;  --flu-warning-bg:#FEF3C7;  --flu-warning-bd:#FDE68A;
-            --flu-font:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
-          }
-          #view-fleet2 .table,
-          #view-fleet2 .fl-roster-bar,
-          #view-fleet2 .fl-ribbon{font-family:var(--flu-font)}
-
-          /* Header — Fluent DataGrid: sentence case, quiet, thin rule */
-          #view-fleet2 .table thead th{
-            background:var(--surface);
-            color:var(--flu-fg-2);
-            font-weight:600;
-            text-transform:none;
-            letter-spacing:.01em;
-            border-bottom:1px solid var(--flu-stroke);
-          }
-          #view-fleet2 .table thead th[data-rr-sort]:hover,
-          #view-fleet2 .table thead th[data-att-sort]:hover{color:var(--flu-brand)}
-
-          /* Rows — thin Fluent dividers + neutral hover */
-          #view-fleet2 .table tbody td{border-bottom:1px solid var(--flu-stroke);color:var(--flu-fg)}
-          #view-fleet2 .table tbody tr:hover{background:var(--flu-bg-hover)}
-
-          /* Square Fluent corners across the roster's chips & controls */
-          #view-fleet2 .fl-down-badge,
-          #view-fleet2 .fl-clock,
-          #view-fleet2 .fl-sev,
-          #view-fleet2 .fl-rs-ro-input,
-          #view-fleet2 .fl-opstat-btn,
-          #view-fleet2 .fl-veh-thumb,
-          #view-fleet2 .fl-roster-bar .fl-search input,
-          #view-fleet2 .fl-roster-bar select.fl-filter{border-radius:4px}
-
-          /* Status dropdown trigger — Fluent subtle button */
-          #view-fleet2 .fl-opstat-btn:hover{background:var(--flu-bg-hover);border-color:var(--flu-stroke)}
-          #view-fleet2 .fl-opstat-btn:focus-visible{
-            border-color:var(--flu-brand);box-shadow:none;
-            outline:2px solid var(--flu-brand);outline-offset:-1px;
-          }
-
-          /* Text fields — Fluent field: neutral border, darker bottom
-             edge, 2px brand underline on focus (no glow, no reflow) */
-          #view-fleet2 .fl-rs-ro-input,
-          #view-fleet2 .fl-roster-bar .fl-search input,
-          #view-fleet2 .fl-roster-bar select.fl-filter{
-            border-color:var(--flu-stroke-strong);
-            border-bottom-color:var(--flu-fg-2);
-          }
-          #view-fleet2 .fl-rs-ro-input:focus,
-          #view-fleet2 .fl-roster-bar .fl-search input:focus,
-          #view-fleet2 .fl-roster-bar select.fl-filter:focus{
-            outline:none;
-            border-color:var(--flu-stroke-strong);
-            border-bottom-color:var(--flu-brand);
-            box-shadow:inset 0 -2px 0 0 var(--flu-brand);
-          }
-          #view-fleet2 .fl-roster-bar select.fl-filter.is-set{
-            color:var(--flu-brand);border-color:var(--flu-stroke-strong);
-            background-color:var(--flu-bg-selected);
-          }
-
-          /* Status text — Fluent semantic foregrounds */
-          #view-fleet2 .fl-opstat.operational{color:var(--flu-success-fg)}
-          #view-fleet2 .fl-opstat.operational .dot{background:var(--flu-success-fg)}
-          #view-fleet2 .fl-opstat.grounded{color:var(--flu-danger-fg)}
-          #view-fleet2 .fl-opstat.grounded .dot{background:var(--flu-danger-fg)}
-
-          /* Badges — Fluent tint badges (filled for critical) */
-          #view-fleet2 .fl-down-badge{
-            background:var(--flu-danger-bg);color:var(--flu-danger-fg);
-            border-color:var(--flu-danger-bd);
-          }
-          #view-fleet2 .fl-down-badge.warn{
-            background:var(--flu-warning-bg);color:var(--flu-warning-fg);
-            border-color:var(--flu-warning-bd);
-          }
-          #view-fleet2 .fl-down-badge.crit{
-            background:var(--flu-danger-fg);color:#fff;border-color:var(--flu-danger-fg);
-          }
-          #view-fleet2 .fl-clock.fl-clock-ok,
-          #view-fleet2 .fl-clock.fl-clock-met{
-            background:var(--flu-success-bg);color:var(--flu-success-fg);border-color:var(--flu-success-bd);
-          }
-          #view-fleet2 .fl-clock.fl-clock-warn{
-            background:var(--flu-warning-bg);color:var(--flu-warning-fg);border-color:var(--flu-warning-bd);
-          }
-          #view-fleet2 .fl-clock.fl-clock-crit{
-            background:var(--flu-danger-fg);color:#fff;border-color:var(--flu-danger-fg);
-          }
-          #view-fleet2 .fl-sev.medium{background:var(--flu-bg-selected);color:var(--flu-brand)}
-          #view-fleet2 .fl-sev.high{background:var(--flu-warning-bg);color:var(--flu-warning-fg)}
-          #view-fleet2 .fl-sev.critical{background:var(--flu-danger-bg);color:var(--flu-danger-fg)}
-
-          /* ── Fleet execution KPI strip ─────────────────────────────
-             Reuses the dashboard's stock .kpi-card system so the FEM
-             and VORR cards read as part of the same KPI family as
-             every other surface in the app — same padding, same brand
-             ribbon, same label/value/sub rhythm.  We only override the
-             grid to 2-up and make the cards behave as buttons; state
-             is conveyed by a single pip in .kpi-sub, never by red
-             chrome on the card itself. */
-          /* ── Page ribbon · set 1:1 with the schedule page's icon
-             strip (.sched-nav-heading) — same card chrome, padding,
-             radius, shadow, and title-left / actions-right layout. ── */
-          /* Page padding · match Schedule's effective offset before
-             the strip card. Schedule uses 20px page padding-top +
-             a hidden ~20px legacy .sched-cmd-shell = 40px before
-             the visible strip. Fleet has no hidden shell, so its
-             .page padding-top is bumped to 40px directly. The other
-             three sides stay at 20px (--rr-space-200) like Schedule.
-             Also locks the page to a viewport-tall flex column so the
-             chrome (strip card, KPI strip, roster bar) stays put and
-             only the table body scrolls — same pattern Schedule uses. */
-          /* Page layout (.active / > .page) is now owned by the
-             #view-fleet2 self-contained style block above — the new page
-             uses 20px padding + its own .f2 chrome, not the old 40px-top
-             fleet ribbon. These legacy rules are retired with #view-fleet. */
-          #view-fleet-legacy.active{
-            display:flex;flex:1 1 auto;min-height:0;
-          }
-          #view-fleet-legacy > .page{
-            padding:40px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
-            display:flex;flex-direction:column;
-            flex:1 1 auto;min-height:0;
-            overflow:hidden;
-          }
-          /* TCP chrome rows · locked at the top, never scroll. */
-          #view-fleet2 .fl-ribbon,
-          #view-fleet2 .fl-kpi-pills,
-          #view-fleet2 #rr-fleet-exec-detail{
-            flex:0 0 auto;
-          }
-          /* Active sub-tab fills the remaining space and itself is a
-             flex column so the roster bar can sit above the scrolling
-             table area. */
+          /* ── Workspace layering · Schedule's 3-layer recipe ────────
+             Page floor #F6F8FB → recessed workspace tray #F7F9FC
+             (r14, 6px pad, -6px margin = zero net displacement) →
+             planted white container (1px #E6EAF2, r12, whisper
+             shadow). Exact hexes shared with the Schedule block
+             (schedule-rrx.css:5869-5890 + 6002-6007). */
           #view-fleet2 .fl-sub.active{
             flex:1 1 auto;min-height:0;
             display:flex;flex-direction:column;
+            background:#F7F9FC;
+            border-radius:14px;
+            padding:6px;
+            margin:-6px;
           }
-          /* Table-wrap is the visual card (border, radius); inside it,
-             the roster bar pins to the top and .fl-table-scroll owns
-             the vertical scroll for the table body. */
+          /* Table-wrap is the planted container (border, radius).
+             overflow:auto (not hidden): the Vehicles card scrolls via
+             its inner .fl-table-scroll, but the Issues / Rotation
+             cards have no inner scroller and rely on the card itself
+             scrolling when the table outgrows the viewport. */
           #view-fleet2 .table-wrap{
             flex:1 1 auto;min-height:0;
             display:flex;flex-direction:column;
-            overflow:hidden;
+            overflow:auto;
+            background:#FFFFFF;
+            background-image:none;
+            border:1px solid #E6EAF2;
+            border-radius:12px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04);
           }
           #view-fleet2 .fl-roster-bar{
             flex:0 0 auto;
@@ -22115,72 +21828,6 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--text-subtle);
           }
 
-          /* Fleet strip card · locked to the TCP spec so it reads
-             identical to Schedule + Onboarding (and now Fleet Bridge).
-             Tokens come from dashboard/tcp.css. */
-          #view-fleet2 .fl-ribbon{
-            display:flex;align-items:center;
-            justify-content:flex-start;
-            gap:var(--s-3);flex-wrap:nowrap;
-            padding:11px 18px;
-            /* Density pass · strip→KPI gap tracks the shared
-               --tcp-strip-gap (16→12) so Fleet tightens with the rest. */
-            margin-bottom:var(--tcp-strip-gap, 12px);
-            background:var(--rr-bg-surface-1);
-            border:1px solid var(--rr-border-primary);
-            border-radius:var(--rr-radius-medium);
-            box-shadow:none;
-            min-height:var(--tcp-strip-h);
-            height:var(--tcp-strip-h);
-            max-height:var(--tcp-strip-h);
-            box-sizing:border-box;
-            overflow:visible;
-          }
-          /* Cmd-shell · the "Fleet / Print/Download" tabs sit above
-             the ribbon card. Plain-text labels matching Schedule's
-             .sched-v2-cmd-tabs — active is brand-blue text, no card
-             chrome, hover stays transparent. */
-          #view-fleet2 .fl-ribbon.fl-cmd-shell{position:relative}
-          #view-fleet2 .fl-cmd-tabs{
-            position:absolute;left:0;bottom:100%;margin-bottom:-1px;
-            display:inline-flex;gap:2px;
-            height:var(--tcp-cmd-tabs-h);
-            align-items:center;
-          }
-          #view-fleet2 .fl-cmd-tab{
-            appearance:none;background:transparent;cursor:pointer;
-            /* Match Schedule's .sched-v2-cmd-tabs .sched-cmd-tab: same
-               font-shorthand (--rr-font-caption = 400 12px/16px) then
-               override weight to 600. Earlier I used `font:inherit` +
-               `font-size:11px`, which rendered 1px smaller than
-               Schedule. */
-            font:var(--rr-font-caption);
-            font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-            color:var(--rr-fg-secondary);
-            padding:var(--rr-space-60) var(--rr-space-120);
-            border:1px solid transparent;border-bottom:0;
-            border-radius:var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
-            transition:color var(--rr-motion-fast);
-          }
-          #view-fleet2 .fl-cmd-tab:hover:not(.active){background:transparent}
-          #view-fleet2 .fl-cmd-tab.active{
-            color:var(--rr-brand-primary);background:transparent;border-color:transparent;
-          }
-          #view-fleet2 .fl-cmd-tab:focus-visible{outline:none;color:var(--rr-brand-primary)}
-          /* Match Schedule's darkened cmd-tab strip (var(--text)). */
-          #view-fleet2 .fl-cmd-tab{color:var(--text) !important}
-          /* Print/Download mode · everything except the print-actions
-             goes invisible; the print/download/proof buttons sit at the
-             ribbon's left edge. */
-          #view-fleet2 .fl-ribbon.fl-cmd-shell:not(.is-print) .fl-print-actions{display:none}
-          #view-fleet2 .fl-ribbon.fl-cmd-shell.is-print .fl-ribbon-actions{position:relative}
-          #view-fleet2 .fl-ribbon.fl-cmd-shell.is-print .fl-ribbon-actions > :not(.fl-print-actions){
-            visibility:hidden;
-          }
-          #view-fleet2 .fl-ribbon.fl-cmd-shell.is-print .fl-print-actions{
-            display:inline-flex;gap:8px;visibility:visible;
-            position:absolute;left:0;top:50%;transform:translateY(-50%);
-          }
           /* Print isolation · only the fleet print-area renders on paper. */
           #rr-fleet-print-area{display:none}
           @media print{
@@ -22205,330 +21852,140 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:var(--s-6);
           }
           .rr-proof-card{
-            background:#fff;border:1px solid var(--border);border-radius:8px;
+            background:#fff;border:1px solid #E6EAF2;border-radius:12px;
             box-shadow:var(--shadow-pop);
             width:780px;max-width:100%;max-height:90vh;
             display:flex;flex-direction:column;overflow:hidden;
           }
           .rr-proof-head{
             display:flex;align-items:center;justify-content:space-between;
-            padding:14px 18px;border-bottom:1px solid var(--border);background:var(--canvas);
+            padding:14px 18px;border-bottom:1px solid #ECEFF5;background:var(--surface);
           }
-          .rr-proof-head h3{margin:0;font-size:15px;font-weight:600;color:#111827}
-          .rr-proof-head-sub{font-size:12px;color:#6B7280;margin-top:2px}
+          .rr-proof-head h3{margin:0;font-size:var(--fs-base);font-weight:600;color:var(--text)}
+          .rr-proof-head-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
           .rr-proof-close{
-            background:transparent;border:0;cursor:pointer;color:#6B7280;
-            width:28px;height:28px;border-radius:4px;font-size:18px;
+            background:transparent;border:0;cursor:pointer;color:var(--text-subtle);
+            width:28px;height:28px;border-radius:var(--r-md);font-size:18px;
+            transition:background var(--t-fast), color var(--t-fast);
           }
-          .rr-proof-close:hover{background:var(--surface-hover);color:#111827}
+          .rr-proof-close:hover{background:var(--surface-hover);color:var(--text)}
           .rr-proof-body{padding:14px 18px;overflow-y:auto;flex:1 1 auto}
           .rr-proof-bar{
             display:flex;align-items:end;gap:10px;flex-wrap:wrap;
-            padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:12px;
+            padding-bottom:12px;border-bottom:1px solid #ECEFF5;margin-bottom:12px;
           }
           .rr-proof-bar label{
             display:flex;flex-direction:column;gap:4px;
-            font-size:12px;font-weight:600;color:#6B7280;
+            font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);
           }
           .rr-proof-bar input,
           .rr-proof-bar select{
-            height:30px;padding:0 8px;font:inherit;font-size:13px;color:#111827;
-            border:1px solid var(--border);border-radius:4px;background:#fff;
+            height:32px;padding:0 10px;font:inherit;font-size:var(--fs-sm);color:var(--text);
+            border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);
+            transition:border-color var(--t-fast), box-shadow var(--t-fast);
           }
           .rr-proof-bar input:focus,
           .rr-proof-bar select:focus{
-            outline:none;border-color:#2563EB;box-shadow:0 0 0 1px #2563EB;
+            outline:none;border-color:var(--accent);box-shadow:var(--ring-focus);
           }
           .rr-proof-bar .btn-primary{
-            height:30px;padding:0 14px;font-size:13px;font-weight:600;
-            background:#2563EB;color:#fff;border:1px solid #2563EB;border-radius:4px;
+            height:32px;padding:0 14px;font-size:var(--fs-sm);font-weight:600;
+            background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:var(--r-md);
           }
-          .rr-proof-bar .btn-primary:hover{background:#1D4ED8;border-color:#1D4ED8}
-          .rr-proof-result{font-size:13px;color:#111827}
+          .rr-proof-bar .btn-primary:hover{background:var(--accent-hover,#1D4ED8);border-color:var(--accent-hover,#1D4ED8)}
+          .rr-proof-result{font-size:var(--fs-md);color:var(--text)}
           .rr-proof-summary{
-            background:var(--canvas);border:1px solid var(--border);border-radius:4px;
+            background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
             padding:10px 12px;margin-bottom:10px;
             display:flex;align-items:baseline;justify-content:space-between;gap:10px;
-            font-size:13px;
+            font-size:var(--fs-md);
           }
-          .rr-proof-table{width:100%;border-collapse:collapse;font-size:13px}
+          .rr-proof-table{width:100%;border-collapse:collapse;font-size:var(--fs-md)}
           .rr-proof-table th,.rr-proof-table td{
-            border-bottom:1px solid #F0EFEE;padding:8px 10px;text-align:left;
+            border-bottom:1px solid rgba(15,23,42,.05);padding:8px 10px;text-align:left;
             vertical-align:top;
           }
           .rr-proof-table thead th{
-            background:var(--canvas);font-size:12px;font-weight:600;color:#6B7280;
-            border-bottom:1px solid var(--border);
+            background:var(--canvas);font-size:var(--fs-xs);font-weight:650;
+            letter-spacing:.04em;text-transform:uppercase;color:var(--text);
+            border-bottom:1px solid #ECEFF5;
           }
-          .rr-proof-empty{padding:18px;text-align:center;color:#6B7280;font-size:13px}
+          .rr-proof-empty{padding:18px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md)}
           .rr-proof-foot{
             display:flex;align-items:center;justify-content:flex-end;gap:8px;
-            padding:12px 18px;border-top:1px solid var(--border);background:var(--canvas);
+            padding:12px 18px;border-top:1px solid #ECEFF5;background:var(--surface);
           }
           .rr-proof-foot .btn{
-            height:30px;padding:0 12px;font-size:13px;font-weight:600;
-            background:#fff;color:#111827;border:1px solid #D1D5DB;border-radius:4px;
+            height:32px;padding:0 12px;font-size:var(--fs-sm);font-weight:600;
+            background:#fff;color:var(--text);border:1px solid var(--border);border-radius:var(--r-md);
             cursor:pointer;
+            transition:background var(--t-fast), border-color var(--t-fast);
           }
-          .rr-proof-foot .btn:hover{background:#F3F4F6}
+          .rr-proof-foot .btn:hover{background:var(--canvas)}
           .rr-proof-foot .btn-primary{
-            background:#2563EB;color:#fff;border-color:#2563EB;
+            background:var(--accent);color:#fff;border-color:var(--accent);
           }
-          .rr-proof-foot .btn-primary:hover{background:#1D4ED8;border-color:#1D4ED8}
+          .rr-proof-foot .btn-primary:hover{background:var(--accent-hover,#1D4ED8);border-color:var(--accent-hover,#1D4ED8)}
 
-          /* Title block · matches Schedule's .sched-v2-title exactly.
-             flex 0 0 240px (TCP --tcp-title-w), flex-column with
-             explicit align-items:flex-start to override the global
-             .page-header-l { align-items:center } that would otherwise
-             center the title horizontally. Page-icon (the fleet
-             diagram glyph) hidden — Schedule + Onboarding + Fleet
-             Bridge all drop the icon next to the title. */
-          #view-fleet2 .fl-ribbon-titlewrap{
-            flex:0 0 var(--tcp-title-w);
-            align-self:center;
-            display:flex;flex-direction:column;justify-content:center;
-            align-items:flex-start;
-            min-width:0;
-            margin-right:var(--rr-space-160);
-            padding-right:var(--rr-space-120);
-          }
-          #view-fleet2 .fl-ribbon-titlewrap .page-icon{display:none !important}
-          #view-fleet2 .fl-ribbon .page-title{
-            font:var(--rr-font-subtitle);
-            color:var(--rr-fg-primary);
-            letter-spacing:-.01em;
-            margin:0;
-            white-space:nowrap;
-          }
-          #view-fleet2 .fl-ribbon .page-sub{
-            font:var(--rr-font-caption);
-            color:var(--rr-fg-secondary);
-            margin:2px 0 0;
-            white-space:nowrap;
-          }
-          /* Action ribbon · first hairline divider sits at the same X
-             as Schedule's (16px margin + 16px padding + 1px line in
-             rgba(15,23,42,.16) after a 240px title block + 16px margin-right
-             on the title). */
-          #view-fleet2 .fl-ribbon-actions{
-            display:flex;align-items:center;
-            justify-content:flex-start;
-            gap:6px;flex-wrap:nowrap;min-width:0;
-            margin-left:var(--rr-space-160);
-            padding-left:var(--rr-space-160);
-            border-left:1px solid rgba(15,23,42,.16);
-          }
-          #view-fleet2 .fl-ribbon-tail{
-            display:flex;align-items:center;gap:8px;
-            margin-left:10px;align-self:center;
-          }
-          #view-fleet2 .fl-ribbon-group{
-            display:flex;align-items:center;gap:6px;flex-wrap:nowrap;
-            margin-bottom:0;
-            padding:0;
-          }
-          /* Tile metrics match Schedule's .sched-v2-tile exactly:
-             same padding, min-width, gap, icon size, and rounded
-             corners (--rr-radius-medium, not 90° square — Schedule's
-             rounded tiles are the standard now). */
-          #view-fleet2 .fl-ribbon-btn{
-            position:relative;
-            appearance:none;cursor:pointer;font:inherit;
-            display:inline-flex;flex-direction:column;
-            align-items:center;justify-content:center;gap:4px;
-            min-width:62px;
-            padding:6px 10px 7px;
-            background:transparent;
-            border:0;
-            border-radius:var(--rr-radius-medium);
-            color:var(--rr-fg-secondary);
-            transition:background var(--t-fast),color var(--t-fast),
-                       transform .12s cubic-bezier(.2,.7,.2,1);
-          }
-          #view-fleet2 .fl-ribbon-btn:hover{
-            background:var(--rr-bg-hover);color:var(--rr-fg-primary);
-          }
-          /* Icon styling matched 1:1 to the Schedule / onboarding
-             command-strip tiles (#view-schedule.rrx-schedule .subnav-item svg):
-             28×28, 1.6 stroke, square caps + miter joins for the
-             boxy line-icon feel, colored with --rr-fg-secondary. */
-          #view-fleet2 .fl-ribbon-btn svg{
-            width:28px !important;height:28px !important;stroke-width:1.6 !important;
-            stroke-linecap:square !important;stroke-linejoin:miter !important;
-            /* --rr-fg-secondary is never defined (only ever used with this
-               fallback), so pin the concrete value or the icons inherit the
-               button's darker text color and stop matching the Schedule strip. */
-            color:var(--rr-fg-secondary, #6B7280) !important;
-          }
-          #view-fleet2 .fl-ribbon-btn span{font-size:13px;font-weight:500}
-          /* Active view switcher — colored, not boxed (mirrors the
-             schedule ribbon's active tab). */
-          #view-fleet2 .fl-ribbon-view.active,
-          #view-fleet2 .fl-ribbon-view.active:hover{
-            background:var(--rr-bg-selected);
-            color:var(--rr-brand-pressed);
-          }
-          #view-fleet2 .fl-ribbon-view.active svg{color:var(--rr-brand-primary)}
-          #view-fleet2 .fl-ribbon-view.active span{font-weight:600}
-          /* Count badge pinned to the button's top-right corner. */
-          #view-fleet2 .fl-ribbon-count{
-            position:absolute;top:4px;right:6px;
-            min-width:16px;height:16px;padding:0 4px;
-            display:inline-flex;align-items:center;justify-content:center;
-            font-size:10px;font-weight:700;line-height:1;
-            border-radius:8px;
-            background:rgba(15,23,42,.08);color:var(--text-muted);
-          }
-          #view-fleet2 .fl-ribbon-view.active .fl-ribbon-count{
-            background:var(--accent);color:#fff;
-          }
-          /* Hairline divider between ribbon groups — matches Schedule's
-             .sched-ribbon-group + .sched-ribbon-group::before (1px ×
-             20px line in --rr-border-secondary, 4px margin on the
-             right). */
-          #view-fleet2 .fl-ribbon-group + .fl-ribbon-group{
-            margin-left:var(--rr-space-40);
-            padding-left:0;
-            position:static;
-          }
-          #view-fleet2 .fl-ribbon-group + .fl-ribbon-group::before{
-            content:"";
-            display:inline-block;
-            width:1px;height:20px;
-            background:var(--rr-border-secondary);
-            margin-right:var(--rr-space-40);
-          }
 
-          /* ── Fleet assignment · "Rules" footer + van-rules popover ──
-             A twin of the schedule page's Assign-rules box; both share
-             one localStorage key so editing either updates the other. */
-          #view-fleet2 .fl-tab-wrap{
-            position:relative;display:inline-flex;
-            flex-direction:column;align-items:center;
-          }
-          #view-fleet2 .fl-rules-foot{
-            display:inline-flex;align-items:center;justify-content:center;gap:4px;
-            margin:-2px auto 0;padding:3px 9px;border-radius:4px;
-            background:transparent;border:0;cursor:pointer;font-family:inherit;
-            font-size:11px;font-weight:500;letter-spacing:.01em;color:var(--text-subtle);
-            transition:background var(--t-fast),color var(--t-fast);
-          }
-          #view-fleet2 .fl-rules-foot svg{width:9px;height:9px;display:block;stroke-width:2}
-          #view-fleet2 .fl-rules-foot:hover,
-          #view-fleet2 .fl-rules-foot:focus-visible{
-            color:var(--sch-blue);background:rgba(37,99,235,.06);outline:none;
-          }
-          #view-fleet2 .fl-rules-foot[aria-expanded="true"]{
-            color:var(--sch-blue);background:rgba(37,99,235,.08);
-          }
-          #view-fleet2 .sched-vans-rules-popover{
-            position:absolute;top:calc(100% + 4px);left:0;right:auto;z-index:60;
-            width:460px;max-width:calc(100vw - 48px);
-            max-height:calc(100vh - 200px);overflow-y:auto;
-            font-family:"Inter","Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",sans-serif;
-            background:rgba(255,255,255,.82);
-            -webkit-backdrop-filter:blur(40px) saturate(170%);
-            backdrop-filter:blur(40px) saturate(170%);
-            border:1px solid rgba(255,255,255,.55);border-radius:8px;
-            box-shadow:0 14px 32px rgba(0,0,0,.20),0 0 10px rgba(0,0,0,.12);
-          }
-          #view-fleet2 .sched-vans-rules-popover[hidden]{display:none}
-          /* Brand-blue Fluent header. */
-          #view-fleet2 .sched-vans-rules-popover > .sched-vans-rules-head{
-            display:flex;align-items:center;gap:9px;
-            background:linear-gradient(135deg,var(--accent),#1E40AF);color:#fff;
-            font-size:14px;font-weight:600;letter-spacing:.005em;
-            padding:13px 18px;border:0;border-radius:8px 8px 0 0;margin:0;
-          }
-          #view-fleet2 .sched-vans-rules-popover > .sched-vans-rules-head *{color:#fff}
-          #view-fleet2 .sched-vans-rules-popover > .sched-vans-rules-head > svg{
-            width:16px;height:16px;flex:0 0 auto;
-          }
-          #view-fleet2 .sched-vans-rules-popover .sched-vans-rules-head-title{
-            font-size:14px;font-weight:600;
-          }
-          #view-fleet2 .sched-vans-rules-info{
-            margin-left:auto;display:inline-flex;align-items:center;justify-content:center;
-            width:22px;height:22px;border-radius:50%;
-            background:transparent;border:0;cursor:pointer;padding:0;
-          }
-          /* Light Fluent body + the rule rows. */
-          #view-fleet2 .sched-vans-rules-popover .sched-smartfill-rules-body{
-            display:block;column-count:2;column-gap:20px;
-            column-rule:1px solid rgba(15,23,42,.07);
-            padding:8px 16px 10px;background:rgba(248,249,250,.55);
-            border-radius:0 0 8px 8px;
-          }
-          #view-fleet2 .sched-smartfill-rule{
-            display:flex;align-items:center;gap:10px;padding:8px 12px;
-            font-size:13px;color:#111827;line-height:1.35;cursor:pointer;
-            border-radius:4px;transition:background 80ms linear;
-          }
-          #view-fleet2 .sched-smartfill-rule:hover{background:rgba(15,23,42,.05)}
-          #view-fleet2 .sched-smartfill-rule input[type="checkbox"]{
-            width:15px;height:15px;cursor:pointer;accent-color:var(--accent);
-            margin:0;flex:0 0 auto;
-          }
-          #view-fleet2 .sched-smartfill-rule .sf-rule-name{flex:1;line-height:1.3}
-
-          /* KPI strip · brought to the TCP --tcp-kpi-h (46px) spec
-             so Fleet's KPI bar reads identical to Schedule's joined-
-             pill row. Tokens match #rr-sched-kpis.sched-kpi-pills. */
-          /* KPI CONTRACT · standardized onto the --kpi-* tokens
-             (app/rr-system.css) so Fleet is pixel-identical to the
-             Schedule master: same shadow, border, radius, height,
-             padding, gap, dot size, and value/sub typography. */
+          /* KPI strip · Schedule's flattened treatment (this sheet's
+             #rr-sched-kpis.sched-kpi-pills rules): a transparent row of
+             individual white pills — 1px sidebar-navy border, 6px
+             radius, whisper shadow, 10px/12px padding — instead of one
+             joined card with internal dividers. */
           #view-fleet2 .fl-kpi-pills{
             display:flex;flex-wrap:wrap;align-items:stretch;
-            gap:0;padding:0;
-            margin:0 0 var(--kpi-margin-bottom);
-            background:var(--kpi-bg);
-            border:1px solid var(--kpi-border);
-            border-radius:var(--kpi-radius);
-            box-shadow:var(--kpi-shadow);
+            gap:var(--s-2-5);padding:0;
+            margin:0 0 var(--s-4);
+            background:transparent;
+            border:0;
+            border-radius:0;
+            box-shadow:none;
             font:var(--rr-font-body);
-            min-height:var(--kpi-height);
-            overflow:hidden;
+            overflow:visible;
           }
           #view-fleet2 .fl-kpi-pills[hidden]{display:none}
           #view-fleet2 .fl-kpi-pill{
             display:inline-flex;align-items:center;
-            gap:var(--kpi-gap);
-            padding:var(--kpi-pad-y) var(--kpi-pad-x);
-            border-right:1px solid var(--kpi-divider);
-            font:var(--rr-font-body);font-weight:600;
-            color:var(--kpi-text-primary);
+            gap:var(--s-2-5);
+            padding:10px 12px;
+            background:var(--surface);
+            border:1px solid var(--sidebar-bg);
+            border-radius:6px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04);
+            font-size:var(--fs-md);
+            color:var(--text);
             font-variant-numeric:tabular-nums;
             line-height:1.2;
-            min-height:var(--kpi-height);
             cursor:pointer;
             transition:background var(--t-fast);
           }
-          #view-fleet2 .fl-kpi-pill:last-child{border-right:0}
-          #view-fleet2 .fl-kpi-pill:hover{background:rgba(15,23,42,.04)}
+          #view-fleet2 .fl-kpi-pill:hover{background:var(--canvas)}
           #view-fleet2 .fl-kpi-pill:focus-visible{
-            outline:none;box-shadow:inset 0 0 0 2px var(--accent);
+            outline:none;
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 0 0 3px rgba(15,23,42,.22);
           }
+          #view-fleet2 .fl-kpi-pill.active{background:var(--rr-bg-selected,#EFF6FF)}
           #view-fleet2 .fl-kpi-dot{
-            width:var(--kpi-dot-size);height:var(--kpi-dot-size);
-            border-radius:50%;flex:0 0 auto;background:var(--kpi-dot-neutral);
+            width:8px;height:8px;
+            border-radius:50%;flex:0 0 auto;background:var(--border-strong);
           }
-          #view-fleet2 .fl-kpi-dot.green{background:var(--kpi-success)}
-          #view-fleet2 .fl-kpi-dot.amber{background:#B45309}
-          #view-fleet2 .fl-kpi-dot.red{background:var(--kpi-danger)}
+          #view-fleet2 .fl-kpi-dot.green{background:var(--green)}
+          #view-fleet2 .fl-kpi-dot.amber{background:var(--amber-dark)}
+          #view-fleet2 .fl-kpi-dot.red{background:var(--red)}
           #view-fleet2 .fl-kpi-text{
             display:inline-flex;flex-direction:column;gap:1px;
             line-height:1.2;min-width:0;
           }
           #view-fleet2 .fl-kpi-line{
-            font:var(--kpi-value-font);color:var(--kpi-text-primary);
+            font-size:var(--fs-md);font-weight:500;line-height:1.2;color:var(--text);
             font-variant-numeric:tabular-nums;
           }
           #view-fleet2 .fl-kpi-value{font-weight:600}
-          #view-fleet2 .fl-kpi-frac{color:var(--kpi-text-secondary);font-weight:500}
-          #view-fleet2 .fl-kpi-name{color:var(--rr-fg-secondary);font-weight:600;margin-left:4px}
+          #view-fleet2 .fl-kpi-frac{color:var(--text-subtle);font-weight:500}
+          #view-fleet2 .fl-kpi-name{color:var(--text-subtle);font-weight:600;margin-left:4px}
           #view-fleet2 .fl-kpi-sub{
-            font:var(--kpi-label-font);color:var(--kpi-text-secondary);
+            font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
           }
 
           /* Drill-down slide-over — reuses the Fleet drawer cosmetics
@@ -22545,21 +22002,21 @@ body.rr-cmdk-open{ overflow:hidden }
           .fl-exec-panel{
             width:100%;max-width:100%;
             background:var(--surface);
-            border:1px solid var(--sch-line,var(--border));
-            border-radius:8px;
-            box-shadow:0 1px 4px rgba(15,23,42,.04);
+            border:1px solid #E6EAF2;
+            border-radius:12px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04);
             overflow:visible;
             animation:flExecExpand .18s ease-out;
           }
           @keyframes flExecExpand{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
           .fl-exec-panel .head{
             padding:var(--s-4) var(--s-5);
-            border-bottom:1px solid var(--border-subtle);
+            border-bottom:1px solid #ECEFF5;
             display:flex;align-items:flex-start;justify-content:space-between;
             gap:var(--s-3);background:var(--surface);
           }
           .fl-exec-panel .head h2{
-            margin:0;font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;color:var(--text);
+            margin:0;font-size:var(--fs-base);font-weight:600;letter-spacing:-.01em;color:var(--text);
           }
           .fl-exec-panel .head p{
             margin:4px 0 0;font-size:var(--fs-sm);color:var(--text-subtle);
@@ -22585,7 +22042,9 @@ body.rr-cmdk-open{ overflow:hidden }
           .fl-exec-row .who .name{font-size:var(--fs-base);font-weight:600;color:var(--text)}
           .fl-exec-row .who .sub{font-size:var(--fs-xs);color:var(--text-subtle)}
           .fl-exec-row .days{
-            font-size:18px;font-weight:700;color:var(--text);
+            /* Display-number voice · matches Schedule's .rr-ab-cov-num
+               (18px/700/-.01em, the coverage-card numeral). */
+            font-size:18px;font-weight:700;letter-spacing:-.01em;color:var(--text);
             font-variant-numeric:tabular-nums;
           }
           .fl-exec-row .days .u{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500;margin-left:3px}
@@ -22609,137 +22068,70 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:var(--s-8) var(--s-4);text-align:center;color:var(--text-subtle);
           }
           .fl-exec-empty .ic{
-            width:48px;height:48px;border-radius:var(--r-lg);
+            width:40px;height:40px;border-radius:var(--r-lg);
             margin:0 auto var(--s-3);
             display:flex;align-items:center;justify-content:center;
-            color:var(--green);background:var(--green-soft);
+            color:var(--green);background:var(--canvas);
+            border:1px solid var(--border-subtle);
           }
-          .fl-exec-empty .ic svg{width:22px;height:22px}
-          .fl-exec-empty h3{margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text)}
-          .fl-exec-empty p{margin:0;font-size:var(--fs-md);max-width:380px;margin-inline:auto}
+          .fl-exec-empty .ic svg{width:18px;height:18px;stroke-width:1.8}
+          .fl-exec-empty h3{margin:0 0 4px;font-size:var(--fs-base);font-weight:600;color:var(--text)}
+          .fl-exec-empty p{margin:0;font-size:var(--fs-sm);max-width:380px;margin-inline:auto}
 
           /* ═══════════════════════════════════════════════════════
-             FLUENT ENTERPRISE REFACTOR · Fleet page (phase 1)
-             Re-frames the Fleet page as a Microsoft-style operations
-             console — Dynamics 365 / Intune / Defender / Azure
-             admin tone. Calm, information-dense, 4px radii,
-             restrained typography, no glassmorphism, no oversized
-             cards, no playful gradients.
+             Fleet table · Schedule's roster-table language
+             (schedule-rrx.css:6055-6082 + the roster density pass in
+             this sheet): uppercase 11px/650 headers in primary ink
+             over a #ECEFF5 seam, airy 16px row rhythm on soft
+             rgba(15,23,42,.05) hairlines, neutral hover, accent-bar
+             selection. border-collapse stays `separate` (not the base
+             `collapse`) ONLY so the seam sticks to the sticky header
+             row — visually identical.
              ═══════════════════════════════════════════════════════ */
-          #view-fleet2{
-            --flu-bg:        var(--surface-hover);
-            --flu-surface:   #FFFFFF;
-            --flu-border:    var(--border);
-            --flu-text:      #111827;
-            --flu-text-2:    #6B7280;
-            --flu-accent:    #2563EB;
-            --flu-accent-bg: #EFF6FF;
-            --flu-green:     #16A34A;
-            --flu-warning:   #D97706;
-            --flu-critical:  #B91C1C;
-            --flu-row-hover: var(--canvas);
-            /* Card-surface radius matches the schedule page (10px). */
-            --flu-radius:    10px;
-            color:var(--flu-text);
-          }
-
-          /* Ribbon (icon strip) + KPI strip · intentionally retained
-             from the earlier "match the schedule" pass; the Fluent
-             refactor leaves both alone so they stay in lockstep with
-             the schedule page. */
-
-          /* —— Filter bar · tighter, square-cornered, neutral. */
-          #view-fleet2 .fl-roster-bar{
-            background:var(--flu-surface);
-            border:1px solid var(--flu-border);border-bottom:0;
-            border-radius:var(--flu-radius) var(--flu-radius) 0 0;
-            padding:8px 12px;gap:10px;
-          }
-          #view-fleet2 .fl-roster-bar .fl-search input,
-          #view-fleet2 .fl-roster-bar select.fl-filter,
-          #view-fleet2 .fl-rotation-bar select.fl-filter{
-            background:var(--flu-surface);border:1px solid var(--flu-border);
-            border-radius:4px;height:30px;font-size:13px;
-            color:var(--flu-text);
-          }
-          #view-fleet2 .fl-roster-bar .fl-search input:focus,
-          #view-fleet2 .fl-roster-bar select.fl-filter:focus,
-          #view-fleet2 .fl-rotation-bar select.fl-filter:focus{
-            outline:none;border-color:var(--flu-accent);
-            box-shadow:0 0 0 1px var(--flu-accent);
-          }
-          #view-fleet2 .fl-roster-bar select.fl-filter.is-set{
-            border-color:var(--flu-accent);background:var(--flu-accent-bg);
-            color:var(--flu-accent);
-          }
-          #view-fleet2 .fl-rotation-bar{
-            background:var(--flu-surface);
-            border:1px solid var(--flu-border);border-bottom:0;
-            border-radius:var(--flu-radius) var(--flu-radius) 0 0;
-          }
-
-          /* —— Roster table · denser, sticky thead, Fluent rhythm. */
-          #view-fleet2 .table-wrap{
-            background:var(--flu-surface);
-            border:1px solid var(--flu-border);
-            border-radius:0 0 var(--flu-radius) var(--flu-radius);
-            box-shadow:none;overflow:auto;
-          }
           #view-fleet2 .table{
-            font-size:13px;color:var(--flu-text);
+            font-size:var(--fs-md);color:var(--text);
             border-collapse:separate;border-spacing:0;
           }
           #view-fleet2 .table thead th{
             position:sticky;top:0;z-index:1;
-            background:var(--canvas);color:var(--flu-text-2);
-            font-size:12px;font-weight:600;letter-spacing:.01em;
-            padding:9px 12px;text-transform:none;
-            border-bottom:1px solid var(--flu-border);
+            background:var(--canvas);color:var(--text);
+            font-size:var(--fs-xs);font-weight:650;
+            letter-spacing:.04em;text-transform:uppercase;
+            padding:var(--s-2-5) var(--s-4);
+            border-bottom:1px solid #ECEFF5;
+            box-shadow:inset 0 -1px 0 rgba(15,23,42,.025);
           }
           #view-fleet2 .table tbody td{
-            padding:10px 12px;font-size:13px;color:var(--flu-text);
-            border-bottom:1px solid #F0EFEE;vertical-align:middle;
+            padding:var(--s-4) var(--s-4);font-size:var(--fs-md);color:var(--text);
+            border-bottom:1px solid rgba(15,23,42,.05);vertical-align:middle;
           }
-          #view-fleet2 .table tbody tr:hover td{background:var(--flu-row-hover)}
+          #view-fleet2 .table tbody tr:hover td{background:var(--surface-hover)}
           #view-fleet2 .table tbody tr.is-selected td,
           #view-fleet2 #fl-rotation-tbody tr.is-detail-active td{
-            background:var(--flu-accent-bg);
+            background:rgba(37,99,235,.06);
           }
-          #view-fleet2 .cell-name{font-size:13px;font-weight:600;color:var(--flu-text)}
-          #view-fleet2 .cell-name-sub{font-size:12px;color:var(--flu-text-2);margin-top:1px}
+          #view-fleet2 .table tbody tr.is-selected td:first-child,
+          #view-fleet2 #fl-rotation-tbody tr.is-detail-active td:first-child{
+            box-shadow:inset 3px 0 0 var(--accent);
+          }
+          /* Primary row text leads; the meta sub-line stays quiet —
+             exactly Schedule's driver-row hierarchy (.cal-row-label). */
+          #view-fleet2 .cell-name{font-size:var(--fs-md);font-weight:700;line-height:1.25;letter-spacing:-.005em;color:var(--text)}
+          #view-fleet2 .cell-name-sub{font-size:10px;font-weight:430;color:var(--text-subtle);margin-top:1px}
 
-          /* —— Van Details aside · solid surface, 4px radius. */
+          /* —— Van Details aside · the planted-container recipe. */
           #view-fleet2 .fl-vandetails{
-            background:var(--flu-surface);
-            border:1px solid var(--flu-border);border-radius:var(--flu-radius);
-            box-shadow:none;
+            background:#FFFFFF;
+            border:1px solid #E6EAF2;border-radius:12px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04);
           }
           #view-fleet2 .fl-vandetails-head{
-            background:var(--canvas);color:var(--flu-text);
-            border-bottom:1px solid var(--flu-border);
-            font-size:13px;font-weight:600;letter-spacing:.01em;
+            background:var(--surface);color:var(--text);
+            border-bottom:1px solid #ECEFF5;
+            font-size:var(--fs-md);font-weight:600;letter-spacing:.01em;
           }
-          #view-fleet2 .fl-vd-veh{font-size:13px;font-weight:600;color:var(--flu-text)}
-          #view-fleet2 .fl-vd-sub{font-size:11px;color:var(--flu-text-2)}
-
-          /* —— Fleet rules popover (Fleet-assignment twin) · drop the
-             acrylic / glassmorphism for an enterprise-flat surface. */
-          #view-fleet2 #rr-fleet-vans-rules-popover{
-            background:var(--flu-surface);
-            -webkit-backdrop-filter:none;backdrop-filter:none;
-            border:1px solid var(--flu-border);border-radius:var(--flu-radius);
-            box-shadow:0 4px 12px rgba(0,0,0,.12);
-          }
-          #view-fleet2 #rr-fleet-vans-rules-popover > .sched-vans-rules-head{
-            background:var(--canvas);color:var(--flu-text);
-            border-bottom:1px solid var(--flu-border);
-            border-radius:var(--flu-radius) var(--flu-radius) 0 0;
-          }
-          #view-fleet2 #rr-fleet-vans-rules-popover > .sched-vans-rules-head *{color:var(--flu-text)}
-          #view-fleet2 #rr-fleet-vans-rules-popover .sched-smartfill-rules-body{
-            background:var(--flu-surface);
-            border-radius:0 0 var(--flu-radius) var(--flu-radius);
-          }
+          #view-fleet2 .fl-vd-veh{font-size:var(--fs-md);font-weight:600;color:var(--text)}
+          #view-fleet2 .fl-vd-sub{font-size:var(--fs-xs);color:var(--text-subtle)}
         
 /* ── block 35 · index.html:26918 ── */
 
@@ -24809,9 +24201,8 @@ body.rr-cmdk-open{ overflow:hidden }
    Companion to the Schedule rules in schedule-rrx.css: ACTION
    tiles (do something) carry a hairline ring; VIEW tiles (go
    somewhere) stay quiet. */
-/* Fleet · Add van */
-#view-fleet2 .f2-split:has(#rr-fleet-add) .f2-tile{box-shadow:inset 0 0 0 1px rgba(15,23,42,.14)}
-#view-fleet2 .f2-split:has(#rr-fleet-add) .f2-tile:hover{box-shadow:inset 0 0 0 1px rgba(15,23,42,.24)}
+/* Fleet's Add van emphasis now lives on its .rr-ab-emph action-bar
+   button (block 33) — the strip-tile ring retired with the strip. */
 /* Workflows · Import form / Install concerns form */
 #view-forms #rr-forms-import-btn,
 #view-forms [data-rr-install-concerns-form]{box-shadow:inset 0 0 0 1px rgba(15,23,42,.14)}
@@ -24984,8 +24375,8 @@ body.rr-cmdk-open{ overflow:hidden }
    !important}` (and other views may pin theirs the same way), so the hide
    rules must match or beat that specificity. */
 #view-schedule.rrx-schedule .sched-v2-cmd-tabs.sched-cmd-tabs,
-.sched-v2-cmd-tabs,.f2-cmd-tabs,.ob-cmd-tabs,.em-cmd-tabs,.wf-cmd-tabs,.ws-cmd-tabs,
-#view-fleet2 .f2-cmd-tabs,#view-onboarding-ops .ob-cmd-tabs,
+.sched-v2-cmd-tabs,.ob-cmd-tabs,.em-cmd-tabs,.wf-cmd-tabs,.ws-cmd-tabs,
+#view-onboarding-ops .ob-cmd-tabs,
 #view-email .em-cmd-tabs,#view-forms .wf-cmd-tabs,#view-workspaces .ws-cmd-tabs{display:none!important}
 
 /* ════════════════════════════════════════════════════════════════════
@@ -25034,7 +24425,7 @@ body.rr-cmdk-open{ overflow:hidden }
    chrome, so it gets the same override. */
 #view-schedule.rrx-schedule > .page,
 #view-onboarding-ops > .page{padding-top:6px!important}
-.sched-v2-strip,.f2-strip{margin-top:0!important}
+.sched-v2-strip{margin-top:0!important}
 /* Tool cluster, integrated (tidy-rail pass 2026-06-12): the floating
    glass pill overlapped the Admin row. The .topbar element is MOVED into
    the sidebar foot by JS (glue pattern) and laid out as a plain static
