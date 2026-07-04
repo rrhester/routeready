@@ -2456,14 +2456,44 @@ async function _rrPaintInsightsPanel(panel) {
       </div>
       <div class="rr-insights-metrics" id="rr-insights-metrics"></div>
       <div class="rr-insights-explain">
-        <button type="button" class="rr-insights-explain-btn" id="rr-insights-explain-btn" disabled>
-          Explain in plain English
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="rr-insights-explain-btn" id="rr-insights-explain-btn" disabled>
+            Explain in plain English
+          </button>
+          <button type="button" class="rr-insights-explain-btn" id="rr-insights-diag-btn" disabled>
+            Download diagnostics
+          </button>
+        </div>
         <div class="rr-insights-explain-out" id="rr-insights-explain-out"></div>
       </div>
     </div>
   `;
   _rrInjectInsightsPanelCss();
+
+  // Diagnostics: re-run the LAST Smart Fill payload through the solver
+  // in trace mode and download the full decision report (.txt + .json).
+  // Wired before the run fetch below — it depends only on the payload
+  // cached by autoFill in this tab, not on the audit row loading.
+  const diagBtn = document.getElementById("rr-insights-diag-btn");
+  if (diagBtn) {
+    if (window._rrLastSmartFillPayload && typeof _rrSmartFillDiagnostics === "function") {
+      diagBtn.disabled = false;
+      diagBtn.title = "Re-run the last Smart Fill in the solver's trace mode and " +
+        "download the per-driver / per-shift decision report. Read-only — never changes the schedule.";
+      diagBtn.onclick = async () => {
+        diagBtn.disabled = true;
+        diagBtn.textContent = "Tracing…";
+        try { await _rrSmartFillDiagnostics({ download: true }); }
+        finally {
+          diagBtn.disabled = false;
+          diagBtn.textContent = "Download diagnostics";
+        }
+      };
+    } else {
+      diagBtn.title = "Run Smart Fill first — diagnostics re-run the most recent " +
+        "Smart Fill from this tab in trace mode.";
+    }
+  }
 
   const dspId = window.RR?.dsp?.id;
   if (!dspId) {
@@ -15615,6 +15645,7 @@ async function loadTodayPlan() {
   const skeletonOk = !!document.getElementById("rr-tp-roster")
                   && !!document.getElementById("rr-tp-kpis")
                   && !!document.getElementById("rr-tp-rightrail")
+                  && !!document.getElementById("rr-tp-cov")
                   && !!document.getElementById("rr-tp-daystrip");
   if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
@@ -15622,9 +15653,10 @@ async function loadTodayPlan() {
     //   day strip · day picker
     //   tp-kpis   · minimal dot-pill KPI strip (replaces the old
     //               4-chip card; same numbers, Fluent voice)
-    //   tp-mainrow · two-column grid · roster (left) + rightrail
-    //                (right) — rightrail is a placeholder card the
-    //                operator wants reserved for an upcoming pane.
+    //   tp-mainrow · roster + the Coverage rail (open shifts with no
+    //                driver + expiring DLs from today_plan()). The rail
+    //                sits beside the roster only on wide viewports and
+    //                stacks below it otherwise — see .tp-mainrow CSS.
     const skelRow = `<div class="tp-skel-row"><span class="rr-skel rr-skel-circle" style="width:28px;height:28px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:24%"></span><span class="rr-skel rr-skel-sm" style="width:14%"></span><span class="rr-skel rr-skel-sm" style="width:18%"></span><span class="rr-skel rr-skel-sm" style="width:12%;margin-left:auto"></span></div>`;
     const skelKpi = `<span class="tp-kpi-pill is-skel"><span class="rr-skel rr-skel-circle" style="width:9px;height:9px"></span><span class="rr-skel rr-skel-sm" style="width:92px"></span></span>`;
     shell.innerHTML = `
@@ -15638,12 +15670,10 @@ async function loadTodayPlan() {
           <div class="rr-tp-section-head">Today's roster</div>
           <div class="tp-skel-list" aria-busy="true">${skelRow}${skelRow}${skelRow}${skelRow}${skelRow}${skelRow}</div>
         </div>
-        <aside id="rr-tp-rightrail" class="tp-rightrail card" aria-label="Reserved panel">
-          <div class="tp-rightrail-eyebrow">Reserved</div>
-          <div class="tp-rightrail-title">Right-rail placeholder</div>
-          <div class="tp-rightrail-body">
-            This panel will be wired up shortly. Holding the space so the
-            roster layout can settle in its final two-column rhythm.
+        <aside id="rr-tp-rightrail" class="tp-rightrail card card-flush" aria-label="Coverage">
+          <div id="rr-tp-cov">
+            <div class="card-section-head">Coverage</div>
+            <div class="tp-skel-list" aria-busy="true">${skelRow}${skelRow}</div>
           </div>
         </aside>
       </div>`;
@@ -15687,10 +15717,14 @@ async function _refreshTodayPlanData() {
   //
   // overtime_intelligence() drives the "until OT" sub-line on each
   // roster row. Pulled in parallel; a failure here just hides the line.
-  const [attRes, rosterRes, otRes] = await Promise.allSettled([
+  const [attRes, rosterRes, otRes, planRes] = await Promise.allSettled([
     isToday ? sb.rpc("today_attendance") : Promise.resolve({ data: null, error: null }),
     sb.rpc("today_roster", { p_date: viewIso }),
     sb.rpc("overtime_intelligence"),
+    // Coverage rail: open shifts + expiring DLs. today_plan() reads
+    // live shift state for the current date only, so skip it on
+    // future-day views (the renderer paints a static note instead).
+    isToday ? sb.rpc("today_plan") : Promise.resolve({ data: null, error: null }),
   ]);
 
   const attData    = (attRes.status === "fulfilled"    ? attRes.value.data    : null);
@@ -15702,7 +15736,24 @@ async function _refreshTodayPlanData() {
     console.warn("today plan · overtime_intelligence:", otRes.value.error);
   }
 
-  if (attData) _tpCacheWrite(_TP_CACHE_KEYS.att, attData);
+  const planData  = (planRes.status === "fulfilled" ? planRes.value.data  : null);
+  const planError = (planRes.status === "fulfilled" ? planRes.value.error : planRes.reason);
+
+  if (attData)  _tpCacheWrite(_TP_CACHE_KEYS.att,  attData);
+  if (planData) _tpCacheWrite(_TP_CACHE_KEYS.plan, planData);
+
+  // Coverage rail. On future days today_plan() would return today's
+  // gaps, not the viewed day's — paint a static note instead of
+  // misleading numbers.
+  try {
+    if (isToday) {
+      _renderTpCoverage(planData, planError);
+    } else {
+      const covEl = document.getElementById("rr-tp-cov");
+      if (covEl) covEl.innerHTML = `<div class="card-section-head">Coverage</div>
+        <div style="padding:18px;color:var(--text-subtle);font-size:var(--fs-sm);text-align:center">Live coverage is shown for today only.</div>`;
+    }
+  } catch (e) { console.warn("today plan · coverage render:", e); }
 
   // Update the meta line (page-level scheduled-driver count + on-app).
   // Pass rosterData so the future-day KPIs can synthesize counts the

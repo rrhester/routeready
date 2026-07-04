@@ -2156,13 +2156,13 @@ button.card:focus-visible{
 .tp-kpi-sub{font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);margin-top:2px}
 .tp-kpi-empty{font-size:var(--fs-sm);color:var(--text-subtle);font-style:italic}
 
-/* ── Today's Plan · two-column main row ────────────────────────
-   Roster on the left, reserved right-rail card on the right.
-   The right-rail is currently a "Reserved" placeholder with no
-   real content, and the fixed 320px column was eating space the
-   roster's Action buttons needed — Confirm / VTO / Excused was
-   being truncated as "Excu…". Hides the placeholder + collapses
-   to single-column until the right rail gets real content.
+/* ── Today's Plan · main row ───────────────────────────────────
+   Roster on the left, Coverage rail (open shifts + expiring DLs
+   from today_plan()) on the right. A fixed side column used to
+   eat space the roster's Action buttons needed — Confirm / VTO /
+   Excused was truncated as "Excu…" — so the rail only sits
+   beside the roster on wide viewports and stacks below it as a
+   full-width card everywhere else.
    margin-top pins the KPI → roster-card gap to 25px, matching
    the Schedule / Roster KPI-strip → table-header parity. */
 .tp-mainrow{
@@ -2172,7 +2172,9 @@ button.card:focus-visible{
   align-items:start;
   margin-top:25px;
 }
-.tp-rightrail{display:none !important}
+@media (min-width:1680px){
+  .tp-mainrow{grid-template-columns:minmax(0,1fr) 320px}
+}
 /* Empty ridealong-alerts slot was adding silent vertical space
    between the KPI strip and the roster card on most days. */
 #rr-tp-ridealong-alerts:empty{display:none}
@@ -2185,28 +2187,16 @@ button.card:focus-visible{
    other pages. */
 #rr-tp-daystrip{display:none !important}
 
-/* Right-rail placeholder card · Fluent calm panel until future
-   content lands. Sits one notch above the page like the
-   schedule's driver-pool right rail. */
+/* Coverage rail card · flush rows (card-section-head + bordered
+   list rows painted by _renderTpCoverage). Sits one notch above
+   the page like the schedule's driver-pool right rail. */
 .tp-rightrail{
-  display:flex;flex-direction:column;gap:8px;
-  padding:18px 20px;
+  padding:0;
   background:var(--surface);
   border:1px solid var(--border);
   border-radius:var(--r-lg);
   box-shadow:var(--shadow-sm);
-  min-height:280px;
-}
-.tp-rightrail-eyebrow{
-  font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
-  color:var(--text-subtle);
-}
-.tp-rightrail-title{
-  font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.005em;
-}
-.tp-rightrail-body{
-  font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.45;
-  margin-top:4px;
+  overflow:hidden;
 }
 .tp-day-meta{
   display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s-3);
