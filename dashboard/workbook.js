@@ -1423,6 +1423,7 @@ async function openWorkbook(id) {
     GRIDS.clear();
     renderDetailPage();
     openRealtime();
+    refreshLiveReports();
     fetchUsers().then(() => { renderPresence(); refreshPanel(); });
   } catch (e) {
     const msg = (e && e.message) || String(e);
@@ -1458,7 +1459,7 @@ async function createWorkbook({ title, description, visibility, templateKey, spe
     .sort((a, b) => (a.type === "sheet" ? 0 : 1) - (b.type === "sheet" ? 0 : 1));
   let pos = 0;
   for (const bs of blockSpecs) {
-    const bRow = { dsp_id: dsp.id, workbook_id: wb.id, type: bs.type, title: bs.title || "", position: pos++, settings: {}, content: bs.type === "text" ? { html: sanitizeHtml(bs.html || "") } : {} };
+    const bRow = { dsp_id: dsp.id, workbook_id: wb.id, type: bs.type, title: bs.title || "", position: pos++, settings: bs.settings || {}, content: bs.type === "text" ? { html: sanitizeHtml(bs.html || "") } : {} };
     const bIns = await s.from("workbook_blocks").insert(bRow).select().single();
     if (bIns.error) throw bIns.error;
     const block = bIns.data;
@@ -1522,7 +1523,7 @@ async function createWorkbook({ title, description, visibility, templateKey, spe
 
 let PENDING_OPEN_ID = null;
 
-export async function createReportWorkbook({ title, description, headers, rows, sheetName }) {
+export async function createReportWorkbook({ title, description, headers, rows, sheetName, report }) {
   const wb = await createWorkbook({
     title,
     description,
@@ -1533,6 +1534,7 @@ export async function createReportWorkbook({ title, description, headers, rows, 
       blocks: [{
         type: "sheet",
         title: "",
+        settings: report ? { report } : {},
         sheets: [{ name: String(sheetName || title || "Report").slice(0, 60), cols: headers, rows }],
       }],
     },
@@ -1540,6 +1542,69 @@ export async function createReportWorkbook({ title, description, headers, rows, 
   PENDING_OPEN_ID = wb.id;
   if (typeof window.goto === "function") window.goto("workbooks");
   return wb.id;
+}
+
+// ─── Live report refresh ─────────────────────────────────────────────────────
+// A report block whose settings.report.live flag is set re-pulls its data
+// every time the workbook is opened. The provider (reports.js, registered by
+// live.js) turns the stored report spec back into a {headers, rows} matrix;
+// only the report's own columns are rewritten, so formulas or notes the
+// operator added in the columns to the right survive every refresh. Writes
+// go through the normal dirty-cell flush — no undo entries, no activity spam.
+
+let REPORT_PROVIDER = null;
+
+export function registerReportProvider(fn) { REPORT_PROVIDER = fn; }
+
+async function refreshLiveReports() {
+  if (!REPORT_PROVIDER || !WB.canEdit || !WB.wb) return;
+  const openedId = WB.wb.id;
+  for (const block of WB.blocks) {
+    const spec = block.type === "sheet" && block.settings && block.settings.report;
+    if (!spec || !spec.live) continue;
+    const sheets = WB.sheetsByBlock.get(block.id) || [];
+    const sheet = sheets[0];
+    const g = GRIDS.get(block.id);
+    if (!sheet || !g) continue;
+    try {
+      const matrix = await REPORT_PROVIDER(spec);
+      if (!matrix || !Array.isArray(matrix.headers)) continue;
+      if (!WB.wb || WB.wb.id !== openedId) return; // navigated away mid-fetch
+      applyReportRefresh(g, sheet, matrix);
+    } catch (e) { console.warn("live report refresh:", e && e.message); }
+  }
+}
+
+function applyReportRefresh(g, sheet, { headers, rows }) {
+  if (g.editing) return; // never fight an in-progress edit
+  const nCols = headers.length;
+  const touched = [];
+  const want = (r, c) => (r === 0 ? headers[c] : (rows[r - 1] || [])[c]);
+  const wantRows = rows.length + 1;
+  for (let r = 0; r < wantRows; r++) {
+    for (let c = 0; c < nCols; c++) {
+      const v = String(want(r, c) ?? "");
+      const key = cellKey(r, c);
+      const cur = sheet.cells.get(key);
+      if (cur && !cur.formula && String(cur.value ?? "") === v) continue;
+      const format = cur && cur.format && Object.keys(cur.format).length ? cur.format : (r === 0 ? { bold: true, bg: "header" } : {});
+      sheet.cells.set(key, { value: v, formula: null, type: detectType(v).type, format, computed: null, err: null });
+      touched.push(key);
+    }
+  }
+  // roster shrank since the last refresh → clear the leftover data rows
+  for (const key of [...sheet.cells.keys()]) {
+    const { r, c } = keyRC(key);
+    if (c < nCols && r >= wantRows) { sheet.cells.delete(key); touched.push(key); }
+  }
+  if (!touched.length) return;
+  if (sheet.rowCount < wantRows + 20) { sheet.rowCount = wantRows + 40; saveSheetMeta(sheet.id); }
+  recalcWithSiblings(sheet);
+  markCellsDirty(sheet, touched);
+  computeGeometry(g);
+  repaintGrid(g);
+  syncFormulaBar(g);
+  _toast("Report data refreshed", "info");
 }
 
 // ─── Realtime + presence ─────────────────────────────────────────────────────

@@ -29117,3 +29117,8 @@ body.rr-cmdk-open{ overflow:hidden }
 @keyframes rb-spin{to{transform:rotate(360deg)}}
 #rr-reports-modal .rb-foot{display:flex;align-items:center;gap:8px}
 #rr-reports-modal .rb-foot-spacer{flex:1}
+#rr-reports-modal .rb-live-head{margin-top:16px}
+#rr-reports-modal .rb-live-opts{display:flex;flex-direction:column;gap:8px}
+#rr-reports-modal .rb-live-opt{display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer}
+#rr-reports-modal .rb-live-opt input{margin-top:2px}
+#rr-reports-modal .rb-live-opt strong{color:var(--text)}
