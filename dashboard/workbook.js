@@ -6426,7 +6426,11 @@ function installRootListeners() {
     const stripTab = e.target.closest("#rr-wb-cmd [data-wb-tab]");
     if (stripTab) {
       const t = stripTab.getAttribute("data-wb-tab");
-      if (t === "reports") {
+      if (t === "vault") {
+        // cross-link: the Vault is its own page (#view-drive)
+        if (typeof window.openDrive === "function") window.openDrive();
+        else if (typeof window.goto === "function") window.goto("drive");
+      } else if (t === "reports") {
         if (WB.view !== "reports") renderReportsPage();
       } else if (WB.view !== "list") {
         WB.wb = null;
