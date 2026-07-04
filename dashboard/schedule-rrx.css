@@ -5570,6 +5570,84 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 #rr-util-rail-mount .sched-util-btn--forms{color:rgb(99,102,241)}
 #rr-util-rail-mount .sched-util-btn--forms:hover{background:rgba(99,102,241,.12);border-color:rgba(99,102,241,.30)}
 #rr-util-rail-mount .sched-util-btn--forms:focus-visible{border-color:rgb(99,102,241);box-shadow:0 0 0 3px rgba(99,102,241,.25)}
+/* Contacts person — its own teal, distinct from every other rail hue.
+   Opens the Google-Contacts-style slide-out. */
+#rr-util-rail-mount .sched-util-btn--contacts{color:#0D9488}
+#rr-util-rail-mount .sched-util-btn--contacts:hover{background:rgba(13,148,136,.12);border-color:rgba(13,148,136,.30)}
+#rr-util-rail-mount .sched-util-btn--contacts:focus-visible{border-color:#0D9488;box-shadow:0 0 0 3px rgba(13,148,136,.25)}
+
+/* ── Contacts slide-out internals (.ctp-*) · ntp panel chrome with a
+   Google-Contacts-style create → search → list column. Controls speak
+   the app control language (32px fields, r-md, accent focus ring). ── */
+#rr-util-rail-mount .ctp-create{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:9px 10px;margin:0 0 10px;
+  background:transparent;border:0;border-radius:8px;cursor:pointer;
+  font:inherit;font-size:13px;font-weight:600;color:var(--accent-text,#1D4ED8);
+  transition:background var(--t-fast,.12s);
+}
+#rr-util-rail-mount .ctp-create:hover{background:var(--accent-soft,rgba(37,99,235,.08))}
+#rr-util-rail-mount .ctp-create svg{flex:0 0 auto}
+#rr-util-rail-mount .ctp-form{
+  display:flex;flex-direction:column;gap:8px;
+  padding:12px;margin:0 0 12px;
+  background:var(--canvas,#F9FAFB);
+  border:1px solid var(--border-subtle,rgba(15,23,42,.06));
+  border-radius:10px;
+}
+#rr-util-rail-mount .ctp-form[hidden]{display:none}
+#rr-util-rail-mount .ctp-input{
+  width:100%;height:32px;padding:0 10px;
+  border:1px solid var(--border,#E5E7EB);border-radius:var(--r-md,6px);
+  background:#fff;color:var(--text,#0F172A);
+  font:inherit;font-size:var(--fs-sm,12px);
+  transition:border-color var(--t-fast,.12s), box-shadow var(--t-fast,.12s);
+}
+#rr-util-rail-mount .ctp-input::placeholder{color:var(--text-subtle,#94A3B8)}
+#rr-util-rail-mount .ctp-input:focus{outline:none;border-color:var(--accent,#2563EB);box-shadow:var(--ring-focus,0 0 0 3px rgba(37,99,235,.18))}
+#rr-util-rail-mount .ctp-form-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:2px}
+#rr-util-rail-mount .ctp-btn{
+  height:28px;padding:0 12px;
+  border:1px solid var(--border,#E5E7EB);border-radius:var(--r-md,6px);
+  background:#fff;color:var(--text,#0F172A);
+  font:inherit;font-size:var(--fs-sm,12px);font-weight:600;cursor:pointer;
+  transition:background var(--t-fast,.12s), border-color var(--t-fast,.12s);
+}
+#rr-util-rail-mount .ctp-btn:hover{background:var(--canvas,#F9FAFB)}
+#rr-util-rail-mount .ctp-btn-primary{background:var(--accent,#2563EB);border-color:var(--accent,#2563EB);color:#fff}
+#rr-util-rail-mount .ctp-btn-primary:hover{background:var(--accent-hover,#1D4ED8);border-color:var(--accent-hover,#1D4ED8)}
+#rr-util-rail-mount .ctp-search{margin:0 0 10px}
+#rr-util-rail-mount .ctp-list{display:flex;flex-direction:column}
+#rr-util-rail-mount .ctp-row{
+  display:flex;align-items:center;gap:12px;
+  padding:9px 8px;border-radius:10px;
+  transition:background var(--t-fast,.12s);
+}
+#rr-util-rail-mount .ctp-row:hover{background:var(--surface-hover,rgba(15,23,42,.035))}
+#rr-util-rail-mount .ctp-avatar{
+  flex:0 0 auto;width:32px;height:32px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--accent-soft,rgba(37,99,235,.13));color:var(--accent-text,#1D4ED8);
+  font-size:13px;font-weight:700;
+}
+#rr-util-rail-mount .ctp-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+#rr-util-rail-mount .ctp-name{font-size:13px;font-weight:600;color:var(--text,#0F172A);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rr-util-rail-mount .ctp-sub{font-size:11px;color:var(--text-subtle,#94A3B8);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Quick actions (call / email / edit / delete) reveal on hover or
+   keyboard focus, Google-style. */
+#rr-util-rail-mount .ctp-acts{display:none;align-items:center;gap:2px;flex:0 0 auto}
+#rr-util-rail-mount .ctp-row:hover .ctp-acts,
+#rr-util-rail-mount .ctp-row:focus-within .ctp-acts{display:inline-flex}
+#rr-util-rail-mount .ctp-act{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:50%;
+  border:0;background:transparent;color:var(--text-muted,#4B5563);cursor:pointer;
+  transition:background var(--t-fast,.12s), color var(--t-fast,.12s);
+}
+#rr-util-rail-mount .ctp-act:hover{background:rgba(15,23,42,.06);color:var(--text,#0F172A)}
+#rr-util-rail-mount .ctp-act:focus-visible{outline:none;box-shadow:var(--ring-focus,0 0 0 3px rgba(37,99,235,.18))}
+#rr-util-rail-mount .ctp-act-del:hover{background:var(--red-soft,rgba(220,38,38,.08));color:var(--red,#DC2626)}
+#rr-util-rail-mount .ctp-act svg{flex:0 0 auto}
 /* Press ripple — a soft yellow circle blooms from the icon centre on
    pointer-down (spawned in JS, self-removing). GPU-only (transform +
    opacity), painted behind the icon, no layout impact. */

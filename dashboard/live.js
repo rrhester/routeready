@@ -93,7 +93,7 @@ if (window.__RR_VIEW_LOAD_FAILED) throw new Error("view partials failed to load"
 // redirect path (harmless if the markup is missing).
 (function _rrHoistUtilRail() {
   try {
-    const ids = ["rr-sched-util-rail", "rr-sched-notes", "rr-sched-tasks", "rr-sched-forms"];
+    const ids = ["rr-sched-util-rail", "rr-sched-notes", "rr-sched-tasks", "rr-sched-forms", "rr-sched-contacts"];
     const nodes = ids.map((id) => document.getElementById(id)).filter(Boolean);
     if (!nodes.length) return;
     let mount = document.getElementById("rr-util-rail-mount");
@@ -9258,6 +9258,8 @@ function _rrLoadNotes() { return _rrNtLoad("notes"); }
 function _rrSaveNotes(a) { _rrNtStore("notes", a); }
 function _rrLoadTasks() { return _rrNtLoad("tasks"); }
 function _rrSaveTasks(a) { _rrNtStore("tasks", a); }
+function _rrLoadContacts() { return _rrNtLoad("contacts"); }
+function _rrSaveContacts(a) { _rrNtStore("contacts", a); }
 function _rrNtId(p) { return p + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); }
 function _rrNtUserName() {
   try { const u = window.RR && window.RR.user; return (u && (u.full_name || u.name || u.email)) || ""; } catch (_) { return ""; }
@@ -9298,7 +9300,7 @@ function _rrNtSanitize(html) {
 // Notes and Tasks are now two independent slide-out panels, each driven by
 // its own rail icon. Only one is open at a time (a panel manager enforces
 // it), so opening one closes the other.
-const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks", forms: "rr-sched-forms" };
+const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks", forms: "rr-sched-forms", contacts: "rr-sched-contacts" };
 
 let _rrNotesShowAll = false;
 const _RR_NTPIN = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg>`;
@@ -9360,7 +9362,66 @@ function _rrRenderTasks() {
     </div>`;
   }).join("");
 }
-function _rrNtRenderAll() { _rrRenderNotes(); _rrRenderTasks(); if (typeof window.rrFtoolRender === "function") { try { window.rrFtoolRender(); } catch (_) {} } }
+// ── Contacts panel · Google-Contacts-style list on the utility rail ──
+// Same storage tier as Notes/Tasks (localStorage per DSP); rows carry
+// quick call / email links plus edit + delete.
+const _RR_CTP_PHONE = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+const _RR_CTP_MAIL = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+const _RR_CTP_EDIT = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>`;
+const _RR_CTP_TRASH = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+function _rrRenderContacts() {
+  const list = document.getElementById("rr-sched-contacts-list");
+  if (!list) return;
+  const q = (() => { const i = document.querySelector("#rr-sched-contacts [data-rr-contact-search]"); return ((i && i.value) || "").trim().toLowerCase(); })();
+  let cs = _rrLoadContacts().slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  if (q) cs = cs.filter((c) => [c.name, c.company, c.phone, c.email].filter(Boolean).join(" ").toLowerCase().includes(q));
+  if (!cs.length) {
+    list.innerHTML = `<div class="ntp-empty">${q ? "No contacts match your search." : "No contacts yet — create one above. They stay on this device."}</div>`;
+    return;
+  }
+  list.innerHTML = cs.map((c) => {
+    const init = (c.name || "").trim().slice(0, 1).toUpperCase() || "•";
+    const sub = [c.company, c.phone].filter(Boolean).join(" · ");
+    const tel = c.phone ? `<a class="ctp-act" href="tel:${escapeHtml(String(c.phone).replace(/[^+\d]/g, ""))}" title="Call ${escapeHtml(c.name || "")}" aria-label="Call ${escapeHtml(c.name || "")}">${_RR_CTP_PHONE}</a>` : "";
+    const mail = c.email ? `<a class="ctp-act" href="mailto:${escapeHtml(c.email)}" title="Email ${escapeHtml(c.name || "")}" aria-label="Email ${escapeHtml(c.name || "")}">${_RR_CTP_MAIL}</a>` : "";
+    return `<div class="ctp-row" role="listitem" data-rr-contact-id="${escapeHtml(c.id)}">
+      <span class="ctp-avatar" aria-hidden="true">${escapeHtml(init)}</span>
+      <span class="ctp-who">
+        <span class="ctp-name">${escapeHtml(c.name || "")}</span>
+        ${sub ? `<span class="ctp-sub">${escapeHtml(sub)}</span>` : ""}
+      </span>
+      <span class="ctp-acts">${tel}${mail}<button type="button" class="ctp-act" data-rr-contact-edit="${escapeHtml(c.id)}" title="Edit contact" aria-label="Edit contact">${_RR_CTP_EDIT}</button><button type="button" class="ctp-act ctp-act-del" data-rr-contact-del="${escapeHtml(c.id)}" title="Delete contact" aria-label="Delete contact">${_RR_CTP_TRASH}</button></span>
+    </div>`;
+  }).join("");
+}
+function _rrCtpForm() { return document.querySelector("#rr-sched-contacts [data-rr-contact-form]"); }
+function _rrCtpField(name) { return document.querySelector(`#rr-sched-contacts [data-rr-contact-${name}]`); }
+function _rrCtpFormReset(hide) {
+  const f = _rrCtpForm();
+  if (!f) return;
+  ["name", "company", "phone", "email"].forEach((k) => { const i = _rrCtpField(k); if (i) i.value = ""; });
+  delete f.dataset.editing;
+  if (hide) f.hidden = true;
+}
+function _rrCtpSave() {
+  const f = _rrCtpForm();
+  if (!f) return;
+  const val = (k) => { const i = _rrCtpField(k); return ((i && i.value) || "").trim(); };
+  const name = val("name");
+  if (!name) { const i = _rrCtpField("name"); if (i) { try { i.focus(); } catch (_) {} } return; }
+  const contacts = _rrLoadContacts();
+  const editing = f.dataset.editing || "";
+  const existing = editing ? contacts.find((c) => c.id === editing) : null;
+  if (existing) {
+    Object.assign(existing, { name, company: val("company"), phone: val("phone"), email: val("email") });
+  } else {
+    contacts.push({ id: _rrNtId("c"), name, company: val("company"), phone: val("phone"), email: val("email"), ts: Date.now() });
+  }
+  _rrSaveContacts(contacts);
+  _rrCtpFormReset(true);
+  _rrRenderContacts();
+}
+function _rrNtRenderAll() { _rrRenderNotes(); _rrRenderTasks(); _rrRenderContacts(); if (typeof window.rrFtoolRender === "function") { try { window.rrFtoolRender(); } catch (_) {} } }
 function _rrAddNoteFromInput() {
   const ed = document.querySelector("#rr-sched-notes [data-rr-note-input]");
   if (!ed) return;
@@ -9466,7 +9527,7 @@ function _rrNtFormat(kind) {
 // (hidden view → rect top 0). All panels (Notes + Tasks + Forms) get synced.
 function _rrSyncNotesRailTop() {
   const rail = document.getElementById("rr-sched-util-rail");
-  const panels = [document.getElementById("rr-sched-notes"), document.getElementById("rr-sched-tasks"), document.getElementById("rr-sched-forms")];
+  const panels = [document.getElementById("rr-sched-notes"), document.getElementById("rr-sched-tasks"), document.getElementById("rr-sched-forms"), document.getElementById("rr-sched-contacts")];
   if (!rail && !panels.some(Boolean)) return;
   // Align with the visible "top of the content" for the ACTIVE sub-view:
   //  • Calendar → the sticky day-header row (.cal-grid.head, where SUN/MON…
@@ -9561,6 +9622,7 @@ function _rrNtToggleBtn(which) {
   return document.querySelector(
     which === "tasks" ? "[data-rr-tasks-toggle]"
     : which === "forms" ? "[data-rr-forms-toggle]"
+    : which === "contacts" ? "[data-rr-contacts-toggle]"
     : "[data-rr-notes-toggle]");
 }
 function _rrNtPanelIsOpen(which) { const el = _rrNtPanelEl(which); return !!(el && el.classList.contains("is-open")); }
@@ -9636,7 +9698,48 @@ document.addEventListener("click", (e) => {
   // Forms — same compact push panel as Notes/Tasks (one-at-a-time via the
   // shared panel manager); its list renders the operator's REAL forms.
   if (e.target.closest("[data-rr-forms-toggle]")) { e.preventDefault(); _rrNtPanelToggle("forms"); return; }
-  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]") || e.target.closest("[data-rr-forms-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
+  // Contacts — same push panel; Google-Contacts-style create/search/list.
+  if (e.target.closest("[data-rr-contacts-toggle]")) { e.preventDefault(); _rrNtPanelToggle("contacts"); return; }
+  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]") || e.target.closest("[data-rr-forms-close]") || e.target.closest("[data-rr-contacts-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
+  // Contacts · create / save / cancel / edit / delete
+  if (e.target.closest("[data-rr-contact-createtoggle]")) {
+    e.preventDefault();
+    const f = _rrCtpForm();
+    if (f) {
+      if (f.hidden) { _rrCtpFormReset(false); f.hidden = false; } else { _rrCtpFormReset(true); }
+      if (!f.hidden) { const i = _rrCtpField("name"); if (i) setTimeout(() => { try { i.focus(); } catch (_) {} }, 40); }
+    }
+    return;
+  }
+  if (e.target.closest("[data-rr-contact-save]")) { e.preventDefault(); _rrCtpSave(); return; }
+  if (e.target.closest("[data-rr-contact-cancel]")) { e.preventDefault(); _rrCtpFormReset(true); return; }
+  const cEdit = e.target.closest("[data-rr-contact-edit]");
+  if (cEdit) {
+    e.preventDefault();
+    const c = _rrLoadContacts().find((x) => x.id === cEdit.getAttribute("data-rr-contact-edit"));
+    const f = _rrCtpForm();
+    if (c && f) {
+      f.hidden = false;
+      f.dataset.editing = c.id;
+      [["name", c.name], ["company", c.company], ["phone", c.phone], ["email", c.email]].forEach(([k, v]) => {
+        const i = _rrCtpField(k); if (i) i.value = v || "";
+      });
+      const i = _rrCtpField("name"); if (i) setTimeout(() => { try { i.focus(); } catch (_) {} }, 40);
+    }
+    return;
+  }
+  const cDel = e.target.closest("[data-rr-contact-del]");
+  if (cDel) {
+    e.preventDefault();
+    const id = cDel.getAttribute("data-rr-contact-del");
+    if (window.confirm("Delete this contact?")) {
+      _rrSaveContacts(_rrLoadContacts().filter((x) => x.id !== id));
+      const f = _rrCtpForm();
+      if (f && f.dataset.editing === id) _rrCtpFormReset(true);
+      _rrRenderContacts();
+    }
+    return;
+  }
   // Composer
   if (e.target.closest("[data-rr-note-add]")) { e.preventDefault(); _rrAddNoteFromInput(); return; }
   const pinT = e.target.closest("[data-rr-note-pin-toggle]");
@@ -9778,11 +9881,15 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("input", (e) => {
   if (e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-search]")) _rrRenderNotes();
+  if (e.target.closest && e.target.closest("#rr-sched-contacts [data-rr-contact-search]")) _rrRenderContacts();
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     const tt = e.target.closest && e.target.closest("#rr-sched-tasks [data-rr-task-title]");
     if (tt) { e.preventDefault(); _rrAddTaskFromForm(); return; }
+    // Contacts form: Enter in any field saves (Escape-free quick add).
+    const cf = e.target.closest && e.target.closest("#rr-sched-contacts [data-rr-contact-form] .ctp-input");
+    if (cf) { e.preventDefault(); _rrCtpSave(); return; }
     // Composer: plain Enter = newline (contenteditable default); ⌘/Ctrl+Enter saves.
     const ed = e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-input]");
     if (ed && (e.metaKey || e.ctrlKey)) { e.preventDefault(); _rrAddNoteFromInput(); return; }
