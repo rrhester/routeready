@@ -3181,6 +3181,30 @@ Evidence attached:
             </div>
           </div>
 
+          <!-- ── Driver-App preview column — same live preview as the
+               Form Builder (shared .builder-preview-* / .builder-device
+               chrome); re-rendered by _clfRenderPreview() on every
+               item/name/description change. ────────────────────────── -->
+          <div class="builder-preview-col" id="rr-clf-preview-col">
+            <div class="builder-preview-bar">
+              <span class="builder-preview-label">Driver preview</span>
+              <div class="builder-device-toggle" role="group" aria-label="Preview device">
+                <button type="button" class="builder-device-btn is-active" data-rr-clf-preview-device="phone" title="Phone">Phone</button>
+                <button type="button" class="builder-device-btn" data-rr-clf-preview-device="tablet" title="Tablet">Tablet</button>
+                <span class="builder-device-sep" aria-hidden="true"></span>
+                <button type="button" class="builder-device-btn is-active" data-rr-clf-preview-orient="portrait" title="Portrait">Portrait</button>
+                <button type="button" class="builder-device-btn" data-rr-clf-preview-orient="landscape" title="Landscape">Landscape</button>
+              </div>
+            </div>
+            <div class="builder-preview-stage" id="rr-clf-preview-stage">
+              <div class="builder-device builder-device-phone is-portrait" id="rr-clf-preview-device">
+                <div class="bdev-viewport">
+                  <div class="rr-bpreview" id="rr-clf-preview-body"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="clf-settings" id="rr-clf-settings">
             <div class="builder-settings-card">
               <div class="field-props-head">Checklist settings</div>

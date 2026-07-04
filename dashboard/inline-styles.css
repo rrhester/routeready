@@ -29260,12 +29260,23 @@ body.rr-cmdk-open{ overflow:hidden }
 .clf-status-badge[data-status="archived"]{background:#F0F1F4;color:#6B7280}
 
 /* Build pane: palette · canvas · settings */
-.clf-grid{display:grid;grid-template-columns:236px minmax(0,1fr) 306px;gap:14px;height:100%;min-height:0;padding:14px}
+.clf-grid{display:grid;grid-template-columns:236px minmax(0,1fr) 318px 296px;gap:14px;height:100%;min-height:0;padding:14px}
 .clf-palette{overflow-y:auto;min-height:0}
 .clf-palette-hint{font-size:11px;color:var(--text-subtle);line-height:1.45;padding:10px 6px 4px}
 .clf-canvas{overflow-y:auto;min-height:0}
 .clf-settings{overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:12px}
-@media (max-width:1200px){
+/* The preview column reuses the Form Builder chrome (border-left +
+   canvas bg); inside the gapped clf grid it reads better as a framed
+   card, matching the canvas/settings columns. */
+.clf-grid .builder-preview-col{border:1px solid var(--border);border-radius:12px;overflow:hidden}
+@media (max-width:1280px){
+  .clf-grid{grid-template-columns:200px minmax(0,1fr) 262px 244px}
+}
+@media (max-width:1100px){
+  /* .builder-preview-col hides itself below 1100px (shared rule) */
+  .clf-grid{grid-template-columns:200px minmax(0,1fr) 280px}
+}
+@media (max-width:960px){
   .clf-grid{grid-template-columns:210px minmax(0,1fr)}
   .clf-settings{grid-column:1 / -1;flex-direction:row;flex-wrap:wrap}
   .clf-settings .builder-settings-card{flex:1 1 280px}
