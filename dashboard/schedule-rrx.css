@@ -5648,6 +5648,64 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 #rr-util-rail-mount .ctp-act:focus-visible{outline:none;box-shadow:var(--ring-focus,0 0 0 3px rgba(37,99,235,.18))}
 #rr-util-rail-mount .ctp-act-del:hover{background:var(--red-soft,rgba(220,38,38,.08));color:var(--red,#DC2626)}
 #rr-util-rail-mount .ctp-act svg{flex:0 0 auto}
+
+/* Repeatable field rows (emails / phones / addresses / dates /
+   websites / custom fields) + the Google-style "+ field" pills. */
+#rr-util-rail-mount .ctp-multi{display:flex;flex-direction:column;gap:8px}
+#rr-util-rail-mount .ctp-multi:empty{display:none}
+#rr-util-rail-mount .ctp-mrow{display:flex;align-items:center;gap:6px}
+#rr-util-rail-mount .ctp-mrow .ctp-input{flex:1;min-width:0}
+#rr-util-rail-mount .ctp-mrow-custom .ctp-m-label{flex:0 1 38%}
+#rr-util-rail-mount .ctp-mrow-date .ctp-m-m{flex:1.4}
+#rr-util-rail-mount .ctp-mrow-date .ctp-m-d,
+#rr-util-rail-mount .ctp-mrow-date .ctp-m-y{flex:1}
+#rr-util-rail-mount .ctp-select{
+  appearance:none;-webkit-appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center;
+  padding-right:24px;
+}
+#rr-util-rail-mount .ctp-addrow{display:flex;flex-wrap:wrap;gap:6px}
+#rr-util-rail-mount .ctp-addbtn{
+  appearance:none;cursor:pointer;
+  padding:4px 10px;border:1px solid var(--border,#E5E7EB);border-radius:999px;
+  background:#fff;color:var(--accent-text,#1D4ED8);
+  font:inherit;font-size:var(--fs-xs,11px);font-weight:600;line-height:1.4;
+  transition:background var(--t-fast,.12s), border-color var(--t-fast,.12s);
+}
+#rr-util-rail-mount .ctp-addbtn:hover{background:var(--accent-soft,rgba(37,99,235,.08));border-color:rgba(37,99,235,.30)}
+#rr-util-rail-mount .ctp-addbtn:focus-visible{outline:none;box-shadow:var(--ring-focus,0 0 0 3px rgba(37,99,235,.18))}
+#rr-util-rail-mount .ctp-notes{height:auto;min-height:52px;padding:8px 10px;resize:vertical;line-height:1.45}
+
+/* Points of contact · section inside the form + display lines on rows. */
+#rr-util-rail-mount .ctp-pocs{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--border,#E5E7EB);padding-top:10px}
+#rr-util-rail-mount .ctp-pocs-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#rr-util-rail-mount .ctp-pocs-head span{font-size:var(--fs-xs,11px);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle,#94A3B8)}
+#rr-util-rail-mount .ctp-poc-add{
+  appearance:none;cursor:pointer;
+  padding:3px 9px;border:1px solid var(--border,#E5E7EB);border-radius:999px;
+  background:#fff;color:var(--accent-text,#1D4ED8);
+  font:inherit;font-size:var(--fs-xs,11px);font-weight:600;line-height:1.4;
+  transition:background var(--t-fast,.12s), border-color var(--t-fast,.12s);
+}
+#rr-util-rail-mount .ctp-poc-add:hover{background:var(--accent-soft,rgba(37,99,235,.08));border-color:rgba(37,99,235,.30)}
+#rr-util-rail-mount .ctp-pocs-list{display:flex;flex-direction:column;gap:6px}
+#rr-util-rail-mount .ctp-pocs-list:empty{display:none}
+#rr-util-rail-mount .ctp-poc-row{display:flex;align-items:center;gap:6px}
+#rr-util-rail-mount .ctp-poc-row .ctp-input{flex:1;min-width:0;height:28px;font-size:var(--fs-xs,11px)}
+#rr-util-rail-mount .ctp-poc-del{
+  flex:0 0 auto;width:22px;height:22px;border:0;border-radius:50%;
+  background:transparent;color:var(--text-subtle,#94A3B8);cursor:pointer;
+  font-size:15px;line-height:1;
+  transition:background var(--t-fast,.12s), color var(--t-fast,.12s);
+}
+#rr-util-rail-mount .ctp-poc-del:hover{background:var(--red-soft,rgba(220,38,38,.08));color:var(--red,#DC2626)}
+#rr-util-rail-mount .ctp-poc{
+  display:block;font-size:11px;color:var(--text-subtle,#94A3B8);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+#rr-util-rail-mount .ctp-poc-tel{color:var(--accent-text,#1D4ED8);text-decoration:none}
+#rr-util-rail-mount .ctp-poc-tel:hover{text-decoration:underline}
 /* Press ripple — a soft yellow circle blooms from the icon centre on
    pointer-down (spawned in JS, self-removing). GPU-only (transform +
    opacity), painted behind the icon, no layout impact. */

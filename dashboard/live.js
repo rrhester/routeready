@@ -3405,6 +3405,9 @@ window.goto = function (view) {
   if ((view === "fleet" || view === "fleet2") && typeof loadFleetView === "function") {
     loadFleetView();
     if (typeof window.fleetSub === "function") window.fleetSub(_fleetSub || "vehicles");
+    // Park the global bell on Fleet's action bar so the app launcher
+    // docks beside it — same top-right chrome spot as Schedule.
+    if (typeof _rrMoveChromeToFleet === "function") _rrMoveChromeToFleet();
   }
   if (view === "recognition" && typeof loadRecognitionView === "function") loadRecognitionView();
   if (view === "compliance" && typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
@@ -9371,24 +9374,42 @@ const _RR_CTP_EDIT = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none
 const _RR_CTP_TRASH = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
 function _rrRenderContacts() {
   const list = document.getElementById("rr-sched-contacts-list");
+  // Keep the Fleet-calendar contacts dock (drag-to-schedule) in sync
+  // whenever the store repaints; no-op when the calendar isn't mounted.
+  try { if (typeof _renderFleetCalContacts === "function") _renderFleetCalContacts(); } catch (_) {}
   if (!list) return;
   const q = (() => { const i = document.querySelector("#rr-sched-contacts [data-rr-contact-search]"); return ((i && i.value) || "").trim().toLowerCase(); })();
-  let cs = _rrLoadContacts().slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  if (q) cs = cs.filter((c) => [c.name, c.company, c.phone, c.email].filter(Boolean).join(" ").toLowerCase().includes(q));
+  let cs = _rrLoadContacts().map(_rrCtpNorm).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  if (q) cs = cs.filter((c) => [c.name, c.company, c.title, c.notes]
+    .concat(c.emails, c.phones, c.addresses, c.sites)
+    .concat(c.customs.flatMap((x) => [x.label, x.value]))
+    .concat(c.pocs.flatMap((p) => [p.name, p.role, p.phone]))
+    .filter(Boolean).join(" ").toLowerCase().includes(q));
   if (!cs.length) {
     list.innerHTML = `<div class="ntp-empty">${q ? "No contacts match your search." : "No contacts yet — create one above. They stay on this device."}</div>`;
     return;
   }
   list.innerHTML = cs.map((c) => {
     const init = (c.name || "").trim().slice(0, 1).toUpperCase() || "•";
-    const sub = [c.company, c.phone].filter(Boolean).join(" · ");
-    const tel = c.phone ? `<a class="ctp-act" href="tel:${escapeHtml(String(c.phone).replace(/[^+\d]/g, ""))}" title="Call ${escapeHtml(c.name || "")}" aria-label="Call ${escapeHtml(c.name || "")}">${_RR_CTP_PHONE}</a>` : "";
-    const mail = c.email ? `<a class="ctp-act" href="mailto:${escapeHtml(c.email)}" title="Email ${escapeHtml(c.name || "")}" aria-label="Email ${escapeHtml(c.name || "")}">${_RR_CTP_MAIL}</a>` : "";
+    const phone0 = c.phones[0] || "";
+    const email0 = c.emails[0] || "";
+    const companyLine = [c.company, c.title].filter(Boolean).join(" · ");
+    const sub = [companyLine, phone0].filter(Boolean).join(" · ");
+    const tel = phone0 ? `<a class="ctp-act" href="tel:${escapeHtml(String(phone0).replace(/[^+\d]/g, ""))}" title="Call ${escapeHtml(c.name || "")}" aria-label="Call ${escapeHtml(c.name || "")}">${_RR_CTP_PHONE}</a>` : "";
+    const mail = email0 ? `<a class="ctp-act" href="mailto:${escapeHtml(email0)}" title="Email ${escapeHtml(c.name || "")}" aria-label="Email ${escapeHtml(c.name || "")}">${_RR_CTP_MAIL}</a>` : "";
+    // Points of contact — quiet indented lines under the main row,
+    // each with a tap-to-call phone.
+    const pocs = c.pocs.map((p) => {
+      const tel = p.phone ? `<a class="ctp-poc-tel" href="tel:${escapeHtml(String(p.phone).replace(/[^+\d]/g, ""))}">${escapeHtml(p.phone)}</a>` : "";
+      const line = [escapeHtml(p.name || ""), p.role ? escapeHtml(p.role) : "", tel].filter(Boolean).join(" · ");
+      return `<span class="ctp-poc">${line}</span>`;
+    }).join("");
     return `<div class="ctp-row" role="listitem" data-rr-contact-id="${escapeHtml(c.id)}">
       <span class="ctp-avatar" aria-hidden="true">${escapeHtml(init)}</span>
       <span class="ctp-who">
         <span class="ctp-name">${escapeHtml(c.name || "")}</span>
         ${sub ? `<span class="ctp-sub">${escapeHtml(sub)}</span>` : ""}
+        ${pocs}
       </span>
       <span class="ctp-acts">${tel}${mail}<button type="button" class="ctp-act" data-rr-contact-edit="${escapeHtml(c.id)}" title="Edit contact" aria-label="Edit contact">${_RR_CTP_EDIT}</button><button type="button" class="ctp-act ctp-act-del" data-rr-contact-del="${escapeHtml(c.id)}" title="Delete contact" aria-label="Delete contact">${_RR_CTP_TRASH}</button></span>
     </div>`;
@@ -9396,31 +9417,181 @@ function _rrRenderContacts() {
 }
 function _rrCtpForm() { return document.querySelector("#rr-sched-contacts [data-rr-contact-form]"); }
 function _rrCtpField(name) { return document.querySelector(`#rr-sched-contacts [data-rr-contact-${name}]`); }
+// Normalize a stored contact to the full (Google-style) shape. Older
+// records carried single name/phone/email strings — surface those as
+// the v2 arrays without rewriting storage until the next save.
+function _rrCtpNorm(c) {
+  c = c || {};
+  const first = c.first || "";
+  const last  = c.last || "";
+  const name  = (c.name || `${first} ${last}`.trim() || c.company || "").trim();
+  return {
+    ...c,
+    first, last, name,
+    company: c.company || "",
+    title: c.title || "",
+    emails: Array.isArray(c.emails) ? c.emails.slice() : (c.email ? [c.email] : []),
+    phones: Array.isArray(c.phones) ? c.phones.slice() : (c.phone ? [c.phone] : []),
+    addresses: Array.isArray(c.addresses) ? c.addresses.slice() : (c.address ? [c.address] : []),
+    dates: Array.isArray(c.dates) ? c.dates.slice() : [],
+    sites: Array.isArray(c.sites) ? c.sites.slice() : [],
+    customs: Array.isArray(c.customs) ? c.customs.slice() : [],
+    pocs: Array.isArray(c.pocs) ? c.pocs.slice() : [],
+    notes: c.notes || "",
+  };
+}
+const _RR_CTP_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+// One repeatable form row. kind: email | phone | address | site |
+// custom | date. Each row carries a quiet × remover, Google-style.
+function _rrCtpAddRow(kind, val) {
+  const host = document.querySelector(`#rr-sched-contacts [data-rr-contact-${
+    kind === "email" ? "emails" : kind === "phone" ? "phones" : kind === "address" ? "addresses"
+    : kind === "date" ? "dates" : kind === "site" ? "sites" : "customs"}]`);
+  if (!host) return;
+  const row = document.createElement("div");
+  row.className = "ctp-mrow" + (kind === "date" ? " ctp-mrow-date" : kind === "custom" ? " ctp-mrow-custom" : "");
+  if (kind === "date") {
+    const d = val || {};
+    const mOpts = `<option value="">Month</option>` + _RR_CTP_MONTHS
+      .map((m, i) => `<option value="${i + 1}"${Number(d.m) === i + 1 ? " selected" : ""}>${m}</option>`).join("");
+    row.innerHTML =
+      `<select class="ctp-input ctp-select ctp-m-m" aria-label="Month">${mOpts}</select>`
+      + `<input type="number" class="ctp-input ctp-m-d" min="1" max="31" placeholder="Day" aria-label="Day" value="${escapeHtml(d.d != null ? String(d.d) : "")}">`
+      + `<input type="number" class="ctp-input ctp-m-y" min="1900" max="2100" placeholder="Year" aria-label="Year (optional)" value="${escapeHtml(d.y != null ? String(d.y) : "")}">`;
+  } else if (kind === "custom") {
+    const cv = val || {};
+    row.innerHTML =
+      `<input type="text" class="ctp-input ctp-m-label" maxlength="60" placeholder="Label" value="${escapeHtml(cv.label || "")}">`
+      + `<input type="text" class="ctp-input ctp-m-value" maxlength="160" placeholder="Value" value="${escapeHtml(cv.value || "")}">`;
+  } else {
+    const ph = kind === "email" ? "Email" : kind === "phone" ? "Phone" : kind === "address" ? "Address" : "Website";
+    const mode = kind === "email" ? ` inputmode="email"` : kind === "phone" ? ` inputmode="tel"` : kind === "site" ? ` inputmode="url"` : "";
+    row.innerHTML = `<input type="text" class="ctp-input ctp-m-val" maxlength="${kind === "address" ? 200 : 120}"${mode} placeholder="${ph}" aria-label="${ph}" value="${escapeHtml(val || "")}">`;
+  }
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "ctp-poc-del";
+  del.setAttribute("aria-label", "Remove");
+  del.title = "Remove";
+  del.textContent = "×";
+  del.addEventListener("click", () => row.remove());
+  row.appendChild(del);
+  host.appendChild(row);
+}
+// One editable point-of-contact row (name / role / phone + remove).
+function _rrCtpPocRow(p) {
+  p = p || {};
+  const host = document.querySelector("#rr-sched-contacts [data-rr-contact-pocs]");
+  if (!host) return;
+  const row = document.createElement("div");
+  row.className = "ctp-poc-row";
+  row.innerHTML =
+    `<input type="text" class="ctp-input ctp-poc-name" maxlength="80" placeholder="Name" value="${escapeHtml(p.name || "")}">`
+    + `<input type="text" class="ctp-input ctp-poc-role" maxlength="60" placeholder="Role" value="${escapeHtml(p.role || "")}">`
+    + `<input type="text" class="ctp-input ctp-poc-phone" maxlength="40" inputmode="tel" placeholder="Phone" value="${escapeHtml(p.phone || "")}">`
+    + `<button type="button" class="ctp-poc-del" aria-label="Remove point of contact" title="Remove">×</button>`;
+  row.querySelector(".ctp-poc-del").addEventListener("click", () => row.remove());
+  host.appendChild(row);
+}
 function _rrCtpFormReset(hide) {
   const f = _rrCtpForm();
   if (!f) return;
-  ["name", "company", "phone", "email"].forEach((k) => { const i = _rrCtpField(k); if (i) i.value = ""; });
+  ["first", "last", "company", "title", "notes"].forEach((k) => { const i = _rrCtpField(k); if (i) i.value = ""; });
+  f.querySelectorAll(".ctp-multi, [data-rr-contact-pocs]").forEach((el) => { el.innerHTML = ""; });
   delete f.dataset.editing;
   if (hide) f.hidden = true;
+}
+// A fresh create starts with one empty email + phone row (the two
+// fields Google surfaces by default); everything else is added on
+// demand from the +buttons row.
+function _rrCtpSeedDefaults() {
+  _rrCtpAddRow("email", "");
+  _rrCtpAddRow("phone", "");
 }
 function _rrCtpSave() {
   const f = _rrCtpForm();
   if (!f) return;
   const val = (k) => { const i = _rrCtpField(k); return ((i && i.value) || "").trim(); };
-  const name = val("name");
-  if (!name) { const i = _rrCtpField("name"); if (i) { try { i.focus(); } catch (_) {} } return; }
+  const rows = (sel, read) => [...f.querySelectorAll(sel)].map(read).filter(Boolean);
+  const first = val("first"), last = val("last"), company = val("company");
+  const name = `${first} ${last}`.trim() || company;
+  if (!name) { const i = _rrCtpField("first"); if (i) { try { i.focus(); } catch (_) {} } return; }
+  const emails = rows("[data-rr-contact-emails] .ctp-m-val", (r) => r.value.trim());
+  const phones = rows("[data-rr-contact-phones] .ctp-m-val", (r) => r.value.trim());
+  const addresses = rows("[data-rr-contact-addresses] .ctp-m-val", (r) => r.value.trim());
+  const sites = rows("[data-rr-contact-sites] .ctp-m-val", (r) => r.value.trim());
+  const dates = [...f.querySelectorAll("[data-rr-contact-dates] .ctp-mrow")].map((r) => ({
+    m: Number(r.querySelector(".ctp-m-m")?.value || 0) || null,
+    d: Number(r.querySelector(".ctp-m-d")?.value || 0) || null,
+    y: Number(r.querySelector(".ctp-m-y")?.value || 0) || null,
+  })).filter((d) => d.m || d.d || d.y);
+  const customs = [...f.querySelectorAll("[data-rr-contact-customs] .ctp-mrow")].map((r) => ({
+    label: (r.querySelector(".ctp-m-label")?.value || "").trim(),
+    value: (r.querySelector(".ctp-m-value")?.value || "").trim(),
+  })).filter((c) => c.label || c.value);
+  const pocs = [...f.querySelectorAll(".ctp-poc-row")].map((r) => ({
+    name:  (r.querySelector(".ctp-poc-name")?.value || "").trim(),
+    role:  (r.querySelector(".ctp-poc-role")?.value || "").trim(),
+    phone: (r.querySelector(".ctp-poc-phone")?.value || "").trim(),
+  })).filter((p) => p.name || p.role || p.phone);
+  const record = {
+    first, last, name, company, title: val("title"),
+    emails, phones, addresses, dates, sites, customs, pocs,
+    notes: val("notes"),
+    // Legacy single-value mirrors so older readers (dock sub-line,
+    // vendor mapping) keep working without normalization.
+    phone: phones[0] || "", email: emails[0] || "", address: addresses[0] || "",
+  };
   const contacts = _rrLoadContacts();
   const editing = f.dataset.editing || "";
   const existing = editing ? contacts.find((c) => c.id === editing) : null;
-  if (existing) {
-    Object.assign(existing, { name, company: val("company"), phone: val("phone"), email: val("email") });
-  } else {
-    contacts.push({ id: _rrNtId("c"), name, company: val("company"), phone: val("phone"), email: val("email"), ts: Date.now() });
-  }
+  if (existing) Object.assign(existing, record);
+  else contacts.push({ id: _rrNtId("c"), ts: Date.now(), ...record });
   _rrSaveContacts(contacts);
+  // A deliberate re-add lifts the deletion tombstone for this name.
+  const nm = name.trim().toLowerCase();
+  const gone = _rrNtLoad("contact-tombstones");
+  if (gone.includes(nm)) _rrNtStore("contact-tombstones", gone.filter((g) => g !== nm));
   _rrCtpFormReset(true);
   _rrRenderContacts();
 }
+// Open the Contacts rail panel with the form prefilled for one contact —
+// shared by the panel's own edit button and the Fleet calendar dock.
+function _rrCtpBeginEdit(id) {
+  const raw = _rrLoadContacts().find((x) => x.id === id);
+  const f = _rrCtpForm();
+  if (!raw || !f) return;
+  const c = _rrCtpNorm(raw);
+  _rrCtpFormReset(false);
+  f.hidden = false;
+  f.dataset.editing = c.id;
+  // Legacy single-string names land in First name for editing.
+  const firstVal = c.first || (!c.last && c.name !== c.company ? c.name : "");
+  [["first", firstVal], ["last", c.last], ["company", c.company], ["title", c.title], ["notes", c.notes]].forEach(([k, v]) => {
+    const i = _rrCtpField(k); if (i) i.value = v || "";
+  });
+  (c.emails.length ? c.emails : [""]).forEach((v) => _rrCtpAddRow("email", v));
+  (c.phones.length ? c.phones : [""]).forEach((v) => _rrCtpAddRow("phone", v));
+  c.addresses.forEach((v) => _rrCtpAddRow("address", v));
+  c.dates.forEach((v) => _rrCtpAddRow("date", v));
+  c.sites.forEach((v) => _rrCtpAddRow("site", v));
+  c.customs.forEach((v) => _rrCtpAddRow("custom", v));
+  c.pocs.forEach(_rrCtpPocRow);
+  const i = _rrCtpField("first"); if (i) setTimeout(() => { try { i.focus(); } catch (_) {} }, 40);
+}
+// Entry points for other surfaces (Fleet calendar dock): open the panel
+// on create / edit.
+function _rrCtpOpenCreate() {
+  _rrNtPanelOpen("contacts");
+  const f = _rrCtpForm();
+  if (f) { _rrCtpFormReset(false); f.hidden = false; _rrCtpSeedDefaults(); }
+  const i = _rrCtpField("first"); if (i) setTimeout(() => { try { i.focus(); } catch (_) {} }, 260);
+}
+function _rrCtpOpenEdit(id) {
+  _rrNtPanelOpen("contacts");
+  _rrCtpBeginEdit(id);
+}
+try { window._rrCtpOpenCreate = _rrCtpOpenCreate; window._rrCtpOpenEdit = _rrCtpOpenEdit; } catch (_) {}
 function _rrNtRenderAll() { _rrRenderNotes(); _rrRenderTasks(); _rrRenderContacts(); if (typeof window.rrFtoolRender === "function") { try { window.rrFtoolRender(); } catch (_) {} } }
 function _rrAddNoteFromInput() {
   const ed = document.querySelector("#rr-sched-notes [data-rr-note-input]");
@@ -9701,39 +9872,50 @@ document.addEventListener("click", (e) => {
   // Contacts — same push panel; Google-Contacts-style create/search/list.
   if (e.target.closest("[data-rr-contacts-toggle]")) { e.preventDefault(); _rrNtPanelToggle("contacts"); return; }
   if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]") || e.target.closest("[data-rr-forms-close]") || e.target.closest("[data-rr-contacts-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
-  // Contacts · create / save / cancel / edit / delete
+  // Contacts · create / save / cancel / edit / delete / add-field rows
   if (e.target.closest("[data-rr-contact-createtoggle]")) {
     e.preventDefault();
     const f = _rrCtpForm();
     if (f) {
-      if (f.hidden) { _rrCtpFormReset(false); f.hidden = false; } else { _rrCtpFormReset(true); }
-      if (!f.hidden) { const i = _rrCtpField("name"); if (i) setTimeout(() => { try { i.focus(); } catch (_) {} }, 40); }
+      if (f.hidden) { _rrCtpFormReset(false); f.hidden = false; _rrCtpSeedDefaults(); } else { _rrCtpFormReset(true); }
+      if (!f.hidden) { const i = _rrCtpField("first"); if (i) setTimeout(() => { try { i.focus(); } catch (_) {} }, 40); }
     }
     return;
   }
+  const cAddRow = e.target.closest("[data-rr-contact-add-row]");
+  if (cAddRow) { e.preventDefault(); _rrCtpAddRow(cAddRow.getAttribute("data-rr-contact-add-row")); return; }
+  if (e.target.closest("[data-rr-contact-poc-add]")) { e.preventDefault(); _rrCtpPocRow(); return; }
   if (e.target.closest("[data-rr-contact-save]")) { e.preventDefault(); _rrCtpSave(); return; }
   if (e.target.closest("[data-rr-contact-cancel]")) { e.preventDefault(); _rrCtpFormReset(true); return; }
   const cEdit = e.target.closest("[data-rr-contact-edit]");
-  if (cEdit) {
-    e.preventDefault();
-    const c = _rrLoadContacts().find((x) => x.id === cEdit.getAttribute("data-rr-contact-edit"));
-    const f = _rrCtpForm();
-    if (c && f) {
-      f.hidden = false;
-      f.dataset.editing = c.id;
-      [["name", c.name], ["company", c.company], ["phone", c.phone], ["email", c.email]].forEach(([k, v]) => {
-        const i = _rrCtpField(k); if (i) i.value = v || "";
-      });
-      const i = _rrCtpField("name"); if (i) setTimeout(() => { try { i.focus(); } catch (_) {} }, 40);
-    }
-    return;
-  }
+  if (cEdit) { e.preventDefault(); _rrCtpBeginEdit(cEdit.getAttribute("data-rr-contact-edit")); return; }
   const cDel = e.target.closest("[data-rr-contact-del]");
   if (cDel) {
     e.preventDefault();
     const id = cDel.getAttribute("data-rr-contact-del");
     if (window.confirm("Delete this contact?")) {
-      _rrSaveContacts(_rrLoadContacts().filter((x) => x.id !== id));
+      const all = _rrLoadContacts();
+      const dead = all.find((x) => x.id === id);
+      _rrSaveContacts(all.filter((x) => x.id !== id));
+      // Tombstone the name so the fleet-calendar vendor import can
+      // never resurrect a deliberately deleted contact, and pause the
+      // same-named backing vendor row (best-effort) so it also drops
+      // out of the vendors feed.
+      const nm = ((dead && dead.name) || "").trim().toLowerCase();
+      if (nm) {
+        const gone = _rrNtLoad("contact-tombstones");
+        if (!gone.includes(nm)) { gone.push(nm); _rrNtStore("contact-tombstones", gone); }
+        try {
+          const vendors = (typeof _fleetCalProviders !== "undefined" && Array.isArray(_fleetCalProviders)) ? _fleetCalProviders : [];
+          const v = vendors.find((x) => (x.name || "").trim().toLowerCase() === nm);
+          if (v && typeof sb !== "undefined") {
+            sb.rpc("fleet_calendar_provider_remove", { p_id: v.id }).then(() => {
+              const i = vendors.indexOf(v);
+              if (i >= 0) vendors.splice(i, 1);
+            }).catch(() => {});
+          }
+        } catch (_) {}
+      }
       const f = _rrCtpForm();
       if (f && f.dataset.editing === id) _rrCtpFormReset(true);
       _rrRenderContacts();
@@ -9887,8 +10069,9 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     const tt = e.target.closest && e.target.closest("#rr-sched-tasks [data-rr-task-title]");
     if (tt) { e.preventDefault(); _rrAddTaskFromForm(); return; }
-    // Contacts form: Enter in any field saves (Escape-free quick add).
-    const cf = e.target.closest && e.target.closest("#rr-sched-contacts [data-rr-contact-form] .ctp-input");
+    // Contacts form: Enter in any single-line field saves (the Notes
+    // textarea keeps Enter = newline).
+    const cf = e.target.closest && e.target.closest("#rr-sched-contacts [data-rr-contact-form] .ctp-input:not(.ctp-notes)");
     if (cf) { e.preventDefault(); _rrCtpSave(); return; }
     // Composer: plain Enter = newline (contenteditable default); ⌘/Ctrl+Enter saves.
     const ed = e.target.closest && e.target.closest("#rr-sched-notes [data-rr-note-input]");
@@ -37963,6 +38146,12 @@ window.goto = function (view) {
   // (schedSub handles placement while staying within the schedule view).
   if (view !== "schedule" && typeof _rrReturnSchedDemandHome === "function") _rrReturnSchedDemandHome();
   if (view !== "schedule" && typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
+  // Entering Schedule: reclaim the bell if Fleet borrowed it (the
+  // generic return above only runs for non-schedule destinations).
+  if (view === "schedule" && typeof _rrReturnChromeHome === "function") {
+    const bell = document.getElementById("rr-hdr-notif");
+    if (bell && bell.closest("#rr-fleet-chrome-host")) _rrReturnChromeHome();
+  }
   if (typeof _origGotoForOkamiOverlay === "function") _origGotoForOkamiOverlay(view);
   if (view !== "schedule" && view !== "okami") closeOkamiOverlay();
 };
@@ -38127,6 +38316,19 @@ function _rrMoveChromeToRoster() {
   if (acct && !host.contains(acct)) host.appendChild(acct);
 }
 window._rrMoveChromeToRoster = _rrMoveChromeToRoster;
+
+// Same borrow for the Fleet page: the global bell parks at the right
+// edge of Fleet's action bar, and the app launcher auto-docks just left
+// of it (placeLauncher's bell-follow branch) — so Fleet's top-right
+// chrome sits in the exact spot it does on Schedule. Not the ⋯ menu,
+// which is Schedule-specific.
+function _rrMoveChromeToFleet() {
+  const host = document.getElementById("rr-fleet-chrome-host");
+  if (!host) return;
+  const bell = document.getElementById("rr-hdr-notif");
+  if (bell && !host.contains(bell)) host.appendChild(bell);
+}
+window._rrMoveChromeToFleet = _rrMoveChromeToFleet;
 
 // Roster search · relocate the live search input (keeping its listeners) into
 // the top KPI strip beside the action pills, styled as a pill. Parked back in
@@ -42344,8 +42546,8 @@ let _fleetCalWeekStart = null;  // Date — Sunday of the displayed week
 let _fleetCalVans      = [];    // vans (rows), name-sorted
 let _fleetCalEvents    = [];    // events for the visible week
 let _fleetCalBound     = false; // host click delegation installed once
-let _fleetCalProviders = [];    // service providers (vendors)
-let _fcDragVendorId    = null;  // vendor id mid-drag, null otherwise
+let _fleetCalProviders = [];    // DB vendor rows (event storage + legacy names)
+let _fcDragContactId   = null;  // contact id mid-drag, null otherwise
 let _fcDropCell        = null;  // day cell currently under the drag
 let _fleetCalSort      = "alpha"; // van row order: alpha | events
 let _fleetProvBound    = false; // providers rail delegation installed once
@@ -42424,18 +42626,11 @@ function _fcOpStatusPill(s) {
 }
 
 // Friendly labels for the vendor.kind column (free text in the DB).
-const _FC_VENDOR_KINDS = {
-  repair:     "Repair shop",
-  dealership: "Dealership",
-  mobile:     "Mobile mechanic",
-  tow:        "Tow",
-  parts:      "Parts",
-  other:      "Other",
-};
-function _fcVendorKindLabel(kind) {
-  if (!kind) return "Provider";
-  return _FC_VENDOR_KINDS[kind] || (kind.charAt(0).toUpperCase() + kind.slice(1));
-}
+// The provider "type" taxonomy (repair / dealership / …) retired with
+// the Service-providers rail — Contacts (the shared utility-rail store)
+// are the drag source now, and their free-text company line carries
+// whatever classification the operator wants. Vendors auto-created for
+// event storage default to kind "other".
 
 async function _paintFleetCalendar() {
   const host = document.getElementById("rr-fleet-cal-host");
@@ -42547,7 +42742,7 @@ async function _paintFleetCalendar() {
         ? '<polyline points="3 9 9 9 9 3"/><polyline points="21 9 15 9 15 3"/><polyline points="15 21 15 15 21 15"/><polyline points="3 15 9 15 9 21"/>'
         : '<polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><polyline points="21 15 21 21 15 21"/><polyline points="3 15 3 21 9 21"/>')
     + `</button>`
-    + `<button class="rr-tf-icon" type="button" data-fc-tool="hiderail" aria-pressed="${_railHidden}" style="position:relative;top:0;right:0" title="${_railHidden ? "Show the Service providers panel" : "Hide the Service providers panel — the calendar fills the space"}" aria-label="${_railHidden ? "Show sidebar" : "Hide sidebar"}">`
+    + `<button class="rr-tf-icon" type="button" data-fc-tool="hiderail" aria-pressed="${_railHidden}" style="position:relative;top:0;right:0" title="${_railHidden ? "Show the Contacts panel" : "Hide the Contacts panel — the calendar fills the space"}" aria-label="${_railHidden ? "Show sidebar" : "Hide sidebar"}">`
       + _svg(_railHidden
         ? '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="7 9 10 12 7 15"/>'
         : '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="10 9 7 12 10 15"/>')
@@ -42640,10 +42835,10 @@ async function _paintFleetCalendar() {
   }
 }
 
-// A service-provider chip is being dragged over a day cell — allow the
-// drop and light the cell up.
+// A contact chip is being dragged over a day cell — allow the drop and
+// light the cell up.
 function _onFleetCalDragOver(e) {
-  if (!_fcDragVendorId) return;
+  if (!_fcDragContactId) return;
   const cell = e.target.closest(".rr-fc-cell[data-fc-date]");
   if (!cell) return;
   e.preventDefault();
@@ -42655,228 +42850,164 @@ function _onFleetCalDragOver(e) {
   }
 }
 
-// Provider dropped on a day cell → open the event modal prefilled with
-// the cell's van + date and the dragged provider, so the operator just
+// Contact dropped on a day cell → open the event modal prefilled with
+// the cell's van + date and the dragged contact, so the operator just
 // confirms the date/time and schedules it.
 function _onFleetCalDrop(e) {
-  if (!_fcDragVendorId) return;
+  if (!_fcDragContactId) return;
   const cell = e.target.closest(".rr-fc-cell[data-fc-date]");
   if (!cell) return;
   e.preventDefault();
-  const vendorId = _fcDragVendorId;
-  _fcDragVendorId = null;
+  const contactId = _fcDragContactId;
+  _fcDragContactId = null;
   if (_fcDropCell) { _fcDropCell.classList.remove("rr-fc-drop"); _fcDropCell = null; }
-  _openFleetCalEventModal(null, cell.getAttribute("data-fc-date"), cell.getAttribute("data-fc-van"), vendorId, e);
+  _openFleetCalEventModal(null, cell.getAttribute("data-fc-date"), cell.getAttribute("data-fc-van"), contactId, e);
 }
 
-// Service-providers rail · vendors the operator drags onto the grid.
+// Contacts rail · the shared utility-rail Contacts are the drag source
+// for scheduling service. The DB vendors table (migrations 0309-0311)
+// stays as the EVENT storage behind the scenes: when a dragged contact
+// is saved onto a day, a vendor row is found-or-created by name (see
+// _fcVendorIdForContact), so event lists / RO flows keep working
+// unchanged. Providers are still fetched for that dedup + so events
+// created before the switch keep showing their vendor.
 async function _paintFleetProviders() {
   try {
     const { data, error } = await sb.rpc("fleet_calendar_providers");
     if (error) throw error;
     _fleetCalProviders = Array.isArray(data) ? data : [];
+    _fcImportProvidersIntoContacts();
   } catch (e) {
     console.warn("fleet calendar providers load:", e);
   }
-  _renderFleetProviders();
+  _renderFleetCalContacts();
 }
 window._paintFleetProviders = _paintFleetProviders;
 
-// Paint the providers rail from the in-memory _fleetCalProviders list
-// (no fetch) — used for instant feedback after adding a provider.
-function _renderFleetProviders() {
+// One-time convenience import · providers the operator added before the
+// Contacts switch become contacts (matched by name, case-insensitive),
+// so nothing vanishes from the dock. Address/notes stay on the vendor
+// row; points of contact carry over. The done-flag persists per
+// device+DSP (same namespace as the contacts store) and deliberately
+// deleted contact names are tombstoned (see the delete handler), so a
+// deleted contact can never be resurrected by a later calendar paint.
+function _fcImportProvidersIntoContacts() {
+  if (!_fleetCalProviders.length) return;
+  let done = "";
+  try { done = localStorage.getItem(_rrNtKey("fc-prov-imported")) || ""; } catch (_) {}
+  if (done === "1") return;
+  try { localStorage.setItem(_rrNtKey("fc-prov-imported"), "1"); } catch (_) {}
+  try {
+    const contacts = _rrLoadContacts();
+    const gone = new Set(_rrNtLoad("contact-tombstones"));
+    const have = new Set(contacts.map(c => (c.name || "").trim().toLowerCase()).filter(Boolean));
+    let added = 0;
+    for (const v of _fleetCalProviders) {
+      const nm = (v.name || "").trim();
+      if (!nm || have.has(nm.toLowerCase()) || gone.has(nm.toLowerCase())) continue;
+      contacts.push({
+        id: _rrNtId("c"),
+        name: nm,
+        company: "",
+        phone: v.phone || "",
+        email: v.email || "",
+        pocs: (Array.isArray(v.contacts) ? v.contacts : []).map(p => ({ name: p.name || "", role: p.role || "", phone: p.phone || "" })),
+        ts: Date.now(),
+      });
+      have.add(nm.toLowerCase());
+      added++;
+    }
+    if (added) { _rrSaveContacts(contacts); _rrRenderContacts(); }
+  } catch (_) { /* best-effort */ }
+}
+
+// Paint the contacts dock beside the calendar. Chips reuse the rail-chip
+// chrome; click opens the contact in the shared Contacts panel, Add
+// opens the panel's create form.
+function _renderFleetCalContacts() {
   const host = document.getElementById("rr-fc-providers");
   if (!host) return;
-  const chips = _fleetCalProviders.length
-    ? _fleetCalProviders.map(v => {
-        const nm = escapeHtml(v.name || "—");
-        return `<div class="rr-fc-prov-chip" draggable="true" data-fc-provider="${escapeHtml(v.id)}" title="Drag onto a day to schedule service">
+  const contacts = (typeof _rrLoadContacts === "function" ? _rrLoadContacts() : [])
+    .slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  const chips = contacts.length
+    ? contacts.map(c => {
+        const nm = escapeHtml(c.name || "—");
+        const sub = escapeHtml([c.company, c.phone].filter(Boolean).join(" · "));
+        return `<div class="rr-fc-prov-chip" draggable="true" data-fc-contact="${escapeHtml(c.id)}" title="Drag onto a day to schedule service">
           <span class="rr-fc-prov-chip-text">
             <span class="rr-fc-prov-chip-name">${nm}</span>
-            <span class="rr-fc-prov-chip-kind">${escapeHtml(_fcVendorKindLabel(v.kind))}</span>
+            ${sub ? `<span class="rr-fc-prov-chip-kind">${sub}</span>` : ""}
           </span>
-          <button type="button" class="rr-fc-prov-del" draggable="false" data-fc-prov-del="${escapeHtml(v.id)}" aria-label="Remove ${nm}" title="Remove">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
         </div>`;
       }).join("")
-    : `<div class="rr-fc-prov-empty">No service providers yet. Add one, then drag it onto a day to schedule service.</div>`;
+    : `<div class="rr-fc-prov-empty">No contacts yet. Add one, then drag it onto a day to schedule service.</div>`;
   host.innerHTML = `
     <div class="rr-fc-prov">
       <div class="rr-fc-prov-head">
-        <span class="rr-fc-prov-title">Service providers</span>
-        <button type="button" class="rr-fc-prov-add" data-fc-prov-add><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button>
+        <span class="rr-fc-prov-title">Contacts</span>
+        <button type="button" class="rr-fc-prov-add" data-fc-contact-add><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button>
       </div>
-      <div class="rr-fc-prov-hint">Drag a provider onto a day to schedule service.</div>
+      <div class="rr-fc-prov-hint">Drag a contact onto a day to schedule service.</div>
       <div class="rr-fc-prov-list">${chips}</div>
     </div>`;
   if (!_fleetProvBound) {
     _fleetProvBound = true;
     host.addEventListener("click", (e) => {
-      if (e.target.closest("[data-fc-prov-add]")) { _openFleetProviderModal(null); return; }
-      const del = e.target.closest("[data-fc-prov-del]");
-      if (del) { e.stopPropagation(); _removeFleetProvider(del.getAttribute("data-fc-prov-del")); return; }
-      const chip = e.target.closest("[data-fc-provider]");
-      if (chip) _openFleetProviderModal(chip.getAttribute("data-fc-provider"));
+      if (e.target.closest("[data-fc-contact-add]")) {
+        if (typeof _rrCtpOpenCreate === "function") _rrCtpOpenCreate();
+        return;
+      }
+      const chip = e.target.closest("[data-fc-contact]");
+      if (chip && typeof _rrCtpOpenEdit === "function") _rrCtpOpenEdit(chip.getAttribute("data-fc-contact"));
     });
     host.addEventListener("dragstart", (e) => {
-      const chip = e.target.closest("[data-fc-provider]");
+      const chip = e.target.closest("[data-fc-contact]");
       if (!chip) return;
-      _fcDragVendorId = chip.getAttribute("data-fc-provider");
+      _fcDragContactId = chip.getAttribute("data-fc-contact");
       chip.classList.add("rr-fc-dragging");
       try {
         e.dataTransfer.effectAllowed = "copy";
-        e.dataTransfer.setData("text/plain", _fcDragVendorId);
+        e.dataTransfer.setData("text/plain", _fcDragContactId);
       } catch (_) { /* noop */ }
     });
     host.addEventListener("dragend", (e) => {
-      const chip = e.target.closest("[data-fc-provider]");
+      const chip = e.target.closest("[data-fc-contact]");
       if (chip) chip.classList.remove("rr-fc-dragging");
-      _fcDragVendorId = null;
+      _fcDragContactId = null;
       if (_fcDropCell) { _fcDropCell.classList.remove("rr-fc-drop"); _fcDropCell = null; }
     });
   }
 }
 
-// Remove a provider from the rail (soft delete — see migration 0311).
-async function _removeFleetProvider(vendorId) {
-  const prov = _fleetCalProviders.find(v => v.id === vendorId);
-  if (!confirm(`Remove ${prov ? prov.name : "this provider"} from service providers?`)) return;
-  try {
-    const { error } = await sb.rpc("fleet_calendar_provider_remove", { p_id: vendorId });
-    if (error) throw error;
-    _fleetCalProviders = _fleetCalProviders.filter(v => v.id !== vendorId);
-    _renderFleetProviders();
-    if (typeof toast === "function") toast("Service provider removed");
-  } catch (err) {
-    console.warn("fleet_calendar_provider_remove:", err);
-    if (typeof toast === "function") toast("Couldn't remove · " + (err?.message || "try again"), "danger");
-  }
-}
-
-// Add (id null) or view/edit a service provider — full detail card:
-// name, type, address, phone, email, points of contact, notes.
-function _openFleetProviderModal(vendorId) {
-  const existing = vendorId ? (_fleetCalProviders.find(v => v.id === vendorId) || null) : null;
-  document.getElementById("rr-fc-prov-modal")?.remove();
-  const m = document.createElement("div");
-  m.id = "rr-fc-prov-modal";
-  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
-  const kind = existing ? (existing.kind || "repair") : "repair";
-  const kindOpts = Object.entries(_FC_VENDOR_KINDS)
-    .map(([k, label]) => `<option value="${k}"${k === kind ? " selected" : ""}>${escapeHtml(label)}</option>`)
-    .join("");
-  const fld = (label, id, val, ph, type) =>
-    `<label style="display:flex;flex-direction:column;gap:4px">
-       <span style="font-size:var(--fs-sm);font-weight:600">${label}</span>
-       <input type="${type || "text"}" id="${id}" class="form-input" maxlength="160" placeholder="${ph}" value="${escapeHtml(val || "")}" />
-     </label>`;
-  m.innerHTML = `
-    <div role="dialog" aria-label="Service provider" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:440px;overflow:hidden;display:flex;flex-direction:column;max-height:86vh">
-      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);font-size:var(--fs-lg);font-weight:600">${existing ? "Service provider" : "Add service provider"}</div>
-      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5);overflow:auto">
-        ${fld("Name", "rr-fc-prov-name", existing && existing.name, "e.g. Hester Ford")}
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:var(--fs-sm);font-weight:600">Type</span>
-          <select id="rr-fc-prov-kind" class="form-input">${kindOpts}</select>
-        </label>
-        ${fld("Address", "rr-fc-prov-address", existing && existing.address, "Street, city, state")}
-        <div style="display:flex;gap:var(--s-3)">
-          <div style="flex:1">${fld("Phone", "rr-fc-prov-phone", existing && existing.phone, "(555) 010-0100", "tel")}</div>
-          <div style="flex:1">${fld("Email", "rr-fc-prov-email", existing && existing.email, "shop@example.com", "email")}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:var(--fs-sm);font-weight:600;flex:1">Points of contact</span>
-            <button type="button" id="rr-fc-poc-add" class="btn btn-sm">+ Contact</button>
-          </div>
-          <div id="rr-fc-prov-contacts" style="display:flex;flex-direction:column;gap:6px"></div>
-        </div>
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:var(--fs-sm);font-weight:600">Notes <span style="color:var(--text-subtle);font-weight:500">(optional)</span></span>
-          <textarea id="rr-fc-prov-notes" class="form-input" rows="2" maxlength="500" placeholder="Anything useful for the team">${escapeHtml(existing && existing.notes || "")}</textarea>
-        </label>
-        <div id="rr-fc-prov-status" style="font-size:var(--fs-xs);color:var(--sch-red,#DC2626);min-height:14px"></div>
-      </div>
-      <div style="padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-3)">
-        <button type="button" class="btn btn-sm" id="rr-fc-prov-cancel">Cancel</button>
-        <button type="button" class="btn btn-sm btn-primary" id="rr-fc-prov-save">${existing ? "Save" : "Add provider"}</button>
-      </div>
-    </div>`;
-  document.body.appendChild(m);
-
-  const contactsHost = m.querySelector("#rr-fc-prov-contacts");
-  const addContactRow = (c) => {
-    c = c || {};
-    const row = document.createElement("div");
-    row.className = "rr-fc-poc-row";
-    row.style.cssText = "display:flex;gap:6px;align-items:center";
-    row.innerHTML =
-      `<input type="text" class="form-input rr-fc-poc-name" maxlength="80" placeholder="Name" value="${escapeHtml(c.name || "")}" style="flex:1.2;min-width:0" />`
-      + `<input type="text" class="form-input rr-fc-poc-role" maxlength="60" placeholder="Role" value="${escapeHtml(c.role || "")}" style="flex:1;min-width:0" />`
-      + `<input type="tel" class="form-input rr-fc-poc-phone" maxlength="40" placeholder="Phone" value="${escapeHtml(c.phone || "")}" style="flex:1;min-width:0" />`
-      + `<button type="button" class="rr-fc-poc-del" aria-label="Remove contact" style="flex:0 0 auto;width:24px;height:24px;border:0;background:transparent;color:var(--text-subtle);cursor:pointer;font-size:16px;line-height:1">×</button>`;
-    row.querySelector(".rr-fc-poc-del").addEventListener("click", () => row.remove());
-    contactsHost.appendChild(row);
-  };
-  const seed = (existing && Array.isArray(existing.contacts)) ? existing.contacts : [];
-  if (seed.length) seed.forEach(addContactRow); else addContactRow();
-  m.querySelector("#rr-fc-poc-add").addEventListener("click", () => addContactRow());
-
-  const onKey = (e) => { if (e.key === "Escape") close(); };
-  const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
-  document.addEventListener("keydown", onKey);
-  m.addEventListener("click", (e) => { if (e.target === m) close(); });
-  m.querySelector("#rr-fc-prov-cancel").addEventListener("click", close);
-  const nameEl = m.querySelector("#rr-fc-prov-name");
-  nameEl.focus();
-
-  m.querySelector("#rr-fc-prov-save").addEventListener("click", async () => {
-    const status = m.querySelector("#rr-fc-prov-status");
-    const name = nameEl.value.trim();
-    if (!name) { status.textContent = "Add a name."; return; }
-    // One row per provider — no duplicates (skip self when editing).
-    if (_fleetCalProviders.some(v => v.id !== vendorId && (v.name || "").trim().toLowerCase() === name.toLowerCase())) {
-      status.textContent = `"${name}" is already in the list.`;
-      return;
-    }
-    const contacts = [...m.querySelectorAll(".rr-fc-poc-row")].map(r => ({
-      name:  r.querySelector(".rr-fc-poc-name").value.trim(),
-      role:  r.querySelector(".rr-fc-poc-role").value.trim(),
-      phone: r.querySelector(".rr-fc-poc-phone").value.trim(),
-    })).filter(c => c.name || c.phone || c.role);
-    const btn = m.querySelector("#rr-fc-prov-save");
-    btn.disabled = true;
-    try {
-      const { data, error } = await sb.rpc("fleet_calendar_provider_upsert", {
-        p_id: vendorId || null,
-        p_name: name,
-        p_kind: m.querySelector("#rr-fc-prov-kind").value,
-        p_address: m.querySelector("#rr-fc-prov-address").value.trim() || null,
-        p_phone: m.querySelector("#rr-fc-prov-phone").value.trim() || null,
-        p_email: m.querySelector("#rr-fc-prov-email").value.trim() || null,
-        p_contacts: contacts,
-        p_notes: m.querySelector("#rr-fc-prov-notes").value.trim() || null,
-      });
-      if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
-      close();
-      if (row && row.id) {
-        const i = _fleetCalProviders.findIndex(v => v.id === row.id);
-        if (i >= 0) _fleetCalProviders[i] = row;
-        else _fleetCalProviders.unshift(row);
-        _renderFleetProviders();
-      }
-      if (typeof toast === "function") toast(existing ? "Provider updated" : "Service provider added");
-      _paintFleetProviders();
-    } catch (err) {
-      console.warn("fleet_calendar_provider_upsert:", err);
-      status.textContent = "Couldn't save · " + (err?.message || "try again");
-      btn.disabled = false;
-    }
+// Resolve a contact to a DB vendor id for event storage — find an
+// existing vendor by name (case-insensitive) or create one carrying the
+// contact's phone / email / points of contact.
+async function _fcVendorIdForContact(contactId) {
+  const raw = (typeof _rrLoadContacts === "function" ? _rrLoadContacts() : []).find(x => x.id === contactId);
+  if (!raw) return null;
+  const c = (typeof _rrCtpNorm === "function") ? _rrCtpNorm(raw) : raw;
+  const nm = (c.name || "").trim();
+  if (!nm) return null;
+  const hit = _fleetCalProviders.find(v => (v.name || "").trim().toLowerCase() === nm.toLowerCase());
+  if (hit) return hit.id;
+  const { data, error } = await sb.rpc("fleet_calendar_provider_upsert", {
+    p_id: null,
+    p_name: nm,
+    p_kind: "other",
+    p_address: (c.addresses && c.addresses[0]) || null,
+    p_phone: (c.phones && c.phones[0]) || null,
+    p_email: (c.emails && c.emails[0]) || null,
+    p_contacts: (Array.isArray(c.pocs) ? c.pocs : []).filter(p => p.name || p.role || p.phone),
+    p_notes: c.notes || null,
   });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (row && row.id) { _fleetCalProviders.unshift(row); return row.id; }
+  return null;
 }
 
+// (The standalone service-provider modal was retired with the provider
+// rail — contacts are created/edited in the shared Contacts panel.)
 function _onFleetCalClick(e) {
   // VAN-header tools (Expand screen / Hide sidebar / Sort / Grid density).
   const tool = e.target.closest("[data-fc-tool]");
@@ -42958,18 +43089,20 @@ function _onFleetCalClick(e) {
 }
 
 // Add / edit / delete one event. eventId null → new event; dateIso /
-// vanId / vendorId prefill the day, van + service provider (the last
-// set when the event is created by dragging a provider onto a cell).
-function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
+// vanId / contactId prefill the day, van + contact (the last set when
+// the event is created by dragging a contact onto a cell).
+function _openFleetCalEventModal(eventId, dateIso, vanId, contactId, anchorEv) {
   const existing = eventId ? (_fleetCalEvents.find(e => e.id === eventId) || null) : null;
-  const dropVendor = vendorId ? (_fleetCalProviders.find(v => v.id === vendorId) || null) : null;
+  const allContacts = (typeof _rrLoadContacts === "function" ? _rrLoadContacts() : [])
+    .slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  const dropContact = contactId ? (allContacts.find(c => c.id === contactId) || null) : null;
   const ev = existing || {
     id: null,
-    title: dropVendor ? `Service — ${dropVendor.name}` : "",
+    title: dropContact ? `Service — ${dropContact.name}` : "",
     event_date: dateIso || fmtIsoDate(new Date()),
     end_date: "",
     vehicle_id: vanId || (_fleetCalVans[0] && _fleetCalVans[0].id) || "",
-    vendor_id: vendorId || "",
+    vendor_id: "",
     start_time: "", end_time: "", notes: "",
   };
 
@@ -42983,14 +43116,23 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
   const vanOpts = _fleetCalVans
     .map(v => `<option value="${escapeHtml(v.id)}"${v.id === ev.vehicle_id ? " selected" : ""}>${escapeHtml(v.name || "—")}</option>`)
     .join("");
-  // Keep an event's existing provider selectable even if it is paused
-  // (paused vendors are absent from _fleetCalProviders).
-  const provList = _fleetCalProviders.slice();
-  if (ev.vendor_id && !provList.some(v => v.id === ev.vendor_id)) {
-    provList.push({ id: ev.vendor_id, name: ev.vendor_name || "Provider" });
+  // The vendor/contact select lists the operator's CONTACTS ("c:<id>"
+  // values, resolved to a DB vendor row at save time). An existing
+  // event's stored vendor stays selectable as a "p:<id>" option so
+  // editing never loses it.
+  const selContact = dropContact ? `c:${dropContact.id}` : "";
+  let vendorOpts = `<option value="">None</option>`;
+  // The stored vendor's same-named contact twin is skipped below —
+  // picking either resolves to the same vendor row anyway (the name
+  // match in _fcVendorIdForContact), so one entry is enough.
+  let storedVendorName = "";
+  if (existing && ev.vendor_id) {
+    storedVendorName = (ev.vendor_name || "").trim().toLowerCase();
+    vendorOpts += `<option value="p:${escapeHtml(ev.vendor_id)}" selected>${escapeHtml(ev.vendor_name || "Provider")}</option>`;
   }
-  const vendorOpts = `<option value="">None</option>` + provList
-    .map(v => `<option value="${escapeHtml(v.id)}"${v.id === ev.vendor_id ? " selected" : ""}>${escapeHtml(v.name || "—")}</option>`)
+  vendorOpts += allContacts
+    .filter(c => !storedVendorName || (c.name || "").trim().toLowerCase() !== storedVendorName)
+    .map(c => `<option value="c:${escapeHtml(c.id)}"${`c:${c.id}` === selContact ? " selected" : ""}>${escapeHtml(c.name || "—")}</option>`)
     .join("");
   m.innerHTML = `
     <div role="dialog" aria-label="Calendar event" id="rr-fc-event-card" style="position:fixed;top:0;left:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:380px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow-y:auto;box-shadow:0 16px 48px rgba(15,23,42,.24);opacity:0;transition:opacity 120ms ease-out">
@@ -43005,7 +43147,7 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
           <select id="rr-fc-f-van" class="form-input">${vanOpts || `<option value="">No vans available</option>`}</select>
         </label>
         <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:var(--fs-sm);font-weight:600">Service provider</span>
+          <span style="font-size:var(--fs-sm);font-weight:600">Contact</span>
           <select id="rr-fc-f-vendor" class="form-input">${vendorOpts}</select>
         </label>
         <div style="display:flex;gap:var(--s-3)">
@@ -43162,7 +43304,7 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
     const status = m.querySelector("#rr-fc-f-status");
     const title  = titleEl.value.trim();
     const van    = m.querySelector("#rr-fc-f-van").value || null;
-    const vendor = m.querySelector("#rr-fc-f-vendor").value || null;
+    const vendorSel = m.querySelector("#rr-fc-f-vendor").value || "";
     const date    = m.querySelector("#rr-fc-f-date").value;
     const endDate = m.querySelector("#rr-fc-f-enddate").value || null;
     const start  = m.querySelector("#rr-fc-f-start").value || null;
@@ -43177,6 +43319,12 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
     const saveBtn = m.querySelector("#rr-fc-save");
     saveBtn.disabled = true;
     try {
+      // Resolve the Contact selection to a DB vendor id: "p:<id>" is an
+      // existing vendor row (editing), "c:<id>" is a contact that gets
+      // a vendor row found-or-created by name.
+      let vendor = null;
+      if (vendorSel.startsWith("p:")) vendor = vendorSel.slice(2);
+      else if (vendorSel.startsWith("c:")) vendor = await _fcVendorIdForContact(vendorSel.slice(2));
       // Recurring series · fan out into N individual events. The
       // first occurrence honours p_id (so editing-as-new doesn't
       // happen); every subsequent occurrence is a fresh insert.
@@ -66245,72 +66393,9 @@ function _flCmdTab(mode) {
 }
 window._flCmdTab = _flCmdTab;
 
-function _flActiveSub() {
-  return document.querySelector("#view-fleet2 .fl-sub.active");
-}
-function _flActiveSubLabel() {
-  return ({
-    "fl-sub-vehicles": "Fleet roster",
-    "fl-sub-issues":   "Open issues",
-    "fl-sub-calendar": "Fleet calendar",
-    "fl-sub-assign":   "Fleet assignment",
-    "fl-sub-rotation": "Van rotation",
-  })[_flActiveSub()?.id || ""] || "Fleet";
-}
-
-function _flPrintActive() {
-  const sub = _flActiveSub();
-  const area = document.getElementById("rr-fleet-print-area");
-  if (!sub || !area) { window.print(); return; }
-  area.innerHTML = "";
-  const head = document.createElement("div");
-  head.className = "rr-print-head";
-  head.textContent = `${_flActiveSubLabel()} — ${new Date().toLocaleString()}`;
-  area.appendChild(head);
-  area.appendChild(sub.cloneNode(true));
-  if (typeof _rrApplyPrintOrient === "function") _rrApplyPrintOrient("fleet");
-  document.documentElement.classList.add("rr-printing");
-  window.addEventListener("afterprint", function _done() {
-    window.removeEventListener("afterprint", _done);
-    document.documentElement.classList.remove("rr-printing");
-    area.innerHTML = "";
-    if (typeof _rrClearPrintOrient === "function") _rrClearPrintOrient();
-  });
-  window.print();
-}
-
-function _flDownloadActive() {
-  const sub = _flActiveSub();
-  if (!sub) { toast("Open a Fleet view first", "warn"); return; }
-  const table = sub.querySelector("table");
-  if (!table) { toast("Nothing to download in this view", "warn"); return; }
-  const clean = (el) => (el ? el.innerText : "")
-    .split("\n").map(s => s.trim()).filter(Boolean).join(" · ");
-  const rows = [];
-  table.querySelectorAll("thead tr").forEach((tr) => {
-    rows.push(Array.from(tr.querySelectorAll("th,td")).map(clean));
-  });
-  table.querySelectorAll("tbody tr").forEach((tr) => {
-    if (tr.classList.contains("fl-skel-row")) return;
-    const cells = Array.from(tr.querySelectorAll("td"));
-    if (!cells.length) return;
-    rows.push(cells.map(clean));
-  });
-  if (rows.length < 2) { toast("Nothing to download yet", "warn"); return; }
-  const csv = String.fromCharCode(0xFEFF)
-    + rows.map(r => r.map(_schedCsvField).join(",")).join("\r\n");
-  const slug = _flActiveSubLabel().toLowerCase().replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "") || "fleet";
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `routeready-${slug}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  toast(`${_flActiveSubLabel()} downloaded`, "success");
-}
+// (The whole-view Print / Download-Excel actions retired with their
+// toolbar buttons — the Proof-of-Use report below carries its own
+// in-modal print + CSV download, which still use #rr-fleet-print-area.)
 
 // ─── Proof-of-Use report ─────────────────────────────────────────────
 // DSPs use this to dispute scorecard violations: pick a van + a date
@@ -66490,9 +66575,7 @@ window._flOpenProofModal = _flOpenProofModal;
 
 document.addEventListener("click", (e) => {
   if (!e.target.closest) return;
-  if (e.target.closest("#rr-fl-print-btn"))    { e.preventDefault(); _flPrintActive(); return; }
-  if (e.target.closest("#rr-fl-download-btn")) { e.preventDefault(); _flDownloadActive(); return; }
-  if (e.target.closest("#rr-fl-proof-btn"))    { e.preventDefault(); _flOpenProofModal(); }
+  if (e.target.closest("#rr-fl-proof-btn")) { e.preventDefault(); _flOpenProofModal(); }
 });
 
 // Save the RO code on blur or Enter.  Empty → leave alone (no destructive default).

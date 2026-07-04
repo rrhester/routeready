@@ -40,24 +40,19 @@
 
         <!-- Row 2 · action bar (.rr-ab twin, schedule-rrx.css:4910-4956).
              Add van keeps #rr-fleet-add so the existing delegated handler
-             (openFleetDrawer(null)) fires; Print / Download / Proof keep
-             their ids for the _flPrintActive / _flDownloadActive /
-             _flOpenProofModal delegated handlers. The fleet context line
-             (#rr-fleet-page-sub, painted by _flPaintTabCounts) rides the
-             right edge like Schedule's borderless coverage stat. -->
+             (openFleetDrawer(null)) fires; Proof of Use keeps its id for
+             the _flOpenProofModal delegated handler. The fleet status
+             stat (painted by _flPaintTabCounts) and the shared-chrome
+             host ride the right edge like Schedule's action bar. -->
         <div class="rr-ab" id="rr-fleet-ab">
           <button type="button" class="rr-ab-btn rr-ab-emph" id="rr-fleet-add" aria-label="Add van" title="Add van">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span>Add van</span>
           </button>
-          <button type="button" class="rr-ab-btn" id="rr-fl-print-btn" aria-label="Print the active view" title="Print the active view">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            <span>Print</span>
-          </button>
-          <button type="button" class="rr-ab-btn" id="rr-fl-download-btn" aria-label="Download as a spreadsheet" title="Download the active view as CSV">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>Download Excel</span>
-          </button>
+          <!-- Print / Download Excel retired outright (operator
+               2026-07-04). Proof of Use keeps its own in-modal print +
+               CSV download, which still render through
+               #rr-fleet-print-area below. -->
           <button type="button" class="rr-ab-btn" id="rr-fl-proof-btn" aria-label="Proof of Use report" title="Generate a DVIC proof-of-use report for a van">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/><polyline points="9 9 11 9"/></svg>
             <span>Proof of Use</span>
@@ -71,6 +66,11 @@
             <span class="fl-ab-coverage-main"><span class="fl-ab-cov-num" id="rr-fleet-cov-num">—</span><span class="fl-ab-cov-unit">vans</span></span>
             <span class="fl-ab-coverage-sub is-ok" id="rr-fleet-page-sub"></span>
           </div>
+          <!-- Shared-chrome host · the global bell parks here while Fleet
+               is active (_rrMoveChromeToFleet), and the app launcher
+               auto-docks just left of the bell — the exact top-right
+               arrangement the Schedule action bar has. -->
+          <span class="fl-ab-chrome-host" id="rr-fleet-chrome-host"></span>
         </div>
 
         <!-- Print mount · receives a clone of the active sub-view when
