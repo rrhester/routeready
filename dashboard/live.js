@@ -74875,6 +74875,8 @@ function openDrive(opts) {
   loadDriveView(opts || {});
 }
 window.openDrive = openDrive;
+// Inline mount path (Workbooks page's Vault tab): load data without goto.
+window.loadDriveView = loadDriveView;
 
 async function loadDriveView(opts) {
   opts = opts || {};
