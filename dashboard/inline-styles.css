@@ -29123,16 +29123,16 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-reports-surface .rb-live-opt strong{color:var(--text)}
 
 /* ── Workbooks page strip — schedule-style chrome (tabs + actions).
-   Matches the schedule tab bar: soft gray container, icon+label tabs,
-   the active tab lifts to a white tile with a soft accent underline. ── */
-#view-workbooks .rr-wb-strip{display:flex;align-items:stretch;gap:var(--s-4);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:0 10px;margin-bottom:var(--s-5);min-height:46px}
-#view-workbooks .rr-wb-strip .subnav{flex:1;width:auto;border-bottom:0;margin-bottom:0;gap:4px;padding:5px 0 0;align-items:stretch}
-#view-workbooks .rr-wb-strip .subnav-item{display:inline-flex;align-items:center;gap:9px;padding:0 20px;border-radius:var(--r-sm) var(--r-sm) 0 0;color:var(--text-muted);font-weight:500}
-#view-workbooks .rr-wb-strip .subnav-item svg{flex:0 0 auto;opacity:.8}
+   Soft gray bar, icon+label tabs — no box on the selected tab; the
+   selection is the pale blue bar under it (matches the schedule bar). ── */
+#view-workbooks .rr-wb-strip{display:flex;align-items:stretch;gap:var(--s-4);background:var(--canvas);border-radius:var(--r-md);padding:0 10px;margin-bottom:var(--s-5);min-height:46px}
+#view-workbooks .rr-wb-strip .subnav{flex:1;width:auto;border-bottom:0;margin-bottom:0;gap:4px;padding:0;align-items:stretch}
+#view-workbooks .rr-wb-strip .subnav-item{display:inline-flex;align-items:center;gap:9px;padding:0 20px;border-radius:0;color:var(--text-muted);font-weight:500;background:transparent}
+#view-workbooks .rr-wb-strip .subnav-item svg{flex:0 0 auto;width:16px;height:16px;opacity:.8}
 #view-workbooks .rr-wb-strip .subnav-item:hover{color:var(--text);background:rgba(15,23,42,.04)}
-#view-workbooks .rr-wb-strip .subnav-item.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 0 0 1px var(--border)}
+#view-workbooks .rr-wb-strip .subnav-item.active{background:transparent;color:var(--text);font-weight:600;box-shadow:none}
 #view-workbooks .rr-wb-strip .subnav-item.active svg{opacity:1}
-#view-workbooks .rr-wb-strip .subnav-item.active::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(37,99,235,.35);border-radius:0}
+#view-workbooks .rr-wb-strip .subnav-item.active::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(56,189,248,.55);border-radius:2px 2px 0 0}
 #view-workbooks .rr-wb-strip-actions{display:flex;align-items:center;gap:8px;padding:8px 0}
 .rr-reports-surface{display:flex;flex-direction:column;min-height:calc(100vh - 240px);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
 .rr-reports-surface .rb-foot{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border)}
