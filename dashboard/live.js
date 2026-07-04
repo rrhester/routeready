@@ -42876,7 +42876,7 @@ async function _paintFleetProviders() {
     const { data, error } = await sb.rpc("fleet_calendar_providers");
     if (error) throw error;
     _fleetCalProviders = Array.isArray(data) ? data : [];
-    _fcImportProvidersIntoContacts();
+    _fcPurgeImportedProviderContacts();
   } catch (e) {
     console.warn("fleet calendar providers load:", e);
   }
@@ -42884,40 +42884,37 @@ async function _paintFleetProviders() {
 }
 window._paintFleetProviders = _paintFleetProviders;
 
-// One-time convenience import · providers the operator added before the
-// Contacts switch become contacts (matched by name, case-insensitive),
-// so nothing vanishes from the dock. Address/notes stay on the vendor
-// row; points of contact carry over. The done-flag persists per
-// device+DSP (same namespace as the contacts store) and deliberately
-// deleted contact names are tombstoned (see the delete handler), so a
-// deleted contact can never be resurrected by a later calendar paint.
-function _fcImportProvidersIntoContacts() {
-  if (!_fleetCalProviders.length) return;
-  let done = "";
-  try { done = localStorage.getItem(_rrNtKey("fc-prov-imported")) || ""; } catch (_) {}
-  if (done === "1") return;
-  try { localStorage.setItem(_rrNtKey("fc-prov-imported"), "1"); } catch (_) {}
+// Contacts are exclusively operator-created: legacy service providers
+// are NOT auto-imported (operator 2026-07-04 — "I still see the old
+// contacts"). Devices where the retired one-shot import already ran
+// get a one-time cleanup: any contact that (a) name-matches an active
+// vendor and (b) still looks exactly like the untouched import
+// artifact (no company/title/notes/extra fields; phone + email equal
+// to the vendor row's) is removed. Anything the operator created or
+// edited never matches and is kept.
+function _fcPurgeImportedProviderContacts() {
+  let imported = "";
+  try { imported = localStorage.getItem(_rrNtKey("fc-prov-imported")) || ""; } catch (_) {}
+  if (imported !== "1") return;           // the import never ran here
+  let purged = "";
+  try { purged = localStorage.getItem(_rrNtKey("fc-prov-import-purged")) || ""; } catch (_) {}
+  if (purged === "1") return;
+  try { localStorage.setItem(_rrNtKey("fc-prov-import-purged"), "1"); } catch (_) {}
   try {
+    const byName = new Map(_fleetCalProviders.map(v => [(v.name || "").trim().toLowerCase(), v]));
     const contacts = _rrLoadContacts();
-    const gone = new Set(_rrNtLoad("contact-tombstones"));
-    const have = new Set(contacts.map(c => (c.name || "").trim().toLowerCase()).filter(Boolean));
-    let added = 0;
-    for (const v of _fleetCalProviders) {
-      const nm = (v.name || "").trim();
-      if (!nm || have.has(nm.toLowerCase()) || gone.has(nm.toLowerCase())) continue;
-      contacts.push({
-        id: _rrNtId("c"),
-        name: nm,
-        company: "",
-        phone: v.phone || "",
-        email: v.email || "",
-        pocs: (Array.isArray(v.contacts) ? v.contacts : []).map(p => ({ name: p.name || "", role: p.role || "", phone: p.phone || "" })),
-        ts: Date.now(),
-      });
-      have.add(nm.toLowerCase());
-      added++;
-    }
-    if (added) { _rrSaveContacts(contacts); _rrRenderContacts(); }
+    const keep = contacts.filter((raw) => {
+      const v = byName.get((raw.name || "").trim().toLowerCase());
+      if (!v) return true;
+      const c = _rrCtpNorm(raw);
+      const untouched =
+        !c.first && !c.last && !c.company && !c.title && !c.notes &&
+        !c.addresses.length && !c.dates.length && !c.sites.length && !c.customs.length &&
+        c.phones.join("|") === (v.phone ? String(v.phone) : "") &&
+        c.emails.join("|") === (v.email ? String(v.email) : "");
+      return !untouched;
+    });
+    if (keep.length !== contacts.length) { _rrSaveContacts(keep); _rrRenderContacts(); }
   } catch (_) { /* best-effort */ }
 }
 
