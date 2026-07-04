@@ -29041,3 +29041,4 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-block-primary > .wb-block-body{padding:var(--s-1) 0 0}
 #view-workbooks .wb-block-primary .wb-toolbar{background:var(--surface);border:1px solid var(--border);border-bottom:0;border-radius:var(--r-md) var(--r-md) 0 0;padding:5px 8px;margin-bottom:0}
 #view-workbooks .wb-block-primary .wb-fbar{border-radius:0}
+#view-workbooks .wb-tb-sigma{font-size:14px;font-weight:650;line-height:1}
