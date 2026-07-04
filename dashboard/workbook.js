@@ -1556,6 +1556,49 @@ let REPORT_PROVIDER = null;
 
 export function registerReportProvider(fn) { REPORT_PROVIDER = fn; }
 
+// ─── Reports screen ──────────────────────────────────────────────────────────
+// The strip's Reports tab swaps the Workbooks list for a full Reports page
+// rendered by reports.js (registered by live.js — same DI pattern as the
+// data provider, so this module never imports reports.js).
+
+let REPORTS_RENDERER = null;
+let PENDING_SCREEN = null;
+
+export function registerReportsScreen(fn) { REPORTS_RENDERER = fn; }
+
+// App-launcher entry: navigate to the Workbooks view with the Reports
+// screen up (used by the Reports button in the right-side launcher).
+export function openReportsScreen() {
+  PENDING_SCREEN = "reports";
+  if (typeof window.goto === "function") window.goto("workbooks");
+}
+
+function syncWbTabs(screen) {
+  const cmd = document.getElementById("rr-wb-cmd");
+  if (!cmd) return;
+  cmd.querySelectorAll("[data-wb-tab]").forEach((b) => {
+    const on = b.getAttribute("data-wb-tab") === screen;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+}
+
+function renderReportsPage() {
+  const root = wbRoot();
+  if (!root) return;
+  closeRealtime();
+  WB.view = "reports";
+  const cmd = document.getElementById("rr-wb-cmd");
+  if (cmd) cmd.style.display = "";
+  syncWbTabs("reports");
+  if (!REPORTS_RENDERER) {
+    root.innerHTML = wbErrorHtml("Reports aren't available", "Reload the page and try again.");
+    return;
+  }
+  root.innerHTML = "";
+  REPORTS_RENDERER(root);
+}
+
 async function refreshLiveReports() {
   if (!REPORT_PROVIDER || !WB.canEdit || !WB.wb) return;
   const openedId = WB.wb.id;
@@ -1914,6 +1957,7 @@ async function renderListPage() {
   WB.view = "list";
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "";
+  syncWbTabs("workbooks");
   try {
     await Promise.all([fetchWorkbooksList(), fetchUsers()]);
   } catch (e) {
@@ -6303,14 +6347,12 @@ function installRootListeners() {
     }
     if (!root.contains(e.target) && !e.target.closest("#wb-panel") && !e.target.closest("#rr-wb-cmd")) return;
 
-    // strip tabs (schedule-style chrome): Workbooks shows the list,
-    // Reports launches the Reports Builder
+    // strip tabs (schedule-style chrome): each tab is its own screen
     const stripTab = e.target.closest("#rr-wb-cmd [data-wb-tab]");
     if (stripTab) {
       const t = stripTab.getAttribute("data-wb-tab");
       if (t === "reports") {
-        if (typeof window.openReportsBuilder === "function") window.openReportsBuilder();
-        else _toast("Reports are coming soon", "info");
+        if (WB.view !== "reports") renderReportsPage();
       } else if (WB.view !== "list") {
         WB.wb = null;
         renderListPage();
@@ -6520,6 +6562,11 @@ export async function loadWorkbooksView() {
     const id = PENDING_OPEN_ID;
     PENDING_OPEN_ID = null;
     await openWorkbook(id);
+    return;
+  }
+  if (PENDING_SCREEN === "reports" || WB.view === "reports") {
+    PENDING_SCREEN = null;
+    renderReportsPage();
     return;
   }
   if (WB.view === "detail" && WB.wb) {

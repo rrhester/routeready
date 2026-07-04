@@ -29081,51 +29081,58 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-cf-none{margin:8px 0 0;font-size:var(--fs-xs);color:var(--text-subtle)}
 
 /* ── Reports Builder modal ── */
-#rr-reports-modal .rr-modal-panel.rb-panel{width:90vw;max-width:1480px;height:85vh;max-height:85vh}
-#rr-reports-modal .rb-body{flex:1;display:flex;min-height:0;border-top:1px solid var(--border)}
-#rr-reports-modal .rb-cats{flex:0 0 190px;display:flex;flex-direction:column;gap:2px;padding:12px 10px;border-right:1px solid var(--border);overflow-y:auto}
-#rr-reports-modal .rb-cat{display:flex;align-items:center;gap:8px;padding:7px 10px;border:0;background:none;border-radius:var(--r-md);font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);text-align:left;cursor:pointer}
-#rr-reports-modal .rb-cat:hover:not(:disabled){background:var(--canvas)}
-#rr-reports-modal .rb-cat.is-active{background:rgba(37,99,235,.08);color:var(--accent-text);font-weight:600}
-#rr-reports-modal .rb-cat:disabled{color:var(--text-subtle);cursor:default;opacity:.75}
-#rr-reports-modal .rb-soon{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--text-subtle);border:1px solid var(--border);border-radius:999px;padding:1px 7px}
-#rr-reports-modal .rb-main{flex:0 0 360px;padding:14px 16px;border-right:1px solid var(--border);overflow-y:auto}
-#rr-reports-modal .rb-main-head{margin:0 0 10px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
-#rr-reports-modal .rb-main-sub{margin:-6px 0 12px;font-size:var(--fs-xs);color:var(--text-subtle)}
-#rr-reports-modal .rb-card{padding:10px 12px;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:border-color .12s,background .12s}
-#rr-reports-modal .rb-card:hover{border-color:var(--border-strong);background:var(--canvas)}
-#rr-reports-modal .rb-card.is-active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-#rr-reports-modal .rb-card-title{margin:0;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
-#rr-reports-modal .rb-card-desc{margin:2px 0 0;font-size:var(--fs-xs);color:var(--text-muted)}
-#rr-reports-modal .rb-card-fields{margin:6px 0 0;font-size:11px;color:var(--text-subtle)}
-#rr-reports-modal .rb-card-actions{display:flex;gap:6px;margin-top:8px}
-#rr-reports-modal .rb-back{background:none;border:0;padding:0;margin:0 0 10px;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);cursor:pointer}
-#rr-reports-modal .rb-fields{display:flex;flex-direction:column;gap:6px}
-#rr-reports-modal .rb-field-check{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);cursor:pointer;user-select:none}
-#rr-reports-modal .rb-preview{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px;overflow:hidden}
-#rr-reports-modal .rb-preview-blank{margin:auto;font-size:var(--fs-sm);color:var(--text-subtle)}
-#rr-reports-modal .rb-preview-title{margin:0;font-size:var(--fs-md);font-weight:600;color:var(--text)}
-#rr-reports-modal .rb-preview-sub{margin:2px 0 10px;font-size:var(--fs-xs);color:var(--text-subtle)}
-#rr-reports-modal .rb-table-wrap{flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:var(--r-md)}
-#rr-reports-modal .rb-table{border-collapse:collapse;width:100%;font-size:var(--fs-xs)}
-#rr-reports-modal .rb-table th{position:sticky;top:0;background:var(--canvas);text-align:left;font-weight:600;color:var(--text-muted);padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
-#rr-reports-modal .rb-table td{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap}
-#rr-reports-modal .rb-table tbody tr:last-child td{border-bottom:0}
-#rr-reports-modal .rb-state{margin:auto;display:flex;align-items:center;gap:10px;font-size:var(--fs-sm);color:var(--text-subtle)}
-#rr-reports-modal .rb-state.is-error{color:var(--text-muted)}
-#rr-reports-modal .rb-spinner{width:14px;height:14px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;animation:rb-spin .7s linear infinite}
+.rr-reports-surface .rb-body{flex:1;display:flex;min-height:0}
+.rr-reports-surface .rb-cats{flex:0 0 190px;display:flex;flex-direction:column;gap:2px;padding:12px 10px;border-right:1px solid var(--border);overflow-y:auto}
+.rr-reports-surface .rb-cat{display:flex;align-items:center;gap:8px;padding:7px 10px;border:0;background:none;border-radius:var(--r-md);font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);text-align:left;cursor:pointer}
+.rr-reports-surface .rb-cat:hover:not(:disabled){background:var(--canvas)}
+.rr-reports-surface .rb-cat.is-active{background:rgba(37,99,235,.08);color:var(--accent-text);font-weight:600}
+.rr-reports-surface .rb-cat:disabled{color:var(--text-subtle);cursor:default;opacity:.75}
+.rr-reports-surface .rb-soon{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--text-subtle);border:1px solid var(--border);border-radius:999px;padding:1px 7px}
+.rr-reports-surface .rb-main{flex:0 0 360px;padding:14px 16px;border-right:1px solid var(--border);overflow-y:auto}
+.rr-reports-surface .rb-main-head{margin:0 0 10px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
+.rr-reports-surface .rb-main-sub{margin:-6px 0 12px;font-size:var(--fs-xs);color:var(--text-subtle)}
+.rr-reports-surface .rb-card{padding:10px 12px;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;transition:border-color .12s,background .12s}
+.rr-reports-surface .rb-card:hover{border-color:var(--border-strong);background:var(--canvas)}
+.rr-reports-surface .rb-card.is-active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.rr-reports-surface .rb-card-title{margin:0;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+.rr-reports-surface .rb-card-desc{margin:2px 0 0;font-size:var(--fs-xs);color:var(--text-muted)}
+.rr-reports-surface .rb-card-fields{margin:6px 0 0;font-size:11px;color:var(--text-subtle)}
+.rr-reports-surface .rb-card-actions{display:flex;gap:6px;margin-top:8px}
+.rr-reports-surface .rb-back{background:none;border:0;padding:0;margin:0 0 10px;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);cursor:pointer}
+.rr-reports-surface .rb-fields{display:flex;flex-direction:column;gap:6px}
+.rr-reports-surface .rb-field-check{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);cursor:pointer;user-select:none}
+.rr-reports-surface .rb-preview{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px;overflow:hidden}
+.rr-reports-surface .rb-preview-blank{margin:auto;font-size:var(--fs-sm);color:var(--text-subtle)}
+.rr-reports-surface .rb-preview-title{margin:0;font-size:var(--fs-md);font-weight:600;color:var(--text)}
+.rr-reports-surface .rb-preview-sub{margin:2px 0 10px;font-size:var(--fs-xs);color:var(--text-subtle)}
+.rr-reports-surface .rb-table-wrap{flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:var(--r-md)}
+.rr-reports-surface .rb-table{border-collapse:collapse;width:100%;font-size:var(--fs-xs)}
+.rr-reports-surface .rb-table th{position:sticky;top:0;background:var(--canvas);text-align:left;font-weight:600;color:var(--text-muted);padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+.rr-reports-surface .rb-table td{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap}
+.rr-reports-surface .rb-table tbody tr:last-child td{border-bottom:0}
+.rr-reports-surface .rb-state{margin:auto;display:flex;align-items:center;gap:10px;font-size:var(--fs-sm);color:var(--text-subtle)}
+.rr-reports-surface .rb-state.is-error{color:var(--text-muted)}
+.rr-reports-surface .rb-spinner{width:14px;height:14px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;animation:rb-spin .7s linear infinite}
 @keyframes rb-spin{to{transform:rotate(360deg)}}
-#rr-reports-modal .rb-foot{display:flex;align-items:center;gap:8px}
-#rr-reports-modal .rb-foot-spacer{flex:1}
-#rr-reports-modal .rb-live-head{margin-top:16px}
-#rr-reports-modal .rb-live-opts{display:flex;flex-direction:column;gap:8px}
-#rr-reports-modal .rb-live-opt{display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer}
-#rr-reports-modal .rb-live-opt input{margin-top:2px}
-#rr-reports-modal .rb-live-opt strong{color:var(--text)}
+.rr-reports-surface .rb-foot{display:flex;align-items:center;gap:8px}
+.rr-reports-surface .rb-foot-spacer{flex:1}
+.rr-reports-surface .rb-live-head{margin-top:16px}
+.rr-reports-surface .rb-live-opts{display:flex;flex-direction:column;gap:8px}
+.rr-reports-surface .rb-live-opt{display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer}
+.rr-reports-surface .rb-live-opt input{margin-top:2px}
+.rr-reports-surface .rb-live-opt strong{color:var(--text)}
 
-/* ── Workbooks page strip — schedule-style chrome (tabs + actions) ── */
-#view-workbooks .rr-wb-strip{display:flex;align-items:stretch;gap:var(--s-4);border-bottom:1px solid var(--border);margin-bottom:var(--s-5)}
-#view-workbooks .rr-wb-strip .subnav{flex:1;width:auto;border-bottom:0;margin-bottom:0}
-#view-workbooks .rr-wb-strip .subnav-item{display:inline-flex;align-items:center;gap:8px}
-#view-workbooks .rr-wb-strip .subnav-item svg{flex:0 0 auto;opacity:.85}
+/* ── Workbooks page strip — schedule-style chrome (tabs + actions).
+   Matches the schedule tab bar: soft gray container, icon+label tabs,
+   the active tab lifts to a white tile with a soft accent underline. ── */
+#view-workbooks .rr-wb-strip{display:flex;align-items:stretch;gap:var(--s-4);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:0 10px;margin-bottom:var(--s-5);min-height:46px}
+#view-workbooks .rr-wb-strip .subnav{flex:1;width:auto;border-bottom:0;margin-bottom:0;gap:4px;padding:5px 0 0;align-items:stretch}
+#view-workbooks .rr-wb-strip .subnav-item{display:inline-flex;align-items:center;gap:9px;padding:0 20px;border-radius:var(--r-sm) var(--r-sm) 0 0;color:var(--text-muted);font-weight:500}
+#view-workbooks .rr-wb-strip .subnav-item svg{flex:0 0 auto;opacity:.8}
+#view-workbooks .rr-wb-strip .subnav-item:hover{color:var(--text);background:rgba(15,23,42,.04)}
+#view-workbooks .rr-wb-strip .subnav-item.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 0 0 1px var(--border)}
+#view-workbooks .rr-wb-strip .subnav-item.active svg{opacity:1}
+#view-workbooks .rr-wb-strip .subnav-item.active::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(37,99,235,.35);border-radius:0}
 #view-workbooks .rr-wb-strip-actions{display:flex;align-items:center;gap:8px;padding:8px 0}
+.rr-reports-surface{display:flex;flex-direction:column;min-height:calc(100vh - 240px);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
+.rr-reports-surface .rb-foot{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border)}

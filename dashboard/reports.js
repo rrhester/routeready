@@ -2,14 +2,14 @@
 //
 // Self-contained ES module (same pattern as workbook.js): live.js imports it,
 // injects the workbook-creation dependency via initReportsBuilder(), and
-// exposes openReportsBuilder() on window for the app-launcher button.
+// registers renderReportsInto() as the Workbooks view's Reports screen.
 //
 // Architecture: three separated layers so future categories (Fleet, Schedule,
 // Attendance, Hiring, Compliance) plug in without UI rewrites —
 //   1. RB_FIELDS      · field key → column label + mapper over an enriched row
 //   2. RB_REPORTS     · report definitions (id, category, title, fields, …)
 //   3. fetchPeopleData· one dsp-scoped data pull per category, cached per open
-// The modal renders whatever the configs describe; "Open in Workbook",
+// The screen renders whatever the configs describe; "Open in Workbook",
 // CSV, and Print all consume the same {headers, rows} matrix.
 
 function _sb() { return (window.RR && window.RR.sb) || window.sb || null; }
@@ -226,26 +226,20 @@ function toCsv(headers, rows) {
   return [headers, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
 }
 
-// ─── Modal ───────────────────────────────────────────────────────────────────
+// ─── Reports screen ──────────────────────────────────────────────────────────
+// Rendered as a full page inside the Workbooks view (the strip's Reports
+// tab), not a modal. workbook.js mounts it via registerReportsScreen.
 
-export function openReportsBuilder() {
-  if (!_sb() || !_dsp()) { _toast("Sign in to build reports", "warn"); return; }
-  document.getElementById("rr-reports-modal")?.remove();
-  RB.report = null;
-  RB.data = null; // fresh data each open — reports reflect the roster now
+export function renderReportsInto(container) {
+  if (!_sb() || !_dsp()) {
+    container.innerHTML = `<div class="rr-empty"><div class="rr-empty-title">Sign in to build reports</div></div>`;
+    return;
+  }
+  RB.report = RB_REPORTS[0];
+  RB.data = null; // fresh data each visit — reports reflect the roster now
 
-  const wrap = document.createElement("div");
-  wrap.className = "rr-modal-backdrop";
-  wrap.id = "rr-reports-modal";
-  wrap.innerHTML = `
-    <div class="rr-modal-panel rb-panel" role="dialog" aria-modal="true" aria-label="Reports Builder">
-      <div class="rr-modal-head">
-        <div class="rr-modal-head-content">
-          <p class="rr-modal-title">Reports Builder</p>
-          <p class="rr-modal-sub">Create operational reports from RouteReady data. People, fleet, schedule, attendance, hiring, and compliance reports.</p>
-        </div>
-        <button class="rr-modal-close" type="button" data-rb-close aria-label="Close">×</button>
-      </div>
+  container.innerHTML = `
+    <div class="rr-reports-surface" data-rb-root>
       <div class="rb-body">
         <nav class="rb-cats" aria-label="Report categories">
           ${RB_CATEGORIES.map((c) => `
@@ -255,26 +249,23 @@ export function openReportsBuilder() {
         </nav>
         <div class="rb-main" data-rb-main></div>
         <div class="rb-preview" data-rb-preview>
-          <div class="rb-preview-blank">Select a report to preview it here.</div>
+          <div class="rb-preview-blank">Pick fields to preview the report.</div>
         </div>
       </div>
-      <div class="rr-modal-foot rb-foot">
-        <button class="rr-modal-btn" type="button" data-rb-close>Cancel</button>
+      <div class="rb-foot">
         <span class="rb-foot-spacer"></span>
-        <button class="rr-modal-btn" type="button" data-rb-act="csv" disabled>Download CSV</button>
-        <button class="rr-modal-btn" type="button" data-rb-act="print" disabled>Print</button>
-        <button class="rr-modal-btn primary" type="button" data-rb-act="workbook" disabled>Open in Workbook</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-rb-act="csv" disabled>Download CSV</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-rb-act="print" disabled>Print</button>
+        <button class="btn btn-primary btn-sm" type="button" data-rb-act="workbook" disabled>Open in Workbook</button>
       </div>
     </div>`;
-  document.body.appendChild(wrap);
+  const wrap = container.querySelector("[data-rb-root]");
 
   const els = {
     main: wrap.querySelector("[data-rb-main]"),
     preview: wrap.querySelector("[data-rb-preview]"),
     foot: { csv: wrap.querySelector('[data-rb-act="csv"]'), print: wrap.querySelector('[data-rb-act="print"]'), workbook: wrap.querySelector('[data-rb-act="workbook"]') },
   };
-
-  const close = () => wrap.remove();
 
   const footState = () => {
     const ready = !!RB.report && reportFields(RB.report).length > 0;
@@ -321,23 +312,23 @@ export function openReportsBuilder() {
     try { people = await fetchPeopleData(retry === true); }
     catch (e) {
       console.warn("reports data:", e && e.message);
-      if (RB.report !== report) return;
+      if (RB.report !== report || !wrap.isConnected) return;
       RB.loading = null;
       els.preview.innerHTML = `<div class="rb-state is-error">Unable to load report data.<button type="button" class="btn btn-ghost btn-sm" data-rb-retry>Retry</button></div>`;
       footState();
       return;
     }
-    if (RB.report !== report) return; // selection changed while loading
+    if (RB.report !== report || !wrap.isConnected) return; // navigated away while loading
     if (!people.length) {
       els.preview.innerHTML = `<div class="rb-state">No people records found.</div>`;
       footState();
       return;
     }
     const { headers, rows } = buildMatrix(report, people);
-    const shown = rows.slice(0, 12);
+    const shown = rows.slice(0, 25);
     els.preview.innerHTML = `
       <p class="rb-preview-title">${esc(report.title)}</p>
-      <p class="rb-preview-sub">${rows.length} ${rows.length === 1 ? "person" : "people"} · showing first ${shown.length}</p>
+      <p class="rb-preview-sub">${rows.length} ${rows.length === 1 ? "person" : "people"}${rows.length > shown.length ? ` · showing first ${shown.length}` : ""}</p>
       <div class="rb-table-wrap">
         <table class="rb-table">
           <thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
@@ -364,7 +355,7 @@ export function openReportsBuilder() {
   const doCsv = async () => {
     try {
       const { headers, rows } = await currentMatrix();
-      const blob = new Blob(["﻿" + toCsv(headers, rows)], { type: "text/csv;charset=utf-8" });
+      const blob = new Blob(["\ufeff" + toCsv(headers, rows)], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = RB.report.title.replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() + ".csv";
@@ -409,7 +400,6 @@ export function openReportsBuilder() {
         rows,
         report: { source: "people", fields: reportFields(RB.report), live: RB.live },
       });
-      close();
       _toast(`Opening “${title}” in Workbooks${RB.live ? " — it refreshes on every open" : ""}`, "success");
     } catch (e) {
       console.warn("report → workbook:", e && e.message);
@@ -419,7 +409,6 @@ export function openReportsBuilder() {
     }
   };
 
-  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
   wrap.addEventListener("change", (e) => {
     const live = e.target.closest("[data-rb-live]");
     if (live) { RB.live = live.getAttribute("data-rb-live") === "1"; return; }
@@ -430,8 +419,7 @@ export function openReportsBuilder() {
     footState();
     renderPreview();
   });
-  wrap.addEventListener("click", async (e) => {
-    if (e.target === wrap || e.target.closest("[data-rb-close]")) { close(); return; }
+  wrap.addEventListener("click", (e) => {
     if (e.target.closest("[data-rb-retry]")) { renderPreview(true); return; }
     const act = e.target.closest("[data-rb-act]");
     if (act && !act.disabled) {
@@ -442,6 +430,5 @@ export function openReportsBuilder() {
     }
   });
 
-  selectReport("custom-people"); // the builder lands straight on the field picker
-  setTimeout(() => wrap.querySelector("[data-rb-close]")?.focus(), 30);
+  selectReport("custom-people"); // the screen lands straight on the field picker
 }
