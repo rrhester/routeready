@@ -3046,11 +3046,40 @@
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               <span>Create contact</span>
             </button>
+            <!-- Google-Contacts-style editor: name + company/title
+                 static fields, then repeatable sections (emails,
+                 phones, addresses, significant dates, websites,
+                 custom fields — rows built in live.js), points of
+                 contact, and notes. -->
             <div class="ctp-form" data-rr-contact-form hidden>
-              <input type="text" class="ctp-input" data-rr-contact-name placeholder="Name" aria-label="Name" maxlength="80" autocomplete="off">
-              <input type="text" class="ctp-input" data-rr-contact-company placeholder="Company · role" aria-label="Company or role" maxlength="80" autocomplete="off">
-              <input type="text" class="ctp-input" data-rr-contact-phone placeholder="Phone" aria-label="Phone" maxlength="30" inputmode="tel" autocomplete="off">
-              <input type="text" class="ctp-input" data-rr-contact-email placeholder="Email" aria-label="Email" maxlength="120" inputmode="email" autocomplete="off">
+              <input type="text" class="ctp-input" data-rr-contact-first placeholder="First name" aria-label="First name" maxlength="60" autocomplete="off">
+              <input type="text" class="ctp-input" data-rr-contact-last placeholder="Last name" aria-label="Last name" maxlength="60" autocomplete="off">
+              <input type="text" class="ctp-input" data-rr-contact-company placeholder="Company" aria-label="Company" maxlength="80" autocomplete="off">
+              <input type="text" class="ctp-input" data-rr-contact-title placeholder="Job title" aria-label="Job title" maxlength="80" autocomplete="off">
+              <div class="ctp-multi" data-rr-contact-emails></div>
+              <div class="ctp-multi" data-rr-contact-phones></div>
+              <div class="ctp-multi" data-rr-contact-addresses></div>
+              <div class="ctp-multi" data-rr-contact-dates></div>
+              <div class="ctp-multi" data-rr-contact-sites></div>
+              <div class="ctp-multi" data-rr-contact-customs></div>
+              <div class="ctp-addrow" role="group" aria-label="Add contact fields">
+                <button type="button" class="ctp-addbtn" data-rr-contact-add-row="email">+ Email</button>
+                <button type="button" class="ctp-addbtn" data-rr-contact-add-row="phone">+ Phone</button>
+                <button type="button" class="ctp-addbtn" data-rr-contact-add-row="address">+ Address</button>
+                <button type="button" class="ctp-addbtn" data-rr-contact-add-row="date">+ Significant date</button>
+                <button type="button" class="ctp-addbtn" data-rr-contact-add-row="site">+ Website</button>
+                <button type="button" class="ctp-addbtn" data-rr-contact-add-row="custom">+ Custom field</button>
+              </div>
+              <!-- Points of contact · people at this business (name /
+                   role / phone), repeatable rows built in live.js. -->
+              <div class="ctp-pocs">
+                <div class="ctp-pocs-head">
+                  <span>Points of contact</span>
+                  <button type="button" class="ctp-poc-add" data-rr-contact-poc-add>+ Add</button>
+                </div>
+                <div class="ctp-pocs-list" data-rr-contact-pocs></div>
+              </div>
+              <textarea class="ctp-input ctp-notes" data-rr-contact-notes placeholder="Notes" aria-label="Notes" rows="2" maxlength="500"></textarea>
               <div class="ctp-form-foot">
                 <button type="button" class="ctp-btn" data-rr-contact-cancel>Cancel</button>
                 <button type="button" class="ctp-btn ctp-btn-primary" data-rr-contact-save>Save</button>

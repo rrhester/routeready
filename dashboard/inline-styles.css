@@ -21480,6 +21480,17 @@ body.rr-cmdk-open{ overflow:hidden }
         }
         #view-fleet2 .rr-ab-btn.rr-ab-emph > svg:first-child { color: #2563EB; }
         #view-fleet2 .rr-ab-btn.rr-ab-emph:hover { background: #EFF6FF; }
+        /* Shared-chrome host · the global bell (and the app launcher,
+           which auto-docks just left of any visible bell) park here
+           while Fleet is active, mirroring their seat at the right
+           edge of Schedule's action bar. */
+        #view-fleet2 .fl-ab-chrome-host {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        #view-fleet2 .fl-ab-chrome-host:empty { display: none; }
+
         /* Fleet status stat (painted by _flPaintTabCounts) — rides the
            action bar's right edge as a compact floating stat card,
            the exact twin of Schedule's coverage card (.rr-ab-coverage
