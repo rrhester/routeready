@@ -1433,12 +1433,12 @@ async function openWorkbook(id) {
 
 // ─── Create / template apply ────────────────────────────────────────────────
 
-async function createWorkbook({ title, description, visibility, templateKey }) {
+async function createWorkbook({ title, description, visibility, templateKey, spec: givenSpec }) {
   const s = _sb();
   const self = _me();
   const dsp = _dsp();
   const tpl = templateKey ? WB_TEMPLATES.find((t) => t.key === templateKey) : null;
-  const spec = tpl ? tpl.build() : null;
+  const spec = givenSpec || (tpl ? tpl.build() : null);
   const row = {
     dsp_id: dsp.id,
     owner_user_id: self ? self.id : null,
@@ -1511,6 +1511,35 @@ async function createWorkbook({ title, description, visibility, templateKey }) {
   await wbLog("workbook.created", tpl ? `created this workbook from the “${tpl.name}” template` : "created this workbook", { target_type: "workbook", target_id: wb.id });
   if (tpl) await wbLog("template.applied", `applied the “${tpl.name}” template`, { target_type: "workbook", target_id: wb.id });
   return wb;
+}
+
+// ─── Report → workbook bridge ────────────────────────────────────────────────
+// The Reports Builder (reports.js) hands us a {headers, rows} matrix; we
+// materialize it as a normal workbook through createWorkbook's spec path so
+// the result is indistinguishable from a hand-built sheet. The new workbook
+// opens on the next loadWorkbooksView pass (queued so navigation and render
+// can't race).
+
+let PENDING_OPEN_ID = null;
+
+export async function createReportWorkbook({ title, description, headers, rows, sheetName }) {
+  const wb = await createWorkbook({
+    title,
+    description,
+    visibility: "org",
+    spec: {
+      title,
+      description,
+      blocks: [{
+        type: "sheet",
+        title: "",
+        sheets: [{ name: String(sheetName || title || "Report").slice(0, 60), cols: headers, rows }],
+      }],
+    },
+  });
+  PENDING_OPEN_ID = wb.id;
+  if (typeof window.goto === "function") window.goto("workbooks");
+  return wb.id;
 }
 
 // ─── Realtime + presence ─────────────────────────────────────────────────────
@@ -6412,6 +6441,12 @@ export async function loadWorkbooksView() {
   }
   installRootListeners();
   wrapGoto();
+  if (PENDING_OPEN_ID) {
+    const id = PENDING_OPEN_ID;
+    PENDING_OPEN_ID = null;
+    await openWorkbook(id);
+    return;
+  }
   if (WB.view === "detail" && WB.wb) {
     // returning to the view with a workbook open → re-render in place
     renderDetailPage();
