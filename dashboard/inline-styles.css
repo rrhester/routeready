@@ -29014,3 +29014,30 @@ body.rr-cmdk-open{ overflow:hidden }
   #view-workbooks .wb-body{flex-direction:column}
   #view-workbooks .wb-panel{flex:1 1 auto;width:100%;max-width:none;position:static;max-height:420px}
 }
+
+/* ── Operations Workbook · Excel-grade formula UX (2026-07-04) ──────── */
+/* Name box is an input now: type a ref (C14) + Enter to jump. */
+#view-workbooks input.wb-fbar-ref{width:64px;flex:0 0 64px;outline:none;cursor:text}
+#view-workbooks input.wb-fbar-ref:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);color:var(--text)}
+/* drag-fill handle + preview */
+#view-workbooks .wb-fill-handle{position:absolute;width:9px;height:9px;background:var(--accent);border:1.5px solid var(--surface);border-radius:2px;pointer-events:auto;cursor:crosshair;z-index:3;box-sizing:border-box}
+#view-workbooks .wb-fill-preview{position:absolute;border:1.5px dashed var(--accent);background:var(--accent-soft);opacity:.5;pointer-events:none;box-sizing:border-box}
+/* colored highlights for cells referenced by the formula being edited */
+#view-workbooks .wb-gr-refhl{position:absolute;inset:0;pointer-events:none;z-index:1}
+#view-workbooks .wb-ref-hl{position:absolute;border:1.5px dashed;border-radius:1px;box-sizing:border-box}
+/* function autocomplete + signature hint */
+#view-workbooks .wb-fx-pop{position:absolute;z-index:6;min-width:280px;max-width:380px;max-height:224px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-pop);padding:4px}
+#view-workbooks .wb-fx-item{display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;border:0;background:none;padding:6px 9px;border-radius:var(--r-sm);cursor:pointer;font:inherit}
+#view-workbooks .wb-fx-item:hover{background:var(--accent-soft)}
+#view-workbooks .wb-fx-name{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-sm);font-weight:650;color:var(--accent-text);white-space:nowrap}
+#view-workbooks .wb-fx-desc{font-size:var(--fs-xs);color:var(--text-subtle)}
+#view-workbooks .wb-fx-hint{display:flex;flex-direction:column;gap:2px;padding:7px 9px}
+#view-workbooks .wb-fx-foot{font-size:10px;color:var(--text-disabled);padding:4px 9px 2px;border-top:1px solid var(--border-subtle);margin-top:2px}
+/* live Sum / Avg / Count for the selection, right end of the tab row */
+#view-workbooks .wb-selstats{margin-left:auto;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap;padding:0 6px}
+/* primary sheet block = full-bleed spreadsheet canvas, not a document card */
+#view-workbooks .wb-block-primary{border:0;box-shadow:none;background:transparent;border-radius:0}
+#view-workbooks .wb-block-primary > .wb-block-head{padding:0 2px}
+#view-workbooks .wb-block-primary > .wb-block-body{padding:var(--s-1) 0 0}
+#view-workbooks .wb-block-primary .wb-toolbar{background:var(--surface);border:1px solid var(--border);border-bottom:0;border-radius:var(--r-md) var(--r-md) 0 0;padding:5px 8px;margin-bottom:0}
+#view-workbooks .wb-block-primary .wb-fbar{border-radius:0}

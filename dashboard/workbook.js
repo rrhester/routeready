@@ -396,6 +396,7 @@ const FUNCS = {
   MIN: (vals) => { const xs = flatNumeric(vals); return xs.length ? Math.min(...xs) : 0; },
   MAX: (vals) => { const xs = flatNumeric(vals); return xs.length ? Math.max(...xs) : 0; },
   COUNT: (vals) => flatNumeric(vals).length,
+  MEDIAN: (vals) => { const xs = flatNumeric(vals).sort((a, b) => a - b); if (!xs.length) throw new FormulaError("#DIV/0", "MEDIAN of empty"); const m = xs.length >> 1; return xs.length % 2 ? xs[m] : (xs[m - 1] + xs[m]) / 2; },
   COUNTA: (vals) => vals.filter((v) => v != null && v !== "").length,
   ABS: (vals) => Math.abs(toNum(vals[0])),
   SQRT: (vals) => { const n = toNum(vals[0]); if (n < 0) throw new FormulaError("#VALUE", "SQRT of negative"); return Math.sqrt(n); },
@@ -522,6 +523,23 @@ function callFunc(node, ctx) {
         }
       });
       return total;
+    }
+    case "VLOOKUP": {
+      if (args.length < 3 || args.length > 4) throw new FormulaError("#ERROR", "VLOOKUP takes 3-4 args");
+      if (args[1].k !== "range") throw new FormulaError("#VALUE", "VLOOKUP needs a range");
+      const needle = evalNode(args[0], ctx);
+      const idx = Math.trunc(toNum(evalNode(args[2], ctx)));
+      const a = args[1].a, b = args[1].b;
+      const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
+      const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
+      if (idx < 1 || c0 + idx - 1 > c1) throw new FormulaError("#REF", "VLOOKUP column index out of range");
+      if (r1 - r0 + 1 > MAX_RANGE_CELLS) throw new FormulaError("#REF", "range too large");
+      for (let r = r0; r <= r1; r++) {
+        let eq = false;
+        try { eq = cmp("=", ctx.getCell(r, c0) ?? "", needle ?? ""); } catch (_) {}
+        if (eq) return ctx.getCell(r, c0 + idx - 1);
+      }
+      throw new FormulaError("#N/A", "no match found");
     }
     default: {
       const fn = FUNCS[name];
@@ -1150,7 +1168,11 @@ async function createWorkbook({ title, description, visibility, templateKey }) {
   if (ins.error) throw ins.error;
   const wb = ins.data;
 
-  const blockSpecs = spec ? spec.blocks : [{ type: "sheet", title: "", sheets: [{ name: "Sheet 1", cols: null, rows: [] }] }];
+  // spreadsheet first — sheet blocks lead the workbook regardless of
+  // how a template happens to list them (stable sort keeps ties)
+  const blockSpecs = (spec ? spec.blocks : [{ type: "sheet", title: "", sheets: [{ name: "Sheet 1", cols: null, rows: [] }] }])
+    .slice()
+    .sort((a, b) => (a.type === "sheet" ? 0 : 1) - (b.type === "sheet" ? 0 : 1));
   let pos = 0;
   for (const bs of blockSpecs) {
     const bRow = { dsp_id: dsp.id, workbook_id: wb.id, type: bs.type, title: bs.title || "", position: pos++, settings: {}, content: bs.type === "text" ? { html: sanitizeHtml(bs.html || "") } : {} };
@@ -1162,7 +1184,7 @@ async function createWorkbook({ title, description, visibility, templateKey }) {
       let sPos = 0;
       for (const ss of sheetSpecs) {
         const cols = Math.max(26, ss.cols ? ss.cols.length : 0);
-        const rows = Math.max(200, (ss.rows ? ss.rows.length : 0) + 40);
+        const rows = Math.max(spec ? 200 : 500, (ss.rows ? ss.rows.length : 0) + 40);
         const shIns = await s.from("workbook_sheets").insert({
           dsp_id: dsp.id, workbook_id: wb.id, block_id: block.id,
           name: ss.name || `Sheet ${sPos + 1}`, position: sPos++,
@@ -1743,7 +1765,8 @@ function renderPresence() {
 
 function buildBlockEl(block) {
   const el = document.createElement("section");
-  el.className = "wb-block wb-block-" + block.type;
+  const primarySheet = block.type === "sheet" && (WB.blocks.find((b) => b.type === "sheet") || {}).id === block.id;
+  el.className = "wb-block wb-block-" + block.type + (primarySheet ? " wb-block-primary" : "");
   el.dataset.wbBlock = block.id;
   const typeLabel = { sheet: "Spreadsheet", text: "Note", checklist: "Checklist" }[block.type] || block.type;
   el.innerHTML = `
@@ -1794,7 +1817,7 @@ async function addBlock(type) {
     const block = { ...ins.data, settings: ins.data.settings || {}, content: ins.data.content || {} };
     if (type === "sheet") {
       const shIns = await s.from("workbook_sheets").insert({
-        dsp_id: dsp.id, workbook_id: WB.wb.id, block_id: block.id, name: "Sheet 1", position: 0,
+        dsp_id: dsp.id, workbook_id: WB.wb.id, block_id: block.id, name: "Sheet 1", position: 0, row_count: 500,
       }).select().single();
       if (shIns.error) throw shIns.error;
       WB.sheetsByBlock.set(block.id, [normalizeSheet(shIns.data)]);
@@ -2154,7 +2177,7 @@ function mountSheetBlock(block, body) {
   body.innerHTML = `
     ${sheetToolbarHtml(block, ro)}
     <div class="wb-fbar">
-      <span class="wb-fbar-ref" data-wb-fbar-ref>A1</span>
+      <input type="text" class="wb-fbar-ref" data-wb-fbar-ref value="A1" aria-label="Name box — type a cell reference and press Enter" autocomplete="off" spellcheck="false">
       <span class="wb-fbar-fx" aria-hidden="true">fx</span>
       <input type="text" class="wb-fbar-input" data-wb-fbar-input placeholder="${ro ? "" : "Enter a value or =formula"}" ${ro ? "readonly" : ""} aria-label="Formula bar" autocomplete="off" spellcheck="false">
       <span class="wb-fbar-err" data-wb-fbar-err hidden></span>
@@ -2168,6 +2191,7 @@ function mountSheetBlock(block, body) {
       <div class="wb-gr-scroll" style="left:${HDR_COL_W}px;top:${HDR_ROW_H}px">
         <div class="wb-gr-canvas">
           <div class="wb-gr-cells"></div>
+          <div class="wb-gr-refhl" aria-hidden="true"></div>
           <div class="wb-gr-sel" aria-hidden="true"></div>
         </div>
       </div>
@@ -2186,6 +2210,7 @@ function mountSheetBlock(block, body) {
       canvas: body.querySelector(".wb-gr-canvas"),
       cells: body.querySelector(".wb-gr-cells"),
       sel: body.querySelector(".wb-gr-sel"),
+      refhl: body.querySelector(".wb-gr-refhl"),
       colsInner: body.querySelector(".wb-gr-cols-inner"),
       rowsInner: body.querySelector(".wb-gr-rows-inner"),
       frozenTop: body.querySelector(".wb-gr-frozen-top"),
@@ -2209,6 +2234,8 @@ function mountSheetBlock(block, body) {
     undo: [], redo: [],
     raf: 0,
     clipboardTimer: null,
+    primary: (WB.blocks.find((b) => b.type === "sheet") || {}).id === block.id,
+    fxWord: null,
   };
   GRIDS.set(block.id, g);
   computeGeometry(g);
@@ -2322,8 +2349,25 @@ function computeGeometry(g) {
   for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + colW(sheet, c);
   g.els.canvas.style.width = g.colX[sheet.colCount] + "px";
   g.els.canvas.style.height = g.rowY[rows.length] + "px";
-  const gridH = Math.min(GRID_MAX_H, g.rowY[rows.length] + 14) + HDR_ROW_H;
-  g.els.grid.style.height = Math.max(140, gridH) + "px";
+  sizeGrid(g);
+}
+
+// The primary sheet fills the viewport — the workbook opens as a
+// spreadsheet canvas, not a card in a document. Secondary sheet blocks
+// (below the fold) keep a bounded height.
+function sizeGrid(g) {
+  const grid = g.els.grid;
+  const contentH = (g.rowY[g.rows.length] || 0) + HDR_ROW_H + 14;
+  let target;
+  if (g.primary) {
+    const top = grid.getBoundingClientRect().top;
+    const avail = (top > 40 ? window.innerHeight - top : window.innerHeight - 300) - 88;
+    target = Math.max(420, Math.min(avail, contentH));
+  } else {
+    target = Math.max(220, Math.min(GRID_MAX_H + HDR_ROW_H, contentH));
+  }
+  const cur = parseFloat(grid.style.height) || 0;
+  if (Math.abs(cur - target) > 3) grid.style.height = Math.round(target) + "px";
 }
 
 function idxFromPrefix(prefix, pos) {
@@ -2374,6 +2418,7 @@ function repaintGrid(g) {
 
 function paintNow(g) {
   const sheet = g.sheet;
+  sizeGrid(g);
   const scroll = g.els.scroll;
   const sx = scroll.scrollLeft, sy = scroll.scrollTop;
   const vw = scroll.clientWidth, vh = scroll.clientHeight;
@@ -2441,7 +2486,39 @@ function paintSelection(g) {
     const ay = g.rowY[adi], ah = g.rowY[adi + 1] - ay;
     html += `<div class="wb-sel-active" style="left:${ax}px;top:${ay}px;width:${aw}px;height:${ah}px"></div>`;
   }
+  // drag-fill handle at the selection's bottom-right corner
+  if (WB.canEdit && !g.editing && di1 >= 0) {
+    const hx = g.colX[Math.max(c0, c1) + 1], hy = g.rowY[di1 + 1];
+    html += `<div class="wb-fill-handle" data-wb-fillhandle title="Drag to fill" style="left:${hx - 4}px;top:${hy - 4}px"></div>`;
+  }
   g.els.sel.innerHTML = html;
+  updateSelStats(g);
+}
+
+// Excel-style status stats for the current selection (Sum / Avg / Count).
+function updateSelStats(g) {
+  const el = g.els.selstats;
+  if (!el) return;
+  const { r0, r1, c0, c1 } = selRect(g);
+  if (r0 === r1 && c0 === c1) { el.textContent = ""; return; }
+  let sum = 0, nnum = 0, cnt = 0;
+  for (const [key, cell] of g.sheet.cells) {
+    const { r, c } = keyRC(key);
+    if (r < r0 || r > r1 || c < c0 || c > c1) continue;
+    const raw = cell.formula ? (cell.err ? null : cell.computed) : cell.value;
+    if (raw == null || raw === "") continue;
+    cnt++;
+    const num = cellNumeric(raw);
+    if (num != null && cell.type !== "text") { sum += num; nnum++; }
+  }
+  const fmtN = (x) => {
+    const r2 = Math.round(x * 100) / 100;
+    return Math.abs(r2) >= 1000 ? r2.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(r2);
+  };
+  const ref = `${colLabel(c0)}${r0 + 1}:${colLabel(c1)}${r1 + 1}`;
+  el.textContent = !cnt ? ref
+    : nnum ? `${ref} · Sum ${fmtN(sum)} · Avg ${fmtN(sum / nnum)} · Count ${cnt}`
+    : `${ref} · Count ${cnt}`;
 }
 
 function paintFrozen(g, sx, sy, c0, c1) {
@@ -2496,6 +2573,256 @@ function paintFilterChip(g) {
   }
 }
 
+// ─── Excel-grade formula entry toolkit ──────────────────────────────────────
+
+// Shift non-anchored ($-free) refs by (dr, dc) — drag-fill semantics.
+function shiftFormulaRelative(formula, dr, dc) {
+  const parts = String(formula).split(/("(?:[^"]|"")*")/);
+  for (let i = 0; i < parts.length; i += 2) {
+    parts[i] = parts[i].replace(CELLREF_TOKEN, (m, d1, colStr, d2, rowStr) => {
+      const rc = parseCellRef(colStr + rowStr);
+      if (!rc) return m;
+      const col = d1 ? rc.col : rc.col + dc;
+      const row = d2 ? rc.row : rc.row + dr;
+      if (row < 0 || col < 0) return "#REF";
+      return d1 + colLabel(col) + d2 + (row + 1);
+    });
+  }
+  return parts.join("");
+}
+
+const _fFloat = (v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : Math.round(v * 1e6) / 1e6);
+
+// Drag-fill: copies the source block into the extension; a numeric
+// column/row with a constant step extends the series (1,2 → 3,4…);
+// formulas shift their relative refs like a spreadsheet.
+function applyFill(g, src, ext) {
+  const sheet = g.sheet;
+  const changes = [];
+  const vertical = ext.axis === "row";
+  const laneLo = vertical ? src.c0 : src.r0;
+  const laneHi = vertical ? src.c1 : src.r1;
+  const srcLo = vertical ? src.r0 : src.c0;
+  const srcHi = vertical ? src.r1 : src.c1;
+  const srcLen = srcHi - srcLo + 1;
+  for (let lane = laneLo; lane <= laneHi; lane++) {
+    const series = [];
+    for (let i = srcLo; i <= srcHi; i++) series.push(sheet.cells.get(vertical ? cellKey(i, lane) : cellKey(lane, i)) || null);
+    const nums = series.map((cl) => (cl && !cl.formula ? cellNumeric(cl.value) : null));
+    let step = null;
+    if (series.length >= 2 && nums.every((v) => v != null)) {
+      step = nums[1] - nums[0];
+      for (let i = 2; i < nums.length; i++) if (Math.abs(nums[i] - nums[i - 1] - step) > 1e-9) { step = null; break; }
+    }
+    for (let k = 1; k <= ext.count; k++) {
+      const t = srcHi + k;
+      if (vertical ? t >= sheet.rowCount : t >= sheet.colCount) break;
+      const si = (k - 1) % srcLen;
+      const srcCell = series[si];
+      let next = null;
+      if (srcCell) {
+        next = cloneCell(srcCell);
+        if (srcCell.formula) {
+          next.formula = vertical
+            ? shiftFormulaRelative(srcCell.formula, t - (srcLo + si), 0)
+            : shiftFormulaRelative(srcCell.formula, 0, t - (srcLo + si));
+        } else if (step != null) {
+          next.value = String(_fFloat(nums[srcLen - 1] + step * k));
+          next.type = "number";
+        }
+      }
+      changes.push(vertical ? { r: t, c: lane, cell: next } : { r: lane, c: t, cell: next });
+    }
+  }
+  if (!changes.length) return;
+  setCells(g, changes);
+  if (vertical) g.sel = { r0: src.r0, c0: src.c0, r1: src.r1 + ext.count, c1: src.c1 };
+  else g.sel = { r0: src.r0, c0: src.c0, r1: src.r1, c1: src.c1 + ext.count };
+  paintSelection(g);
+  repaintGrid(g);
+}
+
+// ── Point mode: while typing a formula, clicking/dragging cells (or
+// arrow keys) inserts references — the Excel interaction model. ──
+
+const REF_ALLOWED_BEFORE = /[=+\-*/^&<>,(:]\s*$/;
+
+function formulaEditInput(g) {
+  if (!g.editing) return null;
+  if (g.editing.input) return g.editing.input;
+  if (g.editing.viaBar && document.activeElement === g.els.fbarInput) return g.els.fbarInput;
+  return null;
+}
+
+function formulaPointState(g) {
+  const input = formulaEditInput(g);
+  if (!input) return null;
+  const v = input.value;
+  if (!v.startsWith("=")) return null;
+  const caret = input.selectionStart ?? v.length;
+  const pt = g.editing.point;
+  if (pt && pt.end === caret) return { input, caret, replace: pt };
+  if (REF_ALLOWED_BEFORE.test(v.slice(0, caret))) return { input, caret, replace: null };
+  return null;
+}
+
+function insertPointRef(g, st, refText) {
+  const input = st.input;
+  const v = input.value;
+  const start = st.replace ? st.replace.start : st.caret;
+  const end = st.replace ? st.replace.end : st.caret;
+  input.value = v.slice(0, start) + refText + v.slice(end);
+  const pos = start + refText.length;
+  try { input.setSelectionRange(pos, pos); } catch (_) {}
+  g.editing.point = { start, end: pos };
+  if (g.editing.input && input !== g.editing.input) g.editing.input.value = input.value;
+  if (g.els.fbarInput && input !== g.els.fbarInput) g.els.fbarInput.value = input.value;
+  paintFormulaRefs(g);
+}
+
+// Colored highlights on every cell/range the formula references.
+const REFHL_COLORS = ["#2563EB", "#16A34A", "#7C3AED", "#D97706", "#DC2626"];
+
+function paintFormulaRefs(g) {
+  const layer = g.els.refhl;
+  if (!layer) return;
+  const input = formulaEditInput(g) || (g.editing && g.editing.input);
+  const v = input && input.value.startsWith("=") ? input.value : null;
+  if (!v) { layer.innerHTML = ""; return; }
+  const parts = v.split(/("(?:[^"]|"")*")/);
+  const found = [];
+  const seen = new Set();
+  for (let i = 0; i < parts.length && found.length < 10; i += 2) {
+    const re = /(\$?[A-Za-z]{1,3}\$?[0-9]{1,7})(?::(\$?[A-Za-z]{1,3}\$?[0-9]{1,7}))?/g;
+    let m;
+    while ((m = re.exec(parts[i])) && found.length < 10) {
+      const a = parseCellRef(m[1]);
+      const b = m[2] ? parseCellRef(m[2]) : a;
+      if (!a || !b) continue;
+      const key = [a.row, a.col, b.row, b.col].join(",");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      found.push({ a, b });
+    }
+  }
+  let html = "";
+  found.forEach((rf, i) => {
+    const r0 = Math.max(0, Math.min(rf.a.row, rf.b.row)), r1 = Math.min(g.sheet.rowCount - 1, Math.max(rf.a.row, rf.b.row));
+    const c0 = Math.max(0, Math.min(rf.a.col, rf.b.col)), c1 = Math.min(g.sheet.colCount - 1, Math.max(rf.a.col, rf.b.col));
+    const d0 = dispIndexOfRow(g, r0), d1 = dispIndexOfRow(g, r1);
+    if (d0 < 0 || d1 < 0 || r1 < r0 || c1 < c0) return;
+    const color = REFHL_COLORS[i % REFHL_COLORS.length];
+    html += `<div class="wb-ref-hl" style="left:${g.colX[c0]}px;top:${g.rowY[d0]}px;width:${g.colX[c1 + 1] - g.colX[c0]}px;height:${g.rowY[d1 + 1] - g.rowY[d0]}px;border-color:${color};background:${color}14"></div>`;
+  });
+  layer.innerHTML = html;
+}
+
+function clearFormulaChrome(g) {
+  if (g.els.refhl) g.els.refhl.innerHTML = "";
+  if (g.els.fxpop) g.els.fxpop.hidden = true;
+  g.fxWord = null;
+}
+
+// ── Function autocomplete + signature hints ──
+
+const FUNCTION_META = [
+  { n: "SUM", sig: "SUM(range)", d: "Add the numbers in a range" },
+  { n: "AVERAGE", sig: "AVERAGE(range)", d: "Mean of the numbers in a range" },
+  { n: "MIN", sig: "MIN(range)", d: "Smallest number" },
+  { n: "MAX", sig: "MAX(range)", d: "Largest number" },
+  { n: "COUNT", sig: "COUNT(range)", d: "How many numeric cells" },
+  { n: "COUNTA", sig: "COUNTA(range)", d: "How many non-empty cells" },
+  { n: "COUNTIF", sig: "COUNTIF(range, criteria)", d: "Count cells matching a condition" },
+  { n: "SUMIF", sig: "SUMIF(range, criteria, [sum_range])", d: "Sum cells matching a condition" },
+  { n: "IF", sig: "IF(condition, then, else)", d: "Branch on a condition" },
+  { n: "AND", sig: "AND(a, b, …)", d: "TRUE when every condition holds" },
+  { n: "OR", sig: "OR(a, b, …)", d: "TRUE when any condition holds" },
+  { n: "NOT", sig: "NOT(condition)", d: "Invert a condition" },
+  { n: "VLOOKUP", sig: "VLOOKUP(value, range, col, FALSE)", d: "Find a row by its first column" },
+  { n: "MEDIAN", sig: "MEDIAN(range)", d: "Middle value" },
+  { n: "ROUND", sig: "ROUND(number, digits)", d: "Round to N digits" },
+  { n: "ROUNDUP", sig: "ROUNDUP(number, digits)", d: "Round away from zero" },
+  { n: "ROUNDDOWN", sig: "ROUNDDOWN(number, digits)", d: "Round toward zero" },
+  { n: "ABS", sig: "ABS(number)", d: "Absolute value" },
+  { n: "SQRT", sig: "SQRT(number)", d: "Square root" },
+  { n: "LEN", sig: "LEN(text)", d: "Length of text" },
+  { n: "UPPER", sig: "UPPER(text)", d: "Uppercase" },
+  { n: "LOWER", sig: "LOWER(text)", d: "Lowercase" },
+  { n: "TRIM", sig: "TRIM(text)", d: "Strip extra spaces" },
+  { n: "CONCAT", sig: "CONCAT(a, b, …)", d: "Join values into text" },
+  { n: "TODAY", sig: "TODAY()", d: "Today's date" },
+  { n: "NOW", sig: "NOW()", d: "Current date & time" },
+];
+
+function ensureFxPop(g) {
+  if (!g.els.fxpop) {
+    const d = document.createElement("div");
+    d.className = "wb-fx-pop";
+    d.hidden = true;
+    g.els.canvas.appendChild(d);
+    g.els.fxpop = d;
+    d.addEventListener("mousedown", (e) => {
+      e.preventDefault(); // keep the editor focused
+      const it = e.target.closest("[data-fx]");
+      if (it) acceptFx(g, it.getAttribute("data-fx"));
+    });
+  }
+  return g.els.fxpop;
+}
+
+function updateFxPop(g) {
+  const ed = g.editing;
+  const input = ed && ed.input;
+  const pop = ensureFxPop(g);
+  let show = false;
+  if (input && input.value.startsWith("=")) {
+    const caret = input.selectionStart ?? input.value.length;
+    const before = input.value.slice(0, caret);
+    const mWord = /(^=|[^A-Za-z.$])([A-Za-z]{1,12})$/.exec(before);
+    const mSig = /([A-Za-z]{2,12})\($/.exec(before);
+    if (mWord) {
+      const q = mWord[2].toUpperCase();
+      const items = FUNCTION_META.filter((f) => f.n.startsWith(q)).slice(0, 8);
+      if (items.length && !(items.length === 1 && items[0].n === q)) {
+        pop.innerHTML = items.map((f) => `<button type="button" class="wb-fx-item" data-fx="${f.n}"><span class="wb-fx-name">${f.n}(</span><span class="wb-fx-desc">${esc(f.d)}</span></button>`).join("")
+          + `<div class="wb-fx-foot">Tab or click to insert</div>`;
+        g.fxWord = { start: caret - q.length, end: caret };
+        show = true;
+      }
+    } else if (mSig) {
+      const f = FUNCTION_META.find((x) => x.n === mSig[1].toUpperCase());
+      if (f) {
+        pop.innerHTML = `<div class="wb-fx-hint"><span class="wb-fx-name">${esc(f.sig)}</span><span class="wb-fx-desc">${esc(f.d)}</span></div>`;
+        g.fxWord = null;
+        show = true;
+      }
+    }
+  }
+  if (show && input) {
+    pop.style.left = input.style.left;
+    pop.style.top = (parseFloat(input.style.top) + parseFloat(input.style.height) + 2) + "px";
+    pop.hidden = false;
+  } else {
+    pop.hidden = true;
+    g.fxWord = null;
+  }
+}
+
+function acceptFx(g, name) {
+  const ed = g.editing;
+  if (!ed || !ed.input || !g.fxWord) return;
+  const input = ed.input;
+  const v = input.value;
+  input.value = v.slice(0, g.fxWord.start) + name + "(" + v.slice(g.fxWord.end);
+  const pos = g.fxWord.start + name.length + 1;
+  input.focus();
+  try { input.setSelectionRange(pos, pos); } catch (_) {}
+  g.fxWord = null;
+  if (g.els.fbarInput) g.els.fbarInput.value = input.value;
+  updateFxPop(g);
+  paintFormulaRefs(g);
+}
+
 function commentedCellSet(sheetId) {
   const set = new Set();
   for (const c of WB.comments) {
@@ -2522,7 +2849,9 @@ function renderSheetTabs(g) {
     </div>
     ${ro ? "" : `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tab-add" data-wb-act="sheet-add" data-block="${g.blockId}" title="Add sheet" aria-label="Add sheet">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>`}`;
+    </button>`}
+    <span class="wb-selstats" data-wb-selstats aria-live="polite"></span>`;
+  g.els.selstats = g.els.tabs.querySelector("[data-wb-selstats]");
 }
 
 function switchSheet(g, sheetId) {
@@ -2681,7 +3010,7 @@ function redoGrid(g) {
 function cellFromInput(raw, prevCell) {
   const s = String(raw ?? "");
   const keepFormat = prevCell && prevCell.format ? { ...prevCell.format } : {};
-  if (s.trim() === "") {
+  if (s.trim() === "" || s.trim() === "=") {
     return Object.keys(keepFormat).length ? { value: null, formula: null, type: null, format: keepFormat } : null;
   }
   if (s.startsWith("=")) return { value: null, formula: s, type: "formula", format: keepFormat };
@@ -2710,20 +3039,68 @@ function startEdit(g, r, c, initial) {
   g.els.canvas.appendChild(input);
   // type-to-replace passes the first typed char as `initial` — that
   // always counts as a change, so orig must NOT equal the seeded value
-  g.editing = { r, c, input, orig: initial != null ? "\u0000" : input.value };
+  // enterMode = Excel's type-to-replace state: arrow keys commit + move
+  g.editing = { r, c, input, orig: initial != null ? "\u0000" : input.value, enterMode: initial != null, point: null, pointRC: null, pointAnchor: null };
   input.focus();
   if (initial != null) input.setSelectionRange(input.value.length, input.value.length);
   else input.select();
   syncFormulaBar(g);
+  paintFormulaRefs(g);
 
   input.addEventListener("keydown", (e) => {
     e.stopPropagation();
+    const ed2 = g.editing;
+    if (e.key === "Tab" && g.els.fxpop && !g.els.fxpop.hidden && g.fxWord) {
+      e.preventDefault();
+      const first = g.els.fxpop.querySelector("[data-fx]");
+      if (first) acceptFx(g, first.getAttribute("data-fx"));
+      return;
+    }
+    if (e.key.startsWith("Arrow") && ed2) {
+      const dir = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
+      const st = formulaPointState(g);
+      if (st && dir) {
+        // Excel point mode: arrows write/adjust a cell reference
+        e.preventDefault();
+        let rc = ed2.pointRC || { r: ed2.r, c: ed2.c };
+        rc = { r: Math.max(0, Math.min(g.sheet.rowCount - 1, rc.r + dir[0])), c: Math.max(0, Math.min(g.sheet.colCount - 1, rc.c + dir[1])) };
+        let text;
+        if (e.shiftKey && ed2.pointAnchor) {
+          const anch = ed2.pointAnchor;
+          const rr0 = Math.min(anch.r, rc.r), rr1 = Math.max(anch.r, rc.r);
+          const cc0 = Math.min(anch.c, rc.c), cc1 = Math.max(anch.c, rc.c);
+          text = colLabel(cc0) + (rr0 + 1) + ":" + colLabel(cc1) + (rr1 + 1);
+        } else {
+          ed2.pointAnchor = rc;
+          text = colLabel(rc.c) + (rc.r + 1);
+        }
+        ed2.pointRC = rc;
+        insertPointRef(g, st, text);
+        return;
+      }
+      if (dir && ed2.enterMode) {
+        // Excel enter mode: arrows commit the value and move
+        e.preventDefault();
+        commitEdit(g, dir[0], dir[1]);
+        return;
+      }
+      return; // edit mode: arrows move the caret
+    }
     if (e.key === "Enter") { e.preventDefault(); commitEdit(g, e.shiftKey ? -1 : 1, 0); }
     else if (e.key === "Tab") { e.preventDefault(); commitEdit(g, 0, e.shiftKey ? -1 : 1); }
-    else if (e.key === "Escape") { e.preventDefault(); cancelEdit(g); g.els.grid.focus(); }
+    else if (e.key === "Escape") {
+      e.preventDefault();
+      if (g.els.fxpop && !g.els.fxpop.hidden) { g.els.fxpop.hidden = true; g.fxWord = null; return; }
+      cancelEdit(g);
+      g.els.grid.focus();
+    }
   });
   input.addEventListener("input", () => {
+    const ed2 = g.editing;
+    if (ed2) { ed2.point = null; ed2.pointRC = null; ed2.pointAnchor = null; ed2.enterMode = false; }
     if (g.els.fbarInput && document.activeElement !== g.els.fbarInput) g.els.fbarInput.value = input.value;
+    updateFxPop(g);
+    paintFormulaRefs(g);
   });
   input.addEventListener("blur", () => {
     // commit on outside click (unless we already committed/cancelled)
@@ -2735,6 +3112,7 @@ function commitEdit(g, dr, dc, opts) {
   const ed = g.editing;
   if (!ed) return;
   g.editing = null;
+  clearFormulaChrome(g);
   const raw = ed.input.value;
   ed.input.remove();
   if (raw !== ed.orig) {
@@ -2750,7 +3128,8 @@ function cancelEdit(g) {
   const ed = g.editing;
   if (!ed) return;
   g.editing = null;
-  ed.input.remove();
+  clearFormulaChrome(g);
+  if (ed.input) ed.input.remove();
   syncFormulaBar(g);
 }
 
@@ -2758,7 +3137,11 @@ function cancelEdit(g) {
 
 function syncFormulaBar(g) {
   const { r, c } = g.active;
-  if (g.els.fbarRef) g.els.fbarRef.textContent = colLabel(c) + (r + 1);
+  if (g.els.fbarRef) {
+    const refText = colLabel(c) + (r + 1);
+    if (g.els.fbarRef.tagName === "INPUT") { if (document.activeElement !== g.els.fbarRef) g.els.fbarRef.value = refText; }
+    else g.els.fbarRef.textContent = refText;
+  }
   const cell = g.sheet.cells.get(cellKey(r, c));
   if (g.els.fbarInput && document.activeElement !== g.els.fbarInput) {
     g.els.fbarInput.value = g.editing && g.editing.input ? g.editing.input.value : cell ? (cell.formula || (cell.value ?? "")) : "";
@@ -2766,7 +3149,7 @@ function syncFormulaBar(g) {
   if (g.els.fbarErr) {
     if (cell && cell.err) {
       g.els.fbarErr.hidden = false;
-      g.els.fbarErr.textContent = cell.err + (cell.err === "#CIRCULAR" ? " · circular reference" : cell.err === "#DIV/0" ? " · division by zero" : "");
+      g.els.fbarErr.textContent = cell.err + (cell.err === "#CIRCULAR" ? " · circular reference" : cell.err === "#DIV/0" ? " · division by zero" : cell.err === "#N/A" ? " · no match found" : "");
     } else g.els.fbarErr.hidden = true;
   }
 }
@@ -3123,6 +3506,7 @@ async function addSheetTo(blockId) {
       dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, block_id: blockId,
       name: `Sheet ${sheets.length + 1}`,
       position: sheets.length ? Math.max(...sheets.map((s) => s.position)) + 1 : 0,
+      row_count: 500,
     }).select().single();
     if (ins.error) throw ins.error;
     const sheet = normalizeSheet(ins.data);
@@ -3369,6 +3753,80 @@ function bindGridEvents(g) {
 
   grid.addEventListener("mousedown", (e) => {
     if (e.button === 2) return; // context menu path
+
+    // ── formula point mode: clicking cells inserts references ──
+    if (!e.target.closest(".wb-cell-editor")) {
+      const stPoint = formulaPointState(g);
+      if (stPoint) {
+        e.preventDefault(); // keep focus in the formula editor
+        const inCanvasPt = e.target.closest(".wb-gr-scroll");
+        if (!inCanvasPt) return; // headers etc: ignore, don't commit
+        const pos0 = canvasPos(e);
+        const anchor = { r: g.rows[dispRowAt(g, pos0.y)] ?? 0, c: colAt(g, pos0.x) };
+        insertPointRef(g, stPoint, colLabel(anchor.c) + (anchor.r + 1));
+        if (g.editing) { g.editing.pointRC = anchor; g.editing.pointAnchor = anchor; }
+        const onMove = (ev) => {
+          const p = canvasPos(ev);
+          const r2 = g.rows[dispRowAt(g, p.y)] ?? anchor.r;
+          const c2 = colAt(g, p.x);
+          const rr0 = Math.min(anchor.r, r2), rr1 = Math.max(anchor.r, r2);
+          const cc0 = Math.min(anchor.c, c2), cc1 = Math.max(anchor.c, c2);
+          const txt = rr0 === rr1 && cc0 === cc1
+            ? colLabel(cc0) + (rr0 + 1)
+            : colLabel(cc0) + (rr0 + 1) + ":" + colLabel(cc1) + (rr1 + 1);
+          const st2 = formulaPointState(g);
+          if (st2) insertPointRef(g, st2, txt);
+        };
+        const onUp = () => {
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+        };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+        return;
+      }
+    }
+
+    // ── drag-fill handle ──
+    const fh = e.target.closest("[data-wb-fillhandle]");
+    if (fh && WB.canEdit) {
+      e.preventDefault();
+      if (g.filter) { _toast("Clear the filter before drag-filling", "warn"); return; }
+      const src = selRect(g);
+      const preview = document.createElement("div");
+      preview.className = "wb-fill-preview";
+      g.els.sel.appendChild(preview);
+      const d0 = dispIndexOfRow(g, src.r0);
+      let ext = null;
+      const onMove = (ev) => {
+        const p = canvasPos(ev);
+        const r = g.rows[dispRowAt(g, p.y)] ?? src.r1;
+        const c = colAt(g, p.x);
+        const dRow = r - src.r1, dCol = c - src.c1;
+        if (dRow > 0 && dRow >= dCol) ext = { axis: "row", count: dRow };
+        else if (dCol > 0) ext = { axis: "col", count: dCol };
+        else ext = null;
+        const x = g.colX[src.c0], y = g.rowY[d0];
+        const x2 = ext && ext.axis === "col" ? g.colX[Math.min(g.sheet.colCount, src.c1 + ext.count + 1)] : g.colX[src.c1 + 1];
+        const dEnd = ext && ext.axis === "row" ? dispIndexOfRow(g, Math.min(g.sheet.rowCount - 1, src.r1 + ext.count)) : dispIndexOfRow(g, src.r1);
+        const y2 = dEnd >= 0 ? g.rowY[dEnd + 1] : g.rowY[dispIndexOfRow(g, src.r1) + 1];
+        preview.style.left = x + "px";
+        preview.style.top = y + "px";
+        preview.style.width = (x2 - x) + "px";
+        preview.style.height = (y2 - y) + "px";
+        preview.style.display = ext ? "block" : "none";
+      };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        preview.remove();
+        if (ext) applyFill(g, src, ext);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+      return;
+    }
+
     const rzCol = e.target.closest("[data-wb-rzcol]");
     const rzRow = e.target.closest("[data-wb-rzrow]");
     if (rzCol || rzRow) {
@@ -3588,6 +4046,7 @@ function bindGridEvents(g) {
       } else if (e.key === "Escape") {
         e.preventDefault();
         if (g.editing && g.editing.viaBar) { fbar.value = g.editing.orig; g.editing = null; }
+        clearFormulaChrome(g);
         g.els.grid.focus();
       } else if (e.key === "Tab") {
         e.preventDefault();
@@ -3597,13 +4056,40 @@ function bindGridEvents(g) {
       }
     });
     fbar.addEventListener("input", () => {
+      if (g.editing) { g.editing.point = null; g.editing.pointRC = null; g.editing.pointAnchor = null; }
       if (g.editing && g.editing.input) g.editing.input.value = fbar.value;
+      paintFormulaRefs(g);
     });
     fbar.addEventListener("blur", () => {
       setTimeout(() => {
         if (g.editing && g.editing.viaBar && document.activeElement !== fbar) commitBarEdit(g);
       }, 0);
     });
+  }
+
+  // ── name box: type a ref (e.g. C14) and Enter to jump ──
+  const nameBox = g.els.fbarRef;
+  if (nameBox && nameBox.tagName === "INPUT") {
+    nameBox.addEventListener("focus", () => nameBox.select());
+    nameBox.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const rc = parseCellRef(nameBox.value.trim());
+        if (rc && rc.row < g.sheet.rowCount && rc.col < g.sheet.colCount) {
+          setActive(g, rc.row, rc.col);
+          g.els.grid.focus();
+        } else {
+          _toast("Type a cell reference like B12", "info");
+          syncFormulaBar(g);
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        syncFormulaBar(g);
+        g.els.grid.focus();
+      }
+    });
+    nameBox.addEventListener("blur", () => syncFormulaBar(g));
   }
 
   // ── toolbar ──
@@ -3741,6 +4227,8 @@ function openCellContextMenu(g, x, y, kind) {
     item("clear-format", "Clear formatting"),
     item("comment", "Add comment"),
     item("copy-ref", "Copy cell reference"),
+    kind === "col" ? item("resize-col", "Resize column…") : "",
+    kind === "row" ? item("resize-row", "Resize row…") : "",
     kind === "col" ? item("freeze-col", g.sheet.frozenCols ? "Unfreeze first column" : "Freeze first column") : "",
     kind === "row" ? item("freeze-row", g.sheet.frozenRows ? "Unfreeze top row" : "Freeze top row") : "",
     sep,
@@ -3764,6 +4252,16 @@ function openCellContextMenu(g, x, y, kind) {
       case "clear-format": clearFormatting(g); break;
       case "comment": openCellComment(g, r, c); break;
       case "copy-ref": try { await navigator.clipboard.writeText(ref); _toast(`Copied ${ref}`, "success"); } catch (_) {} break;
+      case "resize-col": {
+        const w = window.prompt(`Column ${colLabel(c)} width (px, ${MIN_COL_W}–${MAX_COL_W}):`, String(colW(g.sheet, c)));
+        if (w != null && isFinite(+w)) { g.sheet.colWidths[c] = Math.min(MAX_COL_W, Math.max(MIN_COL_W, Math.round(+w))); computeGeometry(g); repaintGrid(g); saveSheetMeta(g.sheet.id); }
+        break;
+      }
+      case "resize-row": {
+        const h2 = window.prompt(`Row ${r + 1} height (px, ${MIN_ROW_H}–${MAX_ROW_H}):`, String(rowH(g.sheet, r)));
+        if (h2 != null && isFinite(+h2)) { g.sheet.rowHeights[r] = Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, Math.round(+h2))); computeGeometry(g); repaintGrid(g); saveSheetMeta(g.sheet.id); }
+        break;
+      }
       case "freeze-col": setFreeze(g, "col"); break;
       case "freeze-row": setFreeze(g, "row"); break;
       case "delete-row": restructure(g, "row", r, -1); break;
@@ -4346,6 +4844,10 @@ function installRootListeners() {
   });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flushCells();
+  });
+  window.addEventListener("resize", () => {
+    clearTimeout(WB._resizeT);
+    WB._resizeT = setTimeout(() => { for (const g of GRIDS.values()) repaintGrid(g); }, 120);
   });
 }
 
