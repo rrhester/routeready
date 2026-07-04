@@ -1038,15 +1038,13 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span>
         Fleet
       </button>
-      <!-- Compliance · exceptions-only operational risk workspace
-           (#view-compliance, backed by compliance_workspace_bundle,
-           migration 0227). The view + loader shipped earlier but no
-           sidebar entry ever pointed at it — this row is the missing
-           goto('compliance') path. -->
-      <button class="nav-item" data-view="compliance" data-c="schedule" title="Compliance" onclick="goto('compliance')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9 13 11 15 15 11"/></svg></span>
-        Compliance
-      </button>
+      <!-- Compliance · nav entry removed per operator direction
+           (2026-07-04, "kill this page") after a brief appearance —
+           the operator didn't like the surfaced workspace. The view
+           (#view-compliance), its loader, and the goto('compliance')
+           dispatch all remain in the codebase, just unreachable from
+           navigation again. Re-adding a nav-item[data-view="compliance"]
+           row here is all it takes to bring it back. -->
       <!-- Workspaces · re-revealed in the sidebar (was hidden so the
            Schedule view's Van Assignments flow could reuse
            loadWorkspacesView internally; that path still works).
