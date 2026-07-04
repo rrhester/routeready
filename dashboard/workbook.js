@@ -1315,7 +1315,24 @@ async function fetchWorkbooksList() {
     .limit(200);
   if (res.error) throw res.error;
   WB.workbooks = res.data || [];
+  // Report workbooks (created by the Reports tab) carry a report spec on
+  // their sheet block — that's what splits the Reports library from the
+  // Workbooks list. Detection failure degrades to "everything is a
+  // workbook" rather than blocking the page.
+  WB.reportInfo = new Map();
+  try {
+    const bl = await _sb().from("workbook_blocks")
+      .select("workbook_id, type, settings")
+      .eq("dsp_id", _dsp().id)
+      .eq("type", "sheet")
+      .limit(2000);
+    for (const b of (bl.data || [])) {
+      if (b.settings && b.settings.report) WB.reportInfo.set(b.workbook_id, b.settings.report);
+    }
+  } catch (e) { console.warn("report detection:", e && e.message); }
 }
+
+function isReportWb(w) { return !!(WB.reportInfo && WB.reportInfo.has(typeof w === "string" ? w : w && w.id)); }
 
 function normalizeSheet(row) {
   return {
@@ -1359,6 +1376,10 @@ async function openWorkbook(id) {
     if (!wbRes.data) { _toast("That workbook is gone or not shared with you", "warn"); WB.view = "list"; return renderListPage(); }
     WB.wb = wbRes.data;
     WB.blocks = (blocksRes.data || []).map((b) => ({ ...b, settings: b.settings || {}, content: b.content || {} }));
+    // keep the report registry fresh even when the list hasn't refetched —
+    // "back" from a report must land on the Reports tab immediately
+    if (!WB.reportInfo) WB.reportInfo = new Map();
+    for (const b of WB.blocks) if (b.settings && b.settings.report) WB.reportInfo.set(b.workbook_id, b.settings.report);
     WB.permissions = permsRes.data || [];
     computeAccess();
 
@@ -1540,6 +1561,10 @@ export async function createReportWorkbook({ title, description, headers, rows, 
     },
   });
   PENDING_OPEN_ID = wb.id;
+  if (report) {
+    if (!WB.reportInfo) WB.reportInfo = new Map();
+    WB.reportInfo.set(wb.id, report);
+  }
   if (typeof window.goto === "function") window.goto("workbooks");
   return wb.id;
 }
@@ -1581,9 +1606,16 @@ function syncWbTabs(screen) {
     b.classList.toggle("active", on);
     b.setAttribute("aria-selected", String(on));
   });
+  // the strip action follows the tab: New workbook ↔ New report
+  const nwb = cmd.querySelector('[data-wb-act="new-workbook"]');
+  const nrp = cmd.querySelector('[data-wb-act="new-report"]');
+  if (nwb) nwb.hidden = screen !== "workbooks";
+  if (nrp) nrp.hidden = screen === "workbooks";
 }
 
-function renderReportsPage() {
+// The Reports tab is a library: every generated report workbook lives
+// here as a card. "New report" opens the builder as a subscreen.
+async function renderReportsPage() {
   const root = wbRoot();
   if (!root) return;
   closeRealtime();
@@ -1591,12 +1623,54 @@ function renderReportsPage() {
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "";
   syncWbTabs("reports");
+  try {
+    await Promise.all([fetchWorkbooksList(), fetchUsers()]);
+  } catch (e) {
+    root.innerHTML = wbErrorHtml("Couldn't load reports", (e && e.message) || String(e));
+    return;
+  }
+  if (WB.view !== "reports") return; // navigated away while loading
+  const list = WB.workbooks.filter((w) => !w.archived_at && isReportWb(w));
+  const card = (w) => {
+    const info = WB.reportInfo.get(w.id) || {};
+    return `<button type="button" class="wb-card" data-wb-open="${esc(w.id)}">
+      <span class="wb-card-ic">${WB_ICON_SVG}</span>
+      <span class="wb-card-main">
+        <span class="wb-card-title">${esc(w.title || "Untitled report")}</span>
+        ${w.description ? `<span class="wb-card-desc">${esc(w.description)}</span>` : ""}
+        <span class="wb-card-meta">
+          ${esc(userName(w.owner_user_id))} · ${esc(relTime(w.updated_at))}
+          ${info.live ? `<span class="wb-badge">Live</span>` : `<span class="wb-badge is-muted">Snapshot</span>`}
+          ${w.visibility === "private" ? `<span class="wb-badge">Private</span>` : ""}
+        </span>
+      </span>
+    </button>`;
+  };
+  root.innerHTML = list.length
+    ? `<div class="wb-cards">${list.map(card).join("")}</div>`
+    : `<div class="rr-empty">
+        <div class="rr-empty-icon">${WB_ICON_SVG}</div>
+        <div class="rr-empty-title">No reports yet</div>
+        <div class="rr-empty-sub">Reports you generate will live here — build one from your people data and open it as a live workbook.</div>
+        <div class="rr-empty-action"><button type="button" class="btn btn-primary btn-sm" data-wb-act="new-report">Create your first report</button></div>
+      </div>`;
+}
+
+// Builder subscreen (still under the Reports tab) with a back link.
+function renderReportBuilderPage() {
+  const root = wbRoot();
+  if (!root) return;
+  closeRealtime();
+  WB.view = "reports-builder";
+  const cmd = document.getElementById("rr-wb-cmd");
+  if (cmd) cmd.style.display = "";
+  syncWbTabs("reports");
   if (!REPORTS_RENDERER) {
     root.innerHTML = wbErrorHtml("Reports aren't available", "Reload the page and try again.");
     return;
   }
-  root.innerHTML = "";
-  REPORTS_RENDERER(root);
+  root.innerHTML = `<button type="button" class="btn btn-ghost btn-sm rr-wb-reports-back" data-wb-act="reports-back">← Reports</button><div data-rb-mount></div>`;
+  REPORTS_RENDERER(root.querySelector("[data-rb-mount]"));
 }
 
 async function refreshLiveReports() {
@@ -1964,8 +2038,9 @@ async function renderListPage() {
     root.innerHTML = wbErrorHtml("Couldn't load workbooks", (e && e.message) || String(e));
     return;
   }
-  const active = WB.workbooks.filter((w) => !w.archived_at);
-  const archived = WB.workbooks.filter((w) => w.archived_at);
+  // report workbooks live under the Reports tab, not here
+  const active = WB.workbooks.filter((w) => !w.archived_at && !isReportWb(w));
+  const archived = WB.workbooks.filter((w) => w.archived_at && !isReportWb(w));
   const list = WB.showArchived ? archived : active;
 
   const card = (w) => {
@@ -6399,7 +6474,15 @@ function installRootListeners() {
     switch (act) {
       case "new-workbook": openCreateModal(); break;
       case "toggle-archived": WB.showArchived = !WB.showArchived; renderListPage(); break;
-      case "back-to-list": flushCells(); closeRealtime(); renderListPage(); break;
+      case "back-to-list": {
+        flushCells();
+        closeRealtime();
+        // a report workbook goes home to the Reports tab
+        if (WB.wb && isReportWb(WB.wb.id)) renderReportsPage(); else renderListPage();
+        break;
+      }
+      case "new-report": renderReportBuilderPage(); break;
+      case "reports-back": renderReportsPage(); break;
       case "retry-save": flushCells(); break;
       case "toggle-panel": WB.panelOpen = !WB.panelOpen; syncPanelVisibility(); if (WB.panelOpen) renderPanel(); break;
       case "head-menu": togglePopover(actBtn); break;
@@ -6564,9 +6647,9 @@ export async function loadWorkbooksView() {
     await openWorkbook(id);
     return;
   }
-  if (PENDING_SCREEN === "reports" || WB.view === "reports") {
+  if (PENDING_SCREEN === "reports" || WB.view === "reports" || WB.view === "reports-builder") {
     PENDING_SCREEN = null;
-    renderReportsPage();
+    await renderReportsPage();
     return;
   }
   if (WB.view === "detail" && WB.wb) {
