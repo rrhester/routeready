@@ -29133,8 +29133,14 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .rr-wb-strip .subnav-item.active{background:transparent;color:var(--text);font-weight:700;box-shadow:none}
 #view-workbooks .rr-wb-strip .subnav-item.active svg{opacity:1}
 #view-workbooks .rr-wb-strip .subnav-item.active::after{content:"";position:absolute;left:4px;right:4px;bottom:0;height:4px;background:#BDE7F2;border-radius:999px}
-#view-workbooks .rr-wb-strip-actions{display:flex;align-items:center;gap:8px}
 .rr-reports-surface{display:flex;flex-direction:column;min-height:calc(100vh - 240px);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
 .rr-reports-surface .rb-foot{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border)}
 #view-workbooks .rr-wb-reports-back{margin-bottom:10px;color:var(--text-muted)}
-#view-workbooks .rr-wb-strip-actions{margin-right:96px} /* clear the floating launcher chip + bell */
+
+/* ── Workbooks action row — schedule-style bordered buttons under the tabs ── */
+#view-workbooks .rr-wb-actionsrow{display:flex;align-items:center;gap:10px;margin:4px 0 var(--s-5)}
+#view-workbooks .rr-wb-actionsrow [hidden]{display:none!important}
+#view-workbooks .rr-wb-btn{display:inline-flex;align-items:center;gap:9px;height:44px;padding:0 18px;background:var(--surface);border:1.5px solid #0F172A;border-radius:10px;font-size:14px;font-weight:600;color:var(--text);cursor:pointer;transition:background var(--t-fast,.12s)}
+#view-workbooks .rr-wb-btn:hover{background:var(--surface-hover,#F8FAFC)}
+#view-workbooks .rr-wb-btn:active{transform:translateY(1px)}
+#view-workbooks .rr-wb-btn svg{flex:0 0 auto}
