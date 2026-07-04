@@ -29122,17 +29122,17 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-reports-surface .rb-live-opt input{margin-top:2px}
 .rr-reports-surface .rb-live-opt strong{color:var(--text)}
 
-/* ── Workbooks page strip — schedule-style chrome (tabs + actions).
-   Soft gray bar, icon+label tabs — no box on the selected tab; the
-   selection is the pale blue bar under it (matches the schedule bar). ── */
-#view-workbooks .rr-wb-strip{display:flex;align-items:stretch;gap:var(--s-4);background:var(--canvas);border-radius:var(--r-md);padding:0 10px;margin-bottom:var(--s-5);min-height:46px}
-#view-workbooks .rr-wb-strip .subnav{flex:1;width:auto;border-bottom:0;margin-bottom:0;gap:4px;padding:0;align-items:stretch}
-#view-workbooks .rr-wb-strip .subnav-item{display:inline-flex;align-items:center;gap:9px;padding:0 20px;border-radius:0;color:var(--text-muted);font-weight:500;background:transparent}
-#view-workbooks .rr-wb-strip .subnav-item svg{flex:0 0 auto;width:16px;height:16px;opacity:.8}
-#view-workbooks .rr-wb-strip .subnav-item:hover{color:var(--text);background:rgba(15,23,42,.04)}
-#view-workbooks .rr-wb-strip .subnav-item.active{background:transparent;color:var(--text);font-weight:600;box-shadow:none}
+/* ── Workbooks page strip — matches the schedule tab row exactly:
+   tabs sit directly on the page (no container bar), icon + label,
+   active = bold dark text with a rounded pale-cyan underline. ── */
+#view-workbooks .rr-wb-strip{display:flex;align-items:center;gap:var(--s-4);background:transparent;border:0;padding:0;margin-bottom:var(--s-5)}
+#view-workbooks .rr-wb-strip .subnav{flex:1;width:auto;border-bottom:0;margin-bottom:0;gap:14px;padding:0;align-items:center;background:transparent}
+#view-workbooks .rr-wb-strip .subnav-item{display:inline-flex;align-items:center;gap:10px;padding:10px 14px 13px;border-radius:0;color:var(--text-muted);font-weight:500;font-size:15px;background:transparent;position:relative}
+#view-workbooks .rr-wb-strip .subnav-item svg{flex:0 0 auto;width:18px;height:18px;opacity:.75}
+#view-workbooks .rr-wb-strip .subnav-item:hover{color:var(--text);background:transparent}
+#view-workbooks .rr-wb-strip .subnav-item.active{background:transparent;color:var(--text);font-weight:700;box-shadow:none}
 #view-workbooks .rr-wb-strip .subnav-item.active svg{opacity:1}
-#view-workbooks .rr-wb-strip .subnav-item.active::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(56,189,248,.55);border-radius:2px 2px 0 0}
-#view-workbooks .rr-wb-strip-actions{display:flex;align-items:center;gap:8px;padding:8px 0}
+#view-workbooks .rr-wb-strip .subnav-item.active::after{content:"";position:absolute;left:4px;right:4px;bottom:0;height:4px;background:#BDE7F2;border-radius:999px}
+#view-workbooks .rr-wb-strip-actions{display:flex;align-items:center;gap:8px}
 .rr-reports-surface{display:flex;flex-direction:column;min-height:calc(100vh - 240px);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
 .rr-reports-surface .rb-foot{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border)}
