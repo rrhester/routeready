@@ -201,6 +201,22 @@ function tokenize(src) {
       toks.push({ t: TOK_ID, v: src.slice(i, j) });
       i = j; continue;
     }
+    if (c === "'") {
+      // quoted sheet name: 'Sheet 2'!A1
+      let j = i + 1, name = "";
+      for (;;) {
+        if (j >= n) throw new FormulaError("#ERROR", "unterminated sheet name");
+        if (src[j] === "'") { if (src[j + 1] === "'") { name += "'"; j += 2; continue; } break; }
+        name += src[j]; j++;
+      }
+      toks.push({ t: "sheetq", v: name });
+      i = j + 1; continue;
+    }
+    if (c === "!") { toks.push({ t: "!" }); i++; continue; }
+    if (c === "#") {
+      if (src.slice(i, i + 4).toUpperCase() === "#REF") throw new FormulaError("#REF", "broken reference");
+      throw new FormulaError("#ERROR", `unexpected '#'`);
+    }
     if (c === "(") { toks.push({ t: TOK_LP }); i++; continue; }
     if (c === ")") { toks.push({ t: TOK_RP }); i++; continue; }
     if (c === ",") { toks.push({ t: TOK_COMMA }); i++; continue; }
@@ -311,6 +327,7 @@ function parseFormula(src) {
         expect(TOK_RP);
         return { k: "func", name: up, args };
       }
+      if (peek() && peek().t === "!") { next(); return parseSheetRef(id); }
       const ref = parseCellRef(id);
       if (ref) {
         if (peek() && peek().t === TOK_COLON) {
@@ -324,7 +341,34 @@ function parseFormula(src) {
       }
       throw new FormulaError("#NAME", `unknown name '${id}'`);
     }
+    if (tok.t === "sheetq") {
+      const bang = next();
+      if (!bang || bang.t !== "!") throw new FormulaError("#ERROR", "expected ! after sheet name");
+      return parseSheetRef(tok.v);
+    }
     throw new FormulaError("#ERROR", "unexpected token");
+  }
+
+  // Sheet-qualified reference: Drivers!A2, 'Sheet 2'!A2:B9 (an optional
+  // repeated prefix on the range end is accepted and must match).
+  function parseSheetRef(sheetName) {
+    const refTok = expect(TOK_ID);
+    const a = parseCellRef(refTok.v);
+    if (!a) throw new FormulaError("#REF", `bad reference after ${sheetName}!`);
+    if (peek() && peek().t === TOK_COLON) {
+      next();
+      let t2 = next();
+      if (t2 && (t2.t === "sheetq" || (t2.t === TOK_ID && peek() && peek().t === "!"))) {
+        if (t2.t === TOK_ID) next(); // consume !
+        else { const b2 = next(); if (!b2 || b2.t !== "!") throw new FormulaError("#ERROR", "expected !"); }
+        t2 = next();
+      }
+      if (!t2 || t2.t !== TOK_ID) throw new FormulaError("#ERROR", "bad range end");
+      const b = parseCellRef(t2.v);
+      if (!b) throw new FormulaError("#REF", `bad range end '${t2.v}'`);
+      return { k: "range", a, b, sheet: sheetName };
+    }
+    return { k: "ref", ...a, sheet: sheetName };
   }
 
   const ast = parseCompare();
@@ -438,6 +482,7 @@ function evalNode(node, ctx) {
     }
     case "cmp": return cmp(node.op, evalNode(node.l, ctx), evalNode(node.r, ctx));
     case "ref": {
+      if (node.sheet) return ctx.getCell(node.row, node.col, node.sheet);
       if (node.row < 0 || node.col < 0 || node.row >= (ctx.rowCount ?? 100000) || node.col >= (ctx.colCount ?? 16384)) throw new FormulaError("#REF", "out of range");
       return ctx.getCell(node.row, node.col);
     }
@@ -458,7 +503,7 @@ function collectArgValues(args, ctx) {
   const out = [];
   for (const a of args) {
     if (a.k === "range") {
-      for (const { row, col } of rangeCells(a.a, a.b)) out.push(ctx.getCell(row, col));
+      for (const { row, col } of rangeCells(a.a, a.b)) out.push(ctx.getCell(row, col, a.sheet));
     } else {
       out.push(evalNode(a, ctx));
     }
@@ -498,7 +543,7 @@ function callFunc(node, ctx) {
     case "COUNTIF": {
       if (args.length !== 2) throw new FormulaError("#ERROR", "COUNTIF takes 2 args");
       if (args[0].k !== "range" && args[0].k !== "ref") throw new FormulaError("#VALUE", "COUNTIF needs a range");
-      const vals = args[0].k === "range" ? [...rangeCells(args[0].a, args[0].b)].map(({ row, col }) => ctx.getCell(row, col)) : [evalNode(args[0], ctx)];
+      const vals = args[0].k === "range" ? [...rangeCells(args[0].a, args[0].b)].map(({ row, col }) => ctx.getCell(row, col, args[0].sheet)) : [evalNode(args[0], ctx)];
       const crit = evalNode(args[1], ctx);
       return vals.filter((v) => matchesCriterion(v, crit)).length;
     }
@@ -516,8 +561,8 @@ function callFunc(node, ctx) {
       }
       let total = 0;
       cells.forEach((rc, i) => {
-        if (matchesCriterion(ctx.getCell(rc.row, rc.col), crit)) {
-          const sv = ctx.getCell(sumCells[i].row, sumCells[i].col);
+        if (matchesCriterion(ctx.getCell(rc.row, rc.col, args[0].sheet), crit)) {
+          const sv = ctx.getCell(sumCells[i].row, sumCells[i].col, args.length === 3 ? args[2].sheet : args[0].sheet);
           const n = Number(String(sv ?? "").replace(/[$,\s]/g, ""));
           if (isFinite(n) && String(sv ?? "").trim() !== "") total += n;
         }
@@ -536,8 +581,8 @@ function callFunc(node, ctx) {
       if (r1 - r0 + 1 > MAX_RANGE_CELLS) throw new FormulaError("#REF", "range too large");
       for (let r = r0; r <= r1; r++) {
         let eq = false;
-        try { eq = cmp("=", ctx.getCell(r, c0) ?? "", needle ?? ""); } catch (_) {}
-        if (eq) return ctx.getCell(r, c0 + idx - 1);
+        try { eq = cmp("=", ctx.getCell(r, c0, args[1].sheet) ?? "", needle ?? ""); } catch (_) {}
+        if (eq) return ctx.getCell(r, c0 + idx - 1, args[1].sheet);
       }
       throw new FormulaError("#N/A", "no match found");
     }
@@ -565,8 +610,9 @@ function extractRefs(src) {
   const refs = [];
   (function walk(n) {
     if (!n || typeof n !== "object") return;
-    if (n.k === "ref") { refs.push({ row: n.row, col: n.col }); return; }
+    if (n.k === "ref") { if (!n.sheet) refs.push({ row: n.row, col: n.col }); return; }
     if (n.k === "range") {
+      if (n.sheet) return;
       try { for (const rc of rangeCells(n.a, n.b)) refs.push(rc); } catch (_) {}
       return;
     }
@@ -826,6 +872,7 @@ const WB = {
   commentDraftTarget: null,  // {blockId, sheetId, cellRef} when composing a cell comment
   gotoWrapped: false,
   listenersInstalled: false,
+  clipboard: null,           // rich copy/cut buffer (cells + TSV mirror)
 };
 
 const GRIDS = new Map();     // blockId -> grid instance
@@ -1133,6 +1180,14 @@ async function openWorkbook(id) {
     WB.activity = activityRes.data || [];
 
     for (const arr of WB.sheetsByBlock.values()) arr.forEach((sh) => recalcSheet(sh));
+    // second pass: sheets with cross-sheet formulas now see fresh values
+    for (const arr of WB.sheetsByBlock.values()) {
+      for (const sh of arr) {
+        let cross = false;
+        for (const cell of sh.cells.values()) if (cell.formula && cell.formula.includes("!")) { cross = true; break; }
+        if (cross) recalcSheet(sh);
+      }
+    }
 
     WB.view = "detail";
     WB.dirtyCells = new Map();
@@ -1293,7 +1348,7 @@ function onRemoteCell(payload) {
     if (g && g.editing && cellKey(g.editing.r, g.editing.c) === key) return;
     if (payload.eventType === "DELETE") sheet.cells.delete(key);
     else ingestCellRow(sheet, row);
-    recalcSheet(sheet);
+    recalcWithSiblings(sheet);
     if (g) repaintGrid(g);
   } catch (e) { console.warn("remote cell:", e && e.message); }
 }
@@ -1464,7 +1519,7 @@ function recalcSheet(sheet) {
   const ctx = {
     rowCount: sheet.rowCount,
     colCount: sheet.colCount,
-    getCell: (r, c) => engineValue(sheet, r, c),
+    getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
   };
   for (const key of order) {
     const cell = sheet.cells.get(key);
@@ -1480,6 +1535,33 @@ function recalcSheet(sheet) {
 }
 
 // ─── Error / empty chrome ───────────────────────────────────────────────────
+
+// Cross-sheet reads resolve against a sibling sheet in the same block
+// by (case-insensitive) name, using its stored computed values — no
+// recursive evaluation, so cross-sheet cycles are impossible.
+function crossSheetValue(fromSheet, sheetName, r, c) {
+  const sibs = WB.sheetsByBlock.get(fromSheet.blockId) || [];
+  const want = String(sheetName).trim().toLowerCase();
+  const target = sibs.find((s) => s.name.trim().toLowerCase() === want);
+  if (!target) throw new FormulaError("#REF", `no sheet named “${sheetName}”`);
+  if (r < 0 || c < 0 || r >= target.rowCount || c >= target.colCount) throw new FormulaError("#REF", "out of range");
+  return engineValue(target, r, c);
+}
+
+// Recalc a sheet, then any sibling sheets whose formulas read across
+// sheets (their inputs may have just changed).
+function recalcWithSiblings(sheet) {
+  recalcSheet(sheet);
+  const sibs = WB.sheetsByBlock.get(sheet.blockId) || [];
+  for (const s2 of sibs) {
+    if (s2.id === sheet.id) continue;
+    let cross = false;
+    for (const cell of s2.cells.values()) {
+      if (cell.formula && cell.formula.includes("!")) { cross = true; break; }
+    }
+    if (cross) recalcSheet(s2);
+  }
+}
 
 function wbErrorHtml(title, sub) {
   const deploying = wbMigrationErr(sub);
@@ -2613,20 +2695,37 @@ function autoSum(g) {
   startEdit(g, r0, c0, "=SUM(");
 }
 
-// Shift non-anchored ($-free) refs by (dr, dc) — drag-fill semantics.
-function shiftFormulaRelative(formula, dr, dc) {
+// Rewrite every cell/range reference in a formula through `fn`,
+// preserving quoted string literals and sheet-name prefixes
+// (Drivers!A2, 'Sheet 2'!A2). fn receives {sheet, colAbs, rowAbs, row,
+// col} and returns replacement text (or null to keep the original).
+function rewriteRefs(formula, fn) {
+  const RE = /((?:'(?:[^']|'')+'|[A-Za-z_][A-Za-z0-9_.]*)!)?(\$?)([A-Za-z]{1,3})(\$?)([0-9]{1,7})/g;
   const parts = String(formula).split(/("(?:[^"]|"")*")/);
   for (let i = 0; i < parts.length; i += 2) {
-    parts[i] = parts[i].replace(CELLREF_TOKEN, (m, d1, colStr, d2, rowStr) => {
+    parts[i] = parts[i].replace(RE, (m, pfx, d1, colStr, d2, rowStr, off, whole) => {
+      const prev = off > 0 ? whole[off - 1] : "";
+      if (!pfx && /[A-Za-z0-9_$]/.test(prev)) return m;      // tail of a longer identifier
+      const after = whole[off + m.length] || "";
+      if (/[A-Za-z0-9_(]/.test(after)) return m;             // function name / longer id
       const rc = parseCellRef(colStr + rowStr);
       if (!rc) return m;
-      const col = d1 ? rc.col : rc.col + dc;
-      const row = d2 ? rc.row : rc.row + dr;
-      if (row < 0 || col < 0) return "#REF";
-      return d1 + colLabel(col) + d2 + (row + 1);
+      const out = fn({ sheet: pfx || "", colAbs: !!d1, rowAbs: !!d2, row: rc.row, col: rc.col });
+      return out == null ? m : out;
     });
   }
   return parts.join("");
+}
+
+// Copy/fill semantics: $-anchored axes stay pinned, everything else
+// shifts by the offset; sheet prefixes are preserved. Off-grid → #REF.
+function shiftFormulaRelative(formula, dr, dc) {
+  return rewriteRefs(formula, (ref) => {
+    const col = ref.colAbs ? ref.col : ref.col + dc;
+    const row = ref.rowAbs ? ref.row : ref.row + dr;
+    if (row < 0 || col < 0) return "#REF";
+    return ref.sheet + (ref.colAbs ? "$" : "") + colLabel(col) + (ref.rowAbs ? "$" : "") + (row + 1);
+  });
 }
 
 const _fFloat = (v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : Math.round(v * 1e6) / 1e6);
@@ -2731,11 +2830,14 @@ function paintFormulaRefs(g) {
   const found = [];
   const seen = new Set();
   for (let i = 0; i < parts.length && found.length < 10; i += 2) {
-    const re = /(\$?[A-Za-z]{1,3}\$?[0-9]{1,7})(?::(\$?[A-Za-z]{1,3}\$?[0-9]{1,7}))?/g;
+    const re = /((?:'(?:[^']|'')+'|[A-Za-z_][A-Za-z0-9_.]*)!)?(\$?[A-Za-z]{1,3}\$?[0-9]{1,7})(?::(\$?[A-Za-z]{1,3}\$?[0-9]{1,7}))?/g;
     let m;
     while ((m = re.exec(parts[i])) && found.length < 10) {
-      const a = parseCellRef(m[1]);
-      const b = m[2] ? parseCellRef(m[2]) : a;
+      if (m[1]) continue; // cross-sheet ref — not on this grid
+      const prevCh = m.index > 0 ? parts[i][m.index - 1] : "";
+      if (/[A-Za-z0-9_$!]/.test(prevCh)) continue;
+      const a = parseCellRef(m[2]);
+      const b = m[3] ? parseCellRef(m[3]) : a;
       if (!a || !b) continue;
       const key = [a.row, a.col, b.row, b.col].join(",");
       if (seen.has(key)) continue;
@@ -2898,6 +3000,7 @@ function switchSheet(g, sheetId) {
   if (!sheet || sheet.id === g.sheet.id) return;
   cancelEdit(g);
   g.sheet = sheet;
+  recalcSheet(sheet); // cross-sheet inputs may have changed while hidden
   g.filter = null;
   g.active = { r: 0, c: 0 };
   g.sel = { r0: 0, c0: 0, r1: 0, c1: 0 };
@@ -2998,7 +3101,7 @@ function setCells(g, changes, opts) {
     if (g.undo.length > 100) g.undo.shift();
     g.redo = [];
   }
-  recalcSheet(sheet);
+  recalcWithSiblings(sheet);
   markCellsDirty(sheet, applied.map((a) => a.key));
   queueCellActivity(sheet, applied.map((a) => ({
     r: a.r, c: a.c,
@@ -3021,7 +3124,7 @@ function undoGrid(g) {
     else sheet.cells.delete(ch.key);
   }
   g.redo.push(op);
-  recalcSheet(sheet);
+  recalcWithSiblings(sheet);
   markCellsDirty(sheet, op.changes.map((c) => c.key));
   if (g.filter) computeGeometry(g);
   repaintGrid(g);
@@ -3037,7 +3140,7 @@ function redoGrid(g) {
     else sheet.cells.delete(ch.key);
   }
   g.undo.push(op);
-  recalcSheet(sheet);
+  recalcWithSiblings(sheet);
   markCellsDirty(sheet, op.changes.map((c) => c.key));
   if (g.filter) computeGeometry(g);
   repaintGrid(g);
@@ -3193,7 +3296,7 @@ function syncFormulaBar(g) {
   if (g.els.fbarErr) {
     if (cell && cell.err) {
       g.els.fbarErr.hidden = false;
-      g.els.fbarErr.textContent = cell.err + (cell.err === "#CIRCULAR" ? " · circular reference" : cell.err === "#DIV/0" ? " · division by zero" : cell.err === "#N/A" ? " · no match found" : "");
+      g.els.fbarErr.textContent = cell.err + (cell.err === "#CIRCULAR" ? " · circular reference" : cell.err === "#DIV/0" ? " · division by zero" : cell.err === "#N/A" ? " · no match found" : cell.err === "#REF" ? " · broken reference" : "");
     } else g.els.fbarErr.hidden = true;
   }
 }
@@ -3217,8 +3320,23 @@ function selectionToTsv(g) {
   return lines.join("\n");
 }
 
-async function copySelection(g) {
-  const tsv = selectionToTsv(g);
+// Rich internal clipboard: cell objects (formulas + formats) plus the
+// TSV text mirror. On paste, if the system clipboard text still matches
+// the mirror, the rich cells win and formulas rewrite Excel-style.
+function captureClipboard(g, mode) {
+  const { r0, r1, c0, c1 } = selRect(g);
+  const rows = [];
+  for (let r = r0; r <= r1; r++) {
+    const line = [];
+    for (let c = c0; c <= c1; c++) line.push(cloneCell(g.sheet.cells.get(cellKey(r, c))));
+    rows.push(line);
+  }
+  WB.clipboard = { mode: mode || "copy", sheetId: g.sheet.id, r0, c0, rows, text: selectionToTsv(g) };
+}
+
+async function copySelection(g, mode) {
+  captureClipboard(g, mode);
+  const tsv = WB.clipboard.text;
   try { await navigator.clipboard.writeText(tsv); }
   catch (_) {
     const ta = document.createElement("textarea");
@@ -3284,10 +3402,61 @@ function pasteMatrix(g, matrix) {
 async function pasteFromClipboard(g) {
   try {
     const text = await navigator.clipboard.readText();
-    if (text) pasteMatrix(g, parseClipboardMatrix(text));
+    if (text) pasteAt(g, text);
   } catch (_) {
     _toast("Press Ctrl+V to paste (clipboard access was blocked)", "info");
   }
+}
+
+// Route a paste: if the system clipboard still holds our own copy, use
+// the rich cells (formulas rewrite); otherwise parse as external TSV.
+function pasteAt(g, text) {
+  const cb = WB.clipboard;
+  if (cb && cb.rows.length && text !== "" && cb.text === text) return pasteRich(g, cb);
+  pasteMatrix(g, parseClipboardMatrix(text));
+}
+
+function pasteRich(g, cb) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const sel = selRect(g);
+  const srcR = cb.rows.length, srcC = cb.rows[0].length;
+  const selR = sel.r1 - sel.r0 + 1, selC = sel.c1 - sel.c0 + 1;
+  // Excel tiling: repeat the block when the target is an exact multiple
+  const repR = selR > 1 && selR % srcR === 0 ? selR / srcR : 1;
+  const repC = selC > 1 && selC % srcC === 0 ? selC / srcC : 1;
+  const changes = [];
+  const covered = new Set();
+  for (let br = 0; br < repR; br++) for (let bc = 0; bc < repC; bc++) {
+    for (let i = 0; i < srcR; i++) for (let j = 0; j < srcC; j++) {
+      const tr = sel.r0 + br * srcR + i, tc = sel.c0 + bc * srcC + j;
+      if (tr >= sheet.rowCount || tc >= sheet.colCount) continue;
+      const srcCell = cb.rows[i][j];
+      let next = null;
+      if (srcCell) {
+        next = cloneCell(srcCell);
+        if (srcCell.formula && cb.mode !== "cut") {
+          // cut moves formulas verbatim (Excel); copy adjusts refs
+          next.formula = shiftFormulaRelative(srcCell.formula, tr - (cb.r0 + i), tc - (cb.c0 + j));
+        }
+      }
+      changes.push({ r: tr, c: tc, cell: next });
+      covered.add(cellKey(tr, tc));
+    }
+  }
+  if (cb.mode === "cut") {
+    if (cb.sheetId === sheet.id) {
+      for (let i = 0; i < srcR; i++) for (let j = 0; j < srcC; j++) {
+        const sr = cb.r0 + i, sc = cb.c0 + j;
+        if (!covered.has(cellKey(sr, sc))) changes.push({ r: sr, c: sc, cell: null });
+      }
+    }
+    cb.mode = "copy"; // a cut pastes once; further pastes behave as copy
+  }
+  setCells(g, changes);
+  g.sel = { r0: sel.r0, c0: sel.c0, r1: Math.min(sheet.rowCount - 1, sel.r0 + repR * srcR - 1), c1: Math.min(sheet.colCount - 1, sel.c0 + repC * srcC - 1) };
+  g.active = { r: sel.r0, c: sel.c0 };
+  paintSelection(g);
 }
 
 function clearSelection(g, { formatToo } = {}) {
@@ -3358,25 +3527,22 @@ function clearFormatting(g) {
 const CELLREF_TOKEN = /(\$?)([A-Za-z]{1,3})(\$?)([0-9]{1,7})/g;
 
 function shiftFormulaRefs(formula, axis, index, delta) {
-  // axis: "row" | "col"; operates on text outside string literals only
-  const parts = String(formula).split(/("(?:[^"]|"")*")/);
-  for (let i = 0; i < parts.length; i += 2) {
-    parts[i] = parts[i].replace(CELLREF_TOKEN, (m, d1, colStr, d2, rowStr) => {
-      const rc = parseCellRef(colStr + rowStr);
-      if (!rc) return m;
-      let { row, col } = rc;
-      if (axis === "row") {
-        if (delta < 0 && row === index) return "#REF";
-        if (row >= index) row += delta;
-      } else {
-        if (delta < 0 && col === index) return "#REF";
-        if (col >= index) col += delta;
-      }
-      if (row < 0 || col < 0) return "#REF";
-      return d1 + colLabel(col) + d2 + (row + 1);
-    });
-  }
-  return parts.join("");
+  // Structural insert/delete on THIS sheet: refs at/after the index
+  // move (anchored or not — structure moved under them); refs into
+  // other sheets are untouched; refs to a deleted row/col become #REF.
+  return rewriteRefs(formula, (ref) => {
+    if (ref.sheet) return null;
+    let { row, col } = ref;
+    if (axis === "row") {
+      if (delta < 0 && row === index) return "#REF";
+      if (row >= index) row += delta;
+    } else {
+      if (delta < 0 && col === index) return "#REF";
+      if (col >= index) col += delta;
+    }
+    if (row < 0 || col < 0) return "#REF";
+    return (ref.colAbs ? "$" : "") + colLabel(col) + (ref.rowAbs ? "$" : "") + (row + 1);
+  });
 }
 
 function restructure(g, axis, index, delta) {
@@ -3425,7 +3591,7 @@ function restructure(g, axis, index, delta) {
   g.undo.push({ changes: changes.map((ch) => ({ r: ch.r, c: ch.c, key: cellKey(ch.r, ch.c), prev: ch.prevCell, next: ch.nextCell })) });
   if (g.undo.length > 100) g.undo.shift();
   g.redo = [];
-  recalcSheet(sheet);
+  recalcWithSiblings(sheet);
   markCellsDirty(sheet, [...touched]);
   queueCellActivity(sheet, [{ r: index, c: 0, prev: null, next: null }]);
   wbLog("sheet.restructured", `${delta > 0 ? "inserted" : "deleted"} a ${axis === "row" ? "row" : "column"} ${axis === "row" ? "at row " + (index + 1) : "at column " + colLabel(index)} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
@@ -3507,7 +3673,7 @@ function sortByColumn(g, col, dir) {
   g.undo.push({ changes });
   if (g.undo.length > 100) g.undo.shift();
   g.redo = [];
-  recalcSheet(sheet);
+  recalcWithSiblings(sheet);
   markCellsDirty(sheet, [...touched]);
   wbLog("sheet.sorted", `sorted ${sheet.name} by column ${colLabel(col)} (${dir === "asc" ? "A→Z" : "Z→A"})`, { target_type: "sheet", target_id: sheet.id });
   computeGeometry(g);
@@ -4022,7 +4188,7 @@ function bindGridEvents(g) {
     if (meta && (k === "z" || k === "Z")) { e.preventDefault(); if (e.shiftKey) redoGrid(g); else undoGrid(g); return; }
     if (meta && (k === "y" || k === "Y")) { e.preventDefault(); redoGrid(g); return; }
     if (meta && (k === "c" || k === "C")) { e.preventDefault(); copySelection(g); return; }
-    if (meta && (k === "x" || k === "X")) { e.preventDefault(); copySelection(g).then(() => clearSelection(g)); return; }
+    if (meta && (k === "x" || k === "X")) { e.preventDefault(); copySelection(g, "cut"); return; }
     if (meta && (k === "v" || k === "V")) {
       // preferred path: the native paste event (fires next tick with
       // clipboardData); fall back to the async clipboard API
@@ -4069,19 +4235,20 @@ function bindGridEvents(g) {
     e.preventDefault();
     clearTimeout(g.clipboardTimer);
     const text = e.clipboardData ? e.clipboardData.getData("text/plain") : "";
-    if (text) pasteMatrix(g, parseClipboardMatrix(text));
+    if (text) pasteAt(g, text);
   });
 
   grid.addEventListener("copy", (e) => {
     if (g.editing) return;
     e.preventDefault();
-    e.clipboardData.setData("text/plain", selectionToTsv(g));
+    captureClipboard(g, "copy");
+    e.clipboardData.setData("text/plain", WB.clipboard.text);
   });
   grid.addEventListener("cut", (e) => {
     if (g.editing) return;
     e.preventDefault();
-    e.clipboardData.setData("text/plain", selectionToTsv(g));
-    clearSelection(g);
+    captureClipboard(g, "cut");
+    e.clipboardData.setData("text/plain", WB.clipboard.text);
   });
 
   // ── formula bar ──
@@ -4301,7 +4468,7 @@ function openCellContextMenu(g, x, y, kind) {
     const act = btn.getAttribute("data-ctx");
     closeAllPopovers();
     switch (act) {
-      case "cut": await copySelection(g); clearSelection(g); break;
+      case "cut": await copySelection(g, "cut"); break;
       case "copy": await copySelection(g); break;
       case "paste": await pasteFromClipboard(g); break;
       case "insert-row-above": restructure(g, "row", r, 1); break;
