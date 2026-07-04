@@ -1941,14 +1941,9 @@ async function renderListPage() {
     </button>`;
   };
 
+  // the New workbook action lives in the page strip (schedule-style
+  // chrome in view-workbooks.frag) — the list body is just the cards
   root.innerHTML = `
-    <div class="wb-list-head">
-      <p class="wb-list-sub">Workbooks combine spreadsheets, notes, and checklists — plan coverage, track fleet issues, prep payroll, and work the plan with your team.</p>
-      <button type="button" class="btn btn-primary" data-wb-act="new-workbook">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        New workbook
-      </button>
-    </div>
     ${list.length ? `<div class="wb-cards">${list.map(card).join("")}</div>` : WB.showArchived ? `
       <div class="rr-empty">
         <div class="rr-empty-icon">${WB_ICON_SVG}</div>
@@ -6306,7 +6301,22 @@ function installRootListeners() {
     if (!e.target.closest(".popover-anchor") && !e.target.closest(".wb-ctx-menu") && !e.target.closest(".popover")) {
       closeAllPopovers();
     }
-    if (!root.contains(e.target) && !e.target.closest("#wb-panel")) return;
+    if (!root.contains(e.target) && !e.target.closest("#wb-panel") && !e.target.closest("#rr-wb-cmd")) return;
+
+    // strip tabs (schedule-style chrome): Workbooks shows the list,
+    // Reports launches the Reports Builder
+    const stripTab = e.target.closest("#rr-wb-cmd [data-wb-tab]");
+    if (stripTab) {
+      const t = stripTab.getAttribute("data-wb-tab");
+      if (t === "reports") {
+        if (typeof window.openReportsBuilder === "function") window.openReportsBuilder();
+        else _toast("Reports are coming soon", "info");
+      } else if (WB.view !== "list") {
+        WB.wb = null;
+        renderListPage();
+      }
+      return;
+    }
 
     const dvb = e.target.closest("[data-wb-dvbtn]");
     if (dvb) {
