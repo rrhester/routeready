@@ -13,11 +13,11 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-// v122 · Checklists get their own bottom-nav tab (moved out of the
-// Forms hub) with To do / Completed groups and an open-count badge.
-// Bumped so installed driver PWAs purge the old shell and pick up the
-// new app.js + styles.css.
-const SHELL_CACHE = "rr-app-shell-v122";
+// v123 · Checklists tab surfaces the underlying load error (code +
+// message) instead of only the generic retry line, so backend issues
+// are diagnosable from the phone. Bumped so installed driver PWAs
+// purge the old shell and pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v123";
 const SHELL_FILES = [
   "./",
   "index.html",

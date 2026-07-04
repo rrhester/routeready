@@ -5702,7 +5702,13 @@ function renderChecklistsHub() {
     if (!host) return;
     if (error) {
       console.warn("driver_list_checklists error:", error);
-      host.innerHTML = `<div class="rr-empty-inline" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Couldn't load checklists — pull down to retry.</div>`;
+      // Surface the underlying error so a broken backend (missing
+      // migration, bad grant, runtime SQL error) is diagnosable from
+      // the phone instead of hiding behind a generic retry line.
+      const detail = [error.code, error.message, error.hint].filter(Boolean).join(" · ");
+      host.innerHTML = `<div class="rr-empty-inline" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Couldn't load checklists — pull down to retry.${
+        detail ? `<div style="margin-top:10px;font-size:12px;line-height:1.5;color:#b91c1c;overflow-wrap:anywhere">${escapeHtml(detail)}</div>` : ""
+      }</div>`;
       return;
     }
     const lists = Array.isArray(data) ? data : [];
@@ -5722,6 +5728,8 @@ function renderChecklistsHub() {
   }).catch((err) => {
     console.warn("driver_list_checklists rejected:", err);
     document.getElementById("rr-clk-hub-skel")?.remove();
+    const host = document.getElementById("rr-clk-hub");
+    if (host) host.innerHTML = `<div class="rr-empty-inline" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Couldn't load checklists — pull down to retry.<div style="margin-top:10px;font-size:12px;line-height:1.5;color:#b91c1c;overflow-wrap:anywhere">${escapeHtml(String(err && err.message || err))}</div></div>`;
   });
 }
 
