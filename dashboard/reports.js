@@ -111,6 +111,7 @@ const RB = {
   loading: null,     // in-flight promise
   report: null,      // selected report def
   customSel: new Set(["driverName", "phoneNumber", "email", "status"]),
+  live: true,        // live-updating workbook vs point-in-time snapshot
 };
 
 export function initReportsBuilder(deps) { RB.deps = deps || {}; }
@@ -204,6 +205,19 @@ function buildMatrix(report, people) {
   };
 }
 
+// Data provider for live report workbooks — workbook.js calls this (via
+// registerReportProvider in live.js) with the stored report spec whenever a
+// live report is opened, and rewrites the sheet with what it returns.
+export async function buildReportData(spec) {
+  const people = await fetchPeopleData(true); // always fresh — that's the point
+  const keys = (Array.isArray(spec && spec.fields) ? spec.fields : []).filter((k) => RB_FIELDS[k]);
+  if (!keys.length) return null;
+  return {
+    headers: keys.map((k) => RB_FIELDS[k].label),
+    rows: people.map((p) => keys.map((k) => RB_FIELDS[k].map(p))),
+  };
+}
+
 function toCsv(headers, rows) {
   const cell = (v) => {
     const s = String(v ?? "");
@@ -279,6 +293,17 @@ export function openReportsBuilder() {
             <input type="checkbox" data-rb-field="${k}" ${RB.customSel.has(k) ? "checked" : ""}>
             <span>${esc(RB_PICKER_LABEL[k] || RB_FIELDS[k].label)}</span>
           </label>`).join("")}
+      </div>
+      <p class="rb-main-head rb-live-head">Data updates</p>
+      <div class="rb-live-opts">
+        <label class="rb-live-opt">
+          <input type="radio" name="rb-live" data-rb-live="1" ${RB.live ? "checked" : ""}>
+          <span><strong>Live</strong> — the workbook refreshes from RouteReady data every time it's opened.</span>
+        </label>
+        <label class="rb-live-opt">
+          <input type="radio" name="rb-live" data-rb-live="0" ${RB.live ? "" : "checked"}>
+          <span><strong>Snapshot</strong> — keeps the data exactly as it is right now.</span>
+        </label>
       </div>`;
   };
 
@@ -377,9 +402,15 @@ export function openReportsBuilder() {
     try {
       const { headers, rows } = await currentMatrix();
       const title = RB.report.title;
-      await RB.deps.createReportWorkbook({ title, description: RB.report.description, headers, rows });
+      await RB.deps.createReportWorkbook({
+        title,
+        description: RB.report.description,
+        headers,
+        rows,
+        report: { source: "people", fields: reportFields(RB.report), live: RB.live },
+      });
       close();
-      _toast(`Opening “${title}” in Workbooks`, "success");
+      _toast(`Opening “${title}” in Workbooks${RB.live ? " — it refreshes on every open" : ""}`, "success");
     } catch (e) {
       console.warn("report → workbook:", e && e.message);
       els.foot.workbook.disabled = false;
@@ -390,6 +421,8 @@ export function openReportsBuilder() {
 
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
   wrap.addEventListener("change", (e) => {
+    const live = e.target.closest("[data-rb-live]");
+    if (live) { RB.live = live.getAttribute("data-rb-live") === "1"; return; }
     const f = e.target.closest("[data-rb-field]");
     if (!f) return;
     const key = f.getAttribute("data-rb-field");

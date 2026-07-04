@@ -10,8 +10,8 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=b38b7853961d";
 import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=b38b7853961d";
-import { loadWorkbooksView, createReportWorkbook } from "./workbook.js?v=b38b7853961d";
-import { initReportsBuilder, openReportsBuilder } from "./reports.js?v=b38b7853961d";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider } from "./workbook.js?v=b38b7853961d";
+import { initReportsBuilder, openReportsBuilder, buildReportData } from "./reports.js?v=b38b7853961d";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -25,6 +25,7 @@ window.RR = { sb, user: null, dsp: null };
 // imports workbook.js directly (avoids a second module instance via a
 // mismatched ?v= specifier).
 initReportsBuilder({ createReportWorkbook });
+registerReportProvider(buildReportData);
 window.openReportsBuilder = openReportsBuilder;
 // Devtools convenience: surface the Supabase client + a one-liner
 // for the okami_demand diagnostic so operators can paste a single
