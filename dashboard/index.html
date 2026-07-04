@@ -387,7 +387,7 @@
               if (act === 'indeed') { if (window.openPdfUploadPicker) window.openPdfUploadPicker(); }
               else if (act === 'adpsync') { if (window.openAdpSync) window.openAdpSync(); }
               else if (act === 'drive') { if (window.openDrive) window.openDrive(); else if (window.goto) window.goto('drive'); }
-              else if (act === 'reports') { if (window.openReportsBuilder) window.openReportsBuilder(); else if (window.toast) window.toast('Reports are coming soon'); }
+              else if (act === 'reports') { if (window.openReportsScreen) window.openReportsScreen(); else if (window.toast) window.toast('Reports are coming soon'); }
               else if (go && window.goto) { window.goto(go); }
               else if (sub) {
                 if (window.goto) window.goto('schedule');
