@@ -9630,7 +9630,7 @@ function _rrCtpOpenEdit(id) {
   _rrCtpBeginEdit(id);
 }
 try { window._rrCtpOpenCreate = _rrCtpOpenCreate; window._rrCtpOpenEdit = _rrCtpOpenEdit; } catch (_) {}
-function _rrNtRenderAll() { _rrRenderNotes(); _rrRenderTasks(); _rrRenderContacts(); if (typeof window.rrFtoolRender === "function") { try { window.rrFtoolRender(); } catch (_) {} } }
+function _rrNtRenderAll() { _rrRenderNotes(); _rrRenderTasks(); _rrRenderContacts(); if (typeof window.rrFtoolRender === "function") { try { window.rrFtoolRender(); } catch (_) {} } try { _clfSidebarRender(); } catch (_) {} }
 function _rrAddNoteFromInput() {
   const ed = document.querySelector("#rr-sched-notes [data-rr-note-input]");
   if (!ed) return;
@@ -77437,3 +77437,988 @@ document.addEventListener("click", function (e) {
   else if (act === "disconnect") _rrAdpDisconnect();
   else if (act === "import") _rrAdpImport(t);
 });
+
+
+// ═══════════════════════════════════════════════════════════════════
+// Driver Checklists — Checklists rail panel + Form-Builder-style modal
+//
+// The Tasks rail button opens the Checklists sidebar (browse / search /
+// filter / manage checklist templates); "+ New Checklist" and card
+// clicks open the large #modal-clf-builder modal where the checklist is
+// built, published, and assigned. Assigned checklists surface in the
+// driver app's Forms hub (driver_list_checklists) and submissions come
+// back on the Responses tab (checklist_form_responses).
+//
+// Backed by migration 0415: checklist_forms / checklist_items /
+// checklist_assignments / checklist_submissions / checklist_answers.
+// Naming note: table checklist_templates was already taken by the
+// staff-facing Workspaces checklists (0211) — this feature is fully
+// separate from that one and from the personal "My Tasks" to-dos.
+// ═══════════════════════════════════════════════════════════════════
+
+const _clfState = {
+  list: null,          // checklist_form_list cache (sidebar)
+  listAt: 0,
+  filter: "all",
+  search: "",
+  editing: null,       // template from checklist_form_get (null = new, unsaved)
+  items: [],           // builder item rows (client-side until Save)
+  dirty: false,
+  drivers: null,       // assign-pane caches
+  vans: null,
+  routeTypes: null,
+};
+
+const _CLF_TYPE_LABELS = {
+  checkbox: "Checkbox", yes_no: "Yes / No", short_text: "Short text",
+  number: "Number", photo: "Photo", signature: "Signature", note: "Notes",
+};
+const _CLF_TYPE_ICONS = {
+  checkbox:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12.5 11 15.5 16.5 9.5"/></svg>',
+  yes_no:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="10" rx="5"/><circle cx="16.5" cy="12" r="3"/></svg>',
+  short_text:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="13" y2="15"/></svg>',
+  number:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 4v16M15 4v16M4 9h16M4 15h16"/></svg>',
+  photo:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+  signature: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M4 21h16"/></svg>',
+  note:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>',
+};
+
+let _clfIdSeq = 0;
+function _clfNewItem(type) {
+  return {
+    id: "new_" + Date.now().toString(36) + "_" + (_clfIdSeq++),
+    label: "", helper_text: "", item_type: type || "checkbox",
+    required: false, options_json: {}, flag_rule_json: {},
+  };
+}
+function _clfAgo(ts) {
+  if (!ts) return "";
+  const ms = Date.now() - new Date(ts).getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return m + "m ago";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + "h ago";
+  const d = Math.floor(h / 24);
+  if (d < 30) return d + "d ago";
+  return new Date(ts).toLocaleDateString();
+}
+
+// ── Sidebar (Checklists pane in the tasks rail panel) ────────────────
+
+function _clfSidebarRender() {
+  const host = document.getElementById("rr-clf-list");
+  if (!host) return;
+  if (_clfState.list) _clfSidebarPaint();
+  else host.innerHTML = `<div class="rr-fp-empty" style="font-size:12.5px;padding:8px 2px">Loading checklists…</div>`;
+  // stale-while-revalidate: refresh when older than 20s
+  if (Date.now() - _clfState.listAt > 20000) _clfSidebarFetch();
+}
+
+async function _clfSidebarFetch() {
+  _clfState.listAt = Date.now();
+  try {
+    const { data, error } = await sb.rpc("checklist_form_list");
+    if (error) throw error;
+    _clfState.list = Array.isArray(data) ? data : [];
+    _clfSidebarPaint();
+  } catch (e) {
+    if (!_clfState.list) {
+      const host = document.getElementById("rr-clf-list");
+      if (host) host.innerHTML = `<div class="rr-fp-empty" style="font-size:12.5px;padding:8px 2px">Couldn't load checklists${e?.message?.includes("checklist_form_list") ? " — apply migration 0415" : ""}.</div>`;
+    }
+  }
+}
+
+function _clfDisplayStatus(f) {
+  if (f.status === "active" && (f.active_assignments || 0) > 0) return "assigned";
+  return f.status || "draft";
+}
+
+function _clfSidebarPaint() {
+  const host = document.getElementById("rr-clf-list");
+  if (!host) return;
+  const q = (_clfState.search || "").toLowerCase();
+  const rows = (_clfState.list || []).filter((f) => {
+    const st = _clfDisplayStatus(f);
+    if (_clfState.filter === "archived" && st !== "archived") return false;
+    if (_clfState.filter !== "archived" && _clfState.filter !== "all" && st !== _clfState.filter) return false;
+    if (_clfState.filter === "all" && st === "archived") return false; // archived only under its own chip
+    if (q && !(`${f.name || ""} ${f.description || ""}`.toLowerCase().includes(q))) return false;
+    return true;
+  });
+  if (rows.length === 0) {
+    host.innerHTML = `<div class="rr-fp-empty" style="font-size:12.5px;padding:8px 2px">${
+      (_clfState.list || []).length === 0
+        ? "No checklists yet — click <strong>+ New Checklist</strong> to build your first one."
+        : "No checklists match."
+    }</div>`;
+    return;
+  }
+  const stLabel = { draft: "Draft", active: "Active", assigned: "Assigned", archived: "Archived" };
+  host.innerHTML = rows.map((f) => {
+    const st = _clfDisplayStatus(f);
+    const sum = [];
+    if (f.active_assignments > 0) sum.push(`${f.active_assignments} assignment${f.active_assignments === 1 ? "" : "s"}`);
+    if (f.submitted_today > 0) sum.push(`<span class="rr-clf-sum-ok">${f.submitted_today} done today</span>`);
+    if (f.overdue_count > 0) sum.push(`<span class="rr-clf-warn">${f.overdue_count} overdue</span>`);
+    if (f.failed_today > 0) sum.push(`<span class="rr-clf-warn">${f.failed_today} flagged</span>`);
+    return `
+      <div class="rr-fp-card" data-rr-clf-edit="${escapeHtml(f.id)}" role="listitem" tabindex="0">
+        <span class="rr-fp-card-ico">${_CLF_TYPE_ICONS.checkbox}</span>
+        <div class="rr-fp-card-body">
+          <div class="rr-fp-card-top">
+            <span class="rr-fp-card-title">${escapeHtml(f.name || "Untitled checklist")}</span>
+            <span class="rr-fp-badge rr-fp-st-${st === "assigned" ? "assigned" : st === "active" ? "active" : st}">${stLabel[st] || st}</span>
+          </div>
+          <div class="rr-clf-meta-row">
+            <span>${f.item_count || 0} item${f.item_count === 1 ? "" : "s"}</span>
+            <span>Updated ${_clfAgo(f.updated_at)}</span>
+          </div>
+          ${sum.length ? `<div class="rr-clf-meta-row">${sum.join('<span aria-hidden="true">·</span>')}</div>` : ""}
+        </div>
+        <button type="button" class="rr-fp-card-dots" data-rr-clf-dots="${escapeHtml(f.id)}" title="More" aria-label="More actions" aria-haspopup="menu"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+      </div>`;
+  }).join("");
+}
+
+function _clfCloseMenus() {
+  document.querySelectorAll(".rr-clf-menu").forEach((m) => m.remove());
+}
+
+function _clfOpenMenu(btn, id) {
+  _clfCloseMenus();
+  const f = (_clfState.list || []).find((x) => x.id === id);
+  const archived = f?.status === "archived";
+  const menu = document.createElement("div");
+  menu.className = "rr-clf-menu";
+  menu.setAttribute("role", "menu");
+  menu.innerHTML = `
+    <button type="button" data-rr-clf-menu="edit" data-id="${escapeHtml(id)}">Edit</button>
+    <button type="button" data-rr-clf-menu="duplicate" data-id="${escapeHtml(id)}">Duplicate</button>
+    <button type="button" data-rr-clf-menu="${archived ? "restore" : "archive"}" data-id="${escapeHtml(id)}">${archived ? "Restore" : "Archive"}</button>
+    <button type="button" class="rr-clf-menu-danger" data-rr-clf-menu="delete" data-id="${escapeHtml(id)}">Delete</button>`;
+  btn.closest(".rr-fp-card")?.appendChild(menu);
+}
+
+function _clfPanelSetPane(pane) {
+  const panel = document.getElementById("rr-sched-tasks");
+  if (!panel) return;
+  panel.querySelectorAll("[data-rr-clf-seg]").forEach((b) => {
+    const on = b.getAttribute("data-rr-clf-seg") === pane;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  panel.querySelectorAll("[data-rr-clf-body]").forEach((el) => {
+    el.hidden = el.getAttribute("data-rr-clf-body") !== pane;
+  });
+  const title = document.getElementById("rr-clf-panel-title");
+  const sub = document.getElementById("rr-clf-panel-sub");
+  const newBtn = panel.querySelector("[data-rr-clf-new]");
+  if (title) title.textContent = pane === "my" ? "My Tasks" : "Checklists";
+  if (sub) sub.textContent = pane === "my" ? "Your personal to-do list" : "Build, assign, and track driver checklists";
+  if (newBtn) newBtn.style.display = pane === "my" ? "none" : "";
+}
+
+// ── Builder modal ─────────────────────────────────────────────────────
+
+async function openClfBuilder(id) {
+  _clfCloseMenus();
+  if (id) {
+    let data = null;
+    try {
+      const res = await sb.rpc("checklist_form_get", { p_id: id });
+      if (res.error) throw res.error;
+      data = res.data;
+    } catch (e) {
+      toast("Couldn't open that checklist: " + (e.message || e), "warn");
+      return;
+    }
+    _clfState.editing = data;
+    _clfState.items = (Array.isArray(data.items) ? data.items : []).map((i) => ({
+      id: i.id, label: i.label || "", helper_text: i.helper_text || "",
+      item_type: i.item_type || "checkbox", required: !!i.required,
+      options_json: i.options_json || {}, flag_rule_json: i.flag_rule_json || {},
+    }));
+  } else {
+    _clfState.editing = null;
+    _clfState.items = [];
+  }
+  _clfState.dirty = false;
+
+  const name = document.getElementById("rr-clf-name");
+  const desc = document.getElementById("rr-clf-desc");
+  const cat  = document.getElementById("rr-clf-category");
+  const reuse = document.getElementById("rr-clf-reusable");
+  if (name) name.value = _clfState.editing?.name || "";
+  if (desc) desc.value = _clfState.editing?.description || "";
+  if (cat)  cat.value  = _clfState.editing?.category || "Driver App Forms";
+  if (reuse) reuse.checked = _clfState.editing ? !!_clfState.editing.reusable : true;
+
+  _clfSetTab("build");
+  _clfRenderItems();
+  _clfPaintStatus();
+  _clfPaintSaved();
+  if (typeof window.openModal === "function") window.openModal("modal-clf-builder");
+  if (!id) setTimeout(() => { try { name?.focus(); } catch (_) {} }, 120);
+}
+
+function _clfSetTab(tab) {
+  document.querySelectorAll("[data-rr-clf-tab]").forEach((b) => {
+    b.classList.toggle("is-active", b.getAttribute("data-rr-clf-tab") === tab);
+  });
+  document.querySelectorAll("#modal-clf-builder [data-rr-clf-pane]").forEach((p) => {
+    p.classList.toggle("is-active", p.getAttribute("data-rr-clf-pane") === tab);
+  });
+  if (tab === "assign") _clfRenderAssign();
+  if (tab === "responses") _clfRenderResponses();
+}
+
+function _clfPaintStatus() {
+  const st = _clfState.editing?.status || "draft";
+  const badge = document.getElementById("rr-clf-status-badge");
+  if (badge) {
+    badge.dataset.status = st;
+    badge.textContent = st === "active" ? "Active" : st === "archived" ? "Archived" : "Draft";
+  }
+  const activeToggle = document.getElementById("rr-clf-active-toggle");
+  if (activeToggle) {
+    activeToggle.checked = st === "active";
+    activeToggle.disabled = !_clfState.editing;
+    activeToggle.closest("label")?.setAttribute("title", _clfState.editing ? "" : "Save the checklist first");
+  }
+  const footSt = document.getElementById("rr-clf-foot-status");
+  if (footSt) footSt.innerHTML = `<span class="builder-foot-dot" style="${st === "active" ? "background:#16A34A" : ""}"></span>${st === "active" ? "Published" : st === "archived" ? "Archived" : "Draft"}`;
+  const pubBtns = document.querySelectorAll("#modal-clf-builder [data-rr-clf-publish]");
+  pubBtns.forEach((b) => { b.textContent = st === "active" ? "Republish" : "Publish"; });
+  _clfPaintAssignSummary();
+}
+
+function _clfPaintAssignSummary() {
+  const assigns = (_clfState.editing?.assignments || []).filter((a) => a.status !== "archived");
+  const n = assigns.length;
+  const txt = n === 0 ? "Not assigned yet." : `${n} active assignment${n === 1 ? "" : "s"}.`;
+  const sum = document.getElementById("rr-clf-assign-summary");
+  if (sum) {
+    sum.innerHTML = n === 0
+      ? `Not assigned yet. Use <strong>Assign</strong> to send it to drivers.`
+      : escapeHtml(txt) + `<div style="margin-top:6px;color:var(--text-subtle);font-size:var(--fs-xs)">${assigns.slice(0, 3).map((a) => escapeHtml(_clfAssignDesc(a))).join("<br/>")}${n > 3 ? "<br/>…" : ""}</div>`;
+  }
+  const foot = document.getElementById("rr-clf-foot-assign");
+  if (foot) foot.textContent = n === 0 ? "Not assigned yet" : `Assigned · ${n} rule${n === 1 ? "" : "s"}`;
+}
+
+function _clfPaintSaved() {
+  const chip = document.getElementById("rr-clf-saved");
+  if (!chip) return;
+  const dirty = _clfState.dirty;
+  chip.dataset.state = dirty ? "dirty" : "saved";
+  const txt = chip.querySelector(".builder-saved-text");
+  if (txt) txt.textContent = dirty ? "Unsaved changes" : (_clfState.editing ? "All changes saved" : "Not saved yet");
+  const counts = document.getElementById("rr-clf-foot-counts");
+  if (counts) counts.textContent = `${_clfState.items.length} item${_clfState.items.length === 1 ? "" : "s"}`;
+}
+
+function _clfMarkDirty() { _clfState.dirty = true; _clfPaintSaved(); }
+
+function _clfFlagControlHtml(item, idx) {
+  const fr = item.flag_rule_json || {};
+  if (item.item_type === "yes_no") {
+    const v = fr.flag_on === "yes" ? "yes" : fr.flag_on === "no" ? "no" : "";
+    return `<label class="clf-chip-toggle" title="Flag the submission when the driver answers this way">Flag if
+      <select class="clf-flag-select" data-rr-clf-flag="on" data-idx="${idx}">
+        <option value="" ${v === "" ? "selected" : ""}>never</option>
+        <option value="yes" ${v === "yes" ? "selected" : ""}>Yes</option>
+        <option value="no" ${v === "no" ? "selected" : ""}>No</option>
+      </select></label>`;
+  }
+  if (item.item_type === "checkbox") {
+    return `<label class="clf-chip-toggle" title="Flag the submission when this step is left unchecked"><input type="checkbox" data-rr-clf-flag="unchecked" data-idx="${idx}" ${fr.flag_on === "unchecked" ? "checked" : ""}/>Flag if unchecked</label>`;
+  }
+  if (item.item_type === "number") {
+    return `<span class="clf-chip-toggle" title="Flag the submission when the number falls outside this range">Flag if outside
+      <input type="number" class="clf-flag-num" placeholder="min" data-rr-clf-flag="min" data-idx="${idx}" value="${fr.min != null ? escapeHtml(String(fr.min)) : ""}"/>–
+      <input type="number" class="clf-flag-num" placeholder="max" data-rr-clf-flag="max" data-idx="${idx}" value="${fr.max != null ? escapeHtml(String(fr.max)) : ""}"/></span>`;
+  }
+  return "";
+}
+
+function _clfItemHtml(item, idx) {
+  return `
+    <div class="clf-item" data-rr-clf-item="${idx}" data-idx="${idx}">
+      <span class="clf-item-handle" data-rr-clf-handle draggable="true" title="Drag to reorder" aria-label="Drag to reorder"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>
+      <span class="clf-item-ico" title="${escapeHtml(_CLF_TYPE_LABELS[item.item_type] || item.item_type)}">${_CLF_TYPE_ICONS[item.item_type] || _CLF_TYPE_ICONS.checkbox}</span>
+      <div class="clf-item-main">
+        <input class="clf-item-label" data-rr-clf-prop="label" data-idx="${idx}" value="${escapeHtml(item.label || "")}" placeholder="Item label — what should the driver do?" maxlength="300"/>
+        <input class="clf-item-helper" data-rr-clf-prop="helper_text" data-idx="${idx}" value="${escapeHtml(item.helper_text || "")}" placeholder="Helper text (optional)" maxlength="500"/>
+        <div class="clf-item-foot">
+          <span class="clf-item-typechip">${escapeHtml(_CLF_TYPE_LABELS[item.item_type] || item.item_type)}</span>
+          <label class="clf-chip-toggle"><input type="checkbox" data-rr-clf-prop="required" data-idx="${idx}" ${item.required ? "checked" : ""}/>Required</label>
+          ${_clfFlagControlHtml(item, idx)}
+          <div class="clf-item-tools">
+            <button type="button" class="clf-item-tool" data-rr-clf-item-up="${idx}" title="Move up" aria-label="Move up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button>
+            <button type="button" class="clf-item-tool" data-rr-clf-item-down="${idx}" title="Move down" aria-label="Move down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+            <button type="button" class="clf-item-tool" data-rr-clf-item-dup="${idx}" title="Duplicate" aria-label="Duplicate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+            <button type="button" class="clf-item-tool clf-tool-danger" data-rr-clf-item-del="${idx}" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _clfRenderItems() {
+  const host = document.getElementById("rr-clf-items");
+  const empty = document.getElementById("rr-clf-empty");
+  const dz = document.getElementById("rr-clf-dropzone");
+  if (!host) return;
+  host.innerHTML = _clfState.items.map((it, i) => _clfItemHtml(it, i)).join("");
+  if (empty) empty.style.display = _clfState.items.length ? "none" : "";
+  if (dz) dz.style.display = _clfState.items.length ? "" : "none";
+  _clfPaintSaved();
+}
+
+function _clfAddItem(type, atIdx) {
+  const item = _clfNewItem(type);
+  if (atIdx == null || atIdx < 0 || atIdx > _clfState.items.length) _clfState.items.push(item);
+  else _clfState.items.splice(atIdx, 0, item);
+  _clfMarkDirty();
+  _clfRenderItems();
+  const idx = atIdx == null ? _clfState.items.length - 1 : atIdx;
+  const el = document.querySelector(`#rr-clf-items [data-rr-clf-item="${idx}"] .clf-item-label`);
+  try { el?.focus(); } catch (_) {}
+}
+
+function _clfCollectPayload() {
+  return {
+    name: document.getElementById("rr-clf-name")?.value?.trim() || "",
+    description: document.getElementById("rr-clf-desc")?.value?.trim() || "",
+    category: document.getElementById("rr-clf-category")?.value?.trim() || "Driver App Forms",
+    reusable: !!document.getElementById("rr-clf-reusable")?.checked,
+    settings: _clfState.editing?.settings || {},
+    items: _clfState.items.map((it) => ({
+      id: /^new_/.test(it.id) ? null : it.id,
+      label: it.label || "",
+      helper_text: it.helper_text || "",
+      item_type: it.item_type,
+      required: !!it.required,
+      options_json: it.options_json || {},
+      flag_rule_json: it.flag_rule_json || {},
+    })),
+  };
+}
+
+async function _clfSave(opts = {}) {
+  const btns = document.querySelectorAll("#modal-clf-builder [data-rr-clf-save], #modal-clf-builder [data-rr-clf-publish]");
+  btns.forEach((b) => (b.disabled = true));
+  try {
+    const { data, error } = await sb.rpc("checklist_form_upsert", {
+      p_id: _clfState.editing?.id || null,
+      p_payload: _clfCollectPayload(),
+    });
+    if (error) throw error;
+    _clfState.editing = data;
+    _clfState.items = (Array.isArray(data.items) ? data.items : []).map((i) => ({
+      id: i.id, label: i.label || "", helper_text: i.helper_text || "",
+      item_type: i.item_type || "checkbox", required: !!i.required,
+      options_json: i.options_json || {}, flag_rule_json: i.flag_rule_json || {},
+    }));
+    _clfState.dirty = false;
+
+    if (opts.publish && data.status !== "active") {
+      const res = await sb.rpc("checklist_form_set_status", { p_id: data.id, p_status: "active" });
+      if (res.error) throw res.error;
+      _clfState.editing = Object.assign({}, _clfState.editing, res.data);
+    } else if (opts.publish) {
+      // republish: bump version via the same RPC
+      const res = await sb.rpc("checklist_form_set_status", { p_id: data.id, p_status: "active" });
+      if (!res.error) _clfState.editing = Object.assign({}, _clfState.editing, res.data);
+    }
+
+    _clfRenderItems();
+    _clfPaintStatus();
+    _clfPaintSaved();
+    _clfSidebarFetch();
+    toast(opts.publish ? "Checklist published" : "Checklist saved", "success");
+    return true;
+  } catch (e) {
+    toast("Couldn't save: " + (e.message || e), "warn");
+    return false;
+  } finally {
+    btns.forEach((b) => (b.disabled = false));
+  }
+}
+
+// ── Assign pane ───────────────────────────────────────────────────────
+
+function _clfAssignDesc(a) {
+  const scope = {
+    driver: a.driver_name ? `Driver · ${a.driver_name}` : "One driver",
+    all_active: "All active drivers",
+    scheduled_today: "Drivers scheduled today",
+    scheduled_date: `Drivers scheduled ${a.route_date || "on a date"}`,
+    van: a.van_name ? `Van · ${a.van_name}` : "Drivers on a van",
+    route_type: `Route type · ${(a.route_type || "").toUpperCase()}`,
+    new_hires: "New hires (last 30 days)",
+    trainers: "Trainers",
+  }[a.assignment_scope] || a.assignment_scope;
+  const rr = a.repeat_rule || {};
+  const rep = { once: "One-time", daily: "Daily", weekly: "Weekly", date: `On ${rr.date || a.route_date || "date"}` }[rr.type || "once"];
+  const due = rr.due === "route_start" ? "due before route start"
+    : rr.due === "shift_end" ? "due by end of shift"
+    : rr.due === "time" && rr.due_time ? `due by ${rr.due_time}`
+    : a.due_at ? `due ${new Date(a.due_at).toLocaleString()}` : "no due date";
+  return `${scope} — ${rep}, ${due}${a.required === false ? " (optional)" : ""}`;
+}
+
+async function _clfLoadAssignData() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  if (!_clfState.drivers) {
+    const { data } = await sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", dspId).eq("status", "active").order("full_name");
+    _clfState.drivers = Array.isArray(data) ? data : [];
+  }
+  if (!_clfState.vans) {
+    const { data } = await sb.from("vehicles").select("id, name").eq("dsp_id", dspId).is("archived_at", null).order("name");
+    _clfState.vans = Array.isArray(data) ? data : [];
+  }
+  if (!_clfState.routeTypes) {
+    const { data } = await sb.from("service_types").select("code, label").eq("dsp_id", dspId).eq("active", true).order("sort_order");
+    _clfState.routeTypes = Array.isArray(data) ? data : [];
+  }
+}
+
+async function _clfRenderAssign() {
+  const host = document.getElementById("rr-clf-assign-root");
+  if (!host) return;
+  if (!_clfState.editing) {
+    host.innerHTML = `<div class="rr-empty-inline" style="margin:40px auto;max-width:420px;text-align:center">Save the checklist first, then assign it to drivers.</div>`;
+    return;
+  }
+  host.innerHTML = `<div class="rr-loading" style="margin:24px">Loading…</div>`;
+  await _clfLoadAssignData();
+
+  const drivers = _clfState.drivers || [];
+  const vans = _clfState.vans || [];
+  const types = _clfState.routeTypes || [];
+  const assigns = (_clfState.editing.assignments || []).filter((a) => a.status !== "archived");
+  const draftNote = _clfState.editing.status !== "active"
+    ? `<div style="font-size:var(--fs-xs);color:#8A6D3B;background:#F9F5EA;border:1px solid #EADFC3;border-radius:8px;padding:8px 10px;margin-bottom:12px">This checklist is still a <strong>draft</strong> — drivers won't see assignments until you publish it.</div>` : "";
+
+  host.innerHTML = `
+    <div class="clf-assign-grid">
+      <div class="builder-settings-card">
+        <div class="field-props-head">New assignment</div>
+        ${draftNote}
+        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:4px">
+          <span class="field-prop-label">Who gets this checklist</span>
+          <div class="clf-scope-list" id="rr-clf-scope-list">
+            <label><input type="radio" name="rr-clf-scope" value="driver" checked/> Specific driver(s)</label>
+            <div class="clf-drivers-box" id="rr-clf-driver-box">${
+              drivers.length === 0 ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">No active drivers.</div>`
+              : drivers.map((d) => `<label><input type="checkbox" data-rr-clf-adriver="${escapeHtml(d.id)}"/><span>${escapeHtml((d.preferred_name || "").trim() || d.full_name || "Driver")}</span></label>`).join("")
+            }</div>
+            <label><input type="radio" name="rr-clf-scope" value="all_active"/> All active drivers</label>
+            <label><input type="radio" name="rr-clf-scope" value="scheduled_today"/> Drivers scheduled today</label>
+            <label><input type="radio" name="rr-clf-scope" value="scheduled_date"/> Drivers scheduled on
+              <input type="date" id="rr-clf-scope-date" style="font:inherit;font-size:var(--fs-sm);border:1px solid var(--border);border-radius:7px;padding:3px 6px"/></label>
+            <label><input type="radio" name="rr-clf-scope" value="van"/> Drivers assigned to van
+              <select id="rr-clf-scope-van" class="clf-flag-select">${vans.map((v) => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.name)}</option>`).join("") || `<option value="">No vans</option>`}</select></label>
+            <label><input type="radio" name="rr-clf-scope" value="route_type"/> Drivers on route type
+              <select id="rr-clf-scope-rt" class="clf-flag-select">${types.map((t) => `<option value="${escapeHtml(t.code)}">${escapeHtml(t.label || t.code)}</option>`).join("") || `<option value="">No route types</option>`}</select></label>
+            <label><input type="radio" name="rr-clf-scope" value="new_hires"/> New hires (last 30 days)</label>
+            <label><input type="radio" name="rr-clf-scope" value="trainers"/> Trainers</label>
+          </div>
+        </div>
+        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px;border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+          <span class="field-prop-label">Schedule</span>
+          <div class="clf-assign-inline">
+            <select id="rr-clf-repeat">
+              <option value="once">One-time</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="date">Specific date</option>
+            </select>
+            <input type="date" id="rr-clf-repeat-date" style="display:none"/>
+          </div>
+        </div>
+        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
+          <span class="field-prop-label">Due</span>
+          <div class="clf-assign-inline">
+            <select id="rr-clf-due">
+              <option value="none">No due date</option>
+              <option value="route_start">Due before route start</option>
+              <option value="shift_end">Due by end of shift</option>
+              <option value="time">Due by a time</option>
+            </select>
+            <input type="time" id="rr-clf-due-time" style="display:none"/>
+          </div>
+        </div>
+        <div class="field-prop-row" style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5)">
+          <span class="field-prop-label" style="margin-bottom:0">Required</span>
+          <label class="toggle"><input type="checkbox" id="rr-clf-assign-required" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" data-rr-clf-assign-create style="margin-top:12px;width:100%">Assign checklist</button>
+      </div>
+      <div class="builder-settings-card">
+        <div class="field-props-head">Current assignments</div>
+        <div id="rr-clf-assign-list">${
+          assigns.length === 0 ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No assignments yet.</div>`
+          : assigns.map((a) => `
+            <div class="clf-assign-row">
+              <div class="clf-assign-row-main">
+                <div class="clf-assign-row-title">${escapeHtml(_clfAssignDesc(a).split(" — ")[0])}</div>
+                <div class="clf-assign-row-sub">${escapeHtml(_clfAssignDesc(a).split(" — ").slice(1).join(" — "))}</div>
+              </div>
+              <span class="clf-assign-status" data-status="${escapeHtml(a.status)}">${a.status === "paused" ? "Paused" : "Active"}</span>
+              <button type="button" class="clf-item-tool" data-rr-clf-assign-pause="${escapeHtml(a.id)}" data-next="${a.status === "paused" ? "active" : "paused"}" title="${a.status === "paused" ? "Resume" : "Pause"}">${a.status === "paused"
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20"/></svg>'
+                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>'}</button>
+              <button type="button" class="clf-item-tool clf-tool-danger" data-rr-clf-assign-del="${escapeHtml(a.id)}" title="Remove assignment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>`).join("")
+        }</div>
+      </div>
+    </div>`;
+}
+
+async function _clfCreateAssignment() {
+  if (!_clfState.editing) return;
+  const scope = document.querySelector('input[name="rr-clf-scope"]:checked')?.value || "driver";
+  const payload = { assignment_scope: scope, required: !!document.getElementById("rr-clf-assign-required")?.checked };
+
+  if (scope === "driver") {
+    const ids = Array.from(document.querySelectorAll("[data-rr-clf-adriver]:checked")).map((c) => c.getAttribute("data-rr-clf-adriver"));
+    if (ids.length === 0) { toast("Pick at least one driver", "warn"); return; }
+    payload.driver_ids = ids;
+  } else if (scope === "scheduled_date") {
+    const d = document.getElementById("rr-clf-scope-date")?.value;
+    if (!d) { toast("Pick the scheduled date", "warn"); return; }
+    payload.route_date = d;
+  } else if (scope === "van") {
+    const v = document.getElementById("rr-clf-scope-van")?.value;
+    if (!v) { toast("Pick a van", "warn"); return; }
+    payload.van_id = v;
+  } else if (scope === "route_type") {
+    const rt = document.getElementById("rr-clf-scope-rt")?.value;
+    if (!rt) { toast("Pick a route type", "warn"); return; }
+    payload.route_type = rt;
+  }
+
+  const repeat = document.getElementById("rr-clf-repeat")?.value || "once";
+  const rr = { type: repeat };
+  if (repeat === "date") {
+    const d = document.getElementById("rr-clf-repeat-date")?.value;
+    if (!d) { toast("Pick the date", "warn"); return; }
+    rr.date = d;
+  }
+  const due = document.getElementById("rr-clf-due")?.value || "none";
+  rr.due = due;
+  if (due === "time") {
+    const t = document.getElementById("rr-clf-due-time")?.value;
+    if (!t) { toast("Pick the due time", "warn"); return; }
+    rr.due_time = t;
+  }
+  payload.repeat_rule = rr;
+
+  const btn = document.querySelector("[data-rr-clf-assign-create]");
+  if (btn) { btn.disabled = true; btn.textContent = "Assigning…"; }
+  try {
+    const { error } = await sb.rpc("checklist_form_assign", {
+      p_template_id: _clfState.editing.id,
+      p_assignments: [payload],
+    });
+    if (error) throw error;
+    const res = await sb.rpc("checklist_form_get", { p_id: _clfState.editing.id });
+    if (!res.error) _clfState.editing = res.data;
+    toast("Checklist assigned", "success");
+    _clfRenderAssign();
+    _clfPaintAssignSummary();
+    _clfSidebarFetch();
+  } catch (e) {
+    toast("Couldn't assign: " + (e.message || e), "warn");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Assign checklist"; }
+  }
+}
+
+// ── Responses pane ────────────────────────────────────────────────────
+
+function _clfAnswerValHtml(a) {
+  if (a.item_type === "signature" && (a.value_text || "").startsWith("data:image")) {
+    return `<img class="clf-resp-sig" src="${escapeHtml(a.value_text)}" alt="Signature"/>`;
+  }
+  if (a.item_type === "photo") {
+    const photos = Array.isArray(a.photo_urls) ? a.photo_urls : [];
+    if (photos.length === 0) return `<span style="color:var(--text-subtle)">No photo</span>`;
+    return photos.map((p, i) => `<button type="button" class="btn btn-sm" data-rr-clf-photo="${escapeHtml(p)}" style="margin-right:6px">Photo ${i + 1}</button>`).join("");
+  }
+  if (a.item_type === "checkbox") return a.value_bool ? "✓ Done" : "Not done";
+  if (a.item_type === "yes_no") return escapeHtml((a.value_text || "—").replace(/^yes$/i, "Yes").replace(/^no$/i, "No"));
+  if (a.item_type === "number") return a.value_number != null ? String(a.value_number) : "—";
+  return a.value_text ? escapeHtml(a.value_text) : "—";
+}
+
+async function _clfRenderResponses() {
+  const host = document.getElementById("rr-clf-responses-root");
+  if (!host) return;
+  if (!_clfState.editing) {
+    host.innerHTML = `<div class="rr-empty-inline" style="margin:40px auto;max-width:420px;text-align:center">Save and assign the checklist to see responses here.</div>`;
+    return;
+  }
+  host.innerHTML = `<div class="rr-loading" style="margin:24px">Loading responses…</div>`;
+  let data = null;
+  try {
+    const res = await sb.rpc("checklist_form_responses", { p_template_id: _clfState.editing.id, p_days: 14 });
+    if (res.error) throw res.error;
+    data = res.data || {};
+  } catch (e) {
+    host.innerHTML = `<div class="rr-empty-inline" style="margin:24px">Couldn't load responses: ${escapeHtml(e.message || String(e))}</div>`;
+    return;
+  }
+  const today = Array.isArray(data.today) ? data.today : [];
+  const subs = Array.isArray(data.submissions) ? data.submissions : [];
+  const stLabel = { not_started: "Not started", in_progress: "In progress", reopened: "Reopened", submitted: "Completed" };
+
+  const todayHtml = today.length === 0
+    ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No drivers are expected to fill this checklist today.</div>`
+    : today.map((t) => `
+      <div class="clf-resp-row"><div style="display:flex;align-items:center;gap:10px;padding:9px 12px">
+        <span class="clf-resp-name">${escapeHtml(t.driver_name || "Driver")}</span>
+        <span class="clf-resp-meta">${t.due_at ? "Due " + new Date(t.due_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</span>
+        ${t.overdue ? `<span class="clf-resp-st" data-st="overdue">Overdue</span>` : `<span class="clf-resp-st" data-st="${escapeHtml(t.status)}">${stLabel[t.status] || t.status}</span>`}
+      </div></div>`).join("");
+
+  const subsHtml = subs.length === 0
+    ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No submissions in the last 14 days.</div>`
+    : subs.map((s) => `
+      <details class="clf-resp-row">
+        <summary>
+          <span class="clf-resp-name">${escapeHtml(s.driver_name || "Driver")}</span>
+          <span class="clf-resp-meta">${s.submitted_at ? "Submitted " + new Date(s.submitted_at).toLocaleString() : "Started " + new Date(s.started_at).toLocaleString()}</span>
+          ${s.failed_count > 0 ? `<span class="clf-resp-flag">${s.failed_count} flagged</span>` : ""}
+          ${s.overdue ? `<span class="clf-resp-st" data-st="overdue">Overdue</span>` : `<span class="clf-resp-st" data-st="${escapeHtml(s.status)}">${stLabel[s.status] || s.status}</span>`}
+        </summary>
+        <div class="clf-resp-answers">
+          ${(s.answers || []).map((a) => `
+            <div class="clf-resp-ans ${a.failed_flag ? "is-failed" : ""}">
+              <span class="clf-resp-ans-label">${escapeHtml(a.label || "")}${a.failed_flag ? " ⚑" : ""}</span>
+              <span class="clf-resp-ans-val">${_clfAnswerValHtml(a)}${a.note ? `<span class="clf-resp-ans-note">Note: ${escapeHtml(a.note)}</span>` : ""}</span>
+            </div>`).join("") || `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">No answers saved yet.</div>`}
+          ${s.status === "submitted" ? `<div style="margin-top:6px"><button type="button" class="btn btn-sm" data-rr-clf-reopen="${escapeHtml(s.id)}">Reopen for corrections</button></div>` : ""}
+        </div>
+      </details>`).join("");
+
+  host.innerHTML = `
+    <div class="clf-resp-wrap">
+      <div class="clf-resp-section">
+        <div class="clf-resp-h">Today</div>
+        ${todayHtml}
+      </div>
+      <div class="clf-resp-section">
+        <div class="clf-resp-h">Submissions · last 14 days</div>
+        ${subsHtml}
+      </div>
+    </div>`;
+}
+
+// ── Delegated events ─────────────────────────────────────────────────
+
+document.addEventListener("click", async (e) => {
+  // sidebar segmented panes
+  const seg = e.target.closest("[data-rr-clf-seg]");
+  if (seg) { _clfPanelSetPane(seg.getAttribute("data-rr-clf-seg")); return; }
+
+  // sidebar chips
+  const chip = e.target.closest("[data-rr-clf-chip]");
+  if (chip) {
+    _clfState.filter = chip.getAttribute("data-rr-clf-chip");
+    document.querySelectorAll("[data-rr-clf-chip]").forEach((c) => c.classList.toggle("is-active", c === chip));
+    _clfSidebarPaint();
+    return;
+  }
+
+  // new checklist
+  if (e.target.closest("[data-rr-clf-new]")) { openClfBuilder(null); return; }
+
+  // card overflow menu
+  const dots = e.target.closest("[data-rr-clf-dots]");
+  if (dots) {
+    e.stopPropagation();
+    const open = dots.closest(".rr-fp-card")?.querySelector(".rr-clf-menu");
+    if (open) { open.remove(); } else { _clfOpenMenu(dots, dots.getAttribute("data-rr-clf-dots")); }
+    return;
+  }
+  const menuBtn = e.target.closest("[data-rr-clf-menu]");
+  if (menuBtn) {
+    e.stopPropagation();
+    const act = menuBtn.getAttribute("data-rr-clf-menu");
+    const id = menuBtn.getAttribute("data-id");
+    _clfCloseMenus();
+    try {
+      if (act === "edit") { openClfBuilder(id); }
+      else if (act === "duplicate") {
+        const { error } = await sb.rpc("checklist_form_duplicate", { p_id: id, p_new_name: null });
+        if (error) throw error;
+        toast("Checklist duplicated", "success");
+        _clfSidebarFetch();
+      } else if (act === "archive" || act === "restore") {
+        const { error } = await sb.rpc("checklist_form_set_status", { p_id: id, p_status: act === "archive" ? "archived" : "draft" });
+        if (error) throw error;
+        toast(act === "archive" ? "Checklist archived" : "Checklist restored to drafts", "success");
+        _clfSidebarFetch();
+      } else if (act === "delete") {
+        const f = (_clfState.list || []).find((x) => x.id === id);
+        if (!window.confirm(`Delete "${f?.name || "this checklist"}"? This also removes its assignments and submissions.`)) return;
+        const { error } = await sb.rpc("checklist_form_delete", { p_id: id });
+        if (error) throw error;
+        toast("Checklist deleted", "success");
+        _clfSidebarFetch();
+      }
+    } catch (err) {
+      toast("Action failed: " + (err.message || err), "warn");
+    }
+    return;
+  }
+  // click outside closes card menus
+  if (!e.target.closest(".rr-clf-menu")) _clfCloseMenus();
+
+  // open a checklist from the sidebar card
+  const card = e.target.closest("[data-rr-clf-edit]");
+  if (card && !e.target.closest(".rr-clf-menu")) { openClfBuilder(card.getAttribute("data-rr-clf-edit")); return; }
+
+  // ── builder modal ──
+  const tab = e.target.closest("[data-rr-clf-tab]");
+  if (tab) { _clfSetTab(tab.getAttribute("data-rr-clf-tab")); return; }
+
+  if (e.target.closest("[data-rr-clf-goassign]")) { _clfSetTab("assign"); return; }
+
+  const add = e.target.closest("[data-rr-clf-add]");
+  if (add) { _clfAddItem(add.getAttribute("data-rr-clf-add")); return; }
+  if (e.target.closest("[data-rr-clf-add-first]") || e.target.closest("[data-rr-clf-add-end]")) { _clfAddItem("checkbox"); return; }
+
+  const up = e.target.closest("[data-rr-clf-item-up]");
+  if (up) {
+    const i = parseInt(up.getAttribute("data-rr-clf-item-up"), 10);
+    if (i > 0) { const [it] = _clfState.items.splice(i, 1); _clfState.items.splice(i - 1, 0, it); _clfMarkDirty(); _clfRenderItems(); }
+    return;
+  }
+  const down = e.target.closest("[data-rr-clf-item-down]");
+  if (down) {
+    const i = parseInt(down.getAttribute("data-rr-clf-item-down"), 10);
+    if (i < _clfState.items.length - 1) { const [it] = _clfState.items.splice(i, 1); _clfState.items.splice(i + 1, 0, it); _clfMarkDirty(); _clfRenderItems(); }
+    return;
+  }
+  const dup = e.target.closest("[data-rr-clf-item-dup]");
+  if (dup) {
+    const i = parseInt(dup.getAttribute("data-rr-clf-item-dup"), 10);
+    const src = _clfState.items[i];
+    if (src) {
+      const copy = Object.assign(_clfNewItem(src.item_type), {
+        label: src.label, helper_text: src.helper_text, required: src.required,
+        options_json: JSON.parse(JSON.stringify(src.options_json || {})),
+        flag_rule_json: JSON.parse(JSON.stringify(src.flag_rule_json || {})),
+      });
+      _clfState.items.splice(i + 1, 0, copy);
+      _clfMarkDirty(); _clfRenderItems();
+    }
+    return;
+  }
+  const del = e.target.closest("[data-rr-clf-item-del]");
+  if (del) {
+    const i = parseInt(del.getAttribute("data-rr-clf-item-del"), 10);
+    _clfState.items.splice(i, 1);
+    _clfMarkDirty(); _clfRenderItems();
+    return;
+  }
+
+  if (e.target.closest("[data-rr-clf-save]")) { _clfSave({ publish: false }); return; }
+  if (e.target.closest("[data-rr-clf-publish]")) {
+    if (_clfState.items.length === 0) { toast("Add at least one item before publishing", "warn"); return; }
+    _clfSave({ publish: true });
+    return;
+  }
+
+  if (e.target.closest("[data-rr-clf-assign-create]")) { _clfCreateAssignment(); return; }
+  const apause = e.target.closest("[data-rr-clf-assign-pause]");
+  if (apause) {
+    try {
+      const { error } = await sb.rpc("checklist_assignment_set_status", {
+        p_id: apause.getAttribute("data-rr-clf-assign-pause"),
+        p_status: apause.getAttribute("data-next") || "paused",
+      });
+      if (error) throw error;
+      const res = await sb.rpc("checklist_form_get", { p_id: _clfState.editing.id });
+      if (!res.error) _clfState.editing = res.data;
+      _clfRenderAssign(); _clfPaintAssignSummary(); _clfSidebarFetch();
+    } catch (err) { toast("Couldn't update assignment: " + (err.message || err), "warn"); }
+    return;
+  }
+  const adel = e.target.closest("[data-rr-clf-assign-del]");
+  if (adel) {
+    if (!window.confirm("Remove this assignment? Drivers will no longer see the checklist from it.")) return;
+    try {
+      const { error } = await sb.rpc("checklist_assignment_set_status", {
+        p_id: adel.getAttribute("data-rr-clf-assign-del"), p_status: "archived",
+      });
+      if (error) throw error;
+      const res = await sb.rpc("checklist_form_get", { p_id: _clfState.editing.id });
+      if (!res.error) _clfState.editing = res.data;
+      _clfRenderAssign(); _clfPaintAssignSummary(); _clfSidebarFetch();
+    } catch (err) { toast("Couldn't remove assignment: " + (err.message || err), "warn"); }
+    return;
+  }
+
+  const reopen = e.target.closest("[data-rr-clf-reopen]");
+  if (reopen) {
+    try {
+      const { error } = await sb.rpc("checklist_submission_reopen", { p_id: reopen.getAttribute("data-rr-clf-reopen") });
+      if (error) throw error;
+      toast("Reopened — the driver can now correct and resubmit", "success");
+      _clfRenderResponses();
+    } catch (err) { toast("Couldn't reopen: " + (err.message || err), "warn"); }
+    return;
+  }
+
+  const photo = e.target.closest("[data-rr-clf-photo]");
+  if (photo) {
+    try {
+      const { data, error } = await sb.storage.from("driver-documents").createSignedUrl(photo.getAttribute("data-rr-clf-photo"), 3600);
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener");
+    } catch (err) { toast("Couldn't open photo: " + (err.message || err), "warn"); }
+    return;
+  }
+});
+
+document.addEventListener("input", (e) => {
+  if (e.target?.id === "rr-clf-search") {
+    _clfState.search = e.target.value || "";
+    _clfSidebarPaint();
+    return;
+  }
+  if (e.target?.id === "rr-clf-name" || e.target?.id === "rr-clf-desc" || e.target?.id === "rr-clf-category") {
+    _clfMarkDirty();
+    return;
+  }
+  const prop = e.target.closest?.("[data-rr-clf-prop]");
+  if (prop && prop.type !== "checkbox") {
+    const idx = parseInt(prop.getAttribute("data-idx"), 10);
+    const it = _clfState.items[idx];
+    if (it) { it[prop.getAttribute("data-rr-clf-prop")] = prop.value; _clfState.dirty = true; _clfPaintSaved(); }
+  }
+});
+
+document.addEventListener("change", async (e) => {
+  const prop = e.target.closest?.("[data-rr-clf-prop]");
+  if (prop && prop.type === "checkbox") {
+    const idx = parseInt(prop.getAttribute("data-idx"), 10);
+    const it = _clfState.items[idx];
+    if (it) { it[prop.getAttribute("data-rr-clf-prop")] = prop.checked; _clfMarkDirty(); }
+    return;
+  }
+  const flag = e.target.closest?.("[data-rr-clf-flag]");
+  if (flag) {
+    const idx = parseInt(flag.getAttribute("data-idx"), 10);
+    const it = _clfState.items[idx];
+    if (!it) return;
+    const kind = flag.getAttribute("data-rr-clf-flag");
+    const fr = Object.assign({}, it.flag_rule_json || {});
+    if (kind === "on") { if (flag.value) fr.flag_on = flag.value; else delete fr.flag_on; }
+    else if (kind === "unchecked") { if (flag.checked) fr.flag_on = "unchecked"; else delete fr.flag_on; }
+    else if (kind === "min" || kind === "max") { if (flag.value !== "") fr[kind] = Number(flag.value); else delete fr[kind]; }
+    it.flag_rule_json = fr;
+    _clfMarkDirty();
+    return;
+  }
+  if (e.target?.id === "rr-clf-reusable") { _clfMarkDirty(); return; }
+  if (e.target?.id === "rr-clf-active-toggle") {
+    if (!_clfState.editing) { e.target.checked = false; return; }
+    const want = e.target.checked ? "active" : "draft";
+    try {
+      const { data, error } = await sb.rpc("checklist_form_set_status", { p_id: _clfState.editing.id, p_status: want });
+      if (error) throw error;
+      _clfState.editing = Object.assign({}, _clfState.editing, data);
+      _clfPaintStatus();
+      _clfSidebarFetch();
+      toast(want === "active" ? "Checklist is now active" : "Checklist moved back to draft", "success");
+    } catch (err) {
+      e.target.checked = !e.target.checked;
+      toast("Couldn't change status: " + (err.message || err), "warn");
+    }
+    return;
+  }
+  if (e.target?.id === "rr-clf-repeat") {
+    const d = document.getElementById("rr-clf-repeat-date");
+    if (d) d.style.display = e.target.value === "date" ? "" : "none";
+    return;
+  }
+  if (e.target?.id === "rr-clf-due") {
+    const t = document.getElementById("rr-clf-due-time");
+    if (t) t.style.display = e.target.value === "time" ? "" : "none";
+    return;
+  }
+});
+
+// Drag-and-drop: reorder item rows by their handle; drag palette types in.
+(() => {
+  let dragIdx = null;
+  let paletteType = null;
+  const clearMarks = () => document.querySelectorAll("#rr-clf-items .clf-item").forEach((el) => el.classList.remove("is-drop-target", "is-drop-target-bottom", "is-dragging"));
+
+  document.addEventListener("dragstart", (e) => {
+    const handle = e.target.closest?.("#rr-clf-items [data-rr-clf-handle]");
+    if (handle) {
+      const row = handle.closest(".clf-item");
+      dragIdx = parseInt(row?.getAttribute("data-idx"), 10);
+      paletteType = null;
+      row?.classList.add("is-dragging");
+      try { e.dataTransfer.setData("text/plain", "clf"); e.dataTransfer.effectAllowed = "move"; } catch (_) {}
+      return;
+    }
+    const pal = e.target.closest?.("#modal-clf-builder [data-rr-clf-add]");
+    if (pal) {
+      paletteType = pal.getAttribute("data-rr-clf-add");
+      dragIdx = null;
+      try { e.dataTransfer.setData("text/plain", "clf-add"); e.dataTransfer.effectAllowed = "copy"; } catch (_) {}
+    }
+  });
+
+  document.addEventListener("dragover", (e) => {
+    if (dragIdx == null && !paletteType) return;
+    const canvas = e.target.closest?.("#rr-clf-canvas");
+    if (!canvas) return;
+    e.preventDefault();
+    clearMarks();
+    const row = e.target.closest(".clf-item");
+    if (row) {
+      const rect = row.getBoundingClientRect();
+      const below = e.clientY > rect.top + rect.height / 2;
+      row.classList.add(below ? "is-drop-target-bottom" : "is-drop-target");
+    }
+  });
+
+  document.addEventListener("drop", (e) => {
+    if (dragIdx == null && !paletteType) return;
+    const canvas = e.target.closest?.("#rr-clf-canvas");
+    if (!canvas) { clearMarks(); dragIdx = null; paletteType = null; return; }
+    e.preventDefault();
+    const row = e.target.closest(".clf-item");
+    let dest = _clfState.items.length;
+    if (row) {
+      const rect = row.getBoundingClientRect();
+      const below = e.clientY > rect.top + rect.height / 2;
+      dest = parseInt(row.getAttribute("data-idx"), 10) + (below ? 1 : 0);
+    }
+    if (paletteType) {
+      _clfAddItem(paletteType, dest);
+    } else if (dragIdx != null && dragIdx !== dest && dragIdx !== dest - 1) {
+      const [it] = _clfState.items.splice(dragIdx, 1);
+      _clfState.items.splice(dragIdx < dest ? dest - 1 : dest, 0, it);
+      _clfMarkDirty();
+      _clfRenderItems();
+    }
+    clearMarks();
+    dragIdx = null; paletteType = null;
+  });
+
+  document.addEventListener("dragend", () => { clearMarks(); dragIdx = null; paletteType = null; });
+})();

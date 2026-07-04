@@ -2932,12 +2932,51 @@
             </div>
           </div>
         </aside>
-        <aside class="sched-notes-panel" id="rr-sched-tasks" aria-label="Tasks" aria-hidden="true">
-          <div class="ntp-head">
-            <div class="ntp-head-title">Tasks</div>
-            <button type="button" class="ntp-icon-btn" data-rr-tasks-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <!-- Tasks rail panel → Checklists sidebar. The default pane lists
+             driver checklist templates (browse / search / filter / manage);
+             building happens in the large #modal-clf-builder modal, not
+             here. The legacy personal to-do list lives on unchanged under
+             the "My Tasks" segment (same ids + data hooks, so the existing
+             _rrRenderTasks wiring keeps working). -->
+        <aside class="sched-notes-panel rr-fp" id="rr-sched-tasks" aria-label="Checklists" aria-hidden="true">
+          <div class="ntp-head rr-fp-head">
+            <div class="rr-fp-head-titles">
+              <div class="ntp-head-title" id="rr-clf-panel-title">Checklists</div>
+              <div class="rr-fp-subtitle" id="rr-clf-panel-sub">Build, assign, and track driver checklists</div>
+            </div>
+            <div class="rr-fp-head-actions">
+              <button type="button" class="rr-fp-new" data-rr-clf-new title="Create a new checklist">+ New Checklist</button>
+              <button type="button" class="ntp-icon-btn" data-rr-tasks-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
           </div>
 
+          <div class="rr-clf-seg" role="tablist" aria-label="Panel sections">
+            <button type="button" class="rr-clf-seg-b is-active" data-rr-clf-seg="checklists" role="tab" aria-selected="true">Checklists</button>
+            <button type="button" class="rr-clf-seg-b" data-rr-clf-seg="my" role="tab" aria-selected="false">My Tasks</button>
+          </div>
+
+          <div class="rr-clf-body" data-rr-clf-body="checklists">
+            <div class="rr-fp-toolbar">
+              <div class="rr-fp-searchrow">
+                <div class="rr-fp-search">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" class="rr-fp-search-input" id="rr-clf-search" placeholder="Search checklists…" aria-label="Search checklists" autocomplete="off"/>
+                </div>
+              </div>
+              <div class="rr-fp-chips" id="rr-clf-chips" role="tablist" aria-label="Filter checklists by status">
+                <button type="button" class="rr-fp-chip is-active" data-rr-clf-chip="all">All</button>
+                <button type="button" class="rr-fp-chip" data-rr-clf-chip="draft">Draft</button>
+                <button type="button" class="rr-fp-chip" data-rr-clf-chip="active">Active</button>
+                <button type="button" class="rr-fp-chip" data-rr-clf-chip="assigned">Assigned</button>
+                <button type="button" class="rr-fp-chip" data-rr-clf-chip="archived">Archived</button>
+              </div>
+            </div>
+            <div class="ntp-scroll rr-fp-scroll">
+              <div class="rr-fp-cards" id="rr-clf-list" role="list"></div>
+            </div>
+          </div>
+
+          <div class="rr-clf-body" data-rr-clf-body="my" hidden>
           <div class="ntp-scroll">
             <div class="ntp-tasks-block ntp-tasks-block--solo" data-rr-nt-tasks>
               <div class="ntp-tasks-head">
@@ -2984,6 +3023,7 @@
               </div>
               <div class="ntp-tasklist" id="rr-sched-tasks-list" role="list"></div>
             </div>
+          </div>
           </div>
         </aside>
         <aside class="sched-notes-panel rr-fp" id="rr-sched-forms" aria-label="Driver Forms" aria-hidden="true">
