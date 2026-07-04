@@ -29122,25 +29122,114 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-reports-surface .rb-live-opt input{margin-top:2px}
 .rr-reports-surface .rb-live-opt strong{color:var(--text)}
 
-/* ── Workbooks page strip — matches the schedule tab row exactly:
-   tabs sit directly on the page (no container bar), icon + label,
-   active = bold dark text with a rounded pale-cyan underline. ── */
-#view-workbooks .rr-wb-strip{display:flex;align-items:center;gap:var(--s-4);background:transparent;border:0;padding:0;margin-bottom:var(--s-5)}
-#view-workbooks .rr-wb-strip .subnav{flex:1;width:auto;border-bottom:0;margin-bottom:0;gap:14px;padding:0;align-items:center;background:transparent}
-#view-workbooks .rr-wb-strip .subnav-item{display:inline-flex;align-items:center;gap:10px;padding:10px 14px 13px;border-radius:0;color:var(--text-muted);font-weight:500;font-size:15px;background:transparent;position:relative}
-#view-workbooks .rr-wb-strip .subnav-item svg{flex:0 0 auto;width:18px;height:18px;opacity:.75}
-#view-workbooks .rr-wb-strip .subnav-item:hover{color:var(--text);background:transparent}
-#view-workbooks .rr-wb-strip .subnav-item.active{background:transparent;color:var(--text);font-weight:700;box-shadow:none}
-#view-workbooks .rr-wb-strip .subnav-item.active svg{opacity:1}
-#view-workbooks .rr-wb-strip .subnav-item.active::after{content:"";position:absolute;left:4px;right:4px;bottom:0;height:4px;background:#BDE7F2;border-radius:999px}
+/* ── Workbooks chrome — verbatim clones of the shared schedule pattern.
+   Tab row: #rr-sched-viewseg recipe (schedule-rrx.css:431-491), same
+   clone Fleet (#rr-fleet-viewseg) and Onboarding carry. Action bar:
+   Schedule's .rr-ab / .rr-ab-btn twin via Fleet's copy. These classes
+   are untouched by the .view .subnav-item !important ribbon pass. ── */
+#rr-wb-viewseg {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  margin-bottom: 14px;
+}
+#rr-wb-viewseg .rr-viewseg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  height: auto;
+  padding: 13px 16px 12px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--rr-fg-secondary, #6B7280);
+  font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--rr-motion-fast, .12s), border-color var(--rr-motion-fast, .12s);
+}
+#rr-wb-viewseg .rr-viewseg-btn svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  stroke-width: 1.8;
+}
+#rr-wb-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, #1F2937); }
+#rr-wb-viewseg .rr-viewseg-btn.active {
+  color: var(--rr-fg-primary, #1F2937);
+  border-bottom-color: rgb(194, 231, 255);
+}
+#rr-wb-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, #1F2937); }
+#rr-wb-viewseg .rr-viewseg-btn:focus-visible {
+  outline: 2px solid var(--accent, #2563EB);
+  outline-offset: -3px;
+  border-radius: 4px;
+}
+
+#view-workbooks .rr-ab {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  position: relative;
+  padding-bottom: 10px;
+  margin: 0 0 14px;
+  border-bottom: 1px solid #ECEFF5;
+}
+#view-workbooks .rr-ab [hidden] { display: none !important; }
+#view-workbooks .rr-ab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 13px;
+  border: 1px solid var(--rr-border-primary, #E5E7EB);
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: var(--rr-fg-primary, #111827);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: var(--shadow-xs);
+  transition: background-color .16s ease, border-color .16s ease,
+              box-shadow .16s ease, transform .12s ease;
+}
+#view-workbooks .rr-ab-btn:hover {
+  background: #FCFDFE;
+  border-color: rgba(15, 23, 42, .16);
+  box-shadow: var(--shadow-sm);
+}
+#view-workbooks .rr-ab-btn:active { transform: scale(.97); box-shadow: var(--shadow-xs); }
+#view-workbooks .rr-ab-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, .22);
+}
+#view-workbooks .rr-ab-btn svg { width: 15px; height: 15px; flex: 0 0 auto; }
+#view-workbooks .rr-ab-btn.rr-ab-emph {
+  border: 1.5px solid var(--sidebar-bg, #0F172A);
+  font-weight: 650;
+}
+#view-workbooks .rr-ab-btn.rr-ab-emph > svg:first-child { color: #2563EB; }
+#view-workbooks .rr-ab-btn.rr-ab-emph:hover { background: #EFF6FF; }
+
+/* restored after chrome cleanup — the Reports screen surface + back link */
 .rr-reports-surface{display:flex;flex-direction:column;min-height:calc(100vh - 240px);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
 .rr-reports-surface .rb-foot{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border)}
 #view-workbooks .rr-wb-reports-back{margin-bottom:10px;color:var(--text-muted)}
-
-/* ── Workbooks action row — schedule-style bordered buttons under the tabs ── */
-#view-workbooks .rr-wb-actionsrow{display:flex;align-items:center;gap:10px;margin:4px 0 var(--s-5)}
-#view-workbooks .rr-wb-actionsrow [hidden]{display:none!important}
-#view-workbooks .rr-wb-btn{display:inline-flex;align-items:center;gap:9px;height:44px;padding:0 18px;background:var(--surface);border:1.5px solid #0F172A;border-radius:10px;font-size:14px;font-weight:600;color:var(--text);cursor:pointer;transition:background var(--t-fast,.12s)}
-#view-workbooks .rr-wb-btn:hover{background:var(--surface-hover,#F8FAFC)}
-#view-workbooks .rr-wb-btn:active{transform:translateY(1px)}
-#view-workbooks .rr-wb-btn svg{flex:0 0 auto}
