@@ -29122,3 +29122,10 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-reports-modal .rb-live-opt{display:flex;align-items:flex-start;gap:8px;font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer}
 #rr-reports-modal .rb-live-opt input{margin-top:2px}
 #rr-reports-modal .rb-live-opt strong{color:var(--text)}
+
+/* ── Workbooks page strip — schedule-style chrome (tabs + actions) ── */
+#view-workbooks .rr-wb-strip{display:flex;align-items:stretch;gap:var(--s-4);border-bottom:1px solid var(--border);margin-bottom:var(--s-5)}
+#view-workbooks .rr-wb-strip .subnav{flex:1;width:auto;border-bottom:0;margin-bottom:0}
+#view-workbooks .rr-wb-strip .subnav-item{display:inline-flex;align-items:center;gap:8px}
+#view-workbooks .rr-wb-strip .subnav-item svg{flex:0 0 auto;opacity:.85}
+#view-workbooks .rr-wb-strip-actions{display:flex;align-items:center;gap:8px;padding:8px 0}
