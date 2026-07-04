@@ -2272,6 +2272,7 @@ function sheetToolbarHtml(block, ro) {
   };
   return `<div class="wb-toolbar" role="toolbar" aria-label="Spreadsheet tools" data-wb-toolbar="${block.id}">
     <div class="wb-tgrp">${btn("undo", "Undo (Ctrl+Z)", I.undo)}${btn("redo", "Redo (Ctrl+Y)", I.redo)}</div>
+    <div class="wb-tgrp">${btn("autosum", "AutoSum — insert =SUM(…) for the selection", `<span class="wb-tb-txt wb-tb-sigma">Σ</span>`)}</div>
     <div class="wb-tgrp">
       <span class="popover-anchor">
         <button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-numfmt" data-wb-tb="numfmt-menu" title="Number format" aria-haspopup="menu" ${ro ? "disabled" : ""}>123 ▾</button>
@@ -2574,6 +2575,43 @@ function paintFilterChip(g) {
 }
 
 // ─── Excel-grade formula entry toolkit ──────────────────────────────────────
+
+// AutoSum (Σ): with a range selected, writes =SUM(col-slice) below each
+// column; on a single cell it hunts upward (then leftward) for the
+// contiguous numbers and opens the editor with =SUM(...) pre-filled.
+function autoSum(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const { r0, r1, c0, c1 } = selRect(g);
+  const isNum = (r, c) => {
+    const cell = sheet.cells.get(cellKey(r, c));
+    if (!cell) return false;
+    const raw = cell.formula ? cell.computed : cell.value;
+    return cellNumeric(raw) != null && cell.type !== "text";
+  };
+  if (r0 !== r1 || c0 !== c1) {
+    const changes = [];
+    for (let c = c0; c <= c1; c++) {
+      const t = r1 + 1;
+      if (t >= sheet.rowCount) continue;
+      const prev = sheet.cells.get(cellKey(t, c));
+      const base = prev ? cloneCell(prev) : { value: null, formula: null, type: null, format: {} };
+      changes.push({ r: t, c, cell: { ...base, value: null, type: "formula", formula: `=SUM(${colLabel(c)}${r0 + 1}:${colLabel(c)}${r1 + 1})` } });
+    }
+    if (changes.length) {
+      setCells(g, changes);
+      setActive(g, Math.min(r1 + 1, sheet.rowCount - 1), c0);
+    }
+    return;
+  }
+  let a = r0 - 1;
+  while (a >= 0 && isNum(a, c0)) a--;
+  if (a < r0 - 1) { startEdit(g, r0, c0, `=SUM(${colLabel(c0)}${a + 2}:${colLabel(c0)}${r0})`); return; }
+  let b = c0 - 1;
+  while (b >= 0 && isNum(r0, b)) b--;
+  if (b < c0 - 1) { startEdit(g, r0, c0, `=SUM(${colLabel(b + 1)}${r0 + 1}:${colLabel(c0 - 1)}${r0 + 1})`); return; }
+  startEdit(g, r0, c0, "=SUM(");
+}
 
 // Shift non-anchored ($-free) refs by (dr, dc) — drag-fill semantics.
 function shiftFormulaRelative(formula, dr, dc) {
@@ -3013,7 +3051,13 @@ function cellFromInput(raw, prevCell) {
   if (s.trim() === "" || s.trim() === "=") {
     return Object.keys(keepFormat).length ? { value: null, formula: null, type: null, format: keepFormat } : null;
   }
-  if (s.startsWith("=")) return { value: null, formula: s, type: "formula", format: keepFormat };
+  if (s.startsWith("=")) {
+    let f = s;
+    // "=A1:A6" alone means "add these up" to every operator — wrap the
+    // bare range in SUM instead of erroring with #VALUE.
+    try { const ast = parseFormula(f); if (ast.k === "range") f = "=SUM(" + f.slice(1).trim() + ")"; } catch (_) {}
+    return { value: null, formula: f, type: "formula", format: keepFormat };
+  }
   return { value: s, formula: null, type: detectType(s).type, format: keepFormat };
 }
 
@@ -3759,6 +3803,11 @@ function bindGridEvents(g) {
       const stPoint = formulaPointState(g);
       if (stPoint) {
         e.preventDefault(); // keep focus in the formula editor
+        const fzPt = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell");
+        if (fzPt) {
+          insertPointRef(g, stPoint, colLabel(+fzPt.getAttribute("data-c")) + (+fzPt.getAttribute("data-r") + 1));
+          return;
+        }
         const inCanvasPt = e.target.closest(".wb-gr-scroll");
         if (!inCanvasPt) return; // headers etc: ignore, don't commit
         const pos0 = canvasPos(e);
@@ -3882,6 +3931,16 @@ function bindGridEvents(g) {
       return;
     }
 
+    const fz = e.target.closest(".wb-gr-frozen-top .wb-cell, .wb-gr-frozen-left .wb-cell");
+    if (fz) {
+      e.preventDefault();
+      if (g.editing) commitEdit(g, 0, 0, { refocus: false });
+      const fr = +fz.getAttribute("data-r"), fc = +fz.getAttribute("data-c");
+      if (e.shiftKey) { g.sel.r1 = fr; g.sel.c1 = fc; paintSelection(g); repaintGrid(g); }
+      else setActive(g, fr, fc, { scroll: false });
+      grid.focus();
+      return;
+    }
     const inCanvas = e.target.closest(".wb-gr-scroll");
     if (!inCanvas) return;
     if (e.target.closest(".wb-cell-editor")) return;
@@ -4121,6 +4180,7 @@ function bindGridEvents(g) {
     switch (act) {
       case "undo": undoGrid(g); break;
       case "redo": redoGrid(g); break;
+      case "autosum": autoSum(g); return; // startEdit needs focus to stay in the editor
       case "bold": toggleFormat(g, "bold"); break;
       case "italic": toggleFormat(g, "italic"); break;
       case "underline": toggleFormat(g, "underline"); break;
