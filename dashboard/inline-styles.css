@@ -29233,3 +29233,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-reports-surface{display:flex;flex-direction:column;min-height:calc(100vh - 240px);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
 .rr-reports-surface .rb-foot{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border)}
 #view-workbooks .rr-wb-reports-back{margin-bottom:10px;color:var(--text-muted)}
+
+/* ── Vault mounted inside the Workbooks page ── */
+#view-workbooks .rr-ab[hidden]{display:none!important}
+#view-workbooks .rr-drive-v2 .rr-drive-shell{height:calc(100vh - 185px)}

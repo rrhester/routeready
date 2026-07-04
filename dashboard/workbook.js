@@ -1364,6 +1364,7 @@ function ingestCellRow(sheet, row) {
 async function openWorkbook(id) {
   const root = wbRoot();
   if (!root) return;
+  restoreVaultNode();
   root.innerHTML = `<div class="wb-loading"><span class="rr-skel rr-skel-md" style="width:280px"></span><span class="rr-skel rr-skel-sm" style="width:60%"></span><span class="rr-skel rr-skel-sm" style="width:44%"></span></div>`;
   try {
     const s = _sb();
@@ -1610,7 +1611,9 @@ function syncWbTabs(screen) {
   const nwb = cmd.querySelector('[data-wb-act="new-workbook"]');
   const nrp = cmd.querySelector('[data-wb-act="new-report"]');
   if (nwb) nwb.hidden = screen !== "workbooks";
-  if (nrp) nrp.hidden = screen === "workbooks";
+  if (nrp) nrp.hidden = screen !== "reports";
+  const ab = cmd.querySelector("#rr-wb-ab");
+  if (ab) ab.hidden = screen === "vault";
 }
 
 // The Reports tab is a library: every generated report workbook lives
@@ -1618,6 +1621,7 @@ function syncWbTabs(screen) {
 async function renderReportsPage() {
   const root = wbRoot();
   if (!root) return;
+  restoreVaultNode();
   closeRealtime();
   WB.view = "reports";
   const cmd = document.getElementById("rr-wb-cmd");
@@ -1657,9 +1661,41 @@ async function renderReportsPage() {
 }
 
 // Builder subscreen (still under the Reports tab) with a back link.
+// ─── Vault (inline) ──────────────────────────────────────────────────────────
+// The Vault tab mounts the ENTIRE #view-drive page node inside this page
+// (schedule-roster "portable node" pattern): the node is MOVED under our
+// tab strip, its live.js delegates keep working (they're id-based), and
+// it is moved home before anything else overwrites rr-wb-root — an
+// innerHTML write while the node is borrowed would destroy the Vault DOM.
+
+function restoreVaultNode() {
+  const node = document.querySelector("#rr-wb-root .rr-drive-page");
+  if (node && node.__wbHome) node.__wbHome.appendChild(node);
+}
+
+function renderVaultPage() {
+  const root = wbRoot();
+  if (!root) return;
+  closeRealtime();
+  WB.view = "vault";
+  const cmd = document.getElementById("rr-wb-cmd");
+  if (cmd) cmd.style.display = "";
+  syncWbTabs("vault");
+  const node = document.querySelector("#view-drive .rr-drive-page") || document.querySelector("#rr-wb-root .rr-drive-page");
+  if (!node) {
+    root.innerHTML = wbErrorHtml("The Vault isn't available", "Reload the page and try again.");
+    return;
+  }
+  if (!node.__wbHome) node.__wbHome = node.parentNode;
+  root.innerHTML = "";
+  root.appendChild(node);
+  if (typeof window.loadDriveView === "function") window.loadDriveView({});
+}
+
 function renderReportBuilderPage() {
   const root = wbRoot();
   if (!root) return;
+  restoreVaultNode();
   closeRealtime();
   WB.view = "reports-builder";
   const cmd = document.getElementById("rr-wb-cmd");
@@ -2027,6 +2063,7 @@ function wbErrorHtml(title, sub) {
 async function renderListPage() {
   const root = wbRoot();
   if (!root) return;
+  restoreVaultNode();
   closeRealtime();
   WB.view = "list";
   const cmd = document.getElementById("rr-wb-cmd");
@@ -6427,9 +6464,7 @@ function installRootListeners() {
     if (stripTab) {
       const t = stripTab.getAttribute("data-wb-tab");
       if (t === "vault") {
-        // cross-link: the Vault is its own page (#view-drive)
-        if (typeof window.openDrive === "function") window.openDrive();
-        else if (typeof window.goto === "function") window.goto("drive");
+        if (WB.view !== "vault") renderVaultPage();
       } else if (t === "reports") {
         if (WB.view !== "reports") renderReportsPage();
       } else if (WB.view !== "list") {
@@ -6630,6 +6665,7 @@ function wrapGoto() {
     if (WB.view === "detail" && view !== "workbooks") {
       try { flushCells(); closeRealtime(); } catch (_) {}
     }
+    if (view !== "workbooks") { try { restoreVaultNode(); } catch (_) {} }
     return prev.apply(this, arguments);
   };
 }
@@ -6654,6 +6690,10 @@ export async function loadWorkbooksView() {
   if (PENDING_SCREEN === "reports" || WB.view === "reports" || WB.view === "reports-builder") {
     PENDING_SCREEN = null;
     await renderReportsPage();
+    return;
+  }
+  if (WB.view === "vault") {
+    renderVaultPage();
     return;
   }
   if (WB.view === "detail" && WB.wb) {
