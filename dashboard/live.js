@@ -10,6 +10,7 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=b38b7853961d";
 import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=b38b7853961d";
+import { loadWorkbooksView } from "./workbook.js?v=b38b7853961d";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -3426,6 +3427,7 @@ window.goto = function (view) {
   if (view === "dashboard") { loadTodayPlan(); _toFetchPendingCount(); }
   if (view === "messages")  { _msgInboxTab = "drivers"; _msgInboxMode = "direct"; _msgChannelKind = "broadcast"; _msgSyncTabStrip("drivers"); loadDriverChatInbox(); }
   if (view === "workspaces") loadWorkspacesView();
+  if (view === "workbooks") loadWorkbooksView();
   if (view === "forms")     loadFormsList();
   if (view === "admin")     { loadPlatformAdmin(); loadAdminSupportInbox(); }
   if (view === "outlook")   loadStaffingOutlook();
