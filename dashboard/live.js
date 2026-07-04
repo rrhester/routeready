@@ -9344,7 +9344,7 @@ function _rrNtSanitize(html) {
 // Notes and Tasks are now two independent slide-out panels, each driven by
 // its own rail icon. Only one is open at a time (a panel manager enforces
 // it), so opening one closes the other.
-const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks", forms: "rr-sched-forms", contacts: "rr-sched-contacts" };
+const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks", forms: "rr-sched-forms", contacts: "rr-sched-contacts", recog: "rr-sched-recog" };
 
 let _rrNotesShowAll = false;
 const _RR_NTPIN = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg>`;
@@ -9630,7 +9630,7 @@ function _rrCtpOpenEdit(id) {
   _rrCtpBeginEdit(id);
 }
 try { window._rrCtpOpenCreate = _rrCtpOpenCreate; window._rrCtpOpenEdit = _rrCtpOpenEdit; } catch (_) {}
-function _rrNtRenderAll() { _rrRenderNotes(); _rrRenderTasks(); _rrRenderContacts(); if (typeof window.rrFtoolRender === "function") { try { window.rrFtoolRender(); } catch (_) {} } try { _clfSidebarRender(); } catch (_) {} }
+function _rrNtRenderAll() { _rrRenderNotes(); _rrRenderTasks(); _rrRenderContacts(); if (typeof window.rrFtoolRender === "function") { try { window.rrFtoolRender(); } catch (_) {} } try { _clfSidebarRender(); } catch (_) {} try { _rgpRender(); } catch (_) {} }
 function _rrAddNoteFromInput() {
   const ed = document.querySelector("#rr-sched-notes [data-rr-note-input]");
   if (!ed) return;
@@ -9909,7 +9909,9 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("[data-rr-forms-toggle]")) { e.preventDefault(); _rrNtPanelToggle("forms"); return; }
   // Contacts — same push panel; Google-Contacts-style create/search/list.
   if (e.target.closest("[data-rr-contacts-toggle]")) { e.preventDefault(); _rrNtPanelToggle("contacts"); return; }
-  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]") || e.target.closest("[data-rr-forms-close]") || e.target.closest("[data-rr-contacts-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
+  // Recognition — celebrate birthdays/anniversaries from the rail.
+  if (e.target.closest("[data-rr-recog-toggle]")) { e.preventDefault(); _rrNtPanelToggle("recog"); return; }
+  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]") || e.target.closest("[data-rr-forms-close]") || e.target.closest("[data-rr-contacts-close]") || e.target.closest("[data-rr-recog-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
   // Contacts · create / save / cancel / edit / delete / add-field rows
   if (e.target.closest("[data-rr-contact-createtoggle]")) {
     e.preventDefault();
@@ -78529,5 +78531,175 @@ document.addEventListener("input", (e) => {
   if (!e.target) return;
   if (e.target.id === "rr-clf-name" || e.target.id === "rr-clf-desc" || e.target.closest?.("[data-rr-clf-prop]")) {
     _clfRenderPreview();
+  }
+});
+
+
+// ── Recognition rail panel (#rr-sched-recog) ─────────────────────────
+// Compact slide-out for the Recognition feature: an Upcoming feed
+// (birthdays / work anniversaries from recognition_upcoming, with a
+// one-tap Celebrate) and a Sent feed (recognition_list, with Cancel on
+// scheduled rows). "+ Send" and Celebrate open the existing
+// openRecogSendModal composer; the per-row [data-rr-recog-celebrate] /
+// [data-rr-recog-cancel] attributes are handled by the Recognition
+// view's document-level listeners, so behavior stays in one place.
+
+const _rgpState = { seg: "upcoming", upcoming: null, history: null, at: 0 };
+
+function _rgpKindLabel(k) {
+  try {
+    if (typeof _RECOG_KIND_LABELS === "object" && _RECOG_KIND_LABELS && _RECOG_KIND_LABELS[k]) return _RECOG_KIND_LABELS[k];
+  } catch (_) {}
+  const map = { birthday: "Birthday", work_anniversary: "Work anniversary", safety_milestone: "Safety milestone", welcome_to_team: "Welcome", custom: "Celebration" };
+  return map[k] || String(k || "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+function _rgpFmtDate(d) {
+  if (!d) return "";
+  try {
+    const iso = String(d);
+    return new Date(iso.length === 10 ? iso + "T12:00:00" : iso).toLocaleDateString([], { month: "short", day: "numeric" });
+  } catch (_) { return String(d); }
+}
+function _rgpAvatar(name, path) {
+  if (path) {
+    try {
+      const { data } = sb.storage.from("driver-photos").getPublicUrl(path);
+      if (data?.publicUrl) return `<img class="rr-rgp-ava" src="${escapeHtml(data.publicUrl)}" alt="" loading="lazy"/>`;
+    } catch (_) {}
+  }
+  const ini = String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  return `<span class="rr-fp-card-ico rr-rgp-ini">${escapeHtml(ini || "?")}</span>`;
+}
+
+function _rgpRender() {
+  const host = document.getElementById("rr-rgp-list");
+  if (!host) return;
+  if (_rgpState.upcoming || _rgpState.history) _rgpPaint();
+  else host.innerHTML = `<div class="rr-fp-empty" style="font-size:12.5px;padding:8px 2px">Loading…</div>`;
+  if (Date.now() - _rgpState.at > 15000) _rgpFetch();
+}
+
+async function _rgpFetch() {
+  _rgpState.at = Date.now();
+  try {
+    const [up, hist] = await Promise.all([
+      sb.rpc("recognition_upcoming", { p_days: 30 }),
+      sb.rpc("recognition_list", { p_status: "all", p_limit: 30 }),
+    ]);
+    if (!up.error) _rgpState.upcoming = Array.isArray(up.data) ? up.data : [];
+    if (!hist.error) _rgpState.history = Array.isArray(hist.data) ? hist.data : [];
+    if (up.error && hist.error) throw up.error;
+    _rgpPaint();
+  } catch (e) {
+    if (!_rgpState.upcoming && !_rgpState.history) {
+      const host = document.getElementById("rr-rgp-list");
+      if (host) host.innerHTML = `<div class="rr-fp-empty" style="font-size:12.5px;padding:8px 2px">Couldn't load recognition.</div>`;
+    }
+  }
+}
+
+function _rgpPaint() {
+  const host = document.getElementById("rr-rgp-list");
+  if (!host) return;
+  const empty = (msg) => `<div class="rr-fp-empty" style="font-size:12.5px;padding:8px 2px">${msg}</div>`;
+
+  if (_rgpState.seg === "upcoming") {
+    const rows = _rgpState.upcoming || [];
+    if (!rows.length) { host.innerHTML = empty("No birthdays or anniversaries in the next 30 days."); return; }
+    host.innerHTML = rows.map((r) => {
+      const when = r.days_away === 0 ? "Today" : r.days_away === 1 ? "Tomorrow" : `In ${r.days_away} days`;
+      const years = r.years ? ` · ${r.years} yr${r.years === 1 ? "" : "s"}` : "";
+      return `
+      <div class="rr-fp-card rr-rgp-card" role="listitem">
+        ${_rgpAvatar(r.name, r.photo_path)}
+        <div class="rr-fp-card-body">
+          <div class="rr-fp-card-top"><span class="rr-fp-card-title">${escapeHtml(r.name || "Driver")}</span></div>
+          <div class="rr-clf-meta-row">
+            <span>${escapeHtml(_rgpKindLabel(r.kind))}${years}</span>
+            <span>${when} · ${_rgpFmtDate(r.occurs_on)}</span>
+          </div>
+        </div>
+        ${r.already_sent
+          ? `<span class="rr-fp-badge rr-fp-st-active" style="align-self:center;flex:0 0 auto">Sent ✓</span>`
+          : `<button type="button" class="rr-rgp-btn" data-rr-recog-celebrate data-driver-id="${escapeHtml(r.driver_id)}" data-driver-name="${escapeHtml(r.name || "")}" data-kind="${escapeHtml(r.kind || "")}" data-occasion-on="${escapeHtml(r.occurs_on || "")}" data-years="${r.years || ""}">Celebrate</button>`}
+      </div>`;
+    }).join("");
+    return;
+  }
+
+  const rows = _rgpState.history || [];
+  if (!rows.length) { host.innerHTML = empty("Nothing sent yet — hit <strong>+ Send</strong> to celebrate someone."); return; }
+  const pill = (st) => st === "sent"
+    ? `<span class="rr-fp-badge rr-fp-st-active">Sent</span>`
+    : st === "scheduled"
+      ? `<span class="rr-fp-badge rr-fp-st-sched">Scheduled</span>`
+      : `<span class="rr-fp-badge rr-fp-st-archived">${escapeHtml(st || "")}</span>`;
+  host.innerHTML = rows.map((r) => {
+    const name = r.driver_name || r.name || "Driver";
+    const when = r.status === "scheduled"
+      ? `for ${_rgpFmtDate(r.scheduled_for)}`
+      : r.sent_at ? _rgpFmtDate(r.sent_at) : _rgpFmtDate(r.created_at);
+    return `
+    <div class="rr-fp-card rr-rgp-card" role="listitem">
+      ${_rgpAvatar(name, r.photo_path)}
+      <div class="rr-fp-card-body">
+        <div class="rr-fp-card-top"><span class="rr-fp-card-title">${escapeHtml(name)}</span>${pill(r.status)}</div>
+        <div class="rr-clf-meta-row">
+          <span>${escapeHtml(r.title || _rgpKindLabel(r.kind))}</span>
+          <span>${escapeHtml(when)}</span>
+        </div>
+      </div>
+      ${r.status === "scheduled"
+        ? `<button type="button" class="rr-rgp-x" data-rr-recog-cancel data-id="${escapeHtml(r.id)}" title="Cancel scheduled celebration" aria-label="Cancel"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`
+        : ""}
+    </div>`;
+  }).join("");
+}
+
+// Refresh the panel after the send composer closes (sent or dismissed),
+// without touching the composer's own code.
+let _rgpModalWatch = null;
+function _rgpWatchComposer() {
+  if (_rgpModalWatch) clearInterval(_rgpModalWatch);
+  let ticks = 0;
+  _rgpModalWatch = setInterval(() => {
+    ticks++;
+    const open = document.getElementById("rr-recog-send-modal");
+    if (!open || ticks > 600) {
+      clearInterval(_rgpModalWatch);
+      _rgpModalWatch = null;
+      if (!open) _rgpFetch();
+    }
+  }, 700);
+}
+
+document.addEventListener("click", (e) => {
+  const seg = e.target.closest("[data-rr-rgp-seg]");
+  if (seg) {
+    _rgpState.seg = seg.getAttribute("data-rr-rgp-seg");
+    document.querySelectorAll("[data-rr-rgp-seg]").forEach((b) => {
+      const on = b === seg;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    _rgpPaint();
+    return;
+  }
+  if (e.target.closest("#rr-recog-panel-send")) {
+    e.preventDefault();
+    if (typeof openRecogSendModal === "function") {
+      openRecogSendModal({});
+      setTimeout(_rgpWatchComposer, 400);
+    }
+    return;
+  }
+  // Celebrate / Cancel inside the panel are handled by the Recognition
+  // view's global listeners — here we only arm the refresh.
+  if (e.target.closest("#rr-sched-recog [data-rr-recog-celebrate]")) {
+    setTimeout(_rgpWatchComposer, 400);
+    return;
+  }
+  if (e.target.closest("#rr-sched-recog [data-rr-recog-cancel]")) {
+    setTimeout(_rgpFetch, 1500);
   }
 });

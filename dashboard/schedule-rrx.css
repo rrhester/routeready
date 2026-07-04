@@ -6430,3 +6430,19 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 #rr-util-rail-mount .rr-clf-menu button:hover{background:#F7F8FA}
 #rr-util-rail-mount .rr-clf-menu button.rr-clf-menu-danger{color:#B91C1C}
 #rr-util-rail-mount .rr-clf-menu button.rr-clf-menu-danger:hover{background:#FEF2F2}
+
+/* ── Recognition rail panel (#rr-sched-recog) ─────────────────────────
+   Rose award icon, same push-panel chrome as Notes/Checklists/Forms. */
+#rr-util-rail-mount .sched-util-btn--recog{color:#DB2777}
+#rr-util-rail-mount .sched-util-btn--recog:hover{background:rgba(219,39,119,.10);border-color:rgba(219,39,119,.28)}
+#rr-util-rail-mount .sched-util-btn--recog:focus-visible{border-color:#DB2777;box-shadow:0 0 0 3px rgba(219,39,119,.22)}
+#rr-util-rail-mount #rr-sched-recog.rr-fp{background:#FFFFFF}
+#rr-util-rail-mount #rr-sched-recog.is-open .rr-clf-seg{opacity:1;transition:opacity 120ms ease 100ms}
+#rr-util-rail-mount .rr-rgp-card{align-items:center}
+#rr-util-rail-mount .rr-rgp-ava{flex:0 0 auto;width:34px;height:34px;border-radius:9px;object-fit:cover;background:#F2F4F8}
+#rr-util-rail-mount .rr-rgp-ini{font-size:12px;font-weight:700;color:#9D174D;background:#FCE7F3}
+#rr-util-rail-mount .rr-rgp-btn{flex:0 0 auto;align-self:center;appearance:none;cursor:pointer;border:1px solid rgba(219,39,119,.35);background:#FDF2F8;color:#9D174D;border-radius:8px;font:inherit;font-size:11.5px;font-weight:600;padding:5px 10px;white-space:nowrap;transition:background .15s,border-color .15s}
+#rr-util-rail-mount .rr-rgp-btn:hover{background:#FCE7F3}
+#rr-util-rail-mount .rr-rgp-x{flex:0 0 auto;align-self:center;appearance:none;cursor:pointer;border:0;background:transparent;width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-disabled,#9CA3AF);transition:background .12s,color .12s}
+#rr-util-rail-mount .rr-rgp-x:hover{background:#FEF2F2;color:#B91C1C}
+#rr-util-rail-mount .rr-fp-st-sched{background:#E8EEFB;color:#1E40AF}
