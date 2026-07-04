@@ -29042,3 +29042,9 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-block-primary .wb-toolbar{background:var(--surface);border:1px solid var(--border);border-bottom:0;border-radius:var(--r-md) var(--r-md) 0 0;padding:5px 8px;margin-bottom:0}
 #view-workbooks .wb-block-primary .wb-fbar{border-radius:0}
 #view-workbooks .wb-tb-sigma{font-size:14px;font-weight:650;line-height:1}
+/* Format cells dialog + decimal toolbar buttons */
+#view-workbooks .wb-tb-dec{font-size:10px;font-weight:700;letter-spacing:-.02em}
+.wb-fmt-checks{display:flex;align-items:center;gap:var(--s-3);padding:8px 2px;font-size:var(--fs-md)}
+.wb-fmt-checks label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.wb-fmt-checks input{accent-color:var(--accent)}
+.wb-fmt-preview{margin-top:var(--s-2);padding:9px 12px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-md);color:var(--text);font-variant-numeric:tabular-nums}

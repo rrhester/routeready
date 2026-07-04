@@ -1436,22 +1436,32 @@ function displayValue(sheet, r, c) {
   return formatForDisplay(cell.value, cell.format, cell.type);
 }
 
+// Kill binary floating-point noise the way spreadsheets do:
+// 55.199999999999996 displays as 55.2 (12 significant digits).
+function cleanNum(x) {
+  if (Number.isInteger(x)) return String(x);
+  return String(parseFloat(x.toPrecision(12)));
+}
+
 function formatForDisplay(v, format, type) {
   if (v == null || v === "") return "";
   const numFmt = format && format.num;
+  const dec = format && Number.isInteger(format.dec) ? Math.min(6, Math.max(0, format.dec)) : null;
   const n = cellNumeric(v);
   if (numFmt === "text") return String(v);
   if (n != null && type !== "text") {
+    const fd = (d) => ({ minimumFractionDigits: d, maximumFractionDigits: d });
     if (numFmt === "currency" || (!numFmt && type === "currency")) {
-      return (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, fd(dec ?? 2));
     }
     if (numFmt === "percent" || (!numFmt && type === "percent")) {
       const pct = type === "percent" && typeof v === "string" && v.includes("%") ? n : n * (numFmt === "percent" && type !== "percent" ? 100 : 1);
-      return pct.toLocaleString(undefined, { maximumFractionDigits: 2 }) + "%";
+      return pct.toLocaleString(undefined, dec != null ? fd(dec) : { maximumFractionDigits: 2 }) + "%";
     }
-    if (numFmt === "number") return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (numFmt === "number") return n.toLocaleString(undefined, fd(dec ?? 2));
     if (numFmt === "date") { const d = parseDateLoose(String(v)); if (d) return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
-    if (typeof v === "number") return String(v);
+    if (dec != null) return n.toLocaleString(undefined, fd(dec));
+    if (typeof v === "number") return cleanNum(v);
     return String(v);
   }
   if ((numFmt === "date" || (!numFmt && type === "date"))) {
@@ -2356,6 +2366,8 @@ function sheetToolbarHtml(block, ro) {
     <div class="wb-tgrp">${btn("undo", "Undo (Ctrl+Z)", I.undo)}${btn("redo", "Redo (Ctrl+Y)", I.redo)}</div>
     <div class="wb-tgrp">${btn("autosum", "AutoSum — insert =SUM(…) for the selection", `<span class="wb-tb-txt wb-tb-sigma">Σ</span>`)}</div>
     <div class="wb-tgrp">
+      <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="dec-minus" title="Decrease decimal places" aria-label="Decrease decimal places" ${ro ? "disabled" : ""}><span class="wb-tb-txt wb-tb-dec">.0</span></button>
+      <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="dec-plus" title="Increase decimal places" aria-label="Increase decimal places" ${ro ? "disabled" : ""}><span class="wb-tb-txt wb-tb-dec">.00</span></button>
       <span class="popover-anchor">
         <button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-numfmt" data-wb-tb="numfmt-menu" title="Number format" aria-haspopup="menu" ${ro ? "disabled" : ""}>123 ▾</button>
         <div class="popover wb-tb-pop" role="menu">
@@ -2654,6 +2666,98 @@ function paintFilterChip(g) {
   } else {
     chip.hidden = true;
   }
+}
+
+// Step the selection's decimal places (Sheets' .0 / .00 buttons).
+function adjustDecimals(g, delta) {
+  if (!WB.canEdit) return;
+  const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
+  const cur = cell && cell.format && Number.isInteger(cell.format.dec) ? cell.format.dec : 2;
+  formatSelection(g, { dec: Math.min(6, Math.max(0, cur + delta)) });
+}
+
+// Excel-style Format Cells dialog: number format, decimal places,
+// alignment, style, wrap — applied to the whole selection.
+function openFormatCellsDialog(g) {
+  if (!WB.canEdit) return;
+  document.getElementById("wb-format-modal")?.remove();
+  const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
+  const f = (cell && cell.format) || {};
+  const rawVal = cell ? (cell.formula ? cell.computed : cell.value) : "1234.567";
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-format-modal";
+  const opt = (v, label) => `<option value="${v}" ${((f.num || "") === v) ? "selected" : ""}>${label}</option>`;
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Format cells" style="width:480px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Format cells</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Number format</span>
+            <select class="wb-input" id="wb-fmt-num">
+              ${opt("", "Automatic")}${opt("number", "Number · 1,250.00")}${opt("currency", "Currency · $1,250.00")}${opt("percent", "Percent · 12%")}${opt("date", "Date · Jul 4, 2026")}${opt("text", "Plain text")}
+            </select></label>
+          <label class="wb-field" style="flex:0 0 132px"><span class="wb-field-label">Decimal places</span>
+            <input type="number" class="wb-input" id="wb-fmt-dec" min="0" max="6" step="1" value="${Number.isInteger(f.dec) ? f.dec : ""}" placeholder="auto"></label>
+        </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Alignment</span>
+            <select class="wb-input" id="wb-fmt-align">
+              <option value="" ${!f.align ? "selected" : ""}>Automatic</option>
+              <option value="left" ${f.align === "left" ? "selected" : ""}>Left</option>
+              <option value="center" ${f.align === "center" ? "selected" : ""}>Center</option>
+              <option value="right" ${f.align === "right" ? "selected" : ""}>Right</option>
+            </select></label>
+          <div class="wb-field"><span class="wb-field-label">Style</span>
+            <div class="wb-fmt-checks">
+              <label><input type="checkbox" id="wb-fmt-bold" ${f.bold ? "checked" : ""}> <strong>B</strong></label>
+              <label><input type="checkbox" id="wb-fmt-italic" ${f.italic ? "checked" : ""}> <em>I</em></label>
+              <label><input type="checkbox" id="wb-fmt-underline" ${f.underline ? "checked" : ""}> <u>U</u></label>
+              <label><input type="checkbox" id="wb-fmt-wrap" ${f.wrap ? "checked" : ""}> Wrap</label>
+            </div>
+          </div>
+        </div>
+        <div class="wb-fmt-preview" id="wb-fmt-preview" aria-live="polite"></div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-fmt-apply>Apply</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const readForm = () => {
+    const decRaw = wrap.querySelector("#wb-fmt-dec").value;
+    return {
+      num: wrap.querySelector("#wb-fmt-num").value || null,
+      dec: decRaw === "" ? null : Math.min(6, Math.max(0, Math.trunc(+decRaw))),
+      align: wrap.querySelector("#wb-fmt-align").value || null,
+      bold: wrap.querySelector("#wb-fmt-bold").checked || null,
+      italic: wrap.querySelector("#wb-fmt-italic").checked || null,
+      underline: wrap.querySelector("#wb-fmt-underline").checked || null,
+      wrap: wrap.querySelector("#wb-fmt-wrap").checked || null,
+    };
+  };
+  const paintPreview = () => {
+    const p = readForm();
+    const sample = rawVal != null && rawVal !== "" ? rawVal : "1234.567";
+    const shown = formatForDisplay(sample, { num: p.num || "", dec: p.dec ?? undefined }, cell ? cell.type : "number");
+    wrap.querySelector("#wb-fmt-preview").textContent = `Preview: ${shown}`;
+  };
+  paintPreview();
+  wrap.addEventListener("input", paintPreview);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (e.target.closest("[data-wb-fmt-apply]")) {
+      formatSelection(g, readForm());
+      wrap.remove();
+      g.els.grid.focus();
+    }
+  });
+  setTimeout(() => wrap.querySelector("#wb-fmt-num")?.focus(), 30);
 }
 
 // ─── Excel-grade formula entry toolkit ──────────────────────────────────────
@@ -4356,6 +4460,8 @@ function bindGridEvents(g) {
       case "align-right": formatSelection(g, { align: "right" }); break;
       case "wrap": toggleFormat(g, "wrap"); break;
       case "clear-format": clearFormatting(g); break;
+      case "dec-minus": adjustDecimals(g, -1); break;
+      case "dec-plus": adjustDecimals(g, 1); break;
       case "row-add": restructure(g, "row", g.active.r + 1, 1); break;
       case "row-del": restructure(g, "row", g.active.r, -1); break;
       case "col-add": restructure(g, "col", g.active.c + 1, 1); break;
@@ -4452,6 +4558,7 @@ function openCellContextMenu(g, x, y, kind) {
     sep,
     item("clear-contents", "Clear contents"),
     item("clear-format", "Clear formatting"),
+    item("format-cells", "Format cells…"),
     item("comment", "Add comment"),
     item("copy-ref", "Copy cell reference"),
     kind === "col" ? item("resize-col", "Resize column…") : "",
@@ -4477,6 +4584,7 @@ function openCellContextMenu(g, x, y, kind) {
       case "insert-col-right": restructure(g, "col", c + 1, 1); break;
       case "clear-contents": clearSelection(g); break;
       case "clear-format": clearFormatting(g); break;
+      case "format-cells": openFormatCellsDialog(g); break;
       case "comment": openCellComment(g, r, c); break;
       case "copy-ref": try { await navigator.clipboard.writeText(ref); _toast(`Copied ${ref}`, "success"); } catch (_) {} break;
       case "resize-col": {
