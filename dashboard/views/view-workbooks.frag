@@ -17,16 +17,19 @@
                 <span>Reports</span>
               </button>
             </div>
-            <div class="rr-wb-strip-actions">
-              <button type="button" class="btn btn-primary btn-sm" data-wb-act="new-workbook">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                New workbook
-              </button>
-              <button type="button" class="btn btn-primary btn-sm" data-wb-act="new-report" hidden>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                New report
-              </button>
-            </div>
+          </div>
+          <!-- Action row · schedule-style white bordered buttons below the
+               tabs. The visible button follows the tab (syncWbTabs):
+               New workbook on Workbooks, New report on Reports. -->
+          <div class="rr-wb-actionsrow">
+            <button type="button" class="rr-wb-btn" data-wb-act="new-workbook">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New workbook
+            </button>
+            <button type="button" class="rr-wb-btn" data-wb-act="new-report" hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New report
+            </button>
           </div>
         </div>
         <div id="rr-wb-root">
