@@ -3239,6 +3239,76 @@ function insertPointRef(g, st, refText) {
   paintFormulaRefs(g);
 }
 
+// ─── Cross-sheet point mode ──────────────────────────────────────────────────
+// Excel's tab-switch-while-editing gesture: start a formula, click another
+// sheet's tab, click cells there to insert 'Sheet Name'!A1 references, type
+// operators between clicks, Enter commits back on the origin sheet. The
+// in-progress formula lives in g.xedit while the editor DOM is torn down.
+
+function sheetRefName(name) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : "'" + String(name).replace(/'/g, "''") + "'";
+}
+
+function xeditHint(g) {
+  if (g.els.sbmode) g.els.sbmode.textContent = "Point — click a cell to reference it · Enter to confirm · Esc to cancel";
+}
+
+// Insert (or replace, on consecutive clicks — Excel point semantics) a
+// reference to a rect on the CURRENTLY VISIBLE sheet into the pending formula.
+function xeditInsertRef(g, r0, c0, r1, c1) {
+  const x = g.xedit;
+  if (!x) return;
+  const rr0 = Math.min(r0, r1), rr1 = Math.max(r0, r1);
+  const cc0 = Math.min(c0, c1), cc1 = Math.max(c0, c1);
+  const ref = sheetRefName(g.sheet.name) + "!" + colLabel(cc0) + (rr0 + 1)
+    + (rr1 !== rr0 || cc1 !== cc0 ? ":" + colLabel(cc1) + (rr1 + 1) : "");
+  const start = x.seg ? x.seg.start : x.caret;
+  const end = x.seg ? x.seg.end : x.caret;
+  if (!x.seg && !REF_ALLOWED_BEFORE.test(x.value.slice(0, start))) return; // caret isn't at a ref position
+  x.value = x.value.slice(0, start) + ref + x.value.slice(end);
+  x.seg = { start, end: start + ref.length };
+  x.caret = x.seg.end;
+  if (g.els.fbarInput) g.els.fbarInput.value = x.value;
+  g.active = { r: rr0, c: cc0 };
+  g.sel = { r0: rr0, c0: cc0, r1: rr1, c1: cc1 };
+  paintSelection(g);
+  xeditHint(g);
+}
+
+function commitXedit(g) {
+  const x = g.xedit;
+  if (!x) return;
+  g.xedit = null;
+  switchSheet(g, x.sheetId);
+  setActive(g, x.r, x.c);
+  // replay through the normal editor commit so validation, undo, recalc
+  // and activity logging all apply exactly as if typed in place
+  startEdit(g, x.r, x.c, x.value);
+  commitEdit(g, 1, 0);
+  markSaveState(WB.saveState);
+}
+
+function cancelXedit(g) {
+  const x = g.xedit;
+  if (!x) return;
+  g.xedit = null;
+  switchSheet(g, x.sheetId);
+  setActive(g, x.r, x.c);
+  markSaveState(WB.saveState);
+  g.els.grid.focus();
+}
+
+// Clicking back to the origin tab resumes the in-cell editor mid-formula.
+function restoreXeditEditor(g) {
+  const x = g.xedit;
+  if (!x) return;
+  g.xedit = null;
+  setActive(g, x.r, x.c);
+  startEdit(g, x.r, x.c, x.value);
+  if (g.editing && x.seg && x.seg.end === x.value.length) g.editing.point = { ...x.seg };
+  markSaveState(WB.saveState);
+}
+
 // Colored highlights on every cell/range the formula references.
 const REFHL_COLORS = ["#2563EB", "#16A34A", "#7C3AED", "#D97706", "#DC2626"];
 
@@ -3790,7 +3860,9 @@ function syncFormulaBar(g) {
   }
   const cell = g.sheet.cells.get(cellKey(r, c));
   if (g.els.fbarInput && document.activeElement !== g.els.fbarInput) {
-    g.els.fbarInput.value = g.editing && g.editing.input ? g.editing.input.value : cell ? (cell.formula || (cell.value ?? "")) : "";
+    g.els.fbarInput.value = g.xedit ? g.xedit.value
+      : g.editing && g.editing.input ? g.editing.input.value
+      : cell ? (cell.formula || (cell.value ?? "")) : "";
   }
   if (g.els.fbarErr) {
     if (cell && cell.err) {
@@ -5063,6 +5135,27 @@ function bindGridEvents(g) {
       }
     }
 
+    // ── cross-sheet point mode: clicks insert refs into the pending formula ──
+    if (g.xedit && g.sheet.id !== g.xedit.sheetId) {
+      const ptCell = e.target.closest(".wb-cell");
+      if (ptCell && e.button === 0) {
+        e.preventDefault();
+        const ar = +ptCell.getAttribute("data-r"), ac = +ptCell.getAttribute("data-c");
+        xeditInsertRef(g, ar, ac, ar, ac);
+        const onMove = (ev) => {
+          const p = canvasPos(ev);
+          const r2 = g.rows[dispRowAt(g, p.y)] ?? ar;
+          const c2 = colAt(g, p.x);
+          xeditInsertRef(g, ar, ac, r2, c2);
+        };
+        const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+        g.els.grid.focus();
+        return;
+      }
+    }
+
     // ── validation dropdown ── (opened from the document click delegate —
     // opening here on mousedown would be undone by the click-away closer)
     if (e.target.closest("[data-wb-dvbtn]")) { e.preventDefault(); return; }
@@ -5290,6 +5383,29 @@ function bindGridEvents(g) {
     if (g.editing) return; // editor has its own handler
     const k = e.key;
     const meta = e.ctrlKey || e.metaKey;
+    // ── cross-sheet point mode: the keyboard builds the pending formula ──
+    if (g.xedit && g.sheet.id !== g.xedit.sheetId) {
+      const x = g.xedit;
+      if (k === "Enter") { e.preventDefault(); commitXedit(g); return; }
+      if (k === "Escape") { e.preventDefault(); cancelXedit(g); return; }
+      if (k === "Backspace") {
+        e.preventDefault();
+        x.value = x.value.slice(0, -1);
+        x.seg = null;
+        x.caret = x.value.length;
+        if (g.els.fbarInput) g.els.fbarInput.value = x.value;
+        return;
+      }
+      if (k.length === 1 && !meta && !e.altKey) {
+        e.preventDefault();
+        x.value += k;
+        x.seg = null; // typing "fixes" the last ref; the next click starts a new one
+        x.caret = x.value.length;
+        if (g.els.fbarInput) g.els.fbarInput.value = x.value;
+        return;
+      }
+      // arrows/paging fall through so the other sheet can be browsed
+    }
     if (meta && (k === "z" || k === "Z")) { e.preventDefault(); if (e.shiftKey) redoGrid(g); else undoGrid(g); return; }
     if (meta && (k === "y" || k === "Y")) { e.preventDefault(); redoGrid(g); return; }
     if (meta && (k === "c" || k === "C")) { e.preventDefault(); copySelection(g); return; }
@@ -5511,9 +5627,34 @@ function bindGridEvents(g) {
   });
 
   // ── sheet tabs ──
+  // capture an in-progress formula BEFORE the tab steals focus — otherwise
+  // the editor's blur handler commits the half-typed formula (Excel keeps
+  // it alive so you can point at cells on the other sheet)
+  g.els.tabs.addEventListener("mousedown", (e) => {
+    const tab = e.target.closest("[data-wb-sheettab]");
+    if (!tab || !g.editing) return;
+    const input = g.editing.input;
+    if (!input || !input.value.startsWith("=")) return;                 // plain values commit as usual
+    if (tab.getAttribute("data-wb-sheettab") === g.sheet.id) return;    // same tab: nothing to do
+    const caret = input.selectionStart ?? input.value.length;
+    const pt = g.editing.point;
+    g.xedit = {
+      sheetId: g.sheet.id, r: g.editing.r, c: g.editing.c,
+      value: input.value, caret,
+      seg: pt && pt.end === caret ? { ...pt } : null,
+    };
+    g.editing = null; // the blur timeout and switchSheet's cancelEdit become no-ops
+    clearFormulaChrome(g);
+    input.remove();
+  });
   g.els.tabs.addEventListener("click", (e) => {
     const tab = e.target.closest("[data-wb-sheettab]");
-    if (tab) switchSheet(g, tab.getAttribute("data-wb-sheettab"));
+    if (!tab) return;
+    switchSheet(g, tab.getAttribute("data-wb-sheettab"));
+    if (g.xedit) {
+      if (g.sheet.id === g.xedit.sheetId) restoreXeditEditor(g);
+      else { syncFormulaBar(g); xeditHint(g); g.els.grid.focus(); }
+    }
   });
   g.els.tabs.addEventListener("dblclick", (e) => {
     const tab = e.target.closest("[data-wb-sheettab]");
