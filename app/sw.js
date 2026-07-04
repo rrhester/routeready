@@ -13,11 +13,11 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-// v121 · Driver checklists: assigned checklists surface as Forms-hub
-// cards with a full fill/submit flow (photos, signature pad, drafts,
-// locked view after submit). Bumped so installed driver PWAs purge the
-// old shell and pick up the new app.js + styles.css.
-const SHELL_CACHE = "rr-app-shell-v121";
+// v122 · Checklists get their own bottom-nav tab (moved out of the
+// Forms hub) with To do / Completed groups and an open-count badge.
+// Bumped so installed driver PWAs purge the old shell and pick up the
+// new app.js + styles.css.
+const SHELL_CACHE = "rr-app-shell-v122";
 const SHELL_FILES = [
   "./",
   "index.html",

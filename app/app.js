@@ -821,7 +821,8 @@ const routes = {
   "/tasks/onboarding":  { render: renderOnboarding,      tab: "/tasks", back: "/tasks", title: "Onboarding" },
   "/tasks/onboarding/step": { render: renderOnboardingStep, tab: "/tasks", back: "/tasks/onboarding", title: "Onboarding step" },
   "/tasks/form":        { render: renderFormFill,        tab: "/tasks", back: "/tasks", title: "Form" },
-  "/tasks/checklist":   { render: renderChecklistFill,   tab: "/tasks", back: "/tasks", title: "Checklist" },
+  "/checklists":        { render: renderChecklistsHub,   tab: "/checklists" },
+  "/tasks/checklist":   { render: renderChecklistFill,   tab: "/checklists", back: "/checklists", title: "Checklist" },
   "/tasks/coaching":    { render: renderCoachingFeed,    tab: "/tasks", back: "/tasks", title: "Coaching" },
   "/tasks/coaching/one":{ render: renderCoachingDetail,  tab: "/tasks", back: "/tasks/coaching", title: "Coaching" },
   "/tasks/documents":   { render: renderDocumentsList,   tab: "/tasks", back: "/tasks", title: "Documents" },
@@ -897,6 +898,8 @@ function render() {
   refreshChatBadge();
   // Forms tab badge · surface a freshly-sent Coaching on app open.
   refreshFormsBadge();
+  // Checklists tab badge · count of open (not-completed) checklists.
+  refreshChecklistsBadge();
   // Check for queued Recognition Celebration Events.  Fires immediately
   // so the celebration is the first thing the driver sees on app open
   // — no perceptible shell flash before the overlay lands.
@@ -1552,6 +1555,10 @@ function renderShell(session) {
       <button class="tab" data-route="/tasks" data-c="tasks" role="tab" aria-label="Forms">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
         Forms
+      </button>
+      <button class="tab" data-route="/checklists" data-c="checklists" role="tab" aria-label="Checklists">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 1.8 1.8L8 4.6"/><path d="m3 12 1.8 1.8L8 10.6"/><path d="m3 18 1.8 1.8L8 16.6"/><line x1="11" y1="6" x2="21" y2="6"/><line x1="11" y1="12" x2="21" y2="12"/><line x1="11" y1="18" x2="21" y2="18"/></svg></span>
+        Checklists
       </button>
       <button class="tab" data-route="/chat" data-c="chat" role="tab" aria-label="Chat">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
@@ -2528,7 +2535,6 @@ function renderTasksHub() {
     <div id="rr-tasks-assignments-slot"></div>
     ${baseCards.map(taskCardHtml).join("")}
     <div id="rr-tasks-forms-slot"></div>
-    <div id="rr-tasks-checklists-slot"></div>
     <div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md);display:none">Nothing to do right now — you're all set.</div>`;
   // Skeleton-removal strategy:
   //   • The instant the first real card lands, drop the skeleton.
@@ -2539,11 +2545,11 @@ function renderTasksHub() {
   //   • If every RPC settles with nothing to show, drop the skeleton
   //     and reveal the "Nothing to do" empty state instead.
   //   • 3 s safety net for genuinely-stuck networks.
-  const TASKS_RPC_COUNT = 7;
+  const TASKS_RPC_COUNT = 6;
   let _tasksPending = TASKS_RPC_COUNT;
   let _tasksRevealed = false;
   const slotHasContent = () => {
-    const slots = ["rr-tasks-onboarding-slot", "rr-tasks-assignments-slot", "rr-tasks-forms-slot", "rr-tasks-checklists-slot"];
+    const slots = ["rr-tasks-onboarding-slot", "rr-tasks-assignments-slot", "rr-tasks-forms-slot"];
     return slots.some(id => {
       const el = document.getElementById(id);
       return el && el.children.length > 0;
@@ -2663,47 +2669,6 @@ function renderTasksHub() {
     // Network / runtime failure — log and stay silent in the UI.
     // The Tasks hub still shows what loaded; pull-to-refresh re-tries.
     console.warn("driver_list_forms rejected:", err);
-  }).finally(rpcSettled);
-
-  // Assigned checklists — cards mirror the forms cards above. Status +
-  // due badges come precomputed from driver_list_checklists (which
-  // resolves assignment scopes and repeat/due rules for today).
-  sb.rpc("driver_list_checklists", { p_token: session.token }).then(({ data, error }) => {
-    const slot = document.getElementById("rr-tasks-checklists-slot");
-    if (!slot) return;
-    if (error) {
-      // Silent like forms — likely just a tenant that hasn't run the
-      // checklist migration yet. The next render re-tries.
-      console.warn("driver_list_checklists error:", error);
-      return;
-    }
-    const lists = Array.isArray(data) ? data : [];
-    if (lists.length === 0) return;
-    const dueTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    slot.innerHTML = lists.map(c => {
-      let sub;
-      if (c.status === "completed") {
-        sub = `Completed${c.submitted_at ? " · " + dueTime(c.submitted_at) : ""}`;
-      } else if (c.status === "overdue") {
-        sub = `Overdue — was due ${c.due_at ? dueTime(c.due_at) : "earlier"}`;
-      } else {
-        const bits = [c.required ? "Required" : "Optional",
-                      `${c.item_count} item${c.item_count === 1 ? "" : "s"}`];
-        if (c.due_at) bits.push(`Due ${dueTime(c.due_at)}`);
-        if (c.status === "in_progress") bits.push("In progress");
-        sub = bits.join(" · ");
-      }
-      return taskCardHtml({
-        route: `/tasks/checklist?id=${encodeURIComponent(c.assignment_id)}`,
-        title: c.name || "Checklist",
-        sub,
-        icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7.5 12.4l3 3 6-6.4"/></svg>',
-      });
-    }).join("");
-    slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
-    onContent();
-  }).catch((err) => {
-    console.warn("driver_list_checklists rejected:", err);
   }).finally(rpcSettled);
 
   // Documents to sign — single card surfacing the count of pending
@@ -5690,10 +5655,113 @@ async function _collectFormAnswers(fields, opts = {}) {
 }
 
 
+// ── Checklists tab ──────────────────────────────────────────────────
+//
+// Dedicated bottom-nav tab for assigned checklists (operator request —
+// they used to live as cards inside the Forms hub). The hub groups
+// today's checklists into "To do" and "Completed"; the tab icon carries
+// a count badge of open (not-completed) checklists, refreshed on every
+// shell mount like the Forms/Chat badges.
+
+function _clkCardHtml(c) {
+  const dueTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  let sub;
+  if (c.status === "completed") {
+    sub = `Completed${c.submitted_at ? " · " + dueTime(c.submitted_at) : ""}`;
+  } else if (c.status === "overdue") {
+    sub = `Overdue — was due ${c.due_at ? dueTime(c.due_at) : "earlier"}`;
+  } else {
+    const bits = [c.required ? "Required" : "Optional",
+                  `${c.item_count} item${c.item_count === 1 ? "" : "s"}`];
+    if (c.due_at) bits.push(`Due ${dueTime(c.due_at)}`);
+    if (c.status === "in_progress") bits.push("In progress");
+    sub = bits.join(" · ");
+  }
+  return taskCardHtml({
+    route: `/tasks/checklist?id=${encodeURIComponent(c.assignment_id)}`,
+    title: c.name || "Checklist",
+    sub,
+    icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M7.5 12.4l3 3 6-6.4"/></svg>',
+  });
+}
+
+function renderChecklistsHub() {
+  setHeader("Checklists", "");
+  setRefresh(() => renderChecklistsHub());
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div id="rr-clk-hub-skel">${taskSkeletonHtml(2)}</div>
+    <div id="rr-clk-hub"></div>`;
+
+  sb.rpc("driver_list_checklists", { p_token: session.token }).then(({ data, error }) => {
+    if (currentRoute() !== "/checklists") return;
+    document.getElementById("rr-clk-hub-skel")?.remove();
+    const host = document.getElementById("rr-clk-hub");
+    if (!host) return;
+    if (error) {
+      console.warn("driver_list_checklists error:", error);
+      host.innerHTML = `<div class="rr-empty-inline" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Couldn't load checklists — pull down to retry.</div>`;
+      return;
+    }
+    const lists = Array.isArray(data) ? data : [];
+    if (lists.length === 0) {
+      _setChecklistsTabBadge(0);
+      host.innerHTML = `<div class="rr-empty-inline" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">No checklists assigned right now — you're all set.</div>`;
+      return;
+    }
+    const todo = lists.filter((c) => c.status !== "completed");
+    const done = lists.filter((c) => c.status === "completed");
+    host.innerHTML =
+      (todo.length ? `<div class="clk-hub-h">To do</div>` + todo.map(_clkCardHtml).join("") : "") +
+      (done.length ? `<div class="clk-hub-h">Completed</div>` + done.map(_clkCardHtml).join("") : "");
+    host.querySelectorAll("[data-task-route]").forEach((el) =>
+      el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
+    _setChecklistsTabBadge(todo.length);
+  }).catch((err) => {
+    console.warn("driver_list_checklists rejected:", err);
+    document.getElementById("rr-clk-hub-skel")?.remove();
+  });
+}
+
+function _setChecklistsTabBadge(n) {
+  document.querySelectorAll('.tab[data-c="checklists"]').forEach((tab) => {
+    const ic = tab.querySelector(".tab-ic");
+    if (!ic) return;
+    let badge = ic.querySelector(".rr-tab-badge");
+    if (n > 0) {
+      if (getComputedStyle(ic).position === "static") ic.style.position = "relative";
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "rr-tab-badge";
+        badge.style.cssText = "position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--bg, #fff);box-sizing:border-box";
+        ic.appendChild(badge);
+      }
+      badge.textContent = n > 99 ? "99+" : String(n);
+    } else if (badge) {
+      badge.remove();
+    }
+  });
+}
+
+async function refreshChecklistsBadge() {
+  if (PREVIEW) return;
+  const session = readSession();
+  if (!session?.token) { _setChecklistsTabBadge(0); return; }
+  try {
+    const { data, error } = await sb.rpc("driver_list_checklists", { p_token: session.token });
+    if (error) return;
+    const lists = Array.isArray(data) ? data : [];
+    _setChecklistsTabBadge(lists.filter((c) => c.status !== "completed").length);
+  } catch {}
+}
+
+
 // ── Checklist fill-out ──────────────────────────────────────────────
 //
-// Assigned checklists open from their Forms-hub card. Same skeleton as
-// renderFormFill (draft restore, required validation, photo upload to
+// Assigned checklists open from their Checklists-tab card. Same skeleton
+// as renderFormFill (draft restore, required validation, photo upload to
 // driver-documents) plus: server-side progress save (dispatch sees
 // "In progress"), a real canvas signature pad (_initSignaturePad), and
 // a locked read-only view once submitted — until dispatch reopens it.
@@ -5805,7 +5873,7 @@ async function renderChecklistFill() {
   if (!session?.token) { writeSession(null); render(); return; }
 
   const id = routeQuery().get("id");
-  if (!id) { navigate("/tasks"); return; }
+  if (!id) { navigate("/checklists"); return; }
 
   const { data: cl, error } = await sb.rpc("driver_get_checklist", { p_token: session.token, p_assignment_id: id });
   if (error || !cl) {
@@ -5975,7 +6043,7 @@ async function renderChecklistFill() {
     clearDraft(DRAFT_KEY);
     _haptic("success");
     toast("Checklist submitted", "ok");
-    navigate("/tasks");
+    navigate("/checklists");
   });
 }
 
