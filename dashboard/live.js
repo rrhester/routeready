@@ -9374,9 +9374,6 @@ const _RR_CTP_EDIT = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none
 const _RR_CTP_TRASH = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
 function _rrRenderContacts() {
   const list = document.getElementById("rr-sched-contacts-list");
-  // Keep the Fleet-calendar contacts dock (drag-to-schedule) in sync
-  // whenever the store repaints; no-op when the calendar isn't mounted.
-  try { if (typeof _renderFleetCalContacts === "function") _renderFleetCalContacts(); } catch (_) {}
   if (!list) return;
   const q = (() => { const i = document.querySelector("#rr-sched-contacts [data-rr-contact-search]"); return ((i && i.value) || "").trim().toLowerCase(); })();
   let cs = _rrLoadContacts().map(_rrCtpNorm).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
@@ -9404,7 +9401,7 @@ function _rrRenderContacts() {
       const line = [escapeHtml(p.name || ""), p.role ? escapeHtml(p.role) : "", tel].filter(Boolean).join(" · ");
       return `<span class="ctp-poc">${line}</span>`;
     }).join("");
-    return `<div class="ctp-row" role="listitem" data-rr-contact-id="${escapeHtml(c.id)}">
+    return `<div class="ctp-row" role="listitem" draggable="true" data-rr-contact-id="${escapeHtml(c.id)}" title="Drag onto a Fleet-calendar day to schedule service">
       <span class="ctp-avatar" aria-hidden="true">${escapeHtml(init)}</span>
       <span class="ctp-who">
         <span class="ctp-name">${escapeHtml(c.name || "")}</span>
@@ -42550,7 +42547,6 @@ let _fleetCalProviders = [];    // DB vendor rows (event storage + legacy names)
 let _fcDragContactId   = null;  // contact id mid-drag, null otherwise
 let _fcDropCell        = null;  // day cell currently under the drag
 let _fleetCalSort      = "alpha"; // van row order: alpha | events
-let _fleetProvBound    = false; // providers rail delegation installed once
 
 // Sunday on/before the given date, at local midnight.
 function _fcSunday(d) {
@@ -42636,13 +42632,6 @@ async function _paintFleetCalendar() {
   const host = document.getElementById("rr-fleet-cal-host");
   if (!host) return;
 
-  // Restore the Hide-sidebar preference (persisted across sessions).
-  try {
-    if (localStorage.getItem("rr-fc-hide-rail") === "1") {
-      document.body.classList.add("rr-fc-hide-rail");
-    }
-  } catch (_) {}
-
   // Activate any service groundings whose window now includes today
   // (best-effort — never blocks the paint). No cron needed; this fires
   // whenever the operator views the calendar.
@@ -42727,25 +42716,18 @@ async function _paintFleetCalendar() {
   const totalVans = vans.length;
   // VAN header · "Van" label + the four schedule Driver-header tools,
   // wired through _onFleetCalClick via data-fc-tool. Density + focus reuse
-  // the shared body classes; hide-rail collapses the providers rail;
-  // sort reorders the van rows.
+  // the shared body classes; sort reorders the van rows.
   const _dens = document.body.classList.contains("rr-sched-super-compact") ? "super"
     : document.body.classList.contains("rr-sched-ultra-compact") ? "ultra"
     : document.body.classList.contains("rr-sched-compact") ? "compact" : "standard";
   const _focusOn = document.body.classList.contains("rr-fc-focus");
-  const _railHidden = document.body.classList.contains("rr-fc-hide-rail");
   const _svg = (p) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const vanTools =
-      `<div class="rr-fc-vancol-actions" style="display:grid;grid-template-columns:repeat(4,auto);gap:4px;margin-left:auto;align-items:center;justify-items:center">`
+      `<div class="rr-fc-vancol-actions" style="display:grid;grid-template-columns:repeat(3,auto);gap:4px;margin-left:auto;align-items:center;justify-items:center">`
     + `<button class="rr-tf-icon" type="button" data-fc-tool="focus" aria-pressed="${_focusOn}" style="position:relative;top:0;right:0" title="Expand screen — hide chrome, expand the calendar" aria-label="Expand screen">`
       + _svg(_focusOn
         ? '<polyline points="3 9 9 9 9 3"/><polyline points="21 9 15 9 15 3"/><polyline points="15 21 15 15 21 15"/><polyline points="3 15 9 15 9 21"/>'
         : '<polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><polyline points="21 15 21 21 15 21"/><polyline points="3 15 3 21 9 21"/>')
-    + `</button>`
-    + `<button class="rr-tf-icon" type="button" data-fc-tool="hiderail" aria-pressed="${_railHidden}" style="position:relative;top:0;right:0" title="${_railHidden ? "Show the Contacts panel" : "Hide the Contacts panel — the calendar fills the space"}" aria-label="${_railHidden ? "Show sidebar" : "Hide sidebar"}">`
-      + _svg(_railHidden
-        ? '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="7 9 10 12 7 15"/>'
-        : '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="10 9 7 12 10 15"/>')
     + `</button>`
     + `<button class="rr-tf-icon" type="button" data-fc-tool="sort" style="position:relative;top:0;right:0" title="Sort vans" aria-label="Sort vans">`
       + _svg('<line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="11" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 8 21 12 17 16"/><line x1="14" y1="12" x2="21" y2="12"/>')
@@ -42880,7 +42862,6 @@ async function _paintFleetProviders() {
   } catch (e) {
     console.warn("fleet calendar providers load:", e);
   }
-  _renderFleetCalContacts();
 }
 window._paintFleetProviders = _paintFleetProviders;
 
@@ -42918,63 +42899,26 @@ function _fcPurgeImportedProviderContacts() {
   } catch (_) { /* best-effort */ }
 }
 
-// Paint the contacts dock beside the calendar. Chips reuse the rail-chip
-// chrome; click opens the contact in the shared Contacts panel, Add
-// opens the panel's create form.
-function _renderFleetCalContacts() {
-  const host = document.getElementById("rr-fc-providers");
-  if (!host) return;
-  const contacts = (typeof _rrLoadContacts === "function" ? _rrLoadContacts() : [])
-    .slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  const chips = contacts.length
-    ? contacts.map(c => {
-        const nm = escapeHtml(c.name || "—");
-        const sub = escapeHtml([c.company, c.phone].filter(Boolean).join(" · "));
-        return `<div class="rr-fc-prov-chip" draggable="true" data-fc-contact="${escapeHtml(c.id)}" title="Drag onto a day to schedule service">
-          <span class="rr-fc-prov-chip-text">
-            <span class="rr-fc-prov-chip-name">${nm}</span>
-            ${sub ? `<span class="rr-fc-prov-chip-kind">${sub}</span>` : ""}
-          </span>
-        </div>`;
-      }).join("")
-    : `<div class="rr-fc-prov-empty">No contacts yet. Add one, then drag it onto a day to schedule service.</div>`;
-  host.innerHTML = `
-    <div class="rr-fc-prov">
-      <div class="rr-fc-prov-head">
-        <span class="rr-fc-prov-title">Contacts</span>
-        <button type="button" class="rr-fc-prov-add" data-fc-contact-add><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button>
-      </div>
-      <div class="rr-fc-prov-hint">Drag a contact onto a day to schedule service.</div>
-      <div class="rr-fc-prov-list">${chips}</div>
-    </div>`;
-  if (!_fleetProvBound) {
-    _fleetProvBound = true;
-    host.addEventListener("click", (e) => {
-      if (e.target.closest("[data-fc-contact-add]")) {
-        if (typeof _rrCtpOpenCreate === "function") _rrCtpOpenCreate();
-        return;
-      }
-      const chip = e.target.closest("[data-fc-contact]");
-      if (chip && typeof _rrCtpOpenEdit === "function") _rrCtpOpenEdit(chip.getAttribute("data-fc-contact"));
-    });
-    host.addEventListener("dragstart", (e) => {
-      const chip = e.target.closest("[data-fc-contact]");
-      if (!chip) return;
-      _fcDragContactId = chip.getAttribute("data-fc-contact");
-      chip.classList.add("rr-fc-dragging");
-      try {
-        e.dataTransfer.effectAllowed = "copy";
-        e.dataTransfer.setData("text/plain", _fcDragContactId);
-      } catch (_) { /* noop */ }
-    });
-    host.addEventListener("dragend", (e) => {
-      const chip = e.target.closest("[data-fc-contact]");
-      if (chip) chip.classList.remove("rr-fc-dragging");
-      _fcDragContactId = null;
-      if (_fcDropCell) { _fcDropCell.classList.remove("rr-fc-drop"); _fcDropCell = null; }
-    });
-  }
-}
+// The in-calendar contacts dock was retired (operator 2026-07-04) —
+// the calendar owns the full width, and the drag source is the shared
+// right-rail Contacts panel: its rows are draggable straight onto a
+// day cell (wiring below).
+document.addEventListener("dragstart", (e) => {
+  const row = e.target.closest && e.target.closest("#rr-sched-contacts .ctp-row[data-rr-contact-id]");
+  if (!row) return;
+  _fcDragContactId = row.getAttribute("data-rr-contact-id");
+  row.classList.add("rr-fc-dragging");
+  try {
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("text/plain", _fcDragContactId);
+  } catch (_) { /* noop */ }
+});
+document.addEventListener("dragend", (e) => {
+  const row = e.target.closest && e.target.closest("#rr-sched-contacts .ctp-row");
+  if (row) row.classList.remove("rr-fc-dragging");
+  _fcDragContactId = null;
+  if (_fcDropCell) { _fcDropCell.classList.remove("rr-fc-drop"); _fcDropCell = null; }
+});
 
 // Resolve a contact to a DB vendor id for event storage — find an
 // existing vendor by name (case-insensitive) or create one carrying the
@@ -43015,13 +42959,6 @@ function _onFleetCalClick(e) {
     if (which === "focus") {
       const on = !document.body.classList.contains("rr-fc-focus");
       document.body.classList.toggle("rr-fc-focus", on);
-      _paintFleetCalendar();
-      return;
-    }
-    if (which === "hiderail") {
-      const hidden = !document.body.classList.contains("rr-fc-hide-rail");
-      document.body.classList.toggle("rr-fc-hide-rail", hidden);
-      try { localStorage.setItem("rr-fc-hide-rail", hidden ? "1" : "0"); } catch (_) {}
       _paintFleetCalendar();
       return;
     }
