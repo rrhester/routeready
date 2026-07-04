@@ -347,6 +347,7 @@
       okami: 'OKAMI',
       messages: 'Messages',
       email: 'Email',
+      recognition: 'Recognition',
       workspaces: 'Workspaces',
       forms: 'Workspaces',
       checklists: 'Workspaces',
