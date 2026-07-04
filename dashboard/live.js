@@ -77982,6 +77982,25 @@ async function _clfRenderAssign() {
 
 async function _clfCreateAssignment() {
   if (!_clfState.editing) return;
+
+  // Drafts are invisible to drivers, so assigning one silently does
+  // nothing on their phones — the single most common "why isn't my
+  // checklist showing up" trap. Offer to publish in the same click.
+  if (_clfState.editing.status !== "active") {
+    if (window.confirm("This checklist is still a draft — drivers can't see drafts.\n\nPublish it now so the assignment goes live?\n(OK = publish and assign · Cancel = assign but keep it as a draft)")) {
+      try {
+        const { data, error } = await sb.rpc("checklist_form_set_status", { p_id: _clfState.editing.id, p_status: "active" });
+        if (error) throw error;
+        _clfState.editing = Object.assign({}, _clfState.editing, data);
+        _clfPaintStatus();
+        _clfSidebarFetch();
+      } catch (e) {
+        toast("Couldn't publish: " + (e.message || e), "warn");
+        return;
+      }
+    }
+  }
+
   const scope = document.querySelector('input[name="rr-clf-scope"]:checked')?.value || "driver";
   const payload = { assignment_scope: scope, required: !!document.getElementById("rr-clf-assign-required")?.checked };
 
