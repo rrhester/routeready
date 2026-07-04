@@ -100,14 +100,7 @@ const RB_CATEGORIES = [
 ];
 
 const RB_REPORTS = [
-  { id: "driver-phone-list", category: "people", title: "Driver Phone List", description: "Names, phone numbers, emails, and active status.", fields: ["driverName", "phoneNumber", "email", "status"] },
-  { id: "driver-email-list", category: "people", title: "Driver Email List", description: "Names, email addresses, and active status.", fields: ["driverName", "email", "status"] },
-  { id: "hire-dates-tenure", category: "people", title: "Hire Dates / Tenure", description: "Hire dates with computed tenure for every driver.", fields: ["driverName", "hireDate", "tenure", "status"] },
-  { id: "certifications", category: "people", title: "Certifications", description: "DOT, XL, and EDV certification status plus license expiration.", fields: ["driverName", "dotCert", "xlCert", "edvCert", "licenseExpiration"] },
-  { id: "emergency-contacts", category: "people", title: "Emergency Contacts", description: "Emergency contact name and phone for every driver.", fields: ["driverName", "emergencyContactName", "emergencyContactPhone"] },
-  { id: "availability", category: "people", title: "Availability", description: "Available days, preferred days, and overtime preference.", fields: ["driverName", "preferredDays", "availability", "overtimePreference"] },
-  { id: "attendance-risk", category: "people", title: "Attendance Risk", description: "Risk level, 30-day attendance, and last coaching date.", fields: ["driverName", "attendanceRisk", "attendanceStatus", "lastCoachingDate"] },
-  { id: "custom-people", category: "people", title: "Custom People Report", description: "Pick exactly the people fields you need.", fields: [], custom: true },
+  { id: "custom-people", category: "people", title: "People Report", description: "Pick exactly the people fields you need.", fields: [], custom: true },
 ];
 
 // ─── Data layer ──────────────────────────────────────────────────────────────
@@ -276,25 +269,9 @@ export function openReportsBuilder() {
     els.foot.workbook.disabled = !ready;
   };
 
-  const renderCards = () => {
-    els.main.innerHTML = `
-      <p class="rb-main-head">People reports</p>
-      ${RB_REPORTS.filter((r) => r.category === "people").map((r) => `
-        <div class="rb-card ${RB.report && RB.report.id === r.id ? "is-active" : ""}" data-rb-report="${r.id}" role="button" tabindex="0">
-          <p class="rb-card-title">${esc(r.title)}</p>
-          <p class="rb-card-desc">${esc(r.description)}</p>
-          ${r.custom ? "" : `<p class="rb-card-fields">${r.fields.map((k) => esc(RB_FIELDS[k].label)).join(" · ")}</p>`}
-          <div class="rb-card-actions">
-            <button type="button" class="btn btn-ghost btn-sm" data-rb-preview-btn="${r.id}">Preview</button>
-            <button type="button" class="btn btn-ghost btn-sm" data-rb-open-btn="${r.id}">Open in Workbook</button>
-          </div>
-        </div>`).join("")}`;
-  };
-
   const renderCustomPanel = () => {
     els.main.innerHTML = `
-      <button type="button" class="rb-back" data-rb-back>← All People reports</button>
-      <p class="rb-main-head">Custom People Report</p>
+      <p class="rb-main-head">People Report</p>
       <p class="rb-main-sub">Choose the fields to include. The report updates as you pick.</p>
       <div class="rb-fields">
         ${RB_CUSTOM_FIELDS.map((k) => `
@@ -349,7 +326,7 @@ export function openReportsBuilder() {
     const report = RB_REPORTS.find((r) => r.id === id);
     if (!report) return;
     RB.report = report;
-    if (report.custom) renderCustomPanel(); else renderCards();
+    renderCustomPanel();
     footState();
     renderPreview();
   };
@@ -423,17 +400,6 @@ export function openReportsBuilder() {
   wrap.addEventListener("click", async (e) => {
     if (e.target === wrap || e.target.closest("[data-rb-close]")) { close(); return; }
     if (e.target.closest("[data-rb-retry]")) { renderPreview(true); return; }
-    if (e.target.closest("[data-rb-back]")) { RB.report = null; renderCards(); footState(); els.preview.innerHTML = `<div class="rb-preview-blank">Select a report to preview it here.</div>`; return; }
-    const prevBtn = e.target.closest("[data-rb-preview-btn]");
-    if (prevBtn) { selectReport(prevBtn.getAttribute("data-rb-preview-btn")); return; }
-    const openBtn = e.target.closest("[data-rb-open-btn]");
-    if (openBtn) {
-      selectReport(openBtn.getAttribute("data-rb-open-btn"));
-      if (!RB.report.custom) await doWorkbook();
-      return;
-    }
-    const card = e.target.closest("[data-rb-report]");
-    if (card) { selectReport(card.getAttribute("data-rb-report")); return; }
     const act = e.target.closest("[data-rb-act]");
     if (act && !act.disabled) {
       const a = act.getAttribute("data-rb-act");
@@ -443,6 +409,6 @@ export function openReportsBuilder() {
     }
   });
 
-  renderCards();
+  selectReport("custom-people"); // the builder lands straight on the field picker
   setTimeout(() => wrap.querySelector("[data-rb-close]")?.focus(), 30);
 }
