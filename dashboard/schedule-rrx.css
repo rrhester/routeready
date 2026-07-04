@@ -5513,12 +5513,14 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-ch
    (--tcp-z-chrome:20) but below modals (>=100).
 
    Visibility is view-gated: the mount is hidden by default and revealed
-   only when the active top-level view is Schedule or Onboarding-Ops
-   (signalled by body[data-rr-active-view], set in goto()). On every other
-   view (the main calendar, hiring funnel, etc.) the rail stays hidden. */
+   only when the active top-level view is Schedule, Onboarding-Ops or
+   Fleet (signalled by body[data-rr-active-view], set in goto()). On every
+   other view (the main calendar, hiring funnel, etc.) the rail stays
+   hidden. */
 #rr-util-rail-mount{display:none}
 body[data-rr-active-view="view-schedule"] #rr-util-rail-mount,
-body[data-rr-active-view="view-onboarding-ops"] #rr-util-rail-mount{display:block}
+body[data-rr-active-view="view-onboarding-ops"] #rr-util-rail-mount,
+body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 
 #rr-util-rail-mount .sched-util-rail{
   position:fixed; top:var(--tcp-topbar-h,56px); right:0; bottom:0;
