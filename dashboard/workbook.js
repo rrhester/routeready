@@ -5847,7 +5847,12 @@ function sheetToolbarHtml(block, ro) {
     <div class="wb-tgrp">
       <button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-fill" data-wb-tb="fill-people" title="Choose driver fields and load the roster into this sheet" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>People</button>
     </div>
-    <div class="wb-tgrp">${btn("autosum", "AutoSum — insert =SUM(…) for the selection", `<span class="wb-tb-txt wb-tb-sigma">Σ</span>`)}</div>
+    <div class="wb-tgrp">${btn("autosum", "AutoSum — insert =SUM(…) for the selection", `<span class="wb-tb-txt wb-tb-sigma">Σ</span>`)}
+      <span class="popover-anchor">
+        <button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-fnbtn" data-wb-tb="fn-menu" title="Functions — browse and insert (${FUNCTION_META.length})" aria-label="Insert function" aria-haspopup="menu" ${ro ? "disabled" : ""}><span class="wb-tb-txt wb-tb-fx"><em>f</em>x</span><span class="wb-tb-caret">▾</span></button>
+        <div class="popover wb-tb-pop wb-fn-pop" role="menu"></div>
+      </span>
+    </div>
     <div class="wb-tgrp">
       ${btn("fmt-currency", "Format as currency", `<span class="wb-tb-txt">$</span>`)}${btn("fmt-percent", "Format as percent", `<span class="wb-tb-txt">%</span>`)}
       <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="dec-minus" title="Decrease decimal places" aria-label="Decrease decimal places" ${ro ? "disabled" : ""}><span class="wb-tb-txt wb-tb-dec">.0</span></button>
@@ -7424,6 +7429,81 @@ function acceptFx(g, name) {
   if (g.els.fbarInput) g.els.fbarInput.value = input.value;
   updateFxPop(g);
   paintFormulaRefs(g);
+}
+
+// ── Functions browser (toolbar fx button) ──
+// A searchable directory over the full FUNCTION_META list. Empty query
+// shows a curated "Common" shortlist; typing ranks matches by
+// name-prefix → name-substring → description. Picking one inserts
+// "=NAME(" into the active cell and drops into the editor, where the
+// signature hint takes over.
+
+const FN_COMMON = ["SUM", "AVERAGE", "COUNT", "COUNTA", "IF", "IFS", "SUMIF", "SUMIFS", "COUNTIF", "COUNTIFS", "VLOOKUP", "XLOOKUP", "INDEX", "MATCH", "FILTER", "SORT", "UNIQUE", "ROUND", "TODAY", "CONCATENATE"];
+
+function fnSearch(q) {
+  const Q = q.toUpperCase();
+  const hits = [];
+  for (const f of FUNCTION_META) {
+    let score;
+    if (f.n === Q) score = 0;
+    else if (f.n.startsWith(Q)) score = 1;
+    else if (f.n.includes(Q)) score = 2;
+    else if (f.sig.toUpperCase().includes(Q) || f.d.toUpperCase().includes(Q)) score = 3;
+    else continue;
+    hits.push([score, f]);
+  }
+  hits.sort((a, b) => a[0] - b[0] || (a[1].n < b[1].n ? -1 : a[1].n > b[1].n ? 1 : 0));
+  return hits.map((h) => h[1]);
+}
+
+function fnItemHtml(f, active) {
+  return `<button type="button" class="wb-fn-item${active ? " is-active" : ""}" data-wb-fn="${esc(f.n)}" role="option" title="${esc(f.sig)}">`
+    + `<span class="wb-fn-name">${esc(f.n)}</span><span class="wb-fn-desc">${esc(f.d)}</span></button>`;
+}
+
+function fnListHtml(q) {
+  if (!q) {
+    const common = FN_COMMON.map((n) => FUNCTION_META.find((f) => f.n === n)).filter(Boolean);
+    return `<div class="wb-fn-group">Common</div>`
+      + common.map((f, i) => fnItemHtml(f, i === 0)).join("")
+      + `<div class="wb-fn-foot">Type to search all ${FUNCTION_META.length} functions</div>`;
+  }
+  const hits = fnSearch(q).slice(0, 60);
+  if (!hits.length) return `<div class="wb-fn-empty">No function matches “${esc(q)}”</div>`;
+  return hits.map((f, i) => fnItemHtml(f, i === 0)).join("");
+}
+
+function fnBrowserPop(g, anchorBtn) {
+  const pop = anchorBtn.closest(".popover-anchor")?.querySelector(".wb-fn-pop");
+  if (!pop) return;
+  pop.innerHTML = `<div class="wb-fn-head"><input type="text" class="wb-fn-search" placeholder="Search functions…" aria-label="Search functions" autocomplete="off" spellcheck="false"></div><div class="wb-fn-list" role="listbox"></div>`;
+  const input = pop.querySelector(".wb-fn-search");
+  const list = pop.querySelector(".wb-fn-list");
+  const render = () => { list.innerHTML = fnListHtml(input.value.trim()); list.scrollTop = 0; };
+  render();
+  input.addEventListener("input", render);
+  input.addEventListener("keydown", (e) => {
+    const items = [...list.querySelectorAll(".wb-fn-item")];
+    if (!items.length) return;
+    let idx = items.findIndex((el) => el.classList.contains("is-active"));
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (idx < 0) idx = 0;
+      items[idx]?.classList.remove("is-active");
+      idx = e.key === "ArrowDown" ? Math.min(items.length - 1, idx + 1) : Math.max(0, idx - 1);
+      items[idx].classList.add("is-active");
+      items[idx].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const pick = items[idx] || items[0];
+      const nm = pick.getAttribute("data-wb-fn");
+      closeAllPopovers();
+      if (WB.canEdit) startEdit(g, g.active.r, g.active.c, "=" + nm + "(");
+    } else if (e.key === "Escape") {
+      closeAllPopovers();
+      g.els.grid.focus();
+    }
+  });
 }
 
 function commentedCellSet(sheetId) {
@@ -11192,6 +11272,8 @@ function bindGridEvents(g) {
     if (bwBtn) { const w = +bwBtn.getAttribute("data-wb-bw"); formatSelection(g, { bw: w === 1 ? null : w }); closeAllPopovers(); return; }
     const freezeBtn = e.target.closest("[data-wb-freeze]");
     if (freezeBtn) { setFreeze(g, freezeBtn.getAttribute("data-wb-freeze")); closeAllPopovers(); return; }
+    const fnItem = e.target.closest("[data-wb-fn]");
+    if (fnItem) { const nm = fnItem.getAttribute("data-wb-fn"); closeAllPopovers(); if (WB.canEdit) startEdit(g, g.active.r, g.active.c, "=" + nm + "("); return; }
     const io = e.target.closest("[data-wb-tb2]");
     if (io) {
       closeAllPopovers();
@@ -11248,6 +11330,12 @@ function bindGridEvents(g) {
       case "sort-desc": sortByColumn(g, g.active.c, "desc"); break;
       case "sort-custom": openSortDialog(g); return;
       case "filter": toggleFilterMode(g); break;
+      case "fn-menu": {
+        fnBrowserPop(g, btn);
+        togglePopover(btn);
+        setTimeout(() => btn.closest(".popover-anchor")?.querySelector(".wb-fn-search")?.focus(), 0);
+        return;
+      }
       case "numfmt-menu":
       case "fill-menu":
       case "textc-menu":
@@ -12213,7 +12301,11 @@ function wbMenuItems(menu, g) {
       { label: "New sheet", act: "ins:sheet", disabled: !ed || !g },
       sep,
       { label: "Chart…", act: "ins:chart", disabled: !ed || !g },
-      { label: "Function", sub: ["SUM", "AVERAGE", "COUNT", "MAX", "MIN", "COUNTIF", "VLOOKUP"].map((fn) => ({ label: fn, act: "ins:fn:" + fn, disabled: !ed || !g })) },
+      { label: "Function", sub: [
+        ...["SUM", "AVERAGE", "COUNT", "MAX", "MIN", "IF", "COUNTIF", "SUMIF", "VLOOKUP", "XLOOKUP"].map((fn) => ({ label: fn, act: "ins:fn:" + fn, disabled: !ed || !g })),
+        sep,
+        { label: `All functions… (${FUNCTION_META.length})`, act: "ins:fnbrowse", disabled: !ed || !g },
+      ] },
       { label: "Link…", act: "ins:link", disabled: !ed || !g },
       { label: "Image (into cell)…", act: "ins:image", disabled: !ed || !g },
       { label: "Dropdown (data validation)…", act: "ins:dropdown", disabled: !ed || !g },
@@ -12333,6 +12425,10 @@ function wbMenuAction(act, g) {
     case "ins:col-right": if (need()) restructure(g, "col", rect.c1 + 1, 1); return;
     case "ins:sheet": if (need()) addSheetTo(g.blockId); return;
     case "ins:chart": if (need()) openChartDialog(g); return;
+    case "ins:fnbrowse": if (need()) {
+      const fnBtn = document.querySelector(`[data-wb-toolbar="${g.blockId}"] [data-wb-tb="fn-menu"]`);
+      if (fnBtn) { fnBrowserPop(g, fnBtn); togglePopover(fnBtn); setTimeout(() => fnBtn.closest(".popover-anchor")?.querySelector(".wb-fn-search")?.focus(), 0); }
+    } return;
     case "ins:link": if (need()) insertLinkPrompt(g); return;
     case "ins:image": if (need()) pickImageInto(g); return;
     case "ins:dropdown": if (need()) openValidationDialog(g); return;
@@ -13839,4 +13935,5 @@ export const __engine = {
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,
   fillWeekDates, fillSheetInfo, fillDriverIdAt, fillSheetDriverIds,
+  FUNCTION_META, fnSearch, fnListHtml,
 };

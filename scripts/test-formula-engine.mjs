@@ -461,6 +461,53 @@ ok("#NUM on bad domains", () => { assert.equal(evErr("=NORM.INV(2,0,1)"), "#NUM"
   });
 }
 
+// ── Functions browser (toolbar fx) search + directory coverage ───────────────
+{
+  const { FUNCTION_META, fnSearch } = __engine;
+  const names = FUNCTION_META.map((f) => f.n);
+  ok("fn browser: every autocomplete entry is unique + well-formed", () => {
+    assert.ok(names.length > 400, `expected the full directory, got ${names.length}`);
+    assert.equal(new Set(names).size, names.length, "no duplicate names");
+    for (const f of FUNCTION_META) { assert.ok(f.n && f.sig && f.d, `entry missing fields: ${JSON.stringify(f)}`); }
+  });
+  ok("fn browser: exact name ranks first", () => { assert.equal(fnSearch("SUM")[0].n, "SUM"); assert.equal(fnSearch("vlookup")[0].n, "VLOOKUP"); });
+  ok("fn browser: prefix beats substring beats description", () => {
+    const r = fnSearch("SUMI").map((f) => f.n);
+    assert.ok(r.indexOf("SUMIF") >= 0 && r.indexOf("SUMIFS") >= 0);
+    assert.ok(r.indexOf("SUMIF") < r.indexOf("CONCATENATE") || r.indexOf("CONCATENATE") < 0);
+  });
+  ok("fn browser: description text is searchable", () => {
+    const r = fnSearch("standard deviation").map((f) => f.n);
+    assert.ok(r.includes("STDEV") || r.includes("STDEV.S"), "matched a stdev function by its description");
+  });
+  ok("fn browser: dotted + underscored names are findable", () => {
+    assert.ok(fnSearch("NORM.S").some((f) => f.n === "NORM.S.DIST"));
+    assert.ok(fnSearch("ARRAY_").some((f) => f.n === "ARRAY_CONSTRAIN"));
+  });
+  ok("fn browser: no match returns empty", () => assert.equal(fnSearch("ZZZQQQ").length, 0));
+  ok("fn browser: newly added functions are in the directory", () => {
+    for (const n of ["FILTER", "SORT", "XLOOKUP", "LAMBDA", "LET", "CONVERT", "REGEXMATCH", "XIRR", "NORM.DIST", "IMSUM"]) {
+      assert.ok(names.includes(n), `${n} missing from the functions browser`);
+    }
+  });
+  const { fnListHtml } = __engine;
+  ok("fn browser: empty query renders the Common shortlist", () => {
+    const html = fnListHtml("");
+    assert.ok(html.includes("Common"), "has the Common header");
+    assert.ok(html.includes('data-wb-fn="SUM"'), "SUM is a clickable item");
+    assert.ok(/Type to search all \d+ functions/.test(html), "footer hint");
+  });
+  ok("fn browser: query renders clickable, escaped items", () => {
+    const html = fnListHtml("vlook");
+    assert.ok(html.includes('data-wb-fn="VLOOKUP"'), "VLOOKUP item present");
+    assert.ok(html.includes("wb-fn-item is-active"), "first result is preselected for Enter/arrow nav");
+  });
+  ok("fn browser: dotted names survive as valid attributes", () => {
+    assert.ok(fnListHtml("norm.s").includes('data-wb-fn="NORM.S.DIST"'));
+  });
+  ok("fn browser: empty state on no match", () => assert.ok(fnListHtml("zzzqqq").includes("wb-fn-empty")));
+}
+
 // ── XLSX export ──────────────────────────────────────────────────────────────
 // Parse the produced zip back (stored entries only) and verify structure,
 // CRCs, and the cell/style XML we care about.
