@@ -943,4 +943,59 @@ ok("chart handles an empty range gracefully", () => {
   assert.ok(/wb-chart-empty|<svg/.test(svg));
 });
 
+// ── pivot tables ─────────────────────────────────────────────────────────────
+function pivotSheet() {
+  const cells = new Map();
+  const put = (ref, value, type) => { const rc = parseCellRef(ref); cells.set(rc.row + "," + rc.col, { value: String(value), formula: null, type: type || (isFinite(Number(value)) ? "number" : "text"), computed: null, err: null, format: {} }); };
+  // Region, Rep, Amount
+  const rows = [
+    ["Region", "Rep", "Amount"],
+    ["West", "Ann", "100"],
+    ["West", "Bob", "50"],
+    ["East", "Ann", "70"],
+    ["East", "Bob", "30"],
+    ["West", "Ann", "20"],
+  ];
+  rows.forEach((row, r) => row.forEach((v, c) => put(colLabelJS(c) + (r + 1), v, r === 0 ? "text" : (c < 2 ? "text" : "number"))));
+  return { cells, rowCount: 100, colCount: 26 };
+}
+function colLabelJS(i) { let s = ""; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+ok("pivotAggregate: sum/count/avg/min/max/countunique", () => {
+  const { pivotAggregate } = __engine;
+  assert.equal(pivotAggregate("sum", [1, 2, 3]), 6);
+  assert.equal(pivotAggregate("count", [1, "", 3, null]), 2);
+  assert.equal(pivotAggregate("avg", [2, 4]), 3);
+  assert.equal(pivotAggregate("min", [5, 2, 9]), 2);
+  assert.equal(pivotAggregate("max", [5, 2, 9]), 9);
+  assert.equal(pivotAggregate("countunique", ["a", "a", "b"]), 2);
+});
+ok("computePivot: rows × sum aggregates by group", () => {
+  const p = __engine.computePivot(pivotSheet(), { r0: 0, c0: 0, r1: 5, c1: 2, rows: ["Region"], cols: [], values: [{ field: "Amount", agg: "sum" }] });
+  assert.deepEqual(p.rowKeys, ["East", "West"]);
+  assert.equal(p.aggOf("West", null, 0), 170); // 100+50+20
+  assert.equal(p.aggOf("East", null, 0), 100); // 70+30
+  assert.equal(p.aggOf(null, null, 0), 270);   // grand total
+});
+ok("computePivot: rows × cols cross-tab", () => {
+  const p = __engine.computePivot(pivotSheet(), { r0: 0, c0: 0, r1: 5, c1: 2, rows: ["Region"], cols: ["Rep"], values: [{ field: "Amount", agg: "sum" }] });
+  assert.deepEqual(p.colKeys, ["Ann", "Bob"]);
+  assert.equal(p.aggOf("West", "Ann", 0), 120); // 100+20
+  assert.equal(p.aggOf("West", "Bob", 0), 50);
+  assert.equal(p.aggOf("East", "Ann", 0), 70);
+  assert.equal(p.aggOf(null, "Ann", 0), 190);   // Ann column total
+});
+ok("computePivot: count aggregation", () => {
+  const p = __engine.computePivot(pivotSheet(), { r0: 0, c0: 0, r1: 5, c1: 2, rows: ["Region"], cols: [], values: [{ field: "Rep", agg: "count" }] });
+  assert.equal(p.aggOf("West", null, 0), 3);
+  assert.equal(p.aggOf("East", null, 0), 2);
+});
+ok("computePivot: no value fields returns null", () => {
+  assert.equal(__engine.computePivot(pivotSheet(), { r0: 0, c0: 0, r1: 5, c1: 2, rows: ["Region"], cols: [], values: [] }), null);
+});
+ok("pivotTableHtml renders a table with a grand total", () => {
+  const html = __engine.pivotTableHtml(pivotSheet(), { r0: 0, c0: 0, r1: 5, c1: 2, rows: ["Region"], cols: ["Rep"], values: [{ field: "Amount", agg: "sum" }] });
+  assert.ok(/<table/.test(html));
+  assert.ok(/Grand total/.test(html));
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);

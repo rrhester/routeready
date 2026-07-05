@@ -5828,6 +5828,7 @@ function mountSheetBlock(block, body) {
       <div class="wb-gr-filterchip" hidden></div>
     </div>
     <div class="wb-charts" data-wb-charts hidden></div>
+    <div class="wb-pivots" data-wb-pivots hidden></div>
     <div class="wb-tabs" data-wb-tabs="${block.id}"></div>
     <div class="wb-statusbar" data-wb-statusbar>
       <span class="wb-sb-mode" data-wb-sbmode>Ready</span>
@@ -5867,6 +5868,7 @@ function mountSheetBlock(block, body) {
       fbarErr: body.querySelector("[data-wb-fbar-err]"),
       filterChip: body.querySelector(".wb-gr-filterchip"),
       charts: body.querySelector("[data-wb-charts]"),
+      pivots: body.querySelector("[data-wb-pivots]"),
       tabs: body.querySelector("[data-wb-tabs]"),
     },
     active: { r: 0, c: 0 },
@@ -5893,6 +5895,7 @@ function mountSheetBlock(block, body) {
   repaintGrid(g);
   syncFormulaBar(g);
   renderCharts(g);
+  renderPivots(g);
   renderFillBar(g); // Schedule Intelligence Bar (from the last saved run)
   g.els.charts.addEventListener("click", (e) => {
     const card = e.target.closest("[data-wb-chart]");
@@ -5902,6 +5905,15 @@ function mountSheetBlock(block, body) {
     if (!ch) return;
     if (act.getAttribute("data-wb-chartact") === "edit") openChartDialog(g, ch);
     else confirmModal({ title: "Delete this chart?", body: "The underlying cells are untouched.", confirmLabel: "Delete chart", danger: true, onConfirm: () => deleteChart(g, ch.id) });
+  });
+  g.els.pivots.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-wb-pivot]");
+    const act = e.target.closest("[data-wb-pivotact]");
+    if (!card || !act) return;
+    const pv = sheetPivots(g.sheet).find((x) => x.id === card.getAttribute("data-wb-pivot"));
+    if (!pv) return;
+    if (act.getAttribute("data-wb-pivotact") === "edit") openPivotDialog(g, pv);
+    else confirmModal({ title: "Delete this pivot table?", body: "The underlying cells are untouched.", confirmLabel: "Delete pivot", danger: true, onConfirm: () => deletePivot(g, pv.id) });
   });
 }
 
@@ -6037,6 +6049,7 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-tb="validation" role="menuitem" ${ro ? "disabled" : ""}>Data validation…</button>
           <button type="button" class="popover-item" data-wb-tb="condfmt" role="menuitem" ${ro ? "disabled" : ""}>Conditional formatting…</button>
           <button type="button" class="popover-item" data-wb-tb="named-ranges" role="menuitem">Named ranges…</button>
+          <button type="button" class="popover-item" data-wb-tb="pivot" role="menuitem" ${ro ? "disabled" : ""}>Pivot table…</button>
           <button type="button" class="popover-item" data-wb-tb="clear-format" role="menuitem" ${ro ? "disabled" : ""}>Clear formatting</button>
           <div class="popover-section"></div>
           <button type="button" class="popover-item" data-wb-tb2="import-csv" role="menuitem" ${ro ? "disabled" : ""}>Import CSV into this sheet…</button>
@@ -7646,6 +7659,7 @@ function switchSheet(g, sheetId) {
   repaintGrid(g);
   syncFormulaBar(g);
   renderCharts(g);
+  renderPivots(g);
 }
 
 // ─── Selection + navigation ─────────────────────────────────────────────────
@@ -8968,7 +8982,7 @@ function shiftRuleRanges(sheet, axis, index, delta) {
   const meta = sheet.meta || {};
   const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
   const cut = delta < 0 ? -delta : 0;
-  for (const key of ["validation", "condFormat", "merges", "charts"]) {
+  for (const key of ["validation", "condFormat", "merges", "charts", "pivots"]) {
     if (!Array.isArray(meta[key]) || !meta[key].length) continue;
     const next = [];
     for (const rule of meta[key]) {
@@ -11126,7 +11140,7 @@ function renderCharts(g) {
 function scheduleChartRender(g) {
   if (!g.els.charts) return;
   clearTimeout(g.chartsT);
-  g.chartsT = setTimeout(() => renderCharts(g), 250);
+  g.chartsT = setTimeout(() => { renderCharts(g); renderPivots(g); }, 250);
 }
 
 function parseRangeRefText(s) {
@@ -11199,6 +11213,234 @@ function deleteChart(g, chartId) {
   g.sheet.meta = { ...(g.sheet.meta || {}), charts: sheetCharts(g.sheet).filter((c) => c.id !== chartId) };
   saveSheetMeta(g.sheet.id);
   renderCharts(g);
+}
+
+// ─── Pivot tables ────────────────────────────────────────────────────────────
+// A pivot lives on its sheet (sheet.meta.pivots), reads a source range whose
+// first row is a header, and renders an aggregated table below the grid.
+// rows/cols are grouping dimensions; values aggregate a field per cell.
+
+const WB_PIVOT_AGGS = { sum: "Sum", count: "Count", avg: "Average", min: "Min", max: "Max", countunique: "Count unique" };
+const PIVOT_MAX_ROWS = 20000;
+
+function sheetPivots(sheet) {
+  const v = sheet.meta && sheet.meta.pivots;
+  return Array.isArray(v) ? v : [];
+}
+
+function pivotRefText(spec) { return colLabel(spec.c0) + (spec.r0 + 1) + ":" + colLabel(spec.c1) + (spec.r1 + 1); }
+
+// Source range → { fields:[header names], records:[{field: value}] }.
+function pivotSource(sheet, spec) {
+  const r0 = spec.r0, c0 = spec.c0, r1 = Math.min(spec.r1, sheet.rowCount - 1, spec.r0 + PIVOT_MAX_ROWS), c1 = Math.min(spec.c1, sheet.colCount - 1);
+  const rawOf = (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null; };
+  const fields = [];
+  for (let c = c0; c <= c1; c++) fields.push(String(rawOf(r0, c) ?? colLabel(c)));
+  const records = [];
+  for (let r = r0 + 1; r <= r1; r++) {
+    const rec = {}; let any = false;
+    for (let c = c0; c <= c1; c++) { const v = rawOf(r, c); rec[fields[c - c0]] = v; if (v != null && v !== "") any = true; }
+    if (any) records.push(rec);
+  }
+  return { fields, records };
+}
+
+function pivotAggregate(agg, vals) {
+  const nums = vals.map((v) => cellNumeric(v)).filter((v) => v != null);
+  switch (agg) {
+    case "count": return vals.filter((v) => v != null && v !== "").length;
+    case "countunique": return new Set(vals.filter((v) => v != null && v !== "").map(String)).size;
+    case "avg": return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+    case "min": return nums.length ? Math.min(...nums) : null;
+    case "max": return nums.length ? Math.max(...nums) : null;
+    case "sum": default: return nums.reduce((a, b) => a + b, 0);
+  }
+}
+
+// Pure computation → grouping keys + an aggregate accessor that re-aggregates
+// over the underlying records (so totals of averages stay correct).
+function computePivot(sheet, spec) {
+  const { records } = pivotSource(sheet, spec);
+  const rowFields = (spec.rows || []).filter(Boolean);
+  const colFields = (spec.cols || []).filter(Boolean);
+  const values = (spec.values || []).filter((v) => v && v.field);
+  if (!values.length) return null;
+  const filt = (spec.filters || []).filter((f) => f && f.field && Array.isArray(f.values) && f.values.length);
+  const keyed = records.filter((rec) => filt.every((f) => f.values.map(String).includes(String(rec[f.field] ?? ""))));
+  const rowKey = (rec) => rowFields.map((f) => String(rec[f] ?? "")).join(" · ");
+  const colKey = (rec) => colFields.map((f) => String(rec[f] ?? "")).join(" · ");
+  const rowSeen = new Set(), colSeen = new Set(), rowKeys = [], colKeys = [];
+  for (const rec of keyed) {
+    const rk = rowKey(rec); if (!rowSeen.has(rk)) { rowSeen.add(rk); rowKeys.push(rk); }
+    const ck = colKey(rec); if (!colSeen.has(ck)) { colSeen.add(ck); colKeys.push(ck); }
+  }
+  rowKeys.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  colKeys.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  // rk/ck === null means "all" (used for totals)
+  const aggOf = (rk, ck, vi) => {
+    const v = values[vi];
+    const recs = keyed.filter((rec) => (rk == null || rowKey(rec) === rk) && (ck == null || colKey(rec) === ck));
+    return pivotAggregate(v.agg, recs.map((r) => r[v.field]));
+  };
+  return { rowFields, colFields, values, rowKeys, colKeys, aggOf, records: keyed };
+}
+
+function pivotNumFmt(v) {
+  if (v == null || v === "") return "";
+  if (typeof v === "number") return (Math.round(v * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return esc(String(v));
+}
+
+function pivotTableHtml(sheet, spec) {
+  const p = computePivot(sheet, spec);
+  if (!p) return `<div class="wb-chart-empty">Add at least one value field to this pivot.</div>`;
+  if (!p.records.length || !p.rowKeys.length) return `<div class="wb-chart-empty">No data to summarize in ${esc(pivotRefText(spec))} yet.</div>`;
+  const nv = p.values.length;
+  const hasCols = p.colFields.length > 0 && p.colKeys.length > 0;
+  const rowHdrs = p.rowFields.length ? p.rowFields : ["Total"];
+  const vlab = (vi) => esc(`${WB_PIVOT_AGGS[p.values[vi].agg] || ""} of ${p.values[vi].field}`);
+  // column groups: each colKey, then a Grand Total group (only when cols exist)
+  const groups = hasCols ? [...p.colKeys.map((ck) => ({ ck, label: ck || "(blank)" })), { ck: null, label: "Grand total" }] : [{ ck: "", label: null }];
+
+  let thead;
+  if (hasCols) {
+    const r1 = rowHdrs.map((h) => `<th rowspan="2" class="wb-pv-rh">${esc(h)}</th>`).join("") +
+      groups.map((gp) => `<th colspan="${nv}" class="wb-pv-ch">${esc(gp.label)}</th>`).join("");
+    const r2 = groups.map(() => p.values.map((_, vi) => `<th class="wb-pv-vh">${vlab(vi)}</th>`).join("")).join("");
+    thead = `<tr>${r1}</tr><tr>${r2}</tr>`;
+  } else {
+    thead = `<tr>${rowHdrs.map((h) => `<th class="wb-pv-rh">${esc(h)}</th>`).join("")}${p.values.map((_, vi) => `<th class="wb-pv-vh">${vlab(vi)}</th>`).join("")}</tr>`;
+  }
+
+  const bodyRows = p.rowKeys.map((rk) => {
+    const parts = p.rowFields.length ? rk.split(" · ") : ["Total"];
+    const rhCells = rowHdrs.map((_, i) => `<td class="wb-pv-rk">${esc(parts[i] ?? "")}</td>`).join("");
+    const dataCells = groups.map((gp) => p.values.map((_, vi) => `<td class="wb-pv-num">${pivotNumFmt(p.aggOf(rk, gp.ck, vi))}</td>`).join("")).join("");
+    return `<tr>${rhCells}${dataCells}</tr>`;
+  }).join("");
+
+  // grand total row
+  const gtLabel = `<td class="wb-pv-rk wb-pv-gt" colspan="${rowHdrs.length}">Grand total</td>`;
+  const gtCells = groups.map((gp) => p.values.map((_, vi) => `<td class="wb-pv-num wb-pv-gt">${pivotNumFmt(p.aggOf(null, gp.ck, vi))}</td>`).join("")).join("");
+  const foot = `<tr>${gtLabel}${gtCells}</tr>`;
+
+  return `<div class="wb-pv-scroll"><table class="wb-pv-table"><thead>${thead}</thead><tbody>${bodyRows}${foot}</tbody></table></div>`;
+}
+
+function renderPivots(g) {
+  const host = g.els.pivots;
+  if (!host) return;
+  const pivots = sheetPivots(g.sheet);
+  if (!pivots.length) { host.innerHTML = ""; host.hidden = true; return; }
+  host.hidden = false;
+  host.innerHTML = pivots.map((pv) => {
+    let table;
+    try { table = pivotTableHtml(g.sheet, pv); }
+    catch (e) { table = `<div class="wb-chart-empty">Couldn't build this pivot.</div>`; }
+    return `<div class="wb-pivot-card" data-wb-pivot="${esc(pv.id)}">
+      <div class="wb-chart-head">
+        <span class="wb-chart-title">${esc(pv.title || `Pivot · ${pivotRefText(pv)}`)}</span>
+        ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="edit" title="Edit pivot" aria-label="Edit pivot"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="delete" title="Delete pivot" aria-label="Delete pivot">×</button>` : ""}
+      </div>
+      ${table}
+    </div>`;
+  }).join("");
+}
+
+function deletePivot(g, pivotId) {
+  if (!WB.canEdit) return;
+  g.sheet.meta = { ...(g.sheet.meta || {}), pivots: sheetPivots(g.sheet).filter((p) => p.id !== pivotId) };
+  saveSheetMeta(g.sheet.id);
+  renderPivots(g);
+}
+
+function openPivotDialog(g, existing) {
+  if (!WB.canEdit) return;
+  document.getElementById("wb-pivot-modal")?.remove();
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const spec = existing || { r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1, rows: [], cols: [], values: [] };
+  const fieldsOf = () => pivotSource(sheet, spec).fields;
+  let fields = fieldsOf();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-pivot-modal";
+  const fieldOpts = (sel) => `<option value=""></option>` + fields.map((f) => `<option value="${esc(f)}" ${f === sel ? "selected" : ""}>${esc(f)}</option>`).join("");
+  const aggOpts = (sel) => Object.entries(WB_PIVOT_AGGS).map(([k, l]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${l}</option>`).join("");
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${existing ? "Edit pivot table" : "Pivot table"}" style="width:560px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">${existing ? "Edit pivot table" : "Pivot table"}</p><p class="rr-modal-sub">Summarize a range whose first row is a header.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Source range</span>
+          <input type="text" class="wb-input" id="wb-pv-range" value="${esc(pivotRefText(spec))}" placeholder="A1:F200" spellcheck="false"></label>
+        <div class="wb-field-row" style="margin-top:10px">
+          <label class="wb-field"><span class="wb-field-label">Rows — group by</span>
+            <select class="wb-input" id="wb-pv-row1">${fieldOpts(spec.rows && spec.rows[0])}</select></label>
+          <label class="wb-field"><span class="wb-field-label">then by <span class="wb-field-opt">optional</span></span>
+            <select class="wb-input" id="wb-pv-row2">${fieldOpts(spec.rows && spec.rows[1])}</select></label>
+        </div>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Columns — split across <span class="wb-field-opt">optional</span></span>
+          <select class="wb-input" id="wb-pv-col">${fieldOpts(spec.cols && spec.cols[0])}</select></label>
+        <div class="wb-field-row" style="margin-top:10px">
+          <label class="wb-field"><span class="wb-field-label">Values — summarize</span>
+            <select class="wb-input" id="wb-pv-val1">${fieldOpts(spec.values && spec.values[0] && spec.values[0].field)}</select></label>
+          <label class="wb-field" style="flex:0 0 150px"><span class="wb-field-label">as</span>
+            <select class="wb-input" id="wb-pv-agg1">${aggOpts(spec.values && spec.values[0] && spec.values[0].agg || "sum")}</select></label>
+        </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">and <span class="wb-field-opt">optional</span></span>
+            <select class="wb-input" id="wb-pv-val2">${fieldOpts(spec.values && spec.values[1] && spec.values[1].field)}</select></label>
+          <label class="wb-field" style="flex:0 0 150px"><span class="wb-field-label">as</span>
+            <select class="wb-input" id="wb-pv-agg2">${aggOpts(spec.values && spec.values[1] && spec.values[1].agg || "sum")}</select></label>
+        </div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-pv-save>${existing ? "Save" : "Create pivot"}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  // reload field lists when the range changes
+  const reloadFields = () => {
+    const rng = parseRangeRefText(wrap.querySelector("#wb-pv-range").value);
+    if (!rng) return;
+    spec.r0 = rng.r0; spec.c0 = rng.c0; spec.r1 = rng.r1; spec.c1 = rng.c1;
+    fields = fieldsOf();
+    for (const [id, cur] of [["wb-pv-row1", spec.rows && spec.rows[0]], ["wb-pv-row2", spec.rows && spec.rows[1]], ["wb-pv-col", spec.cols && spec.cols[0]], ["wb-pv-val1", spec.values && spec.values[0] && spec.values[0].field], ["wb-pv-val2", spec.values && spec.values[1] && spec.values[1].field]]) {
+      const sel = wrap.querySelector("#" + id); const keep = sel.value || cur;
+      sel.innerHTML = fieldOpts(keep);
+    }
+  };
+  wrap.querySelector("#wb-pv-range").addEventListener("change", reloadFields);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-pv-save]")) return;
+    const rng = parseRangeRefText(wrap.querySelector("#wb-pv-range").value);
+    if (!rng) { _toast("Enter a range like A1:F200", "warn"); return; }
+    const rows = [wrap.querySelector("#wb-pv-row1").value, wrap.querySelector("#wb-pv-row2").value].filter(Boolean);
+    const cols = [wrap.querySelector("#wb-pv-col").value].filter(Boolean);
+    const values = [
+      { field: wrap.querySelector("#wb-pv-val1").value, agg: wrap.querySelector("#wb-pv-agg1").value },
+      { field: wrap.querySelector("#wb-pv-val2").value, agg: wrap.querySelector("#wb-pv-agg2").value },
+    ].filter((v) => v.field);
+    if (!rows.length) { _toast("Pick at least one Rows field", "warn"); return; }
+    if (!values.length) { _toast("Pick at least one Values field", "warn"); return; }
+    const next = { id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, title: existing ? existing.title : "" };
+    const pivots = sheetPivots(sheet).filter((p) => p.id !== next.id);
+    pivots.push(next);
+    g.sheet.meta = { ...(g.sheet.meta || {}), pivots };
+    saveSheetMeta(sheet.id);
+    wbLog("sheet.pivot", `${existing ? "updated" : "created"} a pivot table on ${pivotRefText(next)} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+    wrap.remove();
+    renderPivots(g);
+    g.els.pivots?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+  setTimeout(() => wrap.querySelector("#wb-pv-range")?.focus(), 30);
 }
 
 // ─── Menus (shared open/close discipline) ───────────────────────────────────
@@ -11860,6 +12102,7 @@ function bindGridEvents(g) {
       case "validation": openValidationDialog(g); break;
       case "condfmt": openCondFormatDialog(g); break;
       case "named-ranges": openNamedRangesDialog(g); return;
+      case "pivot": openPivotDialog(g); return;
       case "row-add": restructure(g, "row", g.active.r + 1, 1); break;
       case "row-del": restructure(g, "row", g.active.r, -1); break;
       case "col-add": restructure(g, "col", g.active.c + 1, 1); break;
@@ -14487,6 +14730,7 @@ export const __engine = {
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes,
   chartSvg, WB_CHART_TYPES,
+  computePivot, pivotAggregate, pivotTableHtml,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,
   fillWeekDates, fillSheetInfo, fillDriverIdAt, fillSheetDriverIds,

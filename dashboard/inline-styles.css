@@ -28883,6 +28883,19 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-chart-tick{font-size:10px;fill:var(--text-subtle)}
 #view-workbooks .wb-chart-empty{padding:18px 4px;font-size:var(--fs-sm);color:var(--text-subtle)}
 
+/* ── Pivot tables ── */
+#view-workbooks .wb-pivots{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;padding:4px 2px 8px}
+#view-workbooks .wb-pivot-card{flex:0 1 auto;max-width:100%;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);padding:10px 12px 8px}
+#view-workbooks .wb-pv-scroll{overflow-x:auto;max-width:min(900px,90vw)}
+#view-workbooks .wb-pv-table{border-collapse:collapse;font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
+#view-workbooks .wb-pv-table th,#view-workbooks .wb-pv-table td{border:1px solid var(--border-subtle);padding:3px 9px;text-align:left;white-space:nowrap}
+#view-workbooks .wb-pv-table thead th{background:var(--canvas);font-weight:600;color:var(--text);position:sticky;top:0}
+#view-workbooks .wb-pv-ch{text-align:center}
+#view-workbooks .wb-pv-vh{color:var(--text-muted);font-weight:500}
+#view-workbooks .wb-pv-rk{font-weight:500;color:var(--text)}
+#view-workbooks .wb-pv-num{text-align:right}
+#view-workbooks .wb-pv-gt{font-weight:600;background:var(--canvas)}
+
 /* ── Formula bar ── */
 #view-workbooks .wb-fbar{
   display:flex;align-items:center;gap:var(--s-2);
