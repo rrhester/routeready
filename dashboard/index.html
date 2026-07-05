@@ -4433,15 +4433,42 @@ John,Smith,555-0101,john@example.com</code>
     <div class="modal-head">
       <div>
         <p class="modal-title">Bulk import drivers</p>
-        <p class="modal-sub">Paste rows from a spreadsheet · drivers are created instantly, no SMS sent</p>
+        <p class="modal-sub">Upload a spreadsheet, link a Google Sheet, or paste rows · drivers are created instantly, no SMS sent</p>
       </div>
       <button class="modal-close" onclick="closeModal('modal-bulk-driver-ingest')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <div style="margin-bottom:10px;font-size:var(--fs-sm);color:var(--text-muted)">
-        Paste rows from any spreadsheet (comma or tab separated).  Column order doesn't matter — we read the header row (or sniff the data when there's no header) and pick out <strong>name · phone · email · station · hire date</strong>.  Extra columns are ignored.  Phones get normalized to E.164.  Existing drivers (matched by phone or email) are skipped.
+        Column order doesn't matter — we read the header row (or sniff the data when there's no header) and pick out <strong>name · phone · email · station · hire date</strong>.  Extra columns are ignored.  Phones get normalized to E.164.  Existing drivers (matched by phone or email) are skipped.
       </div>
-      <textarea id="bd-paste" placeholder="name,phone,email,station,hire date&#10;Marcus Davidson,+1 417 555 0142,marcus@example.com,KMO1,2023-11-04&#10;Camille Foster,4175550341,camille@example.com,KMO1,2022-12-15" style="width:100%;min-height:160px;padding:var(--s-3);border:1px solid var(--border);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:var(--fs-xs);color:var(--text);resize:vertical;outline:none;background:var(--canvas);line-height:1.5"></textarea>
+
+      <!-- Upload an Excel / CSV file -->
+      <div id="bd-dropzone" role="button" tabindex="0" aria-label="Upload an Excel or CSV file"
+           style="border:1.5px dashed var(--border);border-radius:10px;padding:var(--s-4);text-align:center;cursor:pointer;background:var(--canvas);transition:border-color .15s,background .15s">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted);margin-bottom:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">Drop an Excel or CSV file here, or <span style="color:var(--accent-text)">browse</span></div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">.xlsx · .xls · .csv · .tsv — from Excel, Numbers, or a Google Sheet (File → Download)</div>
+        <div id="bd-file-name" style="display:none;margin-top:8px;font-size:var(--fs-xs);color:var(--green);font-weight:600"></div>
+        <input type="file" id="bd-file" accept=".xlsx,.xls,.csv,.tsv,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
+      </div>
+
+      <!-- Or link a Google Sheet -->
+      <div style="margin-top:12px">
+        <label class="modal-field-label" for="bd-gsheet-url" style="display:block;margin-bottom:4px">Or paste a Google Sheets link</label>
+        <div style="display:flex;gap:8px">
+          <input type="url" id="bd-gsheet-url" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off" spellcheck="false"
+                 style="flex:1;min-width:0;padding:var(--s-2-5) var(--s-3);border:1px solid var(--border);border-radius:8px;font-size:var(--fs-sm);color:var(--text);background:var(--canvas);outline:none">
+          <button type="button" class="btn btn-sm" id="bd-gsheet-load">Load</button>
+        </div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">The sheet must be shared “Anyone with the link.” Private sheets: download as Excel/CSV and drop it above.</div>
+      </div>
+
+      <!-- Or paste rows -->
+      <div style="margin-top:12px">
+        <label class="modal-field-label" for="bd-paste" style="display:block;margin-bottom:4px">Or paste rows from a spreadsheet</label>
+        <textarea id="bd-paste" placeholder="name,phone,email,station,hire date&#10;Marcus Davidson,+1 417 555 0142,marcus@example.com,KMO1,2023-11-04&#10;Camille Foster,4175550341,camille@example.com,KMO1,2022-12-15" style="width:100%;min-height:130px;padding:var(--s-3);border:1px solid var(--border);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:var(--fs-xs);color:var(--text);resize:vertical;outline:none;background:var(--canvas);line-height:1.5"></textarea>
+      </div>
+
       <div id="bd-preview" style="display:none;margin-top:10px;padding:var(--s-2-5) var(--s-3);background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.3);border-radius:8px;font-size:var(--fs-sm);color:var(--green);font-weight:500"></div>
       <div id="bd-errors" style="display:none;margin-top:10px;padding:var(--s-2-5) var(--s-3);background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:8px;font-size:var(--fs-xs);color:var(--amber-dark);line-height:1.5"></div>
     </div>
