@@ -2792,9 +2792,6 @@ function renderDetailPage() {
               <input type="text" class="wb-desc-input" id="wb-desc-input" value="${esc(wb.description || "")}" maxlength="500" placeholder="${ro ? "" : "Add a description…"}" ${ro ? "readonly" : ""} aria-label="Workbook description">
             </div>
           </span>
-          <button type="button" class="btn btn-ghost btn-icon ${WB.panelOpen ? "is-on" : ""}" data-wb-act="toggle-panel" title="Comments &amp; activity" aria-label="Toggle workbook panel" aria-pressed="${WB.panelOpen}">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          </button>
           <span class="popover-anchor">
             <button type="button" class="btn btn-ghost btn-icon" data-wb-act="head-menu" title="Workbook actions" aria-haspopup="menu" aria-label="Workbook actions">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
@@ -3479,6 +3476,7 @@ function sheetToolbarHtml(block, ro) {
       ${btn("filter", "Create / remove filter", I.filter)}${btn("find", "Find and replace (Ctrl+F)", I.find)}
     </div>
     <div class="wb-tgrp">
+      <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb ${WB.panelOpen ? "is-on" : ""}" data-wb-tb="panel-toggle" title="Comments &amp; activity" aria-label="Toggle comments and activity panel" aria-pressed="${WB.panelOpen}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
       <span class="popover-anchor">
         <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="io-menu" title="More tools" aria-haspopup="menu" aria-label="More tools">${I.more}</button>
         <div class="popover wb-tb-pop" role="menu">
@@ -8361,6 +8359,7 @@ function bindGridEvents(g) {
       case "fs-minus": adjustFontSize(g, -1); break;
       case "fs-plus": adjustFontSize(g, 1); break;
       case "find": openFindPanel(g, false); break;
+      case "panel-toggle": WB.panelOpen = !WB.panelOpen; syncPanelVisibility(); if (WB.panelOpen) renderPanel(); break;
       case "validation": openValidationDialog(g); break;
       case "condfmt": openCondFormatDialog(g); break;
       case "row-add": restructure(g, "row", g.active.r + 1, 1); break;
@@ -8985,10 +8984,13 @@ function attachMentionPicker(textarea, picked) {
 function syncPanelVisibility() {
   const panel = document.getElementById("wb-panel");
   const detail = document.getElementById("wb-detail");
-  const toggle = document.querySelector('[data-wb-act="toggle-panel"]');
   if (panel) panel.hidden = !WB.panelOpen;
   if (detail) detail.classList.toggle("is-panel-open", WB.panelOpen);
-  if (toggle) { toggle.classList.toggle("is-on", WB.panelOpen); toggle.setAttribute("aria-pressed", String(WB.panelOpen)); }
+  // the toggle lives in each sheet toolbar now (the header button is gone)
+  document.querySelectorAll('[data-wb-tb="panel-toggle"]').forEach((b) => {
+    b.classList.toggle("is-on", WB.panelOpen);
+    b.setAttribute("aria-pressed", String(WB.panelOpen));
+  });
 }
 
 function renderPanel() {

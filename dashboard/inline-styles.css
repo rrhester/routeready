@@ -28716,6 +28716,10 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-tgrp:last-child{border-right:0}
 #view-workbooks .wb-tb{color:var(--wb-toolbar-ink,#444746)}
 #view-workbooks .wb-tb:hover:not([disabled]){background:rgba(68,71,70,.09)}
+#view-workbooks .wb-tb.is-on{background:var(--accent-soft);color:var(--accent-text,#1D4ED8)}
+/* The floating app launcher stays off the Workbooks screens — the
+   workbook chrome owns that corner (operator request 2026-07-05). */
+body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-tb svg{width:16px;height:16px}
 #view-workbooks .wb-tb-txt{font-size:13px;line-height:1;width:16px;display:inline-block;text-align:center}
 #view-workbooks .wb-tb-textc{border-bottom:2.5px solid var(--red);padding-bottom:1px}
