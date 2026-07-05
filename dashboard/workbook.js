@@ -2878,41 +2878,15 @@ function renderPresence() {
 // ─── Block chrome ───────────────────────────────────────────────────────────
 
 function buildBlockEl(block) {
+  // no block chrome — the workbook IS the spreadsheet, so the grid
+  // mounts bare (no "Spreadsheet" title bar, no block kebab)
   const el = document.createElement("section");
   const primarySheet = block.type === "sheet" && (WB.blocks.find((b) => b.type === "sheet") || {}).id === block.id;
   el.className = "wb-block wb-block-" + block.type + (primarySheet ? " wb-block-primary" : "");
   el.dataset.wbBlock = block.id;
-  const typeLabel = { sheet: "Spreadsheet", text: "Note", checklist: "Checklist" }[block.type] || block.type;
-  el.innerHTML = `
-    <div class="wb-block-head">
-      <input type="text" class="wb-block-title" value="${esc(block.title || "")}" placeholder="${esc(typeLabel)}" maxlength="200" ${WB.canEdit ? "" : "readonly"} aria-label="Block title">
-      <div class="wb-block-tools">
-        ${WB.canEdit ? `<span class="popover-anchor">
-          <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-act="block-menu" title="Block actions" aria-haspopup="menu" aria-label="Block actions">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-          </button>
-          <div class="popover wb-block-pop" role="menu">
-            <button type="button" class="popover-item" data-wb-act="block-move" data-dir="-1" role="menuitem">Move up</button>
-            <button type="button" class="popover-item" data-wb-act="block-move" data-dir="1" role="menuitem">Move down</button>
-            <button type="button" class="popover-item" data-wb-act="block-comment" role="menuitem">Comment on block</button>
-            <div class="popover-section"></div>
-            <button type="button" class="popover-item is-danger" data-wb-act="block-delete" role="menuitem">Delete block…</button>
-          </div>
-        </span>` : ""}
-      </div>
-    </div>
-    <div class="wb-block-body" data-wb-block-body="${block.id}"></div>`;
-  const titleEl = el.querySelector(".wb-block-title");
-  titleEl.addEventListener("input", () => {
-    if (!WB.canEdit) return;
-    block.title = titleEl.value.trim();
-    clearTimeout(titleEl._t);
-    titleEl._t = setTimeout(() => saveBlock(block, { title: block.title }), 700);
-  });
+  el.innerHTML = `<div class="wb-block-body" data-wb-block-body="${block.id}"></div>`;
   const body = el.querySelector(".wb-block-body");
   if (block.type === "sheet") mountSheetBlock(block, body);
-  else if (block.type === "text") mountTextBlock(block, body);
-  else if (block.type === "checklist") mountChecklistBlock(block, body);
   else body.innerHTML = `<div class="rr-empty-inline">This block type (“${esc(block.type)}”) isn't supported in this version yet.</div>`;
   return el;
 }
