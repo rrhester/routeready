@@ -78908,8 +78908,8 @@ document.addEventListener("click", (e) => {
 
 // ─── Pop-out workbook windows · ?wb=<id> deep-link ───────────────────────────
 // The ⇱ "open in new window" control (workbook.js) opens the app in a
-// standalone window carrying ?wb=<id>. Boot that window straight into the
-// workbook so it's a self-contained worksheet — its own taskbar/shelf entry,
+// standalone tab carrying ?wb=<id>. Boot that tab straight into the
+// workbook so it is a self-contained worksheet — its own taskbar/shelf entry,
 // minimizable, several open at once. The rr-wb-popout-boot class (set here
 // and, for zero flash, by an inline head script in index.html) hides the
 // dashboard chrome until Workbook Mode takes over.
