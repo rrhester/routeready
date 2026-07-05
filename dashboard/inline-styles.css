@@ -28828,7 +28828,7 @@ body.rr-cmdk-open{ overflow:hidden }
   display:flex;align-items:center;justify-content:center;
   font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
   font-variant-numeric:tabular-nums;
-  border-right:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);
+  border-right:1px solid var(--wb-grid-line,#DADCE0);border-bottom:1px solid var(--wb-grid-line,#DADCE0);
   user-select:none;cursor:pointer;
 }
 #view-workbooks .wb-hcell.is-sel{background:var(--accent-soft);color:var(--accent-text)}
@@ -28838,7 +28838,7 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-gr-canvas{position:relative}
 #view-workbooks .wb-cell{
   position:absolute;box-sizing:border-box;
-  border-right:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);
+  border-right:1px solid var(--wb-grid-line,#DADCE0);border-bottom:1px solid var(--wb-grid-line,#DADCE0);
   font-size:calc(var(--fs-md) * var(--wb-zoom, 1));color:var(--text);
   padding:0 7px;line-height:1.35;
   display:flex;align-items:center;
