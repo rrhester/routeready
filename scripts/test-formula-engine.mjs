@@ -998,4 +998,29 @@ ok("pivotTableHtml renders a table with a grand total", () => {
   assert.ok(/Grand total/.test(html));
 });
 
+// ── auto-hyperlinks (email / URL cells) ──────────────────────────────────────
+const { autoLinkFor, cellLink } = __engine;
+const tcell = (value, extra) => ({ value, formula: null, type: "text", computed: null, err: null, format: {}, ...extra });
+ok("auto-link: a bare email becomes a mailto:", () => {
+  assert.equal(autoLinkFor(tcell("sam@acme.com")), "mailto:sam@acme.com");
+  assert.equal(autoLinkFor(tcell("  rangerryan1972@gmail.com  ")), "mailto:rangerryan1972@gmail.com");
+});
+ok("auto-link: URLs (http and www)", () => {
+  assert.equal(autoLinkFor(tcell("https://routeready.app/x")), "https://routeready.app/x");
+  assert.equal(autoLinkFor(tcell("www.example.com")), "https://www.example.com");
+});
+ok("auto-link: non-links stay null", () => {
+  assert.equal(autoLinkFor(tcell("Charlie Hester")), null);
+  assert.equal(autoLinkFor(tcell("4172071277")), null);
+  assert.equal(autoLinkFor(tcell("support@numacar")), null); // no TLD
+  assert.equal(autoLinkFor(tcell("")), null);
+});
+ok("auto-link: formula cells are never auto-linked", () => {
+  assert.equal(autoLinkFor({ value: "x@y.com", formula: "=A1", type: null, computed: "x@y.com", err: null, format: {} }), null);
+});
+ok("cellLink: an explicit format.link always wins", () => {
+  assert.equal(cellLink(tcell("sam@acme.com", { format: { link: "https://override" } })), "https://override");
+  assert.equal(cellLink(tcell("sam@acme.com")), "mailto:sam@acme.com");
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);

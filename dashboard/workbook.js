@@ -6216,6 +6216,25 @@ function cellInnerHtml(cell, disp) {
   return esc(disp);
 }
 
+// Auto-linkify plain-text cells that hold a bare email or URL (Sheets does
+// the same), so a cell of "sam@acme.com" is clickable without an explicit
+// Insert-link. An explicit format.link always wins.
+const WB_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const WB_URL_RE = /^(https?:\/\/|www\.)[^\s]+$/i;
+function autoLinkFor(cell) {
+  if (!cell || cell.formula) return null;
+  const v = String(cell.value ?? "").trim();
+  if (!v) return null;
+  if (WB_EMAIL_RE.test(v)) return "mailto:" + v;
+  if (WB_URL_RE.test(v)) return /^www\./i.test(v) ? "https://" + v : v;
+  return null;
+}
+// The link a cell resolves to (explicit link, else an auto-detected one).
+function cellLink(cell) {
+  if (cell && cell.format && cell.format.link) return cell.format.link;
+  return autoLinkFor(cell);
+}
+
 const WB_COLORS = {
   bg: { none: "", gray: "#F3F4F6", blue: "rgba(37,99,235,.09)", green: "rgba(22,163,74,.10)", amber: "rgba(217,119,6,.12)", red: "rgba(220,38,38,.09)", violet: "rgba(124,58,237,.10)" },
   fg: { default: "", muted: "#6B7280", blue: "#1E40AF", green: "#166534", amber: "#92400E", red: "#B91C1C" },
@@ -6297,6 +6316,7 @@ function paintNow(g) {
     const disp = cell ? (g.showFormulas && cell.formula ? cell.formula : displayValue(sheet, r, c)) : "";
     const err = cell && cell.err;
     const inval = cellInvalid(sheet, r, c, cell);
+    const linkUrl = cell ? cellLink(cell) : null; // explicit or auto-detected email/URL
     // list-validated cells fill with their option's color and carry a
     // ▾ mark pinned to the far right (Sheets' whole-cell dropdown look)
     const dvRule = hasDvRules && r > 0 ? findValidationRule(sheet, r, c) : null;
@@ -6318,7 +6338,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="Ctrl+click to open ${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -11456,7 +11476,22 @@ function togglePopover(anchorBtn) {
   if (!pop) return;
   const wasOpen = pop.classList.contains("open");
   closeAllPopovers();
-  if (!wasOpen) pop.classList.add("open");
+  if (!wasOpen) { pop.classList.add("open"); clampPopover(pop); }
+}
+
+// Keep a just-opened popover inside the viewport: toolbar popovers are
+// left-aligned to their trigger, so the rightmost ones (the ⋮ menu) run
+// off the right edge — flip those to right-aligned. Uses offsetWidth (the
+// untransformed layout width) so the open animation's scale doesn't skew
+// the measurement.
+function clampPopover(pop) {
+  pop.style.left = ""; pop.style.right = "";
+  const anchor = pop.closest(".popover-anchor");
+  if (!anchor) return;
+  const a = anchor.getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const margin = 8;
+  if (a.left + w > window.innerWidth - margin) { pop.style.left = "auto"; pop.style.right = "0"; }
 }
 
 // ─── Grid event binding ─────────────────────────────────────────────────────
@@ -11721,10 +11756,10 @@ function bindGridEvents(g) {
         return;
       }
     }
-    // Ctrl/Cmd+click on a linked cell opens the link
+    // Ctrl/Cmd+click on a linked cell opens the link (explicit or auto-detected)
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
-      const lc = g.sheet.cells.get(cellKey(r, c));
-      if (lc && lc.format && lc.format.link) { window.open(lc.format.link, "_blank", "noopener"); return; }
+      const url = cellLink(g.sheet.cells.get(cellKey(r, c)));
+      if (url) { window.open(url, "_blank", "noopener"); return; }
     }
     if (g.editing) commitEdit(g, 0, 0, { refocus: false });
     if (e.shiftKey) {
@@ -14737,6 +14772,7 @@ export const __engine = {
   buildXlsxBytes,
   chartSvg, WB_CHART_TYPES,
   computePivot, pivotAggregate, pivotTableHtml,
+  autoLinkFor, cellLink,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,
   fillWeekDates, fillSheetInfo, fillDriverIdAt, fillSheetDriverIds,
