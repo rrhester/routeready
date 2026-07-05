@@ -2590,14 +2590,42 @@ async function renderListPage() {
     root.innerHTML = wbErrorHtml("Couldn't load workbooks", (e && e.message) || String(e));
     return;
   }
+  renderListBody(root);
+}
+
+// ── Favorites: starred workbooks float to a top row. Stars live in
+// localStorage per tenant — a personal, per-browser shortlist.
+function wbFavKey() { const d = _dsp(); return "rr-wb-favs-" + ((d && d.id) || "x"); }
+function wbFavs() {
+  try {
+    const a = JSON.parse(localStorage.getItem(wbFavKey()) || "[]");
+    return new Set(Array.isArray(a) ? a : []);
+  } catch (_) { return new Set(); }
+}
+function toggleWbFav(id) {
+  const s = wbFavs();
+  if (s.has(id)) s.delete(id); else s.add(id);
+  try { localStorage.setItem(wbFavKey(), JSON.stringify([...s])); } catch (_) {}
+}
+
+// List body renders from the cached WB.workbooks — star toggles rebuild
+// it instantly without refetching.
+function renderListBody(root) {
+  root = root || wbRoot();
+  if (!root || WB.view !== "list") return;
   // report workbooks live under the Reports tab, not here
   const active = WB.workbooks.filter((w) => !w.archived_at && !isReportWb(w));
   const archived = WB.workbooks.filter((w) => w.archived_at && !isReportWb(w));
   const list = WB.showArchived ? archived : active;
+  const favs = wbFavs();
 
   const card = (w) => {
     const tpl = WB_TEMPLATES.find((t) => t.key === w.template_key);
+    const fav = favs.has(w.id);
     return `<button type="button" class="wb-card" data-wb-open="${esc(w.id)}">
+      <span class="wb-fav ${fav ? "is-fav" : ""}" data-wb-fav="${esc(w.id)}" role="button" tabindex="0" title="${fav ? "Remove from favorites" : "Add to favorites"}" aria-label="${fav ? "Remove from favorites" : "Add to favorites"}" aria-pressed="${fav}">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2.5 15.09 8.6 21.8 9.55 16.9 14.25 18.08 20.9 12 17.77 5.92 20.9 7.1 14.25 2.2 9.55 8.91 8.6 12 2.5"/></svg>
+      </span>
       <span class="wb-card-ic">${WB_ICON_SVG}</span>
       <span class="wb-card-main">
         <span class="wb-card-title">${esc(w.title || "Untitled workbook")}</span>
@@ -2612,10 +2640,18 @@ async function renderListPage() {
     </button>`;
   };
 
+  const favList = list.filter((w) => favs.has(w.id));
+  const restList = list.filter((w) => !favs.has(w.id));
+  const cardsHtml = favList.length
+    ? `<div class="wb-list-sec">★ Favorites</div>
+       <div class="wb-cards">${favList.map(card).join("")}</div>
+       ${restList.length ? `<div class="wb-list-sec">All workbooks</div><div class="wb-cards">${restList.map(card).join("")}</div>` : ""}`
+    : `<div class="wb-cards">${list.map(card).join("")}</div>`;
+
   // the New workbook action lives in the page strip (schedule-style
   // chrome in view-workbooks.frag) — the list body is just the cards
   root.innerHTML = `
-    ${list.length ? `<div class="wb-cards">${list.map(card).join("")}</div>` : WB.showArchived ? `
+    ${list.length ? cardsHtml : WB.showArchived ? `
       <div class="rr-empty">
         <div class="rr-empty-icon">${WB_ICON_SVG}</div>
         <div class="rr-empty-title">No archived workbooks</div>
@@ -2740,14 +2776,22 @@ function renderDetailPage() {
         <button type="button" class="btn btn-ghost btn-icon" data-wb-act="back-to-list" title="All workbooks" aria-label="Back to workbooks">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
         </button>
-        <div class="wb-head-main">
-          <input type="text" class="wb-title-input" id="wb-title-input" value="${esc(wb.title)}" maxlength="200" ${ro ? "readonly" : ""} aria-label="Workbook title">
-          <input type="text" class="wb-desc-input" id="wb-desc-input" value="${esc(wb.description || "")}" maxlength="500" placeholder="${ro ? "" : "Add a description…"}" ${ro ? "readonly" : ""} aria-label="Workbook description">
+        <input type="text" class="wb-title-input" id="wb-title-input" value="${esc(wb.title)}" maxlength="200" ${ro ? "readonly" : ""} aria-label="Workbook title">
+        <div class="wb-menubar" role="menubar" aria-label="Workbook menus">
+          ${WB_MENUS.map((n) => `<button type="button" class="wb-menubtn" data-wb-menubar="${n}" role="menuitem">${n}</button>`).join("")}
         </div>
         <div class="wb-head-side">
           <span data-wb-savestate></span>
           <span class="wb-presence" id="wb-presence"></span>
           ${ro ? `<span class="wb-badge" title="You can view${canCommentOnly() ? " and comment" : ""}, but not edit">Read-only</span>` : ""}
+          <span class="popover-anchor">
+            <button type="button" class="btn btn-ghost btn-icon ${wb.description ? "is-on" : ""}" data-wb-act="desc-menu" title="Workbook description" aria-haspopup="true" aria-label="Workbook description">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="7" y1="10" x2="17" y2="10"/><line x1="7" y1="14" x2="13" y2="14"/></svg>
+            </button>
+            <div class="popover wb-desc-pop">
+              <input type="text" class="wb-desc-input" id="wb-desc-input" value="${esc(wb.description || "")}" maxlength="500" placeholder="${ro ? "" : "Add a description…"}" ${ro ? "readonly" : ""} aria-label="Workbook description">
+            </div>
+          </span>
           <button type="button" class="btn btn-ghost btn-icon ${WB.panelOpen ? "is-on" : ""}" data-wb-act="toggle-panel" title="Comments &amp; activity" aria-label="Toggle workbook panel" aria-pressed="${WB.panelOpen}">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </button>
@@ -2766,9 +2810,6 @@ function renderDetailPage() {
             </div>
           </span>
         </div>
-      </div>
-      <div class="wb-menubar" role="menubar" aria-label="Workbook menus">
-        ${WB_MENUS.map((n) => `<button type="button" class="wb-menubtn" data-wb-menubar="${n}" role="menuitem">${n}</button>`).join("")}
       </div>
       ${wb.archived_at ? `<div class="wb-archived-note">This workbook is archived — it's read-only in spirit; restore it from the ⋯ menu to keep working.</div>` : ""}
       <div class="wb-body">
@@ -2828,6 +2869,8 @@ function bindDetailInputs() {
   if (d) d.addEventListener("input", () => {
     if (!WB.canEdit) return;
     WB.wb.description = d.value.trim();
+    // the head icon lights up while a description exists
+    document.querySelector('[data-wb-act="desc-menu"]')?.classList.toggle("is-on", !!WB.wb.description);
     saveWbMeta();
     clearTimeout(d._logT);
     d._logT = setTimeout(() => wbLog("workbook.description", "updated the description"), 2500);
@@ -3428,7 +3471,10 @@ function sheetToolbarHtml(block, ro) {
         <div class="popover wb-tb-pop" role="menu">
           <button type="button" class="popover-item" data-wb-border="all" role="menuitem">All borders</button>
           <button type="button" class="popover-item" data-wb-border="outline" role="menuitem">Outline</button>
+          <button type="button" class="popover-item" data-wb-border="top" role="menuitem">Top border</button>
           <button type="button" class="popover-item" data-wb-border="bottom" role="menuitem">Bottom border</button>
+          <button type="button" class="popover-item" data-wb-border="left" role="menuitem">Left border</button>
+          <button type="button" class="popover-item" data-wb-border="right" role="menuitem">Right border</button>
           <button type="button" class="popover-item" data-wb-border="none" role="menuitem">No borders</button>
         </div></span>
       ${btn("clear-format", "Clear formatting", I.clearFmt)}
@@ -3587,11 +3633,12 @@ function cellStyle(sheet, r, c, cell) {
   if (f.fg) s += `color:${wbColorCss("fg", f.fg)};`;
   else if (f.link) s += "color:var(--accent, #2563EB);";
   if (f.wrap) s += "white-space:normal;line-height:1.3;";
-  if (f.border === "all" || f.border === "outline") s += "box-shadow:inset 0 0 0 1px var(--border-strong);";
-  else if (f.border === "bottom") s += "box-shadow:inset 0 -1.5px 0 var(--border-strong);";
-  else if (f.border === "top") s += "box-shadow:inset 0 1.5px 0 var(--border-strong);";
-  else if (f.border === "left") s += "box-shadow:inset 1.5px 0 0 var(--border-strong);";
-  else if (f.border === "right") s += "box-shadow:inset -1.5px 0 0 var(--border-strong);";
+  // applied borders read solid black, like Excel's default border ink
+  if (f.border === "all" || f.border === "outline") s += "box-shadow:inset 0 0 0 1px #000;";
+  else if (f.border === "bottom") s += "box-shadow:inset 0 -1.5px 0 #000;";
+  else if (f.border === "top") s += "box-shadow:inset 0 1.5px 0 #000;";
+  else if (f.border === "left") s += "box-shadow:inset 1.5px 0 0 #000;";
+  else if (f.border === "right") s += "box-shadow:inset -1.5px 0 0 #000;";
   return s;
 }
 
@@ -5261,6 +5308,131 @@ function removeCellImage(g, r, c) {
   delete next.format.img;
   const empty = next.value == null && !next.formula && !Object.keys(next.format).length;
   setCells(g, [{ r, c, cell: empty ? null : next }]);
+}
+
+// ── Drag-move: grab the selection border and drop the cells elsewhere ──
+
+// True when p (content px) sits in the grab band around the selection's
+// edge — just inside the border, plus a hair outside (Excel's move zone).
+function selBorderHit(g, p) {
+  const { r0, c0, r1, c1 } = selRect(g);
+  const di0 = dispIndexOfRow(g, r0), di1 = dispIndexOfRow(g, r1);
+  if (di0 < 0 || di1 < 0) return false;
+  const x = g.colX[c0], x2 = g.colX[c1 + 1];
+  const y = g.rowY[di0], y2 = g.rowY[di1 + 1];
+  const inOuter = p.x >= x - 2 && p.x <= x2 + 2 && p.y >= y - 2 && p.y <= y2 + 2;
+  if (!inOuter) return false;
+  const inInner = p.x >= x + 5 && p.x <= x2 - 5 && p.y >= y + 5 && p.y <= y2 - 5;
+  return !inInner;
+}
+
+function rectIntersectsMerge(sheet, r0, c0, r1, c1) {
+  return sheetMerges(sheet).some((m) => m.r0 <= r1 && m.r1 >= r0 && m.c0 <= c1 && m.c1 >= c0);
+}
+
+// Change list for relocating src by (dr, dc). Destination writes come
+// from a snapshot taken up front, so overlapping moves are safe. Move
+// keeps formulas verbatim (Excel cut semantics); copy shifts relative
+// refs. Returns null when the destination falls outside the sheet.
+function planMoveChanges(sheet, src, dr, dc, copy) {
+  const nR = src.r1 - src.r0 + 1, nC = src.c1 - src.c0 + 1;
+  const dstR0 = src.r0 + dr, dstC0 = src.c0 + dc;
+  if (dstR0 < 0 || dstC0 < 0 || dstR0 + nR > sheet.rowCount || dstC0 + nC > sheet.colCount) return null;
+  if (!dr && !dc) return [];
+  const changes = [];
+  const dstKeys = new Set();
+  for (let i = 0; i < nR; i++) for (let j = 0; j < nC; j++) {
+    const srcCell = cloneCell(sheet.cells.get(cellKey(src.r0 + i, src.c0 + j)));
+    const next = srcCell && srcCell.formula && copy
+      ? { ...srcCell, formula: shiftFormulaRelative(srcCell.formula, dr, dc) }
+      : srcCell;
+    changes.push({ r: dstR0 + i, c: dstC0 + j, cell: next });
+    dstKeys.add(cellKey(dstR0 + i, dstC0 + j));
+  }
+  if (!copy) {
+    for (let i = 0; i < nR; i++) for (let j = 0; j < nC; j++) {
+      const key = cellKey(src.r0 + i, src.c0 + j);
+      if (!dstKeys.has(key)) changes.push({ r: src.r0 + i, c: src.c0 + j, cell: null });
+    }
+  }
+  return changes;
+}
+
+function startMoveDrag(g, e0, src, canvasPos) {
+  const sheet = g.sheet;
+  const nR = src.r1 - src.r0 + 1, nC = src.c1 - src.c0 + 1;
+  const start = canvasPos(e0);
+  const grabR = (g.rows[dispRowAt(g, start.y)] ?? src.r0) - src.r0;
+  const grabC = colAt(g, start.x) - src.c0;
+  const preview = document.createElement("div");
+  preview.className = "wb-move-preview";
+  preview.innerHTML = `<span class="wb-move-badge"></span>`;
+  g.els.sel.appendChild(preview);
+  const badge = preview.firstChild;
+  let dst = { r0: src.r0, c0: src.c0 };
+  let copy = e0.ctrlKey || e0.metaKey || e0.altKey;
+  let canceled = false;
+  g.moveDrag = true;
+  const paint = () => {
+    const di = dispIndexOfRow(g, dst.r0);
+    const x = g.colX[dst.c0], x2 = g.colX[dst.c0 + nC];
+    const y = g.rowY[di], y2 = g.rowY[di + nR];
+    preview.style.left = x + "px";
+    preview.style.top = y + "px";
+    preview.style.width = (x2 - x) + "px";
+    preview.style.height = (y2 - y) + "px";
+    const ref = nR === 1 && nC === 1
+      ? cellRef(dst.r0, dst.c0)
+      : `${cellRef(dst.r0, dst.c0)}:${cellRef(dst.r0 + nR - 1, dst.c0 + nC - 1)}`;
+    badge.textContent = (copy ? "+ " : "") + ref;
+  };
+  paint();
+  const onMove = (ev) => {
+    copy = ev.ctrlKey || ev.metaKey || ev.altKey;
+    // edge auto-scroll keeps long moves reachable
+    const rect = g.els.scroll.getBoundingClientRect();
+    if (ev.clientY > rect.bottom - 24) g.els.scroll.scrollTop += 18;
+    else if (ev.clientY < rect.top + 24) g.els.scroll.scrollTop -= 18;
+    if (ev.clientX > rect.right - 24) g.els.scroll.scrollLeft += 18;
+    else if (ev.clientX < rect.left + 24) g.els.scroll.scrollLeft -= 18;
+    const p = canvasPos(ev);
+    const r = g.rows[dispRowAt(g, p.y)] ?? dst.r0 + grabR;
+    const c = colAt(g, p.x);
+    dst = {
+      r0: Math.max(0, Math.min(sheet.rowCount - nR, r - grabR)),
+      c0: Math.max(0, Math.min(sheet.colCount - nC, c - grabC)),
+    };
+    paint();
+  };
+  const finish = () => {
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    document.removeEventListener("keydown", onKey, true);
+    preview.remove();
+    g.moveDrag = false;
+  };
+  const onKey = (ev) => {
+    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); canceled = true; finish(); }
+  };
+  const onUp = () => {
+    finish();
+    const dr = dst.r0 - src.r0, dc = dst.c0 - src.c0;
+    if (canceled || (!dr && !dc)) return;
+    if (rectIntersectsMerge(sheet, dst.r0, dst.c0, dst.r0 + nR - 1, dst.c0 + nC - 1)) {
+      _toast("Can't drop onto merged cells — unmerge them first", "warn");
+      return;
+    }
+    const changes = planMoveChanges(sheet, src, dr, dc, copy);
+    if (!changes || !changes.length) return;
+    setCells(g, changes);
+    g.sel = { r0: dst.r0, c0: dst.c0, r1: dst.r0 + nR - 1, c1: dst.c0 + nC - 1 };
+    g.active = { r: dst.r0 + (g.active.r - src.r0), c: dst.c0 + (g.active.c - src.c0) };
+    paintSelection(g);
+    syncFormulaBar(g);
+  };
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+  document.addEventListener("keydown", onKey, true);
 }
 
 // Quip-style lightbox: dimmed backdrop, the image large in the middle,
@@ -7096,8 +7268,14 @@ function buildXlsxBytes(sheets) {
   const fontIdx = new Map([["||||||", 0]]);
   const fills = [`<fill><patternFill patternType="none"/></fill>`, `<fill><patternFill patternType="gray125"/></fill>`];
   const fillIdx = new Map([["", 0]]);
+  const BORDER_EDGE = `<color rgb="FF000000"/>`;
+  const borderXml = (edges) => `<border>` +
+    ["left", "right", "top", "bottom"].map((e) => (edges.includes(e) ? `<${e} style="thin">${BORDER_EDGE}</${e}>` : `<${e}/>`)).join("") +
+    `<diagonal/></border>`;
+  const borders = [borderXml([])];
+  const borderIdx = new Map([["", 0]]);
   const xfs = [`<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>`];
-  const xfIdx = new Map([["0|0|0||0||0", 0]]);
+  const xfIdx = new Map([["0|0|0||0||0|0", 0]]);
 
   const styleFor = (cell) => {
     const f = (cell && cell.format) || {};
@@ -7121,18 +7299,26 @@ function buildXlsxBytes(sheets) {
       fills.push(`<fill><patternFill patternType="solid"><fgColor rgb="${bgHex}"/><bgColor indexed="64"/></patternFill></fill>`);
       fillIdx.set(bgHex, fillId);
     }
+    // per-cell borders: all/outline both mean every edge of the cell
+    const bKey = ["all", "outline", "top", "bottom", "left", "right"].includes(f.border) ? f.border : "";
+    let borderId = borderIdx.get(bKey);
+    if (borderId == null) {
+      borderId = borders.length;
+      borders.push(borderXml(bKey === "all" || bKey === "outline" ? ["left", "right", "top", "bottom"] : [bKey]));
+      borderIdx.set(bKey, borderId);
+    }
     const align = f.align || "";
     const valign = f.valign === "middle" ? "center" : f.valign || "";
     const rot = f.rot === 45 || f.rot === 90 ? f.rot : 0;
     const wrap = f.wrap ? 1 : 0;
-    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}|${valign}|${rot}`;
+    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}|${valign}|${rot}|${borderId}`;
     let s = xfIdx.get(xfKey);
     if (s == null) {
       s = xfs.length;
       const alignXml = align || wrap || valign || rot
         ? `<alignment${align ? ` horizontal="${align}"` : ""}${valign ? ` vertical="${valign}"` : ""}${wrap ? ` wrapText="1"` : ""}${rot ? ` textRotation="${rot}"` : ""}/>`
         : "";
-      xfs.push(`<xf numFmtId="${numId}" fontId="${fontId}" fillId="${fillId}" borderId="0"${numId ? ` applyNumberFormat="1"` : ""}${fontId ? ` applyFont="1"` : ""}${fillId ? ` applyFill="1"` : ""}${alignXml ? ` applyAlignment="1"` : ""}>${alignXml}</xf>`);
+      xfs.push(`<xf numFmtId="${numId}" fontId="${fontId}" fillId="${fillId}" borderId="${borderId}"${numId ? ` applyNumberFormat="1"` : ""}${fontId ? ` applyFont="1"` : ""}${fillId ? ` applyFill="1"` : ""}${borderId ? ` applyBorder="1"` : ""}${alignXml ? ` applyAlignment="1"` : ""}>${alignXml}</xf>`);
       xfIdx.set(xfKey, s);
     }
     return s;
@@ -7204,7 +7390,7 @@ function buildXlsxBytes(sheets) {
   const used = new Set();
   const names = sheets.map((sh) => xlsxSheetName(sh.name, used));
 
-  const stylesXml = `${XMLH}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/></numFmts><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs></styleSheet>`;
+  const stylesXml = `${XMLH}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/></numFmts><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="${borders.length}">${borders.join("")}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs></styleSheet>`;
   const workbookXml = `${XMLH}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n, i) => `<sheet name="${xmlEsc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`;
   const wbRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
   const rootRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
@@ -7799,6 +7985,20 @@ function bindGridEvents(g) {
     const di = dispRowAt(g, pos.y);
     const r = g.rows[di] ?? 0;
     const c = colAt(g, pos.x);
+    // ── drag-move: grabbing the selection border relocates the cells
+    // (Ctrl/Alt-drag copies). Hidden slices make the drop ambiguous, so
+    // filtered/hidden states fall through to plain selection.
+    if (WB.canEdit && !e.shiftKey && !g.editing && !g.painter
+        && !g.filters.size && !(g.sheet.hiddenRows && g.sheet.hiddenRows.size) && !(g.sheet.hiddenCols && g.sheet.hiddenCols.size)
+        && selBorderHit(g, pos)) {
+      const srcRect = selRect(g);
+      if (rectIntersectsMerge(g.sheet, srcRect.r0, srcRect.c0, srcRect.r1, srcRect.c1)) {
+        _toast("Unmerge cells before dragging them", "warn");
+        return;
+      }
+      startMoveDrag(g, e, srcRect, canvasPos);
+      return;
+    }
     // Ctrl/Cmd+click on a linked cell opens the link
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
       const lc = g.sheet.cells.get(cellKey(r, c));
@@ -7994,6 +8194,15 @@ function bindGridEvents(g) {
     }
     if (text) pasteAt(g, text);
     else if (WB.clipboard && WB.clipboard.rows.length && WB.clipboard.text === "") pasteRich(g, WB.clipboard); // internal copy of image-only cells has an empty TSV
+  });
+
+  // move-cursor affordance while hovering the selection border
+  grid.addEventListener("mousemove", (e) => {
+    if (!WB.canEdit || g.dragging || g.moveDrag || g.editing || g.resize) return;
+    const on = e.target.closest(".wb-gr-scroll")
+      && !g.filters.size && !(g.sheet.hiddenRows && g.sheet.hiddenRows.size) && !(g.sheet.hiddenCols && g.sheet.hiddenCols.size)
+      && selBorderHit(g, canvasPos(e));
+    g.els.cells.classList.toggle("is-mv", !!on);
   });
 
   grid.addEventListener("copy", (e) => {
@@ -8911,6 +9120,7 @@ function wbMenuItems(menu, g) {
       { label: "Text", sub: [["bold", "Bold", "Ctrl+B"], ["italic", "Italic", "Ctrl+I"], ["underline", "Underline", "Ctrl+U"], ["strike", "Strikethrough", ""]].map(([k, label, kbd]) => ({ label, kbd, act: "fmt:tog:" + k, disabled: !ed || !g })) },
       { label: "Alignment", sub: [["align:left", "Left"], ["align:center", "Center"], ["align:right", "Right"], ["valign:top", "Top"], ["valign:middle", "Middle"], ["valign:bottom", "Bottom"]].map(([v, label]) => ({ label, act: "fmt:" + v, disabled: !ed || !g })) },
       { label: "Wrapping", act: "fmt:tog:wrap", disabled: !ed || !g },
+      { label: "Borders", sub: [["all", "All borders"], ["outline", "Outline"], ["top", "Top border"], ["bottom", "Bottom border"], ["left", "Left border"], ["right", "Right border"], ["", "No borders"]].map(([v, label]) => ({ label, act: "fmt:border:" + v, disabled: !ed || !g })) },
       { label: "Rotation", sub: [["", "None"], ["45", "Tilt 45°"], ["90", "Vertical"]].map(([v, label]) => ({ label, act: "fmt:rot:" + v, disabled: !ed || !g })) },
       { label: "Font size", sub: [8, 10, 12, 13, 14, 18, 24].map((n) => ({ label: String(n) + " px", act: "fmt:fs:" + n, disabled: !ed || !g })) },
       sep,
@@ -9022,6 +9232,7 @@ function wbMenuAction(act, g) {
   else if (ns === "fmt" && verb === "tog") toggleFormat(g, arg);
   else if (ns === "fmt" && verb === "align") formatSelection(g, { align: arg });
   else if (ns === "fmt" && verb === "valign") formatSelection(g, { valign: arg });
+  else if (ns === "fmt" && verb === "border") formatSelection(g, { border: arg || null });
   else if (ns === "fmt" && verb === "rot") formatSelection(g, { rot: +arg || null });
   else if (ns === "fmt" && verb === "fs") formatSelection(g, { fs: +arg });
   else if (ns === "data" && verb === "fv") applyFilterView(g, arg);
@@ -9234,6 +9445,16 @@ function installRootListeners() {
       return;
     }
 
+    // the star sits inside the card button — favorite wins over open
+    const favBtn = e.target.closest("[data-wb-fav]");
+    if (favBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleWbFav(favBtn.getAttribute("data-wb-fav"));
+      renderListBody();
+      return;
+    }
+
     const open = e.target.closest("[data-wb-open]");
     if (open) { openWorkbook(open.getAttribute("data-wb-open")); return; }
 
@@ -9277,6 +9498,7 @@ function installRootListeners() {
       case "retry-save": flushCells(); break;
       case "toggle-panel": WB.panelOpen = !WB.panelOpen; syncPanelVisibility(); if (WB.panelOpen) renderPanel(); break;
       case "head-menu": togglePopover(actBtn); break;
+      case "desc-menu": togglePopover(actBtn); setTimeout(() => document.getElementById("wb-desc-input")?.focus(), 0); break;
       case "block-menu": togglePopover(actBtn); break;
       case "add-block": closeAllPopovers(); addBlock(actBtn.getAttribute("data-type")); break;
       case "block-move": closeAllPopovers(); if (block) moveBlock(block.id, +actBtn.getAttribute("data-dir")); break;
@@ -9467,4 +9689,5 @@ export const __engine = {
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes,
   WB_IMG_RE, cellImgSrc,
+  planMoveChanges,
 };
