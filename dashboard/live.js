@@ -103,7 +103,9 @@ if (window.__RR_VIEW_LOAD_FAILED) throw new Error("view partials failed to load"
 // redirect path (harmless if the markup is missing).
 (function _rrHoistUtilRail() {
   try {
-    const ids = ["rr-sched-util-rail", "rr-sched-notes", "rr-sched-tasks", "rr-sched-forms", "rr-sched-contacts"];
+    // NOTE: every rail panel aside must be listed here — an unhoisted panel
+    // renders as unstyled flow content at the bottom of the schedule view.
+    const ids = ["rr-sched-util-rail", "rr-sched-notes", "rr-sched-tasks", "rr-sched-forms", "rr-sched-contacts", "rr-sched-recog"];
     const nodes = ids.map((id) => document.getElementById(id)).filter(Boolean);
     if (!nodes.length) return;
     let mount = document.getElementById("rr-util-rail-mount");
