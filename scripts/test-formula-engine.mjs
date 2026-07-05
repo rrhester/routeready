@@ -305,6 +305,7 @@ const shA = mkSheet("Ops?", {
   B3: { value: "site", type: "text", format: { link: "https://example.com/x?a=1&b=2" } },
   C3: { value: "boxed", type: "text", format: { border: "all" } },
   D3: { value: "underlined", type: "text", format: { border: "bottom" } },
+  E3: { value: "heavy", type: "text", format: { border: "all", bw: 3 } },
 }, { frozenRows: 1, colWidths: { 0: 140 }, meta: { merges: [{ r0: 4, c0: 0, r1: 5, c1: 2 }] } });
 const shB = mkSheet("Ops?", { A1: { value: "x", type: "text" } });
 
@@ -351,11 +352,12 @@ ok("xlsx: strike/size/family fonts + rotation/valign alignment", () => {
   assert.ok(st.includes('textRotation="45"'), "rotation");
   assert.ok(st.includes('vertical="top"'), "vertical align");
 });
-ok("xlsx: black thin borders exported per edge set", () => {
+ok("xlsx: black borders exported per edge set and weight", () => {
   const st = parts.get("xl/styles.xml");
   assert.ok(st.includes('<left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom>'), "all-edges border");
   assert.ok(st.includes('<left/><right/><top/><bottom style="thin"><color rgb="FF000000"/></bottom>'), "bottom-only border");
-  assert.ok(/borders count="3"/.test(st), "default + 2 border variants");
+  assert.ok(st.includes('<left style="thick">'), "thick weight (bw:3) maps to OOXML thick");
+  assert.ok(/borders count="4"/.test(st), "default + 3 border variants");
   assert.ok(st.includes('applyBorder="1"'), "xf applies border");
 });
 ok("xlsx: merged ranges and hyperlinks with rels", () => {
