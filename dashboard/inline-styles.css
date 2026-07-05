@@ -28742,6 +28742,10 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-tb-textc{border-bottom:2.5px solid var(--red);padding-bottom:1px}
 #view-workbooks .wb-tb-numfmt{font-size:var(--fs-xs);font-weight:600;padding:4px 8px}
 #view-workbooks .wb-tb-pop{min-width:200px;left:0;right:auto}
+/* The ⋮ "More tools" menu sits at the far-right of the toolbar, so anchor
+   it to its trigger's right edge — a left-aligned menu runs off-screen.
+   (togglePopover also clamps at runtime; this guarantees it without JS.) */
+#view-workbooks .wb-tb-pop-end{left:auto;right:0}
 .wb-color-grid{display:grid;grid-template-columns:repeat(7,26px);gap:5px;padding:9px}
 .wb-color-grid-10{grid-template-columns:repeat(10,20px);gap:3px;padding:8px 10px}
 .wb-color-grid-10 .wb-swatch{width:20px;height:20px;border-radius:50%;border-color:rgba(0,0,0,.12)}

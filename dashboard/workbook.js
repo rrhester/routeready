@@ -6045,7 +6045,7 @@ function sheetToolbarHtml(block, ro) {
       <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb ${WB.panelOpen ? "is-on" : ""}" data-wb-tb="panel-toggle" title="Comments &amp; activity" aria-label="Toggle comments and activity panel" aria-pressed="${WB.panelOpen}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
       <span class="popover-anchor">
         <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="io-menu" title="More tools" aria-haspopup="menu" aria-label="More tools">${I.more}</button>
-        <div class="popover wb-tb-pop" role="menu">
+        <div class="popover wb-tb-pop wb-tb-pop-end" role="menu">
           <button type="button" class="popover-item" data-wb-tb="validation" role="menuitem" ${ro ? "disabled" : ""}>Data validation…</button>
           <button type="button" class="popover-item" data-wb-tb="condfmt" role="menuitem" ${ro ? "disabled" : ""}>Conditional formatting…</button>
           <button type="button" class="popover-item" data-wb-tb="named-ranges" role="menuitem">Named ranges…</button>
