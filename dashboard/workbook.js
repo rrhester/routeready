@@ -4503,27 +4503,48 @@ async function createWorkbook({ title, description, visibility, templateKey, spe
 
 let PENDING_OPEN_ID = null;
 
-// ─── Open a workbook in its own OS window ────────────────────────────────────
-// Each workbook can pop out into a standalone window (minimizable, shows in
-// the taskbar/shelf) so several worksheets can be open side-by-side like
-// separate Excel windows. The new window carries ?wb=<id>, and the deep-link
-// handler in live.js boots it straight into full-screen Workbook Mode.
+// ─── Open a workbook in its own tab / window ─────────────────────────────────
+// Each workbook can open on its own so several worksheets are open at once.
+// The surface adapts to how RouteReady is running:
+//   • Browser        → a new TAB (Excel-style tab strip).
+//   • Installed app  → a separate WINDOW (a PWA window has no tab strip, so a
+//                      tab would escape to the browser; a window is
+//                      minimizable and gets its own taskbar/shelf entry).
+// Either way it carries ?wb=<id>, the deep-link handler in live.js boots it
+// straight into full-screen Workbook Mode, and the tab/window is titled with
+// the workbook's name (setWorkbookDocTitle) so they're easy to tell apart.
 function workbookPopoutUrl(id) {
   return location.origin + location.pathname + "?wb=" + encodeURIComponent(id);
 }
+function isInstalledApp() {
+  try {
+    return (window.matchMedia && (
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.matchMedia("(display-mode: window-controls-overlay)").matches ||
+        window.matchMedia("(display-mode: minimal-ui)").matches)) ||
+      navigator.standalone === true;
+  } catch (_) { return false; }
+}
+function popoutLabel() { return isInstalledApp() ? "Open in a new window" : "Open in a new tab"; }
 function openWorkbookPopout(id) {
   if (!id) return;
   const url = workbookPopoutUrl(id);
-  const w = 1500, h = 950;
-  const sw = (window.screen && window.screen.availWidth) || 1600;
-  const sh = (window.screen && window.screen.availHeight) || 1000;
-  const left = Math.max(0, Math.round(sw / 2 - w / 2));
-  const top = Math.max(0, Math.round(sh / 2 - h / 2));
-  // A stable per-workbook window name means re-popping the same workbook
-  // focuses its existing window instead of stacking duplicates; different
-  // workbooks get different windows.
-  const win = window.open(url, "rrwb_" + id, `popup=yes,width=${w},height=${h},left=${left},top=${top}`);
-  if (!win) { _toast("Allow pop-ups for RouteReady to open a workbook in its own window", "warn"); openWorkbook(id); return; }
+  // A stable per-workbook target name focuses an existing tab/window for the
+  // same workbook instead of stacking duplicates; different workbooks each
+  // get their own.
+  const target = "rrwb_" + id;
+  let win;
+  if (isInstalledApp()) {
+    const w = 1500, h = 950;
+    const sw = (window.screen && window.screen.availWidth) || 1600;
+    const sh = (window.screen && window.screen.availHeight) || 1000;
+    const left = Math.max(0, Math.round(sw / 2 - w / 2));
+    const top = Math.max(0, Math.round(sh / 2 - h / 2));
+    win = window.open(url, target, `popup=yes,width=${w},height=${h},left=${left},top=${top}`);
+  } else {
+    win = window.open(url, target); // no features → a normal tab
+  }
+  if (!win) { _toast("Allow pop-ups for RouteReady to open a workbook in its own " + (isInstalledApp() ? "window" : "tab"), "warn"); openWorkbook(id); return; }
   try { win.focus(); } catch (_) {}
 }
 
@@ -4533,6 +4554,19 @@ export function requestOpenWorkbook(id) {
   if (!id) return;
   PENDING_OPEN_ID = id;
   if (typeof window.goto === "function") window.goto("workbooks");
+}
+
+// Tab title = the workbook's name (Excel-style), so an open workbook's tab
+// reads "Sales forecast — RouteReady" and multiple tabs are easy to tell
+// apart. Pass null to restore the app's original title.
+let RR_ORIG_DOC_TITLE = null;
+function setWorkbookDocTitle(name) {
+  try {
+    if (RR_ORIG_DOC_TITLE == null) RR_ORIG_DOC_TITLE = document.title;
+    document.title = name
+      ? (String(name).trim() || "Untitled workbook").slice(0, 90) + " — RouteReady"
+      : RR_ORIG_DOC_TITLE;
+  } catch (_) {}
 }
 
 export async function createReportWorkbook({ title, description, headers, rows, sheetName, report }) {
@@ -4617,6 +4651,7 @@ async function renderReportsPage() {
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "";
   document.body.classList.remove("rr-wb-fullscreen"); // leave Workbook Mode
+  setWorkbookDocTitle(null); // restore the app tab title
   syncWbTabs("reports");
   try {
     await Promise.all([fetchWorkbooksList(), fetchUsers()]);
@@ -4697,6 +4732,7 @@ function renderVaultPage() {
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "";
   document.body.classList.remove("rr-wb-fullscreen"); // leave Workbook Mode
+  setWorkbookDocTitle(null); // restore the app tab title
   syncWbTabs("vault");
   const node = document.querySelector("#view-drive .rr-drive-page") || document.querySelector("#rr-wb-root .rr-drive-page");
   if (!node) {
@@ -4718,6 +4754,7 @@ function renderReportBuilderPage() {
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "";
   document.body.classList.remove("rr-wb-fullscreen"); // leave Workbook Mode
+  setWorkbookDocTitle(null); // restore the app tab title
   syncWbTabs("reports");
   if (!REPORTS_RENDERER) {
     root.innerHTML = wbErrorHtml("Reports aren't available", "Reload the page and try again.");
@@ -5207,6 +5244,7 @@ async function renderListPage() {
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "";
   document.body.classList.remove("rr-wb-fullscreen"); // leave Workbook Mode
+  setWorkbookDocTitle(null); // restore the app tab title
   syncWbTabs("workbooks");
   try {
     await Promise.all([fetchWorkbooksList(), fetchUsers()]);
@@ -5252,7 +5290,7 @@ function renderListBody(root) {
       <span class="wb-fav ${fav ? "is-fav" : ""}" data-wb-fav="${esc(w.id)}" role="button" tabindex="0" title="${fav ? "Remove from favorites" : "Add to favorites"}" aria-label="${fav ? "Remove from favorites" : "Add to favorites"}" aria-pressed="${fav}">
         <svg viewBox="0 0 24 24" width="16" height="16" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2.5 15.09 8.6 21.8 9.55 16.9 14.25 18.08 20.9 12 17.77 5.92 20.9 7.1 14.25 2.2 9.55 8.91 8.6 12 2.5"/></svg>
       </span>
-      <span class="wb-cardpop" data-wb-popout="${esc(w.id)}" role="button" tabindex="0" title="Open in a new window" aria-label="Open in a new window">
+      <span class="wb-cardpop" data-wb-popout="${esc(w.id)}" role="button" tabindex="0" title="${popoutLabel()}" aria-label="${popoutLabel()}">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
       </span>
       ${canAdminWb(w) ? `<span class="wb-cardmenu" data-wb-cardmenu="${esc(w.id)}" role="button" tabindex="0" title="Workbook actions" aria-label="Workbook actions">
@@ -5421,6 +5459,7 @@ function renderDetailPage() {
   // (Excel-style): the dashboard rail, topbar, page padding and card
   // chrome all drop away via body.rr-wb-fullscreen (see inline-styles.css).
   document.body.classList.add("rr-wb-fullscreen");
+  setWorkbookDocTitle(wb.title); // label this tab with the workbook name
   const ro = !WB.canEdit;
   root.innerHTML = `
     <div class="wb-detail ${WB.panelOpen ? "is-panel-open" : ""}" id="wb-detail">
@@ -5437,7 +5476,7 @@ function renderDetailPage() {
           <span data-wb-savestate></span>
           <span class="wb-presence" id="wb-presence"></span>
           ${ro ? `<span class="wb-badge" title="You can view${canCommentOnly() ? " and comment" : ""}, but not edit">Read-only</span>` : ""}
-          <button type="button" class="btn btn-ghost btn-icon wb-popout-btn" data-wb-act="wb-popout" title="Open in a new window" aria-label="Open in a new window">
+          <button type="button" class="btn btn-ghost btn-icon wb-popout-btn" data-wb-act="wb-popout" title="${popoutLabel()}" aria-label="${popoutLabel()}">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
           </button>
           <button type="button" class="btn btn-sm wb-share-btn" data-wb-act="wb-share" title="Share this workbook" aria-label="Share this workbook">
@@ -5529,6 +5568,7 @@ function bindDetailInputs() {
     if (!WB.canEdit) return;
     const prev = WB.wb.title;
     WB.wb.title = t.value.trim() || "Untitled workbook";
+    setWorkbookDocTitle(WB.wb.title); // keep the tab label in sync with renames
     saveWbMeta();
     clearTimeout(t._logT);
     t._logT = setTimeout(() => { if (prev !== WB.wb.title) wbLog("workbook.renamed", `renamed the workbook to “${WB.wb.title}”`); }, 2500);
@@ -14436,7 +14476,7 @@ function wrapGoto() {
     }
     // leaving Workbooks entirely — drop Workbook Mode so the dashboard
     // chrome (rail, topbar, padding) comes back on the destination view
-    if (view !== "workbooks") { try { document.body.classList.remove("rr-wb-fullscreen"); restoreVaultNode(); } catch (_) {} }
+    if (view !== "workbooks") { try { document.body.classList.remove("rr-wb-fullscreen"); setWorkbookDocTitle(null); restoreVaultNode(); } catch (_) {} }
     return prev.apply(this, arguments);
   };
 }
