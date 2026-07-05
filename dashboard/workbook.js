@@ -5,7 +5,7 @@
 // A:A ranges, in-formula arrays, LET/LAMBDA, and the full Google Sheets
 // function list — ~470 functions), rich-text note blocks, and checklist/task
 // blocks — plus comments, @mentions, an activity spine, sharing, CSV
-// import/export, and a dependency-free XLSX exporter. Rendered into
+// import/export, and a dependency-free XLSX importer + exporter. Rendered into
 // #rr-wb-root (views/view-workbooks.frag) and reached via
 // goto('workbooks'). Engine unit tests: scripts/test-formula-engine.mjs.
 //
@@ -6053,6 +6053,7 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-tb="clear-format" role="menuitem" ${ro ? "disabled" : ""}>Clear formatting</button>
           <div class="popover-section"></div>
           <button type="button" class="popover-item" data-wb-tb2="import-csv" role="menuitem" ${ro ? "disabled" : ""}>Import CSV into this sheet…</button>
+          <button type="button" class="popover-item" data-wb-tb2="import-xlsx" role="menuitem" ${ro ? "disabled" : ""}>Import Excel (.xlsx)…</button>
           <button type="button" class="popover-item" data-wb-tb2="export-xlsx" role="menuitem">Export as Excel (.xlsx)</button>
           <button type="button" class="popover-item" data-wb-tb2="export-csv" role="menuitem">Export sheet as CSV</button>
           <button type="button" class="popover-item" data-wb-tb2="print" role="menuitem">Print sheet…</button>
@@ -10599,6 +10600,93 @@ function applyCsvImport(g, matrix, clipped, fileName) {
   _toast(clipped ? `Imported with clipping — sheets cap at ${CSV_MAX_ROWS} rows × ${CSV_MAX_COLS} columns` : "CSV imported", clipped ? "warn" : "success");
 }
 
+// Import a real .xlsx workbook: each worksheet becomes a new sheet in this
+// block (existing sheets are left untouched), preserving values, live
+// formulas, dates, column widths, frozen panes, and merges.
+function importXlsxInto(g) {
+  if (!WB.canEdit) return;
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  input.addEventListener("change", () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { _toast("That file is over 15 MB — split it up first", "error"); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let parsed;
+      try { parsed = await parseXlsxBytes(new Uint8Array(reader.result)); }
+      catch (e) { console.warn("xlsx import:", e && e.message); _toast("Couldn't read that Excel file", "error"); return; }
+      const withData = parsed.sheets.filter((s) => s.cells.length || s.merges.length);
+      if (!withData.length) { _toast("That workbook had no data to import", "warn"); return; }
+      if (WB.sheetsByBlock.get(g.blockId) && withData.length + WB.sheetsByBlock.get(g.blockId).length > 60) {
+        _toast("That would push this block over 60 sheets — split the file first", "error"); return;
+      }
+      try { await importParsedWorkbook(g, withData, file.name); }
+      catch (e) { console.warn("xlsx import apply:", e && e.message); _toast("Couldn't import that workbook: " + ((e && e.message) || e), "error"); }
+    };
+    reader.onerror = () => _toast("Couldn't read that file", "error");
+    reader.readAsArrayBuffer(file);
+  });
+  input.click();
+}
+
+async function importParsedWorkbook(g, parsedSheets, fileName) {
+  _toast(`Importing ${parsedSheets.length} sheet${parsedSheets.length === 1 ? "" : "s"}…`, "info");
+  let first = null;
+  for (const ps of parsedSheets) {
+    const sheet = await createSheetWithCells(g.blockId, ps, fileName);
+    if (sheet && !first) first = sheet;
+  }
+  if (first) { renderSheetTabs(g); switchSheet(g, first.id); }
+  wbLog("xlsx.imported", `imported ${fileName} (${parsedSheets.length} sheet${parsedSheets.length === 1 ? "" : "s"})`, { target_type: "block", target_id: g.blockId });
+  _toast(`Imported ${fileName}`, "success");
+}
+
+async function createSheetWithCells(blockId, ps, fileName) {
+  const sheets = WB.sheetsByBlock.get(blockId) || [];
+  let maxR = 0, maxC = 0;
+  for (const c of ps.cells) { if (c.r > maxR) maxR = c.r; if (c.c > maxC) maxC = c.c; }
+  for (const m of ps.merges) { if (m.r1 > maxR) maxR = m.r1; if (m.c1 > maxC) maxC = m.c1; }
+  const meta = {};
+  if (ps.merges && ps.merges.length) meta.merges = ps.merges;
+  const used = new Set(sheets.map((s) => s.name.toLowerCase()));
+  const base = (ps.name || "Sheet").trim().slice(0, 74) || "Sheet";
+  let name = base.slice(0, 80), i = 2;
+  while (used.has(name.toLowerCase())) name = `${base} ${i++}`;
+  const shRow = {
+    dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, block_id: blockId,
+    name, position: sheets.length ? Math.max(...sheets.map((s) => s.position)) + 1 : 0,
+    row_count: Math.min(10000, Math.max(200, maxR + 40)),
+    col_count: Math.min(200, Math.max(26, maxC + 5)),
+    frozen_rows: ps.frozenRows || 0, frozen_cols: ps.frozenCols || 0,
+    col_widths: ps.colWidths || {}, meta,
+  };
+  let ins = await _sb().from("workbook_sheets").insert(shRow).select().single();
+  if (ins.error && /meta/i.test(String(ins.error.message))) { delete shRow.meta; ins = await _sb().from("workbook_sheets").insert(shRow).select().single(); }
+  if (ins.error) throw ins.error;
+  const sheet = normalizeSheet(ins.data);
+  const rows = [];
+  for (const c of ps.cells) {
+    const cell = { value: c.value ?? null, formula: c.formula ?? null, type: c.type ?? null, computed: null, err: null, format: {} };
+    sheet.cells.set(cellKey(c.r, c.c), cell);
+    rows.push({
+      dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, sheet_id: sheet.id,
+      row_index: c.r, col_index: c.c,
+      value: cell.value, formula: cell.formula, value_type: cell.type, format: {},
+      updated_by: _me() ? _me().id : null,
+    });
+  }
+  for (let i2 = 0; i2 < rows.length; i2 += 500) {
+    const res = await _sb().from("workbook_cells").insert(rows.slice(i2, i2 + 500));
+    if (res.error) throw res.error;
+  }
+  recalcSheet(sheet);
+  if (!WB.sheetsByBlock.has(blockId)) WB.sheetsByBlock.set(blockId, []);
+  WB.sheetsByBlock.get(blockId).push(sheet);
+  return sheet;
+}
+
 // ─── XLSX export ─────────────────────────────────────────────────────────────
 // Minimal Office Open XML writer, no dependencies. Zip entries are STORED
 // (no compression) — Excel, Sheets, and Numbers all accept that. Formulas
@@ -10853,6 +10941,197 @@ function buildXlsxBytes(sheets) {
     parts.push(file(`xl/worksheets/_rels/sheet${i + 1}.xml.rels`, rels));
   });
   return xlsxZip(parts);
+}
+
+// ─── XLSX import ─────────────────────────────────────────────────────────────
+// Dependency-free reader. Unzips the OOXML package (STORED entries, or
+// DEFLATE via the platform DecompressionStream — real Excel files are
+// compressed) and pulls sheet names + order, cell values, live formulas,
+// dates (serial → ISO), column widths, frozen panes, and merges. The XML is
+// scanned with tolerant regexes rather than a DOM, so the same code runs in
+// the browser and headless under Node for the round-trip tests.
+
+async function xlsxInflateRaw(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function xlsxUnzip(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // find the End Of Central Directory record (fixed 22-byte head, then an
+  // optional trailing comment — scan back over both)
+  let eo = -1;
+  for (let i = bytes.length - 22; i >= 0 && i >= bytes.length - 22 - 0x10000; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eo = i; break; }
+  }
+  if (eo < 0) throw new Error("not a zip archive");
+  const count = dv.getUint16(eo + 10, true);
+  let p = dv.getUint32(eo + 16, true);
+  const dec = new TextDecoder();
+  const entries = [];
+  for (let n = 0; n < count && p + 46 <= bytes.length; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break; // central-directory header
+    const method = dv.getUint16(p + 10, true);
+    const compSize = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const commentLen = dv.getUint16(p + 32, true);
+    const lho = dv.getUint32(p + 42, true);
+    const name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
+    const lNameLen = dv.getUint16(lho + 26, true);
+    const lExtraLen = dv.getUint16(lho + 28, true);
+    const start = lho + 30 + lNameLen + lExtraLen;
+    entries.push({ name, method, comp: bytes.subarray(start, start + compSize) });
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  const out = new Map();
+  for (const e of entries) out.set(e.name, e.method === 0 ? e.comp : await xlsxInflateRaw(e.comp));
+  return out;
+}
+
+function xmlUnescape(s) {
+  return String(s).replace(/&(#x?[0-9a-fA-F]+|\w+);/g, (m, e) => {
+    if (e[0] === "#") return String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10));
+    return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" }[e] ?? m;
+  });
+}
+
+// every <t>…</t> run inside a chunk, concatenated — folds rich-text <r> runs
+// in a shared string or inline string into one plain value
+function xlsxJoinText(chunk) {
+  let out = "", m;
+  const re = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t\s*\/>/g;
+  while ((m = re.exec(chunk))) out += m[1] != null ? xmlUnescape(m[1]) : "";
+  return out;
+}
+
+const XLSX_ROW_CAP = 10000, XLSX_COL_CAP = 200;
+
+async function parseXlsxBytes(buf) {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const zip = await xlsxUnzip(bytes);
+  const dec = new TextDecoder();
+  const get = (n) => { const b = zip.get(n); return b ? dec.decode(b) : ""; };
+
+  // shared string table
+  const shared = [];
+  const ssXml = get("xl/sharedStrings.xml");
+  if (ssXml) {
+    let m;
+    const re = /<si(?:\s[^>]*)?>([\s\S]*?)<\/si>|<si\s*\/>/g;
+    while ((m = re.exec(ssXml))) shared.push(m[1] != null ? xlsxJoinText(m[1]) : "");
+  }
+
+  // styles → which cell-format (xf) indices render as dates, so numeric
+  // date serials come back as readable dates instead of raw numbers
+  const dateXf = new Set();
+  const stylesXml = get("xl/styles.xml");
+  if (stylesXml) {
+    const customDate = new Map();
+    let m;
+    const nfRe = /<numFmt[^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g;
+    while ((m = nfRe.exec(stylesXml))) {
+      const code = xmlUnescape(m[2]).replace(/\[[^\]]*\]/g, "").replace(/"[^"]*"/g, "");
+      customDate.set(+m[1], /[dmy]/i.test(code) && !/[#0]/.test(code));
+    }
+    const builtinDate = new Set([14, 15, 16, 17, 22, 45, 46, 47]);
+    const cx = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml);
+    if (cx) (cx[1].match(/<xf\b[^>]*?\/?>/g) || []).forEach((xf, idx) => {
+      const nf = /numFmtId="(\d+)"/.exec(xf);
+      const id = nf ? +nf[1] : 0;
+      if (builtinDate.has(id) || customDate.get(id)) dateXf.add(idx);
+    });
+  }
+
+  // relationship id → worksheet path
+  const relTarget = new Map();
+  const relsXml = get("xl/_rels/workbook.xml.rels");
+  let rm;
+  const relRe = /<Relationship\b[^>]*\/>/g;
+  while ((rm = relRe.exec(relsXml))) {
+    const id = /Id="([^"]+)"/.exec(rm[0]);
+    const tgt = /Target="([^"]+)"/.exec(rm[0]);
+    if (id && tgt) relTarget.set(id[1], tgt[1]);
+  }
+  // workbook.xml gives sheet names in tab order
+  const wbXml = get("xl/workbook.xml");
+  const sheetDefs = [];
+  let sm;
+  const shRe = /<sheet\b[^>]*\/>/g;
+  while ((sm = shRe.exec(wbXml))) {
+    const nm = /name="([^"]*)"/.exec(sm[0]);
+    const rid = /r:id="([^"]+)"/.exec(sm[0]);
+    let path = rid ? relTarget.get(rid[1]) : null;
+    if (path) { path = path.replace(/^\/xl\//, "").replace(/^\//, ""); if (!path.startsWith("xl/")) path = "xl/" + path; }
+    sheetDefs.push({ name: nm ? xmlUnescape(nm[1]) : "Sheet", path });
+  }
+  if (!sheetDefs.length) for (const k of zip.keys()) if (/^xl\/worksheets\/sheet\d+\.xml$/.test(k)) sheetDefs.push({ name: k.replace(/.*\/(sheet\d+)\.xml/, "$1"), path: k });
+
+  const sheets = [];
+  for (const def of sheetDefs) {
+    const sx = def.path ? get(def.path) : "";
+    const out = { name: def.name, cells: [], colWidths: {}, merges: [], frozenRows: 0, frozenCols: 0 };
+    if (!sx) { sheets.push(out); continue; }
+
+    const pane = /<pane\b[^>]*\/>/.exec(sx);
+    if (pane) {
+      const xs = /xSplit="([\d.]+)"/.exec(pane[0]);
+      const ys = /ySplit="([\d.]+)"/.exec(pane[0]);
+      if (xs && +xs[1] > 0) out.frozenCols = 1;
+      if (ys && +ys[1] > 0) out.frozenRows = 1;
+    }
+    let cm;
+    const colRe = /<col\b[^>]*\/>/g;
+    while ((cm = colRe.exec(sx))) {
+      const mn = /min="(\d+)"/.exec(cm[0]);
+      const mx = /max="(\d+)"/.exec(cm[0]);
+      const w = /width="([\d.]+)"/.exec(cm[0]);
+      if (mn && w && /customWidth="1"/.test(cm[0])) {
+        const lo = +mn[1] - 1, hi = Math.min(+(mx ? mx[1] : mn[1]) - 1, XLSX_COL_CAP - 1);
+        for (let c = lo; c <= hi; c++) out.colWidths[c] = Math.round(+w[1] * 7);
+      }
+    }
+    let mm;
+    const mgRe = /<mergeCell\b[^>]*ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g;
+    while ((mm = mgRe.exec(sx))) {
+      const r0 = +mm[2] - 1, c0 = colIndex(mm[1]);
+      if (r0 < XLSX_ROW_CAP && c0 < XLSX_COL_CAP) out.merges.push({ r0, c0, r1: Math.min(+mm[4] - 1, XLSX_ROW_CAP - 1), c1: Math.min(colIndex(mm[3]), XLSX_COL_CAP - 1) });
+    }
+
+    const sd = /<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/.exec(sx);
+    const body = sd ? sd[1] : "";
+    let cc;
+    const cRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+    while ((cc = cRe.exec(body))) {
+      const attrs = cc[1], inner = cc[2] || "";
+      const ref = /r="([A-Z]+)(\d+)"/.exec(attrs);
+      if (!ref) continue;
+      const c = colIndex(ref[1]), r = +ref[2] - 1;
+      if (r >= XLSX_ROW_CAP || c >= XLSX_COL_CAP) continue;
+      const t = (/t="([^"]+)"/.exec(attrs) || [])[1] || "n";
+      const s = (/s="(\d+)"/.exec(attrs) || [])[1];
+      const fM = /<f(?:\s[^>]*)?>([\s\S]*?)<\/f>/.exec(inner);
+      const vM = /<v(?:\s[^>]*)?>([\s\S]*?)<\/v>/.exec(inner);
+      const rawV = vM ? xmlUnescape(vM[1]) : "";
+      let value = null, formula = null, type = null;
+      if (fM && fM[1].trim()) {
+        formula = "=" + xmlUnescape(fM[1]); // live formula; cached <v> recomputed
+      } else if (t === "s") { value = shared[+rawV] != null ? shared[+rawV] : ""; type = "text"; }
+      else if (t === "inlineStr") { value = xlsxJoinText(inner); type = "text"; }
+      else if (t === "str") { value = rawV; type = detectType(value).type; }
+      else if (t === "b") { value = rawV === "1" || /^true$/i.test(rawV) ? "TRUE" : "FALSE"; type = "boolean"; }
+      else if (t === "e") { value = rawV || "#ERROR"; type = "text"; }
+      else {
+        if (rawV === "") continue;
+        if (s != null && dateXf.has(+s)) { const d = serialToDate(+rawV); value = d ? isoDate(d) : rawV; type = d ? "date" : "number"; }
+        else { value = rawV; type = "number"; }
+      }
+      if (formula == null && (value == null || value === "")) continue;
+      out.cells.push({ r, c, value, formula, type });
+    }
+    sheets.push(out);
+  }
+  return { sheets };
 }
 
 function exportBlockXlsx(g) {
@@ -12108,6 +12387,7 @@ function bindGridEvents(g) {
       closeAllPopovers();
       const ioAct = io.getAttribute("data-wb-tb2");
       if (ioAct === "import-csv") importCsvInto(g);
+      else if (ioAct === "import-xlsx") importXlsxInto(g);
       else if (ioAct === "export-xlsx") exportBlockXlsx(g);
       else if (ioAct === "print") printSheet(g);
       else exportSheetCsv(g);
@@ -13070,6 +13350,7 @@ function wbMenuItems(menu, g) {
       { label: "New workbook", act: "file:new" },
       { label: "Make a copy", act: "file:copy", disabled: !ed },
       { label: "Import CSV…", act: "file:import", disabled: !ed || !g },
+      { label: "Import Excel (.xlsx)…", act: "file:import-xlsx", disabled: !ed || !g },
       sep,
       { label: "Download", sub: [
         { label: "Microsoft Excel (.xlsx)", act: "file:xlsx", disabled: !g },
@@ -13216,6 +13497,7 @@ function wbMenuAction(act, g) {
     case "file:new": createBlankWorkbookNow(); return;
     case "file:copy": duplicateWorkbook(); return;
     case "file:import": if (need()) importCsvInto(g); return;
+    case "file:import-xlsx": if (need()) importXlsxInto(g); return;
     case "file:xlsx": if (need()) exportBlockXlsx(g); return;
     case "file:csv": if (need()) exportSheetCsv(g); return;
     case "file:print": if (need()) printSheet(g); return;
@@ -15074,7 +15356,7 @@ export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes,
+  buildXlsxBytes, parseXlsxBytes,
   chartSvg, WB_CHART_TYPES,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,

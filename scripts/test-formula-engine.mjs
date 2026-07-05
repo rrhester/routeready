@@ -1023,4 +1023,83 @@ ok("cellLink: an explicit format.link always wins", () => {
   assert.equal(cellLink(tcell("sam@acme.com")), "mailto:sam@acme.com");
 });
 
+// ── XLSX import (parseXlsxBytes) ─────────────────────────────────────────────
+// Async, so run these after the synchronous suite via top-level await.
+const okA = async (name, fn) => { try { await fn(); n++; } catch (e) { console.error(`✗ ${name}`); console.error("  " + (e && e.message)); process.exit(1); } };
+const { buildXlsxBytes, parseXlsxBytes } = __engine;
+const XC = (value, type = null, format = {}) => ({ value, formula: null, computed: null, err: null, type, format });
+const XF = (formula, computed, type = null) => ({ value: null, formula, computed, err: null, type, format: {} });
+const findCell = (sh, r, c) => sh.cells.find((x) => x.r === r && x.c === c);
+
+await okA("xlsx round-trip: values, formula, date, escaping, merges, freeze, widths, multi-sheet", async () => {
+  const s1 = new Map([
+    ["0,0", XC("Name", "text")], ["0,1", XC("Qty", "text")],
+    ["1,0", XC("V-101", "text")], ["1,1", XC("5", "number")],
+    ["2,1", XC("12", "number")],
+    ["3,0", XC("Total", "text")], ["3,1", XF("=SUM(B2:B3)", 17, "number")],
+    ["4,0", XC("2026-07-05", "date")],
+    ["5,0", XC('say "hi" <ok> & bye', "text")],
+  ]);
+  const sheets = [
+    { name: "Data", cells: s1, colWidths: { 0: 140 }, frozenRows: 1, frozenCols: 0, meta: { merges: [{ r0: 0, c0: 0, r1: 0, c1: 1 }] } },
+    { name: "Sheet Two", cells: new Map([["0,0", XC("second", "text")], ["0,1", XC("3.14", "number")]]), colWidths: {}, frozenRows: 0, frozenCols: 0, meta: {} },
+  ];
+  const parsed = await parseXlsxBytes(buildXlsxBytes(sheets));
+  assert.deepEqual(parsed.sheets.map((s) => s.name), ["Data", "Sheet Two"]);
+  const d = parsed.sheets[0];
+  assert.equal(findCell(d, 1, 0).value, "V-101");
+  assert.equal(findCell(d, 1, 1).type, "number");
+  assert.equal(findCell(d, 3, 1).formula, "=SUM(B2:B3)");
+  assert.equal(findCell(d, 4, 0).value, "2026-07-05");
+  assert.equal(findCell(d, 4, 0).type, "date");
+  assert.equal(findCell(d, 5, 0).value, 'say "hi" <ok> & bye');
+  assert.equal(d.frozenRows, 1);
+  assert.deepEqual(d.merges[0], { r0: 0, c0: 0, r1: 0, c1: 1 });
+  assert.ok(d.colWidths[0] >= 130 && d.colWidths[0] <= 150);
+  assert.equal(findCell(parsed.sheets[1], 0, 1).value, "3.14");
+});
+
+await okA("xlsx import: deflate + shared strings (rich-text runs) + date styles", async () => {
+  const enc = new TextEncoder();
+  const CT = (() => { const t = new Uint32Array(256); for (let i = 0; i < 256; i++) { let c = i; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[i] = c >>> 0; } return t; })();
+  const crc = (b) => { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CT[(c ^ b[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const deflate = async (b) => new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer());
+  const zip = async (files) => {
+    const chunks = [], central = []; let off = 0;
+    for (const f of files) {
+      const data = enc.encode(f.xml), comp = await deflate(data), cc = crc(data), nb = enc.encode(f.name);
+      const lo = new Uint8Array(30 + nb.length), dv = new DataView(lo.buffer);
+      dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 0x0800, true); dv.setUint16(8, 8, true);
+      dv.setUint32(14, cc, true); dv.setUint32(18, comp.length, true); dv.setUint32(22, data.length, true); dv.setUint16(26, nb.length, true);
+      lo.set(nb, 30); chunks.push(lo, comp); central.push({ nb, cc, comp: comp.length, size: data.length, off }); off += lo.length + comp.length;
+    }
+    const cstart = off;
+    for (const c of central) { const h = new Uint8Array(46 + c.nb.length), dv = new DataView(h.buffer);
+      dv.setUint32(0, 0x02014b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 20, true); dv.setUint16(8, 0x0800, true); dv.setUint16(10, 8, true);
+      dv.setUint32(16, c.cc, true); dv.setUint32(20, c.comp, true); dv.setUint32(24, c.size, true); dv.setUint16(28, c.nb.length, true); dv.setUint32(42, c.off, true);
+      h.set(c.nb, 46); chunks.push(h); off += h.length; }
+    const e = new Uint8Array(22), dv = new DataView(e.buffer);
+    dv.setUint32(0, 0x06054b50, true); dv.setUint16(8, central.length, true); dv.setUint16(10, central.length, true); dv.setUint32(12, off - cstart, true); dv.setUint32(16, cstart, true);
+    chunks.push(e); const out = new Uint8Array(off + 22); let p = 0; for (const c of chunks) { out.set(c, p); p += c.length; } return out;
+  };
+  const H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const bytes = await zip([
+    { name: "xl/_rels/workbook.xml.rels", xml: H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>' },
+    { name: "xl/workbook.xml", xml: H + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Budget &amp; Plan" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+    { name: "xl/sharedStrings.xml", xml: H + '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><si><t>Region</t></si><si><t xml:space="preserve">North </t></si><si><r><t>Total </t></r><r><t>rev</t></r></si></sst>' },
+    { name: "xl/styles.xml", xml: H + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14" applyNumberFormat="1"/></cellXfs></styleSheet>' },
+    { name: "xl/worksheets/sheet1.xml", xml: H + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView><pane ySplit="1" state="frozen"/></sheetView></sheetViews><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>2</v></c></row><row r="2"><c r="A2" t="s"><v>1</v></c><c r="B2"><v>1500.5</v></c></row><row r="3"><c r="A3" s="1"><v>46208</v></c><c r="B3"><f>SUM(B2:B2)</f><v>1500.5</v></c></row></sheetData></worksheet>' },
+  ]);
+  const parsed = await parseXlsxBytes(bytes);
+  const sh = parsed.sheets[0];
+  assert.equal(sh.name, "Budget & Plan");
+  assert.equal(sh.frozenRows, 1);
+  assert.equal(findCell(sh, 0, 1).value, "Total rev");   // rich-text runs joined
+  assert.equal(findCell(sh, 1, 0).value, "North ");       // trailing space preserved
+  assert.equal(findCell(sh, 1, 1).value, "1500.5");
+  assert.equal(findCell(sh, 2, 0).value, "2026-07-05");   // serial via date style
+  assert.equal(findCell(sh, 2, 0).type, "date");
+  assert.equal(findCell(sh, 2, 1).formula, "=SUM(B2:B2)");
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);
