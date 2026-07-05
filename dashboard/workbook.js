@@ -13086,6 +13086,7 @@ function wbMenuItems(menu, g) {
       { label: "New sheet", act: "ins:sheet", disabled: !ed || !g },
       sep,
       { label: "Chart…", act: "ins:chart", disabled: !ed || !g },
+      { label: "Pivot table…", act: "ins:pivot", disabled: !ed || !g },
       { label: "Function", sub: [
         ...["SUM", "AVERAGE", "COUNT", "MAX", "MIN", "IF", "COUNTIF", "SUMIF", "VLOOKUP", "XLOOKUP"].map((fn) => ({ label: fn, act: "ins:fn:" + fn, disabled: !ed || !g })),
         sep,
@@ -13136,6 +13137,8 @@ function wbMenuItems(menu, g) {
         ] },
         sep,
         { label: "Column stats", act: "data:stats", disabled: !g },
+        { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
+        { label: "Named ranges…", act: "data:names", disabled: !g },
         { label: "Data validation…", act: "data:validation", disabled: !ed || !g },
         { label: "Split text to columns…", act: "data:split", disabled: !ed || !g },
         { label: "Data cleanup", sub: [
@@ -13210,6 +13213,7 @@ function wbMenuAction(act, g) {
     case "ins:col-right": if (need()) restructure(g, "col", rect.c1 + 1, 1); return;
     case "ins:sheet": if (need()) addSheetTo(g.blockId); return;
     case "ins:chart": if (need()) openChartDialog(g); return;
+    case "ins:pivot": if (need()) openPivotDialog(g); return;
     case "ins:fnbrowse": if (need()) {
       const fnBtn = document.querySelector(`[data-wb-toolbar="${g.blockId}"] [data-wb-tb="fn-menu"]`);
       if (fnBtn) { fnBrowserPop(g, fnBtn); togglePopover(fnBtn); setTimeout(() => fnBtn.closest(".popover-anchor")?.querySelector(".wb-fn-search")?.focus(), 0); }
@@ -13232,6 +13236,8 @@ function wbMenuAction(act, g) {
     case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); persistFilterState(g); } return;
     case "data:fv-save": if (need()) saveFilterView(g); return;
     case "data:stats": if (need()) showColumnStats(g); return;
+    case "data:pivot": if (need()) openPivotDialog(g); return;
+    case "data:names": if (need()) openNamedRangesDialog(g); return;
     case "data:validation": if (need()) openValidationDialog(g); return;
     case "data:split": if (need()) splitTextToColumns(g); return;
     case "data:dedupe": if (need()) removeDuplicateRows(g); return;
