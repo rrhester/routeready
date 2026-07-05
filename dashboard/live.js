@@ -19101,12 +19101,19 @@ async function submitBulkDriverIngest() {
     for (const s of (stations || [])) codeToId.set(String(s.code).toUpperCase(), s.id);
   }
   const todayIso = fmtIsoDate(new Date());
+  // Bulk upload is primarily a first-run roster migration (a DSP importing
+  // their existing, already-hired staff), so imported drivers land as ACTIVE
+  // members of the roster rather than in 'onboarding' — otherwise they're
+  // hidden from the default Active view and needlessly routed through the
+  // I-9 / onboarding gates. Compliance fields are left blank (the operator
+  // verifies or backfills later); we don't fabricate cleared I-9/BG/drug
+  // records. The metadata tag makes an imported batch identifiable later.
   const insertRows = ready.map(r => {
     const parts = r.name.split(/\s+/);
     return {
       dsp_id: dspId,
       role: "driver",
-      status: "onboarding",
+      status: "active",
       station_id: r.station_code ? (codeToId.get(r.station_code) || null) : null,
       full_name: r.name,
       first_name: parts[0] || null,
@@ -19114,6 +19121,7 @@ async function submitBulkDriverIngest() {
       phone: r.phone,
       email: r.email,
       hire_date: r.hire_date || todayIso,
+      metadata: { import: { source: "bulk_spreadsheet", at: new Date().toISOString() } },
     };
   });
   const { error } = await sb.from("drivers").insert(insertRows);
@@ -19136,6 +19144,9 @@ async function submitBulkDriverIngest() {
   if (invalid.length) msgParts.push(`${invalid.length} skipped (invalid)`);
   if (missingStations.length) msgParts.push(`stations not matched: ${missingStations.join(", ")}`);
   toast(msgParts.join(" · "), missingStations.length || invalid.length ? "warn" : "success");
+  // Imported drivers are active — make sure the operator lands on a view
+  // that shows them (they may have been on On-leave / Inactive).
+  if (_driverStage !== "active" && _driverStage !== "all") _driverStage = "active";
   if (typeof loadDriversRoster === "function") loadDriversRoster();
 }
 window.submitBulkDriverIngest = submitBulkDriverIngest;
