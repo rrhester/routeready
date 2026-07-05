@@ -526,7 +526,146 @@ const FUNCS = {
   RAND: () => Math.random(),
   RANDBETWEEN: (vals) => { const a = Math.ceil(toNum(vals[0])), b = Math.floor(toNum(vals[1])); if (b < a) throw new FormulaError("#VALUE", "bad RANDBETWEEN range"); return a + Math.floor(Math.random() * (b - a + 1)); },
   XOR: (vals) => vals.filter((v) => truthy(v)).length % 2 === 1,
+  // ── math ──
+  SIGN: (v) => Math.sign(toNum(v[0])),
+  EVEN: (v) => { const x = toNum(v[0]); return x === 0 ? 0 : Math.sign(x) * Math.ceil(Math.abs(x) / 2) * 2; },
+  ODD: (v) => { const x = toNum(v[0]); const a = Math.abs(x); const r = a <= 1 ? 1 : Math.ceil((a - 1) / 2) * 2 + 1; return (x < 0 ? -1 : 1) * r; },
+  SUMSQ: (v) => flatNumeric(v).reduce((a, b) => a + b * b, 0),
+  PRODUCT: (v) => { const xs = flatNumeric(v); return xs.length ? xs.reduce((a, b) => a * b, 1) : 0; },
+  QUOTIENT: (v) => { const d = toNum(v[1]); if (d === 0) throw new FormulaError("#DIV/0", "QUOTIENT by zero"); return Math.trunc(toNum(v[0]) / d); },
+  GCD: (v) => { const xs = flatNumeric(v).map((x) => Math.trunc(Math.abs(x))); if (!xs.length) return 0; return xs.reduce((a, b) => { while (b) { const t = a % b; a = b; b = t; } return a; }); },
+  LCM: (v) => { const xs = flatNumeric(v).map((x) => Math.trunc(Math.abs(x))); const g2 = (a, b) => { while (b) { const t = a % b; a = b; b = t; } return a; }; return xs.length ? xs.reduce((a, b) => (a && b ? (a / g2(a, b)) * b : 0), 1) : 0; },
+  FACT: (v) => { const n = Math.trunc(toNum(v[0])); if (n < 0 || n > 170) throw new FormulaError("#VALUE", "FACT accepts 0-170"); let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; },
+  COMBIN: (v) => { const n = Math.trunc(toNum(v[0])), k = Math.trunc(toNum(v[1])); if (k < 0 || n < 0 || n < k) throw new FormulaError("#VALUE", "bad COMBIN"); let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return Math.round(r); },
+  SQRTPI: (v) => { const n = toNum(v[0]); if (n < 0) throw new FormulaError("#VALUE", "SQRTPI of negative"); return Math.sqrt(n * Math.PI); },
+  MROUND: (v) => { const m = toNum(v[1]); if (m === 0) return 0; return Math.round(toNum(v[0]) / m) * m; },
+  SIN: (v) => Math.sin(toNum(v[0])),
+  COS: (v) => Math.cos(toNum(v[0])),
+  TAN: (v) => Math.tan(toNum(v[0])),
+  ASIN: (v) => { const x = toNum(v[0]); if (x < -1 || x > 1) throw new FormulaError("#VALUE", "ASIN domain"); return Math.asin(x); },
+  ACOS: (v) => { const x = toNum(v[0]); if (x < -1 || x > 1) throw new FormulaError("#VALUE", "ACOS domain"); return Math.acos(x); },
+  ATAN: (v) => Math.atan(toNum(v[0])),
+  ATAN2: (v) => Math.atan2(toNum(v[1]), toNum(v[0])), // Excel arg order: (x, y)
+  DEGREES: (v) => (toNum(v[0]) * 180) / Math.PI,
+  RADIANS: (v) => (toNum(v[0]) * Math.PI) / 180,
+  LOG10: (v) => { const x = toNum(v[0]); if (x <= 0) throw new FormulaError("#VALUE", "LOG10 of non-positive"); return Math.log10(x); },
+  // ── statistical ──
+  AVERAGEA: (v) => { const xs = v.filter((x) => x != null && x !== ""); if (!xs.length) throw new FormulaError("#DIV/0", "AVERAGEA of empty"); return xs.reduce((a, b) => a + (typeof b === "boolean" ? (b ? 1 : 0) : cellNumeric(b) ?? 0), 0) / xs.length; },
+  MAXA: (v) => { const xs = v.filter((x) => x != null && x !== "").map((b) => (typeof b === "boolean" ? (b ? 1 : 0) : cellNumeric(b) ?? 0)); return xs.length ? Math.max(...xs) : 0; },
+  MINA: (v) => { const xs = v.filter((x) => x != null && x !== "").map((b) => (typeof b === "boolean" ? (b ? 1 : 0) : cellNumeric(b) ?? 0)); return xs.length ? Math.min(...xs) : 0; },
+  COUNTUNIQUE: (v) => new Set(v.filter((x) => x != null && x !== "").map((x) => String(x).trim().toLowerCase())).size,
+  MODE: (v) => { const xs = flatNumeric(v); const seen = new Map(); let best = null, bestN = 1; for (const x of xs) { const n = (seen.get(x) || 0) + 1; seen.set(x, n); if (n > bestN) { bestN = n; best = x; } } if (best == null) throw new FormulaError("#N/A", "no repeated value"); return best; },
+  VAR: (v) => { const xs = flatNumeric(v); if (xs.length < 2) throw new FormulaError("#DIV/0", "VAR needs 2+ numbers"); const m = xs.reduce((a, b) => a + b, 0) / xs.length; return xs.reduce((a, b) => a + (b - m) * (b - m), 0) / (xs.length - 1); },
+  VARP: (v) => { const xs = flatNumeric(v); if (!xs.length) throw new FormulaError("#DIV/0", "VARP of empty"); const m = xs.reduce((a, b) => a + b, 0) / xs.length; return xs.reduce((a, b) => a + (b - m) * (b - m), 0) / xs.length; },
+  STDEVP: (v) => { const xs = flatNumeric(v); if (!xs.length) throw new FormulaError("#DIV/0", "STDEVP of empty"); const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - m) * (b - m), 0) / xs.length); },
+  GEOMEAN: (v) => { const xs = flatNumeric(v); if (!xs.length || xs.some((x) => x <= 0)) throw new FormulaError("#VALUE", "GEOMEAN needs positive numbers"); return Math.exp(xs.reduce((a, b) => a + Math.log(b), 0) / xs.length); },
+  HARMEAN: (v) => { const xs = flatNumeric(v); if (!xs.length || xs.some((x) => x <= 0)) throw new FormulaError("#VALUE", "HARMEAN needs positive numbers"); return xs.length / xs.reduce((a, b) => a + 1 / b, 0); },
+  PERCENTILE: (v) => { const p = toNum(v[v.length - 1]); const xs = flatNumeric(v.slice(0, -1)).sort((a, b) => a - b); if (!xs.length || p < 0 || p > 1) throw new FormulaError("#VALUE", "bad PERCENTILE"); const i = (xs.length - 1) * p; const lo = Math.floor(i); return xs[lo] + (xs[Math.min(lo + 1, xs.length - 1)] - xs[lo]) * (i - lo); },
+  QUARTILE: (v) => { const q = Math.trunc(toNum(v[v.length - 1])); if (q < 0 || q > 4) throw new FormulaError("#VALUE", "QUARTILE 0-4"); return FUNCS.PERCENTILE([...v.slice(0, -1), q / 4]); },
+  // ── text ──
+  CHAR: (v) => { const n = Math.trunc(toNum(v[0])); if (n < 1 || n > 1114111) throw new FormulaError("#VALUE", "bad CHAR code"); return String.fromCodePoint(n); },
+  CODE: (v) => { const s = fmtScalar(v[0]); if (!s) throw new FormulaError("#VALUE", "CODE of empty"); return s.codePointAt(0); },
+  CLEAN: (v) => fmtScalar(v[0]).replace(/[\x00-\x1F\x7F]/g, ""),
+  DOLLAR: (v) => { const n = toNum(v[0]); const d = v.length > 1 ? Math.trunc(toNum(v[1])) : 2; const abs = Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: Math.max(0, d), maximumFractionDigits: Math.max(0, d) }); return n < 0 ? `($${abs})` : `$${abs}`; },
+  FIXED: (v) => { const n = toNum(v[0]); const d = v.length > 1 ? Math.trunc(toNum(v[1])) : 2; const noCommas = v.length > 2 && truthy(v[2]); return noCommas ? n.toFixed(Math.max(0, d)) : n.toLocaleString("en-US", { minimumFractionDigits: Math.max(0, d), maximumFractionDigits: Math.max(0, d) }); },
+  JOIN: (v) => v.slice(1).map(fmtScalar).join(fmtScalar(v[0])),
+  REPLACE: (v) => { const s = fmtScalar(v[0]); const start = Math.trunc(toNum(v[1])); const len = Math.trunc(toNum(v[2])); if (start < 1 || len < 0) throw new FormulaError("#VALUE", "bad REPLACE bounds"); return s.slice(0, start - 1) + fmtScalar(v[3]) + s.slice(start - 1 + len); },
+  T: (v) => (typeof v[0] === "string" ? v[0] : ""),
+  // ── info ──
+  N: (v) => (typeof v[0] === "number" ? v[0] : typeof v[0] === "boolean" ? (v[0] ? 1 : 0) : 0),
+  NA: () => { throw new FormulaError("#N/A", "NA()"); },
+  ISEVEN: (v) => Math.trunc(toNum(v[0])) % 2 === 0,
+  ISODD: (v) => Math.abs(Math.trunc(toNum(v[0]))) % 2 === 1,
+  ISDATE: (v) => typeof v[0] === "string" && !!parseDateLoose(v[0]),
+  ISLOGICAL: (v) => typeof v[0] === "boolean",
+  ISNONTEXT: (v) => !(typeof v[0] === "string" && v[0] !== ""),
+  // ── date basis + time-of-day ──
+  DAYS360: (v) => {
+    const a = serialToDate(toNum(v[0])), b = serialToDate(toNum(v[1]));
+    let d1 = Math.min(a.getDate(), 30), d2 = b.getDate();
+    if (d2 === 31 && d1 === 30) d2 = 30;
+    return (b.getFullYear() - a.getFullYear()) * 360 + (b.getMonth() - a.getMonth()) * 30 + (d2 - d1);
+  },
+  YEARFRAC: (v) => {
+    const basis = v.length > 2 ? Math.trunc(toNum(v[2])) : 0;
+    const s1 = toNum(v[0]), s2 = toNum(v[1]);
+    if (basis === 2) return (s2 - s1) / 360;
+    if (basis === 3) return (s2 - s1) / 365;
+    return FUNCS.DAYS360([v[0], v[1]]) / 360; // 30/360 default (basis 0)
+  },
+  ISOWEEKNUM: (v) => {
+    const d = serialToDate(toNum(v[0]));
+    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    t.setDate(t.getDate() + 3 - ((t.getDay() + 6) % 7)); // Thursday of this ISO week
+    const jan4 = new Date(t.getFullYear(), 0, 4);
+    jan4.setDate(jan4.getDate() + 3 - ((jan4.getDay() + 6) % 7));
+    return 1 + Math.round((t - jan4) / (7 * 86400000));
+  },
+  HOUR: (v) => { const f = timeFracOf(v[0]); if (f == null) throw new FormulaError("#VALUE", "not a time"); return Math.floor(f * 24); },
+  MINUTE: (v) => { const f = timeFracOf(v[0]); if (f == null) throw new FormulaError("#VALUE", "not a time"); return Math.floor(f * 1440) % 60; },
+  SECOND: (v) => { const f = timeFracOf(v[0]); if (f == null) throw new FormulaError("#VALUE", "not a time"); return Math.round(f * 86400) % 60; },
+  TIMEVALUE: (v) => { const f = timeFracOf(v[0]); if (f == null) throw new FormulaError("#VALUE", "not a time"); return f; },
+  // ── financial ──
+  PMT: (v) => {
+    const r = toNum(v[0]), n = toNum(v[1]), pv = toNum(v[2]), fv = v.length > 3 ? toNum(v[3]) : 0, type = v.length > 4 && truthy(v[4]) ? 1 : 0;
+    if (n === 0) throw new FormulaError("#DIV/0", "PMT with 0 periods");
+    if (r === 0) return -(pv + fv) / n;
+    const k = Math.pow(1 + r, n);
+    return (-(pv * k + fv) * r) / ((k - 1) * (1 + r * type));
+  },
+  FV: (v) => {
+    const r = toNum(v[0]), n = toNum(v[1]), pmt = toNum(v[2]), pv = v.length > 3 ? toNum(v[3]) : 0, type = v.length > 4 && truthy(v[4]) ? 1 : 0;
+    if (r === 0) return -(pv + pmt * n);
+    const k = Math.pow(1 + r, n);
+    return -(pv * k + (pmt * (1 + r * type) * (k - 1)) / r);
+  },
+  PV: (v) => {
+    const r = toNum(v[0]), n = toNum(v[1]), pmt = toNum(v[2]), fv = v.length > 3 ? toNum(v[3]) : 0, type = v.length > 4 && truthy(v[4]) ? 1 : 0;
+    if (r === 0) return -(fv + pmt * n);
+    const k = Math.pow(1 + r, n);
+    return -((fv + (pmt * (1 + r * type) * (k - 1)) / r) / k);
+  },
+  NPER: (v) => {
+    const r = toNum(v[0]), pmt = toNum(v[1]), pv = toNum(v[2]), fv = v.length > 3 ? toNum(v[3]) : 0, type = v.length > 4 && truthy(v[4]) ? 1 : 0;
+    if (r === 0) { if (pmt === 0) throw new FormulaError("#DIV/0", "NPER"); return -(pv + fv) / pmt; }
+    const a = pmt * (1 + r * type);
+    const x = (a - fv * r) / (pv * r + a);
+    if (x <= 0) throw new FormulaError("#VALUE", "NPER has no solution");
+    return Math.log(x) / Math.log(1 + r);
+  },
+  SLN: (v) => { const life = toNum(v[2]); if (life === 0) throw new FormulaError("#DIV/0", "SLN life"); return (toNum(v[0]) - toNum(v[1])) / life; },
+  EFFECT: (v) => { const n = Math.trunc(toNum(v[1])); if (n < 1) throw new FormulaError("#VALUE", "EFFECT periods"); return Math.pow(1 + toNum(v[0]) / n, n) - 1; },
+  NOMINAL: (v) => { const n = Math.trunc(toNum(v[1])); if (n < 1) throw new FormulaError("#VALUE", "NOMINAL periods"); return (Math.pow(1 + toNum(v[0]), 1 / n) - 1) * n; },
+  // ── operator functions (Sheets parity) ──
+  ADD: (v) => toNum(v[0]) + toNum(v[1]),
+  MINUS: (v) => toNum(v[0]) - toNum(v[1]),
+  MULTIPLY: (v) => toNum(v[0]) * toNum(v[1]),
+  DIVIDE: (v) => { const d = toNum(v[1]); if (d === 0) throw new FormulaError("#DIV/0", "DIVIDE by zero"); return toNum(v[0]) / d; },
+  POW: (v) => FUNCS.POWER(v),
+  UMINUS: (v) => -toNum(v[0]),
+  UNARY_PERCENT: (v) => toNum(v[0]) / 100,
+  EQ: (v) => cmp("=", v[0] ?? "", v[1] ?? ""),
+  NE: (v) => cmp("<>", v[0] ?? "", v[1] ?? ""),
+  GT: (v) => cmp(">", v[0] ?? "", v[1] ?? ""),
+  GTE: (v) => cmp(">=", v[0] ?? "", v[1] ?? ""),
+  LT: (v) => cmp("<", v[0] ?? "", v[1] ?? ""),
+  LTE: (v) => cmp("<=", v[0] ?? "", v[1] ?? ""),
 };
+
+// Time-of-day fraction from "14:30", "2:30 PM", "…T14:30:05", or the
+// fractional part of a numeric serial.
+const TIME_RE = /(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?/i;
+function timeFracOf(v) {
+  if (typeof v === "number") return v - Math.floor(v);
+  const m = TIME_RE.exec(String(v ?? ""));
+  if (!m) return null;
+  let h = +m[1]; const mi = +m[2], se = +(m[3] || 0);
+  const ap = (m[4] || "").toLowerCase();
+  if (h > 23 || mi > 59 || se > 59) return null;
+  if (ap === "pm" && h < 12) h += 12;
+  if (ap === "am" && h === 12) h = 0;
+  return (h * 3600 + mi * 60 + se) / 86400;
+}
 
 function evalFormula(src, ctx) {
   const ast = parseFormula(src);
@@ -1048,6 +1187,82 @@ function callFunc(node, ctx) {
       const d = argDate(args[0], ctx, name);
       const jan1 = new Date(d.getFullYear(), 0, 1);
       return Math.floor((dateToSerial(d) - dateToSerial(jan1) + jan1.getDay()) / 7) + 1;
+    }
+    case "IFNA": {
+      if (args.length !== 2) throw new FormulaError("#ERROR", "IFNA takes 2 args");
+      try { return evalNode(args[0], ctx); }
+      catch (e) { if (e instanceof FormulaError && e.code === "#N/A") return evalNode(args[1], ctx); throw e; }
+    }
+    case "ISNA": {
+      if (args.length !== 1) throw new FormulaError("#ERROR", "ISNA takes 1 arg");
+      try { evalNode(args[0], ctx); return false; }
+      catch (e) { if (e instanceof FormulaError) return e.code === "#N/A"; throw e; }
+    }
+    case "NPV": {
+      if (args.length < 2) throw new FormulaError("#ERROR", "NPV takes a rate then values");
+      const rate = toNum(evalNode(args[0], ctx));
+      if (rate <= -1) throw new FormulaError("#VALUE", "bad NPV rate");
+      const xs = flatNumeric(collectArgValues(args.slice(1), ctx));
+      return xs.reduce((a, x, i) => a + x / Math.pow(1 + rate, i + 1), 0);
+    }
+    case "IRR": {
+      if (args.length < 1 || args.length > 2 || args[0].k !== "range") throw new FormulaError("#ERROR", "IRR takes a range of cash flows");
+      const xs = flatNumeric([...rangeCellsCtx(args[0], ctx)].map(({ row, col }) => ctx.getCell(row, col, args[0].sheet)));
+      if (xs.length < 2 || !xs.some((x) => x > 0) || !xs.some((x) => x < 0)) throw new FormulaError("#VALUE", "IRR needs mixed-sign cash flows");
+      let r = args.length === 2 ? toNum(evalNode(args[1], ctx)) : 0.1;
+      for (let i = 0; i < 60; i++) {
+        let f = 0, df = 0;
+        xs.forEach((x, k) => { const d = Math.pow(1 + r, k); f += x / d; df -= (k * x) / (d * (1 + r)); });
+        if (Math.abs(df) < 1e-12) break;
+        const next = r - f / df;
+        if (!isFinite(next) || next <= -0.999999) break;
+        if (Math.abs(next - r) < 1e-9) return next;
+        r = next;
+      }
+      throw new FormulaError("#VALUE", "IRR didn't converge");
+    }
+    case "LOOKUP": {
+      if (args.length < 2 || args.length > 3 || args[1].k !== "range") throw new FormulaError("#ERROR", "LOOKUP takes a value, a lookup range, and an optional result range");
+      const needle = evalNode(args[0], ctx);
+      const look = [...rangeCellsCtx(args[1], ctx)];
+      const res = args.length === 3 && args[2].k === "range" ? [...rangeCellsCtx(args[2], ctx)] : look;
+      let best = -1;
+      for (let i = 0; i < look.length; i++) {
+        const v = ctx.getCell(look[i].row, look[i].col, args[1].sheet);
+        if (v == null || v === "") continue;
+        try { if (cmp("<=", v, needle ?? "")) best = i; } catch (_) {}
+      }
+      if (best < 0) throw new FormulaError("#N/A", "no match found");
+      const rc = res[Math.min(best, res.length - 1)];
+      return ctx.getCell(rc.row, rc.col, args.length === 3 ? args[2].sheet : args[1].sheet);
+    }
+    case "ROW": case "COLUMN": {
+      if (args.length > 1) throw new FormulaError("#ERROR", `${name} takes 0-1 args`);
+      if (args.length === 1) {
+        const a0 = args[0];
+        if (a0.k === "ref") return name === "ROW" ? a0.row + 1 : a0.col + 1;
+        if (a0.k === "range") return name === "ROW" ? Math.min(a0.a.row, a0.b.row) + 1 : Math.min(a0.a.col, a0.b.col) + 1;
+        throw new FormulaError("#VALUE", `${name} needs a reference`);
+      }
+      if (!ctx.cur) throw new FormulaError("#ERROR", `${name}() needs a cell context`);
+      return name === "ROW" ? ctx.cur.r + 1 : ctx.cur.c + 1;
+    }
+    case "ROWS": case "COLUMNS": {
+      if (args.length !== 1 || (args[0].k !== "range" && args[0].k !== "ref")) throw new FormulaError("#VALUE", `${name} needs a range`);
+      if (args[0].k === "ref") return 1;
+      const { a, b } = boundedRange(args[0], ctx);
+      return name === "ROWS" ? Math.abs(b.row - a.row) + 1 : Math.abs(b.col - a.col) + 1;
+    }
+    case "ADDRESS": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "ADDRESS takes row, column, [abs]");
+      const r = Math.trunc(toNum(evalNode(args[0], ctx))), c = Math.trunc(toNum(evalNode(args[1], ctx)));
+      if (r < 1 || c < 1) throw new FormulaError("#VALUE", "bad ADDRESS");
+      const abs = args.length === 3 ? Math.trunc(toNum(evalNode(args[2], ctx))) : 1;
+      const cl = colLabel(c - 1);
+      if (abs === 2) return `${cl}$${r}`;
+      if (abs === 3) return `$${cl}${r}`;
+      if (abs === 4) return `${cl}${r}`;
+      return `$${cl}$${r}`;
     }
     default: {
       const fn = FUNCS[name];
@@ -2034,6 +2249,9 @@ function applyReportRefresh(g, sheet, { headers, rows }) {
   if (sheet.rowCount < wantRows + 20) { sheet.rowCount = wantRows + 40; saveSheetMeta(sheet.id); }
   recalcWithSiblings(sheet);
   markCellsDirty(sheet, touched);
+  // the refresh writes rows in provider order — restore the operator's sort
+  const spec = Array.isArray(sheet.meta && sheet.meta.sortSpec) ? sheet.meta.sortSpec.filter((sp) => typeof sp.col === "number" && sp.col < sheet.colCount) : null;
+  if (spec && spec.length) sortBySpecs(g, spec, { quiet: true });
   computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
@@ -2306,6 +2524,7 @@ function recalcSheet(sheet) {
     const cell = sheet.cells.get(key);
     if (!cell || cell.err) continue;
     try {
+      ctx.cur = keyRC(key); // ROW()/COLUMN() with no args resolve here
       const v = evalAst(asts.get(key), ctx);
       cell.computed = v;
     } catch (e) {
@@ -3124,8 +3343,9 @@ function mountSheetBlock(block, body) {
     fxWord: null,
   };
   GRIDS.set(block.id, g);
-  computeGeometry(g);
   bindGridEvents(g);
+  restoreViewState(g);
+  computeGeometry(g);
   renderSheetTabs(g);
   repaintGrid(g);
   syncFormulaBar(g);
@@ -3303,6 +3523,7 @@ function setZoom(g, z) {
   g.els.grid.style.setProperty("--wb-zoom", String(g.zoom));
   const sel = g.els.body.querySelector("[data-wb-zoom]");
   if (sel) sel.value = String(g.zoom);
+  try { localStorage.setItem("rr-wb-zoom-" + g.sheet.id, String(g.zoom)); } catch (_) {}
   cancelEdit(g);
   computeGeometry(g);
   repaintGrid(g);
@@ -3439,13 +3660,19 @@ function paintNow(g) {
   const fltBtn = (r, c) => (r === 0 && c <= g.fltMaxC
     ? `<button type="button" class="wb-flt-btn ${g.filters.has(c) ? "is-filtered" : ""}" data-wb-fltbtn="${c}" title="Filter column ${colLabel(c)}" aria-label="Filter column ${colLabel(c)}">${g.filters.has(c) ? "▼" : "▾"}</button>`
     : "");
+  const hasDvRules = Array.isArray(sheet.meta && sheet.meta.validation) && sheet.meta.validation.length > 0;
   const cellDiv = (r, c, x, top, w, h) => {
     const key = cellKey(r, c);
     const cell = sheet.cells.get(key);
     const disp = cell ? displayValue(sheet, r, c) : "";
     const err = cell && cell.err;
     const inval = cellInvalid(sheet, r, c, cell);
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell ? cellInnerHtml(cell, disp) : ""}${fltBtn(r, c)}</div>`;
+    // list-validated cells render as Sheets-style dropdown chips
+    const dvRule = hasDvRules && r > 0 ? findValidationRule(sheet, r, c) : null;
+    const chip = dvRule && dvRule.type === "list" && WB.canEdit
+      ? `<span class="wb-dv-chip ${inval ? "is-invalid" : ""}" data-wb-dvchip="${r},${c}" title="Pick from list">${disp ? esc(disp) : `<span class="wb-dv-chip-empty">Select</span>`}<span class="wb-dv-caret">▾</span></span>`
+      : null;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${chip != null ? chip : cell ? cellInnerHtml(cell, disp) : ""}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -3499,13 +3726,6 @@ function paintSelection(g) {
   if (WB.canEdit && !g.editing && di1 >= 0) {
     const hx = g.colX[Math.max(c0, c1) + 1], hy = g.rowY[di1 + 1];
     html += `<div class="wb-fill-handle" data-wb-fillhandle title="Drag to fill" style="left:${hx - 4}px;top:${hy - 4}px"></div>`;
-  }
-  // dropdown affordance on list-validated cells
-  if (WB.canEdit && !g.editing && adi >= 0) {
-    const dvRule = findValidationRule(g.sheet, a.r, a.c);
-    if (dvRule && dvRule.type === "list") {
-      html += `<button type="button" class="wb-dv-btn" data-wb-dvbtn title="Pick from list" aria-label="Pick from list" style="left:${g.colX[a.c + 1] + 2}px;top:${g.rowY[adi]}px;height:${g.rowY[adi + 1] - g.rowY[adi]}px">▾</button>`;
-    }
   }
   g.els.sel.innerHTML = html;
   updateSelStats(g);
@@ -4175,6 +4395,79 @@ const FUNCTION_META = [
   { n: "EXP", sig: "EXP(number)", d: "e raised to a power" },
   { n: "RAND", sig: "RAND()", d: "Random number 0–1" },
   { n: "RANDBETWEEN", sig: "RANDBETWEEN(low, high)", d: "Random whole number" },
+  { n: "SIGN", sig: "SIGN(number)", d: "-1, 0, or 1" },
+  { n: "EVEN", sig: "EVEN(number)", d: "Round up to even" },
+  { n: "ODD", sig: "ODD(number)", d: "Round up to odd" },
+  { n: "SUMSQ", sig: "SUMSQ(range)", d: "Sum of squares" },
+  { n: "PRODUCT", sig: "PRODUCT(range)", d: "Multiply the numbers" },
+  { n: "QUOTIENT", sig: "QUOTIENT(a, b)", d: "Integer division" },
+  { n: "GCD", sig: "GCD(a, b, …)", d: "Greatest common divisor" },
+  { n: "LCM", sig: "LCM(a, b, …)", d: "Least common multiple" },
+  { n: "FACT", sig: "FACT(n)", d: "Factorial" },
+  { n: "COMBIN", sig: "COMBIN(n, k)", d: "Ways to choose k of n" },
+  { n: "MROUND", sig: "MROUND(number, multiple)", d: "Round to a multiple" },
+  { n: "SIN", sig: "SIN(radians)", d: "Sine" },
+  { n: "COS", sig: "COS(radians)", d: "Cosine" },
+  { n: "TAN", sig: "TAN(radians)", d: "Tangent" },
+  { n: "ASIN", sig: "ASIN(number)", d: "Inverse sine" },
+  { n: "ACOS", sig: "ACOS(number)", d: "Inverse cosine" },
+  { n: "ATAN", sig: "ATAN(number)", d: "Inverse tangent" },
+  { n: "ATAN2", sig: "ATAN2(x, y)", d: "Angle of a point" },
+  { n: "DEGREES", sig: "DEGREES(radians)", d: "Radians → degrees" },
+  { n: "RADIANS", sig: "RADIANS(degrees)", d: "Degrees → radians" },
+  { n: "LOG10", sig: "LOG10(number)", d: "Base-10 log" },
+  { n: "SQRTPI", sig: "SQRTPI(number)", d: "√(n × π)" },
+  { n: "AVERAGEA", sig: "AVERAGEA(range)", d: "Mean; text counts as 0" },
+  { n: "MAXA", sig: "MAXA(range)", d: "Max; text counts as 0" },
+  { n: "MINA", sig: "MINA(range)", d: "Min; text counts as 0" },
+  { n: "COUNTUNIQUE", sig: "COUNTUNIQUE(range)", d: "Distinct values" },
+  { n: "MODE", sig: "MODE(range)", d: "Most frequent number" },
+  { n: "VAR", sig: "VAR(range)", d: "Sample variance" },
+  { n: "VARP", sig: "VARP(range)", d: "Population variance" },
+  { n: "STDEVP", sig: "STDEVP(range)", d: "Population std deviation" },
+  { n: "GEOMEAN", sig: "GEOMEAN(range)", d: "Geometric mean" },
+  { n: "HARMEAN", sig: "HARMEAN(range)", d: "Harmonic mean" },
+  { n: "PERCENTILE", sig: "PERCENTILE(range, k)", d: "K-th percentile (0–1)" },
+  { n: "QUARTILE", sig: "QUARTILE(range, q)", d: "Quartile 0–4" },
+  { n: "CHAR", sig: "CHAR(code)", d: "Character from a code" },
+  { n: "CODE", sig: "CODE(text)", d: "Code of first character" },
+  { n: "CLEAN", sig: "CLEAN(text)", d: "Strip control characters" },
+  { n: "DOLLAR", sig: "DOLLAR(number, [decimals])", d: "Format as currency text" },
+  { n: "FIXED", sig: "FIXED(number, [decimals])", d: "Format with fixed decimals" },
+  { n: "JOIN", sig: "JOIN(delim, values…)", d: "Join with a delimiter" },
+  { n: "REPLACE", sig: "REPLACE(text, start, length, new)", d: "Replace by position" },
+  { n: "T", sig: "T(value)", d: "Text values pass through" },
+  { n: "N", sig: "N(value)", d: "Numbers pass through" },
+  { n: "NA", sig: "NA()", d: "The #N/A error" },
+  { n: "IFNA", sig: "IFNA(value, fallback)", d: "Fallback on #N/A only" },
+  { n: "ISNA", sig: "ISNA(value)", d: "TRUE on #N/A" },
+  { n: "ISEVEN", sig: "ISEVEN(number)", d: "TRUE for even numbers" },
+  { n: "ISODD", sig: "ISODD(number)", d: "TRUE for odd numbers" },
+  { n: "ISDATE", sig: "ISDATE(value)", d: "TRUE when it parses as a date" },
+  { n: "ISLOGICAL", sig: "ISLOGICAL(value)", d: "TRUE for TRUE/FALSE" },
+  { n: "ISNONTEXT", sig: "ISNONTEXT(value)", d: "TRUE when not text" },
+  { n: "DAYS360", sig: "DAYS360(start, end)", d: "Days on a 360-day year" },
+  { n: "YEARFRAC", sig: "YEARFRAC(start, end, [basis])", d: "Fraction of a year" },
+  { n: "ISOWEEKNUM", sig: "ISOWEEKNUM(date)", d: "ISO week number" },
+  { n: "HOUR", sig: "HOUR(time)", d: "Hour of a time" },
+  { n: "MINUTE", sig: "MINUTE(time)", d: "Minute of a time" },
+  { n: "SECOND", sig: "SECOND(time)", d: "Second of a time" },
+  { n: "TIMEVALUE", sig: "TIMEVALUE(text)", d: "Time text → day fraction" },
+  { n: "PMT", sig: "PMT(rate, nper, pv, [fv])", d: "Loan payment per period" },
+  { n: "FV", sig: "FV(rate, nper, pmt, [pv])", d: "Future value" },
+  { n: "PV", sig: "PV(rate, nper, pmt, [fv])", d: "Present value" },
+  { n: "NPER", sig: "NPER(rate, pmt, pv, [fv])", d: "Number of periods" },
+  { n: "NPV", sig: "NPV(rate, values…)", d: "Net present value" },
+  { n: "IRR", sig: "IRR(cash_flows, [guess])", d: "Internal rate of return" },
+  { n: "SLN", sig: "SLN(cost, salvage, life)", d: "Straight-line depreciation" },
+  { n: "EFFECT", sig: "EFFECT(nominal, periods)", d: "Effective annual rate" },
+  { n: "NOMINAL", sig: "NOMINAL(effective, periods)", d: "Nominal annual rate" },
+  { n: "LOOKUP", sig: "LOOKUP(value, lookup_range, [result_range])", d: "Approximate vector lookup" },
+  { n: "ROW", sig: "ROW([reference])", d: "Row number" },
+  { n: "COLUMN", sig: "COLUMN([reference])", d: "Column number" },
+  { n: "ROWS", sig: "ROWS(range)", d: "Rows in a range" },
+  { n: "COLUMNS", sig: "COLUMNS(range)", d: "Columns in a range" },
+  { n: "ADDRESS", sig: "ADDRESS(row, column, [abs])", d: "Build a cell reference" },
 ];
 
 function ensureFxPop(g) {
@@ -4315,9 +4608,7 @@ function switchSheet(g, sheetId) {
   g.sheet = sheet;
   recalcSheet(sheet); // cross-sheet inputs may have changed while hidden
   closeFindPanel(g);
-  g.filters = new Map();
-  g.filterMode = false;
-  g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.remove("is-on");
+  restoreViewState(g); // persisted filters/filter mode + this viewer's zoom
   g.active = { r: 0, c: 0 };
   g.sel = { r0: 0, c0: 0, r1: 0, c1: 0 };
   g.undo = []; g.redo = [];
@@ -5562,6 +5853,9 @@ function openFindPanel(g, withReplace) {
 
 function sortByColumn(g, col, dir) { sortBySpecs(g, [{ col, dir }]); }
 
+// Quiet = no activity log and no sort-spec persistence (used when a live
+// report refresh re-applies the operator's saved sort).
+
 // Ordinal text values sort by meaning, not alphabet — a Risk Level
 // column sorts High→Medium→Low, never High→Low→Medium. A set applies
 // only when EVERY non-empty value in the column belongs to it.
@@ -5570,8 +5864,9 @@ const WB_SORT_ORDINALS = [
   { good: 0, warning: 1, serious: 2, critical: 3 },
 ];
 
-function sortBySpecs(g, specs) {
+function sortBySpecs(g, specs, opts) {
   if (!WB.canEdit || !specs || !specs.length) return;
+  const quiet = !!(opts && opts.quiet);
   const sheet = g.sheet;
   cancelEdit(g);
   let maxRow = 0;
@@ -5661,7 +5956,12 @@ function sortBySpecs(g, specs) {
   g.redo = [];
   recalcWithSiblings(sheet);
   markCellsDirty(sheet, [...touched]);
-  wbLog("sheet.sorted", `sorted ${sheet.name} by ${specs.map((sp) => `${colLabel(sp.col)} ${sp.dir === "asc" ? "A→Z" : "Z→A"}`).join(", ")}`, { target_type: "sheet", target_id: sheet.id });
+  if (!quiet) {
+    wbLog("sheet.sorted", `sorted ${sheet.name} by ${specs.map((sp) => `${colLabel(sp.col)} ${sp.dir === "asc" ? "A→Z" : "Z→A"}`).join(", ")}`, { target_type: "sheet", target_id: sheet.id });
+    // remember the sort so live report refreshes can restore it
+    sheet.meta = { ...(sheet.meta || {}), sortSpec: specs.map((sp) => ({ col: sp.col, dir: sp.dir })) };
+    saveSheetMeta(sheet.id);
+  }
   computeGeometry(g);
   repaintGrid(g);
 }
@@ -5741,7 +6041,44 @@ function toggleFilterMode(g) {
   if (btn) btn.classList.toggle("is-on", g.filterMode);
   computeGeometry(g);
   repaintGrid(g);
+  persistFilterState(g);
   if (g.els.sbmode) g.els.sbmode.textContent = g.filterMode ? "Filter on — use the ▾ buttons in the header row" : "Ready";
+}
+
+// ─── View-state persistence ──────────────────────────────────────────────────
+// Filters + filter mode live in sheet.meta (shared, like Sheets' on-sheet
+// filter); zoom is a personal preference and stays in localStorage.
+
+function persistFilterState(g) {
+  if (!WB.canEdit) return;
+  g.sheet.meta = {
+    ...(g.sheet.meta || {}),
+    filterState: {
+      on: g.filterMode,
+      filters: [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null })),
+    },
+  };
+  saveSheetMeta(g.sheet.id);
+}
+
+function restoreViewState(g) {
+  const sheet = g.sheet;
+  const fs = sheet.meta && sheet.meta.filterState;
+  g.filters = new Map();
+  g.filterMode = false;
+  if (fs && typeof fs === "object") {
+    g.filterMode = !!fs.on;
+    for (const f of Array.isArray(fs.filters) ? fs.filters : []) {
+      if (typeof f.col === "number") g.filters.set(f.col, { text: f.text || null, values: Array.isArray(f.values) ? new Set(f.values) : null });
+    }
+  }
+  g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.toggle("is-on", g.filterMode);
+  let z = 1;
+  try { z = parseFloat(localStorage.getItem("rr-wb-zoom-" + sheet.id)) || 1; } catch (_) {}
+  g.zoom = Math.min(2, Math.max(0.5, z));
+  g.els.grid.style.setProperty("--wb-zoom", String(g.zoom));
+  const zs = g.els.body.querySelector("[data-wb-zoom]");
+  if (zs) zs.value = String(g.zoom);
 }
 
 const FILTER_VALUE_CAP = 200;
@@ -5802,6 +6139,7 @@ function openFilterPanel(g, col, anchorEl, at) {
     }
     computeGeometry(g);
     repaintGrid(g);
+    persistFilterState(g);
     g.els.grid.focus();
   };
   allBox.addEventListener("change", () => {
@@ -5830,6 +6168,7 @@ function openFilterPanel(g, col, anchorEl, at) {
     g.filters.delete(col);
     computeGeometry(g);
     repaintGrid(g);
+    persistFilterState(g);
     g.els.grid.focus();
   });
   setTimeout(() => m.querySelector("[data-fp-text]")?.focus(), 30);
@@ -6224,8 +6563,13 @@ function applyFilterView(g, viewId) {
   const view = sheetFilterViews(g.sheet).find((v) => v.id === viewId);
   if (!view) return;
   g.filters = new Map(view.filters.map((f) => [f.col, { text: f.text || null, values: f.values ? new Set(f.values) : null }]));
+  if (g.filters.size && !g.filterMode) {
+    g.filterMode = true;
+    g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.add("is-on");
+  }
   computeGeometry(g);
   repaintGrid(g);
+  persistFilterState(g);
 }
 
 function deleteFilterView(g, viewId) {
@@ -7103,10 +7447,10 @@ function bindGridEvents(g) {
       }
     }
 
-    // ── validation dropdown + header filter buttons ── (opened from the
+    // ── dropdown chips + header filter buttons ── (opened from the
     // document click delegate — opening here on mousedown would be undone
     // by the click-away closer)
-    if (e.target.closest("[data-wb-dvbtn]") || e.target.closest("[data-wb-fltbtn]")) { e.preventDefault(); return; }
+    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-fltbtn]")) { e.preventDefault(); return; }
 
     // ── drag-fill handle ──
     const fh = e.target.closest("[data-wb-fillhandle]");
@@ -8442,7 +8786,7 @@ function wbMenuAction(act, g) {
     case "data:sort": if (need()) openSortDialog(g); return;
     case "data:filter-toggle": if (need()) toggleFilterMode(g); return;
     case "data:filter": if (need()) openFilterPanel(g, g.active.c, null, { x: Math.max(16, window.innerWidth / 2 - 132), y: 180 }); return;
-    case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); } return;
+    case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); persistFilterState(g); } return;
     case "data:fv-save": if (need()) saveFilterView(g); return;
     case "data:stats": if (need()) showColumnStats(g); return;
     case "data:validation": if (need()) openValidationDialog(g); return;
@@ -8634,11 +8978,15 @@ function installRootListeners() {
     const menubtn = e.target.closest("[data-wb-menubar]");
     if (menubtn) { openWbMenu(menubtn.getAttribute("data-wb-menubar"), menubtn); return; }
 
-    const dvb = e.target.closest("[data-wb-dvbtn]");
+    const dvb = e.target.closest("[data-wb-dvchip]");
     if (dvb) {
       const gridEl = dvb.closest("[data-wb-gridfocus]");
       const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
-      if (g) openValidationPicker(g, dvb);
+      if (g) {
+        const rc = keyRC(dvb.getAttribute("data-wb-dvchip"));
+        setActive(g, rc.r, rc.c, { scroll: false });
+        openValidationPicker(g, dvb);
+      }
       return;
     }
 
@@ -8712,7 +9060,7 @@ function installRootListeners() {
       case "sheet-add": addSheetTo(actBtn.getAttribute("data-block")); break;
       case "filter-clear": {
         const g = GRIDS.get(actBtn.getAttribute("data-block"));
-        if (g) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); }
+        if (g) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); persistFilterState(g); }
         break;
       }
       case "item-toggle": if (itemHost) toggleItem(itemHost.getAttribute("data-wb-item")); break;

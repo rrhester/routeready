@@ -28885,6 +28885,16 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #view-workbooks .wb-flt-btn:hover{color:var(--text);border-color:var(--border-strong)}
 #view-workbooks .wb-flt-btn.is-filtered{background:var(--accent,#2563EB);border-color:var(--accent,#2563EB);color:#fff}
+#view-workbooks .wb-dv-chip{
+  display:inline-flex;align-items:center;gap:5px;max-width:100%;
+  padding:1px 8px;border-radius:999px;
+  background:var(--canvas);border:1px solid var(--wb-grid-line,#DADCE0);
+  cursor:pointer;overflow:hidden;white-space:nowrap;
+}
+#view-workbooks .wb-dv-chip:hover{border-color:var(--border-strong)}
+#view-workbooks .wb-dv-chip.is-invalid{border-color:var(--red);color:var(--red)}
+#view-workbooks .wb-dv-chip-empty{color:var(--text-subtle)}
+#view-workbooks .wb-dv-caret{font-size:8px;color:var(--text-subtle);flex:none}
 #view-workbooks .wb-cmark{
   position:absolute;top:0;right:0;width:0;height:0;
   border-style:solid;border-width:0 7px 7px 0;
