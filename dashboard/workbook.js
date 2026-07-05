@@ -3406,6 +3406,8 @@ function mountSheetBlock(block, body) {
 
 function sheetToolbarHtml(block, ro) {
   const btn = (act, title, svg, extra) => `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="${act}" ${extra || ""} title="${esc(title)}" aria-label="${esc(title)}" ${ro && act !== "export-csv" && act !== "find" && act !== "comment-cell" ? "disabled" : ""}>${svg}</button>`;
+  // dropdown trigger: icon + a small caret (keeps the strip one row)
+  const mbtn = (act, title, svg) => `<button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-menu" data-wb-tb="${act}" title="${esc(title)}" aria-label="${esc(title)}" aria-haspopup="menu" ${ro ? "disabled" : ""}>${svg}<span class="wb-tb-caret">▾</span></button>`;
   const I = {
     undo: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>`,
     redo: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>`,
@@ -3461,8 +3463,19 @@ function sheetToolbarHtml(block, ro) {
       ${btn("fs-plus", "Increase font size", `<span class="wb-tb-txt">+</span>`)}
     </div>
     <div class="wb-tgrp">${btn("bold", "Bold (Ctrl+B)", I.bold)}${btn("italic", "Italic (Ctrl+I)", I.italic)}${btn("underline", "Underline (Ctrl+U)", I.underline)}${btn("strike", "Strikethrough", `<span class="wb-tb-txt"><s>S</s></span>`)}</div>
-    <div class="wb-tgrp">${btn("align-left", "Align left", I.alignL)}${btn("align-center", "Align center", I.alignC)}${btn("align-right", "Align right", I.alignR)}<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="wrap" title="Wrap text" aria-label="Wrap text" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><path d="M3 12h13a4 4 0 0 1 0 8h-3"/><polyline points="15 16 12 20 15 24" transform="translate(0,-4)"/><line x1="3" y1="18" x2="9" y2="18"/></svg></button></div>
     <div class="wb-tgrp">
+      <span class="popover-anchor">${mbtn("align-menu", "Alignment & wrapping", I.alignL)}
+        <div class="popover wb-tb-pop" role="menu">
+          <button type="button" class="popover-item" data-wb-tb="align-left" role="menuitem">Align left</button>
+          <button type="button" class="popover-item" data-wb-tb="align-center" role="menuitem">Align center</button>
+          <button type="button" class="popover-item" data-wb-tb="align-right" role="menuitem">Align right</button>
+          <div class="popover-section"></div>
+          <button type="button" class="popover-item" data-wb-tb="valign-top" role="menuitem">Align top</button>
+          <button type="button" class="popover-item" data-wb-tb="valign-middle" role="menuitem">Align middle</button>
+          <button type="button" class="popover-item" data-wb-tb="valign-bottom" role="menuitem">Align bottom</button>
+          <div class="popover-section"></div>
+          <button type="button" class="popover-item" data-wb-tb="wrap" role="menuitem">Wrap text (toggle)</button>
+        </div></span>
       <span class="popover-anchor">${btn("fill-menu", "Fill color", I.fill, 'aria-haspopup="menu"')}
         <div class="popover wb-tb-pop wb-color-pop" role="menu" data-wb-colorkind="bg"></div></span>
       <span class="popover-anchor">${btn("textc-menu", "Text color", I.textc, 'aria-haspopup="menu"')}
@@ -3477,23 +3490,40 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-border="right" role="menuitem">Right border</button>
           <button type="button" class="popover-item" data-wb-border="none" role="menuitem">No borders</button>
         </div></span>
-      ${btn("clear-format", "Clear formatting", I.clearFmt)}
     </div>
     <div class="wb-tgrp">${btn("merge", "Merge / unmerge cells", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M9 12h6"/><path d="M7 9l-2 3 2 3"/><path d="M17 9l2 3-2 3"/></svg>`)}${btn("insert-link", "Insert link (Ctrl+click opens)", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`)}${btn("comment-cell", "Comment on the active cell", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`)}${btn("insert-chart", "Insert chart from the selection", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="10" width="3" height="7"/><rect x="11" y="6" width="3" height="11"/><rect x="16" y="13" width="3" height="4"/></svg>`)}</div>
-    <div class="wb-tgrp">${btn("row-add", "Insert row below", I.addRow)}${btn("row-del", "Delete row", I.delRow)}${btn("col-add", "Insert column right", I.addCol)}${btn("col-del", "Delete column", I.delCol)}</div>
     <div class="wb-tgrp">
+      <span class="popover-anchor">${mbtn("rowcol-menu", "Rows & columns", I.addRow)}
+        <div class="popover wb-tb-pop" role="menu">
+          <button type="button" class="popover-item" data-wb-tb="row-add" role="menuitem">Insert row below</button>
+          <button type="button" class="popover-item" data-wb-tb="col-add" role="menuitem">Insert column right</button>
+          <div class="popover-section"></div>
+          <button type="button" class="popover-item" data-wb-tb="row-del" role="menuitem">Delete row</button>
+          <button type="button" class="popover-item" data-wb-tb="col-del" role="menuitem">Delete column</button>
+        </div></span>
       <span class="popover-anchor">${btn("freeze-menu", "Freeze", I.freeze, 'aria-haspopup="menu"')}
         <div class="popover wb-tb-pop" role="menu">
           <button type="button" class="popover-item" data-wb-freeze="row" role="menuitem">Freeze top row</button>
           <button type="button" class="popover-item" data-wb-freeze="col" role="menuitem">Freeze first column</button>
           <button type="button" class="popover-item" data-wb-freeze="none" role="menuitem">Unfreeze</button>
         </div></span>
-      ${btn("sort-asc", "Sort by active column, A→Z", I.sortAsc)}${btn("sort-desc", "Sort by active column, Z→A", I.sortDesc)}<button type="button" class="btn btn-ghost btn-sm wb-tb" data-wb-tb="sort-custom" title="Custom sort — up to three columns" ${ro ? "disabled" : ""}>Sort…</button>${btn("filter", "Filter by active column", I.filter)}${btn("find", "Find and replace (Ctrl+F)", I.find)}${btn("validation", "Data validation", I.dv)}${btn("condfmt", "Conditional formatting", I.cf)}
+      <span class="popover-anchor">${mbtn("sort-menu", "Sort", I.sortAsc)}
+        <div class="popover wb-tb-pop" role="menu">
+          <button type="button" class="popover-item" data-wb-tb="sort-asc" role="menuitem">Sort by active column, A→Z</button>
+          <button type="button" class="popover-item" data-wb-tb="sort-desc" role="menuitem">Sort by active column, Z→A</button>
+          <div class="popover-section"></div>
+          <button type="button" class="popover-item" data-wb-tb="sort-custom" role="menuitem">Custom sort…</button>
+        </div></span>
+      ${btn("filter", "Create / remove filter", I.filter)}${btn("find", "Find and replace (Ctrl+F)", I.find)}
     </div>
     <div class="wb-tgrp">
       <span class="popover-anchor">
-        <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="io-menu" title="Import / export" aria-haspopup="menu" aria-label="Import or export">${I.more}</button>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="io-menu" title="More tools" aria-haspopup="menu" aria-label="More tools">${I.more}</button>
         <div class="popover wb-tb-pop" role="menu">
+          <button type="button" class="popover-item" data-wb-tb="validation" role="menuitem" ${ro ? "disabled" : ""}>Data validation…</button>
+          <button type="button" class="popover-item" data-wb-tb="condfmt" role="menuitem" ${ro ? "disabled" : ""}>Conditional formatting…</button>
+          <button type="button" class="popover-item" data-wb-tb="clear-format" role="menuitem" ${ro ? "disabled" : ""}>Clear formatting</button>
+          <div class="popover-section"></div>
           <button type="button" class="popover-item" data-wb-tb2="import-csv" role="menuitem" ${ro ? "disabled" : ""}>Import CSV into this sheet…</button>
           <button type="button" class="popover-item" data-wb-tb2="export-xlsx" role="menuitem">Export as Excel (.xlsx)</button>
           <button type="button" class="popover-item" data-wb-tb2="export-csv" role="menuitem">Export sheet as CSV</button>
@@ -8338,6 +8368,9 @@ function bindGridEvents(g) {
     const btn = e.target.closest("[data-wb-tb]");
     if (!btn) return;
     const act = btn.getAttribute("data-wb-tb");
+    // items living inside a dropdown close it before acting (the menu
+    // triggers themselves sit outside .popover, so they're unaffected)
+    if (btn.closest(".popover")) closeAllPopovers();
     switch (act) {
       case "undo": undoGrid(g); break;
       case "redo": redoGrid(g); break;
@@ -8356,6 +8389,9 @@ function bindGridEvents(g) {
       case "align-left": formatSelection(g, { align: "left" }); break;
       case "align-center": formatSelection(g, { align: "center" }); break;
       case "align-right": formatSelection(g, { align: "right" }); break;
+      case "valign-top": formatSelection(g, { valign: "top" }); break;
+      case "valign-middle": formatSelection(g, { valign: "middle" }); break;
+      case "valign-bottom": formatSelection(g, { valign: "bottom" }); break;
       case "wrap": toggleFormat(g, "wrap"); break;
       case "clear-format": clearFormatting(g); break;
       case "dec-minus": adjustDecimals(g, -1); break;
@@ -8377,6 +8413,9 @@ function bindGridEvents(g) {
       case "fill-menu":
       case "textc-menu":
       case "border-menu":
+      case "align-menu":
+      case "rowcol-menu":
+      case "sort-menu":
       case "freeze-menu":
       case "io-menu": {
         if (act === "fill-menu" || act === "textc-menu") fillColorPop(g, btn);

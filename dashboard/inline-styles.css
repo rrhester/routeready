@@ -28702,14 +28702,17 @@ body.rr-cmdk-open{ overflow:hidden }
 .popover-item[disabled]{opacity:.45;cursor:default}
 
 /* ── Spreadsheet toolbar ──
-   Sheets-style: a shaded pill band with larger, darker icons. */
+   Sheets-style: a shaded pill band with larger, darker icons.
+   Single row — grouped dropdowns keep it from ever wrapping. */
 #view-workbooks .wb-toolbar{
-  display:flex;align-items:center;gap:var(--s-1);flex-wrap:wrap;
+  display:flex;align-items:center;gap:var(--s-1);flex-wrap:nowrap;
   padding:5px 12px;margin-bottom:8px;
   background:var(--wb-toolbar-bg,#F0F4F9);
   border-radius:999px;
 }
-#view-workbooks .wb-tgrp{display:inline-flex;align-items:center;gap:1px;padding:0 6px;border-right:1px solid rgba(68,71,70,.16)}
+#view-workbooks .wb-tgrp{display:inline-flex;align-items:center;gap:1px;padding:0 6px;border-right:1px solid rgba(68,71,70,.16);flex:0 0 auto}
+#view-workbooks .wb-tb-menu{display:inline-flex;align-items:center;gap:2px;padding:0 5px}
+#view-workbooks .wb-tb-caret{font-size:9px;line-height:1;color:currentColor;opacity:.7}
 #view-workbooks .wb-tgrp:last-child{border-right:0}
 #view-workbooks .wb-tb{color:var(--wb-toolbar-ink,#444746)}
 #view-workbooks .wb-tb:hover:not([disabled]){background:rgba(68,71,70,.09)}
