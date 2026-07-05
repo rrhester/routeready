@@ -3667,12 +3667,13 @@ function paintNow(g) {
     const disp = cell ? displayValue(sheet, r, c) : "";
     const err = cell && cell.err;
     const inval = cellInvalid(sheet, r, c, cell);
-    // list-validated cells render as Sheets-style dropdown chips
+    // list-validated cells fill with their option's color and carry a
+    // ▾ mark pinned to the far right (Sheets' whole-cell dropdown look)
     const dvRule = hasDvRules && r > 0 ? findValidationRule(sheet, r, c) : null;
-    const chip = dvRule && dvRule.type === "list" && WB.canEdit
-      ? `<span class="wb-dv-chip ${inval ? "is-invalid" : ""}" data-wb-dvchip="${r},${c}" title="Pick from list">${disp ? esc(disp) : `<span class="wb-dv-chip-empty">Select</span>`}<span class="wb-dv-caret">▾</span></span>`
-      : null;
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${chip != null ? chip : cell ? cellInnerHtml(cell, disp) : ""}${fltBtn(r, c)}</div>`;
+    const isDv = !!(dvRule && dvRule.type === "list" && WB.canEdit);
+    const dvColor = isDv ? dvOptionColor(dvRule, cell ? (cell.formula ? cell.computed : cell.value) : null) : null;
+    const dvMark = isDv ? `<span class="wb-dv-mark" data-wb-dvchip="${r},${c}" title="Pick from list" aria-label="Pick from list">▾</span>` : "";
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvColor ? `background:${dvColor};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell && disp ? cellInnerHtml(cell, disp) : isDv ? `<span class="wb-dv-chip-empty">Select</span>` : ""}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -5336,6 +5337,16 @@ function findValidationRule(sheet, r, c) {
   return null;
 }
 
+// The color assigned to a dropdown option (rule.colors runs parallel to
+// rule.list); null when the option is uncolored or unmatched.
+function dvOptionColor(rule, value) {
+  if (!rule || rule.type !== "list" || !Array.isArray(rule.colors)) return null;
+  const s = String(value ?? "").trim().toLowerCase();
+  const i = (rule.list || []).findIndex((o) => String(o).trim().toLowerCase() === s);
+  const hex = i >= 0 ? rule.colors[i] : null;
+  return hex && HEX_COLOR_RE.test(hex) ? hex : null;
+}
+
 function valueSatisfiesRule(rule, raw) {
   if (raw == null || raw === "") return true;
   if (rule.type === "list") {
@@ -5469,8 +5480,10 @@ function openValidationPicker(g, btnEl) {
   const rule = findValidationRule(g.sheet, r, c);
   if (!rule || rule.type !== "list" || !WB.canEdit) return;
   const rect = btnEl.getBoundingClientRect();
-  const m = ctxMenu(rect.left - 120, rect.bottom + 2, (rule.list || []).map((opt) =>
-    `<button type="button" class="popover-item" data-dv-opt="${esc(String(opt))}" role="menuitem">${esc(String(opt))}</button>`).join("") +
+  const m = ctxMenu(rect.left - 120, rect.bottom + 2, (rule.list || []).map((opt, i) => {
+    const hex = Array.isArray(rule.colors) && rule.colors[i] && HEX_COLOR_RE.test(rule.colors[i]) ? rule.colors[i] : null;
+    return `<button type="button" class="popover-item" data-dv-opt="${esc(String(opt))}" role="menuitem">${hex ? `<span class="wb-dv-menuswatch" style="background:${hex}"></span>` : `<span class="wb-dv-menuswatch is-none"></span>`}${esc(String(opt))}</button>`;
+  }).join("") +
     `<div class="popover-section"></div><button type="button" class="popover-item" data-dv-clear role="menuitem">Clear value</button>`);
   m.addEventListener("click", (e) => {
     const opt = e.target.closest("[data-dv-opt]");
@@ -5518,8 +5531,9 @@ function openValidationDialog(g) {
             </select></label>
         </div>
         <div id="wb-dv-list-row">
-          <label class="wb-field"><span class="wb-field-label">List items (comma-separated)</span>
-            <input type="text" class="wb-input" id="wb-dv-list" placeholder="Pending, In progress, Done" value="${esc((cur.list || []).join(", "))}"></label>
+          <span class="wb-field-label">Options</span>
+          <div class="wb-dv-opts" id="wb-dv-opts"></div>
+          <button type="button" class="btn btn-ghost btn-sm" id="wb-dv-addopt">+ Add option</button>
         </div>
         <div class="wb-field-row" id="wb-dv-num-row" hidden>
           <label class="wb-field"><span class="wb-field-label">Condition</span>
@@ -5540,6 +5554,36 @@ function openValidationDialog(g) {
       </div>
     </div>`;
   document.body.appendChild(wrap);
+
+  // per-option rows: text + a color that fills the cell when selected
+  const DV_COLORS = [["", "No color"], ["#E8EAED", "Gray"], ["#C9DAF8", "Blue"], ["#D9EAD3", "Green"], ["#FFF2CC", "Yellow"], ["#FCE5CD", "Orange"], ["#F4CCCC", "Red"], ["#D9D2E9", "Purple"], ["#EAD1DC", "Pink"]];
+  const optsHost = wrap.querySelector("#wb-dv-opts");
+  const addOptRow = (text, color) => {
+    const row = document.createElement("div");
+    row.className = "wb-dv-optrow";
+    row.innerHTML = `
+      <input type="text" class="wb-input" data-dv-opt-text value="${esc(text || "")}" placeholder="Option" maxlength="120">
+      <select class="wb-input wb-dv-colorsel" data-dv-opt-color aria-label="Option color" style="background:${color || "var(--surface)"}">
+        ${DV_COLORS.map(([hex, label]) => `<option value="${hex}" ${(color || "") === hex ? "selected" : ""}>${label}</option>`).join("")}
+      </select>
+      <button type="button" class="btn btn-ghost btn-icon btn-sm" data-dv-opt-del title="Remove option" aria-label="Remove option">×</button>`;
+    optsHost.appendChild(row);
+    return row;
+  };
+  const curList = cur.list || [];
+  const curColors = Array.isArray(cur.colors) ? cur.colors : [];
+  if (curList.length) curList.forEach((opt, i) => addOptRow(String(opt), curColors[i] || ""));
+  else { addOptRow("", ""); addOptRow("", ""); }
+  wrap.querySelector("#wb-dv-addopt").addEventListener("click", () => { addOptRow("", "").querySelector("[data-dv-opt-text]").focus(); });
+  optsHost.addEventListener("click", (e) => {
+    const del = e.target.closest("[data-dv-opt-del]");
+    if (del && optsHost.children.length > 1) del.closest(".wb-dv-optrow").remove();
+  });
+  optsHost.addEventListener("change", (e) => {
+    const sel = e.target.closest("[data-dv-opt-color]");
+    if (sel) sel.style.background = sel.value || "var(--surface)";
+  });
+
   const syncRows = () => {
     const t = wrap.querySelector("#wb-dv-type").value;
     wrap.querySelector("#wb-dv-list-row").hidden = t !== "list";
@@ -5566,8 +5610,15 @@ function openValidationDialog(g) {
         type, mode: wrap.querySelector("#wb-dv-mode").value,
       };
       if (type === "list") {
-        rule.list = wrap.querySelector("#wb-dv-list").value.split(",").map((s) => s.trim()).filter(Boolean);
-        if (!rule.list.length) { _toast("Add at least one list item", "warn"); return; }
+        rule.list = [];
+        rule.colors = [];
+        optsHost.querySelectorAll(".wb-dv-optrow").forEach((row) => {
+          const t = row.querySelector("[data-dv-opt-text]").value.trim();
+          if (!t) return;
+          rule.list.push(t);
+          rule.colors.push(row.querySelector("[data-dv-opt-color]").value || null);
+        });
+        if (!rule.list.length) { _toast("Add at least one option", "warn"); return; }
       } else {
         rule.op = wrap.querySelector("#wb-dv-op").value;
         rule.v1 = wrap.querySelector("#wb-dv-v1").value;
