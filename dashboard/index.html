@@ -4448,7 +4448,7 @@ John,Smith,555-0101,john@example.com</code>
     </div>
     <div class="modal-body">
       <div style="margin-bottom:10px;font-size:var(--fs-sm);color:var(--text-muted)">
-        Column order doesn't matter — we read the header row (or sniff the data when there's no header) and pick out <strong>name · phone · email · station · hire date</strong>.  Extra columns are ignored.  Phones get normalized to E.164.  Existing drivers (matched by phone or email) are skipped.
+        Column order doesn't matter — we read the header row and pull in whatever's there: <strong>name · phone · email · station · hire date · availability · pay · birthday · address · emergency contact · license # &amp; expiration · DOT/XL/EDV/Trainer</strong>.  Availability understands “Open”, “Mon-Fri”, “MWF”, etc.  Phones normalize to E.164.  A driver already in the roster (matched by phone or email) is updated — blank fields get backfilled and availability refreshed; existing data is never overwritten.
       </div>
 
       <!-- Upload an Excel / CSV file -->

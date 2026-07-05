@@ -18907,6 +18907,40 @@ const _bdImportFieldMap = {
   "days": "availability", "work days": "availability", "workdays": "availability",
   "working days": "availability", "days of week": "availability", "day availability": "availability",
   "availability days": "availability", "schedule availability": "availability", "avail.": "availability",
+  // Profile
+  "preferred name": "preferred_name", "preferred": "preferred_name", "nickname": "preferred_name",
+  "nick name": "preferred_name", "goes by": "preferred_name", "known as": "preferred_name",
+  "pronouns": "pronouns",
+  "address": "address", "home address": "address", "mailing address": "address",
+  "street": "address", "street address": "address", "addr": "address", "residence": "address",
+  "emergency contact": "emergency_contact_name", "emergency contact name": "emergency_contact_name",
+  "emergency name": "emergency_contact_name", "ec name": "emergency_contact_name",
+  "ice name": "emergency_contact_name", "next of kin": "emergency_contact_name",
+  "emergency phone": "emergency_contact_phone", "emergency contact phone": "emergency_contact_phone",
+  "emergency contact number": "emergency_contact_phone", "emergency number": "emergency_contact_phone",
+  "ec phone": "emergency_contact_phone", "ice phone": "emergency_contact_phone",
+  // Employment
+  "birthday": "birthday", "birth date": "birthday", "birthdate": "birthday",
+  "dob": "birthday", "date of birth": "birthday", "d.o.b.": "birthday", "d o b": "birthday",
+  "pay": "pay_hourly", "pay rate": "pay_hourly", "payrate": "pay_hourly", "hourly": "pay_hourly",
+  "hourly rate": "pay_hourly", "wage": "pay_hourly", "rate": "pay_hourly", "hourly pay": "pay_hourly",
+  "hourly wage": "pay_hourly", "base pay": "pay_hourly", "pay/hr": "pay_hourly", "pay hr": "pay_hourly",
+  "status": "status", "employment status": "status", "driver status": "status", "employee status": "status",
+  // Credentials
+  "license number": "dl_number", "license": "dl_number", "license no": "dl_number",
+  "dl": "dl_number", "dl number": "dl_number", "cdl": "dl_number", "cdl number": "dl_number",
+  "drivers license": "dl_number", "driver license": "dl_number", "driver's license": "dl_number",
+  "license #": "dl_number", "dl #": "dl_number",
+  "license expiration": "dl_expires_on", "license expires": "dl_expires_on", "license expiry": "dl_expires_on",
+  "dl expiration": "dl_expires_on", "dl expires": "dl_expires_on", "cdl expiration": "dl_expires_on",
+  "license exp": "dl_expires_on", "dl exp": "dl_expires_on", "license expiration date": "dl_expires_on",
+  "license expire": "dl_expires_on",
+  "certifications": "certs", "certification": "certs", "certs": "certs",
+  "endorsements": "certs", "badges": "certs", "credentials": "certs",
+  "dot": "cert:dot", "dot certified": "cert:dot", "dot cert": "cert:dot",
+  "xl": "cert:xl", "xl certified": "cert:xl", "xl cert": "cert:xl",
+  "edv": "cert:edv", "edv certified": "cert:edv", "electric": "cert:edv", "ev": "cert:edv",
+  "trainer": "cert:trainer", "is trainer": "cert:trainer", "trainer certified": "cert:trainer",
 };
 function _bdImportCanonHeader(s) {
   return String(s || "").toLowerCase().trim().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
@@ -19021,6 +19055,67 @@ function _bdRowAvailability(row) {
     days = _BD_DAY_ORDER.filter(d => union.has(d));
   }
   return days;
+}
+// ─── Field value parsing (profile / employment / credentials) ─────────────
+const _BD_STATUSES = ["active", "onboarding", "inactive", "leave", "terminated"];
+function _bdCleanText(v) {
+  const s = v == null ? "" : String(v).trim();
+  return s || null;
+}
+// Loose date → ISO (YYYY-MM-DD), rejecting nonsense years.
+function _bdParseDateIso(v) {
+  const s = _bdCleanText(v);
+  if (!s || /^\d+$/.test(s)) return null;   // bare numbers aren't dates here
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  if (y < 1930 || y > 2100) return null;
+  return fmtIsoDate(d);
+}
+// "$22.50/hr", "22.5", "20/hour" → 22.5 (number) or null.
+function _bdParsePay(v) {
+  const s = _bdCleanText(v);
+  if (!s) return null;
+  const m = s.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) && n > 0 && n < 1000 ? n : null;
+}
+function _bdTruthyCell(v) {
+  const s = String(v == null ? "" : v).trim().toLowerCase();
+  if (!s) return false;
+  return /^(x|y|yes|true|t|1|✓|✔|✅|cert(ified)?|yes ✓|on|active|complete|completed|done)$/.test(s);
+}
+function _bdParseStatus(v) {
+  const s = String(v == null ? "" : v).trim().toLowerCase();
+  if (!s) return null;
+  if (_BD_STATUSES.includes(s)) return s;
+  if (/^(leave|loa|on leave|on-leave)$/.test(s)) return "leave";
+  if (/^(inactive|separated|former)$/.test(s)) return "inactive";
+  if (/^(term|terminated|fired|let go)$/.test(s)) return "terminated";
+  if (/^(onboard|onboarding|new hire|new|pending|training)$/.test(s)) return "onboarding";
+  if (/^(active|current|employed|working)$/.test(s)) return "active";
+  return null;
+}
+// Certifications from a combined column ("DOT, XL") and/or per-cert columns.
+// Returns only the flags we can positively turn ON (we never turn one off
+// from an import, to avoid clobbering a hand-set badge).
+function _bdRowCerts(row) {
+  const out = {};
+  const combined = _bdCleanText(row.certs);
+  if (combined) {
+    const s = combined.toLowerCase();
+    if (/\bdot\b/.test(s)) out.dot_certified = true;
+    if (/\bxl\b/.test(s)) out.xl_certified = true;
+    if (/\b(edv|ev|electric)\b/.test(s)) out.edv_certified = true;
+    if (/\btrainer\b/.test(s)) out.is_trainer = true;
+    if (/\bmentor\b/.test(s)) out.is_mentor = true;
+  }
+  if (row["cert:dot"] != null && _bdTruthyCell(row["cert:dot"])) out.dot_certified = true;
+  if (row["cert:xl"] != null && _bdTruthyCell(row["cert:xl"])) out.xl_certified = true;
+  if (row["cert:edv"] != null && _bdTruthyCell(row["cert:edv"])) out.edv_certified = true;
+  if (row["cert:trainer"] != null && _bdTruthyCell(row["cert:trainer"])) out.is_trainer = true;
+  return out;
 }
 // Sniff a column's role from its data when no header was provided.
 // Each column gets a per-role score; we then assign each role to the
@@ -19139,24 +19234,40 @@ function _bdImportNormalize(parsed) {
         continue;
       }
     }
-    let hireIso = null;
-    if (row.hire_date) {
-      const d = new Date(row.hire_date);
-      if (!isNaN(d.getTime())) hireIso = fmtIsoDate(d);
-    }
     const phoneKey = phoneE164 ? stripDigits(phoneE164).slice(-10) : null;
     const emailKey = row.email ? row.email.trim().toLowerCase() : null;
     const availDays = _bdRowAvailability(row);
-    const stationCode = row.station ? row.station.trim().toUpperCase() : null;
 
-    // Already in the roster? → update path (only touches things we can add).
+    // Everything else the driver record can hold, parsed to its native
+    // type. Absent columns stay undefined so they never overwrite anything.
+    const emgPhone = row.emergency_contact_phone ? (toE164(row.emergency_contact_phone) || _bdCleanText(row.emergency_contact_phone)) : null;
+    const fields = {
+      preferred_name:          _bdCleanText(row.preferred_name),
+      pronouns:                _bdCleanText(row.pronouns),
+      address:                 _bdCleanText(row.address),
+      emergency_contact_name:  _bdCleanText(row.emergency_contact_name),
+      emergency_contact_phone: emgPhone,
+      birthday:                _bdParseDateIso(row.birthday),
+      hire_date:               _bdParseDateIso(row.hire_date),
+      station_code:            row.station ? row.station.trim().toUpperCase() : null,
+      pay_hourly:              _bdParsePay(row.pay_hourly),
+      dl_number:               _bdCleanText(row.dl_number),
+      dl_expires_on:           _bdParseDateIso(row.dl_expires_on),
+      status:                  _bdParseStatus(row.status),
+      avail_days:              availDays && availDays.length ? availDays : null,
+      certs:                   _bdRowCerts(row),
+    };
+    // Did the row carry anything beyond identity we could write?
+    const hasExtra = !!(fields.avail_days || Object.keys(fields.certs).length ||
+      fields.preferred_name || fields.pronouns || fields.address || fields.birthday ||
+      fields.emergency_contact_name || fields.emergency_contact_phone ||
+      fields.pay_hourly != null || fields.dl_number || fields.dl_expires_on || fields.hire_date);
+
+    // Already in the roster? → update path (backfills blanks + availability).
     const existing = (phoneKey && existByPhone.get(phoneKey)) || (emailKey && existByEmail.get(emailKey)) || null;
     if (existing) {
-      if (availDays && availDays.length) {
-        updates.push({ id: existing.id, name: existing.full_name || row.name.trim(), avail_days: availDays, existing });
-      } else {
-        dupes.push({ line: row._line, name: row.name.trim() });
-      }
+      if (hasExtra) updates.push({ id: existing.id, name: existing.full_name || row.name.trim(), fields, existing });
+      else dupes.push({ line: row._line, name: row.name.trim() });
       continue;
     }
     // Within-file duplicate?
@@ -19169,9 +19280,7 @@ function _bdImportNormalize(parsed) {
       name: row.name.trim(),
       phone: phoneE164,
       email: emailKey,
-      station_code: stationCode,
-      hire_date: hireIso,
-      avail_days: availDays && availDays.length ? availDays : null,
+      fields,
     });
   }
   return { ready, updates, dupes, invalid, headerDetected: parsed.headerDetected, headers: parsed.headers };
@@ -19199,7 +19308,14 @@ function _bdImportPreview() {
   // Tell the operator how we read the columns so they can spot a
   // misread before they hit Import.
   if (headers && headers.length) {
-    const labels = { name: "Name", phone: "Phone", email: "Email", station: "Station", hire_date: "Hire date", availability: "Availability" };
+    const labels = {
+      name: "Name", phone: "Phone", email: "Email", station: "Station", hire_date: "Hire date",
+      availability: "Availability", preferred_name: "Preferred name", pronouns: "Pronouns",
+      address: "Address", emergency_contact_name: "Emergency contact", emergency_contact_phone: "Emergency phone",
+      birthday: "Birthday", pay_hourly: "Pay", dl_number: "License #", dl_expires_on: "License exp",
+      status: "Status", certs: "Certifications",
+      "cert:dot": "DOT", "cert:xl": "XL", "cert:edv": "EDV", "cert:trainer": "Trainer",
+    };
     const dayLbl = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
     const dayCols = headers.filter(h => typeof h === "string" && h.startsWith("day:")).map(h => dayLbl[h.slice(4)] || h.slice(4));
     const named = headers.filter(h => typeof h === "string" && !h.startsWith("day:")).map(h => labels[h] || h);
@@ -19209,8 +19325,9 @@ function _bdImportPreview() {
   }
   if (headerDetected) bits.push("header row detected");
   // Show a couple of parsed-availability examples so a misread is obvious.
-  const availEg = [...ready, ...updates].filter(r => r.avail_days && r.avail_days.length).slice(0, 2)
-    .map(r => `${escapeHtml(r.name)}: ${r.avail_days.map(d => ({ mon:"Mon",tue:"Tue",wed:"Wed",thu:"Thu",fri:"Fri",sat:"Sat",sun:"Sun" }[d])).join("·")}`);
+  const dayLbl2 = { mon:"Mon",tue:"Tue",wed:"Wed",thu:"Thu",fri:"Fri",sat:"Sat",sun:"Sun" };
+  const availEg = [...ready, ...updates].filter(r => r.fields && r.fields.avail_days && r.fields.avail_days.length).slice(0, 2)
+    .map(r => `${escapeHtml(r.name)}: ${r.fields.avail_days.map(d => dayLbl2[d]).join("·")}`);
   if (availEg.length) bits.push("availability e.g. " + availEg.join("; "));
   preview.innerHTML = bits.join(" · ");
   preview.style.display = "block";
@@ -19241,8 +19358,8 @@ async function submitBulkDriverIngest() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { toast("DSP not loaded — refresh and try again", "warn"); return; }
   if (btn) { btn.disabled = true; btn.textContent = "Importing…"; }
-  // Resolve station codes → ids in one round-trip.
-  const wantedCodes = [...new Set(ready.map(r => r.station_code).filter(Boolean))];
+  // Resolve station codes → ids in one round-trip (from both new + updated rows).
+  const wantedCodes = [...new Set([...ready, ...updates].map(r => r.fields && r.fields.station_code).filter(Boolean))];
   const codeToId = new Map();
   if (wantedCodes.length) {
     const { data: stations } = await sb.from("stations")
@@ -19259,24 +19376,40 @@ async function submitBulkDriverIngest() {
   // I-9 / onboarding gates. Compliance fields are left blank (the operator
   // verifies or backfills later); we don't fabricate cleared I-9/BG/drug
   // records. The metadata tag makes an imported batch identifiable later.
+  const nowIso = new Date().toISOString();
   const insertRows = ready.map(r => {
+    const f = r.fields || {};
     const parts = r.name.split(/\s+/);
-    return {
+    const meta = { import: { source: "bulk_spreadsheet", at: nowIso } };
+    if (f.avail_days && f.avail_days.length) meta.availability = { days: f.avail_days };
+    if (f.pay_hourly != null) meta.pay = { hourly_rate: f.pay_hourly };
+    if (f.certs && f.certs.is_mentor) meta.is_mentor = true;
+    const row = {
       dsp_id: dspId,
       role: "driver",
-      status: "active",
-      station_id: r.station_code ? (codeToId.get(r.station_code) || null) : null,
+      status: f.status || "active",
+      station_id: f.station_code ? (codeToId.get(f.station_code) || null) : null,
       full_name: r.name,
       first_name: parts[0] || null,
       last_name:  parts.slice(1).join(" ") || null,
       phone: r.phone,
       email: r.email,
-      hire_date: r.hire_date || todayIso,
-      metadata: {
-        import: { source: "bulk_spreadsheet", at: new Date().toISOString() },
-        ...(r.avail_days && r.avail_days.length ? { availability: { days: r.avail_days } } : {}),
-      },
+      hire_date: f.hire_date || todayIso,
+      preferred_name: f.preferred_name || null,
+      pronouns: f.pronouns || null,
+      address: f.address || null,
+      birthday: f.birthday || null,
+      emergency_contact_name: f.emergency_contact_name || null,
+      emergency_contact_phone: f.emergency_contact_phone || null,
+      dl_number: f.dl_number || null,
+      dl_expires_on: f.dl_expires_on || null,
+      dot_certified: !!(f.certs && f.certs.dot_certified),
+      xl_certified: !!(f.certs && f.certs.xl_certified),
+      edv_certified: !!(f.certs && f.certs.edv_certified),
+      is_trainer: !!(f.certs && f.certs.is_trainer),
+      metadata: meta,
     };
+    return row;
   });
   let insertErr = null;
   if (insertRows.length) {
@@ -19289,17 +19422,57 @@ async function submitBulkDriverIngest() {
     alert("Bulk import failed:\n\n" + (insertErr.message || "Unknown error") + (insertErr.details ? "\n\nDetails: " + insertErr.details : "") + (insertErr.hint ? "\n\nHint: " + insertErr.hint : ""));
     return;
   }
-  // Apply availability updates to existing drivers (matched by phone/email).
-  // Merge into their current metadata so we don't clobber preferred_days,
-  // earliest_start, etc. Status is deliberately left untouched here — we
-  // don't want a re-import to reactivate a terminated/inactive driver.
+  // Update existing drivers (matched by phone/email). We BACKFILL blank
+  // fields only — never overwrite data already on the record — except
+  // availability, which is refreshed to the sheet's value since that's the
+  // operator's explicit intent. Status is left untouched so a re-import
+  // can't reactivate a terminated/inactive driver. Pull the full current
+  // rows so we know what's actually blank (the roster cache is partial).
   let updated = 0, updateFail = 0;
-  for (const u of updates) {
-    const meta = (u.existing && u.existing.metadata) || {};
-    const newMeta = { ...meta, availability: { ...(meta.availability || {}), days: u.avail_days } };
-    const { error } = await sb.from("drivers").update({ metadata: newMeta }).eq("id", u.id);
-    if (error) { updateFail++; console.warn("availability update failed for", u.id, error.message); }
-    else { updated++; if (u.existing) u.existing.metadata = newMeta; }
+  if (updates.length) {
+    const ids = updates.map(u => u.id);
+    const cur = new Map();
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data } = await sb.from("drivers").select("*").in("id", ids.slice(i, i + 200));
+      for (const d of (data || [])) cur.set(d.id, d);
+    }
+    const blank = (v) => v == null || v === "";
+    for (const u of updates) {
+      const d = cur.get(u.id) || u.existing || {};
+      const f = u.fields || {};
+      const patch = {};
+      const backfillText = (col) => { if (f[col] && blank(d[col])) patch[col] = f[col]; };
+      ["preferred_name", "pronouns", "address", "emergency_contact_name", "emergency_contact_phone", "dl_number"].forEach(backfillText);
+      if (f.birthday && blank(d.birthday)) patch.birthday = f.birthday;
+      if (f.dl_expires_on && blank(d.dl_expires_on)) patch.dl_expires_on = f.dl_expires_on;
+      if (f.hire_date && blank(d.hire_date)) patch.hire_date = f.hire_date;
+      if (f.station_code && blank(d.station_id)) { const sid = codeToId.get(f.station_code); if (sid) patch.station_id = sid; }
+      // Certs: only ever turn ON, never off.
+      if (f.certs) {
+        if (f.certs.dot_certified && !d.dot_certified) patch.dot_certified = true;
+        if (f.certs.xl_certified && !d.xl_certified) patch.xl_certified = true;
+        if (f.certs.edv_certified && !d.edv_certified) patch.edv_certified = true;
+        if (f.certs.is_trainer && !d.is_trainer) patch.is_trainer = true;
+      }
+      // metadata: availability refreshes; pay + mentor backfill only.
+      const meta = d.metadata && typeof d.metadata === "object" ? d.metadata : {};
+      let metaChanged = false;
+      const newMeta = { ...meta };
+      if (f.avail_days && f.avail_days.length) {
+        newMeta.availability = { ...(meta.availability || {}), days: f.avail_days };
+        metaChanged = true;
+      }
+      if (f.pay_hourly != null && !(meta.pay && meta.pay.hourly_rate != null)) {
+        newMeta.pay = { ...(meta.pay || {}), hourly_rate: f.pay_hourly };
+        metaChanged = true;
+      }
+      if (f.certs && f.certs.is_mentor && !meta.is_mentor) { newMeta.is_mentor = true; metaChanged = true; }
+      if (metaChanged) patch.metadata = newMeta;
+      if (!Object.keys(patch).length) { updated++; continue; }  // nothing new to write
+      const { error } = await sb.from("drivers").update(patch).eq("id", u.id);
+      if (error) { updateFail++; console.warn("driver update failed for", u.id, error.message); }
+      else { updated++; }
+    }
   }
   // Note missing stations so the operator can fix them and re-import.
   const missingStations = wantedCodes.filter(c => !codeToId.has(c));
@@ -19311,7 +19484,7 @@ async function submitBulkDriverIngest() {
   if (btn) { btn.disabled = true; btn.textContent = "Paste rows above"; }
   const msgParts = [];
   if (ready.length)   msgParts.push(`Imported ${ready.length} driver${ready.length === 1 ? "" : "s"}`);
-  if (updated)        msgParts.push(`updated availability for ${updated}`);
+  if (updated)        msgParts.push(`updated ${updated} existing`);
   if (updateFail)     msgParts.push(`${updateFail} update${updateFail === 1 ? "" : "s"} failed`);
   if (dupes.length)   msgParts.push(`${dupes.length} already in roster`);
   if (invalid.length) msgParts.push(`${invalid.length} skipped (invalid)`);
