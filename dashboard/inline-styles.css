@@ -29080,6 +29080,9 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 #view-workbooks .wb-dv-mark:hover{background:rgba(0,0,0,.10);color:var(--text)}
 #view-workbooks .wb-dv-chip-empty{color:var(--text-subtle)}
+#view-workbooks .wb-dv-checkbox{display:inline-flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:15px;line-height:1;color:var(--text-subtle);cursor:pointer;user-select:none}
+#view-workbooks .wb-dv-checkbox.is-checked{color:var(--accent, #2563EB)}
+#view-workbooks .wb-dv-checkbox:hover{color:var(--text)}
 #view-workbooks .wb-dv-menuswatch{
   width:12px;height:12px;border-radius:4px;display:inline-block;
   margin-right:8px;vertical-align:-1px;border:1px solid rgba(0,0,0,.08);

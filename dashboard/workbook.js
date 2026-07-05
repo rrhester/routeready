@@ -6288,6 +6288,8 @@ function paintNow(g) {
     // ▾ mark pinned to the far right (Sheets' whole-cell dropdown look)
     const dvRule = hasDvRules && r > 0 ? findValidationRule(sheet, r, c) : null;
     const isDv = !!(dvRule && (dvRule.type === "list" || dvRule.type === "range") && WB.canEdit);
+    const dvCheck = !!(dvRule && dvRule.type === "checkbox" && WB.canEdit);
+    const dvChecked = dvCheck && cell && /^true$/i.test(String(cell.formula ? cell.computed : cell.value));
     // display style (rule.style): "arrow" fills the cell + right ▾ mark,
     // "chip" wraps the value in a colored pill, "plain" is fill only
     const dvStyle = isDv ? (dvRule.style === "chip" || dvRule.style === "plain" ? dvRule.style : "arrow") : null;
@@ -6298,6 +6300,8 @@ function paintNow(g) {
     const imgSrc = cell ? cellImgSrc(cell) : null;
     const inner = imgSrc
       ? `<img class="wb-cell-img" src="${imgSrc}" data-wb-img="${r},${c}" alt="Cell image" title="Click to enlarge" draggable="false">`
+      : dvCheck
+      ? `<span class="wb-dv-checkbox ${dvChecked ? "is-checked" : ""}" data-wb-dvcheck="${r},${c}" role="checkbox" aria-checked="${dvChecked}" title="Toggle">${dvChecked ? "☑" : "☐"}</span>`
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
@@ -8769,6 +8773,7 @@ function dvNumericCompare(op, x, a, b) {
 
 function valueSatisfiesRule(rule, raw, sheet, r, c) {
   if (raw == null || raw === "") return true;
+  if (rule.type === "checkbox") { const s = String(raw).trim().toLowerCase(); return s === "true" || s === "false"; }
   if (rule.type === "list" || rule.type === "range") {
     const s = String(raw).trim().toLowerCase();
     return dvOptionList(rule, sheet).some((it) => String(it).trim().toLowerCase() === s);
@@ -8792,6 +8797,7 @@ function validationMsg(rule) {
     const opts = list.slice(0, 6).join(", ");
     return `Value must be one of: ${opts}${list.length > 6 ? ", …" : ""}`;
   }
+  if (rule.type === "checkbox") return "Value must be TRUE or FALSE";
   if (rule.type === "custom") return `Value must satisfy ${rule.formula || "the custom formula"}`;
   const opText = rule.op === "between" ? `between ${rule.v1} and ${rule.v2}` : `${rule.op} ${rule.v1}`;
   if (rule.type === "textlen") return `Text length must be ${opText}`;
@@ -8983,6 +8989,14 @@ function shiftRuleRanges(sheet, axis, index, delta) {
   sheet.meta = meta;
 }
 
+// Flip a checkbox-validated cell between TRUE and FALSE.
+function toggleCheckbox(g, r, c) {
+  if (!WB.canEdit) return;
+  const prev = g.sheet.cells.get(cellKey(r, c));
+  const cur = prev && /^true$/i.test(String(prev.formula ? prev.computed : prev.value));
+  setCells(g, [{ r, c, cell: { value: cur ? "FALSE" : "TRUE", formula: null, type: "boolean", computed: null, err: null, format: prev && prev.format ? { ...prev.format } : {} } }]);
+}
+
 // Dropdown picker for list-validated cells (the ▾ beside the active cell).
 function openValidationPicker(g, btnEl) {
   const { r, c } = g.active;
@@ -9032,6 +9046,7 @@ function openValidationDialog(g) {
             <select class="wb-input" id="wb-dv-type">
               <option value="list" ${cur.type === "list" ? "selected" : ""}>Dropdown from a list</option>
               <option value="range" ${cur.type === "range" ? "selected" : ""}>Dropdown from a range</option>
+              <option value="checkbox" ${cur.type === "checkbox" ? "selected" : ""}>Checkbox</option>
               <option value="number" ${cur.type === "number" ? "selected" : ""}>Number</option>
               <option value="date" ${cur.type === "date" ? "selected" : ""}>Date</option>
               <option value="textlen" ${cur.type === "textlen" ? "selected" : ""}>Text length</option>
@@ -9169,6 +9184,8 @@ function openValidationDialog(g) {
         if (!formula.startsWith("=")) { _toast("Custom formula must start with =", "warn"); return; }
         try { parseFormula(formula); } catch (_) { _toast("That formula doesn't parse", "warn"); return; }
         rule.formula = formula;
+      } else if (type === "checkbox") {
+        // no extra config — the cell just toggles TRUE/FALSE
       } else {
         rule.op = wrap.querySelector("#wb-dv-op").value;
         rule.v1 = wrap.querySelector("#wb-dv-v1").value;
@@ -11221,7 +11238,7 @@ function bindGridEvents(g) {
     // from the document click delegate — opening here on mousedown would
     // be undone by the click-away closer, and the repaint that follows
     // setActive would detach the node before its click event fires)
-    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && e.target.closest("[data-wb-img]"))) { e.preventDefault(); return; }
+    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-dvcheck]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && e.target.closest("[data-wb-img]"))) { e.preventDefault(); return; }
 
     // ── drag-fill handle ──
     const fh = e.target.closest("[data-wb-fillhandle]");
@@ -13150,6 +13167,18 @@ function installRootListeners() {
 
     const menubtn = e.target.closest("[data-wb-menubar]");
     if (menubtn) { openWbMenu(menubtn.getAttribute("data-wb-menubar"), menubtn); return; }
+
+    const dvck = e.target.closest("[data-wb-dvcheck]");
+    if (dvck) {
+      const gridEl = dvck.closest("[data-wb-gridfocus]");
+      const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
+      if (g) {
+        const rc = keyRC(dvck.getAttribute("data-wb-dvcheck"));
+        setActive(g, rc.r, rc.c, { scroll: false });
+        toggleCheckbox(g, rc.r, rc.c);
+      }
+      return;
+    }
 
     const dvb = e.target.closest("[data-wb-dvchip]");
     if (dvb) {
