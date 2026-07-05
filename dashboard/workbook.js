@@ -3091,7 +3091,7 @@ function mountSheetBlock(block, body) {
     editing: null,          // { r, c, input, viaBar }
     dragging: false,
     resize: null,
-    filter: null,           // { col, text }
+    filters: new Map(),     // col -> { values: Set<string>|null, text: string|null }
     rows: [],               // visible actual row indexes (filter-aware)
     colX: [], rowY: [],     // prefix sums (rowY over g.rows)
     undo: [], redo: [],
@@ -3178,7 +3178,7 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-freeze="col" role="menuitem">Freeze first column</button>
           <button type="button" class="popover-item" data-wb-freeze="none" role="menuitem">Unfreeze</button>
         </div></span>
-      ${btn("sort-asc", "Sort by active column, A→Z", I.sortAsc)}${btn("sort-desc", "Sort by active column, Z→A", I.sortDesc)}${btn("filter", "Filter by active column", I.filter)}${btn("find", "Find and replace (Ctrl+F)", I.find)}${btn("validation", "Data validation", I.dv)}${btn("condfmt", "Conditional formatting", I.cf)}
+      ${btn("sort-asc", "Sort by active column, A→Z", I.sortAsc)}${btn("sort-desc", "Sort by active column, Z→A", I.sortDesc)}<button type="button" class="btn btn-ghost btn-sm wb-tb" data-wb-tb="sort-custom" title="Custom sort — up to three columns" ${ro ? "disabled" : ""}>Sort…</button>${btn("filter", "Filter by active column", I.filter)}${btn("find", "Find and replace (Ctrl+F)", I.find)}${btn("validation", "Data validation", I.dv)}${btn("condfmt", "Conditional formatting", I.cf)}
     </div>
     <div class="wb-tgrp">
       <span class="popover-anchor">
@@ -3194,22 +3194,32 @@ function sheetToolbarHtml(block, ro) {
 
 // ─── Geometry ────────────────────────────────────────────────────────────────
 
+// The text a filter compares against — what the cell shows, not how it's
+// formatted (formula cells contribute their computed value).
+function filterCellText(sheet, r, col) {
+  const cell = sheet.cells.get(cellKey(r, col));
+  return cell ? String(cell.formula ? (cell.err || (cell.computed ?? "")) : (cell.value ?? "")) : "";
+}
+
 function computeGeometry(g) {
   const sheet = g.sheet;
-  // visible rows (filter-aware; header row 0 always visible)
+  // visible rows (filter-aware; header row 0 always visible). Every
+  // filtered column must accept the row — Excel AutoFilter semantics.
   const rows = [];
   const rowHidden = (r) => sheet.hiddenRows && sheet.hiddenRows.has(r);
-  if (g.filter && g.filter.text) {
-    const needle = g.filter.text.toLowerCase();
-    for (let r = 0; r < sheet.rowCount; r++) {
-      if (rowHidden(r)) continue;
-      if (r === 0) { rows.push(r); continue; }
-      const cell = sheet.cells.get(cellKey(r, g.filter.col));
-      const disp = cell ? String(cell.formula ? (cell.err || (cell.computed ?? "")) : (cell.value ?? "")) : "";
-      if (disp.toLowerCase().includes(needle)) rows.push(r);
+  const filters = g.filters && g.filters.size
+    ? [...g.filters.entries()].map(([col, f]) => ({ col, needle: f.text ? f.text.toLowerCase() : null, values: f.values || null }))
+    : null;
+  for (let r = 0; r < sheet.rowCount; r++) {
+    if (rowHidden(r)) continue;
+    if (r === 0 || !filters) { rows.push(r); continue; }
+    let show = true;
+    for (const f of filters) {
+      const t = filterCellText(sheet, r, f.col);
+      if (f.needle && !t.toLowerCase().includes(f.needle)) { show = false; break; }
+      if (f.values && !f.values.has(t)) { show = false; break; }
     }
-  } else {
-    for (let r = 0; r < sheet.rowCount; r++) if (!rowHidden(r)) rows.push(r);
+    if (show) rows.push(r);
   }
   g.rows = rows;
   g.rowY = new Array(rows.length + 1);
@@ -3268,9 +3278,9 @@ function cellStyle(sheet, r, c, cell) {
   if (f.align) s += `text-align:${f.align};`;
   else if (!f.align && cell && !cell.formula && (cell.type === "number" || cell.type === "currency" || cell.type === "percent")) s += "text-align:right;";
   else if (cell && cell.formula && typeof cell.computed === "number") s += "text-align:right;";
-  if (f.bg && f.bg !== "header") s += `background:${esc(WB_COLORS.bg[f.bg] || "transparent")};`;
+  if (f.bg && f.bg !== "header") s += `background:${wbColorCss("bg", f.bg)};`;
   if (f.bg === "header") s += "background:var(--canvas);font-weight:600;";
-  if (f.fg) s += `color:${esc(WB_COLORS.fg[f.fg] || "inherit")};`;
+  if (f.fg) s += `color:${wbColorCss("fg", f.fg)};`;
   if (f.wrap) s += "white-space:normal;line-height:1.3;";
   if (f.border === "all" || f.border === "outline") s += "box-shadow:inset 0 0 0 1px var(--border-strong);";
   if (f.border === "bottom") s += "box-shadow:inset 0 -1.5px 0 var(--border-strong);";
@@ -3281,6 +3291,14 @@ const WB_COLORS = {
   bg: { none: "", gray: "#F3F4F6", blue: "rgba(37,99,235,.09)", green: "rgba(22,163,74,.10)", amber: "rgba(217,119,6,.12)", red: "rgba(220,38,38,.09)", violet: "rgba(124,58,237,.10)" },
   fg: { default: "", muted: "#6B7280", blue: "#1E40AF", green: "#166534", amber: "#92400E", red: "#B91C1C" },
 };
+
+// Preset keys resolve through the palette; a #RRGGBB value (from the
+// custom picker) passes through directly. Anything else is inert.
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+function wbColorCss(kind, key) {
+  if (HEX_COLOR_RE.test(String(key))) return key;
+  return esc(WB_COLORS[kind][key] || (kind === "bg" ? "transparent" : "inherit"));
+}
 
 function repaintGrid(g) {
   if (g.raf) return;
@@ -3381,7 +3399,7 @@ function updateSelStats(g) {
   const el = g.els.selstats;
   if (!el) return;
   if (g.els.sbfilter) {
-    g.els.sbfilter.textContent = g.filter && g.filter.text ? `${g.rows.length - 1} of ${g.sheet.rowCount} rows` : "";
+    g.els.sbfilter.textContent = g.filters && g.filters.size ? `${g.rows.length - 1} of ${g.sheet.rowCount} rows` : "";
   }
   const { r0, r1, c0, c1 } = selRect(g);
   if (r0 === r1 && c0 === c1) { el.textContent = `${colLabel(c0)}${r0 + 1}`; return; }
@@ -3449,9 +3467,15 @@ function paintFrozen(g, sx, sy, c0, c1) {
 
 function paintFilterChip(g) {
   const chip = g.els.filterChip;
-  if (g.filter && g.filter.text) {
+  if (g.filters && g.filters.size) {
+    const parts = [...g.filters.entries()].map(([col, f]) => {
+      const bits = [];
+      if (f.values) bits.push(`${f.values.size} value${f.values.size === 1 ? "" : "s"}`);
+      if (f.text) bits.push(`contains “${esc(f.text)}”`);
+      return `${colLabel(col)} ${bits.join(", ")}`;
+    });
     chip.hidden = false;
-    chip.innerHTML = `Filter: ${colLabel(g.filter.col)} contains “${esc(g.filter.text)}” · ${g.rows.length - 1} row${g.rows.length === 2 ? "" : "s"} <button type="button" class="wb-filter-clear" data-wb-act="filter-clear" data-block="${g.blockId}">Clear</button>`;
+    chip.innerHTML = `Filter: ${parts.join(" · ")} · ${g.rows.length - 1} row${g.rows.length === 2 ? "" : "s"} <button type="button" class="wb-filter-clear" data-wb-act="filter-clear" data-block="${g.blockId}">Clear</button>`;
   } else {
     chip.hidden = true;
   }
@@ -4095,7 +4119,7 @@ function switchSheet(g, sheetId) {
   g.sheet = sheet;
   recalcSheet(sheet); // cross-sheet inputs may have changed while hidden
   closeFindPanel(g);
-  g.filter = null;
+  g.filters = new Map();
   g.active = { r: 0, c: 0 };
   g.sel = { r0: 0, c0: 0, r1: 0, c1: 0 };
   g.undo = []; g.redo = [];
@@ -4237,7 +4261,7 @@ function setCells(g, changes, opts) {
     prev: a.prev ? (a.prev.formula || a.prev.value) : null,
     next: a.next ? (a.next.formula || a.next.value) : null,
   })));
-  if (g.filter) computeGeometry(g);
+  if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
 }
@@ -4255,7 +4279,7 @@ function undoGrid(g) {
   g.redo.push(op);
   recalcWithSiblings(sheet);
   markCellsDirty(sheet, op.changes.map((c) => c.key));
-  if (g.filter) computeGeometry(g);
+  if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
 }
@@ -4271,7 +4295,7 @@ function redoGrid(g) {
   g.undo.push(op);
   recalcWithSiblings(sheet);
   markCellsDirty(sheet, op.changes.map((c) => c.key));
-  if (g.filter) computeGeometry(g);
+  if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
 }
@@ -5317,12 +5341,14 @@ function openFindPanel(g, withReplace) {
 }
 
 // ─── Sort ────────────────────────────────────────────────────────────────────
-// Sorts data rows (2..N — row 1 is treated as the header) by the active
-// column. Whole rows move together; one undo entry.
+// Sorts data rows (2..N — row 1 is treated as the header). Whole rows
+// move together; one undo entry. Multi-level: specs = [{col, dir}, …].
 
-function sortByColumn(g, col, dir) {
-  if (!WB.canEdit) return;
-  if (g.filter) { g.filter = null; computeGeometry(g); }
+function sortByColumn(g, col, dir) { sortBySpecs(g, [{ col, dir }]); }
+
+function sortBySpecs(g, specs) {
+  if (!WB.canEdit || !specs || !specs.length) return;
+  if (g.filters && g.filters.size) { g.filters = new Map(); computeGeometry(g); }
   const sheet = g.sheet;
   cancelEdit(g);
   let maxRow = 0;
@@ -5330,16 +5356,18 @@ function sortByColumn(g, col, dir) {
   if (maxRow < 2) { _toast("Nothing to sort below the header row", "info"); return; }
   const rowsIdx = [];
   for (let r = 1; r <= maxRow; r++) rowsIdx.push(r);
-  const keyOf = (r) => {
+  const keyOf = (r, col) => {
     const cell = sheet.cells.get(cellKey(r, col));
     if (!cell) return { empty: true };
     const raw = cell.formula ? cell.computed : cell.value;
-    const n = cellNumeric(raw);
-    return { empty: raw == null || raw === "", n, s: String(raw ?? "").toLowerCase() };
+    if (raw == null || raw === "") return { empty: true };
+    let n = cellNumeric(raw);
+    if (n == null && typeof raw === "string") { const d = parseDateLoose(raw); if (d) n = dateToSerial(d); } // dates sort as dates
+    return { empty: false, n, s: String(raw).toLowerCase() };
   };
-  const sorted = rowsIdx.slice().sort((a, b) => {
-    const ka = keyOf(a), kb = keyOf(b);
-    if (ka.empty && kb.empty) return a - b;
+  const cmpLevel = (a, b, col, dir) => {
+    const ka = keyOf(a, col), kb = keyOf(b, col);
+    if (ka.empty && kb.empty) return 0;
     if (ka.empty) return 1; // empties always last
     if (kb.empty) return -1;
     let cmp;
@@ -5348,6 +5376,13 @@ function sortByColumn(g, col, dir) {
     else if (kb.n != null) cmp = 1;
     else cmp = ka.s < kb.s ? -1 : ka.s > kb.s ? 1 : 0;
     return dir === "asc" ? cmp : -cmp;
+  };
+  const sorted = rowsIdx.slice().sort((a, b) => {
+    for (const sp of specs) {
+      const cmp = cmpLevel(a, b, sp.col, sp.dir);
+      if (cmp) return cmp;
+    }
+    return a - b; // stable
   });
   if (sorted.every((r, i) => r === rowsIdx[i])) { repaintGrid(g); return; }
   // rebuild the map with rows in the new order
@@ -5380,21 +5415,181 @@ function sortByColumn(g, col, dir) {
   g.redo = [];
   recalcWithSiblings(sheet);
   markCellsDirty(sheet, [...touched]);
-  wbLog("sheet.sorted", `sorted ${sheet.name} by column ${colLabel(col)} (${dir === "asc" ? "A→Z" : "Z→A"})`, { target_type: "sheet", target_id: sheet.id });
+  wbLog("sheet.sorted", `sorted ${sheet.name} by ${specs.map((sp) => `${colLabel(sp.col)} ${sp.dir === "asc" ? "A→Z" : "Z→A"}`).join(", ")}`, { target_type: "sheet", target_id: sheet.id });
   computeGeometry(g);
   repaintGrid(g);
 }
 
-// ─── Filter ──────────────────────────────────────────────────────────────────
+// Custom sort dialog: up to three levels, column labels pulled from the
+// header row so operators pick by name, not letter.
+function openSortDialog(g) {
+  if (!WB.canEdit) return;
+  document.getElementById("wb-sort-modal")?.remove();
+  const sheet = g.sheet;
+  const colOpts = (sel) => {
+    let out = "";
+    for (let c = 0; c < sheet.colCount; c++) {
+      const header = filterCellText(sheet, 0, c);
+      out += `<option value="${c}" ${c === sel ? "selected" : ""}>${esc(colLabel(c))}${header ? ` — ${esc(header.slice(0, 28))}` : ""}</option>`;
+    }
+    return out;
+  };
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-sort-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Sort" style="width:520px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Sort</p><p class="rr-modal-sub">Row 1 stays put as the header; whole rows move together.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        ${[0, 1, 2].map((i) => `
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">${i === 0 ? "Sort by" : "Then by"}</span>
+            <select class="wb-input" data-sort-col="${i}">${i === 0 ? "" : `<option value="">—</option>`}${colOpts(i === 0 ? g.active.c : -1)}</select></label>
+          <label class="wb-field" style="flex:0 0 170px"><span class="wb-field-label">Order</span>
+            <select class="wb-input" data-sort-dir="${i}">
+              <option value="asc">A → Z · low → high</option>
+              <option value="desc">Z → A · high → low</option>
+            </select></label>
+        </div>`).join("")}
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-sort-apply>Sort</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (e.target.closest("[data-wb-sort-apply]")) {
+      const specs = [];
+      for (let i = 0; i < 3; i++) {
+        const col = wrap.querySelector(`[data-sort-col="${i}"]`).value;
+        if (col === "") continue;
+        const c = +col;
+        if (specs.some((s) => s.col === c)) continue;
+        specs.push({ col: c, dir: wrap.querySelector(`[data-sort-dir="${i}"]`).value });
+      }
+      wrap.remove();
+      if (specs.length) sortBySpecs(g, specs);
+      g.els.grid.focus();
+    }
+  });
+  setTimeout(() => wrap.querySelector('[data-sort-col="0"]')?.focus(), 30);
+}
 
-function openFilterPrompt(g, col) {
-  const current = g.filter && g.filter.col === col ? g.filter.text : "";
-  const text = window.prompt(`Show only rows where column ${colLabel(col)} contains:`, current || "");
-  if (text == null) return;
-  if (!text.trim()) { g.filter = null; }
-  else g.filter = { col, text: text.trim() };
+// ─── Filter ──────────────────────────────────────────────────────────────────
+// Excel-style AutoFilter: a per-column dropdown with the column's distinct
+// values as checkboxes plus a contains-text box. Filters stack across
+// columns; the chip below the grid summarizes and clears them.
+
+const FILTER_VALUE_CAP = 200;
+
+function openFilterPanel(g, col, anchorEl, at) {
+  const sheet = g.sheet;
+  const cur = (g.filters && g.filters.get(col)) || null;
+  const counts = new Map();
+  for (let r = 1; r < sheet.rowCount; r++) {
+    if (sheet.hiddenRows && sheet.hiddenRows.has(r)) continue;
+    const t = filterCellText(sheet, r, col);
+    if (t === "") continue;
+    counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  const values = [...counts.keys()].sort((a, b) => {
+    const na = Number(a), nb = Number(b);
+    if (isFinite(na) && isFinite(nb) && a.trim() !== "" && b.trim() !== "") return na - nb;
+    const la = a.toLowerCase(), lb = b.toLowerCase();
+    return la < lb ? -1 : la > lb ? 1 : 0;
+  });
+  const shown = values.slice(0, FILTER_VALUE_CAP);
+  const header = filterCellText(sheet, 0, col);
+  const isChecked = (v) => (cur && cur.values ? cur.values.has(v) : true);
+  const rect = anchorEl ? anchorEl.getBoundingClientRect() : null;
+  const m = ctxMenu(at ? at.x : rect ? rect.left : 120, at ? at.y : rect ? rect.bottom + 4 : 120, `
+    <div class="wb-filterpop">
+      <div class="wb-filterpop-head">Filter ${esc(colLabel(col))}${header ? ` · ${esc(header.slice(0, 32))}` : ""}</div>
+      <input type="text" class="wb-input wb-filterpop-text" data-fp-text placeholder="Contains…" value="${esc((cur && cur.text) || "")}" autocomplete="off" spellcheck="false" aria-label="Rows containing text">
+      <label class="wb-filterpop-item wb-filterpop-all"><input type="checkbox" data-fp-all ${!cur || !cur.values ? "checked" : ""}> <span>Select all</span><span class="wb-filterpop-n">${values.length}</span></label>
+      <div class="wb-filterpop-list">
+        ${shown.map((v) => `<label class="wb-filterpop-item"><input type="checkbox" data-fp-val="${esc(v)}" ${isChecked(v) ? "checked" : ""}> <span>${esc(v)}</span><span class="wb-filterpop-n">${counts.get(v)}</span></label>`).join("") || `<div class="rr-empty-inline">No values below the header yet.</div>`}
+        ${values.length > FILTER_VALUE_CAP ? `<div class="wb-filterpop-more">…and ${values.length - FILTER_VALUE_CAP} more — use “Contains” to narrow.</div>` : ""}
+      </div>
+      <div class="wb-filterpop-foot">
+        <button type="button" class="btn btn-ghost btn-sm" data-fp-clear>Clear</button>
+        <button type="button" class="btn btn-primary btn-sm" data-fp-apply>Apply</button>
+      </div>
+    </div>`);
+  const allBox = m.querySelector("[data-fp-all]");
+  const apply = () => {
+    const text = m.querySelector("[data-fp-text]").value.trim();
+    const boxes = [...m.querySelectorAll("[data-fp-val]")];
+    const all = !boxes.length || boxes.every((cb) => cb.checked);
+    const picked = new Set(boxes.filter((cb) => cb.checked).map((cb) => cb.getAttribute("data-fp-val")));
+    closeAllPopovers();
+    if (!text && all) g.filters.delete(col);
+    else g.filters.set(col, { text: text || null, values: all ? null : picked });
+    computeGeometry(g);
+    repaintGrid(g);
+    g.els.grid.focus();
+  };
+  allBox.addEventListener("change", () => {
+    m.querySelectorAll("[data-fp-val]").forEach((cb) => { cb.checked = allBox.checked; });
+  });
+  m.addEventListener("change", (e) => {
+    if (e.target.closest("[data-fp-val]")) {
+      const boxes = [...m.querySelectorAll("[data-fp-val]")];
+      allBox.checked = boxes.every((cb) => cb.checked);
+    }
+  });
+  m.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") { closeAllPopovers(); g.els.grid.focus(); }
+    if (e.key === "Enter") { e.preventDefault(); apply(); }
+  });
+  m.querySelector("[data-fp-apply]").addEventListener("click", apply);
+  m.querySelector("[data-fp-clear]").addEventListener("click", () => {
+    closeAllPopovers();
+    g.filters.delete(col);
+    computeGeometry(g);
+    repaintGrid(g);
+    g.els.grid.focus();
+  });
+  setTimeout(() => m.querySelector("[data-fp-text]")?.focus(), 30);
+}
+
+// ─── Autofit ─────────────────────────────────────────────────────────────────
+// Size columns to their widest rendered value (Excel's double-click-the-
+// divider gesture). Canvas measureText against the grid's own font.
+
+let AUTOFIT_MEASURE = null;
+
+function autofitColumns(g, c0, c1) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  if (!AUTOFIT_MEASURE) AUTOFIT_MEASURE = document.createElement("canvas").getContext("2d");
+  const cs = getComputedStyle(g.els.cells);
+  const widths = new Map();
+  let scanned = 0;
+  for (const [key, cell] of sheet.cells) {
+    const { r, c } = keyRC(key);
+    if (c < c0 || c > c1) continue;
+    const disp = displayValue(sheet, r, c);
+    if (!disp) continue;
+    if (++scanned > 20000) break;
+    const bold = cell.format && (cell.format.bold || cell.format.bg === "header");
+    AUTOFIT_MEASURE.font = `${bold ? "600" : cs.fontWeight || "400"} ${cs.fontSize || "13px"} ${cs.fontFamily || "sans-serif"}`;
+    const w = Math.ceil(AUTOFIT_MEASURE.measureText(disp).width) + 18;
+    if (w > (widths.get(c) || 0)) widths.set(c, w);
+  }
+  for (let c = c0; c <= c1; c++) {
+    sheet.colWidths[c] = Math.min(MAX_COL_W, Math.max(MIN_COL_W, widths.get(c) || DEF_COL_W));
+  }
   computeGeometry(g);
   repaintGrid(g);
+  saveSheetMeta(sheet.id);
 }
 
 // ─── Freeze ──────────────────────────────────────────────────────────────────
@@ -5736,7 +5931,7 @@ function bindGridEvents(g) {
     const fh = e.target.closest("[data-wb-fillhandle]");
     if (fh && WB.canEdit) {
       e.preventDefault();
-      if (g.filter) { _toast("Clear the filter before drag-filling", "warn"); return; }
+      if (g.filters.size) { _toast("Clear the filter before drag-filling", "warn"); return; }
       const src = selRect(g);
       const preview = document.createElement("div");
       preview.className = "wb-fill-preview";
@@ -5910,6 +6105,9 @@ function bindGridEvents(g) {
   });
 
   grid.addEventListener("dblclick", (e) => {
+    // double-click a column divider → autofit that column (Excel)
+    const rz = e.target.closest("[data-wb-rzcol]");
+    if (rz && WB.canEdit) { const c = +rz.getAttribute("data-wb-rzcol"); autofitColumns(g, c, c); return; }
     const cell = e.target.closest(".wb-cell");
     if (!cell || !WB.canEdit) return;
     const r = +cell.getAttribute("data-r"), c = +cell.getAttribute("data-c");
@@ -6183,14 +6381,15 @@ function bindGridEvents(g) {
       case "col-del": restructure(g, "col", g.active.c, -1); break;
       case "sort-asc": sortByColumn(g, g.active.c, "asc"); break;
       case "sort-desc": sortByColumn(g, g.active.c, "desc"); break;
-      case "filter": openFilterPrompt(g, g.active.c); break;
+      case "sort-custom": openSortDialog(g); return;
+      case "filter": openFilterPanel(g, g.active.c, btn); return;
       case "numfmt-menu":
       case "fill-menu":
       case "textc-menu":
       case "border-menu":
       case "freeze-menu":
       case "io-menu": {
-        if (act === "fill-menu" || act === "textc-menu") fillColorPop(btn);
+        if (act === "fill-menu" || act === "textc-menu") fillColorPop(g, btn);
         togglePopover(btn);
         return;
       }
@@ -6252,7 +6451,7 @@ function commitBarEdit(g) {
   }
 }
 
-function fillColorPop(btn) {
+function fillColorPop(g, btn) {
   const pop = btn.closest(".popover-anchor")?.querySelector(".wb-color-pop");
   if (!pop || pop.dataset.filled) return;
   pop.dataset.filled = "1";
@@ -6262,7 +6461,13 @@ function fillColorPop(btn) {
     : [["", "Default"], ["muted", "Muted"], ["blue", "Blue"], ["green", "Green"], ["amber", "Amber"], ["red", "Red"]];
   pop.innerHTML = `<div class="wb-color-grid">` + palette.map(([key, label]) =>
     `<button type="button" class="wb-swatch" data-wb-color="${key}" title="${label}" aria-label="${label}" style="background:${key ? (WB_COLORS[kind][key] || "#fff") : "#fff"}">${key ? "" : "×"}</button>`
-  ).join("") + `</div>`;
+  ).join("") + `</div>
+    <label class="wb-color-custom"><input type="color" data-wb-colorpick value="${kind === "bg" ? "#FFF3C4" : "#1F2937"}" aria-label="Custom color"> Custom…</label>`;
+  pop.querySelector("[data-wb-colorpick]").addEventListener("change", (e) => {
+    formatSelection(g, { [kind]: e.target.value });
+    closeAllPopovers();
+    g.els.grid.focus();
+  });
 }
 
 // ─── Context menus ───────────────────────────────────────────────────────────
@@ -6313,6 +6518,12 @@ function openCellContextMenu(g, x, y, kind) {
     item("trace-dependents", "Highlight dependents"),
     item("data-validation", "Data validation…"),
     item("cond-format", "Conditional formatting…"),
+    sep,
+    item("sort-col-asc", "Sort sheet by this column A→Z"),
+    item("sort-col-desc", "Sort sheet by this column Z→A"),
+    item("sort-custom", "Custom sort…"),
+    item("filter-col", "Filter this column…"),
+    kind === "col" ? item("autofit-col", nCols > 1 ? `Autofit ${nCols} columns` : "Autofit column width") : "",
     kind === "row" ? item("hide-rows", `Hide ${rowsLabel}`) : "",
     kind === "row" && hasHiddenRows ? item("unhide-rows", "Unhide rows in selection") : "",
     kind === "col" ? item("hide-cols", `Hide ${colsLabel}`) : "",
@@ -6366,6 +6577,11 @@ function openCellContextMenu(g, x, y, kind) {
       case "trace-dependents": traceDependents(g); break;
       case "data-validation": openValidationDialog(g); break;
       case "cond-format": openCondFormatDialog(g); break;
+      case "sort-col-asc": sortByColumn(g, c, "asc"); break;
+      case "sort-col-desc": sortByColumn(g, c, "desc"); break;
+      case "sort-custom": openSortDialog(g); return;
+      case "filter-col": openFilterPanel(g, c, null, { x, y }); return;
+      case "autofit-col": autofitColumns(g, rect0.c0, rect0.c1); break;
     }
     g.els.grid.focus();
   });
@@ -6871,7 +7087,7 @@ function installRootListeners() {
       case "sheet-add": addSheetTo(actBtn.getAttribute("data-block")); break;
       case "filter-clear": {
         const g = GRIDS.get(actBtn.getAttribute("data-block"));
-        if (g) { g.filter = null; computeGeometry(g); repaintGrid(g); }
+        if (g) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); }
         break;
       }
       case "item-toggle": if (itemHost) toggleItem(itemHost.getAttribute("data-wb-item")); break;
