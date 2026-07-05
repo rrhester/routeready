@@ -29027,6 +29027,11 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 .wb-people-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 18px;padding:4px 0 10px}
 .wb-people-check{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);cursor:pointer;user-select:none}
 .wb-people-hint{font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0}
+.wb-clsend-namelabel{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+.wb-clsend-preview{margin-top:12px;border:1px solid var(--border);border-radius:8px;max-height:220px;overflow:auto;background:var(--canvas)}
+.wb-clsend-item{display:flex;align-items:center;gap:10px;padding:8px 12px;font-size:var(--fs-sm);color:var(--text);border-bottom:1px solid var(--border)}
+.wb-clsend-item:last-child{border-bottom:0}
+.wb-clsend-box{flex:0 0 auto;width:15px;height:15px;border:1.5px solid var(--input-border,#9CA3AF);border-radius:4px;background:var(--surface-1,#fff)}
 
 /* Schedule Intelligence Bar — calm one-liner pinned with the chrome */
 #view-workbooks .wb-intel{

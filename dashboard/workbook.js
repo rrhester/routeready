@@ -13154,8 +13154,14 @@ function wbMenuItems(menu, g) {
     case "Data": {
       const views = g ? sheetFilterViews(g.sheet) : [];
       return [
-        { label: "Load drivers (People)", act: "data:fill-people", disabled: !ed || !g },
+        { label: "Load from RouteReady", sub: [
+          { label: "Drivers…", act: "data:fill-people", disabled: !ed || !g },
+          { label: "Vans", act: "data:fill-vans", disabled: !ed || !g },
+          { label: "Schedule (this week)", act: "data:fill-schedule", disabled: !ed || !g },
+          { label: "Time off / PTO", act: "data:fill-pto", disabled: !ed || !g },
+        ] },
         { label: "Build Schedule from Sheet…", act: "data:fill-build", disabled: !ed || !g },
+        { label: "Send selection as checklist to Driver App…", act: "data:checklist-send", disabled: !ed || !g },
         sep,
         { label: "Sort sheet by active column, A→Z", act: "data:sort-asc", disabled: !ed || !g },
         { label: "Sort sheet by active column, Z→A", act: "data:sort-desc", disabled: !ed || !g },
@@ -13262,7 +13268,11 @@ function wbMenuAction(act, g) {
     case "fmt:cells": if (need()) openFormatCellsDialog(g); return;
     case "fmt:clear": if (need()) clearFormatting(g); return;
     case "data:fill-people": if (need()) openPeoplePicker(g); return;
+    case "data:fill-vans": if (need()) fillLoadVans(g); return;
+    case "data:fill-schedule": if (need()) fillLoadSchedule(g); return;
+    case "data:fill-pto": if (need()) fillLoadPto(g); return;
     case "data:fill-build": if (need()) openBuildPanel(g); return;
+    case "data:checklist-send": if (need()) openChecklistSendDialog(g); return;
     case "data:sort-asc": if (need()) sortByColumn(g, g.active.c, "asc"); return;
     case "data:sort-desc": if (need()) sortByColumn(g, g.active.c, "desc"); return;
     case "data:sort": if (need()) openSortDialog(g); return;
@@ -14055,6 +14065,286 @@ async function fillLoadDrivers(g, picks) {
       detail: { drivers: drivers.length, fields: [...picks] },
     });
   } catch (e) { _toast("Couldn't load drivers: " + ((e && e.message) || e), "error"); }
+}
+
+// ── Fleet / Schedule / Time-off loaders ─────────────────────────────────
+// Same idea as Load drivers: pull the DSP's live rows straight into the
+// active sheet (header row frozen) so the workbook becomes a working
+// surface over real RouteReady data. These are read-only snapshots — a
+// far-right ID column keeps rows matched to the source record, but editing
+// a loaded cell never writes back to the source table. Everything is
+// dsp-scoped by the query + RLS.
+
+async function fillDriverNames(dsp) {
+  const m = new Map();
+  try {
+    const res = await _sb().from("drivers").select("id, full_name").eq("dsp_id", dsp.id);
+    for (const d of (res.data || [])) m.set(d.id, d.full_name || d.id);
+  } catch (_) {}
+  return m;
+}
+
+// Write a header + rows table into the active sheet from row 0. Each row is
+// an array of cells; a cell is either a plain value or a [value, format]
+// pair. Grows the sheet if the table is wider/taller than the current grid.
+function fillWriteTable(g, headers, rows, meta) {
+  const sheet = g.sheet;
+  if (headers.length > sheet.colCount) sheet.colCount = headers.length + 2;
+  if (rows.length + 1 > sheet.rowCount) sheet.rowCount = rows.length + 50;
+  const changes = [];
+  headers.forEach((h, c) => changes.push({ r: 0, c, cell: { value: h, formula: null, type: "text", format: { bold: true, bg: "header" } } }));
+  rows.forEach((cells, i) => {
+    const r = i + 1;
+    cells.forEach((cv, c) => {
+      const [v, fmt] = Array.isArray(cv) ? cv : [cv, {}];
+      changes.push({ r, c, cell: { value: v == null ? "" : String(v), formula: null, type: "text", format: fmt || {} } });
+    });
+  });
+  setCells(g, changes);
+  computeGeometry(g);
+  sheet.frozenRows = 1;
+  sheet.meta = { ...(sheet.meta || {}), fill: { ...(sheet.meta?.fill || {}), loadedAt: new Date().toISOString(), source: (meta && meta.source) || null } };
+  saveSheetMeta(sheet.id);
+  repaintGrid(g);
+}
+
+async function fillLoadVans(g) {
+  if (!WB.canEdit) { _toast("You need edit access to load data", "info"); return; }
+  const dsp = _dsp();
+  if (!dsp) { _toast("No DSP context", "error"); return; }
+  _toast("Loading vans…", "info");
+  try {
+    const [vRes, aRes] = await Promise.all([
+      _sb().from("vehicles")
+        .select("id, name, van_type, year, make, model, vin, plate, plate_state, mileage, ownership, operational_status, status, next_service_due_at")
+        .eq("dsp_id", dsp.id).is("archived_at", null).order("name"),
+      _sb().from("vehicle_driver_assignments").select("vehicle_id, driver_id").eq("dsp_id", dsp.id).eq("rank", 0),
+    ]);
+    if (vRes.error) throw vRes.error;
+    const vans = vRes.data || [];
+    if (!vans.length) { _toast("No vans found for this DSP", "info"); return; }
+    const primary = new Map();
+    for (const a of (aRes.data || [])) primary.set(a.vehicle_id, a.driver_id);
+    const names = await fillDriverNames(dsp);
+    const vanTypeLabel = { edv: "EDV", step_van: "Step van", cargo_van: "Cargo van", box_truck: "Box truck" };
+    const ownLabel = { amazon_owned: "Amazon", dsp_owned: "DSP-owned", rental: "Rental", leased: "Leased" };
+    const headers = ["Van", "Type", "Year / Make / Model", "VIN", "Plate", "Mileage", "Ownership", "Status", "Next service", "Assigned driver", "Vehicle ID"];
+    const rows = vans.map((v) => {
+      const grounded = v.operational_status === "grounded" || v.status === "out_of_service";
+      const ymm = [v.year, v.make, v.model].filter(Boolean).join(" ");
+      const drv = primary.has(v.id) ? (names.get(primary.get(v.id)) || "") : "";
+      return [
+        v.name || "",
+        vanTypeLabel[v.van_type] || v.van_type || "",
+        ymm,
+        v.vin || "",
+        [v.plate, v.plate_state].filter(Boolean).join(" "),
+        v.mileage != null ? [String(v.mileage), { align: "right" }] : "",
+        ownLabel[v.ownership] || v.ownership || "",
+        [grounded ? "Grounded" : "Active", { bg: grounded ? FILL_RED : FILL_GREEN, align: "center" }],
+        v.next_service_due_at ? String(v.next_service_due_at).slice(0, 10) : "",
+        drv,
+        [v.id, { fg: "muted" }],
+      ];
+    });
+    fillWriteTable(g, headers, rows, { source: "vans" });
+    _toast(`Loaded ${vans.length} van${vans.length === 1 ? "" : "s"}`, "success");
+    wbLog("data.fill.vans", `loaded ${vans.length} vans into ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id, detail: { vans: vans.length } });
+  } catch (e) { _toast("Couldn't load vans: " + ((e && e.message) || e), "error"); }
+}
+
+async function fillLoadSchedule(g) {
+  if (!WB.canEdit) { _toast("You need edit access to load data", "info"); return; }
+  const dsp = _dsp();
+  if (!dsp) { _toast("No DSP context", "error"); return; }
+  const weekStart = fillNextWeekStart();
+  const dates = fillWeekDates(weekStart);
+  _toast("Loading schedule…", "info");
+  try {
+    const res = await _sb().from("shifts")
+      .select("id, date, driver_id, route_code, status, starts_at, ends_at")
+      .eq("dsp_id", dsp.id).gte("date", dates[0]).lte("date", dates[6])
+      .order("date").order("route_code");
+    if (res.error) throw res.error;
+    const shifts = res.data || [];
+    if (!shifts.length) { _toast(`No shifts scheduled for the week of ${dates[0]}`, "info"); return; }
+    const names = await fillDriverNames(dsp);
+    const fmtTime = (iso) => { if (!iso) return ""; try { return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch (_) { return ""; } };
+    const statusLabel = { scheduled: "Scheduled", called_off: "Called off", completed: "Completed", no_show: "No-show" };
+    const headers = ["Date", "Day", "Route", "Driver", "Start", "End", "Status", "Shift ID"];
+    const rows = shifts.map((s) => {
+      const open = !s.driver_id;
+      const d = new Date(s.date + "T12:00:00");
+      const bad = s.status === "no_show" || s.status === "called_off";
+      return [
+        s.date,
+        FILL_DOW[d.getDay()],
+        s.route_code || "",
+        open ? ["OPEN", { bg: FILL_AMBER, bold: true }] : (names.get(s.driver_id) || ""),
+        fmtTime(s.starts_at),
+        fmtTime(s.ends_at),
+        [statusLabel[s.status] || s.status || "", bad ? { bg: FILL_RED } : {}],
+        [s.id, { fg: "muted" }],
+      ];
+    });
+    fillWriteTable(g, headers, rows, { source: "schedule" });
+    const open = shifts.filter((s) => !s.driver_id).length;
+    _toast(`Loaded ${shifts.length} shifts (${open} open) for the week of ${dates[0]}`, "success");
+    wbLog("data.fill.schedule", `loaded ${shifts.length} shifts into ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id, detail: { shifts: shifts.length, open, week_start: weekStart } });
+  } catch (e) { _toast("Couldn't load schedule: " + ((e && e.message) || e), "error"); }
+}
+
+async function fillLoadPto(g) {
+  if (!WB.canEdit) { _toast("You need edit access to load data", "info"); return; }
+  const dsp = _dsp();
+  if (!dsp) { _toast("No DSP context", "error"); return; }
+  _toast("Loading time off…", "info");
+  try {
+    const since = new Date(); since.setDate(since.getDate() - 14);
+    const res = await _sb().from("time_off_requests")
+      .select("id, driver_id, start_date, end_date, reason, status")
+      .eq("dsp_id", dsp.id).gte("end_date", fillIsoDate(since)).order("start_date");
+    if (res.error) throw res.error;
+    const reqs = res.data || [];
+    if (!reqs.length) { _toast("No recent time-off requests found", "info"); return; }
+    const names = await fillDriverNames(dsp);
+    const dayCount = (a, b) => { try { return Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 86400000) + 1; } catch (_) { return ""; } };
+    const stFmt = { pending: [FILL_AMBER, "Pending"], approved: [FILL_GREEN, "Approved"], denied: [FILL_RED, "Denied"], cancelled: [FILL_GRAY, "Cancelled"] };
+    const headers = ["Driver", "Start", "End", "Days", "Reason", "Status", "Request ID"];
+    const rows = reqs.map((t) => {
+      const [bg, label] = stFmt[t.status] || ["", t.status || ""];
+      return [
+        names.get(t.driver_id) || "",
+        t.start_date, t.end_date,
+        [String(dayCount(t.start_date, t.end_date)), { align: "center" }],
+        t.reason || "",
+        [label, bg ? { bg, align: "center" } : { align: "center" }],
+        [t.id, { fg: "muted" }],
+      ];
+    });
+    fillWriteTable(g, headers, rows, { source: "pto" });
+    _toast(`Loaded ${reqs.length} time-off request${reqs.length === 1 ? "" : "s"}`, "success");
+    wbLog("data.fill.pto", `loaded ${reqs.length} time-off requests into ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id, detail: { requests: reqs.length } });
+  } catch (e) { _toast("Couldn't load time off: " + ((e && e.message) || e), "error"); }
+}
+
+// ── Send a selection as a checklist to the Driver App ───────────────────
+// Reads the selected cells (column-major, de-duplicated) as checklist item
+// labels, then creates a driver-facing checklist via the existing
+// checklist_forms pipeline (upsert → publish → assign to all active
+// drivers) so it lands in every driver's Forms tab. No new tables — this
+// bridges the workbook onto the 0415/0416 driver-checklist system.
+
+function fillCellText(sheet, r, c) {
+  const cell = sheet.cells.get(cellKey(r, c));
+  if (!cell) return "";
+  return String(cell.formula ? (cell.computed ?? "") : (cell.value ?? "")).trim();
+}
+
+function selectionChecklistItems(g) {
+  const { r0, r1, c0, c1 } = selRect(g);
+  const items = [];
+  const seen = new Set();
+  for (let c = c0; c <= c1; c++) {
+    for (let r = r0; r <= r1; r++) {
+      const t = fillCellText(g.sheet, r, c);
+      if (!t) continue;
+      const key = t.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(t);
+      if (items.length >= 100) return items; // sane cap for one checklist
+    }
+  }
+  return items;
+}
+
+function openChecklistSendDialog(g) {
+  if (!WB.canEdit) { _toast("You need edit access to send checklists", "info"); return; }
+  const items = selectionChecklistItems(g);
+  if (!items.length) { _toast("Select the cells that hold your checklist items first", "info"); return; }
+  document.getElementById("wb-clsend-modal")?.remove();
+  const defName = (g.sheet && g.sheet.name && g.sheet.name !== "Sheet 1" ? g.sheet.name : "") || (WB.wb && WB.wb.title && WB.wb.title !== "Untitled workbook" ? WB.wb.title : "") || "Checklist";
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-clsend-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Send checklist to Driver App" style="width:540px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Send checklist to Driver App</p><p class="rr-modal-sub">${items.length} item${items.length === 1 ? "" : "s"} from your selection · appears in every driver's Forms tab</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <label class="wb-clsend-namelabel">Checklist name
+          <input type="text" class="wb-input" id="wb-clsend-name" maxlength="120" value="${esc(defName)}" placeholder="e.g. Van Cleanliness Checklist" style="width:100%;margin-top:6px">
+        </label>
+        <div class="wb-clsend-preview" role="list" aria-label="Checklist items">
+          ${items.map((t) => `<div class="wb-clsend-item" role="listitem"><span class="wb-clsend-box" aria-hidden="true"></span><span>${esc(t)}</span></div>`).join("")}
+        </div>
+        <label class="wb-people-check" style="margin-top:12px"><input type="checkbox" id="wb-clsend-required" checked><span>Required — drivers must complete it</span></label>
+        <p class="wb-people-hint">Assigned to <strong>all active drivers</strong>, due once. Fine-tune audience, schedule, and item types later in Workspaces → Checklists.</p>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-clsend-go>Send to Driver App</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", async (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (e.target.closest("[data-clsend-go]")) {
+      const name = (wrap.querySelector("#wb-clsend-name")?.value || "").trim() || defName;
+      const required = !!wrap.querySelector("#wb-clsend-required")?.checked;
+      const btn = wrap.querySelector("[data-clsend-go]");
+      btn.disabled = true; btn.textContent = "Sending…";
+      const ok = await sendChecklistToDriverApp({ name, items, required });
+      if (ok) wrap.remove();
+      else { btn.disabled = false; btn.textContent = "Send to Driver App"; }
+    }
+  });
+  setTimeout(() => { const n = wrap.querySelector("#wb-clsend-name"); if (n) { n.focus(); n.select(); } }, 30);
+}
+
+async function sendChecklistToDriverApp({ name, items, required }) {
+  const s = _sb();
+  if (!s) { _toast("Not connected", "error"); return false; }
+  try {
+    const payload = {
+      name,
+      category: "Driver App Forms",
+      description: "Created from a RouteReady workbook",
+      items: items.map((label) => ({ label, item_type: "checkbox", required: !!required })),
+    };
+    const up = await s.rpc("checklist_form_upsert", { p_id: null, p_payload: payload });
+    if (up.error) throw up.error;
+    const tpl = up.data || {};
+    const tplId = tpl.id || (tpl.template && tpl.template.id);
+    if (!tplId) throw new Error("No checklist id returned");
+    const st = await s.rpc("checklist_form_set_status", { p_id: tplId, p_status: "active" });
+    if (st.error) throw st.error;
+    const asg = await s.rpc("checklist_form_assign", {
+      p_template_id: tplId,
+      p_assignments: [{ assignment_scope: "all_active", repeat_rule: { type: "once", due: "none" }, required: !!required }],
+    });
+    if (asg.error) throw asg.error;
+    _toast(`Sent “${name}” to the Driver App`, "success");
+    wbLog("checklist.sent_to_driver_app", `sent checklist “${name}” (${items.length} items) to the Driver App`, {
+      target_type: "workbook", target_id: WB.wb ? WB.wb.id : null,
+      detail: { template_id: tplId, items: items.length, scope: "all_active" },
+    });
+    return true;
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    if (/checklist_form_upsert|PGRST202|could not find|does not exist|schema cache/i.test(msg)) {
+      _toast("Driver checklists aren't enabled on this workspace yet", "warn");
+    } else if (/forbidden|42501|permission/i.test(msg)) {
+      _toast("You need dispatcher access to send checklists to drivers", "warn");
+    } else {
+      _toast("Couldn't send the checklist: " + msg, "error");
+    }
+    return false;
+  }
 }
 
 // ── Build panel ─────────────────────────────────────────────────────────
