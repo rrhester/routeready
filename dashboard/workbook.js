@@ -11252,7 +11252,7 @@ function xlsxJoinText(chunk) {
 
 const XLSX_ROW_CAP = 10000, XLSX_COL_CAP = 200;
 
-async function parseXlsxBytes(buf) {
+export async function parseXlsxBytes(buf) {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
   const zip = await xlsxUnzip(bytes);
   const dec = new TextDecoder();

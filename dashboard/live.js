@@ -10,7 +10,7 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=b38b7853961d";
 import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=b38b7853961d";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions } from "./workbook.js?v=b38b7853961d";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes } from "./workbook.js?v=b38b7853961d";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b38b7853961d";
 
 const cfg = window.RR_CONFIG;
@@ -19068,6 +19068,7 @@ async function submitBulkDriverIngest() {
   document.getElementById("bd-paste").value = "";
   document.getElementById("bd-preview").style.display = "none";
   const errBox = document.getElementById("bd-errors"); if (errBox) errBox.style.display = "none";
+  _bdResetIngestSources();
   if (btn) { btn.disabled = true; btn.textContent = "Paste rows above"; }
   const msgParts = [`Imported ${ready.length} driver${ready.length === 1 ? "" : "s"}`];
   if (dupes.length)   msgParts.push(`${dupes.length} already in roster`);
@@ -19080,6 +19081,196 @@ window.submitBulkDriverIngest = submitBulkDriverIngest;
 document.addEventListener("input", (e) => {
   if (e.target?.id === "bd-paste") _bdImportPreview();
 });
+
+// ─── Bulk driver ingest · file upload + Google Sheets link ──────────────────
+// All three sources (Excel/CSV file, Google Sheet link, pasted rows) funnel
+// into the same #bd-paste textarea, so the operator can eyeball / tweak what
+// we read before importing, and the existing parse → preview → submit
+// pipeline stays the single source of truth.
+
+// Serialize a parsed .xlsx sheet (sparse {r,c,value} cells from
+// parseXlsxBytes) into tab-separated text with proper quoting, skipping
+// fully-blank rows. Tab delimiters are unambiguous and survive commas in
+// names; _bdImportParse detects the tabs and reads columns cleanly.
+function _bdSheetToText(sheet) {
+  const cells = sheet?.cells || [];
+  if (!cells.length) return "";
+  let maxR = 0, maxC = 0;
+  for (const cell of cells) { if (cell.r > maxR) maxR = cell.r; if (cell.c > maxC) maxC = cell.c; }
+  const width = maxC + 1;
+  const grid = Array.from({ length: maxR + 1 }, () => new Array(width).fill(""));
+  for (const cell of cells) {
+    const v = cell.value == null ? "" : String(cell.value);
+    grid[cell.r][cell.c] = v;
+  }
+  const esc = (s) => (/["\t\n\r,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s);
+  const lines = [];
+  for (const row of grid) {
+    if (!row.some((v) => v !== "" && v != null)) continue; // drop blank rows
+    lines.push(width > 1 ? row.map(esc).join("\t") : esc(row[0]));
+  }
+  return lines.join("\n");
+}
+
+// Pick the sheet most likely to hold the driver list: the one with the most
+// populated cells. Empty tabs (common in exported workbooks) fall away.
+function _bdPickSheet(sheets) {
+  let best = null, bestCount = -1;
+  for (const s of (sheets || [])) {
+    const n = (s.cells || []).length;
+    if (n > bestCount) { bestCount = n; best = s; }
+  }
+  return best;
+}
+
+// Read an uploaded File into ingest-ready text. Dispatches on the ZIP magic
+// bytes (PK\x03\x04) so a mislabeled .xlsx still parses, otherwise decodes as
+// plain text (CSV/TSV).
+async function _bdFileToText(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const isZip = buf.length > 3 && buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04;
+  const looksXlsx = isZip || /\.xlsx?$/i.test(file.name || "");
+  if (looksXlsx) {
+    const { sheets } = await parseXlsxBytes(buf);
+    const sheet = _bdPickSheet(sheets);
+    if (!sheet) throw new Error("no sheets in that workbook");
+    return _bdSheetToText(sheet);
+  }
+  // Legacy .xls (BIFF, not a zip) can't be parsed dependency-free — steer the
+  // operator to re-save as .xlsx or .csv.
+  if (/\.xls$/i.test(file.name || "") && !isZip) {
+    throw new Error("old-format .xls isn't supported — in Excel choose File → Save As → .xlsx (or .csv) and upload that");
+  }
+  return new TextDecoder().decode(buf).replace(/^﻿/, "");
+}
+
+// Drop text into the textarea and run the existing preview.
+function _bdFillFromText(text) {
+  const ta = document.getElementById("bd-paste");
+  if (!ta) return;
+  ta.value = (text || "").trim();
+  _bdImportPreview();
+}
+
+function _bdSetFileLabel(name) {
+  const el = document.getElementById("bd-file-name");
+  if (!el) return;
+  if (name) { el.textContent = "Loaded: " + name; el.style.display = "block"; }
+  else { el.textContent = ""; el.style.display = "none"; }
+}
+
+function _bdShowIngestError(msg) {
+  const box = document.getElementById("bd-errors");
+  if (!box) { toast(msg, "warn"); return; }
+  box.textContent = msg;
+  box.style.display = "block";
+}
+
+async function _bdHandleFile(file) {
+  if (!file) return;
+  const MAX = 8 * 1024 * 1024;
+  if (file.size > MAX) { _bdShowIngestError("That file is over 8 MB — split it into smaller batches."); return; }
+  _bdSetFileLabel("reading " + file.name + "…");
+  try {
+    const text = await _bdFileToText(file);
+    if (!text.trim()) { _bdSetFileLabel(""); _bdShowIngestError("That file looked empty — no rows found."); return; }
+    _bdSetFileLabel(file.name);
+    _bdFillFromText(text);
+  } catch (e) {
+    console.warn("bulk driver file read:", e && e.message);
+    _bdSetFileLabel("");
+    _bdShowIngestError("Couldn't read that file: " + ((e && e.message) || e));
+  }
+}
+
+// Turn a Google Sheets share/edit URL into its CSV-export URL. Handles both
+// the normal /d/<id>/ links and published /d/e/<id>/ links, preserving the
+// selected tab (gid) when present.
+function _bdGoogleSheetCsvUrl(raw) {
+  const url = String(raw || "").trim();
+  if (!/docs\.google\.com\/spreadsheets/i.test(url)) return null;
+  const gidMatch = /[#?&]gid=(\d+)/.exec(url);
+  const gid = gidMatch ? gidMatch[1] : null;
+  const pubId = /\/spreadsheets\/d\/e\/([a-zA-Z0-9-_]+)/.exec(url);
+  if (pubId) return `https://docs.google.com/spreadsheets/d/e/${pubId[1]}/pub?output=csv` + (gid ? `&gid=${gid}` : "");
+  const id = /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/.exec(url);
+  if (!id) return null;
+  return `https://docs.google.com/spreadsheets/d/${id[1]}/export?format=csv` + (gid ? `&gid=${gid}` : "");
+}
+
+async function _bdLoadGoogleSheet() {
+  const input = document.getElementById("bd-gsheet-url");
+  const btn = document.getElementById("bd-gsheet-load");
+  const raw = input?.value || "";
+  const csvUrl = _bdGoogleSheetCsvUrl(raw);
+  if (!csvUrl) { _bdShowIngestError("That doesn't look like a Google Sheets link. Copy the URL from your browser's address bar."); return; }
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+  try {
+    const res = await fetch(csvUrl, { redirect: "follow" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    // A private sheet returns Google's HTML sign-in page instead of CSV.
+    if (/^\s*<(?:!doctype|html)/i.test(text)) {
+      throw new Error('the sheet isn\'t public — set sharing to "Anyone with the link", or download it as Excel/CSV and drop it above');
+    }
+    if (!text.trim()) throw new Error("the sheet came back empty");
+    _bdSetFileLabel("Google Sheet");
+    _bdFillFromText(text);
+  } catch (e) {
+    console.warn("bulk driver gsheet load:", e && e.message);
+    _bdShowIngestError("Couldn't load that Google Sheet: " + ((e && e.message) || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Load"; }
+  }
+}
+
+// Clear the file/link sources (called after a successful import).
+function _bdResetIngestSources() {
+  _bdSetFileLabel("");
+  const f = document.getElementById("bd-file"); if (f) f.value = "";
+  const g = document.getElementById("bd-gsheet-url"); if (g) g.value = "";
+}
+
+// Wire the dropzone, hidden file input, and Google-Sheet loader once.
+(function _bdWireIngestSources() {
+  const wire = () => {
+    const zone = document.getElementById("bd-dropzone");
+    const fileInput = document.getElementById("bd-file");
+    if (!zone || !fileInput || zone.dataset.bdWired) return true;
+    zone.dataset.bdWired = "1";
+    zone.addEventListener("click", () => fileInput.click());
+    zone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+    });
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (f) _bdHandleFile(f);
+    });
+    ["dragenter", "dragover"].forEach((ev) => zone.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      zone.style.borderColor = "var(--accent)"; zone.style.background = "var(--surface)";
+    }));
+    ["dragleave", "drop"].forEach((ev) => zone.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      zone.style.borderColor = ""; zone.style.background = "";
+    }));
+    zone.addEventListener("drop", (e) => {
+      const f = e.dataTransfer?.files && e.dataTransfer.files[0];
+      if (f) _bdHandleFile(f);
+    });
+    const loadBtn = document.getElementById("bd-gsheet-load");
+    if (loadBtn) loadBtn.addEventListener("click", _bdLoadGoogleSheet);
+    const gInput = document.getElementById("bd-gsheet-url");
+    if (gInput) gInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); _bdLoadGoogleSheet(); }
+    });
+    return true;
+  };
+  if (!wire()) {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire, { once: true });
+    else wire();
+  }
+})();
 
 async function doBulkIngest() {
   const text = document.getElementById("bi-paste").value;
