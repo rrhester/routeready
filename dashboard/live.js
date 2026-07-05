@@ -18037,7 +18037,7 @@ async function refreshDriverStatRow(rows) {
     // per-row icon next to Separate (see _rowActionsFor / data-rr-row-coach).
     `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-attendance" data-rr-roster-attendance aria-haspopup="menu" aria-expanded="false" title="Attendance report &amp; policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span class="sched-kpi-val">Attendance</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>` +
     `<button type="button" class="sched-kpi-pill sched-kpi-action rr-kpi-metrics" data-rr-roster-metrics aria-haspopup="dialog" aria-expanded="false" title="Driver metrics · live roster overview" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="sched-kpi-val">Metrics</span></button>` +
-    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span></button>`;
+    `<button type="button" class="sched-kpi-pill sched-kpi-action" data-rr-roster-add-driver aria-haspopup="menu" aria-expanded="false" title="Add a driver or bulk import"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="sched-kpi-val">Add driver</span><span class="rr-kpi-chev" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 4 6 8 10 4"/></svg></span></button>`;
     // Metric pills (Final corrective / >30 days / DL expiring) removed per
     // operator — the top bar is now status filter + Add/Coach actions, with
     // the shared ⋯/bell/avatar chrome relocated into the roster toolbar.
@@ -18537,17 +18537,78 @@ window.openModal = function (id) {
   if (id === "modal-broadcast") { _initBroadcastModal(); }
 };
 
-// Roster table-header "Add driver" button — opens the rich driver-record
-// drawer in create mode, the same flow as the toolbar Add driver. Delegated
-// from document so it survives the thead being re-rendered on every roster
+// Roster top-strip "Add driver" pill — opens a small dropdown with two
+// choices: add one driver (rich driver-record drawer, create mode) or bulk
+// import from a spreadsheet. Same fixed-popover mechanism + .rr-status-picker
+// chrome as the neighboring status-filter / attendance pills. Delegated from
+// document so it survives the KPI strip being re-rendered on every roster
 // refresh.
+function _rrCloseRosterAddMenu() {
+  const pop = document.getElementById("rr-roster-add-menu-pop");
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  pop.innerHTML = "";
+  const t = document.querySelector('[data-rr-roster-add-driver][aria-expanded="true"]');
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+function _rrOpenRosterAddMenu(trigger) {
+  if (!trigger) return;
+  let pop = document.getElementById("rr-roster-add-menu-pop");
+  if (!pop) {
+    pop = document.createElement("div");
+    pop.id = "rr-roster-add-menu-pop";
+    pop.className = "rr-status-picker";
+    pop.setAttribute("role", "menu");
+    pop.hidden = true;
+    document.body.appendChild(pop);
+  }
+  const item = (action, label, sub, svg) =>
+    `<button type="button" role="menuitem" class="rr-status-picker-item" data-rr-add-menu-pick="${action}" style="align-items:flex-start;gap:10px">`
+    + `<span style="display:flex;color:var(--text-muted);margin-top:1px">${svg}</span>`
+    + `<span style="display:flex;flex-direction:column;text-align:left"><span class="rr-status-picker-label">${label}</span>`
+    + `<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">${sub}</span></span>`
+    + `</button>`;
+  pop.innerHTML =
+    item("single", "Add a driver", "Create one driver record",
+      `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>`)
+    + item("bulk", "Bulk import", "Upload Excel/CSV or link a Google Sheet",
+      `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`);
+  const r = trigger.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.top = `${r.bottom + 6}px`;
+  pop.style.minWidth = `${Math.max(220, r.width)}px`;
+  pop.hidden = false;
+  // Right-align to the trigger so a wide menu doesn't run off-screen.
+  const w = pop.offsetWidth || 220;
+  pop.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`;
+  trigger.setAttribute("aria-expanded", "true");
+}
 document.addEventListener("click", (e) => {
-  const addBtn = e.target.closest && e.target.closest("[data-rr-roster-add-driver]");
-  if (!addBtn) return;
-  e.preventDefault();
-  e.stopPropagation();
-  openModal("modal-add-driver");
+  const trigger = e.target.closest && e.target.closest("[data-rr-roster-add-driver]");
+  if (trigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    const isOpen = trigger.getAttribute("aria-expanded") === "true";
+    _rrCloseRosterAddMenu();
+    if (!isOpen) _rrOpenRosterAddMenu(trigger);
+    return;
+  }
+  const pick = e.target.closest && e.target.closest("[data-rr-add-menu-pick]");
+  if (pick) {
+    e.preventDefault();
+    e.stopPropagation();
+    const action = pick.getAttribute("data-rr-add-menu-pick");
+    _rrCloseRosterAddMenu();
+    if (action === "bulk") openModal("modal-bulk-driver-ingest");
+    else openModal("modal-add-driver");
+    return;
+  }
+  const pop = document.getElementById("rr-roster-add-menu-pop");
+  if (pop && !pop.hidden && !e.target.closest("#rr-roster-add-menu-pop")) _rrCloseRosterAddMenu();
 });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRosterAddMenu(); });
+window.addEventListener("scroll", _rrCloseRosterAddMenu, true);
+window.addEventListener("resize", _rrCloseRosterAddMenu);
 
 // ─── Broadcast (one-message-to-many) ──────────────────────────────
 // The modal markup is fully styled but every audience pill, count, and
