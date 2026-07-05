@@ -10840,7 +10840,7 @@ function exportBlockXlsx(g) {
 // axis text and gridlines use the app's ink tokens.
 
 const WB_CHART_COLORS = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948", "#e87ba4", "#eb6834"];
-const WB_CHART_TYPES = { column: "Column", bar: "Bar", line: "Line", area: "Area", pie: "Pie" };
+const WB_CHART_TYPES = { column: "Column", bar: "Bar", stackcol: "Stacked column", stackbar: "Stacked bar", line: "Line", area: "Area", combo: "Combo (columns + line)", scatter: "Scatter", pie: "Pie" };
 
 function sheetCharts(sheet) {
   const v = sheet.meta && sheet.meta.charts;
@@ -10952,14 +10952,51 @@ function chartSvg(sheet, ch) {
     return { svg: `<svg viewBox="0 0 480 220" role="img" aria-label="${t(ch.title || "Pie chart")}">${paths}</svg>`, legend };
   }
 
+  if (ch.type === "scatter") {
+    // first data column = X (numeric), each further column = a Y series;
+    // if X isn't numeric, fall back to the row index
+    const xs = categories.map((lb, i) => { const n = Number(lb); return isFinite(n) && lb !== "" ? n : i; });
+    const W = 480, H = 220, padL = 46, padR = 12, padT = 10, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const ys = series.flatMap((s) => s.values).filter((v) => v != null);
+    if (!ys.length) return { svg: `<div class="wb-chart-empty">No numeric data in ${esc(chartRefText(ch))} yet.</div>`, legend: "" };
+    const xt = chartNiceTicks(Math.min(...xs), Math.max(...xs));
+    const yt = chartNiceTicks(Math.min(0, ...ys), Math.max(...ys));
+    const xLo = xt[0], xHi = xt[xt.length - 1], yLo = yt[0], yHi = yt[yt.length - 1];
+    const px = (v) => padL + ((v - xLo) / (xHi - xLo || 1)) * plotW;
+    const py = (v) => padT + plotH - ((v - yLo) / (yHi - yLo || 1)) * plotH;
+    let out = "";
+    for (const tk of yt) { out += `<line x1="${padL}" y1="${py(tk)}" x2="${W - padR}" y2="${py(tk)}" stroke="var(--border-subtle)" stroke-width="1"/><text x="${padL - 6}" y="${py(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
+    for (const tk of xt) { out += `<text x="${px(tk)}" y="${H - 8}" text-anchor="middle" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
+    series.forEach((s, si) => {
+      s.values.forEach((v, i) => {
+        if (v == null) return;
+        out += `<circle cx="${px(xs[i])}" cy="${py(v)}" r="3.5" fill="${color(si)}" fill-opacity="0.85"><title>(${chartFmt(xs[i])}, ${chartFmt(v)}) · ${t(s.name)}</title></circle>`;
+      });
+    });
+    out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
+    const legend = series.length > 1 ? series.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("") : "";
+    return { svg: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t(ch.title || "Scatter chart")}">${out}</svg>`, legend };
+  }
+
   // shared cartesian frame
   const W = 480, H = 220, padL = 46, padR = 10, padT = 10, padB = 26;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  const horizontal = ch.type === "bar";
+  const stacked = ch.type === "stackcol" || ch.type === "stackbar";
+  const combo = ch.type === "combo";
+  const horizontal = ch.type === "bar" || ch.type === "stackbar";
   let lo = 0, hi = 1;
   const allVals = series.flatMap((s) => s.values).filter((v) => v != null);
   if (allVals.length) { lo = Math.min(...allVals), hi = Math.max(...allVals); }
-  if (ch.type !== "line") { lo = Math.min(0, lo); hi = Math.max(0, hi); } // bars/areas keep a zero baseline
+  if (stacked) {
+    // domain covers the per-category positive / negative running totals
+    lo = 0; hi = 0;
+    for (let i = 0; i < categories.length; i++) {
+      let pos = 0, neg = 0;
+      series.forEach((s) => { const v = s.values[i]; if (v > 0) pos += v; else if (v < 0) neg += v; });
+      hi = Math.max(hi, pos); lo = Math.min(lo, neg);
+    }
+  } else if (ch.type !== "line") { lo = Math.min(0, lo); hi = Math.max(0, hi); } // bars/areas keep a zero baseline
   const ticks = chartNiceTicks(lo, hi);
   lo = ticks[0]; hi = ticks[ticks.length - 1];
   const span = hi - lo || 1;
@@ -10989,12 +11026,30 @@ function chartSvg(sheet, ch) {
   };
   categories.forEach((label, i) => { out += catLabel(label, i); });
 
-  if (ch.type === "column" || ch.type === "bar") {
+  if (ch.type === "column" || ch.type === "bar" || stacked || combo) {
     const band = (horizontal ? plotH : plotW) / nCat;
     const inner = band * 0.72;
-    const bw = Math.max(3, (inner - (series.length - 1) * 2) / series.length);
+    // combo draws all-but-last series as grouped columns and overlays the
+    // last as a line; a single-series combo is just a line
+    const barSeries = combo ? series.slice(0, Math.max(1, series.length - 1)) : series;
+    const nBars = stacked ? 1 : barSeries.length;
+    const bw = stacked ? inner : Math.max(3, (inner - (nBars - 1) * 2) / nBars);
     categories.forEach((label, i) => {
-      series.forEach((s, si) => {
+      if (stacked) {
+        let posAcc = 0, negAcc = 0;
+        const off = (horizontal ? padT : padL) + i * band + (band - inner) / 2;
+        series.forEach((s, si) => {
+          const v = s.values[i];
+          if (v == null || v === 0) return;
+          const base = v >= 0 ? posAcc : negAcc;
+          const title = `${t(label)} · ${t(s.name)}: ${chartFmt(v)}`;
+          if (horizontal) { const a = vx(base), b = vx(base + v); out += `<rect x="${Math.min(a, b)}" y="${off}" width="${Math.abs(b - a)}" height="${inner}" fill="${color(si)}"><title>${title}</title></rect>`; }
+          else { const a = vy(base), b = vy(base + v); out += `<rect x="${off}" y="${Math.min(a, b)}" width="${inner}" height="${Math.abs(b - a)}" fill="${color(si)}"><title>${title}</title></rect>`; }
+          if (v >= 0) posAcc += v; else negAcc += v;
+        });
+        return;
+      }
+      barSeries.forEach((s, si) => {
         const v = s.values[i];
         if (v == null) return;
         const off = (horizontal ? padT : padL) + i * band + (band - inner) / 2 + si * (bw + 2);
@@ -11009,6 +11064,17 @@ function chartSvg(sheet, ch) {
         }
       });
     });
+    // combo line overlay (the last series), plotted over the category midpoints
+    if (combo && series.length > 1) {
+      const s = series[series.length - 1], si = series.length - 1;
+      const cx = (i) => padL + ((i + 0.5) / nCat) * plotW;
+      const pts = [];
+      s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy(v), i, v]); });
+      if (pts.length) {
+        out += `<path d="${pts.map((p, k) => `${k ? "L" : "M"}${p[0]},${p[1]}`).join(" ")}" fill="none" stroke="${color(si)}" stroke-width="2.5" stroke-linejoin="round"/>`;
+        for (const [x, y, i, v] of pts) out += `<circle cx="${x}" cy="${y}" r="3" fill="${color(si)}"><title>${t(categories[i])} · ${t(s.name)}: ${chartFmt(v)}</title></circle>`;
+      }
+    }
     // zero baseline
     if (horizontal) out += `<line x1="${vx(0)}" y1="${padT}" x2="${vx(0)}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
     else out += `<line x1="${padL}" y1="${vy(0)}" x2="${W - padR}" y2="${vy(0)}" stroke="var(--border-strong)" stroke-width="1"/>`;
@@ -14420,6 +14486,7 @@ export const __engine = {
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes,
+  chartSvg, WB_CHART_TYPES,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,
   fillWeekDates, fillSheetInfo, fillDriverIdAt, fillSheetDriverIds,

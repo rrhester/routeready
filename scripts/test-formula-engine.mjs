@@ -919,4 +919,28 @@ ok("dvDateSerial handles ISO, m/d/y, and numeric serials", () => {
   assert.equal(dvDateSerial("nonsense"), null);
 });
 
+// ── charts ───────────────────────────────────────────────────────────────────
+// Build a tiny sheet (headers + 3 categories × 2 series) and confirm every
+// chart type renders an <svg> without throwing.
+function chartSheet() {
+  const cells = new Map();
+  const put = (ref, value, type) => { const rc = parseCellRef(ref); cells.set(rc.row + "," + rc.col, { value: String(value), formula: null, type: type || (isFinite(Number(value)) ? "number" : "text"), computed: null, err: null, format: {} }); };
+  put("A1", "Day", "text"); put("B1", "Routes"); put("C1", "Staffed");
+  put("A2", "Mon", "text"); put("B2", "10"); put("C2", "8");
+  put("A3", "Tue", "text"); put("B3", "12"); put("C3", "9");
+  put("A4", "Wed", "text"); put("B4", "7"); put("C4", "7");
+  return { cells, rowCount: 100, colCount: 26 };
+}
+ok("every chart type renders an <svg>", () => {
+  const sheet = chartSheet();
+  for (const type of Object.keys(__engine.WB_CHART_TYPES)) {
+    const { svg } = __engine.chartSvg(sheet, { type, r0: 0, c0: 0, r1: 3, c1: 2, title: "" });
+    assert.ok(/<svg/.test(svg), `${type} did not produce an svg: ${svg.slice(0, 60)}`);
+  }
+});
+ok("chart handles an empty range gracefully", () => {
+  const { svg } = __engine.chartSvg({ cells: new Map(), rowCount: 100, colCount: 26 }, { type: "stackcol", r0: 0, c0: 0, r1: 3, c1: 2, title: "" });
+  assert.ok(/wb-chart-empty|<svg/.test(svg));
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);
