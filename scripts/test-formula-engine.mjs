@@ -136,6 +136,88 @@ ok("ISTEXT", () => assert.equal(ev('=ISTEXT("x")'), true));
 ok("ISERROR catches #DIV/0", () => assert.equal(ev("=ISERROR(1/0)"), true));
 ok("RANDBETWEEN bounds", () => { const v = ev("=RANDBETWEEN(3,5)"); assert.ok(v >= 3 && v <= 5 && Number.isInteger(v)); });
 
+// ── Sheets function-list expansion ───────────────────────────────────────────
+ok("math batch", () => {
+  assert.equal(ev("=SIGN(-9)"), -1);
+  assert.equal(ev("=EVEN(3)"), 4);
+  assert.equal(ev("=ODD(4)"), 5);
+  assert.equal(ev("=PRODUCT(A1:A3)", sheetCtx({ A1: 2, A2: 3, A3: 4 })), 24);
+  assert.equal(ev("=SUMSQ(A1:A2)", sheetCtx({ A1: 3, A2: 4 })), 25);
+  assert.equal(ev("=QUOTIENT(17,5)"), 3);
+  assert.equal(ev("=GCD(12,18)"), 6);
+  assert.equal(ev("=LCM(4,6)"), 12);
+  assert.equal(ev("=FACT(5)"), 120);
+  assert.equal(ev("=COMBIN(5,2)"), 10);
+  near(ev("=MROUND(7.3,0.5)"), 7.5);
+  near(ev("=DEGREES(PI())"), 180);
+  near(ev("=SIN(RADIANS(90))"), 1);
+  near(ev("=ATAN2(1,1)"), Math.PI / 4);
+  near(ev("=LOG10(1000)"), 3);
+});
+ok("stat batch", () => {
+  const ctx = sheetCtx({ A1: 2, A2: 4, A3: 4, A4: "x" });
+  near(ev("=AVERAGEA(A1:A4)", ctx), 2.5); // text counts as 0
+  assert.equal(ev("=COUNTUNIQUE(A1:A4)", ctx), 3);
+  assert.equal(ev("=MODE(A1:A3)", ctx), 4);
+  near(ev("=STDEVP(A1:A2)", sheetCtx({ A1: 2, A2: 4 })), 1);
+  near(ev("=VARP(A1:A2)", sheetCtx({ A1: 2, A2: 4 })), 1);
+  near(ev("=GEOMEAN(A1:A2)", sheetCtx({ A1: 2, A2: 8 })), 4);
+  near(ev("=HARMEAN(A1:A2)", sheetCtx({ A1: 2, A2: 6 })), 3);
+  near(ev("=PERCENTILE(A1:A5,0.5)", sheetCtx({ A1: 1, A2: 2, A3: 3, A4: 4, A5: 5 })), 3);
+  near(ev("=QUARTILE(A1:A5,2)", sheetCtx({ A1: 1, A2: 2, A3: 3, A4: 4, A5: 5 })), 3);
+});
+ok("text/info batch", () => {
+  assert.equal(ev("=CHAR(65)"), "A");
+  assert.equal(ev('=CODE("A")'), 65);
+  assert.equal(ev('=REPLACE("routeready",6,5,"READY")'), "routeREADY");
+  assert.equal(ev('=JOIN("-","a","b","c")'), "a-b-c");
+  assert.equal(ev("=DOLLAR(-1234.567)"), "($1,234.57)");
+  assert.equal(ev("=FIXED(1234.567,1)"), "1,234.6");
+  assert.equal(ev('=T("x")&N(5)'), "x5");
+  assert.equal(ev("=ISEVEN(4)"), true);
+  assert.equal(ev("=ISODD(-3)"), true);
+  assert.equal(ev('=ISDATE("2026-07-05")'), true);
+  assert.equal(ev("=ISLOGICAL(TRUE)"), true);
+  assert.equal(ev("=IFNA(NA(),\"safe\")"), "safe");
+  assert.equal(ev("=ISNA(NA())"), true);
+  assert.equal(ev("=ISNA(1/0)"), false);
+});
+ok("date/time batch", () => {
+  assert.equal(ev('=DAYS360("2026-01-01","2027-01-01")'), 360);
+  near(ev('=YEARFRAC("2026-01-01","2027-01-01")'), 1);
+  assert.equal(ev('=ISOWEEKNUM("2026-01-01")'), 1);
+  assert.equal(ev('=HOUR("14:30")'), 14);
+  assert.equal(ev('=MINUTE("2:45 PM")'), 45);
+  near(ev('=TIMEVALUE("6:00")'), 0.25);
+});
+ok("financial batch", () => {
+  near(ev("=PMT(0.05/12,60,10000)"), -188.71, 0.05);
+  near(ev("=FV(0,10,-100)"), 1000);
+  near(ev("=PV(0,10,-100)"), 1000);
+  near(ev("=NPER(0,-100,1000)"), 10);
+  near(ev("=NPV(0.1,100,100)"), 173.55, 0.01);
+  near(ev("=IRR(A1:A3)", sheetCtx({ A1: -100, A2: 60, A3: 60 })), 0.1307, 1e-3);
+  near(ev("=SLN(1000,100,9)"), 100);
+  near(ev("=EFFECT(0.12,12)"), 0.1268, 1e-3);
+});
+ok("lookup/positional batch", () => {
+  const ctx = sheetCtx({ A1: 1, A2: 5, A3: 10, B1: "a", B2: "b", B3: "c" });
+  assert.equal(ev("=LOOKUP(7,A1:A3,B1:B3)", ctx), "b");
+  assert.equal(ev("=ROW(B7)"), 7);
+  assert.equal(ev("=COLUMN(B7)"), 2);
+  assert.equal(ev("=ROWS(A1:C4)"), 4);
+  assert.equal(ev("=COLUMNS(A1:C4)"), 3);
+  assert.equal(ev("=ADDRESS(3,2)"), "$B$3");
+  assert.equal(ev("=ADDRESS(3,2,4)"), "B3");
+});
+ok("operator functions", () => {
+  assert.equal(ev("=ADD(2,MULTIPLY(3,4))"), 14);
+  assert.equal(ev("=DIVIDE(10,4)"), 2.5);
+  assert.equal(ev("=EQ(2,2)"), true);
+  assert.equal(ev("=GTE(3,4)"), false);
+  near(ev("=UNARY_PERCENT(50)"), 0.5);
+});
+
 // ── regressions on the existing surface ──────────────────────────────────────
 const regCtx = sheetCtx({ A1: 10, A2: 20, A3: 30, B1: "x", B2: "y", B3: "x" });
 ok("SUM", () => assert.equal(ev("=SUM(A1:A3)", regCtx), 60));
