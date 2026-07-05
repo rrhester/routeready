@@ -2842,6 +2842,7 @@ function renderDetailPage() {
   if (!WB.fitDetailBound) {
     WB.fitDetailBound = true;
     window.addEventListener("resize", () => { if (WB.fitDetail) WB.fitDetail(); });
+    document.addEventListener("fullscreenchange", () => { if (WB.fitDetail) WB.fitDetail(); });
   }
   bindDetailInputs();
   renderPresence();
@@ -3300,6 +3301,13 @@ function mountSheetBlock(block, body) {
           <div class="wb-gr-cells"></div>
           <div class="wb-gr-refhl" aria-hidden="true"></div>
           <div class="wb-gr-sel" aria-hidden="true"></div>
+          <div class="wb-addrows-row" data-wb-addrowsrow>
+            <div class="wb-addrows" data-wb-addrows>
+              <button type="button" class="wb-addrows-btn" data-wb-addbtn ${ro ? "disabled" : ""}>Add</button>
+              <input type="number" class="wb-addrows-n" data-wb-addn value="1000" min="1" max="20000" step="1" ${ro ? "disabled" : ""} aria-label="Rows to add">
+              <span class="wb-addrows-lbl">more rows at the bottom</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="wb-gr-filterchip" hidden></div>
@@ -3466,6 +3474,10 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-border="left" role="menuitem">Left border</button>
           <button type="button" class="popover-item" data-wb-border="right" role="menuitem">Right border</button>
           <button type="button" class="popover-item" data-wb-border="none" role="menuitem">No borders</button>
+          <div class="popover-section"></div>
+          <button type="button" class="popover-item" data-wb-bw="1" role="menuitem"><span class="wb-bw-sample" style="border-top-width:1px"></span>Thin line</button>
+          <button type="button" class="popover-item" data-wb-bw="2" role="menuitem"><span class="wb-bw-sample" style="border-top-width:2px"></span>Medium line</button>
+          <button type="button" class="popover-item" data-wb-bw="3" role="menuitem"><span class="wb-bw-sample" style="border-top-width:3px"></span>Thick line</button>
         </div></span>
     </div>
     <div class="wb-tgrp">${btn("merge", "Merge / unmerge cells", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M9 12h6"/><path d="M7 9l-2 3 2 3"/><path d="M17 9l2 3-2 3"/></svg>`)}${btn("insert-link", "Insert link (Ctrl+click opens)", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`)}${btn("comment-cell", "Comment on the active cell", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`)}${btn("insert-chart", "Insert chart from the selection", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="10" width="3" height="7"/><rect x="11" y="6" width="3" height="11"/><rect x="16" y="13" width="3" height="4"/></svg>`)}</div>
@@ -3550,7 +3562,11 @@ function computeGeometry(g) {
   g.colX[0] = 0;
   for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + Math.round(colW(sheet, c) * z);
   g.els.canvas.style.width = g.colX[sheet.colCount] + "px";
-  g.els.canvas.style.height = g.rowY[rows.length] + "px";
+  // trailing space hosts the "Add N more rows" bar (Sheets-style)
+  const addRow = g.els.body.querySelector("[data-wb-addrowsrow]");
+  const addH = addRow ? 48 : 0;
+  if (addRow) addRow.style.top = g.rowY[rows.length] + 6 + "px";
+  g.els.canvas.style.height = (g.rowY[rows.length] + addH) + "px";
   sizeGrid(g);
 }
 
@@ -3641,12 +3657,16 @@ function cellStyle(sheet, r, c, cell) {
   if (f.fg) s += `color:${wbColorCss("fg", f.fg)};`;
   else if (f.link) s += "color:var(--accent, #2563EB);";
   if (f.wrap) s += "white-space:normal;line-height:1.3;";
-  // applied borders read solid black, like Excel's default border ink
-  if (f.border === "all" || f.border === "outline") s += "box-shadow:inset 0 0 0 1px #000;";
-  else if (f.border === "bottom") s += "box-shadow:inset 0 -1.5px 0 #000;";
-  else if (f.border === "top") s += "box-shadow:inset 0 1.5px 0 #000;";
-  else if (f.border === "left") s += "box-shadow:inset 1.5px 0 0 #000;";
-  else if (f.border === "right") s += "box-shadow:inset -1.5px 0 0 #000;";
+  // applied borders read solid black, like Excel's default border ink;
+  // format.bw picks the line weight (1 thin · 2 medium · 3 thick)
+  const bw = f.bw === 2 || f.bw === 3 ? f.bw : 1;
+  const bAll = bw === 1 ? 1 : bw === 2 ? 2 : 3;
+  const bEdge = bw === 1 ? 1.5 : bw === 2 ? 2.5 : 4;
+  if (f.border === "all" || f.border === "outline") s += `box-shadow:inset 0 0 0 ${bAll}px #000;`;
+  else if (f.border === "bottom") s += `box-shadow:inset 0 -${bEdge}px 0 #000;`;
+  else if (f.border === "top") s += `box-shadow:inset 0 ${bEdge}px 0 #000;`;
+  else if (f.border === "left") s += `box-shadow:inset ${bEdge}px 0 0 #000;`;
+  else if (f.border === "right") s += `box-shadow:inset -${bEdge}px 0 0 #000;`;
   return s;
 }
 
@@ -3734,21 +3754,28 @@ function paintNow(g) {
   const cellDiv = (r, c, x, top, w, h) => {
     const key = cellKey(r, c);
     const cell = sheet.cells.get(key);
-    const disp = cell ? displayValue(sheet, r, c) : "";
+    // View → Show → Formulas: formula cells show their source (Ctrl+`)
+    const disp = cell ? (g.showFormulas && cell.formula ? cell.formula : displayValue(sheet, r, c)) : "";
     const err = cell && cell.err;
     const inval = cellInvalid(sheet, r, c, cell);
     // list-validated cells fill with their option's color and carry a
     // ▾ mark pinned to the far right (Sheets' whole-cell dropdown look)
     const dvRule = hasDvRules && r > 0 ? findValidationRule(sheet, r, c) : null;
     const isDv = !!(dvRule && dvRule.type === "list" && WB.canEdit);
+    // display style (rule.style): "arrow" fills the cell + right ▾ mark,
+    // "chip" wraps the value in a colored pill, "plain" is fill only
+    const dvStyle = isDv ? (dvRule.style === "chip" || dvRule.style === "plain" ? dvRule.style : "arrow") : null;
     const dvColor = isDv ? dvOptionColor(dvRule, cell ? (cell.formula ? cell.computed : cell.value) : null) : null;
-    const dvMark = isDv ? `<span class="wb-dv-mark" data-wb-dvchip="${r},${c}" title="Pick from list" aria-label="Pick from list">▾</span>` : "";
+    const dvFill = isDv && dvStyle !== "chip" ? dvColor : null;
+    const dvMark = isDv && dvStyle === "arrow" ? `<span class="wb-dv-mark" data-wb-dvchip="${r},${c}" title="Pick from list" aria-label="Pick from list">▾</span>` : "";
     // a cell image takes over the cell's face; click opens the lightbox
     const imgSrc = cell ? cellImgSrc(cell) : null;
     const inner = imgSrc
       ? `<img class="wb-cell-img" src="${imgSrc}" data-wb-img="${r},${c}" alt="Cell image" title="Click to enlarge" draggable="false">`
-      : cell && disp ? cellInnerHtml(cell, disp) : isDv ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${imgSrc ? "is-img" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvColor ? `background:${dvColor};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+      : isDv && dvStyle === "chip"
+        ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
+        : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -5884,6 +5911,12 @@ function openValidationDialog(g) {
           <span class="wb-field-label">Options</span>
           <div class="wb-dv-opts" id="wb-dv-opts"></div>
           <button type="button" class="btn btn-ghost btn-sm" id="wb-dv-addopt">+ Add option</button>
+          <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Display style — how the cell looks</span>
+            <select class="wb-input" id="wb-dv-style">
+              <option value="arrow" ${(cur.style || "arrow") === "arrow" ? "selected" : ""}>Colored cell with an arrow</option>
+              <option value="chip" ${cur.style === "chip" ? "selected" : ""}>Chip — a colored pill around the value</option>
+              <option value="plain" ${cur.style === "plain" ? "selected" : ""}>Plain text — just the colored fill</option>
+            </select></label>
         </div>
         <div class="wb-field-row" id="wb-dv-num-row" hidden>
           <label class="wb-field"><span class="wb-field-label">Condition</span>
@@ -5969,6 +6002,7 @@ function openValidationDialog(g) {
       if (type === "list") {
         rule.list = [];
         rule.colors = [];
+        rule.style = wrap.querySelector("#wb-dv-style").value || "arrow";
         optsHost.querySelectorAll(".wb-dv-optrow").forEach((row) => {
           const t = row.querySelector("[data-dv-opt-text]").value.trim();
           if (!t) return;
@@ -6487,6 +6521,13 @@ function restoreViewState(g) {
   g.els.grid.style.setProperty("--wb-zoom", String(g.zoom));
   const zs = g.els.body.querySelector("[data-wb-zoom]");
   if (zs) zs.value = String(g.zoom);
+  // View → Show state: gridlines per sheet (meta), formula bar per user
+  g.els.grid.classList.toggle("is-nogrid", !!(sheet.meta && sheet.meta.nogrid));
+  if (WB.showFbar === undefined) {
+    try { WB.showFbar = localStorage.getItem("rr-wb-fbar") !== "0"; } catch (_) { WB.showFbar = true; }
+  }
+  const fb = g.els.body.querySelector(".wb-fbar");
+  if (fb) fb.hidden = WB.showFbar === false;
 }
 
 const FILTER_VALUE_CAP = 200;
@@ -7307,8 +7348,8 @@ function buildXlsxBytes(sheets) {
   const fills = [`<fill><patternFill patternType="none"/></fill>`, `<fill><patternFill patternType="gray125"/></fill>`];
   const fillIdx = new Map([["", 0]]);
   const BORDER_EDGE = `<color rgb="FF000000"/>`;
-  const borderXml = (edges) => `<border>` +
-    ["left", "right", "top", "bottom"].map((e) => (edges.includes(e) ? `<${e} style="thin">${BORDER_EDGE}</${e}>` : `<${e}/>`)).join("") +
+  const borderXml = (edges, style) => `<border>` +
+    ["left", "right", "top", "bottom"].map((e) => (edges.includes(e) ? `<${e} style="${style || "thin"}">${BORDER_EDGE}</${e}>` : `<${e}/>`)).join("") +
     `<diagonal/></border>`;
   const borders = [borderXml([])];
   const borderIdx = new Map([["", 0]]);
@@ -7337,12 +7378,15 @@ function buildXlsxBytes(sheets) {
       fills.push(`<fill><patternFill patternType="solid"><fgColor rgb="${bgHex}"/><bgColor indexed="64"/></patternFill></fill>`);
       fillIdx.set(bgHex, fillId);
     }
-    // per-cell borders: all/outline both mean every edge of the cell
-    const bKey = ["all", "outline", "top", "bottom", "left", "right"].includes(f.border) ? f.border : "";
+    // per-cell borders: all/outline both mean every edge of the cell;
+    // format.bw maps to OOXML line styles (thin/medium/thick)
+    const bSide = ["all", "outline", "top", "bottom", "left", "right"].includes(f.border) ? f.border : "";
+    const bStyle = bSide ? (f.bw === 3 ? "thick" : f.bw === 2 ? "medium" : "thin") : "";
+    const bKey = bSide ? `${bSide}|${bStyle}` : "";
     let borderId = borderIdx.get(bKey);
     if (borderId == null) {
       borderId = borders.length;
-      borders.push(borderXml(bKey === "all" || bKey === "outline" ? ["left", "right", "top", "bottom"] : [bKey]));
+      borders.push(borderXml(bSide === "all" || bSide === "outline" ? ["left", "right", "top", "bottom"] : [bSide], bStyle));
       borderIdx.set(bKey, borderId);
     }
     const align = f.align || "";
@@ -7811,6 +7855,9 @@ function bindGridEvents(g) {
   grid.addEventListener("mousedown", (e) => {
     if (e.button === 2) return; // context menu path
 
+    // the "Add N more rows" bar handles its own clicks/typing
+    if (e.target.closest("[data-wb-addrows]")) return;
+
     // ── formula point mode: clicking cells inserts references ──
     if (!e.target.closest(".wb-cell-editor")) {
       const stPoint = formulaPointState(g);
@@ -8184,6 +8231,7 @@ function bindGridEvents(g) {
     }
     if (meta && (k === "s" || k === "S")) { e.preventDefault(); scheduleCellFlush.flushNow(); return; }
     if (meta && e.altKey && (k === "m" || k === "M")) { e.preventDefault(); openCellComment(g, g.active.r, g.active.c); return; } // Sheets' comment shortcut
+    if (meta && k === "`") { e.preventDefault(); g.showFormulas = !g.showFormulas; repaintGrid(g); return; } // View → Show → Formulas
     if (meta && (k === "f" || k === "F")) { e.preventDefault(); openFindPanel(g, false); return; }
     if (meta && (k === "h" || k === "H")) { e.preventDefault(); if (WB.canEdit) openFindPanel(g, true); return; }
     if (meta && k.startsWith("Arrow")) {
@@ -8246,6 +8294,26 @@ function bindGridEvents(g) {
     if (text) pasteAt(g, text);
     else if (WB.clipboard && WB.clipboard.rows.length && WB.clipboard.text === "") pasteRich(g, WB.clipboard); // internal copy of image-only cells has an empty TSV
   });
+
+  // ── "Add N more rows at the bottom" (Sheets-style) ──
+  const addBar = g.els.body.querySelector("[data-wb-addrows]");
+  if (addBar) {
+    addBar.addEventListener("keydown", (e) => {
+      e.stopPropagation(); // keep typing out of the grid's key handling
+      if (e.key === "Enter") addBar.querySelector("[data-wb-addbtn]").click();
+    });
+    addBar.querySelector("[data-wb-addbtn]").addEventListener("click", () => {
+      if (!WB.canEdit) return;
+      const inp = addBar.querySelector("[data-wb-addn]");
+      const n = Math.max(1, Math.min(20000, Math.round(+inp.value || 0)));
+      if (!n) return;
+      g.sheet.rowCount = Math.min(100000, g.sheet.rowCount + n);
+      saveSheetMeta(g.sheet.id);
+      computeGeometry(g);
+      repaintGrid(g);
+      _toast(`Added ${n.toLocaleString()} rows`, "success");
+    });
+  }
 
   // move-cursor affordance while hovering the selection border
   grid.addEventListener("mousemove", (e) => {
@@ -8350,6 +8418,8 @@ function bindGridEvents(g) {
     }
     const borderBtn = e.target.closest("[data-wb-border]");
     if (borderBtn) { const v = borderBtn.getAttribute("data-wb-border"); formatSelection(g, { border: v === "none" ? null : v }); closeAllPopovers(); return; }
+    const bwBtn = e.target.closest("[data-wb-bw]");
+    if (bwBtn) { const w = +bwBtn.getAttribute("data-wb-bw"); formatSelection(g, { bw: w === 1 ? null : w }); closeAllPopovers(); return; }
     const freezeBtn = e.target.closest("[data-wb-freeze]");
     if (freezeBtn) { setFreeze(g, freezeBtn.getAttribute("data-wb-freeze")); closeAllPopovers(); return; }
     const io = e.target.closest("[data-wb-tb2]");
@@ -9300,7 +9370,16 @@ function wbMenuItems(menu, g) {
       sep,
       { label: "Find and replace", act: "edit:find", kbd: "Ctrl+H", disabled: !g },
     ];
-    case "View": return [
+    case "View": {
+      const hiddenSheets = g ? (WB.sheetsByBlock.get(g.blockId) || []).filter((s) => s.meta && s.meta.hidden) : [];
+      const nogrid = !!(g && g.sheet.meta && g.sheet.meta.nogrid);
+      const fbarOn = WB.showFbar !== false;
+      return [
+      { label: "Show", sub: [
+        { label: (fbarOn ? "✓ " : "") + "Formula bar", act: "view:show-fbar" },
+        { label: (nogrid ? "" : "✓ ") + "Gridlines", act: "view:show-grid", disabled: !ed || !g },
+        { label: ((g && g.showFormulas) ? "✓ " : "") + "Formulas", act: "view:show-formulas", kbd: "Ctrl+`", disabled: !g },
+      ] },
       { label: "Freeze", sub: [
         { label: "Freeze top row", act: "view:freeze-row", disabled: !ed || !g },
         { label: "Freeze first column", act: "view:freeze-col", disabled: !ed || !g },
@@ -9308,11 +9387,17 @@ function wbMenuItems(menu, g) {
       ] },
       { label: "Zoom", sub: [0.5, 0.75, 0.9, 1, 1.25, 1.5, 2].map((z) => ({ label: Math.round(z * 100) + "%", act: "view:zoom:" + z, disabled: !g })) },
       sep,
+      { label: "Hidden sheets", sub: hiddenSheets.length
+        ? hiddenSheets.map((s) => ({ label: s.name, act: "view:unhide-sheet:" + s.id, disabled: !ed }))
+        : [{ label: "No hidden sheets", act: "view:noop", disabled: true }] },
       { label: "Unhide all rows & columns", act: "view:unhide", disabled: !ed || !g },
+      sep,
+      { label: "Full screen", act: "view:fullscreen" },
       sep,
       { label: "Comments panel", act: "view:comments" },
       { label: "Activity panel", act: "view:activity" },
     ];
+    }
     case "Insert": return [
       { label: "Row above", act: "ins:row-above", disabled: !ed || !g },
       { label: "Row below", act: "ins:row-below", disabled: !ed || !g },
@@ -9332,7 +9417,11 @@ function wbMenuItems(menu, g) {
       { label: "Text", sub: [["bold", "Bold", "Ctrl+B"], ["italic", "Italic", "Ctrl+I"], ["underline", "Underline", "Ctrl+U"], ["strike", "Strikethrough", ""]].map(([k, label, kbd]) => ({ label, kbd, act: "fmt:tog:" + k, disabled: !ed || !g })) },
       { label: "Alignment", sub: [["align:left", "Left"], ["align:center", "Center"], ["align:right", "Right"], ["valign:top", "Top"], ["valign:middle", "Middle"], ["valign:bottom", "Bottom"]].map(([v, label]) => ({ label, act: "fmt:" + v, disabled: !ed || !g })) },
       { label: "Wrapping", act: "fmt:tog:wrap", disabled: !ed || !g },
-      { label: "Borders", sub: [["all", "All borders"], ["outline", "Outline"], ["top", "Top border"], ["bottom", "Bottom border"], ["left", "Left border"], ["right", "Right border"], ["", "No borders"]].map(([v, label]) => ({ label, act: "fmt:border:" + v, disabled: !ed || !g })) },
+      { label: "Borders", sub: [
+        ...[["all", "All borders"], ["outline", "Outline"], ["top", "Top border"], ["bottom", "Bottom border"], ["left", "Left border"], ["right", "Right border"], ["", "No borders"]].map(([v, label]) => ({ label, act: "fmt:border:" + v, disabled: !ed || !g })),
+        sep,
+        ...[["1", "Thin line"], ["2", "Medium line"], ["3", "Thick line"]].map(([v, label]) => ({ label, act: "fmt:bw:" + v, disabled: !ed || !g })),
+      ] },
       { label: "Rotation", sub: [["", "None"], ["45", "Tilt 45°"], ["90", "Vertical"]].map(([v, label]) => ({ label, act: "fmt:rot:" + v, disabled: !ed || !g })) },
       { label: "Font size", sub: [8, 10, 12, 13, 14, 18, 24].map((n) => ({ label: String(n) + " px", act: "fmt:fs:" + n, disabled: !ed || !g })) },
       sep,
@@ -9400,6 +9489,27 @@ function wbMenuAction(act, g) {
     case "edit:del-cols": if (need()) restructure(g, "col", rect.c0, -(rect.c1 - rect.c0 + 1)); return;
     case "edit:clear": if (need()) clearSelection(g); return;
     case "edit:find": if (need()) openFindPanel(g, WB.canEdit); return;
+    case "view:show-fbar": {
+      WB.showFbar = WB.showFbar === false; // toggles (default is on)
+      try { localStorage.setItem("rr-wb-fbar", WB.showFbar ? "1" : "0"); } catch (_) {}
+      document.querySelectorAll("#wb-blocks .wb-fbar").forEach((el) => { el.hidden = !WB.showFbar; });
+      return;
+    }
+    case "view:show-grid": if (need()) {
+      g.sheet.meta = { ...(g.sheet.meta || {}), nogrid: !(g.sheet.meta && g.sheet.meta.nogrid) };
+      saveSheetMeta(g.sheet.id);
+      g.els.grid.classList.toggle("is-nogrid", !!g.sheet.meta.nogrid);
+    } return;
+    case "view:show-formulas": if (need()) { g.showFormulas = !g.showFormulas; repaintGrid(g); } return;
+    case "view:fullscreen": {
+      const el = document.getElementById("wb-detail");
+      try {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else if (el && el.requestFullscreen) el.requestFullscreen();
+      } catch (_) { _toast("Full screen isn't available here", "info"); }
+      return;
+    }
+    case "view:noop": return;
     case "view:freeze-row": if (need()) { g.sheet.frozenRows = 1; saveSheetMeta(g.sheet.id); repaintGrid(g); } return;
     case "view:freeze-col": if (need()) { g.sheet.frozenCols = 1; saveSheetMeta(g.sheet.id); repaintGrid(g); } return;
     case "view:unfreeze": if (need()) setFreeze(g, "none"); return;
@@ -9436,12 +9546,22 @@ function wbMenuAction(act, g) {
   }
   if (!g) { _toast("Open a spreadsheet block first", "info"); return; }
   if (ns === "view" && verb === "zoom") setZoom(g, +arg || 1);
+  else if (ns === "view" && verb === "unhide-sheet") {
+    const sh = findSheet(arg);
+    if (sh && WB.canEdit) {
+      sh.meta = { ...(sh.meta || {}), hidden: false };
+      saveSheetMeta(sh.id);
+      switchSheet(g, sh.id);
+      renderSheetTabs(g);
+    }
+  }
   else if (ns === "ins" && verb === "fn") startEdit(g, g.active.r, g.active.c, `=${arg}(`);
   else if (ns === "fmt" && verb === "num") formatSelection(g, { num: arg || null });
   else if (ns === "fmt" && verb === "tog") toggleFormat(g, arg);
   else if (ns === "fmt" && verb === "align") formatSelection(g, { align: arg });
   else if (ns === "fmt" && verb === "valign") formatSelection(g, { valign: arg });
   else if (ns === "fmt" && verb === "border") formatSelection(g, { border: arg || null });
+  else if (ns === "fmt" && verb === "bw") formatSelection(g, { bw: +arg === 1 ? null : +arg });
   else if (ns === "fmt" && verb === "rot") formatSelection(g, { rot: +arg || null });
   else if (ns === "fmt" && verb === "fs") formatSelection(g, { fs: +arg });
   else if (ns === "data" && verb === "fv") applyFilterView(g, arg);

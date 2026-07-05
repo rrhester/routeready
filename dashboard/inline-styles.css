@@ -28935,7 +28935,42 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 #view-workbooks .wb-flt-btn:hover{color:var(--text);border-color:var(--border-strong)}
 #view-workbooks .wb-flt-btn.is-filtered{background:var(--accent,#2563EB);border-color:var(--accent,#2563EB);color:#fff}
-#view-workbooks .wb-cell.is-dv{padding-right:20px}
+#view-workbooks .wb-cell.is-dvarrow{padding-right:22px}
+/* dropdown "chip" display style — a colored pill around the value */
+#view-workbooks .wb-dv-pill{
+  display:inline-flex;align-items:center;gap:5px;max-width:100%;
+  padding:2px 9px;border-radius:999px;background:#E8EAED;
+  font-size:.92em;line-height:1.3;cursor:pointer;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  border:1px solid rgba(0,0,0,.06);
+}
+#view-workbooks .wb-dv-pill.is-empty{color:var(--text-subtle)}
+#view-workbooks .wb-dv-pillarrow{font-size:9px;color:var(--text-muted)}
+/* border-weight rows in the borders menu */
+.wb-bw-sample{display:inline-block;width:34px;border-top:1px solid #000;margin-right:10px;vertical-align:middle}
+/* "Add N more rows at the bottom" — Sheets-style bar after the last row */
+#view-workbooks .wb-addrows-row{position:absolute;left:0;width:100%;height:42px;pointer-events:none}
+#view-workbooks .wb-addrows{
+  position:sticky;left:8px;display:inline-flex;align-items:center;gap:9px;
+  pointer-events:auto;padding:4px 6px;
+}
+#view-workbooks .wb-addrows-btn{
+  appearance:none;border:0;background:none;cursor:pointer;
+  color:var(--accent);font:inherit;font-size:var(--fs-md);font-weight:600;
+  padding:5px 10px;border-radius:var(--r-sm);
+}
+#view-workbooks .wb-addrows-btn:hover:not([disabled]){background:var(--accent-soft)}
+#view-workbooks .wb-addrows-btn[disabled]{opacity:.5;cursor:default}
+#view-workbooks .wb-addrows-n{
+  width:76px;font:inherit;font-size:var(--fs-md);text-align:center;
+  padding:5px 6px;border:1px solid var(--border-strong);border-radius:var(--r-md);
+  background:var(--surface);
+}
+#view-workbooks .wb-addrows-lbl{font-size:var(--fs-md);color:var(--text)}
+/* View → Show → Gridlines off */
+#view-workbooks .wb-grid.is-nogrid .wb-cell{border-right-color:transparent;border-bottom-color:transparent}
+/* View → Full screen: the detail column becomes the fullscreen element */
+#view-workbooks .wb-detail:fullscreen{background:var(--canvas);padding:10px;box-sizing:border-box}
 #view-workbooks .wb-dv-mark{
   position:absolute;right:1px;top:50%;transform:translateY(-50%);
   width:20px;height:20px;border-radius:4px;
