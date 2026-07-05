@@ -28695,6 +28695,31 @@ body.rr-cmdk-open{ overflow:hidden }
   display:inline-flex;align-items:center;justify-content:center;
 }
 .wb-swatch:hover{box-shadow:var(--ring-focus)}
+.wb-color-custom{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;
+  border-top:1px solid var(--border-subtle);
+  font-size:var(--fs-xs);color:var(--text-muted);cursor:pointer;
+}
+.wb-color-custom input[type="color"]{
+  width:26px;height:26px;padding:0;border:1px solid var(--border-strong);
+  border-radius:var(--r-sm);background:none;cursor:pointer;
+}
+
+/* ── Column filter dropdown ── */
+.wb-filterpop{display:flex;flex-direction:column;gap:6px;padding:10px;width:264px}
+.wb-filterpop-head{font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb-filterpop-text{font-size:var(--fs-sm);padding:5px 8px}
+.wb-filterpop-list{max-height:220px;overflow-y:auto;border:1px solid var(--border-subtle);border-radius:var(--r-sm);padding:2px}
+.wb-filterpop-item{
+  display:flex;align-items:center;gap:7px;padding:4px 7px;
+  font-size:var(--fs-sm);cursor:pointer;border-radius:var(--r-sm);
+}
+.wb-filterpop-item:hover{background:var(--canvas)}
+.wb-filterpop-item>span:first-of-type{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb-filterpop-n{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums}
+.wb-filterpop-all{border-bottom:1px solid var(--border-subtle);border-radius:0;font-weight:600}
+.wb-filterpop-more{padding:5px 7px;font-size:var(--fs-xs);color:var(--text-subtle)}
+.wb-filterpop-foot{display:flex;justify-content:space-between;gap:8px}
 
 /* ── Formula bar ── */
 #view-workbooks .wb-fbar{

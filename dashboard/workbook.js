@@ -1,10 +1,12 @@
 // Operations Workbook · workbook.js
 //
 // A RouteReady-native workbook: spreadsheet blocks with a safe formula
-// engine, rich-text note blocks, and checklist/task blocks — plus
-// comments, @mentions, an activity spine, sharing, and CSV
-// import/export. Rendered into #rr-wb-root (views/view-workbooks.frag)
-// and reached via goto('workbooks').
+// engine (Excel-compatible date serials, wildcards, approximate lookups,
+// A:A ranges, ~80 functions), rich-text note blocks, and checklist/task
+// blocks — plus comments, @mentions, an activity spine, sharing, CSV
+// import/export, and a dependency-free XLSX exporter. Rendered into
+// #rr-wb-root (views/view-workbooks.frag) and reached via
+// goto('workbooks'). Engine unit tests: scripts/test-formula-engine.mjs.
 //
 // Design constraints (mirrors the rest of the dashboard):
 //   · no framework, no dependencies — string templates + delegation
@@ -244,6 +246,7 @@ function tokenize(src) {
 
 const MAX_FORMULA_LEN = 2000;
 const MAX_RANGE_CELLS = 20000;
+const OPEN_END = 1048575; // sentinel bound for open-ended A:A / 1:3 ranges
 
 function parseFormula(src) {
   if (typeof src !== "string") throw new FormulaError("#ERROR", "not a formula");
@@ -306,7 +309,15 @@ function parseFormula(src) {
   function parsePrimary() {
     const tok = next();
     if (!tok) throw new FormulaError("#ERROR", "unexpected end of formula");
-    if (tok.t === TOK_NUM) return { k: "num", v: tok.v };
+    if (tok.t === TOK_NUM) {
+      // whole-row range: 1:3 (columns open-ended)
+      if (Number.isInteger(tok.v) && tok.v >= 1 && peek() && peek().t === TOK_COLON && toks[p + 1] && toks[p + 1].t === TOK_NUM && Number.isInteger(toks[p + 1].v) && toks[p + 1].v >= 1) {
+        next(); // :
+        const end = next().v;
+        return { k: "range", a: { row: Math.min(tok.v, end) - 1, col: 0 }, b: { row: Math.max(tok.v, end) - 1, col: OPEN_END } };
+      }
+      return { k: "num", v: tok.v };
+    }
     if (tok.t === TOK_STR) return { k: "str", v: tok.v };
     if (tok.t === TOK_LP) { const inner = parseCompare(); expect(TOK_RP); return inner; }
     if (tok.t === TOK_ID) {
@@ -328,6 +339,13 @@ function parseFormula(src) {
         return { k: "func", name: up, args };
       }
       if (peek() && peek().t === "!") { next(); return parseSheetRef(id); }
+      // whole-column range: A:A / B:D (rows open-ended)
+      if (/^\$?[A-Za-z]{1,3}$/.test(id) && peek() && peek().t === TOK_COLON && toks[p + 1] && toks[p + 1].t === TOK_ID && /^\$?[A-Za-z]{1,3}$/.test(toks[p + 1].v)) {
+        next(); // :
+        const cA = colIndex(id.replace("$", ""));
+        const cB = colIndex(next().v.replace("$", ""));
+        return { k: "range", a: { row: 0, col: Math.min(cA, cB) }, b: { row: OPEN_END, col: Math.max(cA, cB) } };
+      }
       const ref = parseCellRef(id);
       if (ref) {
         if (peek() && peek().t === TOK_COLON) {
@@ -378,10 +396,29 @@ function parseFormula(src) {
 
 // ── Evaluator ────────────────────────────────────────────────────────────────
 
+// ── Date serials ─────────────────────────────────────────────────────────────
+// Excel-compatible day numbers (days since 1899-12-30), so dates subtract
+// and shift like numbers: =C2-B2 is days between, =B2+30 is a month out.
+
+const DATE_EPOCH_UTC = Date.UTC(1899, 11, 30);
+function dateToSerial(d) {
+  return Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - DATE_EPOCH_UTC) / 86400000);
+}
+function serialToDate(n) {
+  const d = new Date(1899, 11, 30);
+  d.setDate(d.getDate() + Math.trunc(n));
+  return d;
+}
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function toNum(v) {
   if (v == null || v === "") return 0;
   if (typeof v === "number") return v;
   if (typeof v === "boolean") return v ? 1 : 0;
+  const d = typeof v === "string" ? parseDateLoose(v) : null; // dates coerce to serials
+  if (d) return dateToSerial(d);
   const n = Number(String(v).replace(/[$,%\s]/g, ""));
   if (!isFinite(n)) throw new FormulaError("#VALUE", `'${v}' is not a number`);
   return n;
@@ -403,7 +440,16 @@ function cmp(op, a, b) {
   const an = typeof a === "number" || (typeof a === "string" && a.trim() !== "" && isFinite(Number(a)));
   const bn = typeof b === "number" || (typeof b === "string" && b.trim() !== "" && isFinite(Number(b)));
   if (an && bn) { const x = Number(a), y = Number(b); res = x < y ? -1 : x > y ? 1 : 0; }
-  else { const x = String(a ?? "").toUpperCase(), y = String(b ?? "").toUpperCase(); res = x < y ? -1 : x > y ? 1 : 0; }
+  else {
+    // date-aware: "7/10/2026" > "2026-07-01" compares as dates, and a
+    // date compares against a plain number as its serial
+    const ad = typeof a === "string" ? parseDateLoose(a) : null;
+    const bd = typeof b === "string" ? parseDateLoose(b) : null;
+    const av = ad ? dateToSerial(ad) : typeof a === "number" ? a : null;
+    const bv = bd ? dateToSerial(bd) : typeof b === "number" ? b : null;
+    if ((ad || bd) && av != null && bv != null) res = av < bv ? -1 : av > bv ? 1 : 0;
+    else { const x = String(a ?? "").toUpperCase(), y = String(b ?? "").toUpperCase(); res = x < y ? -1 : x > y ? 1 : 0; }
+  }
   switch (op) {
     case "=": return res === 0;
     case "<>": return res !== 0;
@@ -420,6 +466,23 @@ function* rangeCells(a, b) {
   const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
   if ((r1 - r0 + 1) * (c1 - c0 + 1) > MAX_RANGE_CELLS) throw new FormulaError("#REF", "range too large");
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) yield { row: r, col: c };
+}
+
+// Clamp an open-ended range node (A:A, 1:3) to the sheet bounds before
+// expansion; bounded ranges pass through untouched.
+function boundedRange(node, ctx) {
+  let { a, b } = node;
+  if (b.row >= OPEN_END || b.col >= OPEN_END) {
+    const rowMax = Math.max(0, ((ctx && ctx.rowCount) || 10000) - 1);
+    const colMax = Math.max(0, ((ctx && ctx.colCount) || 256) - 1);
+    a = { row: Math.min(a.row, rowMax), col: Math.min(a.col, colMax) };
+    b = { row: Math.min(b.row, rowMax), col: Math.min(b.col, colMax) };
+  }
+  return { a, b };
+}
+function* rangeCellsCtx(node, ctx) {
+  const { a, b } = boundedRange(node, ctx);
+  yield* rangeCells(a, b);
 }
 
 function flatNumeric(vals) {
@@ -447,6 +510,22 @@ const FUNCS = {
   POWER: (vals) => { const r = Math.pow(toNum(vals[0]), toNum(vals[1])); if (!isFinite(r)) throw new FormulaError("#VALUE", "overflow"); return r; },
   MOD: (vals) => { const d = toNum(vals[1]); if (d === 0) throw new FormulaError("#DIV/0", "MOD by zero"); const a = toNum(vals[0]); return a - d * Math.floor(a / d); },
   SQRT: (vals) => { const n = toNum(vals[0]); if (n < 0) throw new FormulaError("#VALUE", "SQRT of negative"); return Math.sqrt(n); },
+  STDEV: (vals) => { const xs = flatNumeric(vals); if (xs.length < 2) throw new FormulaError("#DIV/0", "STDEV needs 2+ numbers"); const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - m) * (b - m), 0) / (xs.length - 1)); },
+  COUNTBLANK: (vals) => vals.filter((v) => v == null || v === "").length,
+  PROPER: (vals) => fmtScalar(vals[0]).toLowerCase().replace(/(^|[^A-Za-z])([a-z])/g, (m, p, c) => p + c.toUpperCase()),
+  REPT: (vals) => { const n = Math.trunc(toNum(vals[1])); const s = fmtScalar(vals[0]); if (n < 0 || n * s.length > 32767) throw new FormulaError("#VALUE", "REPT too long"); return s.repeat(n); },
+  VALUE: (vals) => toNum(vals[0]),
+  EXACT: (vals) => fmtScalar(vals[0]) === fmtScalar(vals[1]),
+  TRUNC: (vals) => { const d = vals.length > 1 ? Math.trunc(toNum(vals[1])) : 0; const f = Math.pow(10, d); return Math.trunc(toNum(vals[0]) * f) / f; },
+  CEILING: (vals) => { const x = toNum(vals[0]); const s = vals.length > 1 ? toNum(vals[1]) : 1; if (s === 0) return 0; return Math.ceil(x / s - 1e-10) * s; },
+  FLOOR: (vals) => { const x = toNum(vals[0]); const s = vals.length > 1 ? toNum(vals[1]) : 1; if (s === 0) throw new FormulaError("#DIV/0", "FLOOR by zero"); return Math.floor(x / s + 1e-10) * s; },
+  LN: (vals) => { const x = toNum(vals[0]); if (x <= 0) throw new FormulaError("#VALUE", "LN of non-positive"); return Math.log(x); },
+  EXP: (vals) => { const r = Math.exp(toNum(vals[0])); if (!isFinite(r)) throw new FormulaError("#VALUE", "overflow"); return r; },
+  LOG: (vals) => { const x = toNum(vals[0]); const b = vals.length > 1 ? toNum(vals[1]) : 10; if (x <= 0 || b <= 0 || b === 1) throw new FormulaError("#VALUE", "bad LOG"); return Math.log(x) / Math.log(b); },
+  PI: () => Math.PI,
+  RAND: () => Math.random(),
+  RANDBETWEEN: (vals) => { const a = Math.ceil(toNum(vals[0])), b = Math.floor(toNum(vals[1])); if (b < a) throw new FormulaError("#VALUE", "bad RANDBETWEEN range"); return a + Math.floor(Math.random() * (b - a + 1)); },
+  XOR: (vals) => vals.filter((v) => truthy(v)).length % 2 === 1,
 };
 
 function evalFormula(src, ctx) {
@@ -506,13 +585,43 @@ function collectArgValues(args, ctx) {
   const out = [];
   for (const a of args) {
     if (a.k === "range") {
-      for (const { row, col } of rangeCells(a.a, a.b)) out.push(ctx.getCell(row, col, a.sheet));
+      for (const { row, col } of rangeCellsCtx(a, ctx)) out.push(ctx.getCell(row, col, a.sheet));
     } else {
       out.push(evalNode(a, ctx));
     }
   }
   return out;
 }
+
+// Evaluate an argument as a date: serial numbers round-trip, strings parse
+// loosely ("2026-07-05" or "7/5/2026").
+function argDate(node, ctx, name) {
+  const v = evalNode(node, ctx);
+  if (typeof v === "number") return serialToDate(v);
+  const d = parseDateLoose(fmtScalar(v));
+  if (!d) throw new FormulaError("#VALUE", `${name} needs a date`);
+  return d;
+}
+
+// Optional holidays argument for NETWORKDAYS / WORKDAY → Set of serials.
+function holidaySerials(node, ctx) {
+  const set = new Set();
+  if (!node) return set;
+  if (node.k === "range") {
+    for (const { row, col } of rangeCellsCtx(node, ctx)) {
+      const d = parseDateLoose(fmtScalar(ctx.getCell(row, col, node.sheet) ?? ""));
+      if (d) set.add(dateToSerial(d));
+    }
+  } else {
+    const d = parseDateLoose(fmtScalar(evalNode(node, ctx)));
+    if (d) set.add(dateToSerial(d));
+  }
+  return set;
+}
+
+// Day-of-week straight from a serial: epoch 1899-12-30 was a Saturday,
+// so serial % 7 → 0=Sat, 1=Sun, 2=Mon … 6=Fri (weekdays are 2–6).
+function serialIsWeekday(s) { const dow = s % 7; return dow >= 2 && dow <= 6; }
 
 function callFunc(node, ctx) {
   const { name, args } = node;
@@ -546,19 +655,19 @@ function callFunc(node, ctx) {
     case "COUNTIF": {
       if (args.length !== 2) throw new FormulaError("#ERROR", "COUNTIF takes 2 args");
       if (args[0].k !== "range" && args[0].k !== "ref") throw new FormulaError("#VALUE", "COUNTIF needs a range");
-      const vals = args[0].k === "range" ? [...rangeCells(args[0].a, args[0].b)].map(({ row, col }) => ctx.getCell(row, col, args[0].sheet)) : [evalNode(args[0], ctx)];
+      const vals = args[0].k === "range" ? [...rangeCellsCtx(args[0], ctx)].map(({ row, col }) => ctx.getCell(row, col, args[0].sheet)) : [evalNode(args[0], ctx)];
       const crit = evalNode(args[1], ctx);
       return vals.filter((v) => matchesCriterion(v, crit)).length;
     }
     case "SUMIF": {
       if (args.length !== 2 && args.length !== 3) throw new FormulaError("#ERROR", "SUMIF takes 2-3 args");
       if (args[0].k !== "range") throw new FormulaError("#VALUE", "SUMIF needs a range");
-      const cells = [...rangeCells(args[0].a, args[0].b)];
+      const cells = [...rangeCellsCtx(args[0], ctx)];
       const crit = evalNode(args[1], ctx);
       let sumCells = cells;
       if (args.length === 3) {
         if (args[2].k !== "range") throw new FormulaError("#VALUE", "SUMIF sum_range must be a range");
-        const s = [...rangeCells(args[2].a, args[2].b)];
+        const s = [...rangeCellsCtx(args[2], ctx)];
         if (s.length < cells.length) throw new FormulaError("#REF", "sum_range too small");
         sumCells = s;
       }
@@ -577,16 +686,26 @@ function callFunc(node, ctx) {
       if (args[1].k !== "range") throw new FormulaError("#VALUE", "VLOOKUP needs a range");
       const needle = evalNode(args[0], ctx);
       const idx = Math.trunc(toNum(evalNode(args[2], ctx)));
-      const a = args[1].a, b = args[1].b;
+      // range_lookup TRUE = approximate (largest value ≤ needle, data sorted
+      // ascending); omitted stays exact so existing sheets don't shift
+      const approx = args.length === 4 && truthy(evalNode(args[3], ctx));
+      const { a, b } = boundedRange(args[1], ctx);
       const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
       const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
       if (idx < 1 || c0 + idx - 1 > c1) throw new FormulaError("#REF", "VLOOKUP column index out of range");
       if (r1 - r0 + 1 > MAX_RANGE_CELLS) throw new FormulaError("#REF", "range too large");
+      let best = -1;
       for (let r = r0; r <= r1; r++) {
-        let eq = false;
-        try { eq = cmp("=", ctx.getCell(r, c0, args[1].sheet) ?? "", needle ?? ""); } catch (_) {}
+        const v = ctx.getCell(r, c0, args[1].sheet);
+        let eq = false, keep = false;
+        try {
+          eq = cmp("=", v ?? "", needle ?? "");
+          keep = approx && v != null && v !== "" && cmp("<=", v, needle ?? "");
+        } catch (_) {}
         if (eq) return ctx.getCell(r, c0 + idx - 1, args[1].sheet);
+        if (keep) best = r;
       }
+      if (approx && best >= 0) return ctx.getCell(best, c0 + idx - 1, args[1].sheet);
       throw new FormulaError("#N/A", "no match found");
     }
     case "IFERROR": {
@@ -614,10 +733,11 @@ function callFunc(node, ctx) {
       if (start < 1 || len < 0) throw new FormulaError("#VALUE", "bad MID bounds");
       return s.slice(start - 1, start - 1 + len);
     }
-    case "FIND": {
-      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "FIND takes 2-3 args");
-      const needle = fmtScalar(evalNode(args[0], ctx));
-      const hay = fmtScalar(evalNode(args[1], ctx));
+    case "FIND": case "SEARCH": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", `${name} takes 2-3 args`);
+      let needle = fmtScalar(evalNode(args[0], ctx));
+      let hay = fmtScalar(evalNode(args[1], ctx));
+      if (name === "SEARCH") { needle = needle.toLowerCase(); hay = hay.toLowerCase(); } // SEARCH is case-insensitive
       const start = args.length === 3 ? Math.max(1, Math.trunc(toNum(evalNode(args[2], ctx)))) : 1;
       const idx = hay.indexOf(needle, start - 1);
       if (idx < 0) throw new FormulaError("#VALUE", "text not found");
@@ -650,7 +770,7 @@ function callFunc(node, ctx) {
       if (fmt === "#,##0.00" && num != null) return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       if (fmt === "0%" && num != null) return Math.round(num * 100) + "%";
       if (fmt === "$#,##0.00" && num != null) return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const d = parseDateLoose(String(v));
+      const d = parseDateLoose(String(v)) || (num != null && num > 20000 && num < 200000 ? serialToDate(num) : null);
       if (d) {
         const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
         if (/^m+\/d+\/y+$/i.test(fmt)) return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
@@ -670,8 +790,7 @@ function callFunc(node, ctx) {
     }
     case "DAY": case "MONTH": case "YEAR": case "WEEKDAY": {
       if (args.length < 1 || args.length > 2) throw new FormulaError("#ERROR", `${name} takes 1 arg`);
-      const d = parseDateLoose(fmtScalar(evalNode(args[0], ctx)));
-      if (!d) throw new FormulaError("#VALUE", "not a date");
+      const d = argDate(args[0], ctx, name);
       if (name === "DAY") return d.getDate();
       if (name === "MONTH") return d.getMonth() + 1;
       if (name === "YEAR") return d.getFullYear();
@@ -680,7 +799,7 @@ function callFunc(node, ctx) {
     case "INDEX": {
       if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "INDEX takes 2-3 args");
       if (args[0].k !== "range") throw new FormulaError("#VALUE", "INDEX needs a range");
-      const a = args[0].a, b = args[0].b;
+      const { a, b } = boundedRange(args[0], ctx);
       const r0 = Math.min(a.row, b.row), c0 = Math.min(a.col, b.col);
       const rIdx = Math.trunc(toNum(evalNode(args[1], ctx)));
       const cIdx = args.length === 3 ? Math.trunc(toNum(evalNode(args[2], ctx))) : 1;
@@ -691,17 +810,25 @@ function callFunc(node, ctx) {
     case "MATCH": {
       if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "MATCH takes 2-3 args");
       if (args[1].k !== "range") throw new FormulaError("#VALUE", "MATCH needs a range");
-      if (args.length === 3) {
-        const mt = Math.trunc(toNum(evalNode(args[2], ctx)));
-        if (mt !== 0) throw new FormulaError("#VALUE", "only exact MATCH (0) is supported");
-      }
+      // match type: 0 exact (our default — Excel defaults to 1), 1 = largest
+      // value ≤ needle (sorted ascending), -1 = smallest value ≥ needle
+      let mt = 0;
+      if (args.length === 3) mt = Math.sign(Math.trunc(toNum(evalNode(args[2], ctx))));
       const needle = evalNode(args[0], ctx);
-      const cellsIn = [...rangeCells(args[1].a, args[1].b)];
+      const cellsIn = [...rangeCellsCtx(args[1], ctx)];
+      let best = -1;
       for (let i = 0; i < cellsIn.length; i++) {
-        let eq = false;
-        try { eq = cmp("=", ctx.getCell(cellsIn[i].row, cellsIn[i].col, args[1].sheet) ?? "", needle ?? ""); } catch (_) {}
+        const v = ctx.getCell(cellsIn[i].row, cellsIn[i].col, args[1].sheet);
+        if (mt !== 0 && (v == null || v === "")) continue;
+        let eq = false, keep = false;
+        try {
+          eq = cmp("=", v ?? "", needle ?? "");
+          keep = mt === 1 ? cmp("<=", v, needle ?? "") : mt === -1 ? cmp(">=", v, needle ?? "") : false;
+        } catch (_) {}
         if (eq) return i + 1;
+        if (keep) best = i;
       }
+      if (mt !== 0 && best >= 0) return best + 1;
       throw new FormulaError("#N/A", "no match found");
     }
     case "HLOOKUP": {
@@ -709,23 +836,31 @@ function callFunc(node, ctx) {
       if (args[1].k !== "range") throw new FormulaError("#VALUE", "HLOOKUP needs a range");
       const needle = evalNode(args[0], ctx);
       const idx = Math.trunc(toNum(evalNode(args[2], ctx)));
-      const a = args[1].a, b = args[1].b;
+      const approx = args.length === 4 && truthy(evalNode(args[3], ctx));
+      const { a, b } = boundedRange(args[1], ctx);
       const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
       const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
       if (idx < 1 || r0 + idx - 1 > r1) throw new FormulaError("#REF", "HLOOKUP row index out of range");
+      let best = -1;
       for (let c = c0; c <= c1; c++) {
-        let eq = false;
-        try { eq = cmp("=", ctx.getCell(r0, c, args[1].sheet) ?? "", needle ?? ""); } catch (_) {}
+        const v = ctx.getCell(r0, c, args[1].sheet);
+        let eq = false, keep = false;
+        try {
+          eq = cmp("=", v ?? "", needle ?? "");
+          keep = approx && v != null && v !== "" && cmp("<=", v, needle ?? "");
+        } catch (_) {}
         if (eq) return ctx.getCell(r0 + idx - 1, c, args[1].sheet);
+        if (keep) best = c;
       }
+      if (approx && best >= 0) return ctx.getCell(r0 + idx - 1, best, args[1].sheet);
       throw new FormulaError("#N/A", "no match found");
     }
     case "XLOOKUP": {
       if (args.length < 3 || args.length > 4) throw new FormulaError("#ERROR", "XLOOKUP takes 3-4 args");
       if (args[1].k !== "range" || args[2].k !== "range") throw new FormulaError("#VALUE", "XLOOKUP needs lookup and return ranges");
       const needle = evalNode(args[0], ctx);
-      const look = [...rangeCells(args[1].a, args[1].b)];
-      const ret = [...rangeCells(args[2].a, args[2].b)];
+      const look = [...rangeCellsCtx(args[1], ctx)];
+      const ret = [...rangeCellsCtx(args[2], ctx)];
       if (ret.length < look.length) throw new FormulaError("#REF", "return range too small");
       for (let i = 0; i < look.length; i++) {
         let eq = false;
@@ -735,46 +870,50 @@ function callFunc(node, ctx) {
       if (args.length === 4) return evalNode(args[3], ctx);
       throw new FormulaError("#N/A", "no match found");
     }
-    case "COUNTIFS": case "SUMIFS": case "AVERAGEIFS": {
-      const isSum = name === "SUMIFS", isAvg = name === "AVERAGEIFS";
-      const base = isSum || isAvg ? 1 : 0;
-      if (args.length < base + 2 || (args.length - base) % 2 !== 0) throw new FormulaError("#ERROR", `${name} takes ${isSum || isAvg ? "a sum range plus " : ""}range/criteria pairs`);
+    case "COUNTIFS": case "SUMIFS": case "AVERAGEIFS": case "MAXIFS": case "MINIFS": {
+      const isAvg = name === "AVERAGEIFS", isMax = name === "MAXIFS", isMin = name === "MINIFS";
+      const base = name === "COUNTIFS" ? 0 : 1;
+      if (args.length < base + 2 || (args.length - base) % 2 !== 0) throw new FormulaError("#ERROR", `${name} takes ${base ? "a value range plus " : ""}range/criteria pairs`);
       let sumCells2 = null;
-      if (isSum || isAvg) {
+      if (base === 1) {
         if (args[0].k !== "range") throw new FormulaError("#VALUE", `${name} needs a range first`);
-        sumCells2 = [...rangeCells(args[0].a, args[0].b)].map((rc) => ({ ...rc, sheet: args[0].sheet }));
+        sumCells2 = [...rangeCellsCtx(args[0], ctx)].map((rc) => ({ ...rc, sheet: args[0].sheet }));
       }
       const pairs = [];
       for (let i = base; i < args.length; i += 2) {
         if (args[i].k !== "range") throw new FormulaError("#VALUE", `${name} criteria range must be a range`);
-        pairs.push({ cellsIn: [...rangeCells(args[i].a, args[i].b)], sheet: args[i].sheet, crit: evalNode(args[i + 1], ctx) });
+        pairs.push({ cellsIn: [...rangeCellsCtx(args[i], ctx)], sheet: args[i].sheet, crit: evalNode(args[i + 1], ctx) });
       }
       const len = pairs[0].cellsIn.length;
       if (pairs.some((p) => p.cellsIn.length !== len) || (sumCells2 && sumCells2.length < len)) throw new FormulaError("#REF", "ranges must be the same size");
-      let count = 0, total = 0, nnum = 0;
+      let count = 0, total = 0, nnum = 0, best = null;
       for (let i = 0; i < len; i++) {
         if (pairs.every((p) => matchesCriterion(ctx.getCell(p.cellsIn[i].row, p.cellsIn[i].col, p.sheet), p.crit))) {
           count++;
           if (sumCells2) {
             const sv = ctx.getCell(sumCells2[i].row, sumCells2[i].col, sumCells2[i].sheet);
             const num = Number(String(sv ?? "").replace(/[$,\s]/g, ""));
-            if (isFinite(num) && String(sv ?? "").trim() !== "") { total += num; nnum++; }
+            if (isFinite(num) && String(sv ?? "").trim() !== "") {
+              total += num; nnum++;
+              if (best == null || (isMax ? num > best : num < best)) best = num;
+            }
           }
         }
       }
       if (name === "COUNTIFS") return count;
       if (isAvg) { if (!nnum) throw new FormulaError("#DIV/0", "no numeric matches"); return total / nnum; }
+      if (isMax || isMin) return best == null ? 0 : best;
       return total;
     }
     case "AVERAGEIF": {
       if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "AVERAGEIF takes 2-3 args");
       if (args[0].k !== "range") throw new FormulaError("#VALUE", "AVERAGEIF needs a range");
-      const cellsIn = [...rangeCells(args[0].a, args[0].b)];
+      const cellsIn = [...rangeCellsCtx(args[0], ctx)];
       const crit = evalNode(args[1], ctx);
       let avgCells = cellsIn.map((rc) => ({ ...rc, sheet: args[0].sheet }));
       if (args.length === 3) {
         if (args[2].k !== "range") throw new FormulaError("#VALUE", "AVERAGEIF avg_range must be a range");
-        const s2 = [...rangeCells(args[2].a, args[2].b)].map((rc) => ({ ...rc, sheet: args[2].sheet }));
+        const s2 = [...rangeCellsCtx(args[2], ctx)].map((rc) => ({ ...rc, sheet: args[2].sheet }));
         if (s2.length < cellsIn.length) throw new FormulaError("#REF", "avg_range too small");
         avgCells = s2;
       }
@@ -789,6 +928,127 @@ function callFunc(node, ctx) {
       if (!nnum) throw new FormulaError("#DIV/0", "no numeric matches");
       return total / nnum;
     }
+    case "TEXTJOIN": {
+      if (args.length < 3) throw new FormulaError("#ERROR", "TEXTJOIN takes a delimiter, ignore_empty, then values");
+      const delim = fmtScalar(evalNode(args[0], ctx));
+      const ignore = truthy(evalNode(args[1], ctx));
+      const vals = collectArgValues(args.slice(2), ctx).map(fmtScalar);
+      return (ignore ? vals.filter((v) => v !== "") : vals).join(delim);
+    }
+    case "SUMPRODUCT": {
+      if (!args.length) throw new FormulaError("#ERROR", "SUMPRODUCT needs at least one range");
+      const lists = args.map((a) => {
+        if (a.k === "range") return [...rangeCellsCtx(a, ctx)].map(({ row, col }) => { const v = ctx.getCell(row, col, a.sheet); if (typeof v === "boolean") return 0; const n = cellNumeric(v); return n == null ? 0 : n; });
+        return [toNum(evalNode(a, ctx))];
+      });
+      const len = lists[0].length;
+      if (lists.some((l) => l.length !== len)) throw new FormulaError("#VALUE", "SUMPRODUCT ranges must be the same size");
+      let total = 0;
+      for (let i = 0; i < len; i++) { let prod = 1; for (const l of lists) prod *= l[i]; total += prod; }
+      return total;
+    }
+    case "LARGE": case "SMALL": {
+      if (args.length !== 2 || args[0].k !== "range") throw new FormulaError("#ERROR", `${name} takes a range and k`);
+      const xs = flatNumeric([...rangeCellsCtx(args[0], ctx)].map(({ row, col }) => ctx.getCell(row, col, args[0].sheet))).sort((x, y) => y - x);
+      const k = Math.trunc(toNum(evalNode(args[1], ctx)));
+      if (k < 1 || k > xs.length) throw new FormulaError("#VALUE", `${name} k out of range`);
+      return name === "LARGE" ? xs[k - 1] : xs[xs.length - k];
+    }
+    case "RANK": {
+      if (args.length < 2 || args.length > 3 || args[1].k !== "range") throw new FormulaError("#ERROR", "RANK takes a value, a range, and an optional order");
+      const x = toNum(evalNode(args[0], ctx));
+      const xs = flatNumeric([...rangeCellsCtx(args[1], ctx)].map(({ row, col }) => ctx.getCell(row, col, args[1].sheet)));
+      if (!xs.includes(x)) throw new FormulaError("#N/A", "value not in range");
+      const asc = args.length === 3 && truthy(evalNode(args[2], ctx));
+      return 1 + xs.filter((v) => (asc ? v < x : v > x)).length;
+    }
+    case "CHOOSE": {
+      if (args.length < 2) throw new FormulaError("#ERROR", "CHOOSE takes an index then values");
+      const k = Math.trunc(toNum(evalNode(args[0], ctx)));
+      if (k < 1 || k >= args.length) throw new FormulaError("#VALUE", "CHOOSE index out of range");
+      return evalNode(args[k], ctx);
+    }
+    case "SWITCH": {
+      if (args.length < 3) throw new FormulaError("#ERROR", "SWITCH takes a value then match/result pairs");
+      const x = evalNode(args[0], ctx);
+      let i = 1;
+      for (; i + 1 < args.length; i += 2) {
+        let eq = false;
+        try { eq = cmp("=", x ?? "", evalNode(args[i], ctx) ?? ""); } catch (_) {}
+        if (eq) return evalNode(args[i + 1], ctx);
+      }
+      if (i < args.length) return evalNode(args[i], ctx); // trailing default
+      throw new FormulaError("#N/A", "no SWITCH case matched");
+    }
+    case "ISBLANK": case "ISNUMBER": case "ISTEXT": case "ISERROR": {
+      if (args.length !== 1) throw new FormulaError("#ERROR", `${name} takes 1 arg`);
+      let v;
+      try { v = evalNode(args[0], ctx); } catch (e) { if (e instanceof FormulaError) return name === "ISERROR"; throw e; }
+      if (name === "ISERROR") return false;
+      if (name === "ISBLANK") return v == null || v === "";
+      if (name === "ISNUMBER") return typeof v === "number";
+      return typeof v === "string" && v !== "";
+    }
+    case "DATEVALUE": {
+      if (args.length !== 1) throw new FormulaError("#ERROR", "DATEVALUE takes 1 arg");
+      return dateToSerial(argDate(args[0], ctx, name));
+    }
+    case "DAYS": {
+      if (args.length !== 2) throw new FormulaError("#ERROR", "DAYS takes end, start");
+      return dateToSerial(argDate(args[0], ctx, name)) - dateToSerial(argDate(args[1], ctx, name));
+    }
+    case "DATEDIF": {
+      if (args.length !== 3) throw new FormulaError("#ERROR", "DATEDIF takes start, end, unit");
+      const d1 = argDate(args[0], ctx, name), d2 = argDate(args[1], ctx, name);
+      const unit = fmtScalar(evalNode(args[2], ctx)).toUpperCase();
+      const s1 = dateToSerial(d1), s2 = dateToSerial(d2);
+      if (s2 < s1) throw new FormulaError("#VALUE", "end before start");
+      if (unit === "D") return s2 - s1;
+      let months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+      if (d2.getDate() < d1.getDate()) months--;
+      if (unit === "M") return months;
+      if (unit === "Y") return Math.floor(months / 12);
+      if (unit === "YM") return months % 12;
+      throw new FormulaError("#VALUE", "DATEDIF unit must be D, M, Y, or YM");
+    }
+    case "EDATE": case "EOMONTH": {
+      if (args.length !== 2) throw new FormulaError("#ERROR", `${name} takes a date and months`);
+      const d = argDate(args[0], ctx, name);
+      const m = Math.trunc(toNum(evalNode(args[1], ctx)));
+      if (name === "EOMONTH") return isoDate(new Date(d.getFullYear(), d.getMonth() + m + 1, 0));
+      const last = new Date(d.getFullYear(), d.getMonth() + m + 1, 0).getDate();
+      return isoDate(new Date(d.getFullYear(), d.getMonth() + m, Math.min(d.getDate(), last)));
+    }
+    case "NETWORKDAYS": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "NETWORKDAYS takes start, end, [holidays]");
+      const s1 = dateToSerial(argDate(args[0], ctx, name));
+      const s2 = dateToSerial(argDate(args[1], ctx, name));
+      const holidays = holidaySerials(args[2], ctx);
+      const lo = Math.min(s1, s2), hi = Math.max(s1, s2);
+      if (hi - lo > 100000) throw new FormulaError("#VALUE", "date span too large");
+      let n = 0;
+      for (let s = lo; s <= hi; s++) if (serialIsWeekday(s) && !holidays.has(s)) n++;
+      return s1 <= s2 ? n : -n;
+    }
+    case "WORKDAY": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "WORKDAY takes a start date, days, [holidays]");
+      let s = dateToSerial(argDate(args[0], ctx, name));
+      let left = Math.trunc(toNum(evalNode(args[1], ctx)));
+      if (Math.abs(left) > 100000) throw new FormulaError("#VALUE", "too many days");
+      const holidays = holidaySerials(args[2], ctx);
+      const step = left >= 0 ? 1 : -1;
+      while (left !== 0) {
+        s += step;
+        if (serialIsWeekday(s) && !holidays.has(s)) left -= step;
+      }
+      return isoDate(serialToDate(s));
+    }
+    case "WEEKNUM": {
+      if (args.length < 1 || args.length > 2) throw new FormulaError("#ERROR", "WEEKNUM takes a date");
+      const d = argDate(args[0], ctx, name);
+      const jan1 = new Date(d.getFullYear(), 0, 1);
+      return Math.floor((dateToSerial(d) - dateToSerial(jan1) + jan1.getDay()) / 7) + 1;
+    }
     default: {
       const fn = FUNCS[name];
       if (!fn) throw new FormulaError("#NAME", `unknown function ${name}`);
@@ -797,17 +1057,36 @@ function callFunc(node, ctx) {
   }
 }
 
+// Excel wildcard criteria: * = any run, ? = one character, ~* / ~? literal.
+function wildcardRegex(pattern) {
+  let out = "";
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i];
+    if (ch === "~" && (pattern[i + 1] === "*" || pattern[i + 1] === "?")) { out += "\\" + pattern[i + 1]; i++; }
+    else if (ch === "*") out += ".*";
+    else if (ch === "?") out += ".";
+    else out += ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp("^" + out + "$", "i");
+}
+
 function matchesCriterion(v, crit) {
   const s = String(crit ?? "").trim();
   const m = /^(<=|>=|<>|=|<|>)(.*)$/.exec(s);
-  if (m) { try { return cmp(m[1] === "=" ? "=" : m[1], v ?? "", m[2]); } catch (_) { return false; } }
+  const op = m ? m[1] : "=";
+  const body = m ? m[2] : s;
+  if ((op === "=" || op === "<>") && /[*?]/.test(body)) {
+    const hit = wildcardRegex(body).test(String(v ?? ""));
+    return op === "<>" ? !hit : hit;
+  }
+  if (m) { try { return cmp(m[1], v ?? "", m[2]); } catch (_) { return false; } }
   // plain equality (numeric-aware, case-insensitive)
   try { return cmp("=", v ?? "", crit ?? ""); } catch (_) { return false; }
 }
 
 // ── Dependency extraction (for recalc graph + circular detection) ────────────
 
-function extractRefs(src) {
+function extractRefs(src, bounds) {
   let ast;
   try { ast = parseFormula(src); } catch (_) { return []; }
   const refs = [];
@@ -816,7 +1095,8 @@ function extractRefs(src) {
     if (n.k === "ref") { if (!n.sheet) refs.push({ row: n.row, col: n.col }); return; }
     if (n.k === "range") {
       if (n.sheet) return;
-      try { for (const rc of rangeCells(n.a, n.b)) refs.push(rc); } catch (_) {}
+      const { a, b } = boundedRange(n, bounds);
+      try { for (const rc of rangeCells(a, b)) refs.push(rc); } catch (_) {}
       return;
     }
     if (n.k === "func") { n.args.forEach(walk); return; }
@@ -1934,7 +2214,11 @@ function formatForDisplay(v, format, type) {
       return pct.toLocaleString(undefined, dec != null ? fd(dec) : { maximumFractionDigits: 2 }) + "%";
     }
     if (numFmt === "number") return n.toLocaleString(undefined, fd(dec ?? 2));
-    if (numFmt === "date") { const d = parseDateLoose(String(v)); if (d) return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
+    if (numFmt === "date") {
+      // accept both date text and serial numbers (e.g. =B2+30 results)
+      const d = parseDateLoose(String(v)) || (n > 0 && n < 200000 ? serialToDate(n) : null);
+      if (d) return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
     if (dec != null) return n.toLocaleString(undefined, fd(dec));
     if (typeof v === "number") return cleanNum(v);
     return String(v);
@@ -1963,17 +2247,24 @@ function parseDateLoose(s) {
 
 function recalcSheet(sheet) {
   const formulaCells = [];
+  let usedR = 0, usedC = 0;
   for (const [key, cell] of sheet.cells) {
+    const rc = keyRC(key);
+    if (rc.r > usedR) usedR = rc.r;
+    if (rc.c > usedC) usedC = rc.c;
     if (cell.formula) { formulaCells.push([key, cell]); cell.err = null; cell.computed = null; }
   }
   if (!formulaCells.length) return;
+  // open ranges (A:A) clamp to the used extent for dependency purposes —
+  // only formula cells matter as graph edges, and those are all in-use
+  const depBounds = { rowCount: usedR + 1, colCount: usedC + 1 };
   const asts = new Map();
   const deps = new Map();
   for (const [key, cell] of formulaCells) {
     try {
       const ast = parseFormula(cell.formula);
       asts.set(key, ast);
-      deps.set(key, extractRefs(cell.formula).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
+      deps.set(key, extractRefs(cell.formula, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
     } catch (e) {
       cell.err = e instanceof FormulaError ? e.code : "#ERROR";
     }
@@ -2802,7 +3093,7 @@ function mountSheetBlock(block, body) {
     editing: null,          // { r, c, input, viaBar }
     dragging: false,
     resize: null,
-    filter: null,           // { col, text }
+    filters: new Map(),     // col -> { values: Set<string>|null, text: string|null }
     rows: [],               // visible actual row indexes (filter-aware)
     colX: [], rowY: [],     // prefix sums (rowY over g.rows)
     undo: [], redo: [],
@@ -2889,13 +3180,14 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-freeze="col" role="menuitem">Freeze first column</button>
           <button type="button" class="popover-item" data-wb-freeze="none" role="menuitem">Unfreeze</button>
         </div></span>
-      ${btn("sort-asc", "Sort by active column, A→Z", I.sortAsc)}${btn("sort-desc", "Sort by active column, Z→A", I.sortDesc)}${btn("filter", "Filter by active column", I.filter)}${btn("find", "Find and replace (Ctrl+F)", I.find)}${btn("validation", "Data validation", I.dv)}${btn("condfmt", "Conditional formatting", I.cf)}
+      ${btn("sort-asc", "Sort by active column, A→Z", I.sortAsc)}${btn("sort-desc", "Sort by active column, Z→A", I.sortDesc)}<button type="button" class="btn btn-ghost btn-sm wb-tb" data-wb-tb="sort-custom" title="Custom sort — up to three columns" ${ro ? "disabled" : ""}>Sort…</button>${btn("filter", "Filter by active column", I.filter)}${btn("find", "Find and replace (Ctrl+F)", I.find)}${btn("validation", "Data validation", I.dv)}${btn("condfmt", "Conditional formatting", I.cf)}
     </div>
     <div class="wb-tgrp">
       <span class="popover-anchor">
         <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="io-menu" title="Import / export" aria-haspopup="menu" aria-label="Import or export">${I.more}</button>
         <div class="popover wb-tb-pop" role="menu">
           <button type="button" class="popover-item" data-wb-tb2="import-csv" role="menuitem" ${ro ? "disabled" : ""}>Import CSV into this sheet…</button>
+          <button type="button" class="popover-item" data-wb-tb2="export-xlsx" role="menuitem">Export as Excel (.xlsx)</button>
           <button type="button" class="popover-item" data-wb-tb2="export-csv" role="menuitem">Export sheet as CSV</button>
         </div>
       </span>
@@ -2905,22 +3197,32 @@ function sheetToolbarHtml(block, ro) {
 
 // ─── Geometry ────────────────────────────────────────────────────────────────
 
+// The text a filter compares against — what the cell shows, not how it's
+// formatted (formula cells contribute their computed value).
+function filterCellText(sheet, r, col) {
+  const cell = sheet.cells.get(cellKey(r, col));
+  return cell ? String(cell.formula ? (cell.err || (cell.computed ?? "")) : (cell.value ?? "")) : "";
+}
+
 function computeGeometry(g) {
   const sheet = g.sheet;
-  // visible rows (filter-aware; header row 0 always visible)
+  // visible rows (filter-aware; header row 0 always visible). Every
+  // filtered column must accept the row — Excel AutoFilter semantics.
   const rows = [];
   const rowHidden = (r) => sheet.hiddenRows && sheet.hiddenRows.has(r);
-  if (g.filter && g.filter.text) {
-    const needle = g.filter.text.toLowerCase();
-    for (let r = 0; r < sheet.rowCount; r++) {
-      if (rowHidden(r)) continue;
-      if (r === 0) { rows.push(r); continue; }
-      const cell = sheet.cells.get(cellKey(r, g.filter.col));
-      const disp = cell ? String(cell.formula ? (cell.err || (cell.computed ?? "")) : (cell.value ?? "")) : "";
-      if (disp.toLowerCase().includes(needle)) rows.push(r);
+  const filters = g.filters && g.filters.size
+    ? [...g.filters.entries()].map(([col, f]) => ({ col, needle: f.text ? f.text.toLowerCase() : null, values: f.values || null }))
+    : null;
+  for (let r = 0; r < sheet.rowCount; r++) {
+    if (rowHidden(r)) continue;
+    if (r === 0 || !filters) { rows.push(r); continue; }
+    let show = true;
+    for (const f of filters) {
+      const t = filterCellText(sheet, r, f.col);
+      if (f.needle && !t.toLowerCase().includes(f.needle)) { show = false; break; }
+      if (f.values && !f.values.has(t)) { show = false; break; }
     }
-  } else {
-    for (let r = 0; r < sheet.rowCount; r++) if (!rowHidden(r)) rows.push(r);
+    if (show) rows.push(r);
   }
   g.rows = rows;
   g.rowY = new Array(rows.length + 1);
@@ -2979,9 +3281,9 @@ function cellStyle(sheet, r, c, cell) {
   if (f.align) s += `text-align:${f.align};`;
   else if (!f.align && cell && !cell.formula && (cell.type === "number" || cell.type === "currency" || cell.type === "percent")) s += "text-align:right;";
   else if (cell && cell.formula && typeof cell.computed === "number") s += "text-align:right;";
-  if (f.bg && f.bg !== "header") s += `background:${esc(WB_COLORS.bg[f.bg] || "transparent")};`;
+  if (f.bg && f.bg !== "header") s += `background:${wbColorCss("bg", f.bg)};`;
   if (f.bg === "header") s += "background:var(--canvas);font-weight:600;";
-  if (f.fg) s += `color:${esc(WB_COLORS.fg[f.fg] || "inherit")};`;
+  if (f.fg) s += `color:${wbColorCss("fg", f.fg)};`;
   if (f.wrap) s += "white-space:normal;line-height:1.3;";
   if (f.border === "all" || f.border === "outline") s += "box-shadow:inset 0 0 0 1px var(--border-strong);";
   if (f.border === "bottom") s += "box-shadow:inset 0 -1.5px 0 var(--border-strong);";
@@ -2992,6 +3294,14 @@ const WB_COLORS = {
   bg: { none: "", gray: "#F3F4F6", blue: "rgba(37,99,235,.09)", green: "rgba(22,163,74,.10)", amber: "rgba(217,119,6,.12)", red: "rgba(220,38,38,.09)", violet: "rgba(124,58,237,.10)" },
   fg: { default: "", muted: "#6B7280", blue: "#1E40AF", green: "#166534", amber: "#92400E", red: "#B91C1C" },
 };
+
+// Preset keys resolve through the palette; a #RRGGBB value (from the
+// custom picker) passes through directly. Anything else is inert.
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+function wbColorCss(kind, key) {
+  if (HEX_COLOR_RE.test(String(key))) return key;
+  return esc(WB_COLORS[kind][key] || (kind === "bg" ? "transparent" : "inherit"));
+}
 
 function repaintGrid(g) {
   if (g.raf) return;
@@ -3092,7 +3402,7 @@ function updateSelStats(g) {
   const el = g.els.selstats;
   if (!el) return;
   if (g.els.sbfilter) {
-    g.els.sbfilter.textContent = g.filter && g.filter.text ? `${g.rows.length - 1} of ${g.sheet.rowCount} rows` : "";
+    g.els.sbfilter.textContent = g.filters && g.filters.size ? `${g.rows.length - 1} of ${g.sheet.rowCount} rows` : "";
   }
   const { r0, r1, c0, c1 } = selRect(g);
   if (r0 === r1 && c0 === c1) { el.textContent = `${colLabel(c0)}${r0 + 1}`; return; }
@@ -3160,9 +3470,15 @@ function paintFrozen(g, sx, sy, c0, c1) {
 
 function paintFilterChip(g) {
   const chip = g.els.filterChip;
-  if (g.filter && g.filter.text) {
+  if (g.filters && g.filters.size) {
+    const parts = [...g.filters.entries()].map(([col, f]) => {
+      const bits = [];
+      if (f.values) bits.push(`${f.values.size} value${f.values.size === 1 ? "" : "s"}`);
+      if (f.text) bits.push(`contains “${esc(f.text)}”`);
+      return `${colLabel(col)} ${bits.join(", ")}`;
+    });
     chip.hidden = false;
-    chip.innerHTML = `Filter: ${colLabel(g.filter.col)} contains “${esc(g.filter.text)}” · ${g.rows.length - 1} row${g.rows.length === 2 ? "" : "s"} <button type="button" class="wb-filter-clear" data-wb-act="filter-clear" data-block="${g.blockId}">Clear</button>`;
+    chip.innerHTML = `Filter: ${parts.join(" · ")} · ${g.rows.length - 1} row${g.rows.length === 2 ? "" : "s"} <button type="button" class="wb-filter-clear" data-wb-act="filter-clear" data-block="${g.blockId}">Clear</button>`;
   } else {
     chip.hidden = true;
   }
@@ -3219,9 +3535,10 @@ function tracePrecedents(g) {
 function traceDependents(g) {
   const target = { r: g.active.r, c: g.active.c };
   const hits = [];
+  const depBounds = { rowCount: g.sheet.rowCount, colCount: g.sheet.colCount };
   for (const [key, cell] of g.sheet.cells) {
     if (!cell.formula) continue;
-    if (extractRefs(cell.formula).some((rc) => rc.row === target.r && rc.col === target.c)) {
+    if (extractRefs(cell.formula, depBounds).some((rc) => rc.row === target.r && rc.col === target.c)) {
       const { r, c } = keyRC(key);
       hits.push(colLabel(c) + (r + 1));
       if (hits.length >= 10) break;
@@ -3657,6 +3974,43 @@ const FUNCTION_META = [
   { n: "AVERAGEIFS", sig: "AVERAGEIFS(avg_range, range1, crit1, …)", d: "Average matching every condition" },
   { n: "TODAY", sig: "TODAY()", d: "Today's date" },
   { n: "NOW", sig: "NOW()", d: "Current date & time" },
+  { n: "DATEDIF", sig: "DATEDIF(start, end, \"D\"|\"M\"|\"Y\")", d: "Days/months/years between dates" },
+  { n: "DAYS", sig: "DAYS(end, start)", d: "Days between two dates" },
+  { n: "DATEVALUE", sig: "DATEVALUE(text)", d: "Date text → serial number" },
+  { n: "EDATE", sig: "EDATE(date, months)", d: "Date shifted by N months" },
+  { n: "EOMONTH", sig: "EOMONTH(date, months)", d: "End of month, N months out" },
+  { n: "NETWORKDAYS", sig: "NETWORKDAYS(start, end, [holidays])", d: "Working days between dates" },
+  { n: "WORKDAY", sig: "WORKDAY(start, days, [holidays])", d: "Date N working days out" },
+  { n: "WEEKNUM", sig: "WEEKNUM(date)", d: "Week number in the year" },
+  { n: "SUMPRODUCT", sig: "SUMPRODUCT(range1, range2, …)", d: "Sum of products across ranges" },
+  { n: "TEXTJOIN", sig: "TEXTJOIN(delim, ignore_empty, values…)", d: "Join values with a delimiter" },
+  { n: "MAXIFS", sig: "MAXIFS(range, crit_range, crit, …)", d: "Largest value matching conditions" },
+  { n: "MINIFS", sig: "MINIFS(range, crit_range, crit, …)", d: "Smallest value matching conditions" },
+  { n: "LARGE", sig: "LARGE(range, k)", d: "K-th largest value" },
+  { n: "SMALL", sig: "SMALL(range, k)", d: "K-th smallest value" },
+  { n: "RANK", sig: "RANK(value, range, [order])", d: "Rank of a value in a range" },
+  { n: "STDEV", sig: "STDEV(range)", d: "Sample standard deviation" },
+  { n: "COUNTBLANK", sig: "COUNTBLANK(range)", d: "How many empty cells" },
+  { n: "CHOOSE", sig: "CHOOSE(index, a, b, …)", d: "Pick a value by position" },
+  { n: "SWITCH", sig: "SWITCH(value, case, result, …, [default])", d: "Match a value against cases" },
+  { n: "XOR", sig: "XOR(a, b, …)", d: "TRUE when an odd number hold" },
+  { n: "SEARCH", sig: "SEARCH(needle, text)", d: "Position of text (ignores case)" },
+  { n: "PROPER", sig: "PROPER(text)", d: "Capitalize Each Word" },
+  { n: "REPT", sig: "REPT(text, count)", d: "Repeat text N times" },
+  { n: "VALUE", sig: "VALUE(text)", d: "Text → number" },
+  { n: "EXACT", sig: "EXACT(a, b)", d: "Case-sensitive equality" },
+  { n: "TRUNC", sig: "TRUNC(number, [digits])", d: "Cut off decimals" },
+  { n: "CEILING", sig: "CEILING(number, [step])", d: "Round up to a multiple" },
+  { n: "FLOOR", sig: "FLOOR(number, [step])", d: "Round down to a multiple" },
+  { n: "ISBLANK", sig: "ISBLANK(cell)", d: "TRUE when empty" },
+  { n: "ISNUMBER", sig: "ISNUMBER(value)", d: "TRUE for numbers" },
+  { n: "ISTEXT", sig: "ISTEXT(value)", d: "TRUE for text" },
+  { n: "ISERROR", sig: "ISERROR(value)", d: "TRUE when a formula errors" },
+  { n: "LN", sig: "LN(number)", d: "Natural log" },
+  { n: "LOG", sig: "LOG(number, [base])", d: "Logarithm (base 10 default)" },
+  { n: "EXP", sig: "EXP(number)", d: "e raised to a power" },
+  { n: "RAND", sig: "RAND()", d: "Random number 0–1" },
+  { n: "RANDBETWEEN", sig: "RANDBETWEEN(low, high)", d: "Random whole number" },
 ];
 
 function ensureFxPop(g) {
@@ -3768,7 +4122,7 @@ function switchSheet(g, sheetId) {
   g.sheet = sheet;
   recalcSheet(sheet); // cross-sheet inputs may have changed while hidden
   closeFindPanel(g);
-  g.filter = null;
+  g.filters = new Map();
   g.active = { r: 0, c: 0 };
   g.sel = { r0: 0, c0: 0, r1: 0, c1: 0 };
   g.undo = []; g.redo = [];
@@ -3910,7 +4264,7 @@ function setCells(g, changes, opts) {
     prev: a.prev ? (a.prev.formula || a.prev.value) : null,
     next: a.next ? (a.next.formula || a.next.value) : null,
   })));
-  if (g.filter) computeGeometry(g);
+  if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
 }
@@ -3928,7 +4282,7 @@ function undoGrid(g) {
   g.redo.push(op);
   recalcWithSiblings(sheet);
   markCellsDirty(sheet, op.changes.map((c) => c.key));
-  if (g.filter) computeGeometry(g);
+  if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
 }
@@ -3944,7 +4298,7 @@ function redoGrid(g) {
   g.undo.push(op);
   recalcWithSiblings(sheet);
   markCellsDirty(sheet, op.changes.map((c) => c.key));
-  if (g.filter) computeGeometry(g);
+  if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
 }
@@ -4990,12 +5344,14 @@ function openFindPanel(g, withReplace) {
 }
 
 // ─── Sort ────────────────────────────────────────────────────────────────────
-// Sorts data rows (2..N — row 1 is treated as the header) by the active
-// column. Whole rows move together; one undo entry.
+// Sorts data rows (2..N — row 1 is treated as the header). Whole rows
+// move together; one undo entry. Multi-level: specs = [{col, dir}, …].
 
-function sortByColumn(g, col, dir) {
-  if (!WB.canEdit) return;
-  if (g.filter) { g.filter = null; computeGeometry(g); }
+function sortByColumn(g, col, dir) { sortBySpecs(g, [{ col, dir }]); }
+
+function sortBySpecs(g, specs) {
+  if (!WB.canEdit || !specs || !specs.length) return;
+  if (g.filters && g.filters.size) { g.filters = new Map(); computeGeometry(g); }
   const sheet = g.sheet;
   cancelEdit(g);
   let maxRow = 0;
@@ -5003,16 +5359,18 @@ function sortByColumn(g, col, dir) {
   if (maxRow < 2) { _toast("Nothing to sort below the header row", "info"); return; }
   const rowsIdx = [];
   for (let r = 1; r <= maxRow; r++) rowsIdx.push(r);
-  const keyOf = (r) => {
+  const keyOf = (r, col) => {
     const cell = sheet.cells.get(cellKey(r, col));
     if (!cell) return { empty: true };
     const raw = cell.formula ? cell.computed : cell.value;
-    const n = cellNumeric(raw);
-    return { empty: raw == null || raw === "", n, s: String(raw ?? "").toLowerCase() };
+    if (raw == null || raw === "") return { empty: true };
+    let n = cellNumeric(raw);
+    if (n == null && typeof raw === "string") { const d = parseDateLoose(raw); if (d) n = dateToSerial(d); } // dates sort as dates
+    return { empty: false, n, s: String(raw).toLowerCase() };
   };
-  const sorted = rowsIdx.slice().sort((a, b) => {
-    const ka = keyOf(a), kb = keyOf(b);
-    if (ka.empty && kb.empty) return a - b;
+  const cmpLevel = (a, b, col, dir) => {
+    const ka = keyOf(a, col), kb = keyOf(b, col);
+    if (ka.empty && kb.empty) return 0;
     if (ka.empty) return 1; // empties always last
     if (kb.empty) return -1;
     let cmp;
@@ -5021,6 +5379,13 @@ function sortByColumn(g, col, dir) {
     else if (kb.n != null) cmp = 1;
     else cmp = ka.s < kb.s ? -1 : ka.s > kb.s ? 1 : 0;
     return dir === "asc" ? cmp : -cmp;
+  };
+  const sorted = rowsIdx.slice().sort((a, b) => {
+    for (const sp of specs) {
+      const cmp = cmpLevel(a, b, sp.col, sp.dir);
+      if (cmp) return cmp;
+    }
+    return a - b; // stable
   });
   if (sorted.every((r, i) => r === rowsIdx[i])) { repaintGrid(g); return; }
   // rebuild the map with rows in the new order
@@ -5053,21 +5418,181 @@ function sortByColumn(g, col, dir) {
   g.redo = [];
   recalcWithSiblings(sheet);
   markCellsDirty(sheet, [...touched]);
-  wbLog("sheet.sorted", `sorted ${sheet.name} by column ${colLabel(col)} (${dir === "asc" ? "A→Z" : "Z→A"})`, { target_type: "sheet", target_id: sheet.id });
+  wbLog("sheet.sorted", `sorted ${sheet.name} by ${specs.map((sp) => `${colLabel(sp.col)} ${sp.dir === "asc" ? "A→Z" : "Z→A"}`).join(", ")}`, { target_type: "sheet", target_id: sheet.id });
   computeGeometry(g);
   repaintGrid(g);
 }
 
-// ─── Filter ──────────────────────────────────────────────────────────────────
+// Custom sort dialog: up to three levels, column labels pulled from the
+// header row so operators pick by name, not letter.
+function openSortDialog(g) {
+  if (!WB.canEdit) return;
+  document.getElementById("wb-sort-modal")?.remove();
+  const sheet = g.sheet;
+  const colOpts = (sel) => {
+    let out = "";
+    for (let c = 0; c < sheet.colCount; c++) {
+      const header = filterCellText(sheet, 0, c);
+      out += `<option value="${c}" ${c === sel ? "selected" : ""}>${esc(colLabel(c))}${header ? ` — ${esc(header.slice(0, 28))}` : ""}</option>`;
+    }
+    return out;
+  };
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-sort-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Sort" style="width:520px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Sort</p><p class="rr-modal-sub">Row 1 stays put as the header; whole rows move together.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        ${[0, 1, 2].map((i) => `
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">${i === 0 ? "Sort by" : "Then by"}</span>
+            <select class="wb-input" data-sort-col="${i}">${i === 0 ? "" : `<option value="">—</option>`}${colOpts(i === 0 ? g.active.c : -1)}</select></label>
+          <label class="wb-field" style="flex:0 0 170px"><span class="wb-field-label">Order</span>
+            <select class="wb-input" data-sort-dir="${i}">
+              <option value="asc">A → Z · low → high</option>
+              <option value="desc">Z → A · high → low</option>
+            </select></label>
+        </div>`).join("")}
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-sort-apply>Sort</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (e.target.closest("[data-wb-sort-apply]")) {
+      const specs = [];
+      for (let i = 0; i < 3; i++) {
+        const col = wrap.querySelector(`[data-sort-col="${i}"]`).value;
+        if (col === "") continue;
+        const c = +col;
+        if (specs.some((s) => s.col === c)) continue;
+        specs.push({ col: c, dir: wrap.querySelector(`[data-sort-dir="${i}"]`).value });
+      }
+      wrap.remove();
+      if (specs.length) sortBySpecs(g, specs);
+      g.els.grid.focus();
+    }
+  });
+  setTimeout(() => wrap.querySelector('[data-sort-col="0"]')?.focus(), 30);
+}
 
-function openFilterPrompt(g, col) {
-  const current = g.filter && g.filter.col === col ? g.filter.text : "";
-  const text = window.prompt(`Show only rows where column ${colLabel(col)} contains:`, current || "");
-  if (text == null) return;
-  if (!text.trim()) { g.filter = null; }
-  else g.filter = { col, text: text.trim() };
+// ─── Filter ──────────────────────────────────────────────────────────────────
+// Excel-style AutoFilter: a per-column dropdown with the column's distinct
+// values as checkboxes plus a contains-text box. Filters stack across
+// columns; the chip below the grid summarizes and clears them.
+
+const FILTER_VALUE_CAP = 200;
+
+function openFilterPanel(g, col, anchorEl, at) {
+  const sheet = g.sheet;
+  const cur = (g.filters && g.filters.get(col)) || null;
+  const counts = new Map();
+  for (let r = 1; r < sheet.rowCount; r++) {
+    if (sheet.hiddenRows && sheet.hiddenRows.has(r)) continue;
+    const t = filterCellText(sheet, r, col);
+    if (t === "") continue;
+    counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  const values = [...counts.keys()].sort((a, b) => {
+    const na = Number(a), nb = Number(b);
+    if (isFinite(na) && isFinite(nb) && a.trim() !== "" && b.trim() !== "") return na - nb;
+    const la = a.toLowerCase(), lb = b.toLowerCase();
+    return la < lb ? -1 : la > lb ? 1 : 0;
+  });
+  const shown = values.slice(0, FILTER_VALUE_CAP);
+  const header = filterCellText(sheet, 0, col);
+  const isChecked = (v) => (cur && cur.values ? cur.values.has(v) : true);
+  const rect = anchorEl ? anchorEl.getBoundingClientRect() : null;
+  const m = ctxMenu(at ? at.x : rect ? rect.left : 120, at ? at.y : rect ? rect.bottom + 4 : 120, `
+    <div class="wb-filterpop">
+      <div class="wb-filterpop-head">Filter ${esc(colLabel(col))}${header ? ` · ${esc(header.slice(0, 32))}` : ""}</div>
+      <input type="text" class="wb-input wb-filterpop-text" data-fp-text placeholder="Contains…" value="${esc((cur && cur.text) || "")}" autocomplete="off" spellcheck="false" aria-label="Rows containing text">
+      <label class="wb-filterpop-item wb-filterpop-all"><input type="checkbox" data-fp-all ${!cur || !cur.values ? "checked" : ""}> <span>Select all</span><span class="wb-filterpop-n">${values.length}</span></label>
+      <div class="wb-filterpop-list">
+        ${shown.map((v) => `<label class="wb-filterpop-item"><input type="checkbox" data-fp-val="${esc(v)}" ${isChecked(v) ? "checked" : ""}> <span>${esc(v)}</span><span class="wb-filterpop-n">${counts.get(v)}</span></label>`).join("") || `<div class="rr-empty-inline">No values below the header yet.</div>`}
+        ${values.length > FILTER_VALUE_CAP ? `<div class="wb-filterpop-more">…and ${values.length - FILTER_VALUE_CAP} more — use “Contains” to narrow.</div>` : ""}
+      </div>
+      <div class="wb-filterpop-foot">
+        <button type="button" class="btn btn-ghost btn-sm" data-fp-clear>Clear</button>
+        <button type="button" class="btn btn-primary btn-sm" data-fp-apply>Apply</button>
+      </div>
+    </div>`);
+  const allBox = m.querySelector("[data-fp-all]");
+  const apply = () => {
+    const text = m.querySelector("[data-fp-text]").value.trim();
+    const boxes = [...m.querySelectorAll("[data-fp-val]")];
+    const all = !boxes.length || boxes.every((cb) => cb.checked);
+    const picked = new Set(boxes.filter((cb) => cb.checked).map((cb) => cb.getAttribute("data-fp-val")));
+    closeAllPopovers();
+    if (!text && all) g.filters.delete(col);
+    else g.filters.set(col, { text: text || null, values: all ? null : picked });
+    computeGeometry(g);
+    repaintGrid(g);
+    g.els.grid.focus();
+  };
+  allBox.addEventListener("change", () => {
+    m.querySelectorAll("[data-fp-val]").forEach((cb) => { cb.checked = allBox.checked; });
+  });
+  m.addEventListener("change", (e) => {
+    if (e.target.closest("[data-fp-val]")) {
+      const boxes = [...m.querySelectorAll("[data-fp-val]")];
+      allBox.checked = boxes.every((cb) => cb.checked);
+    }
+  });
+  m.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") { closeAllPopovers(); g.els.grid.focus(); }
+    if (e.key === "Enter") { e.preventDefault(); apply(); }
+  });
+  m.querySelector("[data-fp-apply]").addEventListener("click", apply);
+  m.querySelector("[data-fp-clear]").addEventListener("click", () => {
+    closeAllPopovers();
+    g.filters.delete(col);
+    computeGeometry(g);
+    repaintGrid(g);
+    g.els.grid.focus();
+  });
+  setTimeout(() => m.querySelector("[data-fp-text]")?.focus(), 30);
+}
+
+// ─── Autofit ─────────────────────────────────────────────────────────────────
+// Size columns to their widest rendered value (Excel's double-click-the-
+// divider gesture). Canvas measureText against the grid's own font.
+
+let AUTOFIT_MEASURE = null;
+
+function autofitColumns(g, c0, c1) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  if (!AUTOFIT_MEASURE) AUTOFIT_MEASURE = document.createElement("canvas").getContext("2d");
+  const cs = getComputedStyle(g.els.cells);
+  const widths = new Map();
+  let scanned = 0;
+  for (const [key, cell] of sheet.cells) {
+    const { r, c } = keyRC(key);
+    if (c < c0 || c > c1) continue;
+    const disp = displayValue(sheet, r, c);
+    if (!disp) continue;
+    if (++scanned > 20000) break;
+    const bold = cell.format && (cell.format.bold || cell.format.bg === "header");
+    AUTOFIT_MEASURE.font = `${bold ? "600" : cs.fontWeight || "400"} ${cs.fontSize || "13px"} ${cs.fontFamily || "sans-serif"}`;
+    const w = Math.ceil(AUTOFIT_MEASURE.measureText(disp).width) + 18;
+    if (w > (widths.get(c) || 0)) widths.set(c, w);
+  }
+  for (let c = c0; c <= c1; c++) {
+    sheet.colWidths[c] = Math.min(MAX_COL_W, Math.max(MIN_COL_W, widths.get(c) || DEF_COL_W));
+  }
   computeGeometry(g);
   repaintGrid(g);
+  saveSheetMeta(sheet.id);
 }
 
 // ─── Freeze ──────────────────────────────────────────────────────────────────
@@ -5309,6 +5834,239 @@ function applyCsvImport(g, matrix, clipped, fileName) {
   _toast(clipped ? `Imported with clipping — sheets cap at ${CSV_MAX_ROWS} rows × ${CSV_MAX_COLS} columns` : "CSV imported", clipped ? "warn" : "success");
 }
 
+// ─── XLSX export ─────────────────────────────────────────────────────────────
+// Minimal Office Open XML writer, no dependencies. Zip entries are STORED
+// (no compression) — Excel, Sheets, and Numbers all accept that. Formulas
+// are exported live (our function surface is a subset of Excel's), values
+// keep their types (dates become real Excel date serials), and the core
+// formats (bold/italic/underline, fills, text color, alignment, wrap,
+// number formats, column widths, frozen panes) survive the trip.
+
+const XLSX_CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+function xlsxCrc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = XLSX_CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// Zip container with stored entries and a fixed timestamp (deterministic
+// output — same workbook, same bytes).
+function xlsxZip(files) {
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  const DOS_DATE = ((2026 - 1980) << 9) | (1 << 5) | 1; // 2026-01-01
+  for (const f of files) {
+    const crc = xlsxCrc32(f.bytes);
+    const local = new Uint8Array(30 + f.nameB.length);
+    const dv = new DataView(local.buffer);
+    dv.setUint32(0, 0x04034b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint16(6, 0x0800, true); // UTF-8 names
+    dv.setUint16(8, 0, true);      // stored
+    dv.setUint16(12, DOS_DATE, true);
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, f.bytes.length, true);
+    dv.setUint32(22, f.bytes.length, true);
+    dv.setUint16(26, f.nameB.length, true);
+    local.set(f.nameB, 30);
+    chunks.push(local, f.bytes);
+    central.push({ nameB: f.nameB, crc, size: f.bytes.length, offset });
+    offset += local.length + f.bytes.length;
+  }
+  const centralStart = offset;
+  for (const c of central) {
+    const hdr = new Uint8Array(46 + c.nameB.length);
+    const dv = new DataView(hdr.buffer);
+    dv.setUint32(0, 0x02014b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint16(6, 20, true);
+    dv.setUint16(8, 0x0800, true);
+    dv.setUint16(14, DOS_DATE, true);
+    dv.setUint32(16, c.crc, true);
+    dv.setUint32(20, c.size, true);
+    dv.setUint32(24, c.size, true);
+    dv.setUint16(28, c.nameB.length, true);
+    dv.setUint32(42, c.offset, true);
+    hdr.set(c.nameB, 46);
+    chunks.push(hdr);
+    offset += hdr.length;
+  }
+  const eocd = new Uint8Array(22);
+  const dv = new DataView(eocd.buffer);
+  dv.setUint32(0, 0x06054b50, true);
+  dv.setUint16(8, central.length, true);
+  dv.setUint16(10, central.length, true);
+  dv.setUint32(12, offset - centralStart, true);
+  dv.setUint32(16, centralStart, true);
+  chunks.push(eocd);
+  const out = new Uint8Array(offset + 22);
+  let pos = 0;
+  for (const c of chunks) { out.set(c, pos); pos += c.length; }
+  return out;
+}
+
+function xmlEsc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// Excel sheet names: no : \ / ? * [ ], 31 chars, unique per workbook.
+function xlsxSheetName(name, used) {
+  const base = String(name || "Sheet").replace(/[\\/?*[\]:]/g, " ").replace(/\s+/g, " ").trim().slice(0, 31) || "Sheet";
+  let out = base, i = 2;
+  while (used.has(out.toLowerCase())) out = `${base.slice(0, 28)} ${i++}`.trim();
+  used.add(out.toLowerCase());
+  return out;
+}
+
+function buildXlsxBytes(sheets) {
+  const enc = new TextEncoder();
+  const XMLH = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`;
+  const FG_HEX = { muted: "FF6B7280", blue: "FF1E40AF", green: "FF166534", amber: "FF92400E", red: "FFB91C1C" };
+  const BG_HEX = { gray: "FFF3F4F6", blue: "FFDBEAFE", green: "FFDCFCE7", amber: "FFFEF3C7", red: "FFFEE2E2", violet: "FFEDE9FE", header: "FFF3F4F6" };
+  const NUMFMT = { number: 4, percent: 10, date: 14, text: 49, currency: 164 };
+
+  // dynamic style registries (index 0 = default; fill 1 is zip-required gray125)
+  const fonts = [`<font><sz val="11"/><name val="Calibri"/></font>`];
+  const fontIdx = new Map([["|||", 0]]);
+  const fills = [`<fill><patternFill patternType="none"/></fill>`, `<fill><patternFill patternType="gray125"/></fill>`];
+  const fillIdx = new Map([["", 0]]);
+  const xfs = [`<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>`];
+  const xfIdx = new Map([["0|0|0||0", 0]]);
+
+  const styleFor = (cell) => {
+    const f = (cell && cell.format) || {};
+    const effNum = f.num || (cell && !cell.formula && ["currency", "percent", "date"].includes(cell.type) ? cell.type : null);
+    const numId = effNum != null && NUMFMT[effNum] != null ? NUMFMT[effNum] : 0;
+    const bold = !!(f.bold || f.bg === "header");
+    const fgHex = f.fg ? (HEX_COLOR_RE.test(f.fg) ? "FF" + f.fg.slice(1).toUpperCase() : FG_HEX[f.fg] || "") : "";
+    const fontKey = `${bold ? "b" : ""}|${f.italic ? "i" : ""}|${f.underline ? "u" : ""}|${fgHex}`;
+    let fontId = fontIdx.get(fontKey);
+    if (fontId == null) {
+      fontId = fonts.length;
+      fonts.push(`<font>${bold ? "<b/>" : ""}${f.italic ? "<i/>" : ""}${f.underline ? "<u/>" : ""}${fgHex ? `<color rgb="${fgHex}"/>` : ""}<sz val="11"/><name val="Calibri"/></font>`);
+      fontIdx.set(fontKey, fontId);
+    }
+    const bgHex = f.bg ? (HEX_COLOR_RE.test(f.bg) ? "FF" + f.bg.slice(1).toUpperCase() : BG_HEX[f.bg] || "") : "";
+    let fillId = fillIdx.get(bgHex);
+    if (fillId == null) {
+      fillId = fills.length;
+      fills.push(`<fill><patternFill patternType="solid"><fgColor rgb="${bgHex}"/><bgColor indexed="64"/></patternFill></fill>`);
+      fillIdx.set(bgHex, fillId);
+    }
+    const align = f.align || "";
+    const wrap = f.wrap ? 1 : 0;
+    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}`;
+    let s = xfIdx.get(xfKey);
+    if (s == null) {
+      s = xfs.length;
+      const alignXml = align || wrap ? `<alignment${align ? ` horizontal="${align}"` : ""}${wrap ? ` wrapText="1"` : ""}/>` : "";
+      xfs.push(`<xf numFmtId="${numId}" fontId="${fontId}" fillId="${fillId}" borderId="0"${numId ? ` applyNumberFormat="1"` : ""}${fontId ? ` applyFont="1"` : ""}${fillId ? ` applyFill="1"` : ""}${alignXml ? ` applyAlignment="1"` : ""}>${alignXml}</xf>`);
+      xfIdx.set(xfKey, s);
+    }
+    return s;
+  };
+
+  const sheetXml = (sheet) => {
+    const rowsMap = new Map();
+    for (const [key, cell] of sheet.cells) {
+      if (cell.value == null && cell.formula == null && !(cell.format && Object.keys(cell.format).length)) continue;
+      const rc = keyRC(key);
+      if (!rowsMap.has(rc.r)) rowsMap.set(rc.r, []);
+      rowsMap.get(rc.r).push([rc.c, cell]);
+    }
+    let body = "";
+    for (const r of [...rowsMap.keys()].sort((a, b) => a - b)) {
+      let line = `<row r="${r + 1}">`;
+      for (const [c, cell] of rowsMap.get(r).sort((a, b) => a[0] - b[0])) {
+        const ref = colLabel(c) + (r + 1);
+        const s = styleFor(cell);
+        const sAttr = s ? ` s="${s}"` : "";
+        if (cell.formula) {
+          const fx = xmlEsc(String(cell.formula).replace(/^=/, ""));
+          const v = cell.err ? null : cell.computed;
+          if (typeof v === "number" && isFinite(v)) line += `<c r="${ref}"${sAttr}><f>${fx}</f><v>${v}</v></c>`;
+          else if (typeof v === "boolean") line += `<c r="${ref}"${sAttr} t="b"><f>${fx}</f><v>${v ? 1 : 0}</v></c>`;
+          else if (v != null && v !== "") line += `<c r="${ref}"${sAttr} t="str"><f>${fx}</f><v>${xmlEsc(String(v))}</v></c>`;
+          else line += `<c r="${ref}"${sAttr}><f>${fx}</f></c>`;
+          continue;
+        }
+        const raw = cell.value;
+        if (raw == null || raw === "") { if (sAttr) line += `<c r="${ref}"${sAttr}/>`; continue; }
+        if (cell.type === "date") {
+          const d = parseDateLoose(String(raw));
+          if (d) { line += `<c r="${ref}"${sAttr}><v>${dateToSerial(d)}</v></c>`; continue; }
+        }
+        if (cell.type === "number" || cell.type === "currency" || cell.type === "percent") {
+          const n = cellNumeric(raw);
+          if (n != null) { line += `<c r="${ref}"${sAttr}><v>${cell.type === "percent" ? n / 100 : n}</v></c>`; continue; }
+        }
+        if (cell.type === "boolean") { line += `<c r="${ref}"${sAttr} t="b"><v>${/^true$/i.test(String(raw)) ? 1 : 0}</v></c>`; continue; }
+        line += `<c r="${ref}"${sAttr} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(String(raw))}</t></is></c>`;
+      }
+      body += line + "</row>";
+    }
+    const wEntries = Object.entries(sheet.colWidths || {}).filter(([, w]) => typeof w === "number");
+    const cols = wEntries.length
+      ? "<cols>" + wEntries.map(([c, w]) => `<col min="${+c + 1}" max="${+c + 1}" width="${(Math.min(MAX_COL_W, Math.max(MIN_COL_W, w)) / 7).toFixed(2)}" customWidth="1"/>`).join("") + "</cols>"
+      : "";
+    let view = `<sheetViews><sheetView workbookViewId="0"/></sheetViews>`;
+    if (sheet.frozenRows || sheet.frozenCols) {
+      const x = sheet.frozenCols ? 1 : 0, y = sheet.frozenRows ? 1 : 0;
+      view = `<sheetViews><sheetView workbookViewId="0"><pane${x ? ` xSplit="${x}"` : ""}${y ? ` ySplit="${y}"` : ""} topLeftCell="${colLabel(x) + (y + 1)}" state="frozen"/></sheetView></sheetViews>`;
+    }
+    return `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${view}${cols}<sheetData>${body}</sheetData></worksheet>`;
+  };
+
+  // sheet XML first — it populates the style registries as it goes
+  const sheetXmls = sheets.map(sheetXml);
+  const used = new Set();
+  const names = sheets.map((sh) => xlsxSheetName(sh.name, used));
+
+  const stylesXml = `${XMLH}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/></numFmts><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs></styleSheet>`;
+  const workbookXml = `${XMLH}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n, i) => `<sheet name="${xmlEsc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`;
+  const wbRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const rootRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const contentTypes = `${XMLH}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+
+  const file = (name, xml) => ({ nameB: enc.encode(name), bytes: enc.encode(xml) });
+  return xlsxZip([
+    file("[Content_Types].xml", contentTypes),
+    file("_rels/.rels", rootRels),
+    file("xl/workbook.xml", workbookXml),
+    file("xl/_rels/workbook.xml.rels", wbRels),
+    file("xl/styles.xml", stylesXml),
+    ...sheetXmls.map((xml, i) => file(`xl/worksheets/sheet${i + 1}.xml`, xml)),
+  ]);
+}
+
+function exportBlockXlsx(g) {
+  const sheets = (WB.sheetsByBlock.get(g.blockId) || []).slice().sort((a, b) => a.position - b.position);
+  if (!sheets.length || sheets.every((sh) => usedRange(sh).maxR < 0)) { _toast("Nothing to export yet", "info"); return; }
+  let bytes;
+  try { bytes = buildXlsxBytes(sheets); }
+  catch (e) { console.warn("xlsx export:", e && e.message); _toast("Couldn't build the Excel file", "error"); return; }
+  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const wbName = (WB.wb && WB.wb.title ? WB.wb.title : "workbook").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "workbook";
+  a.download = `${wbName}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  wbLog("xlsx.exported", `exported ${sheets.length === 1 ? `sheet “${sheets[0].name}”` : `${sheets.length} sheets`} as an Excel file`, { target_type: "block", target_id: g.blockId });
+  _toast("Excel file exported", "success");
+}
+
 // ─── Menus (shared open/close discipline) ───────────────────────────────────
 
 function closeAllPopovers() {
@@ -5409,7 +6167,7 @@ function bindGridEvents(g) {
     const fh = e.target.closest("[data-wb-fillhandle]");
     if (fh && WB.canEdit) {
       e.preventDefault();
-      if (g.filter) { _toast("Clear the filter before drag-filling", "warn"); return; }
+      if (g.filters.size) { _toast("Clear the filter before drag-filling", "warn"); return; }
       const src = selRect(g);
       const preview = document.createElement("div");
       preview.className = "wb-fill-preview";
@@ -5583,6 +6341,9 @@ function bindGridEvents(g) {
   });
 
   grid.addEventListener("dblclick", (e) => {
+    // double-click a column divider → autofit that column (Excel)
+    const rz = e.target.closest("[data-wb-rzcol]");
+    if (rz && WB.canEdit) { const c = +rz.getAttribute("data-wb-rzcol"); autofitColumns(g, c, c); return; }
     const cell = e.target.closest(".wb-cell");
     if (!cell || !WB.canEdit) return;
     const r = +cell.getAttribute("data-r"), c = +cell.getAttribute("data-c");
@@ -5826,7 +6587,9 @@ function bindGridEvents(g) {
     const io = e.target.closest("[data-wb-tb2]");
     if (io) {
       closeAllPopovers();
-      if (io.getAttribute("data-wb-tb2") === "import-csv") importCsvInto(g);
+      const ioAct = io.getAttribute("data-wb-tb2");
+      if (ioAct === "import-csv") importCsvInto(g);
+      else if (ioAct === "export-xlsx") exportBlockXlsx(g);
       else exportSheetCsv(g);
       return;
     }
@@ -5856,14 +6619,15 @@ function bindGridEvents(g) {
       case "col-del": restructure(g, "col", g.active.c, -1); break;
       case "sort-asc": sortByColumn(g, g.active.c, "asc"); break;
       case "sort-desc": sortByColumn(g, g.active.c, "desc"); break;
-      case "filter": openFilterPrompt(g, g.active.c); break;
+      case "sort-custom": openSortDialog(g); return;
+      case "filter": openFilterPanel(g, g.active.c, btn); return;
       case "numfmt-menu":
       case "fill-menu":
       case "textc-menu":
       case "border-menu":
       case "freeze-menu":
       case "io-menu": {
-        if (act === "fill-menu" || act === "textc-menu") fillColorPop(btn);
+        if (act === "fill-menu" || act === "textc-menu") fillColorPop(g, btn);
         togglePopover(btn);
         return;
       }
@@ -5925,7 +6689,7 @@ function commitBarEdit(g) {
   }
 }
 
-function fillColorPop(btn) {
+function fillColorPop(g, btn) {
   const pop = btn.closest(".popover-anchor")?.querySelector(".wb-color-pop");
   if (!pop || pop.dataset.filled) return;
   pop.dataset.filled = "1";
@@ -5935,7 +6699,13 @@ function fillColorPop(btn) {
     : [["", "Default"], ["muted", "Muted"], ["blue", "Blue"], ["green", "Green"], ["amber", "Amber"], ["red", "Red"]];
   pop.innerHTML = `<div class="wb-color-grid">` + palette.map(([key, label]) =>
     `<button type="button" class="wb-swatch" data-wb-color="${key}" title="${label}" aria-label="${label}" style="background:${key ? (WB_COLORS[kind][key] || "#fff") : "#fff"}">${key ? "" : "×"}</button>`
-  ).join("") + `</div>`;
+  ).join("") + `</div>
+    <label class="wb-color-custom"><input type="color" data-wb-colorpick value="${kind === "bg" ? "#FFF3C4" : "#1F2937"}" aria-label="Custom color"> Custom…</label>`;
+  pop.querySelector("[data-wb-colorpick]").addEventListener("change", (e) => {
+    formatSelection(g, { [kind]: e.target.value });
+    closeAllPopovers();
+    g.els.grid.focus();
+  });
 }
 
 // ─── Context menus ───────────────────────────────────────────────────────────
@@ -5986,6 +6756,12 @@ function openCellContextMenu(g, x, y, kind) {
     item("trace-dependents", "Highlight dependents"),
     item("data-validation", "Data validation…"),
     item("cond-format", "Conditional formatting…"),
+    sep,
+    item("sort-col-asc", "Sort sheet by this column A→Z"),
+    item("sort-col-desc", "Sort sheet by this column Z→A"),
+    item("sort-custom", "Custom sort…"),
+    item("filter-col", "Filter this column…"),
+    kind === "col" ? item("autofit-col", nCols > 1 ? `Autofit ${nCols} columns` : "Autofit column width") : "",
     kind === "row" ? item("hide-rows", `Hide ${rowsLabel}`) : "",
     kind === "row" && hasHiddenRows ? item("unhide-rows", "Unhide rows in selection") : "",
     kind === "col" ? item("hide-cols", `Hide ${colsLabel}`) : "",
@@ -6039,6 +6815,11 @@ function openCellContextMenu(g, x, y, kind) {
       case "trace-dependents": traceDependents(g); break;
       case "data-validation": openValidationDialog(g); break;
       case "cond-format": openCondFormatDialog(g); break;
+      case "sort-col-asc": sortByColumn(g, c, "asc"); break;
+      case "sort-col-desc": sortByColumn(g, c, "desc"); break;
+      case "sort-custom": openSortDialog(g); return;
+      case "filter-col": openFilterPanel(g, c, null, { x, y }); return;
+      case "autofit-col": autofitColumns(g, rect0.c0, rect0.c1); break;
     }
     g.els.grid.focus();
   });
@@ -6544,7 +7325,7 @@ function installRootListeners() {
       case "sheet-add": addSheetTo(actBtn.getAttribute("data-block")); break;
       case "filter-clear": {
         const g = GRIDS.get(actBtn.getAttribute("data-block"));
-        if (g) { g.filter = null; computeGeometry(g); repaintGrid(g); }
+        if (g) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); }
         break;
       }
       case "item-toggle": if (itemHost) toggleItem(itemHost.getAttribute("data-wb-item")); break;
@@ -6704,3 +7485,14 @@ export async function loadWorkbooksView() {
   }
   await renderListPage();
 }
+
+// ─── Test hook ───────────────────────────────────────────────────────────────
+// Exposed for the Node engine tests (scripts/test-formula-engine.mjs) —
+// not part of the app surface; live.js imports only the view loaders.
+
+export const __engine = {
+  parseFormula, evalFormula, extractRefs, matchesCriterion, FormulaError,
+  colLabel, colIndex, cellRef, parseCellRef,
+  dateToSerial, serialToDate, isoDate, parseDateLoose,
+  buildXlsxBytes,
+};
