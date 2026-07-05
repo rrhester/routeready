@@ -2129,10 +2129,28 @@ async function renderReportsPage() {
     return;
   }
   if (WB.view !== "reports") return; // navigated away while loading
+  renderReportsBody(root);
+}
+
+// Reports list body renders from cache — star toggles and card-menu
+// actions rebuild it instantly, same as the workbook list.
+function renderReportsBody(root) {
+  root = root || wbRoot();
+  if (!root || WB.view !== "reports") return;
   const list = WB.workbooks.filter((w) => !w.archived_at && isReportWb(w));
+  const favs = wbFavs();
+  const self = _me();
+  const canAdminWb = (w) => !!self && (w.owner_user_id === self.id || ["ops", "owner", "platform_admin"].includes(self.role));
   const card = (w) => {
     const info = WB.reportInfo.get(w.id) || {};
+    const fav = favs.has(w.id);
     return `<button type="button" class="wb-card" data-wb-open="${esc(w.id)}">
+      <span class="wb-fav ${fav ? "is-fav" : ""}" data-wb-fav="${esc(w.id)}" role="button" tabindex="0" title="${fav ? "Remove from favorites" : "Add to favorites"}" aria-label="${fav ? "Remove from favorites" : "Add to favorites"}" aria-pressed="${fav}">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2.5 15.09 8.6 21.8 9.55 16.9 14.25 18.08 20.9 12 17.77 5.92 20.9 7.1 14.25 2.2 9.55 8.91 8.6 12 2.5"/></svg>
+      </span>
+      ${canAdminWb(w) ? `<span class="wb-cardmenu" data-wb-cardmenu="${esc(w.id)}" role="button" tabindex="0" title="Report actions" aria-label="Report actions">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+      </span>` : ""}
       <span class="wb-card-ic">${WB_ICON_SVG}</span>
       <span class="wb-card-main">
         <span class="wb-card-title">${esc(w.title || "Untitled report")}</span>
@@ -2145,8 +2163,15 @@ async function renderReportsPage() {
       </span>
     </button>`;
   };
+  const favList = list.filter((w) => favs.has(w.id));
+  const restList = list.filter((w) => !favs.has(w.id));
+  const cardsHtml = favList.length
+    ? `<div class="wb-list-sec">★ Favorites</div>
+       <div class="wb-cards">${favList.map(card).join("")}</div>
+       ${restList.length ? `<div class="wb-list-sec">All reports</div><div class="wb-cards">${restList.map(card).join("")}</div>` : ""}`
+    : `<div class="wb-cards">${list.map(card).join("")}</div>`;
   root.innerHTML = list.length
-    ? `<div class="wb-cards">${list.map(card).join("")}</div>`
+    ? cardsHtml
     : `<div class="rr-empty">
         <div class="rr-empty-icon">${WB_ICON_SVG}</div>
         <div class="rr-empty-title">No reports yet</div>
@@ -9731,10 +9756,12 @@ async function archiveWorkbook(unarchive) {
 function openWorkbookCardMenu(id, anchor) {
   const w = WB.workbooks.find((x) => x.id === id);
   if (!w) return;
+  const noun = isReportWb(w) ? "report" : "workbook";
+  const rerender = () => { if (WB.view === "reports") renderReportsBody(); else renderListBody(); };
   const rect = anchor.getBoundingClientRect();
   const m = ctxMenu(rect.right - 190, rect.bottom + 4, [
-    `<button type="button" class="popover-item" data-cm="archive" role="menuitem">${w.archived_at ? "Restore workbook" : "Archive workbook"}</button>`,
-    `<button type="button" class="popover-item is-danger" data-cm="delete" role="menuitem">Delete workbook…</button>`,
+    `<button type="button" class="popover-item" data-cm="archive" role="menuitem">${w.archived_at ? `Restore ${noun}` : `Archive ${noun}`}</button>`,
+    `<button type="button" class="popover-item is-danger" data-cm="delete" role="menuitem">Delete ${noun}…</button>`,
   ].join(""));
   m.addEventListener("click", async (e) => {
     const b = e.target.closest("[data-cm]");
@@ -9747,22 +9774,22 @@ function openWorkbookCardMenu(id, anchor) {
         const res = await _sb().from("workbooks").update({ archived_at: next }).eq("id", w.id);
         if (res.error) throw res.error;
         w.archived_at = next;
-        renderListBody();
-        _toast(next ? "Workbook archived" : "Workbook restored", "success");
-      } catch (err) { _toast("Couldn't update the workbook: " + ((err && err.message) || err), "error"); }
+        rerender();
+        _toast(next ? `${noun === "report" ? "Report" : "Workbook"} archived` : `${noun === "report" ? "Report" : "Workbook"} restored`, "success");
+      } catch (err) { _toast(`Couldn't update the ${noun}: ` + ((err && err.message) || err), "error"); }
     } else if (act === "delete") {
       confirmModal({
-        title: "Delete this workbook?",
-        body: `“${esc(w.title || "Untitled workbook")}” — every sheet, cell, and comment in it will be permanently deleted. This can't be undone.`,
-        confirmLabel: "Delete workbook", danger: true,
+        title: `Delete this ${noun}?`,
+        body: `“${esc(w.title || (noun === "report" ? "Untitled report" : "Untitled workbook"))}” — every sheet, cell, and comment in it will be permanently deleted. This can't be undone.`,
+        confirmLabel: `Delete ${noun}`, danger: true,
         onConfirm: async () => {
           try {
             const res = await _sb().from("workbooks").delete().eq("id", w.id);
             if (res.error) throw res.error;
             WB.workbooks = WB.workbooks.filter((x) => x.id !== w.id);
-            renderListBody();
-            _toast("Workbook deleted", "success");
-          } catch (err) { _toast("Couldn't delete the workbook: " + ((err && err.message) || err), "error"); }
+            rerender();
+            _toast(`${noun === "report" ? "Report" : "Workbook"} deleted`, "success");
+          } catch (err) { _toast(`Couldn't delete the ${noun}: ` + ((err && err.message) || err), "error"); }
         },
       });
     }
@@ -9878,7 +9905,7 @@ function installRootListeners() {
       e.preventDefault();
       e.stopPropagation();
       toggleWbFav(favBtn.getAttribute("data-wb-fav"));
-      renderListBody();
+      if (WB.view === "reports") renderReportsBody(); else renderListBody();
       return;
     }
 
