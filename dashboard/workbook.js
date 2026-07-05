@@ -6468,51 +6468,10 @@ function setHidden(g, axis, from, to, hidden) {
 }
 
 // Paste Special: values only — computed results land, formulas don't.
-async function pasteValuesOnly(g) {
-  const cb = WB.clipboard;
-  if (!cb || !cb.rows.length || !WB.canEdit) { _toast("Copy a range first", "info"); return; }
-  const sel = selRect(g);
-  const changes = [];
-  for (let i = 0; i < cb.rows.length; i++) {
-    for (let j = 0; j < cb.rows[i].length; j++) {
-      const tr = sel.r0 + i, tc = sel.c0 + j;
-      if (tr >= g.sheet.rowCount || tc >= g.sheet.colCount) continue;
-      const srcCell = cb.rows[i][j];
-      let next = null;
-      if (srcCell) {
-        const v = srcCell.formula ? (srcCell.computed ?? null) : srcCell.value;
-        next = v == null || v === ""
-          ? null
-          : { value: String(v), formula: null, type: detectType(String(v)).type, format: srcCell.format ? { ...srcCell.format } : {} };
-      }
-      changes.push({ r: tr, c: tc, cell: next });
-    }
-  }
-  setCells(g, changes);
-}
-
-// Paste special → format only: stamp the copied range's formats over the
-// selection, leaving values and formulas alone.
-function pasteFormatOnly(g) {
-  const cb = WB.clipboard;
-  if (!cb || !cb.rows.length || !WB.canEdit) { _toast("Copy a range first", "info"); return; }
-  const sel = selRect(g);
-  const changes = [];
-  for (let i = 0; i < cb.rows.length; i++) {
-    for (let j = 0; j < cb.rows[i].length; j++) {
-      const tr = sel.r0 + i, tc = sel.c0 + j;
-      if (tr >= g.sheet.rowCount || tc >= g.sheet.colCount) continue;
-      const srcCell = cb.rows[i][j];
-      const fmt = srcCell && srcCell.format ? { ...srcCell.format } : {};
-      const prev = g.sheet.cells.get(cellKey(tr, tc));
-      const next = prev
-        ? { ...cloneCell(prev), format: fmt }
-        : Object.keys(fmt).length ? { value: null, formula: null, type: null, format: fmt } : null;
-      changes.push({ r: tr, c: tc, cell: next });
-    }
-  }
-  setCells(g, changes);
-}
+// Values-only and format-only are the common cases of the unified
+// paste-special path (pasteSpecial → pasteRich, defined further down).
+async function pasteValuesOnly(g) { pasteSpecial(g, "values"); }
+function pasteFormatOnly(g) { pasteSpecial(g, "formats"); }
 
 // Formula auditing: light one — reuse the reference-highlight layer.
 function tracePrecedents(g) {
@@ -8208,35 +8167,69 @@ function pasteAt(g, text) {
   pasteMatrix(g, parseClipboardMatrix(text));
 }
 
-function pasteRich(g, cb) {
+// The concrete value a "paste values only" writes for a source cell —
+// a formula contributes its computed result (or error text).
+function pasteValueParts(srcCell) {
+  if (!srcCell) return { value: "", type: null };
+  if (srcCell.formula) {
+    const v = srcCell.err ? srcCell.err : srcCell.computed;
+    return { value: v == null ? "" : String(v), type: typeof v === "number" ? "number" : typeof v === "boolean" ? "boolean" : srcCell.type || null };
+  }
+  return { value: srcCell.value ?? "", type: srcCell.type || null };
+}
+
+// Build the target cell for one source/target pair under a paste-special
+// mode. opts: { values | formats | formulas } (default = everything).
+function buildPasteCell(srcCell, targetOld, opts, dr, dc, cutMode) {
+  if (opts.formats) {
+    const fmt = srcCell && srcCell.format && Object.keys(srcCell.format).length ? { ...srcCell.format } : null;
+    if (!targetOld && !fmt) return null;
+    const base = targetOld ? cloneCell(targetOld) : { value: "", formula: null, type: null, computed: null, err: null, format: {} };
+    base.format = fmt || {};
+    return base;
+  }
+  if (opts.values) {
+    const { value, type } = pasteValueParts(srcCell);
+    if (value === "" && !targetOld) return null;
+    const base = targetOld ? cloneCell(targetOld) : { value: "", formula: null, type: null, computed: null, err: null, format: {} };
+    base.value = value; base.type = type; base.formula = null; base.computed = null; base.err = null;
+    return base; // keeps the target's existing format
+  }
+  if (!srcCell) return null;
+  const base = cloneCell(srcCell);
+  if (opts.formulas) base.format = {}; // formulas/content, drop formatting
+  if (base.formula && cutMode !== "cut") base.formula = shiftFormulaRelative(base.formula, dr, dc);
+  return base;
+}
+
+function pasteRich(g, cb, opts) {
   if (!WB.canEdit) return;
+  opts = opts || {};
+  const transpose = !!opts.transpose;
   const sheet = g.sheet;
   const sel = selRect(g);
   const srcR = cb.rows.length, srcC = cb.rows[0].length;
+  const outR = transpose ? srcC : srcR, outC = transpose ? srcR : srcC;
   const selR = sel.r1 - sel.r0 + 1, selC = sel.c1 - sel.c0 + 1;
   // Excel tiling: repeat the block when the target is an exact multiple
-  const repR = selR > 1 && selR % srcR === 0 ? selR / srcR : 1;
-  const repC = selC > 1 && selC % srcC === 0 ? selC / srcC : 1;
+  // (transpose pastes once — tiling a transposed block is confusing)
+  const repR = !transpose && selR > 1 && selR % outR === 0 ? selR / outR : 1;
+  const repC = !transpose && selC > 1 && selC % outC === 0 ? selC / outC : 1;
   const changes = [];
   const covered = new Set();
   for (let br = 0; br < repR; br++) for (let bc = 0; bc < repC; bc++) {
     for (let i = 0; i < srcR; i++) for (let j = 0; j < srcC; j++) {
-      const tr = sel.r0 + br * srcR + i, tc = sel.c0 + bc * srcC + j;
+      const oi = transpose ? j : i, oj = transpose ? i : j;
+      const tr = sel.r0 + br * outR + oi, tc = sel.c0 + bc * outC + oj;
       if (tr >= sheet.rowCount || tc >= sheet.colCount) continue;
       const srcCell = cb.rows[i][j];
-      let next = null;
-      if (srcCell) {
-        next = cloneCell(srcCell);
-        if (srcCell.formula && cb.mode !== "cut") {
-          // cut moves formulas verbatim (Excel); copy adjusts refs
-          next.formula = shiftFormulaRelative(srcCell.formula, tr - (cb.r0 + i), tc - (cb.c0 + j));
-        }
-      }
+      const targetOld = sheet.cells.get(cellKey(tr, tc));
+      const next = buildPasteCell(srcCell, targetOld, opts, tr - (cb.r0 + i), tc - (cb.c0 + j), cb.mode);
       changes.push({ r: tr, c: tc, cell: next });
       covered.add(cellKey(tr, tc));
     }
   }
-  if (cb.mode === "cut") {
+  if (cb.mode === "cut" && !opts.values && !opts.formats && !opts.formulas) {
     if (cb.sheetId === sheet.id) {
       for (let i = 0; i < srcR; i++) for (let j = 0; j < srcC; j++) {
         const sr = cb.r0 + i, sc = cb.c0 + j;
@@ -8246,9 +8239,24 @@ function pasteRich(g, cb) {
     cb.mode = "copy"; // a cut pastes once; further pastes behave as copy
   }
   setCells(g, changes);
-  g.sel = { r0: sel.r0, c0: sel.c0, r1: Math.min(sheet.rowCount - 1, sel.r0 + repR * srcR - 1), c1: Math.min(sheet.colCount - 1, sel.c0 + repC * srcC - 1) };
+  g.sel = { r0: sel.r0, c0: sel.c0, r1: Math.min(sheet.rowCount - 1, sel.r0 + repR * outR - 1), c1: Math.min(sheet.colCount - 1, sel.c0 + repC * outC - 1) };
   g.active = { r: sel.r0, c: sel.c0 };
   paintSelection(g);
+}
+
+// Paste-special entry point: reads our own rich clipboard and applies the
+// chosen subset. External (system-clipboard-only) copies fall back to a
+// values paste since we don't hold their formulas/formats.
+function pasteSpecial(g, mode) {
+  if (!WB.canEdit) return;
+  const cb = WB.clipboard;
+  if (!cb || !cb.rows || !cb.rows.length) { _toast("Copy a range first, then Paste special", "info"); return; }
+  const opts = mode === "values" ? { values: true }
+    : mode === "formats" ? { formats: true }
+    : mode === "formulas" ? { formulas: true }
+    : mode === "transpose" ? { transpose: true }
+    : {};
+  pasteRich(g, cb, opts);
 }
 
 // ── Cell images (paste a screenshot, click to enlarge — Quip-style) ──
@@ -11412,6 +11420,7 @@ function bindGridEvents(g) {
     if (meta && (k === "y" || k === "Y")) { e.preventDefault(); redoGrid(g); return; }
     if (meta && (k === "c" || k === "C")) { e.preventDefault(); copySelection(g); return; }
     if (meta && (k === "x" || k === "X")) { e.preventDefault(); copySelection(g, "cut"); return; }
+    if (meta && e.shiftKey && (k === "v" || k === "V")) { e.preventDefault(); pasteSpecial(g, "values"); return; } // Sheets' paste-values-only
     if (meta && (k === "v" || k === "V")) {
       // preferred path: the native paste event (fires next tick with
       // clipboardData); fall back to the async clipboard API
@@ -11939,6 +11948,8 @@ function openSheetsCellMenu(g, x, y) {
     { icon: CTX_ICONS.paste, label: "Paste special", sub: [
       it(null, "Values only", "paste-values", { disabled: ro }),
       it(null, "Format only", "paste-format", { disabled: ro }),
+      it(null, "Formulas only", "paste-formulas", { disabled: ro }),
+      it(null, "Transposed", "paste-transpose", { disabled: ro }),
     ] },
     sep,
     it(CTX_ICONS.plus, `Insert ${rowsLbl} above`, "insert-row-above", { disabled: ro }),
@@ -12006,6 +12017,8 @@ function openSheetsCellMenu(g, x, y) {
       case "paste": await pasteFromClipboard(g); break;
       case "paste-values": await pasteValuesOnly(g); break;
       case "paste-format": pasteFormatOnly(g); break;
+      case "paste-formulas": pasteSpecial(g, "formulas"); break;
+      case "paste-transpose": pasteSpecial(g, "transpose"); break;
       case "insert-row-above": restructure(g, "row", rect0.r0, nRows); break;
       case "insert-row-below": restructure(g, "row", rect0.r1 + 1, nRows); break;
       case "insert-col-left": restructure(g, "col", rect0.c0, nCols); break;
@@ -14286,7 +14299,7 @@ function fillDriverAction(g, driverId, act) {
 // not part of the app surface; live.js imports only the view loaders.
 
 export const __engine = {
-  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, matchesCriterion, FormulaError, Arr,
+  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes,

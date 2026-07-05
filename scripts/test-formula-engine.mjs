@@ -840,4 +840,46 @@ ok("color scale: clamps out-of-range t", () => {
   assert.equal(__engine.cfScaleColor(["#000000", "#FFFFFF"], -1), "rgb(0,0,0)");
 });
 
+// ── paste special ────────────────────────────────────────────────────────────
+const { buildPasteCell, pasteValueParts } = __engine;
+const fcell = { value: "10", formula: "=A1*2", type: "number", computed: 20, err: null, format: { bold: true } };
+const vcell = { value: "hi", formula: null, type: "text", computed: null, err: null, format: { num: "currency" } };
+ok("paste values: a formula contributes its computed result, no formula/format-from-source", () => {
+  const out = buildPasteCell(fcell, null, { values: true }, 5, 0, "copy");
+  assert.equal(out.value, "20");
+  assert.equal(out.formula, null);
+  assert.equal(out.type, "number");
+});
+ok("paste values: keeps the target's own format", () => {
+  const target = { value: "", formula: null, type: null, computed: null, err: null, format: { num: "percent" } };
+  const out = buildPasteCell(vcell, target, { values: true }, 0, 0, "copy");
+  assert.equal(out.value, "hi");
+  assert.deepEqual(out.format, { num: "percent" }); // target format preserved, not source
+});
+ok("paste formats: stamps source format, leaves target value", () => {
+  const target = { value: "keep", formula: null, type: "text", computed: null, err: null, format: {} };
+  const out = buildPasteCell(fcell, target, { formats: true }, 0, 0, "copy");
+  assert.equal(out.value, "keep");
+  assert.equal(out.formula, null);
+  assert.deepEqual(out.format, { bold: true });
+});
+ok("paste formulas: adjusts refs and drops formatting", () => {
+  const out = buildPasteCell(fcell, null, { formulas: true }, 3, 0, "copy"); // 3 rows down
+  assert.equal(out.formula, "=A4*2");
+  assert.deepEqual(out.format, {});
+});
+ok("paste (full copy) adjusts refs and keeps format", () => {
+  const out = buildPasteCell(fcell, null, {}, 3, 1, "copy"); // 3 down, 1 right
+  assert.equal(out.formula, "=B4*2");
+  assert.deepEqual(out.format, { bold: true });
+});
+ok("paste values of an empty source onto an empty target is a no-op cell", () => {
+  assert.equal(buildPasteCell(null, null, { values: true }, 0, 0, "copy"), null);
+});
+ok("pasteValueParts reads value cells and formula results", () => {
+  assert.deepEqual(pasteValueParts(vcell), { value: "hi", type: "text" });
+  assert.deepEqual(pasteValueParts(fcell), { value: "20", type: "number" });
+  assert.deepEqual(pasteValueParts(null), { value: "", type: null });
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);
