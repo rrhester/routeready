@@ -2214,6 +2214,11 @@ function formatForDisplay(v, format, type) {
       return pct.toLocaleString(undefined, dec != null ? fd(dec) : { maximumFractionDigits: 2 }) + "%";
     }
     if (numFmt === "number") return n.toLocaleString(undefined, fd(dec ?? 2));
+    if (numFmt === "accounting") {
+      const abs = Math.abs(n).toLocaleString(undefined, fd(dec ?? 2));
+      return n < 0 ? `($${abs})` : `$${abs}`;
+    }
+    if (numFmt === "scientific") return n.toExponential(dec ?? 2).toUpperCase();
     if (numFmt === "date") {
       // accept both date text and serial numbers (e.g. =B2+30 results)
       const d = parseDateLoose(String(v)) || (n > 0 && n < 200000 ? serialToDate(n) : null);
@@ -3272,22 +3277,53 @@ function dispIndexOfRow(g, r) { return g.rows.indexOf(r); }
 
 // ─── Painting ────────────────────────────────────────────────────────────────
 
+const WB_FONT_FAMILIES = {
+  serif: "Georgia, 'Times New Roman', serif",
+  mono: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+};
+
+// Cells are flex containers (vertical centering + valign support), so
+// horizontal alignment needs both text-align (wrapped lines) and
+// justify-content (the flex item itself).
+function alignCss(a) {
+  const jc = a === "left" ? "flex-start" : a === "center" ? "center" : "flex-end";
+  return `text-align:${a};justify-content:${jc};`;
+}
+
 function cellStyle(sheet, r, c, cell) {
   const f = (cell && cell.format) || {};
   let s = "";
   if (f.bold) s += "font-weight:600;";
   if (f.italic) s += "font-style:italic;";
-  if (f.underline) s += "text-decoration:underline;";
-  if (f.align) s += `text-align:${f.align};`;
-  else if (!f.align && cell && !cell.formula && (cell.type === "number" || cell.type === "currency" || cell.type === "percent")) s += "text-align:right;";
-  else if (cell && cell.formula && typeof cell.computed === "number") s += "text-align:right;";
+  const deco = [];
+  if (f.underline || f.link) deco.push("underline");
+  if (f.strike) deco.push("line-through");
+  if (deco.length) s += `text-decoration:${deco.join(" ")};`;
+  if (Number.isInteger(f.fs)) s += `font-size:calc(${Math.min(36, Math.max(8, f.fs))}px * var(--wb-zoom, 1));`;
+  if (f.ff && WB_FONT_FAMILIES[f.ff]) s += `font-family:${WB_FONT_FAMILIES[f.ff]};`;
+  if (f.align) s += alignCss(f.align);
+  else if (cell && !cell.formula && (cell.type === "number" || cell.type === "currency" || cell.type === "percent")) s += alignCss("right");
+  else if (cell && cell.formula && typeof cell.computed === "number") s += alignCss("right");
+  if (f.valign) s += `align-items:${f.valign === "top" ? "flex-start" : f.valign === "bottom" ? "flex-end" : "center"};`;
   if (f.bg && f.bg !== "header") s += `background:${wbColorCss("bg", f.bg)};`;
   if (f.bg === "header") s += "background:var(--canvas);font-weight:600;";
   if (f.fg) s += `color:${wbColorCss("fg", f.fg)};`;
+  else if (f.link) s += "color:var(--accent, #2563EB);";
   if (f.wrap) s += "white-space:normal;line-height:1.3;";
   if (f.border === "all" || f.border === "outline") s += "box-shadow:inset 0 0 0 1px var(--border-strong);";
-  if (f.border === "bottom") s += "box-shadow:inset 0 -1.5px 0 var(--border-strong);";
+  else if (f.border === "bottom") s += "box-shadow:inset 0 -1.5px 0 var(--border-strong);";
+  else if (f.border === "top") s += "box-shadow:inset 0 1.5px 0 var(--border-strong);";
+  else if (f.border === "left") s += "box-shadow:inset 1.5px 0 0 var(--border-strong);";
+  else if (f.border === "right") s += "box-shadow:inset -1.5px 0 0 var(--border-strong);";
   return s;
+}
+
+// Cell content wrapper: rotated text renders inside a span so the
+// background/borders stay square.
+function cellInnerHtml(cell, disp) {
+  const f = cell && cell.format;
+  if (f && (f.rot === 45 || f.rot === 90)) return `<span class="wb-rot" style="transform:rotate(-${f.rot}deg)">${esc(disp)}</span>`;
+  return esc(disp);
 }
 
 const WB_COLORS = {
@@ -3353,7 +3389,7 @@ function paintNow(g) {
       const disp = cell ? displayValue(sheet, r, c) : "";
       const err = cell && cell.err;
       const inval = cellInvalid(sheet, r, c, cell);
-      html += `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""}" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${esc(disp)}</div>`;
+      html += `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell ? cellInnerHtml(cell, disp) : ""}</div>`;
     }
   }
   g.els.cells.innerHTML = html;
@@ -3436,7 +3472,7 @@ function paintFrozen(g, sx, sy, c0, c1) {
     for (let c = c0; c <= c1; c++) {
       const cell = sheet.cells.get(cellKey(r, c));
       const w = g.colX[c + 1] - g.colX[c];
-      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${esc(cell ? displayValue(sheet, r, c) : "")}</div>`;
+      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}</div>`;
     }
     g.els.frozenTop.hidden = false;
     g.els.frozenTop.style.height = h + "px";
@@ -3455,7 +3491,7 @@ function paintFrozen(g, sx, sy, c0, c1) {
       const r = g.rows[di];
       const cell = sheet.cells.get(cellKey(r, 0));
       const h = g.rowY[di + 1] - g.rowY[di];
-      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${esc(cell ? displayValue(sheet, r, 0) : "")}</div>`;
+      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${cell ? cellInnerHtml(cell, displayValue(sheet, r, 0)) : ""}</div>`;
     }
     g.els.frozenLeft.hidden = false;
     g.els.frozenLeft.style.left = HDR_COL_W + "px";
@@ -3578,10 +3614,20 @@ function openFormatCellsDialog(g) {
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">Number format</span>
             <select class="wb-input" id="wb-fmt-num">
-              ${opt("", "Automatic")}${opt("number", "Number · 1,250.00")}${opt("currency", "Currency · $1,250.00")}${opt("percent", "Percent · 12%")}${opt("date", "Date · Jul 4, 2026")}${opt("text", "Plain text")}
+              ${opt("", "Automatic")}${opt("number", "Number · 1,250.00")}${opt("currency", "Currency · $1,250.00")}${opt("accounting", "Accounting · ($1,250.00)")}${opt("percent", "Percent · 12%")}${opt("scientific", "Scientific · 1.25E+3")}${opt("date", "Date · Jul 4, 2026")}${opt("text", "Plain text")}
             </select></label>
           <label class="wb-field" style="flex:0 0 132px"><span class="wb-field-label">Decimal places</span>
             <input type="number" class="wb-input" id="wb-fmt-dec" min="0" max="6" step="1" value="${Number.isInteger(f.dec) ? f.dec : ""}" placeholder="auto"></label>
+        </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Font</span>
+            <select class="wb-input" id="wb-fmt-ff">
+              <option value="" ${!f.ff ? "selected" : ""}>Default (sans-serif)</option>
+              <option value="serif" ${f.ff === "serif" ? "selected" : ""}>Serif</option>
+              <option value="mono" ${f.ff === "mono" ? "selected" : ""}>Monospace</option>
+            </select></label>
+          <label class="wb-field" style="flex:0 0 132px"><span class="wb-field-label">Font size (px)</span>
+            <input type="number" class="wb-input" id="wb-fmt-fs" min="8" max="36" step="1" value="${Number.isInteger(f.fs) ? f.fs : ""}" placeholder="auto"></label>
         </div>
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">Alignment</span>
@@ -3591,13 +3637,26 @@ function openFormatCellsDialog(g) {
               <option value="center" ${f.align === "center" ? "selected" : ""}>Center</option>
               <option value="right" ${f.align === "right" ? "selected" : ""}>Right</option>
             </select></label>
-          <div class="wb-field"><span class="wb-field-label">Style</span>
-            <div class="wb-fmt-checks">
-              <label><input type="checkbox" id="wb-fmt-bold" ${f.bold ? "checked" : ""}> <strong>B</strong></label>
-              <label><input type="checkbox" id="wb-fmt-italic" ${f.italic ? "checked" : ""}> <em>I</em></label>
-              <label><input type="checkbox" id="wb-fmt-underline" ${f.underline ? "checked" : ""}> <u>U</u></label>
-              <label><input type="checkbox" id="wb-fmt-wrap" ${f.wrap ? "checked" : ""}> Wrap</label>
-            </div>
+          <label class="wb-field"><span class="wb-field-label">Vertical</span>
+            <select class="wb-input" id="wb-fmt-valign">
+              <option value="" ${!f.valign ? "selected" : ""}>Middle</option>
+              <option value="top" ${f.valign === "top" ? "selected" : ""}>Top</option>
+              <option value="bottom" ${f.valign === "bottom" ? "selected" : ""}>Bottom</option>
+            </select></label>
+          <label class="wb-field"><span class="wb-field-label">Rotation</span>
+            <select class="wb-input" id="wb-fmt-rot">
+              <option value="" ${!f.rot ? "selected" : ""}>None</option>
+              <option value="45" ${f.rot === 45 ? "selected" : ""}>Tilt 45°</option>
+              <option value="90" ${f.rot === 90 ? "selected" : ""}>Vertical</option>
+            </select></label>
+        </div>
+        <div class="wb-field"><span class="wb-field-label">Style</span>
+          <div class="wb-fmt-checks">
+            <label><input type="checkbox" id="wb-fmt-bold" ${f.bold ? "checked" : ""}> <strong>B</strong></label>
+            <label><input type="checkbox" id="wb-fmt-italic" ${f.italic ? "checked" : ""}> <em>I</em></label>
+            <label><input type="checkbox" id="wb-fmt-underline" ${f.underline ? "checked" : ""}> <u>U</u></label>
+            <label><input type="checkbox" id="wb-fmt-strike" ${f.strike ? "checked" : ""}> <s>S</s></label>
+            <label><input type="checkbox" id="wb-fmt-wrap" ${f.wrap ? "checked" : ""}> Wrap</label>
           </div>
         </div>
         <div class="wb-fmt-preview" id="wb-fmt-preview" aria-live="polite"></div>
@@ -3610,13 +3669,19 @@ function openFormatCellsDialog(g) {
   document.body.appendChild(wrap);
   const readForm = () => {
     const decRaw = wrap.querySelector("#wb-fmt-dec").value;
+    const fsRaw = wrap.querySelector("#wb-fmt-fs").value;
     return {
       num: wrap.querySelector("#wb-fmt-num").value || null,
       dec: decRaw === "" ? null : Math.min(6, Math.max(0, Math.trunc(+decRaw))),
+      ff: wrap.querySelector("#wb-fmt-ff").value || null,
+      fs: fsRaw === "" ? null : Math.min(36, Math.max(8, Math.trunc(+fsRaw))),
       align: wrap.querySelector("#wb-fmt-align").value || null,
+      valign: wrap.querySelector("#wb-fmt-valign").value || null,
+      rot: +wrap.querySelector("#wb-fmt-rot").value || null,
       bold: wrap.querySelector("#wb-fmt-bold").checked || null,
       italic: wrap.querySelector("#wb-fmt-italic").checked || null,
       underline: wrap.querySelector("#wb-fmt-underline").checked || null,
+      strike: wrap.querySelector("#wb-fmt-strike").checked || null,
       wrap: wrap.querySelector("#wb-fmt-wrap").checked || null,
     };
   };
@@ -5563,6 +5628,44 @@ function openFilterPanel(g, col, anchorEl, at) {
   setTimeout(() => m.querySelector("[data-fp-text]")?.focus(), 30);
 }
 
+// ─── Format painter ──────────────────────────────────────────────────────────
+// Copy the active cell's formatting, then the next selection gets it
+// applied wholesale (values and formulas untouched). Esc cancels.
+
+function startFormatPainter(g) {
+  if (!WB.canEdit) return;
+  if (g.painter) { cancelFormatPainter(g); return; }
+  const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
+  g.painter = cell && cell.format ? { ...cell.format } : {};
+  g.els.body.querySelector('[data-wb-tb="paint-format"]')?.classList.add("is-on");
+  if (g.els.sbmode) g.els.sbmode.textContent = "Format painter — select cells to apply · Esc to cancel";
+}
+
+function cancelFormatPainter(g) {
+  if (!g.painter) return;
+  g.painter = null;
+  g.els.body.querySelector('[data-wb-tb="paint-format"]')?.classList.remove("is-on");
+  markSaveState(WB.saveState);
+}
+
+function applyFormatPainter(g) {
+  const src = g.painter;
+  if (!src) return;
+  cancelFormatPainter(g);
+  const changes = [];
+  const { c0, c1 } = selRect(g);
+  for (const r of selVisibleRows(g)) {
+    for (let c = c0; c <= c1; c++) {
+      const cell = g.sheet.cells.get(cellKey(r, c));
+      if (!cell && !Object.keys(src).length) continue;
+      const base = cell ? cloneCell(cell) : { value: null, formula: null, type: null, format: {} };
+      base.format = { ...src };
+      changes.push({ r, c, cell: base.value == null && base.formula == null && !Object.keys(base.format).length ? null : base });
+    }
+  }
+  if (changes.length) setCells(g, changes);
+}
+
 // ─── Autofit ─────────────────────────────────────────────────────────────────
 // Size columns to their widest rendered value (Excel's double-click-the-
 // divider gesture). Canvas measureText against the grid's own font.
@@ -5582,8 +5685,11 @@ function autofitColumns(g, c0, c1) {
     const disp = displayValue(sheet, r, c);
     if (!disp) continue;
     if (++scanned > 20000) break;
-    const bold = cell.format && (cell.format.bold || cell.format.bg === "header");
-    AUTOFIT_MEASURE.font = `${bold ? "600" : cs.fontWeight || "400"} ${cs.fontSize || "13px"} ${cs.fontFamily || "sans-serif"}`;
+    const f = cell.format || {};
+    const bold = f.bold || f.bg === "header";
+    const fsPx = Number.isInteger(f.fs) ? `${f.fs}px` : cs.fontSize || "13px";
+    const fam = f.ff && WB_FONT_FAMILIES[f.ff] ? WB_FONT_FAMILIES[f.ff] : cs.fontFamily || "sans-serif";
+    AUTOFIT_MEASURE.font = `${bold ? "600" : cs.fontWeight || "400"} ${fsPx} ${fam}`;
     const w = Math.ceil(AUTOFIT_MEASURE.measureText(disp).width) + 18;
     if (w > (widths.get(c) || 0)) widths.set(c, w);
   }
@@ -5933,15 +6039,16 @@ function buildXlsxBytes(sheets) {
   const XMLH = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`;
   const FG_HEX = { muted: "FF6B7280", blue: "FF1E40AF", green: "FF166534", amber: "FF92400E", red: "FFB91C1C" };
   const BG_HEX = { gray: "FFF3F4F6", blue: "FFDBEAFE", green: "FFDCFCE7", amber: "FFFEF3C7", red: "FFFEE2E2", violet: "FFEDE9FE", header: "FFF3F4F6" };
-  const NUMFMT = { number: 4, percent: 10, date: 14, text: 49, currency: 164 };
+  const NUMFMT = { number: 4, percent: 10, date: 14, text: 49, currency: 164, scientific: 11, accounting: 44 };
+  const FONT_NAME = { serif: "Georgia", mono: "Courier New" };
 
   // dynamic style registries (index 0 = default; fill 1 is zip-required gray125)
   const fonts = [`<font><sz val="11"/><name val="Calibri"/></font>`];
-  const fontIdx = new Map([["|||", 0]]);
+  const fontIdx = new Map([["||||||", 0]]);
   const fills = [`<fill><patternFill patternType="none"/></fill>`, `<fill><patternFill patternType="gray125"/></fill>`];
   const fillIdx = new Map([["", 0]]);
   const xfs = [`<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>`];
-  const xfIdx = new Map([["0|0|0||0", 0]]);
+  const xfIdx = new Map([["0|0|0||0||0", 0]]);
 
   const styleFor = (cell) => {
     const f = (cell && cell.format) || {};
@@ -5949,11 +6056,13 @@ function buildXlsxBytes(sheets) {
     const numId = effNum != null && NUMFMT[effNum] != null ? NUMFMT[effNum] : 0;
     const bold = !!(f.bold || f.bg === "header");
     const fgHex = f.fg ? (HEX_COLOR_RE.test(f.fg) ? "FF" + f.fg.slice(1).toUpperCase() : FG_HEX[f.fg] || "") : "";
-    const fontKey = `${bold ? "b" : ""}|${f.italic ? "i" : ""}|${f.underline ? "u" : ""}|${fgHex}`;
+    const pt = Number.isInteger(f.fs) ? Math.max(6, Math.round(f.fs * 0.75)) : 11; // px → pt
+    const ffName = FONT_NAME[f.ff] || "Calibri";
+    const fontKey = `${bold ? "b" : ""}|${f.italic ? "i" : ""}|${f.underline ? "u" : ""}|${f.strike ? "s" : ""}|${fgHex}|${pt === 11 ? "" : pt}|${ffName === "Calibri" ? "" : ffName}`;
     let fontId = fontIdx.get(fontKey);
     if (fontId == null) {
       fontId = fonts.length;
-      fonts.push(`<font>${bold ? "<b/>" : ""}${f.italic ? "<i/>" : ""}${f.underline ? "<u/>" : ""}${fgHex ? `<color rgb="${fgHex}"/>` : ""}<sz val="11"/><name val="Calibri"/></font>`);
+      fonts.push(`<font>${bold ? "<b/>" : ""}${f.italic ? "<i/>" : ""}${f.underline ? "<u/>" : ""}${f.strike ? "<strike/>" : ""}${fgHex ? `<color rgb="${fgHex}"/>` : ""}<sz val="${pt}"/><name val="${ffName}"/></font>`);
       fontIdx.set(fontKey, fontId);
     }
     const bgHex = f.bg ? (HEX_COLOR_RE.test(f.bg) ? "FF" + f.bg.slice(1).toUpperCase() : BG_HEX[f.bg] || "") : "";
@@ -5964,12 +6073,16 @@ function buildXlsxBytes(sheets) {
       fillIdx.set(bgHex, fillId);
     }
     const align = f.align || "";
+    const valign = f.valign === "middle" ? "center" : f.valign || "";
+    const rot = f.rot === 45 || f.rot === 90 ? f.rot : 0;
     const wrap = f.wrap ? 1 : 0;
-    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}`;
+    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}|${valign}|${rot}`;
     let s = xfIdx.get(xfKey);
     if (s == null) {
       s = xfs.length;
-      const alignXml = align || wrap ? `<alignment${align ? ` horizontal="${align}"` : ""}${wrap ? ` wrapText="1"` : ""}/>` : "";
+      const alignXml = align || wrap || valign || rot
+        ? `<alignment${align ? ` horizontal="${align}"` : ""}${valign ? ` vertical="${valign}"` : ""}${wrap ? ` wrapText="1"` : ""}${rot ? ` textRotation="${rot}"` : ""}/>`
+        : "";
       xfs.push(`<xf numFmtId="${numId}" fontId="${fontId}" fillId="${fillId}" borderId="0"${numId ? ` applyNumberFormat="1"` : ""}${fontId ? ` applyFont="1"` : ""}${fillId ? ` applyFill="1"` : ""}${alignXml ? ` applyAlignment="1"` : ""}>${alignXml}</xf>`);
       xfIdx.set(xfKey, s);
     }
@@ -5977,6 +6090,7 @@ function buildXlsxBytes(sheets) {
   };
 
   const sheetXml = (sheet) => {
+    const links = [];
     const rowsMap = new Map();
     for (const [key, cell] of sheet.cells) {
       if (cell.value == null && cell.formula == null && !(cell.format && Object.keys(cell.format).length)) continue;
@@ -5989,6 +6103,7 @@ function buildXlsxBytes(sheets) {
       let line = `<row r="${r + 1}">`;
       for (const [c, cell] of rowsMap.get(r).sort((a, b) => a[0] - b[0])) {
         const ref = colLabel(c) + (r + 1);
+        if (cell.format && cell.format.link) links.push({ ref, url: cell.format.link });
         const s = styleFor(cell);
         const sAttr = s ? ` s="${s}"` : "";
         if (cell.formula) {
@@ -6024,11 +6139,19 @@ function buildXlsxBytes(sheets) {
       const x = sheet.frozenCols ? 1 : 0, y = sheet.frozenRows ? 1 : 0;
       view = `<sheetViews><sheetView workbookViewId="0"><pane${x ? ` xSplit="${x}"` : ""}${y ? ` ySplit="${y}"` : ""} topLeftCell="${colLabel(x) + (y + 1)}" state="frozen"/></sheetView></sheetViews>`;
     }
-    return `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${view}${cols}<sheetData>${body}</sheetData></worksheet>`;
+    const merges = Array.isArray(sheet.meta && sheet.meta.merges) ? sheet.meta.merges.filter((m) => m.r1 > m.r0 || m.c1 > m.c0) : [];
+    const mergeXml = merges.length
+      ? `<mergeCells count="${merges.length}">${merges.map((m) => `<mergeCell ref="${colLabel(m.c0)}${m.r0 + 1}:${colLabel(m.c1)}${m.r1 + 1}"/>`).join("")}</mergeCells>`
+      : "";
+    const linkXml = links.length
+      ? `<hyperlinks>${links.map((l, i) => `<hyperlink ref="${l.ref}" r:id="rlk${i + 1}"/>`).join("")}</hyperlinks>`
+      : "";
+    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${linkXml}</worksheet>`;
+    return { xml, links };
   };
 
   // sheet XML first — it populates the style registries as it goes
-  const sheetXmls = sheets.map(sheetXml);
+  const sheetParts = sheets.map(sheetXml);
   const used = new Set();
   const names = sheets.map((sh) => xlsxSheetName(sh.name, used));
 
@@ -6039,14 +6162,21 @@ function buildXlsxBytes(sheets) {
   const contentTypes = `${XMLH}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
 
   const file = (name, xml) => ({ nameB: enc.encode(name), bytes: enc.encode(xml) });
-  return xlsxZip([
+  const parts = [
     file("[Content_Types].xml", contentTypes),
     file("_rels/.rels", rootRels),
     file("xl/workbook.xml", workbookXml),
     file("xl/_rels/workbook.xml.rels", wbRels),
     file("xl/styles.xml", stylesXml),
-    ...sheetXmls.map((xml, i) => file(`xl/worksheets/sheet${i + 1}.xml`, xml)),
-  ]);
+    ...sheetParts.map((p, i) => file(`xl/worksheets/sheet${i + 1}.xml`, p.xml)),
+  ];
+  // hyperlink relationships (one rels part per sheet that has links)
+  sheetParts.forEach((p, i) => {
+    if (!p.links.length) return;
+    const rels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${p.links.map((l, j) => `<Relationship Id="rlk${j + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xmlEsc(l.url)}" TargetMode="External"/>`).join("")}</Relationships>`;
+    parts.push(file(`xl/worksheets/_rels/sheet${i + 1}.xml.rels`, rels));
+  });
+  return xlsxZip(parts);
 }
 
 function exportBlockXlsx(g) {
@@ -6310,6 +6440,11 @@ function bindGridEvents(g) {
     const di = dispRowAt(g, pos.y);
     const r = g.rows[di] ?? 0;
     const c = colAt(g, pos.x);
+    // Ctrl/Cmd+click on a linked cell opens the link
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      const lc = g.sheet.cells.get(cellKey(r, c));
+      if (lc && lc.format && lc.format.link) { window.open(lc.format.link, "_blank", "noopener"); return; }
+    }
     if (g.editing) commitEdit(g, 0, 0, { refocus: false });
     if (e.shiftKey) {
       g.sel.r1 = r; g.sel.c1 = c;
@@ -6333,6 +6468,7 @@ function bindGridEvents(g) {
         g.dragging = false;
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        if (g.painter) applyFormatPainter(g);
       };
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
@@ -6470,7 +6606,7 @@ function bindGridEvents(g) {
       case "Tab": e.preventDefault(); moveActive(g, 0, e.shiftKey ? -1 : 1, false); return;
       case "Delete":
       case "Backspace": e.preventDefault(); clearSelection(g); return;
-      case "Escape": e.preventDefault(); closeAllPopovers(); g.sel = { r0: g.active.r, c0: g.active.c, r1: g.active.r, c1: g.active.c }; paintSelection(g); repaintGrid(g); return;
+      case "Escape": e.preventDefault(); if (g.painter) { cancelFormatPainter(g); return; } closeAllPopovers(); g.sel = { r0: g.active.r, c0: g.active.c, r1: g.active.r, c1: g.active.c }; paintSelection(g); repaintGrid(g); return;
     }
     // type-to-replace: printable character starts an edit
     if (WB.canEdit && k.length === 1 && !meta && !e.altKey) {
@@ -6750,6 +6886,9 @@ function openCellContextMenu(g, x, y, kind) {
     item("clear-format", "Clear formatting"),
     item("format-cells", "Format cells…"),
     item("comment", "Add comment"),
+    item("insert-link", (g.sheet.cells.get(cellKey(r, c))?.format?.link ? "Edit link…" : "Insert link…")),
+    g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("open-link", "Open link") : "",
+    g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("remove-link", "Remove link") : "",
     item("copy-ref", "Copy cell reference"),
     item("paste-values", "Paste values only"),
     item("trace-precedents", "Highlight precedents"),
@@ -6815,6 +6954,21 @@ function openCellContextMenu(g, x, y, kind) {
       case "trace-dependents": traceDependents(g); break;
       case "data-validation": openValidationDialog(g); break;
       case "cond-format": openCondFormatDialog(g); break;
+      case "insert-link": {
+        const cur = g.sheet.cells.get(cellKey(r, c));
+        const url = window.prompt("Link URL (https://… or mailto:…)", (cur && cur.format && cur.format.link) || "https://");
+        if (url == null) break;
+        const t = url.trim();
+        if (t && t !== "https://" && !/^(https?:\/\/|mailto:)/i.test(t)) { _toast("Links must start with http(s):// or mailto:", "warn"); break; }
+        formatSelection(g, { link: t && t !== "https://" ? t.slice(0, 2000) : null });
+        break;
+      }
+      case "open-link": {
+        const cur = g.sheet.cells.get(cellKey(r, c));
+        if (cur && cur.format && cur.format.link) window.open(cur.format.link, "_blank", "noopener");
+        break;
+      }
+      case "remove-link": formatSelection(g, { link: null }); break;
       case "sort-col-asc": sortByColumn(g, c, "asc"); break;
       case "sort-col-desc": sortByColumn(g, c, "desc"); break;
       case "sort-custom": openSortDialog(g); return;

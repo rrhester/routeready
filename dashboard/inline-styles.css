@@ -28778,14 +28778,17 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-cell{
   position:absolute;box-sizing:border-box;
   border-right:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);
-  font-size:var(--fs-md);color:var(--text);
-  padding:0 7px;line-height:26px;
+  font-size:calc(var(--fs-md) * var(--wb-zoom, 1));color:var(--text);
+  padding:0 7px;line-height:1.35;
+  display:flex;align-items:center;
   white-space:nowrap;overflow:hidden;text-overflow:clip;
   font-variant-numeric:tabular-nums;
   user-select:none;cursor:cell;
   background:var(--surface);
 }
 #view-workbooks .wb-cell.is-err{color:var(--red);font-weight:600;background:var(--red-soft,rgba(220,38,38,.05))}
+#view-workbooks .wb-cell.is-link{cursor:pointer}
+#view-workbooks .wb-rot{display:inline-block;transform-origin:center;white-space:nowrap}
 #view-workbooks .wb-cmark{
   position:absolute;top:0;right:0;width:0;height:0;
   border-style:solid;border-width:0 7px 7px 0;
