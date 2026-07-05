@@ -6208,12 +6208,20 @@ function cellStyle(sheet, r, c, cell) {
   return s;
 }
 
-// Cell content wrapper: rotated text renders inside a span so the
-// background/borders stay square.
+// Cell content wrapper: a cell that resolves to a link (explicit or an
+// auto-detected email/URL) renders its text as a real <a> so it looks and
+// behaves like a hyperlink — blue, underlined, click to open. Rotated text
+// renders inside a span so the background/borders stay square.
 function cellInnerHtml(cell, disp) {
   const f = cell && cell.format;
-  if (f && (f.rot === 45 || f.rot === 90)) return `<span class="wb-rot" style="transform:rotate(-${f.rot}deg)">${esc(disp)}</span>`;
-  return esc(disp);
+  const link = cellLink(cell);
+  // only http(s)/mailto reach an href — never javascript:/data: schemes
+  const safe = link && /^(https?:|mailto:)/i.test(link) ? link : null;
+  const body = safe
+    ? `<a class="wb-cell-link" href="${esc(safe)}" target="_blank" rel="noopener noreferrer" draggable="false">${esc(disp)}</a>`
+    : esc(disp);
+  if (f && (f.rot === 45 || f.rot === 90)) return `<span class="wb-rot" style="transform:rotate(-${f.rot}deg)">${body}</span>`;
+  return body;
 }
 
 // Auto-linkify plain-text cells that hold a bare email or URL (Sheets does
@@ -6338,7 +6346,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="Ctrl+click to open ${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -11726,6 +11734,13 @@ function bindGridEvents(g) {
     if (e.target.closest(".wb-cell-editor")) return;
     e.preventDefault();
     closeAllPopovers();
+    // A click that lands on a rendered hyperlink follows the link (the <a>
+    // opens it in a new tab natively). Bail before selecting/dragging so the
+    // repaint doesn't detach the anchor before the click lands. Clicking the
+    // empty part of the cell (not the link text) still selects as usual.
+    if (e.button === 0 && !e.shiftKey && !e.altKey && !g.editing && e.target.closest("a.wb-cell-link")) {
+      return;
+    }
     const pos = canvasPos(e);
     const di = dispRowAt(g, pos.y);
     const r = g.rows[di] ?? 0;
@@ -14772,7 +14787,7 @@ export const __engine = {
   buildXlsxBytes,
   chartSvg, WB_CHART_TYPES,
   computePivot, pivotAggregate, pivotTableHtml,
-  autoLinkFor, cellLink,
+  autoLinkFor, cellLink, cellInnerHtml,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,
   fillWeekDates, fillSheetInfo, fillDriverIdAt, fillSheetDriverIds,
