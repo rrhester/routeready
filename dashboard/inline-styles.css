@@ -28883,6 +28883,19 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-chart-tick{font-size:10px;fill:var(--text-subtle)}
 #view-workbooks .wb-chart-empty{padding:18px 4px;font-size:var(--fs-sm);color:var(--text-subtle)}
 
+/* ── Pivot tables ── */
+#view-workbooks .wb-pivots{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;padding:4px 2px 8px}
+#view-workbooks .wb-pivot-card{flex:0 1 auto;max-width:100%;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);padding:10px 12px 8px}
+#view-workbooks .wb-pv-scroll{overflow-x:auto;max-width:min(900px,90vw)}
+#view-workbooks .wb-pv-table{border-collapse:collapse;font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
+#view-workbooks .wb-pv-table th,#view-workbooks .wb-pv-table td{border:1px solid var(--border-subtle);padding:3px 9px;text-align:left;white-space:nowrap}
+#view-workbooks .wb-pv-table thead th{background:var(--canvas);font-weight:600;color:var(--text);position:sticky;top:0}
+#view-workbooks .wb-pv-ch{text-align:center}
+#view-workbooks .wb-pv-vh{color:var(--text-muted);font-weight:500}
+#view-workbooks .wb-pv-rk{font-weight:500;color:var(--text)}
+#view-workbooks .wb-pv-num{text-align:right}
+#view-workbooks .wb-pv-gt{font-weight:600;background:var(--canvas)}
+
 /* ── Formula bar ── */
 #view-workbooks .wb-fbar{
   display:flex;align-items:center;gap:var(--s-2);
@@ -29080,6 +29093,9 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 #view-workbooks .wb-dv-mark:hover{background:rgba(0,0,0,.10);color:var(--text)}
 #view-workbooks .wb-dv-chip-empty{color:var(--text-subtle)}
+#view-workbooks .wb-dv-checkbox{display:inline-flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:15px;line-height:1;color:var(--text-subtle);cursor:pointer;user-select:none}
+#view-workbooks .wb-dv-checkbox.is-checked{color:var(--accent, #2563EB)}
+#view-workbooks .wb-dv-checkbox:hover{color:var(--text)}
 #view-workbooks .wb-dv-menuswatch{
   width:12px;height:12px;border-radius:4px;display:inline-block;
   margin-right:8px;vertical-align:-1px;border:1px solid rgba(0,0,0,.08);
@@ -29487,6 +29503,13 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-cf-del{flex:0 0 auto;background:none;border:0;padding:0 4px;font-size:14px;color:var(--text-subtle);cursor:pointer}
 #view-workbooks .wb-cf-del:hover{color:#B91C1C}
 #view-workbooks .wb-cf-none{margin:8px 0 0;font-size:var(--fs-xs);color:var(--text-subtle)}
+
+/* ── Named ranges modal ── */
+#view-workbooks .wb-nr-list{display:flex;flex-direction:column;gap:4px;margin-top:12px;max-height:240px;overflow-y:auto}
+#view-workbooks .wb-nr-row{display:flex;align-items:center;gap:10px;padding:5px 6px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:var(--fs-xs)}
+#view-workbooks .wb-nr-name{flex:0 0 auto;background:none;border:0;padding:0;font-weight:600;color:var(--accent, #2563EB);cursor:pointer;text-align:left}
+#view-workbooks .wb-nr-name:hover{text-decoration:underline}
+#view-workbooks .wb-nr-ref{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);font-variant-numeric:tabular-nums}
 
 /* ── Reports Builder modal ── */
 .rr-reports-surface .rb-body{flex:1;display:flex;min-height:0}

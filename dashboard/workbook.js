@@ -2920,7 +2920,8 @@ function timeFracOf(v) {
 }
 
 function evalFormula(src, ctx) {
-  const ast = parseFormula(src);
+  let ast = parseFormula(src);
+  if (ctx && ctx.names instanceof Map && ctx.names.size) ast = bindNames(ast, ctx.names);
   const val = evalNode(ast, ctx);
   return val;
 }
@@ -3629,9 +3630,7 @@ function matchesCriterion(v, crit) {
 
 // ── Dependency extraction (for recalc graph + circular detection) ────────────
 
-function extractRefs(src, bounds) {
-  let ast;
-  try { ast = parseFormula(src); } catch (_) { return []; }
+function refsFromAst(ast, bounds) {
   const refs = [];
   (function walk(n) {
     if (!n || typeof n !== "object") return;
@@ -3650,6 +3649,52 @@ function extractRefs(src, bounds) {
     if (n.v && typeof n.v === "object") walk(n.v);
   })(ast);
   return refs;
+}
+
+function extractRefs(src, bounds, names) {
+  let ast;
+  try { ast = parseFormula(src); } catch (_) { return []; }
+  if (names && names.size) ast = bindNames(ast, names);
+  return refsFromAst(ast, bounds);
+}
+
+// Named-range binding — rewrite free identifier ("name") nodes into the
+// range/ref AST they point at, so a name behaves exactly like the cells it
+// stands for (dependencies, criteria functions, cross-sheet reads all just
+// work). Names bound by an enclosing LET/LAMBDA shadow a same-named range,
+// matching Excel. `names` is a Map of UPPERCASE name -> range|ref AST node.
+// Returns a new tree; the input is left untouched.
+function cloneNode(n) { return JSON.parse(JSON.stringify(n)); }
+function bindNames(node, names, bound) {
+  if (!node || typeof node !== "object") return node;
+  switch (node.k) {
+    case "name": {
+      if (bound && bound.has(node.v)) return node;
+      const def = names && names.get(node.v);
+      return def ? cloneNode(def) : node;
+    }
+    case "func": {
+      let nb = bound;
+      if (node.name === "LET" || node.name === "LAMBDA") {
+        nb = new Set(bound || []);
+        const last = node.args.length - 1;
+        node.args.forEach((a, i) => {
+          const isNamePos = node.name === "LAMBDA" ? i < last : i % 2 === 0 && i < last;
+          if (isNamePos && a && a.k === "name") nb.add(a.v);
+        });
+      }
+      return { ...node, args: node.args.map((a) => bindNames(a, names, nb)) };
+    }
+    case "call": return { ...node, fn: bindNames(node.fn, names, bound), args: node.args.map((a) => bindNames(a, names, bound)) };
+    case "arrlit": return { ...node, rows: node.rows.map((row) => row.map((el) => bindNames(el, names, bound))) };
+    default: {
+      const out = { ...node };
+      if (node.l) out.l = bindNames(node.l, names, bound);
+      if (node.r) out.r = bindNames(node.r, names, bound);
+      if (node.v && typeof node.v === "object") out.v = bindNames(node.v, names, bound);
+      return out;
+    }
+  }
 }
 
 // Formulas whose reads can't be known statically (INDIRECT/OFFSET build
@@ -3939,6 +3984,47 @@ function activeSheetOf(block) {
   const arr = WB.sheetsByBlock.get(block.id) || [];
   const want = block.settings && block.settings.active_sheet_id;
   return arr.find((s) => s.id === want) || arr[0] || null;
+}
+function findBlock(blockId) { return WB.blocks.find((b) => b.id === blockId) || null; }
+
+// ─── Named ranges (block-scoped, like an Excel workbook's names) ─────────────
+// Stored on block.settings.namedRanges as [{ name, ref }] where ref is a
+// sheet-qualified A1 range ("Roster!A2:A50"). Names are workbook-scope
+// within a spreadsheet block, which is exactly the set of sheets that can
+// already reference one another.
+const WB_NAME_RE = /^[A-Za-z_][A-Za-z0-9_.]*$/;
+function blockNamedRanges(block) {
+  const v = block && block.settings && block.settings.namedRanges;
+  return Array.isArray(v) ? v : [];
+}
+function isValidRangeName(name) {
+  if (!name || !WB_NAME_RE.test(name)) return false;
+  const up = name.toUpperCase();
+  if (parseCellRef(up)) return false;                 // looks like a cell ref
+  if (/^[A-Za-z]{1,3}$/.test(up)) return false;       // looks like a column
+  if (up === "TRUE" || up === "FALSE" || up === "R" || up === "C") return false;
+  if (FUNCS[up]) return false;                         // collides with a function
+  return true;
+}
+// Map of UPPERCASE name -> range|ref AST, resolved for the requesting sheet.
+// A target on the same sheet drops its sheet qualifier so the dependency
+// graph treats it as a local edge (correct recalc ordering); other-sheet
+// targets keep it and recompute via the sibling pass.
+function namesForSheet(sheet) {
+  const block = findBlock(sheet && sheet.blockId);
+  const defs = blockNamedRanges(block);
+  const m = new Map();
+  if (!defs.length) return m;
+  const here = String(sheet.name || "").trim().toLowerCase();
+  for (const d of defs) {
+    if (!d || !d.name || !d.ref) continue;
+    let node;
+    try { node = parseFormula("=" + d.ref); } catch (_) { continue; }
+    if (node.k !== "range" && node.k !== "ref") continue;
+    if (node.sheet && String(node.sheet).trim().toLowerCase() === here) delete node.sheet;
+    m.set(String(d.name).toUpperCase(), node);
+  }
+  return m;
 }
 
 // ─── Access level (client mirror of private.can_*_workbook) ────────────────
@@ -4274,11 +4360,13 @@ async function openWorkbook(id) {
     WB.activity = activityRes.data || [];
 
     for (const arr of WB.sheetsByBlock.values()) arr.forEach((sh) => recalcSheet(sh));
-    // second pass: sheets with cross-sheet formulas now see fresh values
+    // second pass: sheets with cross-sheet formulas (or any block with named
+    // ranges) now see fresh values
     for (const arr of WB.sheetsByBlock.values()) {
+      const hasNames = arr.length ? blockNamedRanges(findBlock(arr[0].blockId)).length > 0 : false;
       for (const sh of arr) {
-        let cross = false;
-        for (const cell of sh.cells.values()) if (cell.formula && cell.formula.includes("!")) { cross = true; break; }
+        let cross = hasNames;
+        if (!cross) for (const cell of sh.cells.values()) if (cell.formula && cell.formula.includes("!")) { cross = true; break; }
         if (cross) recalcSheet(sh);
       }
     }
@@ -4855,13 +4943,15 @@ function recalcSheet(sheet) {
   // open ranges (A:A) clamp to the used extent for dependency purposes —
   // only formula cells matter as graph edges, and those are all in-use
   const depBounds = { rowCount: usedR + 1, colCount: usedC + 1 };
+  const names = namesForSheet(sheet);
   const asts = new Map();
   const deps = new Map();
   for (const [key, cell] of formulaCells) {
     try {
-      const ast = parseFormula(cell.formula);
+      let ast = parseFormula(cell.formula);
+      if (names.size) ast = bindNames(ast, names);
       asts.set(key, ast);
-      deps.set(key, extractRefs(cell.formula, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
+      deps.set(key, refsFromAst(ast, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
     } catch (e) {
       cell.err = e instanceof FormulaError ? e.code : "#ERROR";
     }
@@ -4954,10 +5044,13 @@ function crossSheetValue(fromSheet, sheetName, r, c) {
 function recalcWithSiblings(sheet) {
   recalcSheet(sheet);
   const sibs = WB.sheetsByBlock.get(sheet.blockId) || [];
+  // named ranges can create cross-sheet reads that carry no "!" in the
+  // formula text, so any defined name forces a full sibling recompute
+  const hasNames = blockNamedRanges(findBlock(sheet.blockId)).length > 0;
   for (const s2 of sibs) {
     if (s2.id === sheet.id) continue;
-    let cross = false;
-    for (const cell of s2.cells.values()) {
+    let cross = hasNames;
+    if (!cross) for (const cell of s2.cells.values()) {
       if (cell.formula && cell.formula.includes("!")) { cross = true; break; }
     }
     if (cross) recalcSheet(s2);
@@ -5735,6 +5828,7 @@ function mountSheetBlock(block, body) {
       <div class="wb-gr-filterchip" hidden></div>
     </div>
     <div class="wb-charts" data-wb-charts hidden></div>
+    <div class="wb-pivots" data-wb-pivots hidden></div>
     <div class="wb-tabs" data-wb-tabs="${block.id}"></div>
     <div class="wb-statusbar" data-wb-statusbar>
       <span class="wb-sb-mode" data-wb-sbmode>Ready</span>
@@ -5774,6 +5868,7 @@ function mountSheetBlock(block, body) {
       fbarErr: body.querySelector("[data-wb-fbar-err]"),
       filterChip: body.querySelector(".wb-gr-filterchip"),
       charts: body.querySelector("[data-wb-charts]"),
+      pivots: body.querySelector("[data-wb-pivots]"),
       tabs: body.querySelector("[data-wb-tabs]"),
     },
     active: { r: 0, c: 0 },
@@ -5800,6 +5895,7 @@ function mountSheetBlock(block, body) {
   repaintGrid(g);
   syncFormulaBar(g);
   renderCharts(g);
+  renderPivots(g);
   renderFillBar(g); // Schedule Intelligence Bar (from the last saved run)
   g.els.charts.addEventListener("click", (e) => {
     const card = e.target.closest("[data-wb-chart]");
@@ -5809,6 +5905,15 @@ function mountSheetBlock(block, body) {
     if (!ch) return;
     if (act.getAttribute("data-wb-chartact") === "edit") openChartDialog(g, ch);
     else confirmModal({ title: "Delete this chart?", body: "The underlying cells are untouched.", confirmLabel: "Delete chart", danger: true, onConfirm: () => deleteChart(g, ch.id) });
+  });
+  g.els.pivots.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-wb-pivot]");
+    const act = e.target.closest("[data-wb-pivotact]");
+    if (!card || !act) return;
+    const pv = sheetPivots(g.sheet).find((x) => x.id === card.getAttribute("data-wb-pivot"));
+    if (!pv) return;
+    if (act.getAttribute("data-wb-pivotact") === "edit") openPivotDialog(g, pv);
+    else confirmModal({ title: "Delete this pivot table?", body: "The underlying cells are untouched.", confirmLabel: "Delete pivot", danger: true, onConfirm: () => deletePivot(g, pv.id) });
   });
 }
 
@@ -5943,6 +6048,8 @@ function sheetToolbarHtml(block, ro) {
         <div class="popover wb-tb-pop" role="menu">
           <button type="button" class="popover-item" data-wb-tb="validation" role="menuitem" ${ro ? "disabled" : ""}>Data validation…</button>
           <button type="button" class="popover-item" data-wb-tb="condfmt" role="menuitem" ${ro ? "disabled" : ""}>Conditional formatting…</button>
+          <button type="button" class="popover-item" data-wb-tb="named-ranges" role="menuitem">Named ranges…</button>
+          <button type="button" class="popover-item" data-wb-tb="pivot" role="menuitem" ${ro ? "disabled" : ""}>Pivot table…</button>
           <button type="button" class="popover-item" data-wb-tb="clear-format" role="menuitem" ${ro ? "disabled" : ""}>Clear formatting</button>
           <div class="popover-section"></div>
           <button type="button" class="popover-item" data-wb-tb2="import-csv" role="menuitem" ${ro ? "disabled" : ""}>Import CSV into this sheet…</button>
@@ -6144,6 +6251,7 @@ function repaintGrid(g) {
 
 function paintNow(g) {
   const sheet = g.sheet;
+  cfClearMemo(); // color-scale stats + custom-formula ctx are per-repaint
   sizeGrid(g);
   const scroll = g.els.scroll;
   const sx = scroll.scrollLeft, sy = scroll.scrollTop;
@@ -6192,7 +6300,9 @@ function paintNow(g) {
     // list-validated cells fill with their option's color and carry a
     // ▾ mark pinned to the far right (Sheets' whole-cell dropdown look)
     const dvRule = hasDvRules && r > 0 ? findValidationRule(sheet, r, c) : null;
-    const isDv = !!(dvRule && dvRule.type === "list" && WB.canEdit);
+    const isDv = !!(dvRule && (dvRule.type === "list" || dvRule.type === "range") && WB.canEdit);
+    const dvCheck = !!(dvRule && dvRule.type === "checkbox" && WB.canEdit);
+    const dvChecked = dvCheck && cell && /^true$/i.test(String(cell.formula ? cell.computed : cell.value));
     // display style (rule.style): "arrow" fills the cell + right ▾ mark,
     // "chip" wraps the value in a colored pill, "plain" is fill only
     const dvStyle = isDv ? (dvRule.style === "chip" || dvRule.style === "plain" ? dvRule.style : "arrow") : null;
@@ -6203,6 +6313,8 @@ function paintNow(g) {
     const imgSrc = cell ? cellImgSrc(cell) : null;
     const inner = imgSrc
       ? `<img class="wb-cell-img" src="${imgSrc}" data-wb-img="${r},${c}" alt="Cell image" title="Click to enlarge" draggable="false">`
+      : dvCheck
+      ? `<span class="wb-dv-checkbox ${dvChecked ? "is-checked" : ""}" data-wb-dvcheck="${r},${c}" role="checkbox" aria-checked="${dvChecked}" title="Toggle">${dvChecked ? "☑" : "☐"}</span>`
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
@@ -6373,51 +6485,10 @@ function setHidden(g, axis, from, to, hidden) {
 }
 
 // Paste Special: values only — computed results land, formulas don't.
-async function pasteValuesOnly(g) {
-  const cb = WB.clipboard;
-  if (!cb || !cb.rows.length || !WB.canEdit) { _toast("Copy a range first", "info"); return; }
-  const sel = selRect(g);
-  const changes = [];
-  for (let i = 0; i < cb.rows.length; i++) {
-    for (let j = 0; j < cb.rows[i].length; j++) {
-      const tr = sel.r0 + i, tc = sel.c0 + j;
-      if (tr >= g.sheet.rowCount || tc >= g.sheet.colCount) continue;
-      const srcCell = cb.rows[i][j];
-      let next = null;
-      if (srcCell) {
-        const v = srcCell.formula ? (srcCell.computed ?? null) : srcCell.value;
-        next = v == null || v === ""
-          ? null
-          : { value: String(v), formula: null, type: detectType(String(v)).type, format: srcCell.format ? { ...srcCell.format } : {} };
-      }
-      changes.push({ r: tr, c: tc, cell: next });
-    }
-  }
-  setCells(g, changes);
-}
-
-// Paste special → format only: stamp the copied range's formats over the
-// selection, leaving values and formulas alone.
-function pasteFormatOnly(g) {
-  const cb = WB.clipboard;
-  if (!cb || !cb.rows.length || !WB.canEdit) { _toast("Copy a range first", "info"); return; }
-  const sel = selRect(g);
-  const changes = [];
-  for (let i = 0; i < cb.rows.length; i++) {
-    for (let j = 0; j < cb.rows[i].length; j++) {
-      const tr = sel.r0 + i, tc = sel.c0 + j;
-      if (tr >= g.sheet.rowCount || tc >= g.sheet.colCount) continue;
-      const srcCell = cb.rows[i][j];
-      const fmt = srcCell && srcCell.format ? { ...srcCell.format } : {};
-      const prev = g.sheet.cells.get(cellKey(tr, tc));
-      const next = prev
-        ? { ...cloneCell(prev), format: fmt }
-        : Object.keys(fmt).length ? { value: null, formula: null, type: null, format: fmt } : null;
-      changes.push({ r: tr, c: tc, cell: next });
-    }
-  }
-  setCells(g, changes);
-}
+// Values-only and format-only are the common cases of the unified
+// paste-special path (pasteSpecial → pasteRich, defined further down).
+async function pasteValuesOnly(g) { pasteSpecial(g, "values"); }
+function pasteFormatOnly(g) { pasteSpecial(g, "formats"); }
 
 // Formula auditing: light one — reuse the reference-highlight layer.
 function tracePrecedents(g) {
@@ -7588,6 +7659,7 @@ function switchSheet(g, sheetId) {
   repaintGrid(g);
   syncFormulaBar(g);
   renderCharts(g);
+  renderPivots(g);
 }
 
 // ─── Selection + navigation ─────────────────────────────────────────────────
@@ -7606,6 +7678,47 @@ function setActive(g, r, c, opts) {
   repaintGrid(g);
   syncFormulaBar(g);
   if (!opts || opts.scroll !== false) scrollCellIntoView(g, r, c);
+}
+
+// Select an explicit rectangle (top-left becomes active).
+function selectRect(g, r0, c0, r1, c1) {
+  const sheet = g.sheet;
+  const rr0 = Math.max(0, Math.min(sheet.rowCount - 1, Math.min(r0, r1)));
+  const cc0 = Math.max(0, Math.min(sheet.colCount - 1, Math.min(c0, c1)));
+  const rr1 = Math.max(0, Math.min(sheet.rowCount - 1, Math.max(r0, r1)));
+  const cc1 = Math.max(0, Math.min(sheet.colCount - 1, Math.max(c0, c1)));
+  setActive(g, rr0, cc0, { keepSel: true });
+  g.sel = { r0: rr0, c0: cc0, r1: rr1, c1: cc1 };
+  paintSelection(g);
+  repaintGrid(g);
+  syncFormulaBar(g);
+  scrollCellIntoView(g, rr0, cc0);
+}
+
+// Name-box "go to": a cell ref (B12), an A1 range (B2:D9), or a named range
+// (case-insensitive; jumps to its sheet). Returns true when it navigated.
+function gotoNameBox(g, text) {
+  if (!text) return false;
+  const block = findBlock(g.sheet.blockId);
+  const def = blockNamedRanges(block).find((d) => d.name && d.name.toLowerCase() === text.toLowerCase());
+  const src = def ? def.ref : text;
+  let node;
+  try { node = parseFormula("=" + src); } catch (_) { return false; }
+  if (node.k !== "range" && node.k !== "ref") return false;
+  if (node.sheet) {
+    const sibs = WB.sheetsByBlock.get(g.sheet.blockId) || [];
+    const target = sibs.find((s) => s.name.trim().toLowerCase() === String(node.sheet).trim().toLowerCase());
+    if (target && target.id !== g.sheet.id) switchSheet(g, target.id);
+    else if (!target) return false;
+  }
+  if (node.k === "ref") {
+    if (node.row >= g.sheet.rowCount || node.col >= g.sheet.colCount) return false;
+    setActive(g, node.row, node.col);
+  } else {
+    const b = boundedRange(node, { rowCount: g.sheet.rowCount, colCount: g.sheet.colCount });
+    selectRect(g, b.a.row, b.a.col, b.b.row, b.b.col);
+  }
+  return true;
 }
 
 function scrollCellIntoView(g, r, c) {
@@ -8072,35 +8185,69 @@ function pasteAt(g, text) {
   pasteMatrix(g, parseClipboardMatrix(text));
 }
 
-function pasteRich(g, cb) {
+// The concrete value a "paste values only" writes for a source cell —
+// a formula contributes its computed result (or error text).
+function pasteValueParts(srcCell) {
+  if (!srcCell) return { value: "", type: null };
+  if (srcCell.formula) {
+    const v = srcCell.err ? srcCell.err : srcCell.computed;
+    return { value: v == null ? "" : String(v), type: typeof v === "number" ? "number" : typeof v === "boolean" ? "boolean" : srcCell.type || null };
+  }
+  return { value: srcCell.value ?? "", type: srcCell.type || null };
+}
+
+// Build the target cell for one source/target pair under a paste-special
+// mode. opts: { values | formats | formulas } (default = everything).
+function buildPasteCell(srcCell, targetOld, opts, dr, dc, cutMode) {
+  if (opts.formats) {
+    const fmt = srcCell && srcCell.format && Object.keys(srcCell.format).length ? { ...srcCell.format } : null;
+    if (!targetOld && !fmt) return null;
+    const base = targetOld ? cloneCell(targetOld) : { value: "", formula: null, type: null, computed: null, err: null, format: {} };
+    base.format = fmt || {};
+    return base;
+  }
+  if (opts.values) {
+    const { value, type } = pasteValueParts(srcCell);
+    if (value === "" && !targetOld) return null;
+    const base = targetOld ? cloneCell(targetOld) : { value: "", formula: null, type: null, computed: null, err: null, format: {} };
+    base.value = value; base.type = type; base.formula = null; base.computed = null; base.err = null;
+    return base; // keeps the target's existing format
+  }
+  if (!srcCell) return null;
+  const base = cloneCell(srcCell);
+  if (opts.formulas) base.format = {}; // formulas/content, drop formatting
+  if (base.formula && cutMode !== "cut") base.formula = shiftFormulaRelative(base.formula, dr, dc);
+  return base;
+}
+
+function pasteRich(g, cb, opts) {
   if (!WB.canEdit) return;
+  opts = opts || {};
+  const transpose = !!opts.transpose;
   const sheet = g.sheet;
   const sel = selRect(g);
   const srcR = cb.rows.length, srcC = cb.rows[0].length;
+  const outR = transpose ? srcC : srcR, outC = transpose ? srcR : srcC;
   const selR = sel.r1 - sel.r0 + 1, selC = sel.c1 - sel.c0 + 1;
   // Excel tiling: repeat the block when the target is an exact multiple
-  const repR = selR > 1 && selR % srcR === 0 ? selR / srcR : 1;
-  const repC = selC > 1 && selC % srcC === 0 ? selC / srcC : 1;
+  // (transpose pastes once — tiling a transposed block is confusing)
+  const repR = !transpose && selR > 1 && selR % outR === 0 ? selR / outR : 1;
+  const repC = !transpose && selC > 1 && selC % outC === 0 ? selC / outC : 1;
   const changes = [];
   const covered = new Set();
   for (let br = 0; br < repR; br++) for (let bc = 0; bc < repC; bc++) {
     for (let i = 0; i < srcR; i++) for (let j = 0; j < srcC; j++) {
-      const tr = sel.r0 + br * srcR + i, tc = sel.c0 + bc * srcC + j;
+      const oi = transpose ? j : i, oj = transpose ? i : j;
+      const tr = sel.r0 + br * outR + oi, tc = sel.c0 + bc * outC + oj;
       if (tr >= sheet.rowCount || tc >= sheet.colCount) continue;
       const srcCell = cb.rows[i][j];
-      let next = null;
-      if (srcCell) {
-        next = cloneCell(srcCell);
-        if (srcCell.formula && cb.mode !== "cut") {
-          // cut moves formulas verbatim (Excel); copy adjusts refs
-          next.formula = shiftFormulaRelative(srcCell.formula, tr - (cb.r0 + i), tc - (cb.c0 + j));
-        }
-      }
+      const targetOld = sheet.cells.get(cellKey(tr, tc));
+      const next = buildPasteCell(srcCell, targetOld, opts, tr - (cb.r0 + i), tc - (cb.c0 + j), cb.mode);
       changes.push({ r: tr, c: tc, cell: next });
       covered.add(cellKey(tr, tc));
     }
   }
-  if (cb.mode === "cut") {
+  if (cb.mode === "cut" && !opts.values && !opts.formats && !opts.formulas) {
     if (cb.sheetId === sheet.id) {
       for (let i = 0; i < srcR; i++) for (let j = 0; j < srcC; j++) {
         const sr = cb.r0 + i, sc = cb.c0 + j;
@@ -8110,9 +8257,24 @@ function pasteRich(g, cb) {
     cb.mode = "copy"; // a cut pastes once; further pastes behave as copy
   }
   setCells(g, changes);
-  g.sel = { r0: sel.r0, c0: sel.c0, r1: Math.min(sheet.rowCount - 1, sel.r0 + repR * srcR - 1), c1: Math.min(sheet.colCount - 1, sel.c0 + repC * srcC - 1) };
+  g.sel = { r0: sel.r0, c0: sel.c0, r1: Math.min(sheet.rowCount - 1, sel.r0 + repR * outR - 1), c1: Math.min(sheet.colCount - 1, sel.c0 + repC * outC - 1) };
   g.active = { r: sel.r0, c: sel.c0 };
   paintSelection(g);
+}
+
+// Paste-special entry point: reads our own rich clipboard and applies the
+// chosen subset. External (system-clipboard-only) copies fall back to a
+// values paste since we don't hold their formulas/formats.
+function pasteSpecial(g, mode) {
+  if (!WB.canEdit) return;
+  const cb = WB.clipboard;
+  if (!cb || !cb.rows || !cb.rows.length) { _toast("Copy a range first, then Paste special", "info"); return; }
+  const opts = mode === "values" ? { values: true }
+    : mode === "formats" ? { formats: true }
+    : mode === "formulas" ? { formulas: true }
+    : mode === "transpose" ? { transpose: true }
+    : {};
+  pasteRich(g, cb, opts);
 }
 
 // ── Cell images (paste a screenshot, click to enlarge — Quip-style) ──
@@ -8565,16 +8727,54 @@ function dvOptionColor(rule, value) {
   return hex && HEX_COLOR_RE.test(hex) ? hex : null;
 }
 
-function valueSatisfiesRule(rule, raw) {
-  if (raw == null || raw === "") return true;
-  if (rule.type === "list") {
-    const s = String(raw).trim().toLowerCase();
-    return (rule.list || []).some((it) => String(it).trim().toLowerCase() === s);
+// A date-ish value → Excel serial (numbers pass through as serials).
+function dvDateSerial(v) {
+  if (typeof v === "number") return v;
+  const s = String(v).trim();
+  if (s === "") return null;
+  if (isFinite(Number(s))) return Number(s);
+  const d = parseDateLoose(s);
+  return d ? dateToSerial(d) : null;
+}
+
+// The options a list/range dropdown offers. A range source reads distinct,
+// non-empty values from its cells (sheet-qualified refs and named ranges
+// both resolve through the shared eval ctx).
+function dvOptionList(rule, sheet) {
+  if (rule.type === "range" && rule.source && sheet) {
+    try {
+      const ctx = cfEvalCtx(sheet);
+      let node = parseFormula("=" + rule.source);
+      if (node.k === "name") node = bindNames(node, ctx.names);
+      if (node.k !== "range" && node.k !== "ref") return [];
+      const grid = argGrid(node, ctx);
+      const out = [], seen = new Set();
+      for (const v of grid.flat()) {
+        if (v == null || v === "") continue;
+        const s = String(v);
+        if (!seen.has(s)) { seen.add(s); out.push(s); }
+      }
+      return out;
+    } catch (_) { return []; }
   }
-  const x = cellNumeric(raw);
-  if (x == null) return false;
-  const a = +rule.v1, b = +rule.v2;
-  switch (rule.op) {
+  return rule.list || [];
+}
+
+// Custom-formula validation: the formula is authored relative to the
+// range's top-left cell; shift it to this cell and test truthiness.
+function dvCustomHits(sheet, rule, r, c) {
+  if (!rule.formula) return true;
+  try {
+    const shifted = shiftFormulaRelative(rule.formula, r - rule.r0, c - rule.c0);
+    if (shifted.includes("#REF")) return false;
+    let v = evalFormula(shifted, cfEvalCtx(sheet));
+    if (v instanceof Arr) v = v.top();
+    return truthy(v);
+  } catch (_) { return false; }
+}
+
+function dvNumericCompare(op, x, a, b) {
+  switch (op) {
     case "between": return x >= Math.min(a, b) && x <= Math.max(a, b);
     case ">": return x > a;
     case ">=": return x >= a;
@@ -8585,12 +8785,37 @@ function valueSatisfiesRule(rule, raw) {
   }
 }
 
-function validationMsg(rule) {
-  if (rule.type === "list") {
-    const opts = (rule.list || []).slice(0, 6).join(", ");
-    return `Value must be one of: ${opts}${(rule.list || []).length > 6 ? ", …" : ""}`;
+function valueSatisfiesRule(rule, raw, sheet, r, c) {
+  if (raw == null || raw === "") return true;
+  if (rule.type === "checkbox") { const s = String(raw).trim().toLowerCase(); return s === "true" || s === "false"; }
+  if (rule.type === "list" || rule.type === "range") {
+    const s = String(raw).trim().toLowerCase();
+    return dvOptionList(rule, sheet).some((it) => String(it).trim().toLowerCase() === s);
   }
+  if (rule.type === "custom") return dvCustomHits(sheet, rule, r, c);
+  if (rule.type === "textlen") return dvNumericCompare(rule.op, String(raw).length, +rule.v1, +rule.v2);
+  if (rule.type === "date") {
+    const x = dvDateSerial(raw);
+    if (x == null) return false;
+    return dvNumericCompare(rule.op, x, dvDateSerial(rule.v1), dvDateSerial(rule.v2));
+  }
+  const x = cellNumeric(raw);
+  if (x == null) return false;
+  return dvNumericCompare(rule.op, x, +rule.v1, +rule.v2);
+}
+
+function validationMsg(rule) {
+  if (rule.type === "list" || rule.type === "range") {
+    const list = rule.type === "range" ? (rule.list || []) : (rule.list || []); // static hint list; range shows generic text
+    if (rule.type === "range") return `Value must come from ${rule.source || "the source range"}`;
+    const opts = list.slice(0, 6).join(", ");
+    return `Value must be one of: ${opts}${list.length > 6 ? ", …" : ""}`;
+  }
+  if (rule.type === "checkbox") return "Value must be TRUE or FALSE";
+  if (rule.type === "custom") return `Value must satisfy ${rule.formula || "the custom formula"}`;
   const opText = rule.op === "between" ? `between ${rule.v1} and ${rule.v2}` : `${rule.op} ${rule.v1}`;
+  if (rule.type === "textlen") return `Text length must be ${opText}`;
+  if (rule.type === "date") return `Date must be ${opText}`;
   return `Value must be a number ${opText}`;
 }
 
@@ -8600,7 +8825,7 @@ function validationMsg(rule) {
 function validateCommit(sheet, r, c, cell) {
   const rule = findValidationRule(sheet, r, c);
   if (!rule || !cell || cell.formula || cell.value == null || cell.value === "") return { ok: true };
-  if (valueSatisfiesRule(rule, cell.value)) return { ok: true };
+  if (valueSatisfiesRule(rule, cell.value, sheet, r, c)) return { ok: true };
   return { ok: false, strict: rule.mode !== "warn", msg: validationMsg(rule) };
 }
 
@@ -8612,7 +8837,7 @@ function cellInvalid(sheet, r, c, cell) {
   if (!rule) return false;
   const raw = cell.formula ? (cell.err ? null : cell.computed) : cell.value;
   if (raw == null || raw === "") return false;
-  return !valueSatisfiesRule(rule, raw);
+  return !valueSatisfiesRule(rule, raw, sheet, r, c);
 }
 
 const WB_CF_STYLES = {
@@ -8627,7 +8852,78 @@ const WB_CF_STYLES = {
 const WB_CF_KINDS = {
   gt: "Greater than", lt: "Less than", between: "Between", eq: "Equal to",
   contains: "Text contains", notempty: "Is not empty", empty: "Is empty",
+  formula: "Custom formula is",
 };
+
+// Color-scale presets (Google Sheets' default gradient colors). Two- or
+// three-stop; the value's position between the range min and max picks a
+// color by linear RGB interpolation.
+const WB_CF_SCALES = {
+  gyr: { label: "Green → Yellow → Red", stops: ["#57BB8A", "#FFD666", "#E67C73"] },
+  ryg: { label: "Red → Yellow → Green", stops: ["#E67C73", "#FFD666", "#57BB8A"] },
+  wg: { label: "White → Green", stops: ["#FFFFFF", "#57BB8A"] },
+  wb: { label: "White → Blue", stops: ["#FFFFFF", "#6FA8DC"] },
+  wr: { label: "White → Red", stops: ["#FFFFFF", "#E67C73"] },
+};
+
+function cfHexToRgb(h) { h = h.replace("#", ""); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+function cfLerp(a, b, t) { return Math.round(a + (b - a) * t); }
+function cfScaleColor(stops, t) {
+  t = Math.max(0, Math.min(1, t));
+  const rgb = stops.map(cfHexToRgb);
+  if (rgb.length === 2) { const [a, b] = rgb; return `rgb(${cfLerp(a[0], b[0], t)},${cfLerp(a[1], b[1], t)},${cfLerp(a[2], b[2], t)})`; }
+  const [a, m, b] = rgb;
+  const [lo, hi, tt] = t < 0.5 ? [a, m, t / 0.5] : [m, b, (t - 0.5) / 0.5];
+  return `rgb(${cfLerp(lo[0], hi[0], tt)},${cfLerp(lo[1], hi[1], tt)},${cfLerp(lo[2], hi[2], tt)})`;
+}
+
+// Per-repaint memos: color-scale min/max over a rule's rectangle, and a
+// reusable eval ctx for custom-formula rules (cleared in paintNow because
+// cell values change between repaints).
+let _cfScaleMemo = new WeakMap();
+let _cfCtxMemo = new WeakMap();
+function cfClearMemo() { _cfScaleMemo = new WeakMap(); _cfCtxMemo = new WeakMap(); }
+function cfScaleStats(sheet, rule) {
+  let s = _cfScaleMemo.get(rule);
+  if (s) return s;
+  let min = Infinity, max = -Infinity;
+  for (let rr = rule.r0; rr <= rule.r1; rr++) {
+    for (let cc = rule.c0; cc <= rule.c1; cc++) {
+      const cl = sheet.cells.get(cellKey(rr, cc));
+      if (!cl) continue;
+      const n = cellNumeric(cl.formula ? (cl.err ? null : cl.computed) : cl.value);
+      if (n == null) continue;
+      if (n < min) min = n;
+      if (n > max) max = n;
+    }
+  }
+  s = min === Infinity ? { empty: true } : { min, max };
+  _cfScaleMemo.set(rule, s);
+  return s;
+}
+function cfEvalCtx(sheet) {
+  let ctx = _cfCtxMemo.get(sheet);
+  if (ctx) return ctx;
+  ctx = {
+    rowCount: sheet.rowCount, colCount: sheet.colCount,
+    getCell: (r, c, sn) => (sn ? crossSheetValue(sheet, sn, r, c) : engineValue(sheet, r, c)),
+    names: namesForSheet(sheet),
+  };
+  _cfCtxMemo.set(sheet, ctx);
+  return ctx;
+}
+// A custom-formula rule authored relative to the range's top-left cell:
+// shift its relative refs to this cell, evaluate, and test truthiness.
+function cfFormulaHits(sheet, rule, r, c) {
+  if (!rule.formula) return false;
+  try {
+    const shifted = shiftFormulaRelative(rule.formula, r - rule.r0, c - rule.c0);
+    if (shifted.includes("#REF")) return false;
+    let v = evalFormula(shifted, cfEvalCtx(sheet));
+    if (v instanceof Arr) v = v.top();
+    return truthy(v);
+  } catch (_) { return false; }
+}
 
 function condRuleHits(rule, raw) {
   const empty = raw == null || raw === "";
@@ -8657,6 +8953,21 @@ function condStyleFor(sheet, r, c, cell) {
   let out = "";
   for (const rule of rules) {
     if (!ruleCovers(rule, r, c)) continue;
+    if (rule.type === "colorscale") {
+      const n = cellNumeric(cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null);
+      if (n == null) continue;
+      const st = cfScaleStats(sheet, rule);
+      if (st.empty) continue;
+      const t = st.max === st.min ? 0.5 : (n - st.min) / (st.max - st.min);
+      out = `background:${cfScaleColor((WB_CF_SCALES[rule.scale] || WB_CF_SCALES.gyr).stops, t)};`;
+      continue;
+    }
+    if (rule.type === "formula" || rule.kind === "formula") {
+      if (!cfFormulaHits(sheet, rule, r, c)) continue;
+      const stf = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
+      out = `background:${stf.bg};color:${stf.fg};`;
+      continue;
+    }
     const raw = cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
     if (condRuleHits(rule, raw)) {
       const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
@@ -8671,7 +8982,7 @@ function shiftRuleRanges(sheet, axis, index, delta) {
   const meta = sheet.meta || {};
   const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
   const cut = delta < 0 ? -delta : 0;
-  for (const key of ["validation", "condFormat", "merges", "charts"]) {
+  for (const key of ["validation", "condFormat", "merges", "charts", "pivots"]) {
     if (!Array.isArray(meta[key]) || !meta[key].length) continue;
     const next = [];
     for (const rule of meta[key]) {
@@ -8692,13 +9003,21 @@ function shiftRuleRanges(sheet, axis, index, delta) {
   sheet.meta = meta;
 }
 
+// Flip a checkbox-validated cell between TRUE and FALSE.
+function toggleCheckbox(g, r, c) {
+  if (!WB.canEdit) return;
+  const prev = g.sheet.cells.get(cellKey(r, c));
+  const cur = prev && /^true$/i.test(String(prev.formula ? prev.computed : prev.value));
+  setCells(g, [{ r, c, cell: { value: cur ? "FALSE" : "TRUE", formula: null, type: "boolean", computed: null, err: null, format: prev && prev.format ? { ...prev.format } : {} } }]);
+}
+
 // Dropdown picker for list-validated cells (the ▾ beside the active cell).
 function openValidationPicker(g, btnEl) {
   const { r, c } = g.active;
   const rule = findValidationRule(g.sheet, r, c);
-  if (!rule || rule.type !== "list" || !WB.canEdit) return;
+  if (!rule || (rule.type !== "list" && rule.type !== "range") || !WB.canEdit) return;
   const rect = btnEl.getBoundingClientRect();
-  const m = ctxMenu(rect.left - 120, rect.bottom + 2, (rule.list || []).map((opt, i) => {
+  const m = ctxMenu(rect.left - 120, rect.bottom + 2, dvOptionList(rule, g.sheet).map((opt, i) => {
     const hex = Array.isArray(rule.colors) && rule.colors[i] && HEX_COLOR_RE.test(rule.colors[i]) ? rule.colors[i] : null;
     return `<button type="button" class="popover-item" data-dv-opt="${esc(String(opt))}" role="menuitem">${hex ? `<span class="wb-dv-menuswatch" style="background:${hex}"></span>` : `<span class="wb-dv-menuswatch is-none"></span>`}${esc(String(opt))}</button>`;
   }).join("") +
@@ -8740,7 +9059,12 @@ function openValidationDialog(g) {
           <label class="wb-field"><span class="wb-field-label">Criteria</span>
             <select class="wb-input" id="wb-dv-type">
               <option value="list" ${cur.type === "list" ? "selected" : ""}>Dropdown from a list</option>
+              <option value="range" ${cur.type === "range" ? "selected" : ""}>Dropdown from a range</option>
+              <option value="checkbox" ${cur.type === "checkbox" ? "selected" : ""}>Checkbox</option>
               <option value="number" ${cur.type === "number" ? "selected" : ""}>Number</option>
+              <option value="date" ${cur.type === "date" ? "selected" : ""}>Date</option>
+              <option value="textlen" ${cur.type === "textlen" ? "selected" : ""}>Text length</option>
+              <option value="custom" ${cur.type === "custom" ? "selected" : ""}>Custom formula</option>
             </select></label>
           <label class="wb-field" style="flex:0 0 168px"><span class="wb-field-label">On invalid input</span>
             <select class="wb-input" id="wb-dv-mode">
@@ -8759,15 +9083,24 @@ function openValidationDialog(g) {
               <option value="plain" ${cur.style === "plain" ? "selected" : ""}>Plain text — just the colored fill</option>
             </select></label>
         </div>
+        <div id="wb-dv-range-row" hidden>
+          <label class="wb-field"><span class="wb-field-label">Options come from</span>
+            <input type="text" class="wb-input" id="wb-dv-source" value="${esc(cur.source || "")}" placeholder="Sheet1!A2:A50 or a named range" spellcheck="false"></label>
+          <p class="wb-dv-hint" style="margin-top:6px">Distinct, non-empty values from that range fill the dropdown.</p>
+        </div>
         <div class="wb-field-row" id="wb-dv-num-row" hidden>
-          <label class="wb-field"><span class="wb-field-label">Condition</span>
+          <label class="wb-field"><span class="wb-field-label" id="wb-dv-op-label">Condition</span>
             <select class="wb-input" id="wb-dv-op">
               ${opSel("between", "Between")}${opSel(">=", "Greater or equal")}${opSel("<=", "Less or equal")}${opSel(">", "Greater than")}${opSel("<", "Less than")}${opSel("=", "Equal to")}
             </select></label>
-          <label class="wb-field" style="flex:0 0 100px"><span class="wb-field-label">Value</span>
-            <input type="number" class="wb-input" id="wb-dv-v1" value="${cur.v1 ?? ""}"></label>
-          <label class="wb-field" style="flex:0 0 100px" id="wb-dv-v2-field"><span class="wb-field-label">and</span>
-            <input type="number" class="wb-input" id="wb-dv-v2" value="${cur.v2 ?? ""}"></label>
+          <label class="wb-field" style="flex:0 0 120px"><span class="wb-field-label">Value</span>
+            <input type="text" class="wb-input" id="wb-dv-v1" value="${esc(cur.v1 ?? "")}"></label>
+          <label class="wb-field" style="flex:0 0 120px" id="wb-dv-v2-field"><span class="wb-field-label">and</span>
+            <input type="text" class="wb-input" id="wb-dv-v2" value="${esc(cur.v2 ?? "")}"></label>
+        </div>
+        <div id="wb-dv-custom-row" hidden>
+          <label class="wb-field"><span class="wb-field-label">Custom formula — relative to the top-left cell, must return TRUE</span>
+            <input type="text" class="wb-input" id="wb-dv-formula" value="${esc(cur.formula || "")}" placeholder='=AND(A1>0, A1<100)' spellcheck="false"></label>
         </div>
         <p class="wb-dv-hint">Cells that break the rule get a red corner marker. Typed input is checked as you enter it; pasted data is only flagged.</p>
       </div>
@@ -8817,8 +9150,12 @@ function openValidationDialog(g) {
 
   const syncRows = () => {
     const t = wrap.querySelector("#wb-dv-type").value;
+    const opBased = t === "number" || t === "date" || t === "textlen";
     wrap.querySelector("#wb-dv-list-row").hidden = t !== "list";
-    wrap.querySelector("#wb-dv-num-row").hidden = t !== "number";
+    wrap.querySelector("#wb-dv-range-row").hidden = t !== "range";
+    wrap.querySelector("#wb-dv-num-row").hidden = !opBased;
+    wrap.querySelector("#wb-dv-custom-row").hidden = t !== "custom";
+    wrap.querySelector("#wb-dv-op-label").textContent = t === "textlen" ? "Length" : t === "date" ? "Date is" : "Condition";
     wrap.querySelector("#wb-dv-v2-field").style.display = wrap.querySelector("#wb-dv-op").value === "between" ? "" : "none";
   };
   syncRows();
@@ -8851,6 +9188,18 @@ function openValidationDialog(g) {
           rule.colors.push(row.querySelector("[data-dv-opt-color]").value || null);
         });
         if (!rule.list.length) { _toast("Add at least one option", "warn"); return; }
+      } else if (type === "range") {
+        const src = normalizeNameRef(wrap.querySelector("#wb-dv-source").value.trim(), sheet.name)
+          || (blockNamedRanges(findBlock(sheet.blockId)).some((d) => d.name.toLowerCase() === wrap.querySelector("#wb-dv-source").value.trim().toLowerCase()) ? wrap.querySelector("#wb-dv-source").value.trim() : null);
+        if (!src) { _toast("Enter a range like A2:A50 or a named range", "warn"); return; }
+        rule.source = src;
+      } else if (type === "custom") {
+        const formula = wrap.querySelector("#wb-dv-formula").value.trim();
+        if (!formula.startsWith("=")) { _toast("Custom formula must start with =", "warn"); return; }
+        try { parseFormula(formula); } catch (_) { _toast("That formula doesn't parse", "warn"); return; }
+        rule.formula = formula;
+      } else if (type === "checkbox") {
+        // no extra config — the cell just toggles TRUE/FALSE
       } else {
         rule.op = wrap.querySelector("#wb-dv-op").value;
         rule.v1 = wrap.querySelector("#wb-dv-v1").value;
@@ -8869,6 +9218,107 @@ function openValidationDialog(g) {
   setTimeout(() => wrap.querySelector("#wb-dv-type")?.focus(), 30);
 }
 
+// ─── Named ranges dialog ─────────────────────────────────────────────────────
+
+function setBlockNamedRanges(g, defs) {
+  const block = findBlock(g.sheet.blockId);
+  if (!block) return;
+  block.settings = { ...(block.settings || {}), namedRanges: defs };
+  if (WB.canEdit) saveBlock(block, { settings: block.settings });
+  // a name change ripples through every sheet's formulas in this block
+  for (const sh of WB.sheetsByBlock.get(block.id) || []) recalcSheet(sh);
+  repaintGrid(g);
+}
+
+// Normalize a user-typed target ("A1:B5" or "Roster!A1:B5") into a
+// sheet-qualified ref string, or null if it isn't a valid range/ref.
+function normalizeNameRef(text, defaultSheet) {
+  let node;
+  try { node = parseFormula("=" + String(text).trim()); } catch (_) { return null; }
+  if (node.k !== "range" && node.k !== "ref") return null;
+  const sheetName = node.sheet || defaultSheet;
+  const q = /[^A-Za-z0-9_]/.test(sheetName) ? `'${sheetName.replace(/'/g, "''")}'` : sheetName;
+  if (node.k === "ref") return `${q}!${colLabel(node.col)}${node.row + 1}`;
+  const a = colLabel(node.a.col) + (node.a.row + 1);
+  const b = colLabel(node.b.col) + (node.b.row + 1);
+  return `${q}!${a}:${b}`;
+}
+
+function openNamedRangesDialog(g) {
+  document.getElementById("wb-nr-modal")?.remove();
+  const sheet = g.sheet;
+  const ro = !WB.canEdit;
+  const rect = selRect(g);
+  const selRef = colLabel(rect.c0) + (rect.r0 + 1) + ":" + colLabel(rect.c1) + (rect.r1 + 1);
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-nr-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Named ranges" style="width:520px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Named ranges</p><p class="rr-modal-sub">Give a range a name, then use it in formulas — <code>=SUM(Drivers)</code>. Names are shared across the sheets in this block.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        ${ro ? "" : `<div class="wb-field-row" style="align-items:flex-end">
+          <label class="wb-field" style="flex:0 0 160px"><span class="wb-field-label">Name</span>
+            <input type="text" class="wb-input" id="wb-nr-name" placeholder="Drivers" spellcheck="false" maxlength="60"></label>
+          <label class="wb-field"><span class="wb-field-label">Refers to</span>
+            <input type="text" class="wb-input" id="wb-nr-ref" value="${esc(selRef)}" placeholder="A2:A50" spellcheck="false"></label>
+          <button type="button" class="btn btn-primary btn-sm" data-wb-nr-add style="flex:0 0 auto">Add</button>
+        </div>`}
+        <div class="wb-nr-list" id="wb-nr-list"></div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn primary" type="button" data-wb-close>Done</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const paint = () => {
+    const defs = blockNamedRanges(findBlock(sheet.blockId));
+    wrap.querySelector("#wb-nr-list").innerHTML = !defs.length
+      ? `<p class="wb-cf-none">No named ranges yet.</p>`
+      : defs.map((d, i) =>
+          `<div class="wb-nr-row"><button type="button" class="wb-nr-name" data-nr-go="${esc(d.ref)}" title="Go to ${esc(d.ref)}">${esc(d.name)}</button><span class="wb-nr-ref">${esc(d.ref)}</span>${ro ? "" : `<button type="button" class="wb-cf-del" data-nr-del="${i}" aria-label="Delete ${esc(d.name)}">×</button>`}</div>`).join("");
+  };
+  paint();
+  const addName = () => {
+    const name = wrap.querySelector("#wb-nr-name").value.trim();
+    const refIn = wrap.querySelector("#wb-nr-ref").value.trim();
+    if (!isValidRangeName(name)) { _toast("Pick a name that starts with a letter and isn't a cell reference or function", "warn"); return; }
+    const ref = normalizeNameRef(refIn, sheet.name);
+    if (!ref) { _toast("Enter a range like A2:A50", "warn"); return; }
+    const defs = blockNamedRanges(findBlock(sheet.blockId)).filter((d) => d.name.toLowerCase() !== name.toLowerCase());
+    defs.push({ name, ref });
+    defs.sort((a, b) => a.name.localeCompare(b.name));
+    setBlockNamedRanges(g, defs);
+    wbLog("sheet.namedrange", `defined the name “${name}” for ${ref}`, { target_type: "sheet", target_id: sheet.id });
+    wrap.querySelector("#wb-nr-name").value = "";
+    paint();
+    wrap.querySelector("#wb-nr-name").focus();
+  };
+  wrap.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") { wrap.remove(); return; }
+    if (e.key === "Enter" && e.target.closest("#wb-nr-name, #wb-nr-ref")) { e.preventDefault(); addName(); }
+  });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); g.els.grid.focus(); return; }
+    if (e.target.closest("[data-wb-nr-add]")) { addName(); return; }
+    const go = e.target.closest("[data-nr-go]");
+    if (go) { wrap.remove(); gotoNameBox(g, go.getAttribute("data-nr-go")); g.els.grid.focus(); return; }
+    const del = e.target.closest("[data-nr-del]");
+    if (del) {
+      const defs = blockNamedRanges(findBlock(sheet.blockId)).slice();
+      const [removed] = defs.splice(+del.getAttribute("data-nr-del"), 1);
+      setBlockNamedRanges(g, defs);
+      if (removed) wbLog("sheet.namedrange", `deleted the name “${removed.name}”`, { target_type: "sheet", target_id: sheet.id });
+      paint();
+    }
+  });
+  setTimeout(() => wrap.querySelector("#wb-nr-name")?.focus(), 30);
+}
+
 // ─── Conditional formatting dialog ───────────────────────────────────────────
 
 function openCondFormatDialog(g) {
@@ -8881,24 +9331,34 @@ function openCondFormatDialog(g) {
   wrap.className = "rr-modal-backdrop";
   wrap.id = "wb-cf-modal";
   const kindOpts = Object.entries(WB_CF_KINDS).map(([k, label]) => `<option value="${k}">${label}</option>`).join("");
+  const scaleOpts = Object.entries(WB_CF_SCALES).map(([k, s]) => `<option value="${k}">${s.label}</option>`).join("");
   const chips = Object.entries(WB_CF_STYLES).map(([k, st], i) =>
     `<button type="button" class="wb-cf-chip ${i === 0 ? "is-on" : ""}" data-cf-style="${k}" style="background:${st.bg};color:${st.fg}" title="${st.label}" aria-pressed="${i === 0}">Aa</button>`).join("");
   wrap.innerHTML = `
-    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Conditional formatting" style="width:520px">
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Conditional formatting" style="width:540px">
       <div class="rr-modal-head">
         <div class="rr-modal-head-content"><p class="rr-modal-title">Conditional formatting</p><p class="rr-modal-sub">New rules apply to ${esc(refText)}</p></div>
         <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
       </div>
       <div class="rr-modal-body">
         <div class="wb-field-row">
-          <label class="wb-field"><span class="wb-field-label">Format cells if…</span>
+          <label class="wb-field" style="flex:0 0 148px"><span class="wb-field-label">Type</span>
+            <select class="wb-input" id="wb-cf-type">
+              <option value="single">Single color</option>
+              <option value="scale">Color scale</option>
+            </select></label>
+          <label class="wb-field" id="wb-cf-kind-field"><span class="wb-field-label">Format cells if…</span>
             <select class="wb-input" id="wb-cf-kind">${kindOpts}</select></label>
-          <label class="wb-field" style="flex:0 0 110px" id="wb-cf-v1-field"><span class="wb-field-label">Value</span>
+          <label class="wb-field" style="flex:0 0 96px" id="wb-cf-v1-field"><span class="wb-field-label">Value</span>
             <input type="text" class="wb-input" id="wb-cf-v1"></label>
-          <label class="wb-field" style="flex:0 0 110px" id="wb-cf-v2-field"><span class="wb-field-label">and</span>
+          <label class="wb-field" style="flex:0 0 96px" id="wb-cf-v2-field"><span class="wb-field-label">and</span>
             <input type="text" class="wb-input" id="wb-cf-v2"></label>
         </div>
-        <div class="wb-field"><span class="wb-field-label">Style</span>
+        <label class="wb-field" id="wb-cf-formula-field" style="display:none"><span class="wb-field-label">Custom formula — relative to the top-left cell</span>
+          <input type="text" class="wb-input" id="wb-cf-formula" placeholder='=$D2=&quot;Late&quot;' spellcheck="false"></label>
+        <label class="wb-field" id="wb-cf-scale-field" style="display:none"><span class="wb-field-label">Gradient</span>
+          <select class="wb-input" id="wb-cf-scale">${scaleOpts}</select></label>
+        <div class="wb-field" id="wb-cf-style-field"><span class="wb-field-label">Style</span>
           <div class="wb-cf-chips" id="wb-cf-chips">${chips}</div></div>
         <button type="button" class="btn btn-primary btn-sm" data-wb-cf-add>Add rule</button>
         <div class="wb-cf-rules" id="wb-cf-rules"></div>
@@ -8913,17 +9373,34 @@ function openCondFormatDialog(g) {
     wrap.querySelector("#wb-cf-rules").innerHTML = !rules.length
       ? `<p class="wb-cf-none">No rules on this sheet yet.</p>`
       : rules.map((rule, i) => {
-          const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
-          const what = rule.kind === "empty" || rule.kind === "notempty" ? WB_CF_KINDS[rule.kind]
-            : rule.kind === "between" ? `${WB_CF_KINDS.between} ${rule.v1} and ${rule.v2}`
-            : `${WB_CF_KINDS[rule.kind] || rule.kind} ${rule.v1}`;
-          return `<div class="wb-cf-rule"><span class="wb-cf-swatch" style="background:${st.bg};color:${st.fg}">Aa</span><span class="wb-cf-what">${esc(ruleRefText(rule))} · ${esc(what)}</span><button type="button" class="wb-cf-del" data-cf-del="${i}" aria-label="Delete rule">×</button></div>`;
+          let swatch, what;
+          if (rule.type === "colorscale") {
+            const sc = WB_CF_SCALES[rule.scale] || WB_CF_SCALES.gyr;
+            swatch = `<span class="wb-cf-swatch" style="background:linear-gradient(90deg,${sc.stops.join(",")})"></span>`;
+            what = sc.label;
+          } else {
+            const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
+            swatch = `<span class="wb-cf-swatch" style="background:${st.bg};color:${st.fg}">Aa</span>`;
+            what = rule.kind === "formula" ? `Custom · ${rule.formula}`
+              : rule.kind === "empty" || rule.kind === "notempty" ? WB_CF_KINDS[rule.kind]
+              : rule.kind === "between" ? `${WB_CF_KINDS.between} ${rule.v1} and ${rule.v2}`
+              : `${WB_CF_KINDS[rule.kind] || rule.kind} ${rule.v1}`;
+          }
+          return `<div class="wb-cf-rule">${swatch}<span class="wb-cf-what">${esc(ruleRefText(rule))} · ${esc(what)}</span><button type="button" class="wb-cf-del" data-cf-del="${i}" aria-label="Delete rule">×</button></div>`;
         }).join("");
   };
   const syncFields = () => {
+    const type = wrap.querySelector("#wb-cf-type").value;
     const k = wrap.querySelector("#wb-cf-kind").value;
-    wrap.querySelector("#wb-cf-v1-field").style.display = k === "empty" || k === "notempty" ? "none" : "";
-    wrap.querySelector("#wb-cf-v2-field").style.display = k === "between" ? "" : "none";
+    const isScale = type === "scale";
+    const isFormula = !isScale && k === "formula";
+    const show = (id, on) => { wrap.querySelector(id).style.display = on ? "" : "none"; };
+    show("#wb-cf-kind-field", !isScale);
+    show("#wb-cf-v1-field", !isScale && !isFormula && k !== "empty" && k !== "notempty");
+    show("#wb-cf-v2-field", !isScale && !isFormula && k === "between");
+    show("#wb-cf-formula-field", isFormula);
+    show("#wb-cf-scale-field", isScale);
+    show("#wb-cf-style-field", !isScale);
   };
   paintRules();
   syncFields();
@@ -8945,14 +9422,27 @@ function openCondFormatDialog(g) {
       return;
     }
     if (e.target.closest("[data-wb-cf-add]")) {
-      const kind = wrap.querySelector("#wb-cf-kind").value;
-      const v1 = wrap.querySelector("#wb-cf-v1").value.trim();
-      const v2 = wrap.querySelector("#wb-cf-v2").value.trim();
-      if (kind !== "empty" && kind !== "notempty" && v1 === "") { _toast("Enter a value for the condition", "warn"); return; }
-      if (kind === "between" && v2 === "") { _toast("Enter both limits", "warn"); return; }
-      const style = wrap.querySelector(".wb-cf-chip.is-on")?.getAttribute("data-cf-style") || "green";
+      const type = wrap.querySelector("#wb-cf-type").value;
+      const base = { id: "cf" + Math.random().toString(36).slice(2, 8), r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 };
       const rules = sheetRules(sheet, "condFormat").slice();
-      rules.push({ id: "cf" + Math.random().toString(36).slice(2, 8), r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1, kind, v1, v2, style });
+      if (type === "scale") {
+        rules.push({ ...base, type: "colorscale", scale: wrap.querySelector("#wb-cf-scale").value || "gyr" });
+      } else {
+        const kind = wrap.querySelector("#wb-cf-kind").value;
+        const style = wrap.querySelector(".wb-cf-chip.is-on")?.getAttribute("data-cf-style") || "green";
+        if (kind === "formula") {
+          const formula = wrap.querySelector("#wb-cf-formula").value.trim();
+          if (!formula.startsWith("=")) { _toast("Custom formula must start with =", "warn"); return; }
+          try { parseFormula(formula); } catch (_) { _toast("That formula doesn't parse", "warn"); return; }
+          rules.push({ ...base, type: "formula", kind: "formula", formula, style });
+        } else {
+          const v1 = wrap.querySelector("#wb-cf-v1").value.trim();
+          const v2 = wrap.querySelector("#wb-cf-v2").value.trim();
+          if (kind !== "empty" && kind !== "notempty" && v1 === "") { _toast("Enter a value for the condition", "warn"); return; }
+          if (kind === "between" && v2 === "") { _toast("Enter both limits", "warn"); return; }
+          rules.push({ ...base, kind, v1, v2, style });
+        }
+      }
       setSheetRules(g, "condFormat", rules);
       wbLog("sheet.condformat", `added a conditional-format rule on ${refText} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
       paintRules();
@@ -10364,7 +10854,7 @@ function exportBlockXlsx(g) {
 // axis text and gridlines use the app's ink tokens.
 
 const WB_CHART_COLORS = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948", "#e87ba4", "#eb6834"];
-const WB_CHART_TYPES = { column: "Column", bar: "Bar", line: "Line", area: "Area", pie: "Pie" };
+const WB_CHART_TYPES = { column: "Column", bar: "Bar", stackcol: "Stacked column", stackbar: "Stacked bar", line: "Line", area: "Area", combo: "Combo (columns + line)", scatter: "Scatter", pie: "Pie" };
 
 function sheetCharts(sheet) {
   const v = sheet.meta && sheet.meta.charts;
@@ -10476,14 +10966,51 @@ function chartSvg(sheet, ch) {
     return { svg: `<svg viewBox="0 0 480 220" role="img" aria-label="${t(ch.title || "Pie chart")}">${paths}</svg>`, legend };
   }
 
+  if (ch.type === "scatter") {
+    // first data column = X (numeric), each further column = a Y series;
+    // if X isn't numeric, fall back to the row index
+    const xs = categories.map((lb, i) => { const n = Number(lb); return isFinite(n) && lb !== "" ? n : i; });
+    const W = 480, H = 220, padL = 46, padR = 12, padT = 10, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const ys = series.flatMap((s) => s.values).filter((v) => v != null);
+    if (!ys.length) return { svg: `<div class="wb-chart-empty">No numeric data in ${esc(chartRefText(ch))} yet.</div>`, legend: "" };
+    const xt = chartNiceTicks(Math.min(...xs), Math.max(...xs));
+    const yt = chartNiceTicks(Math.min(0, ...ys), Math.max(...ys));
+    const xLo = xt[0], xHi = xt[xt.length - 1], yLo = yt[0], yHi = yt[yt.length - 1];
+    const px = (v) => padL + ((v - xLo) / (xHi - xLo || 1)) * plotW;
+    const py = (v) => padT + plotH - ((v - yLo) / (yHi - yLo || 1)) * plotH;
+    let out = "";
+    for (const tk of yt) { out += `<line x1="${padL}" y1="${py(tk)}" x2="${W - padR}" y2="${py(tk)}" stroke="var(--border-subtle)" stroke-width="1"/><text x="${padL - 6}" y="${py(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
+    for (const tk of xt) { out += `<text x="${px(tk)}" y="${H - 8}" text-anchor="middle" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
+    series.forEach((s, si) => {
+      s.values.forEach((v, i) => {
+        if (v == null) return;
+        out += `<circle cx="${px(xs[i])}" cy="${py(v)}" r="3.5" fill="${color(si)}" fill-opacity="0.85"><title>(${chartFmt(xs[i])}, ${chartFmt(v)}) · ${t(s.name)}</title></circle>`;
+      });
+    });
+    out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
+    const legend = series.length > 1 ? series.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("") : "";
+    return { svg: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t(ch.title || "Scatter chart")}">${out}</svg>`, legend };
+  }
+
   // shared cartesian frame
   const W = 480, H = 220, padL = 46, padR = 10, padT = 10, padB = 26;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  const horizontal = ch.type === "bar";
+  const stacked = ch.type === "stackcol" || ch.type === "stackbar";
+  const combo = ch.type === "combo";
+  const horizontal = ch.type === "bar" || ch.type === "stackbar";
   let lo = 0, hi = 1;
   const allVals = series.flatMap((s) => s.values).filter((v) => v != null);
   if (allVals.length) { lo = Math.min(...allVals), hi = Math.max(...allVals); }
-  if (ch.type !== "line") { lo = Math.min(0, lo); hi = Math.max(0, hi); } // bars/areas keep a zero baseline
+  if (stacked) {
+    // domain covers the per-category positive / negative running totals
+    lo = 0; hi = 0;
+    for (let i = 0; i < categories.length; i++) {
+      let pos = 0, neg = 0;
+      series.forEach((s) => { const v = s.values[i]; if (v > 0) pos += v; else if (v < 0) neg += v; });
+      hi = Math.max(hi, pos); lo = Math.min(lo, neg);
+    }
+  } else if (ch.type !== "line") { lo = Math.min(0, lo); hi = Math.max(0, hi); } // bars/areas keep a zero baseline
   const ticks = chartNiceTicks(lo, hi);
   lo = ticks[0]; hi = ticks[ticks.length - 1];
   const span = hi - lo || 1;
@@ -10513,12 +11040,30 @@ function chartSvg(sheet, ch) {
   };
   categories.forEach((label, i) => { out += catLabel(label, i); });
 
-  if (ch.type === "column" || ch.type === "bar") {
+  if (ch.type === "column" || ch.type === "bar" || stacked || combo) {
     const band = (horizontal ? plotH : plotW) / nCat;
     const inner = band * 0.72;
-    const bw = Math.max(3, (inner - (series.length - 1) * 2) / series.length);
+    // combo draws all-but-last series as grouped columns and overlays the
+    // last as a line; a single-series combo is just a line
+    const barSeries = combo ? series.slice(0, Math.max(1, series.length - 1)) : series;
+    const nBars = stacked ? 1 : barSeries.length;
+    const bw = stacked ? inner : Math.max(3, (inner - (nBars - 1) * 2) / nBars);
     categories.forEach((label, i) => {
-      series.forEach((s, si) => {
+      if (stacked) {
+        let posAcc = 0, negAcc = 0;
+        const off = (horizontal ? padT : padL) + i * band + (band - inner) / 2;
+        series.forEach((s, si) => {
+          const v = s.values[i];
+          if (v == null || v === 0) return;
+          const base = v >= 0 ? posAcc : negAcc;
+          const title = `${t(label)} · ${t(s.name)}: ${chartFmt(v)}`;
+          if (horizontal) { const a = vx(base), b = vx(base + v); out += `<rect x="${Math.min(a, b)}" y="${off}" width="${Math.abs(b - a)}" height="${inner}" fill="${color(si)}"><title>${title}</title></rect>`; }
+          else { const a = vy(base), b = vy(base + v); out += `<rect x="${off}" y="${Math.min(a, b)}" width="${inner}" height="${Math.abs(b - a)}" fill="${color(si)}"><title>${title}</title></rect>`; }
+          if (v >= 0) posAcc += v; else negAcc += v;
+        });
+        return;
+      }
+      barSeries.forEach((s, si) => {
         const v = s.values[i];
         if (v == null) return;
         const off = (horizontal ? padT : padL) + i * band + (band - inner) / 2 + si * (bw + 2);
@@ -10533,6 +11078,17 @@ function chartSvg(sheet, ch) {
         }
       });
     });
+    // combo line overlay (the last series), plotted over the category midpoints
+    if (combo && series.length > 1) {
+      const s = series[series.length - 1], si = series.length - 1;
+      const cx = (i) => padL + ((i + 0.5) / nCat) * plotW;
+      const pts = [];
+      s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy(v), i, v]); });
+      if (pts.length) {
+        out += `<path d="${pts.map((p, k) => `${k ? "L" : "M"}${p[0]},${p[1]}`).join(" ")}" fill="none" stroke="${color(si)}" stroke-width="2.5" stroke-linejoin="round"/>`;
+        for (const [x, y, i, v] of pts) out += `<circle cx="${x}" cy="${y}" r="3" fill="${color(si)}"><title>${t(categories[i])} · ${t(s.name)}: ${chartFmt(v)}</title></circle>`;
+      }
+    }
     // zero baseline
     if (horizontal) out += `<line x1="${vx(0)}" y1="${padT}" x2="${vx(0)}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
     else out += `<line x1="${padL}" y1="${vy(0)}" x2="${W - padR}" y2="${vy(0)}" stroke="var(--border-strong)" stroke-width="1"/>`;
@@ -10584,7 +11140,7 @@ function renderCharts(g) {
 function scheduleChartRender(g) {
   if (!g.els.charts) return;
   clearTimeout(g.chartsT);
-  g.chartsT = setTimeout(() => renderCharts(g), 250);
+  g.chartsT = setTimeout(() => { renderCharts(g); renderPivots(g); }, 250);
 }
 
 function parseRangeRefText(s) {
@@ -10657,6 +11213,234 @@ function deleteChart(g, chartId) {
   g.sheet.meta = { ...(g.sheet.meta || {}), charts: sheetCharts(g.sheet).filter((c) => c.id !== chartId) };
   saveSheetMeta(g.sheet.id);
   renderCharts(g);
+}
+
+// ─── Pivot tables ────────────────────────────────────────────────────────────
+// A pivot lives on its sheet (sheet.meta.pivots), reads a source range whose
+// first row is a header, and renders an aggregated table below the grid.
+// rows/cols are grouping dimensions; values aggregate a field per cell.
+
+const WB_PIVOT_AGGS = { sum: "Sum", count: "Count", avg: "Average", min: "Min", max: "Max", countunique: "Count unique" };
+const PIVOT_MAX_ROWS = 20000;
+
+function sheetPivots(sheet) {
+  const v = sheet.meta && sheet.meta.pivots;
+  return Array.isArray(v) ? v : [];
+}
+
+function pivotRefText(spec) { return colLabel(spec.c0) + (spec.r0 + 1) + ":" + colLabel(spec.c1) + (spec.r1 + 1); }
+
+// Source range → { fields:[header names], records:[{field: value}] }.
+function pivotSource(sheet, spec) {
+  const r0 = spec.r0, c0 = spec.c0, r1 = Math.min(spec.r1, sheet.rowCount - 1, spec.r0 + PIVOT_MAX_ROWS), c1 = Math.min(spec.c1, sheet.colCount - 1);
+  const rawOf = (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null; };
+  const fields = [];
+  for (let c = c0; c <= c1; c++) fields.push(String(rawOf(r0, c) ?? colLabel(c)));
+  const records = [];
+  for (let r = r0 + 1; r <= r1; r++) {
+    const rec = {}; let any = false;
+    for (let c = c0; c <= c1; c++) { const v = rawOf(r, c); rec[fields[c - c0]] = v; if (v != null && v !== "") any = true; }
+    if (any) records.push(rec);
+  }
+  return { fields, records };
+}
+
+function pivotAggregate(agg, vals) {
+  const nums = vals.map((v) => cellNumeric(v)).filter((v) => v != null);
+  switch (agg) {
+    case "count": return vals.filter((v) => v != null && v !== "").length;
+    case "countunique": return new Set(vals.filter((v) => v != null && v !== "").map(String)).size;
+    case "avg": return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+    case "min": return nums.length ? Math.min(...nums) : null;
+    case "max": return nums.length ? Math.max(...nums) : null;
+    case "sum": default: return nums.reduce((a, b) => a + b, 0);
+  }
+}
+
+// Pure computation → grouping keys + an aggregate accessor that re-aggregates
+// over the underlying records (so totals of averages stay correct).
+function computePivot(sheet, spec) {
+  const { records } = pivotSource(sheet, spec);
+  const rowFields = (spec.rows || []).filter(Boolean);
+  const colFields = (spec.cols || []).filter(Boolean);
+  const values = (spec.values || []).filter((v) => v && v.field);
+  if (!values.length) return null;
+  const filt = (spec.filters || []).filter((f) => f && f.field && Array.isArray(f.values) && f.values.length);
+  const keyed = records.filter((rec) => filt.every((f) => f.values.map(String).includes(String(rec[f.field] ?? ""))));
+  const rowKey = (rec) => rowFields.map((f) => String(rec[f] ?? "")).join(" · ");
+  const colKey = (rec) => colFields.map((f) => String(rec[f] ?? "")).join(" · ");
+  const rowSeen = new Set(), colSeen = new Set(), rowKeys = [], colKeys = [];
+  for (const rec of keyed) {
+    const rk = rowKey(rec); if (!rowSeen.has(rk)) { rowSeen.add(rk); rowKeys.push(rk); }
+    const ck = colKey(rec); if (!colSeen.has(ck)) { colSeen.add(ck); colKeys.push(ck); }
+  }
+  rowKeys.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  colKeys.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  // rk/ck === null means "all" (used for totals)
+  const aggOf = (rk, ck, vi) => {
+    const v = values[vi];
+    const recs = keyed.filter((rec) => (rk == null || rowKey(rec) === rk) && (ck == null || colKey(rec) === ck));
+    return pivotAggregate(v.agg, recs.map((r) => r[v.field]));
+  };
+  return { rowFields, colFields, values, rowKeys, colKeys, aggOf, records: keyed };
+}
+
+function pivotNumFmt(v) {
+  if (v == null || v === "") return "";
+  if (typeof v === "number") return (Math.round(v * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return esc(String(v));
+}
+
+function pivotTableHtml(sheet, spec) {
+  const p = computePivot(sheet, spec);
+  if (!p) return `<div class="wb-chart-empty">Add at least one value field to this pivot.</div>`;
+  if (!p.records.length || !p.rowKeys.length) return `<div class="wb-chart-empty">No data to summarize in ${esc(pivotRefText(spec))} yet.</div>`;
+  const nv = p.values.length;
+  const hasCols = p.colFields.length > 0 && p.colKeys.length > 0;
+  const rowHdrs = p.rowFields.length ? p.rowFields : ["Total"];
+  const vlab = (vi) => esc(`${WB_PIVOT_AGGS[p.values[vi].agg] || ""} of ${p.values[vi].field}`);
+  // column groups: each colKey, then a Grand Total group (only when cols exist)
+  const groups = hasCols ? [...p.colKeys.map((ck) => ({ ck, label: ck || "(blank)" })), { ck: null, label: "Grand total" }] : [{ ck: "", label: null }];
+
+  let thead;
+  if (hasCols) {
+    const r1 = rowHdrs.map((h) => `<th rowspan="2" class="wb-pv-rh">${esc(h)}</th>`).join("") +
+      groups.map((gp) => `<th colspan="${nv}" class="wb-pv-ch">${esc(gp.label)}</th>`).join("");
+    const r2 = groups.map(() => p.values.map((_, vi) => `<th class="wb-pv-vh">${vlab(vi)}</th>`).join("")).join("");
+    thead = `<tr>${r1}</tr><tr>${r2}</tr>`;
+  } else {
+    thead = `<tr>${rowHdrs.map((h) => `<th class="wb-pv-rh">${esc(h)}</th>`).join("")}${p.values.map((_, vi) => `<th class="wb-pv-vh">${vlab(vi)}</th>`).join("")}</tr>`;
+  }
+
+  const bodyRows = p.rowKeys.map((rk) => {
+    const parts = p.rowFields.length ? rk.split(" · ") : ["Total"];
+    const rhCells = rowHdrs.map((_, i) => `<td class="wb-pv-rk">${esc(parts[i] ?? "")}</td>`).join("");
+    const dataCells = groups.map((gp) => p.values.map((_, vi) => `<td class="wb-pv-num">${pivotNumFmt(p.aggOf(rk, gp.ck, vi))}</td>`).join("")).join("");
+    return `<tr>${rhCells}${dataCells}</tr>`;
+  }).join("");
+
+  // grand total row
+  const gtLabel = `<td class="wb-pv-rk wb-pv-gt" colspan="${rowHdrs.length}">Grand total</td>`;
+  const gtCells = groups.map((gp) => p.values.map((_, vi) => `<td class="wb-pv-num wb-pv-gt">${pivotNumFmt(p.aggOf(null, gp.ck, vi))}</td>`).join("")).join("");
+  const foot = `<tr>${gtLabel}${gtCells}</tr>`;
+
+  return `<div class="wb-pv-scroll"><table class="wb-pv-table"><thead>${thead}</thead><tbody>${bodyRows}${foot}</tbody></table></div>`;
+}
+
+function renderPivots(g) {
+  const host = g.els.pivots;
+  if (!host) return;
+  const pivots = sheetPivots(g.sheet);
+  if (!pivots.length) { host.innerHTML = ""; host.hidden = true; return; }
+  host.hidden = false;
+  host.innerHTML = pivots.map((pv) => {
+    let table;
+    try { table = pivotTableHtml(g.sheet, pv); }
+    catch (e) { table = `<div class="wb-chart-empty">Couldn't build this pivot.</div>`; }
+    return `<div class="wb-pivot-card" data-wb-pivot="${esc(pv.id)}">
+      <div class="wb-chart-head">
+        <span class="wb-chart-title">${esc(pv.title || `Pivot · ${pivotRefText(pv)}`)}</span>
+        ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="edit" title="Edit pivot" aria-label="Edit pivot"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="delete" title="Delete pivot" aria-label="Delete pivot">×</button>` : ""}
+      </div>
+      ${table}
+    </div>`;
+  }).join("");
+}
+
+function deletePivot(g, pivotId) {
+  if (!WB.canEdit) return;
+  g.sheet.meta = { ...(g.sheet.meta || {}), pivots: sheetPivots(g.sheet).filter((p) => p.id !== pivotId) };
+  saveSheetMeta(g.sheet.id);
+  renderPivots(g);
+}
+
+function openPivotDialog(g, existing) {
+  if (!WB.canEdit) return;
+  document.getElementById("wb-pivot-modal")?.remove();
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const spec = existing || { r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1, rows: [], cols: [], values: [] };
+  const fieldsOf = () => pivotSource(sheet, spec).fields;
+  let fields = fieldsOf();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-pivot-modal";
+  const fieldOpts = (sel) => `<option value=""></option>` + fields.map((f) => `<option value="${esc(f)}" ${f === sel ? "selected" : ""}>${esc(f)}</option>`).join("");
+  const aggOpts = (sel) => Object.entries(WB_PIVOT_AGGS).map(([k, l]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${l}</option>`).join("");
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${existing ? "Edit pivot table" : "Pivot table"}" style="width:560px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">${existing ? "Edit pivot table" : "Pivot table"}</p><p class="rr-modal-sub">Summarize a range whose first row is a header.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Source range</span>
+          <input type="text" class="wb-input" id="wb-pv-range" value="${esc(pivotRefText(spec))}" placeholder="A1:F200" spellcheck="false"></label>
+        <div class="wb-field-row" style="margin-top:10px">
+          <label class="wb-field"><span class="wb-field-label">Rows — group by</span>
+            <select class="wb-input" id="wb-pv-row1">${fieldOpts(spec.rows && spec.rows[0])}</select></label>
+          <label class="wb-field"><span class="wb-field-label">then by <span class="wb-field-opt">optional</span></span>
+            <select class="wb-input" id="wb-pv-row2">${fieldOpts(spec.rows && spec.rows[1])}</select></label>
+        </div>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Columns — split across <span class="wb-field-opt">optional</span></span>
+          <select class="wb-input" id="wb-pv-col">${fieldOpts(spec.cols && spec.cols[0])}</select></label>
+        <div class="wb-field-row" style="margin-top:10px">
+          <label class="wb-field"><span class="wb-field-label">Values — summarize</span>
+            <select class="wb-input" id="wb-pv-val1">${fieldOpts(spec.values && spec.values[0] && spec.values[0].field)}</select></label>
+          <label class="wb-field" style="flex:0 0 150px"><span class="wb-field-label">as</span>
+            <select class="wb-input" id="wb-pv-agg1">${aggOpts(spec.values && spec.values[0] && spec.values[0].agg || "sum")}</select></label>
+        </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">and <span class="wb-field-opt">optional</span></span>
+            <select class="wb-input" id="wb-pv-val2">${fieldOpts(spec.values && spec.values[1] && spec.values[1].field)}</select></label>
+          <label class="wb-field" style="flex:0 0 150px"><span class="wb-field-label">as</span>
+            <select class="wb-input" id="wb-pv-agg2">${aggOpts(spec.values && spec.values[1] && spec.values[1].agg || "sum")}</select></label>
+        </div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-pv-save>${existing ? "Save" : "Create pivot"}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  // reload field lists when the range changes
+  const reloadFields = () => {
+    const rng = parseRangeRefText(wrap.querySelector("#wb-pv-range").value);
+    if (!rng) return;
+    spec.r0 = rng.r0; spec.c0 = rng.c0; spec.r1 = rng.r1; spec.c1 = rng.c1;
+    fields = fieldsOf();
+    for (const [id, cur] of [["wb-pv-row1", spec.rows && spec.rows[0]], ["wb-pv-row2", spec.rows && spec.rows[1]], ["wb-pv-col", spec.cols && spec.cols[0]], ["wb-pv-val1", spec.values && spec.values[0] && spec.values[0].field], ["wb-pv-val2", spec.values && spec.values[1] && spec.values[1].field]]) {
+      const sel = wrap.querySelector("#" + id); const keep = sel.value || cur;
+      sel.innerHTML = fieldOpts(keep);
+    }
+  };
+  wrap.querySelector("#wb-pv-range").addEventListener("change", reloadFields);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-pv-save]")) return;
+    const rng = parseRangeRefText(wrap.querySelector("#wb-pv-range").value);
+    if (!rng) { _toast("Enter a range like A1:F200", "warn"); return; }
+    const rows = [wrap.querySelector("#wb-pv-row1").value, wrap.querySelector("#wb-pv-row2").value].filter(Boolean);
+    const cols = [wrap.querySelector("#wb-pv-col").value].filter(Boolean);
+    const values = [
+      { field: wrap.querySelector("#wb-pv-val1").value, agg: wrap.querySelector("#wb-pv-agg1").value },
+      { field: wrap.querySelector("#wb-pv-val2").value, agg: wrap.querySelector("#wb-pv-agg2").value },
+    ].filter((v) => v.field);
+    if (!rows.length) { _toast("Pick at least one Rows field", "warn"); return; }
+    if (!values.length) { _toast("Pick at least one Values field", "warn"); return; }
+    const next = { id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, title: existing ? existing.title : "" };
+    const pivots = sheetPivots(sheet).filter((p) => p.id !== next.id);
+    pivots.push(next);
+    g.sheet.meta = { ...(g.sheet.meta || {}), pivots };
+    saveSheetMeta(sheet.id);
+    wbLog("sheet.pivot", `${existing ? "updated" : "created"} a pivot table on ${pivotRefText(next)} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+    wrap.remove();
+    renderPivots(g);
+    g.els.pivots?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+  setTimeout(() => wrap.querySelector("#wb-pv-range")?.focus(), 30);
 }
 
 // ─── Menus (shared open/close discipline) ───────────────────────────────────
@@ -10762,7 +11546,7 @@ function bindGridEvents(g) {
     // from the document click delegate — opening here on mousedown would
     // be undone by the click-away closer, and the repaint that follows
     // setActive would detach the node before its click event fires)
-    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && e.target.closest("[data-wb-img]"))) { e.preventDefault(); return; }
+    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-dvcheck]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && e.target.closest("[data-wb-img]"))) { e.preventDefault(); return; }
 
     // ── drag-fill handle ──
     const fh = e.target.closest("[data-wb-fillhandle]");
@@ -11049,6 +11833,7 @@ function bindGridEvents(g) {
     if (meta && (k === "y" || k === "Y")) { e.preventDefault(); redoGrid(g); return; }
     if (meta && (k === "c" || k === "C")) { e.preventDefault(); copySelection(g); return; }
     if (meta && (k === "x" || k === "X")) { e.preventDefault(); copySelection(g, "cut"); return; }
+    if (meta && e.shiftKey && (k === "v" || k === "V")) { e.preventDefault(); pasteSpecial(g, "values"); return; } // Sheets' paste-values-only
     if (meta && (k === "v" || k === "V")) {
       // preferred path: the native paste event (fires next tick with
       // clipboardData); fall back to the async clipboard API
@@ -11228,14 +12013,8 @@ function bindGridEvents(g) {
       e.stopPropagation();
       if (e.key === "Enter") {
         e.preventDefault();
-        const rc = parseCellRef(nameBox.value.trim());
-        if (rc && rc.row < g.sheet.rowCount && rc.col < g.sheet.colCount) {
-          setActive(g, rc.row, rc.col);
-          g.els.grid.focus();
-        } else {
-          _toast("Type a cell reference like B12", "info");
-          syncFormulaBar(g);
-        }
+        if (gotoNameBox(g, nameBox.value.trim())) g.els.grid.focus();
+        else { _toast("Type a cell reference like B12, a range, or a named range", "info"); syncFormulaBar(g); }
       } else if (e.key === "Escape") {
         e.preventDefault();
         syncFormulaBar(g);
@@ -11322,6 +12101,8 @@ function bindGridEvents(g) {
       case "panel-toggle": WB.panelOpen = !WB.panelOpen; syncPanelVisibility(); if (WB.panelOpen) renderPanel(); break;
       case "validation": openValidationDialog(g); break;
       case "condfmt": openCondFormatDialog(g); break;
+      case "named-ranges": openNamedRangesDialog(g); return;
+      case "pivot": openPivotDialog(g); return;
       case "row-add": restructure(g, "row", g.active.r + 1, 1); break;
       case "row-del": restructure(g, "row", g.active.r, -1); break;
       case "col-add": restructure(g, "col", g.active.c + 1, 1); break;
@@ -11581,6 +12362,8 @@ function openSheetsCellMenu(g, x, y) {
     { icon: CTX_ICONS.paste, label: "Paste special", sub: [
       it(null, "Values only", "paste-values", { disabled: ro }),
       it(null, "Format only", "paste-format", { disabled: ro }),
+      it(null, "Formulas only", "paste-formulas", { disabled: ro }),
+      it(null, "Transposed", "paste-transpose", { disabled: ro }),
     ] },
     sep,
     it(CTX_ICONS.plus, `Insert ${rowsLbl} above`, "insert-row-above", { disabled: ro }),
@@ -11648,6 +12431,8 @@ function openSheetsCellMenu(g, x, y) {
       case "paste": await pasteFromClipboard(g); break;
       case "paste-values": await pasteValuesOnly(g); break;
       case "paste-format": pasteFormatOnly(g); break;
+      case "paste-formulas": pasteSpecial(g, "formulas"); break;
+      case "paste-transpose": pasteSpecial(g, "transpose"); break;
       case "insert-row-above": restructure(g, "row", rect0.r0, nRows); break;
       case "insert-row-below": restructure(g, "row", rect0.r1 + 1, nRows); break;
       case "insert-col-left": restructure(g, "col", rect0.c0, nCols); break;
@@ -12301,6 +13086,7 @@ function wbMenuItems(menu, g) {
       { label: "New sheet", act: "ins:sheet", disabled: !ed || !g },
       sep,
       { label: "Chart…", act: "ins:chart", disabled: !ed || !g },
+      { label: "Pivot table…", act: "ins:pivot", disabled: !ed || !g },
       { label: "Function", sub: [
         ...["SUM", "AVERAGE", "COUNT", "MAX", "MIN", "IF", "COUNTIF", "SUMIF", "VLOOKUP", "XLOOKUP"].map((fn) => ({ label: fn, act: "ins:fn:" + fn, disabled: !ed || !g })),
         sep,
@@ -12351,6 +13137,8 @@ function wbMenuItems(menu, g) {
         ] },
         sep,
         { label: "Column stats", act: "data:stats", disabled: !g },
+        { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
+        { label: "Named ranges…", act: "data:names", disabled: !g },
         { label: "Data validation…", act: "data:validation", disabled: !ed || !g },
         { label: "Split text to columns…", act: "data:split", disabled: !ed || !g },
         { label: "Data cleanup", sub: [
@@ -12425,6 +13213,7 @@ function wbMenuAction(act, g) {
     case "ins:col-right": if (need()) restructure(g, "col", rect.c1 + 1, 1); return;
     case "ins:sheet": if (need()) addSheetTo(g.blockId); return;
     case "ins:chart": if (need()) openChartDialog(g); return;
+    case "ins:pivot": if (need()) openPivotDialog(g); return;
     case "ins:fnbrowse": if (need()) {
       const fnBtn = document.querySelector(`[data-wb-toolbar="${g.blockId}"] [data-wb-tb="fn-menu"]`);
       if (fnBtn) { fnBrowserPop(g, fnBtn); togglePopover(fnBtn); setTimeout(() => fnBtn.closest(".popover-anchor")?.querySelector(".wb-fn-search")?.focus(), 0); }
@@ -12447,6 +13236,8 @@ function wbMenuAction(act, g) {
     case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); persistFilterState(g); } return;
     case "data:fv-save": if (need()) saveFilterView(g); return;
     case "data:stats": if (need()) showColumnStats(g); return;
+    case "data:pivot": if (need()) openPivotDialog(g); return;
+    case "data:names": if (need()) openNamedRangesDialog(g); return;
     case "data:validation": if (need()) openValidationDialog(g); return;
     case "data:split": if (need()) splitTextToColumns(g); return;
     case "data:dedupe": if (need()) removeDuplicateRows(g); return;
@@ -12691,6 +13482,18 @@ function installRootListeners() {
 
     const menubtn = e.target.closest("[data-wb-menubar]");
     if (menubtn) { openWbMenu(menubtn.getAttribute("data-wb-menubar"), menubtn); return; }
+
+    const dvck = e.target.closest("[data-wb-dvcheck]");
+    if (dvck) {
+      const gridEl = dvck.closest("[data-wb-gridfocus]");
+      const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
+      if (g) {
+        const rc = keyRC(dvck.getAttribute("data-wb-dvcheck"));
+        setActive(g, rc.r, rc.c, { scroll: false });
+        toggleCheckbox(g, rc.r, rc.c);
+      }
+      return;
+    }
 
     const dvb = e.target.closest("[data-wb-dvchip]");
     if (dvb) {
@@ -13928,10 +14731,12 @@ function fillDriverAction(g, driverId, act) {
 // not part of the app surface; live.js imports only the view loaders.
 
 export const __engine = {
-  parseFormula, evalFormula, evalAst, extractRefs, matchesCriterion, FormulaError, Arr,
+  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes,
+  chartSvg, WB_CHART_TYPES,
+  computePivot, pivotAggregate, pivotTableHtml,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,
   fillWeekDates, fillSheetInfo, fillDriverIdAt, fillSheetDriverIds,

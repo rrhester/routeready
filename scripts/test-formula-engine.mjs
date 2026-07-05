@@ -775,4 +775,227 @@ ok("cell image: markup-capable or malformed sources are rejected", () => {
   assert.equal(__engine.cellImgSrc(null), null);
 });
 
+// ── named ranges ─────────────────────────────────────────────────────────────
+// Build a ctx that carries a names map (UPPERCASE name -> range/ref AST),
+// exactly as recalcSheet does, and confirm evalFormula binds them.
+const namedCtx = (cells, defs, rows = 100, cols = 26) => {
+  const ctx = sheetCtx(cells, rows, cols);
+  ctx.names = new Map(Object.entries(defs).map(([k, ref]) => [k.toUpperCase(), __engine.parseFormula("=" + ref)]));
+  return ctx;
+};
+ok("named range: single cell resolves like a ref", () => {
+  const ctx = namedCtx({ B2: 7 }, { Tax: "B2" });
+  assert.equal(ev("=Tax*2", ctx), 14);
+});
+ok("named range: multi-cell aggregates", () => {
+  const ctx = namedCtx({ A1: 1, A2: 2, A3: 3 }, { Nums: "A1:A3" });
+  assert.equal(ev("=SUM(Nums)", ctx), 6);
+  assert.equal(ev("=AVERAGE(Nums)", ctx), 2);
+  assert.equal(ev("=COUNT(Nums)", ctx), 3);
+});
+ok("named range: works as a criteria-function range (SUMIF)", () => {
+  const ctx = namedCtx({ A1: 1, A2: 8, A3: 3, B1: 10, B2: 20, B3: 30 }, { Vals: "A1:A3", Amts: "B1:B3" });
+  assert.equal(ev('=SUMIF(Vals,">2",Amts)', ctx), 50);
+  assert.equal(ev('=COUNTIF(Vals,">2")', ctx), 2);
+});
+ok("named range: usable inside VLOOKUP table", () => {
+  const ctx = namedCtx({ A1: "x", B1: 100, A2: "y", B2: 200 }, { Table: "A1:B2" });
+  assert.equal(ev('=VLOOKUP("y",Table,2,FALSE)', ctx), 200);
+});
+ok("named range: extractRefs expands the name to its cells", () => {
+  const names = new Map([["NUMS", __engine.parseFormula("=A1:A3")]]);
+  const refs = __engine.extractRefs("=SUM(Nums)+1", { rowCount: 100, colCount: 26 }, names);
+  const keys = refs.map((r) => (r.row ?? r.r) + "," + (r.col ?? r.c)).sort();
+  assert.deepEqual(keys, ["0,0", "1,0", "2,0"]);
+});
+ok("named range: LET binding shadows a same-named range", () => {
+  const ctx = namedCtx({ B2: 7 }, { X: "B2" });
+  assert.equal(ev("=LET(x, 5, x*2)", ctx), 10); // local x wins over range X
+});
+ok("named range: unknown name still errors #NAME", () => {
+  assert.equal(evErr("=Bogus+1", sheetCtx({})), "#NAME");
+});
+ok("isValidRangeName rejects refs, columns, and functions", () => {
+  assert.equal(__engine.isValidRangeName("Drivers"), true);
+  assert.equal(__engine.isValidRangeName("tax_rate"), true);
+  assert.equal(__engine.isValidRangeName("A1"), false);
+  assert.equal(__engine.isValidRangeName("AB"), false);
+  assert.equal(__engine.isValidRangeName("SUM"), false);
+  assert.equal(__engine.isValidRangeName("has space"), false);
+  assert.equal(__engine.isValidRangeName("1thing"), false);
+});
+
+// ── conditional formatting color scale ───────────────────────────────────────
+ok("color scale: endpoints and midpoint interpolate", () => {
+  const stops = ["#57BB8A", "#FFD666", "#E67C73"]; // green → yellow → red
+  assert.equal(__engine.cfScaleColor(stops, 0), "rgb(87,187,138)");
+  assert.equal(__engine.cfScaleColor(stops, 1), "rgb(230,124,115)");
+  assert.equal(__engine.cfScaleColor(stops, 0.5), "rgb(255,214,102)"); // exact middle stop
+});
+ok("color scale: two-stop blends halfway", () => {
+  assert.equal(__engine.cfScaleColor(["#000000", "#FFFFFF"], 0.5), "rgb(128,128,128)");
+});
+ok("color scale: clamps out-of-range t", () => {
+  assert.equal(__engine.cfScaleColor(["#000000", "#FFFFFF"], 5), "rgb(255,255,255)");
+  assert.equal(__engine.cfScaleColor(["#000000", "#FFFFFF"], -1), "rgb(0,0,0)");
+});
+
+// ── paste special ────────────────────────────────────────────────────────────
+const { buildPasteCell, pasteValueParts } = __engine;
+const fcell = { value: "10", formula: "=A1*2", type: "number", computed: 20, err: null, format: { bold: true } };
+const vcell = { value: "hi", formula: null, type: "text", computed: null, err: null, format: { num: "currency" } };
+ok("paste values: a formula contributes its computed result, no formula/format-from-source", () => {
+  const out = buildPasteCell(fcell, null, { values: true }, 5, 0, "copy");
+  assert.equal(out.value, "20");
+  assert.equal(out.formula, null);
+  assert.equal(out.type, "number");
+});
+ok("paste values: keeps the target's own format", () => {
+  const target = { value: "", formula: null, type: null, computed: null, err: null, format: { num: "percent" } };
+  const out = buildPasteCell(vcell, target, { values: true }, 0, 0, "copy");
+  assert.equal(out.value, "hi");
+  assert.deepEqual(out.format, { num: "percent" }); // target format preserved, not source
+});
+ok("paste formats: stamps source format, leaves target value", () => {
+  const target = { value: "keep", formula: null, type: "text", computed: null, err: null, format: {} };
+  const out = buildPasteCell(fcell, target, { formats: true }, 0, 0, "copy");
+  assert.equal(out.value, "keep");
+  assert.equal(out.formula, null);
+  assert.deepEqual(out.format, { bold: true });
+});
+ok("paste formulas: adjusts refs and drops formatting", () => {
+  const out = buildPasteCell(fcell, null, { formulas: true }, 3, 0, "copy"); // 3 rows down
+  assert.equal(out.formula, "=A4*2");
+  assert.deepEqual(out.format, {});
+});
+ok("paste (full copy) adjusts refs and keeps format", () => {
+  const out = buildPasteCell(fcell, null, {}, 3, 1, "copy"); // 3 down, 1 right
+  assert.equal(out.formula, "=B4*2");
+  assert.deepEqual(out.format, { bold: true });
+});
+ok("paste values of an empty source onto an empty target is a no-op cell", () => {
+  assert.equal(buildPasteCell(null, null, { values: true }, 0, 0, "copy"), null);
+});
+ok("pasteValueParts reads value cells and formula results", () => {
+  assert.deepEqual(pasteValueParts(vcell), { value: "hi", type: "text" });
+  assert.deepEqual(pasteValueParts(fcell), { value: "20", type: "number" });
+  assert.deepEqual(pasteValueParts(null), { value: "", type: null });
+});
+
+// ── data validation ──────────────────────────────────────────────────────────
+const { valueSatisfiesRule, dvDateSerial } = __engine;
+ok("dv text length: between", () => {
+  const rule = { type: "textlen", op: "between", v1: "2", v2: "5" };
+  assert.equal(valueSatisfiesRule(rule, "hi"), true);
+  assert.equal(valueSatisfiesRule(rule, "toolong"), false);
+  assert.equal(valueSatisfiesRule(rule, "x"), false);
+});
+ok("dv number: comparison ops", () => {
+  assert.equal(valueSatisfiesRule({ type: "number", op: ">=", v1: "10" }, "10"), true);
+  assert.equal(valueSatisfiesRule({ type: "number", op: ">", v1: "10" }, "10"), false);
+  assert.equal(valueSatisfiesRule({ type: "number", op: "between", v1: "1", v2: "5" }, "3"), true);
+});
+ok("dv date: parses and compares as serials", () => {
+  const rule = { type: "date", op: ">=", v1: "2026-07-01" };
+  assert.equal(valueSatisfiesRule(rule, "2026-07-05"), true);
+  assert.equal(valueSatisfiesRule(rule, "2026-06-30"), false);
+});
+ok("dv date: between two dates", () => {
+  const rule = { type: "date", op: "between", v1: "2026-07-01", v2: "2026-07-31" };
+  assert.equal(valueSatisfiesRule(rule, "2026-07-15"), true);
+  assert.equal(valueSatisfiesRule(rule, "2026-08-01"), false);
+});
+ok("dv list: membership is case-insensitive", () => {
+  const rule = { type: "list", list: ["Open", "Closed"] };
+  assert.equal(valueSatisfiesRule(rule, "open"), true);
+  assert.equal(valueSatisfiesRule(rule, "Pending"), false);
+});
+ok("dv: an empty value always passes (blank is allowed)", () => {
+  assert.equal(valueSatisfiesRule({ type: "number", op: ">", v1: "0" }, ""), true);
+});
+ok("dvDateSerial handles ISO, m/d/y, and numeric serials", () => {
+  assert.equal(dvDateSerial("2026-07-05"), dateToSerial(new Date(2026, 6, 5)));
+  assert.equal(dvDateSerial(46208), 46208);
+  assert.equal(dvDateSerial("nonsense"), null);
+});
+
+// ── charts ───────────────────────────────────────────────────────────────────
+// Build a tiny sheet (headers + 3 categories × 2 series) and confirm every
+// chart type renders an <svg> without throwing.
+function chartSheet() {
+  const cells = new Map();
+  const put = (ref, value, type) => { const rc = parseCellRef(ref); cells.set(rc.row + "," + rc.col, { value: String(value), formula: null, type: type || (isFinite(Number(value)) ? "number" : "text"), computed: null, err: null, format: {} }); };
+  put("A1", "Day", "text"); put("B1", "Routes"); put("C1", "Staffed");
+  put("A2", "Mon", "text"); put("B2", "10"); put("C2", "8");
+  put("A3", "Tue", "text"); put("B3", "12"); put("C3", "9");
+  put("A4", "Wed", "text"); put("B4", "7"); put("C4", "7");
+  return { cells, rowCount: 100, colCount: 26 };
+}
+ok("every chart type renders an <svg>", () => {
+  const sheet = chartSheet();
+  for (const type of Object.keys(__engine.WB_CHART_TYPES)) {
+    const { svg } = __engine.chartSvg(sheet, { type, r0: 0, c0: 0, r1: 3, c1: 2, title: "" });
+    assert.ok(/<svg/.test(svg), `${type} did not produce an svg: ${svg.slice(0, 60)}`);
+  }
+});
+ok("chart handles an empty range gracefully", () => {
+  const { svg } = __engine.chartSvg({ cells: new Map(), rowCount: 100, colCount: 26 }, { type: "stackcol", r0: 0, c0: 0, r1: 3, c1: 2, title: "" });
+  assert.ok(/wb-chart-empty|<svg/.test(svg));
+});
+
+// ── pivot tables ─────────────────────────────────────────────────────────────
+function pivotSheet() {
+  const cells = new Map();
+  const put = (ref, value, type) => { const rc = parseCellRef(ref); cells.set(rc.row + "," + rc.col, { value: String(value), formula: null, type: type || (isFinite(Number(value)) ? "number" : "text"), computed: null, err: null, format: {} }); };
+  // Region, Rep, Amount
+  const rows = [
+    ["Region", "Rep", "Amount"],
+    ["West", "Ann", "100"],
+    ["West", "Bob", "50"],
+    ["East", "Ann", "70"],
+    ["East", "Bob", "30"],
+    ["West", "Ann", "20"],
+  ];
+  rows.forEach((row, r) => row.forEach((v, c) => put(colLabelJS(c) + (r + 1), v, r === 0 ? "text" : (c < 2 ? "text" : "number"))));
+  return { cells, rowCount: 100, colCount: 26 };
+}
+function colLabelJS(i) { let s = ""; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+ok("pivotAggregate: sum/count/avg/min/max/countunique", () => {
+  const { pivotAggregate } = __engine;
+  assert.equal(pivotAggregate("sum", [1, 2, 3]), 6);
+  assert.equal(pivotAggregate("count", [1, "", 3, null]), 2);
+  assert.equal(pivotAggregate("avg", [2, 4]), 3);
+  assert.equal(pivotAggregate("min", [5, 2, 9]), 2);
+  assert.equal(pivotAggregate("max", [5, 2, 9]), 9);
+  assert.equal(pivotAggregate("countunique", ["a", "a", "b"]), 2);
+});
+ok("computePivot: rows × sum aggregates by group", () => {
+  const p = __engine.computePivot(pivotSheet(), { r0: 0, c0: 0, r1: 5, c1: 2, rows: ["Region"], cols: [], values: [{ field: "Amount", agg: "sum" }] });
+  assert.deepEqual(p.rowKeys, ["East", "West"]);
+  assert.equal(p.aggOf("West", null, 0), 170); // 100+50+20
+  assert.equal(p.aggOf("East", null, 0), 100); // 70+30
+  assert.equal(p.aggOf(null, null, 0), 270);   // grand total
+});
+ok("computePivot: rows × cols cross-tab", () => {
+  const p = __engine.computePivot(pivotSheet(), { r0: 0, c0: 0, r1: 5, c1: 2, rows: ["Region"], cols: ["Rep"], values: [{ field: "Amount", agg: "sum" }] });
+  assert.deepEqual(p.colKeys, ["Ann", "Bob"]);
+  assert.equal(p.aggOf("West", "Ann", 0), 120); // 100+20
+  assert.equal(p.aggOf("West", "Bob", 0), 50);
+  assert.equal(p.aggOf("East", "Ann", 0), 70);
+  assert.equal(p.aggOf(null, "Ann", 0), 190);   // Ann column total
+});
+ok("computePivot: count aggregation", () => {
+  const p = __engine.computePivot(pivotSheet(), { r0: 0, c0: 0, r1: 5, c1: 2, rows: ["Region"], cols: [], values: [{ field: "Rep", agg: "count" }] });
+  assert.equal(p.aggOf("West", null, 0), 3);
+  assert.equal(p.aggOf("East", null, 0), 2);
+});
+ok("computePivot: no value fields returns null", () => {
+  assert.equal(__engine.computePivot(pivotSheet(), { r0: 0, c0: 0, r1: 5, c1: 2, rows: ["Region"], cols: [], values: [] }), null);
+});
+ok("pivotTableHtml renders a table with a grand total", () => {
+  const html = __engine.pivotTableHtml(pivotSheet(), { r0: 0, c0: 0, r1: 5, c1: 2, rows: ["Region"], cols: ["Rep"], values: [{ field: "Amount", agg: "sum" }] });
+  assert.ok(/<table/.test(html));
+  assert.ok(/Grand total/.test(html));
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);
