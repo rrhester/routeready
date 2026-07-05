@@ -28551,6 +28551,15 @@ body.rr-cmdk-open{ overflow:hidden }
   width:26px;height:26px;border-radius:50%;
   color:var(--text-subtle);cursor:pointer;
 }
+/* card ⋮ (archive/delete) sits at the corner; the star slides left */
+#view-workbooks .wb-cardmenu{
+  position:absolute;top:8px;right:8px;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:50%;
+  color:var(--text-subtle);cursor:pointer;
+}
+#view-workbooks .wb-cardmenu:hover{background:var(--canvas);color:var(--text)}
+#view-workbooks .wb-card:has(.wb-cardmenu) .wb-fav{right:36px}
 #view-workbooks .wb-fav svg{fill:none;stroke:currentColor}
 #view-workbooks .wb-fav:hover{background:var(--canvas);color:var(--text-muted)}
 #view-workbooks .wb-fav.is-fav{color:#F4B400}
