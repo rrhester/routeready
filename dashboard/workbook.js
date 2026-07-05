@@ -3408,6 +3408,7 @@ function mountSheetBlock(block, body) {
   repaintGrid(g);
   syncFormulaBar(g);
   renderCharts(g);
+  renderFillBar(g); // Schedule Intelligence Bar (from the last saved run)
   g.els.charts.addEventListener("click", (e) => {
     const card = e.target.closest("[data-wb-chart]");
     const act = e.target.closest("[data-wb-chartact]");
@@ -3451,6 +3452,10 @@ function sheetToolbarHtml(block, ro) {
   };
   return `<div class="wb-toolbar" role="toolbar" aria-label="Spreadsheet tools" data-wb-toolbar="${block.id}">
     <div class="wb-tgrp">${btn("undo", "Undo (Ctrl+Z)", I.undo)}${btn("redo", "Redo (Ctrl+Y)", I.redo)}${btn("paint-format", "Format painter — copy the active cell's formatting to the next selection", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="14" height="5" rx="1"/><path d="M18 5h2v5H9v3"/><rect x="7" y="13" width="4" height="8" rx="1"/></svg>`)}</div>
+    <div class="wb-tgrp">
+      <button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-fill" data-wb-tb="fill-people" title="Load the active roster into this sheet" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>People</button>
+      <button type="button" class="btn btn-sm wb-tb-buildbtn" data-wb-tb="fill-build" title="Build Schedule from Sheet — RouteReady recommends who should work" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9.5 15.5l2 2 3.5-3.5"/></svg>Build Schedule</button>
+    </div>
     <div class="wb-tgrp">${btn("autosum", "AutoSum — insert =SUM(…) for the selection", `<span class="wb-tb-txt wb-tb-sigma">Σ</span>`)}</div>
     <div class="wb-tgrp">
       ${btn("fmt-currency", "Format as currency", `<span class="wb-tb-txt">$</span>`)}${btn("fmt-percent", "Format as percent", `<span class="wb-tb-txt">%</span>`)}
@@ -8505,6 +8510,8 @@ function bindGridEvents(g) {
       case "fs-minus": adjustFontSize(g, -1); break;
       case "fs-plus": adjustFontSize(g, 1); break;
       case "find": openFindPanel(g, false); break;
+      case "fill-people": fillLoadDrivers(g); return;
+      case "fill-build": openBuildPanel(g); return;
       case "panel-toggle": WB.panelOpen = !WB.panelOpen; syncPanelVisibility(); if (WB.panelOpen) renderPanel(); break;
       case "validation": openValidationDialog(g); break;
       case "condfmt": openCondFormatDialog(g); break;
@@ -8789,6 +8796,11 @@ function openSheetsCellMenu(g, x, y) {
     sep,
     { icon: CTX_ICONS.more, label: "View more cell actions", sub: moreSub },
   ];
+  // driver sheets (Sheet-to-Schedule) get row-level driver actions
+  const fillDriverId = fillDriverIdAt(g.sheet, r);
+  if (fillDriverId) {
+    items.splice(items.length - 2, 0, { icon: CTX_ICONS.dropdown, label: "Driver actions", sub: fillDriverMenuItems(g, fillDriverId) });
+  }
   const m = ctxMenu(x, y, "");
   m.classList.add("wb-menu-pop", "wb-cellmenu");
   const stack = [{ title: null, items }];
@@ -8812,6 +8824,11 @@ function openSheetsCellMenu(g, x, y) {
     if (!item) return;
     if (item.sub) { stack.push({ title: item.label, items: item.sub }); render(); return; }
     closeAllPopovers();
+    if (String(item.act || "").startsWith("fill:")) {
+      const did = fillDriverIdAt(g.sheet, r);
+      if (did) fillDriverAction(g, did, item.act);
+      return;
+    }
     switch (item.act) {
       case "cut": await copySelection(g, "cut"); break;
       case "copy": await copySelection(g); break;
@@ -9499,6 +9516,9 @@ function wbMenuItems(menu, g) {
     case "Data": {
       const views = g ? sheetFilterViews(g.sheet) : [];
       return [
+        { label: "Load drivers (People)", act: "data:fill-people", disabled: !ed || !g },
+        { label: "Build Schedule from Sheet…", act: "data:fill-build", disabled: !ed || !g },
+        sep,
         { label: "Sort sheet by active column, A→Z", act: "data:sort-asc", disabled: !ed || !g },
         { label: "Sort sheet by active column, Z→A", act: "data:sort-desc", disabled: !ed || !g },
         { label: "Custom sort…", act: "data:sort", disabled: !ed || !g },
@@ -9596,6 +9616,8 @@ function wbMenuAction(act, g) {
     case "fmt:cf": if (need()) openCondFormatDialog(g); return;
     case "fmt:cells": if (need()) openFormatCellsDialog(g); return;
     case "fmt:clear": if (need()) clearFormatting(g); return;
+    case "data:fill-people": if (need()) fillLoadDrivers(g); return;
+    case "data:fill-build": if (need()) openBuildPanel(g); return;
     case "data:sort-asc": if (need()) sortByColumn(g, g.active.c, "asc"); return;
     case "data:sort-desc": if (need()) sortByColumn(g, g.active.c, "desc"); return;
     case "data:sort": if (need()) openSortDialog(g); return;
@@ -10143,6 +10165,860 @@ export async function loadWorkbooksView() {
   await renderListPage();
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// Sheet-to-Schedule · "Build Schedule from Sheet"
+// ═════════════════════════════════════════════════════════════════════
+// The workbook as the front door to RouteReady's scheduling intelligence:
+// load the active roster into a sheet, open the Build Schedule panel,
+// and let the SHARED scheduling engine (dashboard/scheduling-engine.js —
+// the same rules Smart Fill runs: status, license, certification, PTO,
+// availability, max days, weekly cap, WOC consecutive days, min rest,
+// pins/ad-hoc constraints) recommend who should work. The sheet is the
+// planning surface; rule enforcement stays in the engine. Nothing writes
+// to the real schedule without an explicit preview + confirm.
+//
+// Wiring (same DI pattern as the reports provider — this module never
+// imports live.js or the engine directly):
+//   live.js:  registerScheduleEngine(planScheduleWeek)
+//             registerDriverActions((id, opts) => openDriverDrawer(id, opts))
+
+let SCHED_ENGINE = null;
+let DRIVER_ACTIONS = null;
+export function registerScheduleEngine(fn) { SCHED_ENGINE = fn; }
+export function registerDriverActions(fn) { DRIVER_ACTIONS = fn; }
+
+const FILL_DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const FILL_GREEN = "#D9EAD3", FILL_AMBER = "#FFF2CC", FILL_RED = "#F4CCCC", FILL_GRAY = "#E8EAED";
+const FILL_HEADERS = ["Driver", "Status", "DOT", "XL", "EDV", "Available", "Preferred", "Risk", "Driver ID"];
+
+function fillIsoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function fillWeekDates(weekStart) {
+  const out = [];
+  const d = new Date(weekStart + "T12:00:00");
+  for (let i = 0; i < 7; i++) { out.push(fillIsoDate(d)); d.setDate(d.getDate() + 1); }
+  return out;
+}
+function fillNextWeekStart() {
+  // default target week: the upcoming Sunday
+  const d = new Date();
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7));
+  return fillIsoDate(d);
+}
+
+// The sheet is a driver sheet when row 0 carries a "Driver ID" header;
+// the id column is the join key, so sorting/reordering rows stays safe.
+function fillSheetInfo(sheet) {
+  const { maxC } = usedRange(sheet);
+  for (let c = 0; c <= maxC; c++) {
+    const cell = sheet.cells.get(cellKey(0, c));
+    if (cell && String(cell.value || "").trim() === "Driver ID") return { idCol: c };
+  }
+  return null;
+}
+function fillDriverIdAt(sheet, r) {
+  const info = fillSheetInfo(sheet);
+  if (!info || r <= 0) return null;
+  const cell = sheet.cells.get(cellKey(r, info.idCol));
+  const id = cell ? String(cell.formula ? (cell.computed ?? "") : (cell.value ?? "")).trim() : "";
+  return id || null;
+}
+function fillSheetDriverIds(sheet) {
+  const info = fillSheetInfo(sheet);
+  if (!info) return null;
+  const ids = new Set();
+  const { maxR } = usedRange(sheet);
+  for (let r = 1; r <= maxR; r++) {
+    const id = fillDriverIdAt(sheet, r);
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
+// ── People: load the active roster into the sheet ──────────────────────
+
+async function fillLoadDrivers(g) {
+  if (!WB.canEdit) { _toast("You need edit access to load drivers", "info"); return; }
+  const dsp = _dsp();
+  if (!dsp) { _toast("No DSP context", "error"); return; }
+  _toast("Loading drivers…", "info");
+  try {
+    const since = new Date(); since.setDate(since.getDate() - 30);
+    const [dRes, aRes] = await Promise.all([
+      _sb().from("drivers")
+        .select("id, full_name, status, hire_date, dl_expires_on, dot_certified, xl_certified, edv_certified, metadata")
+        .eq("dsp_id", dsp.id).in("status", ["active", "onboarding"]).order("full_name"),
+      _sb().from("shifts").select("driver_id, status")
+        .eq("dsp_id", dsp.id).gte("date", fillIsoDate(since))
+        .in("status", ["called_off", "no_show", "late"]),
+    ]);
+    if (dRes.error) throw dRes.error;
+    const drivers = dRes.data || [];
+    if (!drivers.length) { _toast("No active drivers found", "info"); return; }
+    // attendance-risk aggregate (30 days) — same thresholds the
+    // Attendance report uses
+    const agg = new Map();
+    for (const s of (aRes.data || [])) {
+      const a = agg.get(s.driver_id) || { callOff: 0, noShow: 0, late: 0 };
+      if (s.status === "called_off") a.callOff++;
+      else if (s.status === "no_show") a.noShow++;
+      else a.late++;
+      agg.set(s.driver_id, a);
+    }
+    const riskOf = (id) => {
+      const a = agg.get(id);
+      if (!a) return "Low";
+      if (a.noShow >= 1 || a.callOff >= 3) return "High";
+      if (a.callOff >= 1 || a.late >= 2) return "Medium";
+      return "Low";
+    };
+    const dayCodes = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const daysText = (codes) => Array.isArray(codes) && codes.length
+      ? codes.map((c) => { const i = dayCodes.indexOf(String(c).toLowerCase()); return i >= 0 ? FILL_DOW[i] : c; }).join(" ")
+      : "";
+    const sheet = g.sheet;
+    const changes = [];
+    FILL_HEADERS.forEach((h, c) => changes.push({ r: 0, c, cell: { value: h, formula: null, type: "text", format: { bold: true, bg: "header" } } }));
+    drivers.forEach((d, i) => {
+      const r = i + 1;
+      const risk = riskOf(d.id);
+      const av = d.metadata?.availability || {};
+      const row = [
+        d.full_name || d.id,
+        d.status === "active" ? "Active" : "Onboarding",
+        d.dot_certified ? "✓" : "—",
+        d.xl_certified ? "✓" : "—",
+        d.edv_certified ? "✓" : "—",
+        daysText(av.days) || "Any",
+        daysText(av.preferred_days) || "—",
+        risk,
+        d.id,
+      ];
+      row.forEach((v, c) => {
+        const fmt = {};
+        if (c === 7) fmt.bg = risk === "High" ? FILL_RED : risk === "Medium" ? FILL_AMBER : FILL_GREEN;
+        if (c === 8) fmt.fg = "muted";
+        changes.push({ r, c, cell: { value: String(v), formula: null, type: "text", format: fmt } });
+      });
+    });
+    setCells(g, changes);
+    WB.fillDrivers = new Map(drivers.map((d) => [d.id, d]));
+    g.sheet.frozenRows = 1;
+    sheet.meta = { ...(sheet.meta || {}), fill: { ...(sheet.meta?.fill || {}), loadedAt: new Date().toISOString() } };
+    saveSheetMeta(sheet.id);
+    repaintGrid(g);
+    renderFillBar(g);
+    _toast(`Loaded ${drivers.length} drivers`, "success");
+    wbLog("schedule.fill.loaded", `loaded ${drivers.length} drivers into ${sheet.name}`, {
+      target_type: "sheet", target_id: sheet.id,
+      detail: { drivers: drivers.length },
+    });
+  } catch (e) { _toast("Couldn't load drivers: " + ((e && e.message) || e), "error"); }
+}
+
+// ── Build panel ─────────────────────────────────────────────────────────
+
+function fillOptions(g) {
+  if (!g.fillOpts) {
+    g.fillOpts = {
+      weekStart: fillNextWeekStart(),
+      mode: "fill_empty_only",            // vs rebuild_unlocked
+      routeCounts: [0, 0, 0, 0, 0, 0, 0], // per day of the chosen week
+      xlPerDay: 0, dotPerDay: 0, edvPerDay: 0,
+      preferred: true, attendance: true, fifthDay: false,
+      protectLocked: true, protectStable: true,
+      posture: "conservative",            // vs aggressive
+    };
+  }
+  return g.fillOpts;
+}
+
+function openBuildPanel(g) {
+  if (!fillSheetInfo(g.sheet)) {
+    _toast("Load drivers first — click People in the toolbar", "info");
+    return;
+  }
+  document.getElementById("wb-build-panel")?.remove();
+  const o = fillOptions(g);
+  const wrap = document.createElement("aside");
+  wrap.id = "wb-build-panel";
+  wrap.setAttribute("role", "dialog");
+  wrap.setAttribute("aria-label", "Build Schedule from Sheet");
+  const dayInputs = FILL_DOW.map((d, i) =>
+    `<label class="wb-build-day"><span>${d}</span><input type="number" min="0" max="99" data-fill-day="${i}" value="${o.routeCounts[i]}"></label>`).join("");
+  wrap.innerHTML = `
+    <div class="wb-build-head">
+      <span class="wb-build-title">Build Schedule from Sheet</span>
+      <button type="button" class="wb-panel-close" data-fill-close title="Close" aria-label="Close">✕</button>
+    </div>
+    <div class="wb-build-body">
+      <div class="wb-build-sec">
+        <label class="wb-build-field"><span>Schedule week (starts Sunday)</span>
+          <input type="date" data-fill-week value="${esc(o.weekStart)}"></label>
+        <div class="wb-build-field"><span>Mode</span>
+          <label class="wb-build-radio"><input type="radio" name="fill-mode" value="fill_empty_only" ${o.mode === "fill_empty_only" ? "checked" : ""}> Fill open routes only</label>
+          <label class="wb-build-radio"><input type="radio" name="fill-mode" value="rebuild_unlocked" ${o.mode === "rebuild_unlocked" ? "checked" : ""}> Rebuild entire week</label>
+        </div>
+      </div>
+      <div class="wb-build-sec">
+        <span class="wb-build-seclbl">Routes needed per day <button type="button" class="wb-build-link" data-fill-loadcounts>use week's open routes</button></span>
+        <div class="wb-build-days">${dayInputs}</div>
+        <div class="wb-build-typerow">
+          <label class="wb-build-field wb-build-type"><span>XL / day</span><input type="number" min="0" max="99" data-fill-xl value="${o.xlPerDay}"></label>
+          <label class="wb-build-field wb-build-type"><span>DOT / day</span><input type="number" min="0" max="99" data-fill-dot value="${o.dotPerDay}"></label>
+          <label class="wb-build-field wb-build-type"><span>EDV / day</span><input type="number" min="0" max="99" data-fill-edv value="${o.edvPerDay}"></label>
+        </div>
+      </div>
+      <div class="wb-build-sec">
+        <label class="wb-build-check"><input type="checkbox" data-fill-opt="preferred" ${o.preferred ? "checked" : ""}> Respect preferred days</label>
+        <label class="wb-build-check"><input type="checkbox" data-fill-opt="attendance" ${o.attendance ? "checked" : ""}> Include attendance risk</label>
+        <label class="wb-build-check"><input type="checkbox" data-fill-opt="fifthDay" ${o.fifthDay ? "checked" : ""}> Allow 5th day if needed</label>
+        <label class="wb-build-check"><input type="checkbox" data-fill-opt="protectLocked" ${o.protectLocked ? "checked" : ""}> Protect locked / pinned shifts</label>
+        <label class="wb-build-check"><input type="checkbox" data-fill-opt="protectStable" ${o.protectStable ? "checked" : ""}> Protect stable schedules</label>
+        <div class="wb-build-field"><span>Coverage posture</span>
+          <label class="wb-build-radio"><input type="radio" name="fill-posture" value="conservative" ${o.posture === "conservative" ? "checked" : ""}> Conservative — strict rules</label>
+          <label class="wb-build-radio"><input type="radio" name="fill-posture" value="aggressive" ${o.posture === "aggressive" ? "checked" : ""}> Aggressive — maximize coverage</label>
+        </div>
+      </div>
+      <div class="wb-build-actions">
+        <button type="button" class="btn btn-primary btn-sm" data-fill-generate>Generate Recommendations</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-fill-gaps>Explain Gaps</button>
+      </div>
+      <div class="wb-build-preview" data-fill-preview hidden></div>
+      <div class="wb-build-gaps" data-fill-gapsout hidden></div>
+      <div class="wb-build-actions wb-build-actions2">
+        <button type="button" class="btn btn-ghost btn-sm" data-fill-acceptsel disabled>Accept Selected</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-fill-acceptall disabled>Accept All</button>
+        <button type="button" class="btn btn-primary btn-sm" data-fill-apply disabled>Apply to Schedule</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-fill-undo ${g.sheet.meta?.fill?.applied ? "" : "disabled"}>Undo</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-fill-export disabled>Export Recommendation Report</button>
+      </div>
+      <p class="wb-build-hint">Recommendations are a preview — nothing touches the real schedule until you apply, and every applied change is logged and undoable.</p>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const syncButtons = () => {
+    const has = !!(g.fillRun && g.fillRun.recs && g.fillRun.recs.size);
+    wrap.querySelector("[data-fill-acceptsel]").disabled = !has;
+    wrap.querySelector("[data-fill-acceptall]").disabled = !has;
+    wrap.querySelector("[data-fill-apply]").disabled = !has;
+    wrap.querySelector("[data-fill-export]").disabled = !has;
+    wrap.querySelector("[data-fill-undo]").disabled = !(g.sheet.meta?.fill?.applied);
+  };
+  g.fillSyncButtons = syncButtons;
+  syncButtons();
+  if (g.fillRun) renderFillPreview(g);
+
+  wrap.addEventListener("keydown", (e) => e.stopPropagation());
+  wrap.addEventListener("change", () => {
+    const o2 = fillOptions(g);
+    o2.weekStart = wrap.querySelector("[data-fill-week]").value || o2.weekStart;
+    o2.mode = wrap.querySelector('[name="fill-mode"]:checked')?.value || o2.mode;
+    o2.posture = wrap.querySelector('[name="fill-posture"]:checked')?.value || o2.posture;
+    wrap.querySelectorAll("[data-fill-day]").forEach((inp) => { o2.routeCounts[+inp.getAttribute("data-fill-day")] = Math.max(0, Math.round(+inp.value || 0)); });
+    o2.xlPerDay = Math.max(0, Math.round(+wrap.querySelector("[data-fill-xl]").value || 0));
+    o2.dotPerDay = Math.max(0, Math.round(+wrap.querySelector("[data-fill-dot]").value || 0));
+    o2.edvPerDay = Math.max(0, Math.round(+wrap.querySelector("[data-fill-edv]").value || 0));
+    wrap.querySelectorAll("[data-fill-opt]").forEach((inp) => { o2[inp.getAttribute("data-fill-opt")] = inp.checked; });
+  });
+  wrap.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-fill-close]")) { wrap.remove(); return; }
+    if (e.target.closest("[data-fill-loadcounts]")) { await fillPrefillCounts(g, wrap); return; }
+    if (e.target.closest("[data-fill-generate]")) { await fillGenerate(g); syncButtons(); return; }
+    if (e.target.closest("[data-fill-gaps]")) { fillExplainGaps(g); return; }
+    if (e.target.closest("[data-fill-acceptsel]")) { fillAccept(g, "selected"); return; }
+    if (e.target.closest("[data-fill-acceptall]")) { fillAccept(g, "all"); return; }
+    if (e.target.closest("[data-fill-apply]")) { await fillApply(g); return; }
+    if (e.target.closest("[data-fill-undo]")) { await fillUndo(g); return; }
+    if (e.target.closest("[data-fill-export]")) { fillExportReport(g); return; }
+  });
+}
+
+// prefill per-day counts from the chosen week's open (unassigned) shifts
+async function fillPrefillCounts(g, wrap) {
+  const o = fillOptions(g);
+  o.weekStart = wrap.querySelector("[data-fill-week]").value || o.weekStart;
+  const dates = fillWeekDates(o.weekStart);
+  try {
+    const res = await _sb().from("shifts").select("date, driver_id, status")
+      .eq("dsp_id", _dsp().id).gte("date", dates[0]).lte("date", dates[6]);
+    if (res.error) throw res.error;
+    const terminal = new Set(["completed", "no_show", "called_off", "cancelled"]);
+    const counts = [0, 0, 0, 0, 0, 0, 0];
+    for (const s of (res.data || [])) {
+      if (s.driver_id || terminal.has(s.status)) continue;
+      const i = dates.indexOf(s.date);
+      if (i >= 0) counts[i]++;
+    }
+    o.routeCounts = counts;
+    wrap.querySelectorAll("[data-fill-day]").forEach((inp) => { inp.value = counts[+inp.getAttribute("data-fill-day")]; });
+    _toast(`${counts.reduce((a, b) => a + b, 0)} open routes found that week`, "info");
+  } catch (e) { _toast("Couldn't read the week's shifts: " + ((e && e.message) || e), "error"); }
+}
+
+// ── Generate: assemble the payload, run the shared engine ──────────────
+
+async function fillGenerate(g) {
+  if (typeof SCHED_ENGINE !== "function") { _toast("Scheduling engine isn't available in this session", "error"); return; }
+  if (!WB.canEdit) { _toast("You need edit access to build a schedule", "info"); return; }
+  const sheet = g.sheet;
+  const sheetIds = fillSheetDriverIds(sheet);
+  if (!sheetIds || !sheetIds.size) { _toast("No drivers in the sheet — click People first", "info"); return; }
+  const o = fillOptions(g);
+  const dsp = _dsp();
+  const dates = fillWeekDates(o.weekStart);
+  _toast("Building schedule…", "info");
+  try {
+    // ── data pulls (data only — every scheduling RULE runs in the engine)
+    const [dRes, sRes, pRes, cRes, ahRes] = await Promise.all([
+      _sb().from("drivers")
+        .select("id, full_name, status, hire_date, dl_expires_on, dot_certified, xl_certified, edv_certified, metadata")
+        .eq("dsp_id", dsp.id).in("status", ["active", "onboarding"]),
+      _sb().from("shifts")
+        .select("id, date, starts_at, ends_at, status, driver_id, route_code, station_id, service_type_id, is_cushion, shift_kind")
+        .eq("dsp_id", dsp.id).gte("date", dates[0]).lte("date", dates[6]),
+      _sb().from("time_off_requests").select("driver_id, start_date, end_date, status")
+        .eq("dsp_id", dsp.id).eq("status", "approved")
+        .lte("start_date", dates[6]).gte("end_date", dates[0]),
+      _sb().from("coachings").select("driver_id").eq("dsp_id", dsp.id)
+        .eq("severity", "final").is("archived_at", null),
+      _sb().from("current_ad_hoc_constraints")
+        .select("id, kind, payload, hardness, weight, scope, state")
+        .eq("state", "active"),
+    ]);
+    if (dRes.error) throw dRes.error;
+    if (sRes.error) throw sRes.error;
+    const allDrivers = dRes.data || [];
+    const exclude = sheet.meta?.fill?.exclude || {};
+    const roster = allDrivers.filter((d) => sheetIds.has(d.id) && !exclude[d.id]);
+    if (!roster.length) { _toast("Every sheet driver is excluded or unknown — nothing to build", "info"); return; }
+    const finalIds = new Set((cRes.data || []).map((c) => c.driver_id));
+    const dayCodes = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const dowsOf = (codes) => Array.isArray(codes) && codes.length
+      ? codes.map((c) => dayCodes.indexOf(String(c).toLowerCase())).filter((i) => i >= 0) : null;
+
+    // fillable + locked shifts (live.js semantics: assigned rows lock,
+    // open non-terminal rows fill)
+    const terminal = new Set(["completed", "no_show", "called_off", "cancelled"]);
+    const shifts = [];
+    const realById = new Map();
+    const openPerDay = [0, 0, 0, 0, 0, 0, 0];
+    for (const sh of (sRes.data || [])) {
+      if ((sh.shift_kind || "regular") !== "regular" && !sh.driver_id) continue;
+      realById.set(String(sh.id), sh);
+      const locked = !!sh.driver_id;
+      if (!locked && terminal.has(sh.status)) continue;
+      if (!locked) { const i = dates.indexOf(sh.date); if (i >= 0) openPerDay[i]++; }
+      shifts.push({
+        id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at,
+        duration_hours: null, route_type: "standard",
+        assigned_driver_id: locked ? sh.driver_id : null,
+        is_locked: locked && o.protectLocked,
+        station_id: sh.station_id || null, route_code: sh.route_code || null,
+      });
+    }
+    // synthesize virtual routes where the per-day need exceeds the
+    // week's open shifts; type quotas carve XL/DOT/EDV out of each day
+    const virtualById = new Map();
+    dates.forEach((date, i) => {
+      const extra = Math.max(0, (o.routeCounts[i] || 0) - openPerDay[i]);
+      const types = [];
+      for (let k = 0; k < o.xlPerDay; k++) types.push("xl");
+      for (let k = 0; k < o.dotPerDay; k++) types.push("step_van");
+      for (let k = 0; k < o.edvPerDay; k++) types.push("edv");
+      for (let k = 0; k < extra; k++) {
+        const id = `virtual:${date}:${k}`;
+        const v = {
+          id, date, starts_at: `${date}T09:00:00`, ends_at: `${date}T19:00:00`,
+          duration_hours: 10, route_type: types[k] || "standard",
+          assigned_driver_id: null, is_locked: false, station_id: null, route_code: null,
+        };
+        virtualById.set(id, v);
+        shifts.push(v);
+      }
+    });
+    if (!shifts.some((s) => !s.assigned_driver_id)) {
+      _toast("Nothing to fill — no open routes that week. Set routes-per-day or pick another week.", "info");
+      return;
+    }
+
+    // PTO → flat {driver_id, date}
+    const pto = [];
+    for (const t of (pRes.data || [])) {
+      const d0 = new Date(t.start_date + "T12:00:00"), d1 = new Date(t.end_date + "T12:00:00");
+      for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
+        const iso = fillIsoDate(d);
+        if (iso >= dates[0] && iso <= dates[6]) pto.push({ driver_id: t.driver_id, date: iso });
+      }
+    }
+
+    // rules: the DSP's saved Smart Fill rules (same source the Schedule
+    // page uses) + this panel's choices layered on top
+    const savedRules = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
+    const rules = {
+      ...savedRules,
+      pto_block: true, availability: true,
+      run_mode: o.mode,
+      preserve_locked_assignments: o.protectLocked,
+      preferred_enhancement: o.preferred,
+      attendance_penalty: o.attendance,
+      attendance_scheduling: o.attendance,
+      fifth_day_fill: o.fifthDay,
+      fifth_day_override_availability: o.fifthDay && o.posture === "aggressive",
+      historical_pattern_protection: o.protectStable ? "medium" : "off",
+      fill_priority: o.posture === "aggressive" ? "availability_first" : (savedRules.fill_priority || "seniority"),
+      manual_mode: false,
+    };
+    const payload = {
+      schedule_week_start: dates[0],
+      max_days: savedRules.max_days ?? 6,
+      weekly_hour_cap: savedRules.woc_max_hours ?? 50,
+      time_budget_ms: 8000,
+      rules,
+      drivers: roster.map((d) => ({
+        id: d.id, full_name: d.full_name, status: d.status, hire_date: d.hire_date,
+        dl_expires_on: d.dl_expires_on,
+        dot_certified: d.dot_certified, xl_certified: d.xl_certified, edv_certified: d.edv_certified,
+        available_dows: dowsOf(d.metadata?.availability?.days),
+        preferred_dows: dowsOf(d.metadata?.availability?.preferred_days),
+        final_corrective_action: finalIds.has(d.id),
+        weekday_affinity: null,
+        fifth_day_ok: o.fifthDay && (o.posture === "aggressive" || d.metadata?.availability?.fifth_day_ok === true),
+      })),
+      shifts, pto,
+      ad_hoc_constraints: (ahRes.data || []),
+    };
+
+    const result = SCHED_ENGINE(payload);
+
+    // ── per-driver recommendations (data shaping only)
+    const nameOf = new Map(roster.map((d) => [d.id, d.full_name || d.id]));
+    const ptoSet = new Set(pto.map((p) => `${p.driver_id}:${p.date}`));
+    const explByKey = new Map(((result.explanations && result.explanations.assignments) || []).map((x) => [String(x.shift_id), x]));
+    const shiftById = new Map(shifts.map((s) => [String(s.id), s]));
+    const recs = new Map(); // driverId → rec
+    for (const d of roster) recs.set(d.id, { driverId: d.id, name: nameOf.get(d.id), days: new Map(), blocking: [], accepted: false, locked: false, overridden: false, status: "", reason: "", confidence: 0 });
+    for (const a of (result.assigned_shifts || [])) {
+      const rec = recs.get(a.driver_id);
+      const sh = shiftById.get(String(a.shift_id));
+      if (!rec || !sh || sh.is_locked) continue;
+      const expl = explByKey.get(String(a.shift_id));
+      rec.days.set(sh.date, {
+        shiftId: String(a.shift_id), virtual: virtualById.has(String(a.shift_id)),
+        routeType: sh.route_type, score: a.total_score || 0,
+        warnings: (expl && expl.warnings) || [],
+      });
+    }
+    for (const u of (result.unscheduled_drivers || [])) {
+      const rec = recs.get(u.driver_id);
+      if (!rec) continue;
+      rec.eligibleSomewhere = u.eligible_somewhere === true;
+      rec.blocking = (u.block_reasons || []).map((b) => (b && b.rule) ? `${b.rule}: ${b.message}` : String((b && b.message) || b));
+    }
+    const maxScore = Math.max(1, ...[...recs.values()].flatMap((r) => [...r.days.values()].map((d) => d.score || 0)));
+    for (const rec of recs.values()) {
+      const n = rec.days.size;
+      const ptoDays = dates.filter((dt) => ptoSet.has(`${rec.driverId}:${dt}`));
+      if (n > 0) {
+        const bits = ["available", ptoDays.length ? `PTO ${ptoDays.length}d respected` : "no PTO", `${n} day${n > 1 ? "s" : ""} under weekly cap`];
+        const types = new Set([...rec.days.values()].map((d) => d.routeType));
+        if (types.has("xl")) bits.push("XL certified");
+        if (types.has("step_van")) bits.push("DOT certified");
+        if (types.has("edv")) bits.push("EDV certified");
+        const warn = [...rec.days.values()].some((d) => d.warnings.length);
+        rec.status = "Recommended";
+        rec.reason = `Recommended: ${bits.join(", ")}.` + (warn ? " Warning: scheduled with rule warnings — review." : "");
+        const avg = [...rec.days.values()].reduce((a, d) => a + (d.score || 0), 0) / n;
+        rec.confidence = Math.max(35, Math.min(99, Math.round((avg / maxScore) * 100)));
+      } else if (rec.blocking.length && !rec.eligibleSomewhere) {
+        rec.status = "Blocked";
+        rec.reason = `Blocked: ${rec.blocking[0]}`;
+      } else {
+        rec.status = "Not selected";
+        rec.reason = "Not selected: eligible, but lower fit than the chosen drivers for this week's routes.";
+      }
+    }
+
+    const needed = shifts.filter((s) => !s.is_locked).length;
+    const filled = (result.assigned_shifts || []).filter((a) => { const sh = shiftById.get(String(a.shift_id)); return sh && !sh.is_locked; }).length;
+    const open = (result.uncovered_shifts || []).length;
+    const blocked = [...recs.values()].filter((r) => r.status === "Blocked").length;
+    g.fillRun = {
+      weekStart: dates[0], dates, options: { ...o }, payload, result, recs, virtualById, realById,
+      summary: {
+        drivers: roster.length, eligible: roster.length - blocked, blocked,
+        needed, filled, open,
+        coverage: needed ? Math.round((filled / needed) * 100) : 100,
+        violations: (result.violations || []).length,
+        ptoConflicts: (result.violations || []).filter((v) => v.rule === "R005").length,
+        certConflicts: (result.violations || []).filter((v) => v.rule === "R004").length,
+        riskWarnings: [...recs.values()].filter((r) => r.status === "Recommended" && r.reason.includes("Warning")).length,
+      },
+    };
+
+    fillWriteRecColumns(g);
+    renderFillBar(g);
+    renderFillPreview(g);
+    if (g.fillSyncButtons) g.fillSyncButtons();
+    sheet.meta = { ...(sheet.meta || {}), fill: { ...(sheet.meta?.fill || {}), lastRun: { at: new Date().toISOString(), week: dates[0], summary: g.fillRun.summary } } };
+    saveSheetMeta(sheet.id);
+    _toast(`Recommendations ready — ${filled}/${needed} routes filled`, "success");
+    wbLog("schedule.fill.generated", `generated schedule recommendations for week of ${dates[0]} (${filled}/${needed} routes filled, ${open} open)`, {
+      target_type: "sheet", target_id: sheet.id,
+      detail: {
+        week: dates[0], drivers_considered: roster.length, routes_needed: needed,
+        rules: { mode: o.mode, preferred: o.preferred, attendance: o.attendance, fifth_day: o.fifthDay, protect_locked: o.protectLocked, protect_stable: o.protectStable, posture: o.posture },
+        recommendations: filled, conflicts: (result.violations || []).length, uncovered: open,
+      },
+    });
+  } catch (e) {
+    console.warn("sheet-to-schedule generate:", e);
+    _toast("Build failed: " + ((e && e.message) || e), "error");
+  }
+}
+
+// write the recommendation columns to the right of the roster
+function fillWriteRecColumns(g) {
+  const sheet = g.sheet;
+  const run = g.fillRun;
+  const info = fillSheetInfo(sheet);
+  if (!run || !info) return;
+  let startC = sheet.meta?.fill?.recStartC;
+  if (!Number.isInteger(startC) || startC <= info.idCol) startC = info.idCol + 1;
+  if (startC + 10 >= sheet.colCount) { sheet.colCount = startC + 12; }
+  const heads = [...run.dates.map((d) => `Rec ${FILL_DOW[new Date(d + "T12:00:00").getDay()]}`), "Rec Status", "Reason", "Blocking Rules", "Confidence"];
+  const changes = [];
+  heads.forEach((h, i) => changes.push({ r: 0, c: startC + i, cell: { value: h, formula: null, type: "text", format: { bold: true, bg: "header" } } }));
+  const typeLbl = { standard: "STD", xl: "XL", step_van: "DOT", edv: "EDV" };
+  const ptoSet = new Set(run.payload.pto.map((p) => `${p.driver_id}:${p.date}`));
+  const { maxR } = usedRange(sheet);
+  for (let r = 1; r <= maxR; r++) {
+    const id = fillDriverIdAt(sheet, r);
+    if (!id) continue;
+    const rec = run.recs.get(id);
+    run.dates.forEach((date, i) => {
+      let v = "", fmt = {};
+      if (rec && rec.days.has(date)) {
+        const d = rec.days.get(date);
+        v = typeLbl[d.routeType] || "STD";
+        fmt = { bg: d.warnings.length ? FILL_AMBER : FILL_GREEN, align: "center" };
+      } else if (ptoSet.has(`${id}:${date}`)) {
+        v = "PTO"; fmt = { bg: FILL_RED, align: "center" };
+      } else if (rec) {
+        v = "—"; fmt = { align: "center", fg: "muted" };
+      }
+      changes.push({ r, c: startC + i, cell: v ? { value: v, formula: null, type: "text", format: fmt } : null });
+    });
+    const st = rec ? (rec.status === "Recommended" && rec.accepted ? "Accepted" : rec.status) : "Excluded";
+    const stBg = !rec ? FILL_GRAY : rec.status === "Recommended" || rec.status === "Applied" ? FILL_GREEN : rec.status === "Blocked" ? FILL_RED : FILL_GRAY;
+    changes.push({ r, c: startC + 7, cell: { value: st, formula: null, type: "text", format: { bg: stBg, align: "center" } } });
+    changes.push({ r, c: startC + 8, cell: rec ? { value: rec.reason, formula: null, type: "text", format: {} } : null });
+    changes.push({ r, c: startC + 9, cell: rec && rec.blocking.length ? { value: rec.blocking.join(" · "), formula: null, type: "text", format: { fg: "red" } } : null });
+    changes.push({ r, c: startC + 10, cell: rec && rec.confidence ? { value: `${rec.confidence}%`, formula: null, type: "text", format: { align: "center" } } : null });
+  }
+  setCells(g, changes);
+  computeGeometry(g); // colCount may have grown for the new columns
+  repaintGrid(g);
+  sheet.meta = { ...(sheet.meta || {}), fill: { ...(sheet.meta?.fill || {}), recStartC: startC } };
+  saveSheetMeta(sheet.id);
+}
+
+// ── Schedule Intelligence Bar ───────────────────────────────────────────
+
+function renderFillBar(g) {
+  const chrome = g.els.body.querySelector(".wb-chrome");
+  if (!chrome) return;
+  let bar = chrome.querySelector("[data-wb-intel]");
+  const s = g.fillRun && g.fillRun.summary;
+  const saved = !s && g.sheet.meta?.fill?.lastRun?.summary;
+  const sum = s || saved;
+  if (!sum) { if (bar) bar.remove(); return; }
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.className = "wb-intel";
+    bar.setAttribute("data-wb-intel", "");
+    chrome.appendChild(bar);
+  }
+  const pill = (txt, cls) => `<span class="wb-intel-pill ${cls || ""}">${esc(txt)}</span>`;
+  bar.innerHTML =
+    pill(`${sum.drivers} drivers loaded`) +
+    pill(`${sum.eligible} eligible`, "is-ok") +
+    pill(`${sum.blocked} blocked`, sum.blocked ? "is-warn" : "") +
+    pill(`${sum.needed} routes`) +
+    pill(`${sum.filled} filled`, "is-ok") +
+    pill(`${sum.open} open`, sum.open ? "is-bad" : "is-ok") +
+    pill(`${sum.coverage}% coverage`, sum.coverage >= 98 ? "is-ok" : sum.coverage >= 90 ? "is-warn" : "is-bad") +
+    pill(`${sum.violations} rule violations`, sum.violations ? "is-bad" : "is-ok") +
+    (s ? "" : `<span class="wb-intel-stale">from last run</span>`);
+}
+
+function renderFillPreview(g) {
+  const box = document.querySelector("#wb-build-panel [data-fill-preview]");
+  if (!box || !g.fillRun) return;
+  const s = g.fillRun.summary;
+  box.hidden = false;
+  const row = (label, v, cls) => `<div class="wb-build-stat"><span>${esc(label)}</span><b class="${cls || ""}">${esc(String(v))}</b></div>`;
+  box.innerHTML = `<div class="wb-build-seclbl">Preview — week of ${esc(g.fillRun.weekStart)}</div>` +
+    row("Drivers loaded", s.drivers) +
+    row("Eligible", s.eligible, "is-ok") +
+    row("Blocked", s.blocked, s.blocked ? "is-warn" : "") +
+    row("Routes needed", s.needed) +
+    row("Routes filled", s.filled, "is-ok") +
+    row("Open routes remaining", s.open, s.open ? "is-bad" : "is-ok") +
+    row("Rule violations", s.violations, s.violations ? "is-bad" : "is-ok") +
+    row("PTO conflicts", s.ptoConflicts, s.ptoConflicts ? "is-bad" : "") +
+    row("Certification conflicts", s.certConflicts, s.certConflicts ? "is-bad" : "") +
+    row("Attendance-risk warnings", s.riskWarnings, s.riskWarnings ? "is-warn" : "");
+}
+
+// ── Explain Gaps ────────────────────────────────────────────────────────
+
+const FILL_GAP_ACTIONS = {
+  R003: "renew the driver's license record, or clear the expiry protection window",
+  R004: "certify another driver for this route type, or run the route as standard",
+  R005: "the PTO is approved — plan coverage from other drivers or another day",
+  R006: "ask a driver to extend availability for this day",
+  R007: "approve a 5th-day assignment (enable “Allow 5th day”) or raise max days",
+  R008: "shorten a shift or raise the weekly hour cap",
+  R019: "break up a consecutive-day run — move one of this driver's shifts to another day",
+};
+function fillExplainGaps(g) {
+  const box = document.querySelector("#wb-build-panel [data-fill-gapsout]");
+  if (!box) return;
+  box.hidden = false;
+  if (!g.fillRun) { box.innerHTML = `<div class="wb-build-seclbl">Gaps</div><p class="wb-build-gap">Run Generate Recommendations first.</p>`; return; }
+  const un = g.fillRun.result.uncovered_shifts || [];
+  if (!un.length) {
+    box.innerHTML = `<div class="wb-build-seclbl">Gaps</div><p class="wb-build-gap is-ok">No gaps — every route this week is covered. ✓</p>`;
+    return;
+  }
+  const items = un.slice(0, 12).map((u) => {
+    const actions = [...new Set((u.top_block_reasons || []).map((r) => FILL_GAP_ACTIONS[r.rule]).filter(Boolean))];
+    return `<div class="wb-build-gap">
+      <div>${esc(u.summary)}</div>
+      ${actions.length ? `<div class="wb-build-gapact">Recommended action: ${esc(actions.join("; or "))}.</div>` : ""}
+    </div>`;
+  }).join("");
+  box.innerHTML = `<div class="wb-build-seclbl">Gaps — ${un.length} uncovered route${un.length > 1 ? "s" : ""}</div>` + items +
+    (un.length > 12 ? `<p class="wb-build-gap">…and ${un.length - 12} more (see the exported report).</p>` : "");
+  wbLog("schedule.fill.gaps", `explained ${un.length} coverage gaps for week of ${g.fillRun.weekStart}`, { target_type: "sheet", target_id: g.sheet.id });
+}
+
+// ── Accept / Apply / Undo / Export ─────────────────────────────────────
+
+function fillAccept(g, which) {
+  const run = g.fillRun;
+  if (!run) return;
+  let ids = [];
+  if (which === "all") {
+    ids = [...run.recs.values()].filter((r) => r.days.size).map((r) => r.driverId);
+  } else {
+    const { r0, r1 } = selRect(g);
+    for (let r = r0; r <= r1; r++) {
+      const id = fillDriverIdAt(g.sheet, r);
+      if (id && run.recs.get(id)?.days.size) ids.push(id);
+    }
+    if (!ids.length) { _toast("Select one or more driver rows first", "info"); return; }
+  }
+  for (const id of ids) { const rec = run.recs.get(id); if (rec) rec.accepted = true; }
+  fillWriteRecColumns(g);
+  _toast(`Accepted ${ids.length} recommendation${ids.length > 1 ? "s" : ""}`, "success");
+}
+
+async function fillApply(g) {
+  const run = g.fillRun;
+  if (!run) return;
+  const accepted = [...run.recs.values()].filter((r) => r.accepted && r.days.size);
+  if (!accepted.length) { _toast("Accept recommendations first (Accept Selected / Accept All)", "info"); return; }
+  const updates = [];   // real open shifts → set driver
+  const creates = [];   // virtual routes → new shift rows
+  const skipped = [];
+  // a template shift from the same week donates station/service defaults
+  const template = [...run.realById.values()].find((s) => s.station_id) || null;
+  for (const rec of accepted) {
+    for (const [date, d] of rec.days) {
+      if (d.virtual) {
+        if (!template) { skipped.push(`${rec.name} ${date} (no station template for a new route)`); continue; }
+        creates.push({
+          dsp_id: _dsp().id, driver_id: rec.driverId, date,
+          starts_at: `${date}T09:00:00`, ends_at: `${date}T19:00:00`,
+          status: "scheduled", station_id: template.station_id,
+          service_type_id: template.service_type_id || null,
+          route_code: null,
+        });
+      } else {
+        const prev = run.realById.get(d.shiftId);
+        updates.push({ id: d.shiftId, driver_id: rec.driverId, prev: prev ? prev.driver_id : null });
+      }
+    }
+  }
+  confirmModal({
+    title: "Apply to the real schedule?",
+    body: `Week of ${esc(run.weekStart)}: assign ${updates.length} open route${updates.length === 1 ? "" : "s"}${creates.length ? ` and create ${creates.length} new shift${creates.length === 1 ? "" : "s"}` : ""} for ${accepted.length} driver${accepted.length === 1 ? "" : "s"}.${skipped.length ? ` ${skipped.length} assignment${skipped.length === 1 ? "" : "s"} will be skipped.` : ""} This writes to the live schedule (undo is available).`,
+    confirmLabel: "Apply to Schedule",
+    onConfirm: async () => {
+      try {
+        const updatedOk = [];
+        for (const u of updates) {
+          const res = await _sb().from("shifts").update({ driver_id: u.driver_id }).eq("id", u.id).is("driver_id", null);
+          if (!res.error) updatedOk.push(u);
+          else skipped.push(`shift ${u.id}: ${res.error.message}`);
+        }
+        let createdIds = [];
+        if (creates.length) {
+          const res = await _sb().from("shifts").insert(creates).select("id");
+          if (res.error) skipped.push(`new shifts: ${res.error.message}`);
+          else createdIds = (res.data || []).map((x) => x.id);
+        }
+        g.sheet.meta = { ...(g.sheet.meta || {}), fill: { ...(g.sheet.meta?.fill || {}),
+          applied: { at: new Date().toISOString(), week: run.weekStart,
+            updated: updatedOk.map((u) => ({ id: u.id, prev: u.prev })), created: createdIds } } };
+        saveSheetMeta(g.sheet.id);
+        for (const rec of accepted) rec.status = "Applied";
+        fillWriteRecColumns(g);
+        if (g.fillSyncButtons) g.fillSyncButtons();
+        _toast(`Applied — ${updatedOk.length + createdIds.length} assignments written${skipped.length ? `, ${skipped.length} skipped` : ""}`, skipped.length ? "warn" : "success");
+        wbLog("schedule.fill.applied", `applied schedule recommendations for week of ${run.weekStart}: ${updatedOk.length} assigned, ${createdIds.length} created, ${skipped.length} skipped`, {
+          target_type: "sheet", target_id: g.sheet.id,
+          detail: {
+            week: run.weekStart,
+            assignments_created: createdIds.length, assignments_changed: updatedOk.length,
+            assignments_skipped: skipped.slice(0, 20),
+            overrides_used: accepted.filter((r) => r.overridden).length,
+          },
+        });
+      } catch (e) { _toast("Apply failed: " + ((e && e.message) || e), "error"); }
+    },
+  });
+}
+
+async function fillUndo(g) {
+  const applied = g.sheet.meta?.fill?.applied;
+  if (!applied) { _toast("Nothing to undo", "info"); return; }
+  confirmModal({
+    title: "Undo the applied schedule?",
+    body: `Reverts the ${applied.updated.length + applied.created.length} assignment${applied.updated.length + applied.created.length === 1 ? "" : "s"} written on ${esc(String(applied.at).slice(0, 16).replace("T", " "))} for the week of ${esc(applied.week)}.`,
+    confirmLabel: "Undo apply", danger: true,
+    onConfirm: async () => {
+      try {
+        for (const u of applied.updated) {
+          await _sb().from("shifts").update({ driver_id: u.prev ?? null }).eq("id", u.id);
+        }
+        if (applied.created.length) await _sb().from("shifts").delete().in("id", applied.created);
+        const meta = { ...(g.sheet.meta || {}) };
+        meta.fill = { ...(meta.fill || {}) };
+        delete meta.fill.applied;
+        g.sheet.meta = meta;
+        saveSheetMeta(g.sheet.id);
+        if (g.fillRun) { for (const rec of g.fillRun.recs.values()) if (rec.status === "Applied") rec.status = "Recommended"; fillWriteRecColumns(g); }
+        if (g.fillSyncButtons) g.fillSyncButtons();
+        _toast("Applied schedule reverted", "success");
+        wbLog("schedule.fill.reverted", `undid the applied schedule for week of ${applied.week}`, {
+          target_type: "sheet", target_id: g.sheet.id,
+          detail: { week: applied.week, reverted: applied.updated.length, deleted: applied.created.length },
+        });
+      } catch (e) { _toast("Undo failed: " + ((e && e.message) || e), "error"); }
+    },
+  });
+}
+
+function fillExportReport(g) {
+  const run = g.fillRun;
+  if (!run) return;
+  const s = run.summary;
+  const rows = [
+    ["RouteReady — Schedule Recommendation Report"],
+    ["Week", run.weekStart], ["Generated", new Date().toISOString()],
+    ["Drivers", s.drivers], ["Eligible", s.eligible], ["Blocked", s.blocked],
+    ["Routes needed", s.needed], ["Filled", s.filled], ["Open", s.open],
+    ["Coverage", s.coverage + "%"], ["Rule violations", s.violations],
+    [],
+    ["Driver", ...run.dates, "Status", "Confidence", "Reason", "Blocking rules"],
+  ];
+  const typeLbl = { standard: "STD", xl: "XL", step_van: "DOT", edv: "EDV" };
+  for (const rec of run.recs.values()) {
+    rows.push([
+      rec.name,
+      ...run.dates.map((d) => rec.days.has(d) ? (typeLbl[rec.days.get(d).routeType] || "STD") : ""),
+      rec.status, rec.confidence ? rec.confidence + "%" : "", rec.reason, rec.blocking.join("; "),
+    ]);
+  }
+  rows.push([]);
+  for (const u of (run.result.uncovered_shifts || [])) rows.push(["GAP", u.summary]);
+  const csv = "﻿" + toCsv(rows.map((r) => r.map((x) => csvSafe(x))));
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `schedule-recommendations-${run.weekStart}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+// ── Row-level driver actions (context-menu submenu) ─────────────────────
+
+function fillDriverMenuItems(g, driverId) {
+  const excluded = !!(g.sheet.meta?.fill?.exclude || {})[driverId];
+  const it = (label, act) => ({ label, act });
+  return [
+    it("Open Driver Record", "fill:drawer:profile"),
+    it("Message Driver", "fill:drawer:messages"),
+    it("View Attendance", "fill:drawer:attendance"),
+    it("View Availability", "fill:drawer:availability"),
+    it("View PTO", "fill:drawer:timeoff"),
+    "—",
+    it("Override Recommendation", "fill:override"),
+    it("Lock Assignment", "fill:lock"),
+    it(excluded ? "Include in Build" : "Exclude from Build", "fill:exclude"),
+  ];
+}
+function fillDriverAction(g, driverId, act) {
+  const rec = g.fillRun && g.fillRun.recs.get(driverId);
+  if (act.startsWith("fill:drawer:")) {
+    const tab = act.split(":")[2];
+    if (typeof DRIVER_ACTIONS === "function") DRIVER_ACTIONS(driverId, { tab });
+    else _toast("Driver records open from the main dashboard", "info");
+    return;
+  }
+  if (act === "fill:exclude") {
+    const meta = { ...(g.sheet.meta || {}) };
+    meta.fill = { ...(meta.fill || {}), exclude: { ...(meta.fill?.exclude || {}) } };
+    if (meta.fill.exclude[driverId]) delete meta.fill.exclude[driverId];
+    else meta.fill.exclude[driverId] = true;
+    g.sheet.meta = meta;
+    saveSheetMeta(g.sheet.id);
+    _toast(meta.fill.exclude[driverId] ? "Excluded from the next build" : "Included in the next build", "success");
+    return;
+  }
+  if (!rec) { _toast("Generate recommendations first", "info"); return; }
+  if (act === "fill:lock") {
+    rec.locked = !rec.locked;
+    _toast(rec.locked ? "Assignment locked — future runs keep it" : "Assignment unlocked", "success");
+    return;
+  }
+  if (act === "fill:override") {
+    // flip the active day cell for this driver: remove a recommendation,
+    // or hand-add one (a virtual standard route) — marked as an override
+    const run = g.fillRun;
+    const info = fillSheetInfo(g.sheet);
+    const startC = g.sheet.meta?.fill?.recStartC ?? (info.idCol + 1);
+    const dayIdx = g.active.c - startC;
+    if (dayIdx < 0 || dayIdx > 6) { _toast("Click a Rec day cell first, then override", "info"); return; }
+    const date = run.dates[dayIdx];
+    rec.overridden = true;
+    if (rec.days.has(date)) {
+      rec.days.delete(date);
+      _toast(`Override: removed ${rec.name} from ${date}`, "success");
+    } else {
+      const id = `virtual:${date}:ovr:${driverId}`;
+      run.virtualById.set(id, { id, date, route_type: "standard" });
+      rec.days.set(date, { shiftId: id, virtual: true, routeType: "standard", score: 0, warnings: ["manual override"] });
+      _toast(`Override: added ${rec.name} on ${date}`, "success");
+    }
+    rec.reason = (rec.reason || "") + " (manual override)";
+    fillWriteRecColumns(g);
+  }
+}
+
+
 // ─── Test hook ───────────────────────────────────────────────────────────────
 // Exposed for the Node engine tests (scripts/test-formula-engine.mjs) —
 // not part of the app surface; live.js imports only the view loaders.
@@ -10154,4 +11030,5 @@ export const __engine = {
   buildXlsxBytes,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges,
+  fillWeekDates, fillSheetInfo, fillDriverIdAt, fillSheetDriverIds,
 };

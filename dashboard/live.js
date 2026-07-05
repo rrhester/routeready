@@ -10,7 +10,7 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=b38b7853961d";
 import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=b38b7853961d";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen } from "./workbook.js?v=b38b7853961d";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions } from "./workbook.js?v=b38b7853961d";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b38b7853961d";
 
 const cfg = window.RR_CONFIG;
@@ -27,6 +27,12 @@ window.RR = { sb, user: null, dsp: null };
 initReportsBuilder({ createReportWorkbook });
 registerReportProvider(buildReportData);
 registerReportsScreen(renderReportsInto);
+// Sheet-to-Schedule (workbook "Build Schedule from Sheet"): hand the
+// workbook the SAME engine Smart Fill runs, plus the driver drawer for
+// row-level actions. Arrow-wrapped so openDriverDrawer resolves at call
+// time (it's declared later in this module).
+registerScheduleEngine(planScheduleWeek);
+registerDriverActions((id, opts) => { if (typeof openDriverDrawer === "function") openDriverDrawer(id, opts || {}); });
 window.openReportsScreen = openReportsScreen;
 // Devtools convenience: surface the Supabase client + a one-liner
 // for the okami_demand diagnostic so operators can paste a single

@@ -406,6 +406,81 @@ ok("xlsx: merged ranges and hyperlinks with rels", () => {
   });
 }
 
+// ── Sheet-to-Schedule helpers (pure sheet↔driver plumbing) ──────────────────
+{
+  ok("fill: week dates span 7 days from the start", () => {
+    const w = __engine.fillWeekDates("2026-07-05"); // a Sunday
+    assert.equal(w.length, 7);
+    assert.equal(w[0], "2026-07-05");
+    assert.equal(w[6], "2026-07-11");
+  });
+  ok("fill: month rollover in week dates", () => {
+    const w = __engine.fillWeekDates("2026-07-29");
+    assert.equal(w[6], "2026-08-04");
+  });
+  const mk = (cells) => {
+    const m = new Map();
+    for (const [k, v] of Object.entries(cells)) m.set(k, { value: v, formula: null, type: "text", format: {}, computed: null, err: null });
+    return { rowCount: 50, colCount: 12, cells: m, hiddenRows: new Set(), hiddenCols: new Set(), meta: {} };
+  };
+  ok("fill: driver sheet detected via the Driver ID header column", () => {
+    const sheet = mk({ "0,0": "Driver", "0,8": "Driver ID", "1,0": "A. Jones", "1,8": "drv-1", "2,8": " drv-2 " });
+    assert.deepEqual(__engine.fillSheetInfo(sheet), { idCol: 8 });
+    assert.equal(__engine.fillDriverIdAt(sheet, 1), "drv-1");
+    assert.equal(__engine.fillDriverIdAt(sheet, 2), "drv-2"); // trimmed
+    assert.equal(__engine.fillDriverIdAt(sheet, 0), null);     // header row is never a driver
+    assert.deepEqual([...__engine.fillSheetDriverIds(sheet)].sort(), ["drv-1", "drv-2"]);
+  });
+  ok("fill: non-driver sheets return null", () => {
+    const sheet = mk({ "0,0": "Route", "1,0": "CX-14" });
+    assert.equal(__engine.fillSheetInfo(sheet), null);
+    assert.equal(__engine.fillSheetDriverIds(sheet), null);
+  });
+}
+
+// ── Sheet-to-Schedule ↔ engine contract ──────────────────────────────────────
+// Runs the REAL scheduling engine against a payload in the exact shape
+// fillGenerate assembles, so a drift in either side fails here first.
+{
+  const { planScheduleWeek } = await import("../dashboard/scheduling-engine.js");
+  const payload = {
+    schedule_week_start: "2026-07-12", // a Sunday
+    max_days: 5, weekly_hour_cap: 50, time_budget_ms: 500,
+    rules: { pto_block: true, availability: true, run_mode: "fill_empty_only", preserve_locked_assignments: true, manual_mode: false },
+    drivers: [
+      { id: "drv-a", full_name: "Ada Alvarez", status: "active", hire_date: "2023-01-05", dl_expires_on: "2030-01-01",
+        dot_certified: false, xl_certified: true, edv_certified: false,
+        available_dows: null, preferred_dows: [1, 2], final_corrective_action: false, weekday_affinity: null, fifth_day_ok: false },
+      { id: "drv-b", full_name: "Ben Brooks", status: "active", hire_date: "2024-03-09", dl_expires_on: "2030-01-01",
+        dot_certified: false, xl_certified: false, edv_certified: false,
+        available_dows: null, preferred_dows: null, final_corrective_action: false, weekday_affinity: null, fifth_day_ok: false },
+    ],
+    shifts: [
+      { id: "s1", date: "2026-07-13", starts_at: "2026-07-13T09:00:00", ends_at: "2026-07-13T19:00:00",
+        duration_hours: 10, route_type: "standard", assigned_driver_id: null, is_locked: false, station_id: null, route_code: null },
+      { id: "virtual:2026-07-14:0", date: "2026-07-14", starts_at: "2026-07-14T09:00:00", ends_at: "2026-07-14T19:00:00",
+        duration_hours: 10, route_type: "xl", assigned_driver_id: null, is_locked: false, station_id: null, route_code: null },
+    ],
+    pto: [{ driver_id: "drv-b", date: "2026-07-14" }],
+    ad_hoc_constraints: [],
+  };
+  let result;
+  ok("fill↔engine: planScheduleWeek accepts the sheet-built payload", () => {
+    result = planScheduleWeek(payload);
+    assert.ok(result && typeof result === "object");
+    assert.ok(Array.isArray(result.assigned_shifts), "assigned_shifts array");
+    assert.ok(Array.isArray(result.uncovered_shifts), "uncovered_shifts array");
+    assert.ok(Array.isArray(result.unscheduled_drivers), "unscheduled_drivers array");
+    assert.ok(result.explanations && Array.isArray(result.explanations.assignments), "explanations.assignments");
+  });
+  ok("fill↔engine: XL route goes to the XL-certified driver (PTO respected)", () => {
+    const xl = result.assigned_shifts.find((a) => a.shift_id === "virtual:2026-07-14:0");
+    assert.ok(xl, "XL virtual route was filled");
+    assert.equal(xl.driver_id, "drv-a"); // drv-b lacks XL cert AND has PTO that day
+    assert.ok(result.assigned_shifts.every((a) => !(a.driver_id === "drv-b" && a.shift_id === "virtual:2026-07-14:0")));
+  });
+}
+
 // ── cell images: the data-URL shape check is the injection guard ────────────
 ok("cell image: valid base64 data URLs pass", () => {
   const px = "data:image/webp;base64,UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAQAcJaQAA3AA/v3AgAA=";
