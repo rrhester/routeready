@@ -2214,6 +2214,11 @@ function formatForDisplay(v, format, type) {
       return pct.toLocaleString(undefined, dec != null ? fd(dec) : { maximumFractionDigits: 2 }) + "%";
     }
     if (numFmt === "number") return n.toLocaleString(undefined, fd(dec ?? 2));
+    if (numFmt === "accounting") {
+      const abs = Math.abs(n).toLocaleString(undefined, fd(dec ?? 2));
+      return n < 0 ? `($${abs})` : `$${abs}`;
+    }
+    if (numFmt === "scientific") return n.toExponential(dec ?? 2).toUpperCase();
     if (numFmt === "date") {
       // accept both date text and serial numbers (e.g. =B2+30 results)
       const d = parseDateLoose(String(v)) || (n > 0 && n < 200000 ? serialToDate(n) : null);
@@ -2542,6 +2547,9 @@ function renderDetailPage() {
             </div>
           </span>
         </div>
+      </div>
+      <div class="wb-menubar" role="menubar" aria-label="Workbook menus">
+        ${WB_MENUS.map((n) => `<button type="button" class="wb-menubtn" data-wb-menubar="${n}" role="menuitem">${n}</button>`).join("")}
       </div>
       ${wb.archived_at ? `<div class="wb-archived-note">This workbook is archived — it's read-only in spirit; restore it from the ⋯ menu to keep working.</div>` : ""}
       <div class="wb-body">
@@ -3057,11 +3065,21 @@ function mountSheetBlock(block, body) {
       </div>
       <div class="wb-gr-filterchip" hidden></div>
     </div>
+    <div class="wb-charts" data-wb-charts hidden></div>
     <div class="wb-tabs" data-wb-tabs="${block.id}"></div>
     <div class="wb-statusbar" data-wb-statusbar>
       <span class="wb-sb-mode" data-wb-sbmode>Ready</span>
       <span class="wb-sb-filter" data-wb-sbfilter></span>
       <span class="wb-selstats" data-wb-selstats aria-live="polite"></span>
+      <select class="wb-sb-zoom" data-wb-zoom aria-label="Zoom" title="Zoom">
+        <option value="0.5">50%</option>
+        <option value="0.75">75%</option>
+        <option value="0.9">90%</option>
+        <option value="1" selected>100%</option>
+        <option value="1.25">125%</option>
+        <option value="1.5">150%</option>
+        <option value="2">200%</option>
+      </select>
     </div>`;
 
   const g = {
@@ -3086,6 +3104,7 @@ function mountSheetBlock(block, body) {
       fbarInput: body.querySelector("[data-wb-fbar-input]"),
       fbarErr: body.querySelector("[data-wb-fbar-err]"),
       filterChip: body.querySelector(".wb-gr-filterchip"),
+      charts: body.querySelector("[data-wb-charts]"),
       tabs: body.querySelector("[data-wb-tabs]"),
     },
     active: { r: 0, c: 0 },
@@ -3093,6 +3112,7 @@ function mountSheetBlock(block, body) {
     editing: null,          // { r, c, input, viaBar }
     dragging: false,
     resize: null,
+    zoom: 1,
     filters: new Map(),     // col -> { values: Set<string>|null, text: string|null }
     rows: [],               // visible actual row indexes (filter-aware)
     colX: [], rowY: [],     // prefix sums (rowY over g.rows)
@@ -3108,10 +3128,20 @@ function mountSheetBlock(block, body) {
   renderSheetTabs(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  renderCharts(g);
+  g.els.charts.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-wb-chart]");
+    const act = e.target.closest("[data-wb-chartact]");
+    if (!card || !act) return;
+    const ch = sheetCharts(g.sheet).find((x) => x.id === card.getAttribute("data-wb-chart"));
+    if (!ch) return;
+    if (act.getAttribute("data-wb-chartact") === "edit") openChartDialog(g, ch);
+    else confirmModal({ title: "Delete this chart?", body: "The underlying cells are untouched.", confirmLabel: "Delete chart", danger: true, onConfirm: () => deleteChart(g, ch.id) });
+  });
 }
 
 function sheetToolbarHtml(block, ro) {
-  const btn = (act, title, svg, extra) => `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="${act}" ${extra || ""} title="${esc(title)}" aria-label="${esc(title)}" ${ro && act !== "export-csv" && act !== "find" ? "disabled" : ""}>${svg}</button>`;
+  const btn = (act, title, svg, extra) => `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="${act}" ${extra || ""} title="${esc(title)}" aria-label="${esc(title)}" ${ro && act !== "export-csv" && act !== "find" && act !== "comment-cell" ? "disabled" : ""}>${svg}</button>`;
   const I = {
     undo: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>`,
     redo: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>`,
@@ -3139,9 +3169,10 @@ function sheetToolbarHtml(block, ro) {
     cf: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.6 6 11a6 6 0 0 1-12 0c0-4.4 6-11 6-11z"/></svg>`,
   };
   return `<div class="wb-toolbar" role="toolbar" aria-label="Spreadsheet tools" data-wb-toolbar="${block.id}">
-    <div class="wb-tgrp">${btn("undo", "Undo (Ctrl+Z)", I.undo)}${btn("redo", "Redo (Ctrl+Y)", I.redo)}</div>
+    <div class="wb-tgrp">${btn("undo", "Undo (Ctrl+Z)", I.undo)}${btn("redo", "Redo (Ctrl+Y)", I.redo)}${btn("paint-format", "Format painter — copy the active cell's formatting to the next selection", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="14" height="5" rx="1"/><path d="M18 5h2v5H9v3"/><rect x="7" y="13" width="4" height="8" rx="1"/></svg>`)}</div>
     <div class="wb-tgrp">${btn("autosum", "AutoSum — insert =SUM(…) for the selection", `<span class="wb-tb-txt wb-tb-sigma">Σ</span>`)}</div>
     <div class="wb-tgrp">
+      ${btn("fmt-currency", "Format as currency", `<span class="wb-tb-txt">$</span>`)}${btn("fmt-percent", "Format as percent", `<span class="wb-tb-txt">%</span>`)}
       <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="dec-minus" title="Decrease decimal places" aria-label="Decrease decimal places" ${ro ? "disabled" : ""}><span class="wb-tb-txt wb-tb-dec">.0</span></button>
       <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="dec-plus" title="Increase decimal places" aria-label="Increase decimal places" ${ro ? "disabled" : ""}><span class="wb-tb-txt wb-tb-dec">.00</span></button>
       <span class="popover-anchor">
@@ -3156,7 +3187,7 @@ function sheetToolbarHtml(block, ro) {
         </div>
       </span>
     </div>
-    <div class="wb-tgrp">${btn("bold", "Bold (Ctrl+B)", I.bold)}${btn("italic", "Italic (Ctrl+I)", I.italic)}${btn("underline", "Underline (Ctrl+U)", I.underline)}</div>
+    <div class="wb-tgrp">${btn("bold", "Bold (Ctrl+B)", I.bold)}${btn("italic", "Italic (Ctrl+I)", I.italic)}${btn("underline", "Underline (Ctrl+U)", I.underline)}${btn("strike", "Strikethrough", `<span class="wb-tb-txt"><s>S</s></span>`)}</div>
     <div class="wb-tgrp">${btn("align-left", "Align left", I.alignL)}${btn("align-center", "Align center", I.alignC)}${btn("align-right", "Align right", I.alignR)}<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="wrap" title="Wrap text" aria-label="Wrap text" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><path d="M3 12h13a4 4 0 0 1 0 8h-3"/><polyline points="15 16 12 20 15 24" transform="translate(0,-4)"/><line x1="3" y1="18" x2="9" y2="18"/></svg></button></div>
     <div class="wb-tgrp">
       <span class="popover-anchor">${btn("fill-menu", "Fill color", I.fill, 'aria-haspopup="menu"')}
@@ -3172,6 +3203,7 @@ function sheetToolbarHtml(block, ro) {
         </div></span>
       ${btn("clear-format", "Clear formatting", I.clearFmt)}
     </div>
+    <div class="wb-tgrp">${btn("merge", "Merge / unmerge cells", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M9 12h6"/><path d="M7 9l-2 3 2 3"/><path d="M17 9l2 3-2 3"/></svg>`)}${btn("insert-link", "Insert link (Ctrl+click opens)", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`)}${btn("comment-cell", "Comment on the active cell", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`)}${btn("insert-chart", "Insert chart from the selection", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="10" width="3" height="7"/><rect x="11" y="6" width="3" height="11"/><rect x="16" y="13" width="3" height="4"/></svg>`)}</div>
     <div class="wb-tgrp">${btn("row-add", "Insert row below", I.addRow)}${btn("row-del", "Delete row", I.delRow)}${btn("col-add", "Insert column right", I.addCol)}${btn("col-del", "Delete column", I.delCol)}</div>
     <div class="wb-tgrp">
       <span class="popover-anchor">${btn("freeze-menu", "Freeze", I.freeze, 'aria-haspopup="menu"')}
@@ -3189,6 +3221,7 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-tb2="import-csv" role="menuitem" ${ro ? "disabled" : ""}>Import CSV into this sheet…</button>
           <button type="button" class="popover-item" data-wb-tb2="export-xlsx" role="menuitem">Export as Excel (.xlsx)</button>
           <button type="button" class="popover-item" data-wb-tb2="export-csv" role="menuitem">Export sheet as CSV</button>
+          <button type="button" class="popover-item" data-wb-tb2="print" role="menuitem">Print sheet…</button>
         </div>
       </span>
     </div>
@@ -3225,12 +3258,13 @@ function computeGeometry(g) {
     if (show) rows.push(r);
   }
   g.rows = rows;
+  const z = g.zoom || 1; // zoom scales the geometry itself, so hit-testing stays exact
   g.rowY = new Array(rows.length + 1);
   g.rowY[0] = 0;
-  for (let i = 0; i < rows.length; i++) g.rowY[i + 1] = g.rowY[i] + rowH(sheet, rows[i]);
+  for (let i = 0; i < rows.length; i++) g.rowY[i + 1] = g.rowY[i] + Math.round(rowH(sheet, rows[i]) * z);
   g.colX = new Array(sheet.colCount + 1);
   g.colX[0] = 0;
-  for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + colW(sheet, c);
+  for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + Math.round(colW(sheet, c) * z);
   g.els.canvas.style.width = g.colX[sheet.colCount] + "px";
   g.els.canvas.style.height = g.rowY[rows.length] + "px";
   sizeGrid(g);
@@ -3254,6 +3288,16 @@ function sizeGrid(g) {
   if (Math.abs(cur - target) > 3) grid.style.height = Math.round(target) + "px";
 }
 
+function setZoom(g, z) {
+  g.zoom = Math.min(2, Math.max(0.5, z || 1));
+  g.els.grid.style.setProperty("--wb-zoom", String(g.zoom));
+  const sel = g.els.body.querySelector("[data-wb-zoom]");
+  if (sel) sel.value = String(g.zoom);
+  cancelEdit(g);
+  computeGeometry(g);
+  repaintGrid(g);
+}
+
 function idxFromPrefix(prefix, pos) {
   let lo = 0, hi = prefix.length - 2;
   if (pos <= 0) return 0;
@@ -3272,22 +3316,60 @@ function dispIndexOfRow(g, r) { return g.rows.indexOf(r); }
 
 // ─── Painting ────────────────────────────────────────────────────────────────
 
+// Web-safe families only — nothing to load, and every one round-trips
+// through the XLSX exporter with a matching installed-font name.
+const WB_FONT_FAMILIES = {
+  arial: "Arial, Helvetica, sans-serif",
+  georgia: "Georgia, 'Times New Roman', serif",
+  times: "'Times New Roman', Times, serif",
+  courier: "'Courier New', Courier, monospace",
+  verdana: "Verdana, Geneva, sans-serif",
+  trebuchet: "'Trebuchet MS', sans-serif",
+};
+const WB_FONT_LABELS = { arial: "Arial", georgia: "Georgia", times: "Times New Roman", courier: "Courier New", verdana: "Verdana", trebuchet: "Trebuchet MS" };
+
+// Cells are flex containers (vertical centering + valign support), so
+// horizontal alignment needs both text-align (wrapped lines) and
+// justify-content (the flex item itself).
+function alignCss(a) {
+  const jc = a === "left" ? "flex-start" : a === "center" ? "center" : "flex-end";
+  return `text-align:${a};justify-content:${jc};`;
+}
+
 function cellStyle(sheet, r, c, cell) {
   const f = (cell && cell.format) || {};
   let s = "";
   if (f.bold) s += "font-weight:600;";
   if (f.italic) s += "font-style:italic;";
-  if (f.underline) s += "text-decoration:underline;";
-  if (f.align) s += `text-align:${f.align};`;
-  else if (!f.align && cell && !cell.formula && (cell.type === "number" || cell.type === "currency" || cell.type === "percent")) s += "text-align:right;";
-  else if (cell && cell.formula && typeof cell.computed === "number") s += "text-align:right;";
+  const deco = [];
+  if (f.underline || f.link) deco.push("underline");
+  if (f.strike) deco.push("line-through");
+  if (deco.length) s += `text-decoration:${deco.join(" ")};`;
+  if (Number.isInteger(f.fs)) s += `font-size:calc(${Math.min(36, Math.max(8, f.fs))}px * var(--wb-zoom, 1));`;
+  if (f.ff && WB_FONT_FAMILIES[f.ff]) s += `font-family:${WB_FONT_FAMILIES[f.ff]};`;
+  if (f.align) s += alignCss(f.align);
+  else if (cell && !cell.formula && (cell.type === "number" || cell.type === "currency" || cell.type === "percent")) s += alignCss("right");
+  else if (cell && cell.formula && typeof cell.computed === "number") s += alignCss("right");
+  if (f.valign) s += `align-items:${f.valign === "top" ? "flex-start" : f.valign === "bottom" ? "flex-end" : "center"};`;
   if (f.bg && f.bg !== "header") s += `background:${wbColorCss("bg", f.bg)};`;
   if (f.bg === "header") s += "background:var(--canvas);font-weight:600;";
   if (f.fg) s += `color:${wbColorCss("fg", f.fg)};`;
+  else if (f.link) s += "color:var(--accent, #2563EB);";
   if (f.wrap) s += "white-space:normal;line-height:1.3;";
   if (f.border === "all" || f.border === "outline") s += "box-shadow:inset 0 0 0 1px var(--border-strong);";
-  if (f.border === "bottom") s += "box-shadow:inset 0 -1.5px 0 var(--border-strong);";
+  else if (f.border === "bottom") s += "box-shadow:inset 0 -1.5px 0 var(--border-strong);";
+  else if (f.border === "top") s += "box-shadow:inset 0 1.5px 0 var(--border-strong);";
+  else if (f.border === "left") s += "box-shadow:inset 1.5px 0 0 var(--border-strong);";
+  else if (f.border === "right") s += "box-shadow:inset -1.5px 0 0 var(--border-strong);";
   return s;
+}
+
+// Cell content wrapper: rotated text renders inside a span so the
+// background/borders stay square.
+function cellInnerHtml(cell, disp) {
+  const f = cell && cell.format;
+  if (f && (f.rot === 45 || f.rot === 90)) return `<span class="wb-rot" style="transform:rotate(-${f.rot}deg)">${esc(disp)}</span>`;
+  return esc(disp);
 }
 
 const WB_COLORS = {
@@ -3341,19 +3423,34 @@ function paintNow(g) {
 
   // cells
   const commented = commentedCellSet(sheet.id);
+  const mergesArr = sheetMerges(sheet);
+  const cellDiv = (r, c, x, top, w, h) => {
+    const key = cellKey(r, c);
+    const cell = sheet.cells.get(key);
+    const disp = cell ? displayValue(sheet, r, c) : "";
+    const err = cell && cell.err;
+    const inval = cellInvalid(sheet, r, c, cell);
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell ? cellInnerHtml(cell, disp) : ""}</div>`;
+  };
   let html = "";
+  const paintedMerges = new Set();
   for (let di = d0; di <= d1; di++) {
     const r = g.rows[di];
     const top = g.rowY[di], h = g.rowY[di + 1] - top;
     for (let c = c0; c <= c1; c++) {
       const w = g.colX[c + 1] - g.colX[c];
       if (w === 0) continue; // hidden column
-      const key = cellKey(r, c);
-      const cell = sheet.cells.get(key);
-      const disp = cell ? displayValue(sheet, r, c) : "";
-      const err = cell && cell.err;
-      const inval = cellInvalid(sheet, r, c, cell);
-      html += `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""}" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${esc(disp)}</div>`;
+      const mg = mergesArr.length ? mergeAt(sheet, r, c) : null;
+      if (mg) {
+        // any visible piece of a merge paints the whole merge once,
+        // anchored at the anchor cell's absolute coordinates
+        if (paintedMerges.has(mg)) continue;
+        const px = mergePixelRect(g, mg);
+        paintedMerges.add(mg);
+        if (px) html += cellDiv(mg.r0, mg.c0, px.x, px.y, px.w, px.h);
+        continue;
+      }
+      html += cellDiv(r, c, g.colX[c], top, w, h);
     }
   }
   g.els.cells.innerHTML = html;
@@ -3377,8 +3474,10 @@ function paintSelection(g) {
     }
   }
   if (adi >= 0) {
-    const ax = g.colX[a.c], aw = g.colX[a.c + 1] - ax;
-    const ay = g.rowY[adi], ah = g.rowY[adi + 1] - ay;
+    const am = mergeAt(g.sheet, a.r, a.c);
+    const px = am ? mergePixelRect(g, am) : null;
+    const ax = px ? px.x : g.colX[a.c], aw = px ? px.w : g.colX[a.c + 1] - g.colX[a.c];
+    const ay = px ? px.y : g.rowY[adi], ah = px ? px.h : g.rowY[adi + 1] - g.rowY[adi];
     html += `<div class="wb-sel-active" style="left:${ax}px;top:${ay}px;width:${aw}px;height:${ah}px"></div>`;
   }
   // drag-fill handle at the selection's bottom-right corner
@@ -3436,7 +3535,7 @@ function paintFrozen(g, sx, sy, c0, c1) {
     for (let c = c0; c <= c1; c++) {
       const cell = sheet.cells.get(cellKey(r, c));
       const w = g.colX[c + 1] - g.colX[c];
-      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${esc(cell ? displayValue(sheet, r, c) : "")}</div>`;
+      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}</div>`;
     }
     g.els.frozenTop.hidden = false;
     g.els.frozenTop.style.height = h + "px";
@@ -3455,7 +3554,7 @@ function paintFrozen(g, sx, sy, c0, c1) {
       const r = g.rows[di];
       const cell = sheet.cells.get(cellKey(r, 0));
       const h = g.rowY[di + 1] - g.rowY[di];
-      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${esc(cell ? displayValue(sheet, r, 0) : "")}</div>`;
+      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${cell ? cellInnerHtml(cell, displayValue(sheet, r, 0)) : ""}</div>`;
     }
     g.els.frozenLeft.hidden = false;
     g.els.frozenLeft.style.left = HDR_COL_W + "px";
@@ -3578,10 +3677,19 @@ function openFormatCellsDialog(g) {
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">Number format</span>
             <select class="wb-input" id="wb-fmt-num">
-              ${opt("", "Automatic")}${opt("number", "Number · 1,250.00")}${opt("currency", "Currency · $1,250.00")}${opt("percent", "Percent · 12%")}${opt("date", "Date · Jul 4, 2026")}${opt("text", "Plain text")}
+              ${opt("", "Automatic")}${opt("number", "Number · 1,250.00")}${opt("currency", "Currency · $1,250.00")}${opt("accounting", "Accounting · ($1,250.00)")}${opt("percent", "Percent · 12%")}${opt("scientific", "Scientific · 1.25E+3")}${opt("date", "Date · Jul 4, 2026")}${opt("text", "Plain text")}
             </select></label>
           <label class="wb-field" style="flex:0 0 132px"><span class="wb-field-label">Decimal places</span>
             <input type="number" class="wb-input" id="wb-fmt-dec" min="0" max="6" step="1" value="${Number.isInteger(f.dec) ? f.dec : ""}" placeholder="auto"></label>
+        </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Font</span>
+            <select class="wb-input" id="wb-fmt-ff">
+              <option value="" ${!f.ff ? "selected" : ""}>Default (system sans)</option>
+              ${Object.entries(WB_FONT_LABELS).map(([k, label]) => `<option value="${k}" ${f.ff === k ? "selected" : ""} style="font-family:${WB_FONT_FAMILIES[k]}">${label}</option>`).join("")}
+            </select></label>
+          <label class="wb-field" style="flex:0 0 132px"><span class="wb-field-label">Font size (px)</span>
+            <input type="number" class="wb-input" id="wb-fmt-fs" min="8" max="36" step="1" value="${Number.isInteger(f.fs) ? f.fs : ""}" placeholder="auto"></label>
         </div>
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">Alignment</span>
@@ -3591,13 +3699,26 @@ function openFormatCellsDialog(g) {
               <option value="center" ${f.align === "center" ? "selected" : ""}>Center</option>
               <option value="right" ${f.align === "right" ? "selected" : ""}>Right</option>
             </select></label>
-          <div class="wb-field"><span class="wb-field-label">Style</span>
-            <div class="wb-fmt-checks">
-              <label><input type="checkbox" id="wb-fmt-bold" ${f.bold ? "checked" : ""}> <strong>B</strong></label>
-              <label><input type="checkbox" id="wb-fmt-italic" ${f.italic ? "checked" : ""}> <em>I</em></label>
-              <label><input type="checkbox" id="wb-fmt-underline" ${f.underline ? "checked" : ""}> <u>U</u></label>
-              <label><input type="checkbox" id="wb-fmt-wrap" ${f.wrap ? "checked" : ""}> Wrap</label>
-            </div>
+          <label class="wb-field"><span class="wb-field-label">Vertical</span>
+            <select class="wb-input" id="wb-fmt-valign">
+              <option value="" ${!f.valign ? "selected" : ""}>Middle</option>
+              <option value="top" ${f.valign === "top" ? "selected" : ""}>Top</option>
+              <option value="bottom" ${f.valign === "bottom" ? "selected" : ""}>Bottom</option>
+            </select></label>
+          <label class="wb-field"><span class="wb-field-label">Rotation</span>
+            <select class="wb-input" id="wb-fmt-rot">
+              <option value="" ${!f.rot ? "selected" : ""}>None</option>
+              <option value="45" ${f.rot === 45 ? "selected" : ""}>Tilt 45°</option>
+              <option value="90" ${f.rot === 90 ? "selected" : ""}>Vertical</option>
+            </select></label>
+        </div>
+        <div class="wb-field"><span class="wb-field-label">Style</span>
+          <div class="wb-fmt-checks">
+            <label><input type="checkbox" id="wb-fmt-bold" ${f.bold ? "checked" : ""}> <strong>B</strong></label>
+            <label><input type="checkbox" id="wb-fmt-italic" ${f.italic ? "checked" : ""}> <em>I</em></label>
+            <label><input type="checkbox" id="wb-fmt-underline" ${f.underline ? "checked" : ""}> <u>U</u></label>
+            <label><input type="checkbox" id="wb-fmt-strike" ${f.strike ? "checked" : ""}> <s>S</s></label>
+            <label><input type="checkbox" id="wb-fmt-wrap" ${f.wrap ? "checked" : ""}> Wrap</label>
           </div>
         </div>
         <div class="wb-fmt-preview" id="wb-fmt-preview" aria-live="polite"></div>
@@ -3610,13 +3731,19 @@ function openFormatCellsDialog(g) {
   document.body.appendChild(wrap);
   const readForm = () => {
     const decRaw = wrap.querySelector("#wb-fmt-dec").value;
+    const fsRaw = wrap.querySelector("#wb-fmt-fs").value;
     return {
       num: wrap.querySelector("#wb-fmt-num").value || null,
       dec: decRaw === "" ? null : Math.min(6, Math.max(0, Math.trunc(+decRaw))),
+      ff: wrap.querySelector("#wb-fmt-ff").value || null,
+      fs: fsRaw === "" ? null : Math.min(36, Math.max(8, Math.trunc(+fsRaw))),
       align: wrap.querySelector("#wb-fmt-align").value || null,
+      valign: wrap.querySelector("#wb-fmt-valign").value || null,
+      rot: +wrap.querySelector("#wb-fmt-rot").value || null,
       bold: wrap.querySelector("#wb-fmt-bold").checked || null,
       italic: wrap.querySelector("#wb-fmt-italic").checked || null,
       underline: wrap.querySelector("#wb-fmt-underline").checked || null,
+      strike: wrap.querySelector("#wb-fmt-strike").checked || null,
       wrap: wrap.querySelector("#wb-fmt-wrap").checked || null,
     };
   };
@@ -4100,11 +4227,20 @@ function paintCommentMarkers() {
 // ─── Sheet tabs ──────────────────────────────────────────────────────────────
 
 function renderSheetTabs(g) {
-  const sheets = (WB.sheetsByBlock.get(g.blockId) || []).slice().sort((a, b) => a.position - b.position);
+  const all = (WB.sheetsByBlock.get(g.blockId) || []).slice().sort((a, b) => a.position - b.position);
+  const sheets = all.filter((sh) => !(sh.meta && sh.meta.hidden) || sh.id === g.sheet.id);
   const ro = !WB.canEdit;
+  const tabBtn = (sh) => {
+    const active = sh.id === g.sheet.id;
+    const color = sh.meta && sh.meta.tabColor && HEX_COLOR_RE.test(sh.meta.tabColor) ? sh.meta.tabColor : null;
+    return `<button type="button" class="wb-tab ${active ? "is-active" : ""}" role="tab" aria-selected="${active}" data-wb-sheettab="${sh.id}" title="${esc(sh.name)}${ro ? "" : " — double-click to rename"}"${color ? ` style="box-shadow:inset 0 -3px 0 ${color}"` : ""}>${esc(sh.name)}${active && !ro ? `<span class="wb-tab-caret" data-wb-tabmenu="${sh.id}" title="Sheet menu" aria-label="Sheet menu">▾</span>` : ""}</button>`;
+  };
   g.els.tabs.innerHTML = `
+    <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tab-all" data-wb-allsheets title="All sheets" aria-label="All sheets">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
     <div class="wb-tabs-scroll" role="tablist" aria-label="Sheets">
-      ${sheets.map((sh) => `<button type="button" class="wb-tab ${sh.id === g.sheet.id ? "is-active" : ""}" role="tab" aria-selected="${sh.id === g.sheet.id}" data-wb-sheettab="${sh.id}" title="${esc(sh.name)}${ro ? "" : " — double-click to rename"}">${esc(sh.name)}</button>`).join("")}
+      ${sheets.map(tabBtn).join("")}
     </div>
     ${ro ? "" : `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tab-add" data-wb-act="sheet-add" data-block="${g.blockId}" title="Add sheet" aria-label="Add sheet">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -4112,6 +4248,26 @@ function renderSheetTabs(g) {
   g.els.selstats = g.els.body.querySelector("[data-wb-selstats]");
   g.els.sbmode = g.els.body.querySelector("[data-wb-sbmode]");
   g.els.sbfilter = g.els.body.querySelector("[data-wb-sbfilter]");
+}
+
+// Sheets' ☰ list: every sheet including hidden ones; picking a hidden
+// sheet unhides it.
+function openAllSheetsMenu(g, x, y) {
+  const all = (WB.sheetsByBlock.get(g.blockId) || []).slice().sort((a, b) => a.position - b.position);
+  const m = ctxMenu(x, y, all.map((sh) => {
+    const hidden = sh.meta && sh.meta.hidden;
+    return `<button type="button" class="popover-item" data-sheet-go="${esc(sh.id)}" role="menuitem">${sh.id === g.sheet.id ? "✓ " : ""}${esc(sh.name)}${hidden ? ` <span class="wb-badge is-muted">hidden</span>` : ""}</button>`;
+  }).join(""));
+  m.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-sheet-go]");
+    if (!btn) return;
+    const sh = all.find((s) => s.id === btn.getAttribute("data-sheet-go"));
+    closeAllPopovers();
+    if (!sh) return;
+    if (sh.meta && sh.meta.hidden && WB.canEdit) { sh.meta = { ...sh.meta, hidden: false }; saveSheetMeta(sh.id); }
+    switchSheet(g, sh.id);
+    renderSheetTabs(g);
+  });
 }
 
 function switchSheet(g, sheetId) {
@@ -4134,6 +4290,7 @@ function switchSheet(g, sheetId) {
   renderSheetTabs(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  renderCharts(g);
 }
 
 // ─── Selection + navigation ─────────────────────────────────────────────────
@@ -4142,6 +4299,8 @@ function setActive(g, r, c, opts) {
   const sheet = g.sheet;
   r = Math.max(0, Math.min(sheet.rowCount - 1, r));
   c = Math.max(0, Math.min(sheet.colCount - 1, c));
+  const mg = mergeAt(sheet, r, c);
+  if (mg) { r = mg.r0; c = mg.c0; } // clicks inside a merge land on its anchor
   g.active = { r, c };
   if (!opts || !opts.keepSel) g.sel = { r0: r, c0: c, r1: r, c1: c };
   if (!g.editing && g.els.refhl && g.els.refhl.innerHTML) g.els.refhl.innerHTML = "";
@@ -4181,6 +4340,14 @@ function moveActive(g, dr, dc, extend) {
       if (nxt < 0 || nxt >= g.sheet.colCount) break;
       c = nxt;
     }
+  }
+  // arrows step past a merged range instead of getting stuck inside it
+  const fromM = mergeAt(g.sheet, extend ? g.sel.r1 : g.active.r, extend ? g.sel.c1 : g.active.c);
+  if (fromM && r >= fromM.r0 && r <= fromM.r1 && c >= fromM.c0 && c <= fromM.c1) {
+    if (dr > 0) r = g.rows.find((x) => x > fromM.r1) ?? r;
+    else if (dr < 0) { let cand = null; for (const x of g.rows) { if (x < fromM.r0) cand = x; else break; } r = cand ?? r; }
+    if (dc > 0) c = Math.min(g.sheet.colCount - 1, fromM.c1 + 1);
+    else if (dc < 0) c = Math.max(0, fromM.c0 - 1);
   }
   if (extend) {
     g.sel.r1 = r; g.sel.c1 = c;
@@ -4267,6 +4434,7 @@ function setCells(g, changes, opts) {
   if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  scheduleChartRender(g);
 }
 
 function undoGrid(g) {
@@ -4285,6 +4453,7 @@ function undoGrid(g) {
   if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  scheduleChartRender(g);
 }
 
 function redoGrid(g) {
@@ -4301,6 +4470,7 @@ function redoGrid(g) {
   if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  scheduleChartRender(g);
 }
 
 // Parse raw user input into a cell object (or null for empty).
@@ -4334,11 +4504,13 @@ function startEdit(g, r, c, initial) {
   input.className = "wb-cell-editor";
   input.setAttribute("aria-label", `Edit cell ${colLabel(c)}${r + 1}`);
   input.value = initial != null ? initial : cell ? (cell.formula || (cell.value ?? "")) : "";
-  const x = g.colX[c], y = g.rowY[di];
+  const am = mergeAt(sheet, r, c);
+  const px = am ? mergePixelRect(g, am) : null;
+  const x = px ? px.x : g.colX[c], y = px ? px.y : g.rowY[di];
   input.style.left = x + "px";
   input.style.top = y + "px";
-  input.style.width = Math.max(g.colX[c + 1] - x, 60) + "px";
-  input.style.height = (g.rowY[di + 1] - y) + "px";
+  input.style.width = Math.max(px ? px.w : g.colX[c + 1] - x, 60) + "px";
+  input.style.height = (px ? px.h : g.rowY[di + 1] - y) + "px";
   g.els.canvas.appendChild(input);
   // type-to-replace passes the first typed char as `initial` — that
   // always counts as a change, so orig must NOT equal the seeded value
@@ -4778,6 +4950,7 @@ function restructure(g, axis, index, delta) {
   const a = g.active;
   computeGeometry(g);
   setActive(g, Math.min(a.r, sheet.rowCount - 1), Math.min(a.c, sheet.colCount - 1));
+  scheduleChartRender(g);
 }
 
 function shiftIndexMap(map, index, delta) {
@@ -4938,7 +5111,7 @@ function shiftRuleRanges(sheet, axis, index, delta) {
   const meta = sheet.meta || {};
   const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
   const cut = delta < 0 ? -delta : 0;
-  for (const key of ["validation", "condFormat"]) {
+  for (const key of ["validation", "condFormat", "merges", "charts"]) {
     if (!Array.isArray(meta[key]) || !meta[key].length) continue;
     const next = [];
     for (const rule of meta[key]) {
@@ -5357,6 +5530,7 @@ function sortBySpecs(g, specs) {
   let maxRow = 0;
   for (const key of sheet.cells.keys()) maxRow = Math.max(maxRow, keyRC(key).r);
   if (maxRow < 2) { _toast("Nothing to sort below the header row", "info"); return; }
+  if (sheetMerges(sheet).some((m) => m.r1 > 0)) { _toast("Unmerge cells below the header before sorting", "warn"); return; }
   const rowsIdx = [];
   for (let r = 1; r <= maxRow; r++) rowsIdx.push(r);
   const keyOf = (r, col) => {
@@ -5563,6 +5737,105 @@ function openFilterPanel(g, col, anchorEl, at) {
   setTimeout(() => m.querySelector("[data-fp-text]")?.focus(), 30);
 }
 
+// ─── Merged cells ────────────────────────────────────────────────────────────
+// Merge rectangles live in sheet.meta.merges as {r0,c0,r1,c1}. The
+// top-left (anchor) cell holds the value; covered cells are skipped at
+// paint time and clicks/arrows resolve to the anchor.
+
+function sheetMerges(sheet) {
+  const v = sheet.meta && sheet.meta.merges;
+  return Array.isArray(v) ? v : [];
+}
+
+function mergeAt(sheet, r, c) {
+  for (const m of sheetMerges(sheet)) {
+    if (r >= m.r0 && r <= m.r1 && c >= m.c0 && c <= m.c1) return m;
+  }
+  return null;
+}
+
+// Pixel rect of a merge in canvas space (filter/hide-aware). Null when
+// the anchor row is filtered out.
+function mergePixelRect(g, m) {
+  const di0 = dispIndexOfRow(g, m.r0);
+  if (di0 < 0) return null;
+  let di1 = di0;
+  for (let r = m.r1; r >= m.r0; r--) { const d = dispIndexOfRow(g, r); if (d >= 0) { di1 = d; break; } }
+  return { x: g.colX[m.c0], y: g.rowY[di0], w: g.colX[m.c1 + 1] - g.colX[m.c0], h: g.rowY[di1 + 1] - g.rowY[di0] };
+}
+
+function setMerges(g, merges) {
+  g.sheet.meta = { ...(g.sheet.meta || {}), merges };
+  saveSheetMeta(g.sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+}
+
+function toggleMergeSelection(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const touched = sheetMerges(sheet).filter((m) => !(m.r1 < rect.r0 || m.r0 > rect.r1 || m.c1 < rect.c0 || m.c0 > rect.c1));
+  if (touched.length) {
+    setMerges(g, sheetMerges(sheet).filter((m) => !touched.includes(m)));
+    wbLog("sheet.merge", `unmerged ${touched.length} range${touched.length === 1 ? "" : "s"} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+    return;
+  }
+  if (rect.r0 === rect.r1 && rect.c0 === rect.c1) { _toast("Select more than one cell to merge", "info"); return; }
+  if ((rect.r1 - rect.r0 + 1) * (rect.c1 - rect.c0 + 1) > 400) { _toast("That merge is too large", "warn"); return; }
+  // keep the top-left value; clearing the rest is undoable
+  const changes = [];
+  for (let r = rect.r0; r <= rect.r1; r++) {
+    for (let c = rect.c0; c <= rect.c1; c++) {
+      if (r === rect.r0 && c === rect.c0) continue;
+      const cell = sheet.cells.get(cellKey(r, c));
+      if (cell && (cell.value != null || cell.formula)) changes.push({ r, c, cell: null });
+    }
+  }
+  if (changes.length) { setCells(g, changes); _toast("Merged — only the top-left value was kept", "info"); }
+  setMerges(g, [...sheetMerges(sheet), { r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 }]);
+  setActive(g, rect.r0, rect.c0);
+  wbLog("sheet.merge", `merged ${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+}
+
+// ─── Format painter ──────────────────────────────────────────────────────────
+// Copy the active cell's formatting, then the next selection gets it
+// applied wholesale (values and formulas untouched). Esc cancels.
+
+function startFormatPainter(g) {
+  if (!WB.canEdit) return;
+  if (g.painter) { cancelFormatPainter(g); return; }
+  const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
+  g.painter = cell && cell.format ? { ...cell.format } : {};
+  g.els.body.querySelector('[data-wb-tb="paint-format"]')?.classList.add("is-on");
+  if (g.els.sbmode) g.els.sbmode.textContent = "Format painter — select cells to apply · Esc to cancel";
+}
+
+function cancelFormatPainter(g) {
+  if (!g.painter) return;
+  g.painter = null;
+  g.els.body.querySelector('[data-wb-tb="paint-format"]')?.classList.remove("is-on");
+  markSaveState(WB.saveState);
+}
+
+function applyFormatPainter(g) {
+  const src = g.painter;
+  if (!src) return;
+  cancelFormatPainter(g);
+  const changes = [];
+  const { c0, c1 } = selRect(g);
+  for (const r of selVisibleRows(g)) {
+    for (let c = c0; c <= c1; c++) {
+      const cell = g.sheet.cells.get(cellKey(r, c));
+      if (!cell && !Object.keys(src).length) continue;
+      const base = cell ? cloneCell(cell) : { value: null, formula: null, type: null, format: {} };
+      base.format = { ...src };
+      changes.push({ r, c, cell: base.value == null && base.formula == null && !Object.keys(base.format).length ? null : base });
+    }
+  }
+  if (changes.length) setCells(g, changes);
+}
+
 // ─── Autofit ─────────────────────────────────────────────────────────────────
 // Size columns to their widest rendered value (Excel's double-click-the-
 // divider gesture). Canvas measureText against the grid's own font.
@@ -5582,8 +5855,11 @@ function autofitColumns(g, c0, c1) {
     const disp = displayValue(sheet, r, c);
     if (!disp) continue;
     if (++scanned > 20000) break;
-    const bold = cell.format && (cell.format.bold || cell.format.bg === "header");
-    AUTOFIT_MEASURE.font = `${bold ? "600" : cs.fontWeight || "400"} ${cs.fontSize || "13px"} ${cs.fontFamily || "sans-serif"}`;
+    const f = cell.format || {};
+    const bold = f.bold || f.bg === "header";
+    const fsPx = Number.isInteger(f.fs) ? `${f.fs}px` : cs.fontSize || "13px";
+    const fam = f.ff && WB_FONT_FAMILIES[f.ff] ? WB_FONT_FAMILIES[f.ff] : cs.fontFamily || "sans-serif";
+    AUTOFIT_MEASURE.font = `${bold ? "600" : cs.fontWeight || "400"} ${fsPx} ${fam}`;
     const w = Math.ceil(AUTOFIT_MEASURE.measureText(disp).width) + 18;
     if (w > (widths.get(c) || 0)) widths.set(c, w);
   }
@@ -5649,14 +5925,21 @@ async function duplicateSheet(g, sheetId) {
   const src = sheets.find((s) => s.id === sheetId);
   if (!src || !WB.canEdit) return;
   try {
-    const ins = await _sb().from("workbook_sheets").insert({
+    const shRow = {
       dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, block_id: g.blockId,
       name: `${src.name} copy`.slice(0, 80),
       position: sheets.length ? Math.max(...sheets.map((s) => s.position)) + 1 : 0,
       row_count: src.rowCount, col_count: src.colCount,
       frozen_rows: src.frozenRows, frozen_cols: src.frozenCols,
       col_widths: src.colWidths || {}, row_heights: src.rowHeights || {},
-    }).select().single();
+      // rules, merges, charts, filter views, tab color all ride along
+      meta: { ...(src.meta || {}), hiddenRows: [...(src.hiddenRows || [])], hiddenCols: [...(src.hiddenCols || [])] },
+    };
+    let ins = await _sb().from("workbook_sheets").insert(shRow).select().single();
+    if (ins.error && /meta/i.test(String(ins.error.message))) {
+      delete shRow.meta; // pre-0414 schema
+      ins = await _sb().from("workbook_sheets").insert(shRow).select().single();
+    }
     if (ins.error) throw ins.error;
     const sheet = normalizeSheet(ins.data);
     const rows = [];
@@ -5768,6 +6051,237 @@ function exportSheetCsv(g) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   wbLog("csv.exported", `exported ${sheet.name} as CSV`, { target_type: "sheet", target_id: sheet.id });
   _toast("CSV exported", "success");
+}
+
+// ─── Print ───────────────────────────────────────────────────────────────────
+// Clean HTML-table rendition of the used range in a popup, which then
+// calls window.print() — covers paper and print-to-PDF.
+
+function printSheet(g) {
+  const sheet = g.sheet;
+  const { maxR, maxC } = usedRange(sheet);
+  if (maxR < 0) { _toast("This sheet is empty — nothing to print", "info"); return; }
+  const merges = sheetMerges(sheet);
+  const covered = new Set();
+  for (const m of merges) {
+    for (let r = m.r0; r <= m.r1; r++) for (let c = m.c0; c <= m.c1; c++) if (r !== m.r0 || c !== m.c0) covered.add(cellKey(r, c));
+  }
+  let rowsHtml = "";
+  for (let r = 0; r <= maxR; r++) {
+    if (sheet.hiddenRows && sheet.hiddenRows.has(r)) continue;
+    let tds = "";
+    for (let c = 0; c <= maxC; c++) {
+      if (covered.has(cellKey(r, c)) || (sheet.hiddenCols && sheet.hiddenCols.has(c))) continue;
+      const cell = sheet.cells.get(cellKey(r, c));
+      const m = merges.find((x) => x.r0 === r && x.c0 === c);
+      const span = m ? ` colspan="${m.c1 - m.c0 + 1}" rowspan="${m.r1 - m.r0 + 1}"` : "";
+      const style = cell ? cellStyle(sheet, r, c, cell) + condStyleFor(sheet, r, c, cell) : "";
+      tds += `<td${span} style="${style}">${esc(cell ? displayValue(sheet, r, c) : "")}</td>`;
+    }
+    rowsHtml += `<tr>${tds}</tr>`;
+  }
+  const win = window.open("", "_blank");
+  if (!win) { _toast("Allow pop-ups for this site to print", "warn"); return; }
+  win.document.write(`<!doctype html><html><head><title>${esc(WB.wb && WB.wb.title ? WB.wb.title : "Workbook")} — ${esc(sheet.name)}</title><style>
+    :root{--canvas:#F3F4F6;--border-strong:#9CA3AF;--border-subtle:#E5E7EB;--accent:#2563EB;--red:#B91C1C;--text:#111827;--surface:#fff;--wb-zoom:1;--fs-md:13px}
+    body{font:12px -apple-system,system-ui,sans-serif;color:#111827;margin:24px}
+    h2{font-size:15px;margin:0 0 2px}
+    .sub{margin:0 0 14px;color:#6B7280;font-size:11px}
+    table{border-collapse:collapse}
+    td{border:1px solid #D1D5DB;padding:3px 7px;max-width:360px;overflow:hidden;white-space:nowrap;vertical-align:middle}
+    @media print{body{margin:0}}
+  </style></head><body>
+    <h2>${esc(WB.wb && WB.wb.title ? WB.wb.title : "Workbook")}</h2>
+    <p class="sub">${esc(sheet.name)} · printed ${esc(new Date().toLocaleDateString())}</p>
+    <table>${rowsHtml}</table>
+    <script>window.onload = function () { window.print(); };<\/script>
+  </body></html>`);
+  win.document.close();
+  wbLog("sheet.printed", `printed ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+}
+
+// ─── Filter views ────────────────────────────────────────────────────────────
+// Named snapshots of the AutoFilter state, shared per sheet (persisted
+// in sheet.meta.filterViews).
+
+function sheetFilterViews(sheet) {
+  const v = sheet.meta && sheet.meta.filterViews;
+  return Array.isArray(v) ? v : [];
+}
+
+function saveFilterView(g) {
+  if (!WB.canEdit) return;
+  if (!g.filters.size) { _toast("Set up a filter first, then save it as a view", "info"); return; }
+  const name = window.prompt("Name this filter view:", "");
+  if (!name || !name.trim()) return;
+  const spec = [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null }));
+  const views = [...sheetFilterViews(g.sheet), { id: "fv" + Math.random().toString(36).slice(2, 8), name: name.trim().slice(0, 60), filters: spec }];
+  g.sheet.meta = { ...(g.sheet.meta || {}), filterViews: views };
+  saveSheetMeta(g.sheet.id);
+  wbLog("sheet.filterview", `saved filter view “${name.trim()}” on ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+  _toast(`Saved filter view “${name.trim()}”`, "success");
+}
+
+function applyFilterView(g, viewId) {
+  const view = sheetFilterViews(g.sheet).find((v) => v.id === viewId);
+  if (!view) return;
+  g.filters = new Map(view.filters.map((f) => [f.col, { text: f.text || null, values: f.values ? new Set(f.values) : null }]));
+  computeGeometry(g);
+  repaintGrid(g);
+}
+
+function deleteFilterView(g, viewId) {
+  if (!WB.canEdit) return;
+  g.sheet.meta = { ...(g.sheet.meta || {}), filterViews: sheetFilterViews(g.sheet).filter((v) => v.id !== viewId) };
+  saveSheetMeta(g.sheet.id);
+}
+
+// ─── Data tools ──────────────────────────────────────────────────────────────
+// Sheets Data-menu equivalents: column stats, split text to columns,
+// remove duplicates, trim whitespace. All act on the active grid.
+
+function showColumnStats(g) {
+  const sheet = g.sheet;
+  const col = g.active.c;
+  const header = filterCellText(sheet, 0, col);
+  let filled = 0, empty = 0, nnum = 0, sum = 0, min = null, max = null;
+  const distinct = new Map();
+  let maxRow = 0;
+  for (const key of sheet.cells.keys()) maxRow = Math.max(maxRow, keyRC(key).r);
+  for (let r = 1; r <= maxRow; r++) {
+    const t = filterCellText(sheet, r, col);
+    if (t === "") { empty++; continue; }
+    filled++;
+    distinct.set(t, (distinct.get(t) || 0) + 1);
+    const cell = sheet.cells.get(cellKey(r, col));
+    const raw = cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
+    const n = cellNumeric(raw);
+    if (n != null && cell && cell.type !== "text") { nnum++; sum += n; min = min == null ? n : Math.min(min, n); max = max == null ? n : Math.max(max, n); }
+  }
+  const top = [...distinct.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const fmtN = (x) => (Math.round(x * 100) / 100).toLocaleString();
+  const row = (label, val) => `<div class="wb-kv"><span class="wb-kv-k">${esc(label)}</span><span class="wb-kv-v">${val}</span></div>`;
+  document.getElementById("wb-colstats-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-colstats-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Column stats" style="width:420px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Column ${esc(colLabel(col))}${header ? ` — ${esc(header)}` : ""}</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        ${row("Filled cells", String(filled))}
+        ${row("Empty (to last data row)", String(empty))}
+        ${row("Distinct values", String(distinct.size))}
+        ${nnum ? row("Sum", fmtN(sum)) + row("Average", fmtN(sum / nnum)) + row("Min · Max", `${fmtN(min)} · ${fmtN(max)}`) : ""}
+        ${top.length ? `<div class="wb-kv"><span class="wb-kv-k">Most frequent</span><span class="wb-kv-v">${top.map(([v, n]) => `${esc(v.slice(0, 24))} <span style="color:var(--text-subtle)">×${n}</span>`).join("<br>")}</span></div>` : ""}
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn primary" type="button" data-wb-close>Done</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) wrap.remove(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+}
+
+function splitTextToColumns(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const col = g.active.c;
+  const delim = window.prompt(`Split column ${colLabel(col)} on which separator?`, ",");
+  if (delim == null || delim === "") return;
+  const rect = selRect(g);
+  const r0 = rect.r0 === rect.r1 ? 1 : rect.r0; // single cell → all data rows
+  let r1 = rect.r0 === rect.r1 ? 0 : rect.r1;
+  if (rect.r0 === rect.r1) for (const key of sheet.cells.keys()) r1 = Math.max(r1, keyRC(key).r);
+  const rowsToSplit = [];
+  let maxParts = 1;
+  for (let r = r0; r <= r1; r++) {
+    const cell = sheet.cells.get(cellKey(r, col));
+    if (!cell || cell.formula || cell.value == null) continue;
+    const parts = String(cell.value).split(delim).map((s) => s.trim());
+    if (parts.length < 2) continue;
+    rowsToSplit.push([r, parts]);
+    maxParts = Math.max(maxParts, parts.length);
+  }
+  if (!rowsToSplit.length) { _toast(`No cells in ${colLabel(col)} contain “${delim}”`, "info"); return; }
+  let overwrite = false;
+  for (const [r, parts] of rowsToSplit) {
+    for (let i = 1; i < parts.length && !overwrite; i++) {
+      const t = sheet.cells.get(cellKey(r, col + i));
+      if (t && (t.value != null || t.formula)) overwrite = true;
+    }
+  }
+  const apply = () => {
+    if (col + maxParts > sheet.colCount) { sheet.colCount = Math.min(200, col + maxParts + 2); saveSheetMeta(sheet.id); computeGeometry(g); }
+    const changes = [];
+    for (const [r, parts] of rowsToSplit) {
+      parts.forEach((p, i) => {
+        const prev = sheet.cells.get(cellKey(r, col + i));
+        changes.push({ r, c: col + i, cell: cellFromInput(p, prev) });
+      });
+    }
+    setCells(g, changes);
+    _toast(`Split ${rowsToSplit.length} cell${rowsToSplit.length === 1 ? "" : "s"} across up to ${maxParts} columns`, "success");
+  };
+  if (overwrite) {
+    confirmModal({
+      title: "Overwrite cells to the right?",
+      body: `Splitting will write into columns ${esc(colLabel(col + 1))}–${esc(colLabel(col + maxParts - 1))}, and some of those cells already have data.`,
+      confirmLabel: "Split anyway", danger: true, onConfirm: apply,
+    });
+  } else apply();
+}
+
+function removeDuplicateRows(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  if (sheetMerges(sheet).length) { _toast("Unmerge cells before removing duplicates", "warn"); return; }
+  let rect = selRect(g);
+  if (rect.r0 === rect.r1 && rect.c0 === rect.c1) {
+    const { maxR, maxC } = usedRange(sheet);
+    if (maxR < 2) { _toast("Nothing to de-duplicate below the header", "info"); return; }
+    rect = { r0: 1, r1: maxR, c0: 0, c1: maxC };
+  }
+  const seen = new Set();
+  const dupRows = [];
+  for (let r = Math.max(1, rect.r0); r <= rect.r1; r++) {
+    const parts = [];
+    for (let c = rect.c0; c <= rect.c1; c++) parts.push(filterCellText(sheet, r, c).toLowerCase());
+    const k = parts.join("");
+    if (!parts.some((p) => p !== "")) continue; // fully empty rows don't count
+    if (seen.has(k)) dupRows.push(r);
+    else seen.add(k);
+  }
+  if (!dupRows.length) { _toast("No duplicate rows found", "success"); return; }
+  confirmModal({
+    title: `Remove ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}?`,
+    body: `Rows with identical values in columns ${esc(colLabel(rect.c0))}–${esc(colLabel(rect.c1))} will be deleted; the first occurrence stays.`,
+    confirmLabel: "Remove duplicates", danger: true,
+    onConfirm: () => {
+      for (const r of dupRows.sort((a, b) => b - a)) restructure(g, "row", r, -1);
+      _toast(`Removed ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}`, "success");
+    },
+  });
+}
+
+function trimWhitespace(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const single = rect.r0 === rect.r1 && rect.c0 === rect.c1;
+  const changes = [];
+  const scan = (r, c, cell) => {
+    if (!cell || cell.formula || typeof cell.value !== "string") return;
+    const t = cell.value.replace(/\s+/g, " ").trim();
+    if (t !== cell.value) changes.push({ r, c, cell: { ...cloneCell(cell), value: t, type: detectType(t).type } });
+  };
+  if (single) { for (const [key, cell] of sheet.cells) { const rc = keyRC(key); scan(rc.r, rc.c, cell); } }
+  else { for (let r = rect.r0; r <= rect.r1; r++) for (let c = rect.c0; c <= rect.c1; c++) scan(r, c, sheet.cells.get(cellKey(r, c))); }
+  if (!changes.length) { _toast("No extra whitespace found", "success"); return; }
+  setCells(g, changes);
+  _toast(`Trimmed whitespace in ${changes.length} cell${changes.length === 1 ? "" : "s"}`, "success");
 }
 
 const CSV_MAX_ROWS = 2000, CSV_MAX_COLS = 104;
@@ -5933,15 +6447,16 @@ function buildXlsxBytes(sheets) {
   const XMLH = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`;
   const FG_HEX = { muted: "FF6B7280", blue: "FF1E40AF", green: "FF166534", amber: "FF92400E", red: "FFB91C1C" };
   const BG_HEX = { gray: "FFF3F4F6", blue: "FFDBEAFE", green: "FFDCFCE7", amber: "FFFEF3C7", red: "FFFEE2E2", violet: "FFEDE9FE", header: "FFF3F4F6" };
-  const NUMFMT = { number: 4, percent: 10, date: 14, text: 49, currency: 164 };
+  const NUMFMT = { number: 4, percent: 10, date: 14, text: 49, currency: 164, scientific: 11, accounting: 44 };
+  const FONT_NAME = { arial: "Arial", georgia: "Georgia", times: "Times New Roman", courier: "Courier New", verdana: "Verdana", trebuchet: "Trebuchet MS" };
 
   // dynamic style registries (index 0 = default; fill 1 is zip-required gray125)
   const fonts = [`<font><sz val="11"/><name val="Calibri"/></font>`];
-  const fontIdx = new Map([["|||", 0]]);
+  const fontIdx = new Map([["||||||", 0]]);
   const fills = [`<fill><patternFill patternType="none"/></fill>`, `<fill><patternFill patternType="gray125"/></fill>`];
   const fillIdx = new Map([["", 0]]);
   const xfs = [`<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>`];
-  const xfIdx = new Map([["0|0|0||0", 0]]);
+  const xfIdx = new Map([["0|0|0||0||0", 0]]);
 
   const styleFor = (cell) => {
     const f = (cell && cell.format) || {};
@@ -5949,11 +6464,13 @@ function buildXlsxBytes(sheets) {
     const numId = effNum != null && NUMFMT[effNum] != null ? NUMFMT[effNum] : 0;
     const bold = !!(f.bold || f.bg === "header");
     const fgHex = f.fg ? (HEX_COLOR_RE.test(f.fg) ? "FF" + f.fg.slice(1).toUpperCase() : FG_HEX[f.fg] || "") : "";
-    const fontKey = `${bold ? "b" : ""}|${f.italic ? "i" : ""}|${f.underline ? "u" : ""}|${fgHex}`;
+    const pt = Number.isInteger(f.fs) ? Math.max(6, Math.round(f.fs * 0.75)) : 11; // px → pt
+    const ffName = FONT_NAME[f.ff] || "Calibri";
+    const fontKey = `${bold ? "b" : ""}|${f.italic ? "i" : ""}|${f.underline ? "u" : ""}|${f.strike ? "s" : ""}|${fgHex}|${pt === 11 ? "" : pt}|${ffName === "Calibri" ? "" : ffName}`;
     let fontId = fontIdx.get(fontKey);
     if (fontId == null) {
       fontId = fonts.length;
-      fonts.push(`<font>${bold ? "<b/>" : ""}${f.italic ? "<i/>" : ""}${f.underline ? "<u/>" : ""}${fgHex ? `<color rgb="${fgHex}"/>` : ""}<sz val="11"/><name val="Calibri"/></font>`);
+      fonts.push(`<font>${bold ? "<b/>" : ""}${f.italic ? "<i/>" : ""}${f.underline ? "<u/>" : ""}${f.strike ? "<strike/>" : ""}${fgHex ? `<color rgb="${fgHex}"/>` : ""}<sz val="${pt}"/><name val="${ffName}"/></font>`);
       fontIdx.set(fontKey, fontId);
     }
     const bgHex = f.bg ? (HEX_COLOR_RE.test(f.bg) ? "FF" + f.bg.slice(1).toUpperCase() : BG_HEX[f.bg] || "") : "";
@@ -5964,12 +6481,16 @@ function buildXlsxBytes(sheets) {
       fillIdx.set(bgHex, fillId);
     }
     const align = f.align || "";
+    const valign = f.valign === "middle" ? "center" : f.valign || "";
+    const rot = f.rot === 45 || f.rot === 90 ? f.rot : 0;
     const wrap = f.wrap ? 1 : 0;
-    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}`;
+    const xfKey = `${numId}|${fontId}|${fillId}|${align}|${wrap}|${valign}|${rot}`;
     let s = xfIdx.get(xfKey);
     if (s == null) {
       s = xfs.length;
-      const alignXml = align || wrap ? `<alignment${align ? ` horizontal="${align}"` : ""}${wrap ? ` wrapText="1"` : ""}/>` : "";
+      const alignXml = align || wrap || valign || rot
+        ? `<alignment${align ? ` horizontal="${align}"` : ""}${valign ? ` vertical="${valign}"` : ""}${wrap ? ` wrapText="1"` : ""}${rot ? ` textRotation="${rot}"` : ""}/>`
+        : "";
       xfs.push(`<xf numFmtId="${numId}" fontId="${fontId}" fillId="${fillId}" borderId="0"${numId ? ` applyNumberFormat="1"` : ""}${fontId ? ` applyFont="1"` : ""}${fillId ? ` applyFill="1"` : ""}${alignXml ? ` applyAlignment="1"` : ""}>${alignXml}</xf>`);
       xfIdx.set(xfKey, s);
     }
@@ -5977,6 +6498,7 @@ function buildXlsxBytes(sheets) {
   };
 
   const sheetXml = (sheet) => {
+    const links = [];
     const rowsMap = new Map();
     for (const [key, cell] of sheet.cells) {
       if (cell.value == null && cell.formula == null && !(cell.format && Object.keys(cell.format).length)) continue;
@@ -5989,6 +6511,7 @@ function buildXlsxBytes(sheets) {
       let line = `<row r="${r + 1}">`;
       for (const [c, cell] of rowsMap.get(r).sort((a, b) => a[0] - b[0])) {
         const ref = colLabel(c) + (r + 1);
+        if (cell.format && cell.format.link) links.push({ ref, url: cell.format.link });
         const s = styleFor(cell);
         const sAttr = s ? ` s="${s}"` : "";
         if (cell.formula) {
@@ -6024,11 +6547,19 @@ function buildXlsxBytes(sheets) {
       const x = sheet.frozenCols ? 1 : 0, y = sheet.frozenRows ? 1 : 0;
       view = `<sheetViews><sheetView workbookViewId="0"><pane${x ? ` xSplit="${x}"` : ""}${y ? ` ySplit="${y}"` : ""} topLeftCell="${colLabel(x) + (y + 1)}" state="frozen"/></sheetView></sheetViews>`;
     }
-    return `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${view}${cols}<sheetData>${body}</sheetData></worksheet>`;
+    const merges = Array.isArray(sheet.meta && sheet.meta.merges) ? sheet.meta.merges.filter((m) => m.r1 > m.r0 || m.c1 > m.c0) : [];
+    const mergeXml = merges.length
+      ? `<mergeCells count="${merges.length}">${merges.map((m) => `<mergeCell ref="${colLabel(m.c0)}${m.r0 + 1}:${colLabel(m.c1)}${m.r1 + 1}"/>`).join("")}</mergeCells>`
+      : "";
+    const linkXml = links.length
+      ? `<hyperlinks>${links.map((l, i) => `<hyperlink ref="${l.ref}" r:id="rlk${i + 1}"/>`).join("")}</hyperlinks>`
+      : "";
+    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${linkXml}</worksheet>`;
+    return { xml, links };
   };
 
   // sheet XML first — it populates the style registries as it goes
-  const sheetXmls = sheets.map(sheetXml);
+  const sheetParts = sheets.map(sheetXml);
   const used = new Set();
   const names = sheets.map((sh) => xlsxSheetName(sh.name, used));
 
@@ -6039,14 +6570,21 @@ function buildXlsxBytes(sheets) {
   const contentTypes = `${XMLH}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
 
   const file = (name, xml) => ({ nameB: enc.encode(name), bytes: enc.encode(xml) });
-  return xlsxZip([
+  const parts = [
     file("[Content_Types].xml", contentTypes),
     file("_rels/.rels", rootRels),
     file("xl/workbook.xml", workbookXml),
     file("xl/_rels/workbook.xml.rels", wbRels),
     file("xl/styles.xml", stylesXml),
-    ...sheetXmls.map((xml, i) => file(`xl/worksheets/sheet${i + 1}.xml`, xml)),
-  ]);
+    ...sheetParts.map((p, i) => file(`xl/worksheets/sheet${i + 1}.xml`, p.xml)),
+  ];
+  // hyperlink relationships (one rels part per sheet that has links)
+  sheetParts.forEach((p, i) => {
+    if (!p.links.length) return;
+    const rels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${p.links.map((l, j) => `<Relationship Id="rlk${j + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xmlEsc(l.url)}" TargetMode="External"/>`).join("")}</Relationships>`;
+    parts.push(file(`xl/worksheets/_rels/sheet${i + 1}.xml.rels`, rels));
+  });
+  return xlsxZip(parts);
 }
 
 function exportBlockXlsx(g) {
@@ -6065,6 +6603,310 @@ function exportBlockXlsx(g) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   wbLog("xlsx.exported", `exported ${sheets.length === 1 ? `sheet “${sheets[0].name}”` : `${sheets.length} sheets`} as an Excel file`, { target_type: "block", target_id: g.blockId });
   _toast("Excel file exported", "success");
+}
+
+// ─── Charts ──────────────────────────────────────────────────────────────────
+// Chart specs live flat in sheet.meta.charts ({id, type, title, r0..c1})
+// so structural edits shift them like validation/merge rects. Rendered
+// as inline SVG cards in a strip under the grid; series values re-read
+// from cells on every data change. Palette: the validated 8-slot
+// categorical set (fixed order, never cycled) from the dataviz method;
+// axis text and gridlines use the app's ink tokens.
+
+const WB_CHART_COLORS = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948", "#e87ba4", "#eb6834"];
+const WB_CHART_TYPES = { column: "Column", bar: "Bar", line: "Line", area: "Area", pie: "Pie" };
+
+function sheetCharts(sheet) {
+  const v = sheet.meta && sheet.meta.charts;
+  return Array.isArray(v) ? v : [];
+}
+
+function chartRefText(ch) {
+  return colLabel(ch.c0) + (ch.r0 + 1) + ":" + colLabel(ch.c1) + (ch.r1 + 1);
+}
+
+// Range → {categories, series:[{name, values}]}. Row 1 of the range is
+// treated as headers; the first column as category labels when it isn't
+// numeric. A single-column range becomes one series over row numbers.
+function chartData(sheet, ch) {
+  const r1 = Math.min(ch.r1, sheet.rowCount - 1), c1 = Math.min(ch.c1, sheet.colCount - 1);
+  const rawOf = (r, c) => {
+    const cell = sheet.cells.get(cellKey(r, c));
+    return cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
+  };
+  const numOf = (r, c) => {
+    const cell = sheet.cells.get(cellKey(r, c));
+    if (!cell || cell.type === "text") return null;
+    return cellNumeric(cell.formula ? (cell.err ? null : cell.computed) : cell.value);
+  };
+  const single = c1 === ch.c0;
+  const firstDataCol = single ? ch.c0 : ch.c0 + 1;
+  const categories = [];
+  const series = [];
+  for (let c = firstDataCol; c <= c1; c++) {
+    series.push({ name: String(rawOf(ch.r0, c) ?? colLabel(c)), values: [] });
+  }
+  for (let r = ch.r0 + 1; r <= r1; r++) {
+    const label = single ? String(r + 1) : String(rawOf(r, ch.c0) ?? r + 1);
+    let any = false;
+    const rowVals = series.map((s, i) => {
+      const v = numOf(r, firstDataCol + i);
+      if (v != null) any = true;
+      return v;
+    });
+    if (!any && label.trim() === "") continue;
+    categories.push(label);
+    rowVals.forEach((v, i) => series[i].values.push(v));
+  }
+  return { categories, series: series.filter((s) => s.values.some((v) => v != null)) };
+}
+
+function chartNiceTicks(lo, hi, n = 4) {
+  if (!(hi > lo)) hi = lo + 1;
+  const span = hi - lo;
+  const step0 = Math.pow(10, Math.floor(Math.log10(span / n)));
+  const err = span / n / step0;
+  const step = step0 * (err >= 7.5 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1);
+  const top = Math.ceil(hi / step) * step; // domain must cover the max
+  const ticks = [];
+  for (let v = Math.floor(lo / step) * step; v <= top + step / 2; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  return ticks;
+}
+
+function chartFmt(v) {
+  const a = Math.abs(v);
+  if (a >= 1e6) return (v / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 }) + "M";
+  if (a >= 1e4) return (v / 1e3).toLocaleString(undefined, { maximumFractionDigits: 1 }) + "k";
+  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+// Rounded data-end bar anchored to the baseline (spec: only the value
+// end is rounded).
+function chartBarPath(x, y, w, h, up, color, title) {
+  const r = Math.min(4, w / 2, h);
+  const d = up
+    ? `M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z`
+    : `M${x},${y} L${x + w},${y} L${x + w},${y + h - r} Q${x + w},${y + h} ${x + w - r},${y + h} L${x + r},${y + h} Q${x},${y + h} ${x},${y + h - r} Z`;
+  return `<path d="${d}" fill="${color}"><title>${title}</title></path>`;
+}
+
+function chartSvg(sheet, ch) {
+  const { categories, series } = chartData(sheet, ch);
+  if (!categories.length || !series.length) {
+    return { svg: `<div class="wb-chart-empty">No numeric data in ${esc(chartRefText(ch))} yet.</div>`, legend: "" };
+  }
+  const color = (i) => WB_CHART_COLORS[i % WB_CHART_COLORS.length];
+  const t = (s) => esc(String(s));
+
+  if (ch.type === "pie") {
+    const s0 = series[0];
+    let entries = categories.map((label, i) => ({ label, v: Math.max(0, s0.values[i] ?? 0) })).filter((e) => e.v > 0);
+    if (entries.length > 8) {
+      const rest = entries.slice(7).reduce((a, e) => a + e.v, 0);
+      entries = [...entries.slice(0, 7), { label: "Other", v: rest }];
+    }
+    const total = entries.reduce((a, e) => a + e.v, 0);
+    if (!total) return { svg: `<div class="wb-chart-empty">Nothing to chart in ${esc(chartRefText(ch))}.</div>`, legend: "" };
+    const CX = 240, CY = 110, R = 92;
+    let a0 = -Math.PI / 2;
+    let paths = "";
+    entries.forEach((e, i) => {
+      const frac = e.v / total;
+      const a1 = a0 + frac * Math.PI * 2;
+      const large = a1 - a0 > Math.PI ? 1 : 0;
+      const x0 = CX + R * Math.cos(a0), y0 = CY + R * Math.sin(a0);
+      const x1 = CX + R * Math.cos(a1), y1 = CY + R * Math.sin(a1);
+      paths += frac >= 0.999
+        ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${color(i)}"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></circle>`
+        : `<path d="M${CX},${CY} L${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} Z" fill="${color(i)}" stroke="var(--surface)" stroke-width="2"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></path>`;
+      a0 = a1;
+    });
+    const legend = entries.map((e, i) =>
+      `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(i)}"></span>${t(e.label)} <span class="wb-chart-keyv">${Math.round((e.v / total) * 100)}%</span></span>`).join("");
+    return { svg: `<svg viewBox="0 0 480 220" role="img" aria-label="${t(ch.title || "Pie chart")}">${paths}</svg>`, legend };
+  }
+
+  // shared cartesian frame
+  const W = 480, H = 220, padL = 46, padR = 10, padT = 10, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const horizontal = ch.type === "bar";
+  let lo = 0, hi = 1;
+  const allVals = series.flatMap((s) => s.values).filter((v) => v != null);
+  if (allVals.length) { lo = Math.min(...allVals), hi = Math.max(...allVals); }
+  if (ch.type !== "line") { lo = Math.min(0, lo); hi = Math.max(0, hi); } // bars/areas keep a zero baseline
+  const ticks = chartNiceTicks(lo, hi);
+  lo = ticks[0]; hi = ticks[ticks.length - 1];
+  const span = hi - lo || 1;
+  const vx = (v) => padL + ((v - lo) / span) * plotW;   // horizontal value axis (bar)
+  const vy = (v) => padT + plotH - ((v - lo) / span) * plotH;
+  let out = "";
+
+  // gridlines + value axis labels (recessive ink)
+  for (const tk of ticks) {
+    if (horizontal) {
+      out += `<line x1="${vx(tk)}" y1="${padT}" x2="${vx(tk)}" y2="${padT + plotH}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+      out += `<text x="${vx(tk)}" y="${H - 8}" text-anchor="middle" class="wb-chart-tick">${chartFmt(tk)}</text>`;
+    } else {
+      out += `<line x1="${padL}" y1="${vy(tk)}" x2="${W - padR}" y2="${vy(tk)}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+      out += `<text x="${padL - 6}" y="${vy(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`;
+    }
+  }
+
+  const nCat = categories.length;
+  const catLabel = (label, i) => {
+    const step = Math.ceil(nCat / (horizontal ? 12 : 8));
+    if (i % step !== 0) return "";
+    const short = String(label).slice(0, horizontal ? 9 : 10);
+    return horizontal
+      ? `<text x="${padL - 6}" y="${padT + ((i + 0.5) / nCat) * plotH + 3}" text-anchor="end" class="wb-chart-tick">${t(short)}</text>`
+      : `<text x="${padL + ((i + 0.5) / nCat) * plotW}" y="${H - 8}" text-anchor="middle" class="wb-chart-tick">${t(short)}</text>`;
+  };
+  categories.forEach((label, i) => { out += catLabel(label, i); });
+
+  if (ch.type === "column" || ch.type === "bar") {
+    const band = (horizontal ? plotH : plotW) / nCat;
+    const inner = band * 0.72;
+    const bw = Math.max(3, (inner - (series.length - 1) * 2) / series.length);
+    categories.forEach((label, i) => {
+      series.forEach((s, si) => {
+        const v = s.values[i];
+        if (v == null) return;
+        const off = (horizontal ? padT : padL) + i * band + (band - inner) / 2 + si * (bw + 2);
+        const title = `${t(label)} · ${t(s.name)}: ${chartFmt(v)}`;
+        if (horizontal) {
+          const x0 = vx(Math.min(0, v)), x1 = vx(Math.max(0, v));
+          const r = Math.min(4, (x1 - x0), bw / 2);
+          out += `<path d="M${x0},${off} L${x1 - r},${off} Q${x1},${off} ${x1},${off + r} L${x1},${off + bw - r} Q${x1},${off + bw} ${x1 - r},${off + bw} L${x0},${off + bw} Z" fill="${color(si)}"><title>${title}</title></path>`;
+        } else {
+          const y0 = vy(Math.max(0, v)), y1 = vy(Math.min(0, v));
+          out += chartBarPath(off, y0, bw, Math.max(1, y1 - y0), v >= 0, color(si), title);
+        }
+      });
+    });
+    // zero baseline
+    if (horizontal) out += `<line x1="${vx(0)}" y1="${padT}" x2="${vx(0)}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
+    else out += `<line x1="${padL}" y1="${vy(0)}" x2="${W - padR}" y2="${vy(0)}" stroke="var(--border-strong)" stroke-width="1"/>`;
+  } else {
+    // line / area over category midpoints
+    const cx = (i) => padL + ((i + 0.5) / nCat) * plotW;
+    series.forEach((s, si) => {
+      const pts = [];
+      s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy(v), i, v]); });
+      if (!pts.length) return;
+      const line = pts.map((p, k) => `${k ? "L" : "M"}${p[0]},${p[1]}`).join(" ");
+      if (ch.type === "area" && series.length === 1) {
+        out += `<path d="${line} L${pts[pts.length - 1][0]},${vy(Math.max(lo, 0))} L${pts[0][0]},${vy(Math.max(lo, 0))} Z" fill="${color(si)}29"/>`;
+      }
+      out += `<path d="${line}" fill="none" stroke="${color(si)}" stroke-width="2" stroke-linejoin="round"/>`;
+      for (const [x, y, i, v] of pts) {
+        out += `<circle cx="${x}" cy="${y}" r="3" fill="${color(si)}"><title>${t(categories[i])} · ${t(s.name)}: ${chartFmt(v)}</title></circle>`;
+      }
+    });
+    out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
+  }
+
+  const legend = series.length > 1
+    ? series.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("")
+    : "";
+  return { svg: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t(ch.title || WB_CHART_TYPES[ch.type] + " chart")}">${out}</svg>`, legend };
+}
+
+function renderCharts(g) {
+  const host = g.els.charts;
+  if (!host) return;
+  const charts = sheetCharts(g.sheet);
+  if (!charts.length) { host.innerHTML = ""; host.hidden = true; return; }
+  host.hidden = false;
+  host.innerHTML = charts.map((ch) => {
+    const { svg, legend } = chartSvg(g.sheet, ch);
+    return `<div class="wb-chart-card" data-wb-chart="${esc(ch.id)}">
+      <div class="wb-chart-head">
+        <span class="wb-chart-title">${esc(ch.title || `${WB_CHART_TYPES[ch.type] || "Chart"} · ${chartRefText(ch)}`)}</span>
+        ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-chartact="edit" title="Edit chart" aria-label="Edit chart"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-chartact="delete" title="Delete chart" aria-label="Delete chart">×</button>` : ""}
+      </div>
+      ${legend ? `<div class="wb-chart-legend">${legend}</div>` : ""}
+      ${svg}
+    </div>`;
+  }).join("");
+}
+
+function scheduleChartRender(g) {
+  if (!g.els.charts) return;
+  clearTimeout(g.chartsT);
+  g.chartsT = setTimeout(() => renderCharts(g), 250);
+}
+
+function parseRangeRefText(s) {
+  const m = String(s || "").trim().split(":");
+  if (m.length !== 2) return null;
+  const a = parseCellRef(m[0]), b = parseCellRef(m[1]);
+  if (!a || !b) return null;
+  return { r0: Math.min(a.row, b.row), c0: Math.min(a.col, b.col), r1: Math.max(a.row, b.row), c1: Math.max(a.col, b.col) };
+}
+
+function openChartDialog(g, existing) {
+  if (!WB.canEdit) return;
+  document.getElementById("wb-chart-modal")?.remove();
+  const rect = selRect(g);
+  const defRef = existing ? chartRefText(existing) : `${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1}`;
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-chart-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${existing ? "Edit chart" : "Insert chart"}" style="width:460px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">${existing ? "Edit chart" : "Insert chart"}</p><p class="rr-modal-sub">Row 1 of the range holds series names; the first column holds labels.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Title <span class="wb-field-opt">optional</span></span>
+          <input type="text" class="wb-input" id="wb-chart-title" maxlength="120" value="${esc((existing && existing.title) || "")}" placeholder="Routes per day"></label>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Chart type</span>
+            <select class="wb-input" id="wb-chart-type">
+              ${Object.entries(WB_CHART_TYPES).map(([k, label]) => `<option value="${k}" ${(existing ? existing.type : "column") === k ? "selected" : ""}>${label}</option>`).join("")}
+            </select></label>
+          <label class="wb-field"><span class="wb-field-label">Data range</span>
+            <input type="text" class="wb-input" id="wb-chart-range" value="${esc(defRef)}" placeholder="A1:C8" spellcheck="false"></label>
+        </div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-chart-save>${existing ? "Save" : "Insert chart"}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-chart-save]")) return;
+    const range = parseRangeRefText(wrap.querySelector("#wb-chart-range").value);
+    if (!range) { _toast("Enter a range like A1:C8", "warn"); return; }
+    if (range.r1 - range.r0 > 500 || range.c1 - range.c0 > 9) { _toast("Chart ranges cap at 500 rows × 10 columns", "warn"); return; }
+    const spec = {
+      id: existing ? existing.id : "ch" + Math.random().toString(36).slice(2, 8),
+      type: wrap.querySelector("#wb-chart-type").value,
+      title: wrap.querySelector("#wb-chart-title").value.trim(),
+      ...range,
+    };
+    const charts = sheetCharts(g.sheet).filter((c) => c.id !== spec.id);
+    charts.push(spec);
+    g.sheet.meta = { ...(g.sheet.meta || {}), charts };
+    saveSheetMeta(g.sheet.id);
+    wbLog("sheet.chart", `${existing ? "updated" : "added"} a ${WB_CHART_TYPES[spec.type].toLowerCase()} chart on ${chartRefText(spec)} in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    wrap.remove();
+    renderCharts(g);
+    g.els.charts?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+  setTimeout(() => wrap.querySelector("#wb-chart-title")?.focus(), 30);
+}
+
+function deleteChart(g, chartId) {
+  if (!WB.canEdit) return;
+  g.sheet.meta = { ...(g.sheet.meta || {}), charts: sheetCharts(g.sheet).filter((c) => c.id !== chartId) };
+  saveSheetMeta(g.sheet.id);
+  renderCharts(g);
 }
 
 // ─── Menus (shared open/close discipline) ───────────────────────────────────
@@ -6088,6 +6930,10 @@ function togglePopover(anchorBtn) {
 function bindGridEvents(g) {
   const grid = g.els.grid;
   const scroll = g.els.scroll;
+
+  // menu-bar actions target the last grid the operator touched
+  grid.addEventListener("focus", () => { WB.activeGridId = g.blockId; });
+  grid.addEventListener("mousedown", () => { WB.activeGridId = g.blockId; }, true);
 
   scroll.addEventListener("scroll", () => repaintGrid(g));
 
@@ -6217,7 +7063,7 @@ function bindGridEvents(g) {
         const rs = g.resize;
         if (!rs) return;
         const delta = (rs.kind === "col" ? ev.clientX : ev.clientY) - rs.startPos;
-        const size = Math.round(rs.startSize + delta);
+        const size = Math.round(rs.startSize + delta / (g.zoom || 1));
         if (rs.kind === "col") sheet.colWidths[rs.idx] = Math.min(MAX_COL_W, Math.max(MIN_COL_W, size));
         else sheet.rowHeights[rs.idx] = Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, size));
         computeGeometry(g);
@@ -6310,6 +7156,11 @@ function bindGridEvents(g) {
     const di = dispRowAt(g, pos.y);
     const r = g.rows[di] ?? 0;
     const c = colAt(g, pos.x);
+    // Ctrl/Cmd+click on a linked cell opens the link
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      const lc = g.sheet.cells.get(cellKey(r, c));
+      if (lc && lc.format && lc.format.link) { window.open(lc.format.link, "_blank", "noopener"); return; }
+    }
     if (g.editing) commitEdit(g, 0, 0, { refocus: false });
     if (e.shiftKey) {
       g.sel.r1 = r; g.sel.c1 = c;
@@ -6333,6 +7184,7 @@ function bindGridEvents(g) {
         g.dragging = false;
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        if (g.painter) applyFormatPainter(g);
       };
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
@@ -6470,7 +7322,7 @@ function bindGridEvents(g) {
       case "Tab": e.preventDefault(); moveActive(g, 0, e.shiftKey ? -1 : 1, false); return;
       case "Delete":
       case "Backspace": e.preventDefault(); clearSelection(g); return;
-      case "Escape": e.preventDefault(); closeAllPopovers(); g.sel = { r0: g.active.r, c0: g.active.c, r1: g.active.r, c1: g.active.c }; paintSelection(g); repaintGrid(g); return;
+      case "Escape": e.preventDefault(); if (g.painter) { cancelFormatPainter(g); return; } closeAllPopovers(); g.sel = { r0: g.active.r, c0: g.active.c, r1: g.active.r, c1: g.active.c }; paintSelection(g); repaintGrid(g); return;
     }
     // type-to-replace: printable character starts an edit
     if (WB.canEdit && k.length === 1 && !meta && !e.altKey) {
@@ -6590,6 +7442,7 @@ function bindGridEvents(g) {
       const ioAct = io.getAttribute("data-wb-tb2");
       if (ioAct === "import-csv") importCsvInto(g);
       else if (ioAct === "export-xlsx") exportBlockXlsx(g);
+      else if (ioAct === "print") printSheet(g);
       else exportSheetCsv(g);
       return;
     }
@@ -6600,9 +7453,17 @@ function bindGridEvents(g) {
       case "undo": undoGrid(g); break;
       case "redo": redoGrid(g); break;
       case "autosum": autoSum(g); return; // startEdit needs focus to stay in the editor
+      case "paint-format": startFormatPainter(g); return;
+      case "fmt-currency": formatSelection(g, { num: "currency" }); break;
+      case "fmt-percent": formatSelection(g, { num: "percent" }); break;
       case "bold": toggleFormat(g, "bold"); break;
       case "italic": toggleFormat(g, "italic"); break;
       case "underline": toggleFormat(g, "underline"); break;
+      case "strike": toggleFormat(g, "strike"); break;
+      case "merge": toggleMergeSelection(g); break;
+      case "insert-link": insertLinkPrompt(g); break;
+      case "comment-cell": openCellComment(g, g.active.r, g.active.c); return;
+      case "insert-chart": openChartDialog(g); return;
       case "align-left": formatSelection(g, { align: "left" }); break;
       case "align-center": formatSelection(g, { align: "center" }); break;
       case "align-right": formatSelection(g, { align: "right" }); break;
@@ -6657,6 +7518,18 @@ function bindGridEvents(g) {
     input.remove();
   });
   g.els.tabs.addEventListener("click", (e) => {
+    const caret = e.target.closest("[data-wb-tabmenu]");
+    if (caret) {
+      const rect = caret.getBoundingClientRect();
+      openSheetTabMenu(g, caret.getAttribute("data-wb-tabmenu"), rect.left - 60, rect.bottom + 4);
+      return;
+    }
+    const allBtn = e.target.closest("[data-wb-allsheets]");
+    if (allBtn) {
+      const rect = allBtn.getBoundingClientRect();
+      openAllSheetsMenu(g, rect.left, rect.bottom + 4);
+      return;
+    }
     const tab = e.target.closest("[data-wb-sheettab]");
     if (!tab) return;
     switchSheet(g, tab.getAttribute("data-wb-sheettab"));
@@ -6675,6 +7548,10 @@ function bindGridEvents(g) {
     e.preventDefault();
     openSheetTabMenu(g, tab.getAttribute("data-wb-sheettab"), e.clientX, e.clientY);
   });
+
+  // ── zoom ──
+  const zoomSel = g.els.body.querySelector("[data-wb-zoom]");
+  if (zoomSel) zoomSel.addEventListener("change", () => setZoom(g, +zoomSel.value || 1));
 }
 
 function commitBarEdit(g) {
@@ -6689,22 +7566,39 @@ function commitBarEdit(g) {
   }
 }
 
+// Google Sheets' standard color matrix: greyscale, brights, then tint →
+// shade rows per hue. Stored as plain hex, so everything round-trips
+// through cellStyle and the XLSX exporter.
+const WB_COLOR_MATRIX = [
+  ["#000000", "#434343", "#666666", "#999999", "#B7B7B7", "#CCCCCC", "#D9D9D9", "#EFEFEF", "#F3F3F3", "#FFFFFF"],
+  ["#980000", "#FF0000", "#FF9900", "#FFFF00", "#00FF00", "#00FFFF", "#4A86E8", "#0000FF", "#9900FF", "#FF00FF"],
+  ["#E6B8AF", "#F4CCCC", "#FCE5CD", "#FFF2CC", "#D9EAD3", "#D0E0E3", "#C9DAF8", "#CFE2F3", "#D9D2E9", "#EAD1DC"],
+  ["#DD7E6B", "#EA9999", "#F9CB9C", "#FFE599", "#B6D7A8", "#A2C4C9", "#A4C2F4", "#9FC5E8", "#B4A7D6", "#D5A6BD"],
+  ["#CC4125", "#E06666", "#F6B26B", "#FFD966", "#93C47D", "#76A5AF", "#6D9EEB", "#6FA8DC", "#8E7CC3", "#C27BA0"],
+  ["#A61C00", "#CC0000", "#E69138", "#F1C232", "#6AA84F", "#45818E", "#3C78D8", "#3D85C6", "#674EA7", "#A64D79"],
+  ["#85200C", "#990000", "#B45F06", "#BF9000", "#38761D", "#134F5C", "#1155CC", "#0B5394", "#351C75", "#741B47"],
+  ["#5B0F00", "#660000", "#783F04", "#7F6000", "#274E13", "#0C343D", "#1C4587", "#073763", "#20124D", "#4C1130"],
+];
+
 function fillColorPop(g, btn) {
   const pop = btn.closest(".popover-anchor")?.querySelector(".wb-color-pop");
   if (!pop || pop.dataset.filled) return;
   pop.dataset.filled = "1";
   const kind = pop.getAttribute("data-wb-colorkind");
-  const palette = kind === "bg"
-    ? [["", "None"], ["gray", "Gray"], ["blue", "Blue"], ["green", "Green"], ["amber", "Amber"], ["red", "Red"], ["violet", "Violet"]]
-    : [["", "Default"], ["muted", "Muted"], ["blue", "Blue"], ["green", "Green"], ["amber", "Amber"], ["red", "Red"]];
-  pop.innerHTML = `<div class="wb-color-grid">` + palette.map(([key, label]) =>
-    `<button type="button" class="wb-swatch" data-wb-color="${key}" title="${label}" aria-label="${label}" style="background:${key ? (WB_COLORS[kind][key] || "#fff") : "#fff"}">${key ? "" : "×"}</button>`
-  ).join("") + `</div>
-    <label class="wb-color-custom"><input type="color" data-wb-colorpick value="${kind === "bg" ? "#FFF3C4" : "#1F2937"}" aria-label="Custom color"> Custom…</label>`;
+  pop.innerHTML = `
+    <button type="button" class="wb-color-reset" data-wb-color="">✕ Reset to default</button>
+    <div class="wb-color-grid wb-color-grid-10">${WB_COLOR_MATRIX.flat().map((hex) =>
+      `<button type="button" class="wb-swatch" data-wb-color="${hex}" title="${hex}" aria-label="${hex}" style="background:${hex}"></button>`).join("")}</div>
+    <label class="wb-color-custom"><input type="color" data-wb-colorpick value="${kind === "bg" ? "#FFF2CC" : "#1F2937"}" aria-label="Custom color"> Custom…</label>
+    <button type="button" class="wb-color-cf" data-wb-colorcf>Conditional formatting…</button>`;
   pop.querySelector("[data-wb-colorpick]").addEventListener("change", (e) => {
     formatSelection(g, { [kind]: e.target.value });
     closeAllPopovers();
     g.els.grid.focus();
+  });
+  pop.querySelector("[data-wb-colorcf]").addEventListener("click", () => {
+    closeAllPopovers();
+    openCondFormatDialog(g);
   });
 }
 
@@ -6749,7 +7643,11 @@ function openCellContextMenu(g, x, y, kind) {
     item("clear-contents", "Clear contents"),
     item("clear-format", "Clear formatting"),
     item("format-cells", "Format cells…"),
+    item("merge-toggle", "Merge / unmerge cells"),
     item("comment", "Add comment"),
+    item("insert-link", (g.sheet.cells.get(cellKey(r, c))?.format?.link ? "Edit link…" : "Insert link…")),
+    g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("open-link", "Open link") : "",
+    g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("remove-link", "Remove link") : "",
     item("copy-ref", "Copy cell reference"),
     item("paste-values", "Paste values only"),
     item("trace-precedents", "Highlight precedents"),
@@ -6815,6 +7713,14 @@ function openCellContextMenu(g, x, y, kind) {
       case "trace-dependents": traceDependents(g); break;
       case "data-validation": openValidationDialog(g); break;
       case "cond-format": openCondFormatDialog(g); break;
+      case "insert-link": insertLinkPrompt(g); break;
+      case "open-link": {
+        const cur = g.sheet.cells.get(cellKey(r, c));
+        if (cur && cur.format && cur.format.link) window.open(cur.format.link, "_blank", "noopener");
+        break;
+      }
+      case "remove-link": formatSelection(g, { link: null }); break;
+      case "merge-toggle": toggleMergeSelection(g); break;
       case "sort-col-asc": sortByColumn(g, c, "asc"); break;
       case "sort-col-desc": sortByColumn(g, c, "desc"); break;
       case "sort-custom": openSortDialog(g); return;
@@ -6827,15 +7733,33 @@ function openCellContextMenu(g, x, y, kind) {
 
 function openSheetTabMenu(g, sheetId, x, y) {
   const sheets = WB.sheetsByBlock.get(g.blockId) || [];
+  const sheet = sheets.find((s) => s.id === sheetId);
+  if (!sheet) return;
+  const visibleCount = sheets.filter((s) => !(s.meta && s.meta.hidden)).length;
+  const curColor = (sheet.meta && sheet.meta.tabColor) || "";
   const m = ctxMenu(x, y, [
-    `<button type="button" class="popover-item" data-ctx="rename" role="menuitem">Rename sheet</button>`,
-    `<button type="button" class="popover-item" data-ctx="duplicate" role="menuitem">Duplicate sheet</button>`,
+    `<button type="button" class="popover-item" data-ctx="rename" role="menuitem">Rename</button>`,
+    `<button type="button" class="popover-item" data-ctx="duplicate" role="menuitem">Duplicate</button>`,
     `<button type="button" class="popover-item" data-ctx="move-left" role="menuitem">Move left</button>`,
     `<button type="button" class="popover-item" data-ctx="move-right" role="menuitem">Move right</button>`,
     `<div class="popover-section"></div>`,
-    `<button type="button" class="popover-item is-danger" data-ctx="delete" role="menuitem" ${sheets.length <= 1 ? "disabled" : ""}>Delete sheet…</button>`,
+    `<div class="wb-menu-head">Tab color</div>`,
+    `<div class="wb-tabcolor-row">${["", ...WB_COLOR_MATRIX[5].slice(0, 8)].map((hex) =>
+      `<button type="button" class="wb-swatch" data-tab-color="${hex}" title="${hex || "None"}" aria-label="${hex || "No color"}" style="background:${hex || "var(--surface)"};${hex === curColor || (!hex && !curColor) ? "outline:2px solid var(--accent);" : ""}">${hex ? "" : "×"}</button>`).join("")}</div>`,
+    `<div class="popover-section"></div>`,
+    `<button type="button" class="popover-item" data-ctx="hide" role="menuitem" ${visibleCount <= 1 ? "disabled" : ""}>Hide sheet</button>`,
+    `<button type="button" class="popover-item is-danger" data-ctx="delete" role="menuitem" ${sheets.length <= 1 ? "disabled" : ""}>Delete…</button>`,
   ].join(""));
   m.addEventListener("click", (e) => {
+    const swatch = e.target.closest("[data-tab-color]");
+    if (swatch) {
+      const hex = swatch.getAttribute("data-tab-color");
+      sheet.meta = { ...(sheet.meta || {}), tabColor: hex || null };
+      saveSheetMeta(sheetId);
+      closeAllPopovers();
+      renderSheetTabs(g);
+      return;
+    }
     const btn = e.target.closest("[data-ctx]");
     if (!btn || btn.disabled) return;
     const act = btn.getAttribute("data-ctx");
@@ -6844,6 +7768,16 @@ function openSheetTabMenu(g, sheetId, x, y) {
     else if (act === "duplicate") duplicateSheet(g, sheetId);
     else if (act === "move-left") moveSheet(g, sheetId, -1);
     else if (act === "move-right") moveSheet(g, sheetId, 1);
+    else if (act === "hide") {
+      sheet.meta = { ...(sheet.meta || {}), hidden: true };
+      saveSheetMeta(sheetId);
+      if (g.sheet.id === sheetId) {
+        const next = sheets.find((s) => s.id !== sheetId && !(s.meta && s.meta.hidden));
+        if (next) switchSheet(g, next.id);
+      }
+      renderSheetTabs(g);
+      wbLog("sheet.hidden", `hid sheet “${sheet.name}”`, { target_type: "sheet", target_id: sheetId });
+    }
     else if (act === "delete") deleteSheet(g, sheetId);
   });
 }
@@ -7188,6 +8122,325 @@ function renderSharingPanel(body) {
   }
 }
 
+// ─── Menu bar ────────────────────────────────────────────────────────────────
+// Google Sheets-style File/Edit/View/Insert/Format/Data menus over the
+// open workbook. Items dispatch to the same functions as the toolbar and
+// context menus; grid actions target the last-focused sheet block.
+// Submenus drill in (the row swaps to the child list with a ← back row).
+
+function activeGrid() {
+  if (WB.activeGridId && GRIDS.has(WB.activeGridId)) return GRIDS.get(WB.activeGridId);
+  return GRIDS.values().next().value || null;
+}
+
+function openPanelTab(tab) {
+  WB.panelOpen = true;
+  WB.panelTab = tab;
+  syncPanelVisibility();
+  renderPanel();
+}
+
+function insertLinkPrompt(g) {
+  const { r, c } = g.active;
+  const cur = g.sheet.cells.get(cellKey(r, c));
+  const url = window.prompt("Link URL (https://… or mailto:…)", (cur && cur.format && cur.format.link) || "https://");
+  if (url == null) return;
+  const t = url.trim();
+  if (t && t !== "https://" && !/^(https?:\/\/|mailto:)/i.test(t)) { _toast("Links must start with http(s):// or mailto:", "warn"); return; }
+  formatSelection(g, { link: t && t !== "https://" ? t.slice(0, 2000) : null });
+}
+
+const WB_MENUS = ["File", "Edit", "View", "Insert", "Format", "Data"];
+
+function wbMenuItems(menu, g) {
+  const ed = WB.canEdit;
+  const sep = "—";
+  switch (menu) {
+    case "File": return [
+      { label: "New workbook", act: "file:new" },
+      { label: "Make a copy", act: "file:copy", disabled: !ed },
+      { label: "Import CSV…", act: "file:import", disabled: !ed || !g },
+      sep,
+      { label: "Download", sub: [
+        { label: "Microsoft Excel (.xlsx)", act: "file:xlsx", disabled: !g },
+        { label: "CSV (current sheet)", act: "file:csv", disabled: !g },
+      ] },
+      { label: "Print…", act: "file:print", disabled: !g },
+      sep,
+      { label: "Rename", act: "file:rename", disabled: !ed },
+      { label: "Share", act: "file:share" },
+      { label: "Version history (activity)", act: "file:activity" },
+      { label: "Details", act: "file:details" },
+      sep,
+      { label: WB.wb && WB.wb.archived_at ? "Restore workbook" : "Archive workbook", act: "file:archive", disabled: !WB.canAdmin },
+      { label: "Delete workbook…", act: "file:delete", danger: true, disabled: !WB.canAdmin },
+    ];
+    case "Edit": return [
+      { label: "Undo", act: "edit:undo", kbd: "Ctrl+Z", disabled: !ed || !g },
+      { label: "Redo", act: "edit:redo", kbd: "Ctrl+Y", disabled: !ed || !g },
+      sep,
+      { label: "Cut", act: "edit:cut", kbd: "Ctrl+X", disabled: !ed || !g },
+      { label: "Copy", act: "edit:copy", kbd: "Ctrl+C", disabled: !g },
+      { label: "Paste", act: "edit:paste", kbd: "Ctrl+V", disabled: !ed || !g },
+      { label: "Paste values only", act: "edit:paste-values", disabled: !ed || !g },
+      sep,
+      { label: "Delete selected rows", act: "edit:del-rows", disabled: !ed || !g },
+      { label: "Delete selected columns", act: "edit:del-cols", disabled: !ed || !g },
+      { label: "Clear contents", act: "edit:clear", kbd: "Del", disabled: !ed || !g },
+      sep,
+      { label: "Find and replace", act: "edit:find", kbd: "Ctrl+H", disabled: !g },
+    ];
+    case "View": return [
+      { label: "Freeze", sub: [
+        { label: "Freeze top row", act: "view:freeze-row", disabled: !ed || !g },
+        { label: "Freeze first column", act: "view:freeze-col", disabled: !ed || !g },
+        { label: "Unfreeze", act: "view:unfreeze", disabled: !ed || !g },
+      ] },
+      { label: "Zoom", sub: [0.5, 0.75, 0.9, 1, 1.25, 1.5, 2].map((z) => ({ label: Math.round(z * 100) + "%", act: "view:zoom:" + z, disabled: !g })) },
+      sep,
+      { label: "Unhide all rows & columns", act: "view:unhide", disabled: !ed || !g },
+      sep,
+      { label: "Comments panel", act: "view:comments" },
+      { label: "Tasks panel", act: "view:tasks" },
+      { label: "Activity panel", act: "view:activity" },
+    ];
+    case "Insert": return [
+      { label: "Row above", act: "ins:row-above", disabled: !ed || !g },
+      { label: "Row below", act: "ins:row-below", disabled: !ed || !g },
+      { label: "Column left", act: "ins:col-left", disabled: !ed || !g },
+      { label: "Column right", act: "ins:col-right", disabled: !ed || !g },
+      { label: "New sheet", act: "ins:sheet", disabled: !ed || !g },
+      sep,
+      { label: "Chart…", act: "ins:chart", disabled: !ed || !g },
+      { label: "Function", sub: ["SUM", "AVERAGE", "COUNT", "MAX", "MIN", "COUNTIF", "VLOOKUP"].map((fn) => ({ label: fn, act: "ins:fn:" + fn, disabled: !ed || !g })) },
+      { label: "Link…", act: "ins:link", disabled: !ed || !g },
+      { label: "Dropdown (data validation)…", act: "ins:dropdown", disabled: !ed || !g },
+      { label: "Comment", act: "ins:comment", disabled: !g },
+      sep,
+      { label: "Note block", act: "ins:note", disabled: !ed },
+      { label: "Checklist block", act: "ins:checklist", disabled: !ed },
+      { label: "Spreadsheet block", act: "ins:sheetblock", disabled: !ed },
+    ];
+    case "Format": return [
+      { label: "Number", sub: [["", "Automatic"], ["number", "Number"], ["currency", "Currency"], ["accounting", "Accounting"], ["percent", "Percent"], ["scientific", "Scientific"], ["date", "Date"], ["text", "Plain text"]].map(([v, label]) => ({ label, act: "fmt:num:" + v, disabled: !ed || !g })) },
+      { label: "Text", sub: [["bold", "Bold", "Ctrl+B"], ["italic", "Italic", "Ctrl+I"], ["underline", "Underline", "Ctrl+U"], ["strike", "Strikethrough", ""]].map(([k, label, kbd]) => ({ label, kbd, act: "fmt:tog:" + k, disabled: !ed || !g })) },
+      { label: "Alignment", sub: [["align:left", "Left"], ["align:center", "Center"], ["align:right", "Right"], ["valign:top", "Top"], ["valign:middle", "Middle"], ["valign:bottom", "Bottom"]].map(([v, label]) => ({ label, act: "fmt:" + v, disabled: !ed || !g })) },
+      { label: "Wrapping", act: "fmt:tog:wrap", disabled: !ed || !g },
+      { label: "Rotation", sub: [["", "None"], ["45", "Tilt 45°"], ["90", "Vertical"]].map(([v, label]) => ({ label, act: "fmt:rot:" + v, disabled: !ed || !g })) },
+      { label: "Font size", sub: [8, 10, 12, 13, 14, 18, 24].map((n) => ({ label: String(n) + " px", act: "fmt:fs:" + n, disabled: !ed || !g })) },
+      sep,
+      { label: "Merge cells", act: "fmt:merge", disabled: !ed || !g },
+      { label: "Conditional formatting…", act: "fmt:cf", disabled: !ed || !g },
+      { label: "Format cells…", act: "fmt:cells", disabled: !ed || !g },
+      sep,
+      { label: "Clear formatting", act: "fmt:clear", disabled: !ed || !g },
+    ];
+    case "Data": {
+      const views = g ? sheetFilterViews(g.sheet) : [];
+      return [
+        { label: "Sort sheet by active column, A→Z", act: "data:sort-asc", disabled: !ed || !g },
+        { label: "Sort sheet by active column, Z→A", act: "data:sort-desc", disabled: !ed || !g },
+        { label: "Custom sort…", act: "data:sort", disabled: !ed || !g },
+        sep,
+        { label: "Filter this column…", act: "data:filter", disabled: !g },
+        { label: "Clear filters", act: "data:filter-clear", disabled: !g },
+        { label: "Filter views", sub: [
+          ...views.map((v) => ({ label: v.name, act: "data:fv:" + v.id })),
+          ...(views.length ? [sep] : []),
+          { label: "Save current filters as view…", act: "data:fv-save", disabled: !ed || !g },
+          ...(views.length ? [{ label: "Delete a view", sub: views.map((v) => ({ label: "✕ " + v.name, act: "data:fv-del:" + v.id, disabled: !ed })) }] : []),
+        ] },
+        sep,
+        { label: "Column stats", act: "data:stats", disabled: !g },
+        { label: "Data validation…", act: "data:validation", disabled: !ed || !g },
+        { label: "Split text to columns…", act: "data:split", disabled: !ed || !g },
+        { label: "Data cleanup", sub: [
+          { label: "Remove duplicates…", act: "data:dedupe", disabled: !ed || !g },
+          { label: "Trim whitespace", act: "data:trim", disabled: !ed || !g },
+        ] },
+      ];
+    }
+  }
+  return [];
+}
+
+function wbMenuAction(act, g) {
+  const parts = String(act || "").split(":");
+  const ns = parts[0], verb = parts[1], arg = parts.slice(2).join(":");
+  const rect = g ? selRect(g) : null;
+  const need = () => { if (!g) _toast("Open a spreadsheet block first", "info"); return !!g; };
+  switch (`${ns}:${verb}`) {
+    case "file:new": openCreateModal(); return;
+    case "file:copy": duplicateWorkbook(); return;
+    case "file:import": if (need()) importCsvInto(g); return;
+    case "file:xlsx": if (need()) exportBlockXlsx(g); return;
+    case "file:csv": if (need()) exportSheetCsv(g); return;
+    case "file:print": if (need()) printSheet(g); return;
+    case "file:rename": { const t = document.getElementById("wb-title-input"); if (t) { t.focus(); t.select(); } return; }
+    case "file:share": openPanelTab("sharing"); return;
+    case "file:activity": openPanelTab("activity"); return;
+    case "file:details": openPanelTab("details"); return;
+    case "file:archive": archiveWorkbook(!!(WB.wb && WB.wb.archived_at)); return;
+    case "file:delete": deleteWorkbookFlow(); return;
+    case "edit:undo": if (need()) undoGrid(g); return;
+    case "edit:redo": if (need()) redoGrid(g); return;
+    case "edit:cut": if (need()) copySelection(g, "cut"); return;
+    case "edit:copy": if (need()) copySelection(g); return;
+    case "edit:paste": if (need()) pasteFromClipboard(g); return;
+    case "edit:paste-values": if (need()) pasteValuesOnly(g); return;
+    case "edit:del-rows": if (need()) restructure(g, "row", rect.r0, -(rect.r1 - rect.r0 + 1)); return;
+    case "edit:del-cols": if (need()) restructure(g, "col", rect.c0, -(rect.c1 - rect.c0 + 1)); return;
+    case "edit:clear": if (need()) clearSelection(g); return;
+    case "edit:find": if (need()) openFindPanel(g, WB.canEdit); return;
+    case "view:freeze-row": if (need()) { g.sheet.frozenRows = 1; saveSheetMeta(g.sheet.id); repaintGrid(g); } return;
+    case "view:freeze-col": if (need()) { g.sheet.frozenCols = 1; saveSheetMeta(g.sheet.id); repaintGrid(g); } return;
+    case "view:unfreeze": if (need()) setFreeze(g, "none"); return;
+    case "view:unhide": if (need()) { g.sheet.hiddenRows.clear(); g.sheet.hiddenCols.clear(); saveSheetMeta(g.sheet.id); computeGeometry(g); repaintGrid(g); } return;
+    case "view:comments": openPanelTab("comments"); return;
+    case "view:tasks": openPanelTab("tasks"); return;
+    case "view:activity": openPanelTab("activity"); return;
+    case "ins:row-above": if (need()) restructure(g, "row", rect.r0, 1); return;
+    case "ins:row-below": if (need()) restructure(g, "row", rect.r1 + 1, 1); return;
+    case "ins:col-left": if (need()) restructure(g, "col", rect.c0, 1); return;
+    case "ins:col-right": if (need()) restructure(g, "col", rect.c1 + 1, 1); return;
+    case "ins:sheet": if (need()) addSheetTo(g.blockId); return;
+    case "ins:chart": if (need()) openChartDialog(g); return;
+    case "ins:link": if (need()) insertLinkPrompt(g); return;
+    case "ins:dropdown": if (need()) openValidationDialog(g); return;
+    case "ins:comment": if (need()) openCellComment(g, g.active.r, g.active.c); return;
+    case "ins:note": addBlock("text"); return;
+    case "ins:checklist": addBlock("checklist"); return;
+    case "ins:sheetblock": addBlock("sheet"); return;
+    case "fmt:merge": if (need()) toggleMergeSelection(g); return;
+    case "fmt:cf": if (need()) openCondFormatDialog(g); return;
+    case "fmt:cells": if (need()) openFormatCellsDialog(g); return;
+    case "fmt:clear": if (need()) clearFormatting(g); return;
+    case "data:sort-asc": if (need()) sortByColumn(g, g.active.c, "asc"); return;
+    case "data:sort-desc": if (need()) sortByColumn(g, g.active.c, "desc"); return;
+    case "data:sort": if (need()) openSortDialog(g); return;
+    case "data:filter": if (need()) openFilterPanel(g, g.active.c, null, { x: Math.max(16, window.innerWidth / 2 - 132), y: 180 }); return;
+    case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); } return;
+    case "data:fv-save": if (need()) saveFilterView(g); return;
+    case "data:stats": if (need()) showColumnStats(g); return;
+    case "data:validation": if (need()) openValidationDialog(g); return;
+    case "data:split": if (need()) splitTextToColumns(g); return;
+    case "data:dedupe": if (need()) removeDuplicateRows(g); return;
+    case "data:trim": if (need()) trimWhitespace(g); return;
+  }
+  if (!g) { _toast("Open a spreadsheet block first", "info"); return; }
+  if (ns === "view" && verb === "zoom") setZoom(g, +arg || 1);
+  else if (ns === "ins" && verb === "fn") startEdit(g, g.active.r, g.active.c, `=${arg}(`);
+  else if (ns === "fmt" && verb === "num") formatSelection(g, { num: arg || null });
+  else if (ns === "fmt" && verb === "tog") toggleFormat(g, arg);
+  else if (ns === "fmt" && verb === "align") formatSelection(g, { align: arg });
+  else if (ns === "fmt" && verb === "valign") formatSelection(g, { valign: arg });
+  else if (ns === "fmt" && verb === "rot") formatSelection(g, { rot: +arg || null });
+  else if (ns === "fmt" && verb === "fs") formatSelection(g, { fs: +arg });
+  else if (ns === "data" && verb === "fv") applyFilterView(g, arg);
+  else if (ns === "data" && verb === "fv-del") { deleteFilterView(g, arg); _toast("Filter view deleted", "success"); }
+}
+
+function openWbMenu(name, btn) {
+  const g = activeGrid();
+  const rect = btn.getBoundingClientRect();
+  const m = ctxMenu(rect.left, rect.bottom + 2, "");
+  m.classList.add("wb-menu-pop");
+  const stack = [{ title: name, items: wbMenuItems(name, g) }];
+  const render = () => {
+    const top = stack[stack.length - 1];
+    m.innerHTML = (stack.length > 1 ? `<button type="button" class="popover-item wb-menu-back" data-menu-back>← ${esc(top.title)}</button><div class="popover-section"></div>` : "")
+      + top.items.map((it, i) => {
+        if (it === "—") return `<div class="popover-section"></div>`;
+        return `<button type="button" class="popover-item ${it.danger ? "is-danger" : ""}" data-menu-i="${i}" role="menuitem" ${it.disabled ? "disabled" : ""}><span>${esc(it.label)}</span><span class="wb-menu-kbd">${it.sub ? "▸" : esc(it.kbd || "")}</span></button>`;
+      }).join("");
+    const r2 = m.getBoundingClientRect();
+    if (r2.bottom > window.innerHeight - 8) m.style.top = Math.max(8, window.innerHeight - r2.height - 8) + "px";
+  };
+  render();
+  m.addEventListener("click", (e) => {
+    if (e.target.closest("[data-menu-back]")) { stack.pop(); render(); return; }
+    const item = e.target.closest("[data-menu-i]");
+    if (!item || item.disabled) return;
+    const it = stack[stack.length - 1].items[+item.getAttribute("data-menu-i")];
+    if (!it) return;
+    if (it.sub) { stack.push({ title: it.label, items: it.sub }); render(); return; }
+    closeAllPopovers();
+    wbMenuAction(it.act, g);
+  });
+}
+
+// File → Make a copy: full duplicate (blocks, sheets, cells, checklist
+// items) under the current user's ownership.
+async function duplicateWorkbook() {
+  const src = WB.wb;
+  if (!src || !WB.canEdit) return;
+  _toast("Copying workbook…", "info");
+  try {
+    const s = _sb(), dsp = _dsp(), self = _me();
+    const ins = await s.from("workbooks").insert({
+      dsp_id: dsp.id, owner_user_id: self ? self.id : null,
+      title: `Copy of ${src.title}`.slice(0, 200), description: src.description,
+      visibility: src.visibility, template_key: src.template_key,
+    }).select().single();
+    if (ins.error) throw ins.error;
+    const nwb = ins.data;
+    for (const block of WB.blocks) {
+      const bIns = await s.from("workbook_blocks").insert({
+        dsp_id: dsp.id, workbook_id: nwb.id, type: block.type, title: block.title || "",
+        position: block.position, settings: block.settings || {}, content: block.content || {},
+      }).select().single();
+      if (bIns.error) throw bIns.error;
+      if (block.type === "sheet") {
+        for (const sh of WB.sheetsByBlock.get(block.id) || []) {
+          const shRow = {
+            dsp_id: dsp.id, workbook_id: nwb.id, block_id: bIns.data.id,
+            name: sh.name, position: sh.position, row_count: sh.rowCount, col_count: sh.colCount,
+            frozen_rows: sh.frozenRows, frozen_cols: sh.frozenCols,
+            col_widths: sh.colWidths || {}, row_heights: sh.rowHeights || {},
+            meta: { ...(sh.meta || {}), hiddenRows: [...(sh.hiddenRows || [])], hiddenCols: [...(sh.hiddenCols || [])] },
+          };
+          let shIns = await s.from("workbook_sheets").insert(shRow).select().single();
+          if (shIns.error && /meta/i.test(String(shIns.error.message))) {
+            delete shRow.meta; // pre-0414 schema
+            shIns = await s.from("workbook_sheets").insert(shRow).select().single();
+          }
+          if (shIns.error) throw shIns.error;
+          const rows = [];
+          for (const [key, cell] of sh.cells) {
+            const rc = keyRC(key);
+            rows.push({
+              dsp_id: dsp.id, workbook_id: nwb.id, sheet_id: shIns.data.id,
+              row_index: rc.r, col_index: rc.c,
+              value: cell.value ?? null, formula: cell.formula ?? null,
+              value_type: cell.type ?? null, format: cell.format || {},
+              updated_by: self ? self.id : null,
+            });
+          }
+          for (let i = 0; i < rows.length; i += 500) {
+            const r = await s.from("workbook_cells").insert(rows.slice(i, i + 500));
+            if (r.error) throw r.error;
+          }
+        }
+      }
+      if (block.type === "checklist") {
+        const items = (WB.itemsByBlock.get(block.id) || []).map((it, i) => ({
+          dsp_id: dsp.id, workbook_id: nwb.id, block_id: bIns.data.id,
+          label: it.label, position: it.position ?? i, note: it.note || null,
+          priority: it.priority || null, due_date: it.due_date || null,
+          created_by: self ? self.id : null,
+        }));
+        if (items.length) {
+          const r = await s.from("workbook_checklist_items").insert(items);
+          if (r.error) throw r.error;
+        }
+      }
+    }
+    _toast("Copy created", "success");
+    await openWorkbook(nwb.id);
+    wbLog("workbook.created", `created this workbook as a copy of “${src.title}”`, { target_type: "workbook", target_id: nwb.id });
+  } catch (e) { _toast("Couldn't copy the workbook: " + ((e && e.message) || e), "error"); }
+}
+
 // ─── Workbook lifecycle actions ─────────────────────────────────────────────
 
 async function archiveWorkbook(unarchive) {
@@ -7254,6 +8507,9 @@ function installRootListeners() {
       }
       return;
     }
+
+    const menubtn = e.target.closest("[data-wb-menubar]");
+    if (menubtn) { openWbMenu(menubtn.getAttribute("data-wb-menubar"), menubtn); return; }
 
     const dvb = e.target.closest("[data-wb-dvbtn]");
     if (dvb) {

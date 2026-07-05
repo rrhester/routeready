@@ -219,7 +219,9 @@ const shA = mkSheet("Ops?", {
   E2: { value: "12%", type: "percent" },
   F2: { value: "2026-07-05", type: "date" },
   G2: { value: "note", type: "text", format: { bg: "#ABCDEF", fg: "#112233", align: "center", wrap: true } },
-}, { frozenRows: 1, colWidths: { 0: 140 } });
+  A3: { value: "styled", type: "text", format: { strike: true, fs: 18, ff: "courier", valign: "top", rot: 45 } },
+  B3: { value: "site", type: "text", format: { link: "https://example.com/x?a=1&b=2" } },
+}, { frozenRows: 1, colWidths: { 0: 140 }, meta: { merges: [{ r0: 4, c0: 0, r1: 5, c1: 2 }] } });
 const shB = mkSheet("Ops?", { A1: { value: "x", type: "text" } });
 
 const xbytes = __engine.buildXlsxBytes([shA, shB]);
@@ -256,6 +258,21 @@ ok("xlsx: styles carry number formats and custom hex colors", () => {
   assert.ok(st.includes('rgb="FFABCDEF"'), "custom fill hex");
   assert.ok(st.includes('rgb="FF112233"'), "custom text hex");
   assert.ok(st.includes("<b/>"), "bold font variant");
+});
+ok("xlsx: strike/size/family fonts + rotation/valign alignment", () => {
+  const st = parts.get("xl/styles.xml");
+  assert.ok(st.includes("<strike/>"), "strikethrough font");
+  assert.ok(st.includes('<sz val="14"/>'), "18px → 14pt font size");
+  assert.ok(st.includes('<name val="Courier New"/>'), "mono font name");
+  assert.ok(st.includes('textRotation="45"'), "rotation");
+  assert.ok(st.includes('vertical="top"'), "vertical align");
+});
+ok("xlsx: merged ranges and hyperlinks with rels", () => {
+  const s1 = parts.get("xl/worksheets/sheet1.xml");
+  assert.ok(s1.includes('<mergeCell ref="A5:C6"/>'), "merge range");
+  assert.ok(s1.includes('<hyperlink ref="B3" r:id="rlk1"/>'), "hyperlink ref");
+  const rels = parts.get("xl/worksheets/_rels/sheet1.xml.rels");
+  assert.ok(rels && rels.includes("https://example.com/x?a=1&amp;b=2") && rels.includes('TargetMode="External"'), "hyperlink relationship");
 });
 
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);

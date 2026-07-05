@@ -28689,6 +28689,18 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-tb-numfmt{font-size:var(--fs-xs);font-weight:600;padding:4px 8px}
 #view-workbooks .wb-tb-pop{min-width:200px;left:0;right:auto}
 .wb-color-grid{display:grid;grid-template-columns:repeat(7,26px);gap:5px;padding:9px}
+.wb-color-grid-10{grid-template-columns:repeat(10,20px);gap:3px;padding:8px 10px}
+.wb-color-grid-10 .wb-swatch{width:20px;height:20px;border-radius:50%;border-color:rgba(0,0,0,.12)}
+.wb-color-reset{
+  display:block;width:calc(100% - 16px);margin:8px 8px 0;padding:5px 8px;text-align:left;
+  border:1px solid var(--border-subtle);border-radius:var(--r-sm);background:var(--surface);
+  color:var(--text-muted);font-size:var(--fs-xs);cursor:pointer;
+}
+.wb-color-reset:hover,.wb-color-cf:hover{background:var(--canvas)}
+.wb-color-cf{
+  display:block;width:100%;padding:7px 12px;text-align:left;border:0;border-top:1px solid var(--border-subtle);
+  background:none;color:var(--text-muted);font-size:var(--fs-xs);cursor:pointer;
+}
 .wb-swatch{
   width:26px;height:26px;border-radius:var(--r-sm);border:1px solid var(--border-strong);
   cursor:pointer;font-size:12px;color:var(--text-subtle);
@@ -28720,6 +28732,55 @@ body.rr-cmdk-open{ overflow:hidden }
 .wb-filterpop-all{border-bottom:1px solid var(--border-subtle);border-radius:0;font-weight:600}
 .wb-filterpop-more{padding:5px 7px;font-size:var(--fs-xs);color:var(--text-subtle)}
 .wb-filterpop-foot{display:flex;justify-content:space-between;gap:8px}
+#view-workbooks .wb-sb-zoom{
+  margin-left:auto;border:1px solid var(--border-subtle);border-radius:var(--r-sm);
+  background:var(--surface);color:var(--text-muted);font-size:var(--fs-xs);padding:1px 4px;
+}
+#view-workbooks .wb-tb.is-on{background:var(--accent-soft,rgba(37,99,235,.12));color:var(--accent,#2563EB)}
+
+/* ── Menu bar (Sheets-style) ── */
+#view-workbooks .wb-menubar{
+  display:flex;gap:2px;align-items:center;
+  padding:0 4px 6px;margin-top:-2px;
+}
+#view-workbooks .wb-menubtn{
+  border:0;background:none;cursor:pointer;
+  font-size:var(--fs-sm);color:var(--text-muted);
+  padding:3px 10px;border-radius:var(--r-sm);
+}
+#view-workbooks .wb-menubtn:hover{background:var(--canvas);color:var(--text)}
+.wb-menu-pop{min-width:250px;max-width:320px}
+.wb-menu-pop .popover-item{display:flex;justify-content:space-between;gap:14px;width:100%}
+.wb-menu-kbd{color:var(--text-subtle);font-size:var(--fs-xs);white-space:nowrap}
+.wb-menu-head{padding:6px 12px 2px;font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em}
+.wb-menu-back{font-weight:600}
+.wb-tabcolor-row{display:flex;gap:4px;padding:4px 12px 8px}
+.wb-tabcolor-row .wb-swatch{width:20px;height:20px;border-radius:50%}
+#view-workbooks .wb-tab-caret{
+  display:inline-block;margin-left:5px;color:var(--text-subtle);
+  font-size:9px;line-height:1;
+}
+#view-workbooks .wb-tab.is-active .wb-tab-caret:hover{color:var(--text)}
+
+/* ── Charts strip ── */
+#view-workbooks .wb-charts{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;
+  padding:12px 2px 4px;
+}
+#view-workbooks .wb-chart-card{
+  flex:0 1 520px;min-width:320px;max-width:560px;
+  border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);padding:10px 12px 8px;
+}
+#view-workbooks .wb-chart-head{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+#view-workbooks .wb-chart-title{flex:1;font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#view-workbooks .wb-chart-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:2px 0 4px}
+#view-workbooks .wb-chart-key{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);color:var(--text-muted)}
+#view-workbooks .wb-chart-keyv{color:var(--text-subtle)}
+#view-workbooks .wb-chart-swatch{width:10px;height:10px;border-radius:3px;flex:none}
+#view-workbooks .wb-chart-card svg{width:100%;height:auto;display:block}
+#view-workbooks .wb-chart-tick{font-size:10px;fill:var(--text-subtle)}
+#view-workbooks .wb-chart-empty{padding:18px 4px;font-size:var(--fs-sm);color:var(--text-subtle)}
 
 /* ── Formula bar ── */
 #view-workbooks .wb-fbar{
@@ -28778,14 +28839,17 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-cell{
   position:absolute;box-sizing:border-box;
   border-right:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);
-  font-size:var(--fs-md);color:var(--text);
-  padding:0 7px;line-height:26px;
+  font-size:calc(var(--fs-md) * var(--wb-zoom, 1));color:var(--text);
+  padding:0 7px;line-height:1.35;
+  display:flex;align-items:center;
   white-space:nowrap;overflow:hidden;text-overflow:clip;
   font-variant-numeric:tabular-nums;
   user-select:none;cursor:cell;
   background:var(--surface);
 }
 #view-workbooks .wb-cell.is-err{color:var(--red);font-weight:600;background:var(--red-soft,rgba(220,38,38,.05))}
+#view-workbooks .wb-cell.is-link{cursor:pointer}
+#view-workbooks .wb-rot{display:inline-block;transform-origin:center;white-space:nowrap}
 #view-workbooks .wb-cmark{
   position:absolute;top:0;right:0;width:0;height:0;
   border-style:solid;border-width:0 7px 7px 0;
@@ -28803,7 +28867,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #view-workbooks .wb-cell-editor{
   position:absolute;z-index:4;box-sizing:border-box;
-  font:inherit;font-size:var(--fs-md);color:var(--text);
+  font:inherit;font-size:calc(var(--fs-md) * var(--wb-zoom, 1));color:var(--text);
   border:2px solid var(--accent);border-radius:1px;outline:none;
   padding:0 5px;background:var(--surface);
   box-shadow:var(--shadow-md);
