@@ -28696,6 +28696,109 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-add-row{display:flex;gap:var(--s-2);justify-content:center}
 #view-workbooks .wb-add-row-foot{padding:var(--s-2) 0 var(--s-6)}
 
+/* ══════════════════════════════════════════════════════════════════════
+   WORKBOOK MODE — full-screen, document-first spreadsheet
+   ----------------------------------------------------------------------
+   When a workbook is opened, workbook.js stamps body.rr-wb-fullscreen.
+   The open workbook then takes over the entire app window (Excel / Sheets
+   style): the dashboard rail + topbar disappear, page padding and card
+   chrome drop away, and the whole thing becomes a flex column that is
+   exactly the viewport tall. The spreadsheet grid — not the browser page —
+   owns scrolling. Leaving the workbook (Back / navigating away) removes
+   the class and the normal dashboard chrome returns.
+
+   Layout chain (top → bottom, each a fixed-height band except the grid):
+     .main (100vh, no scroll)
+       └ #view-workbooks (flex column, 100vh)
+           └ .page (padding:0, flex:1, min-h/min-w:0)
+               └ #rr-wb-root (flex:1, min-h/min-w:0)
+                   └ .wb-detail (flex:1, min-h/min-w:0)
+                       ├ .wb-head            — command bar (fixed height)
+                       └ .wb-body / .wb-blocks (flex:1, min-h/min-w:0)
+                           └ sheet block: toolbar+formula bar (sticky) ·
+                             grid (flex, owns scroll) · tabs · status bar
+   ══════════════════════════════════════════════════════════════════════ */
+body.rr-wb-fullscreen .app{grid-template-columns:1fr}
+body.rr-wb-fullscreen .sidebar{display:none}
+body.rr-wb-fullscreen .topbar{display:none}
+/* The app body must not scroll — the grid is the only scroll container. */
+body.rr-wb-fullscreen{overflow:hidden}
+body.rr-wb-fullscreen .main{
+  height:100vh;height:100dvh;min-height:0;min-width:0;overflow:hidden;
+}
+body.rr-wb-fullscreen #view-workbooks.view.active{
+  display:flex;flex-direction:column;
+  height:100vh;height:100dvh;width:100vw;max-width:100vw;
+  min-height:0;min-width:0;overflow:hidden;animation:none;
+}
+/* Kill the dashboard page frame: no padding, no max-width, no margins. */
+body.rr-wb-fullscreen #view-workbooks > .page{
+  padding:0;margin:0;max-width:none;width:100%;
+  flex:1 1 auto;min-height:0;min-width:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+body.rr-wb-fullscreen #rr-wb-root{
+  flex:1 1 auto;min-height:0;min-width:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+/* The workbook shell fills the frame via flex (WB.fitDetail clears its
+   inline pixel height in this mode, so flex:1 governs). */
+body.rr-wb-fullscreen #view-workbooks .wb-detail{
+  flex:1 1 auto;height:auto;min-height:0;min-width:0;overflow:hidden;
+  gap:var(--s-2);padding:8px 14px 6px;
+}
+body.rr-wb-fullscreen #view-workbooks .wb-body{
+  flex:1 1 auto;min-height:0;min-width:0;
+}
+body.rr-wb-fullscreen #view-workbooks .wb-blocks{
+  min-height:0;min-width:0;
+}
+/* Command-bar app icon + Share button (Excel-style top bar). */
+#view-workbooks .wb-appmark{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  width:26px;height:26px;border-radius:var(--r-sm);overflow:hidden;
+}
+#view-workbooks .wb-appmark img{width:100%;height:100%;object-fit:contain;display:block}
+#view-workbooks .wb-share-btn{
+  display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;
+  background:var(--accent);color:#fff;border:0;font-weight:600;
+  padding:5px 12px;border-radius:var(--r-pill);white-space:nowrap;
+}
+#view-workbooks .wb-share-btn:hover{background:var(--accent-strong,var(--accent))}
+#view-workbooks .wb-share-btn svg{stroke:#fff}
+/* Keyboard-shortcuts help sheet (Help → Keyboard shortcuts). */
+.wb-shortcuts{display:flex;flex-direction:column;gap:2px}
+.wb-shortcut-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:6px 2px;border-bottom:1px solid var(--border-subtle)}
+.wb-shortcut-row:last-child{border-bottom:0}
+.wb-shortcut-row span{font-size:var(--fs-sm);color:var(--text-muted)}
+.wb-shortcut-row kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-xs);color:var(--text);background:var(--surface-secondary,var(--canvas));border:1px solid var(--border);border-radius:var(--r-sm);padding:2px 7px;white-space:nowrap}
+
+/* Desktop app (Window Controls Overlay): the command bar sits at the very
+   top of the window in Workbook Mode, so reserve the OS title-bar band
+   above it and make that strip a drag handle (interactive controls stay
+   clickable via the no-drag rule below). */
+@media (display-mode: window-controls-overlay){
+  body.rr-wb-fullscreen #view-workbooks > .page{padding-top:0 !important}
+  body.rr-wb-fullscreen #view-workbooks .wb-detail{
+    padding-top:calc(env(titlebar-area-height, 33px) + 6px);
+  }
+  body.rr-wb-fullscreen #view-workbooks .wb-head{-webkit-app-region:drag;app-region:drag}
+  body.rr-wb-fullscreen #view-workbooks .wb-head button,
+  body.rr-wb-fullscreen #view-workbooks .wb-head input,
+  body.rr-wb-fullscreen #view-workbooks .wb-head .wb-menubar,
+  body.rr-wb-fullscreen #view-workbooks .wb-head .wb-head-side{-webkit-app-region:no-drag;app-region:no-drag}
+}
+
+/* Small screens: keep the command bar and menus usable; the grid still
+   owns horizontal scroll. Mobile collapses the menubar labels to save
+   room but keeps every control reachable. */
+@media (max-width:720px){
+  body.rr-wb-fullscreen #view-workbooks .wb-detail{padding:6px 8px 4px}
+  body.rr-wb-fullscreen #view-workbooks .wb-head{flex-wrap:wrap;row-gap:4px}
+  body.rr-wb-fullscreen #view-workbooks .wb-title-input{flex:1 1 140px}
+  body.rr-wb-fullscreen #view-workbooks .wb-menubar{order:3;width:100%;overflow-x:auto}
+}
+
 /* ── Block chrome ── */
 #view-workbooks .wb-block{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
