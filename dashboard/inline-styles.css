@@ -28738,6 +28738,30 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #view-workbooks .wb-tb.is-on{background:var(--accent-soft,rgba(37,99,235,.12));color:var(--accent,#2563EB)}
 
+/* ── Menu bar (Sheets-style) ── */
+#view-workbooks .wb-menubar{
+  display:flex;gap:2px;align-items:center;
+  padding:0 4px 6px;margin-top:-2px;
+}
+#view-workbooks .wb-menubtn{
+  border:0;background:none;cursor:pointer;
+  font-size:var(--fs-sm);color:var(--text-muted);
+  padding:3px 10px;border-radius:var(--r-sm);
+}
+#view-workbooks .wb-menubtn:hover{background:var(--canvas);color:var(--text)}
+.wb-menu-pop{min-width:250px;max-width:320px}
+.wb-menu-pop .popover-item{display:flex;justify-content:space-between;gap:14px;width:100%}
+.wb-menu-kbd{color:var(--text-subtle);font-size:var(--fs-xs);white-space:nowrap}
+.wb-menu-head{padding:6px 12px 2px;font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em}
+.wb-menu-back{font-weight:600}
+.wb-tabcolor-row{display:flex;gap:4px;padding:4px 12px 8px}
+.wb-tabcolor-row .wb-swatch{width:20px;height:20px;border-radius:50%}
+#view-workbooks .wb-tab-caret{
+  display:inline-block;margin-left:5px;color:var(--text-subtle);
+  font-size:9px;line-height:1;
+}
+#view-workbooks .wb-tab.is-active .wb-tab-caret:hover{color:var(--text)}
+
 /* ── Charts strip ── */
 #view-workbooks .wb-charts{
   display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;

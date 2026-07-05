@@ -2548,6 +2548,9 @@ function renderDetailPage() {
           </span>
         </div>
       </div>
+      <div class="wb-menubar" role="menubar" aria-label="Workbook menus">
+        ${WB_MENUS.map((n) => `<button type="button" class="wb-menubtn" data-wb-menubar="${n}" role="menuitem">${n}</button>`).join("")}
+      </div>
       ${wb.archived_at ? `<div class="wb-archived-note">This workbook is archived — it's read-only in spirit; restore it from the ⋯ menu to keep working.</div>` : ""}
       <div class="wb-body">
         <div class="wb-blocks" id="wb-blocks"></div>
@@ -3138,7 +3141,7 @@ function mountSheetBlock(block, body) {
 }
 
 function sheetToolbarHtml(block, ro) {
-  const btn = (act, title, svg, extra) => `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="${act}" ${extra || ""} title="${esc(title)}" aria-label="${esc(title)}" ${ro && act !== "export-csv" && act !== "find" ? "disabled" : ""}>${svg}</button>`;
+  const btn = (act, title, svg, extra) => `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="${act}" ${extra || ""} title="${esc(title)}" aria-label="${esc(title)}" ${ro && act !== "export-csv" && act !== "find" && act !== "comment-cell" ? "disabled" : ""}>${svg}</button>`;
   const I = {
     undo: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>`,
     redo: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>`,
@@ -3166,9 +3169,10 @@ function sheetToolbarHtml(block, ro) {
     cf: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.6 6 11a6 6 0 0 1-12 0c0-4.4 6-11 6-11z"/></svg>`,
   };
   return `<div class="wb-toolbar" role="toolbar" aria-label="Spreadsheet tools" data-wb-toolbar="${block.id}">
-    <div class="wb-tgrp">${btn("undo", "Undo (Ctrl+Z)", I.undo)}${btn("redo", "Redo (Ctrl+Y)", I.redo)}</div>
+    <div class="wb-tgrp">${btn("undo", "Undo (Ctrl+Z)", I.undo)}${btn("redo", "Redo (Ctrl+Y)", I.redo)}${btn("paint-format", "Format painter — copy the active cell's formatting to the next selection", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="14" height="5" rx="1"/><path d="M18 5h2v5H9v3"/><rect x="7" y="13" width="4" height="8" rx="1"/></svg>`)}</div>
     <div class="wb-tgrp">${btn("autosum", "AutoSum — insert =SUM(…) for the selection", `<span class="wb-tb-txt wb-tb-sigma">Σ</span>`)}</div>
     <div class="wb-tgrp">
+      ${btn("fmt-currency", "Format as currency", `<span class="wb-tb-txt">$</span>`)}${btn("fmt-percent", "Format as percent", `<span class="wb-tb-txt">%</span>`)}
       <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="dec-minus" title="Decrease decimal places" aria-label="Decrease decimal places" ${ro ? "disabled" : ""}><span class="wb-tb-txt wb-tb-dec">.0</span></button>
       <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="dec-plus" title="Increase decimal places" aria-label="Increase decimal places" ${ro ? "disabled" : ""}><span class="wb-tb-txt wb-tb-dec">.00</span></button>
       <span class="popover-anchor">
@@ -3183,7 +3187,7 @@ function sheetToolbarHtml(block, ro) {
         </div>
       </span>
     </div>
-    <div class="wb-tgrp">${btn("bold", "Bold (Ctrl+B)", I.bold)}${btn("italic", "Italic (Ctrl+I)", I.italic)}${btn("underline", "Underline (Ctrl+U)", I.underline)}</div>
+    <div class="wb-tgrp">${btn("bold", "Bold (Ctrl+B)", I.bold)}${btn("italic", "Italic (Ctrl+I)", I.italic)}${btn("underline", "Underline (Ctrl+U)", I.underline)}${btn("strike", "Strikethrough", `<span class="wb-tb-txt"><s>S</s></span>`)}</div>
     <div class="wb-tgrp">${btn("align-left", "Align left", I.alignL)}${btn("align-center", "Align center", I.alignC)}${btn("align-right", "Align right", I.alignR)}<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="wrap" title="Wrap text" aria-label="Wrap text" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><path d="M3 12h13a4 4 0 0 1 0 8h-3"/><polyline points="15 16 12 20 15 24" transform="translate(0,-4)"/><line x1="3" y1="18" x2="9" y2="18"/></svg></button></div>
     <div class="wb-tgrp">
       <span class="popover-anchor">${btn("fill-menu", "Fill color", I.fill, 'aria-haspopup="menu"')}
@@ -3199,6 +3203,7 @@ function sheetToolbarHtml(block, ro) {
         </div></span>
       ${btn("clear-format", "Clear formatting", I.clearFmt)}
     </div>
+    <div class="wb-tgrp">${btn("merge", "Merge / unmerge cells", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M9 12h6"/><path d="M7 9l-2 3 2 3"/><path d="M17 9l2 3-2 3"/></svg>`)}${btn("insert-link", "Insert link (Ctrl+click opens)", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`)}${btn("comment-cell", "Comment on the active cell", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`)}${btn("insert-chart", "Insert chart from the selection", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="10" width="3" height="7"/><rect x="11" y="6" width="3" height="11"/><rect x="16" y="13" width="3" height="4"/></svg>`)}</div>
     <div class="wb-tgrp">${btn("row-add", "Insert row below", I.addRow)}${btn("row-del", "Delete row", I.delRow)}${btn("col-add", "Insert column right", I.addCol)}${btn("col-del", "Delete column", I.delCol)}</div>
     <div class="wb-tgrp">
       <span class="popover-anchor">${btn("freeze-menu", "Freeze", I.freeze, 'aria-haspopup="menu"')}
@@ -4222,11 +4227,20 @@ function paintCommentMarkers() {
 // ─── Sheet tabs ──────────────────────────────────────────────────────────────
 
 function renderSheetTabs(g) {
-  const sheets = (WB.sheetsByBlock.get(g.blockId) || []).slice().sort((a, b) => a.position - b.position);
+  const all = (WB.sheetsByBlock.get(g.blockId) || []).slice().sort((a, b) => a.position - b.position);
+  const sheets = all.filter((sh) => !(sh.meta && sh.meta.hidden) || sh.id === g.sheet.id);
   const ro = !WB.canEdit;
+  const tabBtn = (sh) => {
+    const active = sh.id === g.sheet.id;
+    const color = sh.meta && sh.meta.tabColor && HEX_COLOR_RE.test(sh.meta.tabColor) ? sh.meta.tabColor : null;
+    return `<button type="button" class="wb-tab ${active ? "is-active" : ""}" role="tab" aria-selected="${active}" data-wb-sheettab="${sh.id}" title="${esc(sh.name)}${ro ? "" : " — double-click to rename"}"${color ? ` style="box-shadow:inset 0 -3px 0 ${color}"` : ""}>${esc(sh.name)}${active && !ro ? `<span class="wb-tab-caret" data-wb-tabmenu="${sh.id}" title="Sheet menu" aria-label="Sheet menu">▾</span>` : ""}</button>`;
+  };
   g.els.tabs.innerHTML = `
+    <button type="button" class="btn btn-ghost btn-icon btn-sm wb-tab-all" data-wb-allsheets title="All sheets" aria-label="All sheets">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
     <div class="wb-tabs-scroll" role="tablist" aria-label="Sheets">
-      ${sheets.map((sh) => `<button type="button" class="wb-tab ${sh.id === g.sheet.id ? "is-active" : ""}" role="tab" aria-selected="${sh.id === g.sheet.id}" data-wb-sheettab="${sh.id}" title="${esc(sh.name)}${ro ? "" : " — double-click to rename"}">${esc(sh.name)}</button>`).join("")}
+      ${sheets.map(tabBtn).join("")}
     </div>
     ${ro ? "" : `<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tab-add" data-wb-act="sheet-add" data-block="${g.blockId}" title="Add sheet" aria-label="Add sheet">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -4234,6 +4248,26 @@ function renderSheetTabs(g) {
   g.els.selstats = g.els.body.querySelector("[data-wb-selstats]");
   g.els.sbmode = g.els.body.querySelector("[data-wb-sbmode]");
   g.els.sbfilter = g.els.body.querySelector("[data-wb-sbfilter]");
+}
+
+// Sheets' ☰ list: every sheet including hidden ones; picking a hidden
+// sheet unhides it.
+function openAllSheetsMenu(g, x, y) {
+  const all = (WB.sheetsByBlock.get(g.blockId) || []).slice().sort((a, b) => a.position - b.position);
+  const m = ctxMenu(x, y, all.map((sh) => {
+    const hidden = sh.meta && sh.meta.hidden;
+    return `<button type="button" class="popover-item" data-sheet-go="${esc(sh.id)}" role="menuitem">${sh.id === g.sheet.id ? "✓ " : ""}${esc(sh.name)}${hidden ? ` <span class="wb-badge is-muted">hidden</span>` : ""}</button>`;
+  }).join(""));
+  m.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-sheet-go]");
+    if (!btn) return;
+    const sh = all.find((s) => s.id === btn.getAttribute("data-sheet-go"));
+    closeAllPopovers();
+    if (!sh) return;
+    if (sh.meta && sh.meta.hidden && WB.canEdit) { sh.meta = { ...sh.meta, hidden: false }; saveSheetMeta(sh.id); }
+    switchSheet(g, sh.id);
+    renderSheetTabs(g);
+  });
 }
 
 function switchSheet(g, sheetId) {
@@ -5891,14 +5925,21 @@ async function duplicateSheet(g, sheetId) {
   const src = sheets.find((s) => s.id === sheetId);
   if (!src || !WB.canEdit) return;
   try {
-    const ins = await _sb().from("workbook_sheets").insert({
+    const shRow = {
       dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, block_id: g.blockId,
       name: `${src.name} copy`.slice(0, 80),
       position: sheets.length ? Math.max(...sheets.map((s) => s.position)) + 1 : 0,
       row_count: src.rowCount, col_count: src.colCount,
       frozen_rows: src.frozenRows, frozen_cols: src.frozenCols,
       col_widths: src.colWidths || {}, row_heights: src.rowHeights || {},
-    }).select().single();
+      // rules, merges, charts, filter views, tab color all ride along
+      meta: { ...(src.meta || {}), hiddenRows: [...(src.hiddenRows || [])], hiddenCols: [...(src.hiddenCols || [])] },
+    };
+    let ins = await _sb().from("workbook_sheets").insert(shRow).select().single();
+    if (ins.error && /meta/i.test(String(ins.error.message))) {
+      delete shRow.meta; // pre-0414 schema
+      ins = await _sb().from("workbook_sheets").insert(shRow).select().single();
+    }
     if (ins.error) throw ins.error;
     const sheet = normalizeSheet(ins.data);
     const rows = [];
@@ -6890,6 +6931,10 @@ function bindGridEvents(g) {
   const grid = g.els.grid;
   const scroll = g.els.scroll;
 
+  // menu-bar actions target the last grid the operator touched
+  grid.addEventListener("focus", () => { WB.activeGridId = g.blockId; });
+  grid.addEventListener("mousedown", () => { WB.activeGridId = g.blockId; }, true);
+
   scroll.addEventListener("scroll", () => repaintGrid(g));
 
   // ── mouse selection / resize ──
@@ -7408,9 +7453,17 @@ function bindGridEvents(g) {
       case "undo": undoGrid(g); break;
       case "redo": redoGrid(g); break;
       case "autosum": autoSum(g); return; // startEdit needs focus to stay in the editor
+      case "paint-format": startFormatPainter(g); return;
+      case "fmt-currency": formatSelection(g, { num: "currency" }); break;
+      case "fmt-percent": formatSelection(g, { num: "percent" }); break;
       case "bold": toggleFormat(g, "bold"); break;
       case "italic": toggleFormat(g, "italic"); break;
       case "underline": toggleFormat(g, "underline"); break;
+      case "strike": toggleFormat(g, "strike"); break;
+      case "merge": toggleMergeSelection(g); break;
+      case "insert-link": insertLinkPrompt(g); break;
+      case "comment-cell": openCellComment(g, g.active.r, g.active.c); return;
+      case "insert-chart": openChartDialog(g); return;
       case "align-left": formatSelection(g, { align: "left" }); break;
       case "align-center": formatSelection(g, { align: "center" }); break;
       case "align-right": formatSelection(g, { align: "right" }); break;
@@ -7465,6 +7518,18 @@ function bindGridEvents(g) {
     input.remove();
   });
   g.els.tabs.addEventListener("click", (e) => {
+    const caret = e.target.closest("[data-wb-tabmenu]");
+    if (caret) {
+      const rect = caret.getBoundingClientRect();
+      openSheetTabMenu(g, caret.getAttribute("data-wb-tabmenu"), rect.left - 60, rect.bottom + 4);
+      return;
+    }
+    const allBtn = e.target.closest("[data-wb-allsheets]");
+    if (allBtn) {
+      const rect = allBtn.getBoundingClientRect();
+      openAllSheetsMenu(g, rect.left, rect.bottom + 4);
+      return;
+    }
     const tab = e.target.closest("[data-wb-sheettab]");
     if (!tab) return;
     switchSheet(g, tab.getAttribute("data-wb-sheettab"));
@@ -7648,15 +7713,7 @@ function openCellContextMenu(g, x, y, kind) {
       case "trace-dependents": traceDependents(g); break;
       case "data-validation": openValidationDialog(g); break;
       case "cond-format": openCondFormatDialog(g); break;
-      case "insert-link": {
-        const cur = g.sheet.cells.get(cellKey(r, c));
-        const url = window.prompt("Link URL (https://… or mailto:…)", (cur && cur.format && cur.format.link) || "https://");
-        if (url == null) break;
-        const t = url.trim();
-        if (t && t !== "https://" && !/^(https?:\/\/|mailto:)/i.test(t)) { _toast("Links must start with http(s):// or mailto:", "warn"); break; }
-        formatSelection(g, { link: t && t !== "https://" ? t.slice(0, 2000) : null });
-        break;
-      }
+      case "insert-link": insertLinkPrompt(g); break;
       case "open-link": {
         const cur = g.sheet.cells.get(cellKey(r, c));
         if (cur && cur.format && cur.format.link) window.open(cur.format.link, "_blank", "noopener");
@@ -7676,15 +7733,33 @@ function openCellContextMenu(g, x, y, kind) {
 
 function openSheetTabMenu(g, sheetId, x, y) {
   const sheets = WB.sheetsByBlock.get(g.blockId) || [];
+  const sheet = sheets.find((s) => s.id === sheetId);
+  if (!sheet) return;
+  const visibleCount = sheets.filter((s) => !(s.meta && s.meta.hidden)).length;
+  const curColor = (sheet.meta && sheet.meta.tabColor) || "";
   const m = ctxMenu(x, y, [
-    `<button type="button" class="popover-item" data-ctx="rename" role="menuitem">Rename sheet</button>`,
-    `<button type="button" class="popover-item" data-ctx="duplicate" role="menuitem">Duplicate sheet</button>`,
+    `<button type="button" class="popover-item" data-ctx="rename" role="menuitem">Rename</button>`,
+    `<button type="button" class="popover-item" data-ctx="duplicate" role="menuitem">Duplicate</button>`,
     `<button type="button" class="popover-item" data-ctx="move-left" role="menuitem">Move left</button>`,
     `<button type="button" class="popover-item" data-ctx="move-right" role="menuitem">Move right</button>`,
     `<div class="popover-section"></div>`,
-    `<button type="button" class="popover-item is-danger" data-ctx="delete" role="menuitem" ${sheets.length <= 1 ? "disabled" : ""}>Delete sheet…</button>`,
+    `<div class="wb-menu-head">Tab color</div>`,
+    `<div class="wb-tabcolor-row">${["", ...WB_COLOR_MATRIX[5].slice(0, 8)].map((hex) =>
+      `<button type="button" class="wb-swatch" data-tab-color="${hex}" title="${hex || "None"}" aria-label="${hex || "No color"}" style="background:${hex || "var(--surface)"};${hex === curColor || (!hex && !curColor) ? "outline:2px solid var(--accent);" : ""}">${hex ? "" : "×"}</button>`).join("")}</div>`,
+    `<div class="popover-section"></div>`,
+    `<button type="button" class="popover-item" data-ctx="hide" role="menuitem" ${visibleCount <= 1 ? "disabled" : ""}>Hide sheet</button>`,
+    `<button type="button" class="popover-item is-danger" data-ctx="delete" role="menuitem" ${sheets.length <= 1 ? "disabled" : ""}>Delete…</button>`,
   ].join(""));
   m.addEventListener("click", (e) => {
+    const swatch = e.target.closest("[data-tab-color]");
+    if (swatch) {
+      const hex = swatch.getAttribute("data-tab-color");
+      sheet.meta = { ...(sheet.meta || {}), tabColor: hex || null };
+      saveSheetMeta(sheetId);
+      closeAllPopovers();
+      renderSheetTabs(g);
+      return;
+    }
     const btn = e.target.closest("[data-ctx]");
     if (!btn || btn.disabled) return;
     const act = btn.getAttribute("data-ctx");
@@ -7693,6 +7768,16 @@ function openSheetTabMenu(g, sheetId, x, y) {
     else if (act === "duplicate") duplicateSheet(g, sheetId);
     else if (act === "move-left") moveSheet(g, sheetId, -1);
     else if (act === "move-right") moveSheet(g, sheetId, 1);
+    else if (act === "hide") {
+      sheet.meta = { ...(sheet.meta || {}), hidden: true };
+      saveSheetMeta(sheetId);
+      if (g.sheet.id === sheetId) {
+        const next = sheets.find((s) => s.id !== sheetId && !(s.meta && s.meta.hidden));
+        if (next) switchSheet(g, next.id);
+      }
+      renderSheetTabs(g);
+      wbLog("sheet.hidden", `hid sheet “${sheet.name}”`, { target_type: "sheet", target_id: sheetId });
+    }
     else if (act === "delete") deleteSheet(g, sheetId);
   });
 }
@@ -8037,6 +8122,325 @@ function renderSharingPanel(body) {
   }
 }
 
+// ─── Menu bar ────────────────────────────────────────────────────────────────
+// Google Sheets-style File/Edit/View/Insert/Format/Data menus over the
+// open workbook. Items dispatch to the same functions as the toolbar and
+// context menus; grid actions target the last-focused sheet block.
+// Submenus drill in (the row swaps to the child list with a ← back row).
+
+function activeGrid() {
+  if (WB.activeGridId && GRIDS.has(WB.activeGridId)) return GRIDS.get(WB.activeGridId);
+  return GRIDS.values().next().value || null;
+}
+
+function openPanelTab(tab) {
+  WB.panelOpen = true;
+  WB.panelTab = tab;
+  syncPanelVisibility();
+  renderPanel();
+}
+
+function insertLinkPrompt(g) {
+  const { r, c } = g.active;
+  const cur = g.sheet.cells.get(cellKey(r, c));
+  const url = window.prompt("Link URL (https://… or mailto:…)", (cur && cur.format && cur.format.link) || "https://");
+  if (url == null) return;
+  const t = url.trim();
+  if (t && t !== "https://" && !/^(https?:\/\/|mailto:)/i.test(t)) { _toast("Links must start with http(s):// or mailto:", "warn"); return; }
+  formatSelection(g, { link: t && t !== "https://" ? t.slice(0, 2000) : null });
+}
+
+const WB_MENUS = ["File", "Edit", "View", "Insert", "Format", "Data"];
+
+function wbMenuItems(menu, g) {
+  const ed = WB.canEdit;
+  const sep = "—";
+  switch (menu) {
+    case "File": return [
+      { label: "New workbook", act: "file:new" },
+      { label: "Make a copy", act: "file:copy", disabled: !ed },
+      { label: "Import CSV…", act: "file:import", disabled: !ed || !g },
+      sep,
+      { label: "Download", sub: [
+        { label: "Microsoft Excel (.xlsx)", act: "file:xlsx", disabled: !g },
+        { label: "CSV (current sheet)", act: "file:csv", disabled: !g },
+      ] },
+      { label: "Print…", act: "file:print", disabled: !g },
+      sep,
+      { label: "Rename", act: "file:rename", disabled: !ed },
+      { label: "Share", act: "file:share" },
+      { label: "Version history (activity)", act: "file:activity" },
+      { label: "Details", act: "file:details" },
+      sep,
+      { label: WB.wb && WB.wb.archived_at ? "Restore workbook" : "Archive workbook", act: "file:archive", disabled: !WB.canAdmin },
+      { label: "Delete workbook…", act: "file:delete", danger: true, disabled: !WB.canAdmin },
+    ];
+    case "Edit": return [
+      { label: "Undo", act: "edit:undo", kbd: "Ctrl+Z", disabled: !ed || !g },
+      { label: "Redo", act: "edit:redo", kbd: "Ctrl+Y", disabled: !ed || !g },
+      sep,
+      { label: "Cut", act: "edit:cut", kbd: "Ctrl+X", disabled: !ed || !g },
+      { label: "Copy", act: "edit:copy", kbd: "Ctrl+C", disabled: !g },
+      { label: "Paste", act: "edit:paste", kbd: "Ctrl+V", disabled: !ed || !g },
+      { label: "Paste values only", act: "edit:paste-values", disabled: !ed || !g },
+      sep,
+      { label: "Delete selected rows", act: "edit:del-rows", disabled: !ed || !g },
+      { label: "Delete selected columns", act: "edit:del-cols", disabled: !ed || !g },
+      { label: "Clear contents", act: "edit:clear", kbd: "Del", disabled: !ed || !g },
+      sep,
+      { label: "Find and replace", act: "edit:find", kbd: "Ctrl+H", disabled: !g },
+    ];
+    case "View": return [
+      { label: "Freeze", sub: [
+        { label: "Freeze top row", act: "view:freeze-row", disabled: !ed || !g },
+        { label: "Freeze first column", act: "view:freeze-col", disabled: !ed || !g },
+        { label: "Unfreeze", act: "view:unfreeze", disabled: !ed || !g },
+      ] },
+      { label: "Zoom", sub: [0.5, 0.75, 0.9, 1, 1.25, 1.5, 2].map((z) => ({ label: Math.round(z * 100) + "%", act: "view:zoom:" + z, disabled: !g })) },
+      sep,
+      { label: "Unhide all rows & columns", act: "view:unhide", disabled: !ed || !g },
+      sep,
+      { label: "Comments panel", act: "view:comments" },
+      { label: "Tasks panel", act: "view:tasks" },
+      { label: "Activity panel", act: "view:activity" },
+    ];
+    case "Insert": return [
+      { label: "Row above", act: "ins:row-above", disabled: !ed || !g },
+      { label: "Row below", act: "ins:row-below", disabled: !ed || !g },
+      { label: "Column left", act: "ins:col-left", disabled: !ed || !g },
+      { label: "Column right", act: "ins:col-right", disabled: !ed || !g },
+      { label: "New sheet", act: "ins:sheet", disabled: !ed || !g },
+      sep,
+      { label: "Chart…", act: "ins:chart", disabled: !ed || !g },
+      { label: "Function", sub: ["SUM", "AVERAGE", "COUNT", "MAX", "MIN", "COUNTIF", "VLOOKUP"].map((fn) => ({ label: fn, act: "ins:fn:" + fn, disabled: !ed || !g })) },
+      { label: "Link…", act: "ins:link", disabled: !ed || !g },
+      { label: "Dropdown (data validation)…", act: "ins:dropdown", disabled: !ed || !g },
+      { label: "Comment", act: "ins:comment", disabled: !g },
+      sep,
+      { label: "Note block", act: "ins:note", disabled: !ed },
+      { label: "Checklist block", act: "ins:checklist", disabled: !ed },
+      { label: "Spreadsheet block", act: "ins:sheetblock", disabled: !ed },
+    ];
+    case "Format": return [
+      { label: "Number", sub: [["", "Automatic"], ["number", "Number"], ["currency", "Currency"], ["accounting", "Accounting"], ["percent", "Percent"], ["scientific", "Scientific"], ["date", "Date"], ["text", "Plain text"]].map(([v, label]) => ({ label, act: "fmt:num:" + v, disabled: !ed || !g })) },
+      { label: "Text", sub: [["bold", "Bold", "Ctrl+B"], ["italic", "Italic", "Ctrl+I"], ["underline", "Underline", "Ctrl+U"], ["strike", "Strikethrough", ""]].map(([k, label, kbd]) => ({ label, kbd, act: "fmt:tog:" + k, disabled: !ed || !g })) },
+      { label: "Alignment", sub: [["align:left", "Left"], ["align:center", "Center"], ["align:right", "Right"], ["valign:top", "Top"], ["valign:middle", "Middle"], ["valign:bottom", "Bottom"]].map(([v, label]) => ({ label, act: "fmt:" + v, disabled: !ed || !g })) },
+      { label: "Wrapping", act: "fmt:tog:wrap", disabled: !ed || !g },
+      { label: "Rotation", sub: [["", "None"], ["45", "Tilt 45°"], ["90", "Vertical"]].map(([v, label]) => ({ label, act: "fmt:rot:" + v, disabled: !ed || !g })) },
+      { label: "Font size", sub: [8, 10, 12, 13, 14, 18, 24].map((n) => ({ label: String(n) + " px", act: "fmt:fs:" + n, disabled: !ed || !g })) },
+      sep,
+      { label: "Merge cells", act: "fmt:merge", disabled: !ed || !g },
+      { label: "Conditional formatting…", act: "fmt:cf", disabled: !ed || !g },
+      { label: "Format cells…", act: "fmt:cells", disabled: !ed || !g },
+      sep,
+      { label: "Clear formatting", act: "fmt:clear", disabled: !ed || !g },
+    ];
+    case "Data": {
+      const views = g ? sheetFilterViews(g.sheet) : [];
+      return [
+        { label: "Sort sheet by active column, A→Z", act: "data:sort-asc", disabled: !ed || !g },
+        { label: "Sort sheet by active column, Z→A", act: "data:sort-desc", disabled: !ed || !g },
+        { label: "Custom sort…", act: "data:sort", disabled: !ed || !g },
+        sep,
+        { label: "Filter this column…", act: "data:filter", disabled: !g },
+        { label: "Clear filters", act: "data:filter-clear", disabled: !g },
+        { label: "Filter views", sub: [
+          ...views.map((v) => ({ label: v.name, act: "data:fv:" + v.id })),
+          ...(views.length ? [sep] : []),
+          { label: "Save current filters as view…", act: "data:fv-save", disabled: !ed || !g },
+          ...(views.length ? [{ label: "Delete a view", sub: views.map((v) => ({ label: "✕ " + v.name, act: "data:fv-del:" + v.id, disabled: !ed })) }] : []),
+        ] },
+        sep,
+        { label: "Column stats", act: "data:stats", disabled: !g },
+        { label: "Data validation…", act: "data:validation", disabled: !ed || !g },
+        { label: "Split text to columns…", act: "data:split", disabled: !ed || !g },
+        { label: "Data cleanup", sub: [
+          { label: "Remove duplicates…", act: "data:dedupe", disabled: !ed || !g },
+          { label: "Trim whitespace", act: "data:trim", disabled: !ed || !g },
+        ] },
+      ];
+    }
+  }
+  return [];
+}
+
+function wbMenuAction(act, g) {
+  const parts = String(act || "").split(":");
+  const ns = parts[0], verb = parts[1], arg = parts.slice(2).join(":");
+  const rect = g ? selRect(g) : null;
+  const need = () => { if (!g) _toast("Open a spreadsheet block first", "info"); return !!g; };
+  switch (`${ns}:${verb}`) {
+    case "file:new": openCreateModal(); return;
+    case "file:copy": duplicateWorkbook(); return;
+    case "file:import": if (need()) importCsvInto(g); return;
+    case "file:xlsx": if (need()) exportBlockXlsx(g); return;
+    case "file:csv": if (need()) exportSheetCsv(g); return;
+    case "file:print": if (need()) printSheet(g); return;
+    case "file:rename": { const t = document.getElementById("wb-title-input"); if (t) { t.focus(); t.select(); } return; }
+    case "file:share": openPanelTab("sharing"); return;
+    case "file:activity": openPanelTab("activity"); return;
+    case "file:details": openPanelTab("details"); return;
+    case "file:archive": archiveWorkbook(!!(WB.wb && WB.wb.archived_at)); return;
+    case "file:delete": deleteWorkbookFlow(); return;
+    case "edit:undo": if (need()) undoGrid(g); return;
+    case "edit:redo": if (need()) redoGrid(g); return;
+    case "edit:cut": if (need()) copySelection(g, "cut"); return;
+    case "edit:copy": if (need()) copySelection(g); return;
+    case "edit:paste": if (need()) pasteFromClipboard(g); return;
+    case "edit:paste-values": if (need()) pasteValuesOnly(g); return;
+    case "edit:del-rows": if (need()) restructure(g, "row", rect.r0, -(rect.r1 - rect.r0 + 1)); return;
+    case "edit:del-cols": if (need()) restructure(g, "col", rect.c0, -(rect.c1 - rect.c0 + 1)); return;
+    case "edit:clear": if (need()) clearSelection(g); return;
+    case "edit:find": if (need()) openFindPanel(g, WB.canEdit); return;
+    case "view:freeze-row": if (need()) { g.sheet.frozenRows = 1; saveSheetMeta(g.sheet.id); repaintGrid(g); } return;
+    case "view:freeze-col": if (need()) { g.sheet.frozenCols = 1; saveSheetMeta(g.sheet.id); repaintGrid(g); } return;
+    case "view:unfreeze": if (need()) setFreeze(g, "none"); return;
+    case "view:unhide": if (need()) { g.sheet.hiddenRows.clear(); g.sheet.hiddenCols.clear(); saveSheetMeta(g.sheet.id); computeGeometry(g); repaintGrid(g); } return;
+    case "view:comments": openPanelTab("comments"); return;
+    case "view:tasks": openPanelTab("tasks"); return;
+    case "view:activity": openPanelTab("activity"); return;
+    case "ins:row-above": if (need()) restructure(g, "row", rect.r0, 1); return;
+    case "ins:row-below": if (need()) restructure(g, "row", rect.r1 + 1, 1); return;
+    case "ins:col-left": if (need()) restructure(g, "col", rect.c0, 1); return;
+    case "ins:col-right": if (need()) restructure(g, "col", rect.c1 + 1, 1); return;
+    case "ins:sheet": if (need()) addSheetTo(g.blockId); return;
+    case "ins:chart": if (need()) openChartDialog(g); return;
+    case "ins:link": if (need()) insertLinkPrompt(g); return;
+    case "ins:dropdown": if (need()) openValidationDialog(g); return;
+    case "ins:comment": if (need()) openCellComment(g, g.active.r, g.active.c); return;
+    case "ins:note": addBlock("text"); return;
+    case "ins:checklist": addBlock("checklist"); return;
+    case "ins:sheetblock": addBlock("sheet"); return;
+    case "fmt:merge": if (need()) toggleMergeSelection(g); return;
+    case "fmt:cf": if (need()) openCondFormatDialog(g); return;
+    case "fmt:cells": if (need()) openFormatCellsDialog(g); return;
+    case "fmt:clear": if (need()) clearFormatting(g); return;
+    case "data:sort-asc": if (need()) sortByColumn(g, g.active.c, "asc"); return;
+    case "data:sort-desc": if (need()) sortByColumn(g, g.active.c, "desc"); return;
+    case "data:sort": if (need()) openSortDialog(g); return;
+    case "data:filter": if (need()) openFilterPanel(g, g.active.c, null, { x: Math.max(16, window.innerWidth / 2 - 132), y: 180 }); return;
+    case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); } return;
+    case "data:fv-save": if (need()) saveFilterView(g); return;
+    case "data:stats": if (need()) showColumnStats(g); return;
+    case "data:validation": if (need()) openValidationDialog(g); return;
+    case "data:split": if (need()) splitTextToColumns(g); return;
+    case "data:dedupe": if (need()) removeDuplicateRows(g); return;
+    case "data:trim": if (need()) trimWhitespace(g); return;
+  }
+  if (!g) { _toast("Open a spreadsheet block first", "info"); return; }
+  if (ns === "view" && verb === "zoom") setZoom(g, +arg || 1);
+  else if (ns === "ins" && verb === "fn") startEdit(g, g.active.r, g.active.c, `=${arg}(`);
+  else if (ns === "fmt" && verb === "num") formatSelection(g, { num: arg || null });
+  else if (ns === "fmt" && verb === "tog") toggleFormat(g, arg);
+  else if (ns === "fmt" && verb === "align") formatSelection(g, { align: arg });
+  else if (ns === "fmt" && verb === "valign") formatSelection(g, { valign: arg });
+  else if (ns === "fmt" && verb === "rot") formatSelection(g, { rot: +arg || null });
+  else if (ns === "fmt" && verb === "fs") formatSelection(g, { fs: +arg });
+  else if (ns === "data" && verb === "fv") applyFilterView(g, arg);
+  else if (ns === "data" && verb === "fv-del") { deleteFilterView(g, arg); _toast("Filter view deleted", "success"); }
+}
+
+function openWbMenu(name, btn) {
+  const g = activeGrid();
+  const rect = btn.getBoundingClientRect();
+  const m = ctxMenu(rect.left, rect.bottom + 2, "");
+  m.classList.add("wb-menu-pop");
+  const stack = [{ title: name, items: wbMenuItems(name, g) }];
+  const render = () => {
+    const top = stack[stack.length - 1];
+    m.innerHTML = (stack.length > 1 ? `<button type="button" class="popover-item wb-menu-back" data-menu-back>← ${esc(top.title)}</button><div class="popover-section"></div>` : "")
+      + top.items.map((it, i) => {
+        if (it === "—") return `<div class="popover-section"></div>`;
+        return `<button type="button" class="popover-item ${it.danger ? "is-danger" : ""}" data-menu-i="${i}" role="menuitem" ${it.disabled ? "disabled" : ""}><span>${esc(it.label)}</span><span class="wb-menu-kbd">${it.sub ? "▸" : esc(it.kbd || "")}</span></button>`;
+      }).join("");
+    const r2 = m.getBoundingClientRect();
+    if (r2.bottom > window.innerHeight - 8) m.style.top = Math.max(8, window.innerHeight - r2.height - 8) + "px";
+  };
+  render();
+  m.addEventListener("click", (e) => {
+    if (e.target.closest("[data-menu-back]")) { stack.pop(); render(); return; }
+    const item = e.target.closest("[data-menu-i]");
+    if (!item || item.disabled) return;
+    const it = stack[stack.length - 1].items[+item.getAttribute("data-menu-i")];
+    if (!it) return;
+    if (it.sub) { stack.push({ title: it.label, items: it.sub }); render(); return; }
+    closeAllPopovers();
+    wbMenuAction(it.act, g);
+  });
+}
+
+// File → Make a copy: full duplicate (blocks, sheets, cells, checklist
+// items) under the current user's ownership.
+async function duplicateWorkbook() {
+  const src = WB.wb;
+  if (!src || !WB.canEdit) return;
+  _toast("Copying workbook…", "info");
+  try {
+    const s = _sb(), dsp = _dsp(), self = _me();
+    const ins = await s.from("workbooks").insert({
+      dsp_id: dsp.id, owner_user_id: self ? self.id : null,
+      title: `Copy of ${src.title}`.slice(0, 200), description: src.description,
+      visibility: src.visibility, template_key: src.template_key,
+    }).select().single();
+    if (ins.error) throw ins.error;
+    const nwb = ins.data;
+    for (const block of WB.blocks) {
+      const bIns = await s.from("workbook_blocks").insert({
+        dsp_id: dsp.id, workbook_id: nwb.id, type: block.type, title: block.title || "",
+        position: block.position, settings: block.settings || {}, content: block.content || {},
+      }).select().single();
+      if (bIns.error) throw bIns.error;
+      if (block.type === "sheet") {
+        for (const sh of WB.sheetsByBlock.get(block.id) || []) {
+          const shRow = {
+            dsp_id: dsp.id, workbook_id: nwb.id, block_id: bIns.data.id,
+            name: sh.name, position: sh.position, row_count: sh.rowCount, col_count: sh.colCount,
+            frozen_rows: sh.frozenRows, frozen_cols: sh.frozenCols,
+            col_widths: sh.colWidths || {}, row_heights: sh.rowHeights || {},
+            meta: { ...(sh.meta || {}), hiddenRows: [...(sh.hiddenRows || [])], hiddenCols: [...(sh.hiddenCols || [])] },
+          };
+          let shIns = await s.from("workbook_sheets").insert(shRow).select().single();
+          if (shIns.error && /meta/i.test(String(shIns.error.message))) {
+            delete shRow.meta; // pre-0414 schema
+            shIns = await s.from("workbook_sheets").insert(shRow).select().single();
+          }
+          if (shIns.error) throw shIns.error;
+          const rows = [];
+          for (const [key, cell] of sh.cells) {
+            const rc = keyRC(key);
+            rows.push({
+              dsp_id: dsp.id, workbook_id: nwb.id, sheet_id: shIns.data.id,
+              row_index: rc.r, col_index: rc.c,
+              value: cell.value ?? null, formula: cell.formula ?? null,
+              value_type: cell.type ?? null, format: cell.format || {},
+              updated_by: self ? self.id : null,
+            });
+          }
+          for (let i = 0; i < rows.length; i += 500) {
+            const r = await s.from("workbook_cells").insert(rows.slice(i, i + 500));
+            if (r.error) throw r.error;
+          }
+        }
+      }
+      if (block.type === "checklist") {
+        const items = (WB.itemsByBlock.get(block.id) || []).map((it, i) => ({
+          dsp_id: dsp.id, workbook_id: nwb.id, block_id: bIns.data.id,
+          label: it.label, position: it.position ?? i, note: it.note || null,
+          priority: it.priority || null, due_date: it.due_date || null,
+          created_by: self ? self.id : null,
+        }));
+        if (items.length) {
+          const r = await s.from("workbook_checklist_items").insert(items);
+          if (r.error) throw r.error;
+        }
+      }
+    }
+    _toast("Copy created", "success");
+    await openWorkbook(nwb.id);
+    wbLog("workbook.created", `created this workbook as a copy of “${src.title}”`, { target_type: "workbook", target_id: nwb.id });
+  } catch (e) { _toast("Couldn't copy the workbook: " + ((e && e.message) || e), "error"); }
+}
+
 // ─── Workbook lifecycle actions ─────────────────────────────────────────────
 
 async function archiveWorkbook(unarchive) {
@@ -8103,6 +8507,9 @@ function installRootListeners() {
       }
       return;
     }
+
+    const menubtn = e.target.closest("[data-wb-menubar]");
+    if (menubtn) { openWbMenu(menubtn.getAttribute("data-wb-menubar"), menubtn); return; }
 
     const dvb = e.target.closest("[data-wb-dvbtn]");
     if (dvb) {
