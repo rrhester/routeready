@@ -9002,6 +9002,7 @@ function renderPanel() {
   panel.innerHTML = `
     <div class="wb-panel-tabs" role="tablist" aria-label="Workbook panel">
       ${tabs.map(([k, label]) => `<button type="button" class="wb-panel-tab ${WB.panelTab === k ? "is-active" : ""}" role="tab" aria-selected="${WB.panelTab === k}" data-wb-paneltab="${k}">${label}</button>`).join("")}
+      <button type="button" class="wb-panel-close" data-wb-act="panel-close" title="Close panel" aria-label="Close panel">✕</button>
     </div>
     <div class="wb-panel-body" id="wb-panel-body"></div>`;
   renderPanelBody();
@@ -9668,6 +9669,7 @@ function installRootListeners() {
       case "reports-back": renderReportsPage(); break;
       case "retry-save": flushCells(); break;
       case "toggle-panel": WB.panelOpen = !WB.panelOpen; syncPanelVisibility(); if (WB.panelOpen) renderPanel(); break;
+      case "panel-close": WB.panelOpen = false; syncPanelVisibility(); break;
       case "head-menu": togglePopover(actBtn); break;
       case "desc-menu": togglePopover(actBtn); setTimeout(() => document.getElementById("wb-desc-input")?.focus(), 0); break;
       case "block-menu": togglePopover(actBtn); break;
