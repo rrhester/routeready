@@ -775,4 +775,54 @@ ok("cell image: markup-capable or malformed sources are rejected", () => {
   assert.equal(__engine.cellImgSrc(null), null);
 });
 
+// ── named ranges ─────────────────────────────────────────────────────────────
+// Build a ctx that carries a names map (UPPERCASE name -> range/ref AST),
+// exactly as recalcSheet does, and confirm evalFormula binds them.
+const namedCtx = (cells, defs, rows = 100, cols = 26) => {
+  const ctx = sheetCtx(cells, rows, cols);
+  ctx.names = new Map(Object.entries(defs).map(([k, ref]) => [k.toUpperCase(), __engine.parseFormula("=" + ref)]));
+  return ctx;
+};
+ok("named range: single cell resolves like a ref", () => {
+  const ctx = namedCtx({ B2: 7 }, { Tax: "B2" });
+  assert.equal(ev("=Tax*2", ctx), 14);
+});
+ok("named range: multi-cell aggregates", () => {
+  const ctx = namedCtx({ A1: 1, A2: 2, A3: 3 }, { Nums: "A1:A3" });
+  assert.equal(ev("=SUM(Nums)", ctx), 6);
+  assert.equal(ev("=AVERAGE(Nums)", ctx), 2);
+  assert.equal(ev("=COUNT(Nums)", ctx), 3);
+});
+ok("named range: works as a criteria-function range (SUMIF)", () => {
+  const ctx = namedCtx({ A1: 1, A2: 8, A3: 3, B1: 10, B2: 20, B3: 30 }, { Vals: "A1:A3", Amts: "B1:B3" });
+  assert.equal(ev('=SUMIF(Vals,">2",Amts)', ctx), 50);
+  assert.equal(ev('=COUNTIF(Vals,">2")', ctx), 2);
+});
+ok("named range: usable inside VLOOKUP table", () => {
+  const ctx = namedCtx({ A1: "x", B1: 100, A2: "y", B2: 200 }, { Table: "A1:B2" });
+  assert.equal(ev('=VLOOKUP("y",Table,2,FALSE)', ctx), 200);
+});
+ok("named range: extractRefs expands the name to its cells", () => {
+  const names = new Map([["NUMS", __engine.parseFormula("=A1:A3")]]);
+  const refs = __engine.extractRefs("=SUM(Nums)+1", { rowCount: 100, colCount: 26 }, names);
+  const keys = refs.map((r) => (r.row ?? r.r) + "," + (r.col ?? r.c)).sort();
+  assert.deepEqual(keys, ["0,0", "1,0", "2,0"]);
+});
+ok("named range: LET binding shadows a same-named range", () => {
+  const ctx = namedCtx({ B2: 7 }, { X: "B2" });
+  assert.equal(ev("=LET(x, 5, x*2)", ctx), 10); // local x wins over range X
+});
+ok("named range: unknown name still errors #NAME", () => {
+  assert.equal(evErr("=Bogus+1", sheetCtx({})), "#NAME");
+});
+ok("isValidRangeName rejects refs, columns, and functions", () => {
+  assert.equal(__engine.isValidRangeName("Drivers"), true);
+  assert.equal(__engine.isValidRangeName("tax_rate"), true);
+  assert.equal(__engine.isValidRangeName("A1"), false);
+  assert.equal(__engine.isValidRangeName("AB"), false);
+  assert.equal(__engine.isValidRangeName("SUM"), false);
+  assert.equal(__engine.isValidRangeName("has space"), false);
+  assert.equal(__engine.isValidRangeName("1thing"), false);
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);

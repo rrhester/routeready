@@ -2920,7 +2920,8 @@ function timeFracOf(v) {
 }
 
 function evalFormula(src, ctx) {
-  const ast = parseFormula(src);
+  let ast = parseFormula(src);
+  if (ctx && ctx.names instanceof Map && ctx.names.size) ast = bindNames(ast, ctx.names);
   const val = evalNode(ast, ctx);
   return val;
 }
@@ -3629,9 +3630,7 @@ function matchesCriterion(v, crit) {
 
 // ── Dependency extraction (for recalc graph + circular detection) ────────────
 
-function extractRefs(src, bounds) {
-  let ast;
-  try { ast = parseFormula(src); } catch (_) { return []; }
+function refsFromAst(ast, bounds) {
   const refs = [];
   (function walk(n) {
     if (!n || typeof n !== "object") return;
@@ -3650,6 +3649,52 @@ function extractRefs(src, bounds) {
     if (n.v && typeof n.v === "object") walk(n.v);
   })(ast);
   return refs;
+}
+
+function extractRefs(src, bounds, names) {
+  let ast;
+  try { ast = parseFormula(src); } catch (_) { return []; }
+  if (names && names.size) ast = bindNames(ast, names);
+  return refsFromAst(ast, bounds);
+}
+
+// Named-range binding — rewrite free identifier ("name") nodes into the
+// range/ref AST they point at, so a name behaves exactly like the cells it
+// stands for (dependencies, criteria functions, cross-sheet reads all just
+// work). Names bound by an enclosing LET/LAMBDA shadow a same-named range,
+// matching Excel. `names` is a Map of UPPERCASE name -> range|ref AST node.
+// Returns a new tree; the input is left untouched.
+function cloneNode(n) { return JSON.parse(JSON.stringify(n)); }
+function bindNames(node, names, bound) {
+  if (!node || typeof node !== "object") return node;
+  switch (node.k) {
+    case "name": {
+      if (bound && bound.has(node.v)) return node;
+      const def = names && names.get(node.v);
+      return def ? cloneNode(def) : node;
+    }
+    case "func": {
+      let nb = bound;
+      if (node.name === "LET" || node.name === "LAMBDA") {
+        nb = new Set(bound || []);
+        const last = node.args.length - 1;
+        node.args.forEach((a, i) => {
+          const isNamePos = node.name === "LAMBDA" ? i < last : i % 2 === 0 && i < last;
+          if (isNamePos && a && a.k === "name") nb.add(a.v);
+        });
+      }
+      return { ...node, args: node.args.map((a) => bindNames(a, names, nb)) };
+    }
+    case "call": return { ...node, fn: bindNames(node.fn, names, bound), args: node.args.map((a) => bindNames(a, names, bound)) };
+    case "arrlit": return { ...node, rows: node.rows.map((row) => row.map((el) => bindNames(el, names, bound))) };
+    default: {
+      const out = { ...node };
+      if (node.l) out.l = bindNames(node.l, names, bound);
+      if (node.r) out.r = bindNames(node.r, names, bound);
+      if (node.v && typeof node.v === "object") out.v = bindNames(node.v, names, bound);
+      return out;
+    }
+  }
 }
 
 // Formulas whose reads can't be known statically (INDIRECT/OFFSET build
@@ -3939,6 +3984,47 @@ function activeSheetOf(block) {
   const arr = WB.sheetsByBlock.get(block.id) || [];
   const want = block.settings && block.settings.active_sheet_id;
   return arr.find((s) => s.id === want) || arr[0] || null;
+}
+function findBlock(blockId) { return WB.blocks.find((b) => b.id === blockId) || null; }
+
+// ─── Named ranges (block-scoped, like an Excel workbook's names) ─────────────
+// Stored on block.settings.namedRanges as [{ name, ref }] where ref is a
+// sheet-qualified A1 range ("Roster!A2:A50"). Names are workbook-scope
+// within a spreadsheet block, which is exactly the set of sheets that can
+// already reference one another.
+const WB_NAME_RE = /^[A-Za-z_][A-Za-z0-9_.]*$/;
+function blockNamedRanges(block) {
+  const v = block && block.settings && block.settings.namedRanges;
+  return Array.isArray(v) ? v : [];
+}
+function isValidRangeName(name) {
+  if (!name || !WB_NAME_RE.test(name)) return false;
+  const up = name.toUpperCase();
+  if (parseCellRef(up)) return false;                 // looks like a cell ref
+  if (/^[A-Za-z]{1,3}$/.test(up)) return false;       // looks like a column
+  if (up === "TRUE" || up === "FALSE" || up === "R" || up === "C") return false;
+  if (FUNCS[up]) return false;                         // collides with a function
+  return true;
+}
+// Map of UPPERCASE name -> range|ref AST, resolved for the requesting sheet.
+// A target on the same sheet drops its sheet qualifier so the dependency
+// graph treats it as a local edge (correct recalc ordering); other-sheet
+// targets keep it and recompute via the sibling pass.
+function namesForSheet(sheet) {
+  const block = findBlock(sheet && sheet.blockId);
+  const defs = blockNamedRanges(block);
+  const m = new Map();
+  if (!defs.length) return m;
+  const here = String(sheet.name || "").trim().toLowerCase();
+  for (const d of defs) {
+    if (!d || !d.name || !d.ref) continue;
+    let node;
+    try { node = parseFormula("=" + d.ref); } catch (_) { continue; }
+    if (node.k !== "range" && node.k !== "ref") continue;
+    if (node.sheet && String(node.sheet).trim().toLowerCase() === here) delete node.sheet;
+    m.set(String(d.name).toUpperCase(), node);
+  }
+  return m;
 }
 
 // ─── Access level (client mirror of private.can_*_workbook) ────────────────
@@ -4274,11 +4360,13 @@ async function openWorkbook(id) {
     WB.activity = activityRes.data || [];
 
     for (const arr of WB.sheetsByBlock.values()) arr.forEach((sh) => recalcSheet(sh));
-    // second pass: sheets with cross-sheet formulas now see fresh values
+    // second pass: sheets with cross-sheet formulas (or any block with named
+    // ranges) now see fresh values
     for (const arr of WB.sheetsByBlock.values()) {
+      const hasNames = arr.length ? blockNamedRanges(findBlock(arr[0].blockId)).length > 0 : false;
       for (const sh of arr) {
-        let cross = false;
-        for (const cell of sh.cells.values()) if (cell.formula && cell.formula.includes("!")) { cross = true; break; }
+        let cross = hasNames;
+        if (!cross) for (const cell of sh.cells.values()) if (cell.formula && cell.formula.includes("!")) { cross = true; break; }
         if (cross) recalcSheet(sh);
       }
     }
@@ -4855,13 +4943,15 @@ function recalcSheet(sheet) {
   // open ranges (A:A) clamp to the used extent for dependency purposes —
   // only formula cells matter as graph edges, and those are all in-use
   const depBounds = { rowCount: usedR + 1, colCount: usedC + 1 };
+  const names = namesForSheet(sheet);
   const asts = new Map();
   const deps = new Map();
   for (const [key, cell] of formulaCells) {
     try {
-      const ast = parseFormula(cell.formula);
+      let ast = parseFormula(cell.formula);
+      if (names.size) ast = bindNames(ast, names);
       asts.set(key, ast);
-      deps.set(key, extractRefs(cell.formula, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
+      deps.set(key, refsFromAst(ast, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
     } catch (e) {
       cell.err = e instanceof FormulaError ? e.code : "#ERROR";
     }
@@ -4954,10 +5044,13 @@ function crossSheetValue(fromSheet, sheetName, r, c) {
 function recalcWithSiblings(sheet) {
   recalcSheet(sheet);
   const sibs = WB.sheetsByBlock.get(sheet.blockId) || [];
+  // named ranges can create cross-sheet reads that carry no "!" in the
+  // formula text, so any defined name forces a full sibling recompute
+  const hasNames = blockNamedRanges(findBlock(sheet.blockId)).length > 0;
   for (const s2 of sibs) {
     if (s2.id === sheet.id) continue;
-    let cross = false;
-    for (const cell of s2.cells.values()) {
+    let cross = hasNames;
+    if (!cross) for (const cell of s2.cells.values()) {
       if (cell.formula && cell.formula.includes("!")) { cross = true; break; }
     }
     if (cross) recalcSheet(s2);
@@ -5943,6 +6036,7 @@ function sheetToolbarHtml(block, ro) {
         <div class="popover wb-tb-pop" role="menu">
           <button type="button" class="popover-item" data-wb-tb="validation" role="menuitem" ${ro ? "disabled" : ""}>Data validation…</button>
           <button type="button" class="popover-item" data-wb-tb="condfmt" role="menuitem" ${ro ? "disabled" : ""}>Conditional formatting…</button>
+          <button type="button" class="popover-item" data-wb-tb="named-ranges" role="menuitem">Named ranges…</button>
           <button type="button" class="popover-item" data-wb-tb="clear-format" role="menuitem" ${ro ? "disabled" : ""}>Clear formatting</button>
           <div class="popover-section"></div>
           <button type="button" class="popover-item" data-wb-tb2="import-csv" role="menuitem" ${ro ? "disabled" : ""}>Import CSV into this sheet…</button>
@@ -7608,6 +7702,47 @@ function setActive(g, r, c, opts) {
   if (!opts || opts.scroll !== false) scrollCellIntoView(g, r, c);
 }
 
+// Select an explicit rectangle (top-left becomes active).
+function selectRect(g, r0, c0, r1, c1) {
+  const sheet = g.sheet;
+  const rr0 = Math.max(0, Math.min(sheet.rowCount - 1, Math.min(r0, r1)));
+  const cc0 = Math.max(0, Math.min(sheet.colCount - 1, Math.min(c0, c1)));
+  const rr1 = Math.max(0, Math.min(sheet.rowCount - 1, Math.max(r0, r1)));
+  const cc1 = Math.max(0, Math.min(sheet.colCount - 1, Math.max(c0, c1)));
+  setActive(g, rr0, cc0, { keepSel: true });
+  g.sel = { r0: rr0, c0: cc0, r1: rr1, c1: cc1 };
+  paintSelection(g);
+  repaintGrid(g);
+  syncFormulaBar(g);
+  scrollCellIntoView(g, rr0, cc0);
+}
+
+// Name-box "go to": a cell ref (B12), an A1 range (B2:D9), or a named range
+// (case-insensitive; jumps to its sheet). Returns true when it navigated.
+function gotoNameBox(g, text) {
+  if (!text) return false;
+  const block = findBlock(g.sheet.blockId);
+  const def = blockNamedRanges(block).find((d) => d.name && d.name.toLowerCase() === text.toLowerCase());
+  const src = def ? def.ref : text;
+  let node;
+  try { node = parseFormula("=" + src); } catch (_) { return false; }
+  if (node.k !== "range" && node.k !== "ref") return false;
+  if (node.sheet) {
+    const sibs = WB.sheetsByBlock.get(g.sheet.blockId) || [];
+    const target = sibs.find((s) => s.name.trim().toLowerCase() === String(node.sheet).trim().toLowerCase());
+    if (target && target.id !== g.sheet.id) switchSheet(g, target.id);
+    else if (!target) return false;
+  }
+  if (node.k === "ref") {
+    if (node.row >= g.sheet.rowCount || node.col >= g.sheet.colCount) return false;
+    setActive(g, node.row, node.col);
+  } else {
+    const b = boundedRange(node, { rowCount: g.sheet.rowCount, colCount: g.sheet.colCount });
+    selectRect(g, b.a.row, b.a.col, b.b.row, b.b.col);
+  }
+  return true;
+}
+
 function scrollCellIntoView(g, r, c) {
   const di = dispIndexOfRow(g, r);
   if (di < 0) return;
@@ -8867,6 +9002,107 @@ function openValidationDialog(g) {
     }
   });
   setTimeout(() => wrap.querySelector("#wb-dv-type")?.focus(), 30);
+}
+
+// ─── Named ranges dialog ─────────────────────────────────────────────────────
+
+function setBlockNamedRanges(g, defs) {
+  const block = findBlock(g.sheet.blockId);
+  if (!block) return;
+  block.settings = { ...(block.settings || {}), namedRanges: defs };
+  if (WB.canEdit) saveBlock(block, { settings: block.settings });
+  // a name change ripples through every sheet's formulas in this block
+  for (const sh of WB.sheetsByBlock.get(block.id) || []) recalcSheet(sh);
+  repaintGrid(g);
+}
+
+// Normalize a user-typed target ("A1:B5" or "Roster!A1:B5") into a
+// sheet-qualified ref string, or null if it isn't a valid range/ref.
+function normalizeNameRef(text, defaultSheet) {
+  let node;
+  try { node = parseFormula("=" + String(text).trim()); } catch (_) { return null; }
+  if (node.k !== "range" && node.k !== "ref") return null;
+  const sheetName = node.sheet || defaultSheet;
+  const q = /[^A-Za-z0-9_]/.test(sheetName) ? `'${sheetName.replace(/'/g, "''")}'` : sheetName;
+  if (node.k === "ref") return `${q}!${colLabel(node.col)}${node.row + 1}`;
+  const a = colLabel(node.a.col) + (node.a.row + 1);
+  const b = colLabel(node.b.col) + (node.b.row + 1);
+  return `${q}!${a}:${b}`;
+}
+
+function openNamedRangesDialog(g) {
+  document.getElementById("wb-nr-modal")?.remove();
+  const sheet = g.sheet;
+  const ro = !WB.canEdit;
+  const rect = selRect(g);
+  const selRef = colLabel(rect.c0) + (rect.r0 + 1) + ":" + colLabel(rect.c1) + (rect.r1 + 1);
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-nr-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Named ranges" style="width:520px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Named ranges</p><p class="rr-modal-sub">Give a range a name, then use it in formulas — <code>=SUM(Drivers)</code>. Names are shared across the sheets in this block.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        ${ro ? "" : `<div class="wb-field-row" style="align-items:flex-end">
+          <label class="wb-field" style="flex:0 0 160px"><span class="wb-field-label">Name</span>
+            <input type="text" class="wb-input" id="wb-nr-name" placeholder="Drivers" spellcheck="false" maxlength="60"></label>
+          <label class="wb-field"><span class="wb-field-label">Refers to</span>
+            <input type="text" class="wb-input" id="wb-nr-ref" value="${esc(selRef)}" placeholder="A2:A50" spellcheck="false"></label>
+          <button type="button" class="btn btn-primary btn-sm" data-wb-nr-add style="flex:0 0 auto">Add</button>
+        </div>`}
+        <div class="wb-nr-list" id="wb-nr-list"></div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn primary" type="button" data-wb-close>Done</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const paint = () => {
+    const defs = blockNamedRanges(findBlock(sheet.blockId));
+    wrap.querySelector("#wb-nr-list").innerHTML = !defs.length
+      ? `<p class="wb-cf-none">No named ranges yet.</p>`
+      : defs.map((d, i) =>
+          `<div class="wb-nr-row"><button type="button" class="wb-nr-name" data-nr-go="${esc(d.ref)}" title="Go to ${esc(d.ref)}">${esc(d.name)}</button><span class="wb-nr-ref">${esc(d.ref)}</span>${ro ? "" : `<button type="button" class="wb-cf-del" data-nr-del="${i}" aria-label="Delete ${esc(d.name)}">×</button>`}</div>`).join("");
+  };
+  paint();
+  const addName = () => {
+    const name = wrap.querySelector("#wb-nr-name").value.trim();
+    const refIn = wrap.querySelector("#wb-nr-ref").value.trim();
+    if (!isValidRangeName(name)) { _toast("Pick a name that starts with a letter and isn't a cell reference or function", "warn"); return; }
+    const ref = normalizeNameRef(refIn, sheet.name);
+    if (!ref) { _toast("Enter a range like A2:A50", "warn"); return; }
+    const defs = blockNamedRanges(findBlock(sheet.blockId)).filter((d) => d.name.toLowerCase() !== name.toLowerCase());
+    defs.push({ name, ref });
+    defs.sort((a, b) => a.name.localeCompare(b.name));
+    setBlockNamedRanges(g, defs);
+    wbLog("sheet.namedrange", `defined the name “${name}” for ${ref}`, { target_type: "sheet", target_id: sheet.id });
+    wrap.querySelector("#wb-nr-name").value = "";
+    paint();
+    wrap.querySelector("#wb-nr-name").focus();
+  };
+  wrap.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") { wrap.remove(); return; }
+    if (e.key === "Enter" && e.target.closest("#wb-nr-name, #wb-nr-ref")) { e.preventDefault(); addName(); }
+  });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); g.els.grid.focus(); return; }
+    if (e.target.closest("[data-wb-nr-add]")) { addName(); return; }
+    const go = e.target.closest("[data-nr-go]");
+    if (go) { wrap.remove(); gotoNameBox(g, go.getAttribute("data-nr-go")); g.els.grid.focus(); return; }
+    const del = e.target.closest("[data-nr-del]");
+    if (del) {
+      const defs = blockNamedRanges(findBlock(sheet.blockId)).slice();
+      const [removed] = defs.splice(+del.getAttribute("data-nr-del"), 1);
+      setBlockNamedRanges(g, defs);
+      if (removed) wbLog("sheet.namedrange", `deleted the name “${removed.name}”`, { target_type: "sheet", target_id: sheet.id });
+      paint();
+    }
+  });
+  setTimeout(() => wrap.querySelector("#wb-nr-name")?.focus(), 30);
 }
 
 // ─── Conditional formatting dialog ───────────────────────────────────────────
@@ -11228,14 +11464,8 @@ function bindGridEvents(g) {
       e.stopPropagation();
       if (e.key === "Enter") {
         e.preventDefault();
-        const rc = parseCellRef(nameBox.value.trim());
-        if (rc && rc.row < g.sheet.rowCount && rc.col < g.sheet.colCount) {
-          setActive(g, rc.row, rc.col);
-          g.els.grid.focus();
-        } else {
-          _toast("Type a cell reference like B12", "info");
-          syncFormulaBar(g);
-        }
+        if (gotoNameBox(g, nameBox.value.trim())) g.els.grid.focus();
+        else { _toast("Type a cell reference like B12, a range, or a named range", "info"); syncFormulaBar(g); }
       } else if (e.key === "Escape") {
         e.preventDefault();
         syncFormulaBar(g);
@@ -11322,6 +11552,7 @@ function bindGridEvents(g) {
       case "panel-toggle": WB.panelOpen = !WB.panelOpen; syncPanelVisibility(); if (WB.panelOpen) renderPanel(); break;
       case "validation": openValidationDialog(g); break;
       case "condfmt": openCondFormatDialog(g); break;
+      case "named-ranges": openNamedRangesDialog(g); return;
       case "row-add": restructure(g, "row", g.active.r + 1, 1); break;
       case "row-del": restructure(g, "row", g.active.r, -1); break;
       case "col-add": restructure(g, "col", g.active.c + 1, 1); break;
@@ -13928,7 +14159,7 @@ function fillDriverAction(g, driverId, act) {
 // not part of the app surface; live.js imports only the view loaders.
 
 export const __engine = {
-  parseFormula, evalFormula, evalAst, extractRefs, matchesCriterion, FormulaError, Arr,
+  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes,

@@ -29488,6 +29488,13 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-cf-del:hover{color:#B91C1C}
 #view-workbooks .wb-cf-none{margin:8px 0 0;font-size:var(--fs-xs);color:var(--text-subtle)}
 
+/* ── Named ranges modal ── */
+#view-workbooks .wb-nr-list{display:flex;flex-direction:column;gap:4px;margin-top:12px;max-height:240px;overflow-y:auto}
+#view-workbooks .wb-nr-row{display:flex;align-items:center;gap:10px;padding:5px 6px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:var(--fs-xs)}
+#view-workbooks .wb-nr-name{flex:0 0 auto;background:none;border:0;padding:0;font-weight:600;color:var(--accent, #2563EB);cursor:pointer;text-align:left}
+#view-workbooks .wb-nr-name:hover{text-decoration:underline}
+#view-workbooks .wb-nr-ref{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);font-variant-numeric:tabular-nums}
+
 /* ── Reports Builder modal ── */
 .rr-reports-surface .rb-body{flex:1;display:flex;min-height:0}
 .rr-reports-surface .rb-cats{flex:0 0 190px;display:flex;flex-direction:column;gap:2px;padding:12px 10px;border-right:1px solid var(--border);overflow-y:auto}
