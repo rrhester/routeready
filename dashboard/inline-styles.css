@@ -28736,6 +28736,12 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 .wb-color-grid{display:grid;grid-template-columns:repeat(7,26px);gap:5px;padding:9px}
 .wb-color-grid-10{grid-template-columns:repeat(10,20px);gap:3px;padding:8px 10px}
 .wb-color-grid-10 .wb-swatch{width:20px;height:20px;border-radius:50%;border-color:rgba(0,0,0,.12)}
+/* saved custom colors (shared by fill + text pickers) */
+.wb-color-custlbl{
+  padding:6px 12px 0;font-size:var(--fs-xs);font-weight:700;
+  color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em;
+}
+.wb-color-custrow{padding-top:5px}
 .wb-color-reset{
   display:block;width:calc(100% - 16px);margin:8px 8px 0;padding:5px 8px;text-align:left;
   border:1px solid var(--border-subtle);border-radius:var(--r-sm);background:var(--surface);
