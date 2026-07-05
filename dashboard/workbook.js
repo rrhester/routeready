@@ -4584,6 +4584,7 @@ async function renderReportsPage() {
   WB.view = "reports";
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "";
+  document.body.classList.remove("rr-wb-fullscreen"); // leave Workbook Mode
   syncWbTabs("reports");
   try {
     await Promise.all([fetchWorkbooksList(), fetchUsers()]);
@@ -4663,6 +4664,7 @@ function renderVaultPage() {
   WB.view = "vault";
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "";
+  document.body.classList.remove("rr-wb-fullscreen"); // leave Workbook Mode
   syncWbTabs("vault");
   const node = document.querySelector("#view-drive .rr-drive-page") || document.querySelector("#rr-wb-root .rr-drive-page");
   if (!node) {
@@ -4683,6 +4685,7 @@ function renderReportBuilderPage() {
   WB.view = "reports-builder";
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "";
+  document.body.classList.remove("rr-wb-fullscreen"); // leave Workbook Mode
   syncWbTabs("reports");
   if (!REPORTS_RENDERER) {
     root.innerHTML = wbErrorHtml("Reports aren't available", "Reload the page and try again.");
@@ -5171,6 +5174,7 @@ async function renderListPage() {
   WB.view = "list";
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "";
+  document.body.classList.remove("rr-wb-fullscreen"); // leave Workbook Mode
   syncWbTabs("workbooks");
   try {
     await Promise.all([fetchWorkbooksList(), fetchUsers()]);
@@ -5378,11 +5382,16 @@ function renderDetailPage() {
   if (!root || !wb) return;
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "none"; // full canvas while a workbook is open
+  // Workbook Mode — the open workbook takes over the whole app window
+  // (Excel-style): the dashboard rail, topbar, page padding and card
+  // chrome all drop away via body.rr-wb-fullscreen (see inline-styles.css).
+  document.body.classList.add("rr-wb-fullscreen");
   const ro = !WB.canEdit;
   root.innerHTML = `
     <div class="wb-detail ${WB.panelOpen ? "is-panel-open" : ""}" id="wb-detail">
       <div class="wb-head">
-        <button type="button" class="btn btn-ghost btn-icon" data-wb-act="back-to-list" title="All workbooks" aria-label="Back to workbooks">
+        <span class="wb-appmark" aria-hidden="true" title="RouteReady"><img src="../app/Icon.png" alt=""></span>
+        <button type="button" class="btn btn-ghost btn-icon" data-wb-act="back-to-list" title="Close workbook — back to RouteReady" aria-label="Close workbook — back to RouteReady">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
         </button>
         <input type="text" class="wb-title-input" id="wb-title-input" value="${esc(wb.title)}" maxlength="200" ${ro ? "readonly" : ""} aria-label="Workbook title">
@@ -5393,6 +5402,10 @@ function renderDetailPage() {
           <span data-wb-savestate></span>
           <span class="wb-presence" id="wb-presence"></span>
           ${ro ? `<span class="wb-badge" title="You can view${canCommentOnly() ? " and comment" : ""}, but not edit">Read-only</span>` : ""}
+          <button type="button" class="btn btn-sm wb-share-btn" data-wb-act="wb-share" title="Share this workbook" aria-label="Share this workbook">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>
+            Share
+          </button>
           <span class="popover-anchor">
             <button type="button" class="btn btn-ghost btn-icon ${wb.description ? "is-on" : ""}" data-wb-act="desc-menu" title="Workbook description" aria-haspopup="true" aria-label="Workbook description">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="7" y1="10" x2="17" y2="10"/><line x1="7" y1="14" x2="13" y2="14"/></svg>
@@ -5444,6 +5457,11 @@ function renderDetailPage() {
   WB.fitDetail = () => {
     const d = document.getElementById("wb-detail");
     if (!d || d !== detailEl) return;
+    // In Workbook Mode the shell is a flex column that already fills the
+    // viewport (height:100vh on .main → flex:1 down to .wb-detail), so clear
+    // any inline pixel height and let flex govern. The grid still owns its
+    // own scroll via sizeGrid (viewport-relative), so it resizes correctly.
+    if (document.body.classList.contains("rr-wb-fullscreen")) { d.style.height = ""; return; }
     const top = d.getBoundingClientRect().top + window.scrollY;
     d.style.height = Math.max(420, window.innerHeight - top - 10) + "px";
   };
@@ -5607,6 +5625,29 @@ function confirmModal({ title, body, confirmLabel, danger, onConfirm }) {
   });
   wrap.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); wrap.remove(); } });
   setTimeout(() => wrap.querySelector("[data-wb-confirm]")?.focus(), 30);
+}
+
+// Help → Keyboard shortcuts: a compact reference rendered through the
+// shared confirm-modal shell (info-only, single dismiss button).
+function showShortcutsHelp() {
+  const rows = [
+    ["Navigate cells", "Arrow keys · Tab · Enter"],
+    ["Jump to edge", "Ctrl + Arrow"],
+    ["Extend selection", "Shift + Arrow"],
+    ["Edit cell", "Enter or F2 / double-click"],
+    ["Start a formula", "="],
+    ["Copy · Cut · Paste", "Ctrl+C · Ctrl+X · Ctrl+V"],
+    ["Paste values only", "Ctrl+Shift+V"],
+    ["Undo · Redo", "Ctrl+Z · Ctrl+Y"],
+    ["Bold · Italic · Underline", "Ctrl+B · Ctrl+I · Ctrl+U"],
+    ["Find & replace", "Ctrl+H"],
+    ["Show formulas", "Ctrl+`"],
+    ["Fill down (drag handle)", "Drag the selection corner"],
+    ["Clear cell contents", "Delete"],
+  ];
+  const body = `<div class="wb-shortcuts">${rows.map(([k, v]) =>
+    `<div class="wb-shortcut-row"><span>${esc(k)}</span><kbd>${esc(v)}</kbd></div>`).join("")}</div>`;
+  confirmModal({ title: "Keyboard shortcuts", body, confirmLabel: "Got it", onConfirm: () => {} });
 }
 
 // ─── Rich text block ─────────────────────────────────────────────────────────
@@ -13560,7 +13601,7 @@ function insertLinkPrompt(g) {
   formatSelection(g, { link: t && t !== "https://" ? t.slice(0, 2000) : null });
 }
 
-const WB_MENUS = ["File", "Edit", "View", "Insert", "Format", "Data"];
+const WB_MENUS = ["File", "Edit", "View", "Insert", "Format", "Data", "Tools", "Help"];
 
 function wbMenuItems(menu, g) {
   const ed = WB.canEdit;
@@ -13704,6 +13745,29 @@ function wbMenuItems(menu, g) {
         ] },
       ];
     }
+    case "Tools": return [
+      // RouteReady power actions — the same integrations surfaced on the
+      // ribbon, grouped here Excel-style under a Tools menu.
+      { label: "Load Drivers…", act: "data:fill-people", disabled: !ed || !g },
+      { label: "Load Vans", act: "data:fill-vans", disabled: !ed || !g },
+      { label: "Load Schedule (this week)", act: "data:fill-schedule", disabled: !ed || !g },
+      { label: "Load Time off / PTO", act: "data:fill-pto", disabled: !ed || !g },
+      sep,
+      { label: "Build Schedule from Sheet…", act: "data:fill-build", disabled: !ed || !g },
+      { label: "Send Checklist to Driver App…", act: "data:checklist-send", disabled: !ed || !g },
+      sep,
+      { label: "Column stats", act: "data:stats", disabled: !g },
+      { label: "Named ranges…", act: "data:names", disabled: !g },
+      { label: "Data validation…", act: "data:validation", disabled: !ed || !g },
+      { label: "Function browser…", act: "ins:fnbrowse", disabled: !g },
+    ];
+    case "Help": return [
+      { label: "Keyboard shortcuts", act: "help:shortcuts" },
+      { label: "Function list & reference…", act: "help:functions", disabled: !g },
+      sep,
+      { label: "Version history (activity)", act: "file:activity" },
+      { label: "About RouteReady Workbooks", act: "help:about" },
+    ];
   }
   return [];
 }
@@ -13804,6 +13868,16 @@ function wbMenuAction(act, g) {
     case "data:split": if (need()) splitTextToColumns(g); return;
     case "data:dedupe": if (need()) removeDuplicateRows(g); return;
     case "data:trim": if (need()) trimWhitespace(g); return;
+    case "help:shortcuts": showShortcutsHelp(); return;
+    case "help:functions": if (need()) {
+      const fnBtn = document.querySelector(`[data-wb-toolbar="${g.blockId}"] [data-wb-tb="fn-menu"]`);
+      if (fnBtn) { fnBrowserPop(g, fnBtn); togglePopover(fnBtn); setTimeout(() => fnBtn.closest(".popover-anchor")?.querySelector(".wb-fn-search")?.focus(), 0); }
+    } return;
+    case "help:about": confirmModal({
+      title: "RouteReady Workbooks",
+      body: "A full-screen, Excel-style spreadsheet built into RouteReady. Formulas, charts, pivot tables, conditional formatting and live RouteReady data (drivers, vans, schedules) all in one document-first workspace.",
+      confirmLabel: "Got it", onConfirm: () => {},
+    }); return;
   }
   if (!g) { _toast("Open a spreadsheet block first", "info"); return; }
   if (ns === "view" && verb === "zoom") setZoom(g, +arg || 1);
@@ -14164,6 +14238,7 @@ function installRootListeners() {
         if (WB.wb && isReportWb(WB.wb.id)) renderReportsPage(); else renderListPage();
         break;
       }
+      case "wb-share": openPanelTab("sharing"); break;
       case "new-report": renderReportBuilderPage(); break;
       case "reports-back": renderReportsPage(); break;
       case "retry-save": flushCells(); break;
@@ -14311,7 +14386,9 @@ function wrapGoto() {
     if (WB.view === "detail" && view !== "workbooks") {
       try { flushCells(); closeRealtime(); } catch (_) {}
     }
-    if (view !== "workbooks") { try { restoreVaultNode(); } catch (_) {} }
+    // leaving Workbooks entirely — drop Workbook Mode so the dashboard
+    // chrome (rail, topbar, padding) comes back on the destination view
+    if (view !== "workbooks") { try { document.body.classList.remove("rr-wb-fullscreen"); restoreVaultNode(); } catch (_) {} }
     return prev.apply(this, arguments);
   };
 }
