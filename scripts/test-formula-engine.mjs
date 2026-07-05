@@ -237,6 +237,230 @@ ok("unknown function is #NAME", () => assert.equal(evErr("=FOO(1)"), "#NAME"));
 ok("parse error is #ERROR", () => assert.equal(evErr("=1+"), "#ERROR"));
 ok("bare cell math with $ anchors", () => assert.equal(ev("=$A$1+A2", regCtx), 30));
 
+// ══ Google Sheets function-list parity ═══════════════════════════════════════
+// Reference values computed in Excel/Google Sheets. A `topOf` helper reads
+// the top-left cell of an array result (the value the grid displays).
+const topOf = (v) => (v && v.rows ? v.rows[0][0] : v);
+const evTop = (src, ctx) => topOf(ev(src, ctx));
+
+// ── in-formula arrays, LET, LAMBDA ──
+ok("array literal SUM", () => assert.equal(ev("=SUM({1,2,3;4,5,6})"), 21));
+ok("array literal MDETERM", () => assert.equal(ev("=MDETERM({1,2;3,4})"), -2));
+ok("array display shows top-left", () => assert.equal(evTop("=SEQUENCE(2,3)"), 1));
+ok("LET binds and reuses", () => assert.equal(ev("=LET(x,5,y,10,x+y)"), 15));
+ok("LET chains earlier names", () => assert.equal(ev("=LET(x,5,y,x*2,x+y)"), 15));
+ok("LAMBDA immediate call", () => assert.equal(ev("=LAMBDA(a,b,a+b)(3,4)"), 7));
+ok("LET-bound LAMBDA call", () => assert.equal(ev("=LET(sq,LAMBDA(x,x*x),sq(5))"), 25));
+ok("MAP over a range", () => assert.equal(evTop("=MAP(A1:A3,LAMBDA(x,x*2))", sheetCtx({ A1: 1, A2: 2, A3: 3 })), 2));
+ok("REDUCE folds", () => assert.equal(ev("=REDUCE(0,A1:A3,LAMBDA(a,x,a+x))", sheetCtx({ A1: 1, A2: 2, A3: 3 })), 6));
+ok("SCAN running total", () => { const a = ev("=SCAN(0,A1:A3,LAMBDA(a,x,a+x))", sheetCtx({ A1: 1, A2: 2, A3: 3 })); assert.deepEqual(a.rows, [[1], [3], [6]]); });
+ok("BYROW sums each row", () => { const a = ev("=BYROW(A1:B2,LAMBDA(r,SUM(r)))", sheetCtx({ A1: 1, B1: 2, A2: 3, B2: 4 })); assert.deepEqual(a.rows, [[3], [7]]); });
+ok("MAKEARRAY builds a grid", () => { const a = ev("=MAKEARRAY(2,2,LAMBDA(r,c,r*c))"); assert.deepEqual(a.rows, [[1, 2], [2, 4]]); });
+ok("LAMBDA arity mismatch is #VALUE", () => assert.equal(evErr("=LAMBDA(a,b,a+b)(1)"), "#VALUE"));
+
+// ── math ──
+ok("SINH/COSH/TANH", () => { near(ev("=SINH(1)"), Math.sinh(1)); near(ev("=COSH(1)"), Math.cosh(1)); near(ev("=TANH(1)"), Math.tanh(1)); });
+ok("SEC/CSC/COT", () => { near(ev("=SEC(0)"), 1); near(ev("=CSC(1.5707963267948966)"), 1); near(ev("=COT(0.7853981633974483)"), 1, 1e-9); });
+ok("ACOSH/ASINH/ATANH", () => { near(ev("=ACOSH(1)"), 0); near(ev("=ASINH(0)"), 0); near(ev("=ATANH(0.5)"), Math.atanh(0.5)); });
+ok("CEILING.MATH negative mode", () => { assert.equal(ev("=CEILING.MATH(-5.5,2,1)"), -6); assert.equal(ev("=CEILING.MATH(-5.5,2)"), -4); });
+ok("FLOOR.MATH negative mode", () => { assert.equal(ev("=FLOOR.MATH(-5.5,2,1)"), -4); assert.equal(ev("=FLOOR.MATH(-5.5,2)"), -6); });
+ok("BASE/DECIMAL round-trip", () => { assert.equal(ev("=BASE(255,16)"), "FF"); assert.equal(ev("=DECIMAL(\"FF\",16)"), 255); assert.equal(ev("=BASE(5,2,8)"), "00000101"); });
+ok("COMBINA/FACTDOUBLE/MULTINOMIAL", () => { assert.equal(ev("=COMBINA(4,3)"), 20); assert.equal(ev("=FACTDOUBLE(7)"), 105); assert.equal(ev("=MULTINOMIAL(2,3,4)"), 1260); });
+ok("GAMMA/GAMMALN", () => { near(ev("=GAMMA(5)"), 24, 1e-6); near(ev("=GAMMALN(5)"), Math.log(24), 1e-9); });
+ok("SERIESSUM (e^1 partial)", () => near(ev("=SERIESSUM(1,0,1,A1:A4)", sheetCtx({ A1: 1, A2: 1, A3: 0.5, A4: 1 / 6 })), 1 + 1 + 0.5 + 1 / 6));
+ok("SUBTOTAL sum/avg", () => { assert.equal(ev("=SUBTOTAL(9,A1:A3)", sheetCtx({ A1: 1, A2: 2, A3: 3 })), 6); assert.equal(ev("=SUBTOTAL(1,A1:A3)", sheetCtx({ A1: 1, A2: 2, A3: 3 })), 2); });
+
+// ── statistical distributions ──
+ok("NORM.DIST cdf", () => near(ev("=NORM.DIST(1,0,1,TRUE)"), 0.8413447460685429, 1e-9));
+ok("NORM.S.INV", () => near(ev("=NORM.S.INV(0.975)"), 1.959963984540054, 1e-6));
+ok("NORM.INV round-trips NORM.DIST", () => near(ev("=NORM.INV(NORM.DIST(3,2,4,TRUE),2,4)"), 3, 1e-6));
+ok("T.DIST / T.INV.2T", () => { near(ev("=T.DIST(2,10,TRUE)"), 0.9633059826146299, 1e-7); near(ev("=T.INV.2T(0.05,10)"), 2.2281388519649385, 1e-5); });
+ok("CHISQ.DIST / CHISQ.INV.RT", () => { near(ev("=CHISQ.DIST(3,4,TRUE)"), 0.4421745996289254, 1e-7); near(ev("=CHISQ.INV.RT(0.05,10)"), 18.307038053275146, 1e-4); });
+ok("F.DIST.RT / F.INV.RT", () => { near(ev("=F.DIST.RT(2,5,10)"), 0.16419495089974, 1e-7); near(ev("=F.INV.RT(0.16419495089974,5,10)"), 2, 1e-4); });
+ok("BINOM.DIST pmf/cdf", () => { near(ev("=BINOM.DIST(3,10,0.5,FALSE)"), 0.1171875, 1e-9); near(ev("=BINOM.DIST(3,10,0.5,TRUE)"), 0.171875, 1e-9); });
+ok("BINOM.INV", () => assert.equal(ev("=BINOM.INV(10,0.5,0.5)"), 5));
+ok("POISSON.DIST", () => { near(ev("=POISSON.DIST(3,2,FALSE)"), 0.18044704431548356, 1e-9); near(ev("=POISSON.DIST(3,2,TRUE)"), 0.857123460498547, 1e-9); });
+ok("HYPGEOM.DIST", () => near(ev("=HYPGEOM.DIST(1,4,8,20,FALSE)"), 0.3632610939112487, 1e-9));
+ok("NEGBINOM.DIST", () => near(ev("=NEGBINOM.DIST(10,5,0.25,FALSE)"), 0.05504866037517786, 1e-6));
+ok("EXPON.DIST", () => near(ev("=EXPON.DIST(1,2,TRUE)"), 1 - Math.exp(-2), 1e-9));
+ok("WEIBULL.DIST", () => near(ev("=WEIBULL.DIST(105,20,100,TRUE)"), 0.9295813900692769, 1e-7));
+ok("GAMMA.DIST / GAMMA.INV", () => { near(ev("=GAMMA.DIST(2,3,2,TRUE)"), 0.08030139707139418, 1e-7); near(ev("=GAMMA.INV(0.08030139707139418,3,2)"), 2, 1e-4); });
+ok("BETA.DIST / BETA.INV", () => { near(ev("=BETA.DIST(0.5,2,3,TRUE)"), 0.6875, 1e-7); near(ev("=BETA.INV(0.6875,2,3)"), 0.5, 1e-5); });
+ok("LOGNORM.DIST", () => near(ev("=LOGNORM.DIST(4,1,1,TRUE)"), 0.65036, 1e-4)); // Φ((ln4−1)/1)
+ok("CONFIDENCE.NORM", () => near(ev("=CONFIDENCE.NORM(0.05,2.5,50)"), 0.6929519121748391, 1e-6));
+ok("legacy aliases match new", () => { near(ev("=NORMSDIST(1)"), ev("=NORM.S.DIST(1,TRUE)")); near(ev("=POISSON(3,2,TRUE)"), ev("=POISSON.DIST(3,2,TRUE)")); });
+
+// ── statistical: descriptive + regression ──
+ok("AVEDEV/DEVSQ", () => { assert.equal(ev("=AVEDEV(A1:A4)", sheetCtx({ A1: 2, A2: 4, A3: 6, A4: 8 })), 2); assert.equal(ev("=DEVSQ(A1:A3)", sheetCtx({ A1: 1, A2: 2, A3: 3 })), 2); });
+ok("SKEW/KURT", () => { near(ev("=SKEW(A1:A5)", sheetCtx({ A1: 1, A2: 2, A3: 3, A4: 4, A5: 10 })), 1.697056274847714, 1e-9); near(ev("=KURT(A1:A5)", sheetCtx({ A1: 1, A2: 2, A3: 3, A4: 4, A5: 10 })), 3.152, 1e-3); });
+ok("TRIMMEAN", () => assert.equal(ev("=TRIMMEAN(A1:A6,0.4)", sheetCtx({ A1: 1, A2: 2, A3: 3, A4: 4, A5: 5, A6: 100 })), 3.5));
+const regr = sheetCtx({ A1: 1, A2: 2, A3: 3, B1: 2, B2: 4, B3: 6 });
+ok("CORREL/RSQ/SLOPE/INTERCEPT", () => { near(ev("=CORREL(A1:A3,B1:B3)", regr), 1); near(ev("=RSQ(B1:B3,A1:A3)", regr), 1); near(ev("=SLOPE(B1:B3,A1:A3)", regr), 2); near(ev("=INTERCEPT(B1:B3,A1:A3)", regr), 0); });
+ok("FORECAST/TREND", () => { near(ev("=FORECAST(4,B1:B3,A1:A3)", regr), 8); near(evTop("=TREND(B1:B3,A1:A3,A1:A1)", regr), 2); });
+ok("COVARIANCE.P/S", () => { near(ev("=COVARIANCE.P(A1:A3,B1:B3)", regr), 4 / 3, 1e-9); near(ev("=COVARIANCE.S(A1:A3,B1:B3)", regr), 2); });
+ok("PERCENTRANK", () => { assert.equal(ev("=PERCENTRANK(A1:A5,3)", sheetCtx({ A1: 1, A2: 2, A3: 3, A4: 4, A5: 5 })), 0.5); assert.equal(ev("=PERCENTRANK.EXC(A1:A5,3)", sheetCtx({ A1: 1, A2: 2, A3: 3, A4: 4, A5: 5 })), 0.5); });
+ok("RANK.AVG ties", () => assert.equal(ev("=RANK.AVG(2,A1:A4)", sheetCtx({ A1: 1, A2: 2, A3: 2, A4: 3 })), 2.5));
+ok("PERMUT/STANDARDIZE", () => { assert.equal(ev("=PERMUT(5,2)"), 20); assert.equal(ev("=STANDARDIZE(42,40,1.5)"), (42 - 40) / 1.5); });
+ok("T.TEST equal-variance", () => near(ev("=T.TEST(A1:A3,B1:B3,2,2)", sheetCtx({ A1: 3, A2: 4, A3: 5, B1: 1, B2: 2, B3: 3 })), 0.07048399691022023, 1e-9));
+ok("T.TEST paired", () => near(ev("=T.TEST(A1:A3,B1:B3,1,1)", sheetCtx({ A1: 5, A2: 6, A3: 7, B1: 1, B2: 3, B3: 2 })), 0.010102051443364402, 1e-9));
+ok("MODE.MULT returns all", () => { const a = ev("=MODE.MULT(A1:A5)", sheetCtx({ A1: 1, A2: 1, A3: 2, A4: 2, A5: 3 })); assert.deepEqual(a.rows, [[1], [2]]); });
+
+// ── engineering ──
+ok("base conversions", () => { assert.equal(ev("=DEC2BIN(10)"), "1010"); assert.equal(ev("=DEC2HEX(255)"), "FF"); assert.equal(ev("=HEX2DEC(\"FF\")"), 255); assert.equal(ev("=BIN2DEC(1111111111)"), -1); assert.equal(ev("=OCT2DEC(17)"), 15); });
+ok("bitwise", () => { assert.equal(ev("=BITAND(12,10)"), 8); assert.equal(ev("=BITOR(12,10)"), 14); assert.equal(ev("=BITXOR(12,10)"), 6); assert.equal(ev("=BITLSHIFT(4,2)"), 16); assert.equal(ev("=BITRSHIFT(16,2)"), 4); });
+ok("DELTA/GESTEP", () => { assert.equal(ev("=DELTA(5,5)"), 1); assert.equal(ev("=DELTA(5,4)"), 0); assert.equal(ev("=GESTEP(5,4)"), 1); });
+ok("ERF/ERFC", () => { near(ev("=ERF(1)"), 0.8427007929497149, 1e-9); near(ev("=ERFC(1)"), 0.15729920705028513, 1e-9); near(ev("=ERF(0,1)"), 0.8427007929497149, 1e-9); });
+ok("COMPLEX build + parts", () => { assert.equal(ev("=COMPLEX(3,4)"), "3+4i"); assert.equal(ev("=COMPLEX(0,1)"), "i"); assert.equal(ev("=IMREAL(\"3+4i\")"), 3); assert.equal(ev("=IMAGINARY(\"3+4i\")"), 4); assert.equal(ev("=IMABS(\"3+4i\")"), 5); });
+ok("complex arithmetic", () => { assert.equal(ev("=IMSUM(\"3+4i\",\"1+2i\")"), "4+6i"); assert.equal(ev("=IMPRODUCT(\"3+4i\",\"1+2i\")"), "-5+10i"); assert.equal(ev("=IMCONJUGATE(\"3+4i\")"), "3-4i"); assert.equal(ev("=IMSUB(\"5+3i\",\"2+i\")"), "3+2i"); });
+ok("complex transcendental", () => { const e = ev("=IMEXP(\"0+0i\")"); assert.equal(e, "1"); near(topOf(ev("=IMABS(IMSQRT(\"-1\"))")), 1); });
+
+// ── financial ──
+ok("RATE solves PMT", () => near(ev("=RATE(60,-193.328,10000)"), 0.005, 1e-4));
+ok("IPMT/PPMT split the payment", () => { near(ev("=IPMT(0.005,1,60,10000)"), -50, 1e-9); near(ev("=IPMT(0.005,1,60,10000)") + ev("=PPMT(0.005,1,60,10000)"), ev("=PMT(0.005,60,10000)"), 1e-9); });
+ok("CUMIPMT/CUMPRINC", () => { near(ev("=CUMIPMT(0.09/12,360,125000,13,24,0)"), -11135.23, 0.01); near(ev("=CUMPRINC(0.09/12,360,125000,13,24,0)"), -934.1071, 0.01); });
+ok("depreciation SYD/DB/DDB/VDB", () => { assert.equal(ev("=SYD(10000,1000,5,1)"), 3000); near(ev("=DB(1000000,100000,6,1)"), 319000, 1); near(ev("=DDB(2400,300,10,1)"), 480, 1e-9); near(ev("=VDB(2400,300,10,0,1)"), 480, 1e-9); });
+ok("DOLLARDE/DOLLARFR", () => { assert.equal(ev("=DOLLARDE(1.02,16)"), 1.125); near(ev("=DOLLARFR(1.125,16)"), 1.02, 1e-9); });
+ok("MIRR/XNPV/XIRR", () => {
+  near(ev("=MIRR(A1:A5,0.1,0.12)", sheetCtx({ A1: -1000, A2: 300, A3: 400, A4: 400, A5: 300 })), 0.11022609322549504, 1e-6);
+  const xc = sheetCtx({ A1: -10000, A2: 5000, A3: 6000, B1: "2020-01-01", B2: "2020-06-01", B3: "2020-12-01" });
+  near(ev("=XNPV(0.09,A1:A3,B1:B3)", xc), 367.4582501758714, 1e-4);
+  near(ev("=XIRR(A1:A3,B1:B3)", xc), 0.14915029, 1e-5);
+});
+ok("FVSCHEDULE/PDURATION/RRI", () => { near(ev("=FVSCHEDULE(1000,A1:A3)", sheetCtx({ A1: 0.09, A2: 0.11, A3: 0.1 })), 1330.89, 1e-2); near(ev("=PDURATION(0.025,2000,2200)"), 3.859866162622655, 1e-9); near(ev("=RRI(96,10000,11000)"), 0.0009933073762913, 1e-9); });
+ok("bond PRICE/YIELD round-trip", () => {
+  const price = ev('=PRICE("2008-02-15","2017-11-15",0.0575,0.065,100,2,0)');
+  near(price, 94.63436162132, 1e-4);
+  near(ev(`=YIELD("2008-02-15","2017-11-15",0.0575,${price},100,2,0)`), 0.065, 1e-5);
+});
+ok("coupon schedule", () => { assert.equal(ev('=COUPNUM("2007-01-25","2008-11-15",2,1)'), 4); assert.equal(ev('=COUPDAYBS("2007-01-25","2008-11-15",2,1)'), 71); assert.equal(ev('=COUPDAYS("2007-01-25","2008-11-15",2,1)'), 181); assert.equal(ev('=COUPNCD("2007-01-25","2008-11-15",2,1)'), "2007-05-15"); });
+ok("DURATION/MDURATION", () => { near(ev('=DURATION("2008-01-01","2016-01-01",0.08,0.09,2,1)'), 5.993774955545, 1e-4); near(ev('=MDURATION("2008-01-01","2016-01-01",0.08,0.09,2,1)'), 5.735669813919, 1e-4); });
+ok("T-bill + discount securities", () => { near(ev('=TBILLYIELD("2008-03-31","2008-06-01",98.45)'), 0.09141696, 1e-6); near(ev('=DISC("2018-01-25","2018-06-15",97.975,100,1)'), 0.05242021, 1e-6); near(ev('=ACCRINTM("2008-04-01","2008-06-15",0.1,1000,3)'), 20.5479452, 1e-4); });
+
+// ── text ──
+ok("ROMAN/ARABIC round-trip", () => { assert.equal(ev("=ROMAN(1994)"), "MCMXCIV"); assert.equal(ev("=ARABIC(\"MCMXCIV\")"), 1994); assert.equal(ev("=ARABIC(ROMAN(2024))"), 2024); });
+ok("REGEXMATCH/EXTRACT/REPLACE", () => { assert.equal(ev("=REGEXMATCH(\"abc123\",\"[0-9]+\")"), true); assert.equal(ev("=REGEXEXTRACT(\"abc123\",\"[0-9]+\")"), "123"); assert.equal(ev("=REGEXREPLACE(\"abc123\",\"[0-9]\",\"X\")"), "abcXXX"); });
+ok("REGEXEXTRACT capture groups", () => { const a = ev("=REGEXEXTRACT(\"2026-07-05\",\"(\\d+)-(\\d+)-(\\d+)\")"); assert.deepEqual(a.rows, [["2026", "07", "05"]]); });
+ok("byte-width text", () => { assert.equal(ev("=LENB(\"café\")"), 4); assert.equal(ev("=LENB(\"中文\")"), 4); assert.equal(ev("=LEFTB(\"中A\",2)"), "中"); });
+ok("UNICHAR/UNICODE/ASC", () => { assert.equal(ev("=UNICHAR(65)"), "A"); assert.equal(ev("=UNICODE(\"A\")"), 65); assert.equal(ev("=ASC(\"ＡＢ\")"), "AB"); });
+
+// ── date/time ──
+ok("TIME fraction", () => near(ev("=TIME(14,30,0)"), 0.6041666666666666, 1e-12));
+ok("TIME wraps + overflows", () => { near(ev("=TIME(25,0,0)"), 1 / 24, 1e-12); near(ev("=TIME(0,90,0)"), 90 / 1440, 1e-12); });
+ok("WEEKDAY types", () => { assert.equal(ev("=WEEKDAY(\"2026-07-05\",1)"), 1); assert.equal(ev("=WEEKDAY(\"2026-07-05\",2)"), 7); assert.equal(ev("=WEEKDAY(\"2026-07-05\",3)"), 6); });
+ok("NETWORKDAYS.INTL custom weekend", () => assert.equal(ev("=NETWORKDAYS.INTL(\"2026-07-01\",\"2026-07-07\",1)"), 5));
+ok("WORKDAY.INTL", () => assert.equal(ev("=WORKDAY.INTL(\"2026-07-03\",1,1)"), "2026-07-06"));
+ok("EPOCHTODATE", () => assert.equal(ev("=EPOCHTODATE(1500000000)").slice(0, 10), "2017-07-14"));
+
+// ── lookup / dynamic references ──
+const lu = sheetCtx({ A1: 1, A2: 5, A3: 10, B1: "a", B2: "b", B3: "c" });
+ok("XMATCH modes", () => { assert.equal(ev("=XMATCH(5,A1:A3)", lu), 2); assert.equal(ev("=XMATCH(7,A1:A3,-1)", lu), 2); assert.equal(ev("=XMATCH(7,A1:A3,1)", lu), 3); });
+ok("INDIRECT A1 + range", () => { assert.equal(ev("=INDIRECT(\"A2\")", lu), 5); assert.equal(topOf(ev("=INDIRECT(\"A1:A3\")", lu)), 1); });
+ok("INDIRECT R1C1", () => assert.equal(ev("=INDIRECT(\"R2C1\",FALSE)", lu), 5));
+ok("OFFSET single + block", () => { assert.equal(ev("=OFFSET(A1,1,0)", lu), 5); assert.equal(topOf(ev("=OFFSET(A1,1,0,2,1)", lu)), 5); });
+ok("OFFSET out of range is #REF", () => assert.equal(evErr("=OFFSET(A1,-1,0)", lu), "#REF"));
+
+// ── array / filter functions ──
+const grid = sheetCtx({ A1: 1, B1: 2, A2: 3, B2: 4 });
+ok("FILTER keeps rows", () => { const a = ev("=FILTER(A1:A5,B1:B5)", sheetCtx({ A1: 10, A2: 20, A3: 30, A4: 40, A5: 50, B1: true, B2: false, B3: true, B4: false, B5: true })); assert.deepEqual(a.rows, [[10], [30], [50]]); });
+ok("FILTER no match is #N/A", () => assert.equal(evErr("=FILTER(A1:A2,B1:B2)", sheetCtx({ A1: 1, A2: 2, B1: false, B2: false })), "#N/A"));
+ok("SORT ascending/descending", () => { assert.deepEqual(ev("=SORT(A1:A3)", sheetCtx({ A1: 3, A2: 1, A3: 2 })).rows, [[1], [2], [3]]); assert.deepEqual(ev("=SORT(A1:A3,1,FALSE)", sheetCtx({ A1: 3, A2: 1, A3: 2 })).rows, [[3], [2], [1]]); });
+ok("SORTN top-2", () => assert.deepEqual(ev("=SORTN(A1:A5,2,0,1,FALSE)", sheetCtx({ A1: 5, A2: 3, A3: 1, A4: 4, A5: 2 })).rows, [[5], [4]]));
+ok("UNIQUE dedupes", () => assert.deepEqual(ev("=UNIQUE(A1:A4)", sheetCtx({ A1: 1, A2: 1, A3: 2, A4: 3 })).rows, [[1], [2], [3]]));
+ok("UNIQUE exactly-once", () => assert.deepEqual(ev("=UNIQUE(A1:A4,FALSE,TRUE)", sheetCtx({ A1: 1, A2: 1, A3: 2, A4: 3 })).rows, [[2], [3]]));
+ok("SPLIT text", () => assert.deepEqual(ev("=SPLIT(\"a,b,c\",\",\")").rows, [["a", "b", "c"]]));
+ok("TRANSPOSE", () => assert.deepEqual(ev("=TRANSPOSE(A1:B2)", grid).rows, [[1, 3], [2, 4]]));
+ok("FLATTEN", () => assert.deepEqual(ev("=FLATTEN(A1:B2)", grid).rows, [[1], [2], [3], [4]]));
+ok("HSTACK/VSTACK", () => { assert.deepEqual(ev("=HSTACK(A1:A2,B1:B2)", grid).rows, [[1, 2], [3, 4]]); assert.deepEqual(ev("=VSTACK(A1:B1,A2:B2)", grid).rows, [[1, 2], [3, 4]]); });
+ok("CHOOSECOLS/CHOOSEROWS", () => { assert.deepEqual(ev("=CHOOSECOLS(A1:B2,2,1)", grid).rows, [[2, 1], [4, 3]]); assert.deepEqual(ev("=CHOOSEROWS(A1:B2,-1)", grid).rows, [[3, 4]]); });
+ok("WRAPROWS", () => assert.deepEqual(ev("=WRAPROWS(A1:D1,2)", sheetCtx({ A1: 1, B1: 2, C1: 3, D1: 4 })).rows, [[1, 2], [3, 4]]));
+ok("SEQUENCE grid", () => assert.deepEqual(ev("=SEQUENCE(2,2,1,1)").rows, [[1, 2], [3, 4]]));
+ok("FREQUENCY buckets", () => assert.deepEqual(ev("=FREQUENCY(A1:A5,B1:B2)", sheetCtx({ A1: 1, A2: 2, A3: 3, A4: 4, A5: 5, B1: 2, B2: 4 })).rows, [[2], [2], [1]]));
+ok("MMULT product", () => assert.deepEqual(ev("=MMULT(A1:B2,D1:E2)", sheetCtx({ A1: 1, B1: 2, A2: 3, B2: 4, D1: 5, E1: 6, D2: 7, E2: 8 })).rows, [[19, 22], [43, 50]]));
+ok("MINVERSE", () => { const a = ev("=MINVERSE(A1:B2)", sheetCtx({ A1: 4, B1: 7, A2: 2, B2: 6 })); near(a.rows[0][0], 0.6); near(a.rows[1][1], 0.4); });
+ok("MUNIT identity", () => assert.deepEqual(ev("=MUNIT(2)").rows, [[1, 0], [0, 1]]));
+ok("SUMX2MY2/SUMXMY2", () => { assert.equal(ev("=SUMX2MY2(A1:A2,B1:B2)", sheetCtx({ A1: 3, A2: 4, B1: 1, B2: 2 })), (9 - 1) + (16 - 4)); assert.equal(ev("=SUMXMY2(A1:A2,B1:B2)", sheetCtx({ A1: 3, A2: 4, B1: 1, B2: 2 })), 4 + 4); });
+
+// ── database ──
+const dbCtx = sheetCtx({ A1: "id", B1: "amt", C1: "team", A2: 1, B2: 10, C2: "x", A3: 2, B3: 20, C3: "y", A4: 3, B4: 30, C4: "x", E1: "team", E2: "x" });
+ok("DSUM/DAVERAGE/DCOUNT", () => { assert.equal(ev("=DSUM(A1:C4,\"amt\",E1:E2)", dbCtx), 40); assert.equal(ev("=DAVERAGE(A1:C4,\"amt\",E1:E2)", dbCtx), 20); assert.equal(ev("=DCOUNT(A1:C4,\"amt\",E1:E2)", dbCtx), 2); });
+ok("DGET one match", () => { assert.equal(ev("=DGET(A1:C4,\"amt\",E1:E2)", sheetCtx({ A1: "id", B1: "amt", C1: "team", A2: 1, B2: 10, C2: "x", A3: 2, B3: 20, C3: "y", A4: 3, B4: 30, C4: "x", E1: "id", E2: 2 })), 20); });
+ok("DGET multi match is #NUM", () => assert.equal(evErr("=DGET(A1:C4,\"amt\",E1:E2)", dbCtx), "#NUM"));
+ok("DMAX by field index", () => assert.equal(ev("=DMAX(A1:C4,2,E1:E2)", dbCtx), 30));
+
+// ── parser: CONVERT + TO_* ──
+ok("CONVERT mass/distance/time", () => { near(ev("=CONVERT(1,\"lbm\",\"kg\")"), 0.45359237, 1e-8); near(ev("=CONVERT(1,\"mi\",\"km\")"), 1.609344, 1e-9); assert.equal(ev("=CONVERT(1,\"day\",\"hr\")"), 24); });
+ok("CONVERT temperature", () => { near(ev("=CONVERT(100,\"C\",\"F\")"), 212, 1e-9); near(ev("=CONVERT(32,\"F\",\"C\")"), 0, 1e-9); near(ev("=CONVERT(0,\"C\",\"K\")"), 273.15, 1e-9); });
+ok("CONVERT metric prefixes + binary", () => { near(ev("=CONVERT(1,\"km\",\"m\")"), 1000, 1e-9); near(ev("=CONVERT(1024,\"byte\",\"Kibyte\")"), 1, 1e-9); });
+ok("CONVERT incompatible is #N/A", () => assert.equal(evErr("=CONVERT(1,\"m\",\"kg\")"), "#N/A"));
+ok("TO_PERCENT/TO_DOLLARS/TO_PURE_NUMBER", () => { assert.equal(ev("=TO_PERCENT(0.25)"), "25%"); assert.equal(ev("=TO_DOLLARS(1234.5)"), "$1,234.50"); assert.equal(ev("=TO_PURE_NUMBER(\"42\")"), 42); });
+
+// ── info / logical / operator / web ──
+ok("ISEMAIL/ISURL", () => { assert.equal(ev("=ISEMAIL(\"a@b.com\")"), true); assert.equal(ev("=ISEMAIL(\"nope\")"), false); assert.equal(ev("=ISURL(\"https://x.com\")"), true); });
+ok("ISBETWEEN", () => { assert.equal(ev("=ISBETWEEN(5,1,10)"), true); assert.equal(ev("=ISBETWEEN(5,1,5,TRUE,FALSE)"), false); });
+ok("ERROR.TYPE/ISERR", () => { assert.equal(ev("=ERROR.TYPE(NA())"), 7); assert.equal(ev("=ERROR.TYPE(1/0)"), 2); assert.equal(ev("=ISERR(NA())"), false); assert.equal(ev("=ISERR(1/0)"), true); });
+ok("TYPE", () => { assert.equal(ev("=TYPE(5)"), 1); assert.equal(ev("=TYPE(\"x\")"), 2); assert.equal(ev("=TYPE(TRUE)"), 4); });
+ok("ISFORMULA/FORMULATEXT", () => { const c = { rowCount: 5, colCount: 5, getCell: () => 3, getFormula: (r, cc) => (r === 0 && cc === 0 ? "=1+2" : null) }; assert.equal(evalFormula("=ISFORMULA(A1)", c), true); assert.equal(evalFormula("=ISFORMULA(B1)", c), false); assert.equal(evalFormula("=FORMULATEXT(A1)", c), "=1+2"); });
+ok("TRUE()/FALSE() callable", () => { assert.equal(ev("=TRUE()"), true); assert.equal(ev("=FALSE()"), false); assert.equal(ev("=IF(TRUE(),1,2)"), 1); });
+ok("UPLUS/ENCODEURL/HYPERLINK", () => { assert.equal(ev("=UPLUS(5)"), 5); assert.equal(ev("=ENCODEURL(\"a b&c\")"), "a%20b%26c"); assert.equal(ev("=HYPERLINK(\"http://x.com\",\"X\")"), "X"); });
+
+// ── numeric-domain errors surface as #NUM ──
+ok("#NUM on bad domains", () => { assert.equal(evErr("=NORM.INV(2,0,1)"), "#NUM"); assert.equal(evErr("=GAMMALN(0)"), "#NUM"); assert.equal(evErr("=COMBINA(0,1)"), "#NUM"); assert.equal(evErr("=DEC2BIN(9999)"), "#NUM"); });
+
+// ── full-sheet recalc: two-pass dynamic refs + array-cell chaining ───────────
+// Drives the REAL recalcSheet (not single-shot evalFormula), so the
+// topological pass, the INDIRECT/OFFSET second pass, and the array-result
+// unwrap all get exercised together the way the grid runs them.
+{
+  const { recalcSheet } = __engine;
+  const mkRecalcSheet = (defs) => {
+    const cells = new Map();
+    for (const [ref, d] of Object.entries(defs)) {
+      const rc = parseCellRef(ref);
+      cells.set(rc.row + "," + rc.col, { value: d.formula ? null : d.value, formula: d.formula || null, type: d.formula ? "formula" : "number", format: {}, computed: null, err: null });
+    }
+    return { id: "s", blockId: "b", rowCount: 50, colCount: 12, cells };
+  };
+  const cval = (sheet, ref) => { const rc = parseCellRef(ref); const c = sheet.cells.get(rc.row + "," + rc.col); return c ? (c.err ? c.err : c.computed) : null; };
+
+  ok("recalc: topo chain settles in one pass", () => {
+    const s = mkRecalcSheet({ A1: { value: 2 }, B1: { formula: "=A1*3" }, C1: { formula: "=B1+A1" } });
+    recalcSheet(s);
+    assert.equal(cval(s, "B1"), 6);
+    assert.equal(cval(s, "C1"), 8);
+  });
+  ok("recalc: array-returning cell exposes top-left to dependents", () => {
+    const s = mkRecalcSheet({ A1: { value: 3 }, A2: { value: 1 }, A3: { value: 2 }, B1: { formula: "=SORT(A1:A3)" }, C1: { formula: "=B1*10" } });
+    recalcSheet(s);
+    assert.equal(cval(s, "B1"), 1); // SORT's smallest value displays
+    assert.equal(cval(s, "C1"), 10); // dependent reads the scalar top-left
+  });
+  ok("recalc: INDIRECT re-evaluates in the second pass", () => {
+    // D1 picks a column by name; the cell it points at is computed by another
+    // formula, so only the dynamic second pass sees the settled value.
+    const s = mkRecalcSheet({ A1: { value: 5 }, B1: { formula: "=A1*4" }, C1: { value: "B1" }, D1: { formula: "=INDIRECT(C1)" } });
+    recalcSheet(s);
+    assert.equal(cval(s, "B1"), 20);
+    assert.equal(cval(s, "D1"), 20);
+  });
+  ok("recalc: OFFSET tracks an upstream change through a dependent", () => {
+    const s = mkRecalcSheet({ A1: { value: 1 }, A2: { value: 2 }, A3: { value: 9 }, E1: { formula: "=OFFSET(A1,2,0)" }, F1: { formula: "=E1+1" } });
+    recalcSheet(s);
+    assert.equal(cval(s, "E1"), 9);
+    assert.equal(cval(s, "F1"), 10);
+  });
+  ok("recalc: LET/LAMBDA cell computes a scalar", () => {
+    const s = mkRecalcSheet({ A1: { value: 4 }, B1: { formula: "=LET(x,A1,sq,LAMBDA(n,n*n),sq(x))" } });
+    recalcSheet(s);
+    assert.equal(cval(s, "B1"), 16);
+  });
+  ok("recalc: circular reference is still flagged", () => {
+    const s = mkRecalcSheet({ A1: { formula: "=B1+1" }, B1: { formula: "=A1+1" } });
+    recalcSheet(s);
+    assert.equal(cval(s, "A1"), "#CIRCULAR");
+    assert.equal(cval(s, "B1"), "#CIRCULAR");
+  });
+}
+
 // ── XLSX export ──────────────────────────────────────────────────────────────
 // Parse the produced zip back (stored entries only) and verify structure,
 // CRCs, and the cell/style XML we care about.
