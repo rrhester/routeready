@@ -3616,6 +3616,21 @@ function wbColorCss(kind, key) {
   return esc(WB_COLORS[kind][key] || (kind === "bg" ? "transparent" : "inherit"));
 }
 
+// Cell images live on format.img as a base64 data URL. The strict shape
+// check is the injection guard — a validated string needs no escaping —
+// and results are memoized per format object so scroll repaints don't
+// re-scan hundreds of KB.
+const WB_IMG_RE = /^data:image\/(png|jpe?g|webp|gif|bmp|avif);base64,[A-Za-z0-9+/=]+$/;
+const WB_IMG_OK = new WeakMap();
+function cellImgSrc(cell) {
+  const f = cell && cell.format;
+  const src = f && f.img;
+  if (typeof src !== "string" || !src) return null;
+  let ok = WB_IMG_OK.get(f);
+  if (ok === undefined) { ok = WB_IMG_RE.test(src); WB_IMG_OK.set(f, ok); }
+  return ok ? src : null;
+}
+
 function repaintGrid(g) {
   if (g.raf) return;
   g.raf = requestAnimationFrame(() => { g.raf = 0; paintNow(g); });
@@ -3673,7 +3688,12 @@ function paintNow(g) {
     const isDv = !!(dvRule && dvRule.type === "list" && WB.canEdit);
     const dvColor = isDv ? dvOptionColor(dvRule, cell ? (cell.formula ? cell.computed : cell.value) : null) : null;
     const dvMark = isDv ? `<span class="wb-dv-mark" data-wb-dvchip="${r},${c}" title="Pick from list" aria-label="Pick from list">▾</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvColor ? `background:${dvColor};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell && disp ? cellInnerHtml(cell, disp) : isDv ? `<span class="wb-dv-chip-empty">Select</span>` : ""}${dvMark}${fltBtn(r, c)}</div>`;
+    // a cell image takes over the cell's face; click opens the lightbox
+    const imgSrc = cell ? cellImgSrc(cell) : null;
+    const inner = imgSrc
+      ? `<img class="wb-cell-img" src="${imgSrc}" data-wb-img="${r},${c}" alt="Cell image" title="Click to enlarge" draggable="false">`
+      : cell && disp ? cellInnerHtml(cell, disp) : isDv ? `<span class="wb-dv-chip-empty">Select</span>` : "";
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${imgSrc ? "is-img" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvColor ? `background:${dvColor};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -5074,9 +5094,25 @@ function pasteMatrix(g, matrix) {
 }
 
 async function pasteFromClipboard(g) {
+  // menu/context-menu paste: reach for an image first when the clipboard
+  // holds one without text (same precedence as the native paste path)
+  try {
+    if (navigator.clipboard.read) {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const t = (item.types || []).find((x) => /^image\//.test(x));
+        if (t && !(item.types || []).includes("text/plain")) {
+          const blob = await item.getType(t);
+          await insertImageFile(g, new File([blob], "pasted-image", { type: t }));
+          return;
+        }
+      }
+    }
+  } catch (_) { /* fall through to the text path */ }
   try {
     const text = await navigator.clipboard.readText();
     if (text) pasteAt(g, text);
+    else if (WB.clipboard && WB.clipboard.rows.length && WB.clipboard.text === "") pasteRich(g, WB.clipboard);
   } catch (_) {
     _toast("Press Ctrl+V to paste (clipboard access was blocked)", "info");
   }
@@ -5131,6 +5167,117 @@ function pasteRich(g, cb) {
   g.sel = { r0: sel.r0, c0: sel.c0, r1: Math.min(sheet.rowCount - 1, sel.r0 + repR * srcR - 1), c1: Math.min(sheet.colCount - 1, sel.c0 + repC * srcC - 1) };
   g.active = { r: sel.r0, c: sel.c0 };
   paintSelection(g);
+}
+
+// ── Cell images (paste a screenshot, click to enlarge — Quip-style) ──
+
+const WB_IMG_MAX_CHARS = 480000; // ~350KB of pixels; cells persist as jsonb rows
+
+// Encode a pasted/picked image as a bounded data URL. Small originals
+// keep their exact bytes (GIFs keep animating); everything else is
+// redrawn through a canvas, stepping the bounding box down until the
+// payload fits.
+async function wbEncodeImage(file) {
+  if (file.size <= 220000 && /^image\/(png|jpe?g|webp|gif)$/.test(file.type)) {
+    const direct = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(String(fr.result || ""));
+      fr.onerror = () => rej(fr.error || new Error("read failed"));
+      fr.readAsDataURL(file);
+    });
+    if (WB_IMG_RE.test(direct)) return direct;
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => rej(new Error("bad image"));
+      im.src = url;
+    });
+    const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
+    if (!w0 || !h0) return null;
+    for (const maxDim of [1000, 720, 520, 360, 240]) {
+      const k = Math.min(1, maxDim / Math.max(w0, h0));
+      const w = Math.max(1, Math.round(w0 * k)), h = Math.max(1, Math.round(h0 * k));
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      const ctx = cv.getContext("2d");
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, w, h);
+      let out = cv.toDataURL("image/webp", 0.82);
+      if (!out.startsWith("data:image/webp")) {
+        // no webp encoder: jpeg on a white ground (drops transparency)
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, w, h);
+        out = cv.toDataURL("image/jpeg", 0.85);
+      }
+      if (out.length <= WB_IMG_MAX_CHARS) return out;
+    }
+    return null;
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function insertImageFile(g, file) {
+  if (!WB.canEdit || !file) return;
+  const { r, c } = g.active;
+  let src = null;
+  try { src = await wbEncodeImage(file); } catch (_) { src = null; }
+  if (!src || !WB_IMG_RE.test(src)) { _toast("Couldn't read that image", "error"); return; }
+  const sheet = g.sheet;
+  const prev = sheet.cells.get(cellKey(r, c));
+  const cell = prev ? cloneCell(prev) : { value: null, formula: null, type: null, format: {} };
+  cell.format = { ...(cell.format || {}), img: src };
+  setCells(g, [{ r, c, cell }]);
+  // give the image room to read as a thumbnail, once, without shrinking
+  // rows the user already made taller
+  if (rowH(sheet, r) < 76) {
+    sheet.rowHeights[r] = 76;
+    computeGeometry(g);
+    repaintGrid(g);
+    saveSheetMeta(sheet.id);
+  }
+}
+
+function pickImageInto(g) {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = "image/*";
+  inp.style.display = "none";
+  document.body.appendChild(inp);
+  inp.addEventListener("change", () => {
+    const f = inp.files && inp.files[0];
+    inp.remove();
+    if (f) insertImageFile(g, f);
+  });
+  inp.click();
+}
+
+function removeCellImage(g, r, c) {
+  const cell = g.sheet.cells.get(cellKey(r, c));
+  if (!cell || !cell.format || !cell.format.img) return;
+  const next = cloneCell(cell);
+  delete next.format.img;
+  const empty = next.value == null && !next.formula && !Object.keys(next.format).length;
+  setCells(g, [{ r, c, cell: empty ? null : next }]);
+}
+
+// Quip-style lightbox: dimmed backdrop, the image large in the middle,
+// click anywhere or Esc to dismiss. src must already be WB_IMG_RE-clean.
+function openImageLightbox(src) {
+  document.querySelectorAll(".wb-imgbox").forEach((b) => b.remove());
+  closeAllPopovers();
+  const box = document.createElement("div");
+  box.className = "wb-imgbox";
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-label", "Image preview");
+  box.innerHTML = `<img src="${src}" alt="Workbook image"><div class="wb-imgbox-hint">Click anywhere or press Esc to close</div>`;
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const close = () => { document.removeEventListener("keydown", onKey, true); box.remove(); };
+  box.addEventListener("click", close);
+  document.addEventListener("keydown", onKey, true);
+  document.body.appendChild(box);
 }
 
 function clearSelection(g, { formatToo } = {}) {
@@ -6564,7 +6711,8 @@ function printSheet(g) {
       const m = merges.find((x) => x.r0 === r && x.c0 === c);
       const span = m ? ` colspan="${m.c1 - m.c0 + 1}" rowspan="${m.r1 - m.r0 + 1}"` : "";
       const style = cell ? cellStyle(sheet, r, c, cell) + condStyleFor(sheet, r, c, cell) : "";
-      tds += `<td${span} style="${style}">${esc(cell ? displayValue(sheet, r, c) : "")}</td>`;
+      const imgSrc = cell ? cellImgSrc(cell) : null;
+      tds += `<td${span} style="${style}">${imgSrc ? `<img src="${imgSrc}" style="display:block;max-width:200px;max-height:140px" alt="">` : esc(cell ? displayValue(sheet, r, c) : "")}</td>`;
     }
     rowsHtml += `<tr>${tds}</tr>`;
   }
@@ -7498,10 +7646,11 @@ function bindGridEvents(g) {
       }
     }
 
-    // ── dropdown chips + header filter buttons ── (opened from the
-    // document click delegate — opening here on mousedown would be undone
-    // by the click-away closer)
-    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-fltbtn]")) { e.preventDefault(); return; }
+    // ── dropdown chips, header filter buttons, cell images ── (opened
+    // from the document click delegate — opening here on mousedown would
+    // be undone by the click-away closer, and the repaint that follows
+    // setActive would detach the node before its click event fires)
+    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && e.target.closest("[data-wb-img]"))) { e.preventDefault(); return; }
 
     // ── drag-fill handle ──
     const fh = e.target.closest("[data-wb-fillhandle]");
@@ -7830,8 +7979,21 @@ function bindGridEvents(g) {
     if (g.editing) return;
     e.preventDefault();
     clearTimeout(g.clipboardTimer);
-    const text = e.clipboardData ? e.clipboardData.getData("text/plain") : "";
+    const cd = e.clipboardData;
+    const text = cd ? cd.getData("text/plain") : "";
+    // text wins when both are present (Excel/Sheets put a bitmap of the
+    // copied range on the clipboard alongside the TSV); a bare image —
+    // a screenshot, a copied photo — pastes into the active cell
+    if (!text && cd && cd.items) {
+      for (const it of cd.items) {
+        if (it.kind === "file" && /^image\//.test(it.type)) {
+          const file = it.getAsFile();
+          if (file) { insertImageFile(g, file); return; }
+        }
+      }
+    }
     if (text) pasteAt(g, text);
+    else if (WB.clipboard && WB.clipboard.rows.length && WB.clipboard.text === "") pasteRich(g, WB.clipboard); // internal copy of image-only cells has an empty TSV
   });
 
   grid.addEventListener("copy", (e) => {
@@ -8144,7 +8306,7 @@ function openCellContextMenu(g, x, y, kind) {
   const hasHiddenRows = g.sheet.hiddenRows && [...g.sheet.hiddenRows].some((i) => i >= rect0.r0 && i <= rect0.r1);
   const hasHiddenCols = g.sheet.hiddenCols && [...g.sheet.hiddenCols].some((i) => i >= rect0.c0 && i <= rect0.c1);
   const ref = colLabel(c) + (r + 1);
-  const item = (act, label, danger, disabled) => `<button type="button" class="popover-item ${danger ? "is-danger" : ""}" data-ctx="${act}" role="menuitem" ${disabled || (ro && act !== "copy" && act !== "copy-ref") ? "disabled" : ""}>${label}</button>`;
+  const item = (act, label, danger, disabled) => `<button type="button" class="popover-item ${danger ? "is-danger" : ""}" data-ctx="${act}" role="menuitem" ${disabled || (ro && act !== "copy" && act !== "copy-ref" && act !== "view-image") ? "disabled" : ""}>${label}</button>`;
   const sep = `<div class="popover-section"></div>`;
   const m = ctxMenu(x, y, [
     item("cut", "Cut"),
@@ -8164,6 +8326,9 @@ function openCellContextMenu(g, x, y, kind) {
     item("insert-link", (g.sheet.cells.get(cellKey(r, c))?.format?.link ? "Edit link…" : "Insert link…")),
     g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("open-link", "Open link") : "",
     g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("remove-link", "Remove link") : "",
+    item("insert-image", "Insert image into cell…"),
+    cellImgSrc(g.sheet.cells.get(cellKey(r, c))) ? item("view-image", "View image") : "",
+    g.sheet.cells.get(cellKey(r, c))?.format?.img ? item("remove-image", "Remove image") : "",
     item("copy-ref", "Copy cell reference"),
     item("paste-values", "Paste values only"),
     item("trace-precedents", "Highlight precedents"),
@@ -8230,6 +8395,9 @@ function openCellContextMenu(g, x, y, kind) {
       case "data-validation": openValidationDialog(g); break;
       case "cond-format": openCondFormatDialog(g); break;
       case "insert-link": insertLinkPrompt(g); break;
+      case "insert-image": pickImageInto(g); break;
+      case "view-image": { const s = cellImgSrc(g.sheet.cells.get(cellKey(r, c))); if (s) openImageLightbox(s); break; }
+      case "remove-image": removeCellImage(g, r, c); break;
       case "open-link": {
         const cur = g.sheet.cells.get(cellKey(r, c));
         if (cur && cur.format && cur.format.link) window.open(cur.format.link, "_blank", "noopener");
@@ -8730,6 +8898,7 @@ function wbMenuItems(menu, g) {
       { label: "Chart…", act: "ins:chart", disabled: !ed || !g },
       { label: "Function", sub: ["SUM", "AVERAGE", "COUNT", "MAX", "MIN", "COUNTIF", "VLOOKUP"].map((fn) => ({ label: fn, act: "ins:fn:" + fn, disabled: !ed || !g })) },
       { label: "Link…", act: "ins:link", disabled: !ed || !g },
+      { label: "Image (into cell)…", act: "ins:image", disabled: !ed || !g },
       { label: "Dropdown (data validation)…", act: "ins:dropdown", disabled: !ed || !g },
       { label: "Comment", act: "ins:comment", disabled: !g },
       sep,
@@ -8823,6 +8992,7 @@ function wbMenuAction(act, g) {
     case "ins:sheet": if (need()) addSheetTo(g.blockId); return;
     case "ins:chart": if (need()) openChartDialog(g); return;
     case "ins:link": if (need()) insertLinkPrompt(g); return;
+    case "ins:image": if (need()) pickImageInto(g); return;
     case "ins:dropdown": if (need()) openValidationDialog(g); return;
     case "ins:comment": if (need()) openCellComment(g, g.active.r, g.active.c); return;
     case "ins:note": addBlock("text"); return;
@@ -9046,6 +9216,21 @@ function installRootListeners() {
       const gridEl = fltb.closest("[data-wb-gridfocus]");
       const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
       if (g) openFilterPanel(g, +fltb.getAttribute("data-wb-fltbtn"), fltb);
+      return;
+    }
+
+    const imgEl = e.target.closest("[data-wb-img]");
+    if (imgEl) {
+      const gridEl = imgEl.closest("[data-wb-gridfocus]");
+      const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
+      if (g) {
+        const rc = keyRC(imgEl.getAttribute("data-wb-img"));
+        setActive(g, rc.r, rc.c, { scroll: false });
+        // read the source back off the cell (not the DOM) so only
+        // validated data URLs ever reach the lightbox
+        const src = cellImgSrc(g.sheet.cells.get(cellKey(rc.r, rc.c)));
+        if (src) openImageLightbox(src);
+      }
       return;
     }
 
@@ -9281,4 +9466,5 @@ export const __engine = {
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes,
+  WB_IMG_RE, cellImgSrc,
 };
