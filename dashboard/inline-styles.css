@@ -28689,6 +28689,18 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-tb-numfmt{font-size:var(--fs-xs);font-weight:600;padding:4px 8px}
 #view-workbooks .wb-tb-pop{min-width:200px;left:0;right:auto}
 .wb-color-grid{display:grid;grid-template-columns:repeat(7,26px);gap:5px;padding:9px}
+.wb-color-grid-10{grid-template-columns:repeat(10,20px);gap:3px;padding:8px 10px}
+.wb-color-grid-10 .wb-swatch{width:20px;height:20px;border-radius:50%;border-color:rgba(0,0,0,.12)}
+.wb-color-reset{
+  display:block;width:calc(100% - 16px);margin:8px 8px 0;padding:5px 8px;text-align:left;
+  border:1px solid var(--border-subtle);border-radius:var(--r-sm);background:var(--surface);
+  color:var(--text-muted);font-size:var(--fs-xs);cursor:pointer;
+}
+.wb-color-reset:hover,.wb-color-cf:hover{background:var(--canvas)}
+.wb-color-cf{
+  display:block;width:100%;padding:7px 12px;text-align:left;border:0;border-top:1px solid var(--border-subtle);
+  background:none;color:var(--text-muted);font-size:var(--fs-xs);cursor:pointer;
+}
 .wb-swatch{
   width:26px;height:26px;border-radius:var(--r-sm);border:1px solid var(--border-strong);
   cursor:pointer;font-size:12px;color:var(--text-subtle);

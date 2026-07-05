@@ -3068,11 +3068,13 @@ function mountSheetBlock(block, body) {
       <span class="wb-sb-filter" data-wb-sbfilter></span>
       <span class="wb-selstats" data-wb-selstats aria-live="polite"></span>
       <select class="wb-sb-zoom" data-wb-zoom aria-label="Zoom" title="Zoom">
+        <option value="0.5">50%</option>
         <option value="0.75">75%</option>
         <option value="0.9">90%</option>
         <option value="1" selected>100%</option>
         <option value="1.25">125%</option>
         <option value="1.5">150%</option>
+        <option value="2">200%</option>
       </select>
     </div>`;
 
@@ -3297,10 +3299,17 @@ function dispIndexOfRow(g, r) { return g.rows.indexOf(r); }
 
 // ─── Painting ────────────────────────────────────────────────────────────────
 
+// Web-safe families only — nothing to load, and every one round-trips
+// through the XLSX exporter with a matching installed-font name.
 const WB_FONT_FAMILIES = {
-  serif: "Georgia, 'Times New Roman', serif",
-  mono: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  arial: "Arial, Helvetica, sans-serif",
+  georgia: "Georgia, 'Times New Roman', serif",
+  times: "'Times New Roman', Times, serif",
+  courier: "'Courier New', Courier, monospace",
+  verdana: "Verdana, Geneva, sans-serif",
+  trebuchet: "'Trebuchet MS', sans-serif",
 };
+const WB_FONT_LABELS = { arial: "Arial", georgia: "Georgia", times: "Times New Roman", courier: "Courier New", verdana: "Verdana", trebuchet: "Trebuchet MS" };
 
 // Cells are flex containers (vertical centering + valign support), so
 // horizontal alignment needs both text-align (wrapped lines) and
@@ -3659,9 +3668,8 @@ function openFormatCellsDialog(g) {
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">Font</span>
             <select class="wb-input" id="wb-fmt-ff">
-              <option value="" ${!f.ff ? "selected" : ""}>Default (sans-serif)</option>
-              <option value="serif" ${f.ff === "serif" ? "selected" : ""}>Serif</option>
-              <option value="mono" ${f.ff === "mono" ? "selected" : ""}>Monospace</option>
+              <option value="" ${!f.ff ? "selected" : ""}>Default (system sans)</option>
+              ${Object.entries(WB_FONT_LABELS).map(([k, label]) => `<option value="${k}" ${f.ff === k ? "selected" : ""} style="font-family:${WB_FONT_FAMILIES[k]}">${label}</option>`).join("")}
             </select></label>
           <label class="wb-field" style="flex:0 0 132px"><span class="wb-field-label">Font size (px)</span>
             <input type="number" class="wb-input" id="wb-fmt-fs" min="8" max="36" step="1" value="${Number.isInteger(f.fs) ? f.fs : ""}" placeholder="auto"></label>
@@ -6234,7 +6242,7 @@ function buildXlsxBytes(sheets) {
   const FG_HEX = { muted: "FF6B7280", blue: "FF1E40AF", green: "FF166534", amber: "FF92400E", red: "FFB91C1C" };
   const BG_HEX = { gray: "FFF3F4F6", blue: "FFDBEAFE", green: "FFDCFCE7", amber: "FFFEF3C7", red: "FFFEE2E2", violet: "FFEDE9FE", header: "FFF3F4F6" };
   const NUMFMT = { number: 4, percent: 10, date: 14, text: 49, currency: 164, scientific: 11, accounting: 44 };
-  const FONT_NAME = { serif: "Georgia", mono: "Courier New" };
+  const FONT_NAME = { arial: "Arial", georgia: "Georgia", times: "Times New Roman", courier: "Courier New", verdana: "Verdana", trebuchet: "Trebuchet MS" };
 
   // dynamic style registries (index 0 = default; fill 1 is zip-required gray125)
   const fonts = [`<font><sz val="11"/><name val="Calibri"/></font>`];
@@ -7024,22 +7032,39 @@ function commitBarEdit(g) {
   }
 }
 
+// Google Sheets' standard color matrix: greyscale, brights, then tint →
+// shade rows per hue. Stored as plain hex, so everything round-trips
+// through cellStyle and the XLSX exporter.
+const WB_COLOR_MATRIX = [
+  ["#000000", "#434343", "#666666", "#999999", "#B7B7B7", "#CCCCCC", "#D9D9D9", "#EFEFEF", "#F3F3F3", "#FFFFFF"],
+  ["#980000", "#FF0000", "#FF9900", "#FFFF00", "#00FF00", "#00FFFF", "#4A86E8", "#0000FF", "#9900FF", "#FF00FF"],
+  ["#E6B8AF", "#F4CCCC", "#FCE5CD", "#FFF2CC", "#D9EAD3", "#D0E0E3", "#C9DAF8", "#CFE2F3", "#D9D2E9", "#EAD1DC"],
+  ["#DD7E6B", "#EA9999", "#F9CB9C", "#FFE599", "#B6D7A8", "#A2C4C9", "#A4C2F4", "#9FC5E8", "#B4A7D6", "#D5A6BD"],
+  ["#CC4125", "#E06666", "#F6B26B", "#FFD966", "#93C47D", "#76A5AF", "#6D9EEB", "#6FA8DC", "#8E7CC3", "#C27BA0"],
+  ["#A61C00", "#CC0000", "#E69138", "#F1C232", "#6AA84F", "#45818E", "#3C78D8", "#3D85C6", "#674EA7", "#A64D79"],
+  ["#85200C", "#990000", "#B45F06", "#BF9000", "#38761D", "#134F5C", "#1155CC", "#0B5394", "#351C75", "#741B47"],
+  ["#5B0F00", "#660000", "#783F04", "#7F6000", "#274E13", "#0C343D", "#1C4587", "#073763", "#20124D", "#4C1130"],
+];
+
 function fillColorPop(g, btn) {
   const pop = btn.closest(".popover-anchor")?.querySelector(".wb-color-pop");
   if (!pop || pop.dataset.filled) return;
   pop.dataset.filled = "1";
   const kind = pop.getAttribute("data-wb-colorkind");
-  const palette = kind === "bg"
-    ? [["", "None"], ["gray", "Gray"], ["blue", "Blue"], ["green", "Green"], ["amber", "Amber"], ["red", "Red"], ["violet", "Violet"]]
-    : [["", "Default"], ["muted", "Muted"], ["blue", "Blue"], ["green", "Green"], ["amber", "Amber"], ["red", "Red"]];
-  pop.innerHTML = `<div class="wb-color-grid">` + palette.map(([key, label]) =>
-    `<button type="button" class="wb-swatch" data-wb-color="${key}" title="${label}" aria-label="${label}" style="background:${key ? (WB_COLORS[kind][key] || "#fff") : "#fff"}">${key ? "" : "×"}</button>`
-  ).join("") + `</div>
-    <label class="wb-color-custom"><input type="color" data-wb-colorpick value="${kind === "bg" ? "#FFF3C4" : "#1F2937"}" aria-label="Custom color"> Custom…</label>`;
+  pop.innerHTML = `
+    <button type="button" class="wb-color-reset" data-wb-color="">✕ Reset to default</button>
+    <div class="wb-color-grid wb-color-grid-10">${WB_COLOR_MATRIX.flat().map((hex) =>
+      `<button type="button" class="wb-swatch" data-wb-color="${hex}" title="${hex}" aria-label="${hex}" style="background:${hex}"></button>`).join("")}</div>
+    <label class="wb-color-custom"><input type="color" data-wb-colorpick value="${kind === "bg" ? "#FFF2CC" : "#1F2937"}" aria-label="Custom color"> Custom…</label>
+    <button type="button" class="wb-color-cf" data-wb-colorcf>Conditional formatting…</button>`;
   pop.querySelector("[data-wb-colorpick]").addEventListener("change", (e) => {
     formatSelection(g, { [kind]: e.target.value });
     closeAllPopovers();
     g.els.grid.focus();
+  });
+  pop.querySelector("[data-wb-colorcf]").addEventListener("click", () => {
+    closeAllPopovers();
+    openCondFormatDialog(g);
   });
 }
 
