@@ -357,4 +357,27 @@ ok("xlsx: merged ranges and hyperlinks with rels", () => {
   assert.ok(rels && rels.includes("https://example.com/x?a=1&amp;b=2") && rels.includes('TargetMode="External"'), "hyperlink relationship");
 });
 
+// ── cell images: the data-URL shape check is the injection guard ────────────
+ok("cell image: valid base64 data URLs pass", () => {
+  const px = "data:image/webp;base64,UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAQAcJaQAA3AA/v3AgAA=";
+  assert.ok(__engine.WB_IMG_RE.test(px), "webp accepted");
+  assert.equal(__engine.cellImgSrc({ format: { img: px } }), px);
+  assert.ok(__engine.WB_IMG_RE.test("data:image/png;base64,iVBORw0KGgo="), "png accepted");
+});
+ok("cell image: markup-capable or malformed sources are rejected", () => {
+  const bad = [
+    'data:image/svg+xml,<svg onload="x"></svg>',            // svg carries markup
+    'data:image/png;base64,abc" onerror="alert(1)',         // attribute breakout
+    "data:text/html;base64,PGI+aGk8L2I+",                   // wrong media type
+    "https://example.com/x.png",                            // remote URLs never render
+    "data:image/png;base64,",                               // empty payload
+  ];
+  for (const s of bad) {
+    assert.ok(!__engine.WB_IMG_RE.test(s), `rejected: ${s.slice(0, 40)}`);
+    assert.equal(__engine.cellImgSrc({ format: { img: s } }), null);
+  }
+  assert.equal(__engine.cellImgSrc({ format: {} }), null);
+  assert.equal(__engine.cellImgSrc(null), null);
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);
