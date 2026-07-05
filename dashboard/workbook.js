@@ -8598,18 +8598,39 @@ const WB_COLOR_MATRIX = [
   ["#5B0F00", "#660000", "#783F04", "#7F6000", "#274E13", "#0C343D", "#1C4587", "#073763", "#20124D", "#4C1130"],
 ];
 
+// Saved custom colors — shared by the fill (cell) and text pickers,
+// most recent first, per browser.
+function wbCustomColors() {
+  try {
+    const a = JSON.parse(localStorage.getItem("rr-wb-customcolors") || "[]");
+    return Array.isArray(a) ? a.filter((h) => HEX_COLOR_RE.test(String(h))).slice(0, 10) : [];
+  } catch (_) { return []; }
+}
+function wbSaveCustomColor(hex) {
+  if (!HEX_COLOR_RE.test(String(hex))) return;
+  const norm = hex.toUpperCase();
+  const list = [norm, ...wbCustomColors().filter((h) => h.toUpperCase() !== norm)].slice(0, 10);
+  try { localStorage.setItem("rr-wb-customcolors", JSON.stringify(list)); } catch (_) {}
+}
+
 function fillColorPop(g, btn) {
   const pop = btn.closest(".popover-anchor")?.querySelector(".wb-color-pop");
-  if (!pop || pop.dataset.filled) return;
-  pop.dataset.filled = "1";
+  if (!pop) return;
+  // rebuilt on every open so freshly saved custom colors show up
   const kind = pop.getAttribute("data-wb-colorkind");
+  const custom = wbCustomColors();
   pop.innerHTML = `
     <button type="button" class="wb-color-reset" data-wb-color="">✕ Reset to default</button>
     <div class="wb-color-grid wb-color-grid-10">${WB_COLOR_MATRIX.flat().map((hex) =>
       `<button type="button" class="wb-swatch" data-wb-color="${hex}" title="${hex}" aria-label="${hex}" style="background:${hex}"></button>`).join("")}</div>
+    ${custom.length ? `
+    <div class="wb-color-custlbl">Custom</div>
+    <div class="wb-color-grid wb-color-grid-10 wb-color-custrow">${custom.map((hex) =>
+      `<button type="button" class="wb-swatch" data-wb-color="${hex}" title="${hex}" aria-label="${hex}" style="background:${hex}"></button>`).join("")}</div>` : ""}
     <label class="wb-color-custom"><input type="color" data-wb-colorpick value="${kind === "bg" ? "#FFF2CC" : "#1F2937"}" aria-label="Custom color"> Custom…</label>
     <button type="button" class="wb-color-cf" data-wb-colorcf>Conditional formatting…</button>`;
   pop.querySelector("[data-wb-colorpick]").addEventListener("change", (e) => {
+    wbSaveCustomColor(e.target.value); // remembered for both pickers
     formatSelection(g, { [kind]: e.target.value });
     closeAllPopovers();
     g.els.grid.focus();
