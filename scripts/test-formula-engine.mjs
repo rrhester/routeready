@@ -825,4 +825,19 @@ ok("isValidRangeName rejects refs, columns, and functions", () => {
   assert.equal(__engine.isValidRangeName("1thing"), false);
 });
 
+// ── conditional formatting color scale ───────────────────────────────────────
+ok("color scale: endpoints and midpoint interpolate", () => {
+  const stops = ["#57BB8A", "#FFD666", "#E67C73"]; // green → yellow → red
+  assert.equal(__engine.cfScaleColor(stops, 0), "rgb(87,187,138)");
+  assert.equal(__engine.cfScaleColor(stops, 1), "rgb(230,124,115)");
+  assert.equal(__engine.cfScaleColor(stops, 0.5), "rgb(255,214,102)"); // exact middle stop
+});
+ok("color scale: two-stop blends halfway", () => {
+  assert.equal(__engine.cfScaleColor(["#000000", "#FFFFFF"], 0.5), "rgb(128,128,128)");
+});
+ok("color scale: clamps out-of-range t", () => {
+  assert.equal(__engine.cfScaleColor(["#000000", "#FFFFFF"], 5), "rgb(255,255,255)");
+  assert.equal(__engine.cfScaleColor(["#000000", "#FFFFFF"], -1), "rgb(0,0,0)");
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);

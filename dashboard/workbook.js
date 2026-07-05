@@ -6238,6 +6238,7 @@ function repaintGrid(g) {
 
 function paintNow(g) {
   const sheet = g.sheet;
+  cfClearMemo(); // color-scale stats + custom-formula ctx are per-repaint
   sizeGrid(g);
   const scroll = g.els.scroll;
   const sx = scroll.scrollLeft, sy = scroll.scrollTop;
@@ -8762,7 +8763,78 @@ const WB_CF_STYLES = {
 const WB_CF_KINDS = {
   gt: "Greater than", lt: "Less than", between: "Between", eq: "Equal to",
   contains: "Text contains", notempty: "Is not empty", empty: "Is empty",
+  formula: "Custom formula is",
 };
+
+// Color-scale presets (Google Sheets' default gradient colors). Two- or
+// three-stop; the value's position between the range min and max picks a
+// color by linear RGB interpolation.
+const WB_CF_SCALES = {
+  gyr: { label: "Green → Yellow → Red", stops: ["#57BB8A", "#FFD666", "#E67C73"] },
+  ryg: { label: "Red → Yellow → Green", stops: ["#E67C73", "#FFD666", "#57BB8A"] },
+  wg: { label: "White → Green", stops: ["#FFFFFF", "#57BB8A"] },
+  wb: { label: "White → Blue", stops: ["#FFFFFF", "#6FA8DC"] },
+  wr: { label: "White → Red", stops: ["#FFFFFF", "#E67C73"] },
+};
+
+function cfHexToRgb(h) { h = h.replace("#", ""); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+function cfLerp(a, b, t) { return Math.round(a + (b - a) * t); }
+function cfScaleColor(stops, t) {
+  t = Math.max(0, Math.min(1, t));
+  const rgb = stops.map(cfHexToRgb);
+  if (rgb.length === 2) { const [a, b] = rgb; return `rgb(${cfLerp(a[0], b[0], t)},${cfLerp(a[1], b[1], t)},${cfLerp(a[2], b[2], t)})`; }
+  const [a, m, b] = rgb;
+  const [lo, hi, tt] = t < 0.5 ? [a, m, t / 0.5] : [m, b, (t - 0.5) / 0.5];
+  return `rgb(${cfLerp(lo[0], hi[0], tt)},${cfLerp(lo[1], hi[1], tt)},${cfLerp(lo[2], hi[2], tt)})`;
+}
+
+// Per-repaint memos: color-scale min/max over a rule's rectangle, and a
+// reusable eval ctx for custom-formula rules (cleared in paintNow because
+// cell values change between repaints).
+let _cfScaleMemo = new WeakMap();
+let _cfCtxMemo = new WeakMap();
+function cfClearMemo() { _cfScaleMemo = new WeakMap(); _cfCtxMemo = new WeakMap(); }
+function cfScaleStats(sheet, rule) {
+  let s = _cfScaleMemo.get(rule);
+  if (s) return s;
+  let min = Infinity, max = -Infinity;
+  for (let rr = rule.r0; rr <= rule.r1; rr++) {
+    for (let cc = rule.c0; cc <= rule.c1; cc++) {
+      const cl = sheet.cells.get(cellKey(rr, cc));
+      if (!cl) continue;
+      const n = cellNumeric(cl.formula ? (cl.err ? null : cl.computed) : cl.value);
+      if (n == null) continue;
+      if (n < min) min = n;
+      if (n > max) max = n;
+    }
+  }
+  s = min === Infinity ? { empty: true } : { min, max };
+  _cfScaleMemo.set(rule, s);
+  return s;
+}
+function cfEvalCtx(sheet) {
+  let ctx = _cfCtxMemo.get(sheet);
+  if (ctx) return ctx;
+  ctx = {
+    rowCount: sheet.rowCount, colCount: sheet.colCount,
+    getCell: (r, c, sn) => (sn ? crossSheetValue(sheet, sn, r, c) : engineValue(sheet, r, c)),
+    names: namesForSheet(sheet),
+  };
+  _cfCtxMemo.set(sheet, ctx);
+  return ctx;
+}
+// A custom-formula rule authored relative to the range's top-left cell:
+// shift its relative refs to this cell, evaluate, and test truthiness.
+function cfFormulaHits(sheet, rule, r, c) {
+  if (!rule.formula) return false;
+  try {
+    const shifted = shiftFormulaRelative(rule.formula, r - rule.r0, c - rule.c0);
+    if (shifted.includes("#REF")) return false;
+    let v = evalFormula(shifted, cfEvalCtx(sheet));
+    if (v instanceof Arr) v = v.top();
+    return truthy(v);
+  } catch (_) { return false; }
+}
 
 function condRuleHits(rule, raw) {
   const empty = raw == null || raw === "";
@@ -8792,6 +8864,21 @@ function condStyleFor(sheet, r, c, cell) {
   let out = "";
   for (const rule of rules) {
     if (!ruleCovers(rule, r, c)) continue;
+    if (rule.type === "colorscale") {
+      const n = cellNumeric(cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null);
+      if (n == null) continue;
+      const st = cfScaleStats(sheet, rule);
+      if (st.empty) continue;
+      const t = st.max === st.min ? 0.5 : (n - st.min) / (st.max - st.min);
+      out = `background:${cfScaleColor((WB_CF_SCALES[rule.scale] || WB_CF_SCALES.gyr).stops, t)};`;
+      continue;
+    }
+    if (rule.type === "formula" || rule.kind === "formula") {
+      if (!cfFormulaHits(sheet, rule, r, c)) continue;
+      const stf = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
+      out = `background:${stf.bg};color:${stf.fg};`;
+      continue;
+    }
     const raw = cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
     if (condRuleHits(rule, raw)) {
       const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
@@ -9117,24 +9204,34 @@ function openCondFormatDialog(g) {
   wrap.className = "rr-modal-backdrop";
   wrap.id = "wb-cf-modal";
   const kindOpts = Object.entries(WB_CF_KINDS).map(([k, label]) => `<option value="${k}">${label}</option>`).join("");
+  const scaleOpts = Object.entries(WB_CF_SCALES).map(([k, s]) => `<option value="${k}">${s.label}</option>`).join("");
   const chips = Object.entries(WB_CF_STYLES).map(([k, st], i) =>
     `<button type="button" class="wb-cf-chip ${i === 0 ? "is-on" : ""}" data-cf-style="${k}" style="background:${st.bg};color:${st.fg}" title="${st.label}" aria-pressed="${i === 0}">Aa</button>`).join("");
   wrap.innerHTML = `
-    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Conditional formatting" style="width:520px">
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Conditional formatting" style="width:540px">
       <div class="rr-modal-head">
         <div class="rr-modal-head-content"><p class="rr-modal-title">Conditional formatting</p><p class="rr-modal-sub">New rules apply to ${esc(refText)}</p></div>
         <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
       </div>
       <div class="rr-modal-body">
         <div class="wb-field-row">
-          <label class="wb-field"><span class="wb-field-label">Format cells if…</span>
+          <label class="wb-field" style="flex:0 0 148px"><span class="wb-field-label">Type</span>
+            <select class="wb-input" id="wb-cf-type">
+              <option value="single">Single color</option>
+              <option value="scale">Color scale</option>
+            </select></label>
+          <label class="wb-field" id="wb-cf-kind-field"><span class="wb-field-label">Format cells if…</span>
             <select class="wb-input" id="wb-cf-kind">${kindOpts}</select></label>
-          <label class="wb-field" style="flex:0 0 110px" id="wb-cf-v1-field"><span class="wb-field-label">Value</span>
+          <label class="wb-field" style="flex:0 0 96px" id="wb-cf-v1-field"><span class="wb-field-label">Value</span>
             <input type="text" class="wb-input" id="wb-cf-v1"></label>
-          <label class="wb-field" style="flex:0 0 110px" id="wb-cf-v2-field"><span class="wb-field-label">and</span>
+          <label class="wb-field" style="flex:0 0 96px" id="wb-cf-v2-field"><span class="wb-field-label">and</span>
             <input type="text" class="wb-input" id="wb-cf-v2"></label>
         </div>
-        <div class="wb-field"><span class="wb-field-label">Style</span>
+        <label class="wb-field" id="wb-cf-formula-field" style="display:none"><span class="wb-field-label">Custom formula — relative to the top-left cell</span>
+          <input type="text" class="wb-input" id="wb-cf-formula" placeholder='=$D2=&quot;Late&quot;' spellcheck="false"></label>
+        <label class="wb-field" id="wb-cf-scale-field" style="display:none"><span class="wb-field-label">Gradient</span>
+          <select class="wb-input" id="wb-cf-scale">${scaleOpts}</select></label>
+        <div class="wb-field" id="wb-cf-style-field"><span class="wb-field-label">Style</span>
           <div class="wb-cf-chips" id="wb-cf-chips">${chips}</div></div>
         <button type="button" class="btn btn-primary btn-sm" data-wb-cf-add>Add rule</button>
         <div class="wb-cf-rules" id="wb-cf-rules"></div>
@@ -9149,17 +9246,34 @@ function openCondFormatDialog(g) {
     wrap.querySelector("#wb-cf-rules").innerHTML = !rules.length
       ? `<p class="wb-cf-none">No rules on this sheet yet.</p>`
       : rules.map((rule, i) => {
-          const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
-          const what = rule.kind === "empty" || rule.kind === "notempty" ? WB_CF_KINDS[rule.kind]
-            : rule.kind === "between" ? `${WB_CF_KINDS.between} ${rule.v1} and ${rule.v2}`
-            : `${WB_CF_KINDS[rule.kind] || rule.kind} ${rule.v1}`;
-          return `<div class="wb-cf-rule"><span class="wb-cf-swatch" style="background:${st.bg};color:${st.fg}">Aa</span><span class="wb-cf-what">${esc(ruleRefText(rule))} · ${esc(what)}</span><button type="button" class="wb-cf-del" data-cf-del="${i}" aria-label="Delete rule">×</button></div>`;
+          let swatch, what;
+          if (rule.type === "colorscale") {
+            const sc = WB_CF_SCALES[rule.scale] || WB_CF_SCALES.gyr;
+            swatch = `<span class="wb-cf-swatch" style="background:linear-gradient(90deg,${sc.stops.join(",")})"></span>`;
+            what = sc.label;
+          } else {
+            const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
+            swatch = `<span class="wb-cf-swatch" style="background:${st.bg};color:${st.fg}">Aa</span>`;
+            what = rule.kind === "formula" ? `Custom · ${rule.formula}`
+              : rule.kind === "empty" || rule.kind === "notempty" ? WB_CF_KINDS[rule.kind]
+              : rule.kind === "between" ? `${WB_CF_KINDS.between} ${rule.v1} and ${rule.v2}`
+              : `${WB_CF_KINDS[rule.kind] || rule.kind} ${rule.v1}`;
+          }
+          return `<div class="wb-cf-rule">${swatch}<span class="wb-cf-what">${esc(ruleRefText(rule))} · ${esc(what)}</span><button type="button" class="wb-cf-del" data-cf-del="${i}" aria-label="Delete rule">×</button></div>`;
         }).join("");
   };
   const syncFields = () => {
+    const type = wrap.querySelector("#wb-cf-type").value;
     const k = wrap.querySelector("#wb-cf-kind").value;
-    wrap.querySelector("#wb-cf-v1-field").style.display = k === "empty" || k === "notempty" ? "none" : "";
-    wrap.querySelector("#wb-cf-v2-field").style.display = k === "between" ? "" : "none";
+    const isScale = type === "scale";
+    const isFormula = !isScale && k === "formula";
+    const show = (id, on) => { wrap.querySelector(id).style.display = on ? "" : "none"; };
+    show("#wb-cf-kind-field", !isScale);
+    show("#wb-cf-v1-field", !isScale && !isFormula && k !== "empty" && k !== "notempty");
+    show("#wb-cf-v2-field", !isScale && !isFormula && k === "between");
+    show("#wb-cf-formula-field", isFormula);
+    show("#wb-cf-scale-field", isScale);
+    show("#wb-cf-style-field", !isScale);
   };
   paintRules();
   syncFields();
@@ -9181,14 +9295,27 @@ function openCondFormatDialog(g) {
       return;
     }
     if (e.target.closest("[data-wb-cf-add]")) {
-      const kind = wrap.querySelector("#wb-cf-kind").value;
-      const v1 = wrap.querySelector("#wb-cf-v1").value.trim();
-      const v2 = wrap.querySelector("#wb-cf-v2").value.trim();
-      if (kind !== "empty" && kind !== "notempty" && v1 === "") { _toast("Enter a value for the condition", "warn"); return; }
-      if (kind === "between" && v2 === "") { _toast("Enter both limits", "warn"); return; }
-      const style = wrap.querySelector(".wb-cf-chip.is-on")?.getAttribute("data-cf-style") || "green";
+      const type = wrap.querySelector("#wb-cf-type").value;
+      const base = { id: "cf" + Math.random().toString(36).slice(2, 8), r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 };
       const rules = sheetRules(sheet, "condFormat").slice();
-      rules.push({ id: "cf" + Math.random().toString(36).slice(2, 8), r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1, kind, v1, v2, style });
+      if (type === "scale") {
+        rules.push({ ...base, type: "colorscale", scale: wrap.querySelector("#wb-cf-scale").value || "gyr" });
+      } else {
+        const kind = wrap.querySelector("#wb-cf-kind").value;
+        const style = wrap.querySelector(".wb-cf-chip.is-on")?.getAttribute("data-cf-style") || "green";
+        if (kind === "formula") {
+          const formula = wrap.querySelector("#wb-cf-formula").value.trim();
+          if (!formula.startsWith("=")) { _toast("Custom formula must start with =", "warn"); return; }
+          try { parseFormula(formula); } catch (_) { _toast("That formula doesn't parse", "warn"); return; }
+          rules.push({ ...base, type: "formula", kind: "formula", formula, style });
+        } else {
+          const v1 = wrap.querySelector("#wb-cf-v1").value.trim();
+          const v2 = wrap.querySelector("#wb-cf-v2").value.trim();
+          if (kind !== "empty" && kind !== "notempty" && v1 === "") { _toast("Enter a value for the condition", "warn"); return; }
+          if (kind === "between" && v2 === "") { _toast("Enter both limits", "warn"); return; }
+          rules.push({ ...base, kind, v1, v2, style });
+        }
+      }
       setSheetRules(g, "condFormat", rules);
       wbLog("sheet.condformat", `added a conditional-format rule on ${refText} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
       paintRules();
@@ -14159,7 +14286,7 @@ function fillDriverAction(g, driverId, act) {
 // not part of the app surface; live.js imports only the view loaders.
 
 export const __engine = {
-  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, matchesCriterion, FormulaError, Arr,
+  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes,
