@@ -2619,6 +2619,8 @@ function renderListBody(root) {
   const list = WB.showArchived ? archived : active;
   const favs = wbFavs();
 
+  const self = _me();
+  const canAdminWb = (w) => !!self && (w.owner_user_id === self.id || ["ops", "owner", "platform_admin"].includes(self.role));
   const card = (w) => {
     const tpl = WB_TEMPLATES.find((t) => t.key === w.template_key);
     const fav = favs.has(w.id);
@@ -2626,6 +2628,9 @@ function renderListBody(root) {
       <span class="wb-fav ${fav ? "is-fav" : ""}" data-wb-fav="${esc(w.id)}" role="button" tabindex="0" title="${fav ? "Remove from favorites" : "Add to favorites"}" aria-label="${fav ? "Remove from favorites" : "Add to favorites"}" aria-pressed="${fav}">
         <svg viewBox="0 0 24 24" width="16" height="16" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2.5 15.09 8.6 21.8 9.55 16.9 14.25 18.08 20.9 12 17.77 5.92 20.9 7.1 14.25 2.2 9.55 8.91 8.6 12 2.5"/></svg>
       </span>
+      ${canAdminWb(w) ? `<span class="wb-cardmenu" data-wb-cardmenu="${esc(w.id)}" role="button" tabindex="0" title="Workbook actions" aria-label="Workbook actions">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+      </span>` : ""}
       <span class="wb-card-ic">${WB_ICON_SVG}</span>
       <span class="wb-card-main">
         <span class="wb-card-title">${esc(w.title || "Untitled workbook")}</span>
@@ -8409,6 +8414,15 @@ function bindGridEvents(g) {
   if (toolbar) toolbar.addEventListener("click", (e) => {
     const numfmt = e.target.closest("[data-wb-numfmt]");
     if (numfmt) { formatSelection(g, { num: numfmt.getAttribute("data-wb-numfmt") || null }); closeAllPopovers(); return; }
+    // × on a custom swatch: forget the color, keep the picker open
+    const colorDel = e.target.closest("[data-wb-colordel]");
+    if (colorDel) {
+      e.stopPropagation();
+      wbDeleteCustomColor(colorDel.getAttribute("data-wb-colordel"));
+      const anchorBtn = colorDel.closest(".popover-anchor")?.querySelector("[data-wb-tb]");
+      if (anchorBtn) fillColorPop(g, anchorBtn); // rebuild in place
+      return;
+    }
     const colorBtn = e.target.closest("[data-wb-color]");
     if (colorBtn) {
       const kind = colorBtn.closest(".wb-color-pop").getAttribute("data-wb-colorkind");
@@ -8612,6 +8626,11 @@ function wbSaveCustomColor(hex) {
   const list = [norm, ...wbCustomColors().filter((h) => h.toUpperCase() !== norm)].slice(0, 10);
   try { localStorage.setItem("rr-wb-customcolors", JSON.stringify(list)); } catch (_) {}
 }
+function wbDeleteCustomColor(hex) {
+  const norm = String(hex).toUpperCase();
+  const list = wbCustomColors().filter((h) => h.toUpperCase() !== norm);
+  try { localStorage.setItem("rr-wb-customcolors", JSON.stringify(list)); } catch (_) {}
+}
 
 function fillColorPop(g, btn) {
   const pop = btn.closest(".popover-anchor")?.querySelector(".wb-color-pop");
@@ -8626,7 +8645,7 @@ function fillColorPop(g, btn) {
     ${custom.length ? `
     <div class="wb-color-custlbl">Custom</div>
     <div class="wb-color-grid wb-color-grid-10 wb-color-custrow">${custom.map((hex) =>
-      `<button type="button" class="wb-swatch" data-wb-color="${hex}" title="${hex}" aria-label="${hex}" style="background:${hex}"></button>`).join("")}</div>` : ""}
+      `<span class="wb-swatch-wrap"><button type="button" class="wb-swatch" data-wb-color="${hex}" title="${hex}" aria-label="${hex}" style="background:${hex}"></button><button type="button" class="wb-swatch-del" data-wb-colordel="${hex}" title="Remove ${hex} from custom colors" aria-label="Remove ${hex} from custom colors">×</button></span>`).join("")}</div>` : ""}
     <label class="wb-color-custom"><input type="color" data-wb-colorpick value="${kind === "bg" ? "#FFF2CC" : "#1F2937"}" aria-label="Custom color"> Custom…</label>
     <button type="button" class="wb-color-cf" data-wb-colorcf>Conditional formatting…</button>`;
   pop.querySelector("[data-wb-colorpick]").addEventListener("change", (e) => {
@@ -9707,6 +9726,49 @@ async function archiveWorkbook(unarchive) {
   } catch (e) { _toast("Couldn't update the workbook", "error"); }
 }
 
+// Card ⋮ on the list page: archive/restore + delete without opening
+// the workbook first.
+function openWorkbookCardMenu(id, anchor) {
+  const w = WB.workbooks.find((x) => x.id === id);
+  if (!w) return;
+  const rect = anchor.getBoundingClientRect();
+  const m = ctxMenu(rect.right - 190, rect.bottom + 4, [
+    `<button type="button" class="popover-item" data-cm="archive" role="menuitem">${w.archived_at ? "Restore workbook" : "Archive workbook"}</button>`,
+    `<button type="button" class="popover-item is-danger" data-cm="delete" role="menuitem">Delete workbook…</button>`,
+  ].join(""));
+  m.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-cm]");
+    if (!b) return;
+    const act = b.getAttribute("data-cm");
+    closeAllPopovers();
+    if (act === "archive") {
+      const next = w.archived_at ? null : new Date().toISOString();
+      try {
+        const res = await _sb().from("workbooks").update({ archived_at: next }).eq("id", w.id);
+        if (res.error) throw res.error;
+        w.archived_at = next;
+        renderListBody();
+        _toast(next ? "Workbook archived" : "Workbook restored", "success");
+      } catch (err) { _toast("Couldn't update the workbook: " + ((err && err.message) || err), "error"); }
+    } else if (act === "delete") {
+      confirmModal({
+        title: "Delete this workbook?",
+        body: `“${esc(w.title || "Untitled workbook")}” — every sheet, cell, and comment in it will be permanently deleted. This can't be undone.`,
+        confirmLabel: "Delete workbook", danger: true,
+        onConfirm: async () => {
+          try {
+            const res = await _sb().from("workbooks").delete().eq("id", w.id);
+            if (res.error) throw res.error;
+            WB.workbooks = WB.workbooks.filter((x) => x.id !== w.id);
+            renderListBody();
+            _toast("Workbook deleted", "success");
+          } catch (err) { _toast("Couldn't delete the workbook: " + ((err && err.message) || err), "error"); }
+        },
+      });
+    }
+  });
+}
+
 function deleteWorkbookFlow() {
   const wb = WB.wb;
   if (!wb) return;
@@ -9817,6 +9879,15 @@ function installRootListeners() {
       e.stopPropagation();
       toggleWbFav(favBtn.getAttribute("data-wb-fav"));
       renderListBody();
+      return;
+    }
+
+    // card ⋮: archive / delete straight from the list
+    const cardMenu = e.target.closest("[data-wb-cardmenu]");
+    if (cardMenu) {
+      e.preventDefault();
+      e.stopPropagation();
+      openWorkbookCardMenu(cardMenu.getAttribute("data-wb-cardmenu"), cardMenu);
       return;
     }
 
