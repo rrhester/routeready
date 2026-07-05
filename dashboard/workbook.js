@@ -10299,52 +10299,135 @@ function exportSheetCsv(g) {
   _toast("CSV exported", "success");
 }
 
-// ─── Print ───────────────────────────────────────────────────────────────────
-// Clean HTML-table rendition of the used range in a popup, which then
-// calls window.print() — covers paper and print-to-PDF.
+// ─── Print / page layout ─────────────────────────────────────────────────────
+// A live print-preview popup with real page setup — orientation, paper size,
+// margins, fit-to-width scaling, gridlines, a repeated header row, and print
+// headings (A/B/C · 1/2/3). Controls re-lay the preview on the fly (WYSIWYG),
+// and Print / Save as PDF hands off to window.print(). The setup controls are
+// @media-print hidden so they never land on paper.
 
-function printSheet(g) {
-  const sheet = g.sheet;
-  const { maxR, maxC } = usedRange(sheet);
-  if (maxR < 0) { _toast("This sheet is empty — nothing to print", "info"); return; }
-  const merges = sheetMerges(sheet);
+// Build the print HTML for a range. Returns { thead, tbody, cols } where the
+// first non-empty grid row becomes the repeatable header.
+function buildPrintTable(sheet, rect) {
+  const merges = sheetMerges(sheet).filter((m) => m.r0 <= rect.r1 && m.r1 >= rect.r0 && m.c0 <= rect.c1 && m.c1 >= rect.c0);
   const covered = new Set();
-  for (const m of merges) {
-    for (let r = m.r0; r <= m.r1; r++) for (let c = m.c0; c <= m.c1; c++) if (r !== m.r0 || c !== m.c0) covered.add(cellKey(r, c));
-  }
-  let rowsHtml = "";
-  for (let r = 0; r <= maxR; r++) {
-    if (sheet.hiddenRows && sheet.hiddenRows.has(r)) continue;
-    let tds = "";
-    for (let c = 0; c <= maxC; c++) {
-      if (covered.has(cellKey(r, c)) || (sheet.hiddenCols && sheet.hiddenCols.has(c))) continue;
+  for (const m of merges) for (let r = m.r0; r <= m.r1; r++) for (let c = m.c0; c <= m.c1; c++) if (r !== m.r0 || c !== m.c0) covered.add(cellKey(r, c));
+  const visCols = [];
+  for (let c = rect.c0; c <= rect.c1; c++) if (!(sheet.hiddenCols && sheet.hiddenCols.has(c))) visCols.push(c);
+  const visRows = [];
+  for (let r = rect.r0; r <= rect.r1; r++) if (!(sheet.hiddenRows && sheet.hiddenRows.has(r))) visRows.push(r);
+  const rowHtml = (r, isHead) => {
+    let tds = `<th class="wb-rh">${r + 1}</th>`;
+    for (const c of visCols) {
+      if (covered.has(cellKey(r, c))) continue;
       const cell = sheet.cells.get(cellKey(r, c));
       const m = merges.find((x) => x.r0 === r && x.c0 === c);
       const span = m ? ` colspan="${m.c1 - m.c0 + 1}" rowspan="${m.r1 - m.r0 + 1}"` : "";
       const style = cell ? cellStyle(sheet, r, c, cell) + condStyleFor(sheet, r, c, cell) : "";
       const imgSrc = cell ? cellImgSrc(cell) : null;
-      tds += `<td${span} style="${style}">${imgSrc ? `<img src="${imgSrc}" style="display:block;max-width:200px;max-height:140px" alt="">` : esc(cell ? displayValue(sheet, r, c) : "")}</td>`;
+      const body = imgSrc ? `<img src="${imgSrc}" style="display:block;max-width:200px;max-height:140px" alt="">` : esc(cell ? displayValue(sheet, r, c) : "");
+      tds += `<td${span} style="${style}">${body}</td>`;
     }
-    rowsHtml += `<tr>${tds}</tr>`;
-  }
+    return `<tr>${tds}</tr>`;
+  };
+  const colHead = `<tr class="wb-colhead"><th class="wb-rh"></th>${visCols.map((c) => `<th>${colLabel(c)}</th>`).join("")}</tr>`;
+  const first = visRows.length ? visRows[0] : null;
+  const thead = colHead + (first != null ? rowHtml(first, true) : "");
+  const tbody = visRows.slice(1).map((r) => rowHtml(r, false)).join("");
+  return { thead, tbody, cols: visCols.length + 1 };
+}
+
+function printSheet(g) {
+  const sheet = g.sheet;
+  const sel = selRect(g);
+  const hasSel = sel.r0 !== sel.r1 || sel.c0 !== sel.c1;
+  const { maxR, maxC } = usedRange(sheet);
+  if (maxR < 0) { _toast("This sheet is empty — nothing to print", "info"); return; }
+  const full = { r0: 0, c0: 0, r1: maxR, c1: maxC };
+  const selRange = hasSel ? { r0: Math.min(sel.r0, sel.r1), c0: Math.min(sel.c0, sel.c1), r1: Math.max(sel.r0, sel.r1), c1: Math.max(sel.c0, sel.c1) } : null;
+  const fullT = buildPrintTable(sheet, full);
+  const selT = selRange ? buildPrintTable(sheet, selRange) : null;
+  const title = WB.wb && WB.wb.title ? WB.wb.title : "Workbook";
   const win = window.open("", "_blank");
   if (!win) { _toast("Allow pop-ups for this site to print", "warn"); return; }
-  win.document.write(`<!doctype html><html><head><title>${esc(WB.wb && WB.wb.title ? WB.wb.title : "Workbook")} — ${esc(sheet.name)}</title><style>
-    :root{--canvas:#F3F4F6;--border-strong:#9CA3AF;--border-subtle:#E5E7EB;--accent:#2563EB;--red:#B91C1C;--text:#111827;--surface:#fff;--wb-zoom:1;--fs-md:13px}
-    body{font:12px -apple-system,system-ui,sans-serif;color:#111827;margin:24px}
-    h2{font-size:15px;margin:0 0 2px}
-    .sub{margin:0 0 14px;color:#6B7280;font-size:11px}
-    table{border-collapse:collapse}
-    td{border:1px solid #D1D5DB;padding:3px 7px;max-width:360px;overflow:hidden;white-space:nowrap;vertical-align:middle}
-    @media print{body{margin:0}}
+  const opt = (v, l) => `<option value="${v}">${l}</option>`;
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)} — ${esc(sheet.name)}</title><style>
+    *{box-sizing:border-box}
+    body{font:12px -apple-system,system-ui,sans-serif;color:#111827;margin:0;background:#e5e7eb}
+    .wb-bar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:10px 16px;background:#fff;border-bottom:1px solid #d1d5db;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+    .wb-bar label{display:flex;gap:5px;align-items:center;font-size:12px;color:#374151;white-space:nowrap}
+    .wb-bar select{font:12px inherit;padding:3px 6px;border:1px solid #d1d5db;border-radius:6px;background:#fff}
+    .wb-bar .grow{flex:1}
+    .wb-btn{font:600 12px inherit;padding:7px 16px;border:0;border-radius:7px;background:#2563EB;color:#fff;cursor:pointer}
+    .wb-btn.sec{background:#f3f4f6;color:#111827;border:1px solid #d1d5db}
+    .wb-page{background:#fff;margin:18px auto;padding:14mm;box-shadow:0 2px 12px rgba(0,0,0,.12);width:max-content;max-width:100%}
+    .wb-head{margin:0 0 10px}
+    .wb-head h2{font-size:15px;margin:0 0 2px}
+    .wb-head .sub{margin:0;color:#6B7280;font-size:11px}
+    table{border-collapse:collapse;font-variant-numeric:tabular-nums}
+    td,th{padding:3px 7px;max-width:360px;overflow:hidden;white-space:nowrap;vertical-align:middle;text-align:left;font-weight:inherit}
+    th{background:#f3f4f6;font-weight:600;color:#374151}
+    thead{display:table-header-group}
+    table.gridlines td,table.gridlines th{border:1px solid #D1D5DB}
+    .wb-page.no-headings .wb-rh,.wb-page.no-headings .wb-colhead{display:none}
+    @page{size:letter portrait;margin:14mm}
+    @media print{
+      body{background:#fff}
+      .wb-bar{display:none}
+      .wb-page{margin:0;padding:0;box-shadow:none;width:auto;max-width:none}
+      thead.norepeat{display:table-row-group}
+    }
   </style></head><body>
-    <h2>${esc(WB.wb && WB.wb.title ? WB.wb.title : "Workbook")}</h2>
-    <p class="sub">${esc(sheet.name)} · printed ${esc(new Date().toLocaleDateString())}</p>
-    <table>${rowsHtml}</table>
-    <script>window.onload = function () { window.print(); };<\/script>
+    <div class="wb-bar">
+      <label>Orientation <select id="p-orient">${opt("portrait", "Portrait")}${opt("landscape", "Landscape")}</select></label>
+      <label>Paper <select id="p-paper">${opt("letter", "Letter")}${opt("a4", "A4")}${opt("legal", "Legal")}</select></label>
+      <label>Margins <select id="p-margin">${opt("normal", "Normal")}${opt("narrow", "Narrow")}${opt("wide", "Wide")}</select></label>
+      ${selT ? `<label>Print <select id="p-range">${opt("sheet", "Whole sheet")}${opt("sel", "Selection")}</select></label>` : ""}
+      <label><input type="checkbox" id="p-fit" checked> Fit to width</label>
+      <label><input type="checkbox" id="p-grid" checked> Gridlines</label>
+      <label><input type="checkbox" id="p-repeat" checked> Repeat header row</label>
+      <label><input type="checkbox" id="p-headings"> Print A/B/C · 1/2/3</label>
+      <span class="grow"></span>
+      <button class="wb-btn sec" id="p-close" type="button">Close</button>
+      <button class="wb-btn" id="p-print" type="button">Print / Save as PDF</button>
+    </div>
+    <div class="wb-page no-headings" id="p-sheet">
+      <div class="wb-head"><h2>${esc(title)}</h2><p class="sub">${esc(sheet.name)} · ${esc(new Date().toLocaleDateString())}</p></div>
+      <table class="gridlines" id="p-table"><thead id="p-thead">${fullT.thead}</thead><tbody id="p-tbody">${fullT.tbody}</tbody></table>
+    </div>
+    <script>
+      var DATA={sheet:{thead:${JSON.stringify(fullT.thead)},tbody:${JSON.stringify(fullT.tbody)}},sel:${selT ? JSON.stringify({ thead: selT.thead, tbody: selT.tbody }) : "null"}};
+      var PAPER={letter:[8.5,11],a4:[8.27,11.69],legal:[8.5,14]},MARG={normal:14,narrow:6,wide:22};
+      function $(id){return document.getElementById(id);}
+      function pageStyle(){
+        var o=$("p-orient").value,p=$("p-paper").value,m=MARG[$("p-margin").value];
+        var st=document.getElementById("p-page-style")||document.head.appendChild(Object.assign(document.createElement("style"),{id:"p-page-style"}));
+        st.textContent="@page{size:"+p+" "+o+";margin:"+m+"mm}";
+        return {o:o,p:p,m:m};
+      }
+      function fit(cfg){
+        var pg=$("p-sheet");pg.style.zoom="";
+        if(!$("p-fit").checked)return;
+        var dims=PAPER[cfg.p].slice();if(cfg.o==="landscape")dims.reverse();
+        var avail=(dims[0]-2*cfg.m/25.4)*96;               // usable width in px @96dpi
+        var w=$("p-table").scrollWidth;
+        if(w>avail)pg.style.zoom=(avail/w).toFixed(3);
+      }
+      function apply(){
+        if(DATA.sel){var r=$("p-range")&&$("p-range").value==="sel"?DATA.sel:DATA.sheet;$("p-thead").innerHTML=r.thead;$("p-tbody").innerHTML=r.tbody;}
+        $("p-table").className=$("p-grid").checked?"gridlines":"";
+        $("p-thead").className=$("p-repeat").checked?"":"norepeat";
+        $("p-sheet").classList.toggle("no-headings",!$("p-headings").checked);
+        var cfg=pageStyle();fit(cfg);
+      }
+      Array.prototype.forEach.call(document.querySelectorAll(".wb-bar select,.wb-bar input"),function(el){el.addEventListener("change",apply);});
+      $("p-print").addEventListener("click",function(){apply();window.print();});
+      $("p-close").addEventListener("click",function(){window.close();});
+      window.addEventListener("load",apply);apply();
+    <\/script>
   </body></html>`);
   win.document.close();
-  wbLog("sheet.printed", `printed ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+  wbLog("sheet.printed", `opened print layout for ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
 }
 
 // ─── Filter views ────────────────────────────────────────────────────────────
@@ -15356,7 +15439,7 @@ export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable,
   chartSvg, WB_CHART_TYPES,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,
