@@ -201,6 +201,15 @@
         // slate type, brand blue only as the selected item's ink.
         // Theme toggle retired.
       } catch (_) {}
+      try {
+        // Pop-out workbook window (?wb=<id>): hide the dashboard chrome
+        // from the very first paint so the window reads as a standalone
+        // worksheet while it boots into Workbook Mode (live.js finishes
+        // the hand-off). No flash of the rail / schedule view.
+        if (new URLSearchParams(location.search).has("wb")) {
+          document.documentElement.classList.add("rr-wb-popout-boot");
+        }
+      } catch (_) {}
     })();
   </script>
   <aside class="sidebar" id="rr-sidebar">
