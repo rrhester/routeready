@@ -28537,12 +28537,30 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--s-3)}
 #view-workbooks .wb-card{
   appearance:none;font:inherit;text-align:left;cursor:pointer;
+  position:relative;
   display:flex;align-items:flex-start;gap:var(--s-3);
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   padding:var(--s-4);min-height:96px;
   box-shadow:var(--shadow-xs);
   transition:border-color var(--t-fast),box-shadow var(--t-fast),transform var(--t-fast);
 }
+/* favorites star: top-right of each card, yellow when starred */
+#view-workbooks .wb-fav{
+  position:absolute;top:8px;right:8px;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:50%;
+  color:var(--text-subtle);cursor:pointer;
+}
+#view-workbooks .wb-fav svg{fill:none;stroke:currentColor}
+#view-workbooks .wb-fav:hover{background:var(--canvas);color:var(--text-muted)}
+#view-workbooks .wb-fav.is-fav{color:#F4B400}
+#view-workbooks .wb-fav.is-fav svg{fill:#F4B400;stroke:#E3A400}
+#view-workbooks .wb-list-sec{
+  font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
+  text-transform:uppercase;letter-spacing:.04em;
+  margin:14px 2px 8px;
+}
+#view-workbooks .wb-list-sec:first-child{margin-top:0}
 #view-workbooks .wb-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
 #view-workbooks .wb-card:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 #view-workbooks .wb-card-ic{
@@ -28606,16 +28624,22 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* ── Detail layout ── */
 #view-workbooks .wb-detail{display:flex;flex-direction:column;gap:var(--s-3);min-height:0}
+/* one compact row: back · title · menus · icons (the old two-line
+   title/description header is gone; description lives behind an icon) */
 #view-workbooks .wb-head{
-  display:flex;align-items:center;gap:var(--s-3);
+  display:flex;align-items:center;gap:var(--s-2);
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:var(--s-2-5) var(--s-3);box-shadow:var(--shadow-xs);
+  padding:var(--s-1-5) var(--s-2-5);box-shadow:var(--shadow-xs);
 }
-#view-workbooks .wb-head-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+#view-workbooks .wb-head .wb-menubar{padding:0;margin:0;flex:0 0 auto}
+#view-workbooks .wb-head-side{margin-left:auto}
+#view-workbooks .wb-desc-pop{min-width:320px;padding:10px}
+#view-workbooks .wb-desc-pop .wb-desc-input{border-color:var(--border);margin-left:0;padding:6px 8px}
 #view-workbooks .wb-title-input{
-  font:inherit;font-size:var(--fs-lg);font-weight:650;color:var(--text);
+  font:inherit;font-size:var(--fs-md);font-weight:650;color:var(--text);
   border:1px solid transparent;border-radius:var(--r-sm);background:transparent;
-  padding:2px 6px;margin-left:-6px;outline:none;width:100%;box-sizing:border-box;
+  padding:3px 6px;outline:none;box-sizing:border-box;
+  flex:0 1 240px;min-width:110px;
 }
 #view-workbooks .wb-title-input:hover:not([readonly]){border-color:var(--border)}
 #view-workbooks .wb-title-input:focus:not([readonly]){border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}
@@ -29191,6 +29215,19 @@ body.rr-cmdk-open{ overflow:hidden }
 /* drag-fill handle + preview */
 #view-workbooks .wb-fill-handle{position:absolute;width:9px;height:9px;background:var(--accent);border:1.5px solid var(--surface);border-radius:2px;pointer-events:auto;cursor:crosshair;z-index:3;box-sizing:border-box}
 #view-workbooks .wb-fill-preview{position:absolute;border:1.5px dashed var(--accent);background:var(--accent-soft);opacity:.5;pointer-events:none;box-sizing:border-box}
+/* drag-move: move cursor on the selection border + destination preview */
+#view-workbooks .wb-gr-cells.is-mv .wb-cell{cursor:move}
+#view-workbooks .wb-move-preview{
+  position:absolute;pointer-events:none;box-sizing:border-box;z-index:3;
+  border:2px solid var(--accent,#2563EB);border-radius:2px;
+  background:rgba(37,99,235,.08);
+}
+#view-workbooks .wb-move-badge{
+  position:absolute;top:-24px;left:0;
+  background:var(--accent,#2563EB);color:#fff;
+  font-size:11px;font-weight:600;line-height:1;
+  padding:4px 6px;border-radius:4px;white-space:nowrap;
+}
 /* colored highlights for cells referenced by the formula being edited */
 #view-workbooks .wb-gr-refhl{position:absolute;inset:0;pointer-events:none;z-index:1}
 #view-workbooks .wb-ref-hl{position:absolute;border:1.5px dashed;border-radius:1px;box-sizing:border-box}

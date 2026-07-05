@@ -303,6 +303,8 @@ const shA = mkSheet("Ops?", {
   G2: { value: "note", type: "text", format: { bg: "#ABCDEF", fg: "#112233", align: "center", wrap: true } },
   A3: { value: "styled", type: "text", format: { strike: true, fs: 18, ff: "courier", valign: "top", rot: 45 } },
   B3: { value: "site", type: "text", format: { link: "https://example.com/x?a=1&b=2" } },
+  C3: { value: "boxed", type: "text", format: { border: "all" } },
+  D3: { value: "underlined", type: "text", format: { border: "bottom" } },
 }, { frozenRows: 1, colWidths: { 0: 140 }, meta: { merges: [{ r0: 4, c0: 0, r1: 5, c1: 2 }] } });
 const shB = mkSheet("Ops?", { A1: { value: "x", type: "text" } });
 
@@ -349,6 +351,13 @@ ok("xlsx: strike/size/family fonts + rotation/valign alignment", () => {
   assert.ok(st.includes('textRotation="45"'), "rotation");
   assert.ok(st.includes('vertical="top"'), "vertical align");
 });
+ok("xlsx: black thin borders exported per edge set", () => {
+  const st = parts.get("xl/styles.xml");
+  assert.ok(st.includes('<left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom>'), "all-edges border");
+  assert.ok(st.includes('<left/><right/><top/><bottom style="thin"><color rgb="FF000000"/></bottom>'), "bottom-only border");
+  assert.ok(/borders count="3"/.test(st), "default + 2 border variants");
+  assert.ok(st.includes('applyBorder="1"'), "xf applies border");
+});
 ok("xlsx: merged ranges and hyperlinks with rels", () => {
   const s1 = parts.get("xl/worksheets/sheet1.xml");
   assert.ok(s1.includes('<mergeCell ref="A5:C6"/>'), "merge range");
@@ -356,6 +365,44 @@ ok("xlsx: merged ranges and hyperlinks with rels", () => {
   const rels = parts.get("xl/worksheets/_rels/sheet1.xml.rels");
   assert.ok(rels && rels.includes("https://example.com/x?a=1&amp;b=2") && rels.includes('TargetMode="External"'), "hyperlink relationship");
 });
+
+// ── drag-move planning (pure change-list math) ───────────────────────────────
+{
+  const mkMoveSheet = () => ({
+    rowCount: 20, colCount: 10,
+    cells: new Map([
+      ["0,0", { value: "a", formula: null, type: "text", format: { bold: true } }],
+      ["0,1", { value: 2, formula: null, type: "number", format: {} }],
+      ["1,0", { value: null, formula: "=B1+1", type: null, format: {} }],
+    ]),
+  });
+  const at = (chs, r, c) => chs.find((x) => x.r === r && x.c === c);
+  ok("move: values/formats relocate, source clears, formulas move verbatim", () => {
+    const chs = __engine.planMoveChanges(mkMoveSheet(), { r0: 0, c0: 0, r1: 1, c1: 1 }, 2, 3, false);
+    assert.equal(at(chs, 2, 3).cell.value, "a");
+    assert.equal(at(chs, 2, 3).cell.format.bold, true);
+    assert.equal(at(chs, 3, 3).cell.formula, "=B1+1"); // cut keeps refs verbatim
+    assert.equal(at(chs, 0, 0).cell, null); // source cleared
+    assert.equal(at(chs, 1, 1).cell, null);
+  });
+  ok("move: overlapping destination doesn't clear reused cells", () => {
+    const chs = __engine.planMoveChanges(mkMoveSheet(), { r0: 0, c0: 0, r1: 1, c1: 1 }, 1, 0, false);
+    assert.equal(at(chs, 1, 0).cell.value, "a"); // dest write from snapshot
+    assert.equal(at(chs, 2, 0).cell.formula, "=B1+1");
+    assert.equal(at(chs, 0, 0).cell, null); // top row of source clears
+    assert.equal(chs.filter((x) => x.r === 1 && x.c === 0).length, 1); // no clear for overlap
+  });
+  ok("copy-drag: source stays, relative refs shift", () => {
+    const chs = __engine.planMoveChanges(mkMoveSheet(), { r0: 0, c0: 0, r1: 1, c1: 1 }, 2, 1, true);
+    assert.equal(at(chs, 3, 1).cell.formula, "=C3+1"); // B1 shifted by (2,1)
+    assert.ok(!at(chs, 0, 0), "source untouched on copy");
+  });
+  ok("move: out-of-bounds destination is rejected", () => {
+    assert.equal(__engine.planMoveChanges(mkMoveSheet(), { r0: 0, c0: 0, r1: 1, c1: 1 }, 19, 0, false), null);
+    assert.equal(__engine.planMoveChanges(mkMoveSheet(), { r0: 0, c0: 0, r1: 1, c1: 1 }, 0, -1, false), null);
+    assert.deepEqual(__engine.planMoveChanges(mkMoveSheet(), { r0: 0, c0: 0, r1: 1, c1: 1 }, 0, 0, false), []);
+  });
+}
 
 // ── cell images: the data-URL shape check is the injection guard ────────────
 ok("cell image: valid base64 data URLs pass", () => {
