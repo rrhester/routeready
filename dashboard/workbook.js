@@ -5562,9 +5562,16 @@ function openFindPanel(g, withReplace) {
 
 function sortByColumn(g, col, dir) { sortBySpecs(g, [{ col, dir }]); }
 
+// Ordinal text values sort by meaning, not alphabet — a Risk Level
+// column sorts High→Medium→Low, never High→Low→Medium. A set applies
+// only when EVERY non-empty value in the column belongs to it.
+const WB_SORT_ORDINALS = [
+  { low: 0, medium: 1, high: 2 },
+  { good: 0, warning: 1, serious: 2, critical: 3 },
+];
+
 function sortBySpecs(g, specs) {
   if (!WB.canEdit || !specs || !specs.length) return;
-  if (g.filters && g.filters.size) { g.filters = new Map(); computeGeometry(g); }
   const sheet = g.sheet;
   cancelEdit(g);
   let maxRow = 0;
@@ -5573,13 +5580,35 @@ function sortBySpecs(g, specs) {
   if (sheetMerges(sheet).some((m) => m.r1 > 0)) { _toast("Unmerge cells below the header before sorting", "warn"); return; }
   const rowsIdx = [];
   for (let r = 1; r <= maxRow; r++) rowsIdx.push(r);
+  const rawOf = (r, col) => {
+    const cell = sheet.cells.get(cellKey(r, col));
+    if (!cell) return null;
+    const raw = cell.formula ? cell.computed : cell.value;
+    return raw == null || raw === "" ? null : raw;
+  };
+  const ordinalFor = (col) => {
+    let found;
+    for (let r = 1; r <= maxRow; r++) {
+      const raw = rawOf(r, col);
+      if (raw == null || typeof raw !== "string") { if (raw != null) return null; continue; }
+      const s = raw.trim().toLowerCase();
+      if (found === undefined) {
+        found = WB_SORT_ORDINALS.find((o) => s in o) || null;
+        if (!found) return null;
+      } else if (!found || !(s in found)) return null;
+    }
+    return found || null;
+  };
+  const ordBy = new Map(specs.map((sp) => [sp.col, ordinalFor(sp.col)]));
   const keyOf = (r, col) => {
     const cell = sheet.cells.get(cellKey(r, col));
     if (!cell) return { empty: true };
     const raw = cell.formula ? cell.computed : cell.value;
     if (raw == null || raw === "") return { empty: true };
     let n = cellNumeric(raw);
-    if (n == null && typeof raw === "string") { const d = parseDateLoose(raw); if (d) n = dateToSerial(d); } // dates sort as dates
+    const ord = ordBy.get(col);
+    if (ord && typeof raw === "string" && raw.trim().toLowerCase() in ord) n = ord[raw.trim().toLowerCase()];
+    else if (n == null && typeof raw === "string") { const d = parseDateLoose(raw); if (d) n = dateToSerial(d); } // dates sort as dates
     return { empty: false, n, s: String(raw).toLowerCase() };
   };
   const cmpLevel = (a, b, col, dir) => {
@@ -5740,6 +5769,10 @@ function openFilterPanel(g, col, anchorEl, at) {
   const m = ctxMenu(at ? at.x : rect ? rect.left : 120, at ? at.y : rect ? rect.bottom + 4 : 120, `
     <div class="wb-filterpop">
       <div class="wb-filterpop-head">Filter ${esc(colLabel(col))}${header ? ` · ${esc(header.slice(0, 32))}` : ""}</div>
+      ${WB.canEdit ? `<div class="wb-filterpop-sortrow">
+        <button type="button" class="wb-filterpop-sortbtn" data-fp-sort="asc">↑ Sort A→Z · low→high</button>
+        <button type="button" class="wb-filterpop-sortbtn" data-fp-sort="desc">↓ Sort Z→A · high→low</button>
+      </div>` : ""}
       <input type="text" class="wb-input wb-filterpop-text" data-fp-text placeholder="Contains…" value="${esc((cur && cur.text) || "")}" autocomplete="off" spellcheck="false" aria-label="Rows containing text">
       <label class="wb-filterpop-item wb-filterpop-all"><input type="checkbox" data-fp-all ${!cur || !cur.values ? "checked" : ""}> <span>Select all</span><span class="wb-filterpop-n">${values.length}</span></label>
       <div class="wb-filterpop-list">
@@ -5786,6 +5819,12 @@ function openFilterPanel(g, col, anchorEl, at) {
     if (e.key === "Enter") { e.preventDefault(); apply(); }
   });
   m.querySelector("[data-fp-apply]").addEventListener("click", apply);
+  m.querySelectorAll("[data-fp-sort]").forEach((sb) => sb.addEventListener("click", () => {
+    const dir = sb.getAttribute("data-fp-sort");
+    closeAllPopovers();
+    sortByColumn(g, col, dir);
+    g.els.grid.focus();
+  }));
   m.querySelector("[data-fp-clear]").addEventListener("click", () => {
     closeAllPopovers();
     g.filters.delete(col);
