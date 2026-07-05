@@ -3067,6 +3067,13 @@ function mountSheetBlock(block, body) {
       <span class="wb-sb-mode" data-wb-sbmode>Ready</span>
       <span class="wb-sb-filter" data-wb-sbfilter></span>
       <span class="wb-selstats" data-wb-selstats aria-live="polite"></span>
+      <select class="wb-sb-zoom" data-wb-zoom aria-label="Zoom" title="Zoom">
+        <option value="0.75">75%</option>
+        <option value="0.9">90%</option>
+        <option value="1" selected>100%</option>
+        <option value="1.25">125%</option>
+        <option value="1.5">150%</option>
+      </select>
     </div>`;
 
   const g = {
@@ -3098,6 +3105,7 @@ function mountSheetBlock(block, body) {
     editing: null,          // { r, c, input, viaBar }
     dragging: false,
     resize: null,
+    zoom: 1,
     filters: new Map(),     // col -> { values: Set<string>|null, text: string|null }
     rows: [],               // visible actual row indexes (filter-aware)
     colX: [], rowY: [],     // prefix sums (rowY over g.rows)
@@ -3194,6 +3202,7 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-tb2="import-csv" role="menuitem" ${ro ? "disabled" : ""}>Import CSV into this sheet…</button>
           <button type="button" class="popover-item" data-wb-tb2="export-xlsx" role="menuitem">Export as Excel (.xlsx)</button>
           <button type="button" class="popover-item" data-wb-tb2="export-csv" role="menuitem">Export sheet as CSV</button>
+          <button type="button" class="popover-item" data-wb-tb2="print" role="menuitem">Print sheet…</button>
         </div>
       </span>
     </div>
@@ -3230,12 +3239,13 @@ function computeGeometry(g) {
     if (show) rows.push(r);
   }
   g.rows = rows;
+  const z = g.zoom || 1; // zoom scales the geometry itself, so hit-testing stays exact
   g.rowY = new Array(rows.length + 1);
   g.rowY[0] = 0;
-  for (let i = 0; i < rows.length; i++) g.rowY[i + 1] = g.rowY[i] + rowH(sheet, rows[i]);
+  for (let i = 0; i < rows.length; i++) g.rowY[i + 1] = g.rowY[i] + Math.round(rowH(sheet, rows[i]) * z);
   g.colX = new Array(sheet.colCount + 1);
   g.colX[0] = 0;
-  for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + colW(sheet, c);
+  for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + Math.round(colW(sheet, c) * z);
   g.els.canvas.style.width = g.colX[sheet.colCount] + "px";
   g.els.canvas.style.height = g.rowY[rows.length] + "px";
   sizeGrid(g);
@@ -3257,6 +3267,16 @@ function sizeGrid(g) {
   }
   const cur = parseFloat(grid.style.height) || 0;
   if (Math.abs(cur - target) > 3) grid.style.height = Math.round(target) + "px";
+}
+
+function setZoom(g, z) {
+  g.zoom = Math.min(2, Math.max(0.5, z || 1));
+  g.els.grid.style.setProperty("--wb-zoom", String(g.zoom));
+  const sel = g.els.body.querySelector("[data-wb-zoom]");
+  if (sel) sel.value = String(g.zoom);
+  cancelEdit(g);
+  computeGeometry(g);
+  repaintGrid(g);
 }
 
 function idxFromPrefix(prefix, pos) {
@@ -3377,19 +3397,34 @@ function paintNow(g) {
 
   // cells
   const commented = commentedCellSet(sheet.id);
+  const mergesArr = sheetMerges(sheet);
+  const cellDiv = (r, c, x, top, w, h) => {
+    const key = cellKey(r, c);
+    const cell = sheet.cells.get(key);
+    const disp = cell ? displayValue(sheet, r, c) : "";
+    const err = cell && cell.err;
+    const inval = cellInvalid(sheet, r, c, cell);
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell ? cellInnerHtml(cell, disp) : ""}</div>`;
+  };
   let html = "";
+  const paintedMerges = new Set();
   for (let di = d0; di <= d1; di++) {
     const r = g.rows[di];
     const top = g.rowY[di], h = g.rowY[di + 1] - top;
     for (let c = c0; c <= c1; c++) {
       const w = g.colX[c + 1] - g.colX[c];
       if (w === 0) continue; // hidden column
-      const key = cellKey(r, c);
-      const cell = sheet.cells.get(key);
-      const disp = cell ? displayValue(sheet, r, c) : "";
-      const err = cell && cell.err;
-      const inval = cellInvalid(sheet, r, c, cell);
-      html += `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell ? cellInnerHtml(cell, disp) : ""}</div>`;
+      const mg = mergesArr.length ? mergeAt(sheet, r, c) : null;
+      if (mg) {
+        // any visible piece of a merge paints the whole merge once,
+        // anchored at the anchor cell's absolute coordinates
+        if (paintedMerges.has(mg)) continue;
+        const px = mergePixelRect(g, mg);
+        paintedMerges.add(mg);
+        if (px) html += cellDiv(mg.r0, mg.c0, px.x, px.y, px.w, px.h);
+        continue;
+      }
+      html += cellDiv(r, c, g.colX[c], top, w, h);
     }
   }
   g.els.cells.innerHTML = html;
@@ -3413,8 +3448,10 @@ function paintSelection(g) {
     }
   }
   if (adi >= 0) {
-    const ax = g.colX[a.c], aw = g.colX[a.c + 1] - ax;
-    const ay = g.rowY[adi], ah = g.rowY[adi + 1] - ay;
+    const am = mergeAt(g.sheet, a.r, a.c);
+    const px = am ? mergePixelRect(g, am) : null;
+    const ax = px ? px.x : g.colX[a.c], aw = px ? px.w : g.colX[a.c + 1] - g.colX[a.c];
+    const ay = px ? px.y : g.rowY[adi], ah = px ? px.h : g.rowY[adi + 1] - g.rowY[adi];
     html += `<div class="wb-sel-active" style="left:${ax}px;top:${ay}px;width:${aw}px;height:${ah}px"></div>`;
   }
   // drag-fill handle at the selection's bottom-right corner
@@ -4207,6 +4244,8 @@ function setActive(g, r, c, opts) {
   const sheet = g.sheet;
   r = Math.max(0, Math.min(sheet.rowCount - 1, r));
   c = Math.max(0, Math.min(sheet.colCount - 1, c));
+  const mg = mergeAt(sheet, r, c);
+  if (mg) { r = mg.r0; c = mg.c0; } // clicks inside a merge land on its anchor
   g.active = { r, c };
   if (!opts || !opts.keepSel) g.sel = { r0: r, c0: c, r1: r, c1: c };
   if (!g.editing && g.els.refhl && g.els.refhl.innerHTML) g.els.refhl.innerHTML = "";
@@ -4246,6 +4285,14 @@ function moveActive(g, dr, dc, extend) {
       if (nxt < 0 || nxt >= g.sheet.colCount) break;
       c = nxt;
     }
+  }
+  // arrows step past a merged range instead of getting stuck inside it
+  const fromM = mergeAt(g.sheet, extend ? g.sel.r1 : g.active.r, extend ? g.sel.c1 : g.active.c);
+  if (fromM && r >= fromM.r0 && r <= fromM.r1 && c >= fromM.c0 && c <= fromM.c1) {
+    if (dr > 0) r = g.rows.find((x) => x > fromM.r1) ?? r;
+    else if (dr < 0) { let cand = null; for (const x of g.rows) { if (x < fromM.r0) cand = x; else break; } r = cand ?? r; }
+    if (dc > 0) c = Math.min(g.sheet.colCount - 1, fromM.c1 + 1);
+    else if (dc < 0) c = Math.max(0, fromM.c0 - 1);
   }
   if (extend) {
     g.sel.r1 = r; g.sel.c1 = c;
@@ -4399,11 +4446,13 @@ function startEdit(g, r, c, initial) {
   input.className = "wb-cell-editor";
   input.setAttribute("aria-label", `Edit cell ${colLabel(c)}${r + 1}`);
   input.value = initial != null ? initial : cell ? (cell.formula || (cell.value ?? "")) : "";
-  const x = g.colX[c], y = g.rowY[di];
+  const am = mergeAt(sheet, r, c);
+  const px = am ? mergePixelRect(g, am) : null;
+  const x = px ? px.x : g.colX[c], y = px ? px.y : g.rowY[di];
   input.style.left = x + "px";
   input.style.top = y + "px";
-  input.style.width = Math.max(g.colX[c + 1] - x, 60) + "px";
-  input.style.height = (g.rowY[di + 1] - y) + "px";
+  input.style.width = Math.max(px ? px.w : g.colX[c + 1] - x, 60) + "px";
+  input.style.height = (px ? px.h : g.rowY[di + 1] - y) + "px";
   g.els.canvas.appendChild(input);
   // type-to-replace passes the first typed char as `initial` — that
   // always counts as a change, so orig must NOT equal the seeded value
@@ -5003,7 +5052,7 @@ function shiftRuleRanges(sheet, axis, index, delta) {
   const meta = sheet.meta || {};
   const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
   const cut = delta < 0 ? -delta : 0;
-  for (const key of ["validation", "condFormat"]) {
+  for (const key of ["validation", "condFormat", "merges"]) {
     if (!Array.isArray(meta[key]) || !meta[key].length) continue;
     const next = [];
     for (const rule of meta[key]) {
@@ -5422,6 +5471,7 @@ function sortBySpecs(g, specs) {
   let maxRow = 0;
   for (const key of sheet.cells.keys()) maxRow = Math.max(maxRow, keyRC(key).r);
   if (maxRow < 2) { _toast("Nothing to sort below the header row", "info"); return; }
+  if (sheetMerges(sheet).some((m) => m.r1 > 0)) { _toast("Unmerge cells below the header before sorting", "warn"); return; }
   const rowsIdx = [];
   for (let r = 1; r <= maxRow; r++) rowsIdx.push(r);
   const keyOf = (r, col) => {
@@ -5626,6 +5676,67 @@ function openFilterPanel(g, col, anchorEl, at) {
     g.els.grid.focus();
   });
   setTimeout(() => m.querySelector("[data-fp-text]")?.focus(), 30);
+}
+
+// ─── Merged cells ────────────────────────────────────────────────────────────
+// Merge rectangles live in sheet.meta.merges as {r0,c0,r1,c1}. The
+// top-left (anchor) cell holds the value; covered cells are skipped at
+// paint time and clicks/arrows resolve to the anchor.
+
+function sheetMerges(sheet) {
+  const v = sheet.meta && sheet.meta.merges;
+  return Array.isArray(v) ? v : [];
+}
+
+function mergeAt(sheet, r, c) {
+  for (const m of sheetMerges(sheet)) {
+    if (r >= m.r0 && r <= m.r1 && c >= m.c0 && c <= m.c1) return m;
+  }
+  return null;
+}
+
+// Pixel rect of a merge in canvas space (filter/hide-aware). Null when
+// the anchor row is filtered out.
+function mergePixelRect(g, m) {
+  const di0 = dispIndexOfRow(g, m.r0);
+  if (di0 < 0) return null;
+  let di1 = di0;
+  for (let r = m.r1; r >= m.r0; r--) { const d = dispIndexOfRow(g, r); if (d >= 0) { di1 = d; break; } }
+  return { x: g.colX[m.c0], y: g.rowY[di0], w: g.colX[m.c1 + 1] - g.colX[m.c0], h: g.rowY[di1 + 1] - g.rowY[di0] };
+}
+
+function setMerges(g, merges) {
+  g.sheet.meta = { ...(g.sheet.meta || {}), merges };
+  saveSheetMeta(g.sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+}
+
+function toggleMergeSelection(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const touched = sheetMerges(sheet).filter((m) => !(m.r1 < rect.r0 || m.r0 > rect.r1 || m.c1 < rect.c0 || m.c0 > rect.c1));
+  if (touched.length) {
+    setMerges(g, sheetMerges(sheet).filter((m) => !touched.includes(m)));
+    wbLog("sheet.merge", `unmerged ${touched.length} range${touched.length === 1 ? "" : "s"} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+    return;
+  }
+  if (rect.r0 === rect.r1 && rect.c0 === rect.c1) { _toast("Select more than one cell to merge", "info"); return; }
+  if ((rect.r1 - rect.r0 + 1) * (rect.c1 - rect.c0 + 1) > 400) { _toast("That merge is too large", "warn"); return; }
+  // keep the top-left value; clearing the rest is undoable
+  const changes = [];
+  for (let r = rect.r0; r <= rect.r1; r++) {
+    for (let c = rect.c0; c <= rect.c1; c++) {
+      if (r === rect.r0 && c === rect.c0) continue;
+      const cell = sheet.cells.get(cellKey(r, c));
+      if (cell && (cell.value != null || cell.formula)) changes.push({ r, c, cell: null });
+    }
+  }
+  if (changes.length) { setCells(g, changes); _toast("Merged — only the top-left value was kept", "info"); }
+  setMerges(g, [...sheetMerges(sheet), { r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 }]);
+  setActive(g, rect.r0, rect.c0);
+  wbLog("sheet.merge", `merged ${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
 }
 
 // ─── Format painter ──────────────────────────────────────────────────────────
@@ -5874,6 +5985,89 @@ function exportSheetCsv(g) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   wbLog("csv.exported", `exported ${sheet.name} as CSV`, { target_type: "sheet", target_id: sheet.id });
   _toast("CSV exported", "success");
+}
+
+// ─── Print ───────────────────────────────────────────────────────────────────
+// Clean HTML-table rendition of the used range in a popup, which then
+// calls window.print() — covers paper and print-to-PDF.
+
+function printSheet(g) {
+  const sheet = g.sheet;
+  const { maxR, maxC } = usedRange(sheet);
+  if (maxR < 0) { _toast("This sheet is empty — nothing to print", "info"); return; }
+  const merges = sheetMerges(sheet);
+  const covered = new Set();
+  for (const m of merges) {
+    for (let r = m.r0; r <= m.r1; r++) for (let c = m.c0; c <= m.c1; c++) if (r !== m.r0 || c !== m.c0) covered.add(cellKey(r, c));
+  }
+  let rowsHtml = "";
+  for (let r = 0; r <= maxR; r++) {
+    if (sheet.hiddenRows && sheet.hiddenRows.has(r)) continue;
+    let tds = "";
+    for (let c = 0; c <= maxC; c++) {
+      if (covered.has(cellKey(r, c)) || (sheet.hiddenCols && sheet.hiddenCols.has(c))) continue;
+      const cell = sheet.cells.get(cellKey(r, c));
+      const m = merges.find((x) => x.r0 === r && x.c0 === c);
+      const span = m ? ` colspan="${m.c1 - m.c0 + 1}" rowspan="${m.r1 - m.r0 + 1}"` : "";
+      const style = cell ? cellStyle(sheet, r, c, cell) + condStyleFor(sheet, r, c, cell) : "";
+      tds += `<td${span} style="${style}">${esc(cell ? displayValue(sheet, r, c) : "")}</td>`;
+    }
+    rowsHtml += `<tr>${tds}</tr>`;
+  }
+  const win = window.open("", "_blank");
+  if (!win) { _toast("Allow pop-ups for this site to print", "warn"); return; }
+  win.document.write(`<!doctype html><html><head><title>${esc(WB.wb && WB.wb.title ? WB.wb.title : "Workbook")} — ${esc(sheet.name)}</title><style>
+    :root{--canvas:#F3F4F6;--border-strong:#9CA3AF;--border-subtle:#E5E7EB;--accent:#2563EB;--red:#B91C1C;--text:#111827;--surface:#fff;--wb-zoom:1;--fs-md:13px}
+    body{font:12px -apple-system,system-ui,sans-serif;color:#111827;margin:24px}
+    h2{font-size:15px;margin:0 0 2px}
+    .sub{margin:0 0 14px;color:#6B7280;font-size:11px}
+    table{border-collapse:collapse}
+    td{border:1px solid #D1D5DB;padding:3px 7px;max-width:360px;overflow:hidden;white-space:nowrap;vertical-align:middle}
+    @media print{body{margin:0}}
+  </style></head><body>
+    <h2>${esc(WB.wb && WB.wb.title ? WB.wb.title : "Workbook")}</h2>
+    <p class="sub">${esc(sheet.name)} · printed ${esc(new Date().toLocaleDateString())}</p>
+    <table>${rowsHtml}</table>
+    <script>window.onload = function () { window.print(); };<\/script>
+  </body></html>`);
+  win.document.close();
+  wbLog("sheet.printed", `printed ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+}
+
+// ─── Filter views ────────────────────────────────────────────────────────────
+// Named snapshots of the AutoFilter state, shared per sheet (persisted
+// in sheet.meta.filterViews).
+
+function sheetFilterViews(sheet) {
+  const v = sheet.meta && sheet.meta.filterViews;
+  return Array.isArray(v) ? v : [];
+}
+
+function saveFilterView(g) {
+  if (!WB.canEdit) return;
+  if (!g.filters.size) { _toast("Set up a filter first, then save it as a view", "info"); return; }
+  const name = window.prompt("Name this filter view:", "");
+  if (!name || !name.trim()) return;
+  const spec = [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null }));
+  const views = [...sheetFilterViews(g.sheet), { id: "fv" + Math.random().toString(36).slice(2, 8), name: name.trim().slice(0, 60), filters: spec }];
+  g.sheet.meta = { ...(g.sheet.meta || {}), filterViews: views };
+  saveSheetMeta(g.sheet.id);
+  wbLog("sheet.filterview", `saved filter view “${name.trim()}” on ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+  _toast(`Saved filter view “${name.trim()}”`, "success");
+}
+
+function applyFilterView(g, viewId) {
+  const view = sheetFilterViews(g.sheet).find((v) => v.id === viewId);
+  if (!view) return;
+  g.filters = new Map(view.filters.map((f) => [f.col, { text: f.text || null, values: f.values ? new Set(f.values) : null }]));
+  computeGeometry(g);
+  repaintGrid(g);
+}
+
+function deleteFilterView(g, viewId) {
+  if (!WB.canEdit) return;
+  g.sheet.meta = { ...(g.sheet.meta || {}), filterViews: sheetFilterViews(g.sheet).filter((v) => v.id !== viewId) };
+  saveSheetMeta(g.sheet.id);
 }
 
 const CSV_MAX_ROWS = 2000, CSV_MAX_COLS = 104;
@@ -6347,7 +6541,7 @@ function bindGridEvents(g) {
         const rs = g.resize;
         if (!rs) return;
         const delta = (rs.kind === "col" ? ev.clientX : ev.clientY) - rs.startPos;
-        const size = Math.round(rs.startSize + delta);
+        const size = Math.round(rs.startSize + delta / (g.zoom || 1));
         if (rs.kind === "col") sheet.colWidths[rs.idx] = Math.min(MAX_COL_W, Math.max(MIN_COL_W, size));
         else sheet.rowHeights[rs.idx] = Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, size));
         computeGeometry(g);
@@ -6726,6 +6920,7 @@ function bindGridEvents(g) {
       const ioAct = io.getAttribute("data-wb-tb2");
       if (ioAct === "import-csv") importCsvInto(g);
       else if (ioAct === "export-xlsx") exportBlockXlsx(g);
+      else if (ioAct === "print") printSheet(g);
       else exportSheetCsv(g);
       return;
     }
@@ -6811,6 +7006,10 @@ function bindGridEvents(g) {
     e.preventDefault();
     openSheetTabMenu(g, tab.getAttribute("data-wb-sheettab"), e.clientX, e.clientY);
   });
+
+  // ── zoom ──
+  const zoomSel = g.els.body.querySelector("[data-wb-zoom]");
+  if (zoomSel) zoomSel.addEventListener("change", () => setZoom(g, +zoomSel.value || 1));
 }
 
 function commitBarEdit(g) {
@@ -6885,6 +7084,7 @@ function openCellContextMenu(g, x, y, kind) {
     item("clear-contents", "Clear contents"),
     item("clear-format", "Clear formatting"),
     item("format-cells", "Format cells…"),
+    item("merge-toggle", "Merge / unmerge cells"),
     item("comment", "Add comment"),
     item("insert-link", (g.sheet.cells.get(cellKey(r, c))?.format?.link ? "Edit link…" : "Insert link…")),
     g.sheet.cells.get(cellKey(r, c))?.format?.link ? item("open-link", "Open link") : "",
@@ -6969,6 +7169,7 @@ function openCellContextMenu(g, x, y, kind) {
         break;
       }
       case "remove-link": formatSelection(g, { link: null }); break;
+      case "merge-toggle": toggleMergeSelection(g); break;
       case "sort-col-asc": sortByColumn(g, c, "asc"); break;
       case "sort-col-desc": sortByColumn(g, c, "desc"); break;
       case "sort-custom": openSortDialog(g); return;

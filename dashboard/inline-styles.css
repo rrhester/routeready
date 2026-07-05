@@ -28720,6 +28720,11 @@ body.rr-cmdk-open{ overflow:hidden }
 .wb-filterpop-all{border-bottom:1px solid var(--border-subtle);border-radius:0;font-weight:600}
 .wb-filterpop-more{padding:5px 7px;font-size:var(--fs-xs);color:var(--text-subtle)}
 .wb-filterpop-foot{display:flex;justify-content:space-between;gap:8px}
+#view-workbooks .wb-sb-zoom{
+  margin-left:auto;border:1px solid var(--border-subtle);border-radius:var(--r-sm);
+  background:var(--surface);color:var(--text-muted);font-size:var(--fs-xs);padding:1px 4px;
+}
+#view-workbooks .wb-tb.is-on{background:var(--accent-soft,rgba(37,99,235,.12));color:var(--accent,#2563EB)}
 
 /* ── Formula bar ── */
 #view-workbooks .wb-fbar{
@@ -28806,7 +28811,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #view-workbooks .wb-cell-editor{
   position:absolute;z-index:4;box-sizing:border-box;
-  font:inherit;font-size:var(--fs-md);color:var(--text);
+  font:inherit;font-size:calc(var(--fs-md) * var(--wb-zoom, 1));color:var(--text);
   border:2px solid var(--accent);border-radius:1px;outline:none;
   padding:0 5px;background:var(--surface);
   box-shadow:var(--shadow-md);
