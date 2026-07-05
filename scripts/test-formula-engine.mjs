@@ -1023,6 +1023,96 @@ ok("cellLink: an explicit format.link always wins", () => {
   assert.equal(cellLink(tcell("sam@acme.com")), "mailto:sam@acme.com");
 });
 
+// ── array broadcasting operators ─────────────────────────────────────────────
+ok("range > scalar broadcasts to a boolean array", () => {
+  const ctx = sheetCtx({ A1: 5, A2: 12, A3: 3, A4: 20 });
+  const v = ev("=A1:A4>10", ctx);
+  assert.deepEqual(v.rows, [[false], [true], [false], [true]]);
+});
+ok("range + scalar broadcasts", () => {
+  const v = ev("=A1:A3+1", sheetCtx({ A1: 1, A2: 2, A3: 3 }));
+  assert.deepEqual(v.rows, [[2], [3], [4]]);
+});
+ok("range & scalar concat broadcasts", () => {
+  const v = ev('=A1:A2&"!"', sheetCtx({ A1: "a", A2: "b" }));
+  assert.deepEqual(v.rows, [["a!"], ["b!"]]);
+});
+ok("FILTER with an inline comparison keeps matching rows", () => {
+  const v = ev("=FILTER(A1:A4,A1:A4>10)", sheetCtx({ A1: 5, A2: 12, A3: 3, A4: 20 }));
+  assert.deepEqual(v.rows, [[12], [20]]);
+});
+ok("array shapes that don't match are #VALUE", () => {
+  assert.equal(evErr("=A1:A3+B1:B2", sheetCtx({ A1: 1, A2: 2, A3: 3, B1: 1, B2: 2 })), "#VALUE");
+});
+
+// ── dynamic-array spill (recalcSheet) ────────────────────────────────────────
+function spillSheet(defs, rows = 50, cols = 26) {
+  const cells = new Map();
+  for (const [ref, spec] of Object.entries(defs)) {
+    const rc = parseCellRef(ref);
+    cells.set(rc.row + "," + rc.col, String(spec).startsWith("=")
+      ? { value: null, formula: spec, type: null, computed: null, err: null, format: {} }
+      : { value: spec, formula: null, type: isNaN(+spec) ? "text" : "number", computed: null, err: null, format: {} });
+  }
+  return { name: "S", blockId: undefined, rowCount: rows, colCount: cols, cells, spill: null };
+}
+const skey = (ref) => { const rc = parseCellRef(ref); return rc.row + "," + rc.col; };
+const scell = (sh, ref) => sh.cells.get(skey(ref));
+const sspill = (sh, ref) => { const e = sh.spill.get(skey(ref)); return e ? e.value : undefined; };
+
+ok("spill: SEQUENCE(3) fills the column below the origin", () => {
+  const sh = spillSheet({ A1: "=SEQUENCE(3)" });
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "A1").computed, 1);
+  assert.equal(sspill(sh, "A2"), 2);
+  assert.equal(sspill(sh, "A3"), 3);
+  assert.equal(scell(sh, "A1").spill.h, 3);
+});
+ok("spill: SEQUENCE(2,2) fills a 2×2 block", () => {
+  const sh = spillSheet({ A1: "=SEQUENCE(2,2)" });
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "A1").computed, 1);
+  assert.equal(sspill(sh, "B1"), 2);
+  assert.equal(sspill(sh, "A2"), 3);
+  assert.equal(sspill(sh, "B2"), 4);
+});
+ok("spill: a dependent formula reads a spilled cell", () => {
+  const sh = spillSheet({ A1: "=SEQUENCE(3)", C1: "=A2*10" });
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "C1").computed, 20);
+});
+ok("spill: SUM over a range covering spilled cells", () => {
+  const sh = spillSheet({ A1: "=SEQUENCE(4)", C1: "=SUM(A1:A4)" });
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "C1").computed, 10);
+});
+ok("spill: a blocked path yields #SPILL! and spills nothing", () => {
+  const sh = spillSheet({ A1: "=SEQUENCE(3)", A2: "blocker" });
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "A1").err, "#SPILL!");
+  assert.equal(scell(sh, "A1").computed, null);
+  assert.equal(sspill(sh, "A3"), undefined);
+});
+ok("spill: recovers once the blocker is cleared", () => {
+  const sh = spillSheet({ A1: "=SEQUENCE(3)", A2: "blocker" });
+  __engine.recalcSheet(sh);
+  sh.cells.delete(skey("A2"));
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "A1").err, null);
+  assert.equal(sspill(sh, "A2"), 2);
+});
+ok("spill: running off the sheet edge is #SPILL!", () => {
+  const sh = spillSheet({ A1: "=SEQUENCE(10)" }, 5, 5);
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "A1").err, "#SPILL!");
+});
+ok("spill: a single-cell array result does not spill", () => {
+  const sh = spillSheet({ A1: "=SORT({3})" });
+  __engine.recalcSheet(sh);
+  assert.equal(scell(sh, "A1").spill, null);
+  assert.equal(sh.spill.size, 0);
+});
+
 // ── XLSX import (parseXlsxBytes) ─────────────────────────────────────────────
 // Async, so run these after the synchronous suite via top-level await.
 const okA = async (name, fn) => { try { await fn(); n++; } catch (e) { console.error(`✗ ${name}`); console.error("  " + (e && e.message)); process.exit(1); } };

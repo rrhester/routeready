@@ -140,8 +140,8 @@ class FormulaError extends Error {
 
 // In-formula array value (2-D, rectangular). Ranges and array-returning
 // functions (FILTER, SORT, UNIQUE, SPLIT, …) produce these; aggregates
-// consume them. A cell whose final result is an array displays the
-// top-left value — results never spill onto the grid.
+// consume them. A cell whose final result is an array shows its top-left
+// value in the origin cell and spills the rest onto the grid (see applySpill).
 class Arr {
   constructor(rows) { this.rows = rows; }
   get height() { return this.rows.length; }
@@ -715,7 +715,7 @@ const FUNCS = {
 // that call Google services or fetch external data (GOOGLEFINANCE,
 // GOOGLETRANSLATE, DETECTLANGUAGE, IMAGE, SPARKLINE, QUERY, IMPORT*)
 // and GETPIVOTDATA (no pivot tables). Array-returning functions work
-// as in-formula values; a bare array result displays its top-left cell.
+// as in-formula values and spill onto the grid from the origin cell.
 
 // ── Numerics core (special functions for the statistical family) ───────────
 // Standard machinery: Lanczos log-gamma, regularized incomplete gamma
@@ -2939,22 +2939,17 @@ function evalNode(node, ctx) {
       return node.op === "-" ? -v : v;
     }
     case "bin": {
-      const a = toNum(evalNode(node.l, ctx));
-      const b = toNum(evalNode(node.r, ctx));
-      switch (node.op) {
-        case "+": return a + b;
-        case "-": return a - b;
-        case "*": return a * b;
-        case "/": if (b === 0) throw new FormulaError("#DIV/0", "division by zero"); return a / b;
-        case "^": { const r = Math.pow(a, b); if (!isFinite(r)) throw new FormulaError("#VALUE", "overflow"); return r; }
-      }
-      throw new FormulaError("#ERROR", "bad operator");
+      const opr = (n) => (n.k === "range" ? gridOfRange(n, ctx) : evalNode(n, ctx));
+      return broadcast(opr(node.l), opr(node.r), (a, b) => binOp(node.op, toNum(a), toNum(b)));
     }
     case "concat": {
-      const a = evalNode(node.l, ctx), b = evalNode(node.r, ctx);
-      return fmtScalar(a) + fmtScalar(b);
+      const opr = (n) => (n.k === "range" ? gridOfRange(n, ctx) : evalNode(n, ctx));
+      return broadcast(opr(node.l), opr(node.r), (a, b) => fmtScalar(a) + fmtScalar(b));
     }
-    case "cmp": return cmp(node.op, evalNode(node.l, ctx), evalNode(node.r, ctx));
+    case "cmp": {
+      const opr = (n) => (n.k === "range" ? gridOfRange(n, ctx) : evalNode(n, ctx));
+      return broadcast(opr(node.l), opr(node.r), (a, b) => cmp(node.op, a, b));
+    }
     case "ref": {
       if (node.sheet) return ctx.getCell(node.row, node.col, node.sheet);
       if (node.row < 0 || node.col < 0 || node.row >= (ctx.rowCount ?? 100000) || node.col >= (ctx.colCount ?? 16384)) throw new FormulaError("#REF", "out of range");
@@ -2978,6 +2973,37 @@ function evalNode(node, ctx) {
     }
   }
   throw new FormulaError("#ERROR", "bad node");
+}
+
+function binOp(op, a, b) {
+  switch (op) {
+    case "+": return a + b;
+    case "-": return a - b;
+    case "*": return a * b;
+    case "/": if (b === 0) throw new FormulaError("#DIV/0", "division by zero"); return a / b;
+    case "^": { const r = Math.pow(a, b); if (!isFinite(r)) throw new FormulaError("#VALUE", "overflow"); return r; }
+  }
+  throw new FormulaError("#ERROR", "bad operator");
+}
+
+// Element-wise operator broadcasting: scalar↔scalar stays scalar; scalar↔array
+// maps over the array; array↔array combines cell-by-cell (a 1×1 array counts as
+// a scalar). This is what makes =FILTER(A1:A4, A1:A4>10) and other array
+// expressions produce a grid that can spill.
+function broadcast(l, r, fn) {
+  const la = l instanceof Arr, ra = r instanceof Arr;
+  if (!la && !ra) return fn(l, r);
+  if (la && l.height === 1 && l.width === 1) return broadcast(l.rows[0][0], r, fn);
+  if (ra && r.height === 1 && r.width === 1) return broadcast(l, r.rows[0][0], fn);
+  const H = la ? l.height : r.height, W = la ? l.width : r.width;
+  if (la && ra && (l.height !== r.height || l.width !== r.width)) throw new FormulaError("#VALUE", "array shapes don't match");
+  const rows = [];
+  for (let i = 0; i < H; i++) {
+    const row = [];
+    for (let j = 0; j < W; j++) row.push(deArr(fn(la ? l.rows[i][j] : l, ra ? r.rows[i][j] : r)));
+    row.length && rows.push(row);
+  }
+  return new Arr(rows.length ? rows : [[]]);
 }
 
 // Invoke a LAMBDA closure with already-evaluated argument values.
@@ -4846,7 +4872,10 @@ function cellNumeric(raw) {
 // The value handed to the formula engine for a cell.
 function engineValue(sheet, r, c) {
   const cell = sheet.cells.get(cellKey(r, c));
-  if (!cell) return null;
+  if (!cell) {
+    const sp = sheet.spill && sheet.spill.get(cellKey(r, c));
+    return sp ? sp.value : null;
+  }
   if (cell.formula) {
     if (cell.err) throw new FormulaError(cell.err, "referenced cell has an error");
     return cell.computed;
@@ -4863,7 +4892,11 @@ function engineValue(sheet, r, c) {
 // What the grid paints inside the cell box.
 function displayValue(sheet, r, c) {
   const cell = sheet.cells.get(cellKey(r, c));
-  if (!cell) return "";
+  if (!cell) {
+    const sp = sheet.spill && sheet.spill.get(cellKey(r, c));
+    if (!sp) return "";
+    return formatForDisplay(sp.value, null, typeof sp.value === "number" ? "number" : "text");
+  }
   if (cell.formula) {
     if (cell.err) return cell.err;
     return formatForDisplay(cell.computed, cell.format, "formula");
@@ -4931,6 +4964,7 @@ function parseDateLoose(s) {
 // are small (tens to low hundreds), so this stays well under a frame.
 
 function recalcSheet(sheet) {
+  if (sheet.spill) sheet.spill.clear(); else sheet.spill = new Map();
   const formulaCells = [];
   let usedR = 0, usedC = 0;
   for (const [key, cell] of sheet.cells) {
@@ -4992,13 +5026,16 @@ function recalcSheet(sheet) {
     try {
       ctx.cur = keyRC(key); // ROW()/COLUMN() with no args resolve here
       let v = evalAst(asts.get(key), ctx);
-      if (v instanceof Arr) v = v.top(); // arrays display their top-left value
+      let arr = null;
+      if (v instanceof Arr) { arr = v; v = v.top(); } // top-left displays; the full grid may spill (see applySpill)
+      cell._arr = arr;
       if (isClosure(v)) throw new FormulaError("#VALUE", "a LAMBDA needs to be called");
       cell.computed = v;
       return v !== before;
     } catch (e) {
       cell.err = e instanceof FormulaError ? e.code : "#ERROR";
       cell.computed = null;
+      cell._arr = null;
       return true;
     }
   };
@@ -5022,6 +5059,63 @@ function recalcSheet(sheet) {
         if ((deps.get(key) || []).some((d) => changed.has(d))) reEval(key);
       }
     }
+  }
+  // arrays spill their full grid onto the cells below/right of the origin
+  applySpill(sheet, order, deps, evalOne);
+}
+
+// ─── Dynamic-array spill ─────────────────────────────────────────────────────
+// A formula whose result is a 2-D array shows its top-left value in the origin
+// cell and "spills" the rest into the neighbouring cells to the right and
+// below. Spilled cells are derived, never stored: they live in sheet.spill
+// (cellKey → {origin, value}), get rebuilt on every recalc, and are read by
+// the engine and painted read-only by the grid. If the spill range would run
+// off-sheet or land on a cell that already holds its own value/formula, the
+// origin shows #SPILL! and nothing spills — exactly like Excel.
+
+// (Re)derive the spill layer from the formula cells' cached arrays.
+function buildSpill(sheet, formulaKeys) {
+  sheet.spill = new Map();
+  for (const k of formulaKeys) { const c = sheet.cells.get(k); if (c) { if (c.err === "#SPILL!") c.err = null; c.spill = null; } }
+  // earlier origins (top-to-bottom, left-to-right) win a contested cell
+  const origins = formulaKeys.map((k) => ({ k, rc: keyRC(k) })).sort((a, b) => a.rc.r - b.rc.r || a.rc.c - b.rc.c);
+  for (const { k, rc } of origins) {
+    const cell = sheet.cells.get(k);
+    if (!cell || cell.err || !cell._arr) continue;
+    const arr = cell._arr, h = arr.height, w = arr.width;
+    if (h * w <= 1) continue;
+    if (rc.r + h > sheet.rowCount || rc.c + w > sheet.colCount) { cell.err = "#SPILL!"; cell.computed = null; cell.spill = null; continue; }
+    let blocked = false;
+    for (let i = 0; i < h && !blocked; i++) for (let j = 0; j < w; j++) {
+      if (i === 0 && j === 0) continue;
+      const tk = cellKey(rc.r + i, rc.c + j);
+      const t = sheet.cells.get(tk);
+      if ((t && (t.formula || (t.value != null && t.value !== ""))) || sheet.spill.has(tk)) { blocked = true; break; }
+    }
+    if (blocked) { cell.err = "#SPILL!"; cell.computed = null; cell.spill = null; continue; }
+    cell.spill = { h, w };
+    for (let i = 0; i < h; i++) for (let j = 0; j < w; j++) {
+      if (i === 0 && j === 0) continue;
+      let val = arr.rows[i][j];
+      if (val instanceof Arr) val = val.top();
+      sheet.spill.set(cellKey(rc.r + i, rc.c + j), { origin: k, value: val });
+    }
+  }
+}
+
+// Build the spill layer, then re-evaluate any formula that reads a spilled
+// cell (those reads were invisible to the static graph) and cascade. A couple
+// of passes let a formula that spills off another spill settle.
+function applySpill(sheet, order, deps, evalOne) {
+  for (let pass = 0; pass < 3; pass++) {
+    buildSpill(sheet, order);
+    const spilled = new Set(sheet.spill.keys());
+    if (!spilled.size) break;
+    const changed = new Set();
+    const reEval = (key) => { const c = sheet.cells.get(key); if (!c || c.err === "#CIRCULAR" || c.err === "#SPILL!") return; c.err = null; if (evalOne(key)) changed.add(key); };
+    for (const key of order) if ((deps.get(key) || []).some((d) => spilled.has(d))) reEval(key);
+    if (changed.size) for (const key of order) { if (changed.has(key)) continue; if ((deps.get(key) || []).some((d) => changed.has(d))) reEval(key); }
+    if (!changed.size) break;
   }
 }
 
@@ -6321,6 +6415,15 @@ function paintNow(g) {
   const cellDiv = (r, c, x, top, w, h) => {
     const key = cellKey(r, c);
     const cell = sheet.cells.get(key);
+    // spilled ghost: a derived value from a neighbouring array formula. No
+    // real cell backs it — paint it read-only (it can't be edited directly).
+    const spillEnt = !cell && sheet.spill ? sheet.spill.get(key) : null;
+    if (spillEnt) {
+      const isNum = typeof spillEnt.value === "number";
+      const dv = formatForDisplay(spillEnt.value, null, isNum ? "number" : "text");
+      const oc = keyRC(spillEnt.origin);
+      return `<div class="wb-cell is-spill" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${isNum ? "justify-content:flex-end;text-align:right;" : ""}" title="Spilled from ${cellRef(oc.r, oc.c)}">${esc(dv)}</div>`;
+    }
     // View → Show → Formulas: formula cells show their source (Ctrl+`)
     const disp = cell ? (g.showFormulas && cell.formula ? cell.formula : displayValue(sheet, r, c)) : "";
     const err = cell && cell.err;
@@ -6347,7 +6450,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -8069,16 +8172,18 @@ function syncFormulaBar(g) {
     else g.els.fbarRef.textContent = refText;
   }
   const cell = g.sheet.cells.get(cellKey(r, c));
+  const spillEnt = !cell && g.sheet.spill ? g.sheet.spill.get(cellKey(r, c)) : null;
   if (g.els.fbarInput && document.activeElement !== g.els.fbarInput) {
     g.els.fbarInput.value = g.xedit ? g.xedit.value
       : g.editing && g.editing.input ? g.editing.input.value
-      : cell ? (cell.formula || (cell.value ?? "")) : "";
+      : cell ? (cell.formula || (cell.value ?? ""))
+      : spillEnt ? String(spillEnt.value ?? "") : "";
   }
   syncFontControls(g);
   if (g.els.fbarErr) {
     if (cell && cell.err) {
       g.els.fbarErr.hidden = false;
-      g.els.fbarErr.textContent = cell.err + (cell.err === "#CIRCULAR" ? " · circular reference" : cell.err === "#DIV/0" ? " · division by zero" : cell.err === "#N/A" ? " · no match found" : cell.err === "#REF" ? " · broken reference" : cell.err === "#NUM" ? " · number out of range" : cell.err === "#NAME" ? " · unknown name" : cell.err === "#VALUE" ? " · wrong kind of value" : "");
+      g.els.fbarErr.textContent = cell.err + (cell.err === "#SPILL!" ? " · array can’t spill — cells in its path aren’t empty" : cell.err === "#CIRCULAR" ? " · circular reference" : cell.err === "#DIV/0" ? " · division by zero" : cell.err === "#N/A" ? " · no match found" : cell.err === "#REF" ? " · broken reference" : cell.err === "#NUM" ? " · number out of range" : cell.err === "#NAME" ? " · unknown name" : cell.err === "#VALUE" ? " · wrong kind of value" : "");
     } else g.els.fbarErr.hidden = true;
   }
 }

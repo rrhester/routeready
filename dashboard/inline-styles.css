@@ -28966,6 +28966,9 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   background:var(--surface);
 }
 #view-workbooks .wb-cell.is-err{color:var(--red);font-weight:600;background:var(--red-soft,rgba(220,38,38,.05))}
+/* dynamic-array spill: derived (read-only) cells + a tinted origin */
+#view-workbooks .wb-cell.is-spill{color:var(--text);background:var(--accent-soft,rgba(37,99,235,.045));cursor:default}
+#view-workbooks .wb-cell.is-spill-origin{box-shadow:inset 1px 0 0 var(--accent,#2563EB),inset 0 1px 0 var(--accent,#2563EB)}
 #view-workbooks .wb-cell.is-link{cursor:pointer}
 #view-workbooks .wb-cell-link{
   color:var(--accent,#2563EB);text-decoration:underline;text-underline-offset:2px;
