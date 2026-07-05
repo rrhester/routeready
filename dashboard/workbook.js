@@ -4503,6 +4503,38 @@ async function createWorkbook({ title, description, visibility, templateKey, spe
 
 let PENDING_OPEN_ID = null;
 
+// ─── Open a workbook in its own OS window ────────────────────────────────────
+// Each workbook can pop out into a standalone window (minimizable, shows in
+// the taskbar/shelf) so several worksheets can be open side-by-side like
+// separate Excel windows. The new window carries ?wb=<id>, and the deep-link
+// handler in live.js boots it straight into full-screen Workbook Mode.
+function workbookPopoutUrl(id) {
+  return location.origin + location.pathname + "?wb=" + encodeURIComponent(id);
+}
+function openWorkbookPopout(id) {
+  if (!id) return;
+  const url = workbookPopoutUrl(id);
+  const w = 1500, h = 950;
+  const sw = (window.screen && window.screen.availWidth) || 1600;
+  const sh = (window.screen && window.screen.availHeight) || 1000;
+  const left = Math.max(0, Math.round(sw / 2 - w / 2));
+  const top = Math.max(0, Math.round(sh / 2 - h / 2));
+  // A stable per-workbook window name means re-popping the same workbook
+  // focuses its existing window instead of stacking duplicates; different
+  // workbooks get different windows.
+  const win = window.open(url, "rrwb_" + id, `popup=yes,width=${w},height=${h},left=${left},top=${top}`);
+  if (!win) { _toast("Allow pop-ups for RouteReady to open a workbook in its own window", "warn"); openWorkbook(id); return; }
+  try { win.focus(); } catch (_) {}
+}
+
+// Boot entry used by the ?wb=<id> deep-link (live.js): jump straight into
+// the workbook once the app shell is ready.
+export function requestOpenWorkbook(id) {
+  if (!id) return;
+  PENDING_OPEN_ID = id;
+  if (typeof window.goto === "function") window.goto("workbooks");
+}
+
 export async function createReportWorkbook({ title, description, headers, rows, sheetName, report }) {
   const wb = await createWorkbook({
     title,
@@ -5220,6 +5252,9 @@ function renderListBody(root) {
       <span class="wb-fav ${fav ? "is-fav" : ""}" data-wb-fav="${esc(w.id)}" role="button" tabindex="0" title="${fav ? "Remove from favorites" : "Add to favorites"}" aria-label="${fav ? "Remove from favorites" : "Add to favorites"}" aria-pressed="${fav}">
         <svg viewBox="0 0 24 24" width="16" height="16" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2.5 15.09 8.6 21.8 9.55 16.9 14.25 18.08 20.9 12 17.77 5.92 20.9 7.1 14.25 2.2 9.55 8.91 8.6 12 2.5"/></svg>
       </span>
+      <span class="wb-cardpop" data-wb-popout="${esc(w.id)}" role="button" tabindex="0" title="Open in a new window" aria-label="Open in a new window">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+      </span>
       ${canAdminWb(w) ? `<span class="wb-cardmenu" data-wb-cardmenu="${esc(w.id)}" role="button" tabindex="0" title="Workbook actions" aria-label="Workbook actions">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
       </span>` : ""}
@@ -5402,6 +5437,9 @@ function renderDetailPage() {
           <span data-wb-savestate></span>
           <span class="wb-presence" id="wb-presence"></span>
           ${ro ? `<span class="wb-badge" title="You can view${canCommentOnly() ? " and comment" : ""}, but not edit">Read-only</span>` : ""}
+          <button type="button" class="btn btn-ghost btn-icon wb-popout-btn" data-wb-act="wb-popout" title="Open in a new window" aria-label="Open in a new window">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+          </button>
           <button type="button" class="btn btn-sm wb-share-btn" data-wb-act="wb-share" title="Share this workbook" aria-label="Share this workbook">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>
             Share
@@ -14191,6 +14229,15 @@ function installRootListeners() {
       return;
     }
 
+    // card ⇱: open this workbook in its own OS window
+    const cardPop = e.target.closest("[data-wb-popout]");
+    if (cardPop) {
+      e.preventDefault();
+      e.stopPropagation();
+      openWorkbookPopout(cardPop.getAttribute("data-wb-popout"));
+      return;
+    }
+
     // card ⋮: archive / delete straight from the list
     const cardMenu = e.target.closest("[data-wb-cardmenu]");
     if (cardMenu) {
@@ -14239,6 +14286,7 @@ function installRootListeners() {
         break;
       }
       case "wb-share": openPanelTab("sharing"); break;
+      case "wb-popout": if (WB.wb) openWorkbookPopout(WB.wb.id); break;
       case "new-report": renderReportBuilderPage(); break;
       case "reports-back": renderReportsPage(); break;
       case "retry-save": flushCells(); break;

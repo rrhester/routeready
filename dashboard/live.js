@@ -10,7 +10,7 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=b38b7853961d";
 import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=b38b7853961d";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes } from "./workbook.js?v=b38b7853961d";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b38b7853961d";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b38b7853961d";
 
 const cfg = window.RR_CONFIG;
@@ -78905,3 +78905,27 @@ document.addEventListener("click", (e) => {
     setTimeout(_rgpFetch, 1500);
   }
 });
+
+// ─── Pop-out workbook windows · ?wb=<id> deep-link ───────────────────────────
+// The ⇱ "open in new window" control (workbook.js) opens the app in a
+// standalone window carrying ?wb=<id>. Boot that window straight into the
+// workbook so it's a self-contained worksheet — its own taskbar/shelf entry,
+// minimizable, several open at once. The rr-wb-popout-boot class (set here
+// and, for zero flash, by an inline head script in index.html) hides the
+// dashboard chrome until Workbook Mode takes over.
+(function rrWorkbookDeepLink() {
+  let id = null;
+  try { id = new URLSearchParams(location.search).get("wb"); } catch (_) { return; }
+  if (!id) return;
+  try {
+    document.documentElement.classList.add("rr-wb-popout-boot");
+    if (document.body) document.body.classList.add("rr-wb-popout");
+  } catch (_) {}
+  let tries = 0;
+  const tick = () => {
+    if (typeof window.goto === "function") { try { requestOpenWorkbook(id); } catch (_) {} return; }
+    if (++tries > 200) return; // ~10s ceiling, then give up quietly
+    setTimeout(tick, 50);
+  };
+  tick();
+})();

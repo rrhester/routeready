@@ -28559,7 +28559,10 @@ body.rr-cmdk-open{ overflow:hidden }
   color:var(--text-subtle);cursor:pointer;
 }
 #view-workbooks .wb-cardmenu:hover{background:var(--canvas);color:var(--text)}
-#view-workbooks .wb-card:has(.wb-cardmenu) .wb-fav{right:36px}
+/* Corner slots (right→left): ⋮ menu · ⇱ pop-out · ★ star. The pop-out is
+   always present, so the star sits one slot further left than the menu. */
+#view-workbooks .wb-card:has(.wb-cardmenu) .wb-fav{right:64px}
+#view-workbooks .wb-card:not(:has(.wb-cardmenu)) .wb-fav{right:36px}
 #view-workbooks .wb-fav svg{fill:none;stroke:currentColor}
 #view-workbooks .wb-fav:hover{background:var(--canvas);color:var(--text-muted)}
 #view-workbooks .wb-fav.is-fav{color:#F4B400}
@@ -28774,6 +28777,37 @@ body.rr-wb-fullscreen #view-workbooks .wb-blocks{
 }
 #view-workbooks .wb-share-btn:hover{background:var(--accent-strong,var(--accent))}
 #view-workbooks .wb-share-btn svg{stroke:#fff}
+
+/* ── Pop-out: open a workbook in its own OS window ── */
+/* List-card ⇱ icon (sits beside the ⋮ menu, top-right of the card). */
+#view-workbooks .wb-cardpop{
+  position:absolute;top:9px;right:36px;z-index:2;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:24px;height:24px;border-radius:50%;
+  color:var(--text-subtle);cursor:pointer;opacity:0;transition:opacity var(--t-smooth),background var(--t-smooth);
+}
+/* When a card has no ⋮ menu (non-admin), the pop-out takes the corner. */
+#view-workbooks .wb-card:not(:has(.wb-cardmenu)) .wb-cardpop{right:8px}
+#view-workbooks .wb-card:hover .wb-cardpop,
+#view-workbooks .wb-cardpop:focus-visible{opacity:1}
+#view-workbooks .wb-cardpop:hover{background:var(--canvas);color:var(--accent-text)}
+/* Command-bar pop-out button (Workbook Mode). Hidden when already inside
+   a popped-out window — that window IS the workbook's own window. */
+body.rr-wb-popout #view-workbooks .wb-popout-btn{display:none}
+
+/* Pop-out window boot: hide the dashboard rail + topbar + every non-workbook
+   view from first paint, so the standalone worksheet window never flashes the
+   full dashboard on its way into Workbook Mode. */
+html.rr-wb-popout-boot .sidebar,
+html.rr-wb-popout-boot .topbar,
+body.rr-wb-popout .sidebar,
+body.rr-wb-popout .topbar{display:none !important}
+html.rr-wb-popout-boot .app,
+body.rr-wb-popout .app{grid-template-columns:1fr !important}
+html.rr-wb-popout-boot .view:not(#view-workbooks),
+body.rr-wb-popout .view:not(#view-workbooks){display:none !important}
+html.rr-wb-popout-boot .app{min-height:100vh;background:var(--canvas)}
+
 /* Keyboard-shortcuts help sheet (Help → Keyboard shortcuts). */
 .wb-shortcuts{display:flex;flex-direction:column;gap:2px}
 .wb-shortcut-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:6px 2px;border-bottom:1px solid var(--border-subtle)}
