@@ -87,30 +87,98 @@ const RB_PICKER_LABEL = {
   attendanceRisk: "Attendance Risk",
 };
 
+// ─── Schedule report fields ──────────────────────────────────────────────────
+// Mappers receive an enriched shift row from fetchScheduleData.
+
+function timeText(ts) {
+  if (!ts) return DASH;
+  const d = new Date(ts);
+  if (isNaN(d)) return DASH;
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+const SHIFT_STATUS_LABEL = { scheduled: "Scheduled", completed: "Completed", late: "Late", no_show: "No-Show", called_off: "Called Off" };
+function shiftStatusText(s) {
+  return SHIFT_STATUS_LABEL[s] || cap(String(s || "").replace(/_/g, " ")) || DASH;
+}
+
+const RB_SCHED_FIELDS = {
+  date: { label: "Date", map: (s) => s.date || DASH },
+  day: { label: "Day", map: (s) => s._day },
+  schedDriverName: { label: "Driver", map: (s) => s._driver },
+  routeCode: { label: "Route", map: (s) => s.route_code || (s.is_cushion ? "Cushion" : DASH) },
+  startTime: { label: "Start", map: (s) => s._start },
+  endTime: { label: "End", map: (s) => s._end },
+  blockHours: { label: "Hours", map: (s) => (s.block_hours ?? DASH) },
+  shiftStatus: { label: "Status", map: (s) => s._status },
+  shiftNotes: { label: "Notes", map: (s) => s.notes || DASH },
+};
+const RB_SCHED_ORDER = ["date", "day", "schedDriverName", "routeCode", "startTime", "endTime", "blockHours", "shiftStatus", "shiftNotes"];
+
+// ─── Attendance report fields ────────────────────────────────────────────────
+// Mappers receive a per-driver aggregate from fetchAttendanceData.
+
+const RB_ATT_FIELDS = {
+  attDriverName: { label: "Driver", map: (a) => a.name },
+  attDriverStatus: { label: "Driver Status", map: (a) => a.driverStatus },
+  scheduled: { label: "Scheduled", map: (a) => a.eligible },
+  worked: { label: "Worked", map: (a) => a.worked },
+  completion: { label: "Attendance %", map: (a) => (a.pct == null ? DASH : a.pct + "%") },
+  noShows: { label: "No-Shows", map: (a) => a.noShow },
+  callOffs: { label: "Call-Offs", map: (a) => a.callOff },
+  lates: { label: "Lates", map: (a) => a.late },
+  attRisk: { label: "Risk Level", map: (a) => a.risk },
+  lastException: { label: "Last Exception", map: (a) => a.lastException || DASH },
+};
+const RB_ATT_ORDER = ["attDriverName", "attDriverStatus", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "attRisk", "lastException"];
+
 // ─── Report catalog ──────────────────────────────────────────────────────────
 
 const RB_CATEGORIES = [
   { key: "people", label: "People", enabled: true },
   { key: "fleet", label: "Fleet", enabled: false },
-  { key: "schedule", label: "Schedule", enabled: false },
-  { key: "attendance", label: "Attendance", enabled: false },
+  { key: "schedule", label: "Schedule", enabled: true },
+  { key: "attendance", label: "Attendance", enabled: true },
   { key: "hiring", label: "Hiring", enabled: false },
   { key: "compliance", label: "Compliance", enabled: false },
   { key: "custom", label: "Custom", enabled: false },
 ];
 
 const RB_REPORTS = [
-  { id: "custom-people", category: "people", title: "People Report", description: "Pick exactly the people fields you need.", fields: [], custom: true },
+  { id: "custom-people", category: "people", source: "people", title: "People Report", description: "Choose the fields to include. The report updates as you pick.", fields: [], custom: true },
+  { id: "custom-schedule", category: "schedule", source: "schedule", title: "Schedule Report", description: "One row per shift for the period — open shifts show as “Open”.", fields: [], custom: true },
+  { id: "custom-attendance", category: "attendance", source: "attendance", title: "Attendance Report", description: "Per-driver attendance over the period, counted from completed, late, no-show, and called-off shifts.", fields: [], custom: true },
 ];
+
+// Per-source wiring: field catalog, picker order, and the data fetch.
+// (fetch functions are declared below; function-hoisting makes this safe.)
+const RB_SOURCES = {
+  people: { fields: RB_FIELDS, order: RB_CUSTOM_FIELDS, pickerLabels: RB_PICKER_LABEL, noun: ["person", "people"], ranges: null },
+  schedule: {
+    fields: RB_SCHED_FIELDS, order: RB_SCHED_ORDER, pickerLabels: {}, noun: ["shift", "shifts"],
+    ranges: [["week", "This week (Mon–Sun)"], ["today", "Today"], ["next7", "Next 7 days"], ["last7", "Last 7 days"]],
+  },
+  attendance: {
+    fields: RB_ATT_FIELDS, order: RB_ATT_ORDER, pickerLabels: {}, noun: ["driver", "drivers"],
+    ranges: [["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"]],
+  },
+};
 
 // ─── Data layer ──────────────────────────────────────────────────────────────
 
 const RB = {
   deps: {},          // { createReportWorkbook } injected by live.js
-  data: null,        // enriched people rows, cached while the modal is open
-  loading: null,     // in-flight promise
+  data: null,        // enriched people rows, cached while the screen is open
+  loading: null,     // in-flight people promise
+  cache: new Map(),  // "<source>|<range>" -> rows (schedule / attendance)
   report: null,      // selected report def
-  customSel: new Set(["driverName", "phoneNumber", "email", "status"]),
+  source: "people",
+  sel: {
+    people: new Set(["driverName", "phoneNumber", "email", "status"]),
+    schedule: new Set(["date", "schedDriverName", "routeCode", "startTime", "shiftStatus"]),
+    attendance: new Set(["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "attRisk"]),
+  },
+  range: { schedule: "week", attendance: "30" },
   live: true,        // live-updating workbook vs point-in-time snapshot
 };
 
@@ -191,17 +259,127 @@ async function fetchPeopleData(force) {
   return RB.loading;
 }
 
+// ─── Schedule + attendance data ─────────────────────────────────────────────
+
+function isoDay(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function scheduleRangeBounds(range) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const add = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  if (range === "today") return [isoDay(today), isoDay(today)];
+  if (range === "next7") return [isoDay(today), isoDay(add(today, 6))];
+  if (range === "last7") return [isoDay(add(today, -6)), isoDay(today)];
+  const dow = (today.getDay() + 6) % 7; // Monday-anchored week
+  const mon = add(today, -dow);
+  return [isoDay(mon), isoDay(add(mon, 6))];
+}
+
+async function fetchScheduleData(range, force) {
+  const key = "schedule|" + (range || "week");
+  if (!force && RB.cache.has(key)) return RB.cache.get(key);
+  const sb = _sb(), dsp = _dsp();
+  if (!sb || !dsp) throw new Error("no session");
+  const [lo, hi] = scheduleRangeBounds(range || "week");
+  const [shifts, drv] = await Promise.all([
+    sb.from("shifts")
+      .select("driver_id, date, starts_at, ends_at, route_code, status, block_hours, notes, is_cushion")
+      .eq("dsp_id", dsp.id)
+      .gte("date", lo).lte("date", hi)
+      .order("date").order("starts_at")
+      .limit(5000),
+    sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", dsp.id).limit(2000)
+      .then((r) => r, () => ({ data: [] })),
+  ]);
+  if (shifts.error) throw shifts.error;
+  const nameBy = new Map((drv.data || []).map((d) => [d.id, d.preferred_name || d.full_name]));
+  const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const rows = (shifts.data || []).map((s) => {
+    const d = new Date(s.date + "T00:00:00");
+    return {
+      ...s,
+      _driver: s.driver_id ? nameBy.get(s.driver_id) || "Driver" : "Open",
+      _day: isNaN(d) ? DASH : DOW[d.getDay()],
+      _start: timeText(s.starts_at),
+      _end: timeText(s.ends_at),
+      _status: shiftStatusText(s.status),
+    };
+  });
+  rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.starts_at || "").localeCompare(String(b.starts_at || "")) || a._driver.localeCompare(b._driver)));
+  RB.cache.set(key, rows);
+  return rows;
+}
+
+async function fetchAttendanceData(range, force) {
+  const days = Math.max(1, parseInt(range, 10) || 30);
+  const key = "attendance|" + days;
+  if (!force && RB.cache.has(key)) return RB.cache.get(key);
+  const sb = _sb(), dsp = _dsp();
+  if (!sb || !dsp) throw new Error("no session");
+  const from = new Date(); from.setDate(from.getDate() - (days - 1));
+  const [drv, shifts] = await Promise.all([
+    sb.from("drivers")
+      .select("id, full_name, preferred_name, status")
+      .eq("dsp_id", dsp.id)
+      .neq("status", "terminated")
+      .order("full_name")
+      .limit(1000),
+    sb.from("shifts")
+      .select("driver_id, status, date")
+      .eq("dsp_id", dsp.id)
+      .in("status", ["completed", "late", "no_show", "called_off"])
+      .gte("date", isoDay(from))
+      .limit(20000),
+  ]);
+  if (drv.error) throw drv.error;
+  if (shifts.error) throw shifts.error;
+  const agg = new Map();
+  for (const sh of shifts.data || []) {
+    if (!sh.driver_id) continue;
+    const a = agg.get(sh.driver_id) || { eligible: 0, worked: 0, noShow: 0, callOff: 0, late: 0, lastException: null };
+    a.eligible++;
+    if (sh.status === "completed" || sh.status === "late") a.worked++;
+    if (sh.status === "no_show") a.noShow++;
+    if (sh.status === "called_off") a.callOff++;
+    if (sh.status === "late") a.late++;
+    if (sh.status !== "completed" && (!a.lastException || sh.date > a.lastException)) a.lastException = sh.date;
+    agg.set(sh.driver_id, a);
+  }
+  // High/Medium/Low mirrors the roster risk model's attendance half
+  const RANK = { High: 0, Medium: 1, Low: 2 };
+  const rows = (drv.data || []).map((p) => {
+    const a = agg.get(p.id) || { eligible: 0, worked: 0, noShow: 0, callOff: 0, late: 0, lastException: null };
+    const pct = a.eligible ? Math.round((a.worked / a.eligible) * 100) : null;
+    let risk = "Low";
+    if (a.noShow >= 1 || a.callOff >= 3) risk = "High";
+    else if (a.callOff >= 1 || a.late >= 2 || (pct != null && pct < 85)) risk = "Medium";
+    return { name: p.preferred_name || p.full_name || DASH, driverStatus: cap(p.status) || DASH, ...a, pct, risk };
+  });
+  rows.sort((x, y) => (RANK[x.risk] - RANK[y.risk]) || x.name.localeCompare(y.name));
+  RB.cache.set(key, rows);
+  return rows;
+}
+
+function getRows(source, force) {
+  if (source === "schedule") return fetchScheduleData(RB.range.schedule, force);
+  if (source === "attendance") return fetchAttendanceData(RB.range.attendance, force);
+  return fetchPeopleData(force);
+}
+
 // ─── Matrix builder (shared by preview, workbook, CSV, print) ────────────────
 
 function reportFields(report) {
-  return report.custom ? RB_CUSTOM_FIELDS.filter((k) => RB.customSel.has(k)) : report.fields;
+  const src = RB_SOURCES[report.source] || RB_SOURCES.people;
+  return report.custom ? src.order.filter((k) => RB.sel[report.source].has(k)) : report.fields;
 }
 
-function buildMatrix(report, people) {
+function buildMatrix(report, rows) {
+  const cat = (RB_SOURCES[report.source] || RB_SOURCES.people).fields;
   const keys = reportFields(report);
   return {
-    headers: keys.map((k) => RB_FIELDS[k].label),
-    rows: people.map((p) => keys.map((k) => RB_FIELDS[k].map(p))),
+    headers: keys.map((k) => cat[k].label),
+    rows: rows.map((r) => keys.map((k) => cat[k].map(r))),
   };
 }
 
@@ -209,12 +387,17 @@ function buildMatrix(report, people) {
 // registerReportProvider in live.js) with the stored report spec whenever a
 // live report is opened, and rewrites the sheet with what it returns.
 export async function buildReportData(spec) {
-  const people = await fetchPeopleData(true); // always fresh — that's the point
-  const keys = (Array.isArray(spec && spec.fields) ? spec.fields : []).filter((k) => RB_FIELDS[k]);
+  const source = spec && RB_SOURCES[spec.source] ? spec.source : "people";
+  let rows;
+  if (source === "schedule") rows = await fetchScheduleData((spec && spec.range) || "week", true);
+  else if (source === "attendance") rows = await fetchAttendanceData((spec && spec.range) || "30", true);
+  else rows = await fetchPeopleData(true); // always fresh — that's the point
+  const cat = RB_SOURCES[source].fields;
+  const keys = (Array.isArray(spec && spec.fields) ? spec.fields : []).filter((k) => cat[k]);
   if (!keys.length) return null;
   return {
-    headers: keys.map((k) => RB_FIELDS[k].label),
-    rows: people.map((p) => keys.map((k) => RB_FIELDS[k].map(p))),
+    headers: keys.map((k) => cat[k].label),
+    rows: rows.map((r) => keys.map((k) => cat[k].map(r))),
   };
 }
 
@@ -236,7 +419,9 @@ export function renderReportsInto(container) {
     return;
   }
   RB.report = RB_REPORTS[0];
-  RB.data = null; // fresh data each visit — reports reflect the roster now
+  RB.source = "people";
+  RB.data = null; // fresh data each visit — reports reflect the operation now
+  RB.cache = new Map();
 
   container.innerHTML = `
     <div class="rr-reports-surface" data-rb-root>
@@ -275,14 +460,23 @@ export function renderReportsInto(container) {
   };
 
   const renderCustomPanel = () => {
+    const src = RB_SOURCES[RB.source];
+    const sel = RB.sel[RB.source];
     els.main.innerHTML = `
-      <p class="rb-main-head">People Report</p>
-      <p class="rb-main-sub">Choose the fields to include. The report updates as you pick.</p>
+      <p class="rb-main-head">${esc(RB.report.title)}</p>
+      <p class="rb-main-sub">${esc(RB.report.description)}</p>
+      ${src.ranges ? `
+      <label class="rb-range-row">
+        <span class="rb-range-label">Period</span>
+        <select class="rb-range-sel" data-rb-range aria-label="Report period">
+          ${src.ranges.map(([v, label]) => `<option value="${v}" ${RB.range[RB.source] === v ? "selected" : ""}>${esc(label)}</option>`).join("")}
+        </select>
+      </label>` : ""}
       <div class="rb-fields">
-        ${RB_CUSTOM_FIELDS.map((k) => `
+        ${src.order.map((k) => `
           <label class="rb-field-check">
-            <input type="checkbox" data-rb-field="${k}" ${RB.customSel.has(k) ? "checked" : ""}>
-            <span>${esc(RB_PICKER_LABEL[k] || RB_FIELDS[k].label)}</span>
+            <input type="checkbox" data-rb-field="${k}" ${sel.has(k) ? "checked" : ""}>
+            <span>${esc((src.pickerLabels && src.pickerLabels[k]) || src.fields[k].label)}</span>
           </label>`).join("")}
       </div>
       <p class="rb-main-head rb-live-head">Data updates</p>
@@ -307,9 +501,9 @@ export function renderReportsInto(container) {
       footState();
       return;
     }
-    els.preview.innerHTML = `<div class="rb-state"><span class="rb-spinner" aria-hidden="true"></span>Loading people data…</div>`;
-    let people;
-    try { people = await fetchPeopleData(retry === true); }
+    els.preview.innerHTML = `<div class="rb-state"><span class="rb-spinner" aria-hidden="true"></span>Loading report data…</div>`;
+    let data;
+    try { data = await getRows(report.source, retry === true); }
     catch (e) {
       console.warn("reports data:", e && e.message);
       if (RB.report !== report || !wrap.isConnected) return;
@@ -319,16 +513,17 @@ export function renderReportsInto(container) {
       return;
     }
     if (RB.report !== report || !wrap.isConnected) return; // navigated away while loading
-    if (!people.length) {
-      els.preview.innerHTML = `<div class="rb-state">No people records found.</div>`;
+    const noun = (RB_SOURCES[report.source] || RB_SOURCES.people).noun;
+    if (!data.length) {
+      els.preview.innerHTML = `<div class="rb-state">No ${esc(noun[1])} found for this period.</div>`;
       footState();
       return;
     }
-    const { headers, rows } = buildMatrix(report, people);
+    const { headers, rows } = buildMatrix(report, data);
     const shown = rows.slice(0, 25);
     els.preview.innerHTML = `
       <p class="rb-preview-title">${esc(report.title)}</p>
-      <p class="rb-preview-sub">${rows.length} ${rows.length === 1 ? "person" : "people"}${rows.length > shown.length ? ` · showing first ${shown.length}` : ""}</p>
+      <p class="rb-preview-sub">${rows.length} ${rows.length === 1 ? esc(noun[0]) : esc(noun[1])}${rows.length > shown.length ? ` · showing first ${shown.length}` : ""}</p>
       <div class="rb-table-wrap">
         <table class="rb-table">
           <thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
@@ -342,14 +537,15 @@ export function renderReportsInto(container) {
     const report = RB_REPORTS.find((r) => r.id === id);
     if (!report) return;
     RB.report = report;
+    RB.source = report.source;
     renderCustomPanel();
     footState();
     renderPreview();
   };
 
   const currentMatrix = async () => {
-    const people = await fetchPeopleData();
-    return buildMatrix(RB.report, people);
+    const rows = await getRows(RB.source);
+    return buildMatrix(RB.report, rows);
   };
 
   const doCsv = async () => {
@@ -376,7 +572,7 @@ export function renderReportsInto(container) {
         th{background:#F3F4F6;font-weight:600}
       </style></head><body>
         <h1>${esc(RB.report.title)}</h1>
-        <p>${esc(_dsp().name || "")} · ${rows.length} ${rows.length === 1 ? "person" : "people"} · ${new Date().toLocaleDateString()}</p>
+        <p>${esc(_dsp().name || "")} · ${rows.length} ${esc(rows.length === 1 ? (RB_SOURCES[RB.source] || RB_SOURCES.people).noun[0] : (RB_SOURCES[RB.source] || RB_SOURCES.people).noun[1])} · ${new Date().toLocaleDateString()}</p>
         <table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
         <tbody>${rows.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>
       </body></html>`);
@@ -398,7 +594,7 @@ export function renderReportsInto(container) {
         description: RB.report.description,
         headers,
         rows,
-        report: { source: "people", fields: reportFields(RB.report), live: RB.live },
+        report: { source: RB.source, fields: reportFields(RB.report), live: RB.live, range: RB.range[RB.source] || null },
       });
       _toast(`Opening “${title}” in Workbooks${RB.live ? " — it refreshes on every open" : ""}`, "success");
     } catch (e) {
@@ -412,15 +608,23 @@ export function renderReportsInto(container) {
   wrap.addEventListener("change", (e) => {
     const live = e.target.closest("[data-rb-live]");
     if (live) { RB.live = live.getAttribute("data-rb-live") === "1"; return; }
+    const range = e.target.closest("[data-rb-range]");
+    if (range) { RB.range[RB.source] = range.value; renderPreview(); return; }
     const f = e.target.closest("[data-rb-field]");
     if (!f) return;
     const key = f.getAttribute("data-rb-field");
-    if (f.checked) RB.customSel.add(key); else RB.customSel.delete(key);
+    if (f.checked) RB.sel[RB.source].add(key); else RB.sel[RB.source].delete(key);
     footState();
     renderPreview();
   });
   wrap.addEventListener("click", (e) => {
     if (e.target.closest("[data-rb-retry]")) { renderPreview(true); return; }
+    const cat = e.target.closest("[data-rb-cat]");
+    if (cat && !cat.disabled) {
+      wrap.querySelectorAll(".rb-cat").forEach((b) => b.classList.toggle("is-active", b === cat));
+      selectReport("custom-" + cat.getAttribute("data-rb-cat"));
+      return;
+    }
     const act = e.target.closest("[data-rb-act]");
     if (act && !act.disabled) {
       const a = act.getAttribute("data-rb-act");

@@ -28743,6 +28743,18 @@ body.rr-cmdk-open{ overflow:hidden }
   background:var(--surface);color:var(--text-muted);font-size:var(--fs-xs);padding:1px 4px;
 }
 #view-workbooks .wb-tb.is-on{background:var(--accent-soft,rgba(37,99,235,.12));color:var(--accent,#2563EB)}
+#view-workbooks .wb-tb-ffsel{
+  max-width:104px;border:0;background:none;cursor:pointer;
+  color:var(--wb-toolbar-ink,#444746);font-size:var(--fs-xs);font-weight:600;
+  padding:4px 2px;border-radius:var(--r-sm);
+}
+#view-workbooks .wb-tb-ffsel:hover:not([disabled]){background:rgba(68,71,70,.09)}
+#view-workbooks .wb-tb-fs{
+  width:38px;text-align:center;border:1px solid rgba(68,71,70,.25);border-radius:var(--r-sm);
+  background:var(--surface);color:var(--wb-toolbar-ink,#444746);
+  font-size:var(--fs-xs);font-weight:600;padding:2px 0;-moz-appearance:textfield;
+}
+#view-workbooks .wb-tb-fs::-webkit-outer-spin-button,#view-workbooks .wb-tb-fs::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 
 /* ── Menu bar (Sheets-style) ── */
 #view-workbooks .wb-menubar{
@@ -29204,6 +29216,12 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-reports-surface .rb-card-actions{display:flex;gap:6px;margin-top:8px}
 .rr-reports-surface .rb-back{background:none;border:0;padding:0;margin:0 0 10px;font-size:var(--fs-xs);font-weight:600;color:var(--accent-text);cursor:pointer}
 .rr-reports-surface .rb-fields{display:flex;flex-direction:column;gap:6px}
+.rr-reports-surface .rb-range-row{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+.rr-reports-surface .rb-range-label{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em}
+.rr-reports-surface .rb-range-sel{
+  border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);
+  color:var(--text);font-size:var(--fs-sm);padding:4px 8px;
+}
 .rr-reports-surface .rb-field-check{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);cursor:pointer;user-select:none}
 .rr-reports-surface .rb-preview{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px;overflow:hidden}
 .rr-reports-surface .rb-preview-blank{margin:auto;font-size:var(--fs-sm);color:var(--text-subtle)}
