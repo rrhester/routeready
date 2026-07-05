@@ -6338,6 +6338,20 @@ function cellLink(cell) {
   return autoLinkFor(cell);
 }
 
+// Open a cell's link. Email (mailto:) links open RouteReady's own email
+// composer rather than the OS mail handler (Gmail); web links open a tab.
+// Falls back to the plain mailto: handler if the in-app composer isn't loaded.
+function openWbLink(url) {
+  if (!url) return;
+  if (/^mailto:/i.test(url)) {
+    const to = decodeURIComponent(url.replace(/^mailto:/i, "").split("?")[0]);
+    if (typeof window.rrOpenEmailComposer === "function") { window.rrOpenEmailComposer({ mode: "new", to }); return; }
+    window.location.href = url; // no in-app mailbox — fall back to the OS handler
+    return;
+  }
+  window.open(url, "_blank", "noopener");
+}
+
 const WB_COLORS = {
   bg: { none: "", gray: "#F3F4F6", blue: "rgba(37,99,235,.09)", green: "rgba(22,163,74,.10)", amber: "rgba(217,119,6,.12)", red: "rgba(220,38,38,.09)", violet: "rgba(124,58,237,.10)" },
   fg: { default: "", muted: "#6B7280", blue: "#1E40AF", green: "#166534", amber: "#92400E", red: "#B91C1C" },
@@ -12238,10 +12252,11 @@ function bindGridEvents(g) {
         return;
       }
     }
-    // Ctrl/Cmd+click on a linked cell opens the link (explicit or auto-detected)
+    // Ctrl/Cmd+click on a linked cell opens the link (explicit or auto-detected);
+    // email links route to the in-app composer, web links open a new tab
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
       const url = cellLink(g.sheet.cells.get(cellKey(r, c)));
-      if (url) { window.open(url, "_blank", "noopener"); return; }
+      if (url) { openWbLink(url); return; }
     }
     if (g.editing) commitEdit(g, 0, 0, { refocus: false });
     if (e.shiftKey) {
@@ -12272,6 +12287,19 @@ function bindGridEvents(g) {
       document.addEventListener("mouseup", onUp);
     }
     grid.focus();
+  });
+
+  // A click on a rendered email link opens RouteReady's email composer
+  // (prefilled) instead of navigating to the mailto: handler. Web links keep
+  // their native new-tab behaviour, so they're left untouched here.
+  grid.addEventListener("click", (e) => {
+    const a = e.target.closest("a.wb-cell-link");
+    if (!a) return;
+    const href = a.getAttribute("href") || "";
+    if (/^mailto:/i.test(href) && typeof window.rrOpenEmailComposer === "function") {
+      e.preventDefault();
+      openWbLink(href);
+    }
   });
 
   grid.addEventListener("dblclick", (e) => {
