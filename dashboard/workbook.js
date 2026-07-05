@@ -3113,6 +3113,7 @@ function mountSheetBlock(block, body) {
     dragging: false,
     resize: null,
     zoom: 1,
+    filterMode: false,      // Excel AutoFilter toggle: ▾ buttons on the header row
     filters: new Map(),     // col -> { values: Set<string>|null, text: string|null }
     rows: [],               // visible actual row indexes (filter-aware)
     colX: [], rowY: [],     // prefix sums (rowY over g.rows)
@@ -3424,13 +3425,18 @@ function paintNow(g) {
   // cells
   const commented = commentedCellSet(sheet.id);
   const mergesArr = sheetMerges(sheet);
+  // AutoFilter mode: header-row cells across the used range get ▾ buttons
+  g.fltMaxC = g.filterMode ? usedRange(sheet).maxC : -1;
+  const fltBtn = (r, c) => (r === 0 && c <= g.fltMaxC
+    ? `<button type="button" class="wb-flt-btn ${g.filters.has(c) ? "is-filtered" : ""}" data-wb-fltbtn="${c}" title="Filter column ${colLabel(c)}" aria-label="Filter column ${colLabel(c)}">${g.filters.has(c) ? "▼" : "▾"}</button>`
+    : "");
   const cellDiv = (r, c, x, top, w, h) => {
     const key = cellKey(r, c);
     const cell = sheet.cells.get(key);
     const disp = cell ? displayValue(sheet, r, c) : "";
     const err = cell && cell.err;
     const inval = cellInvalid(sheet, r, c, cell);
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell ? cellInnerHtml(cell, disp) : ""}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell ? cellInnerHtml(cell, disp) : ""}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -3535,7 +3541,10 @@ function paintFrozen(g, sx, sy, c0, c1) {
     for (let c = c0; c <= c1; c++) {
       const cell = sheet.cells.get(cellKey(r, c));
       const w = g.colX[c + 1] - g.colX[c];
-      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}</div>`;
+      const fzFlt = r === 0 && g.filterMode && c <= (g.fltMaxC ?? -1)
+        ? `<button type="button" class="wb-flt-btn ${g.filters.has(c) ? "is-filtered" : ""}" data-wb-fltbtn="${c}" title="Filter column ${colLabel(c)}" aria-label="Filter column ${colLabel(c)}">${g.filters.has(c) ? "▼" : "▾"}</button>`
+        : "";
+      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}${fzFlt}</div>`;
     }
     g.els.frozenTop.hidden = false;
     g.els.frozenTop.style.height = h + "px";
@@ -4279,6 +4288,8 @@ function switchSheet(g, sheetId) {
   recalcSheet(sheet); // cross-sheet inputs may have changed while hidden
   closeFindPanel(g);
   g.filters = new Map();
+  g.filterMode = false;
+  g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.remove("is-on");
   g.active = { r: 0, c: 0 };
   g.sel = { r0: 0, c0: 0, r1: 0, c1: 0 };
   g.undo = []; g.redo = [];
@@ -5663,6 +5674,18 @@ function openSortDialog(g) {
 // values as checkboxes plus a contains-text box. Filters stack across
 // columns; the chip below the grid summarizes and clears them.
 
+// Excel's Filter toggle: on → every header cell in the used range grows
+// a ▾ dropdown; off → buttons and all criteria clear.
+function toggleFilterMode(g) {
+  g.filterMode = !g.filterMode;
+  if (!g.filterMode) g.filters = new Map();
+  const btn = g.els.body.querySelector('[data-wb-tb="filter"]');
+  if (btn) btn.classList.toggle("is-on", g.filterMode);
+  computeGeometry(g);
+  repaintGrid(g);
+  if (g.els.sbmode) g.els.sbmode.textContent = g.filterMode ? "Filter on — use the ▾ buttons in the header row" : "Ready";
+}
+
 const FILTER_VALUE_CAP = 200;
 
 function openFilterPanel(g, col, anchorEl, at) {
@@ -5707,7 +5730,14 @@ function openFilterPanel(g, col, anchorEl, at) {
     const picked = new Set(boxes.filter((cb) => cb.checked).map((cb) => cb.getAttribute("data-fp-val")));
     closeAllPopovers();
     if (!text && all) g.filters.delete(col);
-    else g.filters.set(col, { text: text || null, values: all ? null : picked });
+    else {
+      g.filters.set(col, { text: text || null, values: all ? null : picked });
+      // applying a filter turns filter mode on so the header ▾ buttons show
+      if (!g.filterMode) {
+        g.filterMode = true;
+        g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.add("is-on");
+      }
+    }
     computeGeometry(g);
     repaintGrid(g);
     g.els.grid.focus();
@@ -7005,9 +7035,10 @@ function bindGridEvents(g) {
       }
     }
 
-    // ── validation dropdown ── (opened from the document click delegate —
-    // opening here on mousedown would be undone by the click-away closer)
-    if (e.target.closest("[data-wb-dvbtn]")) { e.preventDefault(); return; }
+    // ── validation dropdown + header filter buttons ── (opened from the
+    // document click delegate — opening here on mousedown would be undone
+    // by the click-away closer)
+    if (e.target.closest("[data-wb-dvbtn]") || e.target.closest("[data-wb-fltbtn]")) { e.preventDefault(); return; }
 
     // ── drag-fill handle ──
     const fh = e.target.closest("[data-wb-fillhandle]");
@@ -7481,7 +7512,7 @@ function bindGridEvents(g) {
       case "sort-asc": sortByColumn(g, g.active.c, "asc"); break;
       case "sort-desc": sortByColumn(g, g.active.c, "desc"); break;
       case "sort-custom": openSortDialog(g); return;
-      case "filter": openFilterPanel(g, g.active.c, btn); return;
+      case "filter": toggleFilterMode(g); break;
       case "numfmt-menu":
       case "fill-menu":
       case "textc-menu":
@@ -8242,6 +8273,7 @@ function wbMenuItems(menu, g) {
         { label: "Sort sheet by active column, Z→A", act: "data:sort-desc", disabled: !ed || !g },
         { label: "Custom sort…", act: "data:sort", disabled: !ed || !g },
         sep,
+        { label: g && g.filterMode ? "Remove filter" : "Create a filter", act: "data:filter-toggle", disabled: !g },
         { label: "Filter this column…", act: "data:filter", disabled: !g },
         { label: "Clear filters", act: "data:filter-clear", disabled: !g },
         { label: "Filter views", sub: [
@@ -8318,6 +8350,7 @@ function wbMenuAction(act, g) {
     case "data:sort-asc": if (need()) sortByColumn(g, g.active.c, "asc"); return;
     case "data:sort-desc": if (need()) sortByColumn(g, g.active.c, "desc"); return;
     case "data:sort": if (need()) openSortDialog(g); return;
+    case "data:filter-toggle": if (need()) toggleFilterMode(g); return;
     case "data:filter": if (need()) openFilterPanel(g, g.active.c, null, { x: Math.max(16, window.innerWidth / 2 - 132), y: 180 }); return;
     case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); } return;
     case "data:fv-save": if (need()) saveFilterView(g); return;
@@ -8516,6 +8549,14 @@ function installRootListeners() {
       const gridEl = dvb.closest("[data-wb-gridfocus]");
       const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
       if (g) openValidationPicker(g, dvb);
+      return;
+    }
+
+    const fltb = e.target.closest("[data-wb-fltbtn]");
+    if (fltb) {
+      const gridEl = fltb.closest("[data-wb-gridfocus]");
+      const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
+      if (g) openFilterPanel(g, +fltb.getAttribute("data-wb-fltbtn"), fltb);
       return;
     }
 

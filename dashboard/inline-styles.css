@@ -28856,6 +28856,16 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-cell.is-err{color:var(--red);font-weight:600;background:var(--red-soft,rgba(220,38,38,.05))}
 #view-workbooks .wb-cell.is-link{cursor:pointer}
 #view-workbooks .wb-rot{display:inline-block;transform-origin:center;white-space:nowrap}
+#view-workbooks .wb-flt-btn{
+  position:absolute;right:2px;top:50%;transform:translateY(-50%);
+  width:17px;height:17px;padding:0;
+  border:1px solid var(--wb-grid-line,#DADCE0);border-radius:4px;
+  background:var(--surface);color:var(--text-subtle);
+  font-size:9px;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+}
+#view-workbooks .wb-flt-btn:hover{color:var(--text);border-color:var(--border-strong)}
+#view-workbooks .wb-flt-btn.is-filtered{background:var(--accent,#2563EB);border-color:var(--accent,#2563EB);color:#fff}
 #view-workbooks .wb-cmark{
   position:absolute;top:0;right:0;width:0;height:0;
   border-style:solid;border-width:0 7px 7px 0;
