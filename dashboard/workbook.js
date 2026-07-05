@@ -2034,6 +2034,9 @@ function applyReportRefresh(g, sheet, { headers, rows }) {
   if (sheet.rowCount < wantRows + 20) { sheet.rowCount = wantRows + 40; saveSheetMeta(sheet.id); }
   recalcWithSiblings(sheet);
   markCellsDirty(sheet, touched);
+  // the refresh writes rows in provider order — restore the operator's sort
+  const spec = Array.isArray(sheet.meta && sheet.meta.sortSpec) ? sheet.meta.sortSpec.filter((sp) => typeof sp.col === "number" && sp.col < sheet.colCount) : null;
+  if (spec && spec.length) sortBySpecs(g, spec, { quiet: true });
   computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
@@ -3124,8 +3127,9 @@ function mountSheetBlock(block, body) {
     fxWord: null,
   };
   GRIDS.set(block.id, g);
-  computeGeometry(g);
   bindGridEvents(g);
+  restoreViewState(g);
+  computeGeometry(g);
   renderSheetTabs(g);
   repaintGrid(g);
   syncFormulaBar(g);
@@ -3303,6 +3307,7 @@ function setZoom(g, z) {
   g.els.grid.style.setProperty("--wb-zoom", String(g.zoom));
   const sel = g.els.body.querySelector("[data-wb-zoom]");
   if (sel) sel.value = String(g.zoom);
+  try { localStorage.setItem("rr-wb-zoom-" + g.sheet.id, String(g.zoom)); } catch (_) {}
   cancelEdit(g);
   computeGeometry(g);
   repaintGrid(g);
@@ -4315,9 +4320,7 @@ function switchSheet(g, sheetId) {
   g.sheet = sheet;
   recalcSheet(sheet); // cross-sheet inputs may have changed while hidden
   closeFindPanel(g);
-  g.filters = new Map();
-  g.filterMode = false;
-  g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.remove("is-on");
+  restoreViewState(g); // persisted filters/filter mode + this viewer's zoom
   g.active = { r: 0, c: 0 };
   g.sel = { r0: 0, c0: 0, r1: 0, c1: 0 };
   g.undo = []; g.redo = [];
@@ -5562,6 +5565,9 @@ function openFindPanel(g, withReplace) {
 
 function sortByColumn(g, col, dir) { sortBySpecs(g, [{ col, dir }]); }
 
+// Quiet = no activity log and no sort-spec persistence (used when a live
+// report refresh re-applies the operator's saved sort).
+
 // Ordinal text values sort by meaning, not alphabet — a Risk Level
 // column sorts High→Medium→Low, never High→Low→Medium. A set applies
 // only when EVERY non-empty value in the column belongs to it.
@@ -5570,8 +5576,9 @@ const WB_SORT_ORDINALS = [
   { good: 0, warning: 1, serious: 2, critical: 3 },
 ];
 
-function sortBySpecs(g, specs) {
+function sortBySpecs(g, specs, opts) {
   if (!WB.canEdit || !specs || !specs.length) return;
+  const quiet = !!(opts && opts.quiet);
   const sheet = g.sheet;
   cancelEdit(g);
   let maxRow = 0;
@@ -5661,7 +5668,12 @@ function sortBySpecs(g, specs) {
   g.redo = [];
   recalcWithSiblings(sheet);
   markCellsDirty(sheet, [...touched]);
-  wbLog("sheet.sorted", `sorted ${sheet.name} by ${specs.map((sp) => `${colLabel(sp.col)} ${sp.dir === "asc" ? "A→Z" : "Z→A"}`).join(", ")}`, { target_type: "sheet", target_id: sheet.id });
+  if (!quiet) {
+    wbLog("sheet.sorted", `sorted ${sheet.name} by ${specs.map((sp) => `${colLabel(sp.col)} ${sp.dir === "asc" ? "A→Z" : "Z→A"}`).join(", ")}`, { target_type: "sheet", target_id: sheet.id });
+    // remember the sort so live report refreshes can restore it
+    sheet.meta = { ...(sheet.meta || {}), sortSpec: specs.map((sp) => ({ col: sp.col, dir: sp.dir })) };
+    saveSheetMeta(sheet.id);
+  }
   computeGeometry(g);
   repaintGrid(g);
 }
@@ -5741,7 +5753,44 @@ function toggleFilterMode(g) {
   if (btn) btn.classList.toggle("is-on", g.filterMode);
   computeGeometry(g);
   repaintGrid(g);
+  persistFilterState(g);
   if (g.els.sbmode) g.els.sbmode.textContent = g.filterMode ? "Filter on — use the ▾ buttons in the header row" : "Ready";
+}
+
+// ─── View-state persistence ──────────────────────────────────────────────────
+// Filters + filter mode live in sheet.meta (shared, like Sheets' on-sheet
+// filter); zoom is a personal preference and stays in localStorage.
+
+function persistFilterState(g) {
+  if (!WB.canEdit) return;
+  g.sheet.meta = {
+    ...(g.sheet.meta || {}),
+    filterState: {
+      on: g.filterMode,
+      filters: [...g.filters.entries()].map(([col, f]) => ({ col, text: f.text || null, values: f.values ? [...f.values] : null })),
+    },
+  };
+  saveSheetMeta(g.sheet.id);
+}
+
+function restoreViewState(g) {
+  const sheet = g.sheet;
+  const fs = sheet.meta && sheet.meta.filterState;
+  g.filters = new Map();
+  g.filterMode = false;
+  if (fs && typeof fs === "object") {
+    g.filterMode = !!fs.on;
+    for (const f of Array.isArray(fs.filters) ? fs.filters : []) {
+      if (typeof f.col === "number") g.filters.set(f.col, { text: f.text || null, values: Array.isArray(f.values) ? new Set(f.values) : null });
+    }
+  }
+  g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.toggle("is-on", g.filterMode);
+  let z = 1;
+  try { z = parseFloat(localStorage.getItem("rr-wb-zoom-" + sheet.id)) || 1; } catch (_) {}
+  g.zoom = Math.min(2, Math.max(0.5, z));
+  g.els.grid.style.setProperty("--wb-zoom", String(g.zoom));
+  const zs = g.els.body.querySelector("[data-wb-zoom]");
+  if (zs) zs.value = String(g.zoom);
 }
 
 const FILTER_VALUE_CAP = 200;
@@ -5802,6 +5851,7 @@ function openFilterPanel(g, col, anchorEl, at) {
     }
     computeGeometry(g);
     repaintGrid(g);
+    persistFilterState(g);
     g.els.grid.focus();
   };
   allBox.addEventListener("change", () => {
@@ -5830,6 +5880,7 @@ function openFilterPanel(g, col, anchorEl, at) {
     g.filters.delete(col);
     computeGeometry(g);
     repaintGrid(g);
+    persistFilterState(g);
     g.els.grid.focus();
   });
   setTimeout(() => m.querySelector("[data-fp-text]")?.focus(), 30);
@@ -6224,8 +6275,13 @@ function applyFilterView(g, viewId) {
   const view = sheetFilterViews(g.sheet).find((v) => v.id === viewId);
   if (!view) return;
   g.filters = new Map(view.filters.map((f) => [f.col, { text: f.text || null, values: f.values ? new Set(f.values) : null }]));
+  if (g.filters.size && !g.filterMode) {
+    g.filterMode = true;
+    g.els.body.querySelector('[data-wb-tb="filter"]')?.classList.add("is-on");
+  }
   computeGeometry(g);
   repaintGrid(g);
+  persistFilterState(g);
 }
 
 function deleteFilterView(g, viewId) {
@@ -8442,7 +8498,7 @@ function wbMenuAction(act, g) {
     case "data:sort": if (need()) openSortDialog(g); return;
     case "data:filter-toggle": if (need()) toggleFilterMode(g); return;
     case "data:filter": if (need()) openFilterPanel(g, g.active.c, null, { x: Math.max(16, window.innerWidth / 2 - 132), y: 180 }); return;
-    case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); } return;
+    case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); persistFilterState(g); } return;
     case "data:fv-save": if (need()) saveFilterView(g); return;
     case "data:stats": if (need()) showColumnStats(g); return;
     case "data:validation": if (need()) openValidationDialog(g); return;
@@ -8712,7 +8768,7 @@ function installRootListeners() {
       case "sheet-add": addSheetTo(actBtn.getAttribute("data-block")); break;
       case "filter-clear": {
         const g = GRIDS.get(actBtn.getAttribute("data-block"));
-        if (g) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); }
+        if (g) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); persistFilterState(g); }
         break;
       }
       case "item-toggle": if (itemHost) toggleItem(itemHost.getAttribute("data-wb-item")); break;
