@@ -28677,14 +28677,20 @@ body.rr-cmdk-open{ overflow:hidden }
 .popover-item.is-danger{color:var(--red)}
 .popover-item[disabled]{opacity:.45;cursor:default}
 
-/* ── Spreadsheet toolbar ── */
+/* ── Spreadsheet toolbar ──
+   Sheets-style: a shaded pill band with larger, darker icons. */
 #view-workbooks .wb-toolbar{
   display:flex;align-items:center;gap:var(--s-1);flex-wrap:wrap;
-  padding:4px 0 6px;border-bottom:1px solid var(--border-subtle);margin-bottom:6px;
+  padding:5px 12px;margin-bottom:8px;
+  background:var(--wb-toolbar-bg,#F0F4F9);
+  border-radius:999px;
 }
-#view-workbooks .wb-tgrp{display:inline-flex;align-items:center;gap:1px;padding:0 5px;border-right:1px solid var(--border-subtle)}
+#view-workbooks .wb-tgrp{display:inline-flex;align-items:center;gap:1px;padding:0 6px;border-right:1px solid rgba(68,71,70,.16)}
 #view-workbooks .wb-tgrp:last-child{border-right:0}
-#view-workbooks .wb-tb-txt{font-size:12px;line-height:1;width:14px;display:inline-block;text-align:center}
+#view-workbooks .wb-tb{color:var(--wb-toolbar-ink,#444746)}
+#view-workbooks .wb-tb:hover:not([disabled]){background:rgba(68,71,70,.09)}
+#view-workbooks .wb-tb svg{width:16px;height:16px}
+#view-workbooks .wb-tb-txt{font-size:13px;line-height:1;width:16px;display:inline-block;text-align:center}
 #view-workbooks .wb-tb-textc{border-bottom:2.5px solid var(--red);padding-bottom:1px}
 #view-workbooks .wb-tb-numfmt{font-size:var(--fs-xs);font-weight:600;padding:4px 8px}
 #view-workbooks .wb-tb-pop{min-width:200px;left:0;right:auto}
@@ -29128,9 +29134,8 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-block-primary{border:0;box-shadow:none;background:transparent;border-radius:0}
 #view-workbooks .wb-block-primary > .wb-block-head{padding:0 2px}
 #view-workbooks .wb-block-primary > .wb-block-body{padding:var(--s-1) 0 0}
-#view-workbooks .wb-block-primary .wb-toolbar{background:var(--surface);border:1px solid var(--border);border-bottom:0;border-radius:var(--r-md) var(--r-md) 0 0;padding:5px 8px;margin-bottom:0}
-#view-workbooks .wb-block-primary .wb-fbar{border-radius:0}
-#view-workbooks .wb-tb-sigma{font-size:14px;font-weight:650;line-height:1}
+#view-workbooks .wb-block-primary .wb-toolbar{padding:5px 12px;margin-bottom:6px}
+#view-workbooks .wb-tb-sigma{font-size:15px;font-weight:650;line-height:1}
 /* Format cells dialog + decimal toolbar buttons */
 #view-workbooks .wb-tb-dec{font-size:10px;font-weight:700;letter-spacing:-.02em}
 .wb-fmt-checks{display:flex;align-items:center;gap:var(--s-3);padding:8px 2px;font-size:var(--fs-md)}
