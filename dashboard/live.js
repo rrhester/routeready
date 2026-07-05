@@ -9450,7 +9450,7 @@ function _rrRenderContacts() {
       const line = [escapeHtml(p.name || ""), p.role ? escapeHtml(p.role) : "", tel].filter(Boolean).join(" · ");
       return `<span class="ctp-poc">${line}</span>`;
     }).join("");
-    return `<div class="ctp-row" role="listitem" draggable="true" data-rr-contact-id="${escapeHtml(c.id)}" title="Drag onto a Fleet-calendar day to schedule service">
+    return `<div class="ctp-row" role="listitem" tabindex="0" draggable="true" data-rr-contact-id="${escapeHtml(c.id)}" title="Click for details · drag onto a Fleet-calendar day to schedule service">
       <span class="ctp-avatar" aria-hidden="true">${escapeHtml(init)}</span>
       <span class="ctp-who">
         <span class="ctp-name">${escapeHtml(c.name || "")}</span>
@@ -9461,6 +9461,121 @@ function _rrRenderContacts() {
     </div>`;
   }).join("");
 }
+// ── Contact detail popup · click a row to see the full card ──
+// A small floating card, anchored beside the clicked row, showing every
+// field on the contact (phones, emails, addresses, sites, dates, custom
+// fields, points of contact, notes) with tap-to-call / tap-to-email
+// links. Dismisses on outside click / Escape; Edit hands off to the
+// panel's inline editor.
+const _RR_CTP_SITE = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+const _RR_CTP_PIN = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+const _RR_CTP_CAKE = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v3M12 8v3M17 8v3"/><path d="M7 4h.01M12 4h.01M17 4h.01"/></svg>`;
+const _RR_CTP_TAG = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.59a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`;
+// Human label for a significant date ("June 7" / "June 7, 1985").
+function _rrCtpDateLabel(d) {
+  if (!d) return "";
+  const mo = d.m ? (_RR_CTP_MONTHS[d.m - 1] || "") : "";
+  const dd = d.d != null ? String(d.d) : "";
+  const head = [mo, dd].filter(Boolean).join(" ").trim();
+  return d.y ? (head ? `${head}, ${d.y}` : String(d.y)) : head;
+}
+// Build one detail block: an icon + a stack of value lines (each an
+// optional anchor). Returns "" when there are no values.
+function _rrCtpDetailBlock(icon, label, values) {
+  const rows = (values || []).filter((v) => v && v.text);
+  if (!rows.length) return "";
+  const lines = rows.map((v) => v.href
+    ? `<a class="ctpd-val" href="${escapeHtml(v.href)}"${v.blank ? ` target="_blank" rel="noopener"` : ""}>${escapeHtml(v.text)}</a>`
+    : `<span class="ctpd-val">${escapeHtml(v.text)}</span>`).join("");
+  return `<div class="ctpd-block">
+    <span class="ctpd-ic" aria-hidden="true" title="${escapeHtml(label)}">${icon}</span>
+    <span class="ctpd-lines">${lines}</span>
+  </div>`;
+}
+function _rrCtpDetailClose() {
+  const el = document.getElementById("rr-ctp-detail");
+  if (el) { try { el.remove(); } catch (_) {} }
+  document.removeEventListener("keydown", _rrCtpDetailKey, true);
+}
+function _rrCtpDetailKey(e) {
+  if (e.key === "Escape") { e.preventDefault(); _rrCtpDetailClose(); }
+}
+function _rrCtpShowDetail(id, anchorEl) {
+  const raw = _rrLoadContacts().find((x) => x.id === id);
+  if (!raw) return;
+  // A second click on the same open contact toggles the popup shut.
+  const open = document.getElementById("rr-ctp-detail");
+  if (open && open.dataset.id === id) { _rrCtpDetailClose(); return; }
+  _rrCtpDetailClose();
+  const c = _rrCtpNorm(raw);
+  const tel = (p) => `tel:${String(p).replace(/[^+\d]/g, "")}`;
+  const init = (c.name || "").trim().slice(0, 1).toUpperCase() || "•";
+  const heading = [c.company, c.title].filter(Boolean).join(" · ");
+  const phones = _rrCtpDetailBlock(_RR_CTP_PHONE, "Phone", c.phones.map((p) => ({ text: p, href: tel(p) })));
+  const emails = _rrCtpDetailBlock(_RR_CTP_MAIL, "Email", c.emails.map((m) => ({ text: m, href: `mailto:${m}` })));
+  const addrs = _rrCtpDetailBlock(_RR_CTP_PIN, "Address", c.addresses.map((a) => ({
+    text: a, href: `https://maps.google.com/?q=${encodeURIComponent(a)}`, blank: true })));
+  const sites = _rrCtpDetailBlock(_RR_CTP_SITE, "Website", c.sites.map((s) => ({
+    text: s, href: /^https?:\/\//i.test(s) ? s : `https://${s}`, blank: true })));
+  const dates = _rrCtpDetailBlock(_RR_CTP_CAKE, "Significant date",
+    c.dates.map((d) => ({ text: _rrCtpDateLabel(d) })));
+  const customs = c.customs.filter((x) => x.label || x.value).map((x) => _rrCtpDetailBlock(
+    _RR_CTP_TAG, x.label || "Custom", [{ text: [x.label, x.value].filter(Boolean).join(": ") }])).join("");
+  const pocs = c.pocs.length ? `<div class="ctpd-pocs">
+      <div class="ctpd-sec-h">Points of contact</div>
+      ${c.pocs.map((p) => {
+        const t = p.phone ? `<a class="ctpd-poc-tel" href="${tel(p.phone)}">${escapeHtml(p.phone)}</a>` : "";
+        const meta = [p.role ? escapeHtml(p.role) : "", t].filter(Boolean).join(" · ");
+        return `<div class="ctpd-poc"><span class="ctpd-poc-name">${escapeHtml(p.name || "")}</span>${meta ? `<span class="ctpd-poc-meta">${meta}</span>` : ""}</div>`;
+      }).join("")}
+    </div>` : "";
+  const notes = c.notes ? `<div class="ctpd-notes">${escapeHtml(c.notes)}</div>` : "";
+  const body = [phones, emails, addrs, sites, dates, customs].filter(Boolean).join("");
+  const el = document.createElement("div");
+  el.id = "rr-ctp-detail";
+  el.className = "ctpd";
+  el.dataset.id = id;
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", `Contact details for ${c.name || "contact"}`);
+  el.innerHTML = `
+    <div class="ctpd-head">
+      <span class="ctpd-avatar" aria-hidden="true">${escapeHtml(init)}</span>
+      <span class="ctpd-id">
+        <span class="ctpd-name">${escapeHtml(c.name || "Unnamed contact")}</span>
+        ${heading ? `<span class="ctpd-org">${escapeHtml(heading)}</span>` : ""}
+      </span>
+      <button type="button" class="ctpd-x" data-rr-ctpd-close aria-label="Close">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    ${body ? `<div class="ctpd-body">${body}</div>` : ""}
+    ${pocs}
+    ${notes}
+    ${(!body && !pocs && !notes) ? `<div class="ctpd-empty">No further details on file.</div>` : ""}
+    <div class="ctpd-foot">
+      <button type="button" class="ctp-btn" data-rr-ctpd-edit="${escapeHtml(id)}">Edit</button>
+    </div>`;
+  document.body.appendChild(el);
+  // Anchor beside the row: prefer the space to the left of the rail
+  // panel; flip to the right (or center) when the viewport is tight.
+  try {
+    const a = (anchorEl && anchorEl.getBoundingClientRect) ? anchorEl.getBoundingClientRect() : null;
+    const panel = document.getElementById("rr-sched-contacts");
+    const pr = panel ? panel.getBoundingClientRect() : null;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight, pad = 10;
+    let left;
+    if (pr && pr.left - w - pad >= pad) left = pr.left - w - pad;      // to the left of the panel
+    else if (pr && pr.right + w + pad <= vw - pad) left = pr.right + pad; // to the right
+    else left = Math.max(pad, (vw - w) / 2);                          // centered fallback
+    let top = a ? a.top : (vh - h) / 2;
+    top = Math.min(Math.max(pad, top), vh - h - pad);
+    el.style.left = Math.round(left) + "px";
+    el.style.top = Math.round(top) + "px";
+  } catch (_) {}
+  document.addEventListener("keydown", _rrCtpDetailKey, true);
+}
+try { window._rrCtpShowDetail = _rrCtpShowDetail; } catch (_) {}
 function _rrCtpForm() { return document.querySelector("#rr-sched-contacts [data-rr-contact-form]"); }
 function _rrCtpField(name) { return document.querySelector(`#rr-sched-contacts [data-rr-contact-${name}]`); }
 // Normalize a stored contact to the full (Google-style) shape. Older
@@ -9910,7 +10025,22 @@ document.addEventListener("pointerdown", (e) => {
   const btn = e.target.closest && e.target.closest(".sched-util-btn");
   if (btn) _rrNtSpawnRipple(btn);
 });
+// Keyboard: Enter / Space on a focused contact row opens its detail popup.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const row = e.target.closest && e.target.closest(".ctp-row[data-rr-contact-id]");
+  if (!row || e.target.closest(".ctp-acts")) return;
+  e.preventDefault();
+  _rrCtpShowDetail(row.getAttribute("data-rr-contact-id"), row);
+});
 document.addEventListener("click", (e) => {
+  // Contact detail popup · dismiss on any click that lands outside the
+  // card and off a contact row (the row's own click re-targets it).
+  if (document.getElementById("rr-ctp-detail")
+      && !e.target.closest("#rr-ctp-detail")
+      && !e.target.closest(".ctp-row[data-rr-contact-id]")) {
+    _rrCtpDetailClose();
+  }
   // Rail toggles — Notes and Tasks each open their own panel; opening one
   // closes the other (panel manager). Clicking an open panel's icon closes it.
   if (e.target.closest("[data-rr-notes-toggle]")) { e.preventDefault(); _rrNtPanelToggle("notes"); return; }
@@ -9938,6 +10068,10 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("[data-rr-contact-poc-add]")) { e.preventDefault(); _rrCtpPocRow(); return; }
   if (e.target.closest("[data-rr-contact-save]")) { e.preventDefault(); _rrCtpSave(); return; }
   if (e.target.closest("[data-rr-contact-cancel]")) { e.preventDefault(); _rrCtpFormReset(true); return; }
+  // Contact detail popup · close / edit-from-popup.
+  if (e.target.closest("[data-rr-ctpd-close]")) { e.preventDefault(); _rrCtpDetailClose(); return; }
+  const cpEdit = e.target.closest("[data-rr-ctpd-edit]");
+  if (cpEdit) { e.preventDefault(); const id = cpEdit.getAttribute("data-rr-ctpd-edit"); _rrCtpDetailClose(); _rrCtpBeginEdit(id); return; }
   const cEdit = e.target.closest("[data-rr-contact-edit]");
   if (cEdit) { e.preventDefault(); _rrCtpBeginEdit(cEdit.getAttribute("data-rr-contact-edit")); return; }
   const cDel = e.target.closest("[data-rr-contact-del]");
@@ -9971,6 +10105,14 @@ document.addEventListener("click", (e) => {
       if (f && f.dataset.editing === id) _rrCtpFormReset(true);
       _rrRenderContacts();
     }
+    return;
+  }
+  // Click a contact row (off its quick-action buttons and POC phone
+  // links) → open the detail popup for that contact.
+  const cRow = e.target.closest(".ctp-row[data-rr-contact-id]");
+  if (cRow && !e.target.closest(".ctp-acts") && !e.target.closest(".ctp-poc-tel")) {
+    e.preventDefault();
+    _rrCtpShowDetail(cRow.getAttribute("data-rr-contact-id"), cRow);
     return;
   }
   // Composer
