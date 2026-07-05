@@ -224,27 +224,16 @@
                sit on a blue card inside the white pop-out; account actions
                (Settings / Sign out) stay on the white panel below it. -->
           <div class="rr-al-card">
-          <!-- App switcher · mirrors the visible sidebar destinations so the
-               drawer can navigate anywhere even when the rail is hidden (Drive).
-               Populated by buildApps() on open. -->
-          <div id="rr-al-apps" class="rr-al-apps"></div>
+          <!-- Utility actions only (operator request 2026-07-05): the sidebar
+               views (Schedule, Onboarding, Fleet, …) used to be mirrored here
+               by buildApps(), but they duplicate the always-visible left rail.
+               Vault + Reports were also retired from the launcher — Vault
+               lives inside Workbooks now. -->
           <!-- ADP Sync · connect the DSP's ADP account so employees, PTO and
                org data stay in sync. Opens the #modal-adp-sync box. -->
           <button type="button" class="rr-al-item" role="menuitem" data-al-act="adpsync">
             <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></span>
             <span class="rr-al-lbl">ADP Sync</span>
-          </button>
-          <!-- Drive · RouteReady's document management workspace. Opens the
-               dedicated #view-drive page. -->
-          <button type="button" class="rr-al-item" role="menuitem" data-al-act="drive">
-            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
-            <span class="rr-al-lbl">Vault</span>
-          </button>
-          <!-- Reports · opens the Reports Builder modal (reports.js via
-               window.openReportsBuilder). -->
-          <button type="button" class="rr-al-item" role="menuitem" data-al-act="reports">
-            <span class="rr-al-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></span>
-            <span class="rr-al-lbl">Reports</span>
           </button>
           <!-- Indeed Import · bulk-ingest applicants from Indeed (built) —
                opens #modal-bulk-ingest. -->
@@ -351,29 +340,7 @@
             panel.style.left = Math.round(left) + 'px';
           }
           function close () { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
-          // Mirror every visible sidebar destination into the drawer so it
-          // works as a full app switcher (needed on Drive, where the rail is
-          // hidden). Role-gated items (style.display:none) are skipped, so the
-          // drawer never offers a page the operator can't open.
-          function buildApps () {
-            var apps = document.getElementById('rr-al-apps');
-            if (!apps) return;
-            apps.innerHTML = '';
-            var items = Array.prototype.slice.call(document.querySelectorAll('.nav .nav-item[data-view]'));
-            items.forEach(function (nav) {
-              if (nav.style.display === 'none') return;        // role-gated
-              var view = nav.getAttribute('data-view');
-              if (!view || view === 'settings') return;        // Settings lives in the footer
-              var label = nav.getAttribute('title') || (nav.textContent || '').replace(/\s+/g, ' ').trim();
-              var icoSvg = nav.querySelector('.nav-icon svg, svg');
-              var b = document.createElement('button');
-              b.type = 'button'; b.className = 'rr-al-item'; b.setAttribute('role', 'menuitem');
-              b.setAttribute('data-al-go', view);
-              b.innerHTML = '<span class="rr-al-ico">' + (icoSvg ? icoSvg.outerHTML : '') + '</span><span class="rr-al-lbl">' + label + '</span>';
-              apps.appendChild(b);
-            });
-          }
-          function open () { buildApps(); panel.hidden = false; place(); btn.setAttribute('aria-expanded', 'true'); }
+          function open () { panel.hidden = false; place(); btn.setAttribute('aria-expanded', 'true'); }
           btn.addEventListener('click', function (e) {
             e.stopPropagation();
             if (panel.hidden) open(); else close();
