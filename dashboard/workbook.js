@@ -6340,13 +6340,15 @@ function cellLink(cell) {
 
 // Open a cell's link. Email (mailto:) links open RouteReady's own email
 // composer rather than the OS mail handler (Gmail); web links open a tab.
-// Falls back to the plain mailto: handler if the in-app composer isn't loaded.
+// We deliberately never hand a workbook email off to Gmail — if the in-app
+// composer module hasn't initialized yet, tell the operator how to arm it
+// rather than falling back to the OS handler they explicitly don't want.
 function openWbLink(url) {
   if (!url) return;
   if (/^mailto:/i.test(url)) {
     const to = decodeURIComponent(url.replace(/^mailto:/i, "").split("?")[0]);
     if (typeof window.rrOpenEmailComposer === "function") { window.rrOpenEmailComposer({ mode: "new", to }); return; }
-    window.location.href = url; // no in-app mailbox — fall back to the OS handler
+    _toast("Open the Mail tab once so the RouteReady composer is ready, then click the email again", "warn");
     return;
   }
   window.open(url, "_blank", "noopener");
@@ -12290,13 +12292,15 @@ function bindGridEvents(g) {
   });
 
   // A click on a rendered email link opens RouteReady's email composer
-  // (prefilled) instead of navigating to the mailto: handler. Web links keep
-  // their native new-tab behaviour, so they're left untouched here.
+  // (prefilled) instead of navigating to the mailto: handler. We always
+  // intercept email links — even if the composer isn't up yet — so a workbook
+  // email never falls through to the OS mail app (Gmail). Web links keep their
+  // native new-tab behaviour, so they're left untouched here.
   grid.addEventListener("click", (e) => {
     const a = e.target.closest("a.wb-cell-link");
     if (!a) return;
     const href = a.getAttribute("href") || "";
-    if (/^mailto:/i.test(href) && typeof window.rrOpenEmailComposer === "function") {
+    if (/^mailto:/i.test(href)) {
       e.preventDefault();
       openWbLink(href);
     }
