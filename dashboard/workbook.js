@@ -3453,8 +3453,7 @@ function sheetToolbarHtml(block, ro) {
   return `<div class="wb-toolbar" role="toolbar" aria-label="Spreadsheet tools" data-wb-toolbar="${block.id}">
     <div class="wb-tgrp">${btn("undo", "Undo (Ctrl+Z)", I.undo)}${btn("redo", "Redo (Ctrl+Y)", I.redo)}${btn("paint-format", "Format painter — copy the active cell's formatting to the next selection", `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="14" height="5" rx="1"/><path d="M18 5h2v5H9v3"/><rect x="7" y="13" width="4" height="8" rx="1"/></svg>`)}</div>
     <div class="wb-tgrp">
-      <button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-fill" data-wb-tb="fill-people" title="Load the active roster into this sheet" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>People</button>
-      <button type="button" class="btn btn-sm wb-tb-buildbtn" data-wb-tb="fill-build" title="Build Schedule from Sheet — RouteReady recommends who should work" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9.5 15.5l2 2 3.5-3.5"/></svg>Build Schedule</button>
+      <button type="button" class="btn btn-ghost btn-sm wb-tb wb-tb-fill" data-wb-tb="fill-people" title="Choose driver fields and load the roster into this sheet" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>People</button>
     </div>
     <div class="wb-tgrp">${btn("autosum", "AutoSum — insert =SUM(…) for the selection", `<span class="wb-tb-txt wb-tb-sigma">Σ</span>`)}</div>
     <div class="wb-tgrp">
@@ -8510,8 +8509,7 @@ function bindGridEvents(g) {
       case "fs-minus": adjustFontSize(g, -1); break;
       case "fs-plus": adjustFontSize(g, 1); break;
       case "find": openFindPanel(g, false); break;
-      case "fill-people": fillLoadDrivers(g); return;
-      case "fill-build": openBuildPanel(g); return;
+      case "fill-people": openPeoplePicker(g); return;
       case "panel-toggle": WB.panelOpen = !WB.panelOpen; syncPanelVisibility(); if (WB.panelOpen) renderPanel(); break;
       case "validation": openValidationDialog(g); break;
       case "condfmt": openCondFormatDialog(g); break;
@@ -9616,7 +9614,7 @@ function wbMenuAction(act, g) {
     case "fmt:cf": if (need()) openCondFormatDialog(g); return;
     case "fmt:cells": if (need()) openFormatCellsDialog(g); return;
     case "fmt:clear": if (need()) clearFormatting(g); return;
-    case "data:fill-people": if (need()) fillLoadDrivers(g); return;
+    case "data:fill-people": if (need()) openPeoplePicker(g); return;
     case "data:fill-build": if (need()) openBuildPanel(g); return;
     case "data:sort-asc": if (need()) sortByColumn(g, g.active.c, "asc"); return;
     case "data:sort-desc": if (need()) sortByColumn(g, g.active.c, "desc"); return;
@@ -10189,7 +10187,23 @@ export function registerDriverActions(fn) { DRIVER_ACTIONS = fn; }
 
 const FILL_DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FILL_GREEN = "#D9EAD3", FILL_AMBER = "#FFF2CC", FILL_RED = "#F4CCCC", FILL_GRAY = "#E8EAED";
-const FILL_HEADERS = ["Driver", "Status", "DOT", "XL", "EDV", "Available", "Preferred", "Risk", "Driver ID"];
+// pickable driver fields (People button) — [key, column label, default on]
+const FILL_FIELDS = [
+  ["status", "Status", true],
+  ["phone", "Phone", false],
+  ["email", "Email", false],
+  ["hire", "Hire date", false],
+  ["license", "License expiry", false],
+  ["dot", "DOT certified", true],
+  ["xl", "XL certified", true],
+  ["edv", "EDV certified", true],
+  ["avail", "Available days", true],
+  ["pref", "Preferred days", true],
+  ["risk", "Attendance risk (30d)", true],
+  ["calloffs", "Call-offs (30d)", false],
+  ["noshows", "No-shows (30d)", false],
+  ["lates", "Lates (30d)", false],
+];
 
 function fillIsoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function fillWeekDates(weekStart) {
@@ -10234,28 +10248,87 @@ function fillSheetDriverIds(sheet) {
   return ids;
 }
 
-// ── People: load the active roster into the sheet ──────────────────────
+// ── People: pick fields (report-builder style), then load the roster ────
 
-async function fillLoadDrivers(g) {
+function fillSavedFieldPicks() {
+  try {
+    const a = JSON.parse(localStorage.getItem("rr-wb-people-fields") || "null");
+    if (Array.isArray(a)) return new Set(a);
+  } catch (_) {}
+  return new Set(FILL_FIELDS.filter(([, , on]) => on).map(([k]) => k));
+}
+
+function openPeoplePicker(g) {
   if (!WB.canEdit) { _toast("You need edit access to load drivers", "info"); return; }
+  document.getElementById("wb-people-modal")?.remove();
+  const sel = fillSavedFieldPicks();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-people-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Load drivers" style="width:520px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Load drivers</p><p class="rr-modal-sub">Driver names always load — choose what comes with them</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <div class="wb-people-grid">
+          ${FILL_FIELDS.map(([k, label]) => `
+            <label class="wb-people-check">
+              <input type="checkbox" data-people-field="${k}" ${sel.has(k) ? "checked" : ""}>
+              <span>${esc(label)}</span>
+            </label>`).join("")}
+        </div>
+        <p class="wb-people-hint">A Driver ID column is added at the far right — it keeps rows matched to drivers when you sort or edit, and powers the row's Driver actions menu.</p>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-people-none style="margin-right:auto">Clear all</button>
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-people-load>Load drivers</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (e.target.closest("[data-people-none]")) {
+      wrap.querySelectorAll("[data-people-field]").forEach((i) => { i.checked = false; });
+      return;
+    }
+    if (e.target.closest("[data-people-load]")) {
+      const picks = [...wrap.querySelectorAll("[data-people-field]")].filter((i) => i.checked).map((i) => i.getAttribute("data-people-field"));
+      try { localStorage.setItem("rr-wb-people-fields", JSON.stringify(picks)); } catch (_) {}
+      wrap.remove();
+      fillLoadDrivers(g, new Set(picks));
+    }
+  });
+}
+
+async function fillLoadDrivers(g, picks) {
+  if (!WB.canEdit) { _toast("You need edit access to load drivers", "info"); return; }
+  picks = picks || fillSavedFieldPicks();
   const dsp = _dsp();
   if (!dsp) { _toast("No DSP context", "error"); return; }
   _toast("Loading drivers…", "info");
   try {
+    const needAtt = ["risk", "calloffs", "noshows", "lates"].some((k) => picks.has(k));
+    const cols = ["id", "full_name", "status", "hire_date", "dl_expires_on", "dot_certified", "xl_certified", "edv_certified", "metadata"];
+    if (picks.has("phone")) cols.push("phone");
+    if (picks.has("email")) cols.push("email");
     const since = new Date(); since.setDate(since.getDate() - 30);
     const [dRes, aRes] = await Promise.all([
-      _sb().from("drivers")
-        .select("id, full_name, status, hire_date, dl_expires_on, dot_certified, xl_certified, edv_certified, metadata")
+      _sb().from("drivers").select(cols.join(", "))
         .eq("dsp_id", dsp.id).in("status", ["active", "onboarding"]).order("full_name"),
-      _sb().from("shifts").select("driver_id, status")
-        .eq("dsp_id", dsp.id).gte("date", fillIsoDate(since))
-        .in("status", ["called_off", "no_show", "late"]),
+      needAtt
+        ? _sb().from("shifts").select("driver_id, status")
+            .eq("dsp_id", dsp.id).gte("date", fillIsoDate(since))
+            .in("status", ["called_off", "no_show", "late"])
+        : Promise.resolve({ data: [] }),
     ]);
     if (dRes.error) throw dRes.error;
     const drivers = dRes.data || [];
     if (!drivers.length) { _toast("No active drivers found", "info"); return; }
-    // attendance-risk aggregate (30 days) — same thresholds the
-    // Attendance report uses
+    // attendance aggregate (30 days) — same thresholds the report uses
     const agg = new Map();
     for (const s of (aRes.data || [])) {
       const a = agg.get(s.driver_id) || { callOff: 0, noShow: 0, late: 0 };
@@ -10275,32 +10348,40 @@ async function fillLoadDrivers(g) {
     const daysText = (codes) => Array.isArray(codes) && codes.length
       ? codes.map((c) => { const i = dayCodes.indexOf(String(c).toLowerCase()); return i >= 0 ? FILL_DOW[i] : c; }).join(" ")
       : "";
+    // one value + optional format per picked field
+    const fieldVal = {
+      status: (d) => [d.status === "active" ? "Active" : "Onboarding", {}],
+      phone: (d) => [d.phone || "", {}],
+      email: (d) => [d.email || "", {}],
+      hire: (d) => [d.hire_date ? String(d.hire_date).slice(0, 10) : "", {}],
+      license: (d) => [d.dl_expires_on ? String(d.dl_expires_on).slice(0, 10) : "", {}],
+      dot: (d) => [d.dot_certified ? "✓" : "—", { align: "center" }],
+      xl: (d) => [d.xl_certified ? "✓" : "—", { align: "center" }],
+      edv: (d) => [d.edv_certified ? "✓" : "—", { align: "center" }],
+      avail: (d) => [daysText(d.metadata?.availability?.days) || "Any", {}],
+      pref: (d) => [daysText(d.metadata?.availability?.preferred_days) || "—", {}],
+      risk: (d) => { const rk = riskOf(d.id); return [rk, { bg: rk === "High" ? FILL_RED : rk === "Medium" ? FILL_AMBER : FILL_GREEN, align: "center" }]; },
+      calloffs: (d) => [String(agg.get(d.id)?.callOff || 0), { align: "center" }],
+      noshows: (d) => [String(agg.get(d.id)?.noShow || 0), { align: "center" }],
+      lates: (d) => [String(agg.get(d.id)?.late || 0), { align: "center" }],
+    };
+    const fields = FILL_FIELDS.filter(([k]) => picks.has(k));
+    const headers = ["Driver", ...fields.map(([, label]) => label), "Driver ID"];
     const sheet = g.sheet;
+    if (headers.length > sheet.colCount) sheet.colCount = headers.length + 2;
     const changes = [];
-    FILL_HEADERS.forEach((h, c) => changes.push({ r: 0, c, cell: { value: h, formula: null, type: "text", format: { bold: true, bg: "header" } } }));
+    headers.forEach((h, c) => changes.push({ r: 0, c, cell: { value: h, formula: null, type: "text", format: { bold: true, bg: "header" } } }));
     drivers.forEach((d, i) => {
       const r = i + 1;
-      const risk = riskOf(d.id);
-      const av = d.metadata?.availability || {};
-      const row = [
-        d.full_name || d.id,
-        d.status === "active" ? "Active" : "Onboarding",
-        d.dot_certified ? "✓" : "—",
-        d.xl_certified ? "✓" : "—",
-        d.edv_certified ? "✓" : "—",
-        daysText(av.days) || "Any",
-        daysText(av.preferred_days) || "—",
-        risk,
-        d.id,
-      ];
-      row.forEach((v, c) => {
-        const fmt = {};
-        if (c === 7) fmt.bg = risk === "High" ? FILL_RED : risk === "Medium" ? FILL_AMBER : FILL_GREEN;
-        if (c === 8) fmt.fg = "muted";
-        changes.push({ r, c, cell: { value: String(v), formula: null, type: "text", format: fmt } });
+      changes.push({ r, c: 0, cell: { value: d.full_name || d.id, formula: null, type: "text", format: {} } });
+      fields.forEach(([k], j) => {
+        const [v, fmt] = fieldVal[k](d);
+        changes.push({ r, c: j + 1, cell: { value: String(v), formula: null, type: "text", format: fmt } });
       });
+      changes.push({ r, c: headers.length - 1, cell: { value: d.id, formula: null, type: "text", format: { fg: "muted" } } });
     });
     setCells(g, changes);
+    computeGeometry(g);
     WB.fillDrivers = new Map(drivers.map((d) => [d.id, d]));
     g.sheet.frozenRows = 1;
     sheet.meta = { ...(sheet.meta || {}), fill: { ...(sheet.meta?.fill || {}), loadedAt: new Date().toISOString() } };
@@ -10310,7 +10391,7 @@ async function fillLoadDrivers(g) {
     _toast(`Loaded ${drivers.length} drivers`, "success");
     wbLog("schedule.fill.loaded", `loaded ${drivers.length} drivers into ${sheet.name}`, {
       target_type: "sheet", target_id: sheet.id,
-      detail: { drivers: drivers.length },
+      detail: { drivers: drivers.length, fields: [...picks] },
     });
   } catch (e) { _toast("Couldn't load drivers: " + ((e && e.message) || e), "error"); }
 }

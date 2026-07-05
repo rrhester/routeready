@@ -29006,6 +29006,11 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-tb-buildbtn[disabled]{opacity:.55;cursor:default}
 #view-workbooks .wb-tb-buildbtn svg{width:14px;height:14px}
 
+/* People field picker — report-builder-style checkbox grid */
+.wb-people-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 18px;padding:4px 0 10px}
+.wb-people-check{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text);cursor:pointer;user-select:none}
+.wb-people-hint{font-size:var(--fs-xs);color:var(--text-subtle);margin:4px 0 0}
+
 /* Schedule Intelligence Bar — calm one-liner pinned with the chrome */
 #view-workbooks .wb-intel{
   display:flex;align-items:center;gap:6px;flex-wrap:wrap;
