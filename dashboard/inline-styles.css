@@ -28623,7 +28623,11 @@ body.rr-cmdk-open{ overflow:hidden }
 .wb-confirm-body{font-size:var(--fs-md);color:var(--text-muted);line-height:1.5;margin:0}
 
 /* ── Detail layout ── */
-#view-workbooks .wb-detail{display:flex;flex-direction:column;gap:var(--s-3);min-height:0}
+/* The workbook page is locked to the viewport (height set by
+   WB.fitDetail) — the page never scrolls, so the header row stays put.
+   The grid is the main scroller; anything taller lives in .wb-blocks,
+   which scrolls with the toolbar + formula bar pinned sticky. */
+#view-workbooks .wb-detail{display:flex;flex-direction:column;gap:var(--s-3);min-height:0;overflow:hidden}
 /* one compact row: back · title · menus · icons (the old two-line
    title/description header is gone; description lives behind an icon) */
 #view-workbooks .wb-head{
@@ -28674,8 +28678,12 @@ body.rr-cmdk-open{ overflow:hidden }
 #view-workbooks .wb-presence .wb-avatar{border:2px solid var(--surface);margin-left:-6px}
 #view-workbooks .wb-presence .wb-avatar:first-child{margin-left:0}
 #view-workbooks .wb-presence-n{font-size:var(--fs-xs);color:var(--text-subtle);margin-left:4px;white-space:nowrap}
-#view-workbooks .wb-body{display:flex;gap:var(--s-3);align-items:flex-start;min-width:0}
-#view-workbooks .wb-blocks{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--s-3)}
+#view-workbooks .wb-body{display:flex;gap:var(--s-3);align-items:flex-start;min-width:0;flex:1;min-height:0}
+#view-workbooks .wb-blocks{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--s-3);align-self:stretch;min-height:0;overflow-y:auto}
+/* toolbar + formula bar ride the top of the blocks scroller (surface
+   inside white block cards; canvas on the bare primary sheet) */
+#view-workbooks .wb-chrome{position:sticky;top:0;z-index:30;background:var(--surface)}
+#view-workbooks .wb-block-primary .wb-chrome{background:var(--canvas)}
 #view-workbooks .wb-add-row{display:flex;gap:var(--s-2);justify-content:center}
 #view-workbooks .wb-add-row-foot{padding:var(--s-2) 0 var(--s-6)}
 
@@ -28929,10 +28937,10 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-flt-btn.is-filtered{background:var(--accent,#2563EB);border-color:var(--accent,#2563EB);color:#fff}
 #view-workbooks .wb-cell.is-dv{padding-right:20px}
 #view-workbooks .wb-dv-mark{
-  position:absolute;right:2px;top:50%;transform:translateY(-50%);
-  width:15px;height:15px;border-radius:4px;
+  position:absolute;right:1px;top:50%;transform:translateY(-50%);
+  width:20px;height:20px;border-radius:4px;
   display:inline-flex;align-items:center;justify-content:center;
-  font-size:9px;line-height:1;color:var(--text-muted);
+  font-size:10px;line-height:1;color:var(--text-muted);
   cursor:pointer;
 }
 #view-workbooks .wb-dv-mark:hover{background:rgba(0,0,0,.10);color:var(--text)}
@@ -28968,9 +28976,21 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 @keyframes wb-imgbox-in{from{opacity:0}to{opacity:1}}
 
-.wb-dv-optrow{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.wb-dv-optrow{display:flex;gap:8px;margin-bottom:6px;align-items:center}
 .wb-dv-optrow .wb-input{flex:1}
-.wb-dv-colorsel{flex:0 0 104px !important}
+/* swatch-only color chooser: a strip of dots, no names */
+.wb-dv-swatches{display:inline-flex;gap:4px;align-items:center;flex:0 0 auto}
+.wb-dv-sw{
+  appearance:none;width:20px;height:20px;border-radius:50%;padding:0;
+  border:1px solid rgba(0,0,0,.14);cursor:pointer;background:var(--surface);
+  position:relative;
+}
+.wb-dv-sw.is-none::after{
+  content:"";position:absolute;left:3px;right:3px;top:50%;height:1.5px;
+  background:var(--red);transform:rotate(-45deg);
+}
+.wb-dv-sw:hover{transform:scale(1.12)}
+.wb-dv-sw.is-sel{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
 #wb-dv-opts{margin:4px 0 2px}
 #view-workbooks .wb-cmark{
   position:absolute;top:0;right:0;width:0;height:0;

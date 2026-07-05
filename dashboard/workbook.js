@@ -2827,6 +2827,22 @@ function renderDetailPage() {
   } else {
     for (const block of sheetBlocks) blocksEl.appendChild(buildBlockEl(block));
   }
+  // Sheets model: the workbook page never scrolls — the detail column is
+  // locked to the viewport, the grid is the main scroller, and anything
+  // taller (charts, legacy blocks) scrolls inside .wb-blocks with the
+  // toolbar + formula bar pinned sticky at its top.
+  const detailEl = document.getElementById("wb-detail");
+  WB.fitDetail = () => {
+    const d = document.getElementById("wb-detail");
+    if (!d || d !== detailEl) return;
+    const top = d.getBoundingClientRect().top + window.scrollY;
+    d.style.height = Math.max(420, window.innerHeight - top - 10) + "px";
+  };
+  WB.fitDetail();
+  if (!WB.fitDetailBound) {
+    WB.fitDetailBound = true;
+    window.addEventListener("resize", () => { if (WB.fitDetail) WB.fitDetail(); });
+  }
   bindDetailInputs();
   renderPresence();
   if (WB.panelOpen) renderPanel();
@@ -3264,12 +3280,14 @@ function mountSheetBlock(block, body) {
   const sheet = activeSheetOf(block);
   const ro = !WB.canEdit;
   body.innerHTML = `
+    <div class="wb-chrome">
     ${sheetToolbarHtml(block, ro)}
     <div class="wb-fbar">
       <input type="text" class="wb-fbar-ref" data-wb-fbar-ref value="A1" aria-label="Name box — type a cell reference and press Enter" autocomplete="off" spellcheck="false">
       <span class="wb-fbar-fx" aria-hidden="true">fx</span>
       <input type="text" class="wb-fbar-input" data-wb-fbar-input placeholder="${ro ? "" : "Enter a value or =formula"}" ${ro ? "readonly" : ""} aria-label="Formula bar" autocomplete="off" spellcheck="false">
       <span class="wb-fbar-err" data-wb-fbar-err hidden></span>
+    </div>
     </div>
     <div class="wb-grid ${ro ? "is-readonly" : ""}" tabindex="0" role="grid" aria-label="${esc(block.title || "Spreadsheet")}" data-wb-gridfocus="${block.id}">
       <div class="wb-gr-corner" style="width:${HDR_COL_W}px;height:${HDR_ROW_H}px"></div>
@@ -5890,14 +5908,16 @@ function openValidationDialog(g) {
   // per-option rows: text + a color that fills the cell when selected
   const DV_COLORS = [["", "No color"], ["#E8EAED", "Gray"], ["#C9DAF8", "Blue"], ["#D9EAD3", "Green"], ["#FFF2CC", "Yellow"], ["#FCE5CD", "Orange"], ["#F4CCCC", "Red"], ["#D9D2E9", "Purple"], ["#EAD1DC", "Pink"]];
   const optsHost = wrap.querySelector("#wb-dv-opts");
+  // color chooser is swatch-only — a strip of dots, no names
   const addOptRow = (text, color) => {
     const row = document.createElement("div");
     row.className = "wb-dv-optrow";
     row.innerHTML = `
       <input type="text" class="wb-input" data-dv-opt-text value="${esc(text || "")}" placeholder="Option" maxlength="120">
-      <select class="wb-input wb-dv-colorsel" data-dv-opt-color aria-label="Option color" style="background:${color || "var(--surface)"}">
-        ${DV_COLORS.map(([hex, label]) => `<option value="${hex}" ${(color || "") === hex ? "selected" : ""}>${label}</option>`).join("")}
-      </select>
+      <input type="hidden" data-dv-opt-color value="${esc(color || "")}">
+      <span class="wb-dv-swatches" role="radiogroup" aria-label="Option color">
+        ${DV_COLORS.map(([hex, label]) => `<button type="button" class="wb-dv-sw ${(color || "") === hex ? "is-sel" : ""} ${hex ? "" : "is-none"}" data-dv-sw="${hex}" ${hex ? `style="background:${hex}"` : ""} title="${esc(label)}" aria-label="${esc(label)}" role="radio" aria-checked="${(color || "") === hex}"></button>`).join("")}
+      </span>
       <button type="button" class="btn btn-ghost btn-icon btn-sm" data-dv-opt-del title="Remove option" aria-label="Remove option">×</button>`;
     optsHost.appendChild(row);
     return row;
@@ -5909,11 +5929,16 @@ function openValidationDialog(g) {
   wrap.querySelector("#wb-dv-addopt").addEventListener("click", () => { addOptRow("", "").querySelector("[data-dv-opt-text]").focus(); });
   optsHost.addEventListener("click", (e) => {
     const del = e.target.closest("[data-dv-opt-del]");
-    if (del && optsHost.children.length > 1) del.closest(".wb-dv-optrow").remove();
-  });
-  optsHost.addEventListener("change", (e) => {
-    const sel = e.target.closest("[data-dv-opt-color]");
-    if (sel) sel.style.background = sel.value || "var(--surface)";
+    if (del && optsHost.children.length > 1) { del.closest(".wb-dv-optrow").remove(); return; }
+    const sw = e.target.closest("[data-dv-sw]");
+    if (sw) {
+      const row = sw.closest(".wb-dv-optrow");
+      row.querySelector("[data-dv-opt-color]").value = sw.getAttribute("data-dv-sw");
+      row.querySelectorAll(".wb-dv-sw").forEach((b) => {
+        b.classList.toggle("is-sel", b === sw);
+        b.setAttribute("aria-checked", String(b === sw));
+      });
+    }
   });
 
   const syncRows = () => {
@@ -8012,6 +8037,18 @@ function bindGridEvents(g) {
       startMoveDrag(g, e, srcRect, canvasPos);
       return;
     }
+    // ── a click on the already-active dropdown cell opens its option
+    // picker (via the click delegate — opening on mousedown would be
+    // undone by the click-away closer, and skipping setActive keeps the
+    // node attached so the click actually lands)
+    if (WB.canEdit && e.button === 0 && !e.shiftKey && !g.editing) {
+      const dvCellEl = e.target.closest(".wb-cell.is-dv");
+      if (dvCellEl && +dvCellEl.getAttribute("data-r") === g.active.r && +dvCellEl.getAttribute("data-c") === g.active.c
+          && g.sel.r0 === g.sel.r1 && g.sel.c0 === g.sel.c1 && g.active.r === g.sel.r0 && g.active.c === g.sel.c0) {
+        e.preventDefault();
+        return;
+      }
+    }
     // Ctrl/Cmd+click on a linked cell opens the link
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
       const lc = g.sheet.cells.get(cellKey(r, c));
@@ -9592,6 +9629,21 @@ function installRootListeners() {
         openValidationPicker(g, dvb);
       }
       return;
+    }
+
+    // clicking the already-active dropdown cell (not just its ▾ mark)
+    // opens the option picker too — a much bigger target
+    const dvCell = e.target.closest(".wb-cell.is-dv");
+    if (dvCell && WB.canEdit) {
+      const gridEl = dvCell.closest("[data-wb-gridfocus]");
+      const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
+      if (g) {
+        const r = +dvCell.getAttribute("data-r"), c = +dvCell.getAttribute("data-c");
+        if (r === g.active.r && c === g.active.c && g.sel.r0 === g.sel.r1 && g.sel.c0 === g.sel.c1) {
+          openValidationPicker(g, dvCell);
+          return;
+        }
+      }
     }
 
     const fltb = e.target.closest("[data-wb-fltbtn]");
