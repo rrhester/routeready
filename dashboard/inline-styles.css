@@ -28707,29 +28707,37 @@ body.rr-cmdk-open{ overflow:hidden }
    owns scrolling. Leaving the workbook (Back / navigating away) removes
    the class and the normal dashboard chrome returns.
 
+   The shell is pinned with position:fixed; inset:0 so it fills the
+   viewport REGARDLESS of the surrounding .app grid / .main sizing — this
+   is what makes it robust in the desktop app (Window Controls Overlay),
+   where relying on the .app grid track collapsed the workbook to a thin
+   column. Everything below the fixed view is a plain flex chain.
+
    Layout chain (top → bottom, each a fixed-height band except the grid):
-     .main (100vh, no scroll)
-       └ #view-workbooks (flex column, 100vh)
-           └ .page (padding:0, flex:1, min-h/min-w:0)
-               └ #rr-wb-root (flex:1, min-h/min-w:0)
-                   └ .wb-detail (flex:1, min-h/min-w:0)
-                       ├ .wb-head            — command bar (fixed height)
-                       └ .wb-body / .wb-blocks (flex:1, min-h/min-w:0)
-                           └ sheet block: toolbar+formula bar (sticky) ·
-                             grid (flex, owns scroll) · tabs · status bar
+     #view-workbooks (position:fixed, inset:0, flex column, 100vw×100vh)
+       └ .page (padding:0, flex:1, min-h/min-w:0)
+           └ #rr-wb-root (flex:1, min-h/min-w:0)
+               └ .wb-detail (flex:1, min-h/min-w:0)
+                   ├ .wb-head            — command bar (fixed height)
+                   └ .wb-body / .wb-blocks (flex:1, min-h/min-w:0)
+                       └ sheet block: toolbar+formula bar (sticky) ·
+                         grid (flex, owns scroll) · tabs · status bar
    ══════════════════════════════════════════════════════════════════════ */
-body.rr-wb-fullscreen .app{grid-template-columns:1fr}
-body.rr-wb-fullscreen .sidebar{display:none}
-body.rr-wb-fullscreen .topbar{display:none}
+/* Hide the dashboard rail + topbar (forced — some views set these via
+   their own rules; !important keeps them down in Workbook Mode). */
+body.rr-wb-fullscreen .sidebar,
+body.rr-wb-fullscreen .topbar{display:none !important}
 /* The app body must not scroll — the grid is the only scroll container. */
 body.rr-wb-fullscreen{overflow:hidden}
-body.rr-wb-fullscreen .main{
-  height:100vh;height:100dvh;min-height:0;min-width:0;overflow:hidden;
-}
+/* Pin the workbook to the whole viewport. position:fixed takes it out of
+   the .app grid entirely, so the sidebar/main track sizing can't squash
+   it (the desktop-app bug). */
 body.rr-wb-fullscreen #view-workbooks.view.active{
+  position:fixed;inset:0;z-index:40;
   display:flex;flex-direction:column;
-  height:100vh;height:100dvh;width:100vw;max-width:100vw;
-  min-height:0;min-width:0;overflow:hidden;animation:none;
+  width:100vw;height:100vh;height:100dvh;max-width:100vw;
+  margin:0;min-height:0;min-width:0;overflow:hidden;animation:none;
+  background:var(--canvas);
 }
 /* Kill the dashboard page frame: no padding, no max-width, no margins. */
 body.rr-wb-fullscreen #view-workbooks > .page{
