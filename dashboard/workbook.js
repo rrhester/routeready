@@ -2702,6 +2702,22 @@ const WB_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 
 // ─── Create-workbook modal ──────────────────────────────────────────────────
 
+// "New workbook" skips the old create dialog (title/visibility/template
+// picker) — it creates a blank org-visible workbook and opens it
+// straight into the grid, Sheets-style. Rename in the header when ready.
+async function createBlankWorkbookNow() {
+  if (WB.creating) return;
+  WB.creating = true;
+  _toast("Creating workbook…", "info");
+  try {
+    const wb = await createWorkbook({ title: "", description: "", visibility: "org", templateKey: null });
+    await openWorkbook(wb.id);
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    _toast(wbMigrationErr(msg) ? "Workbooks schema isn't deployed yet — apply migration 0412 and retry" : "Couldn't create the workbook: " + msg, "error");
+  } finally { WB.creating = false; }
+}
+
 function openCreateModal() {
   document.getElementById("wb-create-modal")?.remove();
   const tplCard = (t) => `<button type="button" class="wb-tpl-card" data-wb-tpl="${esc(t.key)}">
@@ -9550,7 +9566,7 @@ function wbMenuAction(act, g) {
   const rect = g ? selRect(g) : null;
   const need = () => { if (!g) _toast("Open a spreadsheet block first", "info"); return !!g; };
   switch (`${ns}:${verb}`) {
-    case "file:new": openCreateModal(); return;
+    case "file:new": createBlankWorkbookNow(); return;
     case "file:copy": duplicateWorkbook(); return;
     case "file:import": if (need()) importCsvInto(g); return;
     case "file:xlsx": if (need()) exportBlockXlsx(g); return;
@@ -9967,7 +9983,7 @@ function installRootListeners() {
     const block = blockEl ? WB.blocks.find((b) => b.id === blockEl.getAttribute("data-wb-block")) : null;
 
     switch (act) {
-      case "new-workbook": openCreateModal(); break;
+      case "new-workbook": createBlankWorkbookNow(); break;
       case "toggle-archived": WB.showArchived = !WB.showArchived; renderListPage(); break;
       case "back-to-list": {
         flushCells();
