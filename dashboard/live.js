@@ -19358,6 +19358,48 @@ async function submitBulkDriverIngest() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { toast("DSP not loaded — refresh and try again", "warn"); return; }
   if (btn) { btn.disabled = true; btn.textContent = "Importing…"; }
+  // Live duplicate guard. _bdImportNormalize matched against the cached
+  // roster (up to 500 rows); re-check against the DB right now so a driver
+  // outside that cache still can't be inserted twice. Match on phone (last
+  // 10 digits — the exact key behind the drivers_dsp_phone_unique index)
+  // and email, ignoring terminated rows (a same-phone re-hire is allowed by
+  // that index). Any ready row that matches a live driver is moved to the
+  // update path instead of being inserted.
+  const _digits10 = (v) => { const d = String(v || "").replace(/\D/g, ""); return d.length >= 10 ? d.slice(-10) : null; };
+  if (ready.length) {
+    const phoneKeys = [...new Set(ready.map(r => _digits10(r.phone)).filter(Boolean))];
+    const emailKeys = [...new Set(ready.map(r => (r.email || "").toLowerCase()).filter(Boolean))];
+    const liveByPhone = new Map(), liveByEmail = new Map();
+    const collect = (rows) => { for (const m of (rows || [])) {
+      const p = m.phone_normalized || _digits10(m.phone);
+      if (p) liveByPhone.set(p, m);
+      if (m.email) liveByEmail.set(m.email.toLowerCase(), m);
+    } };
+    const sel = "id, phone_normalized, phone, email, full_name, status";
+    try {
+      for (let i = 0; i < phoneKeys.length; i += 150) {
+        const { data } = await sb.from("drivers").select(sel)
+          .eq("dsp_id", dspId).neq("status", "terminated")
+          .in("phone_normalized", phoneKeys.slice(i, i + 150));
+        collect(data);
+      }
+      for (let i = 0; i < emailKeys.length; i += 150) {
+        const { data } = await sb.from("drivers").select(sel)
+          .eq("dsp_id", dspId).neq("status", "terminated")
+          .in("email", emailKeys.slice(i, i + 150));
+        collect(data);
+      }
+    } catch (_) { /* the resilient insert below is the backstop */ }
+    for (let i = ready.length - 1; i >= 0; i--) {
+      const r = ready[i];
+      const pk = _digits10(r.phone);
+      const m = (pk && liveByPhone.get(pk)) || (r.email && liveByEmail.get(r.email.toLowerCase()));
+      if (m) {
+        updates.push({ id: m.id, name: m.full_name || r.name, fields: r.fields, existing: m });
+        ready.splice(i, 1);
+      }
+    }
+  }
   // Resolve station codes → ids in one round-trip (from both new + updated rows).
   const wantedCodes = [...new Set([...ready, ...updates].map(r => r.fields && r.fields.station_code).filter(Boolean))];
   const codeToId = new Map();
@@ -19411,10 +19453,25 @@ async function submitBulkDriverIngest() {
     };
     return row;
   });
-  let insertErr = null;
+  const _isDupErr = (e) => e && (e.code === "23505" || /duplicate key|unique constraint/i.test(e.message || ""));
+  let inserted = 0, dupSkipped = 0, insertErr = null;
   if (insertRows.length) {
     const { error } = await sb.from("drivers").insert(insertRows);
-    insertErr = error;
+    if (!error) {
+      inserted = insertRows.length;
+    } else if (_isDupErr(error)) {
+      // A stray duplicate slipped past the pre-check (e.g. added since the
+      // roster loaded). Insert row-by-row so the rest still land and the
+      // duplicate is skipped instead of failing the whole batch.
+      for (const row of insertRows) {
+        const { error: e } = await sb.from("drivers").insert(row);
+        if (!e) inserted++;
+        else if (_isDupErr(e)) dupSkipped++;
+        else { insertErr = e; break; }
+      }
+    } else {
+      insertErr = error;
+    }
   }
   if (insertErr) {
     console.error("bulk driver insert failed:", insertErr);
@@ -19483,10 +19540,11 @@ async function submitBulkDriverIngest() {
   _bdResetIngestSources();
   if (btn) { btn.disabled = true; btn.textContent = "Paste rows above"; }
   const msgParts = [];
-  if (ready.length)   msgParts.push(`Imported ${ready.length} driver${ready.length === 1 ? "" : "s"}`);
+  if (inserted)       msgParts.push(`Imported ${inserted} driver${inserted === 1 ? "" : "s"}`);
   if (updated)        msgParts.push(`updated ${updated} existing`);
   if (updateFail)     msgParts.push(`${updateFail} update${updateFail === 1 ? "" : "s"} failed`);
-  if (dupes.length)   msgParts.push(`${dupes.length} already in roster`);
+  const dupTotal = dupes.length + dupSkipped;
+  if (dupTotal)       msgParts.push(`${dupTotal} duplicate${dupTotal === 1 ? "" : "s"} skipped`);
   if (invalid.length) msgParts.push(`${invalid.length} skipped (invalid)`);
   if (missingStations.length) msgParts.push(`stations not matched: ${missingStations.join(", ")}`);
   if (!msgParts.length) msgParts.push("Nothing to import");
