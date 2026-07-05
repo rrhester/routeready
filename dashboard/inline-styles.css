@@ -28751,6 +28751,17 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em;
 }
 .wb-color-custrow{padding-top:5px}
+/* hover a custom swatch → a × appears to forget it */
+.wb-swatch-wrap{position:relative;display:inline-block;line-height:0}
+.wb-swatch-del{
+  position:absolute;top:-5px;right:-5px;z-index:1;
+  width:14px;height:14px;border-radius:50%;border:0;padding:0;
+  background:var(--text-muted);color:#fff;
+  font-size:10px;line-height:1;cursor:pointer;
+  display:none;align-items:center;justify-content:center;
+}
+.wb-swatch-wrap:hover .wb-swatch-del{display:inline-flex}
+.wb-swatch-del:hover{background:var(--red)}
 .wb-color-reset{
   display:block;width:calc(100% - 16px);margin:8px 8px 0;padding:5px 8px;text-align:left;
   border:1px solid var(--border-subtle);border-radius:var(--r-sm);background:var(--surface);

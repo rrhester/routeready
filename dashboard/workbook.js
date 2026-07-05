@@ -8414,6 +8414,15 @@ function bindGridEvents(g) {
   if (toolbar) toolbar.addEventListener("click", (e) => {
     const numfmt = e.target.closest("[data-wb-numfmt]");
     if (numfmt) { formatSelection(g, { num: numfmt.getAttribute("data-wb-numfmt") || null }); closeAllPopovers(); return; }
+    // × on a custom swatch: forget the color, keep the picker open
+    const colorDel = e.target.closest("[data-wb-colordel]");
+    if (colorDel) {
+      e.stopPropagation();
+      wbDeleteCustomColor(colorDel.getAttribute("data-wb-colordel"));
+      const anchorBtn = colorDel.closest(".popover-anchor")?.querySelector("[data-wb-tb]");
+      if (anchorBtn) fillColorPop(g, anchorBtn); // rebuild in place
+      return;
+    }
     const colorBtn = e.target.closest("[data-wb-color]");
     if (colorBtn) {
       const kind = colorBtn.closest(".wb-color-pop").getAttribute("data-wb-colorkind");
@@ -8617,6 +8626,11 @@ function wbSaveCustomColor(hex) {
   const list = [norm, ...wbCustomColors().filter((h) => h.toUpperCase() !== norm)].slice(0, 10);
   try { localStorage.setItem("rr-wb-customcolors", JSON.stringify(list)); } catch (_) {}
 }
+function wbDeleteCustomColor(hex) {
+  const norm = String(hex).toUpperCase();
+  const list = wbCustomColors().filter((h) => h.toUpperCase() !== norm);
+  try { localStorage.setItem("rr-wb-customcolors", JSON.stringify(list)); } catch (_) {}
+}
 
 function fillColorPop(g, btn) {
   const pop = btn.closest(".popover-anchor")?.querySelector(".wb-color-pop");
@@ -8631,7 +8645,7 @@ function fillColorPop(g, btn) {
     ${custom.length ? `
     <div class="wb-color-custlbl">Custom</div>
     <div class="wb-color-grid wb-color-grid-10 wb-color-custrow">${custom.map((hex) =>
-      `<button type="button" class="wb-swatch" data-wb-color="${hex}" title="${hex}" aria-label="${hex}" style="background:${hex}"></button>`).join("")}</div>` : ""}
+      `<span class="wb-swatch-wrap"><button type="button" class="wb-swatch" data-wb-color="${hex}" title="${hex}" aria-label="${hex}" style="background:${hex}"></button><button type="button" class="wb-swatch-del" data-wb-colordel="${hex}" title="Remove ${hex} from custom colors" aria-label="Remove ${hex} from custom colors">×</button></span>`).join("")}</div>` : ""}
     <label class="wb-color-custom"><input type="color" data-wb-colorpick value="${kind === "bg" ? "#FFF2CC" : "#1F2937"}" aria-label="Custom color"> Custom…</label>
     <button type="button" class="wb-color-cf" data-wb-colorcf>Conditional formatting…</button>`;
   pop.querySelector("[data-wb-colorpick]").addEventListener("change", (e) => {
