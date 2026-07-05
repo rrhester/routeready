@@ -18901,9 +18901,126 @@ const _bdImportFieldMap = {
   "start": "hire_date", "start date": "hire_date", "employment start": "hire_date",
   "employment date": "hire_date", "commenced": "hire_date", "date hired": "hire_date",
   "hire start": "hire_date",
+  // Availability (parsed into weekday keys at normalize time)
+  "availability": "availability", "available": "availability", "avail": "availability",
+  "available days": "availability", "days available": "availability", "avail days": "availability",
+  "days": "availability", "work days": "availability", "workdays": "availability",
+  "working days": "availability", "days of week": "availability", "day availability": "availability",
+  "availability days": "availability", "schedule availability": "availability", "avail.": "availability",
 };
 function _bdImportCanonHeader(s) {
   return String(s || "").toLowerCase().trim().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+// ─── Availability parsing ────────────────────────────────────────────────
+// Drivers store availability in metadata.availability.days as lowercase
+// weekday keys (mon..sun). A spreadsheet can express the same thing many
+// ways — "Open" / "All" = every day; "Mon-Fri" = the weekday range (NOT the
+// weekend); "MWF", "Tues/Thurs", "Weekends", 7 separate day columns, etc.
+// These helpers turn any of those into the canonical key list.
+const _BD_DAY_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+function _bdDayToken(t) {
+  t = String(t || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (!t) return null;
+  const map = {
+    monday: "mon", mon: "mon", mo: "mon",
+    tuesday: "tue", tues: "tue", tue: "tue", tu: "tue",
+    wednesday: "wed", weds: "wed", wed: "wed", we: "wed",
+    thursday: "thu", thurs: "thu", thur: "thu", thu: "thu",
+    friday: "fri", fri: "fri", fr: "fri",
+    saturday: "sat", sat: "sat", sa: "sat",
+    sunday: "sun", sun: "sun", su: "sun",
+  };
+  if (map[t]) return map[t];
+  // Single-letter fallback (M T W R F S U convention).
+  const single = { m: "mon", t: "tue", w: "wed", r: "thu", f: "fri", s: "sat", u: "sun" };
+  if (t.length === 1 && single[t]) return single[t];
+  return null;
+}
+function _bdDayRange(a, b) {
+  const ia = _BD_DAY_ORDER.indexOf(a), ib = _BD_DAY_ORDER.indexOf(b);
+  if (ia < 0 || ib < 0) return [];
+  const out = [];
+  let i = ia;
+  for (let n = 0; n < 7; n++) { out.push(_BD_DAY_ORDER[i]); if (i === ib) break; i = (i + 1) % 7; }
+  return out;
+}
+// Compact letter code ("mtwthf", "mwf") → keys. Strict: any leftover
+// character that isn't a day token aborts, so "as needed" doesn't parse as
+// a garbled day list.
+function _bdCompactDays(seg) {
+  const t = String(seg || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (!t || t.length > 16) return [];
+  const toks = [
+    ["sunday", "sun"], ["saturday", "sat"], ["thursday", "thu"], ["tuesday", "tue"], ["wednesday", "wed"], ["monday", "mon"], ["friday", "fri"],
+    ["sun", "sun"], ["sat", "sat"], ["thu", "thu"], ["tue", "tue"], ["wed", "wed"], ["mon", "mon"], ["fri", "fri"],
+    ["su", "sun"], ["sa", "sat"], ["th", "thu"], ["tu", "tue"], ["we", "wed"], ["mo", "mon"], ["fr", "fri"],
+    ["m", "mon"], ["w", "wed"], ["r", "thu"], ["f", "fri"], ["u", "sun"], ["t", "tue"], ["s", "sat"],
+  ];
+  const out = [];
+  let i = 0;
+  while (i < t.length) {
+    let m = false;
+    for (const [tok, key] of toks) { if (t.startsWith(tok, i)) { out.push(key); i += tok.length; m = true; break; } }
+    if (!m) return [];
+  }
+  return out;
+}
+// Returns an array of weekday keys (canonical order), [] for an explicit
+// "none", or null when the value is blank / unrecognized (leave unset).
+function _bdParseAvailability(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (!s) return null;
+  if (/^(n\/?a|none|no|nil|unavailable|not ?available|off|closed|[-–—.]+)$/.test(s)) return [];
+  if (/(^|\b)(open|all|any|anytime|any ?days?|every ?days?|everyday|daily|full|full ?time|flex|flexible|7 ?days?|seven ?days?|24\/?7|always|whenever|unrestricted)($|\b)/.test(s)) {
+    return [..._BD_DAY_ORDER];
+  }
+  const set = new Set();
+  let work = " " + s + " ";
+  work = work.replace(/week[\s-]?ends?/g, " sat sun ");
+  work = work.replace(/week[\s-]?days?/g, " mon tue wed thu fri ");
+  work = work.replace(/business[\s-]?days?/g, " mon tue wed thu fri ");
+  const segments = work.split(/\s*(?:,|;|\/|&|\+|\band\b)\s*/).map(x => x.trim()).filter(Boolean);
+  for (const seg of segments) {
+    const rangeM = seg.match(/^(.+?)\s*(?:-|–|—|~|\bto\b|\bthru\b|\bthrough\b|\btil\b|\btill\b|\buntil\b)\s*(.+)$/);
+    if (rangeM) {
+      const a = _bdDayToken(rangeM[1]), b = _bdDayToken(rangeM[2]);
+      if (a && b) { _bdDayRange(a, b).forEach(d => set.add(d)); continue; }
+    }
+    const words = seg.split(/\s+/).filter(Boolean);
+    let hit = false;
+    for (const w of words) { const k = _bdDayToken(w); if (k) { set.add(k); hit = true; } }
+    if (hit) continue;
+    _bdCompactDays(seg).forEach(d => set.add(d));
+  }
+  if (!set.size) return null;
+  return _BD_DAY_ORDER.filter(d => set.has(d));
+}
+// A day-name column header ("Mon", "Tuesday") → its "day:xxx" role. Ignores
+// bare single letters, which are too risky to treat as day columns.
+function _bdDayHeaderRole(canon) {
+  const key = _bdDayToken(canon);
+  if (key && String(canon || "").replace(/[^a-z]/gi, "").length >= 2) return "day:" + key;
+  return null;
+}
+// Truthy check for a per-day cell in the 7-column layout: an X / yes / 1 / a
+// time range all mean "available"; blank / no / 0 / off mean "not".
+function _bdDayCellOn(v) {
+  const s = String(v == null ? "" : v).trim().toLowerCase();
+  if (!s) return false;
+  return !/^(no|n|0|off|closed|na|n\/a|-|–|—|false|f|x?off)$/.test(s);
+}
+// Merge availability from a parsed row: a single availability column and/or
+// separate per-day columns. Returns keys, [], or null (leave unset).
+function _bdRowAvailability(row) {
+  let days = row.availability != null ? _bdParseAvailability(row.availability) : null;
+  const dayCols = _BD_DAY_ORDER.filter(d => _bdDayCellOn(row["day:" + d]));
+  const hasDayCols = _BD_DAY_ORDER.some(d => row["day:" + d] != null);
+  if (hasDayCols) {
+    const union = new Set([...(days || []), ...dayCols]);
+    days = _BD_DAY_ORDER.filter(d => union.has(d));
+  }
+  return days;
 }
 // Sniff a column's role from its data when no header was provided.
 // Each column gets a per-role score; we then assign each role to the
@@ -18961,14 +19078,14 @@ function _bdImportParse(text) {
   const delim = lines[0].includes("\t") ? "\t" : ",";
   const allCells = lines.map(l => _bdImportSplit(l, delim));
   const firstCanon = allCells[0].map(_bdImportCanonHeader);
-  const headerHits = firstCanon.filter(c => c in _bdImportFieldMap).length;
+  const headerHits = firstCanon.filter(c => (c in _bdImportFieldMap) || _bdDayHeaderRole(c)).length;
   // Two-or-more known column names ⇒ definitely a header.  One hit
   // is still strong evidence; zero hits ⇒ sniff the data.
   let headers;
   let headerDetected;
   if (headerHits >= 1) {
     headerDetected = true;
-    headers = firstCanon.map(c => _bdImportFieldMap[c] || null);
+    headers = firstCanon.map(c => _bdImportFieldMap[c] || _bdDayHeaderRole(c) || null);
   } else {
     headerDetected = false;
     headers = _bdImportSniffColumns(allCells);
@@ -18992,17 +19109,22 @@ function _bdImportParse(text) {
   return { rows, headerDetected, headers };
 }
 function _bdImportNormalize(parsed) {
-  // Build dedupe set from current roster — phone digits and email lowercase.
-  const seenPhone = new Set();
-  const seenEmail = new Set();
   const stripDigits = (p) => String(p || "").replace(/\D/g, "");
+  // Map current roster by phone / email → the existing driver row, so a
+  // matched import row can UPDATE that driver (e.g. fill in availability)
+  // instead of being silently skipped.
+  const existByPhone = new Map();
+  const existByEmail = new Map();
   for (const r of (_rosterRows || [])) {
     const d = stripDigits(r.phone);
-    if (d.length >= 10) seenPhone.add(d.slice(-10));
-    if (r.email) seenEmail.add(r.email.toLowerCase());
+    if (d.length >= 10 && !existByPhone.has(d.slice(-10))) existByPhone.set(d.slice(-10), r);
+    if (r.email && !existByEmail.has(r.email.toLowerCase())) existByEmail.set(r.email.toLowerCase(), r);
   }
-  const ready = [];
-  const dupes = [];
+  const fileSeenPhone = new Set();   // within-file dedupe
+  const fileSeenEmail = new Set();
+  const ready = [];    // new drivers to insert
+  const updates = [];  // existing drivers to update (availability, backfill)
+  const dupes = [];    // existing + nothing new to add → skipped
   const invalid = [];
   for (const row of parsed.rows) {
     if (!row.name || row.name.length < 2) {
@@ -19024,20 +19146,35 @@ function _bdImportNormalize(parsed) {
     }
     const phoneKey = phoneE164 ? stripDigits(phoneE164).slice(-10) : null;
     const emailKey = row.email ? row.email.trim().toLowerCase() : null;
-    if (phoneKey && seenPhone.has(phoneKey)) { dupes.push({ line: row._line, name: row.name }); continue; }
-    if (emailKey && seenEmail.has(emailKey)) { dupes.push({ line: row._line, name: row.name }); continue; }
-    if (phoneKey) seenPhone.add(phoneKey);
-    if (emailKey) seenEmail.add(emailKey);
+    const availDays = _bdRowAvailability(row);
+    const stationCode = row.station ? row.station.trim().toUpperCase() : null;
+
+    // Already in the roster? → update path (only touches things we can add).
+    const existing = (phoneKey && existByPhone.get(phoneKey)) || (emailKey && existByEmail.get(emailKey)) || null;
+    if (existing) {
+      if (availDays && availDays.length) {
+        updates.push({ id: existing.id, name: existing.full_name || row.name.trim(), avail_days: availDays, existing });
+      } else {
+        dupes.push({ line: row._line, name: row.name.trim() });
+      }
+      continue;
+    }
+    // Within-file duplicate?
+    if (phoneKey && fileSeenPhone.has(phoneKey)) { dupes.push({ line: row._line, name: row.name.trim() }); continue; }
+    if (emailKey && fileSeenEmail.has(emailKey)) { dupes.push({ line: row._line, name: row.name.trim() }); continue; }
+    if (phoneKey) fileSeenPhone.add(phoneKey);
+    if (emailKey) fileSeenEmail.add(emailKey);
     ready.push({
       _line: row._line,
       name: row.name.trim(),
       phone: phoneE164,
       email: emailKey,
-      station_code: row.station ? row.station.trim().toUpperCase() : null,
+      station_code: stationCode,
       hire_date: hireIso,
+      avail_days: availDays && availDays.length ? availDays : null,
     });
   }
-  return { ready, dupes, invalid, headerDetected: parsed.headerDetected, headers: parsed.headers };
+  return { ready, updates, dupes, invalid, headerDetected: parsed.headerDetected, headers: parsed.headers };
 }
 function _bdImportPreview() {
   const ta = document.getElementById("bd-paste");
@@ -19054,18 +19191,27 @@ function _bdImportPreview() {
     return;
   }
   const parsed = _bdImportParse(text);
-  const { ready, dupes, invalid, headerDetected, headers } = _bdImportNormalize(parsed);
+  const { ready, updates, dupes, invalid, headerDetected, headers } = _bdImportNormalize(parsed);
   const bits = [`<strong>${ready.length}</strong> ready to import`];
+  if (updates.length) bits.push(`${updates.length} existing to update`);
   if (dupes.length)   bits.push(`${dupes.length} already in roster`);
   if (invalid.length) bits.push(`${invalid.length} invalid`);
   // Tell the operator how we read the columns so they can spot a
   // misread before they hit Import.
   if (headers && headers.length) {
-    const labels = { name: "Name", phone: "Phone", email: "Email", station: "Station", hire_date: "Hire date" };
-    const detected = headers.filter(Boolean).map(h => labels[h] || h).join(" · ");
+    const labels = { name: "Name", phone: "Phone", email: "Email", station: "Station", hire_date: "Hire date", availability: "Availability" };
+    const dayLbl = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+    const dayCols = headers.filter(h => typeof h === "string" && h.startsWith("day:")).map(h => dayLbl[h.slice(4)] || h.slice(4));
+    const named = headers.filter(h => typeof h === "string" && !h.startsWith("day:")).map(h => labels[h] || h);
+    if (dayCols.length) named.push("Day cols (" + dayCols.join("/") + ")");
+    const detected = named.join(" · ");
     if (detected) bits.push(headerDetected ? `headers: ${detected}` : `auto-detected: ${detected}`);
   }
   if (headerDetected) bits.push("header row detected");
+  // Show a couple of parsed-availability examples so a misread is obvious.
+  const availEg = [...ready, ...updates].filter(r => r.avail_days && r.avail_days.length).slice(0, 2)
+    .map(r => `${escapeHtml(r.name)}: ${r.avail_days.map(d => ({ mon:"Mon",tue:"Tue",wed:"Wed",thu:"Thu",fri:"Fri",sat:"Sat",sun:"Sun" }[d])).join("·")}`);
+  if (availEg.length) bits.push("availability e.g. " + availEg.join("; "));
   preview.innerHTML = bits.join(" · ");
   preview.style.display = "block";
   if (errors) {
@@ -19076,17 +19222,22 @@ function _bdImportPreview() {
       errors.style.display = "none";
     }
   }
-  btn.disabled = ready.length === 0;
-  btn.textContent = ready.length === 0
+  const total = ready.length + updates.length;
+  btn.disabled = total === 0;
+  btn.textContent = total === 0
     ? "Nothing to import"
-    : `Import ${ready.length} driver${ready.length === 1 ? "" : "s"}`;
+    : updates.length && ready.length
+      ? `Import ${ready.length} · update ${updates.length}`
+      : updates.length
+        ? `Update ${updates.length} driver${updates.length === 1 ? "" : "s"}`
+        : `Import ${ready.length} driver${ready.length === 1 ? "" : "s"}`;
 }
 async function submitBulkDriverIngest() {
   const text = document.getElementById("bd-paste")?.value || "";
   const btn = document.getElementById("bd-import-btn");
   const parsed = _bdImportParse(text);
-  const { ready, dupes, invalid } = _bdImportNormalize(parsed);
-  if (ready.length === 0) { toast("Nothing to import", "warn"); return; }
+  const { ready, updates, dupes, invalid } = _bdImportNormalize(parsed);
+  if (ready.length === 0 && updates.length === 0) { toast("Nothing to import", "warn"); return; }
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { toast("DSP not loaded — refresh and try again", "warn"); return; }
   if (btn) { btn.disabled = true; btn.textContent = "Importing…"; }
@@ -19121,15 +19272,34 @@ async function submitBulkDriverIngest() {
       phone: r.phone,
       email: r.email,
       hire_date: r.hire_date || todayIso,
-      metadata: { import: { source: "bulk_spreadsheet", at: new Date().toISOString() } },
+      metadata: {
+        import: { source: "bulk_spreadsheet", at: new Date().toISOString() },
+        ...(r.avail_days && r.avail_days.length ? { availability: { days: r.avail_days } } : {}),
+      },
     };
   });
-  const { error } = await sb.from("drivers").insert(insertRows);
-  if (error) {
-    console.error("bulk driver insert failed:", error);
+  let insertErr = null;
+  if (insertRows.length) {
+    const { error } = await sb.from("drivers").insert(insertRows);
+    insertErr = error;
+  }
+  if (insertErr) {
+    console.error("bulk driver insert failed:", insertErr);
     if (btn) { btn.disabled = false; btn.textContent = `Import ${ready.length} driver${ready.length === 1 ? "" : "s"}`; }
-    alert("Bulk import failed:\n\n" + (error.message || "Unknown error") + (error.details ? "\n\nDetails: " + error.details : "") + (error.hint ? "\n\nHint: " + error.hint : ""));
+    alert("Bulk import failed:\n\n" + (insertErr.message || "Unknown error") + (insertErr.details ? "\n\nDetails: " + insertErr.details : "") + (insertErr.hint ? "\n\nHint: " + insertErr.hint : ""));
     return;
+  }
+  // Apply availability updates to existing drivers (matched by phone/email).
+  // Merge into their current metadata so we don't clobber preferred_days,
+  // earliest_start, etc. Status is deliberately left untouched here — we
+  // don't want a re-import to reactivate a terminated/inactive driver.
+  let updated = 0, updateFail = 0;
+  for (const u of updates) {
+    const meta = (u.existing && u.existing.metadata) || {};
+    const newMeta = { ...meta, availability: { ...(meta.availability || {}), days: u.avail_days } };
+    const { error } = await sb.from("drivers").update({ metadata: newMeta }).eq("id", u.id);
+    if (error) { updateFail++; console.warn("availability update failed for", u.id, error.message); }
+    else { updated++; if (u.existing) u.existing.metadata = newMeta; }
   }
   // Note missing stations so the operator can fix them and re-import.
   const missingStations = wantedCodes.filter(c => !codeToId.has(c));
@@ -19139,11 +19309,15 @@ async function submitBulkDriverIngest() {
   const errBox = document.getElementById("bd-errors"); if (errBox) errBox.style.display = "none";
   _bdResetIngestSources();
   if (btn) { btn.disabled = true; btn.textContent = "Paste rows above"; }
-  const msgParts = [`Imported ${ready.length} driver${ready.length === 1 ? "" : "s"}`];
+  const msgParts = [];
+  if (ready.length)   msgParts.push(`Imported ${ready.length} driver${ready.length === 1 ? "" : "s"}`);
+  if (updated)        msgParts.push(`updated availability for ${updated}`);
+  if (updateFail)     msgParts.push(`${updateFail} update${updateFail === 1 ? "" : "s"} failed`);
   if (dupes.length)   msgParts.push(`${dupes.length} already in roster`);
   if (invalid.length) msgParts.push(`${invalid.length} skipped (invalid)`);
   if (missingStations.length) msgParts.push(`stations not matched: ${missingStations.join(", ")}`);
-  toast(msgParts.join(" · "), missingStations.length || invalid.length ? "warn" : "success");
+  if (!msgParts.length) msgParts.push("Nothing to import");
+  toast(msgParts.join(" · "), missingStations.length || invalid.length || updateFail ? "warn" : "success");
   // Imported drivers are active — make sure the operator lands on a view
   // that shows them (they may have been on On-leave / Inactive).
   if (_driverStage !== "active" && _driverStage !== "all") _driverStage = "active";
