@@ -882,4 +882,41 @@ ok("pasteValueParts reads value cells and formula results", () => {
   assert.deepEqual(pasteValueParts(null), { value: "", type: null });
 });
 
+// ── data validation ──────────────────────────────────────────────────────────
+const { valueSatisfiesRule, dvDateSerial } = __engine;
+ok("dv text length: between", () => {
+  const rule = { type: "textlen", op: "between", v1: "2", v2: "5" };
+  assert.equal(valueSatisfiesRule(rule, "hi"), true);
+  assert.equal(valueSatisfiesRule(rule, "toolong"), false);
+  assert.equal(valueSatisfiesRule(rule, "x"), false);
+});
+ok("dv number: comparison ops", () => {
+  assert.equal(valueSatisfiesRule({ type: "number", op: ">=", v1: "10" }, "10"), true);
+  assert.equal(valueSatisfiesRule({ type: "number", op: ">", v1: "10" }, "10"), false);
+  assert.equal(valueSatisfiesRule({ type: "number", op: "between", v1: "1", v2: "5" }, "3"), true);
+});
+ok("dv date: parses and compares as serials", () => {
+  const rule = { type: "date", op: ">=", v1: "2026-07-01" };
+  assert.equal(valueSatisfiesRule(rule, "2026-07-05"), true);
+  assert.equal(valueSatisfiesRule(rule, "2026-06-30"), false);
+});
+ok("dv date: between two dates", () => {
+  const rule = { type: "date", op: "between", v1: "2026-07-01", v2: "2026-07-31" };
+  assert.equal(valueSatisfiesRule(rule, "2026-07-15"), true);
+  assert.equal(valueSatisfiesRule(rule, "2026-08-01"), false);
+});
+ok("dv list: membership is case-insensitive", () => {
+  const rule = { type: "list", list: ["Open", "Closed"] };
+  assert.equal(valueSatisfiesRule(rule, "open"), true);
+  assert.equal(valueSatisfiesRule(rule, "Pending"), false);
+});
+ok("dv: an empty value always passes (blank is allowed)", () => {
+  assert.equal(valueSatisfiesRule({ type: "number", op: ">", v1: "0" }, ""), true);
+});
+ok("dvDateSerial handles ISO, m/d/y, and numeric serials", () => {
+  assert.equal(dvDateSerial("2026-07-05"), dateToSerial(new Date(2026, 6, 5)));
+  assert.equal(dvDateSerial(46208), 46208);
+  assert.equal(dvDateSerial("nonsense"), null);
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);

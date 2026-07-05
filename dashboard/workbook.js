@@ -6287,7 +6287,7 @@ function paintNow(g) {
     // list-validated cells fill with their option's color and carry a
     // ▾ mark pinned to the far right (Sheets' whole-cell dropdown look)
     const dvRule = hasDvRules && r > 0 ? findValidationRule(sheet, r, c) : null;
-    const isDv = !!(dvRule && dvRule.type === "list" && WB.canEdit);
+    const isDv = !!(dvRule && (dvRule.type === "list" || dvRule.type === "range") && WB.canEdit);
     // display style (rule.style): "arrow" fills the cell + right ▾ mark,
     // "chip" wraps the value in a colored pill, "plain" is fill only
     const dvStyle = isDv ? (dvRule.style === "chip" || dvRule.style === "plain" ? dvRule.style : "arrow") : null;
@@ -8709,16 +8709,54 @@ function dvOptionColor(rule, value) {
   return hex && HEX_COLOR_RE.test(hex) ? hex : null;
 }
 
-function valueSatisfiesRule(rule, raw) {
-  if (raw == null || raw === "") return true;
-  if (rule.type === "list") {
-    const s = String(raw).trim().toLowerCase();
-    return (rule.list || []).some((it) => String(it).trim().toLowerCase() === s);
+// A date-ish value → Excel serial (numbers pass through as serials).
+function dvDateSerial(v) {
+  if (typeof v === "number") return v;
+  const s = String(v).trim();
+  if (s === "") return null;
+  if (isFinite(Number(s))) return Number(s);
+  const d = parseDateLoose(s);
+  return d ? dateToSerial(d) : null;
+}
+
+// The options a list/range dropdown offers. A range source reads distinct,
+// non-empty values from its cells (sheet-qualified refs and named ranges
+// both resolve through the shared eval ctx).
+function dvOptionList(rule, sheet) {
+  if (rule.type === "range" && rule.source && sheet) {
+    try {
+      const ctx = cfEvalCtx(sheet);
+      let node = parseFormula("=" + rule.source);
+      if (node.k === "name") node = bindNames(node, ctx.names);
+      if (node.k !== "range" && node.k !== "ref") return [];
+      const grid = argGrid(node, ctx);
+      const out = [], seen = new Set();
+      for (const v of grid.flat()) {
+        if (v == null || v === "") continue;
+        const s = String(v);
+        if (!seen.has(s)) { seen.add(s); out.push(s); }
+      }
+      return out;
+    } catch (_) { return []; }
   }
-  const x = cellNumeric(raw);
-  if (x == null) return false;
-  const a = +rule.v1, b = +rule.v2;
-  switch (rule.op) {
+  return rule.list || [];
+}
+
+// Custom-formula validation: the formula is authored relative to the
+// range's top-left cell; shift it to this cell and test truthiness.
+function dvCustomHits(sheet, rule, r, c) {
+  if (!rule.formula) return true;
+  try {
+    const shifted = shiftFormulaRelative(rule.formula, r - rule.r0, c - rule.c0);
+    if (shifted.includes("#REF")) return false;
+    let v = evalFormula(shifted, cfEvalCtx(sheet));
+    if (v instanceof Arr) v = v.top();
+    return truthy(v);
+  } catch (_) { return false; }
+}
+
+function dvNumericCompare(op, x, a, b) {
+  switch (op) {
     case "between": return x >= Math.min(a, b) && x <= Math.max(a, b);
     case ">": return x > a;
     case ">=": return x >= a;
@@ -8729,12 +8767,35 @@ function valueSatisfiesRule(rule, raw) {
   }
 }
 
-function validationMsg(rule) {
-  if (rule.type === "list") {
-    const opts = (rule.list || []).slice(0, 6).join(", ");
-    return `Value must be one of: ${opts}${(rule.list || []).length > 6 ? ", …" : ""}`;
+function valueSatisfiesRule(rule, raw, sheet, r, c) {
+  if (raw == null || raw === "") return true;
+  if (rule.type === "list" || rule.type === "range") {
+    const s = String(raw).trim().toLowerCase();
+    return dvOptionList(rule, sheet).some((it) => String(it).trim().toLowerCase() === s);
   }
+  if (rule.type === "custom") return dvCustomHits(sheet, rule, r, c);
+  if (rule.type === "textlen") return dvNumericCompare(rule.op, String(raw).length, +rule.v1, +rule.v2);
+  if (rule.type === "date") {
+    const x = dvDateSerial(raw);
+    if (x == null) return false;
+    return dvNumericCompare(rule.op, x, dvDateSerial(rule.v1), dvDateSerial(rule.v2));
+  }
+  const x = cellNumeric(raw);
+  if (x == null) return false;
+  return dvNumericCompare(rule.op, x, +rule.v1, +rule.v2);
+}
+
+function validationMsg(rule) {
+  if (rule.type === "list" || rule.type === "range") {
+    const list = rule.type === "range" ? (rule.list || []) : (rule.list || []); // static hint list; range shows generic text
+    if (rule.type === "range") return `Value must come from ${rule.source || "the source range"}`;
+    const opts = list.slice(0, 6).join(", ");
+    return `Value must be one of: ${opts}${list.length > 6 ? ", …" : ""}`;
+  }
+  if (rule.type === "custom") return `Value must satisfy ${rule.formula || "the custom formula"}`;
   const opText = rule.op === "between" ? `between ${rule.v1} and ${rule.v2}` : `${rule.op} ${rule.v1}`;
+  if (rule.type === "textlen") return `Text length must be ${opText}`;
+  if (rule.type === "date") return `Date must be ${opText}`;
   return `Value must be a number ${opText}`;
 }
 
@@ -8744,7 +8805,7 @@ function validationMsg(rule) {
 function validateCommit(sheet, r, c, cell) {
   const rule = findValidationRule(sheet, r, c);
   if (!rule || !cell || cell.formula || cell.value == null || cell.value === "") return { ok: true };
-  if (valueSatisfiesRule(rule, cell.value)) return { ok: true };
+  if (valueSatisfiesRule(rule, cell.value, sheet, r, c)) return { ok: true };
   return { ok: false, strict: rule.mode !== "warn", msg: validationMsg(rule) };
 }
 
@@ -8756,7 +8817,7 @@ function cellInvalid(sheet, r, c, cell) {
   if (!rule) return false;
   const raw = cell.formula ? (cell.err ? null : cell.computed) : cell.value;
   if (raw == null || raw === "") return false;
-  return !valueSatisfiesRule(rule, raw);
+  return !valueSatisfiesRule(rule, raw, sheet, r, c);
 }
 
 const WB_CF_STYLES = {
@@ -8926,9 +8987,9 @@ function shiftRuleRanges(sheet, axis, index, delta) {
 function openValidationPicker(g, btnEl) {
   const { r, c } = g.active;
   const rule = findValidationRule(g.sheet, r, c);
-  if (!rule || rule.type !== "list" || !WB.canEdit) return;
+  if (!rule || (rule.type !== "list" && rule.type !== "range") || !WB.canEdit) return;
   const rect = btnEl.getBoundingClientRect();
-  const m = ctxMenu(rect.left - 120, rect.bottom + 2, (rule.list || []).map((opt, i) => {
+  const m = ctxMenu(rect.left - 120, rect.bottom + 2, dvOptionList(rule, g.sheet).map((opt, i) => {
     const hex = Array.isArray(rule.colors) && rule.colors[i] && HEX_COLOR_RE.test(rule.colors[i]) ? rule.colors[i] : null;
     return `<button type="button" class="popover-item" data-dv-opt="${esc(String(opt))}" role="menuitem">${hex ? `<span class="wb-dv-menuswatch" style="background:${hex}"></span>` : `<span class="wb-dv-menuswatch is-none"></span>`}${esc(String(opt))}</button>`;
   }).join("") +
@@ -8970,7 +9031,11 @@ function openValidationDialog(g) {
           <label class="wb-field"><span class="wb-field-label">Criteria</span>
             <select class="wb-input" id="wb-dv-type">
               <option value="list" ${cur.type === "list" ? "selected" : ""}>Dropdown from a list</option>
+              <option value="range" ${cur.type === "range" ? "selected" : ""}>Dropdown from a range</option>
               <option value="number" ${cur.type === "number" ? "selected" : ""}>Number</option>
+              <option value="date" ${cur.type === "date" ? "selected" : ""}>Date</option>
+              <option value="textlen" ${cur.type === "textlen" ? "selected" : ""}>Text length</option>
+              <option value="custom" ${cur.type === "custom" ? "selected" : ""}>Custom formula</option>
             </select></label>
           <label class="wb-field" style="flex:0 0 168px"><span class="wb-field-label">On invalid input</span>
             <select class="wb-input" id="wb-dv-mode">
@@ -8989,15 +9054,24 @@ function openValidationDialog(g) {
               <option value="plain" ${cur.style === "plain" ? "selected" : ""}>Plain text — just the colored fill</option>
             </select></label>
         </div>
+        <div id="wb-dv-range-row" hidden>
+          <label class="wb-field"><span class="wb-field-label">Options come from</span>
+            <input type="text" class="wb-input" id="wb-dv-source" value="${esc(cur.source || "")}" placeholder="Sheet1!A2:A50 or a named range" spellcheck="false"></label>
+          <p class="wb-dv-hint" style="margin-top:6px">Distinct, non-empty values from that range fill the dropdown.</p>
+        </div>
         <div class="wb-field-row" id="wb-dv-num-row" hidden>
-          <label class="wb-field"><span class="wb-field-label">Condition</span>
+          <label class="wb-field"><span class="wb-field-label" id="wb-dv-op-label">Condition</span>
             <select class="wb-input" id="wb-dv-op">
               ${opSel("between", "Between")}${opSel(">=", "Greater or equal")}${opSel("<=", "Less or equal")}${opSel(">", "Greater than")}${opSel("<", "Less than")}${opSel("=", "Equal to")}
             </select></label>
-          <label class="wb-field" style="flex:0 0 100px"><span class="wb-field-label">Value</span>
-            <input type="number" class="wb-input" id="wb-dv-v1" value="${cur.v1 ?? ""}"></label>
-          <label class="wb-field" style="flex:0 0 100px" id="wb-dv-v2-field"><span class="wb-field-label">and</span>
-            <input type="number" class="wb-input" id="wb-dv-v2" value="${cur.v2 ?? ""}"></label>
+          <label class="wb-field" style="flex:0 0 120px"><span class="wb-field-label">Value</span>
+            <input type="text" class="wb-input" id="wb-dv-v1" value="${esc(cur.v1 ?? "")}"></label>
+          <label class="wb-field" style="flex:0 0 120px" id="wb-dv-v2-field"><span class="wb-field-label">and</span>
+            <input type="text" class="wb-input" id="wb-dv-v2" value="${esc(cur.v2 ?? "")}"></label>
+        </div>
+        <div id="wb-dv-custom-row" hidden>
+          <label class="wb-field"><span class="wb-field-label">Custom formula — relative to the top-left cell, must return TRUE</span>
+            <input type="text" class="wb-input" id="wb-dv-formula" value="${esc(cur.formula || "")}" placeholder='=AND(A1>0, A1<100)' spellcheck="false"></label>
         </div>
         <p class="wb-dv-hint">Cells that break the rule get a red corner marker. Typed input is checked as you enter it; pasted data is only flagged.</p>
       </div>
@@ -9047,8 +9121,12 @@ function openValidationDialog(g) {
 
   const syncRows = () => {
     const t = wrap.querySelector("#wb-dv-type").value;
+    const opBased = t === "number" || t === "date" || t === "textlen";
     wrap.querySelector("#wb-dv-list-row").hidden = t !== "list";
-    wrap.querySelector("#wb-dv-num-row").hidden = t !== "number";
+    wrap.querySelector("#wb-dv-range-row").hidden = t !== "range";
+    wrap.querySelector("#wb-dv-num-row").hidden = !opBased;
+    wrap.querySelector("#wb-dv-custom-row").hidden = t !== "custom";
+    wrap.querySelector("#wb-dv-op-label").textContent = t === "textlen" ? "Length" : t === "date" ? "Date is" : "Condition";
     wrap.querySelector("#wb-dv-v2-field").style.display = wrap.querySelector("#wb-dv-op").value === "between" ? "" : "none";
   };
   syncRows();
@@ -9081,6 +9159,16 @@ function openValidationDialog(g) {
           rule.colors.push(row.querySelector("[data-dv-opt-color]").value || null);
         });
         if (!rule.list.length) { _toast("Add at least one option", "warn"); return; }
+      } else if (type === "range") {
+        const src = normalizeNameRef(wrap.querySelector("#wb-dv-source").value.trim(), sheet.name)
+          || (blockNamedRanges(findBlock(sheet.blockId)).some((d) => d.name.toLowerCase() === wrap.querySelector("#wb-dv-source").value.trim().toLowerCase()) ? wrap.querySelector("#wb-dv-source").value.trim() : null);
+        if (!src) { _toast("Enter a range like A2:A50 or a named range", "warn"); return; }
+        rule.source = src;
+      } else if (type === "custom") {
+        const formula = wrap.querySelector("#wb-dv-formula").value.trim();
+        if (!formula.startsWith("=")) { _toast("Custom formula must start with =", "warn"); return; }
+        try { parseFormula(formula); } catch (_) { _toast("That formula doesn't parse", "warn"); return; }
+        rule.formula = formula;
       } else {
         rule.op = wrap.querySelector("#wb-dv-op").value;
         rule.v1 = wrap.querySelector("#wb-dv-v1").value;
@@ -14299,7 +14387,7 @@ function fillDriverAction(g, driverId, act) {
 // not part of the app surface; live.js imports only the view loaders.
 
 export const __engine = {
-  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, matchesCriterion, FormulaError, Arr,
+  parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes,
