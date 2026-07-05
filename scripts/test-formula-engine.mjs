@@ -155,4 +155,107 @@ ok("unknown function is #NAME", () => assert.equal(evErr("=FOO(1)"), "#NAME"));
 ok("parse error is #ERROR", () => assert.equal(evErr("=1+"), "#ERROR"));
 ok("bare cell math with $ anchors", () => assert.equal(ev("=$A$1+A2", regCtx), 30));
 
-console.log(`✓ formula engine: ${n} tests passed`);
+// ── XLSX export ──────────────────────────────────────────────────────────────
+// Parse the produced zip back (stored entries only) and verify structure,
+// CRCs, and the cell/style XML we care about.
+
+function testCrc32(bytes) {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[i] = c >>> 0;
+  }
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = t[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function readStoredZip(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const eocdPos = bytes.length - 22;
+  assert.equal(dv.getUint32(eocdPos, true), 0x06054b50, "EOCD signature");
+  const count = dv.getUint16(eocdPos + 10, true);
+  let pos = dv.getUint32(eocdPos + 16, true);
+  const dec = new TextDecoder();
+  const out = new Map();
+  for (let i = 0; i < count; i++) {
+    assert.equal(dv.getUint32(pos, true), 0x02014b50, "central header signature");
+    const crc = dv.getUint32(pos + 16, true);
+    const size = dv.getUint32(pos + 20, true);
+    const nameLen = dv.getUint16(pos + 28, true);
+    const extraLen = dv.getUint16(pos + 30, true);
+    const cmtLen = dv.getUint16(pos + 32, true);
+    const lho = dv.getUint32(pos + 42, true);
+    const name = dec.decode(bytes.subarray(pos + 46, pos + 46 + nameLen));
+    assert.equal(dv.getUint32(lho, true), 0x04034b50, "local header signature");
+    const lNameLen = dv.getUint16(lho + 26, true);
+    const lExtraLen = dv.getUint16(lho + 28, true);
+    const start = lho + 30 + lNameLen + lExtraLen;
+    const data = bytes.subarray(start, start + size);
+    assert.equal(testCrc32(data), crc, `crc for ${name}`);
+    out.set(name, dec.decode(data));
+    pos += 46 + nameLen + extraLen + cmtLen;
+  }
+  return out;
+}
+
+function mkSheet(name, defs, extra = {}) {
+  const cells = new Map();
+  for (const [ref, cell] of Object.entries(defs)) {
+    const rc = parseCellRef(ref);
+    cells.set(rc.row + "," + rc.col, { value: null, formula: null, type: null, format: {}, computed: null, err: null, ...cell });
+  }
+  return { id: name, name, position: 0, rowCount: 50, colCount: 8, frozenRows: 0, frozenCols: 0, colWidths: {}, rowHeights: {}, hiddenRows: new Set(), hiddenCols: new Set(), meta: {}, cells, ...extra };
+}
+
+const shA = mkSheet("Ops?", {
+  A1: { value: "Route", type: "text", format: { bold: true, bg: "header" } },
+  B1: { value: "Cost", type: "text", format: { bold: true, bg: "header" } },
+  A2: { value: "R & D <east>", type: "text" },
+  B2: { value: "18", type: "number" },
+  C2: { formula: "=B2*2", type: "formula", computed: 36 },
+  D2: { value: "$1,250.50", type: "currency" },
+  E2: { value: "12%", type: "percent" },
+  F2: { value: "2026-07-05", type: "date" },
+  G2: { value: "note", type: "text", format: { bg: "#ABCDEF", fg: "#112233", align: "center", wrap: true } },
+}, { frozenRows: 1, colWidths: { 0: 140 } });
+const shB = mkSheet("Ops?", { A1: { value: "x", type: "text" } });
+
+const xbytes = __engine.buildXlsxBytes([shA, shB]);
+let parts;
+ok("xlsx: zip parses and CRCs check out", () => {
+  assert.equal(xbytes[0], 0x50);
+  assert.equal(xbytes[1], 0x4b);
+  parts = readStoredZip(xbytes);
+});
+ok("xlsx: all package parts present", () => {
+  for (const p of ["[Content_Types].xml", "_rels/.rels", "xl/workbook.xml", "xl/_rels/workbook.xml.rels", "xl/styles.xml", "xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"]) {
+    assert.ok(parts.has(p), `missing ${p}`);
+  }
+});
+ok("xlsx: sheet names sanitized and unique", () => {
+  const wb = parts.get("xl/workbook.xml");
+  assert.ok(wb.includes('name="Ops"'), "first sheet name");
+  assert.ok(wb.includes('name="Ops 2"'), "deduped second sheet name");
+});
+ok("xlsx: formulas, date serials, numeric types, escaping, freeze, widths", () => {
+  const s1 = parts.get("xl/worksheets/sheet1.xml");
+  assert.ok(s1.includes("<f>B2*2</f>"), "live formula");
+  assert.ok(s1.includes("<v>36</v>"), "cached formula value");
+  assert.ok(s1.includes("<v>46208</v>"), "date exported as a real Excel serial");
+  assert.ok(s1.includes("<v>1250.5</v>"), "currency exported as a number");
+  assert.ok(s1.includes("<v>0.12</v>"), "percent exported as a fraction");
+  assert.ok(s1.includes("R &amp; D &lt;east&gt;"), "XML escaping");
+  assert.ok(s1.includes('state="frozen"'), "frozen header row");
+  assert.ok(s1.includes('customWidth="1"'), "column width");
+});
+ok("xlsx: styles carry number formats and custom hex colors", () => {
+  const st = parts.get("xl/styles.xml");
+  assert.ok(st.includes('numFmtId="164"'), "currency format");
+  assert.ok(st.includes('rgb="FFABCDEF"'), "custom fill hex");
+  assert.ok(st.includes('rgb="FF112233"'), "custom text hex");
+  assert.ok(st.includes("<b/>"), "bold font variant");
+});
+
+console.log(`✓ formula engine + xlsx: ${n} tests passed`);
