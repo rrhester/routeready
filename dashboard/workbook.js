@@ -3062,6 +3062,7 @@ function mountSheetBlock(block, body) {
       </div>
       <div class="wb-gr-filterchip" hidden></div>
     </div>
+    <div class="wb-charts" data-wb-charts hidden></div>
     <div class="wb-tabs" data-wb-tabs="${block.id}"></div>
     <div class="wb-statusbar" data-wb-statusbar>
       <span class="wb-sb-mode" data-wb-sbmode>Ready</span>
@@ -3100,6 +3101,7 @@ function mountSheetBlock(block, body) {
       fbarInput: body.querySelector("[data-wb-fbar-input]"),
       fbarErr: body.querySelector("[data-wb-fbar-err]"),
       filterChip: body.querySelector(".wb-gr-filterchip"),
+      charts: body.querySelector("[data-wb-charts]"),
       tabs: body.querySelector("[data-wb-tabs]"),
     },
     active: { r: 0, c: 0 },
@@ -3123,6 +3125,16 @@ function mountSheetBlock(block, body) {
   renderSheetTabs(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  renderCharts(g);
+  g.els.charts.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-wb-chart]");
+    const act = e.target.closest("[data-wb-chartact]");
+    if (!card || !act) return;
+    const ch = sheetCharts(g.sheet).find((x) => x.id === card.getAttribute("data-wb-chart"));
+    if (!ch) return;
+    if (act.getAttribute("data-wb-chartact") === "edit") openChartDialog(g, ch);
+    else confirmModal({ title: "Delete this chart?", body: "The underlying cells are untouched.", confirmLabel: "Delete chart", danger: true, onConfirm: () => deleteChart(g, ch.id) });
+  });
 }
 
 function sheetToolbarHtml(block, ro) {
@@ -4244,6 +4256,7 @@ function switchSheet(g, sheetId) {
   renderSheetTabs(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  renderCharts(g);
 }
 
 // ─── Selection + navigation ─────────────────────────────────────────────────
@@ -4387,6 +4400,7 @@ function setCells(g, changes, opts) {
   if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  scheduleChartRender(g);
 }
 
 function undoGrid(g) {
@@ -4405,6 +4419,7 @@ function undoGrid(g) {
   if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  scheduleChartRender(g);
 }
 
 function redoGrid(g) {
@@ -4421,6 +4436,7 @@ function redoGrid(g) {
   if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  scheduleChartRender(g);
 }
 
 // Parse raw user input into a cell object (or null for empty).
@@ -4900,6 +4916,7 @@ function restructure(g, axis, index, delta) {
   const a = g.active;
   computeGeometry(g);
   setActive(g, Math.min(a.r, sheet.rowCount - 1), Math.min(a.c, sheet.colCount - 1));
+  scheduleChartRender(g);
 }
 
 function shiftIndexMap(map, index, delta) {
@@ -5060,7 +5077,7 @@ function shiftRuleRanges(sheet, axis, index, delta) {
   const meta = sheet.meta || {};
   const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
   const cut = delta < 0 ? -delta : 0;
-  for (const key of ["validation", "condFormat", "merges"]) {
+  for (const key of ["validation", "condFormat", "merges", "charts"]) {
     if (!Array.isArray(meta[key]) || !meta[key].length) continue;
     const next = [];
     for (const rule of meta[key]) {
@@ -6545,6 +6562,310 @@ function exportBlockXlsx(g) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   wbLog("xlsx.exported", `exported ${sheets.length === 1 ? `sheet “${sheets[0].name}”` : `${sheets.length} sheets`} as an Excel file`, { target_type: "block", target_id: g.blockId });
   _toast("Excel file exported", "success");
+}
+
+// ─── Charts ──────────────────────────────────────────────────────────────────
+// Chart specs live flat in sheet.meta.charts ({id, type, title, r0..c1})
+// so structural edits shift them like validation/merge rects. Rendered
+// as inline SVG cards in a strip under the grid; series values re-read
+// from cells on every data change. Palette: the validated 8-slot
+// categorical set (fixed order, never cycled) from the dataviz method;
+// axis text and gridlines use the app's ink tokens.
+
+const WB_CHART_COLORS = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948", "#e87ba4", "#eb6834"];
+const WB_CHART_TYPES = { column: "Column", bar: "Bar", line: "Line", area: "Area", pie: "Pie" };
+
+function sheetCharts(sheet) {
+  const v = sheet.meta && sheet.meta.charts;
+  return Array.isArray(v) ? v : [];
+}
+
+function chartRefText(ch) {
+  return colLabel(ch.c0) + (ch.r0 + 1) + ":" + colLabel(ch.c1) + (ch.r1 + 1);
+}
+
+// Range → {categories, series:[{name, values}]}. Row 1 of the range is
+// treated as headers; the first column as category labels when it isn't
+// numeric. A single-column range becomes one series over row numbers.
+function chartData(sheet, ch) {
+  const r1 = Math.min(ch.r1, sheet.rowCount - 1), c1 = Math.min(ch.c1, sheet.colCount - 1);
+  const rawOf = (r, c) => {
+    const cell = sheet.cells.get(cellKey(r, c));
+    return cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
+  };
+  const numOf = (r, c) => {
+    const cell = sheet.cells.get(cellKey(r, c));
+    if (!cell || cell.type === "text") return null;
+    return cellNumeric(cell.formula ? (cell.err ? null : cell.computed) : cell.value);
+  };
+  const single = c1 === ch.c0;
+  const firstDataCol = single ? ch.c0 : ch.c0 + 1;
+  const categories = [];
+  const series = [];
+  for (let c = firstDataCol; c <= c1; c++) {
+    series.push({ name: String(rawOf(ch.r0, c) ?? colLabel(c)), values: [] });
+  }
+  for (let r = ch.r0 + 1; r <= r1; r++) {
+    const label = single ? String(r + 1) : String(rawOf(r, ch.c0) ?? r + 1);
+    let any = false;
+    const rowVals = series.map((s, i) => {
+      const v = numOf(r, firstDataCol + i);
+      if (v != null) any = true;
+      return v;
+    });
+    if (!any && label.trim() === "") continue;
+    categories.push(label);
+    rowVals.forEach((v, i) => series[i].values.push(v));
+  }
+  return { categories, series: series.filter((s) => s.values.some((v) => v != null)) };
+}
+
+function chartNiceTicks(lo, hi, n = 4) {
+  if (!(hi > lo)) hi = lo + 1;
+  const span = hi - lo;
+  const step0 = Math.pow(10, Math.floor(Math.log10(span / n)));
+  const err = span / n / step0;
+  const step = step0 * (err >= 7.5 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1);
+  const top = Math.ceil(hi / step) * step; // domain must cover the max
+  const ticks = [];
+  for (let v = Math.floor(lo / step) * step; v <= top + step / 2; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  return ticks;
+}
+
+function chartFmt(v) {
+  const a = Math.abs(v);
+  if (a >= 1e6) return (v / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 }) + "M";
+  if (a >= 1e4) return (v / 1e3).toLocaleString(undefined, { maximumFractionDigits: 1 }) + "k";
+  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+// Rounded data-end bar anchored to the baseline (spec: only the value
+// end is rounded).
+function chartBarPath(x, y, w, h, up, color, title) {
+  const r = Math.min(4, w / 2, h);
+  const d = up
+    ? `M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z`
+    : `M${x},${y} L${x + w},${y} L${x + w},${y + h - r} Q${x + w},${y + h} ${x + w - r},${y + h} L${x + r},${y + h} Q${x},${y + h} ${x},${y + h - r} Z`;
+  return `<path d="${d}" fill="${color}"><title>${title}</title></path>`;
+}
+
+function chartSvg(sheet, ch) {
+  const { categories, series } = chartData(sheet, ch);
+  if (!categories.length || !series.length) {
+    return { svg: `<div class="wb-chart-empty">No numeric data in ${esc(chartRefText(ch))} yet.</div>`, legend: "" };
+  }
+  const color = (i) => WB_CHART_COLORS[i % WB_CHART_COLORS.length];
+  const t = (s) => esc(String(s));
+
+  if (ch.type === "pie") {
+    const s0 = series[0];
+    let entries = categories.map((label, i) => ({ label, v: Math.max(0, s0.values[i] ?? 0) })).filter((e) => e.v > 0);
+    if (entries.length > 8) {
+      const rest = entries.slice(7).reduce((a, e) => a + e.v, 0);
+      entries = [...entries.slice(0, 7), { label: "Other", v: rest }];
+    }
+    const total = entries.reduce((a, e) => a + e.v, 0);
+    if (!total) return { svg: `<div class="wb-chart-empty">Nothing to chart in ${esc(chartRefText(ch))}.</div>`, legend: "" };
+    const CX = 240, CY = 110, R = 92;
+    let a0 = -Math.PI / 2;
+    let paths = "";
+    entries.forEach((e, i) => {
+      const frac = e.v / total;
+      const a1 = a0 + frac * Math.PI * 2;
+      const large = a1 - a0 > Math.PI ? 1 : 0;
+      const x0 = CX + R * Math.cos(a0), y0 = CY + R * Math.sin(a0);
+      const x1 = CX + R * Math.cos(a1), y1 = CY + R * Math.sin(a1);
+      paths += frac >= 0.999
+        ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${color(i)}"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></circle>`
+        : `<path d="M${CX},${CY} L${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} Z" fill="${color(i)}" stroke="var(--surface)" stroke-width="2"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></path>`;
+      a0 = a1;
+    });
+    const legend = entries.map((e, i) =>
+      `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(i)}"></span>${t(e.label)} <span class="wb-chart-keyv">${Math.round((e.v / total) * 100)}%</span></span>`).join("");
+    return { svg: `<svg viewBox="0 0 480 220" role="img" aria-label="${t(ch.title || "Pie chart")}">${paths}</svg>`, legend };
+  }
+
+  // shared cartesian frame
+  const W = 480, H = 220, padL = 46, padR = 10, padT = 10, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const horizontal = ch.type === "bar";
+  let lo = 0, hi = 1;
+  const allVals = series.flatMap((s) => s.values).filter((v) => v != null);
+  if (allVals.length) { lo = Math.min(...allVals), hi = Math.max(...allVals); }
+  if (ch.type !== "line") { lo = Math.min(0, lo); hi = Math.max(0, hi); } // bars/areas keep a zero baseline
+  const ticks = chartNiceTicks(lo, hi);
+  lo = ticks[0]; hi = ticks[ticks.length - 1];
+  const span = hi - lo || 1;
+  const vx = (v) => padL + ((v - lo) / span) * plotW;   // horizontal value axis (bar)
+  const vy = (v) => padT + plotH - ((v - lo) / span) * plotH;
+  let out = "";
+
+  // gridlines + value axis labels (recessive ink)
+  for (const tk of ticks) {
+    if (horizontal) {
+      out += `<line x1="${vx(tk)}" y1="${padT}" x2="${vx(tk)}" y2="${padT + plotH}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+      out += `<text x="${vx(tk)}" y="${H - 8}" text-anchor="middle" class="wb-chart-tick">${chartFmt(tk)}</text>`;
+    } else {
+      out += `<line x1="${padL}" y1="${vy(tk)}" x2="${W - padR}" y2="${vy(tk)}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+      out += `<text x="${padL - 6}" y="${vy(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`;
+    }
+  }
+
+  const nCat = categories.length;
+  const catLabel = (label, i) => {
+    const step = Math.ceil(nCat / (horizontal ? 12 : 8));
+    if (i % step !== 0) return "";
+    const short = String(label).slice(0, horizontal ? 9 : 10);
+    return horizontal
+      ? `<text x="${padL - 6}" y="${padT + ((i + 0.5) / nCat) * plotH + 3}" text-anchor="end" class="wb-chart-tick">${t(short)}</text>`
+      : `<text x="${padL + ((i + 0.5) / nCat) * plotW}" y="${H - 8}" text-anchor="middle" class="wb-chart-tick">${t(short)}</text>`;
+  };
+  categories.forEach((label, i) => { out += catLabel(label, i); });
+
+  if (ch.type === "column" || ch.type === "bar") {
+    const band = (horizontal ? plotH : plotW) / nCat;
+    const inner = band * 0.72;
+    const bw = Math.max(3, (inner - (series.length - 1) * 2) / series.length);
+    categories.forEach((label, i) => {
+      series.forEach((s, si) => {
+        const v = s.values[i];
+        if (v == null) return;
+        const off = (horizontal ? padT : padL) + i * band + (band - inner) / 2 + si * (bw + 2);
+        const title = `${t(label)} · ${t(s.name)}: ${chartFmt(v)}`;
+        if (horizontal) {
+          const x0 = vx(Math.min(0, v)), x1 = vx(Math.max(0, v));
+          const r = Math.min(4, (x1 - x0), bw / 2);
+          out += `<path d="M${x0},${off} L${x1 - r},${off} Q${x1},${off} ${x1},${off + r} L${x1},${off + bw - r} Q${x1},${off + bw} ${x1 - r},${off + bw} L${x0},${off + bw} Z" fill="${color(si)}"><title>${title}</title></path>`;
+        } else {
+          const y0 = vy(Math.max(0, v)), y1 = vy(Math.min(0, v));
+          out += chartBarPath(off, y0, bw, Math.max(1, y1 - y0), v >= 0, color(si), title);
+        }
+      });
+    });
+    // zero baseline
+    if (horizontal) out += `<line x1="${vx(0)}" y1="${padT}" x2="${vx(0)}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
+    else out += `<line x1="${padL}" y1="${vy(0)}" x2="${W - padR}" y2="${vy(0)}" stroke="var(--border-strong)" stroke-width="1"/>`;
+  } else {
+    // line / area over category midpoints
+    const cx = (i) => padL + ((i + 0.5) / nCat) * plotW;
+    series.forEach((s, si) => {
+      const pts = [];
+      s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy(v), i, v]); });
+      if (!pts.length) return;
+      const line = pts.map((p, k) => `${k ? "L" : "M"}${p[0]},${p[1]}`).join(" ");
+      if (ch.type === "area" && series.length === 1) {
+        out += `<path d="${line} L${pts[pts.length - 1][0]},${vy(Math.max(lo, 0))} L${pts[0][0]},${vy(Math.max(lo, 0))} Z" fill="${color(si)}29"/>`;
+      }
+      out += `<path d="${line}" fill="none" stroke="${color(si)}" stroke-width="2" stroke-linejoin="round"/>`;
+      for (const [x, y, i, v] of pts) {
+        out += `<circle cx="${x}" cy="${y}" r="3" fill="${color(si)}"><title>${t(categories[i])} · ${t(s.name)}: ${chartFmt(v)}</title></circle>`;
+      }
+    });
+    out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
+  }
+
+  const legend = series.length > 1
+    ? series.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("")
+    : "";
+  return { svg: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t(ch.title || WB_CHART_TYPES[ch.type] + " chart")}">${out}</svg>`, legend };
+}
+
+function renderCharts(g) {
+  const host = g.els.charts;
+  if (!host) return;
+  const charts = sheetCharts(g.sheet);
+  if (!charts.length) { host.innerHTML = ""; host.hidden = true; return; }
+  host.hidden = false;
+  host.innerHTML = charts.map((ch) => {
+    const { svg, legend } = chartSvg(g.sheet, ch);
+    return `<div class="wb-chart-card" data-wb-chart="${esc(ch.id)}">
+      <div class="wb-chart-head">
+        <span class="wb-chart-title">${esc(ch.title || `${WB_CHART_TYPES[ch.type] || "Chart"} · ${chartRefText(ch)}`)}</span>
+        ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-chartact="edit" title="Edit chart" aria-label="Edit chart"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-chartact="delete" title="Delete chart" aria-label="Delete chart">×</button>` : ""}
+      </div>
+      ${legend ? `<div class="wb-chart-legend">${legend}</div>` : ""}
+      ${svg}
+    </div>`;
+  }).join("");
+}
+
+function scheduleChartRender(g) {
+  if (!g.els.charts) return;
+  clearTimeout(g.chartsT);
+  g.chartsT = setTimeout(() => renderCharts(g), 250);
+}
+
+function parseRangeRefText(s) {
+  const m = String(s || "").trim().split(":");
+  if (m.length !== 2) return null;
+  const a = parseCellRef(m[0]), b = parseCellRef(m[1]);
+  if (!a || !b) return null;
+  return { r0: Math.min(a.row, b.row), c0: Math.min(a.col, b.col), r1: Math.max(a.row, b.row), c1: Math.max(a.col, b.col) };
+}
+
+function openChartDialog(g, existing) {
+  if (!WB.canEdit) return;
+  document.getElementById("wb-chart-modal")?.remove();
+  const rect = selRect(g);
+  const defRef = existing ? chartRefText(existing) : `${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1}`;
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-chart-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${existing ? "Edit chart" : "Insert chart"}" style="width:460px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">${existing ? "Edit chart" : "Insert chart"}</p><p class="rr-modal-sub">Row 1 of the range holds series names; the first column holds labels.</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Title <span class="wb-field-opt">optional</span></span>
+          <input type="text" class="wb-input" id="wb-chart-title" maxlength="120" value="${esc((existing && existing.title) || "")}" placeholder="Routes per day"></label>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Chart type</span>
+            <select class="wb-input" id="wb-chart-type">
+              ${Object.entries(WB_CHART_TYPES).map(([k, label]) => `<option value="${k}" ${(existing ? existing.type : "column") === k ? "selected" : ""}>${label}</option>`).join("")}
+            </select></label>
+          <label class="wb-field"><span class="wb-field-label">Data range</span>
+            <input type="text" class="wb-input" id="wb-chart-range" value="${esc(defRef)}" placeholder="A1:C8" spellcheck="false"></label>
+        </div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-chart-save>${existing ? "Save" : "Insert chart"}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-chart-save]")) return;
+    const range = parseRangeRefText(wrap.querySelector("#wb-chart-range").value);
+    if (!range) { _toast("Enter a range like A1:C8", "warn"); return; }
+    if (range.r1 - range.r0 > 500 || range.c1 - range.c0 > 9) { _toast("Chart ranges cap at 500 rows × 10 columns", "warn"); return; }
+    const spec = {
+      id: existing ? existing.id : "ch" + Math.random().toString(36).slice(2, 8),
+      type: wrap.querySelector("#wb-chart-type").value,
+      title: wrap.querySelector("#wb-chart-title").value.trim(),
+      ...range,
+    };
+    const charts = sheetCharts(g.sheet).filter((c) => c.id !== spec.id);
+    charts.push(spec);
+    g.sheet.meta = { ...(g.sheet.meta || {}), charts };
+    saveSheetMeta(g.sheet.id);
+    wbLog("sheet.chart", `${existing ? "updated" : "added"} a ${WB_CHART_TYPES[spec.type].toLowerCase()} chart on ${chartRefText(spec)} in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    wrap.remove();
+    renderCharts(g);
+    g.els.charts?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+  setTimeout(() => wrap.querySelector("#wb-chart-title")?.focus(), 30);
+}
+
+function deleteChart(g, chartId) {
+  if (!WB.canEdit) return;
+  g.sheet.meta = { ...(g.sheet.meta || {}), charts: sheetCharts(g.sheet).filter((c) => c.id !== chartId) };
+  saveSheetMeta(g.sheet.id);
+  renderCharts(g);
 }
 
 // ─── Menus (shared open/close discipline) ───────────────────────────────────

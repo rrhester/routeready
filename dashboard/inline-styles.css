@@ -28738,6 +28738,26 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #view-workbooks .wb-tb.is-on{background:var(--accent-soft,rgba(37,99,235,.12));color:var(--accent,#2563EB)}
 
+/* ── Charts strip ── */
+#view-workbooks .wb-charts{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;
+  padding:12px 2px 4px;
+}
+#view-workbooks .wb-chart-card{
+  flex:0 1 520px;min-width:320px;max-width:560px;
+  border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);padding:10px 12px 8px;
+}
+#view-workbooks .wb-chart-head{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+#view-workbooks .wb-chart-title{flex:1;font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#view-workbooks .wb-chart-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:2px 0 4px}
+#view-workbooks .wb-chart-key{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);color:var(--text-muted)}
+#view-workbooks .wb-chart-keyv{color:var(--text-subtle)}
+#view-workbooks .wb-chart-swatch{width:10px;height:10px;border-radius:3px;flex:none}
+#view-workbooks .wb-chart-card svg{width:100%;height:auto;display:block}
+#view-workbooks .wb-chart-tick{font-size:10px;fill:var(--text-subtle)}
+#view-workbooks .wb-chart-empty{padding:18px 4px;font-size:var(--fs-sm);color:var(--text-subtle)}
+
 /* ── Formula bar ── */
 #view-workbooks .wb-fbar{
   display:flex;align-items:center;gap:var(--s-2);
