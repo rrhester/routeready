@@ -244,6 +244,7 @@ function tokenize(src) {
 
 const MAX_FORMULA_LEN = 2000;
 const MAX_RANGE_CELLS = 20000;
+const OPEN_END = 1048575; // sentinel bound for open-ended A:A / 1:3 ranges
 
 function parseFormula(src) {
   if (typeof src !== "string") throw new FormulaError("#ERROR", "not a formula");
@@ -306,7 +307,15 @@ function parseFormula(src) {
   function parsePrimary() {
     const tok = next();
     if (!tok) throw new FormulaError("#ERROR", "unexpected end of formula");
-    if (tok.t === TOK_NUM) return { k: "num", v: tok.v };
+    if (tok.t === TOK_NUM) {
+      // whole-row range: 1:3 (columns open-ended)
+      if (Number.isInteger(tok.v) && tok.v >= 1 && peek() && peek().t === TOK_COLON && toks[p + 1] && toks[p + 1].t === TOK_NUM && Number.isInteger(toks[p + 1].v) && toks[p + 1].v >= 1) {
+        next(); // :
+        const end = next().v;
+        return { k: "range", a: { row: Math.min(tok.v, end) - 1, col: 0 }, b: { row: Math.max(tok.v, end) - 1, col: OPEN_END } };
+      }
+      return { k: "num", v: tok.v };
+    }
     if (tok.t === TOK_STR) return { k: "str", v: tok.v };
     if (tok.t === TOK_LP) { const inner = parseCompare(); expect(TOK_RP); return inner; }
     if (tok.t === TOK_ID) {
@@ -328,6 +337,13 @@ function parseFormula(src) {
         return { k: "func", name: up, args };
       }
       if (peek() && peek().t === "!") { next(); return parseSheetRef(id); }
+      // whole-column range: A:A / B:D (rows open-ended)
+      if (/^\$?[A-Za-z]{1,3}$/.test(id) && peek() && peek().t === TOK_COLON && toks[p + 1] && toks[p + 1].t === TOK_ID && /^\$?[A-Za-z]{1,3}$/.test(toks[p + 1].v)) {
+        next(); // :
+        const cA = colIndex(id.replace("$", ""));
+        const cB = colIndex(next().v.replace("$", ""));
+        return { k: "range", a: { row: 0, col: Math.min(cA, cB) }, b: { row: OPEN_END, col: Math.max(cA, cB) } };
+      }
       const ref = parseCellRef(id);
       if (ref) {
         if (peek() && peek().t === TOK_COLON) {
@@ -378,10 +394,29 @@ function parseFormula(src) {
 
 // ── Evaluator ────────────────────────────────────────────────────────────────
 
+// ── Date serials ─────────────────────────────────────────────────────────────
+// Excel-compatible day numbers (days since 1899-12-30), so dates subtract
+// and shift like numbers: =C2-B2 is days between, =B2+30 is a month out.
+
+const DATE_EPOCH_UTC = Date.UTC(1899, 11, 30);
+function dateToSerial(d) {
+  return Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - DATE_EPOCH_UTC) / 86400000);
+}
+function serialToDate(n) {
+  const d = new Date(1899, 11, 30);
+  d.setDate(d.getDate() + Math.trunc(n));
+  return d;
+}
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function toNum(v) {
   if (v == null || v === "") return 0;
   if (typeof v === "number") return v;
   if (typeof v === "boolean") return v ? 1 : 0;
+  const d = typeof v === "string" ? parseDateLoose(v) : null; // dates coerce to serials
+  if (d) return dateToSerial(d);
   const n = Number(String(v).replace(/[$,%\s]/g, ""));
   if (!isFinite(n)) throw new FormulaError("#VALUE", `'${v}' is not a number`);
   return n;
@@ -403,7 +438,16 @@ function cmp(op, a, b) {
   const an = typeof a === "number" || (typeof a === "string" && a.trim() !== "" && isFinite(Number(a)));
   const bn = typeof b === "number" || (typeof b === "string" && b.trim() !== "" && isFinite(Number(b)));
   if (an && bn) { const x = Number(a), y = Number(b); res = x < y ? -1 : x > y ? 1 : 0; }
-  else { const x = String(a ?? "").toUpperCase(), y = String(b ?? "").toUpperCase(); res = x < y ? -1 : x > y ? 1 : 0; }
+  else {
+    // date-aware: "7/10/2026" > "2026-07-01" compares as dates, and a
+    // date compares against a plain number as its serial
+    const ad = typeof a === "string" ? parseDateLoose(a) : null;
+    const bd = typeof b === "string" ? parseDateLoose(b) : null;
+    const av = ad ? dateToSerial(ad) : typeof a === "number" ? a : null;
+    const bv = bd ? dateToSerial(bd) : typeof b === "number" ? b : null;
+    if ((ad || bd) && av != null && bv != null) res = av < bv ? -1 : av > bv ? 1 : 0;
+    else { const x = String(a ?? "").toUpperCase(), y = String(b ?? "").toUpperCase(); res = x < y ? -1 : x > y ? 1 : 0; }
+  }
   switch (op) {
     case "=": return res === 0;
     case "<>": return res !== 0;
@@ -420,6 +464,23 @@ function* rangeCells(a, b) {
   const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
   if ((r1 - r0 + 1) * (c1 - c0 + 1) > MAX_RANGE_CELLS) throw new FormulaError("#REF", "range too large");
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) yield { row: r, col: c };
+}
+
+// Clamp an open-ended range node (A:A, 1:3) to the sheet bounds before
+// expansion; bounded ranges pass through untouched.
+function boundedRange(node, ctx) {
+  let { a, b } = node;
+  if (b.row >= OPEN_END || b.col >= OPEN_END) {
+    const rowMax = Math.max(0, ((ctx && ctx.rowCount) || 10000) - 1);
+    const colMax = Math.max(0, ((ctx && ctx.colCount) || 256) - 1);
+    a = { row: Math.min(a.row, rowMax), col: Math.min(a.col, colMax) };
+    b = { row: Math.min(b.row, rowMax), col: Math.min(b.col, colMax) };
+  }
+  return { a, b };
+}
+function* rangeCellsCtx(node, ctx) {
+  const { a, b } = boundedRange(node, ctx);
+  yield* rangeCells(a, b);
 }
 
 function flatNumeric(vals) {
@@ -447,6 +508,22 @@ const FUNCS = {
   POWER: (vals) => { const r = Math.pow(toNum(vals[0]), toNum(vals[1])); if (!isFinite(r)) throw new FormulaError("#VALUE", "overflow"); return r; },
   MOD: (vals) => { const d = toNum(vals[1]); if (d === 0) throw new FormulaError("#DIV/0", "MOD by zero"); const a = toNum(vals[0]); return a - d * Math.floor(a / d); },
   SQRT: (vals) => { const n = toNum(vals[0]); if (n < 0) throw new FormulaError("#VALUE", "SQRT of negative"); return Math.sqrt(n); },
+  STDEV: (vals) => { const xs = flatNumeric(vals); if (xs.length < 2) throw new FormulaError("#DIV/0", "STDEV needs 2+ numbers"); const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - m) * (b - m), 0) / (xs.length - 1)); },
+  COUNTBLANK: (vals) => vals.filter((v) => v == null || v === "").length,
+  PROPER: (vals) => fmtScalar(vals[0]).toLowerCase().replace(/(^|[^A-Za-z])([a-z])/g, (m, p, c) => p + c.toUpperCase()),
+  REPT: (vals) => { const n = Math.trunc(toNum(vals[1])); const s = fmtScalar(vals[0]); if (n < 0 || n * s.length > 32767) throw new FormulaError("#VALUE", "REPT too long"); return s.repeat(n); },
+  VALUE: (vals) => toNum(vals[0]),
+  EXACT: (vals) => fmtScalar(vals[0]) === fmtScalar(vals[1]),
+  TRUNC: (vals) => { const d = vals.length > 1 ? Math.trunc(toNum(vals[1])) : 0; const f = Math.pow(10, d); return Math.trunc(toNum(vals[0]) * f) / f; },
+  CEILING: (vals) => { const x = toNum(vals[0]); const s = vals.length > 1 ? toNum(vals[1]) : 1; if (s === 0) return 0; return Math.ceil(x / s - 1e-10) * s; },
+  FLOOR: (vals) => { const x = toNum(vals[0]); const s = vals.length > 1 ? toNum(vals[1]) : 1; if (s === 0) throw new FormulaError("#DIV/0", "FLOOR by zero"); return Math.floor(x / s + 1e-10) * s; },
+  LN: (vals) => { const x = toNum(vals[0]); if (x <= 0) throw new FormulaError("#VALUE", "LN of non-positive"); return Math.log(x); },
+  EXP: (vals) => { const r = Math.exp(toNum(vals[0])); if (!isFinite(r)) throw new FormulaError("#VALUE", "overflow"); return r; },
+  LOG: (vals) => { const x = toNum(vals[0]); const b = vals.length > 1 ? toNum(vals[1]) : 10; if (x <= 0 || b <= 0 || b === 1) throw new FormulaError("#VALUE", "bad LOG"); return Math.log(x) / Math.log(b); },
+  PI: () => Math.PI,
+  RAND: () => Math.random(),
+  RANDBETWEEN: (vals) => { const a = Math.ceil(toNum(vals[0])), b = Math.floor(toNum(vals[1])); if (b < a) throw new FormulaError("#VALUE", "bad RANDBETWEEN range"); return a + Math.floor(Math.random() * (b - a + 1)); },
+  XOR: (vals) => vals.filter((v) => truthy(v)).length % 2 === 1,
 };
 
 function evalFormula(src, ctx) {
@@ -506,13 +583,43 @@ function collectArgValues(args, ctx) {
   const out = [];
   for (const a of args) {
     if (a.k === "range") {
-      for (const { row, col } of rangeCells(a.a, a.b)) out.push(ctx.getCell(row, col, a.sheet));
+      for (const { row, col } of rangeCellsCtx(a, ctx)) out.push(ctx.getCell(row, col, a.sheet));
     } else {
       out.push(evalNode(a, ctx));
     }
   }
   return out;
 }
+
+// Evaluate an argument as a date: serial numbers round-trip, strings parse
+// loosely ("2026-07-05" or "7/5/2026").
+function argDate(node, ctx, name) {
+  const v = evalNode(node, ctx);
+  if (typeof v === "number") return serialToDate(v);
+  const d = parseDateLoose(fmtScalar(v));
+  if (!d) throw new FormulaError("#VALUE", `${name} needs a date`);
+  return d;
+}
+
+// Optional holidays argument for NETWORKDAYS / WORKDAY → Set of serials.
+function holidaySerials(node, ctx) {
+  const set = new Set();
+  if (!node) return set;
+  if (node.k === "range") {
+    for (const { row, col } of rangeCellsCtx(node, ctx)) {
+      const d = parseDateLoose(fmtScalar(ctx.getCell(row, col, node.sheet) ?? ""));
+      if (d) set.add(dateToSerial(d));
+    }
+  } else {
+    const d = parseDateLoose(fmtScalar(evalNode(node, ctx)));
+    if (d) set.add(dateToSerial(d));
+  }
+  return set;
+}
+
+// Day-of-week straight from a serial: epoch 1899-12-30 was a Saturday,
+// so serial % 7 → 0=Sat, 1=Sun, 2=Mon … 6=Fri (weekdays are 2–6).
+function serialIsWeekday(s) { const dow = s % 7; return dow >= 2 && dow <= 6; }
 
 function callFunc(node, ctx) {
   const { name, args } = node;
@@ -546,19 +653,19 @@ function callFunc(node, ctx) {
     case "COUNTIF": {
       if (args.length !== 2) throw new FormulaError("#ERROR", "COUNTIF takes 2 args");
       if (args[0].k !== "range" && args[0].k !== "ref") throw new FormulaError("#VALUE", "COUNTIF needs a range");
-      const vals = args[0].k === "range" ? [...rangeCells(args[0].a, args[0].b)].map(({ row, col }) => ctx.getCell(row, col, args[0].sheet)) : [evalNode(args[0], ctx)];
+      const vals = args[0].k === "range" ? [...rangeCellsCtx(args[0], ctx)].map(({ row, col }) => ctx.getCell(row, col, args[0].sheet)) : [evalNode(args[0], ctx)];
       const crit = evalNode(args[1], ctx);
       return vals.filter((v) => matchesCriterion(v, crit)).length;
     }
     case "SUMIF": {
       if (args.length !== 2 && args.length !== 3) throw new FormulaError("#ERROR", "SUMIF takes 2-3 args");
       if (args[0].k !== "range") throw new FormulaError("#VALUE", "SUMIF needs a range");
-      const cells = [...rangeCells(args[0].a, args[0].b)];
+      const cells = [...rangeCellsCtx(args[0], ctx)];
       const crit = evalNode(args[1], ctx);
       let sumCells = cells;
       if (args.length === 3) {
         if (args[2].k !== "range") throw new FormulaError("#VALUE", "SUMIF sum_range must be a range");
-        const s = [...rangeCells(args[2].a, args[2].b)];
+        const s = [...rangeCellsCtx(args[2], ctx)];
         if (s.length < cells.length) throw new FormulaError("#REF", "sum_range too small");
         sumCells = s;
       }
@@ -577,16 +684,26 @@ function callFunc(node, ctx) {
       if (args[1].k !== "range") throw new FormulaError("#VALUE", "VLOOKUP needs a range");
       const needle = evalNode(args[0], ctx);
       const idx = Math.trunc(toNum(evalNode(args[2], ctx)));
-      const a = args[1].a, b = args[1].b;
+      // range_lookup TRUE = approximate (largest value ≤ needle, data sorted
+      // ascending); omitted stays exact so existing sheets don't shift
+      const approx = args.length === 4 && truthy(evalNode(args[3], ctx));
+      const { a, b } = boundedRange(args[1], ctx);
       const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
       const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
       if (idx < 1 || c0 + idx - 1 > c1) throw new FormulaError("#REF", "VLOOKUP column index out of range");
       if (r1 - r0 + 1 > MAX_RANGE_CELLS) throw new FormulaError("#REF", "range too large");
+      let best = -1;
       for (let r = r0; r <= r1; r++) {
-        let eq = false;
-        try { eq = cmp("=", ctx.getCell(r, c0, args[1].sheet) ?? "", needle ?? ""); } catch (_) {}
+        const v = ctx.getCell(r, c0, args[1].sheet);
+        let eq = false, keep = false;
+        try {
+          eq = cmp("=", v ?? "", needle ?? "");
+          keep = approx && v != null && v !== "" && cmp("<=", v, needle ?? "");
+        } catch (_) {}
         if (eq) return ctx.getCell(r, c0 + idx - 1, args[1].sheet);
+        if (keep) best = r;
       }
+      if (approx && best >= 0) return ctx.getCell(best, c0 + idx - 1, args[1].sheet);
       throw new FormulaError("#N/A", "no match found");
     }
     case "IFERROR": {
@@ -614,10 +731,11 @@ function callFunc(node, ctx) {
       if (start < 1 || len < 0) throw new FormulaError("#VALUE", "bad MID bounds");
       return s.slice(start - 1, start - 1 + len);
     }
-    case "FIND": {
-      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "FIND takes 2-3 args");
-      const needle = fmtScalar(evalNode(args[0], ctx));
-      const hay = fmtScalar(evalNode(args[1], ctx));
+    case "FIND": case "SEARCH": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", `${name} takes 2-3 args`);
+      let needle = fmtScalar(evalNode(args[0], ctx));
+      let hay = fmtScalar(evalNode(args[1], ctx));
+      if (name === "SEARCH") { needle = needle.toLowerCase(); hay = hay.toLowerCase(); } // SEARCH is case-insensitive
       const start = args.length === 3 ? Math.max(1, Math.trunc(toNum(evalNode(args[2], ctx)))) : 1;
       const idx = hay.indexOf(needle, start - 1);
       if (idx < 0) throw new FormulaError("#VALUE", "text not found");
@@ -650,7 +768,7 @@ function callFunc(node, ctx) {
       if (fmt === "#,##0.00" && num != null) return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       if (fmt === "0%" && num != null) return Math.round(num * 100) + "%";
       if (fmt === "$#,##0.00" && num != null) return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const d = parseDateLoose(String(v));
+      const d = parseDateLoose(String(v)) || (num != null && num > 20000 && num < 200000 ? serialToDate(num) : null);
       if (d) {
         const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
         if (/^m+\/d+\/y+$/i.test(fmt)) return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
@@ -670,8 +788,7 @@ function callFunc(node, ctx) {
     }
     case "DAY": case "MONTH": case "YEAR": case "WEEKDAY": {
       if (args.length < 1 || args.length > 2) throw new FormulaError("#ERROR", `${name} takes 1 arg`);
-      const d = parseDateLoose(fmtScalar(evalNode(args[0], ctx)));
-      if (!d) throw new FormulaError("#VALUE", "not a date");
+      const d = argDate(args[0], ctx, name);
       if (name === "DAY") return d.getDate();
       if (name === "MONTH") return d.getMonth() + 1;
       if (name === "YEAR") return d.getFullYear();
@@ -680,7 +797,7 @@ function callFunc(node, ctx) {
     case "INDEX": {
       if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "INDEX takes 2-3 args");
       if (args[0].k !== "range") throw new FormulaError("#VALUE", "INDEX needs a range");
-      const a = args[0].a, b = args[0].b;
+      const { a, b } = boundedRange(args[0], ctx);
       const r0 = Math.min(a.row, b.row), c0 = Math.min(a.col, b.col);
       const rIdx = Math.trunc(toNum(evalNode(args[1], ctx)));
       const cIdx = args.length === 3 ? Math.trunc(toNum(evalNode(args[2], ctx))) : 1;
@@ -691,17 +808,25 @@ function callFunc(node, ctx) {
     case "MATCH": {
       if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "MATCH takes 2-3 args");
       if (args[1].k !== "range") throw new FormulaError("#VALUE", "MATCH needs a range");
-      if (args.length === 3) {
-        const mt = Math.trunc(toNum(evalNode(args[2], ctx)));
-        if (mt !== 0) throw new FormulaError("#VALUE", "only exact MATCH (0) is supported");
-      }
+      // match type: 0 exact (our default — Excel defaults to 1), 1 = largest
+      // value ≤ needle (sorted ascending), -1 = smallest value ≥ needle
+      let mt = 0;
+      if (args.length === 3) mt = Math.sign(Math.trunc(toNum(evalNode(args[2], ctx))));
       const needle = evalNode(args[0], ctx);
-      const cellsIn = [...rangeCells(args[1].a, args[1].b)];
+      const cellsIn = [...rangeCellsCtx(args[1], ctx)];
+      let best = -1;
       for (let i = 0; i < cellsIn.length; i++) {
-        let eq = false;
-        try { eq = cmp("=", ctx.getCell(cellsIn[i].row, cellsIn[i].col, args[1].sheet) ?? "", needle ?? ""); } catch (_) {}
+        const v = ctx.getCell(cellsIn[i].row, cellsIn[i].col, args[1].sheet);
+        if (mt !== 0 && (v == null || v === "")) continue;
+        let eq = false, keep = false;
+        try {
+          eq = cmp("=", v ?? "", needle ?? "");
+          keep = mt === 1 ? cmp("<=", v, needle ?? "") : mt === -1 ? cmp(">=", v, needle ?? "") : false;
+        } catch (_) {}
         if (eq) return i + 1;
+        if (keep) best = i;
       }
+      if (mt !== 0 && best >= 0) return best + 1;
       throw new FormulaError("#N/A", "no match found");
     }
     case "HLOOKUP": {
@@ -709,23 +834,31 @@ function callFunc(node, ctx) {
       if (args[1].k !== "range") throw new FormulaError("#VALUE", "HLOOKUP needs a range");
       const needle = evalNode(args[0], ctx);
       const idx = Math.trunc(toNum(evalNode(args[2], ctx)));
-      const a = args[1].a, b = args[1].b;
+      const approx = args.length === 4 && truthy(evalNode(args[3], ctx));
+      const { a, b } = boundedRange(args[1], ctx);
       const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
       const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
       if (idx < 1 || r0 + idx - 1 > r1) throw new FormulaError("#REF", "HLOOKUP row index out of range");
+      let best = -1;
       for (let c = c0; c <= c1; c++) {
-        let eq = false;
-        try { eq = cmp("=", ctx.getCell(r0, c, args[1].sheet) ?? "", needle ?? ""); } catch (_) {}
+        const v = ctx.getCell(r0, c, args[1].sheet);
+        let eq = false, keep = false;
+        try {
+          eq = cmp("=", v ?? "", needle ?? "");
+          keep = approx && v != null && v !== "" && cmp("<=", v, needle ?? "");
+        } catch (_) {}
         if (eq) return ctx.getCell(r0 + idx - 1, c, args[1].sheet);
+        if (keep) best = c;
       }
+      if (approx && best >= 0) return ctx.getCell(r0 + idx - 1, best, args[1].sheet);
       throw new FormulaError("#N/A", "no match found");
     }
     case "XLOOKUP": {
       if (args.length < 3 || args.length > 4) throw new FormulaError("#ERROR", "XLOOKUP takes 3-4 args");
       if (args[1].k !== "range" || args[2].k !== "range") throw new FormulaError("#VALUE", "XLOOKUP needs lookup and return ranges");
       const needle = evalNode(args[0], ctx);
-      const look = [...rangeCells(args[1].a, args[1].b)];
-      const ret = [...rangeCells(args[2].a, args[2].b)];
+      const look = [...rangeCellsCtx(args[1], ctx)];
+      const ret = [...rangeCellsCtx(args[2], ctx)];
       if (ret.length < look.length) throw new FormulaError("#REF", "return range too small");
       for (let i = 0; i < look.length; i++) {
         let eq = false;
@@ -735,46 +868,50 @@ function callFunc(node, ctx) {
       if (args.length === 4) return evalNode(args[3], ctx);
       throw new FormulaError("#N/A", "no match found");
     }
-    case "COUNTIFS": case "SUMIFS": case "AVERAGEIFS": {
-      const isSum = name === "SUMIFS", isAvg = name === "AVERAGEIFS";
-      const base = isSum || isAvg ? 1 : 0;
-      if (args.length < base + 2 || (args.length - base) % 2 !== 0) throw new FormulaError("#ERROR", `${name} takes ${isSum || isAvg ? "a sum range plus " : ""}range/criteria pairs`);
+    case "COUNTIFS": case "SUMIFS": case "AVERAGEIFS": case "MAXIFS": case "MINIFS": {
+      const isAvg = name === "AVERAGEIFS", isMax = name === "MAXIFS", isMin = name === "MINIFS";
+      const base = name === "COUNTIFS" ? 0 : 1;
+      if (args.length < base + 2 || (args.length - base) % 2 !== 0) throw new FormulaError("#ERROR", `${name} takes ${base ? "a value range plus " : ""}range/criteria pairs`);
       let sumCells2 = null;
-      if (isSum || isAvg) {
+      if (base === 1) {
         if (args[0].k !== "range") throw new FormulaError("#VALUE", `${name} needs a range first`);
-        sumCells2 = [...rangeCells(args[0].a, args[0].b)].map((rc) => ({ ...rc, sheet: args[0].sheet }));
+        sumCells2 = [...rangeCellsCtx(args[0], ctx)].map((rc) => ({ ...rc, sheet: args[0].sheet }));
       }
       const pairs = [];
       for (let i = base; i < args.length; i += 2) {
         if (args[i].k !== "range") throw new FormulaError("#VALUE", `${name} criteria range must be a range`);
-        pairs.push({ cellsIn: [...rangeCells(args[i].a, args[i].b)], sheet: args[i].sheet, crit: evalNode(args[i + 1], ctx) });
+        pairs.push({ cellsIn: [...rangeCellsCtx(args[i], ctx)], sheet: args[i].sheet, crit: evalNode(args[i + 1], ctx) });
       }
       const len = pairs[0].cellsIn.length;
       if (pairs.some((p) => p.cellsIn.length !== len) || (sumCells2 && sumCells2.length < len)) throw new FormulaError("#REF", "ranges must be the same size");
-      let count = 0, total = 0, nnum = 0;
+      let count = 0, total = 0, nnum = 0, best = null;
       for (let i = 0; i < len; i++) {
         if (pairs.every((p) => matchesCriterion(ctx.getCell(p.cellsIn[i].row, p.cellsIn[i].col, p.sheet), p.crit))) {
           count++;
           if (sumCells2) {
             const sv = ctx.getCell(sumCells2[i].row, sumCells2[i].col, sumCells2[i].sheet);
             const num = Number(String(sv ?? "").replace(/[$,\s]/g, ""));
-            if (isFinite(num) && String(sv ?? "").trim() !== "") { total += num; nnum++; }
+            if (isFinite(num) && String(sv ?? "").trim() !== "") {
+              total += num; nnum++;
+              if (best == null || (isMax ? num > best : num < best)) best = num;
+            }
           }
         }
       }
       if (name === "COUNTIFS") return count;
       if (isAvg) { if (!nnum) throw new FormulaError("#DIV/0", "no numeric matches"); return total / nnum; }
+      if (isMax || isMin) return best == null ? 0 : best;
       return total;
     }
     case "AVERAGEIF": {
       if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "AVERAGEIF takes 2-3 args");
       if (args[0].k !== "range") throw new FormulaError("#VALUE", "AVERAGEIF needs a range");
-      const cellsIn = [...rangeCells(args[0].a, args[0].b)];
+      const cellsIn = [...rangeCellsCtx(args[0], ctx)];
       const crit = evalNode(args[1], ctx);
       let avgCells = cellsIn.map((rc) => ({ ...rc, sheet: args[0].sheet }));
       if (args.length === 3) {
         if (args[2].k !== "range") throw new FormulaError("#VALUE", "AVERAGEIF avg_range must be a range");
-        const s2 = [...rangeCells(args[2].a, args[2].b)].map((rc) => ({ ...rc, sheet: args[2].sheet }));
+        const s2 = [...rangeCellsCtx(args[2], ctx)].map((rc) => ({ ...rc, sheet: args[2].sheet }));
         if (s2.length < cellsIn.length) throw new FormulaError("#REF", "avg_range too small");
         avgCells = s2;
       }
@@ -789,6 +926,127 @@ function callFunc(node, ctx) {
       if (!nnum) throw new FormulaError("#DIV/0", "no numeric matches");
       return total / nnum;
     }
+    case "TEXTJOIN": {
+      if (args.length < 3) throw new FormulaError("#ERROR", "TEXTJOIN takes a delimiter, ignore_empty, then values");
+      const delim = fmtScalar(evalNode(args[0], ctx));
+      const ignore = truthy(evalNode(args[1], ctx));
+      const vals = collectArgValues(args.slice(2), ctx).map(fmtScalar);
+      return (ignore ? vals.filter((v) => v !== "") : vals).join(delim);
+    }
+    case "SUMPRODUCT": {
+      if (!args.length) throw new FormulaError("#ERROR", "SUMPRODUCT needs at least one range");
+      const lists = args.map((a) => {
+        if (a.k === "range") return [...rangeCellsCtx(a, ctx)].map(({ row, col }) => { const v = ctx.getCell(row, col, a.sheet); if (typeof v === "boolean") return 0; const n = cellNumeric(v); return n == null ? 0 : n; });
+        return [toNum(evalNode(a, ctx))];
+      });
+      const len = lists[0].length;
+      if (lists.some((l) => l.length !== len)) throw new FormulaError("#VALUE", "SUMPRODUCT ranges must be the same size");
+      let total = 0;
+      for (let i = 0; i < len; i++) { let prod = 1; for (const l of lists) prod *= l[i]; total += prod; }
+      return total;
+    }
+    case "LARGE": case "SMALL": {
+      if (args.length !== 2 || args[0].k !== "range") throw new FormulaError("#ERROR", `${name} takes a range and k`);
+      const xs = flatNumeric([...rangeCellsCtx(args[0], ctx)].map(({ row, col }) => ctx.getCell(row, col, args[0].sheet))).sort((x, y) => y - x);
+      const k = Math.trunc(toNum(evalNode(args[1], ctx)));
+      if (k < 1 || k > xs.length) throw new FormulaError("#VALUE", `${name} k out of range`);
+      return name === "LARGE" ? xs[k - 1] : xs[xs.length - k];
+    }
+    case "RANK": {
+      if (args.length < 2 || args.length > 3 || args[1].k !== "range") throw new FormulaError("#ERROR", "RANK takes a value, a range, and an optional order");
+      const x = toNum(evalNode(args[0], ctx));
+      const xs = flatNumeric([...rangeCellsCtx(args[1], ctx)].map(({ row, col }) => ctx.getCell(row, col, args[1].sheet)));
+      if (!xs.includes(x)) throw new FormulaError("#N/A", "value not in range");
+      const asc = args.length === 3 && truthy(evalNode(args[2], ctx));
+      return 1 + xs.filter((v) => (asc ? v < x : v > x)).length;
+    }
+    case "CHOOSE": {
+      if (args.length < 2) throw new FormulaError("#ERROR", "CHOOSE takes an index then values");
+      const k = Math.trunc(toNum(evalNode(args[0], ctx)));
+      if (k < 1 || k >= args.length) throw new FormulaError("#VALUE", "CHOOSE index out of range");
+      return evalNode(args[k], ctx);
+    }
+    case "SWITCH": {
+      if (args.length < 3) throw new FormulaError("#ERROR", "SWITCH takes a value then match/result pairs");
+      const x = evalNode(args[0], ctx);
+      let i = 1;
+      for (; i + 1 < args.length; i += 2) {
+        let eq = false;
+        try { eq = cmp("=", x ?? "", evalNode(args[i], ctx) ?? ""); } catch (_) {}
+        if (eq) return evalNode(args[i + 1], ctx);
+      }
+      if (i < args.length) return evalNode(args[i], ctx); // trailing default
+      throw new FormulaError("#N/A", "no SWITCH case matched");
+    }
+    case "ISBLANK": case "ISNUMBER": case "ISTEXT": case "ISERROR": {
+      if (args.length !== 1) throw new FormulaError("#ERROR", `${name} takes 1 arg`);
+      let v;
+      try { v = evalNode(args[0], ctx); } catch (e) { if (e instanceof FormulaError) return name === "ISERROR"; throw e; }
+      if (name === "ISERROR") return false;
+      if (name === "ISBLANK") return v == null || v === "";
+      if (name === "ISNUMBER") return typeof v === "number";
+      return typeof v === "string" && v !== "";
+    }
+    case "DATEVALUE": {
+      if (args.length !== 1) throw new FormulaError("#ERROR", "DATEVALUE takes 1 arg");
+      return dateToSerial(argDate(args[0], ctx, name));
+    }
+    case "DAYS": {
+      if (args.length !== 2) throw new FormulaError("#ERROR", "DAYS takes end, start");
+      return dateToSerial(argDate(args[0], ctx, name)) - dateToSerial(argDate(args[1], ctx, name));
+    }
+    case "DATEDIF": {
+      if (args.length !== 3) throw new FormulaError("#ERROR", "DATEDIF takes start, end, unit");
+      const d1 = argDate(args[0], ctx, name), d2 = argDate(args[1], ctx, name);
+      const unit = fmtScalar(evalNode(args[2], ctx)).toUpperCase();
+      const s1 = dateToSerial(d1), s2 = dateToSerial(d2);
+      if (s2 < s1) throw new FormulaError("#VALUE", "end before start");
+      if (unit === "D") return s2 - s1;
+      let months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+      if (d2.getDate() < d1.getDate()) months--;
+      if (unit === "M") return months;
+      if (unit === "Y") return Math.floor(months / 12);
+      if (unit === "YM") return months % 12;
+      throw new FormulaError("#VALUE", "DATEDIF unit must be D, M, Y, or YM");
+    }
+    case "EDATE": case "EOMONTH": {
+      if (args.length !== 2) throw new FormulaError("#ERROR", `${name} takes a date and months`);
+      const d = argDate(args[0], ctx, name);
+      const m = Math.trunc(toNum(evalNode(args[1], ctx)));
+      if (name === "EOMONTH") return isoDate(new Date(d.getFullYear(), d.getMonth() + m + 1, 0));
+      const last = new Date(d.getFullYear(), d.getMonth() + m + 1, 0).getDate();
+      return isoDate(new Date(d.getFullYear(), d.getMonth() + m, Math.min(d.getDate(), last)));
+    }
+    case "NETWORKDAYS": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "NETWORKDAYS takes start, end, [holidays]");
+      const s1 = dateToSerial(argDate(args[0], ctx, name));
+      const s2 = dateToSerial(argDate(args[1], ctx, name));
+      const holidays = holidaySerials(args[2], ctx);
+      const lo = Math.min(s1, s2), hi = Math.max(s1, s2);
+      if (hi - lo > 100000) throw new FormulaError("#VALUE", "date span too large");
+      let n = 0;
+      for (let s = lo; s <= hi; s++) if (serialIsWeekday(s) && !holidays.has(s)) n++;
+      return s1 <= s2 ? n : -n;
+    }
+    case "WORKDAY": {
+      if (args.length < 2 || args.length > 3) throw new FormulaError("#ERROR", "WORKDAY takes a start date, days, [holidays]");
+      let s = dateToSerial(argDate(args[0], ctx, name));
+      let left = Math.trunc(toNum(evalNode(args[1], ctx)));
+      if (Math.abs(left) > 100000) throw new FormulaError("#VALUE", "too many days");
+      const holidays = holidaySerials(args[2], ctx);
+      const step = left >= 0 ? 1 : -1;
+      while (left !== 0) {
+        s += step;
+        if (serialIsWeekday(s) && !holidays.has(s)) left -= step;
+      }
+      return isoDate(serialToDate(s));
+    }
+    case "WEEKNUM": {
+      if (args.length < 1 || args.length > 2) throw new FormulaError("#ERROR", "WEEKNUM takes a date");
+      const d = argDate(args[0], ctx, name);
+      const jan1 = new Date(d.getFullYear(), 0, 1);
+      return Math.floor((dateToSerial(d) - dateToSerial(jan1) + jan1.getDay()) / 7) + 1;
+    }
     default: {
       const fn = FUNCS[name];
       if (!fn) throw new FormulaError("#NAME", `unknown function ${name}`);
@@ -797,17 +1055,36 @@ function callFunc(node, ctx) {
   }
 }
 
+// Excel wildcard criteria: * = any run, ? = one character, ~* / ~? literal.
+function wildcardRegex(pattern) {
+  let out = "";
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i];
+    if (ch === "~" && (pattern[i + 1] === "*" || pattern[i + 1] === "?")) { out += "\\" + pattern[i + 1]; i++; }
+    else if (ch === "*") out += ".*";
+    else if (ch === "?") out += ".";
+    else out += ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp("^" + out + "$", "i");
+}
+
 function matchesCriterion(v, crit) {
   const s = String(crit ?? "").trim();
   const m = /^(<=|>=|<>|=|<|>)(.*)$/.exec(s);
-  if (m) { try { return cmp(m[1] === "=" ? "=" : m[1], v ?? "", m[2]); } catch (_) { return false; } }
+  const op = m ? m[1] : "=";
+  const body = m ? m[2] : s;
+  if ((op === "=" || op === "<>") && /[*?]/.test(body)) {
+    const hit = wildcardRegex(body).test(String(v ?? ""));
+    return op === "<>" ? !hit : hit;
+  }
+  if (m) { try { return cmp(m[1], v ?? "", m[2]); } catch (_) { return false; } }
   // plain equality (numeric-aware, case-insensitive)
   try { return cmp("=", v ?? "", crit ?? ""); } catch (_) { return false; }
 }
 
 // ── Dependency extraction (for recalc graph + circular detection) ────────────
 
-function extractRefs(src) {
+function extractRefs(src, bounds) {
   let ast;
   try { ast = parseFormula(src); } catch (_) { return []; }
   const refs = [];
@@ -816,7 +1093,8 @@ function extractRefs(src) {
     if (n.k === "ref") { if (!n.sheet) refs.push({ row: n.row, col: n.col }); return; }
     if (n.k === "range") {
       if (n.sheet) return;
-      try { for (const rc of rangeCells(n.a, n.b)) refs.push(rc); } catch (_) {}
+      const { a, b } = boundedRange(n, bounds);
+      try { for (const rc of rangeCells(a, b)) refs.push(rc); } catch (_) {}
       return;
     }
     if (n.k === "func") { n.args.forEach(walk); return; }
@@ -1934,7 +2212,11 @@ function formatForDisplay(v, format, type) {
       return pct.toLocaleString(undefined, dec != null ? fd(dec) : { maximumFractionDigits: 2 }) + "%";
     }
     if (numFmt === "number") return n.toLocaleString(undefined, fd(dec ?? 2));
-    if (numFmt === "date") { const d = parseDateLoose(String(v)); if (d) return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
+    if (numFmt === "date") {
+      // accept both date text and serial numbers (e.g. =B2+30 results)
+      const d = parseDateLoose(String(v)) || (n > 0 && n < 200000 ? serialToDate(n) : null);
+      if (d) return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
     if (dec != null) return n.toLocaleString(undefined, fd(dec));
     if (typeof v === "number") return cleanNum(v);
     return String(v);
@@ -1963,17 +2245,24 @@ function parseDateLoose(s) {
 
 function recalcSheet(sheet) {
   const formulaCells = [];
+  let usedR = 0, usedC = 0;
   for (const [key, cell] of sheet.cells) {
+    const rc = keyRC(key);
+    if (rc.r > usedR) usedR = rc.r;
+    if (rc.c > usedC) usedC = rc.c;
     if (cell.formula) { formulaCells.push([key, cell]); cell.err = null; cell.computed = null; }
   }
   if (!formulaCells.length) return;
+  // open ranges (A:A) clamp to the used extent for dependency purposes —
+  // only formula cells matter as graph edges, and those are all in-use
+  const depBounds = { rowCount: usedR + 1, colCount: usedC + 1 };
   const asts = new Map();
   const deps = new Map();
   for (const [key, cell] of formulaCells) {
     try {
       const ast = parseFormula(cell.formula);
       asts.set(key, ast);
-      deps.set(key, extractRefs(cell.formula).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
+      deps.set(key, extractRefs(cell.formula, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
     } catch (e) {
       cell.err = e instanceof FormulaError ? e.code : "#ERROR";
     }
@@ -3219,9 +3508,10 @@ function tracePrecedents(g) {
 function traceDependents(g) {
   const target = { r: g.active.r, c: g.active.c };
   const hits = [];
+  const depBounds = { rowCount: g.sheet.rowCount, colCount: g.sheet.colCount };
   for (const [key, cell] of g.sheet.cells) {
     if (!cell.formula) continue;
-    if (extractRefs(cell.formula).some((rc) => rc.row === target.r && rc.col === target.c)) {
+    if (extractRefs(cell.formula, depBounds).some((rc) => rc.row === target.r && rc.col === target.c)) {
       const { r, c } = keyRC(key);
       hits.push(colLabel(c) + (r + 1));
       if (hits.length >= 10) break;
@@ -3657,6 +3947,43 @@ const FUNCTION_META = [
   { n: "AVERAGEIFS", sig: "AVERAGEIFS(avg_range, range1, crit1, …)", d: "Average matching every condition" },
   { n: "TODAY", sig: "TODAY()", d: "Today's date" },
   { n: "NOW", sig: "NOW()", d: "Current date & time" },
+  { n: "DATEDIF", sig: "DATEDIF(start, end, \"D\"|\"M\"|\"Y\")", d: "Days/months/years between dates" },
+  { n: "DAYS", sig: "DAYS(end, start)", d: "Days between two dates" },
+  { n: "DATEVALUE", sig: "DATEVALUE(text)", d: "Date text → serial number" },
+  { n: "EDATE", sig: "EDATE(date, months)", d: "Date shifted by N months" },
+  { n: "EOMONTH", sig: "EOMONTH(date, months)", d: "End of month, N months out" },
+  { n: "NETWORKDAYS", sig: "NETWORKDAYS(start, end, [holidays])", d: "Working days between dates" },
+  { n: "WORKDAY", sig: "WORKDAY(start, days, [holidays])", d: "Date N working days out" },
+  { n: "WEEKNUM", sig: "WEEKNUM(date)", d: "Week number in the year" },
+  { n: "SUMPRODUCT", sig: "SUMPRODUCT(range1, range2, …)", d: "Sum of products across ranges" },
+  { n: "TEXTJOIN", sig: "TEXTJOIN(delim, ignore_empty, values…)", d: "Join values with a delimiter" },
+  { n: "MAXIFS", sig: "MAXIFS(range, crit_range, crit, …)", d: "Largest value matching conditions" },
+  { n: "MINIFS", sig: "MINIFS(range, crit_range, crit, …)", d: "Smallest value matching conditions" },
+  { n: "LARGE", sig: "LARGE(range, k)", d: "K-th largest value" },
+  { n: "SMALL", sig: "SMALL(range, k)", d: "K-th smallest value" },
+  { n: "RANK", sig: "RANK(value, range, [order])", d: "Rank of a value in a range" },
+  { n: "STDEV", sig: "STDEV(range)", d: "Sample standard deviation" },
+  { n: "COUNTBLANK", sig: "COUNTBLANK(range)", d: "How many empty cells" },
+  { n: "CHOOSE", sig: "CHOOSE(index, a, b, …)", d: "Pick a value by position" },
+  { n: "SWITCH", sig: "SWITCH(value, case, result, …, [default])", d: "Match a value against cases" },
+  { n: "XOR", sig: "XOR(a, b, …)", d: "TRUE when an odd number hold" },
+  { n: "SEARCH", sig: "SEARCH(needle, text)", d: "Position of text (ignores case)" },
+  { n: "PROPER", sig: "PROPER(text)", d: "Capitalize Each Word" },
+  { n: "REPT", sig: "REPT(text, count)", d: "Repeat text N times" },
+  { n: "VALUE", sig: "VALUE(text)", d: "Text → number" },
+  { n: "EXACT", sig: "EXACT(a, b)", d: "Case-sensitive equality" },
+  { n: "TRUNC", sig: "TRUNC(number, [digits])", d: "Cut off decimals" },
+  { n: "CEILING", sig: "CEILING(number, [step])", d: "Round up to a multiple" },
+  { n: "FLOOR", sig: "FLOOR(number, [step])", d: "Round down to a multiple" },
+  { n: "ISBLANK", sig: "ISBLANK(cell)", d: "TRUE when empty" },
+  { n: "ISNUMBER", sig: "ISNUMBER(value)", d: "TRUE for numbers" },
+  { n: "ISTEXT", sig: "ISTEXT(value)", d: "TRUE for text" },
+  { n: "ISERROR", sig: "ISERROR(value)", d: "TRUE when a formula errors" },
+  { n: "LN", sig: "LN(number)", d: "Natural log" },
+  { n: "LOG", sig: "LOG(number, [base])", d: "Logarithm (base 10 default)" },
+  { n: "EXP", sig: "EXP(number)", d: "e raised to a power" },
+  { n: "RAND", sig: "RAND()", d: "Random number 0–1" },
+  { n: "RANDBETWEEN", sig: "RANDBETWEEN(low, high)", d: "Random whole number" },
 ];
 
 function ensureFxPop(g) {
@@ -6704,3 +7031,13 @@ export async function loadWorkbooksView() {
   }
   await renderListPage();
 }
+
+// ─── Test hook ───────────────────────────────────────────────────────────────
+// Exposed for the Node engine tests (scripts/test-formula-engine.mjs) —
+// not part of the app surface; live.js imports only the view loaders.
+
+export const __engine = {
+  parseFormula, evalFormula, extractRefs, matchesCriterion, FormulaError,
+  colLabel, colIndex, cellRef, parseCellRef,
+  dateToSerial, serialToDate, isoDate, parseDateLoose,
+};
