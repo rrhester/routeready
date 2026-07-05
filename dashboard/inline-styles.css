@@ -29426,6 +29426,22 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-fx-desc{font-size:var(--fs-xs);color:var(--text-subtle)}
 #view-workbooks .wb-fx-hint{display:flex;flex-direction:column;gap:2px;padding:7px 9px}
 #view-workbooks .wb-fx-foot{font-size:10px;color:var(--text-disabled);padding:4px 9px 2px;border-top:1px solid var(--border-subtle);margin-top:2px}
+/* Functions browser (toolbar fx button) */
+#view-workbooks .wb-tb-fx{font-size:13px;font-weight:640;line-height:1;font-family:ui-serif,Georgia,serif;letter-spacing:-.01em}
+#view-workbooks .wb-tb-fx em{font-style:italic}
+#view-workbooks .wb-tb-fnbtn{gap:2px}
+#view-workbooks .wb-fn-pop{width:300px;min-width:300px;max-width:340px;padding:0;overflow:hidden;left:0;right:auto}
+#view-workbooks .wb-fn-head{padding:8px;border-bottom:1px solid var(--border-subtle)}
+#view-workbooks .wb-fn-search{width:100%;box-sizing:border-box;font:inherit;font-size:var(--fs-sm);padding:6px 9px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--canvas);color:var(--text)}
+#view-workbooks .wb-fn-search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+#view-workbooks .wb-fn-list{max-height:280px;overflow-y:auto;padding:4px}
+#view-workbooks .wb-fn-group{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);padding:6px 9px 3px}
+#view-workbooks .wb-fn-item{display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;border:0;background:none;padding:6px 9px;border-radius:var(--r-sm);cursor:pointer;font:inherit}
+#view-workbooks .wb-fn-item:hover,#view-workbooks .wb-fn-item.is-active{background:var(--accent-soft)}
+#view-workbooks .wb-fn-name{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-sm);font-weight:650;color:var(--accent-text);white-space:nowrap;flex-shrink:0}
+#view-workbooks .wb-fn-desc{font-size:var(--fs-xs);color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#view-workbooks .wb-fn-foot{font-size:10px;color:var(--text-disabled);padding:6px 9px 4px;border-top:1px solid var(--border-subtle);margin-top:2px}
+#view-workbooks .wb-fn-empty{padding:14px 9px;text-align:center;font-size:var(--fs-sm);color:var(--text-subtle)}
 /* live Sum / Avg / Count for the selection, right end of the tab row */
 #view-workbooks .wb-selstats{margin-left:auto;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap;padding:0 6px}
 /* primary sheet block = full-bleed spreadsheet canvas, not a document card */
