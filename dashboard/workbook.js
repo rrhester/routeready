@@ -6078,6 +6078,154 @@ function deleteFilterView(g, viewId) {
   saveSheetMeta(g.sheet.id);
 }
 
+// ─── Data tools ──────────────────────────────────────────────────────────────
+// Sheets Data-menu equivalents: column stats, split text to columns,
+// remove duplicates, trim whitespace. All act on the active grid.
+
+function showColumnStats(g) {
+  const sheet = g.sheet;
+  const col = g.active.c;
+  const header = filterCellText(sheet, 0, col);
+  let filled = 0, empty = 0, nnum = 0, sum = 0, min = null, max = null;
+  const distinct = new Map();
+  let maxRow = 0;
+  for (const key of sheet.cells.keys()) maxRow = Math.max(maxRow, keyRC(key).r);
+  for (let r = 1; r <= maxRow; r++) {
+    const t = filterCellText(sheet, r, col);
+    if (t === "") { empty++; continue; }
+    filled++;
+    distinct.set(t, (distinct.get(t) || 0) + 1);
+    const cell = sheet.cells.get(cellKey(r, col));
+    const raw = cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
+    const n = cellNumeric(raw);
+    if (n != null && cell && cell.type !== "text") { nnum++; sum += n; min = min == null ? n : Math.min(min, n); max = max == null ? n : Math.max(max, n); }
+  }
+  const top = [...distinct.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const fmtN = (x) => (Math.round(x * 100) / 100).toLocaleString();
+  const row = (label, val) => `<div class="wb-kv"><span class="wb-kv-k">${esc(label)}</span><span class="wb-kv-v">${val}</span></div>`;
+  document.getElementById("wb-colstats-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-colstats-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Column stats" style="width:420px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">Column ${esc(colLabel(col))}${header ? ` — ${esc(header)}` : ""}</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        ${row("Filled cells", String(filled))}
+        ${row("Empty (to last data row)", String(empty))}
+        ${row("Distinct values", String(distinct.size))}
+        ${nnum ? row("Sum", fmtN(sum)) + row("Average", fmtN(sum / nnum)) + row("Min · Max", `${fmtN(min)} · ${fmtN(max)}`) : ""}
+        ${top.length ? `<div class="wb-kv"><span class="wb-kv-k">Most frequent</span><span class="wb-kv-v">${top.map(([v, n]) => `${esc(v.slice(0, 24))} <span style="color:var(--text-subtle)">×${n}</span>`).join("<br>")}</span></div>` : ""}
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn primary" type="button" data-wb-close>Done</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) wrap.remove(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+}
+
+function splitTextToColumns(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const col = g.active.c;
+  const delim = window.prompt(`Split column ${colLabel(col)} on which separator?`, ",");
+  if (delim == null || delim === "") return;
+  const rect = selRect(g);
+  const r0 = rect.r0 === rect.r1 ? 1 : rect.r0; // single cell → all data rows
+  let r1 = rect.r0 === rect.r1 ? 0 : rect.r1;
+  if (rect.r0 === rect.r1) for (const key of sheet.cells.keys()) r1 = Math.max(r1, keyRC(key).r);
+  const rowsToSplit = [];
+  let maxParts = 1;
+  for (let r = r0; r <= r1; r++) {
+    const cell = sheet.cells.get(cellKey(r, col));
+    if (!cell || cell.formula || cell.value == null) continue;
+    const parts = String(cell.value).split(delim).map((s) => s.trim());
+    if (parts.length < 2) continue;
+    rowsToSplit.push([r, parts]);
+    maxParts = Math.max(maxParts, parts.length);
+  }
+  if (!rowsToSplit.length) { _toast(`No cells in ${colLabel(col)} contain “${delim}”`, "info"); return; }
+  let overwrite = false;
+  for (const [r, parts] of rowsToSplit) {
+    for (let i = 1; i < parts.length && !overwrite; i++) {
+      const t = sheet.cells.get(cellKey(r, col + i));
+      if (t && (t.value != null || t.formula)) overwrite = true;
+    }
+  }
+  const apply = () => {
+    if (col + maxParts > sheet.colCount) { sheet.colCount = Math.min(200, col + maxParts + 2); saveSheetMeta(sheet.id); computeGeometry(g); }
+    const changes = [];
+    for (const [r, parts] of rowsToSplit) {
+      parts.forEach((p, i) => {
+        const prev = sheet.cells.get(cellKey(r, col + i));
+        changes.push({ r, c: col + i, cell: cellFromInput(p, prev) });
+      });
+    }
+    setCells(g, changes);
+    _toast(`Split ${rowsToSplit.length} cell${rowsToSplit.length === 1 ? "" : "s"} across up to ${maxParts} columns`, "success");
+  };
+  if (overwrite) {
+    confirmModal({
+      title: "Overwrite cells to the right?",
+      body: `Splitting will write into columns ${esc(colLabel(col + 1))}–${esc(colLabel(col + maxParts - 1))}, and some of those cells already have data.`,
+      confirmLabel: "Split anyway", danger: true, onConfirm: apply,
+    });
+  } else apply();
+}
+
+function removeDuplicateRows(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  if (sheetMerges(sheet).length) { _toast("Unmerge cells before removing duplicates", "warn"); return; }
+  let rect = selRect(g);
+  if (rect.r0 === rect.r1 && rect.c0 === rect.c1) {
+    const { maxR, maxC } = usedRange(sheet);
+    if (maxR < 2) { _toast("Nothing to de-duplicate below the header", "info"); return; }
+    rect = { r0: 1, r1: maxR, c0: 0, c1: maxC };
+  }
+  const seen = new Set();
+  const dupRows = [];
+  for (let r = Math.max(1, rect.r0); r <= rect.r1; r++) {
+    const parts = [];
+    for (let c = rect.c0; c <= rect.c1; c++) parts.push(filterCellText(sheet, r, c).toLowerCase());
+    const k = parts.join("");
+    if (!parts.some((p) => p !== "")) continue; // fully empty rows don't count
+    if (seen.has(k)) dupRows.push(r);
+    else seen.add(k);
+  }
+  if (!dupRows.length) { _toast("No duplicate rows found", "success"); return; }
+  confirmModal({
+    title: `Remove ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}?`,
+    body: `Rows with identical values in columns ${esc(colLabel(rect.c0))}–${esc(colLabel(rect.c1))} will be deleted; the first occurrence stays.`,
+    confirmLabel: "Remove duplicates", danger: true,
+    onConfirm: () => {
+      for (const r of dupRows.sort((a, b) => b - a)) restructure(g, "row", r, -1);
+      _toast(`Removed ${dupRows.length} duplicate row${dupRows.length === 1 ? "" : "s"}`, "success");
+    },
+  });
+}
+
+function trimWhitespace(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const single = rect.r0 === rect.r1 && rect.c0 === rect.c1;
+  const changes = [];
+  const scan = (r, c, cell) => {
+    if (!cell || cell.formula || typeof cell.value !== "string") return;
+    const t = cell.value.replace(/\s+/g, " ").trim();
+    if (t !== cell.value) changes.push({ r, c, cell: { ...cloneCell(cell), value: t, type: detectType(t).type } });
+  };
+  if (single) { for (const [key, cell] of sheet.cells) { const rc = keyRC(key); scan(rc.r, rc.c, cell); } }
+  else { for (let r = rect.r0; r <= rect.r1; r++) for (let c = rect.c0; c <= rect.c1; c++) scan(r, c, sheet.cells.get(cellKey(r, c))); }
+  if (!changes.length) { _toast("No extra whitespace found", "success"); return; }
+  setCells(g, changes);
+  _toast(`Trimmed whitespace in ${changes.length} cell${changes.length === 1 ? "" : "s"}`, "success");
+}
+
 const CSV_MAX_ROWS = 2000, CSV_MAX_COLS = 104;
 
 function importCsvInto(g) {
