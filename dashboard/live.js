@@ -9738,7 +9738,10 @@ function _rrNtFormat(kind) {
 // (hidden view → rect top 0). All panels (Notes + Tasks + Forms) get synced.
 function _rrSyncNotesRailTop() {
   const rail = document.getElementById("rr-sched-util-rail");
-  const panels = [document.getElementById("rr-sched-notes"), document.getElementById("rr-sched-tasks"), document.getElementById("rr-sched-forms"), document.getElementById("rr-sched-contacts")];
+  // Derive from the panel registry so a newly added rail panel (e.g.
+  // Recognition) can't be missed and sit at the CSS-default top while
+  // the others sync to the grid header.
+  const panels = Object.values(_RR_NT_PANELS).map((id) => document.getElementById(id));
   if (!rail && !panels.some(Boolean)) return;
   // Align with the visible "top of the content" for the ACTIVE sub-view:
   //  • Calendar → the sticky day-header row (.cal-grid.head, where SUN/MON…
