@@ -1969,11 +1969,11 @@ async function createWorkbook({ title, description, visibility, templateKey, spe
   if (ins.error) throw ins.error;
   const wb = ins.data;
 
-  // spreadsheet first — sheet blocks lead the workbook regardless of
-  // how a template happens to list them (stable sort keeps ties)
-  const blockSpecs = (spec ? spec.blocks : [{ type: "sheet", title: "", sheets: [{ name: "Sheet 1", cols: null, rows: [] }] }])
-    .slice()
-    .sort((a, b) => (a.type === "sheet" ? 0 : 1) - (b.type === "sheet" ? 0 : 1));
+  // spreadsheets only — the block system is retired, so template
+  // note/checklist specs are dropped at creation
+  let blockSpecs = (spec ? spec.blocks : [{ type: "sheet", title: "", sheets: [{ name: "Sheet 1", cols: null, rows: [] }] }])
+    .filter((b) => b.type === "sheet");
+  if (!blockSpecs.length) blockSpecs = [{ type: "sheet", title: "", sheets: [{ name: "Sheet 1", cols: null, rows: [] }] }];
   let pos = 0;
   for (const bs of blockSpecs) {
     const bRow = { dsp_id: dsp.id, workbook_id: wb.id, type: bs.type, title: bs.title || "", position: pos++, settings: bs.settings || {}, content: bs.type === "text" ? { html: sanitizeHtml(bs.html || "") } : {} };
@@ -2800,11 +2800,6 @@ function renderDetailPage() {
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
             </button>
             <div class="popover wb-head-pop" role="menu">
-              ${WB.canEdit ? `
-                <button type="button" class="popover-item" data-wb-act="add-block" data-type="sheet" role="menuitem">Add spreadsheet block</button>
-                <button type="button" class="popover-item" data-wb-act="add-block" data-type="text" role="menuitem">Add note block</button>
-                <button type="button" class="popover-item" data-wb-act="add-block" data-type="checklist" role="menuitem">Add checklist block</button>
-                <div class="popover-section"></div>` : ""}
               ${WB.canAdmin ? `<button type="button" class="popover-item" data-wb-act="${wb.archived_at ? "unarchive-wb" : "archive-wb"}" role="menuitem">${wb.archived_at ? "Restore workbook" : "Archive workbook"}</button>` : ""}
               ${WB.canAdmin ? `<button type="button" class="popover-item is-danger" data-wb-act="delete-wb" role="menuitem">Delete workbook…</button>` : ""}
             </div>
@@ -2818,29 +2813,22 @@ function renderDetailPage() {
       </div>
     </div>`;
 
+  // Workbooks are spreadsheets — the block system is retired. Legacy
+  // note/checklist blocks stay in the database but are no longer shown,
+  // and there's no way to add new ones.
   const blocksEl = document.getElementById("wb-blocks");
-  if (!WB.blocks.length) {
+  const sheetBlocks = WB.blocks.filter((b) => b.type === "sheet");
+  if (!sheetBlocks.length) {
     blocksEl.innerHTML = `<div class="rr-empty">
       <div class="rr-empty-icon">${WB_ICON_SVG}</div>
       <div class="rr-empty-title">This workbook is empty</div>
-      <div class="rr-empty-sub">Start with a spreadsheet, checklist, or note block.</div>
+      <div class="rr-empty-sub">Add a spreadsheet to get started.</div>
       ${WB.canEdit ? `<div class="rr-empty-action wb-add-row">
         <button type="button" class="btn btn-sm" data-wb-act="add-block" data-type="sheet">+ Spreadsheet</button>
-        <button type="button" class="btn btn-sm" data-wb-act="add-block" data-type="text">+ Note</button>
-        <button type="button" class="btn btn-sm" data-wb-act="add-block" data-type="checklist">+ Checklist</button>
       </div>` : ""}
     </div>`;
   } else {
-    for (const block of WB.blocks) blocksEl.appendChild(buildBlockEl(block));
-    if (WB.canEdit) {
-      const addRow = document.createElement("div");
-      addRow.className = "wb-add-row wb-add-row-foot";
-      addRow.innerHTML = `
-        <button type="button" class="btn btn-ghost btn-sm" data-wb-act="add-block" data-type="sheet">+ Spreadsheet</button>
-        <button type="button" class="btn btn-ghost btn-sm" data-wb-act="add-block" data-type="text">+ Note</button>
-        <button type="button" class="btn btn-ghost btn-sm" data-wb-act="add-block" data-type="checklist">+ Checklist</button>`;
-      blocksEl.appendChild(addRow);
-    }
+    for (const block of sheetBlocks) blocksEl.appendChild(buildBlockEl(block));
   }
   bindDetailInputs();
   renderPresence();
@@ -9033,7 +9021,7 @@ function renderPanel() {
   const panel = document.getElementById("wb-panel");
   if (!panel || !WB.panelOpen) return;
   const tabs = [
-    ["comments", "Comments"], ["tasks", "Tasks"], ["activity", "Activity"], ["details", "Details"], ["sharing", "Sharing"],
+    ["comments", "Comments"], ["activity", "Activity"], ["details", "Details"], ["sharing", "Sharing"],
   ];
   panel.innerHTML = `
     <div class="wb-panel-tabs" role="tablist" aria-label="Workbook panel">
@@ -9309,7 +9297,6 @@ function wbMenuItems(menu, g) {
       { label: "Unhide all rows & columns", act: "view:unhide", disabled: !ed || !g },
       sep,
       { label: "Comments panel", act: "view:comments" },
-      { label: "Tasks panel", act: "view:tasks" },
       { label: "Activity panel", act: "view:activity" },
     ];
     case "Insert": return [
@@ -9325,10 +9312,6 @@ function wbMenuItems(menu, g) {
       { label: "Image (into cell)…", act: "ins:image", disabled: !ed || !g },
       { label: "Dropdown (data validation)…", act: "ins:dropdown", disabled: !ed || !g },
       { label: "Comment", act: "ins:comment", disabled: !g },
-      sep,
-      { label: "Note block", act: "ins:note", disabled: !ed },
-      { label: "Checklist block", act: "ins:checklist", disabled: !ed },
-      { label: "Spreadsheet block", act: "ins:sheetblock", disabled: !ed },
     ];
     case "Format": return [
       { label: "Number", sub: [["", "Automatic"], ["number", "Number"], ["currency", "Currency"], ["accounting", "Accounting"], ["percent", "Percent"], ["scientific", "Scientific"], ["date", "Date"], ["text", "Plain text"]].map(([v, label]) => ({ label, act: "fmt:num:" + v, disabled: !ed || !g })) },
@@ -9420,9 +9403,6 @@ function wbMenuAction(act, g) {
     case "ins:image": if (need()) pickImageInto(g); return;
     case "ins:dropdown": if (need()) openValidationDialog(g); return;
     case "ins:comment": if (need()) openCellComment(g, g.active.r, g.active.c); return;
-    case "ins:note": addBlock("text"); return;
-    case "ins:checklist": addBlock("checklist"); return;
-    case "ins:sheetblock": addBlock("sheet"); return;
     case "fmt:merge": if (need()) toggleMergeSelection(g); return;
     case "fmt:cf": if (need()) openCondFormatDialog(g); return;
     case "fmt:cells": if (need()) openFormatCellsDialog(g); return;
