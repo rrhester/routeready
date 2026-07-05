@@ -28743,6 +28743,18 @@ body.rr-cmdk-open{ overflow:hidden }
   background:var(--surface);color:var(--text-muted);font-size:var(--fs-xs);padding:1px 4px;
 }
 #view-workbooks .wb-tb.is-on{background:var(--accent-soft,rgba(37,99,235,.12));color:var(--accent,#2563EB)}
+#view-workbooks .wb-tb-ffsel{
+  max-width:104px;border:0;background:none;cursor:pointer;
+  color:var(--wb-toolbar-ink,#444746);font-size:var(--fs-xs);font-weight:600;
+  padding:4px 2px;border-radius:var(--r-sm);
+}
+#view-workbooks .wb-tb-ffsel:hover:not([disabled]){background:rgba(68,71,70,.09)}
+#view-workbooks .wb-tb-fs{
+  width:38px;text-align:center;border:1px solid rgba(68,71,70,.25);border-radius:var(--r-sm);
+  background:var(--surface);color:var(--wb-toolbar-ink,#444746);
+  font-size:var(--fs-xs);font-weight:600;padding:2px 0;-moz-appearance:textfield;
+}
+#view-workbooks .wb-tb-fs::-webkit-outer-spin-button,#view-workbooks .wb-tb-fs::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 
 /* ── Menu bar (Sheets-style) ── */
 #view-workbooks .wb-menubar{

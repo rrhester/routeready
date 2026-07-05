@@ -3188,6 +3188,15 @@ function sheetToolbarHtml(block, ro) {
         </div>
       </span>
     </div>
+    <div class="wb-tgrp">
+      <select class="wb-tb-ffsel" data-wb-ffsel aria-label="Font" title="Font" ${ro ? "disabled" : ""}>
+        <option value="">Default</option>
+        ${Object.entries(WB_FONT_LABELS).map(([k, label]) => `<option value="${k}" style="font-family:${WB_FONT_FAMILIES[k]}">${label}</option>`).join("")}
+      </select>
+      ${btn("fs-minus", "Decrease font size", `<span class="wb-tb-txt">−</span>`)}
+      <input type="number" class="wb-tb-fs" data-wb-fsinput min="8" max="36" step="1" placeholder="13" aria-label="Font size (px)" title="Font size (px)" ${ro ? "disabled" : ""}>
+      ${btn("fs-plus", "Increase font size", `<span class="wb-tb-txt">+</span>`)}
+    </div>
     <div class="wb-tgrp">${btn("bold", "Bold (Ctrl+B)", I.bold)}${btn("italic", "Italic (Ctrl+I)", I.italic)}${btn("underline", "Underline (Ctrl+U)", I.underline)}${btn("strike", "Strikethrough", `<span class="wb-tb-txt"><s>S</s></span>`)}</div>
     <div class="wb-tgrp">${btn("align-left", "Align left", I.alignL)}${btn("align-center", "Align center", I.alignC)}${btn("align-right", "Align right", I.alignR)}<button type="button" class="btn btn-ghost btn-icon btn-sm wb-tb" data-wb-tb="wrap" title="Wrap text" aria-label="Wrap text" ${ro ? "disabled" : ""}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><path d="M3 12h13a4 4 0 0 1 0 8h-3"/><polyline points="15 16 12 20 15 24" transform="translate(0,-4)"/><line x1="3" y1="18" x2="9" y2="18"/></svg></button></div>
     <div class="wb-tgrp">
@@ -3662,6 +3671,25 @@ function adjustDecimals(g, delta) {
   const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
   const cur = cell && cell.format && Number.isInteger(cell.format.dec) ? cell.format.dec : 2;
   formatSelection(g, { dec: Math.min(6, Math.max(0, cur + delta)) });
+}
+
+// Step the selection's font size (Sheets' − / + buttons; 13px base).
+function adjustFontSize(g, delta) {
+  if (!WB.canEdit) return;
+  const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
+  const cur = cell && cell.format && Number.isInteger(cell.format.fs) ? cell.format.fs : 13;
+  formatSelection(g, { fs: Math.min(36, Math.max(8, cur + delta)) });
+  syncFontControls(g);
+}
+
+// Reflect the active cell's font in the toolbar controls.
+function syncFontControls(g) {
+  const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
+  const f = (cell && cell.format) || {};
+  const fsEl = g.els.body.querySelector("[data-wb-fsinput]");
+  if (fsEl && document.activeElement !== fsEl) fsEl.value = Number.isInteger(f.fs) ? f.fs : "";
+  const ffEl = g.els.body.querySelector("[data-wb-ffsel]");
+  if (ffEl && document.activeElement !== ffEl) ffEl.value = f.ff && WB_FONT_FAMILIES[f.ff] ? f.ff : "";
 }
 
 // Excel-style Format Cells dialog: number format, decimal places,
@@ -4646,6 +4674,7 @@ function syncFormulaBar(g) {
       : g.editing && g.editing.input ? g.editing.input.value
       : cell ? (cell.formula || (cell.value ?? "")) : "";
   }
+  syncFontControls(g);
   if (g.els.fbarErr) {
     if (cell && cell.err) {
       g.els.fbarErr.hidden = false;
@@ -7502,6 +7531,8 @@ function bindGridEvents(g) {
       case "clear-format": clearFormatting(g); break;
       case "dec-minus": adjustDecimals(g, -1); break;
       case "dec-plus": adjustDecimals(g, 1); break;
+      case "fs-minus": adjustFontSize(g, -1); break;
+      case "fs-plus": adjustFontSize(g, 1); break;
       case "find": openFindPanel(g, false); break;
       case "validation": openValidationDialog(g); break;
       case "condfmt": openCondFormatDialog(g); break;
@@ -7583,6 +7614,26 @@ function bindGridEvents(g) {
   // ── zoom ──
   const zoomSel = g.els.body.querySelector("[data-wb-zoom]");
   if (zoomSel) zoomSel.addEventListener("change", () => setZoom(g, +zoomSel.value || 1));
+
+  // ── toolbar font controls ──
+  const ffSel = g.els.body.querySelector("[data-wb-ffsel]");
+  if (ffSel) ffSel.addEventListener("change", () => {
+    formatSelection(g, { ff: ffSel.value || null });
+    g.els.grid.focus();
+  });
+  const fsInput = g.els.body.querySelector("[data-wb-fsinput]");
+  if (fsInput) {
+    fsInput.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); fsInput.blur(); }
+    });
+    fsInput.addEventListener("change", () => {
+      const v = fsInput.value === "" ? null : Math.min(36, Math.max(8, Math.trunc(+fsInput.value) || 13));
+      formatSelection(g, { fs: v });
+      syncFontControls(g);
+      g.els.grid.focus();
+    });
+  }
 }
 
 function commitBarEdit(g) {
