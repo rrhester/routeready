@@ -5,7 +5,7 @@
 // A:A ranges, in-formula arrays, LET/LAMBDA, and the full Google Sheets
 // function list — ~470 functions), rich-text note blocks, and checklist/task
 // blocks — plus comments, @mentions, an activity spine, sharing, CSV
-// import/export, and a dependency-free XLSX exporter. Rendered into
+// import/export, and a dependency-free XLSX importer + exporter. Rendered into
 // #rr-wb-root (views/view-workbooks.frag) and reached via
 // goto('workbooks'). Engine unit tests: scripts/test-formula-engine.mjs.
 //
@@ -140,8 +140,8 @@ class FormulaError extends Error {
 
 // In-formula array value (2-D, rectangular). Ranges and array-returning
 // functions (FILTER, SORT, UNIQUE, SPLIT, …) produce these; aggregates
-// consume them. A cell whose final result is an array displays the
-// top-left value — results never spill onto the grid.
+// consume them. A cell whose final result is an array shows its top-left
+// value in the origin cell and spills the rest onto the grid (see applySpill).
 class Arr {
   constructor(rows) { this.rows = rows; }
   get height() { return this.rows.length; }
@@ -715,7 +715,7 @@ const FUNCS = {
 // that call Google services or fetch external data (GOOGLEFINANCE,
 // GOOGLETRANSLATE, DETECTLANGUAGE, IMAGE, SPARKLINE, QUERY, IMPORT*)
 // and GETPIVOTDATA (no pivot tables). Array-returning functions work
-// as in-formula values; a bare array result displays its top-left cell.
+// as in-formula values and spill onto the grid from the origin cell.
 
 // ── Numerics core (special functions for the statistical family) ───────────
 // Standard machinery: Lanczos log-gamma, regularized incomplete gamma
@@ -2939,22 +2939,17 @@ function evalNode(node, ctx) {
       return node.op === "-" ? -v : v;
     }
     case "bin": {
-      const a = toNum(evalNode(node.l, ctx));
-      const b = toNum(evalNode(node.r, ctx));
-      switch (node.op) {
-        case "+": return a + b;
-        case "-": return a - b;
-        case "*": return a * b;
-        case "/": if (b === 0) throw new FormulaError("#DIV/0", "division by zero"); return a / b;
-        case "^": { const r = Math.pow(a, b); if (!isFinite(r)) throw new FormulaError("#VALUE", "overflow"); return r; }
-      }
-      throw new FormulaError("#ERROR", "bad operator");
+      const opr = (n) => (n.k === "range" ? gridOfRange(n, ctx) : evalNode(n, ctx));
+      return broadcast(opr(node.l), opr(node.r), (a, b) => binOp(node.op, toNum(a), toNum(b)));
     }
     case "concat": {
-      const a = evalNode(node.l, ctx), b = evalNode(node.r, ctx);
-      return fmtScalar(a) + fmtScalar(b);
+      const opr = (n) => (n.k === "range" ? gridOfRange(n, ctx) : evalNode(n, ctx));
+      return broadcast(opr(node.l), opr(node.r), (a, b) => fmtScalar(a) + fmtScalar(b));
     }
-    case "cmp": return cmp(node.op, evalNode(node.l, ctx), evalNode(node.r, ctx));
+    case "cmp": {
+      const opr = (n) => (n.k === "range" ? gridOfRange(n, ctx) : evalNode(n, ctx));
+      return broadcast(opr(node.l), opr(node.r), (a, b) => cmp(node.op, a, b));
+    }
     case "ref": {
       if (node.sheet) return ctx.getCell(node.row, node.col, node.sheet);
       if (node.row < 0 || node.col < 0 || node.row >= (ctx.rowCount ?? 100000) || node.col >= (ctx.colCount ?? 16384)) throw new FormulaError("#REF", "out of range");
@@ -2978,6 +2973,37 @@ function evalNode(node, ctx) {
     }
   }
   throw new FormulaError("#ERROR", "bad node");
+}
+
+function binOp(op, a, b) {
+  switch (op) {
+    case "+": return a + b;
+    case "-": return a - b;
+    case "*": return a * b;
+    case "/": if (b === 0) throw new FormulaError("#DIV/0", "division by zero"); return a / b;
+    case "^": { const r = Math.pow(a, b); if (!isFinite(r)) throw new FormulaError("#VALUE", "overflow"); return r; }
+  }
+  throw new FormulaError("#ERROR", "bad operator");
+}
+
+// Element-wise operator broadcasting: scalar↔scalar stays scalar; scalar↔array
+// maps over the array; array↔array combines cell-by-cell (a 1×1 array counts as
+// a scalar). This is what makes =FILTER(A1:A4, A1:A4>10) and other array
+// expressions produce a grid that can spill.
+function broadcast(l, r, fn) {
+  const la = l instanceof Arr, ra = r instanceof Arr;
+  if (!la && !ra) return fn(l, r);
+  if (la && l.height === 1 && l.width === 1) return broadcast(l.rows[0][0], r, fn);
+  if (ra && r.height === 1 && r.width === 1) return broadcast(l, r.rows[0][0], fn);
+  const H = la ? l.height : r.height, W = la ? l.width : r.width;
+  if (la && ra && (l.height !== r.height || l.width !== r.width)) throw new FormulaError("#VALUE", "array shapes don't match");
+  const rows = [];
+  for (let i = 0; i < H; i++) {
+    const row = [];
+    for (let j = 0; j < W; j++) row.push(deArr(fn(la ? l.rows[i][j] : l, ra ? r.rows[i][j] : r)));
+    row.length && rows.push(row);
+  }
+  return new Arr(rows.length ? rows : [[]]);
 }
 
 // Invoke a LAMBDA closure with already-evaluated argument values.
@@ -4846,7 +4872,10 @@ function cellNumeric(raw) {
 // The value handed to the formula engine for a cell.
 function engineValue(sheet, r, c) {
   const cell = sheet.cells.get(cellKey(r, c));
-  if (!cell) return null;
+  if (!cell) {
+    const sp = sheet.spill && sheet.spill.get(cellKey(r, c));
+    return sp ? sp.value : null;
+  }
   if (cell.formula) {
     if (cell.err) throw new FormulaError(cell.err, "referenced cell has an error");
     return cell.computed;
@@ -4863,7 +4892,11 @@ function engineValue(sheet, r, c) {
 // What the grid paints inside the cell box.
 function displayValue(sheet, r, c) {
   const cell = sheet.cells.get(cellKey(r, c));
-  if (!cell) return "";
+  if (!cell) {
+    const sp = sheet.spill && sheet.spill.get(cellKey(r, c));
+    if (!sp) return "";
+    return formatForDisplay(sp.value, null, typeof sp.value === "number" ? "number" : "text");
+  }
   if (cell.formula) {
     if (cell.err) return cell.err;
     return formatForDisplay(cell.computed, cell.format, "formula");
@@ -4931,6 +4964,7 @@ function parseDateLoose(s) {
 // are small (tens to low hundreds), so this stays well under a frame.
 
 function recalcSheet(sheet) {
+  if (sheet.spill) sheet.spill.clear(); else sheet.spill = new Map();
   const formulaCells = [];
   let usedR = 0, usedC = 0;
   for (const [key, cell] of sheet.cells) {
@@ -4992,13 +5026,16 @@ function recalcSheet(sheet) {
     try {
       ctx.cur = keyRC(key); // ROW()/COLUMN() with no args resolve here
       let v = evalAst(asts.get(key), ctx);
-      if (v instanceof Arr) v = v.top(); // arrays display their top-left value
+      let arr = null;
+      if (v instanceof Arr) { arr = v; v = v.top(); } // top-left displays; the full grid may spill (see applySpill)
+      cell._arr = arr;
       if (isClosure(v)) throw new FormulaError("#VALUE", "a LAMBDA needs to be called");
       cell.computed = v;
       return v !== before;
     } catch (e) {
       cell.err = e instanceof FormulaError ? e.code : "#ERROR";
       cell.computed = null;
+      cell._arr = null;
       return true;
     }
   };
@@ -5022,6 +5059,63 @@ function recalcSheet(sheet) {
         if ((deps.get(key) || []).some((d) => changed.has(d))) reEval(key);
       }
     }
+  }
+  // arrays spill their full grid onto the cells below/right of the origin
+  applySpill(sheet, order, deps, evalOne);
+}
+
+// ─── Dynamic-array spill ─────────────────────────────────────────────────────
+// A formula whose result is a 2-D array shows its top-left value in the origin
+// cell and "spills" the rest into the neighbouring cells to the right and
+// below. Spilled cells are derived, never stored: they live in sheet.spill
+// (cellKey → {origin, value}), get rebuilt on every recalc, and are read by
+// the engine and painted read-only by the grid. If the spill range would run
+// off-sheet or land on a cell that already holds its own value/formula, the
+// origin shows #SPILL! and nothing spills — exactly like Excel.
+
+// (Re)derive the spill layer from the formula cells' cached arrays.
+function buildSpill(sheet, formulaKeys) {
+  sheet.spill = new Map();
+  for (const k of formulaKeys) { const c = sheet.cells.get(k); if (c) { if (c.err === "#SPILL!") c.err = null; c.spill = null; } }
+  // earlier origins (top-to-bottom, left-to-right) win a contested cell
+  const origins = formulaKeys.map((k) => ({ k, rc: keyRC(k) })).sort((a, b) => a.rc.r - b.rc.r || a.rc.c - b.rc.c);
+  for (const { k, rc } of origins) {
+    const cell = sheet.cells.get(k);
+    if (!cell || cell.err || !cell._arr) continue;
+    const arr = cell._arr, h = arr.height, w = arr.width;
+    if (h * w <= 1) continue;
+    if (rc.r + h > sheet.rowCount || rc.c + w > sheet.colCount) { cell.err = "#SPILL!"; cell.computed = null; cell.spill = null; continue; }
+    let blocked = false;
+    for (let i = 0; i < h && !blocked; i++) for (let j = 0; j < w; j++) {
+      if (i === 0 && j === 0) continue;
+      const tk = cellKey(rc.r + i, rc.c + j);
+      const t = sheet.cells.get(tk);
+      if ((t && (t.formula || (t.value != null && t.value !== ""))) || sheet.spill.has(tk)) { blocked = true; break; }
+    }
+    if (blocked) { cell.err = "#SPILL!"; cell.computed = null; cell.spill = null; continue; }
+    cell.spill = { h, w };
+    for (let i = 0; i < h; i++) for (let j = 0; j < w; j++) {
+      if (i === 0 && j === 0) continue;
+      let val = arr.rows[i][j];
+      if (val instanceof Arr) val = val.top();
+      sheet.spill.set(cellKey(rc.r + i, rc.c + j), { origin: k, value: val });
+    }
+  }
+}
+
+// Build the spill layer, then re-evaluate any formula that reads a spilled
+// cell (those reads were invisible to the static graph) and cascade. A couple
+// of passes let a formula that spills off another spill settle.
+function applySpill(sheet, order, deps, evalOne) {
+  for (let pass = 0; pass < 3; pass++) {
+    buildSpill(sheet, order);
+    const spilled = new Set(sheet.spill.keys());
+    if (!spilled.size) break;
+    const changed = new Set();
+    const reEval = (key) => { const c = sheet.cells.get(key); if (!c || c.err === "#CIRCULAR" || c.err === "#SPILL!") return; c.err = null; if (evalOne(key)) changed.add(key); };
+    for (const key of order) if ((deps.get(key) || []).some((d) => spilled.has(d))) reEval(key);
+    if (changed.size) for (const key of order) { if (changed.has(key)) continue; if ((deps.get(key) || []).some((d) => changed.has(d))) reEval(key); }
+    if (!changed.size) break;
   }
 }
 
@@ -6053,6 +6147,7 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-tb="clear-format" role="menuitem" ${ro ? "disabled" : ""}>Clear formatting</button>
           <div class="popover-section"></div>
           <button type="button" class="popover-item" data-wb-tb2="import-csv" role="menuitem" ${ro ? "disabled" : ""}>Import CSV into this sheet…</button>
+          <button type="button" class="popover-item" data-wb-tb2="import-xlsx" role="menuitem" ${ro ? "disabled" : ""}>Import Excel (.xlsx)…</button>
           <button type="button" class="popover-item" data-wb-tb2="export-xlsx" role="menuitem">Export as Excel (.xlsx)</button>
           <button type="button" class="popover-item" data-wb-tb2="export-csv" role="menuitem">Export sheet as CSV</button>
           <button type="button" class="popover-item" data-wb-tb2="print" role="menuitem">Print sheet…</button>
@@ -6320,6 +6415,15 @@ function paintNow(g) {
   const cellDiv = (r, c, x, top, w, h) => {
     const key = cellKey(r, c);
     const cell = sheet.cells.get(key);
+    // spilled ghost: a derived value from a neighbouring array formula. No
+    // real cell backs it — paint it read-only (it can't be edited directly).
+    const spillEnt = !cell && sheet.spill ? sheet.spill.get(key) : null;
+    if (spillEnt) {
+      const isNum = typeof spillEnt.value === "number";
+      const dv = formatForDisplay(spillEnt.value, null, isNum ? "number" : "text");
+      const oc = keyRC(spillEnt.origin);
+      return `<div class="wb-cell is-spill" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${isNum ? "justify-content:flex-end;text-align:right;" : ""}" title="Spilled from ${cellRef(oc.r, oc.c)}">${esc(dv)}</div>`;
+    }
     // View → Show → Formulas: formula cells show their source (Ctrl+`)
     const disp = cell ? (g.showFormulas && cell.formula ? cell.formula : displayValue(sheet, r, c)) : "";
     const err = cell && cell.err;
@@ -6346,7 +6450,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -8068,16 +8172,18 @@ function syncFormulaBar(g) {
     else g.els.fbarRef.textContent = refText;
   }
   const cell = g.sheet.cells.get(cellKey(r, c));
+  const spillEnt = !cell && g.sheet.spill ? g.sheet.spill.get(cellKey(r, c)) : null;
   if (g.els.fbarInput && document.activeElement !== g.els.fbarInput) {
     g.els.fbarInput.value = g.xedit ? g.xedit.value
       : g.editing && g.editing.input ? g.editing.input.value
-      : cell ? (cell.formula || (cell.value ?? "")) : "";
+      : cell ? (cell.formula || (cell.value ?? ""))
+      : spillEnt ? String(spillEnt.value ?? "") : "";
   }
   syncFontControls(g);
   if (g.els.fbarErr) {
     if (cell && cell.err) {
       g.els.fbarErr.hidden = false;
-      g.els.fbarErr.textContent = cell.err + (cell.err === "#CIRCULAR" ? " · circular reference" : cell.err === "#DIV/0" ? " · division by zero" : cell.err === "#N/A" ? " · no match found" : cell.err === "#REF" ? " · broken reference" : cell.err === "#NUM" ? " · number out of range" : cell.err === "#NAME" ? " · unknown name" : cell.err === "#VALUE" ? " · wrong kind of value" : "");
+      g.els.fbarErr.textContent = cell.err + (cell.err === "#SPILL!" ? " · array can’t spill — cells in its path aren’t empty" : cell.err === "#CIRCULAR" ? " · circular reference" : cell.err === "#DIV/0" ? " · division by zero" : cell.err === "#N/A" ? " · no match found" : cell.err === "#REF" ? " · broken reference" : cell.err === "#NUM" ? " · number out of range" : cell.err === "#NAME" ? " · unknown name" : cell.err === "#VALUE" ? " · wrong kind of value" : "");
     } else g.els.fbarErr.hidden = true;
   }
 }
@@ -10298,52 +10404,135 @@ function exportSheetCsv(g) {
   _toast("CSV exported", "success");
 }
 
-// ─── Print ───────────────────────────────────────────────────────────────────
-// Clean HTML-table rendition of the used range in a popup, which then
-// calls window.print() — covers paper and print-to-PDF.
+// ─── Print / page layout ─────────────────────────────────────────────────────
+// A live print-preview popup with real page setup — orientation, paper size,
+// margins, fit-to-width scaling, gridlines, a repeated header row, and print
+// headings (A/B/C · 1/2/3). Controls re-lay the preview on the fly (WYSIWYG),
+// and Print / Save as PDF hands off to window.print(). The setup controls are
+// @media-print hidden so they never land on paper.
 
-function printSheet(g) {
-  const sheet = g.sheet;
-  const { maxR, maxC } = usedRange(sheet);
-  if (maxR < 0) { _toast("This sheet is empty — nothing to print", "info"); return; }
-  const merges = sheetMerges(sheet);
+// Build the print HTML for a range. Returns { thead, tbody, cols } where the
+// first non-empty grid row becomes the repeatable header.
+function buildPrintTable(sheet, rect) {
+  const merges = sheetMerges(sheet).filter((m) => m.r0 <= rect.r1 && m.r1 >= rect.r0 && m.c0 <= rect.c1 && m.c1 >= rect.c0);
   const covered = new Set();
-  for (const m of merges) {
-    for (let r = m.r0; r <= m.r1; r++) for (let c = m.c0; c <= m.c1; c++) if (r !== m.r0 || c !== m.c0) covered.add(cellKey(r, c));
-  }
-  let rowsHtml = "";
-  for (let r = 0; r <= maxR; r++) {
-    if (sheet.hiddenRows && sheet.hiddenRows.has(r)) continue;
-    let tds = "";
-    for (let c = 0; c <= maxC; c++) {
-      if (covered.has(cellKey(r, c)) || (sheet.hiddenCols && sheet.hiddenCols.has(c))) continue;
+  for (const m of merges) for (let r = m.r0; r <= m.r1; r++) for (let c = m.c0; c <= m.c1; c++) if (r !== m.r0 || c !== m.c0) covered.add(cellKey(r, c));
+  const visCols = [];
+  for (let c = rect.c0; c <= rect.c1; c++) if (!(sheet.hiddenCols && sheet.hiddenCols.has(c))) visCols.push(c);
+  const visRows = [];
+  for (let r = rect.r0; r <= rect.r1; r++) if (!(sheet.hiddenRows && sheet.hiddenRows.has(r))) visRows.push(r);
+  const rowHtml = (r, isHead) => {
+    let tds = `<th class="wb-rh">${r + 1}</th>`;
+    for (const c of visCols) {
+      if (covered.has(cellKey(r, c))) continue;
       const cell = sheet.cells.get(cellKey(r, c));
       const m = merges.find((x) => x.r0 === r && x.c0 === c);
       const span = m ? ` colspan="${m.c1 - m.c0 + 1}" rowspan="${m.r1 - m.r0 + 1}"` : "";
       const style = cell ? cellStyle(sheet, r, c, cell) + condStyleFor(sheet, r, c, cell) : "";
       const imgSrc = cell ? cellImgSrc(cell) : null;
-      tds += `<td${span} style="${style}">${imgSrc ? `<img src="${imgSrc}" style="display:block;max-width:200px;max-height:140px" alt="">` : esc(cell ? displayValue(sheet, r, c) : "")}</td>`;
+      const body = imgSrc ? `<img src="${imgSrc}" style="display:block;max-width:200px;max-height:140px" alt="">` : esc(cell ? displayValue(sheet, r, c) : "");
+      tds += `<td${span} style="${style}">${body}</td>`;
     }
-    rowsHtml += `<tr>${tds}</tr>`;
-  }
+    return `<tr>${tds}</tr>`;
+  };
+  const colHead = `<tr class="wb-colhead"><th class="wb-rh"></th>${visCols.map((c) => `<th>${colLabel(c)}</th>`).join("")}</tr>`;
+  const first = visRows.length ? visRows[0] : null;
+  const thead = colHead + (first != null ? rowHtml(first, true) : "");
+  const tbody = visRows.slice(1).map((r) => rowHtml(r, false)).join("");
+  return { thead, tbody, cols: visCols.length + 1 };
+}
+
+function printSheet(g) {
+  const sheet = g.sheet;
+  const sel = selRect(g);
+  const hasSel = sel.r0 !== sel.r1 || sel.c0 !== sel.c1;
+  const { maxR, maxC } = usedRange(sheet);
+  if (maxR < 0) { _toast("This sheet is empty — nothing to print", "info"); return; }
+  const full = { r0: 0, c0: 0, r1: maxR, c1: maxC };
+  const selRange = hasSel ? { r0: Math.min(sel.r0, sel.r1), c0: Math.min(sel.c0, sel.c1), r1: Math.max(sel.r0, sel.r1), c1: Math.max(sel.c0, sel.c1) } : null;
+  const fullT = buildPrintTable(sheet, full);
+  const selT = selRange ? buildPrintTable(sheet, selRange) : null;
+  const title = WB.wb && WB.wb.title ? WB.wb.title : "Workbook";
   const win = window.open("", "_blank");
   if (!win) { _toast("Allow pop-ups for this site to print", "warn"); return; }
-  win.document.write(`<!doctype html><html><head><title>${esc(WB.wb && WB.wb.title ? WB.wb.title : "Workbook")} — ${esc(sheet.name)}</title><style>
-    :root{--canvas:#F3F4F6;--border-strong:#9CA3AF;--border-subtle:#E5E7EB;--accent:#2563EB;--red:#B91C1C;--text:#111827;--surface:#fff;--wb-zoom:1;--fs-md:13px}
-    body{font:12px -apple-system,system-ui,sans-serif;color:#111827;margin:24px}
-    h2{font-size:15px;margin:0 0 2px}
-    .sub{margin:0 0 14px;color:#6B7280;font-size:11px}
-    table{border-collapse:collapse}
-    td{border:1px solid #D1D5DB;padding:3px 7px;max-width:360px;overflow:hidden;white-space:nowrap;vertical-align:middle}
-    @media print{body{margin:0}}
+  const opt = (v, l) => `<option value="${v}">${l}</option>`;
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)} — ${esc(sheet.name)}</title><style>
+    *{box-sizing:border-box}
+    body{font:12px -apple-system,system-ui,sans-serif;color:#111827;margin:0;background:#e5e7eb}
+    .wb-bar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:10px 16px;background:#fff;border-bottom:1px solid #d1d5db;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+    .wb-bar label{display:flex;gap:5px;align-items:center;font-size:12px;color:#374151;white-space:nowrap}
+    .wb-bar select{font:12px inherit;padding:3px 6px;border:1px solid #d1d5db;border-radius:6px;background:#fff}
+    .wb-bar .grow{flex:1}
+    .wb-btn{font:600 12px inherit;padding:7px 16px;border:0;border-radius:7px;background:#2563EB;color:#fff;cursor:pointer}
+    .wb-btn.sec{background:#f3f4f6;color:#111827;border:1px solid #d1d5db}
+    .wb-page{background:#fff;margin:18px auto;padding:14mm;box-shadow:0 2px 12px rgba(0,0,0,.12);width:max-content;max-width:100%}
+    .wb-head{margin:0 0 10px}
+    .wb-head h2{font-size:15px;margin:0 0 2px}
+    .wb-head .sub{margin:0;color:#6B7280;font-size:11px}
+    table{border-collapse:collapse;font-variant-numeric:tabular-nums}
+    td,th{padding:3px 7px;max-width:360px;overflow:hidden;white-space:nowrap;vertical-align:middle;text-align:left;font-weight:inherit}
+    th{background:#f3f4f6;font-weight:600;color:#374151}
+    thead{display:table-header-group}
+    table.gridlines td,table.gridlines th{border:1px solid #D1D5DB}
+    .wb-page.no-headings .wb-rh,.wb-page.no-headings .wb-colhead{display:none}
+    @page{size:letter portrait;margin:14mm}
+    @media print{
+      body{background:#fff}
+      .wb-bar{display:none}
+      .wb-page{margin:0;padding:0;box-shadow:none;width:auto;max-width:none}
+      thead.norepeat{display:table-row-group}
+    }
   </style></head><body>
-    <h2>${esc(WB.wb && WB.wb.title ? WB.wb.title : "Workbook")}</h2>
-    <p class="sub">${esc(sheet.name)} · printed ${esc(new Date().toLocaleDateString())}</p>
-    <table>${rowsHtml}</table>
-    <script>window.onload = function () { window.print(); };<\/script>
+    <div class="wb-bar">
+      <label>Orientation <select id="p-orient">${opt("portrait", "Portrait")}${opt("landscape", "Landscape")}</select></label>
+      <label>Paper <select id="p-paper">${opt("letter", "Letter")}${opt("a4", "A4")}${opt("legal", "Legal")}</select></label>
+      <label>Margins <select id="p-margin">${opt("normal", "Normal")}${opt("narrow", "Narrow")}${opt("wide", "Wide")}</select></label>
+      ${selT ? `<label>Print <select id="p-range">${opt("sheet", "Whole sheet")}${opt("sel", "Selection")}</select></label>` : ""}
+      <label><input type="checkbox" id="p-fit" checked> Fit to width</label>
+      <label><input type="checkbox" id="p-grid" checked> Gridlines</label>
+      <label><input type="checkbox" id="p-repeat" checked> Repeat header row</label>
+      <label><input type="checkbox" id="p-headings"> Print A/B/C · 1/2/3</label>
+      <span class="grow"></span>
+      <button class="wb-btn sec" id="p-close" type="button">Close</button>
+      <button class="wb-btn" id="p-print" type="button">Print / Save as PDF</button>
+    </div>
+    <div class="wb-page no-headings" id="p-sheet">
+      <div class="wb-head"><h2>${esc(title)}</h2><p class="sub">${esc(sheet.name)} · ${esc(new Date().toLocaleDateString())}</p></div>
+      <table class="gridlines" id="p-table"><thead id="p-thead">${fullT.thead}</thead><tbody id="p-tbody">${fullT.tbody}</tbody></table>
+    </div>
+    <script>
+      var DATA={sheet:{thead:${JSON.stringify(fullT.thead)},tbody:${JSON.stringify(fullT.tbody)}},sel:${selT ? JSON.stringify({ thead: selT.thead, tbody: selT.tbody }) : "null"}};
+      var PAPER={letter:[8.5,11],a4:[8.27,11.69],legal:[8.5,14]},MARG={normal:14,narrow:6,wide:22};
+      function $(id){return document.getElementById(id);}
+      function pageStyle(){
+        var o=$("p-orient").value,p=$("p-paper").value,m=MARG[$("p-margin").value];
+        var st=document.getElementById("p-page-style")||document.head.appendChild(Object.assign(document.createElement("style"),{id:"p-page-style"}));
+        st.textContent="@page{size:"+p+" "+o+";margin:"+m+"mm}";
+        return {o:o,p:p,m:m};
+      }
+      function fit(cfg){
+        var pg=$("p-sheet");pg.style.zoom="";
+        if(!$("p-fit").checked)return;
+        var dims=PAPER[cfg.p].slice();if(cfg.o==="landscape")dims.reverse();
+        var avail=(dims[0]-2*cfg.m/25.4)*96;               // usable width in px @96dpi
+        var w=$("p-table").scrollWidth;
+        if(w>avail)pg.style.zoom=(avail/w).toFixed(3);
+      }
+      function apply(){
+        if(DATA.sel){var r=$("p-range")&&$("p-range").value==="sel"?DATA.sel:DATA.sheet;$("p-thead").innerHTML=r.thead;$("p-tbody").innerHTML=r.tbody;}
+        $("p-table").className=$("p-grid").checked?"gridlines":"";
+        $("p-thead").className=$("p-repeat").checked?"":"norepeat";
+        $("p-sheet").classList.toggle("no-headings",!$("p-headings").checked);
+        var cfg=pageStyle();fit(cfg);
+      }
+      Array.prototype.forEach.call(document.querySelectorAll(".wb-bar select,.wb-bar input"),function(el){el.addEventListener("change",apply);});
+      $("p-print").addEventListener("click",function(){apply();window.print();});
+      $("p-close").addEventListener("click",function(){window.close();});
+      window.addEventListener("load",apply);apply();
+    <\/script>
   </body></html>`);
   win.document.close();
-  wbLog("sheet.printed", `printed ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+  wbLog("sheet.printed", `opened print layout for ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
 }
 
 // ─── Filter views ────────────────────────────────────────────────────────────
@@ -10597,6 +10786,93 @@ function applyCsvImport(g, matrix, clipped, fileName) {
   setActive(g, 0, 0);
   wbLog("csv.imported", `imported ${fileName} into ${sheet.name} (${matrix.length} rows)`, { target_type: "sheet", target_id: sheet.id });
   _toast(clipped ? `Imported with clipping — sheets cap at ${CSV_MAX_ROWS} rows × ${CSV_MAX_COLS} columns` : "CSV imported", clipped ? "warn" : "success");
+}
+
+// Import a real .xlsx workbook: each worksheet becomes a new sheet in this
+// block (existing sheets are left untouched), preserving values, live
+// formulas, dates, column widths, frozen panes, and merges.
+function importXlsxInto(g) {
+  if (!WB.canEdit) return;
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  input.addEventListener("change", () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { _toast("That file is over 15 MB — split it up first", "error"); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let parsed;
+      try { parsed = await parseXlsxBytes(new Uint8Array(reader.result)); }
+      catch (e) { console.warn("xlsx import:", e && e.message); _toast("Couldn't read that Excel file", "error"); return; }
+      const withData = parsed.sheets.filter((s) => s.cells.length || s.merges.length);
+      if (!withData.length) { _toast("That workbook had no data to import", "warn"); return; }
+      if (WB.sheetsByBlock.get(g.blockId) && withData.length + WB.sheetsByBlock.get(g.blockId).length > 60) {
+        _toast("That would push this block over 60 sheets — split the file first", "error"); return;
+      }
+      try { await importParsedWorkbook(g, withData, file.name); }
+      catch (e) { console.warn("xlsx import apply:", e && e.message); _toast("Couldn't import that workbook: " + ((e && e.message) || e), "error"); }
+    };
+    reader.onerror = () => _toast("Couldn't read that file", "error");
+    reader.readAsArrayBuffer(file);
+  });
+  input.click();
+}
+
+async function importParsedWorkbook(g, parsedSheets, fileName) {
+  _toast(`Importing ${parsedSheets.length} sheet${parsedSheets.length === 1 ? "" : "s"}…`, "info");
+  let first = null;
+  for (const ps of parsedSheets) {
+    const sheet = await createSheetWithCells(g.blockId, ps, fileName);
+    if (sheet && !first) first = sheet;
+  }
+  if (first) { renderSheetTabs(g); switchSheet(g, first.id); }
+  wbLog("xlsx.imported", `imported ${fileName} (${parsedSheets.length} sheet${parsedSheets.length === 1 ? "" : "s"})`, { target_type: "block", target_id: g.blockId });
+  _toast(`Imported ${fileName}`, "success");
+}
+
+async function createSheetWithCells(blockId, ps, fileName) {
+  const sheets = WB.sheetsByBlock.get(blockId) || [];
+  let maxR = 0, maxC = 0;
+  for (const c of ps.cells) { if (c.r > maxR) maxR = c.r; if (c.c > maxC) maxC = c.c; }
+  for (const m of ps.merges) { if (m.r1 > maxR) maxR = m.r1; if (m.c1 > maxC) maxC = m.c1; }
+  const meta = {};
+  if (ps.merges && ps.merges.length) meta.merges = ps.merges;
+  const used = new Set(sheets.map((s) => s.name.toLowerCase()));
+  const base = (ps.name || "Sheet").trim().slice(0, 74) || "Sheet";
+  let name = base.slice(0, 80), i = 2;
+  while (used.has(name.toLowerCase())) name = `${base} ${i++}`;
+  const shRow = {
+    dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, block_id: blockId,
+    name, position: sheets.length ? Math.max(...sheets.map((s) => s.position)) + 1 : 0,
+    row_count: Math.min(10000, Math.max(200, maxR + 40)),
+    col_count: Math.min(200, Math.max(26, maxC + 5)),
+    frozen_rows: ps.frozenRows || 0, frozen_cols: ps.frozenCols || 0,
+    col_widths: ps.colWidths || {}, meta,
+  };
+  let ins = await _sb().from("workbook_sheets").insert(shRow).select().single();
+  if (ins.error && /meta/i.test(String(ins.error.message))) { delete shRow.meta; ins = await _sb().from("workbook_sheets").insert(shRow).select().single(); }
+  if (ins.error) throw ins.error;
+  const sheet = normalizeSheet(ins.data);
+  const rows = [];
+  for (const c of ps.cells) {
+    const cell = { value: c.value ?? null, formula: c.formula ?? null, type: c.type ?? null, computed: null, err: null, format: {} };
+    sheet.cells.set(cellKey(c.r, c.c), cell);
+    rows.push({
+      dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, sheet_id: sheet.id,
+      row_index: c.r, col_index: c.c,
+      value: cell.value, formula: cell.formula, value_type: cell.type, format: {},
+      updated_by: _me() ? _me().id : null,
+    });
+  }
+  for (let i2 = 0; i2 < rows.length; i2 += 500) {
+    const res = await _sb().from("workbook_cells").insert(rows.slice(i2, i2 + 500));
+    if (res.error) throw res.error;
+  }
+  recalcSheet(sheet);
+  if (!WB.sheetsByBlock.has(blockId)) WB.sheetsByBlock.set(blockId, []);
+  WB.sheetsByBlock.get(blockId).push(sheet);
+  return sheet;
 }
 
 // ─── XLSX export ─────────────────────────────────────────────────────────────
@@ -10853,6 +11129,197 @@ function buildXlsxBytes(sheets) {
     parts.push(file(`xl/worksheets/_rels/sheet${i + 1}.xml.rels`, rels));
   });
   return xlsxZip(parts);
+}
+
+// ─── XLSX import ─────────────────────────────────────────────────────────────
+// Dependency-free reader. Unzips the OOXML package (STORED entries, or
+// DEFLATE via the platform DecompressionStream — real Excel files are
+// compressed) and pulls sheet names + order, cell values, live formulas,
+// dates (serial → ISO), column widths, frozen panes, and merges. The XML is
+// scanned with tolerant regexes rather than a DOM, so the same code runs in
+// the browser and headless under Node for the round-trip tests.
+
+async function xlsxInflateRaw(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function xlsxUnzip(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // find the End Of Central Directory record (fixed 22-byte head, then an
+  // optional trailing comment — scan back over both)
+  let eo = -1;
+  for (let i = bytes.length - 22; i >= 0 && i >= bytes.length - 22 - 0x10000; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eo = i; break; }
+  }
+  if (eo < 0) throw new Error("not a zip archive");
+  const count = dv.getUint16(eo + 10, true);
+  let p = dv.getUint32(eo + 16, true);
+  const dec = new TextDecoder();
+  const entries = [];
+  for (let n = 0; n < count && p + 46 <= bytes.length; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break; // central-directory header
+    const method = dv.getUint16(p + 10, true);
+    const compSize = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const commentLen = dv.getUint16(p + 32, true);
+    const lho = dv.getUint32(p + 42, true);
+    const name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
+    const lNameLen = dv.getUint16(lho + 26, true);
+    const lExtraLen = dv.getUint16(lho + 28, true);
+    const start = lho + 30 + lNameLen + lExtraLen;
+    entries.push({ name, method, comp: bytes.subarray(start, start + compSize) });
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  const out = new Map();
+  for (const e of entries) out.set(e.name, e.method === 0 ? e.comp : await xlsxInflateRaw(e.comp));
+  return out;
+}
+
+function xmlUnescape(s) {
+  return String(s).replace(/&(#x?[0-9a-fA-F]+|\w+);/g, (m, e) => {
+    if (e[0] === "#") return String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10));
+    return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" }[e] ?? m;
+  });
+}
+
+// every <t>…</t> run inside a chunk, concatenated — folds rich-text <r> runs
+// in a shared string or inline string into one plain value
+function xlsxJoinText(chunk) {
+  let out = "", m;
+  const re = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t\s*\/>/g;
+  while ((m = re.exec(chunk))) out += m[1] != null ? xmlUnescape(m[1]) : "";
+  return out;
+}
+
+const XLSX_ROW_CAP = 10000, XLSX_COL_CAP = 200;
+
+async function parseXlsxBytes(buf) {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const zip = await xlsxUnzip(bytes);
+  const dec = new TextDecoder();
+  const get = (n) => { const b = zip.get(n); return b ? dec.decode(b) : ""; };
+
+  // shared string table
+  const shared = [];
+  const ssXml = get("xl/sharedStrings.xml");
+  if (ssXml) {
+    let m;
+    const re = /<si(?:\s[^>]*)?>([\s\S]*?)<\/si>|<si\s*\/>/g;
+    while ((m = re.exec(ssXml))) shared.push(m[1] != null ? xlsxJoinText(m[1]) : "");
+  }
+
+  // styles → which cell-format (xf) indices render as dates, so numeric
+  // date serials come back as readable dates instead of raw numbers
+  const dateXf = new Set();
+  const stylesXml = get("xl/styles.xml");
+  if (stylesXml) {
+    const customDate = new Map();
+    let m;
+    const nfRe = /<numFmt[^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g;
+    while ((m = nfRe.exec(stylesXml))) {
+      const code = xmlUnescape(m[2]).replace(/\[[^\]]*\]/g, "").replace(/"[^"]*"/g, "");
+      customDate.set(+m[1], /[dmy]/i.test(code) && !/[#0]/.test(code));
+    }
+    const builtinDate = new Set([14, 15, 16, 17, 22, 45, 46, 47]);
+    const cx = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml);
+    if (cx) (cx[1].match(/<xf\b[^>]*?\/?>/g) || []).forEach((xf, idx) => {
+      const nf = /numFmtId="(\d+)"/.exec(xf);
+      const id = nf ? +nf[1] : 0;
+      if (builtinDate.has(id) || customDate.get(id)) dateXf.add(idx);
+    });
+  }
+
+  // relationship id → worksheet path
+  const relTarget = new Map();
+  const relsXml = get("xl/_rels/workbook.xml.rels");
+  let rm;
+  const relRe = /<Relationship\b[^>]*\/>/g;
+  while ((rm = relRe.exec(relsXml))) {
+    const id = /Id="([^"]+)"/.exec(rm[0]);
+    const tgt = /Target="([^"]+)"/.exec(rm[0]);
+    if (id && tgt) relTarget.set(id[1], tgt[1]);
+  }
+  // workbook.xml gives sheet names in tab order
+  const wbXml = get("xl/workbook.xml");
+  const sheetDefs = [];
+  let sm;
+  const shRe = /<sheet\b[^>]*\/>/g;
+  while ((sm = shRe.exec(wbXml))) {
+    const nm = /name="([^"]*)"/.exec(sm[0]);
+    const rid = /r:id="([^"]+)"/.exec(sm[0]);
+    let path = rid ? relTarget.get(rid[1]) : null;
+    if (path) { path = path.replace(/^\/xl\//, "").replace(/^\//, ""); if (!path.startsWith("xl/")) path = "xl/" + path; }
+    sheetDefs.push({ name: nm ? xmlUnescape(nm[1]) : "Sheet", path });
+  }
+  if (!sheetDefs.length) for (const k of zip.keys()) if (/^xl\/worksheets\/sheet\d+\.xml$/.test(k)) sheetDefs.push({ name: k.replace(/.*\/(sheet\d+)\.xml/, "$1"), path: k });
+
+  const sheets = [];
+  for (const def of sheetDefs) {
+    const sx = def.path ? get(def.path) : "";
+    const out = { name: def.name, cells: [], colWidths: {}, merges: [], frozenRows: 0, frozenCols: 0 };
+    if (!sx) { sheets.push(out); continue; }
+
+    const pane = /<pane\b[^>]*\/>/.exec(sx);
+    if (pane) {
+      const xs = /xSplit="([\d.]+)"/.exec(pane[0]);
+      const ys = /ySplit="([\d.]+)"/.exec(pane[0]);
+      if (xs && +xs[1] > 0) out.frozenCols = 1;
+      if (ys && +ys[1] > 0) out.frozenRows = 1;
+    }
+    let cm;
+    const colRe = /<col\b[^>]*\/>/g;
+    while ((cm = colRe.exec(sx))) {
+      const mn = /min="(\d+)"/.exec(cm[0]);
+      const mx = /max="(\d+)"/.exec(cm[0]);
+      const w = /width="([\d.]+)"/.exec(cm[0]);
+      if (mn && w && /customWidth="1"/.test(cm[0])) {
+        const lo = +mn[1] - 1, hi = Math.min(+(mx ? mx[1] : mn[1]) - 1, XLSX_COL_CAP - 1);
+        for (let c = lo; c <= hi; c++) out.colWidths[c] = Math.round(+w[1] * 7);
+      }
+    }
+    let mm;
+    const mgRe = /<mergeCell\b[^>]*ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g;
+    while ((mm = mgRe.exec(sx))) {
+      const r0 = +mm[2] - 1, c0 = colIndex(mm[1]);
+      if (r0 < XLSX_ROW_CAP && c0 < XLSX_COL_CAP) out.merges.push({ r0, c0, r1: Math.min(+mm[4] - 1, XLSX_ROW_CAP - 1), c1: Math.min(colIndex(mm[3]), XLSX_COL_CAP - 1) });
+    }
+
+    const sd = /<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/.exec(sx);
+    const body = sd ? sd[1] : "";
+    let cc;
+    const cRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+    while ((cc = cRe.exec(body))) {
+      const attrs = cc[1], inner = cc[2] || "";
+      const ref = /r="([A-Z]+)(\d+)"/.exec(attrs);
+      if (!ref) continue;
+      const c = colIndex(ref[1]), r = +ref[2] - 1;
+      if (r >= XLSX_ROW_CAP || c >= XLSX_COL_CAP) continue;
+      const t = (/t="([^"]+)"/.exec(attrs) || [])[1] || "n";
+      const s = (/s="(\d+)"/.exec(attrs) || [])[1];
+      const fM = /<f(?:\s[^>]*)?>([\s\S]*?)<\/f>/.exec(inner);
+      const vM = /<v(?:\s[^>]*)?>([\s\S]*?)<\/v>/.exec(inner);
+      const rawV = vM ? xmlUnescape(vM[1]) : "";
+      let value = null, formula = null, type = null;
+      if (fM && fM[1].trim()) {
+        formula = "=" + xmlUnescape(fM[1]); // live formula; cached <v> recomputed
+      } else if (t === "s") { value = shared[+rawV] != null ? shared[+rawV] : ""; type = "text"; }
+      else if (t === "inlineStr") { value = xlsxJoinText(inner); type = "text"; }
+      else if (t === "str") { value = rawV; type = detectType(value).type; }
+      else if (t === "b") { value = rawV === "1" || /^true$/i.test(rawV) ? "TRUE" : "FALSE"; type = "boolean"; }
+      else if (t === "e") { value = rawV || "#ERROR"; type = "text"; }
+      else {
+        if (rawV === "") continue;
+        if (s != null && dateXf.has(+s)) { const d = serialToDate(+rawV); value = d ? isoDate(d) : rawV; type = d ? "date" : "number"; }
+        else { value = rawV; type = "number"; }
+      }
+      if (formula == null && (value == null || value === "")) continue;
+      out.cells.push({ r, c, value, formula, type });
+    }
+    sheets.push(out);
+  }
+  return { sheets };
 }
 
 function exportBlockXlsx(g) {
@@ -12108,6 +12575,7 @@ function bindGridEvents(g) {
       closeAllPopovers();
       const ioAct = io.getAttribute("data-wb-tb2");
       if (ioAct === "import-csv") importCsvInto(g);
+      else if (ioAct === "import-xlsx") importXlsxInto(g);
       else if (ioAct === "export-xlsx") exportBlockXlsx(g);
       else if (ioAct === "print") printSheet(g);
       else exportSheetCsv(g);
@@ -13070,6 +13538,7 @@ function wbMenuItems(menu, g) {
       { label: "New workbook", act: "file:new" },
       { label: "Make a copy", act: "file:copy", disabled: !ed },
       { label: "Import CSV…", act: "file:import", disabled: !ed || !g },
+      { label: "Import Excel (.xlsx)…", act: "file:import-xlsx", disabled: !ed || !g },
       sep,
       { label: "Download", sub: [
         { label: "Microsoft Excel (.xlsx)", act: "file:xlsx", disabled: !g },
@@ -13216,6 +13685,7 @@ function wbMenuAction(act, g) {
     case "file:new": createBlankWorkbookNow(); return;
     case "file:copy": duplicateWorkbook(); return;
     case "file:import": if (need()) importCsvInto(g); return;
+    case "file:import-xlsx": if (need()) importXlsxInto(g); return;
     case "file:xlsx": if (need()) exportBlockXlsx(g); return;
     case "file:csv": if (need()) exportSheetCsv(g); return;
     case "file:print": if (need()) printSheet(g); return;
@@ -15074,7 +15544,7 @@ export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable,
   chartSvg, WB_CHART_TYPES,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,
