@@ -3930,6 +3930,29 @@ async function pasteValuesOnly(g) {
   setCells(g, changes);
 }
 
+// Paste special → format only: stamp the copied range's formats over the
+// selection, leaving values and formulas alone.
+function pasteFormatOnly(g) {
+  const cb = WB.clipboard;
+  if (!cb || !cb.rows.length || !WB.canEdit) { _toast("Copy a range first", "info"); return; }
+  const sel = selRect(g);
+  const changes = [];
+  for (let i = 0; i < cb.rows.length; i++) {
+    for (let j = 0; j < cb.rows[i].length; j++) {
+      const tr = sel.r0 + i, tc = sel.c0 + j;
+      if (tr >= g.sheet.rowCount || tc >= g.sheet.colCount) continue;
+      const srcCell = cb.rows[i][j];
+      const fmt = srcCell && srcCell.format ? { ...srcCell.format } : {};
+      const prev = g.sheet.cells.get(cellKey(tr, tc));
+      const next = prev
+        ? { ...cloneCell(prev), format: fmt }
+        : Object.keys(fmt).length ? { value: null, formula: null, type: null, format: fmt } : null;
+      changes.push({ r: tr, c: tc, cell: next });
+    }
+  }
+  setCells(g, changes);
+}
+
 // Formula auditing: light one — reuse the reference-highlight layer.
 function tracePrecedents(g) {
   const cell = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
@@ -8133,6 +8156,7 @@ function bindGridEvents(g) {
       return;
     }
     if (meta && (k === "s" || k === "S")) { e.preventDefault(); scheduleCellFlush.flushNow(); return; }
+    if (meta && e.altKey && (k === "m" || k === "M")) { e.preventDefault(); openCellComment(g, g.active.r, g.active.c); return; } // Sheets' comment shortcut
     if (meta && (k === "f" || k === "F")) { e.preventDefault(); openFindPanel(g, false); return; }
     if (meta && (k === "h" || k === "H")) { e.preventDefault(); if (WB.canEdit) openFindPanel(g, true); return; }
     if (meta && k.startsWith("Arrow")) {
@@ -8504,7 +8528,159 @@ function ctxMenu(x, y, itemsHtml) {
   return m;
 }
 
+// Sheets-look icon set for the cell context menu (16px, stroke inherits)
+const CTX_ICONS = {
+  cut: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>`,
+  copy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+  paste: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>`,
+  plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  filter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>`,
+  history: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>`,
+  link: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+  comment: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  dropdown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="5"/><polyline points="13.5 10.5 16 13 18.5 10.5"/></svg>`,
+  image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
+  more: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`,
+};
+
+// The cell right-click menu, organized like Google Sheets: clipboard,
+// inserts, deletes, filter, history, annotations, then the long tail
+// behind "View more cell actions". Drill-in submenus (▸) reuse the
+// menu-bar stack pattern.
+function openSheetsCellMenu(g, x, y) {
+  const ro = !WB.canEdit;
+  const { r, c } = g.active;
+  const rect0 = selRect(g);
+  const nRows = rect0.r1 - rect0.r0 + 1;
+  const nCols = rect0.c1 - rect0.c0 + 1;
+  const rowsLbl = nRows > 1 ? `${nRows} rows` : "1 row";
+  const colsLbl = nCols > 1 ? `${nCols} columns` : "1 column";
+  const cell = g.sheet.cells.get(cellKey(r, c));
+  const hasLink = !!(cell && cell.format && cell.format.link);
+  const hasImg = !!cellImgSrc(cell);
+  const sep = "—";
+  const it = (icon, label, act, o) => ({ icon, label, act, ...(o || {}) });
+  const moreSub = [
+    it(null, "Format cells…", "format-cells", { disabled: ro }),
+    it(null, "Conditional formatting…", "cond-format", { disabled: ro }),
+    it(null, "Data validation…", "data-validation", { disabled: ro }),
+    it(null, "Merge / unmerge cells", "merge-toggle", { disabled: ro }),
+    sep,
+    it(null, "Sort sheet by this column A→Z", "sort-col-asc", { disabled: ro }),
+    it(null, "Sort sheet by this column Z→A", "sort-col-desc", { disabled: ro }),
+    it(null, "Custom sort…", "sort-custom", { disabled: ro }),
+    it(null, "Filter this column…", "filter-col"),
+    sep,
+    it(null, "Copy cell reference", "copy-ref"),
+    it(null, "Highlight precedents", "trace-precedents"),
+    it(null, "Highlight dependents", "trace-dependents"),
+    sep,
+    it(null, "Insert image into cell…", "insert-image", { disabled: ro }),
+    ...(hasImg ? [it(null, "View image", "view-image")] : []),
+    ...(hasImg ? [it(null, "Remove image", "remove-image", { disabled: ro })] : []),
+    ...(hasLink ? [it(null, "Open link", "open-link")] : []),
+    ...(hasLink ? [it(null, "Remove link", "remove-link", { disabled: ro })] : []),
+  ];
+  const items = [
+    it(CTX_ICONS.cut, "Cut", "cut", { kbd: "Ctrl+X", disabled: ro }),
+    it(CTX_ICONS.copy, "Copy", "copy", { kbd: "Ctrl+C" }),
+    it(CTX_ICONS.paste, "Paste", "paste", { kbd: "Ctrl+V", disabled: ro }),
+    { icon: CTX_ICONS.paste, label: "Paste special", sub: [
+      it(null, "Values only", "paste-values", { disabled: ro }),
+      it(null, "Format only", "paste-format", { disabled: ro }),
+    ] },
+    sep,
+    it(CTX_ICONS.plus, `Insert ${rowsLbl} above`, "insert-row-above", { disabled: ro }),
+    it(CTX_ICONS.plus, `Insert ${colsLbl} left`, "insert-col-left", { disabled: ro }),
+    { icon: CTX_ICONS.plus, label: "Insert cells", sub: [
+      it(null, `Insert ${rowsLbl} below`, "insert-row-below", { disabled: ro }),
+      it(null, `Insert ${colsLbl} right`, "insert-col-right", { disabled: ro }),
+      it(null, "New sheet", "insert-sheet", { disabled: ro }),
+    ] },
+    sep,
+    it(CTX_ICONS.trash, `Delete ${nRows > 1 ? nRows + " rows" : "row"}`, "delete-row", { disabled: ro }),
+    it(CTX_ICONS.trash, `Delete ${nCols > 1 ? nCols + " columns" : "column"}`, "delete-col", { disabled: ro }),
+    { icon: CTX_ICONS.trash, label: "Delete cells", sub: [
+      it(null, "Clear contents", "clear-contents", { kbd: "Del", disabled: ro }),
+      it(null, "Clear formatting", "clear-format", { disabled: ro }),
+    ] },
+    sep,
+    it(CTX_ICONS.filter, g.filterMode ? "Remove filter" : "Create a filter", "filter-toggle"),
+    sep,
+    it(CTX_ICONS.history, "Show edit history", "history"),
+    sep,
+    it(CTX_ICONS.link, hasLink ? "Edit link…" : "Insert link", "insert-link", { disabled: ro }),
+    it(CTX_ICONS.comment, "Comment", "comment", { kbd: "Ctrl+Alt+M" }),
+    it(CTX_ICONS.dropdown, "Dropdown", "data-validation", { disabled: ro }),
+    ...(hasImg ? [] : [it(CTX_ICONS.image, "Image in cell…", "insert-image", { disabled: ro })]),
+    sep,
+    { icon: CTX_ICONS.more, label: "View more cell actions", sub: moreSub },
+  ];
+  const m = ctxMenu(x, y, "");
+  m.classList.add("wb-menu-pop", "wb-cellmenu");
+  const stack = [{ title: null, items }];
+  const render = () => {
+    const top = stack[stack.length - 1];
+    m.innerHTML = (stack.length > 1 ? `<button type="button" class="popover-item wb-menu-back" data-menu-back>← ${esc(top.title)}</button><div class="popover-section"></div>` : "")
+      + top.items.map((x2, i) => {
+        if (x2 === "—") return `<div class="popover-section"></div>`;
+        return `<button type="button" class="popover-item ${x2.danger ? "is-danger" : ""}" data-menu-i="${i}" role="menuitem" ${x2.disabled ? "disabled" : ""}><span class="wb-ctx-ic">${x2.icon || ""}</span><span class="wb-ctx-lbl">${esc(x2.label)}</span><span class="wb-menu-kbd">${x2.sub ? "▸" : esc(x2.kbd || "")}</span></button>`;
+      }).join("");
+    const r2 = m.getBoundingClientRect();
+    if (r2.bottom > window.innerHeight - 8) m.style.top = Math.max(8, window.innerHeight - r2.height - 8) + "px";
+    if (r2.right > window.innerWidth - 8) m.style.left = Math.max(8, window.innerWidth - r2.width - 8) + "px";
+  };
+  render();
+  m.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-menu-back]")) { stack.pop(); render(); return; }
+    const btn = e.target.closest("[data-menu-i]");
+    if (!btn || btn.disabled) return;
+    const item = stack[stack.length - 1].items[+btn.getAttribute("data-menu-i")];
+    if (!item) return;
+    if (item.sub) { stack.push({ title: item.label, items: item.sub }); render(); return; }
+    closeAllPopovers();
+    switch (item.act) {
+      case "cut": await copySelection(g, "cut"); break;
+      case "copy": await copySelection(g); break;
+      case "paste": await pasteFromClipboard(g); break;
+      case "paste-values": await pasteValuesOnly(g); break;
+      case "paste-format": pasteFormatOnly(g); break;
+      case "insert-row-above": restructure(g, "row", rect0.r0, nRows); break;
+      case "insert-row-below": restructure(g, "row", rect0.r1 + 1, nRows); break;
+      case "insert-col-left": restructure(g, "col", rect0.c0, nCols); break;
+      case "insert-col-right": restructure(g, "col", rect0.c1 + 1, nCols); break;
+      case "insert-sheet": addSheetTo(g.blockId); break;
+      case "delete-row": restructure(g, "row", rect0.r0, -nRows); break;
+      case "delete-col": restructure(g, "col", rect0.c0, -nCols); break;
+      case "clear-contents": clearSelection(g); break;
+      case "clear-format": clearFormatting(g); break;
+      case "filter-toggle": toggleFilterMode(g); break;
+      case "history": openPanelTab("activity"); break;
+      case "insert-link": insertLinkPrompt(g); break;
+      case "comment": openCellComment(g, r, c); break;
+      case "data-validation": openValidationDialog(g); break;
+      case "format-cells": openFormatCellsDialog(g); break;
+      case "cond-format": openCondFormatDialog(g); break;
+      case "merge-toggle": toggleMergeSelection(g); break;
+      case "sort-col-asc": sortByColumn(g, c, "asc"); break;
+      case "sort-col-desc": sortByColumn(g, c, "desc"); break;
+      case "sort-custom": openSortDialog(g); break;
+      case "filter-col": openFilterPanel(g, c, null, { x, y }); break;
+      case "copy-ref": try { await navigator.clipboard.writeText(cellRef(r, c)); _toast(`Copied ${cellRef(r, c)}`, "success"); } catch (_) {} break;
+      case "trace-precedents": tracePrecedents(g); break;
+      case "trace-dependents": traceDependents(g); break;
+      case "insert-image": pickImageInto(g); break;
+      case "view-image": { const s = cellImgSrc(g.sheet.cells.get(cellKey(r, c))); if (s) openImageLightbox(s); break; }
+      case "remove-image": removeCellImage(g, r, c); break;
+      case "open-link": { const l = g.sheet.cells.get(cellKey(r, c))?.format?.link; if (l) window.open(l, "_blank", "noopener"); break; }
+      case "remove-link": formatSelection(g, { link: null }); break;
+    }
+  });
+}
+
 function openCellContextMenu(g, x, y, kind) {
+  if (kind === "cell") return openSheetsCellMenu(g, x, y);
   const ro = !WB.canEdit;
   const { r, c } = g.active;
   const rect0 = selRect(g);

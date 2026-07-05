@@ -28801,6 +28801,17 @@ body.rr-cmdk-open{ overflow:hidden }
 .wb-menu-pop{min-width:250px;max-width:320px}
 .wb-menu-pop .popover-item{display:flex;justify-content:space-between;gap:14px;width:100%}
 .wb-menu-kbd{color:var(--text-subtle);font-size:var(--fs-xs);white-space:nowrap}
+/* Sheets-style cell context menu: icon gutter · label · shortcut/▸ */
+.wb-cellmenu{min-width:280px}
+.wb-cellmenu .popover-item{display:flex;align-items:center;gap:0;justify-content:flex-start}
+.wb-cellmenu .wb-ctx-ic{
+  width:16px;height:16px;flex:0 0 16px;margin-right:12px;
+  display:inline-flex;align-items:center;justify-content:center;
+  color:var(--text-muted);
+}
+.wb-cellmenu .wb-ctx-ic svg{width:16px;height:16px}
+.wb-cellmenu .wb-ctx-lbl{flex:1;text-align:left;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb-cellmenu .wb-menu-kbd{margin-left:14px}
 .wb-menu-head{padding:6px 12px 2px;font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em}
 .wb-menu-back{font-weight:600}
 .wb-tabcolor-row{display:flex;gap:4px;padding:4px 12px 8px}
@@ -29199,6 +29210,7 @@ body.rr-cmdk-open{ overflow:hidden }
   position:fixed;z-index:10002;display:block;
   min-width:210px;background:var(--surface);border:1px solid var(--border);
   border-radius:var(--r-md);box-shadow:var(--shadow-pop);padding:4px;
+  max-height:calc(100vh - 24px);overflow-y:auto;
 }
 .wb-ctx-menu .popover-item{width:100%}
 
