@@ -3444,13 +3444,19 @@ function paintNow(g) {
   const fltBtn = (r, c) => (r === 0 && c <= g.fltMaxC
     ? `<button type="button" class="wb-flt-btn ${g.filters.has(c) ? "is-filtered" : ""}" data-wb-fltbtn="${c}" title="Filter column ${colLabel(c)}" aria-label="Filter column ${colLabel(c)}">${g.filters.has(c) ? "▼" : "▾"}</button>`
     : "");
+  const hasDvRules = Array.isArray(sheet.meta && sheet.meta.validation) && sheet.meta.validation.length > 0;
   const cellDiv = (r, c, x, top, w, h) => {
     const key = cellKey(r, c);
     const cell = sheet.cells.get(key);
     const disp = cell ? displayValue(sheet, r, c) : "";
     const err = cell && cell.err;
     const inval = cellInvalid(sheet, r, c, cell);
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${cell ? cellInnerHtml(cell, disp) : ""}${fltBtn(r, c)}</div>`;
+    // list-validated cells render as Sheets-style dropdown chips
+    const dvRule = hasDvRules && r > 0 ? findValidationRule(sheet, r, c) : null;
+    const chip = dvRule && dvRule.type === "list" && WB.canEdit
+      ? `<span class="wb-dv-chip ${inval ? "is-invalid" : ""}" data-wb-dvchip="${r},${c}" title="Pick from list">${disp ? esc(disp) : `<span class="wb-dv-chip-empty">Select</span>`}<span class="wb-dv-caret">▾</span></span>`
+      : null;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${inval ? "is-invalid" : ""} ${cell && cell.format && cell.format.link ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : cell && cell.format && cell.format.link ? `title="Ctrl+click to open ${esc(cell.format.link)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${chip != null ? chip : cell ? cellInnerHtml(cell, disp) : ""}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -3504,13 +3510,6 @@ function paintSelection(g) {
   if (WB.canEdit && !g.editing && di1 >= 0) {
     const hx = g.colX[Math.max(c0, c1) + 1], hy = g.rowY[di1 + 1];
     html += `<div class="wb-fill-handle" data-wb-fillhandle title="Drag to fill" style="left:${hx - 4}px;top:${hy - 4}px"></div>`;
-  }
-  // dropdown affordance on list-validated cells
-  if (WB.canEdit && !g.editing && adi >= 0) {
-    const dvRule = findValidationRule(g.sheet, a.r, a.c);
-    if (dvRule && dvRule.type === "list") {
-      html += `<button type="button" class="wb-dv-btn" data-wb-dvbtn title="Pick from list" aria-label="Pick from list" style="left:${g.colX[a.c + 1] + 2}px;top:${g.rowY[adi]}px;height:${g.rowY[adi + 1] - g.rowY[adi]}px">▾</button>`;
-    }
   }
   g.els.sel.innerHTML = html;
   updateSelStats(g);
@@ -7159,10 +7158,10 @@ function bindGridEvents(g) {
       }
     }
 
-    // ── validation dropdown + header filter buttons ── (opened from the
+    // ── dropdown chips + header filter buttons ── (opened from the
     // document click delegate — opening here on mousedown would be undone
     // by the click-away closer)
-    if (e.target.closest("[data-wb-dvbtn]") || e.target.closest("[data-wb-fltbtn]")) { e.preventDefault(); return; }
+    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-fltbtn]")) { e.preventDefault(); return; }
 
     // ── drag-fill handle ──
     const fh = e.target.closest("[data-wb-fillhandle]");
@@ -8690,11 +8689,15 @@ function installRootListeners() {
     const menubtn = e.target.closest("[data-wb-menubar]");
     if (menubtn) { openWbMenu(menubtn.getAttribute("data-wb-menubar"), menubtn); return; }
 
-    const dvb = e.target.closest("[data-wb-dvbtn]");
+    const dvb = e.target.closest("[data-wb-dvchip]");
     if (dvb) {
       const gridEl = dvb.closest("[data-wb-gridfocus]");
       const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
-      if (g) openValidationPicker(g, dvb);
+      if (g) {
+        const rc = keyRC(dvb.getAttribute("data-wb-dvchip"));
+        setActive(g, rc.r, rc.c, { scroll: false });
+        openValidationPicker(g, dvb);
+      }
       return;
     }
 
