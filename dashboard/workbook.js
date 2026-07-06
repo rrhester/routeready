@@ -6604,13 +6604,16 @@ function mountSheetBlock(block, body) {
       confirmModal({ title: `Delete this ${label}?`, body: "The underlying cells are untouched.", confirmLabel: "Delete", danger: true, onConfirm: () => deleteEmbed(g, key, item.id) });
     }
   });
-  // Filter-control selects drive every widget on the dashboard
+  // Filter-control inputs drive every widget on the dashboard
   g.els.charts.addEventListener("change", (e) => {
-    const sel = e.target.closest("[data-wb-control]");
-    if (!sel || !WB.canEdit) return;
-    const ctrl = sheetControls(g.sheet).find((c) => c.id === sel.getAttribute("data-wb-control"));
+    const el = e.target.closest("[data-wb-control]");
+    if (!el || !WB.canEdit) return;
+    const ctrl = sheetControls(g.sheet).find((c) => c.id === el.getAttribute("data-wb-control"));
     if (!ctrl) return;
-    ctrl.value = sel.value;
+    const part = el.getAttribute("data-wb-ctlpart");
+    if (part === "from") ctrl.from = el.value;
+    else if (part === "to") ctrl.to = el.value;
+    else ctrl.value = el.value;                    // "preset" or "value"
     g.sheet.meta = { ...(g.sheet.meta || {}), controls: sheetControls(g.sheet).slice() };
     saveSheetMeta(g.sheet.id);
     renderCharts(g);
@@ -12822,7 +12825,7 @@ function chartSvg(sheet, ch, opts = {}) {
 
 const EMBED_KINDS = ["controls", "charts", "kpis", "tables", "texts"];
 const EMBED_META_KEY = { charts: "charts", kpis: "kpis", tables: "tables", texts: "texts", controls: "controls" };
-const EMBED_DEFAULT_SIZE = { charts: { w: 440, h: 280 }, kpis: { w: 248, h: 132 }, tables: { w: 380, h: 240 }, texts: { w: 320, h: 120 }, controls: { w: 240, h: 96 } };
+const EMBED_DEFAULT_SIZE = { charts: { w: 440, h: 280 }, kpis: { w: 248, h: 132 }, tables: { w: 380, h: 240 }, texts: { w: 320, h: 120 }, controls: { w: 264, h: 108 } };
 function sheetKpis(sheet)     { const v = sheet.meta && sheet.meta.kpis;     return Array.isArray(v) ? v : []; }
 function sheetTables(sheet)   { const v = sheet.meta && sheet.meta.tables;   return Array.isArray(v) ? v : []; }
 function sheetTexts(sheet)    { const v = sheet.meta && sheet.meta.texts;    return Array.isArray(v) ? v : []; }
@@ -12898,22 +12901,70 @@ function distinctColumnValues(sheet, col, cap = 300) {
   }
   return out.sort((a, b) => { const na = Number(a), nb = Number(b); return isFinite(na) && isFinite(nb) ? na - nb : a.localeCompare(b); });
 }
+// Date-range preset → [loSerial, hiSerial] (or null when inactive). `now` is
+// injected so it's testable; the app passes the real current date.
+const DATE_PRESETS = { all: "All time", "7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days", mtd: "Month to date", ytd: "Year to date", custom: "Custom…" };
+function dateRangeSerials(control, now = new Date()) {
+  const p = control.value;
+  if (!p || p === "all") return null;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayS = dateToSerial(today);
+  if (p === "7") return [todayS - 6, todayS];
+  if (p === "30") return [todayS - 29, todayS];
+  if (p === "90") return [todayS - 89, todayS];
+  if (p === "mtd") return [dateToSerial(new Date(now.getFullYear(), now.getMonth(), 1)), todayS];
+  if (p === "ytd") return [dateToSerial(new Date(now.getFullYear(), 0, 1)), todayS];
+  if (p === "custom") {
+    const fs = control.from ? dvDateSerial(control.from) : null, ts = control.to ? dvDateSerial(control.to) : null;
+    if (fs == null && ts == null) return null;
+    return [fs == null ? -Infinity : fs, ts == null ? Infinity : ts];
+  }
+  return null;
+}
+// A single control's row predicate over its source sheet (null = inactive).
+function controlPredicate(control, src, now) {
+  if (typeof control.col !== "number") return null;
+  if (control.ctype === "daterange") {
+    const rng = dateRangeSerials(control, now);
+    if (!rng) return null;
+    const [lo, hi] = rng;
+    return (r) => { const s = dvDateSerial(displayValue(src, r, control.col)); return s != null && s >= lo && s <= hi; };
+  }
+  if (control.value == null || control.value === "") return null;
+  return (r) => String(displayValue(src, r, control.col) ?? "").trim() === String(control.value);
+}
 // Combined row predicate for a source sheet from all active controls on the
 // dashboard that target it (AND across controls). Null = no filtering.
 function dashboardRowFilter(g, srcId) {
   if (!isDashboardSheet(g.sheet)) return null;
-  const active = sheetControls(g.sheet).filter((c) => c.value != null && c.value !== "" && typeof c.col === "number" && embedSourceSheet(g, c).id === srcId);
-  if (!active.length) return null;
   const src = (WB.sheetsByBlock.get(g.blockId) || []).find((s) => s.id === srcId) || g.sheet;
-  return (r) => active.every((c) => String(displayValue(src, r, c.col) ?? "").trim() === String(c.value));
+  const preds = sheetControls(g.sheet)
+    .filter((c) => embedSourceSheet(g, c).id === srcId)
+    .map((c) => controlPredicate(c, src))
+    .filter(Boolean);
+  if (!preds.length) return null;
+  return (r) => preds.every((p) => p(r));
 }
 function controlTileHtml(g, item) {
   const src = embedSourceSheet(g, item);
   const label = item.label || (typeof item.col === "number" ? String(displayValue(src, 0, item.col) || colLabel(item.col)) : "Filter");
   if (typeof item.col !== "number") return { title: esc(label), body: `<div class="wb-chart-empty">Pick a column to filter on.</div>`, footer: "" };
+  const dis = WB.canEdit ? "" : "disabled";
+  const id = esc(item.id);
+  if (item.ctype === "daterange") {
+    const cur = item.value || "all";
+    const opts = Object.entries(DATE_PRESETS).map(([v, l]) => `<option value="${v}" ${cur === v ? "selected" : ""}>${esc(l)}</option>`).join("");
+    const custom = cur === "custom"
+      ? `<div class="wb-control-dates"><input type="date" class="wb-input" data-wb-control="${id}" data-wb-ctlpart="from" value="${esc(item.from || "")}" ${dis} aria-label="From">
+         <span class="wb-control-dash">–</span>
+         <input type="date" class="wb-input" data-wb-control="${id}" data-wb-ctlpart="to" value="${esc(item.to || "")}" ${dis} aria-label="To"></div>`
+      : "";
+    const body = `<div class="wb-control"><select class="wb-input wb-control-sel" data-wb-control="${id}" data-wb-ctlpart="preset" ${dis}>${opts}</select>${custom}</div>`;
+    return { title: esc(label), body, footer: "" };
+  }
   const vals = distinctColumnValues(src, item.col);
   const opts = [`<option value="">All</option>`].concat(vals.map((v) => `<option value="${esc(v)}" ${String(item.value) === v ? "selected" : ""}>${esc(v)}</option>`)).join("");
-  const body = `<div class="wb-control"><select class="wb-input wb-control-sel" data-wb-control="${esc(item.id)}" ${WB.canEdit ? "" : "disabled"}>${opts}</select></div>`;
+  const body = `<div class="wb-control"><select class="wb-input wb-control-sel" data-wb-control="${id}" data-wb-ctlpart="value" ${dis}>${opts}</select></div>`;
   return { title: esc(label), body, footer: "" };
 }
 function kpiValue(sheet, spec, rowFilter) {
@@ -13146,24 +13197,49 @@ function kpiTileHtml(sheet, spec, rowFilter) {
   const body = `<div class="wb-kpi"><div class="wb-kpi-value" style="color:${accent}">${valStr}</div>${delta}${spark}</div>`;
   return { title: esc(spec.label || "KPI"), body, footer: "" };
 }
+const HEATMAP_STOPS = ["#eef5ff", "#bcd8f7", "#7db0ec"];  // light ramp — dark text stays readable
 function tableTileHtml(sheet, spec, rowFilter) {
   const rg = parseRangeRefText(spec.range);
   if (!rg) return { title: esc(spec.title || "Table"), body: `<div class="wb-chart-empty">Set a range like A1:C8 to show a table.</div>`, footer: "" };
   const header = spec.header !== false;
   const cap = spec.maxRows || 200;
-  let rows = "", shown = 0;
-  for (let r = rg.r0; r <= rg.r1 && shown < cap; r++) {
-    const isHeader = header && r === rg.r0;
-    if (!isHeader && rowFilter && !rowFilter(r)) continue;   // dashboard filters
+  // the data rows (header excluded) that pass the filter — shared by heatmap
+  // scaling and rendering so both see the same set
+  const dataRows = [];
+  for (let r = rg.r0 + (header ? 1 : 0); r <= rg.r1 && dataRows.length < cap; r++) {
+    if (rowFilter && !rowFilter(r)) continue;
+    dataRows.push(r);
+  }
+  // per-column numeric min/max over the visible rows (for the heatmap tint)
+  let colRange = null;
+  if (spec.heatmap) {
+    colRange = {};
+    for (let c = rg.c0; c <= rg.c1; c++) {
+      let lo = Infinity, hi = -Infinity, has = false;
+      for (const r of dataRows) { const n = embedCellNum(sheet, { row: r, col: c }); if (n != null) { has = true; if (n < lo) lo = n; if (n > hi) hi = n; } }
+      if (has) colRange[c] = [lo, hi];
+    }
+  }
+  let rows = "";
+  if (header) {
+    let th = "";
+    for (let c = rg.c0; c <= rg.c1; c++) th += `<th>${esc(displayValue(sheet, rg.r0, c))}</th>`;
+    rows += `<tr>${th}</tr>`;
+  }
+  for (const r of dataRows) {
     let cells = "";
     for (let c = rg.c0; c <= rg.c1; c++) {
       const disp = esc(displayValue(sheet, r, c));
-      cells += isHeader ? `<th>${disp}</th>` : `<td>${disp}</td>`;
+      let style = "";
+      if (colRange && colRange[c]) {
+        const n = embedCellNum(sheet, { row: r, col: c });
+        if (n != null) { const [lo, hi] = colRange[c]; const t = hi > lo ? (n - lo) / (hi - lo) : 0.5; style = ` style="background:${cfScaleColor(HEATMAP_STOPS, t)}"`; }
+      }
+      cells += `<td${style}>${disp}</td>`;
     }
     rows += `<tr>${cells}</tr>`;
-    shown++;
   }
-  const body = `<div class="wb-embed-tablewrap"><table class="wb-embed-table">${rows}</table></div>`;
+  const body = `<div class="wb-embed-tablewrap"><table class="wb-embed-table${spec.heatmap ? " is-heatmap" : ""}">${rows}</table></div>`;
   return { title: esc(spec.title || `Table · ${chartRefText({ c0: rg.c0, r0: rg.r0, c1: rg.c1, r1: rg.r1 })}`), body, footer: "" };
 }
 function textTileHtml(spec) {
@@ -13394,7 +13470,10 @@ function openTableDialog(g, existing) {
         <input type="number" class="wb-input" id="wb-tbl-max" min="1" max="500" value="${(existing && existing.maxRows) || 25}"></label>
     </div>
     <div class="wb-field"><span class="wb-field-label">Options</span>
-      <div class="wb-chart-opts"><label class="wb-check"><input type="checkbox" id="wb-tbl-header" ${!existing || existing.header !== false ? "checked" : ""}><span>First row is a header</span></label></div></div>`,
+      <div class="wb-chart-opts">
+        <label class="wb-check"><input type="checkbox" id="wb-tbl-header" ${!existing || existing.header !== false ? "checked" : ""}><span>First row is a header</span></label>
+        <label class="wb-check"><input type="checkbox" id="wb-tbl-heatmap" ${existing && existing.heatmap ? "checked" : ""}><span>Heatmap numeric cells</span></label>
+      </div></div>`,
     existing ? "Save" : "Add table");
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
@@ -13407,6 +13486,7 @@ function openTableDialog(g, existing) {
       title: wrap.querySelector("#wb-tbl-title").value.trim(),
       range, maxRows: Math.max(1, Math.min(500, +wrap.querySelector("#wb-tbl-max").value || 25)),
       header: wrap.querySelector("#wb-tbl-header").checked,
+      heatmap: wrap.querySelector("#wb-tbl-heatmap").checked,
       srcSheetId: (wrap.querySelector("#wb-tbl-src") && wrap.querySelector("#wb-tbl-src").value) || (existing && existing.srcSheetId) || "",
       layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "tables", rg),
     };
@@ -13453,14 +13533,23 @@ function openControlDialog(g, existing) {
     return out;
   };
   const curCol = existing && typeof existing.col === "number" ? existing.col : srcDef ? sheetDataRange(srcDef).c0 : 0;
-  const wrap = embedModalShell(existing ? "Edit filter" : "Add filter control", "A dropdown bound to a column. Picking a value filters every chart, KPI and table on this dashboard that reads from the same sheet.", `
+  const ctype = (existing && existing.ctype) || "value";
+  const typeOpts = [["value", "Value dropdown"], ["daterange", "Date range"]].map(([v, l]) => `<option value="${v}" ${ctype === v ? "selected" : ""}>${l}</option>`).join("");
+  const wrap = embedModalShell(existing ? "Edit filter" : "Add filter control", "A control bound to a column. It filters every chart, KPI and table on this dashboard that reads from the same sheet.", `
     <label class="wb-field"><span class="wb-field-label">Label <span class="wb-field-opt">optional</span></span>
       <input type="text" class="wb-input" id="wb-ctl-label" maxlength="60" value="${esc((existing && existing.label) || "")}" placeholder="Driver"></label>
+    <div class="wb-field-row">
+      <label class="wb-field"><span class="wb-field-label">Type</span>
+        <select class="wb-input" id="wb-ctl-type">${typeOpts}</select></label>
+      <label class="wb-field"><span class="wb-field-label" id="wb-ctl-col-lbl">Filter column</span>
+        <select class="wb-input" id="wb-ctl-col">${colOptsFor(srcDef, curCol)}</select></label>
+    </div>
     ${srcOpts ? `<label class="wb-field"><span class="wb-field-label">Data source (sheet)</span>
-      <select class="wb-input" id="wb-ctl-src">${srcOpts}</select></label>` : ""}
-    <label class="wb-field"><span class="wb-field-label">Filter column</span>
-      <select class="wb-input" id="wb-ctl-col">${colOptsFor(srcDef, curCol)}</select></label>`,
+      <select class="wb-input" id="wb-ctl-src">${srcOpts}</select></label>` : ""}`,
     existing ? "Save" : "Add filter");
+  const typeSel = wrap.querySelector("#wb-ctl-type"), colLbl = wrap.querySelector("#wb-ctl-col-lbl");
+  const syncType = () => { colLbl.textContent = typeSel.value === "daterange" ? "Date column" : "Filter column"; };
+  typeSel.addEventListener("change", syncType); syncType();
   // repopulate the column list when the source sheet changes
   const srcSel = wrap.querySelector("#wb-ctl-src"), colSel = wrap.querySelector("#wb-ctl-col");
   if (srcSel) srcSel.addEventListener("change", () => {
@@ -13473,8 +13562,10 @@ function openControlDialog(g, existing) {
     const spec = {
       id: existing ? existing.id : "fc" + Math.random().toString(36).slice(2, 8),
       label: wrap.querySelector("#wb-ctl-label").value.trim(),
+      ctype: typeSel.value,
       col: +colSel.value,
       value: existing ? existing.value || "" : "",
+      from: existing ? existing.from || "" : "", to: existing ? existing.to || "" : "",
       srcSheetId: (srcSel && srcSel.value) || (existing && existing.srcSheetId) || "",
       layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "controls", null),
     };
@@ -17399,6 +17490,7 @@ export const __engine = {
   condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
+  dateRangeSerials, controlPredicate, DATE_PRESETS,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,
   WB_IMG_RE, cellImgSrc,

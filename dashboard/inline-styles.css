@@ -29185,9 +29185,15 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 #view-workbooks .wb-dash-add:hover{filter:brightness(1.05)}
 /* Filter control widget */
-#view-workbooks .wb-embed-controls .wb-embed-body{align-items:center}
-#view-workbooks .wb-control{width:100%}
+#view-workbooks .wb-embed-controls .wb-embed-body{align-items:stretch}
+#view-workbooks .wb-control{width:100%;display:flex;flex-direction:column;gap:6px;justify-content:center}
 #view-workbooks .wb-control-sel{width:100%;font-size:var(--fs-sm)}
+#view-workbooks .wb-control-dates{display:flex;align-items:center;gap:6px}
+#view-workbooks .wb-control-dates .wb-input{flex:1;min-width:0;font-size:var(--fs-xs)}
+#view-workbooks .wb-control-dash{color:var(--text-muted);flex:none}
+/* Table heatmap: inline-tinted numeric cells; drop the zebra so tint reads clean */
+#view-workbooks .wb-embed-table.is-heatmap tr:nth-child(even) td{background:none}
+#view-workbooks .wb-embed-table.is-heatmap td{color:#0b0b0b}
 /* Present mode: full-screen, no edit chrome */
 #view-workbooks .wb-grid.is-presenting{background:var(--canvas,#f6f6f4)}
 #view-workbooks .wb-grid.is-presenting .wb-dash-bar,
