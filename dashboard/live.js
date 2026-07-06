@@ -10277,7 +10277,9 @@ document.addEventListener("click", (e) => {
     if (!t) return;
     const kin = t.series ? tasks.filter((x) => x.series === t.series) : [t];
     if (kin.length > 1) { _rrTaskDelMenu(dl, t, kin.length); return; }
-    if (window.confirm("Delete this task?")) { _rrSaveTasks(tasks.filter((x) => x.id !== id)); _rrRenderTasks(); }
+    _rrSaveTasks(tasks.filter((x) => x.id !== id));
+    _rrRenderTasks();
+    toast("Task deleted", "success");
     return;
   }
 });
