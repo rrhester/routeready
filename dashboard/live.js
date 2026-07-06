@@ -42951,6 +42951,82 @@ function _rrCalloutExposureFinalizeDialog(ce) {
 }
 window._rrCalloutExposureFinalizeDialog = _rrCalloutExposureFinalizeDialog;
 
+// Rule-violations finalize warning. Advisory only — mirrors the
+// callout-exposure modal treatment (never a hard block; existing rules
+// still own those). Resolves true when the operator chooses "Finalize
+// Anyway", false to go back and review. `violations` is the
+// window._rrWeekViolations snapshot — an array of { driver, kind, note }.
+function _rrViolationsFinalizeDialog(violations) {
+  return new Promise((resolve) => {
+    document.getElementById("rr-violation-warn-backdrop")?.remove();
+    document.getElementById("rr-violation-warn-modal")?.remove();
+    const list = Array.isArray(violations) ? violations : [];
+    const n = list.length;
+    const driverCount = new Set(list.map(v => v.driver)).size;
+    const backdrop = document.createElement("div");
+    backdrop.id = "rr-violation-warn-backdrop";
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:10000";
+    document.body.appendChild(backdrop);
+    const m = document.createElement("div");
+    m.id = "rr-violation-warn-modal";
+    m.setAttribute("role", "dialog");
+    m.setAttribute("aria-modal", "true");
+    m.style.cssText =
+      "position:fixed;left:50%;top:84px;transform:translateX(-50%);width:420px;" +
+      "max-width:calc(100vw - 24px);background:var(--surface,#fff);" +
+      "border:1px solid var(--border,#E5E7EB);border-radius:12px;" +
+      "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:10001;opacity:0;" +
+      "transition:opacity 120ms ease-out;overflow:hidden";
+    const SHOW = 4;
+    const rows = list.slice(0, SHOW).map(v =>
+      '<div style="display:flex;gap:8px;align-items:baseline;font-size:13px;line-height:1.5;margin-top:6px">' +
+        '<span style="flex:0 0 auto;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;color:#DC2626">' +
+          escapeHtml(String(v.kind || "").replace(/_/g, " ")) +
+        '</span>' +
+        '<span style="color:var(--text,#111827)"><strong>' + escapeHtml(v.driver || "") + '</strong> — ' + escapeHtml(v.note || "") + '</span>' +
+      '</div>').join("");
+    const more = n > SHOW
+      ? `<div style="font-size:12px;color:var(--text-subtle,#6B7280);margin-top:8px">+${n - SHOW} more</div>`
+      : "";
+    m.innerHTML =
+      '<div style="padding:16px 18px 14px">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+          '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#DC2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
+          '<div style="font-size:15px;font-weight:700;color:var(--text,#111827)">Rule violations detected</div>' +
+        '</div>' +
+        '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#6B7280)">' +
+          escapeHtml(`This week has ${n} rule violation${n === 1 ? "" : "s"} across ${driverCount} driver${driverCount === 1 ? "" : "s"}.`) +
+        '</div>' +
+        rows +
+        more +
+        '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#6B7280);margin-top:10px">RouteReady recommends resolving these before publishing the schedule.</div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#E5E7EB);background:var(--canvas,#F9FAFB)">' +
+        '<button type="button" class="btn btn-sm" data-rr-viol-review>Review Schedule</button>' +
+        '<button type="button" class="btn btn-sm btn-primary" data-rr-viol-anyway>Finalize Anyway</button>' +
+      '</div>';
+    document.body.appendChild(m);
+    requestAnimationFrame(() => { m.style.opacity = "1"; });
+    let done = false;
+    const finish = (val) => {
+      if (done) return; done = true;
+      document.removeEventListener("keydown", onKey);
+      m.style.opacity = "0";
+      setTimeout(() => { m.remove(); backdrop.remove(); }, 120);
+      resolve(val);
+    };
+    const onKey = (ev) => { if (ev.key === "Escape") finish(false); };
+    document.addEventListener("keydown", onKey);
+    backdrop.addEventListener("click", () => finish(false));
+    m.addEventListener("click", (ev) => {
+      if (ev.target.closest("[data-rr-viol-review]")) finish(false);
+      else if (ev.target.closest("[data-rr-viol-anyway]")) finish(true);
+    });
+    requestAnimationFrame(() => m.querySelector("[data-rr-viol-review]")?.focus());
+  });
+}
+window._rrViolationsFinalizeDialog = _rrViolationsFinalizeDialog;
+
 // ─── Finalize · premium Draft → Live state transition ──────────────────
 // Treats Finalize as a ~2-second publish animation that communicates the
 // schedule has officially moved from Draft to Live. Calm, enterprise,
@@ -43050,15 +43126,26 @@ document.addEventListener("click", async (e) => {
     // Ignore re-clicks while a publish animation is in flight.
     if (window._rrFinalizePublishing) return;
     const target = !window._rrWeekFinalized;
-    // Callout-exposure gate — when any scheduled day is exposed (at-risk
-    // drivers outnumber the cushion), warn before finalizing. Advisory:
-    // "Finalize Anyway" proceeds, "Review Schedule" backs out. Never a
-    // hard block (existing rules still own those).
-    if (target && window._rrCalloutExposure?.anyExposed) {
-      const proceed = await _rrCalloutExposureFinalizeDialog(window._rrCalloutExposure);
-      if (!proceed) return;
-      await _rrFinalizePublish();
-      return;
+    // Advisory finalize gates — surface rule violations and callout
+    // exposure before publishing. Each gets the same warning-modal
+    // treatment: "Finalize Anyway" proceeds, "Review Schedule" backs out.
+    // Never a hard block (existing rules still own those). When both fire,
+    // violations are shown first, then callout exposure.
+    if (target) {
+      const hasViolations = (Number(window._rrWeekViolationCount) || 0) > 0;
+      const hasExposure = !!window._rrCalloutExposure?.anyExposed;
+      if (hasViolations || hasExposure) {
+        if (hasViolations) {
+          const proceed = await _rrViolationsFinalizeDialog(window._rrWeekViolations || []);
+          if (!proceed) return;
+        }
+        if (hasExposure) {
+          const proceed = await _rrCalloutExposureFinalizeDialog(window._rrCalloutExposure);
+          if (!proceed) return;
+        }
+        await _rrFinalizePublish();
+        return;
+      }
     }
     const ok = target
       ? await _rrConfirmDialog({
@@ -54005,8 +54092,10 @@ async function renderScheduleWeek() {
   // Rule violations across assigned shifts in the week (now includes WOC).
   const violations = await _computeWeekViolations(grid.shifts || [], drivers, timeOff, _schedStart, fmtIsoDate(weekEnd));
   // Expose the violation count so the Finalize pre-flight can warn before
-  // publishing a week with open routes / rule breaches.
+  // publishing a week with open routes / rule breaches. Stash the full
+  // list too so the Finalize violations modal can itemize them.
   window._rrWeekViolationCount = violations.length;
+  window._rrWeekViolations = violations;
 
   // Preferred-day coverage: of the shifts assigned to drivers who flagged
   // preferred days, how many landed on one of those days.
