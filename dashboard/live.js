@@ -583,6 +583,20 @@ function toast(msg, kind) {
   console.log("[toast]", kind ?? "", msg);
 }
 
+// Actionable toast — a blocking warning the operator can resolve in one
+// click (see mock-wiring.js toastAction). Falls back to a plain confirm()
+// so the fix path still works if the rich toast isn't available.
+function toastAction(msg, opts) {
+  if (typeof window.toastAction === "function") return window.toastAction(msg, opts);
+  opts = opts || {};
+  if (opts.onConfirm && typeof confirm === "function" && confirm(String(msg || "").replace(/<[^>]+>/g, ""))) {
+    try { opts.onConfirm(); } catch (e) { console.warn("[toastAction fallback]", e); }
+  } else if (opts.onDismiss) {
+    try { opts.onDismiss(); } catch (_) {}
+  }
+  return null;
+}
+
 function fmtDate(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -19295,6 +19309,82 @@ async function getDriverStationsCached() {
   if (error) { console.warn("stations load:", error.message); return []; }
   _driverStationsCache = data || [];
   return _driverStationsCache;
+}
+
+// The driver's display name as painted in the schedule grid row label
+// (first text node only, so the "TRAINER" badge doesn't leak in). Used to
+// personalize the assign-station prompt; falls back to a generic label.
+function _gridDriverName(driverId) {
+  try {
+    const el = document.querySelector(`.cal-row-label-name[data-rr-driver-id="${driverId}"]`);
+    const nm = el && el.childNodes[0] ? String(el.childNodes[0].nodeValue || "").trim() : "";
+    return nm || "This driver";
+  } catch (_) { return "This driver"; }
+}
+
+// Persist the driver's home station, refresh the grid, then resume the
+// action that was blocked (opening the add-shift editor for the cell the
+// operator clicked). Shared by the single- and multi-station prompts.
+async function _assignDriverStationAndResume(driverId, stationId, ctx) {
+  const { error } = await sb.from("drivers").update({ station_id: stationId }).eq("id", driverId);
+  if (error) { toast("Couldn't assign station: " + error.message, "warn"); return; }
+  toast("Station assigned", "success");
+  // Re-render so the cell picks up its new station, then reopen the add flow
+  // pre-filled — the operator lands right back where they were headed.
+  try { if (typeof renderScheduleWeek === "function") await renderScheduleWeek(); } catch (_) {}
+  if (ctx && ctx.date) {
+    openShiftEditModal({
+      date: ctx.date, stationId, driverId,
+      anchorX: ctx.anchorX, anchorY: ctx.anchorY,
+    });
+  }
+}
+
+// Blocking exception → one-click fix. A driver with no home station can't be
+// scheduled; instead of pointing the operator at another page, recommend the
+// fix inline: "Add {name} to station {CODE}?" [Add] [Not now]. With one
+// station we name it directly; with several we offer a picker; with none we
+// fall back to a plain warning (nothing to assign).
+async function _offerAssignStationForScheduling(driverId, ctx) {
+  if (!driverId) { toast("Driver has no station — assign one in the Drivers page", "warn"); return; }
+  const stations = await getDriverStationsCached();
+  const name = _gridDriverName(driverId);
+  if (!stations || stations.length === 0) {
+    toast("Driver has no station and none are set up yet — add a station in Settings first.", "warn");
+    return;
+  }
+  if (stations.length === 1) {
+    const st = stations[0];
+    toastAction(`${name} has no station. Add them to station ${st.code}?`, {
+      kind: "warn",
+      confirmLabel: `Add to ${st.code}`,
+      dismissLabel: "Not now",
+      onConfirm: () => _assignDriverStationAndResume(driverId, st.id, ctx),
+    });
+    return;
+  }
+  // Multiple stations — let the operator pick which one before assigning.
+  const selId = `rr-toast-station-pick-${Math.max(0, stations.length)}-${driverId.slice(0, 8)}`;
+  const options = stations
+    .map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.code)}${s.name ? " · " + escapeHtml(s.name) : ""}</option>`)
+    .join("");
+  toastAction("", {
+    kind: "warn",
+    html: `<div style="margin-bottom:8px">${escapeHtml(name)} has no station. Add them to:</div>`
+        + `<select id="${selId}" class="toast-action-select" style="width:100%;padding:5px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:inherit;font:inherit">`
+        + `<option value="">Choose a station…</option>${options}</select>`,
+    confirmLabel: "Add",
+    dismissLabel: "Not now",
+    onConfirm: (el) => {
+      const sel = el && el.querySelector(`#${selId}`);
+      const stationId = sel && sel.value;
+      if (!stationId) {
+        if (sel) sel.style.borderColor = "var(--amber, #f59e0b)";
+        return true; // keep the toast open until they pick a station
+      }
+      _assignDriverStationAndResume(driverId, stationId, ctx);
+    },
+  });
 }
 
 // ─── Bulk ingest (paste from Indeed CSV/TSV) ───────────────────────────────
@@ -56426,8 +56516,12 @@ function bindSchedWeekNav() {
       const date = cell.dataset.rrCellDate;
       const stationId = cell.dataset.rrCellStation;
       const driverId = cell.dataset.rrCellDriver;
-      if (!date || !stationId) {
-        toast(stationId ? "" : "Driver has no station — assign one in the Drivers page", "warn");
+      if (!date) return;
+      if (!stationId) {
+        // The driver can't be scheduled because they have no home station.
+        // Rather than dead-ending with "fix it on the Drivers page", offer a
+        // one-click fix inline: assign the station and reopen the add flow.
+        _offerAssignStationForScheduling(driverId, { date, anchorX: e.clientX, anchorY: e.clientY });
         return;
       }
       openShiftEditModal({ date, stationId, driverId, anchorX: e.clientX, anchorY: e.clientY });
