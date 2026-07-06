@@ -29196,9 +29196,11 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-kpi-delta.is-down{color:var(--red,#d03b3b)}
 #view-workbooks .wb-kpi-spark{width:auto;height:36px;display:block;margin:4px -13px -9px}
 /* Hero header band */
-#view-workbooks .wb-embed.is-hero{border:none;color:#fff;background:linear-gradient(120deg,#2563eb 0%,#4f46e5 55%,#7c3aed 100%);box-shadow:0 2px 8px rgba(46,50,160,.28),0 12px 30px rgba(46,50,160,.24)}
-#view-workbooks .wb-embed.is-hero .wb-embed-head{color:#fff}
-#view-workbooks .wb-embed.is-hero .wb-embed-body{align-items:center}
+#view-workbooks .wb-embed.is-hero{border:none;color:#fff;padding:0;background:linear-gradient(120deg,#2563eb 0%,#4f46e5 55%,#7c3aed 100%);box-shadow:0 2px 8px rgba(46,50,160,.28),0 12px 30px rgba(46,50,160,.24)}
+/* the (empty) head only carries the edit buttons — float it so the title band
+   uses the full card height and never clips */
+#view-workbooks .wb-embed.is-hero .wb-embed-head{position:absolute;top:9px;right:13px;min-height:0;color:#fff;z-index:1}
+#view-workbooks .wb-embed.is-hero .wb-embed-body{align-items:center;padding:0 22px}
 #view-workbooks .wb-hero{display:flex;flex-direction:column;justify-content:center;gap:3px;height:100%;width:100%}
 #view-workbooks .wb-hero-title{font-size:22px;font-weight:750;letter-spacing:-.02em;line-height:1.1}
 #view-workbooks .wb-hero-sub{font-size:var(--fs-sm);opacity:.85;font-weight:500}
