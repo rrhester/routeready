@@ -6916,6 +6916,10 @@ function mountSheetBlock(block, body) {
   renderCharts(g);
   renderPivots(g);
   renderFillBar(g); // Schedule Intelligence Bar (from the last saved run)
+  renderLiveBar(g); // Live-dataset chip (refreshable operational data)
+  g.els.body.addEventListener("click", (e) => {
+    if (e.target.closest("[data-wb-liverefresh]")) { e.stopPropagation(); refreshLiveData(g); }
+  });
   g.els.charts.addEventListener("click", (e) => {
     const add = e.target.closest("[data-wb-dashadd]");
     if (add) {
@@ -8837,6 +8841,8 @@ function switchSheet(g, sheetId) {
   syncFormulaBar(g);
   renderCharts(g);
   renderPivots(g);
+  renderFillBar(g);
+  renderLiveBar(g);
 }
 
 // ─── Selection + navigation ─────────────────────────────────────────────────
@@ -17216,10 +17222,11 @@ async function fillLoadDrivers(g, picks) {
     computeGeometry(g);
     WB.fillDrivers = new Map(drivers.map((d) => [d.id, d]));
     g.sheet.frozenRows = 1;
-    sheet.meta = { ...(sheet.meta || {}), fill: { ...(sheet.meta?.fill || {}), loadedAt: new Date().toISOString() } };
+    sheet.meta = { ...(sheet.meta || {}), fill: { ...(sheet.meta?.fill || {}), loadedAt: new Date().toISOString(), source: "drivers" } };
     saveSheetMeta(sheet.id);
     repaintGrid(g);
     renderFillBar(g);
+    renderLiveBar(g);
     _toast(`Loaded ${drivers.length} drivers`, "success");
     wbLog("schedule.fill.loaded", `loaded ${drivers.length} drivers into ${sheet.name}`, {
       target_type: "sheet", target_id: sheet.id,
@@ -17267,6 +17274,48 @@ function fillWriteTable(g, headers, rows, meta) {
   sheet.meta = { ...(sheet.meta || {}), fill: { ...(sheet.meta?.fill || {}), loadedAt: new Date().toISOString(), source: (meta && meta.source) || null } };
   saveSheetMeta(sheet.id);
   repaintGrid(g);
+  renderLiveBar(g);
+}
+
+// ── Live data: refreshable operational datasets ──────────────────────────────
+// A sheet loaded from a RouteReady dataset (meta.fill.source) can be refreshed
+// in place with one click, re-pulling the DSP's live rows. Dashboards built on
+// the sheet then reflect the fresh data. Read-only + dsp-scoped by the query.
+const LIVE_DATASET_LABEL = { drivers: "Drivers", vans: "Fleet", schedule: "Schedule", pto: "Time off" };
+function liveLoaderFor(src) {
+  return { drivers: (g) => fillLoadDrivers(g, fillSavedFieldPicks()), vans: fillLoadVans, schedule: fillLoadSchedule, pto: fillLoadPto }[src] || null;
+}
+function refreshLiveData(g) {
+  const src = g.sheet.meta && g.sheet.meta.fill && g.sheet.meta.fill.source;
+  const fn = liveLoaderFor(src);
+  if (!fn) { _toast("This sheet isn't a live dataset", "info"); return; }
+  fn(g);
+}
+function agoText(iso) {
+  if (!iso) return "";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!(ms >= 0)) return "just now";
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+// Thin chip in the sheet chrome: "⟳ Live · Drivers · updated 3m ago".
+function renderLiveBar(g) {
+  const chrome = g.els.body.querySelector(".wb-chrome");
+  if (!chrome) return;
+  let bar = chrome.querySelector("[data-wb-livebar]");
+  const src = g.sheet.meta && g.sheet.meta.fill && g.sheet.meta.fill.source;
+  const label = LIVE_DATASET_LABEL[src];
+  if (!label) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement("div"); bar.className = "wb-livebar"; bar.setAttribute("data-wb-livebar", ""); chrome.appendChild(bar); }
+  const at = g.sheet.meta.fill.loadedAt;
+  bar.innerHTML = `<span class="wb-live-dot" aria-hidden="true"></span>
+    <span class="wb-live-src">Live · ${esc(label)}</span>
+    <span class="wb-live-at">updated ${esc(agoText(at))}</span>
+    ${WB.canEdit ? `<button type="button" class="wb-live-refresh" data-wb-liverefresh title="Re-pull the latest data">⟳ Refresh</button>` : ""}`;
 }
 
 async function fillLoadVans(g) {
