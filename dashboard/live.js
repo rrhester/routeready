@@ -2584,16 +2584,63 @@ async function _rrPaintInsightsPanel(panel) {
         body: { run_id: run.id, question_kind: "summary" },
       });
       if (error) throw error;
-      out.textContent = data?.answer || "(empty response)";
+      out.textContent = data?.answer || _rrLocalRunSummary(run, m);
     } catch (e) {
-      out.textContent = "Couldn't generate explanation: " + ((e && e.message) || e) +
-        "\n\nDid you deploy the edge function?\n  supabase functions deploy explain-optimization-run --project-ref doiwrhkirgblcvuskhno";
+      // The AI explanation edge function is unavailable (not deployed,
+      // offline, rate-limited, …). Rather than dump a deploy command at
+      // the operator, fall back to a plain-English summary built from the
+      // run metrics we already have on hand.
+      out.textContent = _rrLocalRunSummary(run, m);
     } finally {
       btn.disabled = false;
       btn.textContent = "Explain in plain English";
     }
   };
 }
+// Plain-English summary of a Smart Fill run, generated locally from the
+// metrics we already loaded — the graceful fallback when the AI
+// explain-optimization-run edge function isn't reachable. Deterministic,
+// no network, always available.
+function _rrLocalRunSummary(run, m) {
+  m = m || {};
+  const num = (v) => (v == null ? null : v);
+  const cov = num(m.coverage_pct);
+  const assigned = num(m.assigned);
+  const total = num(m.total_shifts);
+  const uncovered = num(m.uncovered);
+  const offDrivers = num(m.unscheduled_drivers);
+  const parts = [];
+
+  parts.push(
+    `Smart Fill for the week of ${run.week_start}` +
+    (cov != null ? ` covered ${cov}% of shifts.` : ` finished (${run.status}).`)
+  );
+
+  if (assigned != null || total != null) {
+    parts.push(
+      `It assigned ${assigned ?? "—"}${total != null ? " of " + total : ""} shift` +
+      ((assigned === 1 && total == null) ? "" : "s") +
+      (uncovered ? `, leaving ${uncovered} uncovered.` : ".")
+    );
+  }
+
+  if (offDrivers) {
+    parts.push(`${offDrivers} driver${offDrivers === 1 ? "" : "s"} ended up with no shifts this week.`);
+  }
+
+  if (uncovered) {
+    parts.push(
+      `To close the ${uncovered} open shift${uncovered === 1 ? "" : "s"}, open the Coverage drill-down to see who's eligible, ` +
+      `or relax a Smart Fill rule (5th-day, max days per week, or attendance weighting) and re-run.`
+    );
+  } else if (cov === 100 || (uncovered === 0 && assigned != null)) {
+    parts.push(`Every shift is covered — no action needed.`);
+  }
+
+  parts.push("(Quick summary generated on-device — the AI explanation service wasn't reachable just now.)");
+  return parts.join(" ");
+}
+
 function _rrInjectInsightsPanelCss() {
   if (typeof document === "undefined" || !document.head) return;
   if (document.getElementById("rr-insights-panel-css")) return;
