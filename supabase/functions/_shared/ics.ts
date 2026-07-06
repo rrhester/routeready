@@ -8,6 +8,28 @@ function icsDate(iso: string): string {
   // → 20260610T153000Z (UTC, no punctuation)
   return new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
+function icsDateOnly(iso: string, tz?: string): string {
+  // → 20260610 · the calendar DATE in the event's own timezone. All-day
+  // events are stored as local 00:00–23:59 converted to UTC, so slicing the
+  // UTC date would land a day off for positive-offset zones — resolve the
+  // wall-clock date via Intl instead.
+  const d = new Date(iso);
+  if (tz) {
+    try {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })
+        .format(d).replace(/-/g, "");
+    } catch { /* unknown tz — fall through to UTC */ }
+  }
+  return d.toISOString().slice(0, 10).replace(/-/g, "");
+}
+function icsDateOnlyNext(iso: string, tz?: string): string {
+  // The day AFTER the given instant's local date — RFC 5545 all-day DTEND
+  // is exclusive, so a one-day event ending 23:59 on the 10th → DTEND on
+  // the 11th.
+  const s = icsDateOnly(iso, tz);
+  const next = new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)) + 86_400_000);
+  return next.toISOString().slice(0, 10).replace(/-/g, "");
+}
 function esc(s: string): string {
   return String(s ?? "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 }
@@ -24,6 +46,8 @@ export interface IcsOpts {
   attendeeEmail: string;
   sequence?: number;
   method?: "REQUEST" | "CANCEL";
+  allDay?: boolean;      // emit VALUE=DATE start/end (whole-day event)
+  tzid?: string;         // IANA zone used to resolve all-day wall-clock dates
 }
 
 export function buildIcsRequest(o: IcsOpts): string {
@@ -39,8 +63,8 @@ export function buildIcsRequest(o: IcsOpts): string {
     "BEGIN:VEVENT",
     `UID:${o.uid}`,
     `DTSTAMP:${icsDate(new Date().toISOString())}`,
-    `DTSTART:${icsDate(o.start)}`,
-    `DTEND:${icsDate(end)}`,
+    o.allDay ? `DTSTART;VALUE=DATE:${icsDateOnly(o.start, o.tzid)}` : `DTSTART:${icsDate(o.start)}`,
+    o.allDay ? `DTEND;VALUE=DATE:${icsDateOnlyNext(end, o.tzid)}` : `DTEND:${icsDate(end)}`,
     `SEQUENCE:${o.sequence ?? 0}`,
     `SUMMARY:${esc(o.title)}`,
     o.description ? `DESCRIPTION:${esc(o.description)}` : null,

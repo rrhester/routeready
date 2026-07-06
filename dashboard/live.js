@@ -22638,10 +22638,11 @@ async function _ivcalOpenEmail(kind, id) {
     cancelEmails = emails; cancelTitle = ev.title || "Event";
     subject = ev.title || "You're invited";
     const gcalUrl = _rrGcalUrl(ev.title || "Interview", ev.starts_at, ev.ends_at, room ? ("Join the video meeting: " + room) : "", room || "");
+    const outlookUrl = _rrOutlookUrl(ev.title || "Interview", ev.starts_at, ev.ends_at, room ? ("Join the video meeting: " + room) : "", room || "");
     const tok = ev.rsvp_token || "";
     html = _rrInviteEmail({
       dspName: window.RR?.dsp?.name, title: ev.title || "Interview", dateStr, timeStr, joinUrl: room,
-      message: "", gcalUrl,
+      message: "", gcalUrl, outlookUrl,
       acceptUrl: "https://gorouteready.com/rsvp/" + tok + "/accept",
       declineUrl: "https://gorouteready.com/rsvp/" + tok + "/decline",
     }).html;
@@ -22688,8 +22689,8 @@ async function _ivcalOpenEmail(kind, id) {
       const bodyHtml = `<p>Hi,</p><p>This meeting has been <strong>canceled</strong>:</p>`
         + `<p><strong>${escapeHtml(cancelTitle)}</strong><br>${escapeHtml(whenText)}</p>`
         + `<p>Apologies for any inconvenience — we'll be in touch if it's rescheduled.</p>`;
-      const rows = cancelEmails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em, subject: subj, body_text: bodyText, body_html: bodyHtml }));
-      const { error: mailErr } = await sb.from("email_messages").insert(rows);
+      const rows = cancelEmails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em, subject: subj, body_text: bodyText, body_html: bodyHtml, cal_event_id: ev.id, calendar_method: "cancel" }));
+      const { error: mailErr } = await _rrQueueCalEmails(rows);
       if (mailErr) throw mailErr;
     }
     const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: ev.id });
@@ -22726,6 +22727,19 @@ function _rrGcalUrl(title, startISO, endISO, details, location) {
   return "https://calendar.google.com/calendar/render?" + p.toString();
 }
 
+// One-click "Add to Outlook" link (outlook.com deeplink; signed-in M365
+// accounts get bounced to their work calendar by Microsoft's login flow).
+function _rrOutlookUrl(title, startISO, endISO, details, location) {
+  const end = endISO || new Date(new Date(startISO).getTime() + 30 * 60000).toISOString();
+  const p = new URLSearchParams({
+    path: "/calendar/action/compose", rru: "addevent",
+    subject: title || "Interview",
+    startdt: new Date(startISO).toISOString(), enddt: new Date(end).toISOString(),
+    body: details || "", location: location || "",
+  });
+  return "https://outlook.live.com/calendar/0/deeplink/compose?" + p.toString();
+}
+
 // Clean, Google/Zoom-style invite email. Returns { html, text }. Table-based
 // with inline styles so it renders well in Gmail/Outlook. Accept/Decline are
 // prominent buttons; add-to-calendar is a one-click Google Calendar link.
@@ -22754,7 +22768,7 @@ function _rrInviteEmail(o) {
       </table>
       ${msg}
       <div style="margin-top:26px">${btn(o.acceptUrl, "✓ Accept", "#16A34A")}&nbsp;&nbsp;${btn(o.declineUrl, "✗ Decline", "#DC2626")}</div>
-      <div style="margin-top:16px"><a href="${esc(o.gcalUrl)}" style="color:#2563EB;font-weight:600;font-size:14px;text-decoration:none">📅 Add to Google Calendar</a></div>
+      <div style="margin-top:16px"><a href="${esc(o.gcalUrl)}" style="color:#2563EB;font-weight:600;font-size:14px;text-decoration:none">📅 Add to Google Calendar</a>${o.outlookUrl ? `&nbsp;&nbsp;·&nbsp;&nbsp;<a href="${esc(o.outlookUrl)}" style="color:#2563EB;font-weight:600;font-size:14px;text-decoration:none">Add to Outlook</a>` : ""}</div>
     </td></tr>
     <tr><td style="text-align:center;padding:16px 0;color:#9aa0ab;font-size:12px">Powered by RouteReady</td></tr>
   </table>
@@ -22767,8 +22781,21 @@ ${o.dateStr}${o.timeStr ? "\n" + o.timeStr : ""}
 ${(o.location && o.location.trim()) ? o.location.trim() + "\n" : ""}${o.joinUrl ? "Join the video meeting: " + o.joinUrl + "\n" : ""}${(o.message && o.message.trim()) ? "\n" + o.message.trim() + "\n" : ""}
 Accept:  ${o.acceptUrl}
 Decline: ${o.declineUrl}
-Add to calendar: ${o.gcalUrl}`;
+Add to Google Calendar: ${o.gcalUrl}${o.outlookUrl ? "\nAdd to Outlook: " + o.outlookUrl : ""}`;
   return { html, text };
+}
+
+// Queue invite/cancel notification emails. calendar_method (0429) tells
+// send-email to attach the .ics (METHOD:REQUEST / CANCEL) so the recipient's
+// mail client updates their calendar natively; if the column isn't migrated
+// yet, retry without it — the notice matters more than the attachment.
+async function _rrQueueCalEmails(rows) {
+  let { error } = await sb.from("email_messages").insert(rows);
+  if (error && /calendar_method/.test(error.message || "")) {
+    const bare = rows.map(r => { const c = { ...r }; delete c.calendar_method; return c; });
+    ({ error } = await sb.from("email_messages").insert(bare));
+  }
+  return { error };
 }
 
 // Small file glyph for the Vault picker / attachment chips.
@@ -23632,8 +23659,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
               const evTitle = ev0.kind === "event" ? (title || "Event") : (ev0.kind === "orientation" ? "Orientation" : "Interview");
               const whenStr = new Date(startISO).toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
               const bodyTxt = `Hi,\n\nYour ${evTitle.toLowerCase()} has been rescheduled to:\n${whenStr}\n\n${roomUrl ? "Join the video meeting: " + roomUrl + "\n\n" : ""}Reply to this email if that time doesn't work.`;
-              const rows = notifyEmails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em, subject: "Updated time: " + evTitle, body_text: bodyTxt, body_html: bodyTxt.replace(/\n/g, "<br>"), cal_event_id: editEv.id }));
-              const { error: mailErr } = await sb.from("email_messages").insert(rows);
+              const rows = notifyEmails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em, subject: "Updated time: " + evTitle, body_text: bodyTxt, body_html: bodyTxt.replace(/\n/g, "<br>"), cal_event_id: editEv.id, calendar_method: "request" }));
+              const { error: mailErr } = await _rrQueueCalEmails(rows);
               if (mailErr) toast("Saved, but couldn't queue the notification: " + (mailErr.message || mailErr), "warn");
               else toast(`Rescheduled · notified ${notifyEmails.length}`, "success");
             } else {
@@ -23674,10 +23701,11 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           const acceptUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/accept";
           const declineUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/decline";
           const gcalUrl = _rrGcalUrl(subjTitle, startISO, endISO, roomUrl ? ("Join the video meeting: " + roomUrl) : "", location || roomUrl || "");
+          const outlookUrl = _rrOutlookUrl(subjTitle, startISO, endISO, roomUrl ? ("Join the video meeting: " + roomUrl) : "", location || roomUrl || "");
           const { dateStr, timeStr } = fmtRange(d, stime, ed, etime, isAllDay);
           const inv = _rrInviteEmail({
             dspName: window.RR?.dsp?.name, title: subjTitle, dateStr, timeStr, joinUrl: roomUrl,
-            location, message: bodyText, gcalUrl, acceptUrl, declineUrl,
+            location, message: bodyText, gcalUrl, outlookUrl, acceptUrl, declineUrl,
           });
           // Only the first occurrence carries invitees so a recurring series
           // doesn't fire an invite email per occurrence.
@@ -25122,9 +25150,9 @@ async function _ivcalDeleteEvent(kind, id, notify) {
       const titl = ev.title || (ev.kind === "orientation" ? "Orientation" : "Interview");
       if (dsp && emails.length) {
         const rows = emails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em,
-          subject: "Canceled: " + titl,
+          subject: "Canceled: " + titl, cal_event_id: id, calendar_method: "cancel",
           body_text: `Hi,\n\nThis meeting has been canceled:\n${titl}\n${dateStr}, ${timeStr}\n\nApologies for any inconvenience — we'll be in touch if it's rescheduled.` }));
-        await sb.from("email_messages").insert(rows);
+        await _rrQueueCalEmails(rows);
       }
     }
     const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: id });
