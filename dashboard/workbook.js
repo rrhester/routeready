@@ -266,6 +266,12 @@ function tokenize(src) {
 const MAX_FORMULA_LEN = 2000;
 const MAX_RANGE_CELLS = 20000;
 const OPEN_END = 1048575; // sentinel bound for open-ended A:A / 1:3 ranges
+// Per-formula compute budget. A single MAKEARRAY/SEQUENCE is capped at
+// MAX_RANGE_CELLS, so a legitimate array formula runs comfortably under this;
+// a *terminating but exponential* lambda (e.g. a Y-combinator Fibonacci) would
+// otherwise run for minutes and freeze the tab, so we cut it off at #NUM.
+const MAX_EVAL_OPS = 5_000_000;
+const MAX_CLOSURE_DEPTH = 512; // guards self-applying LAMBDA recursion before the JS stack blows
 
 function parseFormula(src) {
   if (typeof src !== "string") throw new FormulaError("#ERROR", "not a formula");
@@ -301,10 +307,20 @@ function parseFormula(src) {
     return left;
   }
   function parseMulDiv() {
-    let left = parseUnary();
+    let left = parsePower();
     while (peek() && peek().t === TOK_OP && (peek().v === "*" || peek().v === "/")) {
       const op = next().v;
-      left = { k: "bin", op, l: left, r: parseUnary() };
+      left = { k: "bin", op, l: left, r: parsePower() };
+    }
+    return left;
+  }
+  // Precedence matches Excel/Sheets: unary minus binds TIGHTER than ^
+  // (so -2^2 = (-2)^2 = 4), and ^ is LEFT-associative (2^3^2 = (2^3)^2 = 64).
+  function parsePower() {
+    let left = parseUnary();
+    while (peek() && peek().t === TOK_OP && peek().v === "^") {
+      next();
+      left = { k: "bin", op: "^", l: left, r: parseUnary() };
     }
     return left;
   }
@@ -313,12 +329,7 @@ function parseFormula(src) {
       const op = next().v;
       return { k: "unary", op, v: parseUnary() };
     }
-    return parsePower();
-  }
-  function parsePower() {
-    const base = parsePostfix();
-    if (peek() && peek().t === TOK_OP && peek().v === "^") { next(); return { k: "bin", op: "^", l: base, r: parseUnary() }; }
-    return base;
+    return parsePostfix();
   }
   function parsePostfix() {
     let node = parsePrimary();
@@ -2922,13 +2933,22 @@ function timeFracOf(v) {
 function evalFormula(src, ctx) {
   let ast = parseFormula(src);
   if (ctx && ctx.names instanceof Map && ctx.names.size) ast = bindNames(ast, ctx.names);
-  const val = evalNode(ast, ctx);
-  return val;
+  return evalAst(ast, ctx);
 }
 
-function evalAst(ast, ctx) { return evalNode(ast, ctx); }
+// Top-level evaluation entry. Resets the per-formula op budget only on the
+// outermost call so a re-entrant eval (INDIRECT-style) can't refill the budget
+// mid-computation, while each cell in a sheet recalc still gets its own budget.
+function evalAst(ast, ctx) {
+  const outermost = (ctx.__inEval | 0) === 0;
+  if (outermost) { ctx.__ops = 0; ctx.__cdepth = 0; }
+  ctx.__inEval = (ctx.__inEval | 0) + 1;
+  try { return evalNode(ast, ctx); }
+  finally { ctx.__inEval--; }
+}
 
 function evalNode(node, ctx) {
+  if ((ctx.__ops = (ctx.__ops | 0) + 1) > MAX_EVAL_OPS) throw new FormulaError("#NUM", "formula too complex — operation budget exceeded");
   switch (node.k) {
     case "num": return node.v;
     case "str": return node.v;
@@ -3009,11 +3029,13 @@ function broadcast(l, r, fn) {
 // Invoke a LAMBDA closure with already-evaluated argument values.
 function callClosure(fn, argVals, ctx) {
   if (argVals.length !== fn.params.length) throw new FormulaError("#VALUE", `LAMBDA takes ${fn.params.length} arg${fn.params.length === 1 ? "" : "s"}`);
+  if ((ctx.__cdepth | 0) >= MAX_CLOSURE_DEPTH) throw new FormulaError("#NUM", "LAMBDA recursion too deep");
+  ctx.__cdepth = (ctx.__cdepth | 0) + 1;
   const saved = ctx.scope;
   ctx.scope = new Map(fn.scope || []);
   fn.params.forEach((p, i) => ctx.scope.set(p, argVals[i]));
   try { return evalNode(fn.body, ctx); }
-  finally { ctx.scope = saved; }
+  finally { ctx.scope = saved; ctx.__cdepth--; }
 }
 
 function fmtScalar(v) {
@@ -5008,6 +5030,19 @@ function openRealtime() {
   } catch (e) { console.warn("workbook realtime:", e && e.message); }
 }
 
+// Same-cell edits are last-writer-wins (no OT/CRDT). We keep the local editor's
+// version when a remote write lands on a cell they have pending or are editing —
+// but, unlike before, we no longer drop the other user's change *silently*: a
+// cross-user divergence raises a debounced notice so the loser isn't invisible.
+const warnCellConflicts = debounce(() => {
+  const c = WB._conflicts ? WB._conflicts.size : 0;
+  if (!c) return;
+  _toast(c === 1
+    ? "Another editor changed a cell you're editing — your version was kept. Reload to load theirs."
+    : `Another editor changed ${c} cells you're editing — your versions were kept. Reload to load theirs.`, "info");
+  WB._conflicts = new Set();
+}, 1200);
+
 function onRemoteCell(payload) {
   try {
     const row = payload.eventType === "DELETE" ? payload.old : payload.new;
@@ -5015,12 +5050,25 @@ function onRemoteCell(payload) {
     const sheet = findSheet(row.sheet_id);
     if (!sheet) return;
     const key = cellKey(row.row_index, row.col_index);
-    // Skip while this cell is dirty locally (our write, or a conflict
-    // the local editor wins until their save lands) or being edited.
-    const dirtySet = WB.dirtyCells.get(sheet.id);
-    if (dirtySet && dirtySet.has(key)) return;
+    const me = _me();
+    const fromOther = !(me && row.updated_by === me.id); // ignore the echo of our own save
     const g = [...GRIDS.values()].find((x) => x.sheet && x.sheet.id === sheet.id);
-    if (g && g.editing && cellKey(g.editing.r, g.editing.c) === key) return;
+    const dirtySet = WB.dirtyCells.get(sheet.id);
+    const editingThis = g && g.editing && cellKey(g.editing.r, g.editing.c) === key;
+    if ((dirtySet && dirtySet.has(key)) || editingThis) {
+      // local version wins the flush; surface it if a *different* user's write
+      // actually differs from what we hold, so the lost update isn't silent
+      if (fromOther && payload.eventType !== "DELETE") {
+        const cur = sheet.cells.get(key);
+        const incoming = row.formula || row.value;
+        const local = cur ? (cur.formula || cur.value) : null;
+        if (String(incoming ?? "") !== String(local ?? "")) {
+          (WB._conflicts || (WB._conflicts = new Set())).add(sheet.id + ":" + key);
+          warnCellConflicts();
+        }
+      }
+      return;
+    }
     if (payload.eventType === "DELETE") sheet.cells.delete(key);
     else ingestCellRow(sheet, row);
     recalcWithSiblings(sheet);
@@ -5177,7 +5225,102 @@ function parseDateLoose(s) {
 // ordered with cycle detection. Formula counts on operational sheets
 // are small (tens to low hundreds), so this stays well under a frame.
 
-function recalcSheet(sheet) {
+// Parsing every formula on every keystroke was the dominant recalc cost. The
+// AST for a given formula string is immutable (bindNames/eval never mutate it),
+// so we memoize it. Bounded LRU-ish: evict the oldest entry past the cap.
+const PARSE_CACHE = new Map();
+const PARSE_CACHE_MAX = 4000;
+function cachedParse(src) {
+  const hit = PARSE_CACHE.get(src);
+  if (hit !== undefined) return hit;
+  const ast = parseFormula(src); // may throw; we simply don't cache failures
+  if (PARSE_CACHE.size >= PARSE_CACHE_MAX) PARSE_CACHE.delete(PARSE_CACHE.keys().next().value);
+  PARSE_CACHE.set(src, ast);
+  return ast;
+}
+
+// Incremental recompute: re-evaluate only the edited cells and their dependent
+// cone, leaving every other cell's computed value untouched. This is provably
+// equivalent to a full recompute ONLY when no formula's result depends on
+// eval-time references (INDIRECT/OFFSET) or produces a spilled array — in those
+// cases we bail (return false) and the caller falls back to recalcSheet's full
+// path. Returns true iff it fully handled the recompute.
+function recalcCone(sheet, dirtyKeys) {
+  if (sheet.spill && sheet.spill.size) return false; // an existing spill needs the full path
+  let usedR = 0, usedC = 0;
+  const formulaKeys = [];
+  for (const [key, cell] of sheet.cells) {
+    const rc = keyRC(key);
+    if (rc.r > usedR) usedR = rc.r;
+    if (rc.c > usedC) usedC = rc.c;
+    if (cell.formula) { if (cell._arr) return false; formulaKeys.push(key); }
+  }
+  const depBounds = { rowCount: usedR + 1, colCount: usedC + 1 };
+  const names = namesForSheet(sheet);
+  const asts = new Map(), deps = new Map(), parseErr = new Map();
+  for (const key of formulaKeys) {
+    const cell = sheet.cells.get(key);
+    let ast;
+    try { ast = cachedParse(cell.formula); if (names.size) ast = bindNames(ast, names); }
+    catch (e) { parseErr.set(key, e instanceof FormulaError ? e.code : "#ERROR"); continue; }
+    if (hasDynamicRefs(ast)) return false; // eval-time refs → full recompute
+    asts.set(key, ast);
+    deps.set(key, refsFromAst(ast, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
+  }
+  // reverse edges: input cell key → dependent formula keys
+  const rev = new Map();
+  for (const [key, ds] of deps) for (const d of ds) { let a = rev.get(d); if (!a) rev.set(d, a = []); a.push(key); }
+  // cone = edited formula cells ∪ transitive dependents of every edited cell
+  const cone = new Set();
+  const queue = dirtyKeys.slice();
+  for (const k of dirtyKeys) if (asts.has(k) || parseErr.has(k)) cone.add(k);
+  while (queue.length) {
+    const k = queue.pop();
+    for (const dep of rev.get(k) || []) if (!cone.has(dep)) { cone.add(dep); queue.push(dep); }
+  }
+  if (!cone.size) { if (!sheet.spill) sheet.spill = new Map(); return true; } // nothing references the edit
+  // reset cone cells first (so cycle poisoning below isn't clobbered)
+  for (const key of cone) { const cell = sheet.cells.get(key); if (cell && cell.formula) { cell.err = parseErr.get(key) || null; cell.computed = null; cell._arr = null; } }
+  // topo order within the cone; detect cycles that live inside it
+  const WHITE = 0, GRAY = 1, BLACK = 2, color = new Map(), order = [];
+  const visit = (key, stack) => {
+    color.set(key, GRAY); stack.add(key);
+    for (const dep of deps.get(key) || []) {
+      if (!cone.has(dep)) continue;
+      const c = color.get(dep) || WHITE;
+      if (c === GRAY) { for (const kk of stack) { const cc = sheet.cells.get(kk); if (cc) cc.err = "#CIRCULAR"; } continue; }
+      if (c === WHITE) visit(dep, stack);
+    }
+    stack.delete(key); color.set(key, BLACK); order.push(key);
+  };
+  for (const key of cone) {
+    if ((color.get(key) || WHITE) !== WHITE) continue;
+    try { visit(key, new Set()); }
+    catch (e) { if (e instanceof RangeError) { const cc = sheet.cells.get(key); if (cc) cc.err = "#ERROR"; if (!order.includes(key)) order.push(key); } else throw e; }
+  }
+  const ctx = {
+    rowCount: sheet.rowCount, colCount: sheet.colCount,
+    getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
+    getFormula: (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell && cell.formula ? cell.formula : null; },
+  };
+  for (const key of order) {
+    const cell = sheet.cells.get(key);
+    if (!cell || !cell.formula || cell.err) continue;
+    try {
+      ctx.cur = keyRC(key);
+      const v = evalAst(asts.get(key), ctx);
+      if (v instanceof Arr) return false; // a spill appeared → let the full path lay it out
+      if (isClosure(v)) throw new FormulaError("#VALUE", "a LAMBDA needs to be called");
+      cell.computed = v; cell._arr = null;
+    } catch (e) { cell.err = e instanceof FormulaError ? e.code : "#ERROR"; cell.computed = null; cell._arr = null; }
+  }
+  if (!sheet.spill) sheet.spill = new Map();
+  return true;
+}
+
+function recalcSheet(sheet, dirtyKeys) {
+  // Fast path: recompute just the edited cells' dependent cone when it's sound.
+  if (dirtyKeys && dirtyKeys.length && recalcCone(sheet, dirtyKeys)) return;
   if (sheet.spill) sheet.spill.clear(); else sheet.spill = new Map();
   const formulaCells = [];
   let usedR = 0, usedC = 0;
@@ -5196,7 +5339,7 @@ function recalcSheet(sheet) {
   const deps = new Map();
   for (const [key, cell] of formulaCells) {
     try {
-      let ast = parseFormula(cell.formula);
+      let ast = cachedParse(cell.formula);
       if (names.size) ast = bindNames(ast, names);
       asts.set(key, ast);
       deps.set(key, refsFromAst(ast, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
@@ -5225,7 +5368,13 @@ function recalcSheet(sheet) {
     color.set(key, BLACK);
     order.push(key);
   };
-  for (const key of formulaSet) if ((color.get(key) || WHITE) === WHITE) visit(key, new Set());
+  for (const key of formulaSet) {
+    if ((color.get(key) || WHITE) !== WHITE) continue;
+    // A pathologically deep dependency chain can overflow the recursive visit;
+    // contain it to the offending cell instead of aborting the whole recalc.
+    try { visit(key, new Set()); }
+    catch (e) { if (e instanceof RangeError) { const cell = sheet.cells.get(key); if (cell) cell.err = "#ERROR"; if (!order.includes(key)) order.push(key); } else throw e; }
+  }
 
   const ctx = {
     rowCount: sheet.rowCount,
@@ -5349,8 +5498,8 @@ function crossSheetValue(fromSheet, sheetName, r, c) {
 
 // Recalc a sheet, then any sibling sheets whose formulas read across
 // sheets (their inputs may have just changed).
-function recalcWithSiblings(sheet) {
-  recalcSheet(sheet);
+function recalcWithSiblings(sheet, dirtyKeys) {
+  recalcSheet(sheet, dirtyKeys);
   const sibs = WB.sheetsByBlock.get(sheet.blockId) || [];
   // named ranges can create cross-sheet reads that carry no "!" in the
   // formula text, so any defined name forces a full sibling recompute
@@ -6856,14 +7005,25 @@ function updateSelStats(g) {
   const { r0, r1, c0, c1 } = selRect(g);
   if (r0 === r1 && c0 === c1) { el.textContent = `${colLabel(c0)}${r0 + 1}`; return; }
   let sum = 0, nnum = 0, cnt = 0;
-  for (const [key, cell] of g.sheet.cells) {
-    const { r, c } = keyRC(key);
-    if (r < r0 || r > r1 || c < c0 || c > c1) continue;
+  const tally = (cell) => {
+    if (!cell) return;
     const raw = cell.formula ? (cell.err ? null : cell.computed) : cell.value;
-    if (raw == null || raw === "") continue;
+    if (raw == null || raw === "") return;
     cnt++;
     const num = cellNumeric(raw);
     if (num != null && cell.type !== "text") { sum += num; nnum++; }
+  };
+  // Walk whichever is smaller — the selected rectangle or the populated map —
+  // so a small selection on a large sheet doesn't rescan every filled cell.
+  const area = (r1 - r0 + 1) * (c1 - c0 + 1);
+  if (area <= g.sheet.cells.size) {
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) tally(g.sheet.cells.get(cellKey(r, c)));
+  } else {
+    for (const [key, cell] of g.sheet.cells) {
+      const { r, c } = keyRC(key);
+      if (r < r0 || r > r1 || c < c0 || c > c1) continue;
+      tally(cell);
+    }
   }
   const fmtN = (x) => {
     const r2 = Math.round(x * 100) / 100;
@@ -6940,6 +7100,7 @@ function paintFilterChip(g) {
 function setHidden(g, axis, from, to, hidden) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
+  const before = structSnapshot(sheet);
   const set = axis === "row" ? sheet.hiddenRows : sheet.hiddenCols;
   for (let i = from; i <= to; i++) {
     if (hidden) set.add(i);
@@ -6949,6 +7110,7 @@ function setHidden(g, axis, from, to, hidden) {
   if (axis === "row" && set.size >= sheet.rowCount) set.delete(from);
   if (axis === "col" && set.size >= sheet.colCount) set.delete(from);
   saveSheetMeta(sheet.id);
+  pushStructUndo(g, before);
   computeGeometry(g);
   repaintGrid(g);
 }
@@ -8303,7 +8465,7 @@ function setCells(g, changes, opts) {
     if (g.undo.length > 100) g.undo.shift();
     g.redo = [];
   }
-  recalcWithSiblings(sheet);
+  recalcWithSiblings(sheet, applied.map((a) => a.key));
   markCellsDirty(sheet, applied.map((a) => a.key));
   queueCellActivity(sheet, applied.map((a) => ({
     r: a.r, c: a.c,
@@ -8316,10 +8478,57 @@ function setCells(g, changes, opts) {
   scheduleChartRender(g);
 }
 
+// ── Structural (non-cell) undo ──────────────────────────────────────────────
+// Freeze panes, column widths / row heights, hidden rows/cols and sheet.meta
+// (merges, data validation, conditional formats, charts, pivots) all persist
+// through one saveSheetMeta call, so a single snapshot captures the whole
+// structural state — that makes these ops Ctrl+Z-able like cell edits.
+function structSnapshot(sheet) {
+  return {
+    frozenRows: sheet.frozenRows || 0,
+    frozenCols: sheet.frozenCols || 0,
+    colWidths: { ...(sheet.colWidths || {}) },
+    rowHeights: { ...(sheet.rowHeights || {}) },
+    hiddenRows: [...(sheet.hiddenRows || [])],
+    hiddenCols: [...(sheet.hiddenCols || [])],
+    meta: JSON.parse(JSON.stringify(sheet.meta || {})),
+  };
+}
+function structRestore(sheet, s) {
+  sheet.frozenRows = s.frozenRows;
+  sheet.frozenCols = s.frozenCols;
+  sheet.colWidths = { ...s.colWidths };
+  sheet.rowHeights = { ...s.rowHeights };
+  sheet.hiddenRows = new Set(s.hiddenRows);
+  sheet.hiddenCols = new Set(s.hiddenCols);
+  sheet.meta = JSON.parse(JSON.stringify(s.meta));
+}
+function structEqual(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+// Record an undo entry for a structural mutation. Call with the snapshot taken
+// *before* the mutation; a no-op change records nothing.
+function pushStructUndo(g, before) {
+  if (!g || !before) return;
+  const after = structSnapshot(g.sheet);
+  if (structEqual(before, after)) return;
+  g.undo.push({ struct: { before, after }, sheetId: g.sheet.id });
+  if (g.undo.length > 100) g.undo.shift();
+  g.redo = [];
+}
+function applyStructState(g, snap) {
+  const sheet = g.sheet;
+  structRestore(sheet, snap);
+  saveSheetMeta(sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+  syncFormulaBar(g);
+  scheduleChartRender(g);
+}
+
 function undoGrid(g) {
   const op = g.undo.pop();
   if (!op) return;
   const sheet = g.sheet;
+  if (op.struct) { g.redo.push(op); applyStructState(g, op.struct.before); return; }
   const inverse = [];
   for (const ch of op.changes) {
     inverse.push({ r: ch.r, c: ch.c, prev: cloneCell(sheet.cells.get(ch.key)), next: ch.prev, key: ch.key });
@@ -8327,7 +8536,7 @@ function undoGrid(g) {
     else sheet.cells.delete(ch.key);
   }
   g.redo.push(op);
-  recalcWithSiblings(sheet);
+  recalcWithSiblings(sheet, op.changes.map((c) => c.key));
   markCellsDirty(sheet, op.changes.map((c) => c.key));
   if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
@@ -8339,12 +8548,13 @@ function redoGrid(g) {
   const op = g.redo.pop();
   if (!op) return;
   const sheet = g.sheet;
+  if (op.struct) { g.undo.push(op); applyStructState(g, op.struct.after); return; }
   for (const ch of op.changes) {
     if (ch.next) sheet.cells.set(ch.key, { ...ch.next, computed: null, err: null });
     else sheet.cells.delete(ch.key);
   }
   g.undo.push(op);
-  recalcWithSiblings(sheet);
+  recalcWithSiblings(sheet, op.changes.map((c) => c.key));
   markCellsDirty(sheet, op.changes.map((c) => c.key));
   if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
@@ -10455,8 +10665,10 @@ function mergePixelRect(g, m) {
 }
 
 function setMerges(g, merges) {
+  const before = structSnapshot(g.sheet);
   g.sheet.meta = { ...(g.sheet.meta || {}), merges };
   saveSheetMeta(g.sheet.id);
+  pushStructUndo(g, before);
   computeGeometry(g);
   repaintGrid(g);
 }
@@ -10535,6 +10747,7 @@ let AUTOFIT_MEASURE = null;
 function autofitColumns(g, c0, c1) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
+  const before = structSnapshot(sheet);
   if (!AUTOFIT_MEASURE) AUTOFIT_MEASURE = document.createElement("canvas").getContext("2d");
   const cs = getComputedStyle(g.els.cells);
   const widths = new Map();
@@ -10559,6 +10772,7 @@ function autofitColumns(g, c0, c1) {
   computeGeometry(g);
   repaintGrid(g);
   saveSheetMeta(sheet.id);
+  pushStructUndo(g, before);
 }
 
 // ─── Freeze ──────────────────────────────────────────────────────────────────
@@ -10566,10 +10780,12 @@ function autofitColumns(g, c0, c1) {
 function setFreeze(g, what) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
+  const before = structSnapshot(sheet);
   if (what === "row") sheet.frozenRows = sheet.frozenRows ? 0 : 1;
   else if (what === "col") sheet.frozenCols = sheet.frozenCols ? 0 : 1;
   else { sheet.frozenRows = 0; sheet.frozenCols = 0; }
   saveSheetMeta(sheet.id);
+  pushStructUndo(g, before);
   repaintGrid(g);
 }
 
@@ -11202,12 +11418,13 @@ async function createSheetWithCells(blockId, ps, fileName) {
   const sheet = normalizeSheet(ins.data);
   const rows = [];
   for (const c of ps.cells) {
-    const cell = { value: c.value ?? null, formula: c.formula ?? null, type: c.type ?? null, computed: null, err: null, format: {} };
+    const format = c.format && typeof c.format === "object" ? c.format : {};
+    const cell = { value: c.value ?? null, formula: c.formula ?? null, type: c.type ?? null, computed: null, err: null, format };
     sheet.cells.set(cellKey(c.r, c.c), cell);
     rows.push({
       dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, sheet_id: sheet.id,
       row_index: c.r, col_index: c.c,
-      value: cell.value, formula: cell.formula, value_type: cell.type, format: {},
+      value: cell.value, formula: cell.formula, value_type: cell.type, format,
       updated_by: _me() ? _me().id : null,
     });
   }
@@ -11315,6 +11532,91 @@ function xlsxSheetName(name, used) {
   return out;
 }
 
+// Serialize a sheet's conditional-formatting rules to OOXML. Value rules become
+// top-left-relative `expression` formulas (uniformly valid; Excel applies them
+// per-cell across the sqref); color scales map directly. A malformed rule is
+// skipped rather than risk producing a file Excel refuses to open.
+function condFormatXml(sheet, dxfFor, nextPriority) {
+  const rules = sheet && sheet.meta && sheet.meta.condFormat;
+  if (!Array.isArray(rules) || !rules.length) return "";
+  const q = (s) => `"${xmlEsc(String(s).replace(/"/g, ""))}"`;
+  let out = "";
+  for (const rule of rules) {
+    try {
+      if (![rule.r0, rule.c0, rule.r1, rule.c1].every(Number.isInteger)) continue;
+      const sqref = `${colLabel(rule.c0)}${rule.r0 + 1}:${colLabel(rule.c1)}${rule.r1 + 1}`;
+      const tl = `${colLabel(rule.c0)}${rule.r0 + 1}`; // top-left relative anchor
+      const p = nextPriority();
+      if (rule.type === "colorscale") {
+        const stops = (WB_CF_SCALES[rule.scale] || WB_CF_SCALES.gyr).stops;
+        const three = stops.length >= 3;
+        const cvo = three ? `<cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/>` : `<cfvo type="min"/><cfvo type="max"/>`;
+        const cols = (three ? [stops[0], stops[1], stops[stops.length - 1]] : [stops[0], stops[stops.length - 1]])
+          .map((h) => `<color rgb="FF${h.replace("#", "").toUpperCase()}"/>`).join("");
+        out += `<conditionalFormatting sqref="${sqref}"><cfRule type="colorScale" priority="${p}"><colorScale>${cvo}${cols}</colorScale></cfRule></conditionalFormatting>`;
+        continue;
+      }
+      let formula;
+      if (rule.type === "formula" || rule.kind === "formula") {
+        formula = String(rule.formula || "").replace(/^=/, "");
+      } else {
+        const num1 = cellNumeric(rule.v1);
+        switch (rule.kind) {
+          case "gt": formula = `${tl}>${num1 != null ? num1 : q(rule.v1)}`; break;
+          case "lt": formula = `${tl}<${num1 != null ? num1 : q(rule.v1)}`; break;
+          case "between": { const a = +rule.v1, b = +rule.v2; if (isNaN(a) || isNaN(b)) continue; formula = `AND(${tl}>=${Math.min(a, b)},${tl}<=${Math.max(a, b)})`; break; }
+          case "eq": formula = `${tl}=${num1 != null ? num1 : q(rule.v1)}`; break;
+          case "contains": formula = `ISNUMBER(SEARCH(${q(rule.v1)},${tl}))`; break;
+          case "empty": formula = `LEN(TRIM(${tl}))=0`; break;
+          case "notempty": formula = `LEN(TRIM(${tl}))>0`; break;
+          default: continue;
+        }
+      }
+      if (!formula) continue;
+      out += `<conditionalFormatting sqref="${sqref}"><cfRule type="expression" dxfId="${dxfFor(rule.style)}" priority="${p}"><formula>${xmlEsc(formula)}</formula></cfRule></conditionalFormatting>`;
+    } catch (_) { /* skip a bad rule */ }
+  }
+  return out;
+}
+
+// Serialize a sheet's data-validation rules to OOXML <dataValidations>.
+function dataValidationXml(sheet) {
+  const rules = sheet && sheet.meta && sheet.meta.validation;
+  if (!Array.isArray(rules) || !rules.length) return "";
+  const OP = { between: "between", notbetween: "notBetween", "!=": "notEqual", "<>": "notEqual", "=": "equal", ">": "greaterThan", "<": "lessThan", ">=": "greaterThanOrEqual", "<=": "lessThanOrEqual" };
+  const items = [];
+  for (const rule of rules) {
+    try {
+      if (![rule.r0, rule.c0, rule.r1, rule.c1].every(Number.isInteger)) continue;
+      const sqref = `${colLabel(rule.c0)}${rule.r0 + 1}:${colLabel(rule.c1)}${rule.r1 + 1}`;
+      const f1 = (v) => `<formula1>${xmlEsc(String(v))}</formula1>`;
+      const f2 = (v) => `<formula2>${xmlEsc(String(v))}</formula2>`;
+      const wrap = (attrs, body) => `<dataValidation ${attrs} allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="${sqref}">${body}</dataValidation>`;
+      if (rule.type === "list") {
+        items.push(wrap(`type="list"`, f1(`"${(rule.list || []).join(",").replace(/"/g, "").slice(0, 250)}"`)));
+      } else if (rule.type === "range") {
+        if (!rule.source) continue;
+        items.push(wrap(`type="list"`, f1(String(rule.source).replace(/^=/, ""))));
+      } else if (rule.type === "checkbox") {
+        items.push(wrap(`type="list"`, f1(`"TRUE,FALSE"`)));
+      } else if (rule.type === "custom") {
+        if (!rule.formula) continue;
+        items.push(wrap(`type="custom"`, f1(String(rule.formula).replace(/^=/, ""))));
+      } else {
+        const op = OP[rule.op] || "between";
+        const t = rule.type === "textlen" ? "textLength" : rule.type === "date" ? "date" : "decimal";
+        const conv = rule.type === "date" ? dvDateSerial : (v) => v;
+        const v1 = conv(rule.v1);
+        if (v1 == null || v1 === "") continue;
+        let body = f1(v1);
+        if (rule.op === "between") { const v2 = conv(rule.v2); if (v2 == null || v2 === "") continue; body += f2(v2); }
+        items.push(wrap(`type="${t}" operator="${op}"`, body));
+      }
+    } catch (_) { /* skip a bad rule */ }
+  }
+  return items.length ? `<dataValidations count="${items.length}">${items.join("")}</dataValidations>` : "";
+}
+
 function buildXlsxBytes(sheets) {
   const enc = new TextEncoder();
   const XMLH = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`;
@@ -11336,6 +11638,20 @@ function buildXlsxBytes(sheets) {
   const borderIdx = new Map([["", 0]]);
   const xfs = [`<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>`];
   const xfIdx = new Map([["0|0|0||0||0|0", 0]]);
+
+  // Differential formats (dxf) for conditional-formatting rules, and a global
+  // priority counter (Excel wants unique priorities). CF/DV styles mirror the
+  // in-app palette (WB_CF_STYLES).
+  const DXF_STYLE = { green: { fg: "FF166534", bg: "FFDCFCE7" }, amber: { fg: "FF92400E", bg: "FFFEF3C7" }, red: { fg: "FFB91C1C", bg: "FFFEE2E2" }, blue: { fg: "FF1E40AF", bg: "FFDBEAFE" } };
+  const dxfs = [];
+  const dxfIdx = new Map();
+  const dxfFor = (styleKey) => {
+    const key = DXF_STYLE[styleKey] ? styleKey : "amber";
+    let id = dxfIdx.get(key);
+    if (id == null) { const st = DXF_STYLE[key]; id = dxfs.length; dxfs.push(`<dxf><font><color rgb="${st.fg}"/></font><fill><patternFill><bgColor rgb="${st.bg}"/></patternFill></fill></dxf>`); dxfIdx.set(key, id); }
+    return id;
+  };
+  let cfPriority = 1;
 
   const styleFor = (cell) => {
     const f = (cell && cell.format) || {};
@@ -11444,7 +11760,11 @@ function buildXlsxBytes(sheets) {
     const linkXml = links.length
       ? `<hyperlinks>${links.map((l, i) => `<hyperlink ref="${l.ref}" r:id="rlk${i + 1}"/>`).join("")}</hyperlinks>`
       : "";
-    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${linkXml}</worksheet>`;
+    const cfXml = condFormatXml(sheet, dxfFor, () => cfPriority++);
+    const dvXml = dataValidationXml(sheet);
+    // OOXML worksheet child order: …mergeCells, conditionalFormatting,
+    // dataValidations, hyperlinks…
+    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${cfXml}${dvXml}${linkXml}</worksheet>`;
     return { xml, links };
   };
 
@@ -11453,7 +11773,8 @@ function buildXlsxBytes(sheets) {
   const used = new Set();
   const names = sheets.map((sh) => xlsxSheetName(sh.name, used));
 
-  const stylesXml = `${XMLH}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/></numFmts><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="${borders.length}">${borders.join("")}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs></styleSheet>`;
+  const dxfXml = dxfs.length ? `<dxfs count="${dxfs.length}">${dxfs.join("")}</dxfs>` : "";
+  const stylesXml = `${XMLH}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/></numFmts><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="${borders.length}">${borders.join("")}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs>${dxfXml}</styleSheet>`;
   const workbookXml = `${XMLH}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n, i) => `<sheet name="${xmlEsc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`;
   const wbRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
   const rootRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
@@ -11539,6 +11860,75 @@ function xlsxJoinText(chunk) {
   return out;
 }
 
+// ── XLSX style reconstruction (reverse of buildXlsxBytes' styleFor) ──────────
+// Turns OOXML fonts / fills / borders / alignment / number-format codes back
+// into this app's cell.format model, so a workbook — including our own
+// exports — round-trips its formatting instead of importing as bare values.
+const XLSX_FONT_KEY = { "Arial": "arial", "Georgia": "georgia", "Times New Roman": "times", "Courier New": "courier", "Verdana": "verdana", "Trebuchet MS": "trebuchet" };
+
+function xlsxArgbToHex(argb) {
+  if (!argb) return null;
+  const h = argb.length === 8 ? argb.slice(2) : argb; // strip leading alpha
+  return /^[0-9a-fA-F]{6}$/.test(h) ? "#" + h.toLowerCase() : null;
+}
+
+// Classify a number-format code into the app's `num` keys.
+function classifyXlsxNumFmt(code) {
+  const c = String(code || "");
+  if (!c || /^general$/i.test(c)) return null;
+  const bare = c.replace(/\[[^\]]*\]/g, "").replace(/"[^"]*"/g, "");
+  if (/%/.test(c)) return "percent";
+  if (/[dmy]/i.test(bare) && !/[#0]/.test(bare)) return "date";
+  if (/[eE]\+/.test(c)) return "scientific";
+  if (/[$€£¥]/.test(c)) return "currency";
+  return "number";
+}
+// Built-in numFmt ids (ECMA-376 §18.8.30) → app `num` keys.
+function builtinXlsxNumClass(id) {
+  if (id === 0) return null; // General
+  if (id === 9 || id === 10) return "percent";
+  if ([14, 15, 16, 17, 22, 45, 46, 47].includes(id)) return "date";
+  if (id === 44 || [37, 38, 39, 40].includes(id)) return "accounting";
+  if ([5, 6, 7, 8, 42].includes(id)) return "currency";
+  if (id === 11 || id === 48) return "scientific";
+  if (id === 49) return "text";
+  if ([1, 2, 3, 4].includes(id)) return "number";
+  return null;
+}
+function parseXlsxFont(xml) {
+  const f = {};
+  if (/<b(?:\s[^>]*)?\/?>/.test(xml)) f.bold = true;
+  if (/<i(?:\s[^>]*)?\/?>/.test(xml)) f.italic = true;
+  if (/<u(?:\s[^>]*)?\/?>/.test(xml)) f.underline = true;
+  if (/<strike(?:\s[^>]*)?\/?>/.test(xml)) f.strike = true;
+  const col = /<color[^>]*rgb="([0-9A-Fa-f]{6,8})"/.exec(xml);
+  if (col) { const hex = xlsxArgbToHex(col[1]); if (hex && hex !== "#000000") f.fg = hex; }
+  const sz = /<sz[^>]*val="([\d.]+)"/.exec(xml);
+  if (sz) { const pt = +sz[1]; if (Math.abs(pt - 11) > 0.01) f.fs = Math.round(pt / 0.75); } // pt → px
+  const nm = /<name[^>]*val="([^"]+)"/.exec(xml);
+  if (nm && XLSX_FONT_KEY[nm[1]]) f.ff = XLSX_FONT_KEY[nm[1]];
+  return f;
+}
+function parseXlsxFill(xml) {
+  if (!/patternType="solid"/.test(xml)) return {};
+  const fg = /<fgColor[^>]*rgb="([0-9A-Fa-f]{6,8})"/.exec(xml);
+  const hex = fg ? xlsxArgbToHex(fg[1]) : null;
+  return hex ? { bg: hex } : {};
+}
+function parseXlsxBorder(xml) {
+  const present = [], styles = [];
+  for (const e of ["left", "right", "top", "bottom"]) {
+    const m = new RegExp(`<${e}\\b[^>]*style="([^"]+)"`).exec(xml);
+    if (m) { present.push(e); styles.push(m[1]); }
+  }
+  if (!present.length) return {};
+  const w = (s) => (s === "thick" ? 3 : s === "medium" || s === "double" ? 2 : 1);
+  const bw = Math.max(...styles.map(w));
+  const out = { border: present.length === 4 ? "all" : present[0] };
+  if (bw > 1) out.bw = bw;
+  return out;
+}
+
 const XLSX_ROW_CAP = 10000, XLSX_COL_CAP = 200;
 
 export async function parseXlsxBytes(buf) {
@@ -11556,24 +11946,39 @@ export async function parseXlsxBytes(buf) {
     while ((m = re.exec(ssXml))) shared.push(m[1] != null ? xlsxJoinText(m[1]) : "");
   }
 
-  // styles → which cell-format (xf) indices render as dates, so numeric
-  // date serials come back as readable dates instead of raw numbers
+  // styles → per-xf reconstruction: number-format class (drives dates + the
+  // `num` display format) plus font / fill / border / alignment, so formatting
+  // survives the round-trip instead of importing as bare values.
   const dateXf = new Set();
+  const xfFmt = [];      // xf index → reconstructed cell.format
   const stylesXml = get("xl/styles.xml");
   if (stylesXml) {
-    const customDate = new Map();
+    const customClass = new Map();
     let m;
     const nfRe = /<numFmt[^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g;
-    while ((m = nfRe.exec(stylesXml))) {
-      const code = xmlUnescape(m[2]).replace(/\[[^\]]*\]/g, "").replace(/"[^"]*"/g, "");
-      customDate.set(+m[1], /[dmy]/i.test(code) && !/[#0]/.test(code));
-    }
-    const builtinDate = new Set([14, 15, 16, 17, 22, 45, 46, 47]);
+    while ((m = nfRe.exec(stylesXml))) customClass.set(+m[1], classifyXlsxNumFmt(xmlUnescape(m[2])));
+    const classOf = (id) => (customClass.has(id) ? customClass.get(id) : builtinXlsxNumClass(id));
+    const section = (tag, re) => { const s = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`).exec(stylesXml); return s ? (s[1].match(re) || []) : []; };
+    const fontDefs = section("fonts", /<font(?:\s[^>]*)?>[\s\S]*?<\/font>|<font\s*\/>/g).map(parseXlsxFont);
+    const fillDefs = section("fills", /<fill(?:\s[^>]*)?>[\s\S]*?<\/fill>|<fill\s*\/>/g).map(parseXlsxFill);
+    const borderDefs = section("borders", /<border(?:\s[^>]*)?>[\s\S]*?<\/border>|<border\s*\/>/g).map(parseXlsxBorder);
     const cx = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml);
-    if (cx) (cx[1].match(/<xf\b[^>]*?\/?>/g) || []).forEach((xf, idx) => {
-      const nf = /numFmtId="(\d+)"/.exec(xf);
-      const id = nf ? +nf[1] : 0;
-      if (builtinDate.has(id) || customDate.get(id)) dateXf.add(idx);
+    if (cx) (cx[1].match(/<xf\b[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g) || []).forEach((xf, idx) => {
+      const attr = (n) => { const mm = new RegExp(`${n}="(\\d+)"`).exec(xf); return mm ? +mm[1] : 0; };
+      const cls = classOf(attr("numFmtId"));
+      if (cls === "date") dateXf.add(idx);
+      const fmt = { ...(fontDefs[attr("fontId")] || {}), ...(borderDefs[attr("borderId")] || {}) };
+      const fill = fillDefs[attr("fillId")];
+      if (fill && fill.bg) fmt.bg = fill.bg;
+      const al = /<alignment\b([^>]*?)\/?>/.exec(xf);
+      if (al) {
+        const h = /horizontal="([^"]+)"/.exec(al[1]); if (h) fmt.align = h[1];
+        const v = /vertical="([^"]+)"/.exec(al[1]); if (v && v[1] !== "bottom") fmt.valign = v[1] === "center" ? "middle" : v[1];
+        if (/wrapText="1"/.test(al[1])) fmt.wrap = true;
+        const rot = /textRotation="(\d+)"/.exec(al[1]); if (rot && (+rot[1] === 45 || +rot[1] === 90)) fmt.rot = +rot[1];
+      }
+      if (cls && cls !== "date") fmt.num = cls; // dates display via cell.type
+      if (Object.keys(fmt).length) xfFmt[idx] = fmt;
     });
   }
 
@@ -11660,8 +12065,11 @@ export async function parseXlsxBytes(buf) {
         if (s != null && dateXf.has(+s)) { const d = serialToDate(+rawV); value = d ? isoDate(d) : rawV; type = d ? "date" : "number"; }
         else { value = rawV; type = "number"; }
       }
-      if (formula == null && (value == null || value === "")) continue;
-      out.cells.push({ r, c, value, formula, type });
+      const fmt = s != null ? xfFmt[+s] : null;
+      if (formula == null && (value == null || value === "") && !fmt) continue;
+      const cell = { r, c, value, formula, type };
+      if (fmt) cell.format = { ...fmt };
+      out.cells.push(cell);
     }
     sheets.push(out);
   }
@@ -11684,6 +12092,13 @@ function exportBlockXlsx(g) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   wbLog("xlsx.exported", `exported ${sheets.length === 1 ? `sheet “${sheets[0].name}”` : `${sheets.length} sheets`} as an Excel file`, { target_type: "block", target_id: g.blockId });
   _toast("Excel file exported", "success");
+  // Charts and pivot tables aren't written to .xlsx yet — say so rather than
+  // let them vanish silently. (Values, formulas, formats, data validation and
+  // conditional formatting all export.)
+  const dropped = [];
+  if (sheets.some((sh) => Array.isArray(sh.meta && sh.meta.charts) && sh.meta.charts.length)) dropped.push("charts");
+  if (sheets.some((sh) => Array.isArray(sh.meta && sh.meta.pivots) && sh.meta.pivots.length)) dropped.push("pivot tables");
+  if (dropped.length) setTimeout(() => _toast(`Heads up: ${dropped.join(" and ")} aren't included in the Excel file — they stay in RouteReady.`, "info"), 600);
 }
 
 // ─── Charts ──────────────────────────────────────────────────────────────────
@@ -12939,9 +13354,10 @@ function bindGridEvents(g) {
       e.preventDefault();
       const sheet = g.sheet;
       if (!WB.canEdit) return;
+      const rzBefore = structSnapshot(sheet);
       g.resize = rzCol
-        ? { kind: "col", idx: +rzCol.getAttribute("data-wb-rzcol"), startPos: e.clientX, startSize: colW(sheet, +rzCol.getAttribute("data-wb-rzcol")) }
-        : { kind: "row", idx: +rzRow.getAttribute("data-wb-rzrow"), startPos: e.clientY, startSize: rowH(sheet, +rzRow.getAttribute("data-wb-rzrow")) };
+        ? { kind: "col", idx: +rzCol.getAttribute("data-wb-rzcol"), startPos: e.clientX, startSize: colW(sheet, +rzCol.getAttribute("data-wb-rzcol")), before: rzBefore }
+        : { kind: "row", idx: +rzRow.getAttribute("data-wb-rzrow"), startPos: e.clientY, startSize: rowH(sheet, +rzRow.getAttribute("data-wb-rzrow")), before: rzBefore };
       document.body.style.cursor = rzCol ? "col-resize" : "row-resize";
       const onMove = (ev) => {
         const rs = g.resize;
@@ -12957,7 +13373,7 @@ function bindGridEvents(g) {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
         document.body.style.cursor = "";
-        if (g.resize) saveSheetMeta(g.sheet.id);
+        if (g.resize) { saveSheetMeta(g.sheet.id); pushStructUndo(g, g.resize.before); }
         g.resize = null;
       };
       document.addEventListener("mousemove", onMove);
@@ -16437,7 +16853,7 @@ export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,

@@ -39,10 +39,20 @@ const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} !~ ${b
 
 // ── operators & scalars ──────────────────────────────────────────────────────
 ok("arithmetic precedence", () => assert.equal(ev("=1+2*3"), 7));
-ok("power is right-assoc", () => assert.equal(ev("=2^3^2"), 512));
+ok("power is left-assoc (Excel parity)", () => assert.equal(ev("=2^3^2"), 64));
+ok("unary minus binds tighter than ^ (Excel parity)", () => assert.equal(ev("=-2^2"), 4));
+ok("exponent may still carry its own sign", () => assert.equal(ev("=2^-2"), 0.25));
 ok("percent postfix", () => assert.equal(ev("=50%"), 0.5));
 ok("concat", () => assert.equal(ev('="a"&"b"&1'), "ab1"));
 ok("comparison", () => assert.equal(ev('=IF(3>2,"y","n")'), "y"));
+
+// ── compute budget (DoS guard) ───────────────────────────────────────────────
+// A self-applying exponential LAMBDA must be cut off, not run for minutes.
+const FIB = "LAMBDA(f,n,IF(n<2,n,f(f,n-1)+f(f,n-2)))";
+ok("legit array formula stays under budget", () => assert.equal(ev("=SUM(MAKEARRAY(100,100,LAMBDA(r,c,1)))"), 10000));
+ok("small self-applied recursion still computes", () => assert.equal(ev(`=${FIB}(${FIB},12)`), 144));
+ok("exponential lambda hits the op budget (#NUM)", () => assert.equal(evErr(`=${FIB}(${FIB},40)`), "#NUM"));
+ok("unbounded-depth recursion hits the depth guard (#NUM)", () => assert.equal(evErr("=LAMBDA(f,n,IF(n<=0,0,f(f,n-1)))(LAMBDA(f,n,IF(n<=0,0,f(f,n-1))),100000)"), "#NUM"));
 
 // ── date serials ─────────────────────────────────────────────────────────────
 ok("Excel serial anchor (2026-07-05 = 46208)", () => assert.equal(dateToSerial(new Date(2026, 6, 5)), 46208));
@@ -1190,6 +1200,56 @@ await okA("xlsx import: deflate + shared strings (rich-text runs) + date styles"
   assert.equal(findCell(sh, 2, 0).value, "2026-07-05");   // serial via date style
   assert.equal(findCell(sh, 2, 0).type, "date");
   assert.equal(findCell(sh, 2, 1).formula, "=SUM(B2:B2)");
+});
+
+await okA("xlsx round-trip: cell formatting survives (percent, currency, bold, fill, border, align)", async () => {
+  const cells = new Map([
+    ["0,0", XC("Rate", "text", { bold: true, bg: "#dbeafe" })],
+    ["1,0", XC("50%", "percent")],
+    ["1,1", XC("$1250", "currency")],
+    ["2,0", XC("wrapped", "text", { align: "center", wrap: true, border: "all" })],
+  ]);
+  const parsed = await parseXlsxBytes(buildXlsxBytes([{ name: "Fmt", cells, colWidths: {}, frozenRows: 0, frozenCols: 0, meta: {} }]));
+  const sh = parsed.sheets[0];
+  const header = findCell(sh, 0, 0);
+  assert.equal(header.format.bold, true, "bold preserved");
+  assert.equal(header.format.bg, "#dbeafe", "fill color preserved");
+  // percent: exported as the 0.5 fraction with a percent numFmt; must re-import
+  // as a percent-formatted cell that still reads 0.5 to the engine and shows 50%
+  const pct = findCell(sh, 1, 0);
+  assert.equal(pct.format.num, "percent", "percent format recovered");
+  assert.equal(__engine.formatForDisplay(pct.value, pct.format, pct.type), "50%");
+  const cur = findCell(sh, 1, 1);
+  assert.equal(cur.format.num, "currency", "currency format recovered");
+  const wrapped = findCell(sh, 2, 0);
+  assert.equal(wrapped.format.align, "center");
+  assert.equal(wrapped.format.wrap, true);
+  assert.equal(wrapped.format.border, "all");
+});
+
+await okA("xlsx export: data validation + conditional formatting serialize (and still round-trip)", async () => {
+  const cells = new Map([["1,0", XC("5", "number")], ["2,0", XC("9", "number")], ["1,2", XC("3", "number")]]);
+  const meta = {
+    validation: [
+      { r0: 1, c0: 0, r1: 10, c1: 0, type: "list", list: ["Open", "Closed"], mode: "reject" },
+      { r0: 1, c0: 1, r1: 10, c1: 1, type: "date", op: ">=", v1: "2026-01-01" },
+    ],
+    condFormat: [
+      { r0: 1, c0: 0, r1: 10, c1: 0, kind: "gt", v1: "3", style: "green" },
+      { r0: 1, c0: 2, r1: 10, c1: 2, type: "colorscale", scale: "gyr" },
+    ],
+  };
+  const bytes = buildXlsxBytes([{ name: "S", cells, colWidths: {}, frozenRows: 0, frozenCols: 0, meta }]);
+  const xml = new TextDecoder().decode(bytes); // stored (uncompressed) entries ⇒ XML is plaintext
+  assert.ok(xml.includes("<dataValidations"), "dataValidations present");
+  assert.ok(xml.includes('type="list"'), "list validation present");
+  assert.ok(xml.includes('type="date"') && xml.includes('operator="greaterThanOrEqual"'), "date validation present");
+  assert.ok(xml.includes("<conditionalFormatting"), "conditionalFormatting present");
+  assert.ok(xml.includes('type="colorScale"'), "color scale present");
+  assert.ok(xml.includes('type="expression"'), "cell-value rule as expression present");
+  assert.ok(/<dxfs count="\d+"/.test(xml), "dxfs registered");
+  const parsed = await parseXlsxBytes(bytes); // reader must not choke on the augmented file
+  assert.ok(parsed.sheets[0].cells.length >= 3);
 });
 
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);
