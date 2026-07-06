@@ -13,11 +13,12 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-// v125 · Document scanner gains a page editor: per-page enhancement
-// filters (Color / Enhance / Grayscale / B&W document) and a crop step
-// with draggable corners + perspective dewarp, all on-device. Bumped so
-// installed driver PWAs purge the old shell and pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v125";
+// v126 · Document scanner gains a live camera: full-screen viewfinder
+// over the rear camera with a shutter, Auto steady-capture, torch, and
+// multi-page batch capture without leaving the camera (falls back to
+// the OS photo input where getUserMedia is blocked). Bumped so installed
+// driver PWAs purge the old shell and pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v126";
 const SHELL_FILES = [
   "./",
   "index.html",

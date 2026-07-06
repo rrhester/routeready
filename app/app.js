@@ -2790,19 +2790,23 @@ async function _scanLoadBitmap(file) {
   });
 }
 
-// One captured file → { jpeg bytes, pixel dims, thumbnail dataURL }.
-// White-fills the canvas first so any transparency (e.g. a PNG the
-// driver picked from their gallery) flattens to white instead of
-// black once it's a JPEG.
-// A captured file becomes a page whose *source* (the downscaled color
-// capture) is kept immutable. The exported JPEG + thumbnail are derived
-// from that source plus the page's current crop + filter, so edits stay
-// non-destructive and re-editable — pull the crop back out, switch the
-// filter off, and you're back to the original with no quality loss
-// beyond the one capture-time downscale.
+// A capture (from the file picker or the live camera) becomes a page
+// whose *source* — the downscaled color image — is kept immutable. The
+// exported JPEG + thumbnail are derived from that source plus the page's
+// current crop + filter, so edits stay non-destructive and re-editable:
+// pull the crop back out, switch the filter off, and you're back to the
+// original with no quality loss beyond the one capture-time downscale.
 async function _scanProcessFile(file) {
   const bmp = await _scanLoadBitmap(file);
-  const sw = bmp.width, sh = bmp.height;
+  const page = await _scanMakePage(bmp, bmp.width, bmp.height);
+  if (typeof bmp.close === "function") bmp.close();
+  return page;
+}
+
+// Shared page builder for any drawable source (ImageBitmap, <img>,
+// <video>, or a <canvas>). White-fills first so transparency (e.g. a
+// PNG from the gallery) flattens to white rather than black in JPEG.
+async function _scanMakePage(drawable, sw, sh) {
   const scale = Math.min(1, _SCAN_MAX_EDGE / Math.max(sw, sh));
   const ow = Math.max(1, Math.round(sw * scale));
   const oh = Math.max(1, Math.round(sh * scale));
@@ -2812,8 +2816,7 @@ async function _scanProcessFile(file) {
   const sctx = src.getContext("2d");
   sctx.fillStyle = "#fff";
   sctx.fillRect(0, 0, ow, oh);
-  sctx.drawImage(bmp, 0, 0, ow, oh);
-  if (typeof bmp.close === "function") bmp.close();
+  sctx.drawImage(drawable, 0, 0, ow, oh);
 
   // Master copy at higher quality — every edit re-derives from this, so
   // it's encoded once, generously, and only the *export* uses the
@@ -2828,7 +2831,7 @@ async function _scanProcessFile(file) {
     crop: null,           // null = full frame, else [[x,y] ×4] TL,TR,BR,BL in source px
     jpeg: null, w: ow, h: oh, thumb: "",
   };
-  await _scanComputeOutput(page, src);    // reuse the canvas we already decoded
+  await _scanComputeOutput(page, src);    // reuse the canvas we already drew
   return page;
 }
 
@@ -3198,8 +3201,8 @@ function renderDocumentScanner() {
       <input id="scan-file" type="file" accept="image/*" capture="environment" multiple hidden>
 
       <div class="scan-intro">
-        Take a photo of each page with your phone. Pages combine into one
-        PDF you can send to dispatch or save.
+        Scan each page with your phone camera. Pages combine into one PDF
+        you can send to dispatch or save.
       </div>
 
       <div id="scan-pages" class="scan-pages"></div>
@@ -3208,6 +3211,7 @@ function renderDocumentScanner() {
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
         <span id="scan-add-label">Add a page</span>
       </button>
+      <button id="scan-pick" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Choose from photos</button>
 
       <div class="scan-namefield" id="scan-namefield" style="display:none">
         <label class="field-label" for="scan-name">Document name</label>
@@ -3223,8 +3227,20 @@ function renderDocumentScanner() {
 
   const fileInput = document.getElementById("scan-file");
   const addBtn    = document.getElementById("scan-add");
+  const pickBtn   = document.getElementById("scan-pick");
 
-  addBtn.addEventListener("click", () => { if (!_scanBusy) fileInput.click(); });
+  // "Add a page" opens the live camera when the device supports it (the
+  // world-class path — live viewfinder, auto-capture, batch pages).
+  // Where getUserMedia isn't available (or is blocked) it falls back to
+  // the OS photo-capture input. "Choose from photos" always uses the
+  // library picker.
+  const _hasCam = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  addBtn.addEventListener("click", () => {
+    if (_scanBusy) return;
+    if (_hasCam) _scanOpenCamera();
+    else fileInput.click();
+  });
+  pickBtn.addEventListener("click", () => { if (!_scanBusy) fileInput.click(); });
 
   fileInput.addEventListener("change", async (e) => {
     const files = Array.from(e.target.files || []);
@@ -3563,6 +3579,182 @@ function _scanCloseEditor() {
   _scanEditor.overlay.remove();
   document.body.classList.remove("scan-editing");
   _scanEditor = null;
+}
+
+// ── Live camera (auto-capture) ──────────────────────────────────────
+// A full-screen viewfinder over the rear camera. Tap the shutter, or
+// leave Auto on and the app fires when the frame holds still over a
+// document. Pages accumulate without leaving the camera; Done returns
+// to the list. Falls back to the OS photo input if getUserMedia fails
+// (permission denied, no camera, unsupported).
+let _scanCam = null;
+
+async function _scanOpenCamera() {
+  if (_scanCam) return;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false,
+    });
+  } catch (err) {
+    toast("Camera unavailable — pick a photo instead", "warn");
+    document.getElementById("scan-file")?.click();
+    return;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "scan-cam";
+  overlay.innerHTML = `
+    <video class="scan-cam-video" id="scan-cam-video" autoplay playsinline muted></video>
+    <div class="scan-cam-guide" aria-hidden="true"></div>
+    <div class="scan-cam-top">
+      <button class="scan-cam-icon" id="scan-cam-close" type="button" aria-label="Close camera">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <button class="scan-cam-auto on" id="scan-cam-auto" type="button" aria-pressed="true">Auto</button>
+      <button class="scan-cam-icon" id="scan-cam-torch" type="button" aria-label="Toggle flashlight" hidden>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6l-1 7h3l-7 13 2-9H8z"/></svg>
+      </button>
+    </div>
+    <div class="scan-cam-status" id="scan-cam-status">Point at a document</div>
+    <div class="scan-cam-bottom">
+      <div class="scan-cam-count" id="scan-cam-count">0 pages</div>
+      <button class="scan-cam-shutter" id="scan-cam-shutter" type="button" aria-label="Capture page"></button>
+      <button class="scan-cam-done" id="scan-cam-done" type="button">Done</button>
+    </div>
+    <div class="scan-cam-flash" id="scan-cam-flash" aria-hidden="true"></div>`;
+  document.body.appendChild(overlay);
+  document.body.classList.add("scan-camming");
+
+  const video = overlay.querySelector("#scan-cam-video");
+  video.srcObject = stream;
+  try { await video.play(); } catch {}
+
+  _scanCam = {
+    stream, video, overlay,
+    auto: true, added: 0, busy: false, armed: true, steady: 0, prev: null, loop: null,
+    sample: document.createElement("canvas"),
+    track: stream.getVideoTracks()[0] || null,
+  };
+  _scanCam.sample.width = 48; _scanCam.sample.height = 36;
+  _scanCamUpdateCount();
+
+  // Torch, only where the device exposes the capability.
+  try {
+    const caps = _scanCam.track?.getCapabilities?.();
+    if (caps && caps.torch) {
+      const tb = overlay.querySelector("#scan-cam-torch");
+      tb.hidden = false;
+      let on = false;
+      tb.addEventListener("click", async () => {
+        on = !on;
+        try { await _scanCam.track.applyConstraints({ advanced: [{ torch: on }] }); tb.classList.toggle("on", on); }
+        catch { on = !on; }
+      });
+    }
+  } catch {}
+
+  overlay.querySelector("#scan-cam-close").addEventListener("click", () => _scanCloseCamera());
+  overlay.querySelector("#scan-cam-done").addEventListener("click", () => _scanCloseCamera());
+  overlay.querySelector("#scan-cam-shutter").addEventListener("click", () => _scanCamCapture());
+  const autoBtn = overlay.querySelector("#scan-cam-auto");
+  autoBtn.addEventListener("click", () => {
+    _scanCam.auto = !_scanCam.auto;
+    autoBtn.classList.toggle("on", _scanCam.auto);
+    autoBtn.setAttribute("aria-pressed", String(_scanCam.auto));
+    _scanCamStatus(_scanCam.auto ? "Point at a document" : "Tap the shutter to capture");
+  });
+
+  _scanCamStabilityLoop();
+}
+
+// Poll the frame ~4×/sec, measuring motion as the mean luma change over
+// a tiny downsample. When the frame holds still for a couple of ticks —
+// and Auto is on and we're armed — fire a capture. After a shot we
+// disarm until the scene changes (page turned / camera moved) so a
+// steady hand doesn't machine-gun duplicates. The shutter button always
+// works regardless of arm state.
+function _scanCamStabilityLoop() {
+  const cam = _scanCam;
+  if (!cam) return;
+  const sctx = cam.sample.getContext("2d", { willReadFrequently: true });
+  const W = cam.sample.width, H = cam.sample.height;
+  const STEADY = 3.2;   // mean luma delta below which the frame is "still"
+
+  cam.loop = setInterval(() => {
+    if (!_scanCam || cam.busy) return;
+    const v = cam.video;
+    if (!v.videoWidth) return;
+    sctx.drawImage(v, 0, 0, W, H);
+    const cur = sctx.getImageData(0, 0, W, H).data;
+    if (cam.prev) {
+      let diff = 0;
+      for (let p = 0; p < cur.length; p += 4) {
+        const a = cur[p] * 0.299 + cur[p + 1] * 0.587 + cur[p + 2] * 0.114;
+        const b = cam.prev[p] * 0.299 + cam.prev[p + 1] * 0.587 + cam.prev[p + 2] * 0.114;
+        diff += Math.abs(a - b);
+      }
+      diff /= (cur.length / 4);
+      if (diff < STEADY) {
+        cam.steady++;
+        if (cam.auto && cam.armed && cam.steady >= 2) _scanCamCapture();
+        else if (cam.auto && cam.armed) _scanCamStatus("Hold steady…");
+      } else {
+        cam.steady = 0;
+        if (!cam.armed && diff > STEADY * 2) cam.armed = true;   // scene moved → re-arm
+        if (cam.auto && cam.armed) _scanCamStatus("Point at a document");
+      }
+    }
+    cam.prev = cur;
+  }, 260);
+}
+
+function _scanCamStatus(text) {
+  const el = document.getElementById("scan-cam-status");
+  if (el) el.textContent = text;
+}
+function _scanCamUpdateCount() {
+  const el = document.getElementById("scan-cam-count");
+  if (el) el.textContent = `${_scanPages.length} page${_scanPages.length === 1 ? "" : "s"}`;
+}
+
+async function _scanCamCapture() {
+  const cam = _scanCam;
+  if (!cam || cam.busy) return;
+  const v = cam.video;
+  if (!v.videoWidth) return;
+  cam.busy = true; cam.armed = false; cam.steady = 0;
+  _scanCamStatus("Captured ✓");
+  _haptic("success");
+
+  const flash = document.getElementById("scan-cam-flash");
+  if (flash) { flash.classList.add("fire"); setTimeout(() => flash.classList.remove("fire"), 220); }
+
+  try {
+    const grab = document.createElement("canvas");
+    grab.width = v.videoWidth; grab.height = v.videoHeight;
+    grab.getContext("2d").drawImage(v, 0, 0);
+    _scanPages.push(await _scanMakePage(grab, grab.width, grab.height));
+    cam.added++;
+    _scanCamUpdateCount();
+  } catch {
+    toast("Couldn't capture that frame — try again", "warn");
+  }
+  cam.busy = false;
+  cam.prev = null;   // fresh motion baseline before we re-arm
+}
+
+function _scanCloseCamera() {
+  const cam = _scanCam;
+  if (!cam) return;
+  if (cam.loop) clearInterval(cam.loop);
+  try { cam.stream.getTracks().forEach((t) => t.stop()); } catch {}
+  cam.overlay.remove();
+  document.body.classList.remove("scan-camming");
+  _scanCam = null;
+  _scanRenderPages();
+  _haptic("tap");
 }
 
 // ── Chat ────────────────────────────────────────────────────────────
