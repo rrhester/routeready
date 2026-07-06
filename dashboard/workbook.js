@@ -724,8 +724,9 @@ const FUNCS = {
 // Everything below fills out the published Sheets function list
 // (support.google.com/docs/table/25273). Excluded by design: functions
 // that call Google services or fetch external data (GOOGLEFINANCE,
-// GOOGLETRANSLATE, DETECTLANGUAGE, IMAGE, SPARKLINE, QUERY, IMPORT*)
-// and GETPIVOTDATA (no pivot tables). Array-returning functions work
+// GOOGLETRANSLATE, DETECTLANGUAGE, IMAGE, SPARKLINE, IMPORT*)
+// and GETPIVOTDATA (no pivot tables). QUERY is supported (a pragmatic
+// subset — see runQuery). Array-returning functions work
 // as in-formula values and spill onto the grid from the origin cell.
 
 // ── Numerics core (special functions for the statistical family) ───────────
@@ -2390,12 +2391,212 @@ const ERROR_TYPE_CODES = { "#NULL": 1, "#DIV/0": 2, "#VALUE": 3, "#REF": 4, "#NA
 // R1C1 absolute reference: R3C2 (row 3, col 2), optional :R5C4 range end
 const R1C1_RE = /^R(\d{1,7})C(\d{1,5})$/i;
 
+// ── QUERY: a pragmatic subset of the Google Sheets query language ────────────
+// Supports SELECT (cols + sum/avg/count/max/min), WHERE (comparisons,
+// contains/starts with/ends with, is [not] null, matches, and/or/not, parens),
+// GROUP BY, ORDER BY, LIMIT, OFFSET. Column refs are A,B,C… or Col1,Col2…
+// (the data range's own columns). LABEL/FORMAT/PIVOT are not supported.
+const QUERY_KW = new Set(["select", "where", "group", "order", "by", "limit", "offset", "and", "or", "not", "asc", "desc", "contains", "starts", "ends", "with", "is", "null", "matches", "like", "true", "false", "date", "sum", "avg", "count", "max", "min"]);
+function queryTokenize(src) {
+  const toks = []; let i = 0;
+  const push = (t, v) => toks.push({ t, v });
+  while (i < src.length) {
+    const ch = src[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    if (ch === "'" || ch === '"') { const q = ch; let s = ""; i++; while (i < src.length && src[i] !== q) s += src[i++]; i++; push("str", s); continue; }
+    if (/[0-9]/.test(ch) || (ch === "." && /[0-9]/.test(src[i + 1] || ""))) { let s = ""; while (i < src.length && /[0-9.]/.test(src[i])) s += src[i++]; push("num", parseFloat(s)); continue; }
+    if (/[A-Za-z_]/.test(ch)) { let s = ""; while (i < src.length && /[A-Za-z0-9_]/.test(src[i])) s += src[i++]; const low = s.toLowerCase(); push(QUERY_KW.has(low) ? low : "id", s); continue; }
+    const two = src.slice(i, i + 2);
+    if (two === "<=" || two === ">=" || two === "!=" || two === "<>") { push("op", two === "<>" ? "!=" : two); i += 2; continue; }
+    if ("=<>".includes(ch)) { push("op", ch); i++; continue; }
+    if (ch === "(") { push("(", ch); i++; continue; }
+    if (ch === ")") { push(")", ch); i++; continue; }
+    if (ch === ",") { push(",", ch); i++; continue; }
+    if (ch === "*") { push("star", ch); i++; continue; }
+    throw new FormulaError("#VALUE", `QUERY: unexpected '${ch}'`);
+  }
+  return toks;
+}
+// map a column identifier (A / Col1) to a 0-based index within the data range
+function queryColIndex(id, width) {
+  const m = /^col(\d+)$/i.exec(id);
+  let idx;
+  if (m) idx = +m[1] - 1;
+  else if (/^[A-Za-z]{1,3}$/.test(id)) idx = colIndex(id.toUpperCase());
+  else throw new FormulaError("#VALUE", `QUERY: unknown column '${id}'`);
+  if (idx < 0 || idx >= width) throw new FormulaError("#VALUE", `QUERY: column '${id}' out of range`);
+  return idx;
+}
+function runQuery(grid, queryStr, headerRows) {
+  const width = grid.width;
+  const allRows = grid.rows.map((r) => r.slice());
+  // header detection: explicit count, else auto (first row all-text over numeric data)
+  let hRows = Number.isInteger(headerRows) && headerRows >= 0 ? headerRows : null;
+  if (hRows == null) {
+    hRows = 0;
+    if (allRows.length >= 2) {
+      const firstText = allRows[0].every((v) => v == null || v === "" || (typeof v !== "number" && cellNumeric(v) == null));
+      const restNum = allRows.slice(1).some((row) => row.some((v) => cellNumeric(v) != null));
+      if (firstText && restNum) hRows = 1;
+    }
+  }
+  const headers = allRows.slice(0, hRows);
+  const data = allRows.slice(hRows);
+  const headerLabel = (idx) => headers.length ? headers.map((h) => h[idx]).filter((v) => v != null && v !== "").join(" ") || colLabel(idx) : colLabel(idx);
+
+  const toks = queryTokenize(queryStr);
+  let p = 0;
+  const peek = () => toks[p];
+  const eat = (t) => { const tk = toks[p]; if (!tk || (t && tk.t !== t && tk.v !== t)) throw new FormulaError("#VALUE", `QUERY: expected ${t}`); p++; return tk; };
+  const isKw = (v) => peek() && peek().t === v;
+
+  // ── SELECT ──
+  let select = null; // null = all columns; else [{col idx | agg}]
+  if (isKw("select")) {
+    p++;
+    if (peek() && peek().t === "star") { p++; select = null; }
+    else {
+      select = [];
+      for (;;) {
+        const tk = peek();
+        if (tk && ["sum", "avg", "count", "max", "min"].includes(tk.t)) {
+          const agg = tk.t; p++; eat("("); const col = eat("id").v; eat(")");
+          select.push({ agg, idx: queryColIndex(col, width) });
+        } else {
+          const col = eat("id").v;
+          select.push({ idx: queryColIndex(col, width) });
+        }
+        if (peek() && peek().t === ",") { p++; continue; }
+        break;
+      }
+    }
+  }
+  // ── WHERE ──  (recursive-descent boolean expression)
+  const valOf = () => {
+    const tk = peek();
+    if (!tk) throw new FormulaError("#VALUE", "QUERY: bad WHERE");
+    if (tk.t === "num") { p++; return { lit: tk.v }; }
+    if (tk.t === "str") { p++; return { lit: tk.v }; }
+    if (tk.t === "date") { p++; const s = eat("str").v; return { lit: dvDateSerial(s) }; }
+    if (tk.t === "null") { p++; return { lit: null }; }
+    if (tk.t === "id") { p++; return { col: queryColIndex(tk.v, width) }; }
+    throw new FormulaError("#VALUE", "QUERY: bad WHERE operand");
+  };
+  const parsePrimary = () => {
+    if (peek() && peek().t === "(") { p++; const e = parseOr(); eat(")"); return e; }
+    if (peek() && peek().t === "not") { p++; return { op: "not", a: parsePrimary() }; }
+    const left = valOf();
+    const tk = peek();
+    if (!tk) throw new FormulaError("#VALUE", "QUERY: incomplete condition");
+    if (tk.t === "op") { p++; return { op: tk.v, a: left, b: valOf() }; }
+    if (tk.t === "contains" || tk.t === "matches" || tk.t === "like") { p++; return { op: tk.t, a: left, b: valOf() }; }
+    if (tk.t === "starts" || tk.t === "ends") { p++; eat("with"); return { op: tk.t, a: left, b: valOf() }; }
+    if (tk.t === "is") { p++; let neg = false; if (peek() && peek().t === "not") { neg = true; p++; } eat("null"); return { op: neg ? "isnotnull" : "isnull", a: left }; }
+    throw new FormulaError("#VALUE", "QUERY: bad operator in WHERE");
+  };
+  const parseAnd = () => { let e = parsePrimary(); while (isKw("and")) { p++; e = { op: "and", a: e, b: parsePrimary() }; } return e; };
+  const parseOr = () => { let e = parseAnd(); while (isKw("or")) { p++; e = { op: "or", a: e, b: parseAnd() }; } return e; };
+  let where = null;
+  if (isKw("where")) { p++; where = parseOr(); }
+  // ── GROUP BY ──
+  let groupBy = null;
+  if (isKw("group")) { p++; eat("by"); groupBy = []; for (;;) { groupBy.push(queryColIndex(eat("id").v, width)); if (peek() && peek().t === ",") { p++; continue; } break; } }
+  // ── ORDER BY ──
+  let orderBy = null;
+  if (isKw("order")) { p++; eat("by"); orderBy = []; for (;;) { const idx = queryColIndex(eat("id").v, width); let asc = true; if (isKw("asc")) p++; else if (isKw("desc")) { asc = false; p++; } orderBy.push({ idx, asc }); if (peek() && peek().t === ",") { p++; continue; } break; } }
+  // ── LIMIT / OFFSET ──
+  let limit = null, offset = 0;
+  if (isKw("limit")) { p++; limit = Math.trunc(eat("num").v); }
+  if (isKw("offset")) { p++; offset = Math.trunc(eat("num").v); }
+  if (peek()) throw new FormulaError("#VALUE", `QUERY: trailing '${peek().v}'`);
+
+  // ── evaluate ──
+  const num = (v) => cellNumeric(v);
+  const evalCond = (node, row) => {
+    const A = node.a && ("col" in node.a ? row[node.a.col] : node.a.lit);
+    const B = node.b && ("col" in node.b ? row[node.b.col] : node.b.lit);
+    switch (node.op) {
+      case "and": return evalCond(node.a, row) && evalCond(node.b, row);
+      case "or": return evalCond(node.a, row) || evalCond(node.b, row);
+      case "not": return !evalCond(node.a, row);
+      case "isnull": return A == null || A === "";
+      case "isnotnull": return !(A == null || A === "");
+      case "contains": return String(A ?? "").toLowerCase().includes(String(B ?? "").toLowerCase());
+      case "starts": return String(A ?? "").toLowerCase().startsWith(String(B ?? "").toLowerCase());
+      case "ends": return String(A ?? "").toLowerCase().endsWith(String(B ?? "").toLowerCase());
+      case "matches": case "like": { try { const re = node.op === "like" ? new RegExp("^" + String(B).replace(/%/g, ".*").replace(/_/g, ".") + "$", "i") : new RegExp("^" + String(B) + "$"); return re.test(String(A ?? "")); } catch (_) { return false; } }
+      default: { // comparisons
+        const an = num(A), bn = num(B);
+        let c;
+        if (an != null && bn != null) c = an - bn;
+        else c = String(A ?? "") < String(B ?? "") ? -1 : String(A ?? "") > String(B ?? "") ? 1 : 0;
+        switch (node.op) { case "=": return c === 0; case "!=": return c !== 0; case "<": return c < 0; case ">": return c > 0; case "<=": return c <= 0; case ">=": return c >= 0; }
+        return false;
+      }
+    }
+  };
+  let rows = where ? data.filter((row) => evalCond(where, row)) : data;
+
+  const aggregate = (agg, idx, group) => {
+    const nums = group.map((r) => num(r[idx])).filter((v) => v != null);
+    switch (agg) {
+      case "count": return group.filter((r) => r[idx] != null && r[idx] !== "").length;
+      case "sum": return nums.reduce((a, b) => a + b, 0);
+      case "avg": return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+      case "max": return nums.length ? Math.max(...nums) : null;
+      case "min": return nums.length ? Math.min(...nums) : null;
+    }
+  };
+  let out;
+  const sel = select || Array.from({ length: width }, (_, idx) => ({ idx }));
+  const hasAgg = sel.some((s) => s.agg);
+  if (groupBy || hasAgg) {
+    const groups = new Map();
+    const keys = groupBy || [];
+    for (const row of rows) {
+      const k = keys.map((i) => String(row[i] ?? "")).join(" ");
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(row);
+    }
+    if (!groups.size && !keys.length) groups.set("", []); // aggregate with no rows still yields one line
+    out = [...groups.values()].map((group) => sel.map((s) => s.agg ? aggregate(s.agg, s.idx, group) : (group[0] ? group[0][s.idx] : null)));
+  } else {
+    out = rows.map((row) => sel.map((s) => row[s.idx]));
+  }
+  if (orderBy) {
+    out = out.map((r, i) => ({ r, src: rows[i] || [] })).sort((x, y) => {
+      for (const o of orderBy) {
+        const xv = (groupBy || hasAgg) ? null : x.src[o.idx], yv = (groupBy || hasAgg) ? null : y.src[o.idx];
+        const a = xv != null ? xv : x.r[sel.findIndex((s) => !s.agg && s.idx === o.idx)];
+        const b = yv != null ? yv : y.r[sel.findIndex((s) => !s.agg && s.idx === o.idx)];
+        const an = num(a), bn = num(b);
+        let c = an != null && bn != null ? an - bn : String(a ?? "") < String(b ?? "") ? -1 : String(a ?? "") > String(b ?? "") ? 1 : 0;
+        if (c) return o.asc ? c : -c;
+      }
+      return 0;
+    }).map((x) => x.r);
+  }
+  if (offset > 0) out = out.slice(offset);
+  if (limit != null) out = out.slice(0, limit);
+  // header row: selected column labels / aggregate names
+  const headRow = sel.map((s) => s.agg ? `${s.agg} ${headerLabel(s.idx)}` : headerLabel(s.idx));
+  return [headRow, ...out];
+}
+
 // ── Raw-argument registry ────────────────────────────────────────────────────
 // These functions receive their argument AST nodes unevaluated: lambdas,
 // reference probes, error catchers, dynamic references, and the
 // array-shaping family (which wants grids, not flattened values).
 
 const FUNCS_RAW = {
+  QUERY: (args, ctx) => {
+    if (args.length < 2) throw new FormulaError("#ERROR", "QUERY takes data and a query string");
+    const grid = argGrid(args[0], ctx);
+    const q = fmtScalar(deArr(evalNode(args[1], ctx)));
+    const headers = args.length > 2 ? Math.trunc(toNum(deArr(evalNode(args[2], ctx)))) : null;
+    const result = runQuery(grid, q, headers);
+    return new Arr(result.length ? result : [[""]]);
+  },
   // ── logical: LET / LAMBDA family ──
   LET: (args, ctx) => {
     if (args.length < 3 || args.length % 2 === 0) throw new FormulaError("#ERROR", "LET takes name/value pairs then a result");
@@ -8247,6 +8448,7 @@ const FUNCTION_META = [
   // array / filter
   { n: "ARRAYFORMULA", sig: "ARRAYFORMULA(array_expression)", d: "Evaluate as an array" },
   { n: "FILTER", sig: "FILTER(range, condition, …)", d: "Keep rows meeting conditions" },
+  { n: "QUERY", sig: "QUERY(data, query, [headers])", d: "Run a query (select/where/group by/order by) over a range" },
   { n: "SORT", sig: "SORT(range, [sort_column], [ascending], …)", d: "Sort a range" },
   { n: "SORTN", sig: "SORTN(range, [n], [ties_mode], [sort_column], [ascending], …)", d: "Top-N rows, sorted" },
   { n: "UNIQUE", sig: "UNIQUE(range, [by_column], [exactly_once])", d: "Distinct rows" },
@@ -17503,7 +17705,7 @@ export const __engine = {
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, solveGoalSeek,
-  condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected,
+  condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected, runQuery,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   dateRangeSerials, controlPredicate, DATE_PRESETS,
