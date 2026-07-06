@@ -75,4 +75,19 @@ ok("recalcSheet resolves structured refs from meta.tables", () => {
   near(sheet.cells.get("1,3").computed, 100);
 });
 
+// ── total row: SUBTOTAL over Table[Col] must exclude the total row itself ─────
+ok("total row aggregates data without self-reference", () => {
+  const c = new Map();
+  const put = (ref, v, isF) => { const rc = parseCellRef(ref); c.set(rc.row + "," + rc.col, { value: isF ? null : String(v), formula: isF ? v : null, type: isF ? null : (isFinite(Number(v)) ? "number" : "text"), computed: null, err: null, format: {} }); };
+  put("A1", "Region"); put("B1", "Amount");
+  put("A2", "East"); put("B2", 100);
+  put("A3", "West"); put("B3", 250);
+  put("A4", "Total"); put("B4", "=SUBTOTAL(109,Sales[Amount])", true); // the total row
+  // table spans header+data+total; totalRow=true ⇒ Sales[Amount] = B2:B3 only
+  const sheet = { id: "s", blockId: null, name: "S", rowCount: 50, colCount: 26, cells: c, spill: new Map(), meta: { tables: [{ name: "Sales", r0: 0, c0: 0, r1: 3, c1: 1, totalRow: true }] } };
+  recalcSheet(sheet);
+  assert.equal(sheet.cells.get("3,1").err, null, "no circular error");
+  near(sheet.cells.get("3,1").computed, 350);
+});
+
 console.log(`✓ tables / structured refs: ${n} tests passed`);
