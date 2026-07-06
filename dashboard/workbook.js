@@ -11465,6 +11465,91 @@ function xlsxSheetName(name, used) {
   return out;
 }
 
+// Serialize a sheet's conditional-formatting rules to OOXML. Value rules become
+// top-left-relative `expression` formulas (uniformly valid; Excel applies them
+// per-cell across the sqref); color scales map directly. A malformed rule is
+// skipped rather than risk producing a file Excel refuses to open.
+function condFormatXml(sheet, dxfFor, nextPriority) {
+  const rules = sheet && sheet.meta && sheet.meta.condFormat;
+  if (!Array.isArray(rules) || !rules.length) return "";
+  const q = (s) => `"${xmlEsc(String(s).replace(/"/g, ""))}"`;
+  let out = "";
+  for (const rule of rules) {
+    try {
+      if (![rule.r0, rule.c0, rule.r1, rule.c1].every(Number.isInteger)) continue;
+      const sqref = `${colLabel(rule.c0)}${rule.r0 + 1}:${colLabel(rule.c1)}${rule.r1 + 1}`;
+      const tl = `${colLabel(rule.c0)}${rule.r0 + 1}`; // top-left relative anchor
+      const p = nextPriority();
+      if (rule.type === "colorscale") {
+        const stops = (WB_CF_SCALES[rule.scale] || WB_CF_SCALES.gyr).stops;
+        const three = stops.length >= 3;
+        const cvo = three ? `<cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/>` : `<cfvo type="min"/><cfvo type="max"/>`;
+        const cols = (three ? [stops[0], stops[1], stops[stops.length - 1]] : [stops[0], stops[stops.length - 1]])
+          .map((h) => `<color rgb="FF${h.replace("#", "").toUpperCase()}"/>`).join("");
+        out += `<conditionalFormatting sqref="${sqref}"><cfRule type="colorScale" priority="${p}"><colorScale>${cvo}${cols}</colorScale></cfRule></conditionalFormatting>`;
+        continue;
+      }
+      let formula;
+      if (rule.type === "formula" || rule.kind === "formula") {
+        formula = String(rule.formula || "").replace(/^=/, "");
+      } else {
+        const num1 = cellNumeric(rule.v1);
+        switch (rule.kind) {
+          case "gt": formula = `${tl}>${num1 != null ? num1 : q(rule.v1)}`; break;
+          case "lt": formula = `${tl}<${num1 != null ? num1 : q(rule.v1)}`; break;
+          case "between": { const a = +rule.v1, b = +rule.v2; if (isNaN(a) || isNaN(b)) continue; formula = `AND(${tl}>=${Math.min(a, b)},${tl}<=${Math.max(a, b)})`; break; }
+          case "eq": formula = `${tl}=${num1 != null ? num1 : q(rule.v1)}`; break;
+          case "contains": formula = `ISNUMBER(SEARCH(${q(rule.v1)},${tl}))`; break;
+          case "empty": formula = `LEN(TRIM(${tl}))=0`; break;
+          case "notempty": formula = `LEN(TRIM(${tl}))>0`; break;
+          default: continue;
+        }
+      }
+      if (!formula) continue;
+      out += `<conditionalFormatting sqref="${sqref}"><cfRule type="expression" dxfId="${dxfFor(rule.style)}" priority="${p}"><formula>${xmlEsc(formula)}</formula></cfRule></conditionalFormatting>`;
+    } catch (_) { /* skip a bad rule */ }
+  }
+  return out;
+}
+
+// Serialize a sheet's data-validation rules to OOXML <dataValidations>.
+function dataValidationXml(sheet) {
+  const rules = sheet && sheet.meta && sheet.meta.validation;
+  if (!Array.isArray(rules) || !rules.length) return "";
+  const OP = { between: "between", notbetween: "notBetween", "!=": "notEqual", "<>": "notEqual", "=": "equal", ">": "greaterThan", "<": "lessThan", ">=": "greaterThanOrEqual", "<=": "lessThanOrEqual" };
+  const items = [];
+  for (const rule of rules) {
+    try {
+      if (![rule.r0, rule.c0, rule.r1, rule.c1].every(Number.isInteger)) continue;
+      const sqref = `${colLabel(rule.c0)}${rule.r0 + 1}:${colLabel(rule.c1)}${rule.r1 + 1}`;
+      const f1 = (v) => `<formula1>${xmlEsc(String(v))}</formula1>`;
+      const f2 = (v) => `<formula2>${xmlEsc(String(v))}</formula2>`;
+      const wrap = (attrs, body) => `<dataValidation ${attrs} allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="${sqref}">${body}</dataValidation>`;
+      if (rule.type === "list") {
+        items.push(wrap(`type="list"`, f1(`"${(rule.list || []).join(",").replace(/"/g, "").slice(0, 250)}"`)));
+      } else if (rule.type === "range") {
+        if (!rule.source) continue;
+        items.push(wrap(`type="list"`, f1(String(rule.source).replace(/^=/, ""))));
+      } else if (rule.type === "checkbox") {
+        items.push(wrap(`type="list"`, f1(`"TRUE,FALSE"`)));
+      } else if (rule.type === "custom") {
+        if (!rule.formula) continue;
+        items.push(wrap(`type="custom"`, f1(String(rule.formula).replace(/^=/, ""))));
+      } else {
+        const op = OP[rule.op] || "between";
+        const t = rule.type === "textlen" ? "textLength" : rule.type === "date" ? "date" : "decimal";
+        const conv = rule.type === "date" ? dvDateSerial : (v) => v;
+        const v1 = conv(rule.v1);
+        if (v1 == null || v1 === "") continue;
+        let body = f1(v1);
+        if (rule.op === "between") { const v2 = conv(rule.v2); if (v2 == null || v2 === "") continue; body += f2(v2); }
+        items.push(wrap(`type="${t}" operator="${op}"`, body));
+      }
+    } catch (_) { /* skip a bad rule */ }
+  }
+  return items.length ? `<dataValidations count="${items.length}">${items.join("")}</dataValidations>` : "";
+}
+
 function buildXlsxBytes(sheets) {
   const enc = new TextEncoder();
   const XMLH = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`;
@@ -11486,6 +11571,20 @@ function buildXlsxBytes(sheets) {
   const borderIdx = new Map([["", 0]]);
   const xfs = [`<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>`];
   const xfIdx = new Map([["0|0|0||0||0|0", 0]]);
+
+  // Differential formats (dxf) for conditional-formatting rules, and a global
+  // priority counter (Excel wants unique priorities). CF/DV styles mirror the
+  // in-app palette (WB_CF_STYLES).
+  const DXF_STYLE = { green: { fg: "FF166534", bg: "FFDCFCE7" }, amber: { fg: "FF92400E", bg: "FFFEF3C7" }, red: { fg: "FFB91C1C", bg: "FFFEE2E2" }, blue: { fg: "FF1E40AF", bg: "FFDBEAFE" } };
+  const dxfs = [];
+  const dxfIdx = new Map();
+  const dxfFor = (styleKey) => {
+    const key = DXF_STYLE[styleKey] ? styleKey : "amber";
+    let id = dxfIdx.get(key);
+    if (id == null) { const st = DXF_STYLE[key]; id = dxfs.length; dxfs.push(`<dxf><font><color rgb="${st.fg}"/></font><fill><patternFill><bgColor rgb="${st.bg}"/></patternFill></fill></dxf>`); dxfIdx.set(key, id); }
+    return id;
+  };
+  let cfPriority = 1;
 
   const styleFor = (cell) => {
     const f = (cell && cell.format) || {};
@@ -11594,7 +11693,11 @@ function buildXlsxBytes(sheets) {
     const linkXml = links.length
       ? `<hyperlinks>${links.map((l, i) => `<hyperlink ref="${l.ref}" r:id="rlk${i + 1}"/>`).join("")}</hyperlinks>`
       : "";
-    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${linkXml}</worksheet>`;
+    const cfXml = condFormatXml(sheet, dxfFor, () => cfPriority++);
+    const dvXml = dataValidationXml(sheet);
+    // OOXML worksheet child order: …mergeCells, conditionalFormatting,
+    // dataValidations, hyperlinks…
+    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${cfXml}${dvXml}${linkXml}</worksheet>`;
     return { xml, links };
   };
 
@@ -11603,7 +11706,8 @@ function buildXlsxBytes(sheets) {
   const used = new Set();
   const names = sheets.map((sh) => xlsxSheetName(sh.name, used));
 
-  const stylesXml = `${XMLH}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/></numFmts><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="${borders.length}">${borders.join("")}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs></styleSheet>`;
+  const dxfXml = dxfs.length ? `<dxfs count="${dxfs.length}">${dxfs.join("")}</dxfs>` : "";
+  const stylesXml = `${XMLH}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/></numFmts><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="${borders.length}">${borders.join("")}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs>${dxfXml}</styleSheet>`;
   const workbookXml = `${XMLH}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n, i) => `<sheet name="${xmlEsc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`;
   const wbRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
   const rootRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
@@ -11921,6 +12025,13 @@ function exportBlockXlsx(g) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   wbLog("xlsx.exported", `exported ${sheets.length === 1 ? `sheet “${sheets[0].name}”` : `${sheets.length} sheets`} as an Excel file`, { target_type: "block", target_id: g.blockId });
   _toast("Excel file exported", "success");
+  // Charts and pivot tables aren't written to .xlsx yet — say so rather than
+  // let them vanish silently. (Values, formulas, formats, data validation and
+  // conditional formatting all export.)
+  const dropped = [];
+  if (sheets.some((sh) => Array.isArray(sh.meta && sh.meta.charts) && sh.meta.charts.length)) dropped.push("charts");
+  if (sheets.some((sh) => Array.isArray(sh.meta && sh.meta.pivots) && sh.meta.pivots.length)) dropped.push("pivot tables");
+  if (dropped.length) setTimeout(() => _toast(`Heads up: ${dropped.join(" and ")} aren't included in the Excel file — they stay in RouteReady.`, "info"), 600);
 }
 
 // ─── Charts ──────────────────────────────────────────────────────────────────

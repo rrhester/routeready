@@ -1227,4 +1227,29 @@ await okA("xlsx round-trip: cell formatting survives (percent, currency, bold, f
   assert.equal(wrapped.format.border, "all");
 });
 
+await okA("xlsx export: data validation + conditional formatting serialize (and still round-trip)", async () => {
+  const cells = new Map([["1,0", XC("5", "number")], ["2,0", XC("9", "number")], ["1,2", XC("3", "number")]]);
+  const meta = {
+    validation: [
+      { r0: 1, c0: 0, r1: 10, c1: 0, type: "list", list: ["Open", "Closed"], mode: "reject" },
+      { r0: 1, c0: 1, r1: 10, c1: 1, type: "date", op: ">=", v1: "2026-01-01" },
+    ],
+    condFormat: [
+      { r0: 1, c0: 0, r1: 10, c1: 0, kind: "gt", v1: "3", style: "green" },
+      { r0: 1, c0: 2, r1: 10, c1: 2, type: "colorscale", scale: "gyr" },
+    ],
+  };
+  const bytes = buildXlsxBytes([{ name: "S", cells, colWidths: {}, frozenRows: 0, frozenCols: 0, meta }]);
+  const xml = new TextDecoder().decode(bytes); // stored (uncompressed) entries ⇒ XML is plaintext
+  assert.ok(xml.includes("<dataValidations"), "dataValidations present");
+  assert.ok(xml.includes('type="list"'), "list validation present");
+  assert.ok(xml.includes('type="date"') && xml.includes('operator="greaterThanOrEqual"'), "date validation present");
+  assert.ok(xml.includes("<conditionalFormatting"), "conditionalFormatting present");
+  assert.ok(xml.includes('type="colorScale"'), "color scale present");
+  assert.ok(xml.includes('type="expression"'), "cell-value rule as expression present");
+  assert.ok(/<dxfs count="\d+"/.test(xml), "dxfs registered");
+  const parsed = await parseXlsxBytes(bytes); // reader must not choke on the augmented file
+  assert.ok(parsed.sheets[0].cells.length >= 3);
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);
