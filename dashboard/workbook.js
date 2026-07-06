@@ -5030,6 +5030,19 @@ function openRealtime() {
   } catch (e) { console.warn("workbook realtime:", e && e.message); }
 }
 
+// Same-cell edits are last-writer-wins (no OT/CRDT). We keep the local editor's
+// version when a remote write lands on a cell they have pending or are editing —
+// but, unlike before, we no longer drop the other user's change *silently*: a
+// cross-user divergence raises a debounced notice so the loser isn't invisible.
+const warnCellConflicts = debounce(() => {
+  const c = WB._conflicts ? WB._conflicts.size : 0;
+  if (!c) return;
+  _toast(c === 1
+    ? "Another editor changed a cell you're editing — your version was kept. Reload to load theirs."
+    : `Another editor changed ${c} cells you're editing — your versions were kept. Reload to load theirs.`, "info");
+  WB._conflicts = new Set();
+}, 1200);
+
 function onRemoteCell(payload) {
   try {
     const row = payload.eventType === "DELETE" ? payload.old : payload.new;
@@ -5037,12 +5050,25 @@ function onRemoteCell(payload) {
     const sheet = findSheet(row.sheet_id);
     if (!sheet) return;
     const key = cellKey(row.row_index, row.col_index);
-    // Skip while this cell is dirty locally (our write, or a conflict
-    // the local editor wins until their save lands) or being edited.
-    const dirtySet = WB.dirtyCells.get(sheet.id);
-    if (dirtySet && dirtySet.has(key)) return;
+    const me = _me();
+    const fromOther = !(me && row.updated_by === me.id); // ignore the echo of our own save
     const g = [...GRIDS.values()].find((x) => x.sheet && x.sheet.id === sheet.id);
-    if (g && g.editing && cellKey(g.editing.r, g.editing.c) === key) return;
+    const dirtySet = WB.dirtyCells.get(sheet.id);
+    const editingThis = g && g.editing && cellKey(g.editing.r, g.editing.c) === key;
+    if ((dirtySet && dirtySet.has(key)) || editingThis) {
+      // local version wins the flush; surface it if a *different* user's write
+      // actually differs from what we hold, so the lost update isn't silent
+      if (fromOther && payload.eventType !== "DELETE") {
+        const cur = sheet.cells.get(key);
+        const incoming = row.formula || row.value;
+        const local = cur ? (cur.formula || cur.value) : null;
+        if (String(incoming ?? "") !== String(local ?? "")) {
+          (WB._conflicts || (WB._conflicts = new Set())).add(sheet.id + ":" + key);
+          warnCellConflicts();
+        }
+      }
+      return;
+    }
     if (payload.eventType === "DELETE") sheet.cells.delete(key);
     else ingestCellRow(sheet, row);
     recalcWithSiblings(sheet);
