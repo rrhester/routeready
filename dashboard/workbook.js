@@ -13865,9 +13865,16 @@ function bindEmbedInteract(g) {
   if (g._embedsBound) return;
   g._embedsBound = true;
   g.els.charts.addEventListener("mousedown", (e) => {
-    if (!WB.canEdit || e.button !== 0) return;
+    if (e.button !== 0) return;
     const card = e.target.closest("[data-wb-embed-id]");
-    if (!card || e.target.closest("button")) return;   // let button clicks through
+    if (!card) return;                                 // not on a widget → let the grid handle it
+    // a widget owns its own mousedowns — stop them reaching the grid's
+    // cell-selection handler, which calls preventDefault() and would stop a
+    // filter <select>/<input> from opening. (We don't preventDefault here, so
+    // native controls still work.)
+    e.stopPropagation();
+    if (!WB.canEdit) return;
+    if (e.target.closest("button, select, input, textarea, a, label")) return;   // native controls
     const resizing = !!e.target.closest("[data-wb-embed-resize]");
     const dragging = !resizing && !!e.target.closest("[data-wb-embed-drag]");
     if (!resizing && !dragging) return;
