@@ -13224,6 +13224,9 @@ function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
     );
 
     if ((model.sample_days || 0) < MIN_MODEL_DAYS || baseline <= 0) {
+      // Not enough history to predict — don't leave a stale risk map for the
+      // scheduler to act on.
+      window._rrWeatherCalloutRisk = null;
       // Feature is discoverable but honest about needing more data.
       if ((model.sample_days || 0) > 0 && upByDate.size > 0) {
         return `<div class="wx-callout-risk learning">
@@ -13246,6 +13249,10 @@ function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
     });
 
     const rows = [];
+    // Per-date weather risk, shared with the Callout Exposure engine in the
+    // schedule view so it can recommend backups off the forecast. Keyed by
+    // ISO date; `elevated` marks days worth acting on.
+    const riskByDate = {};
     for (const d of dayPairs) {
       let iso;
       try { iso = fmtIsoDate(new Date(d.startTime)); } catch { continue; }
@@ -13268,6 +13275,8 @@ function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
       // Flag on the weather-only lift when we can isolate it; otherwise fall
       // back to the naive rate-vs-baseline lift and say so.
       const effLift = controlled ? b.weatherLift : (baseline > 0 ? rate / baseline : 0);
+      // Record the day's risk for the scheduler before any display filtering.
+      riskByDate[iso] = { bucket, rate, effLift, elevated: effLift >= ELEVATED_FACTOR };
       if (effLift < ELEVATED_FACTOR) continue; // not elevated by weather
       const expected = scheduled * rate;
       if (expected < 1) continue; // fewer than one expected callout — skip noise
@@ -13290,6 +13299,10 @@ function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
         trusted,
       });
     }
+    // Publish the risk map for the Callout Exposure engine (schedule view),
+    // even when there's nothing elevated enough to show on the card.
+    window._rrWeatherCalloutRisk = { generatedAt: new Date().toISOString(), days: riskByDate };
+
     if (rows.length === 0) return "";
     rows.sort((a, b) => b.expected - a.expected || b.effLift - a.effLift);
 
@@ -54163,6 +54176,20 @@ async function renderScheduleWeek() {
       try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
       catch { return iso; }
     };
+    // Weather-driven call-out risk, produced by the dashboard weather card
+    // (window._rrWeatherCalloutRisk). Best-effort + strictly additive: when
+    // it's absent, stale, or not elevated, exposure behaves exactly as before.
+    const wxRisk = (() => {
+      const w = window._rrWeatherCalloutRisk;
+      if (!w || !w.days) return null;
+      const age = Date.now() - Date.parse(w.generatedAt || 0);
+      if (!(age >= 0) || age > 24 * 3600 * 1000) return null; // ignore stale
+      return w.days;
+    })();
+    const weatherFor = (iso) => {
+      const r = wxRisk && wxRisk[iso];
+      return r && r.elevated ? r : null;
+    };
     const days = [];
     for (const [iso, set] of schedByDate) {
       const scheduledDrivers = set.size;
@@ -54179,7 +54206,14 @@ async function renderScheduleWeek() {
       // must not read as "exposed" when zero drivers are at risk.)
       const exposure = atRisk === 0 ? Math.min(rawExposure, 0) : rawExposure;
       const { status, label } = labelFor(exposure);
-      days.push({ iso, weekday: wkShort(iso), requiredRoutes, scheduledDrivers, cushionDrivers, atRisk, exposure, status, label });
+      // Forecast-driven need: expected weather call-outs vs the cushion. This
+      // is independent of the corrective-action exposure above — a fully
+      // "covered" day can still warrant a backup if snow is forecast.
+      const wr = weatherFor(iso);
+      const weatherExpected = wr ? Math.round(scheduledDrivers * (Number(wr.rate) || 0)) : 0;
+      const weatherNeed = wr ? Math.max(0, weatherExpected - Math.max(0, cushionDrivers)) : 0;
+      const weatherBucket = wr ? wr.bucket : null;
+      days.push({ iso, weekday: wkShort(iso), requiredRoutes, scheduledDrivers, cushionDrivers, atRisk, exposure, status, label, weatherExpected, weatherNeed, weatherBucket });
     }
     days.sort((a, b) => a.iso.localeCompare(b.iso));
     // Worst day = highest exposure (least covered). Tie → more at-risk, then earliest.
@@ -54203,8 +54237,12 @@ async function renderScheduleWeek() {
     // availability-override is on) available that weekday. We copy the
     // day's real shift (station / wave times / service type) so a created
     // backup looks like a genuine seat for that day.
+    // Days that warrant a backup: corrective-action exposure OR forecast
+    // weather need. Weather days that are already "exposed" just take the
+    // larger of the two needs.
+    const planDays = days.filter(d => d.exposure > 0 || (d.weatherNeed || 0) > 0);
     const recommendation = (() => {
-      if (exposedDays.length === 0) return { days: [], totalNeed: 0, totalAdds: 0, fullyResolves: true };
+      if (planDays.length === 0) return { days: [], totalNeed: 0, totalAdds: 0, fullyResolves: true };
       const DOWK = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
       const dayKeyOf = (iso) => DOWK[new Date(iso + "T00:00:00Z").getUTCDay()];
       const S = window._rrEffectiveSettings || {};
@@ -54289,8 +54327,13 @@ async function renderScheduleWeek() {
       const projected = new Map(daysPerDriver);           // days
       const projHours = new Map();                         // extra hours from picks so far
       const recDays = [];
-      for (const day of exposedDays) {
-        const need = day.exposure;
+      for (const day of planDays) {
+        const exposureNeed = day.exposure > 0 ? day.exposure : 0;
+        const weatherNeed = day.weatherNeed || 0;
+        const need = Math.max(exposureNeed, weatherNeed);
+        // Why this day is in the plan — drives the label in the drawer.
+        const reason = exposureNeed > 0 && weatherNeed > 0 ? "at-risk + weather"
+                     : exposureNeed > 0 ? "at-risk" : "weather";
         const dk = dayKeyOf(day.iso);
         const scheduledThatDay = schedByDate.get(day.iso) || new Set();
         const rep = repByDate.get(day.iso) || null;
@@ -54341,6 +54384,8 @@ async function renderScheduleWeek() {
           iso: day.iso,
           weekday: day.weekday,
           need,
+          reason,
+          weatherBucket: day.weatherBucket || null,
           picks,
           shortfall: Math.max(0, need - picks.length),
           // Station + wave times come from the rep shift; the route type is
@@ -54366,11 +54411,14 @@ async function renderScheduleWeek() {
       };
     })();
 
+    const weatherDays = days.filter(d => (d.weatherNeed || 0) > 0);
     return {
       days,
       worst,
       exposedDays,
       anyExposed: exposedDays.length > 0,
+      weatherDays,
+      anyWeather: weatherDays.length > 0,
       recommendation,
       weekStart: _schedStart,
     };
@@ -55143,8 +55191,12 @@ async function renderScheduleWeek() {
             "No drivers scheduled yet", false);
         }
         const tier = w.exposure > 0 ? "red" : "green";
-        const sub = `${w.atRisk} at-risk scheduled · ${w.cushionDrivers} cushion driver${w.cushionDrivers === 1 ? "" : "s"}`
-          + `<span class="oph-sub-worst">Worst day: ${escapeHtml(w.weekday)}</span>`;
+        // Weather-only risk stays green (it's a precaution, not a legal-
+        // exposure gap) but gets a hint so the operator knows to look.
+        const wxHint = (w.exposure <= 0 && ce.anyWeather)
+          ? `<span class="oph-sub-worst">⛅ weather risk: ${ce.weatherDays.length} day${ce.weatherDays.length === 1 ? "" : "s"}</span>`
+          : `<span class="oph-sub-worst">Worst day: ${escapeHtml(w.weekday)}</span>`;
+        const sub = `${w.atRisk} at-risk scheduled · ${w.cushionDrivers} cushion driver${w.cushionDrivers === 1 ? "" : "s"}` + wxHint;
         return row("callout", tier, "Callout Exposure", w.label, sub, true);
       })();
 
@@ -56289,24 +56341,34 @@ function bindSchedWeekNav() {
     e.preventDefault();
     const ce = window._rrCalloutExposure;
     if (!ce || !ce.worst) return;
+    const wxLabelFor = (b) => ({
+      alert: "severe-weather alert", snow: "snow", thunderstorm: "thunderstorms",
+      heavy_rain: "heavy rain", rain: "rain", heat: "extreme heat", cold: "freezing temps",
+    })[b] || "weather";
     const rowsHtml = ce.days.map(d => {
       const statusCls = d.exposure > 0 ? "exposed" : "covered";
+      // Forecast weather risk rides alongside the corrective-action status.
+      const wx = (d.weatherNeed || 0) > 0
+        ? `<span class="rr-callout-day-wx" title="Forecast: ~${d.weatherExpected} call-out${d.weatherExpected === 1 ? "" : "s"} from ${escapeHtml(wxLabelFor(d.weatherBucket))}">⛅ ${escapeHtml(wxLabelFor(d.weatherBucket))}</span>`
+        : "";
       return `
         <div class="rr-callout-day">
           <span class="rr-callout-day-name">${escapeHtml(d.weekday)}</span>
-          <span class="rr-callout-day-nums">${d.atRisk} at-risk · ${d.cushionDrivers} cushion</span>
+          <span class="rr-callout-day-nums">${d.atRisk} at-risk · ${d.cushionDrivers} cushion${wx}</span>
           <span class="rr-callout-day-status ${statusCls}">${escapeHtml(d.label)}</span>
         </div>`;
     }).join("");
     const headline = ce.anyExposed
       ? `${ce.exposedDays.reduce((n, d) => n + d.exposure, 0)} driver${ce.exposedDays.reduce((n, d) => n + d.exposure, 0) === 1 ? "" : "s"} exposed across ${ce.exposedDays.length} day${ce.exposedDays.length === 1 ? "" : "s"}`
-      : "Every scheduled day is covered";
+      : ce.anyWeather
+        ? `Covered against at-risk drivers · weather backups suggested on ${ce.weatherDays.length} day${ce.weatherDays.length === 1 ? "" : "s"}`
+        : "Every scheduled day is covered";
 
     // Recommended plan · additive backup coverage for the exposed days.
     const rec = ce.recommendation || { days: [], totalNeed: 0, totalAdds: 0 };
     let recHtml = "";
     let footerHtml = "";
-    if (ce.anyExposed && rec.totalNeed > 0) {
+    if (rec.totalNeed > 0) {
       const planRows = rec.days.filter(d => d.picks.length > 0 || d.shortfall > 0).map(d => {
         const names = d.picks.map(p => escapeHtml(p.name)).join(", ");
         const body = d.picks.length
@@ -56314,7 +56376,12 @@ function bindSchedWeekNav() {
           : "No available backup driver";
         const short = d.shortfall > 0 && d.picks.length
           ? `<span class="rr-callout-plan-short"> · ${d.shortfall} more needed</span>` : "";
-        return `<div class="rr-callout-plan-day"><span class="rr-callout-day-name">${escapeHtml(d.weekday)}</span><span class="rr-callout-plan-names">${body}${short}</span></div>`;
+        // Tag weather-driven backups so the operator knows this is a forecast
+        // call, not a corrective-action one.
+        const why = d.reason === "weather" ? `<span class="rr-callout-plan-why">weather</span>`
+                  : d.reason === "at-risk + weather" ? `<span class="rr-callout-plan-why">at-risk + weather</span>`
+                  : "";
+        return `<div class="rr-callout-plan-day"><span class="rr-callout-day-name">${escapeHtml(d.weekday)}${why}</span><span class="rr-callout-plan-names">${body}${short}</span></div>`;
       }).join("");
       recHtml = `<div class="rr-callout-plan"><div class="rr-callout-plan-head">Recommended plan · add backup coverage</div>${planRows}</div>`;
       if (rec.totalAdds > 0) {
@@ -56324,7 +56391,7 @@ function bindSchedWeekNav() {
           <button type="button" class="btn btn-sm btn-primary" data-rr-callout-apply>Apply backups (${rec.totalAdds})</button>
         </div>`;
       } else {
-        footerHtml = `<div class="rr-callout-foot"><div class="rr-callout-foot-note">No available low-risk drivers to add on the exposed day${rec.days.length === 1 ? "" : "s"}. Consider adjusting availability or the route plan.</div></div>`;
+        footerHtml = `<div class="rr-callout-foot"><div class="rr-callout-foot-note">No available low-risk drivers to add on the flagged day${rec.days.length === 1 ? "" : "s"}. Consider adjusting availability or the route plan.</div></div>`;
       }
     }
 
@@ -56343,7 +56410,7 @@ function bindSchedWeekNav() {
           </button>
         </div>
         <div class="modal-body">
-          <p class="rr-callout-explain">At-risk scheduled drivers are absorbed by the cushion (extra drivers scheduled above the day's routes). A day is exposed only when at-risk drivers outnumber the cushion.</p>
+          <p class="rr-callout-explain">At-risk scheduled drivers are absorbed by the cushion (extra drivers scheduled above the day's routes). A day is exposed only when at-risk drivers outnumber the cushion. Days with a ⛅ chip also carry elevated weather call-out risk from the forecast — backups there are a precaution, not a corrective-action gap.</p>
           <div class="rr-callout-days">${rowsHtml}</div>
           ${recHtml}
         </div>
