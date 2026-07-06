@@ -29232,6 +29232,28 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   box-shadow:0 1px 3px rgba(0,0,0,.14),0 4px 14px rgba(80,60,200,.3);
 }
 #view-workbooks .wb-dash-magic:hover{filter:brightness(1.06)}
+/* AI analyst: ask-anything bar (top-left of a dashboard) + follow-up chips */
+#view-workbooks .wb-ai-bar{position:absolute;left:14px;top:10px;z-index:7;display:none;align-items:center;gap:8px;
+  padding:5px 6px 5px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--border);
+  box-shadow:0 1px 3px rgba(0,0,0,.1),0 8px 24px rgba(80,60,200,.14);width:min(46vw,520px)}
+#view-workbooks .wb-grid.is-dashboard .wb-ai-bar{display:flex}
+#view-workbooks .wb-ai-spark{flex:none;font-size:15px;line-height:1}
+#view-workbooks .wb-ai-q{flex:1;min-width:0;border:none;background:transparent;outline:none;font-size:var(--fs-sm);color:var(--text);padding:4px 2px}
+#view-workbooks .wb-ai-q::placeholder{color:var(--text-subtle)}
+#view-workbooks .wb-ai-q:disabled{opacity:.6}
+#view-workbooks .wb-ai-go{flex:none;border:none;cursor:pointer;font-weight:600;color:#fff;border-radius:999px;padding:6px 16px;
+  font-size:var(--fs-sm);background:linear-gradient(120deg,#7c3aed,#2563eb);box-shadow:0 1px 3px rgba(0,0,0,.14),0 4px 12px rgba(80,60,200,.28)}
+#view-workbooks .wb-ai-go:hover{filter:brightness(1.06)}
+#view-workbooks .wb-ai-go:disabled{cursor:default}
+#view-workbooks .wb-ai-go.is-loading{position:relative;color:transparent}
+#view-workbooks .wb-ai-go.is-loading::after{content:"";position:absolute;inset:0;margin:auto;width:14px;height:14px;
+  border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:wb-ai-spin .7s linear infinite}
+@keyframes wb-ai-spin{to{transform:rotate(360deg)}}
+#view-workbooks .wb-ai-follow{position:absolute;left:14px;top:52px;z-index:7;display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:min(60vw,640px)}
+#view-workbooks .wb-ai-follow-lbl{font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;margin-right:2px}
+#view-workbooks .wb-ai-chip{cursor:pointer;border:1px solid var(--border);background:var(--surface);border-radius:999px;
+  padding:4px 11px;font-size:var(--fs-xs);color:var(--text-secondary,var(--text-muted));box-shadow:0 1px 2px rgba(0,0,0,.06)}
+#view-workbooks .wb-ai-chip:hover{border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
 /* KPI goal / target gauge */
 #view-workbooks .wb-kpi-gauge{width:100%;height:7px;border-radius:4px;background:color-mix(in srgb,var(--text) 10%,transparent);overflow:hidden;margin-top:4px}
 #view-workbooks .wb-kpi-gauge-fill{height:100%;border-radius:4px;transition:width .3s ease}
@@ -29259,6 +29281,8 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 /* Present mode: full-screen, no edit chrome */
 #view-workbooks .wb-grid.is-presenting{background:var(--canvas,#f6f6f4)}
 #view-workbooks .wb-grid.is-presenting .wb-dash-bar,
+#view-workbooks .wb-grid.is-presenting .wb-ai-bar,
+#view-workbooks .wb-grid.is-presenting .wb-ai-follow,
 #view-workbooks .wb-grid.is-presenting .wb-embed-head button,
 #view-workbooks .wb-grid.is-presenting .wb-embed-grip{display:none}
 #view-workbooks .wb-grid.is-presenting .wb-embed-head[data-wb-embed-drag]{cursor:default}

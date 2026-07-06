@@ -7023,6 +7023,12 @@ function mountSheetBlock(block, body) {
         <button type="button" class="btn btn-sm wb-dash-btn" data-wb-dashpresent title="Present — full-screen, no edit chrome">Present</button>
         <button type="button" class="btn btn-sm wb-dash-add" data-wb-dashaddmenu aria-haspopup="menu" title="Add a widget">＋ Add widget ▾</button>
       </div>
+      <form class="wb-ai-bar" data-wb-aiform autocomplete="off">
+        <span class="wb-ai-spark" aria-hidden="true">✨</span>
+        <input type="text" class="wb-ai-q" data-wb-aiq placeholder="Ask about your data — e.g. “routes by day as a bar chart, and flag the worst day”" aria-label="Ask the AI analyst">
+        <button type="submit" class="wb-ai-go" data-wb-aisubmit>Ask</button>
+      </form>
+      <div class="wb-ai-follow" data-wb-aifollow hidden></div>
     </div>
     <div class="wb-pivots" data-wb-pivots hidden></div>
     <div class="wb-tabs" data-wb-tabs="${block.id}"></div>
@@ -7147,6 +7153,23 @@ function mountSheetBlock(block, body) {
     }
   });
   document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) g.els.grid.classList.remove("is-presenting"); });
+  // AI analyst: ask a natural-language question → build a fresh answer board
+  g.els.grid.addEventListener("submit", (e) => {
+    const form = e.target.closest("[data-wb-aiform]");
+    if (!form) return;
+    e.preventDefault();
+    const input = form.querySelector("[data-wb-aiq]");
+    askWorkbookAi(g, input ? input.value : "");
+  });
+  g.els.grid.addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-wb-aifollowq]");
+    if (!chip) return;
+    e.stopPropagation();
+    const q = chip.getAttribute("data-wb-aifollowq") || "";
+    const input = g.els.grid.querySelector("[data-wb-aiq]");
+    if (input) input.value = q;
+    askWorkbookAi(g, q);
+  });
   // Dashboard "＋ Add widget" toolbar (visible only on dashboard sheets)
   g.els.grid.addEventListener("click", (e) => {
     const addBtn = e.target.closest("[data-wb-dashaddmenu]");
@@ -14714,6 +14737,158 @@ function autoBuildDashboard(g) {
   } else build();
 }
 
+// ─── AI analyst ──────────────────────────────────────────────────────────────
+// Ask a natural-language question about the workbook; Claude returns a plan of
+// widgets (KPI / chart / table / insight) referencing columns by name, which we
+// resolve to ranges and draw locally. Only the schema below leaves the browser —
+// the actual cell values are computed here, from the plan.
+
+// A compact, privacy-preserving description of the block's data sheets: names,
+// row counts, and per-column { name, type, samples }.
+function aiWorkbookSchema(g) {
+  return blockDataSheets(g).map((s) => {
+    const rng = sheetDataRange(s);
+    const cols = analyzeColumns(s, rng).slice(0, 40).map((c) => {
+      const samples = [];
+      for (let r = rng.r0 + 1; r <= rng.r1 && samples.length < 4; r++) {
+        const v = displayValue(s, r, c.c);
+        if (v != null && String(v).trim() !== "") samples.push(String(v).slice(0, 40));
+      }
+      return { name: c.name, type: c.kind, samples };
+    });
+    return { sheet: s.name, rows: Math.max(0, rng.r1 - rng.r0), columns: cols };
+  }).filter((s) => s.columns.length);
+}
+
+const AI_CHART_TYPES = { column: 1, bar: 1, line: 1, area: 1, pie: 1, scatter: 1, combo: 1, stackcol: 1, stackbar: 1 };
+const AI_KPI_AGGS = ["sum", "avg", "count", "min", "max", "last"];
+const AI_KPI_FORMATS = ["number", "compact", "currency", "percent"];
+// Translate an AI render_plan into the workbook's embed specs. Pure: `ctx`
+// resolves a sheet name → { id, name, range, col(name)→index|null } so this is
+// unit-testable without the full grid. Returns the { controls, insights, kpis,
+// charts, tables, texts } shape the dashboard stores in sheet.meta.
+function aiPlanToSpecs(plan, ctx, rid) {
+  rid = rid || ((p) => p + Math.random().toString(36).slice(2, 8));
+  const ACCENTS = ["#2563eb", "#0891b2", "#0d9488", "#4f46e5", "#0ea5e9", "#059669", "#6366f1", "#0369a1"];
+  const out = { controls: [], insights: [], kpis: [], charts: [], tables: [], texts: [] };
+  out.texts.push({ id: rid("tx"), hero: true, heading: String((plan && plan.headline) || "AI answer"), body: String((plan && plan.answer) || "") });
+  let ai = 0;
+  const colRef = (rng, ci) => `${colLabel(ci)}${rng.r0 + 2}:${colLabel(ci)}${rng.r1 + 1}`;
+  const widgets = plan && Array.isArray(plan.widgets) ? plan.widgets : [];
+  for (const w of widgets) {
+    if (!w || typeof w !== "object") continue;
+    const sh = ctx.resolveSheet && ctx.resolveSheet(w.sheet);
+    if (!sh) continue;
+    const R = sh.range;
+    if (w.type === "kpi") {
+      const ci = w.column != null ? sh.col(w.column) : null;
+      if (ci == null) continue;
+      const ref = colRef(R, ci);
+      const spec = {
+        id: rid("kp"), label: w.title || String(w.column), agg: AI_KPI_AGGS.includes(w.agg) ? w.agg : "sum",
+        valueRef: ref, sparkRange: ref, format: AI_KPI_FORMATS.includes(w.format) ? w.format : "compact",
+        accent: ACCENTS[ai++ % ACCENTS.length], srcSheetId: sh.id,
+      };
+      if (typeof w.target === "number" && isFinite(w.target)) spec.target = w.target;
+      out.kpis.push(spec);
+    } else if (w.type === "chart") {
+      const catI = w.categoryColumn != null ? sh.col(w.categoryColumn) : null;
+      const vals = (Array.isArray(w.valueColumns) ? w.valueColumns : []).map((n) => sh.col(n)).filter((i) => i != null);
+      if (catI == null || !vals.length) continue;
+      out.charts.push({
+        id: rid("ch"), type: AI_CHART_TYPES[w.chartType] ? w.chartType : "column",
+        title: w.title || sh.name, theme: "vibrant", labels: false, grid: true,
+        r0: R.r0, c0: catI, r1: R.r1, c1: Math.max(catI, ...vals), srcSheetId: sh.id,
+      });
+    } else if (w.type === "table") {
+      out.tables.push({
+        id: rid("tb"), title: w.title || sh.name, range: `${colLabel(R.c0)}${R.r0 + 1}:${colLabel(R.c1)}${R.r1 + 1}`,
+        header: true, maxRows: 40, heatmap: true, srcSheetId: sh.id,
+      });
+    } else if (w.type === "insight") {
+      out.insights.push({ id: rid("in"), label: w.title || "Insights", srcSheetId: sh.id });
+    }
+  }
+  return out;
+}
+
+// Build the name→sheet resolver the pure translator needs from live sheets.
+function aiResolveCtx(g) {
+  const sheets = blockDataSheets(g);
+  const byName = new Map(sheets.map((s) => [String(s.name).trim().toLowerCase(), s]));
+  return {
+    resolveSheet(name) {
+      const s = (name != null && byName.get(String(name).trim().toLowerCase())) || sheets[0];
+      if (!s) return null;
+      return { id: s.id, name: s.name, range: sheetDataRange(s), col: (n) => findColumnByName(s, String(n == null ? "" : n).trim().toLowerCase()) };
+    },
+  };
+}
+
+function renderAiFollowups(g, plan) {
+  const host = g.els.grid.querySelector("[data-wb-aifollow]");
+  if (!host) return;
+  const fs = (plan && Array.isArray(plan.followups) ? plan.followups : []).filter(Boolean).slice(0, 4);
+  if (!fs.length) { host.hidden = true; host.innerHTML = ""; return; }
+  host.hidden = false;
+  host.innerHTML = `<span class="wb-ai-follow-lbl">Try next</span>` +
+    fs.map((q) => `<button type="button" class="wb-ai-chip" data-wb-aifollowq="${esc(q)}">${esc(q)}</button>`).join("");
+}
+
+// Place the translated widgets on a fresh 12-column grid and commit.
+function applyAiPlan(g, specs, plan, question) {
+  const { controls, insights, kpis, charts, tables, texts } = specs;
+  const doApply = () => {
+    const gr = dashGridPlacer(g);
+    if (texts[0]) gr.row([{ it: texts[0], n: 12, h: 84 }]);
+    if (kpis.length) gr.flow(kpis, 3, 120, 4);
+    const rest = charts.slice();
+    if (insights[0] && rest[0]) gr.row([{ it: insights[0], n: 5, h: 272 }, { it: rest.shift(), n: 7, h: 272 }]);
+    else if (insights[0]) gr.flow([insights[0]], 6, 220, 1);
+    if (rest.length) gr.flow(rest, 6, 272, 2);
+    if (tables.length) gr.flow(tables, 12, 328, 1);
+    g.sheet.meta = { ...(g.sheet.meta || {}), controls, insights, kpis, charts, tables, texts };
+    saveSheetMeta(g.sheet.id);
+    wbLog("sheet.aiask", `AI analyst: ${question}`.slice(0, 180), { target_type: "sheet", target_id: g.sheet.id });
+    computeGeometry(g);
+    renderCharts(g);
+    renderAiFollowups(g, plan);
+    _toast("Built your answer", "ok");
+  };
+  if (allEmbeds(g.sheet).length) {
+    confirmModal({ title: "Replace the dashboard with this answer?", body: "The AI lays out a fresh board that answers your question. Your data sheets are untouched.", confirmLabel: "Show me", onConfirm: doApply });
+  } else doApply();
+}
+
+async function askWorkbookAi(g, question) {
+  if (!WB.canEdit || !isDashboardSheet(g.sheet)) return;
+  question = String(question || "").trim();
+  if (!question) return;
+  const sb = _sb();
+  if (!sb || !sb.functions) { _toast("Sign in to use the AI analyst", "warn"); return; }
+  const schema = aiWorkbookSchema(g);
+  if (!schema.length) { _toast("Add a data sheet first, then ask the AI", "warn"); return; }
+  const form = g.els.grid.querySelector("[data-wb-aiform]");
+  const input = form && form.querySelector("[data-wb-aiq]");
+  const btn = form && form.querySelector("[data-wb-aisubmit]");
+  if (btn) { btn.disabled = true; btn.classList.add("is-loading"); }
+  if (input) input.disabled = true;
+  try {
+    const { data, error } = await sb.functions.invoke("workbook-ai", { body: { question, schema } });
+    if (error || !data || data.error || !data.plan) {
+      const msg = (error && error.message) || (data && (data.detail || data.error)) || "Unknown error";
+      _toast(`AI couldn't answer that: ${msg}`, "warn");
+      return;
+    }
+    applyAiPlan(g, aiPlanToSpecs(data.plan, aiResolveCtx(g)), data.plan, question);
+  } catch (e) {
+    _toast(`AI couldn't answer that: ${(e && e.message) || e}`, "warn");
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove("is-loading"); }
+    if (input) input.disabled = false;
+  }
+}
+
 // ─── Pivot tables ────────────────────────────────────────────────────────────
 // A pivot lives on its sheet (sheet.meta.pivots), reads a source range whose
 // first row is a header, and renders an aggregated table below the grid.
@@ -18712,6 +18887,7 @@ export const __engine = {
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   dateRangeSerials, controlPredicate, DATE_PRESETS, findColumnByName,
   linearFit, analyzeColumns, computeInsights,
+  aiWorkbookSchema, aiPlanToSpecs,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,
   WB_IMG_RE, cellImgSrc,
