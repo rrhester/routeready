@@ -38,4 +38,28 @@ ok("cycles the ref the caret is on", cycleRefAnchor("=A1+B2", 6).text, "=A1+$B$2
 ok("caret not on a ref ⇒ null", cycleRefAnchor('="hi"', 4), null);
 ok("caret returned after the ref", cycleRefAnchor("=A1", 3).caret, 5); // "=$A$1".length
 
+// ── error hints (hover tooltips) ─────────────────────────────────────────────
+const { errorHint, columnSuggestion, parseCellRef } = __engine;
+ok("errorHint #REF", /reference is invalid/.test(errorHint("#REF")), true);
+ok("errorHint strips !", errorHint("#DIV/0!"), errorHint("#DIV/0"));
+ok("errorHint circular", /Circular/.test(errorHint("#CIRCULAR")), true);
+ok("errorHint unknown ⇒ generic", errorHint("#WHAT"), "This cell has a formula error.");
+ok("errorHint empty ⇒ empty", errorHint(""), "");
+
+// ── column value autocomplete ────────────────────────────────────────────────
+function colSheet() {
+  const cells = new Map();
+  const put = (ref, v, type) => { const rc = parseCellRef(ref); cells.set(rc.row + "," + rc.col, { value: v, formula: null, type: type || "text", computed: null, err: null, format: {} }); };
+  put("A1", "East"); put("A2", "West"); put("A3", "East Coast"); put("A4", "42", "number");
+  return { cells };
+}
+const cs = (r, typed) => columnSuggestion(colSheet(), r, 0, typed);
+ok("suggests a matching column value", cs(1, "Ea"), "East");                 // A1 'East', dist 1 (ties beat farther A3)
+ok("prefers the closest row", cs(4, "Ea"), "East Coast");                    // A3 'East Coast' dist 2 beats A1 'East' dist 4
+ok("case-insensitive", cs(5, "wes"), "West");
+ok("no match ⇒ null", cs(5, "xyz"), null);
+ok("numeric typed ⇒ null", cs(5, "4"), null);
+ok("formula typed ⇒ null", cs(5, "=A"), null);
+ok("skips numeric cells", columnSuggestion(colSheet(), 5, 0, "4"), null);
+
 console.log(`✓ fill series + F4: ${n} tests passed`);
