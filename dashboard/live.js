@@ -115,7 +115,7 @@ if (window.__RR_VIEW_LOAD_FAILED) throw new Error("view partials failed to load"
   try {
     // NOTE: every rail panel aside must be listed here — an unhoisted panel
     // renders as unstyled flow content at the bottom of the schedule view.
-    const ids = ["rr-sched-util-rail", "rr-sched-notes", "rr-sched-tasks", "rr-sched-forms", "rr-sched-contacts", "rr-sched-recog"];
+    const ids = ["rr-sched-util-rail", "rr-sched-notes", "rr-sched-tasks", "rr-sched-checklists", "rr-sched-forms", "rr-sched-contacts", "rr-sched-recog"];
     const nodes = ids.map((id) => document.getElementById(id)).filter(Boolean);
     if (!nodes.length) return;
     let mount = document.getElementById("rr-util-rail-mount");
@@ -9417,7 +9417,7 @@ function _rrNtSanitize(html) {
 // Notes and Tasks are now two independent slide-out panels, each driven by
 // its own rail icon. Only one is open at a time (a panel manager enforces
 // it), so opening one closes the other.
-const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks", forms: "rr-sched-forms", contacts: "rr-sched-contacts", recog: "rr-sched-recog" };
+const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks", checklists: "rr-sched-checklists", forms: "rr-sched-forms", contacts: "rr-sched-contacts", recog: "rr-sched-recog" };
 
 let _rrNotesShowAll = false;
 const _RR_NTPIN = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg>`;
@@ -10021,8 +10021,10 @@ function _rrNtPanelEl(which) { return document.getElementById(_RR_NT_PANELS[whic
 function _rrNtToggleBtn(which) {
   return document.querySelector(
     which === "tasks" ? "[data-rr-tasks-toggle]"
+    : which === "checklists" ? "[data-rr-checklists-toggle]"
     : which === "forms" ? "[data-rr-forms-toggle]"
     : which === "contacts" ? "[data-rr-contacts-toggle]"
+    : which === "recog" ? "[data-rr-recog-toggle]"
     : "[data-rr-notes-toggle]");
 }
 function _rrNtPanelIsOpen(which) { const el = _rrNtPanelEl(which); return !!(el && el.classList.contains("is-open")); }
@@ -10120,6 +10122,9 @@ document.addEventListener("click", (e) => {
   // closes the other (panel manager). Clicking an open panel's icon closes it.
   if (e.target.closest("[data-rr-notes-toggle]")) { e.preventDefault(); _rrNtPanelToggle("notes"); return; }
   if (e.target.closest("[data-rr-tasks-toggle]")) { e.preventDefault(); _rrNtPanelToggle("tasks"); return; }
+  // Checklists — driver checklist templates, split out of the old combined
+  // Checklists / My Tasks panel onto its own rail icon.
+  if (e.target.closest("[data-rr-checklists-toggle]")) { e.preventDefault(); _rrNtPanelToggle("checklists"); return; }
   // Forms — same compact push panel as Notes/Tasks (one-at-a-time via the
   // shared panel manager); its list renders the operator's REAL forms.
   if (e.target.closest("[data-rr-forms-toggle]")) { e.preventDefault(); _rrNtPanelToggle("forms"); return; }
@@ -10127,7 +10132,7 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("[data-rr-contacts-toggle]")) { e.preventDefault(); _rrNtPanelToggle("contacts"); return; }
   // Recognition — celebrate birthdays/anniversaries from the rail.
   if (e.target.closest("[data-rr-recog-toggle]")) { e.preventDefault(); _rrNtPanelToggle("recog"); return; }
-  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]") || e.target.closest("[data-rr-forms-close]") || e.target.closest("[data-rr-contacts-close]") || e.target.closest("[data-rr-recog-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
+  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]") || e.target.closest("[data-rr-checklists-close]") || e.target.closest("[data-rr-forms-close]") || e.target.closest("[data-rr-contacts-close]") || e.target.closest("[data-rr-recog-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
   // Contacts · create / save / cancel / edit / delete / add-field rows
   if (e.target.closest("[data-rr-contact-createtoggle]")) {
     e.preventDefault();
@@ -79927,10 +79932,11 @@ document.addEventListener("click", function (e) {
 // ═══════════════════════════════════════════════════════════════════
 // Driver Checklists — Checklists rail panel + Form-Builder-style modal
 //
-// The Tasks rail button opens the Checklists sidebar (browse / search /
-// filter / manage checklist templates); "+ New Checklist" and card
-// clicks open the large #modal-clf-builder modal where the checklist is
-// built, published, and assigned. Assigned checklists surface in the
+// The Checklists rail button (its own icon since the My-Tasks split)
+// opens the Checklists sidebar (browse / search / filter / manage
+// checklist templates); "+ New Checklist" and card clicks open the
+// large #modal-clf-builder modal where the checklist is built,
+// published, and assigned. Assigned checklists surface in the
 // driver app's Forms hub (driver_list_checklists) and submissions come
 // back on the Responses tab (checklist_form_responses).
 //
@@ -79989,7 +79995,7 @@ function _clfAgo(ts) {
   return new Date(ts).toLocaleDateString();
 }
 
-// ── Sidebar (Checklists pane in the tasks rail panel) ────────────────
+// ── Sidebar (Checklists rail panel) ───────────────────────────────────
 
 function _clfSidebarRender() {
   const host = document.getElementById("rr-clf-list");
@@ -80091,25 +80097,6 @@ function _clfOpenMenu(btn, id) {
   // while its menu is open so the overflowing menu paints above its neighbours.
   card?.classList.add("rr-fp-card--menu-open");
   card?.appendChild(menu);
-}
-
-function _clfPanelSetPane(pane) {
-  const panel = document.getElementById("rr-sched-tasks");
-  if (!panel) return;
-  panel.querySelectorAll("[data-rr-clf-seg]").forEach((b) => {
-    const on = b.getAttribute("data-rr-clf-seg") === pane;
-    b.classList.toggle("is-active", on);
-    b.setAttribute("aria-selected", on ? "true" : "false");
-  });
-  panel.querySelectorAll("[data-rr-clf-body]").forEach((el) => {
-    el.hidden = el.getAttribute("data-rr-clf-body") !== pane;
-  });
-  const title = document.getElementById("rr-clf-panel-title");
-  const sub = document.getElementById("rr-clf-panel-sub");
-  const newBtn = panel.querySelector("[data-rr-clf-new]");
-  if (title) title.textContent = pane === "my" ? "My Tasks" : "Checklists";
-  if (sub) sub.textContent = pane === "my" ? "Your personal to-do list" : "Build, assign, and track driver checklists";
-  if (newBtn) newBtn.style.display = pane === "my" ? "none" : "";
 }
 
 // ── Builder modal ─────────────────────────────────────────────────────
@@ -80635,10 +80622,6 @@ async function _clfRenderResponses() {
 // ── Delegated events ─────────────────────────────────────────────────
 
 document.addEventListener("click", async (e) => {
-  // sidebar segmented panes
-  const seg = e.target.closest("[data-rr-clf-seg]");
-  if (seg) { _clfPanelSetPane(seg.getAttribute("data-rr-clf-seg")); return; }
-
   // sidebar chips
   const chip = e.target.closest("[data-rr-clf-chip]");
   if (chip) {

@@ -2925,9 +2925,12 @@
           <button type="button" class="sched-util-btn" data-rr-notes-toggle title="Notes" aria-label="Notes" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </button>
-          <button type="button" class="sched-util-btn sched-util-btn--tasks" data-rr-tasks-toggle title="Tasks" aria-label="Tasks" aria-expanded="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4.5" fill="currentColor"/><polyline points="7.5 12.4 10.5 15.4 16.5 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <button type="button" class="sched-util-btn sched-util-btn--tasks" data-rr-tasks-toggle title="My Tasks" aria-label="My Tasks" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="currentColor"/><polyline points="7.8 12.4 10.7 15.3 16.2 9.4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span class="sched-util-badge" id="rr-nt-task-badge" aria-hidden="true">0</span>
+          </button>
+          <button type="button" class="sched-util-btn sched-util-btn--checklists" data-rr-checklists-toggle title="Checklists" aria-label="Checklists" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4.5" fill="currentColor"/><polyline points="7.5 12.4 10.5 15.4 16.5 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <button type="button" class="sched-util-btn sched-util-btn--contacts" data-rr-contacts-toggle title="Contacts" aria-label="Contacts" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.34 0-8 1.67-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-3.33-4.66-5-8-5z"/></svg>
@@ -2979,51 +2982,58 @@
             </div>
           </div>
         </aside>
-        <!-- Tasks rail panel → Checklists sidebar. The default pane lists
-             driver checklist templates (browse / search / filter / manage);
-             building happens in the large #modal-clf-builder modal, not
-             here. The legacy personal to-do list lives on unchanged under
-             the "My Tasks" segment (same ids + data hooks, so the existing
-             _rrRenderTasks wiring keeps working). -->
-        <aside class="sched-notes-panel rr-fp" id="rr-sched-tasks" aria-label="Checklists" aria-hidden="true">
+        <!-- Checklists rail panel · its own rail icon since the My-Tasks
+             split. Lists driver checklist templates (browse / search /
+             filter / manage); building happens in the large
+             #modal-clf-builder modal, not here. Same .rr-fp chrome +
+             panel manager as Forms/Recognition. -->
+        <aside class="sched-notes-panel rr-fp" id="rr-sched-checklists" aria-label="Checklists" aria-hidden="true">
           <div class="ntp-head rr-fp-head">
             <div class="rr-fp-head-titles">
-              <div class="ntp-head-title" id="rr-clf-panel-title">Checklists</div>
-              <div class="rr-fp-subtitle" id="rr-clf-panel-sub">Build, assign, and track driver checklists</div>
+              <div class="ntp-head-title">Checklists</div>
+              <div class="rr-fp-subtitle">Build, assign, and track driver checklists</div>
             </div>
             <div class="rr-fp-head-actions">
               <button type="button" class="rr-fp-new" data-rr-clf-new title="Create a new checklist">+ New Checklist</button>
+              <button type="button" class="ntp-icon-btn" data-rr-checklists-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+          </div>
+
+          <div class="rr-fp-toolbar">
+            <div class="rr-fp-searchrow">
+              <div class="rr-fp-search">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" class="rr-fp-search-input" id="rr-clf-search" placeholder="Search checklists…" aria-label="Search checklists" autocomplete="off"/>
+              </div>
+            </div>
+            <div class="rr-fp-chips" id="rr-clf-chips" role="tablist" aria-label="Filter checklists by status">
+              <button type="button" class="rr-fp-chip is-active" data-rr-clf-chip="all">All</button>
+              <button type="button" class="rr-fp-chip" data-rr-clf-chip="draft">Draft</button>
+              <button type="button" class="rr-fp-chip" data-rr-clf-chip="active">Active</button>
+              <button type="button" class="rr-fp-chip" data-rr-clf-chip="assigned">Assigned</button>
+              <button type="button" class="rr-fp-chip" data-rr-clf-chip="archived">Archived</button>
+            </div>
+          </div>
+
+          <div class="ntp-scroll rr-fp-scroll">
+            <div class="rr-fp-cards" id="rr-clf-list" role="list"></div>
+          </div>
+        </aside>
+        <!-- My Tasks rail panel · the personal to-do list, now behind its
+             own rail icon (split out of the old combined Checklists / My
+             Tasks panel). Same ids + data hooks as before the split, so
+             the existing _rrRenderTasks wiring keeps working. -->
+        <aside class="sched-notes-panel rr-fp" id="rr-sched-tasks" aria-label="My Tasks" aria-hidden="true">
+          <div class="ntp-head rr-fp-head">
+            <div class="rr-fp-head-titles">
+              <div class="ntp-head-title">My Tasks</div>
+              <div class="rr-fp-subtitle">Your personal to-do list</div>
+            </div>
+            <div class="rr-fp-head-actions">
               <button type="button" class="ntp-icon-btn" data-rr-tasks-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
           </div>
 
-          <div class="rr-clf-seg" role="tablist" aria-label="Panel sections">
-            <button type="button" class="rr-clf-seg-b is-active" data-rr-clf-seg="checklists" role="tab" aria-selected="true">Checklists</button>
-            <button type="button" class="rr-clf-seg-b" data-rr-clf-seg="my" role="tab" aria-selected="false">My Tasks</button>
-          </div>
-
-          <div class="rr-clf-body" data-rr-clf-body="checklists">
-            <div class="rr-fp-toolbar">
-              <div class="rr-fp-searchrow">
-                <div class="rr-fp-search">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input type="text" class="rr-fp-search-input" id="rr-clf-search" placeholder="Search checklists…" aria-label="Search checklists" autocomplete="off"/>
-                </div>
-              </div>
-              <div class="rr-fp-chips" id="rr-clf-chips" role="tablist" aria-label="Filter checklists by status">
-                <button type="button" class="rr-fp-chip is-active" data-rr-clf-chip="all">All</button>
-                <button type="button" class="rr-fp-chip" data-rr-clf-chip="draft">Draft</button>
-                <button type="button" class="rr-fp-chip" data-rr-clf-chip="active">Active</button>
-                <button type="button" class="rr-fp-chip" data-rr-clf-chip="assigned">Assigned</button>
-                <button type="button" class="rr-fp-chip" data-rr-clf-chip="archived">Archived</button>
-              </div>
-            </div>
-            <div class="ntp-scroll rr-fp-scroll">
-              <div class="rr-fp-cards" id="rr-clf-list" role="list"></div>
-            </div>
-          </div>
-
-          <div class="rr-clf-body" data-rr-clf-body="my" hidden>
           <div class="ntp-scroll">
             <div class="ntp-tasks-block ntp-tasks-block--solo" data-rr-nt-tasks>
               <div class="ntp-tasks-head">
@@ -3070,7 +3080,6 @@
               </div>
               <div class="ntp-tasklist" id="rr-sched-tasks-list" role="list"></div>
             </div>
-          </div>
           </div>
         </aside>
         <aside class="sched-notes-panel rr-fp" id="rr-sched-forms" aria-label="Driver Forms" aria-hidden="true">

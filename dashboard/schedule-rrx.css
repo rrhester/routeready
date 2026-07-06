@@ -5549,15 +5549,21 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
    into, held while that panel stays open. The icon keeps its resting hue. */
 #rr-util-rail-mount .sched-util-btn[aria-expanded="true"]{background:rgba(246,161,0,.16);border-color:rgba(246,161,0,.42)}
 #rr-util-rail-mount .sched-util-btn:focus-visible{outline:none;border-color:rgb(49,134,255);box-shadow:0 0 0 3px rgba(49,134,255,.25)}
-/* Tasks — its own green (semantically "checklist / done"), distinct from
-   the blue Notes bookmark and gold Operations shield. */
-#rr-util-rail-mount .sched-util-btn--tasks{color:#16A34A}
-#rr-util-rail-mount .sched-util-btn--tasks:hover{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.30)}
-#rr-util-rail-mount .sched-util-btn--tasks:focus-visible{border-color:#16A34A;box-shadow:0 0 0 3px rgba(22,163,74,.25)}
-/* Open-task count riding the Tasks icon (hidden when zero, via JS). */
+/* My Tasks — violet circle-check for the personal to-do list, split out
+   from the green Checklists tile so each has its own rail icon. */
+#rr-util-rail-mount .sched-util-btn--tasks{color:#7C3AED}
+#rr-util-rail-mount .sched-util-btn--tasks:hover{background:rgba(124,58,237,.12);border-color:rgba(124,58,237,.30)}
+#rr-util-rail-mount .sched-util-btn--tasks:focus-visible{border-color:#7C3AED;box-shadow:0 0 0 3px rgba(124,58,237,.25)}
+/* Checklists — keeps the green check tile (semantically "checklist /
+   done"), distinct from the blue Notes bookmark and gold Operations
+   shield. Opens the driver-checklist templates slide-out. */
+#rr-util-rail-mount .sched-util-btn--checklists{color:#16A34A}
+#rr-util-rail-mount .sched-util-btn--checklists:hover{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.30)}
+#rr-util-rail-mount .sched-util-btn--checklists:focus-visible{border-color:#16A34A;box-shadow:0 0 0 3px rgba(22,163,74,.25)}
+/* Open-task count riding the My Tasks icon (hidden when zero, via JS). */
 #rr-util-rail-mount .sched-util-badge{
   position:absolute; top:0; right:0; min-width:16px; height:16px; padding:0 4px; z-index:2;
-  border-radius:8px; background:#16A34A; color:#fff; font-size:10px; font-weight:700;
+  border-radius:8px; background:#7C3AED; color:#fff; font-size:10px; font-weight:700;
   line-height:16px; text-align:center; box-shadow:0 0 0 2px var(--canvas,#F9FAFB); pointer-events:none;
 }
 /* Operations Health shield — gold + filled, its own color distinct from
@@ -6458,25 +6464,21 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 #view-schedule .rr-cell-conflict svg{ width:11px; height:11px; }
 
 /* ══════════════════════════════════════════════════════════════════
-   Checklists rail panel (#rr-sched-tasks) — the Tasks rail button now
-   opens a Checklists sidebar (browse/search/manage driver checklist
-   templates) with the legacy personal to-do list under a "My Tasks"
-   segment. Reuses the .rr-fp chrome from the Forms panel; the classes
-   below are only what's new.
+   Checklists rail panel (#rr-sched-checklists) + My Tasks rail panel
+   (#rr-sched-tasks) — split into two slide-outs, each behind its own
+   rail icon (formerly one panel with a Checklists / My Tasks segment).
+   Both reuse the .rr-fp chrome from the Forms panel; the classes below
+   are only what's new.
    ══════════════════════════════════════════════════════════════════ */
+#rr-util-rail-mount #rr-sched-checklists.rr-fp,
 #rr-util-rail-mount #rr-sched-tasks.rr-fp{background:#FFFFFF}
-#rr-util-rail-mount #rr-sched-tasks.is-open .rr-fp-toolbar{opacity:1;transition:opacity 120ms ease 100ms}
+#rr-util-rail-mount #rr-sched-checklists.is-open .rr-fp-toolbar{opacity:1;transition:opacity 120ms ease 100ms}
 
-/* Segmented Checklists / My Tasks switcher under the header */
+/* Segmented switcher under a panel header (Recognition's Upcoming/Sent) */
 #rr-util-rail-mount .rr-clf-seg{flex:0 0 auto;display:flex;gap:4px;margin:0 16px 12px;padding:3px;background:#F2F4F8;border:1px solid #E7EAF0;border-radius:10px;opacity:0;transition:opacity 120ms ease}
-#rr-util-rail-mount #rr-sched-tasks.is-open .rr-clf-seg{opacity:1;transition:opacity 120ms ease 100ms}
 #rr-util-rail-mount .rr-clf-seg-b{flex:1;appearance:none;cursor:pointer;border:0;background:transparent;border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text-subtle,#6B7280);transition:background .15s,color .15s,box-shadow .15s}
 #rr-util-rail-mount .rr-clf-seg-b:hover{color:var(--text-muted,#4B5563)}
 #rr-util-rail-mount .rr-clf-seg-b.is-active{background:#fff;color:var(--text,#111827);box-shadow:0 1px 2px rgba(17,24,39,.08)}
-
-/* Pane wrappers keep the panel's flex column so .ntp-scroll still fills */
-#rr-util-rail-mount .rr-clf-body{display:flex;flex-direction:column;flex:1;min-height:0}
-#rr-util-rail-mount .rr-clf-body[hidden]{display:none}
 
 /* Checklist cards — extends .rr-fp-card */
 #rr-util-rail-mount .rr-clf-meta-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;color:var(--text-disabled,#9CA3AF);line-height:1.3}
