@@ -5173,11 +5173,187 @@ function cleanNum(x) {
   return String(parseFloat(x.toPrecision(12)));
 }
 
+// ── Custom number format codes (Excel/Sheets format strings) ────────────────
+// A pragmatic subset of the Excel grammar: up to 4 sections
+// (positive;negative;zero;text), digit placeholders # 0 ?, grouping and
+// trailing-comma scaling (each trailing comma ÷1000 → K/M/…), decimals, %,
+// quoted / escaped / symbol literals, and date-time tokens. Bracket tags
+// ([Red], [$-409], [>100]) are parsed; numeric conditions pick a section,
+// colors are ignored (in-cell text color isn't themed through this path).
+const CUSTOM_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const CUSTOM_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function splitCustomSections(code) {
+  const out = []; let cur = "", inQ = false, inB = false;
+  for (let i = 0; i < code.length; i++) {
+    const ch = code[i];
+    if (ch === "\\") { cur += ch + (code[++i] || ""); continue; }
+    if (ch === '"' && !inB) inQ = !inQ;
+    else if (ch === "[" && !inQ) inB = true;
+    else if (ch === "]" && !inQ) inB = false;
+    else if (ch === ";" && !inQ && !inB) { out.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+function customLiteralize(s) {
+  return s.replace(/\[[^\]]*\]/g, "").replace(/\\(.)/g, "$1").replace(/"([^"]*)"/g, "$1");
+}
+function isDateSection(body) {
+  const s = body.replace(/"[^"]*"/g, "").replace(/\[[^\]]*\]/g, "").replace(/\\./g, "");
+  if (/[#0?]/.test(s)) return false;           // digit placeholders ⇒ numeric
+  return /[yd]/i.test(s) || (/[hs]/i.test(s) && /m/i.test(s)) || /[hs]/i.test(s);
+}
+// Pull an optional numeric condition ([>100], [<=0]) from a section.
+function sectionCondition(body) {
+  const m = /\[(<=|>=|<>|<|>|=)(-?\d+(?:\.\d+)?)\]/.exec(body);
+  return m ? { op: m[1], val: +m[2] } : null;
+}
+function condHolds(cond, n) {
+  switch (cond.op) { case "<": return n < cond.val; case "<=": return n <= cond.val; case ">": return n > cond.val; case ">=": return n >= cond.val; case "=": return n === cond.val; case "<>": return n !== cond.val; }
+  return false;
+}
+function renderNumericSection(absVal, body) {
+  const stripped = body.replace(/\[[^\]]*\]/g, "");
+  const m = stripped.match(/[#0?][#0?,]*(?:\.[#0?]+)?,*|\.[#0?]+,*/);
+  if (!m) return customLiteralize(stripped);
+  const pattern = m[0];
+  const before = stripped.slice(0, m.index);
+  const after = stripped.slice(m.index + pattern.length);
+  let x = absVal;
+  x *= Math.pow(100, (stripped.match(/%/g) || []).length); // each % ⇒ ×100 (the % char stays as a literal)
+  const trailingCommas = (pattern.match(/,+$/) || [""])[0].length; // commas after the last digit ⇒ ÷1000 each
+  if (trailingCommas) x /= Math.pow(1000, trailingCommas);
+  const core = pattern.replace(/,+$/, "");
+  const intPart = core.split(".")[0];
+  const decRaw = core.includes(".") ? core.split(".")[1].replace(/[^#0?]/g, "") : "";
+  const decMin = (decRaw.match(/0/g) || []).length;         // '0' ⇒ always shown
+  const decMax = decRaw.length;                             // '#'/'?' ⇒ optional
+  const useGroup = /[#0?],[#0?]/.test(intPart.replace(/,+$/, ""));
+  const minInt = (intPart.replace(/,/g, "").match(/0/g) || []).length;
+  let numStr = x.toLocaleString("en-US", {
+    minimumFractionDigits: decMin, maximumFractionDigits: decMax,
+    minimumIntegerDigits: Math.max(1, minInt), useGrouping: useGroup,
+  });
+  if (minInt === 0 && /^0\./.test(numStr)) numStr = numStr.slice(1); // '#' hides the leading zero
+  return customLiteralize(before) + numStr + customLiteralize(after);
+}
+function renderDateSection(serial, body) {
+  // serial carries the date in its integer part and time-of-day in its fraction
+  // (serialToDate is date-only, so pull the time out of the fraction ourselves)
+  const whole = Math.floor(serial);
+  const d = serialToDate(whole);
+  if (!d || isNaN(d)) return String(serial);
+  const secOfDay = Math.round((serial - whole) * 86400);
+  const y = d.getFullYear(), mo = d.getMonth(), day = d.getDate(), dow = d.getDay();
+  let h = Math.floor(secOfDay / 3600) % 24; const mi = Math.floor((secOfDay % 3600) / 60), se = secOfDay % 60;
+  const rawHour = h;
+  const ampm = /am\/pm|a\/p/i.test(body);
+  if (ampm) { const pm = h >= 12; h = h % 12 || 12; }
+  let out = "", i = 0;
+  const toks = ["yyyy", "yyy", "yy", "mmmm", "mmm", "mm", "m", "dddd", "ddd", "dd", "d", "hh", "h", "ss", "s", "am/pm", "a/p"];
+  const seen = []; // to disambiguate m = minute when near h/s
+  while (i < body.length) {
+    if (body[i] === '"') { const e = body.indexOf('"', i + 1); out += body.slice(i + 1, e < 0 ? body.length : e); i = e < 0 ? body.length : e + 1; continue; }
+    if (body[i] === "\\") { out += body[i + 1] || ""; i += 2; continue; }
+    if (body[i] === "[") { const e = body.indexOf("]", i); i = e < 0 ? body.length : e + 1; continue; }
+    const rest = body.slice(i).toLowerCase();
+    const tok = toks.find((t) => rest.startsWith(t));
+    if (!tok) { out += body[i]; i++; continue; }
+    i += tok.length;
+    const pad2 = (x) => String(x).padStart(2, "0");
+    const prevMinuteCtx = /[hs]/.test(seen.slice(-3).join("")); seen.push(tok);
+    switch (tok) {
+      case "yyyy": case "yyy": out += y; break;
+      case "yy": out += pad2(y % 100); break;
+      case "mmmm": out += CUSTOM_MONTHS[mo]; break;
+      case "mmm": out += CUSTOM_MONTHS[mo].slice(0, 3); break;
+      case "mm": out += prevMinuteCtx ? pad2(mi) : pad2(mo + 1); break;
+      case "m": out += prevMinuteCtx ? mi : (mo + 1); break;
+      case "dddd": out += CUSTOM_DAYS[dow]; break;
+      case "ddd": out += CUSTOM_DAYS[dow].slice(0, 3); break;
+      case "dd": out += pad2(day); break;
+      case "d": out += day; break;
+      case "hh": out += pad2(h); break;
+      case "h": out += h; break;
+      case "ss": out += pad2(se); break;
+      case "s": out += se; break;
+      case "am/pm": out += rawHour >= 12 ? "PM" : "AM"; break;
+      case "a/p": out += rawHour >= 12 ? "P" : "A"; break;
+    }
+  }
+  return out;
+}
+function applyCustomFormat(value, code, type) {
+  const secs = splitCustomSections(code);
+  let num = cellNumeric(value);
+  // date-typed cells hold an ISO string, not a number — derive a serial so date
+  // sections can format them (integer days + fractional time-of-day)
+  let dateSerial = num;
+  if (num == null && type !== "text") {
+    const d = parseDateLoose(String(value));
+    if (d) dateSerial = dateToSerial(d) + (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400;
+  }
+  if (num == null && dateSerial == null) {
+    const t = secs.length >= 4 ? secs[3] : null;
+    return t != null ? customLiteralize(t).replace(/@/g, String(value)) : String(value);
+  }
+  const n = num != null ? num : dateSerial; // for section selection (dates are positive)
+  const ser = num != null ? num : dateSerial;
+  // conditional sections first (Excel: [cond1]fmt;[cond2]fmt;default)
+  for (const s of secs) { const c = sectionCondition(s); if (c && condHolds(c, n)) return isDateSection(s) ? renderDateSection(ser, s) : renderNumericSection(Math.abs(n), s); }
+  // the sign-based fallback only considers non-conditional sections
+  const plain = secs.filter((s) => !sectionCondition(s));
+  const pos = plain[0] != null ? plain[0] : secs[0];
+  const neg = plain.length > 1 ? plain[1] : null, zero = plain.length > 2 ? plain[2] : null;
+  let sec, sign = "";
+  if (n > 0 || (n === 0 && zero == null)) sec = pos;
+  else if (n < 0) { if (neg != null) sec = neg; else { sec = pos; sign = "-"; } }
+  else sec = zero;
+  if (sec == null) sec = pos;
+  if (isDateSection(sec)) return renderDateSection(ser, sec);
+  return sign + renderNumericSection(Math.abs(n), sec);
+}
+
+// ── Goal Seek ────────────────────────────────────────────────────────────────
+// Find the input x that drives probe(x) to `goal`. probe returns the target
+// cell's value after setting the input and recalculating (NaN on error). Uses
+// the secant method with perturbation recovery — exact for linear targets,
+// convergent for smooth nonlinear ones. Returns the solved x, or null if it
+// can't converge within the iteration budget.
+function solveGoalSeek(probe, goal, x0) {
+  const tol = 1e-9 + Math.abs(goal) * 1e-9;
+  const f = (x) => { const v = probe(x); return typeof v === "number" && isFinite(v) ? v - goal : NaN; };
+  let x1 = typeof x0 === "number" && isFinite(x0) ? x0 : 0;
+  let f1 = f(x1);
+  if (isFinite(f1) && Math.abs(f1) <= tol) return x1;
+  let step = Math.abs(x1) > 1e-6 ? x1 * 0.01 : 1;
+  let x2 = x1 + step, f2 = f(x2);
+  for (let i = 0; i < 200; i++) {
+    if (isFinite(f2) && Math.abs(f2) <= tol) return x2;
+    if (!isFinite(f1) || !isFinite(f2) || f2 === f1) {
+      step *= 2; x2 = x1 + step; f2 = f(x2);
+      if (!isFinite(f2)) { x2 = x1 - step; f2 = f(x2); }
+      if (!isFinite(f2)) return null;
+      continue;
+    }
+    const x3 = x2 - f2 * (x2 - x1) / (f2 - f1); // secant step
+    if (!isFinite(x3) || Math.abs(x3) > 1e15) return null;
+    x1 = x2; f1 = f2; x2 = x3; f2 = f(x2);
+  }
+  return isFinite(f2) && Math.abs(f2) <= Math.max(tol, 1e-6 * (Math.abs(goal) + 1)) ? x2 : null;
+}
+
 function formatForDisplay(v, format, type) {
   if (v == null || v === "") return "";
   const numFmt = format && format.num;
   const dec = format && Number.isInteger(format.dec) ? Math.min(6, Math.max(0, format.dec)) : null;
   const n = cellNumeric(v);
+  // An explicit custom format code wins over the preset menu.
+  if (format && typeof format.fmt === "string" && format.fmt.trim()) {
+    try { return applyCustomFormat(v, format.fmt, type); } catch (_) { /* fall through to presets */ }
+  }
   if (numFmt === "text") return String(v);
   if (n != null && type !== "text") {
     const fd = (d) => ({ minimumFractionDigits: d, maximumFractionDigits: d });
@@ -6533,6 +6709,8 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-numfmt="currency" role="menuitem">Currency · $1,250.00</button>
           <button type="button" class="popover-item" data-wb-numfmt="percent" role="menuitem">Percent · 12%</button>
           <button type="button" class="popover-item" data-wb-numfmt="date" role="menuitem">Date · Jul 4, 2026</button>
+          <div class="popover-section"></div>
+          <button type="button" class="popover-item" data-wb-numfmt="__custom" role="menuitem">Custom format…</button>
         </div>
       </span>
     </div>
@@ -6965,7 +7143,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -7077,7 +7255,7 @@ function paintFrozen(g, sx, sy, c0, c1) {
       const fzFlt = r === 0 && g.filterMode && c <= (g.fltMaxC ?? -1)
         ? `<button type="button" class="wb-flt-btn ${g.filters.has(c) ? "is-filtered" : ""}" data-wb-fltbtn="${c}" title="Filter column ${colLabel(c)}" aria-label="Filter column ${colLabel(c)}">${g.filters.has(c) ? "▼" : "▾"}</button>`
         : "";
-      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}${fzFlt}</div>`;
+      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${condIconFor(sheet, r, c, cell)}${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}${fzFlt}</div>`;
     }
     g.els.frozenTop.hidden = false;
     g.els.frozenTop.style.height = h + "px";
@@ -7096,7 +7274,7 @@ function paintFrozen(g, sx, sy, c0, c1) {
       const r = g.rows[di];
       const cell = sheet.cells.get(cellKey(r, 0));
       const h = g.rowY[di + 1] - g.rowY[di];
-      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${cell ? cellInnerHtml(cell, displayValue(sheet, r, 0)) : ""}</div>`;
+      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${condIconFor(sheet, r, 0, cell)}${cell ? cellInnerHtml(cell, displayValue(sheet, r, 0)) : ""}</div>`;
     }
     g.els.frozenLeft.hidden = false;
     g.els.frozenLeft.style.left = HDR_COL_W + "px";
@@ -8478,6 +8656,13 @@ function setCells(g, changes, opts) {
   // changes: [{ r, c, cell: {value, formula, format, type} | null }]
   if (!WB.canEdit || !changes.length) return;
   const sheet = g.sheet;
+  // protected ranges block edits for everyone but workbook admins
+  if (!WB.canAdmin && sheetProtectedRanges(sheet).length) {
+    const before = changes.length;
+    changes = changes.filter((ch) => !isCellProtected(sheet, ch.r, ch.c));
+    if (changes.length < before) _toast(changes.length ? "Some cells are in a protected range and weren’t changed" : "That range is protected — only an admin can edit it", "warn");
+    if (!changes.length) return;
+  }
   const applied = [];
   for (const ch of changes) {
     if (ch.r < 0 || ch.c < 0 || ch.r >= sheet.rowCount || ch.c >= sheet.colCount) continue;
@@ -9417,6 +9602,19 @@ function ruleCovers(rule, r, c) {
   return r >= rule.r0 && r <= rule.r1 && c >= rule.c0 && c <= rule.c1;
 }
 
+// ── Protected ranges ─────────────────────────────────────────────────────────
+// Locked ranges live in sheet.meta.protected. Client-side enforcement (like the
+// existing canEdit checks) — it stops accidental overwrites of template
+// formulas by regular editors; only workbook admins can change a locked cell.
+// Hard multi-tenant enforcement would require server RLS on workbook_cells.
+function sheetProtectedRanges(sheet) {
+  const v = sheet && sheet.meta && sheet.meta.protected;
+  return Array.isArray(v) ? v : [];
+}
+function isCellProtected(sheet, r, c) {
+  return sheetProtectedRanges(sheet).some((rule) => ruleCovers(rule, r, c));
+}
+
 function ruleRefText(rule) {
   return colLabel(rule.c0) + (rule.r0 + 1) + (rule.r1 !== rule.r0 || rule.c1 !== rule.c0 ? ":" + colLabel(rule.c1) + (rule.r1 + 1) : "");
 }
@@ -9657,6 +9855,42 @@ function condRuleHits(rule, raw) {
 
 // Extra inline style for a painted cell; conditional formats win over
 // manual fills (Excel's precedence), so this appends AFTER cellStyle.
+// Data-bar fill fraction (0–100). Bars grow from 0 (or from the min when it's
+// negative), so an all-positive column bars proportionally from the left.
+function condBarPercent(stats, n) {
+  const base = Math.min(0, stats.min);
+  const span = stats.max - base;
+  if (!(span > 0)) return n > base ? 100 : 0;
+  return Math.max(0, Math.min(100, ((n - base) / span) * 100));
+}
+// Icon sets: three-way split of the value's position in [min,max].
+const WB_CF_ICONSETS = {
+  arrows: [{ g: "▼", c: "#B91C1C" }, { g: "▬", c: "#92400E" }, { g: "▲", c: "#166534" }],
+  traffic: [{ g: "●", c: "#DC2626" }, { g: "●", c: "#D97706" }, { g: "●", c: "#16A34A" }],
+  signs: [{ g: "✖", c: "#B91C1C" }, { g: "!", c: "#92400E" }, { g: "✔", c: "#166534" }],
+};
+function condIconPick(rule, stats, n) {
+  const set = WB_CF_ICONSETS[rule.icons] || WB_CF_ICONSETS.arrows;
+  if (stats.max === stats.min) return set[1];
+  const t = (n - stats.min) / (stats.max - stats.min);
+  return set[t >= 2 / 3 ? 2 : t >= 1 / 3 ? 1 : 0];
+}
+// The icon (if any) an icon-set CF rule paints in front of a cell's value.
+function condIconFor(sheet, r, c, cell) {
+  const rules = sheet.meta && sheet.meta.condFormat;
+  if (!Array.isArray(rules) || !rules.length) return "";
+  for (const rule of rules) {
+    if (rule.type !== "iconset" || !ruleCovers(rule, r, c)) continue;
+    const n = cellNumeric(cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null);
+    if (n == null) continue;
+    const st = cfScaleStats(sheet, rule);
+    if (st.empty) continue;
+    const ic = condIconPick(rule, st, n);
+    return `<span class="wb-cf-icon" style="color:${ic.c};margin-right:4px;font-size:.85em">${ic.g}</span>`;
+  }
+  return "";
+}
+
 function condStyleFor(sheet, r, c, cell) {
   const rules = sheet.meta && sheet.meta.condFormat;
   if (!Array.isArray(rules) || !rules.length) return "";
@@ -9670,6 +9904,17 @@ function condStyleFor(sheet, r, c, cell) {
       if (st.empty) continue;
       const t = st.max === st.min ? 0.5 : (n - st.min) / (st.max - st.min);
       out = `background:${cfScaleColor((WB_CF_SCALES[rule.scale] || WB_CF_SCALES.gyr).stops, t)};`;
+      continue;
+    }
+    if (rule.type === "databar") {
+      const n = cellNumeric(cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null);
+      if (n == null) continue;
+      const st = cfScaleStats(sheet, rule);
+      if (st.empty) continue;
+      const pct = condBarPercent(st, n);
+      const bar = WB_CF_STYLES[rule.style] ? WB_CF_STYLES[rule.style].fg : "#2a78d6";
+      // a soft bar behind the text: filled portion tinted, remainder clear
+      out = `background:linear-gradient(90deg, ${bar}2e 0, ${bar}2e ${pct.toFixed(1)}%, transparent ${pct.toFixed(1)}%);`;
       continue;
     }
     if (rule.type === "formula" || rule.kind === "formula") {
@@ -9692,7 +9937,7 @@ function shiftRuleRanges(sheet, axis, index, delta) {
   const meta = sheet.meta || {};
   const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
   const cut = delta < 0 ? -delta : 0;
-  for (const key of ["validation", "condFormat", "merges", "charts", "pivots"]) {
+  for (const key of ["validation", "condFormat", "merges", "charts", "pivots", "protected"]) {
     if (!Array.isArray(meta[key]) || !meta[key].length) continue;
     const next = [];
     for (const rule of meta[key]) {
@@ -10056,6 +10301,8 @@ function openCondFormatDialog(g) {
             <select class="wb-input" id="wb-cf-type">
               <option value="single">Single color</option>
               <option value="scale">Color scale</option>
+              <option value="databar">Data bar</option>
+              <option value="iconset">Icon set</option>
             </select></label>
           <label class="wb-field" id="wb-cf-kind-field"><span class="wb-field-label">Format cells if…</span>
             <select class="wb-input" id="wb-cf-kind">${kindOpts}</select></label>
@@ -10068,6 +10315,8 @@ function openCondFormatDialog(g) {
           <input type="text" class="wb-input" id="wb-cf-formula" placeholder='=$D2=&quot;Late&quot;' spellcheck="false"></label>
         <label class="wb-field" id="wb-cf-scale-field" style="display:none"><span class="wb-field-label">Gradient</span>
           <select class="wb-input" id="wb-cf-scale">${scaleOpts}</select></label>
+        <label class="wb-field" id="wb-cf-icons-field" style="display:none"><span class="wb-field-label">Icon set</span>
+          <select class="wb-input" id="wb-cf-icons"><option value="arrows">▲ ▬ ▼  arrows</option><option value="traffic">●  traffic lights</option><option value="signs">✔ ! ✖  signs</option></select></label>
         <div class="wb-field" id="wb-cf-style-field"><span class="wb-field-label">Style</span>
           <div class="wb-cf-chips" id="wb-cf-chips">${chips}</div></div>
         <button type="button" class="btn btn-primary btn-sm" data-wb-cf-add>Add rule</button>
@@ -10088,6 +10337,14 @@ function openCondFormatDialog(g) {
             const sc = WB_CF_SCALES[rule.scale] || WB_CF_SCALES.gyr;
             swatch = `<span class="wb-cf-swatch" style="background:linear-gradient(90deg,${sc.stops.join(",")})"></span>`;
             what = sc.label;
+          } else if (rule.type === "databar") {
+            const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.blue;
+            swatch = `<span class="wb-cf-swatch" style="background:linear-gradient(90deg,${st.fg}55 66%,transparent 66%)"></span>`;
+            what = "Data bar";
+          } else if (rule.type === "iconset") {
+            const set = WB_CF_ICONSETS[rule.icons] || WB_CF_ICONSETS.arrows;
+            swatch = `<span class="wb-cf-swatch" style="background:transparent;font-size:11px;letter-spacing:1px">${set.map((x) => `<span style="color:${x.c}">${x.g}</span>`).join("")}</span>`;
+            what = "Icon set";
           } else {
             const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
             swatch = `<span class="wb-cf-swatch" style="background:${st.bg};color:${st.fg}">Aa</span>`;
@@ -10102,15 +10359,16 @@ function openCondFormatDialog(g) {
   const syncFields = () => {
     const type = wrap.querySelector("#wb-cf-type").value;
     const k = wrap.querySelector("#wb-cf-kind").value;
-    const isScale = type === "scale";
-    const isFormula = !isScale && k === "formula";
+    const isSingle = type === "single", isScale = type === "scale", isBar = type === "databar", isIcon = type === "iconset";
+    const isFormula = isSingle && k === "formula";
     const show = (id, on) => { wrap.querySelector(id).style.display = on ? "" : "none"; };
-    show("#wb-cf-kind-field", !isScale);
-    show("#wb-cf-v1-field", !isScale && !isFormula && k !== "empty" && k !== "notempty");
-    show("#wb-cf-v2-field", !isScale && !isFormula && k === "between");
+    show("#wb-cf-kind-field", isSingle);
+    show("#wb-cf-v1-field", isSingle && !isFormula && k !== "empty" && k !== "notempty");
+    show("#wb-cf-v2-field", isSingle && !isFormula && k === "between");
     show("#wb-cf-formula-field", isFormula);
     show("#wb-cf-scale-field", isScale);
-    show("#wb-cf-style-field", !isScale);
+    show("#wb-cf-icons-field", isIcon);
+    show("#wb-cf-style-field", isSingle || isBar); // data bar borrows the style chips for its colour
   };
   paintRules();
   syncFields();
@@ -10137,6 +10395,11 @@ function openCondFormatDialog(g) {
       const rules = sheetRules(sheet, "condFormat").slice();
       if (type === "scale") {
         rules.push({ ...base, type: "colorscale", scale: wrap.querySelector("#wb-cf-scale").value || "gyr" });
+      } else if (type === "databar") {
+        const style = wrap.querySelector(".wb-cf-chip.is-on")?.getAttribute("data-cf-style") || "blue";
+        rules.push({ ...base, type: "databar", style });
+      } else if (type === "iconset") {
+        rules.push({ ...base, type: "iconset", icons: wrap.querySelector("#wb-cf-icons").value || "arrows" });
       } else {
         const kind = wrap.querySelector("#wb-cf-kind").value;
         const style = wrap.querySelector(".wb-cf-chip.is-on")?.getAttribute("data-cf-style") || "green";
@@ -11214,6 +11477,89 @@ function showColumnStats(g) {
   document.body.appendChild(wrap);
   wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) wrap.remove(); });
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+}
+
+// Lock or unlock the selected range (admins only). Toggles: unprotects if the
+// selection overlaps existing locked ranges, otherwise locks the selection.
+function toggleProtectSelection(g) {
+  if (!WB.canAdmin) { _toast("Only a workbook admin can protect ranges", "warn"); return; }
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const before = structSnapshot(sheet);
+  const ranges = sheetProtectedRanges(sheet).slice();
+  const overlaps = (m) => !(m.r1 < rect.r0 || m.r0 > rect.r1 || m.c1 < rect.c0 || m.c0 > rect.c1);
+  const hit = ranges.filter(overlaps);
+  const next = hit.length
+    ? ranges.filter((m) => !hit.includes(m))
+    : [...ranges, { id: "pr" + Math.random().toString(36).slice(2, 8), r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 }];
+  sheet.meta = { ...(sheet.meta || {}), protected: next };
+  saveSheetMeta(sheet.id);
+  pushStructUndo(g, before);
+  repaintGrid(g);
+  const refT = colLabel(rect.c0) + (rect.r0 + 1) + (rect.r1 !== rect.r0 || rect.c1 !== rect.c0 ? ":" + colLabel(rect.c1) + (rect.r1 + 1) : "");
+  wbLog("sheet.protect", `${hit.length ? "unprotected" : "protected"} ${refT} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+  _toast(hit.length ? "Range unprotected" : "Range protected — only admins can edit it now", "success");
+}
+
+// Goal seek: solve an input cell so a formula cell reaches a target value.
+function openGoalSeekDialog(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const activeRef = colLabel(g.active.c) + (g.active.r + 1);
+  const activeCell = sheet.cells.get(cellKey(g.active.r, g.active.c));
+  const setDefault = activeCell && activeCell.formula ? activeRef : "";
+  document.getElementById("wb-goalseek-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-goalseek-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Goal seek" style="width:430px">
+      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">Goal seek</p><p class="rr-modal-sub">Find the input value that makes a formula cell hit a target.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Set cell — a formula</span><input class="wb-input" id="wb-gs-set" value="${esc(setDefault)}" placeholder="B10" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">To value</span><input class="wb-input" id="wb-gs-to" placeholder="12000" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">By changing cell</span><input class="wb-input" id="wb-gs-by" placeholder="A2" autocomplete="off" spellcheck="false"></label>
+        <p id="wb-gs-msg" style="margin-top:10px;min-height:18px;color:var(--text-subtle);font-size:12px"></p>
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Cancel</button><button class="rr-modal-btn primary" type="button" id="wb-gs-run">Solve</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  wrap.querySelector("#wb-gs-run").addEventListener("click", () => {
+    const msg = wrap.querySelector("#wb-gs-msg");
+    const setRC = parseCellRef((wrap.querySelector("#wb-gs-set").value || "").trim());
+    const byRC = parseCellRef((wrap.querySelector("#wb-gs-by").value || "").trim());
+    const goal = Number((wrap.querySelector("#wb-gs-to").value || "").replace(/[$,%\s]/g, ""));
+    if (!setRC || !byRC) { msg.textContent = "Enter valid cell references (e.g. B10 and A2)."; return; }
+    if (!isFinite(goal)) { msg.textContent = "Enter a numeric target value."; return; }
+    const targetKey = cellKey(setRC.row, setRC.col), inputKey = cellKey(byRC.row, byRC.col);
+    const targetCell = sheet.cells.get(targetKey);
+    if (!targetCell || !targetCell.formula) { msg.textContent = "The “Set cell” must contain a formula."; return; }
+    const inputCell = sheet.cells.get(inputKey);
+    if (inputCell && inputCell.formula) { msg.textContent = "The “By changing cell” can’t contain a formula."; return; }
+    const orig = inputCell ? inputCell.value : null;
+    const ensureInput = () => { let c = sheet.cells.get(inputKey); if (!c) { c = { value: "0", formula: null, type: "number", computed: null, err: null, format: {} }; sheet.cells.set(inputKey, c); } return c; };
+    const probe = (x) => {
+      const c = ensureInput(); c.value = String(x); c.computed = null; c.err = null;
+      recalcSheet(sheet, [inputKey]);
+      const t = sheet.cells.get(targetKey);
+      return t && !t.err ? cellNumeric(t.formula ? t.computed : t.value) : NaN;
+    };
+    const sol = solveGoalSeek(probe, goal, cellNumeric(orig) ?? 0);
+    // always restore the original input, then apply any solution via setCells (undoable)
+    const c = sheet.cells.get(inputKey);
+    if (c) { if (orig == null) sheet.cells.delete(inputKey); else { c.value = orig; c.computed = null; c.err = null; } }
+    recalcSheet(sheet);
+    if (sol == null) { repaintGrid(g); msg.textContent = "Couldn’t converge on a solution. Try a different target or a closer starting value."; return; }
+    const rounded = Math.abs(sol - Math.round(sol)) < 1e-9 ? Math.round(sol) : parseFloat(sol.toPrecision(12));
+    setCells(g, [{ r: byRC.row, c: byRC.col, cell: { value: String(rounded), formula: null, type: "number", computed: null, err: null, format: inputCell && inputCell.format ? { ...inputCell.format } : {} } }]);
+    const tv = sheet.cells.get(targetKey);
+    _toast(`Goal seek: ${colLabel(byRC.col)}${byRC.row + 1} = ${rounded} → ${colLabel(setRC.col)}${setRC.row + 1} ≈ ${formatForDisplay(tv.computed, tv.format, "formula")}`, "success");
+    close();
+  });
+  setTimeout(() => wrap.querySelector(setDefault ? "#wb-gs-to" : "#wb-gs-set")?.focus(), 0);
 }
 
 function splitTextToColumns(g) {
@@ -13978,7 +14324,18 @@ function bindGridEvents(g) {
   const toolbar = g.els.body.querySelector(".wb-toolbar");
   if (toolbar) toolbar.addEventListener("click", (e) => {
     const numfmt = e.target.closest("[data-wb-numfmt]");
-    if (numfmt) { formatSelection(g, { num: numfmt.getAttribute("data-wb-numfmt") || null }); closeAllPopovers(); return; }
+    if (numfmt) {
+      const v = numfmt.getAttribute("data-wb-numfmt");
+      closeAllPopovers();
+      if (v === "__custom") {
+        const cur = (g.sheet.cells.get(cellKey(g.active.r, g.active.c)) || {}).format || {};
+        const code = window.prompt("Custom number format\n\nExamples:\n  #,##0.00        1,234.50\n  #,##0,\"K\"       thousands → 1K\n  0.0%            percent\n  $#,##0;($#,##0) red-style negatives in parens\n  mmm d, yyyy     Jul 4, 2026", cur.fmt || "#,##0.00");
+        if (code != null) formatSelection(g, { fmt: code.trim() || null, num: code.trim() ? "custom" : null });
+        return;
+      }
+      formatSelection(g, { num: v || null, fmt: null });
+      return;
+    }
     // × on a custom swatch: forget the color, keep the picker open
     const colorDel = e.target.closest("[data-wb-colordel]");
     if (colorDel) {
@@ -15100,6 +15457,8 @@ function wbMenuItems(menu, g) {
         ] },
         sep,
         { label: "Column stats", act: "data:stats", disabled: !g },
+        { label: "Protect / unprotect selection", act: "data:protect", disabled: !g || !WB.canAdmin },
+        { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
         { label: "Named ranges…", act: "data:names", disabled: !g },
         { label: "Data validation…", act: "data:validation", disabled: !ed || !g },
@@ -15232,6 +15591,8 @@ function wbMenuAction(act, g) {
     case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); persistFilterState(g); } return;
     case "data:fv-save": if (need()) saveFilterView(g); return;
     case "data:stats": if (need()) showColumnStats(g); return;
+    case "data:protect": toggleProtectSelection(g); return;
+    case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
     case "data:names": if (need()) openNamedRangesDialog(g); return;
     case "data:validation": if (need()) openValidationDialog(g); return;
@@ -17034,7 +17395,8 @@ export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, solveGoalSeek,
+  condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   computePivot, pivotAggregate, pivotTableHtml,
