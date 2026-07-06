@@ -70,4 +70,12 @@ ok("iconset high third", pick("arrows", { min: 0, max: 90 }, 80), "▲");
 ok("iconset traffic set", pick("traffic", { min: 0, max: 3 }, 3), "●");
 ok("iconset unknown set falls back to arrows", pick("nope", { min: 0, max: 9 }, 8), "▲");
 
+// ── protected ranges ─────────────────────────────────────────────────────────
+const { isCellProtected } = __engine;
+const protSheet = { meta: { protected: [{ r0: 1, c0: 1, r1: 3, c1: 3 }] } };
+ok("protected: inside range", isCellProtected(protSheet, 2, 2), true);
+ok("protected: on edge", isCellProtected(protSheet, 1, 1), true);
+ok("protected: outside range", isCellProtected(protSheet, 0, 0), false);
+ok("protected: no rules", isCellProtected({ meta: {} }, 2, 2), false);
+
 console.log(`✓ custom number formats: ${n} tests passed`);

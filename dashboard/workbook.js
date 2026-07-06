@@ -8656,6 +8656,13 @@ function setCells(g, changes, opts) {
   // changes: [{ r, c, cell: {value, formula, format, type} | null }]
   if (!WB.canEdit || !changes.length) return;
   const sheet = g.sheet;
+  // protected ranges block edits for everyone but workbook admins
+  if (!WB.canAdmin && sheetProtectedRanges(sheet).length) {
+    const before = changes.length;
+    changes = changes.filter((ch) => !isCellProtected(sheet, ch.r, ch.c));
+    if (changes.length < before) _toast(changes.length ? "Some cells are in a protected range and weren’t changed" : "That range is protected — only an admin can edit it", "warn");
+    if (!changes.length) return;
+  }
   const applied = [];
   for (const ch of changes) {
     if (ch.r < 0 || ch.c < 0 || ch.r >= sheet.rowCount || ch.c >= sheet.colCount) continue;
@@ -9595,6 +9602,19 @@ function ruleCovers(rule, r, c) {
   return r >= rule.r0 && r <= rule.r1 && c >= rule.c0 && c <= rule.c1;
 }
 
+// ── Protected ranges ─────────────────────────────────────────────────────────
+// Locked ranges live in sheet.meta.protected. Client-side enforcement (like the
+// existing canEdit checks) — it stops accidental overwrites of template
+// formulas by regular editors; only workbook admins can change a locked cell.
+// Hard multi-tenant enforcement would require server RLS on workbook_cells.
+function sheetProtectedRanges(sheet) {
+  const v = sheet && sheet.meta && sheet.meta.protected;
+  return Array.isArray(v) ? v : [];
+}
+function isCellProtected(sheet, r, c) {
+  return sheetProtectedRanges(sheet).some((rule) => ruleCovers(rule, r, c));
+}
+
 function ruleRefText(rule) {
   return colLabel(rule.c0) + (rule.r0 + 1) + (rule.r1 !== rule.r0 || rule.c1 !== rule.c0 ? ":" + colLabel(rule.c1) + (rule.r1 + 1) : "");
 }
@@ -9917,7 +9937,7 @@ function shiftRuleRanges(sheet, axis, index, delta) {
   const meta = sheet.meta || {};
   const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
   const cut = delta < 0 ? -delta : 0;
-  for (const key of ["validation", "condFormat", "merges", "charts", "pivots"]) {
+  for (const key of ["validation", "condFormat", "merges", "charts", "pivots", "protected"]) {
     if (!Array.isArray(meta[key]) || !meta[key].length) continue;
     const next = [];
     for (const rule of meta[key]) {
@@ -11457,6 +11477,28 @@ function showColumnStats(g) {
   document.body.appendChild(wrap);
   wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) wrap.remove(); });
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+}
+
+// Lock or unlock the selected range (admins only). Toggles: unprotects if the
+// selection overlaps existing locked ranges, otherwise locks the selection.
+function toggleProtectSelection(g) {
+  if (!WB.canAdmin) { _toast("Only a workbook admin can protect ranges", "warn"); return; }
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const before = structSnapshot(sheet);
+  const ranges = sheetProtectedRanges(sheet).slice();
+  const overlaps = (m) => !(m.r1 < rect.r0 || m.r0 > rect.r1 || m.c1 < rect.c0 || m.c0 > rect.c1);
+  const hit = ranges.filter(overlaps);
+  const next = hit.length
+    ? ranges.filter((m) => !hit.includes(m))
+    : [...ranges, { id: "pr" + Math.random().toString(36).slice(2, 8), r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 }];
+  sheet.meta = { ...(sheet.meta || {}), protected: next };
+  saveSheetMeta(sheet.id);
+  pushStructUndo(g, before);
+  repaintGrid(g);
+  const refT = colLabel(rect.c0) + (rect.r0 + 1) + (rect.r1 !== rect.r0 || rect.c1 !== rect.c0 ? ":" + colLabel(rect.c1) + (rect.r1 + 1) : "");
+  wbLog("sheet.protect", `${hit.length ? "unprotected" : "protected"} ${refT} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+  _toast(hit.length ? "Range unprotected" : "Range protected — only admins can edit it now", "success");
 }
 
 // Goal seek: solve an input cell so a formula cell reaches a target value.
@@ -15415,6 +15457,7 @@ function wbMenuItems(menu, g) {
         ] },
         sep,
         { label: "Column stats", act: "data:stats", disabled: !g },
+        { label: "Protect / unprotect selection", act: "data:protect", disabled: !g || !WB.canAdmin },
         { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
         { label: "Named ranges…", act: "data:names", disabled: !g },
@@ -15548,6 +15591,7 @@ function wbMenuAction(act, g) {
     case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); persistFilterState(g); } return;
     case "data:fv-save": if (need()) saveFilterView(g); return;
     case "data:stats": if (need()) showColumnStats(g); return;
+    case "data:protect": toggleProtectSelection(g); return;
     case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
     case "data:names": if (need()) openNamedRangesDialog(g); return;
@@ -17352,7 +17396,7 @@ export const __engine = {
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, solveGoalSeek,
-  condBarPercent, condIconPick, WB_CF_ICONSETS,
+  condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   computePivot, pivotAggregate, pivotTableHtml,
