@@ -6486,6 +6486,9 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 #rr-util-rail-mount .rr-fp-st-assigned{background:#E8EEFB;color:#1E40AF}
 
 /* Card overflow (⋯) menu */
+/* Card with an open ⋯ menu jumps above its siblings so the menu, which
+   overflows the card's bounds, isn't painted behind the next card. */
+#rr-util-rail-mount .rr-fp-card.rr-fp-card--menu-open{z-index:30}
 #rr-util-rail-mount .rr-clf-menu{position:absolute;top:32px;right:8px;z-index:5;min-width:150px;background:#fff;border:1px solid #E7EAF0;border-radius:10px;box-shadow:0 8px 24px rgba(17,24,39,.12);padding:5px;display:flex;flex-direction:column}
 #rr-util-rail-mount .rr-clf-menu button{appearance:none;cursor:pointer;border:0;background:transparent;border-radius:7px;text-align:left;font:inherit;font-size:12.5px;color:var(--text,#111827);padding:7px 9px;transition:background .12s}
 #rr-util-rail-mount .rr-clf-menu button:hover{background:#F7F8FA}

@@ -79812,6 +79812,8 @@ function _clfSidebarPaint() {
 
 function _clfCloseMenus() {
   document.querySelectorAll(".rr-clf-menu").forEach((m) => m.remove());
+  // Drop the elevation class so cards return to their normal stacking order.
+  document.querySelectorAll(".rr-fp-card.rr-fp-card--menu-open").forEach((c) => c.classList.remove("rr-fp-card--menu-open"));
 }
 
 function _clfOpenMenu(btn, id) {
@@ -79826,7 +79828,12 @@ function _clfOpenMenu(btn, id) {
     <button type="button" data-rr-clf-menu="duplicate" data-id="${escapeHtml(id)}">Duplicate</button>
     <button type="button" data-rr-clf-menu="${archived ? "restore" : "archive"}" data-id="${escapeHtml(id)}">${archived ? "Restore" : "Archive"}</button>
     <button type="button" class="rr-clf-menu-danger" data-rr-clf-menu="delete" data-id="${escapeHtml(id)}">Delete</button>`;
-  btn.closest(".rr-fp-card")?.appendChild(menu);
+  const card = btn.closest(".rr-fp-card");
+  // The card's :hover transform creates a stacking context that would trap the
+  // absolutely-positioned menu behind later sibling cards. Elevate the card
+  // while its menu is open so the overflowing menu paints above its neighbours.
+  card?.classList.add("rr-fp-card--menu-open");
+  card?.appendChild(menu);
 }
 
 function _clfPanelSetPane(pane) {
