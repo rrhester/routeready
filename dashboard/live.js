@@ -55385,6 +55385,11 @@ async function renderScheduleWeek() {
   const headRow = sub.querySelector(".cal-grid.head");
   if (headRow) {
     const heads = headRow.querySelectorAll(".cal-cell-head");
+    // Per-day callout/attendance exposure (built earlier this render pass) so
+    // the day headers can surface a subtle risk glyph + hover card without any
+    // extra data plumbing.
+    const _expByIso = new Map(((_calloutExposure && _calloutExposure.days) || []).map((d) => [d.iso, d]));
+    const _dayRiskMap = {};
     for (let i = 0; i < 7; i++) {
       const cellHead = heads[i + 1];
       if (!cellHead) break;
@@ -55408,8 +55413,36 @@ async function renderScheduleWeek() {
         coverageLine = `<span class="day-coverage" style="color:${color}">${c.filled}/${c.needed}</span>`;
       }
       const targetLine = _tgt > 0 ? `<span class="day-target">Routes ${_tgt}</span>` : "";
-      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}${targetLine}`;
+
+      // ── Daily risk indicator · a subtle glyph in the header corner that
+      // lifts on hover/focus and reveals a summary card. Grounded entirely in
+      // data already computed this render: open route seats (fillByDate) and
+      // attendance exposure (_calloutExposure — at-risk drivers vs cushion).
+      //   red   = an actual open route seat (the day can't run its full plan)
+      //   amber = no open seat, but at-risk drivers exceed the cushion, or the
+      //           forecast warrants a precautionary backup.
+      const _exp = _expByIso.get(iso);
+      const _openSeats = c.needed > 0 ? Math.max(0, c.needed - c.filled) : 0;
+      const _atRisk = _exp ? _exp.atRisk : 0;
+      const _exposure = _exp ? _exp.exposure : 0;
+      const _weatherNeed = _exp ? (_exp.weatherNeed || 0) : 0;
+      const _sev = _openSeats > 0 ? "red"
+        : (_exposure > 0 || _weatherNeed > 0) ? "amber" : null;
+      let riskGlyph = "";
+      if (_sev) {
+        const items = [];
+        if (_openSeats > 0) items.push({ tone: "red", head: `${_openSeats} open route seat${_openSeats === 1 ? "" : "s"}`, sub: `${c.filled}/${c.needed} scheduled${_tgt > 0 ? ` · routes ${_tgt}` : ""}` });
+        if (_atRisk > 0) items.push({ tone: "amber", head: `${_atRisk} attendance risk${_atRisk === 1 ? "" : "s"}`, sub: _exposure > 0 ? `${_exposure} uncovered if they call out` : "covered by the cushion" });
+        if (_weatherNeed > 0) items.push({ tone: "amber", head: "Weather call-out risk", sub: `~${_weatherNeed} backup${_weatherNeed === 1 ? "" : "s"} advised${_exp && _exp.weatherBucket ? ` · ${_rrDayRiskWxLabel(_exp.weatherBucket)}` : ""}` });
+        _dayRiskMap[iso] = { sev: _sev, items, weekday: RR_DAY_SHORT[dt.getDay()], dayNum: dt.getDate() };
+        const _riskAria = `${_sev === "red" ? "Coverage gap" : "At risk"}: ${items.length} risk item${items.length === 1 ? "" : "s"} — view details`;
+        riskGlyph = `<button type="button" class="day-risk-glyph ${_sev}" data-rr-day-risk="${iso}" aria-haspopup="dialog" aria-label="${escapeHtml(_riskAria)}"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>`;
+      }
+
+      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}${targetLine}${riskGlyph}`;
     }
+    window._rrDayRiskByIso = _dayRiskMap;
+    _rrInstallDayRiskHover();
   }
 
   // ── Header action bar (operator mockup 2026-06-12) · coverage card +
@@ -58771,6 +58804,100 @@ async function _rrRiskLoad() {
   _rrRiskFetchedAt = Date.now();
   return _rrRiskCache;
 }
+// Friendly label for a weather call-out bucket, mirroring the Callout
+// Exposure modal's wxLabelFor map.
+function _rrDayRiskWxLabel(b) {
+  return ({
+    alert: "severe-weather alert", snow: "snow", thunderstorm: "thunderstorms",
+    heavy_rain: "heavy rain", rain: "rain", heat: "extreme heat", cold: "freezing temps",
+  })[b] || "weather";
+}
+
+// ── Daily risk indicator · hover/tap card for the schedule day headers.
+// The header loop paints a `.day-risk-glyph` button (data-rr-day-risk="<iso>")
+// and stashes per-day risk detail on window._rrDayRiskByIso. This installs a
+// single delegated handler that reveals a shared positioned card on hover,
+// keyboard focus, or tap — and whose "View details" button reuses the existing
+// Callout Exposure modal (via data-rr-kpi="callout"). Idempotent.
+function _rrInstallDayRiskHover() {
+  if (window._rrDayRiskHoverInstalled) return;
+  window._rrDayRiskHoverInstalled = true;
+  const POP_ID = "rr-day-risk-pop";
+  let hideTimer = null;
+
+  const clearHide = () => { if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; } };
+  const scheduleHide = () => { clearHide(); hideTimer = setTimeout(hide, 160); };
+  function hide() {
+    clearHide();
+    document.getElementById(POP_ID)?.classList.remove("open");
+  }
+  function getPop() {
+    let p = document.getElementById(POP_ID);
+    if (!p) {
+      p = document.createElement("div");
+      p.id = POP_ID;
+      p.className = "rr-day-risk-pop";
+      p.setAttribute("role", "dialog");
+      p.addEventListener("mouseenter", clearHide);
+      p.addEventListener("mouseleave", scheduleHide);
+      document.body.appendChild(p);
+    }
+    return p;
+  }
+  function show(glyph) {
+    const iso = glyph.getAttribute("data-rr-day-risk");
+    const data = (window._rrDayRiskByIso || {})[iso];
+    if (!data) return;
+    clearHide();
+    const p = getPop();
+    const n = data.items.length;
+    const rows = data.items.map((it) =>
+      `<div class="rr-drp-item"><span class="rr-drp-dot ${it.tone}"></span><div class="rr-drp-txt"><div class="rr-drp-ihead">${escapeHtml(it.head)}</div><div class="rr-drp-isub">${escapeHtml(it.sub)}</div></div></div>`
+    ).join("");
+    p.innerHTML =
+      `<div class="rr-drp-top">` +
+        `<span class="rr-drp-title">${escapeHtml(data.weekday)} ${data.dayNum}</span>` +
+        `<span class="rr-drp-pill ${data.sev}">${data.sev === "red" ? "Coverage gap" : "At risk"}</span>` +
+      `</div>` +
+      `<p class="rr-drp-summary">This day has ${n} risk item${n === 1 ? "" : "s"} that may impact operations.</p>` +
+      `<div class="rr-drp-items">${rows}</div>` +
+      `<button type="button" class="rr-drp-details" data-rr-kpi="callout">View details` +
+        `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>` +
+      `</button>`;
+    p.classList.add("open");
+    // Center under the glyph's header cell, clamped to the viewport.
+    const cell = glyph.closest(".cal-cell-head") || glyph;
+    const r = cell.getBoundingClientRect();
+    const pw = p.offsetWidth || 260;
+    let left = r.left + r.width / 2 - pw / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+    p.style.left = `${Math.round(left)}px`;
+    p.style.top = `${Math.round(r.bottom + 8)}px`;
+  }
+  const glyphFrom = (e) => (e.target && e.target.closest) ? e.target.closest("[data-rr-day-risk]") : null;
+
+  document.addEventListener("mouseover", (e) => { const g = glyphFrom(e); if (g) show(g); });
+  document.addEventListener("mouseout", (e) => {
+    const g = glyphFrom(e);
+    const into = e.relatedTarget && e.relatedTarget.closest;
+    if (g && !(into && (e.relatedTarget.closest("#" + POP_ID) || e.relatedTarget.closest("[data-rr-day-risk]")))) scheduleHide();
+  });
+  document.addEventListener("focusin", (e) => { const g = glyphFrom(e); if (g) show(g); });
+  document.addEventListener("focusout", (e) => { const g = glyphFrom(e); if (g) scheduleHide(); });
+  // Tap/click toggles (touch has no hover). The "View details" button lives
+  // inside the card, not the glyph, so it falls through to the callout modal.
+  document.addEventListener("click", (e) => {
+    const g = glyphFrom(e);
+    if (!g) return;
+    e.preventDefault();
+    const p = document.getElementById(POP_ID);
+    if (p && p.classList.contains("open")) hide(); else show(g);
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
+  // The card is viewport-positioned, so re-anchor by hiding on any scroll.
+  window.addEventListener("scroll", hide, true);
+}
+
 function _rrRiskPill(driverId, compact) {
   if (!_rrRiskCache) return "";
   const r = _rrRiskCache[driverId];
