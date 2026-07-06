@@ -5930,7 +5930,9 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-task.is-done .ntp-task-check{background:#2563EB;border-color:#2563EB}
 #rr-util-rail-mount .ntp-task-check svg{opacity:0}
 #rr-util-rail-mount .ntp-task.is-done .ntp-task-check svg{opacity:1}
-#rr-util-rail-mount .ntp-task-title{flex:1;min-width:0;font-size:13.5px;color:var(--text,#0f172a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Titles wrap (up to 3 lines, then ellipsis) so long tasks stay readable;
+   the span's title attribute carries the full text past the clamp. */
+#rr-util-rail-mount .ntp-task-title{flex:1;min-width:0;font-size:13.5px;line-height:1.35;color:var(--text,#0f172a);overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow-wrap:anywhere}
 #rr-util-rail-mount .ntp-task.is-done .ntp-task-title{color:var(--text-subtle,#94a3b8);text-decoration:line-through}
 #rr-util-rail-mount .ntp-task-due{flex:0 0 auto;font-size:12px;font-weight:600;color:var(--text-subtle,#94a3b8)}
 #rr-util-rail-mount .ntp-task-due.is-soon{color:#EA580C}
