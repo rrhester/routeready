@@ -149,11 +149,15 @@ async function refreshChatBadge() {
   } catch {}
 }
 
-// In-app badge on the Forms tab · count of pending (unacknowledged)
-// coachings the dispatcher has sent. Mirrors the Chat tab badge so a new
-// Coaching alerts the driver on the Forms tab from any screen, without
-// having to open Forms first.
-function _setFormsTabBadge(n) {
+// In-app badge on the Tasks tab · a single count that sums everything
+// waiting for the driver there: pending (unacknowledged) coachings plus
+// open checklists. Forms + Checklists used to be two separate bottom-nav
+// tabs each with their own badge; now they're one "Tasks" hub, so the
+// two counters below feed one badge painter and can't clobber each other.
+let _tasksBadgeCoaching = 0;
+let _tasksBadgeChecklists = 0;
+function _paintTasksTabBadge() {
+  const n = (_tasksBadgeCoaching || 0) + (_tasksBadgeChecklists || 0);
   document.querySelectorAll('.tab[data-c="tasks"]').forEach((tab) => {
     const ic = tab.querySelector(".tab-ic");
     if (!ic) return;
@@ -172,6 +176,8 @@ function _setFormsTabBadge(n) {
     }
   });
 }
+// Coaching count → Tasks tab badge.
+function _setFormsTabBadge(n) { _tasksBadgeCoaching = n || 0; _paintTasksTabBadge(); }
 
 async function refreshFormsBadge() {
   if (PREVIEW) return;
@@ -821,8 +827,8 @@ const routes = {
   "/tasks/onboarding":  { render: renderOnboarding,      tab: "/tasks", back: "/tasks", title: "Onboarding" },
   "/tasks/onboarding/step": { render: renderOnboardingStep, tab: "/tasks", back: "/tasks/onboarding", title: "Onboarding step" },
   "/tasks/form":        { render: renderFormFill,        tab: "/tasks", back: "/tasks", title: "Form" },
-  "/checklists":        { render: renderChecklistsHub,   tab: "/checklists" },
-  "/tasks/checklist":   { render: renderChecklistFill,   tab: "/checklists", back: "/checklists", title: "Checklist" },
+  "/checklists":        { render: renderChecklistsHub,   tab: "/tasks", back: "/tasks", title: "Checklists" },
+  "/tasks/checklist":   { render: renderChecklistFill,   tab: "/tasks", back: "/tasks", title: "Checklist" },
   "/tasks/coaching":    { render: renderCoachingFeed,    tab: "/tasks", back: "/tasks", title: "Coaching" },
   "/tasks/coaching/one":{ render: renderCoachingDetail,  tab: "/tasks", back: "/tasks/coaching", title: "Coaching" },
   "/tasks/documents":   { render: renderDocumentsList,   tab: "/tasks", back: "/tasks", title: "Documents" },
@@ -1553,13 +1559,9 @@ function renderShell(session) {
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         Schedule
       </button>
-      <button class="tab" data-route="/tasks" data-c="tasks" role="tab" aria-label="Forms">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
-        Forms
-      </button>
-      <button class="tab" data-route="/checklists" data-c="checklists" role="tab" aria-label="Checklists">
-        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 1.8 1.8L8 4.6"/><path d="m3 12 1.8 1.8L8 10.6"/><path d="m3 18 1.8 1.8L8 16.6"/><line x1="11" y1="6" x2="21" y2="6"/><line x1="11" y1="12" x2="21" y2="12"/><line x1="11" y1="18" x2="21" y2="18"/></svg></span>
-        Checklists
+      <button class="tab" data-route="/tasks" data-c="tasks" role="tab" aria-label="Tasks">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></span>
+        Tasks
       </button>
       <button class="tab" data-route="/chat" data-c="chat" role="tab" aria-label="Chat">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
@@ -1851,18 +1853,27 @@ async function renderSchedule() {
     }
 
     _clearSkel();
+    // Split the upcoming shifts at the end of the current calendar week
+    // (Saturday) so the list reads as "This week" / "Next week" instead
+    // of one long undifferentiated "Upcoming" run.
+    const _todayD = new Date(todayIso + "T12:00:00");
+    const _satEnd = new Date(_todayD);
+    _satEnd.setDate(_todayD.getDate() + (6 - _todayD.getDay()));
+    const _satIso = fmtIsoDate(_satEnd);
+    const thisWeek = upcomingShifts.filter((s) => s.iso <= _satIso);
+    const nextWeek = upcomingShifts.filter((s) => s.iso >  _satIso);
+    const groupHtml = (label, arr) => arr.length
+      ? `<div class="section-title">${label}</div>${arr.map((s) => shiftCardHtml(s, false, vanByIso.get(s.iso), { swappable: true })).join("")}`
+      : "";
     main.innerHTML = `
       <div id="rr-shift-confirm-slot"></div>
       <div id="rr-cover-offer-slot"></div>
       <div id="rr-swap-incoming-slot"></div>
-      ${todayShifts.length ? `
-        <div class="section-title">Today</div>
-        ${todayShifts.map((s) => shiftCardHtml(s, true, vanByIso.get(s.iso))).join("")}
-      ` : ""}
-      ${upcomingShifts.length ? `
-        <div class="section-title">Upcoming</div>
-        ${upcomingShifts.map((s) => shiftCardHtml(s, false, vanByIso.get(s.iso), { swappable: true })).join("")}
-      ` : !todayShifts.length ? `<div class="empty-state">No upcoming shifts.</div>` : ""}
+      ${_schedStripHtml(shifts, todayIso)}
+      ${todayShifts.map((s) => _schedSpotlightHtml(s, vanByIso.get(s.iso))).join("")}
+      ${groupHtml("This week", thisWeek)}
+      ${groupHtml("Next week", nextWeek)}
+      ${(!todayShifts.length && !upcomingShifts.length) ? `<div class="empty-state">No upcoming shifts.</div>` : ""}
       <div id="rr-pickup-slot"></div>`;
 
     // Pinned cards at the top — Cover offers, swap incoming, AND
@@ -2335,32 +2346,73 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
   const day = s.date.getDate();
   const month = s.date.toLocaleDateString(undefined, { month: "short" });
 
-  // Line 1 · "Start 9:40am  End 8:00pm" — what the driver clocks
-  //          in / out at (matches their paid block).
-  // Line 2 · "Wave time 10:00am"        — when their wave actually
-  //          dispatches; only shown when it differs from Start
-  //          (i.e. the DSP set a report-lead).
   const startTxt = s.starts_at ? fmtTime(s.starts_at) : "";
   const endTxt   = s.ends_at   ? fmtTime(s.ends_at)   : "";
-  const hasLead = s.reportLeadMinutes > 0
-    && s.wave_starts_at
-    && new Date(s.wave_starts_at).getTime() !== new Date(s.starts_at).getTime();
-  const waveTxt = hasLead ? fmtTime(s.wave_starts_at) : "";
+  const timeTxt  = startTxt && endTxt ? `${startTxt} – ${endTxt}` : (startTxt || endTxt || "");
 
-  // Onboarding shift kind — Day 1+2 station training and Day 3 ride-along.
-  // These now surface as a badge (below) rather than a label baked into the
-  // station line, so the station code stays the station code.
   const isTraining = s.shiftKind === "training";
   const isRideAlong = s.shiftKind === "ride_along";
   const isOnboardingShift = isTraining || isRideAlong;
 
-  // ── Meta row · the unified ShiftCard contract ─────────────────────
-  // Secondary metadata reads as a tidy data record — a small uppercase
-  // label over its value — rather than bordered pills. Order is
-  // deliberate: Van (the key operational fact) → Wave → Service type →
-  // Training → Cushion → Completed. Color is reserved for meaning only;
-  // see .sc-meta / .sc-cell in styles.css.
+  // ── Scannable row ─────────────────────────────────────────────────
+  // The date + hours are the signal that changes day to day, so they
+  // carry the weight. Everything constant (station · van · type · wave)
+  // collapses to one quiet line — a driver on the same van/station all
+  // week isn't made to re-read it on every card. Anything *exceptional*
+  // (a rotation van, training, a cushion shift, a completed day) breaks
+  // out as a colored chip so the eye catches it.
+  const lineBits = [];
+  if (s.station) lineBits.push(escapeHtml(s.station));
+  if (vanName && !isRotation) lineBits.push(escapeHtml(vanName));
+  if (s.type && s.type !== "SP") lineBits.push(escapeHtml(s.type));
+  const line = lineBits.join(" · ");
+
+  const chips = [];
+  if (isRotation && vanName) chips.push(`<span class="sc-chip sc-chip-rot">${escapeHtml(vanName)} · rotation</span>`);
+  if (isTraining) chips.push(`<span class="sc-chip sc-chip-train">Class · Day ${escapeHtml(String(s.trainingDay || 1))}</span>`);
+  else if (isRideAlong) { const tn = s.trainerName ? s.trainerName.split(/\s+/)[0] : ""; chips.push(`<span class="sc-chip sc-chip-road">${tn ? `Road · ${escapeHtml(tn)}` : "Road"}</span>`); }
+  if (s.isCushion) chips.push(`<span class="sc-chip sc-chip-cushion">Cushion</span>`);
+  if (s.status === "completed") chips.push(`<span class="sc-chip sc-chip-done">Completed</span>`);
+
+  // Weather chip is filled in async after render — see _hydrateShiftWeather.
+  const wxSlot = s.iso && s.status === "scheduled"
+    ? `<div class="shift-weather" data-wx-iso="${escapeHtml(s.iso)}" hidden></div>`
+    : "";
+  return `
+    <div class="shift-card ${isToday ? "is-today" : ""}">
+      <div class="date-block">
+        <div class="date-dow">${dow}</div>
+        <div class="date-day">${day}</div>
+        <div class="date-month">${month}</div>
+      </div>
+      <div class="sc-main">
+        <div class="sc-time">${escapeHtml(timeTxt)}</div>
+        ${line ? `<div class="sc-line">${line}</div>` : ""}
+        ${chips.length ? `<div class="sc-chips">${chips.join("")}</div>` : ""}
+        ${wxSlot}
+        ${opts?.swappable && s.status === "scheduled" && !isOnboardingShift ? `
+          <div class="sc-swap"><a href="#" class="rr-text-link" data-rr-swap-from="${escapeHtml(s.id)}">Offer swap</a></div>
+        ` : ""}
+      </div>
+    </div>`;
+}
+
+// ── Schedule · shared meta cells ────────────────────────────────────
+// The labeled value cells (Station · Van · Wave · Type · Training ·
+// Cushion) shared by the "today" spotlight card. Mirrors the contract
+// in shiftCardHtml so both surfaces read as one system.
+function _shiftMetaCells(s, vanInfo, { withStation } = {}) {
+  const vanName    = (vanInfo && typeof vanInfo === "object") ? vanInfo.name : vanInfo;
+  const isRotation = !!(vanInfo && typeof vanInfo === "object" && vanInfo.isRotation);
+  const hasLead = s.reportLeadMinutes > 0 && s.wave_starts_at
+    && new Date(s.wave_starts_at).getTime() !== new Date(s.starts_at).getTime();
+  const waveTxt = hasLead ? fmtTime(s.wave_starts_at) : "";
+  const isTraining = s.shiftKind === "training";
+  const isRideAlong = s.shiftKind === "ride_along";
   const cells = [];
+  if (withStation && s.station) {
+    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Station</div><div class="sc-cell-v">${escapeHtml(s.station)}</div></div>`);
+  }
   if (vanName) {
     const rot = isRotation ? ` <span class="sc-cell-rotation">Rotation</span>` : "";
     cells.push(`<div class="sc-cell"><div class="sc-cell-l">Van</div><div class="sc-cell-v sc-cell-v--van">${escapeHtml(vanName)}${rot}</div></div>`);
@@ -2379,40 +2431,67 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
     cells.push(`<div class="sc-cell"><div class="sc-cell-l">Training</div><div class="sc-cell-v sc-cell-v--road">${tn ? `Road · ${escapeHtml(tn)}` : "Road"}</div></div>`);
   }
   if (s.isCushion) {
-    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Shift</div><div class="sc-cell-v sc-cell-v--ex" title="Extra / cushion shift">Cushion</div></div>`);
+    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Shift</div><div class="sc-cell-v sc-cell-v--ex">Cushion</div></div>`);
   }
-  if (s.status === "completed") {
-    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Status</div><div class="sc-cell-v sc-cell-v--done">Completed</div></div>`);
-  }
+  return cells.join("");
+}
 
-  // Weather chip is filled in async after render — see _hydrateShiftWeather.
-  // We emit a dated placeholder slot so the chip can appear without a
-  // full re-render once NWS responds.
-  const wxSlot = s.iso && s.status === "scheduled"
-    ? `<div class="shift-weather" data-wx-iso="${escapeHtml(s.iso)}" hidden></div>`
-    : "";
+// ── Schedule · two-week overview strip ──────────────────────────────
+// A calendar-aligned mini-grid of the current + next week. Working days
+// fill accent-soft (today solid accent); off days stay quiet; past days
+// dim. Gives the driver the *shape* of their fortnight at a glance — the
+// answer to "when am I off?" without scrolling the card list.
+function _schedStripHtml(shifts, todayIso) {
+  const onIso = new Map(shifts.map((s) => [s.iso, s.shiftKind || "regular"]));
+  const today = new Date(todayIso + "T12:00:00");
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay()); // back up to Sunday
+  const cell = (i) => {
+    const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
+    const iso = fmtIsoDate(d);
+    const kind = onIso.get(iso);
+    const on = !!kind;
+    const isToday = iso === todayIso;
+    const isPast = iso < todayIso;
+    const isTrain = kind === "training" || kind === "ride_along";
+    const cls = ["ss-cell", on ? "ss-on" : "ss-off", isToday ? "ss-today" : "", isPast ? "ss-past" : "", isTrain ? "ss-train" : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}" aria-hidden="true"><span class="ss-num">${d.getDate()}</span></div>`;
+  };
+  const cells = Array.from({ length: 14 }, (_, i) => cell(i));
+  const dowH = ["S", "M", "T", "W", "T", "F", "S"].map((x) => `<div class="ss-dow">${x}</div>`).join("");
+  const remaining = shifts.filter((s) => s.iso >= todayIso).length;
   return `
-    <div class="shift-card ${isToday ? "is-today" : ""}">
-      <div class="date-block">
-        <div class="date-dow">${dow}</div>
-        <div class="date-day">${day}</div>
-        <div class="date-month">${month}</div>
+    <section class="sched-strip" aria-label="Two-week overview">
+      <div class="ss-cap">
+        <span class="ss-cap-title">Next two weeks</span>
+        <span class="ss-cap-count">${remaining} shift${remaining === 1 ? "" : "s"}</span>
       </div>
-      <div style="flex:1;min-width:0">
-        <div class="meta-time-row">
-          <div class="meta-time">
-            <span class="meta-time-lbl">Start</span>
-            <span class="meta-time-val">${escapeHtml(startTxt && endTxt ? `${startTxt} – ${endTxt}` : (startTxt || endTxt || ""))}</span>
-          </div>
-        </div>
-        ${s.station ? `<div class="meta-station">${escapeHtml(s.station)}</div>` : ""}
-        ${cells.length ? `<div class="sc-meta">${cells.join("")}</div>` : ""}
-        ${wxSlot}
-        ${opts?.swappable && s.status === "scheduled" && !isOnboardingShift ? `
-          <div style="margin-top:8px"><a href="#" class="rr-text-link" data-rr-swap-from="${escapeHtml(s.id)}" style="font-size:var(--fs-xs);color:var(--text-subtle);text-decoration:none;cursor:pointer">Offer swap</a></div>
-        ` : ""}
-      </div>
-    </div>`;
+      <div class="ss-grid ss-head">${dowH}</div>
+      <div class="ss-grid">${cells.slice(0, 7).join("")}</div>
+      <div class="ss-grid">${cells.slice(7, 14).join("")}</div>
+    </section>`;
+}
+
+// ── Schedule · "today" spotlight ────────────────────────────────────
+// Today's shift, elevated into a hero card so the driver's most
+// relevant shift anchors the screen. Larger time, accent frame, the
+// same labeled meta cells + weather slot the list cards use.
+function _schedSpotlightHtml(s, vanInfo) {
+  const startTxt = s.starts_at ? fmtTime(s.starts_at) : "";
+  const endTxt   = s.ends_at   ? fmtTime(s.ends_at)   : "";
+  const timeTxt  = startTxt && endTxt ? `${startTxt} – ${endTxt}` : (startTxt || endTxt || "");
+  const dateLbl  = s.date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  const cells    = _shiftMetaCells(s, vanInfo, { withStation: true });
+  const wxSlot   = s.iso && s.status === "scheduled"
+    ? `<div class="shift-weather" data-wx-iso="${escapeHtml(s.iso)}" hidden></div>` : "";
+  const doneTag  = s.status === "completed" ? `<span class="sched-spot-done">Completed</span>` : "";
+  return `
+    <section class="sched-spot" aria-label="Today's shift">
+      <div class="sched-spot-eyebrow">Today · ${escapeHtml(dateLbl)}${doneTag}</div>
+      <div class="sched-spot-time">${escapeHtml(timeTxt)}</div>
+      ${cells ? `<div class="sc-meta sched-spot-meta">${cells}</div>` : ""}
+      ${wxSlot}
+    </section>`;
 }
 
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
@@ -2547,7 +2626,7 @@ async function _hydrateShiftWeather(shifts) {
 // completes during their shift. Status pills (Required / Pending /
 // Done) make the day's open work obvious at a glance.
 function renderTasksHub() {
-  setHeader("Forms", "");
+  setHeader("Tasks", "");
   setRefresh(() => renderTasksHub());
   const main = document.getElementById("main");
 
@@ -2572,6 +2651,7 @@ function renderTasksHub() {
     <div id="rr-tasks-assignments-slot"></div>
     ${baseCards.map(taskCardHtml).join("")}
     <div id="rr-tasks-forms-slot"></div>
+    <div id="rr-tasks-checklists-slot"></div>
     <div id="rr-tasks-tools-slot">
       <div class="wt-sec">Tools</div>
       ${taskCardHtml({
@@ -2591,11 +2671,11 @@ function renderTasksHub() {
   //   • If every RPC settles with nothing to show, drop the skeleton
   //     and reveal the "Nothing to do" empty state instead.
   //   • 3 s safety net for genuinely-stuck networks.
-  const TASKS_RPC_COUNT = 6;
+  const TASKS_RPC_COUNT = 7;
   let _tasksPending = TASKS_RPC_COUNT;
   let _tasksRevealed = false;
   const slotHasContent = () => {
-    const slots = ["rr-tasks-onboarding-slot", "rr-tasks-assignments-slot", "rr-tasks-forms-slot", "rr-tasks-tools-slot"];
+    const slots = ["rr-tasks-onboarding-slot", "rr-tasks-assignments-slot", "rr-tasks-forms-slot", "rr-tasks-checklists-slot", "rr-tasks-tools-slot"];
     return slots.some(id => {
       const el = document.getElementById(id);
       return el && el.children.length > 0;
@@ -2697,7 +2777,7 @@ function renderTasksHub() {
     }
     const forms = Array.isArray(data) ? data : [];
     if (forms.length === 0) return;
-    slot.innerHTML = forms.map(f => {
+    slot.innerHTML = `<div class="wt-sec">Forms<span class="wt-sec-n">${forms.length}</span></div>` + forms.map(f => {
       const oncePer = !!f.settings?.once_per_driver;
       const done = oncePer && f.submission_count > 0;
       return taskCardHtml({
@@ -2716,6 +2796,26 @@ function renderTasksHub() {
     // The Tasks hub still shows what loaded; pull-to-refresh re-tries.
     console.warn("driver_list_forms rejected:", err);
   }).finally(rpcSettled);
+
+  // Checklists — folded into the Tasks hub (they used to live in a
+  // separate bottom-nav tab). Open ones render under a "Checklists"
+  // section header; completed ones stay in the dedicated /checklists
+  // view to keep the hub focused on what still needs doing.
+  sb.rpc("driver_list_checklists", { p_token: session.token }).then(({ data, error }) => {
+    const slot = document.getElementById("rr-tasks-checklists-slot");
+    if (!slot) return;
+    if (error) { console.warn("driver_list_checklists error:", error); return; }
+    const lists = Array.isArray(data) ? data : [];
+    const todo = lists.filter((c) => c.status !== "completed");
+    const completed = lists.filter((c) => c.status === "completed");
+    _setChecklistsTabBadge(todo.length);
+    if (todo.length === 0) return;
+    slot.innerHTML = `<div class="wt-sec">Checklists<span class="wt-sec-n">${todo.length}</span></div>`
+      + todo.map(_clkCardHtml).join("")
+      + (completed.length ? `<a class="rr-hub-link" data-task-route="/checklists">View ${completed.length} completed</a>` : "");
+    slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
+    onContent();
+  }).catch((err) => { console.warn("driver_list_checklists rejected:", err); }).finally(rpcSettled);
 
   // Documents to sign — single card surfacing the count of pending
   // envelopes the dispatcher has sent for this driver.
@@ -5818,11 +5918,28 @@ function renderProfileHub() {
         </div>
       </div>
       <div id="rr-missed-slot" hidden></div>
+      <div class="home-quick">
+        <button class="home-quick-tile" type="button" data-nav="/schedule">
+          <span class="home-quick-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+          <span class="home-quick-label">Schedule</span>
+        </button>
+        <button class="home-quick-tile" type="button" data-nav="/chat">
+          <span class="home-quick-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="home-quick-label">Message</span>
+        </button>
+        <button class="home-quick-tile" type="button" data-nav="/team">
+          <span class="home-quick-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          <span class="home-quick-label">Team</span>
+        </button>
+      </div>
       <section class="up-next" id="rr-upnext-slot" hidden></section>
       <section class="van-docs" id="rr-vandocs-slot" hidden></section>
     </div>`;
 
   document.getElementById("rr-home-settings").addEventListener("click", () => { _haptic("tap"); navigate("/settings"); });
+  main.querySelectorAll(".home-quick-tile[data-nav]").forEach((el) => {
+    el.addEventListener("click", () => { _haptic("select"); navigate(el.dataset.nav); });
+  });
 
   // Photo upload — clicking the avatar opens the camera or picker.
   const fileInput = document.getElementById("rr-photo-input");
@@ -7291,25 +7408,9 @@ function renderChecklistsHub() {
   });
 }
 
-function _setChecklistsTabBadge(n) {
-  document.querySelectorAll('.tab[data-c="checklists"]').forEach((tab) => {
-    const ic = tab.querySelector(".tab-ic");
-    if (!ic) return;
-    let badge = ic.querySelector(".rr-tab-badge");
-    if (n > 0) {
-      if (getComputedStyle(ic).position === "static") ic.style.position = "relative";
-      if (!badge) {
-        badge = document.createElement("span");
-        badge.className = "rr-tab-badge";
-        badge.style.cssText = "position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--bg, #fff);box-sizing:border-box";
-        ic.appendChild(badge);
-      }
-      badge.textContent = n > 99 ? "99+" : String(n);
-    } else if (badge) {
-      badge.remove();
-    }
-  });
-}
+// Open-checklist count → folded into the shared Tasks tab badge
+// (checklists no longer have their own bottom-nav tab).
+function _setChecklistsTabBadge(n) { _tasksBadgeChecklists = n || 0; _paintTasksTabBadge(); }
 
 async function refreshChecklistsBadge() {
   if (PREVIEW) return;

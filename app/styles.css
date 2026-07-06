@@ -605,6 +605,86 @@ select.field{
   letter-spacing:.05em;text-transform:uppercase;color:#B45309;
 }
 
+/* ── Schedule · two-week overview strip ─────────────────────────────
+   A calendar-aligned mini-grid that opens the Schedule tab: the shape
+   of the driver's fortnight (which days on, which off) before the card
+   list. Working days fill accent-soft; today reads solid accent. */
+.sched-strip{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:12px 12px 14px;box-shadow:var(--shadow-card);margin-bottom:16px;
+}
+.ss-cap{display:flex;align-items:baseline;justify-content:space-between;margin:0 2px 10px}
+.ss-cap-title{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle)}
+.ss-cap-count{font-size:var(--fs-xs);font-weight:700;color:var(--accent-text);font-variant-numeric:tabular-nums}
+.ss-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.ss-head{margin-bottom:6px}
+.ss-dow{text-align:center;font-size:10px;font-weight:700;letter-spacing:.02em;color:var(--text-subtle)}
+.ss-cell{
+  aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;
+  border-radius:9px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;
+  color:var(--text-muted);
+}
+.ss-off{color:var(--text-disabled)}
+.ss-on{background:var(--accent-soft);color:var(--accent-text);font-weight:800}
+.ss-train.ss-on{background:rgba(15,118,110,.12);color:#0F766E}
+.ss-past{opacity:.5}
+.ss-past.ss-on{background:var(--surface-pressed);color:var(--text-subtle);font-weight:700}
+.ss-today{box-shadow:inset 0 0 0 2px var(--accent);color:var(--accent);font-weight:800}
+.ss-today.ss-on{background:var(--accent);color:#fff;box-shadow:none}
+
+/* ── Schedule · today spotlight ─────────────────────────────────────
+   Today's shift lifted into a hero card that anchors the screen. */
+.sched-spot{
+  position:relative;overflow:hidden;
+  background:linear-gradient(135deg, rgba(37,99,235,.07), rgba(37,99,235,.015));
+  border:1px solid var(--accent-border);border-radius:16px;
+  padding:16px 18px 18px;margin-bottom:14px;
+  box-shadow:var(--shadow-card);
+}
+.sched-spot::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent)}
+.sched-spot-eyebrow{
+  display:flex;align-items:center;gap:8px;
+  font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text);
+}
+.sched-spot-done{
+  font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--green-dark);background:var(--green-soft);
+  padding:2px 7px;border-radius:999px;
+}
+.sched-spot-time{
+  font-size:28px;font-weight:800;letter-spacing:-.02em;color:var(--text);
+  margin-top:6px;line-height:1.1;font-variant-numeric:tabular-nums;
+}
+.sched-spot-meta{margin-top:14px}
+.sched-spot .shift-weather{margin-top:12px}
+
+/* ── Schedule · scannable list row ──────────────────────────────────
+   Upcoming shifts. Date + hours carry the weight; the constants collapse
+   to one quiet line; exceptions break out as colored chips. */
+.shift-card .sc-main{min-width:0}
+.shift-card .sc-time{
+  font-size:var(--fs-lg);font-weight:700;color:var(--text);
+  font-variant-numeric:tabular-nums;letter-spacing:-.012em;line-height:1.2;
+}
+.shift-card .sc-line{
+  margin-top:3px;font-size:var(--fs-sm);color:var(--text-subtle);font-weight:500;
+  font-variant-numeric:tabular-nums;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.shift-card .sc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sc-chip{
+  font-size:10px;font-weight:700;letter-spacing:.02em;
+  padding:3px 8px;border-radius:999px;
+  background:var(--canvas);color:var(--text-muted);border:1px solid var(--border-subtle);
+}
+.sc-chip-rot{background:rgba(180,83,9,.10);color:#B45309;border-color:transparent}
+.sc-chip-train{background:rgba(15,118,110,.12);color:#0F766E;border-color:transparent}
+.sc-chip-road{background:rgba(180,83,9,.10);color:#B45309;border-color:transparent}
+.sc-chip-cushion{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
+.sc-chip-done{background:var(--green-soft);color:var(--green-dark);border-color:transparent}
+.shift-card .sc-swap{margin-top:8px}
+.shift-card .sc-swap a{font-size:var(--fs-xs);color:var(--text-subtle);text-decoration:none;cursor:pointer}
+
 /* ── Task / hub cards (Tasks + Profile screens) ─────────────── */
 .task-card{
   display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
@@ -1830,6 +1910,9 @@ body.scan-camming{overflow:hidden}
 /* ── Operational assignments — driver "My Tasks" cards ──────────── */
 .wt-sec{display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin:18px 0 10px}
 .wt-sec-n{background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:700;padding:1px 7px;border-radius:8px}
+/* Quiet "view more" link that closes out a hub section (e.g. completed
+   checklists) without pulling a full card's worth of weight. */
+.rr-hub-link{display:inline-block;margin:2px 2px 6px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text);cursor:pointer}
 .wt-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--s-3-5) var(--s-4);margin-bottom:10px;display:flex;align-items:center;gap:var(--s-3);flex-wrap:wrap;transition:opacity .3s ease}
 .wt-card.wt-done{opacity:.6}
 .wt-card-main{flex:1;min-width:0}
@@ -2569,6 +2652,29 @@ body.is-home main > .home-hero{
   z-index:2;
 }
 .home-content > * + *{ margin-top:12px }
+
+/* ── Home quick-actions launcher ────────────────────────────────────
+   Three tap tiles that turn the home screen from a passive profile into
+   a launchpad: the driver's most common jumps (schedule, message
+   dispatch, team) one thumb-tap from the front door. */
+.home-quick{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:10px;
+}
+.home-quick-tile{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+  padding:15px 8px 13px;
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  box-shadow:var(--shadow-card);color:var(--text);
+  transition:transform 150ms var(--ease-out), box-shadow 180ms var(--ease-out);
+}
+.home-quick-tile:active{transform:scale(.965);box-shadow:var(--shadow-card-strong)}
+.home-quick-icon{
+  width:42px;height:42px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent-soft);color:var(--accent);
+}
+.home-quick-icon svg{width:21px;height:21px}
+.home-quick-label{font-size:var(--fs-sm);font-weight:600;color:var(--text);letter-spacing:-.005em}
 
 /* ── Primary "Opens at" / check-in card — Outlook calendar tile
    Solid Fluent communicationBlue tile (no gradient, no radial
