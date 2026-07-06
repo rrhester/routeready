@@ -1001,6 +1001,20 @@ function renderApplicantCard(a) {
   const _nsBtn = ctaAction
     ? `<button class="pa-ns-btn" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">${escapeHtml(ctaLabel)}</button>`
     : "";
+  // Past the stage SLA, the Next Step zone gains a hover-only follow-up
+  // link — the existing CTAs are one-click sends; this captures the human
+  // chase ("call them") as an owned task. Absent entirely on on-track cards.
+  const _qtOverdue = (stage in _STAGE_SLA_DAYS) && _ageDays >= _STAGE_SLA_DAYS[stage];
+  const _qtFollowUp = _qtOverdue ? `<div style="margin-top:2px">${rrQtLink({
+    hover: true,
+    label: "Add follow-up task",
+    title: `Follow up with ${name} — ${_ageDays}d in ${STAGE_LABELS[stage] || stage}`,
+    description: `Waiting ${_ageDays} day${_ageDays === 1 ? "" : "s"} in ${STAGE_LABELS[stage] || stage} (target ${_STAGE_SLA_DAYS[stage]}d). Next step: ${stageNextTxt}. Last contact: ${_lcDate}${_lcTime ? ` ${_lcTime}` : ""}.\nOpen: Pipeline → ${name}`,
+    category: "Hiring",
+    sourceKey: `hire:${a.id}`,
+    entityType: "applicant",
+    entityId: a.id,
+  })}</div>` : "";
 
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}" tabindex="0">
@@ -1027,6 +1041,7 @@ function renderApplicantCard(a) {
         <div class="pa-zone pa-c-next">
           <div class="pa-ns-head">${escapeHtml(stageNextTxt)}</div>
           <div class="pa-ns-sub">${escapeHtml(_nsSub)}</div>
+          ${_qtFollowUp}
           ${_nsBtn}
         </div>
 
@@ -8726,6 +8741,21 @@ function renderOnboardingRow(d) {
   const ob = _obReadiness(d);
   const pips = ob.milestones.map(m => `<span title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="width:6px;height:6px;border-radius:50%;flex:0 0 auto;background:${m.done ? "#16a34a" : "var(--border)"}"></span>`).join("");
   const nextColor = ob.key === "blocked" ? "var(--red)" : ob.tone === "amber" ? "var(--amber-dark)" : ob.key === "ready" ? "var(--green)" : "var(--text-subtle)";
+  // Red/amber readiness states carry a hover-only follow-up link under the
+  // next-step line — gates (background check, drug test, I-9) depend on
+  // third parties and rot silently without an owner.
+  const qtOnb = ["compliance_risk", "needs_correction", "due_soon"].includes(ob.key)
+    ? `<div>${rrQtLink({
+        hover: true,
+        title: `Unblock onboarding for ${display} — ${String(ob.label || "").toLowerCase()}`,
+        description: `${ob.label}${ob.next ? `: ${ob.next}` : ""} (${ob.doneN}/${ob.totalN} steps done).\nOpen: Onboarding → ${display}`,
+        category: "Onboarding",
+        sourceKey: `onb:${d.id}`,
+        entityType: "driver",
+        entityId: d.id,
+        due: ob.key === "compliance_risk" ? _rrQtEndOfDay() : _rrQtNextBusinessDay(),
+      })}</div>`
+    : "";
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
@@ -8737,6 +8767,7 @@ function renderOnboardingRow(d) {
         <div style="display:flex;flex-direction:column;gap:var(--s-1);min-width:170px">
           <div style="display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap">${_obPill(ob.label, ob.tone)}<span class="u-xs-subtle">${ob.doneN}/${ob.totalN}</span><span style="display:inline-flex;align-items:center;gap:3px">${pips}</span></div>
           ${ob.next ? `<div style="font-size:var(--fs-xs);color:${nextColor};line-height:1.3">${escapeHtml(ob.next)}</div>` : ""}
+          ${qtOnb}
         </div>
       </td>
       <td>${_i9OnboardCell(d.id)}</td>
@@ -16926,8 +16957,27 @@ function _tpStatusPill(r) {
 // handlers already in this file, so behavior is identical to the
 // stand-alone attendance tool the unified roster replaces.
 function _tpRowActions(r) {
-  // Only surface when the row needs a decision and hasn't been resolved.
-  if (r.decision) return "";
+  // Resolved rows: a confirmed NCNS / call-off usually means coaching later,
+  // after dispatch settles — leave a quiet, hover-only follow-up link in
+  // place of the decision buttons. Opt-in: ignoring it costs nothing, and
+  // VTO'd / excused rows stay completely untouched.
+  if (r.decision) {
+    if (!/^approv/i.test(String(r.decision))) return "";
+    if (!["ncns", "missed_reported"].includes(r.computed_outcome)) return "";
+    const kind = r.computed_outcome === "ncns" ? "no-call/no-show" : "call-out";
+    const dIso = fmtIsoDate(new Date());
+    const dLbl = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return rrQtLink({
+      hover: true,
+      label: "Add coaching task",
+      title: `Coach ${r.driver_name} — ${kind} on ${dLbl}`,
+      description: `Confirmed ${kind} on Today's Plan (${dIso}).\nOpen: Drivers → ${r.driver_name} → Attendance`,
+      category: "Driver Coaching",
+      sourceKey: `attn:${r.driver_id}:${dIso}`,
+      entityType: "driver",
+      entityId: r.driver_id || null,
+    });
+  }
   if (!["tardy", "ncns", "missed_reported"].includes(r.computed_outcome)) return "";
   const sid = escapeHtml(r.shift_id);
   const oc  = escapeHtml(r.computed_outcome);
@@ -18049,7 +18099,17 @@ function renderLicenseRow(d) {
       <td><div class="cell-driver"><div class="avatar-sm">${initials}</div><div><div class="cell-name">${escapeHtml(displayDriverName(d))}</div></div></div></td>
       <td>${d.station?.code ? escapeHtml(d.station.code) : '<span class="u-subtle">—</span>'}</td>
       <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm)">${escapeHtml(d.dl_number || "—")}</td>
-      <td>${escapeHtml(_licenseStatusText(days))}</td>
+      <td>${escapeHtml(_licenseStatusText(days))}<div>${rrQtLink({
+        hover: true,
+        label: "Add renewal task",
+        title: `Collect updated license from ${displayDriverName(d)} — ${days < 0 ? "expired" : `expires ${exp.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}`,
+        description: `Driver's license ${_licenseStatusText(days).toLowerCase()} (${exp.toLocaleDateString()}). An expired DL blocks scheduling.\nOpen: Drivers → ${displayDriverName(d)} → Documents`,
+        category: "Driver Compliance",
+        sourceKey: `dl:${d.id}`,
+        entityType: "driver",
+        entityId: d.id,
+        due: days < 0 ? _rrQtNextBusinessDay() : _rrQtDueBefore(d.dl_expires_on, 7),
+      })}</div></td>
       <td>${exp.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}<div class="u-xs-subtle">${rel}</div></td>
     </tr>`;
 }
@@ -30675,13 +30735,38 @@ async function loadDriverWorkAuthView() {
     // header above the row already says where they sit.
     const offTrack = cls.bucket === "s2_overdue" || cls.bucket === "s2_due" || cls.bucket === "needs_correction" || cls.bucket === "reverification" || (cls.bucket === "s2_needed" && cls.note);
     const tier = offTrack ? "var(--red)" : "transparent";
+    // Off-track rows carry a hover-only "Add task" link beside Open —
+    // "Open" assumes the viewer can complete Section 2 themselves; the
+    // task is for handing it to whoever actually can.
+    let qtI9 = "";
+    if (offTrack) {
+      const nm = r.driver_name || "driver";
+      const qtTitle =
+        cls.bucket === "reverification"   ? `Reverify work authorization for ${nm}` :
+        cls.bucket === "needs_correction" ? `Resolve I-9 correction for ${nm}` :
+                                            `Complete I-9 Section 2 for ${nm}`;
+      const qtDue =
+        cls.bucket === "s2_due" && cls.deadline           ? _rrQtDueBefore(cls.deadline, 0) :
+        cls.bucket === "reverification" && cls.reverDate  ? _rrQtDueBefore(cls.reverDate, 7) :
+                                                            _rrQtEndOfDay();
+      qtI9 = rrQtLink({
+        hover: true,
+        title: qtTitle,
+        description: `${line}\nOpen: Drivers → Work auth → ${nm}`,
+        category: "HR",
+        sourceKey: `i9:${r.driver_id}`,
+        entityType: "driver",
+        entityId: r.driver_id,
+        due: qtDue,
+      });
+    }
     return `
       <div class="rr-i9-row" style="display:grid;grid-template-columns:1fr auto;gap:var(--s-3);align-items:center;padding:var(--s-2-5) 0 10px 12px;border-top:1px solid var(--border);border-left:3px solid ${tier};cursor:pointer" data-rr-i9-open="${escapeHtml(r.driver_id)}">
         <div style="min-width:0">
           <div style="font-size:var(--fs-md);font-weight:600;display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap">${escapeHtml(r.driver_name || "—")}${r.station_code ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">${escapeHtml(r.station_code)}</span>` : ""}${r.driver_status === "onboarding" ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">· onboarding</span>` : ""}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${line}${r.hire_date ? ` · hired ${new Date(r.hire_date).toLocaleDateString()}` : ""}</div>
         </div>
-        <div><button type="button" class="btn btn-sm" data-rr-i9-open="${escapeHtml(r.driver_id)}">Open</button></div>
+        <div style="display:flex;align-items:center;gap:10px">${qtI9}<button type="button" class="btn btn-sm" data-rr-i9-open="${escapeHtml(r.driver_id)}">Open</button></div>
       </div>`;
   };
   // Verified drivers drop off the page entirely; the rest are listed in
@@ -31954,6 +32039,32 @@ async function renderAttendanceTab(body, d) {
   const tone    = curIdx >= 2 ? "red" : curIdx === 1 ? "amber" : "slate";
   const atRisk  = curIdx >= 2;
 
+  // Risk summary card — renders the workspace risk model (badge + factor
+  // list) that the drawer computes but never showed, using the ov-* styles
+  // already in the drawer stylesheet. Only appears at medium/high risk; the
+  // "Add coaching task" link is opt-in (quiet text, nothing to dismiss).
+  const riskModel = (typeof _ddWorkspaceModel === "function")
+    ? _ddWorkspaceModel({ driver: d, shifts, coachings })
+    : null;
+  const riskName = displayDriverName(d) || "this driver";
+  const riskCard = riskModel && riskModel.risk !== "low" ? `
+    <div style="border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;margin-top:12px">
+      <div class="ov-risk-level" style="margin-bottom:6px">
+        <span class="ov-risk-badge risk-${riskModel.risk}">${riskModel.risk === "high" ? "High risk" : "Medium risk"}</span>
+        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">attendance risk</span>
+      </div>
+      ${riskModel.factors.map(f => `<div class="ov-factor t-${escapeHtml(f.tone)}"><span class="fdot"></span><span>${escapeHtml(f.txt)}</span></div>`).join("")}
+      <div style="margin-top:8px">${rrQtLink({
+        label: "Add coaching task",
+        title: `Follow up with ${riskName} about attendance risk`,
+        description: `${riskModel.risk === "high" ? "High" : "Medium"} attendance risk:\n${riskModel.factors.map(f => `· ${f.txt}`).join("\n")}\nOpen: Drivers → ${riskName} → Attendance`,
+        category: "Driver Coaching",
+        sourceKey: `coach:${d.id}`,
+        entityType: "driver",
+        entityId: d.id,
+      })}</div>
+    </div>` : "";
+
   // Section 1 · current standing card (or a calm "good standing" state).
   const statusCard = current ? `
     <div class="att2-status att2-${tone}">
@@ -32044,7 +32155,7 @@ async function renderAttendanceTab(body, d) {
       #rr-dd-body .att2-tl-doc:hover{color:var(--accent-text);border-color:var(--accent);background:var(--canvas)}
       #rr-dd-body .att2-tl-doc svg{width:16px;height:16px}
     </style>
-    ${statusCard}
+    ${statusCard}${riskCard}
     ${current ? progression + timeline : ""}`;
 }
 
@@ -43453,7 +43564,20 @@ function _rrCalloutExposureFinalizeDialog(ce) {
         otherLine +
         '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#6B7280);margin-top:10px">RouteReady recommends adding backup coverage or adjusting the schedule.</div>' +
       '</div>' +
-      '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#E5E7EB);background:var(--canvas,#F9FAFB)">' +
+      '<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#E5E7EB);background:var(--canvas,#F9FAFB)">' +
+        // Passive follow-up link — same source key as the Callout Exposure
+        // modal so the two entry points share one open task. Never blocks:
+        // Review / Finalize Anyway behave exactly as before.
+        (worst ? '<span style="margin-right:auto;display:inline-flex;align-items:center">' + rrQtLink({
+          label: "Add follow-up task",
+          title: `Resolve callout exposure — ${worst.weekday} (${worst.exposure} exposed)`,
+          description: `Finalized with callout exposure:\n` +
+            exposed.map(d => `· ${d.weekday}: ${d.atRisk} at-risk · ${d.cushionDrivers} cushion`).join("\n") +
+            `\nOpen: Schedule → Operations Health → Callout Exposure`,
+          category: "Schedule Risk",
+          sourceKey: `callout:${worst.iso}`,
+          due: _rrQtDueBefore(worst.iso, 1),
+        }) + '</span>' : '') +
         '<button type="button" class="btn btn-sm" data-rr-callout-review>Review Schedule</button>' +
         '<button type="button" class="btn btn-sm btn-primary" data-rr-callout-anyway>Finalize Anyway</button>' +
       '</div>';
@@ -56690,6 +56814,16 @@ function bindSchedWeekNav() {
 
     // Recommended plan · additive backup coverage for the exposed days.
     const rec = ce.recommendation || { days: [], totalNeed: 0, totalAdds: 0 };
+    // Quiet follow-up link for exposed weeks — the delegation path when
+    // "Apply backups" can't fully self-heal (or someone else must work it).
+    const qtCalloutLink = ce.anyExposed && ce.worst ? rrQtLink({
+      label: "Add follow-up task",
+      title: `Resolve callout exposure — ${ce.worst.weekday} (${ce.worst.exposure} exposed)`,
+      description: `Callout exposure for the scheduled week:\n${(ce.exposedDays || []).map(d => `· ${d.weekday}: ${d.atRisk} at-risk · ${d.cushionDrivers} cushion — ${d.label}`).join("\n")}\nOpen: Schedule → Operations Health → Callout Exposure`,
+      category: "Schedule Risk",
+      sourceKey: `callout:${ce.worst.iso}`,
+      due: _rrQtDueBefore(ce.worst.iso, 1),
+    }) : "";
     let recHtml = "";
     let footerHtml = "";
     if (rec.totalNeed > 0) {
@@ -56711,12 +56845,15 @@ function bindSchedWeekNav() {
       if (rec.totalAdds > 0) {
         const residual = rec.totalNeed - rec.totalAdds;
         footerHtml = `<div class="rr-callout-foot">
-          <div class="rr-callout-foot-note">Adds ${rec.totalAdds} backup shift${rec.totalAdds === 1 ? "" : "s"}${residual > 0 ? ` · ${residual} seat${residual === 1 ? "" : "s"} still exposed (no available driver)` : ""}.</div>
+          <div class="rr-callout-foot-note">Adds ${rec.totalAdds} backup shift${rec.totalAdds === 1 ? "" : "s"}${residual > 0 ? ` · ${residual} seat${residual === 1 ? "" : "s"} still exposed (no available driver)` : ""}.${qtCalloutLink ? `<div style="margin-top:4px">${qtCalloutLink}</div>` : ""}</div>
           <button type="button" class="btn btn-sm btn-primary" data-rr-callout-apply>Apply backups (${rec.totalAdds})</button>
         </div>`;
       } else {
-        footerHtml = `<div class="rr-callout-foot"><div class="rr-callout-foot-note">No available low-risk drivers to add on the flagged day${rec.days.length === 1 ? "" : "s"}. Consider adjusting availability or the route plan.</div></div>`;
+        footerHtml = `<div class="rr-callout-foot"><div class="rr-callout-foot-note">No available low-risk drivers to add on the flagged day${rec.days.length === 1 ? "" : "s"}. Consider adjusting availability or the route plan.${qtCalloutLink ? `<div style="margin-top:6px">${qtCalloutLink}</div>` : ""}</div></div>`;
       }
+    }
+    if (!footerHtml && qtCalloutLink) {
+      footerHtml = `<div class="rr-callout-foot"><div class="rr-callout-foot-note">${qtCalloutLink}</div></div>`;
     }
 
     const m = document.createElement("div");
@@ -69911,12 +70048,33 @@ function _fdDocCardHtml(kind, doc) {
     : "—";
   const idVal = doc?.id || "";
   const idAttr = idVal ? `data-rr-fd-doc-id="${escapeHtml(idVal)}"` : "";
+  // Exception states (expired / missing / expiring soon) get a hover-only
+  // renewal-task link — Upload assumes the new document already exists;
+  // the renewal chase itself is multi-day work someone must own.
+  const qtVeh = _fdVehicle?.vehicle || {};
+  const qtVanName = qtVeh.name || "van";
+  const qtDoc = (derivedStatus === "expired" || derivedStatus === "missing" || derivedStatus === "expiring_soon")
+    ? `<div style="margin-top:4px">${rrQtLink({
+        hover: true,
+        label: "Add renewal task",
+        title: derivedStatus === "missing"
+          ? `Collect ${label.toLowerCase()} for ${qtVanName}`
+          : `Renew ${label.toLowerCase()} for ${qtVanName} — ${derivedStatus === "expired" ? "expired" : `expires ${expFmt}`}`,
+        description: `${label} for ${qtVanName}: ${derivedStatus === "missing" ? "missing" : derivedStatus === "expired" ? `expired ${expFmt}` : `expires ${expFmt}`}.\nOpen: Fleet → ${qtVanName} → Documents`,
+        category: "Fleet Documents",
+        sourceKey: `vdoc:${qtVeh.id || ""}:${kind}`,
+        entityType: "vehicle",
+        entityId: qtVeh.id || null,
+        due: derivedStatus === "expiring_soon" && doc?.expiration_date ? _rrQtDueBefore(doc.expiration_date, 7) : _rrQtEndOfDay(),
+      })}</div>`
+    : "";
   return `
     <div class="fd-doc-card" data-rr-fd-doc-kind="${escapeHtml(kind)}" ${idAttr}>
       <div class="fd-doc-card-head">
         <div class="fd-doc-card-title">${escapeHtml(label)}</div>
         ${_fdDocStatusPill(derivedStatus, daysUntil)}
       </div>
+      ${qtDoc}
       <div class="fd-doc-card-body">
         <div class="fd-doc-meta">
           <div class="fd-doc-meta-row"><span class="fd-doc-meta-label">Document #</span><span>${doc?.document_number ? escapeHtml(doc.document_number) : "—"}</span></div>
@@ -72095,6 +72253,21 @@ document.addEventListener("click", async (e) => {
                     :                                "var(--accent-text)";
     const specifics = (typeof rules.specifics === "function" ? rules.specifics(risk) : []) || [];
 
+    // Quiet footer link — turns the read-only "Recommended actions" list
+    // into an owned, dated task. Opt-in only; Close still works untouched.
+    const qtCoLink = rrQtLink({
+      label: "Create task",
+      title: risk.title || _typeLabel(risk.kind),
+      description: [
+        specifics.length ? "This infraction — " + specifics.map(([k, v]) => `${k}: ${v}`).join(" · ") : "",
+        rules.actions && rules.actions.length ? "Recommended: " + rules.actions.join(" → ") : "",
+        "Open: Compliance → Exceptions",
+      ].filter(Boolean).join("\n"),
+      category: "Compliance",
+      sourceKey: `co:${risk.kind || ""}:${risk.object_id || ""}`,
+      due: (risk.severity === "critical" || risk.severity === "high") ? _rrQtEndOfDay() : _rrQtNextBusinessDay(),
+    });
+
     const wrap = document.createElement("div");
     wrap.id = "rr-co-rule-modal";
     wrap.className = "rr-modal-backdrop";
@@ -72153,6 +72326,7 @@ document.addEventListener("click", async (e) => {
             </div>` : ""}
         </div>
         <div class="rr-modal-foot">
+          <span style="margin-right:auto;display:inline-flex;align-items:center">${qtCoLink}</span>
           <button class="rr-modal-btn" type="button" data-co-modal-close>Close</button>
         </div>
       </div>`;
@@ -73744,7 +73918,7 @@ function _toPendingRowHtml(r) {
         <span class="status-pill status-pill-pending">Pending</span>
       </div>
       ${reason}
-      <div class="to-row-coverage" data-rr-to-coverage="${escapeHtml(r.id)}">
+      <div class="to-row-coverage" data-rr-to-coverage="${escapeHtml(r.id)}" data-rr-to-driver="${escapeHtml(r.driver_name || "")}" data-rr-to-start="${escapeHtml(r.start_date || "")}" data-rr-to-range="${escapeHtml(_toFmtRange(r.start_date, r.end_date))}">
         <span class="to-row-coverage-dot"></span>
         <span class="to-row-coverage-text u-sm-subtle">Checking coverage…</span>
       </div>
@@ -73808,7 +73982,26 @@ async function _toPaintCoverage(host) {
     // One actionable line: recommend Approve when the freed shifts can be
     // filled to plan, Deny when they can't.
     const recCls = rec === "Approve" ? "to-cov-rec-approve" : "to-cov-rec-deny";
-    slot.innerHTML = `<div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict"><span class="to-cov-rec ${recCls}">Recommend: ${rec}</span> — ${escapeHtml(msg)}</span></div>`;
+    // Deny verdicts carry a passive follow-up link: if the operator
+    // approves anyway (human reasons win), the coverage hole needs an
+    // owner. Nothing interrupts the Approve/Deny flow itself.
+    let covLink = "";
+    if (rec === "Deny") {
+      const covDrv   = slot.getAttribute("data-rr-to-driver") || "driver";
+      const covRange = slot.getAttribute("data-rr-to-range") || "";
+      const covStart = slot.getAttribute("data-rr-to-start") || "";
+      covLink = `<div style="margin-top:4px">${rrQtLink({
+        label: "Add coverage task",
+        title: `Find coverage for ${covDrv}${covRange ? ` — ${covRange}` : ""}`,
+        description: `Coverage check: ${msg}\nRequest: ${covDrv}${covRange ? ` · ${covRange}` : ""}\nOpen: Schedule → Requests`,
+        category: "Schedule Risk",
+        sourceKey: `pto-cov:${id}`,
+        entityType: "time_off_request",
+        entityId: id,
+        due: covStart ? _rrQtDueBefore(covStart, 2) : _rrQtNextBusinessDay(),
+      })}</div>`;
+    }
+    slot.innerHTML = `<div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict"><span class="to-cov-rec ${recCls}">Recommend: ${rec}</span> — ${escapeHtml(msg)}</span></div>${covLink}`;
   }
 }
 
@@ -81217,3 +81410,233 @@ document.addEventListener("click", (e) => {
   };
   tick();
 })();
+
+// ─────────────────────────────────────────────────────────────────────────
+// Contextual quick tasks — the muted "Add task" links on warning surfaces.
+//
+// Opt-in, never interruptive: a warning surface may carry ONE quiet text
+// link (rrQtLink). At rest it stays silent (or hidden until the row is
+// hovered); ignored, it costs nothing — no badges, no toasts, nothing to
+// dismiss. Clicked, it opens a small pre-filled composer (title /
+// assignee / due). Enter or "Create task" writes a real
+// checklist_instance through the checklist_task_create RPC — one
+// required item, so the task completes through the normal Checklists
+// runner and rides the Today's-status overdue / due-today buckets. Each
+// warning carries a source_key so an already-open task shows
+// "Task already open · View" instead of double-creating.
+// ─────────────────────────────────────────────────────────────────────────
+
+let _rrQtSeq = 0;
+const _rrQtReg = new Map();  // link id → payload
+let _rrQtState = null;       // payload + linkEl while the composer is open
+
+// Render one muted "Add task" link. Payload: { title, description,
+// category, sourceKey, entityType, entityId, due (Date|null),
+// label (default "Add task"), hover (true → visible on row hover only) }.
+function rrQtLink(p) {
+  const id = String(++_rrQtSeq);
+  _rrQtReg.set(id, p || {});
+  return `<button type="button" class="rr-qt-link${p && p.hover ? " rr-qt-hover" : ""}" data-rr-qt="${id}">${escapeHtml((p && p.label) || "Add task")}</button>`;
+}
+
+// Due-date anchors — 5pm so tasks land in the right today/tomorrow bucket.
+function _rrQtEndOfDay() {
+  const now = new Date();
+  const d = new Date(now); d.setHours(17, 0, 0, 0);
+  if (d <= now) {
+    d.setTime(now.getTime() + 2 * 3600000);
+    if (d.getDate() !== now.getDate()) { d.setTime(now.getTime()); d.setHours(23, 30, 0, 0); }
+  }
+  return d;
+}
+function _rrQtNextBusinessDay() {
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  d.setHours(17, 0, 0, 0);
+  return d;
+}
+// Deadline-anchored due: p_iso minus leadDays, floored at end-of-today.
+function _rrQtDueBefore(iso, leadDays) {
+  try {
+    const d = new Date(iso + (/T/.test(String(iso)) ? "" : "T12:00:00"));
+    if (isNaN(d.getTime())) return _rrQtNextBusinessDay();
+    d.setDate(d.getDate() - (leadDays || 0)); d.setHours(17, 0, 0, 0);
+    const floor = _rrQtEndOfDay();
+    return d < floor ? floor : d;
+  } catch (_) { return _rrQtNextBusinessDay(); }
+}
+function _rrQtLocalVal(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+(function _rrQtStyles() {
+  if (document.getElementById("rr-qt-styles")) return;
+  const st = document.createElement("style");
+  st.id = "rr-qt-styles";
+  st.textContent = `
+    .rr-qt-link{background:none;border:0;padding:0;margin:0;font:inherit;font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);cursor:pointer;white-space:nowrap;text-align:left}
+    .rr-qt-link:hover{color:var(--accent);text-decoration:underline}
+    .rr-qt-done{font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap}
+    .rr-qt-hover{opacity:0;transition:opacity var(--t-fast,120ms)}
+    tr:hover .rr-qt-hover,.rr-i9-row:hover .rr-qt-hover,.pa-card:hover .rr-qt-hover,
+    .fd-doc-card:hover .rr-qt-hover,.to-row:hover .rr-qt-hover,.rr-qt-hover:focus-visible{opacity:1}
+    #rr-qt-pop{position:absolute;z-index:10500;width:320px}
+    #rr-qt-pop .rr-qt-cat{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:10px}
+    #rr-qt-pop .rr-qt-exist{font-size:var(--fs-sm);color:var(--text);line-height:1.5}
+  `;
+  document.head.appendChild(st);
+})();
+
+function _rrQtPosition(pop, anchor) {
+  const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null;
+  if (!r) {
+    pop.style.position = "fixed";
+    pop.style.top = "50%"; pop.style.left = "50%";
+    pop.style.transform = "translate(-50%,-50%)";
+    return;
+  }
+  const w = 320;
+  let left = r.left + window.scrollX;
+  const maxLeft = window.scrollX + document.documentElement.clientWidth - w - 8;
+  if (left > maxLeft) left = Math.max(window.scrollX + 8, maxLeft);
+  let top = r.bottom + window.scrollY + 6;
+  const h = pop.offsetHeight || 280;
+  if (r.bottom + h + 12 > window.innerHeight && r.top - h - 6 > 0) top = r.top + window.scrollY - h - 6;
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+}
+
+async function _rrQtOpenComposer(linkEl) {
+  const p = _rrQtReg.get(linkEl.getAttribute("data-rr-qt"));
+  if (!p) return;
+  _rrQtClose();
+  _rrQtState = Object.assign({}, p, { linkEl });
+
+  const pop = document.createElement("div");
+  pop.id = "rr-qt-pop";
+  pop.className = "cl-launch-pop";
+  pop.innerHTML = `<div class="rr-qt-exist" style="color:var(--text-subtle)">Checking…</div>`;
+  document.body.appendChild(pop);
+  _rrQtPosition(pop, linkEl);
+
+  // Dedupe first — an open task for this warning means show it, not a form.
+  if (p.sourceKey) {
+    try {
+      const { data } = await sb.rpc("checklist_task_open_for_source", { p_source_key: p.sourceKey });
+      if (document.getElementById("rr-qt-pop") !== pop) return; // closed while loading
+      if (data && data.id) { _rrQtRenderExisting(pop, linkEl, data); return; }
+    } catch (_) {}
+  }
+  if (!Array.isArray(_clTeamMembers)) {
+    try {
+      const { data } = await sb.rpc("checklist_team_members");
+      _clTeamMembers = Array.isArray(data) ? data : [];
+    } catch (_) { _clTeamMembers = []; }
+  }
+  if (document.getElementById("rr-qt-pop") !== pop) return;
+
+  const me = (window.RR && window.RR.user && window.RR.user.id) || "";
+  const due = p.due instanceof Date ? p.due : _rrQtNextBusinessDay();
+  pop.innerHTML = `
+    <label for="rr-qt-title">Task</label>
+    <input id="rr-qt-title" type="text" value="${escapeHtml(p.title || "")}" />
+    <label for="rr-qt-assignee">Assign to</label>
+    <select id="rr-qt-assignee">
+      <option value="">— Unassigned —</option>
+      ${(_clTeamMembers || []).map(m => `<option value="${escapeHtml(m.id)}"${m.id === me ? " selected" : ""}>${escapeHtml(m.email || m.id)}${m.id === me ? " (you)" : ""}</option>`).join("")}
+    </select>
+    <label for="rr-qt-due">Due</label>
+    <input id="rr-qt-due" type="datetime-local" value="${_rrQtLocalVal(due)}" />
+    ${p.category ? `<div class="rr-qt-cat">${escapeHtml(p.category)} · lands in Workspaces → Checklists</div>` : ""}
+    <div class="cl-launch-actions">
+      <button class="btn btn-sm" type="button" data-rr-qt-cancel>Cancel</button>
+      <button class="btn btn-sm btn-primary" type="button" data-rr-qt-save>Create task</button>
+    </div>`;
+  _rrQtPosition(pop, linkEl);
+  pop.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target && e.target.id === "rr-qt-title") { e.preventDefault(); _rrQtSave(); }
+  });
+  setTimeout(() => document.getElementById("rr-qt-title")?.focus(), 30);
+}
+
+function _rrQtRenderExisting(pop, linkEl, t) {
+  pop.innerHTML = `
+    <div class="rr-qt-exist"><strong>Task already open</strong><br>${escapeHtml(t.name || "")}${t.assigned_email ? `<br><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Assigned to ${escapeHtml(t.assigned_email)}</span>` : ""}</div>
+    <div class="cl-launch-actions">
+      <button class="btn btn-sm" type="button" data-rr-qt-cancel>Close</button>
+      <button class="btn btn-sm btn-primary" type="button" data-rr-qt-view>View</button>
+    </div>`;
+  _rrQtMarkDone({ linkEl }, { existing: true });
+}
+
+function _rrQtMarkDone(st, res) {
+  const el = st && st.linkEl;
+  if (!el || !el.isConnected) return;
+  const span = document.createElement("span");
+  span.className = "rr-qt-done";
+  span.innerHTML = `${res && res.existing ? "Task open" : "Task created"} · <button type="button" class="rr-qt-link" data-rr-qt-view>View</button>`;
+  el.replaceWith(span);
+}
+
+async function _rrQtSave() {
+  const pop = document.getElementById("rr-qt-pop");
+  const st = _rrQtState;
+  if (!pop || !st) return;
+  const title = (document.getElementById("rr-qt-title")?.value || "").trim();
+  if (!title) { document.getElementById("rr-qt-title")?.focus(); return; }
+  const assignee = document.getElementById("rr-qt-assignee")?.value || null;
+  const dueRaw = document.getElementById("rr-qt-due")?.value || "";
+  const due_at = dueRaw ? new Date(dueRaw).toISOString() : null;
+  const btn = pop.querySelector("[data-rr-qt-save]");
+  if (btn) { btn.disabled = true; btn.textContent = "Creating…"; }
+  const { data, error } = await sb.rpc("checklist_task_create", {
+    p_title: title,
+    p_description: st.description || null,
+    p_category: st.category || null,
+    p_due_at: due_at,
+    p_assigned_user_id: assignee,
+    p_source_key: st.sourceKey || null,
+    p_entity_type: st.entityType || null,
+    p_entity_id: st.entityId || null,
+  });
+  if (error || !data) {
+    if (btn) { btn.disabled = false; btn.textContent = "Create task"; }
+    toast(`Couldn't create task: ${error?.message || "unknown error"}`, "warn");
+    return;
+  }
+  _rrQtMarkDone(st, data);
+  _rrQtClose();
+}
+
+function _rrQtClose() {
+  document.getElementById("rr-qt-pop")?.remove();
+  _rrQtState = null;
+}
+
+function _rrQtGotoTasks() {
+  _rrQtClose();
+  // Close the modal hosts the links live inside so the operator actually
+  // lands on the list rather than behind a backdrop.
+  document.getElementById("rr-co-rule-modal")?.remove();
+  document.getElementById("rr-sched-callout-modal")?.remove();
+  if (typeof window.goto === "function") window.goto("checklists");
+  if (typeof window.checklistSub === "function") { try { window.checklistSub("status"); } catch (_) {} }
+  if (typeof loadChecklistTodaySummary === "function") { try { loadChecklistTodaySummary(); } catch (_) {} }
+}
+
+// Capture-phase so the quiet link wins over row-level "open the record"
+// click handlers (license rows, I-9 rows, roster rows all navigate on
+// row click — the link must not also open the drawer underneath).
+document.addEventListener("click", (e) => {
+  const link = e.target.closest?.("[data-rr-qt]");
+  if (link) { e.preventDefault(); e.stopPropagation(); _rrQtOpenComposer(link); return; }
+  if (e.target.closest?.("[data-rr-qt-view]")) { e.preventDefault(); e.stopPropagation(); _rrQtGotoTasks(); return; }
+  if (e.target.closest?.("[data-rr-qt-save]")) { e.preventDefault(); e.stopPropagation(); _rrQtSave(); return; }
+  if (e.target.closest?.("[data-rr-qt-cancel]")) { e.preventDefault(); e.stopPropagation(); _rrQtClose(); return; }
+  const pop = document.getElementById("rr-qt-pop");
+  if (pop && !pop.contains(e.target)) _rrQtClose();
+}, true);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.getElementById("rr-qt-pop")) { e.stopPropagation(); _rrQtClose(); }
+}, true);
