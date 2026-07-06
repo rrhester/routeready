@@ -9,7 +9,6 @@
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=d81b9eddf32b";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=d81b9eddf32b";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=d81b9eddf32b";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=d81b9eddf32b";
 
@@ -53395,7 +53394,6 @@ const _RR_SCHED_KPI_DEFS = [
   { key: "violations", label: "Violations" },
   { key: "overtime",   label: "OT Risk" },
   { key: "ftpt",       label: "FT / PT split" },
-  { key: "flex",       label: "Flex Capacity" },
   { key: "preferred",  label: "Preferred-day rate" },
   { key: "affinity",   label: "Affinity match" },
   { key: "rotation",   label: "Fleet rotation" },
@@ -55375,64 +55373,6 @@ async function renderScheduleWeek() {
         window._rrLiveFtpt = { weekStart: _schedStart, ftPct, ptPct, ftCount, ptCount, totalScheduled, tier: ftStatus.tier };
         return row("ftpt", totalScheduled > 0 ? ftStatus.tier : "green",
           "FT/PT", totalScheduled > 0 ? `${ftPct} / ${ptPct}` : "—", "", ftStatus.tier !== "green");
-      })() +
-      (() => {
-        // Flex / Max-day · most routes/day the team could run with existing
-        // availability (same tested engine the edge function uses).
-        try {
-          const isoToKey = (iso) =>
-            ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(iso + "T00:00:00Z").getUTCDay()];
-          const routes = [];
-          for (const [iso, target] of plannedByDate) routes.push({ day: isoToKey(iso), routeTarget: target });
-          const schedDaysByDriver = new Map();
-          for (const sh of (grid.shifts || [])) {
-            if (!sh.driver_id || !visibleDriverIds.has(sh.driver_id)) continue;
-            if (!["scheduled", "completed"].includes(sh.status)) continue;
-            if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
-            const set = schedDaysByDriver.get(sh.driver_id) || new Set();
-            set.add(isoToKey(sh.date));
-            schedDaysByDriver.set(sh.driver_id, set);
-          }
-          const sched = window.RR?.dsp?.metadata?.scheduling || {};
-          const blockHours = Number(sched.default_block_hours) || 10;
-          const maxDaysPerWeek = Number(sched.max_days_per_week) || 5;
-          const weeklyHourCap = Number(sched.weekly_hour_cap) || maxDaysPerWeek * blockHours;
-          const weekIsos = [];
-          for (let i = 0; i < 7; i++) weekIsos.push(fmtIsoDate(addDays(weekStart, i)));
-          const flexDrivers = drivers
-            .filter((d) => d.status === "active")
-            .map((d) => {
-              const av = d.metadata?.availability || {};
-              const ptoDays = weekIsos.filter((iso) => ptoOn(d.id, iso)).map(isoToKey);
-              return {
-                id: d.id, active: true,
-                available: Array.isArray(av.days) ? av.days : [],
-                preferred: Array.isArray(av.preferred_days) ? av.preferred_days : [],
-                fifthDayOptIn: av.fifth_day_ok === true,
-                pto: ptoDays,
-                scheduledDays: [...(schedDaysByDriver.get(d.id) || [])],
-                scheduledHours: hoursPerDriver.get(d.id) || 0,
-                weeklyHourCap, blockHours, maxDaysPerWeek,
-                certifications: { dot: d.dot_certified === true, xl: d.xl_certified === true, edv: d.edv_certified === true },
-              };
-            });
-          if (routes.length === 0 || flexDrivers.length === 0) {
-            return row("flex", "green", "Max/day", "—", "", false);
-          }
-          const flexRes = computeFlexCapacity({ weekStart: _schedStart, drivers: flexDrivers, routes });
-          const fa = flexRes.kpi.comfortableRoutesAvailable;
-          const sa = flexRes.kpi.stretchRoutesAvailable;
-          const scen = STANDARD_SCENARIOS.map((s) => computeDailyMax(flexDrivers, s));
-          const peak40 = scen[0].peak;            // ≤40h
-          const peak50all = scen[2].peak;         // ≤50h, everyone 5th day
-          const flexTier = fa > 0 ? "green" : sa > 0 ? "yellow" : "red";
-          window._rrLiveFlex = { weekStart: _schedStart, result: flexRes, tier: flexTier, drivers: flexDrivers, blockHours };
-          const label = peak40 === peak50all ? `${peak40}` : `${peak40}–${peak50all}`;
-          return row("flex", flexTier, "Max/day", label, "", true);
-        } catch (err) {
-          console.warn("flex capacity KPI:", err);
-          return "";
-        }
       })() +
       (() => {
         const prefPct = prefDenom > 0 ? Math.round(prefHonored / prefDenom * 100) : 0;
@@ -57727,135 +57667,6 @@ function bindSchedWeekNav() {
       const modal = document.getElementById("rr-ftpt-kpi-modal");
       if (!modal) return;
       if (e.target.closest('[data-rr-kpi="ftpt"]') || e.target.closest("#rr-ftpt-kpi-modal")) return;
-      modal.remove();
-    });
-  }
-
-  // ── Flex Capacity KPI · hover deep-dive (mirrors the FT/PT popout) ──
-  if (!window._rrFlexKpiHandlerInstalled) {
-    window._rrFlexKpiHandlerInstalled = true;
-
-    const _openFlexModal = (anchorEl) => {
-      document.getElementById("rr-flex-kpi-modal")?.remove();
-      const live = window._rrLiveFlex || null;
-      const fdrivers = live?.drivers;
-      if (!fdrivers || fdrivers.length === 0) return;
-      const ORD = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
-      const LBL = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-      const KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-      // Three policies the operator asked for: ≤40h, ≤50h (opted-in 5th day),
-      // ≤50h (everyone 5th day) — distributed model.
-      const scen = STANDARD_SCENARIOS.map((s) => computeDailyMax(fdrivers, s));
-      const cellFor = (sIdx, dayKey) =>
-        scen[sIdx].perDay.find((x) => x.day === dayKey)?.routes ?? 0;
-      // Per-day table rows (Mon→Sun): three columns.
-      const rows = KEYS.map((k, i) => `
-        <div class="rr-flex-row">
-          <span class="rr-flex-c0">${LBL[i]}</span>
-          <span class="rr-flex-c">${cellFor(0, k)}</span>
-          <span class="rr-flex-c">${cellFor(1, k)}</span>
-          <span class="rr-flex-c">${cellFor(2, k)}</span>
-        </div>`).join("");
-      // Hire what-if: +10 FT (7 days) + 5 PT (≤3 days). Peak per scenario.
-      const hired = STANDARD_SCENARIOS.map((s) => computeDailyMax(withHires(fdrivers, 10, 5, { blockHours: live.blockHours || 10 }), s));
-      const hireRow = (i, lbl) => {
-        const before = scen[i].peak, after = hired[i].peak;
-        return `<div class="rr-flex-hrow"><span>${lbl}</span><span>peak ${before} <span class="rr-cov-arrow">→</span> <strong>${after}</strong> <span style="color:var(--green)">(+${after - before})</span></span></div>`;
-      };
-      const m = document.createElement("div");
-      m.id = "rr-flex-kpi-modal";
-      m.className = "modal-backdrop open rr-cov-kpi-anchored";
-      m.innerHTML = `
-        <div id="rr-flex-kpi-card" class="modal-card" style="max-width:480px">
-          <div class="modal-head">
-            <div>
-              <p class="modal-title">Flex Capacity · Max routes/day</p>
-              <p class="modal-sub">If everyone worked their availability, capped per policy</p>
-            </div>
-            <button type="button" id="rr-flex-kpi-close" class="modal-close" aria-label="Close">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-          <div class="modal-body">
-            <div class="rr-flex-table">
-              <div class="rr-flex-row rr-flex-head">
-                <span class="rr-flex-c0"></span>
-                <span class="rr-flex-c">≤40h</span>
-                <span class="rr-flex-c">≤50h<br><small>opted 5th</small></span>
-                <span class="rr-flex-c">≤50h<br><small>all 5th</small></span>
-              </div>
-              ${rows}
-            </div>
-            <div class="rr-cov-needed" style="margin-top:14px">
-              <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">What if you hired +10 FT &amp; +5 PT</div>
-              <div class="rr-cov-needed-sub" style="font-size:var(--fs-xs);margin-top:2px">FT available 7 days (work to the cap) · PT up to 3 days/week. Peak day:</div>
-              <div class="rr-flex-hires" style="margin-top:6px">
-                ${hireRow(0, "≤40h")}
-                ${hireRow(1, "≤50h · opted 5th")}
-                ${hireRow(2, "≤50h · all 5th")}
-              </div>
-            </div>
-            <div class="rr-cov-needed" style="margin-top:12px">
-              <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">How this is calculated</div>
-              <div class="rr-cov-needed-sub" style="margin-top:4px">Each active driver works up to <strong>cap ÷ block</strong> days (40h → 4 shifts, 50h → 5), bounded by their availability and max-days. That budget is spread across the days they're available, so a driver available 6 days contributes 4/6 of a route per day at 40h vs 5/6 at 50h. Summed across drivers and rounded = the day's max routes.</div>
-              <div class="rr-cov-needed-sub" style="margin-top:6px"><strong>≤40h</strong>: nobody exceeds 4 days. <strong>≤50h opted 5th</strong>: only drivers who opted in work a 5th day. <strong>≤50h all 5th</strong>: everyone works a 5th day if available.</div>
-            </div>
-            <p class="rr-cov-empty" style="margin-top:12px">Structural capacity (uses availability, not this week's PTO). Planning model, not a guarantee.</p>
-          </div>
-        </div>
-        <style>
-          .rr-flex-table{margin-top:4px;display:flex;flex-direction:column;gap:1px}
-          .rr-flex-row{display:grid;grid-template-columns:48px 1fr 1fr 1fr;align-items:center;gap:6px;padding:6px 8px;border-radius:4px}
-          .rr-flex-row:nth-child(even){background:rgba(0,0,0,.025)}
-          .rr-flex-head{font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
-          .rr-flex-head small{font-weight:400;text-transform:none;letter-spacing:0}
-          .rr-flex-c0{font-weight:600;font-size:13px;color:var(--text)}
-          .rr-flex-c{text-align:center;font-size:14px;color:var(--text)}
-          .rr-flex-head .rr-flex-c{font-size:11px}
-          .rr-flex-hrow{display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:2px 0}
-          .rr-flex-hrow strong{color:var(--text)}
-        </style>`;
-      document.body.appendChild(m);
-      const card = m.querySelector("#rr-flex-kpi-card");
-      const a = anchorEl || document.querySelector('[data-rr-kpi="flex"]');
-      if (card && a) {
-        const M = 12;
-        const r = a.getBoundingClientRect();
-        const vh = window.innerHeight;
-        card.style.position = "fixed";
-        card.style.margin = "0";
-        card.style.maxHeight = (vh - M * 2) + "px";
-        card.style.overflowY = "auto";
-        const cw = card.offsetWidth || 440;
-        let left = r.left;
-        if (left + cw > window.innerWidth - M) left = window.innerWidth - cw - M;
-        if (left < M) left = M;
-        card.style.left = left + "px";
-        const ch = card.offsetHeight || 0;
-        let top = r.bottom + 6;
-        if (top + ch > vh - M) top = vh - M - ch;
-        if (top < M) top = M;
-        card.style.top = top + "px";
-      }
-    };
-
-    document.addEventListener("click", (e) => {
-      const modal = document.getElementById("rr-flex-kpi-modal");
-      if (modal && (e.target === modal || e.target.closest("#rr-flex-kpi-close"))) { modal.remove(); return; }
-      const pillEl = e.target.closest('[data-rr-kpi="flex"]');
-      if (!pillEl) return;
-      e.preventDefault();
-      _openFlexModal(pillEl);
-    });
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      document.getElementById("rr-flex-kpi-modal")?.remove();
-    });
-    // Click-only: click the pill to open (handler above), click outside / Esc to close.
-    document.addEventListener("click", (e) => {
-      const modal = document.getElementById("rr-flex-kpi-modal");
-      if (!modal) return;
-      if (e.target.closest('[data-rr-kpi="flex"]') || e.target.closest("#rr-flex-kpi-modal")) return;
       modal.remove();
     });
   }

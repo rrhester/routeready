@@ -76,7 +76,8 @@
 //   2026-07-06.55 · Callout Exposure backups: always assign SP (standard parcel) — never inherit an XL/other route type from the day's first shift. Recommendation now honors the enforced Smart Fill rules too: DL valid through the shift date + weekly hour cap, on top of active/PTO/max-days/availability (certs are moot since backups are SP).
 //   2026-07-06.56 · Workbook: email links (spreadsheet cells AND rich-text note blocks) now open the RouteReady composer instead of Gmail. Force pinned/installed/resumed apps to the new shell so the new workbook.js actually loads — otherwise a resumed app kept the old bundle and mailto: links still opened Gmail.
 //   2026-07-06.57 · Callout Exposure backups: add the last two always-enforced WOC rules — max consecutive working days and min rest between shifts (from get_woc_settings; defaults 6 days / 10h). The recommender now honors every enforced Smart Fill hard gate.
-const SW_DEPLOY_NONCE = "2026-07-06.57";
+//   2026-07-06.58 · Schedule: remove the Max/day row (Flex Capacity) from the Operations Health side panel, along with its "Max routes/day" drill-down modal and its Flex Capacity entry in the KPI selector. The flex-capacity engine bundle is no longer imported by the dashboard (the edge function is untouched).
+const SW_DEPLOY_NONCE = "2026-07-06.58";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
