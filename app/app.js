@@ -1846,6 +1846,7 @@ async function renderSchedule() {
         <div id="rr-pickup-slot"></div>`;
       _coverOfferStart(session.token);
       _pickupListStart(session.token);
+      _rrLiveStart(session.driver_id);
       return;
     }
 
@@ -1873,6 +1874,7 @@ async function renderSchedule() {
     _coverOfferStart(session.token);
     _pickupListStart(session.token);
     _swapInboxStart(session.token);
+    _rrLiveStart(session.driver_id);
     _hydrateShiftWeather([...todayShifts, ...upcomingShifts]);
   } catch (err) {
     // A thrown error inside renderSchedule used to kill the whole
@@ -1937,6 +1939,40 @@ function _shiftConfirmStart(token) {
   };
   tick();
   _shiftConfirmTimer = setInterval(tick, 30000);
+}
+
+// ── Live updates · instant delivery instead of 15–30s polling ────────
+// Drivers have no Supabase auth.uid, so RLS-filtered postgres_changes
+// can't reach them (that's why the pinned cards poll). Instead the server
+// broadcasts a content-free "refresh" ping to the public topic
+// rr-driver-live-<driver_id> whenever a cover offer / swap / confirmation
+// is created for this driver (migration 0426). We subscribe once per
+// session and re-run the pollers' fetches the instant a ping arrives, so
+// the card shows up immediately instead of on the next tick. The pollers
+// keep running as a fallback — if Realtime is unavailable this is simply a
+// no-op and nothing regresses.
+let _rrLiveChannel = null;
+function _rrLiveStart(driverId) {
+  if (!driverId || _rrLiveChannel) return;
+  try {
+    _rrLiveChannel = sb
+      .channel("rr-driver-live-" + driverId, { config: { broadcast: { self: false } } })
+      .on("broadcast", { event: "refresh" }, () => _rrLiveRefresh())
+      .subscribe();
+  } catch { _rrLiveChannel = null; }
+}
+function _rrLiveStop() {
+  if (_rrLiveChannel) { try { sb.removeChannel(_rrLiveChannel); } catch {} _rrLiveChannel = null; }
+}
+function _rrLiveRefresh() {
+  const token = (typeof readSession === "function" ? readSession() : null)?.token;
+  if (!token) return;
+  // Re-fetch whatever pinned cards are mounted. Each refresher no-ops if
+  // its slot isn't on screen, so calling all of them is safe and cheap.
+  try { _coverOfferRefresh(token); } catch {}
+  try { _pickupListRefresh(token); } catch {}
+  try { _swapInboxRefresh(token); } catch {}
+  try { _shiftConfirmStart(token); } catch {}
 }
 
 // Delegated handler — Accept / Decline buttons on the confirm cards.
@@ -5856,6 +5892,7 @@ function renderSettings() {
     });
     if (!ok) return;
     const s = readSession();
+    _rrLiveStop();
     await teardownPushSubscription(s);
     if (s?.token) { try { await sb.rpc("driver_signout", { p_token: s.token }); } catch {} }
     writeSession(null);
