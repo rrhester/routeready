@@ -9472,7 +9472,7 @@ function _rrRenderTasks() {
     const del = `<button type="button" class="ntp-task-del" data-rr-task-del="${escapeHtml(t.id)}" title="Delete task" aria-label="Delete task"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
     return `<div class="ntp-task${t.done ? " is-done" : ""}" role="listitem" data-rr-task-id="${escapeHtml(t.id)}">
       <button type="button" class="ntp-task-check" data-rr-task-toggle="${escapeHtml(t.id)}" role="checkbox" aria-checked="${t.done ? "true" : "false"}" aria-label="Toggle complete">${_RR_NTCHECK}</button>
-      <span class="ntp-task-title">${escapeHtml(t.title || "")}</span>
+      <span class="ntp-task-title" title="${escapeHtml(t.title || "")}">${escapeHtml(t.title || "")}</span>
       ${rep}${due}
       <span class="ntp-task-avatar" title="${escapeHtml(_rrNtUserName() || "")}">${escapeHtml(init)}</span>
       ${del}
