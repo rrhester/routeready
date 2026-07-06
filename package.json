@@ -5,6 +5,7 @@
   "scripts": {
     "smoke": "node scripts/smoke-check-live.mjs",
     "test:engine": "node scripts/test-formula-engine.mjs",
+    "test:template": "node scripts/test-ops-command-center.mjs",
     "build": "node scripts/bust-cache.mjs",
     "prepare": "git config core.hooksPath .githooks"
   },

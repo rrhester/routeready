@@ -3793,6 +3793,146 @@ function toCsv(rows) {
 
 const WB_TEMPLATES = [
   {
+    key: "ops-command-center",
+    name: "Operations Command Center",
+    category: "Operations",
+    desc: "Six linked sheets — roster, coverage, payroll, compliance and a live scorecard — wired together with cross-sheet formulas. The showpiece: edit the roster once and every total, gap and flag recalculates.",
+    build: () => {
+      // One weekly update flows across six sheets in a single block, so
+      // cross-sheet references (Roster!A2, COUNTIFS(Roster!…)) resolve.
+      // Formulas are generated per row so the row numbers always line up;
+      // all names, dates and numbers are sample data to overwrite.
+      const drivers = [
+        // name, status, hire, wage, licenseExp, medicalExp, [Mon..Sun avail]
+        ["Marcus Bell",   "Active",     "2023-03-14", 22.5,  "2027-02-28", "2026-12-15", ["Y", "Y", "Y", "Y", "Y", "N", "N"]],
+        ["Priya Nair",    "Active",     "2022-08-01", 24.0,  "2026-07-31", "2027-05-20", ["Y", "Y", "Y", "Y", "Y", "Y", "N"]],
+        ["Diego Ramos",   "Active",     "2024-01-09", 21.0,  "2027-09-30", "2026-08-10", ["N", "Y", "Y", "Y", "Y", "Y", "Y"]],
+        ["Sara Klein",    "Active",     "2021-11-22", 25.5,  "2025-12-31", "2027-01-05", ["Y", "N", "Y", "Y", "Y", "N", "Y"]],
+        ["Tom Osei",      "Onboarding", "2026-06-15", 20.0,  "2028-03-15", "2028-02-01", ["N", "N", "N", "Y", "Y", "Y", "Y"]],
+        ["Lena Petrov",   "Active",     "2023-09-05", 23.0,  "2026-07-20", "2026-11-30", ["Y", "Y", "N", "N", "Y", "Y", "Y"]],
+        ["Jamal Carter",  "Active",     "2020-05-18", 26.0,  "2027-06-30", "2027-04-15", ["Y", "Y", "Y", "Y", "Y", "N", "N"]],
+        ["Aiko Tanaka",   "Active",     "2024-10-02", 21.5,  "2027-11-11", "2026-07-15", ["Y", "Y", "Y", "N", "N", "Y", "Y"]],
+        ["Ben Fisher",    "Inactive",   "2022-02-14", 22.0,  "2026-09-01", "2026-10-01", ["N", "N", "N", "N", "N", "N", "N"]],
+        ["Grace Lin",     "Active",     "2025-04-21", 20.5,  "2028-01-20", "2027-08-08", ["Y", "Y", "Y", "Y", "Y", "Y", "Y"]],
+        ["Omar Haddad",   "Onboarding", "2026-06-29", 20.0,  "2028-05-05", "2028-04-04", ["N", "N", "Y", "Y", "Y", "N", "N"]],
+        ["Nina Sorensen", "Active",     "2023-12-11", 23.5,  "2026-08-15", "2025-11-20", ["Y", "N", "Y", "Y", "Y", "Y", "N"]],
+      ];
+      const firstRow = 2;                       // data starts on sheet row 2
+      const lastRow = firstRow + drivers.length - 1; // 13 with 12 drivers
+
+      // Roster — the single source of truth. Tenure is a live formula.
+      const rosterRows = drivers.map((d, i) => {
+        const r = i + firstRow;
+        return [d[0], d[1], d[2], `=IF(C${r}="","",DATEDIF(C${r},TODAY(),"M"))`, d[3], d[4], d[5], ...d[6]];
+      });
+
+      // Coverage — planned vs. confirmed per day. "Available" is pulled
+      // live from the roster: active drivers marked Y for that day.
+      const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      const dayCols = ["H", "I", "J", "K", "L", "M", "N"]; // Roster Mon..Sun columns
+      const planned = [8, 7, 8, 7, 8, 6, 5];
+      const confirmed = [7, 7, 7, 6, 8, 5, 5];
+      const covNotes = ["1 backup on standby", "", "Trainer riding along", "PM injects likely", "Peak volume", "", ""];
+      const coverageRows = dayNames.map((day, i) => {
+        const r = i + firstRow;
+        return [
+          day,
+          planned[i],
+          `=COUNTIFS(Roster!$B$${firstRow}:$B$${lastRow},"Active",Roster!$${dayCols[i]}$${firstRow}:$${dayCols[i]}$${lastRow},"Y")`,
+          confirmed[i],
+          `=B${r}-D${r}`,
+          `=IF(E${r}>0,"Short "&E${r},IF(E${r}<0,"Over "&ABS(E${r}),"On plan"))`,
+          `=C${r}-D${r}`,
+          covNotes[i],
+        ];
+      });
+      coverageRows.push(["Total", "=SUM(B2:B8)", "=SUM(C2:C8)", "=SUM(D2:D8)", "=SUM(E2:E8)", "", "=SUM(G2:G8)", ""]);
+      const covTotalRow = firstRow + dayNames.length; // 9
+
+      // Payroll — weekly hours & estimated gross, pulled per driver.
+      const payrollRows = drivers.map((d, i) => {
+        const r = i + firstRow;
+        return [
+          `=Roster!A${r}`,
+          `=Roster!B${r}`,
+          `=COUNTIF(Roster!H${r}:N${r},"Y")`,
+          9,
+          `=Roster!E${r}`,
+          `=C${r}*D${r}`,
+          `=MIN(F${r},40)`,
+          `=MAX(F${r}-40,0)`,
+          `=G${r}*E${r}+H${r}*E${r}*1.5`,
+        ];
+      });
+      payrollRows.push(["Total", "", `=SUM(C${firstRow}:C${lastRow})`, "", "", `=SUM(F${firstRow}:F${lastRow})`, `=SUM(G${firstRow}:G${lastRow})`, `=SUM(H${firstRow}:H${lastRow})`, `=SUM(I${firstRow}:I${lastRow})`]);
+      const payTotalRow = lastRow + 1; // 14
+
+      // Compliance — days left on each credential with an auto status flag.
+      const complianceRows = drivers.map((d, i) => {
+        const r = i + firstRow;
+        return [
+          `=Roster!A${r}`,
+          `=Roster!F${r}`,
+          `=IF(B${r}="","",B${r}-TODAY())`,
+          `=IF(B${r}="","—",IF(C${r}<0,"EXPIRED",IF(C${r}<=30,"Renew soon","OK")))`,
+          `=Roster!G${r}`,
+          `=IF(E${r}="","",E${r}-TODAY())`,
+          `=IF(E${r}="","—",IF(F${r}<0,"EXPIRED",IF(F${r}<=30,"Renew soon","OK")))`,
+        ];
+      });
+
+      // Scorecard — the live dashboard. Every value reads across sheets.
+      const scorecardRows = [
+        ["— Roster —", "", ""],
+        ["Active drivers", `=COUNTIF(Roster!$B$${firstRow}:$B$${lastRow},"Active")`, ""],
+        ["Onboarding", `=COUNTIF(Roster!$B$${firstRow}:$B$${lastRow},"Onboarding")`, "ramping to active"],
+        ["Inactive", `=COUNTIF(Roster!$B$${firstRow}:$B$${lastRow},"Inactive")`, ""],
+        ["Total roster", `=COUNTA(Roster!$A$${firstRow}:$A$${lastRow})`, ""],
+        ["Avg tenure (months, active)", `=ROUND(AVERAGEIF(Roster!$B$${firstRow}:$B$${lastRow},"Active",Roster!$D$${firstRow}:$D$${lastRow}),1)`, ""],
+        ["— Coverage (this week) —", "", ""],
+        ["Planned routes", `=Coverage!B${covTotalRow}`, ""],
+        ["Confirmed drivers", `=Coverage!D${covTotalRow}`, ""],
+        ["Coverage %", `=IF(Coverage!B${covTotalRow}=0,0,ROUND(Coverage!D${covTotalRow}/Coverage!B${covTotalRow}*100,1))`, "target 100"],
+        ["Days short", `=COUNTIF(Coverage!E2:E8,">0")`, "target 0"],
+        ["Open route gap", `=SUMIF(Coverage!E2:E8,">0")`, "sum of shortfalls"],
+        ["Bench (available − confirmed)", `=Coverage!G${covTotalRow}`, ""],
+        ["— Labor (weekly estimate) —", "", ""],
+        ["Scheduled hours", `=Payroll!F${payTotalRow}`, ""],
+        ["Overtime hours", `=Payroll!H${payTotalRow}`, "watch >40/wk"],
+        ["Est. gross payroll", `=ROUND(Payroll!I${payTotalRow},0)`, "sample wages"],
+        ["Avg cost / confirmed route", `=IF(Coverage!D${covTotalRow}=0,0,ROUND(Payroll!I${payTotalRow}/Coverage!D${covTotalRow},2))`, ""],
+        ["— Compliance —", "", ""],
+        ["Licenses expiring ≤30d", `=COUNTIFS(Compliance!$C$${firstRow}:$C$${lastRow},">=0",Compliance!$C$${firstRow}:$C$${lastRow},"<=30")`, ""],
+        ["Medical cards expiring ≤30d", `=COUNTIFS(Compliance!$F$${firstRow}:$F$${lastRow},">=0",Compliance!$F$${firstRow}:$F$${lastRow},"<=30")`, ""],
+        ["Expired credentials", `=COUNTIF(Compliance!$C$${firstRow}:$C$${lastRow},"<0")+COUNTIF(Compliance!$F$${firstRow}:$F$${lastRow},"<0")`, "target 0"],
+      ];
+
+      return {
+        title: "Operations Command Center",
+        description: "A weekly ops hub in one workbook: a roster feeds coverage, payroll, compliance and a live scorecard through cross-sheet formulas. Update the roster and the Planned/Confirmed columns; every total, gap and flag recalculates.",
+        blocks: [
+          { type: "sheet", title: "", sheets: [
+            { name: "Overview", cols: ["Operations Command Center"], colWidths: { 0: 720 }, rows: [
+              ["Six sheets in this workbook are linked so one weekly update flows everywhere. Edit the Roster and Coverage; the rest recalculates."],
+              ["1 · Roster — your drivers: status, hire date, wage, license/medical dates, and day-by-day availability (Y/N). Tenure is a live formula."],
+              ["2 · Coverage — planned routes vs. confirmed drivers per day. 'Available' is pulled live from the Roster (active drivers marked Y that day)."],
+              ["3 · Payroll — weekly hours and estimated gross, pulled from each driver's scheduled days and wage, with regular/overtime split at 40h."],
+              ["4 · Compliance — days left on each license and medical card, with an automatic OK / Renew soon / EXPIRED flag."],
+              ["5 · Scorecard — a live dashboard that summarizes roster health, coverage, labor and compliance by reading across every sheet."],
+              [""],
+              ["All names, dates, and numbers are sample data — overwrite them with your own. Add or remove driver rows and extend the ranges to match."],
+            ] },
+            { name: "Scorecard", cols: ["Metric", "Value", "Target / note"], colWidths: { 0: 240, 1: 110, 2: 220 }, rows: scorecardRows },
+            { name: "Roster", cols: ["Driver", "Status", "Hire date", "Tenure (mo)", "Hourly", "License exp", "Medical exp", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], colWidths: { 0: 150, 1: 110, 2: 110, 3: 100, 5: 120, 6: 120 }, rows: rosterRows },
+            { name: "Coverage", cols: ["Day", "Planned", "Available", "Confirmed", "Gap", "Status", "Bench", "Notes"], colWidths: { 0: 110, 5: 130, 7: 200 }, rows: coverageRows },
+            { name: "Payroll", cols: ["Driver", "Status", "Days", "Hrs/day", "Hourly", "Weekly hrs", "Reg hrs", "OT hrs", "Est. gross"], colWidths: { 0: 150 }, rows: payrollRows },
+            { name: "Compliance", cols: ["Driver", "License exp", "Lic days left", "License status", "Medical exp", "Med days left", "Medical status"], colWidths: { 0: 150, 1: 120, 3: 130, 4: 120, 6: 130 }, rows: complianceRows },
+          ] },
+        ],
+      };
+    },
+  },
+  {
     key: "route-coverage",
     name: "Weekly Route Coverage Plan",
     category: "Dispatch",
@@ -4634,8 +4774,10 @@ function syncWbTabs(screen) {
   // the strip action follows the tab: New workbook ↔ New report
   const nwb = cmd.querySelector('[data-wb-act="new-workbook"]');
   const nrp = cmd.querySelector('[data-wb-act="new-report"]');
+  const tpl = cmd.querySelector('[data-wb-act="browse-templates"]');
   if (nwb) nwb.hidden = screen !== "workbooks";
   if (nrp) nrp.hidden = screen !== "reports";
+  if (tpl) tpl.hidden = screen !== "workbooks";
   const ab = cmd.querySelector("#rr-wb-ab");
   if (ab) ab.hidden = screen === "vault";
 }
@@ -14317,6 +14459,7 @@ function installRootListeners() {
 
     switch (act) {
       case "new-workbook": createBlankWorkbookNow(); break;
+      case "browse-templates": openCreateModal(); break;
       case "toggle-archived": WB.showArchived = !WB.showArchived; renderListPage(); break;
       case "back-to-list": {
         flushCells();
@@ -15749,4 +15892,5 @@ export const __engine = {
   planMoveChanges, recalcSheet,
   fillWeekDates, fillSheetInfo, fillDriverIdAt, fillSheetDriverIds,
   FUNCTION_META, fnSearch, fnListHtml,
+  WB_TEMPLATES,
 };
