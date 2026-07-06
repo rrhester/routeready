@@ -12202,6 +12202,7 @@ async function createSheetWithCells(blockId, ps, fileName) {
   for (const m of ps.merges) { if (m.r1 > maxR) maxR = m.r1; if (m.c1 > maxC) maxC = m.c1; }
   const meta = {};
   if (ps.merges && ps.merges.length) meta.merges = ps.merges;
+  if (ps.tables && ps.tables.length) meta.tables = ps.tables;
   const used = new Set(sheets.map((s) => s.name.toLowerCase()));
   const base = (ps.name || "Sheet").trim().slice(0, 74) || "Sheet";
   let name = base.slice(0, 80), i = 2;
@@ -12574,14 +12575,41 @@ function buildXlsxBytes(sheets) {
       : "";
     const cfXml = condFormatXml(sheet, dxfFor, () => cfPriority++);
     const dvXml = dataValidationXml(sheet);
+    // Excel tables → <table> parts. Exported without the total-row feature
+    // (total-row cells still export as normal cells) to keep the OOXML simple.
+    const tableDefs = Array.isArray(sheet.meta && sheet.meta.tables) ? sheet.meta.tables : [];
+    const sheetTables = [];
+    for (const t of tableDefs) {
+      if (![t.r0, t.c0, t.r1, t.c1].every(Number.isInteger) || t.r1 <= t.r0) continue;
+      const seen = new Set(), colNames = [];
+      for (let c = t.c0; c <= t.c1; c++) {
+        let nm = String((sheet.cells.get(cellKey(t.r0, c)) || {}).value ?? "").trim() || `Column${c - t.c0 + 1}`;
+        const b = nm; let k = 2; while (seen.has(nm.toLowerCase())) nm = `${b}${k++}`;
+        seen.add(nm.toLowerCase()); colNames.push(nm);
+      }
+      const gid = ++tableIdSeq;
+      let name = (String(t.name || `Table${gid}`).replace(/[^\w.]/g, "_") || `Table${gid}`);
+      if (/^\d/.test(name)) name = "_" + name;
+      const b = name; let k = 2; while (usedTableNames.has(name.toLowerCase())) name = `${b}${k++}`;
+      usedTableNames.add(name.toLowerCase());
+      const dataR1 = t.totalRow ? t.r1 - 1 : t.r1; // exclude the total row from the table range
+      const ref = `${colLabel(t.c0)}${t.r0 + 1}:${colLabel(t.c1)}${dataR1 + 1}`;
+      const colXml = colNames.map((nm, i) => `<tableColumn id="${i + 1}" name="${xmlEsc(nm)}"/>`).join("");
+      const tableXml = `${XMLH}<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="${gid}" name="${xmlEsc(name)}" displayName="${xmlEsc(name)}" ref="${ref}" totalsRowShown="0"><autoFilter ref="${ref}"/><tableColumns count="${colNames.length}">${colXml}</tableColumns><tableStyleInfo name="TableStyleMedium2" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/></table>`;
+      sheetTables.push({ relId: `rtbl${sheetTables.length + 1}`, gid, xml: tableXml });
+    }
+    const tablePartsXml = sheetTables.length ? `<tableParts count="${sheetTables.length}">${sheetTables.map((t) => `<tablePart r:id="${t.relId}"/>`).join("")}</tableParts>` : "";
     // OOXML worksheet child order: …mergeCells, conditionalFormatting,
-    // dataValidations, hyperlinks…
-    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${cfXml}${dvXml}${linkXml}</worksheet>`;
-    return { xml, links };
+    // dataValidations, hyperlinks, …, tableParts (last)
+    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${cfXml}${dvXml}${linkXml}${tablePartsXml}</worksheet>`;
+    return { xml, links, tables: sheetTables };
   };
 
-  // sheet XML first — it populates the style registries as it goes
+  // sheet XML first — it populates the style + table registries as it goes
+  let tableIdSeq = 0;
+  const usedTableNames = new Set();
   const sheetParts = sheets.map(sheetXml);
+  const allTables = sheetParts.flatMap((p) => p.tables || []);
   const used = new Set();
   const names = sheets.map((sh) => xlsxSheetName(sh.name, used));
 
@@ -12591,7 +12619,7 @@ function buildXlsxBytes(sheets) {
   const workbookXml = `${XMLH}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n, i) => `<sheet name="${xmlEsc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`;
   const wbRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
   const rootRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
-  const contentTypes = `${XMLH}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+  const contentTypes = `${XMLH}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${allTables.map((t) => `<Override PartName="/xl/tables/table${t.gid}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`).join("")}</Types>`;
 
   const file = (name, xml) => ({ nameB: enc.encode(name), bytes: enc.encode(xml) });
   const parts = [
@@ -12601,12 +12629,15 @@ function buildXlsxBytes(sheets) {
     file("xl/_rels/workbook.xml.rels", wbRels),
     file("xl/styles.xml", stylesXml),
     ...sheetParts.map((p, i) => file(`xl/worksheets/sheet${i + 1}.xml`, p.xml)),
+    ...allTables.map((t) => file(`xl/tables/table${t.gid}.xml`, t.xml)),
   ];
-  // hyperlink relationships (one rels part per sheet that has links)
+  // per-sheet relationships: hyperlinks and/or table parts
   sheetParts.forEach((p, i) => {
-    if (!p.links.length) return;
-    const rels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${p.links.map((l, j) => `<Relationship Id="rlk${j + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xmlEsc(l.url)}" TargetMode="External"/>`).join("")}</Relationships>`;
-    parts.push(file(`xl/worksheets/_rels/sheet${i + 1}.xml.rels`, rels));
+    const rels = [];
+    p.links.forEach((l, j) => rels.push(`<Relationship Id="rlk${j + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xmlEsc(l.url)}" TargetMode="External"/>`));
+    (p.tables || []).forEach((t) => rels.push(`<Relationship Id="${t.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table${t.gid}.xml"/>`));
+    if (!rels.length) return;
+    parts.push(file(`xl/worksheets/_rels/sheet${i + 1}.xml.rels`, `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join("")}</Relationships>`));
   });
   return xlsxZip(parts);
 }
@@ -12888,6 +12919,28 @@ export async function parseXlsxBytes(buf) {
       const cell = { r, c, value, formula, type };
       if (fmt) cell.format = { ...fmt };
       out.cells.push(cell);
+    }
+    // Excel tables: the worksheet's rels point at table parts (xl/tables/*.xml)
+    const relsPath = def.path ? def.path.replace(/([^/]+)$/, "_rels/$1.rels") : null;
+    const wsRels = relsPath ? get(relsPath) : "";
+    if (wsRels) {
+      const dir = def.path.replace(/[^/]+$/, "");
+      const outTables = [];
+      let trm; const trRe = /<Relationship\b[^>]*Type="[^"]*\/table"[^>]*\/>/g;
+      while ((trm = trRe.exec(wsRels))) {
+        const tgt = /Target="([^"]+)"/.exec(trm[0]); if (!tgt) continue;
+        let tp = tgt[1];
+        if (tp.startsWith("/")) tp = tp.slice(1);
+        else { let base = dir, rel = tp; while (rel.startsWith("../")) { rel = rel.slice(3); base = base.replace(/[^/]+\/$/, ""); } tp = base + rel; }
+        const tx = get(tp); if (!tx) continue;
+        const refM = /<table\b[^>]*\bref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/.exec(tx);
+        if (!refM) continue;
+        const nameM = /displayName="([^"]*)"/.exec(tx) || /\bname="([^"]*)"/.exec(tx);
+        const r0 = +refM[2] - 1, c0 = colIndex(refM[1]), r1 = +refM[4] - 1, c1 = colIndex(refM[3]);
+        const totalsM = /totalsRow(?:Count|Shown)="1"/.test(tx);
+        if (r0 < XLSX_ROW_CAP && c0 < XLSX_COL_CAP && r1 >= r0) outTables.push({ name: nameM ? xmlUnescape(nameM[1]) : `Table${outTables.length + 1}`, r0, c0, r1: Math.min(r1, XLSX_ROW_CAP - 1), c1: Math.min(c1, XLSX_COL_CAP - 1), totalRow: totalsM });
+      }
+      if (outTables.length) out.tables = outTables;
     }
     sheets.push(out);
   }
