@@ -5173,11 +5173,158 @@ function cleanNum(x) {
   return String(parseFloat(x.toPrecision(12)));
 }
 
+// ── Custom number format codes (Excel/Sheets format strings) ────────────────
+// A pragmatic subset of the Excel grammar: up to 4 sections
+// (positive;negative;zero;text), digit placeholders # 0 ?, grouping and
+// trailing-comma scaling (each trailing comma ÷1000 → K/M/…), decimals, %,
+// quoted / escaped / symbol literals, and date-time tokens. Bracket tags
+// ([Red], [$-409], [>100]) are parsed; numeric conditions pick a section,
+// colors are ignored (in-cell text color isn't themed through this path).
+const CUSTOM_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const CUSTOM_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function splitCustomSections(code) {
+  const out = []; let cur = "", inQ = false, inB = false;
+  for (let i = 0; i < code.length; i++) {
+    const ch = code[i];
+    if (ch === "\\") { cur += ch + (code[++i] || ""); continue; }
+    if (ch === '"' && !inB) inQ = !inQ;
+    else if (ch === "[" && !inQ) inB = true;
+    else if (ch === "]" && !inQ) inB = false;
+    else if (ch === ";" && !inQ && !inB) { out.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+function customLiteralize(s) {
+  return s.replace(/\[[^\]]*\]/g, "").replace(/\\(.)/g, "$1").replace(/"([^"]*)"/g, "$1");
+}
+function isDateSection(body) {
+  const s = body.replace(/"[^"]*"/g, "").replace(/\[[^\]]*\]/g, "").replace(/\\./g, "");
+  if (/[#0?]/.test(s)) return false;           // digit placeholders ⇒ numeric
+  return /[yd]/i.test(s) || (/[hs]/i.test(s) && /m/i.test(s)) || /[hs]/i.test(s);
+}
+// Pull an optional numeric condition ([>100], [<=0]) from a section.
+function sectionCondition(body) {
+  const m = /\[(<=|>=|<>|<|>|=)(-?\d+(?:\.\d+)?)\]/.exec(body);
+  return m ? { op: m[1], val: +m[2] } : null;
+}
+function condHolds(cond, n) {
+  switch (cond.op) { case "<": return n < cond.val; case "<=": return n <= cond.val; case ">": return n > cond.val; case ">=": return n >= cond.val; case "=": return n === cond.val; case "<>": return n !== cond.val; }
+  return false;
+}
+function renderNumericSection(absVal, body) {
+  const stripped = body.replace(/\[[^\]]*\]/g, "");
+  const m = stripped.match(/[#0?][#0?,]*(?:\.[#0?]+)?,*|\.[#0?]+,*/);
+  if (!m) return customLiteralize(stripped);
+  const pattern = m[0];
+  const before = stripped.slice(0, m.index);
+  const after = stripped.slice(m.index + pattern.length);
+  let x = absVal;
+  x *= Math.pow(100, (stripped.match(/%/g) || []).length); // each % ⇒ ×100 (the % char stays as a literal)
+  const trailingCommas = (pattern.match(/,+$/) || [""])[0].length; // commas after the last digit ⇒ ÷1000 each
+  if (trailingCommas) x /= Math.pow(1000, trailingCommas);
+  const core = pattern.replace(/,+$/, "");
+  const intPart = core.split(".")[0];
+  const decRaw = core.includes(".") ? core.split(".")[1].replace(/[^#0?]/g, "") : "";
+  const decMin = (decRaw.match(/0/g) || []).length;         // '0' ⇒ always shown
+  const decMax = decRaw.length;                             // '#'/'?' ⇒ optional
+  const useGroup = /[#0?],[#0?]/.test(intPart.replace(/,+$/, ""));
+  const minInt = (intPart.replace(/,/g, "").match(/0/g) || []).length;
+  let numStr = x.toLocaleString("en-US", {
+    minimumFractionDigits: decMin, maximumFractionDigits: decMax,
+    minimumIntegerDigits: Math.max(1, minInt), useGrouping: useGroup,
+  });
+  if (minInt === 0 && /^0\./.test(numStr)) numStr = numStr.slice(1); // '#' hides the leading zero
+  return customLiteralize(before) + numStr + customLiteralize(after);
+}
+function renderDateSection(serial, body) {
+  // serial carries the date in its integer part and time-of-day in its fraction
+  // (serialToDate is date-only, so pull the time out of the fraction ourselves)
+  const whole = Math.floor(serial);
+  const d = serialToDate(whole);
+  if (!d || isNaN(d)) return String(serial);
+  const secOfDay = Math.round((serial - whole) * 86400);
+  const y = d.getFullYear(), mo = d.getMonth(), day = d.getDate(), dow = d.getDay();
+  let h = Math.floor(secOfDay / 3600) % 24; const mi = Math.floor((secOfDay % 3600) / 60), se = secOfDay % 60;
+  const rawHour = h;
+  const ampm = /am\/pm|a\/p/i.test(body);
+  if (ampm) { const pm = h >= 12; h = h % 12 || 12; }
+  let out = "", i = 0;
+  const toks = ["yyyy", "yyy", "yy", "mmmm", "mmm", "mm", "m", "dddd", "ddd", "dd", "d", "hh", "h", "ss", "s", "am/pm", "a/p"];
+  const seen = []; // to disambiguate m = minute when near h/s
+  while (i < body.length) {
+    if (body[i] === '"') { const e = body.indexOf('"', i + 1); out += body.slice(i + 1, e < 0 ? body.length : e); i = e < 0 ? body.length : e + 1; continue; }
+    if (body[i] === "\\") { out += body[i + 1] || ""; i += 2; continue; }
+    if (body[i] === "[") { const e = body.indexOf("]", i); i = e < 0 ? body.length : e + 1; continue; }
+    const rest = body.slice(i).toLowerCase();
+    const tok = toks.find((t) => rest.startsWith(t));
+    if (!tok) { out += body[i]; i++; continue; }
+    i += tok.length;
+    const pad2 = (x) => String(x).padStart(2, "0");
+    const prevMinuteCtx = /[hs]/.test(seen.slice(-3).join("")); seen.push(tok);
+    switch (tok) {
+      case "yyyy": case "yyy": out += y; break;
+      case "yy": out += pad2(y % 100); break;
+      case "mmmm": out += CUSTOM_MONTHS[mo]; break;
+      case "mmm": out += CUSTOM_MONTHS[mo].slice(0, 3); break;
+      case "mm": out += prevMinuteCtx ? pad2(mi) : pad2(mo + 1); break;
+      case "m": out += prevMinuteCtx ? mi : (mo + 1); break;
+      case "dddd": out += CUSTOM_DAYS[dow]; break;
+      case "ddd": out += CUSTOM_DAYS[dow].slice(0, 3); break;
+      case "dd": out += pad2(day); break;
+      case "d": out += day; break;
+      case "hh": out += pad2(h); break;
+      case "h": out += h; break;
+      case "ss": out += pad2(se); break;
+      case "s": out += se; break;
+      case "am/pm": out += rawHour >= 12 ? "PM" : "AM"; break;
+      case "a/p": out += rawHour >= 12 ? "P" : "A"; break;
+    }
+  }
+  return out;
+}
+function applyCustomFormat(value, code, type) {
+  const secs = splitCustomSections(code);
+  let num = cellNumeric(value);
+  // date-typed cells hold an ISO string, not a number — derive a serial so date
+  // sections can format them (integer days + fractional time-of-day)
+  let dateSerial = num;
+  if (num == null && type !== "text") {
+    const d = parseDateLoose(String(value));
+    if (d) dateSerial = dateToSerial(d) + (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400;
+  }
+  if (num == null && dateSerial == null) {
+    const t = secs.length >= 4 ? secs[3] : null;
+    return t != null ? customLiteralize(t).replace(/@/g, String(value)) : String(value);
+  }
+  const n = num != null ? num : dateSerial; // for section selection (dates are positive)
+  const ser = num != null ? num : dateSerial;
+  // conditional sections first (Excel: [cond1]fmt;[cond2]fmt;default)
+  for (const s of secs) { const c = sectionCondition(s); if (c && condHolds(c, n)) return isDateSection(s) ? renderDateSection(ser, s) : renderNumericSection(Math.abs(n), s); }
+  // the sign-based fallback only considers non-conditional sections
+  const plain = secs.filter((s) => !sectionCondition(s));
+  const pos = plain[0] != null ? plain[0] : secs[0];
+  const neg = plain.length > 1 ? plain[1] : null, zero = plain.length > 2 ? plain[2] : null;
+  let sec, sign = "";
+  if (n > 0 || (n === 0 && zero == null)) sec = pos;
+  else if (n < 0) { if (neg != null) sec = neg; else { sec = pos; sign = "-"; } }
+  else sec = zero;
+  if (sec == null) sec = pos;
+  if (isDateSection(sec)) return renderDateSection(ser, sec);
+  return sign + renderNumericSection(Math.abs(n), sec);
+}
+
 function formatForDisplay(v, format, type) {
   if (v == null || v === "") return "";
   const numFmt = format && format.num;
   const dec = format && Number.isInteger(format.dec) ? Math.min(6, Math.max(0, format.dec)) : null;
   const n = cellNumeric(v);
+  // An explicit custom format code wins over the preset menu.
+  if (format && typeof format.fmt === "string" && format.fmt.trim()) {
+    try { return applyCustomFormat(v, format.fmt, type); } catch (_) { /* fall through to presets */ }
+  }
   if (numFmt === "text") return String(v);
   if (n != null && type !== "text") {
     const fd = (d) => ({ minimumFractionDigits: d, maximumFractionDigits: d });
@@ -6533,6 +6680,8 @@ function sheetToolbarHtml(block, ro) {
           <button type="button" class="popover-item" data-wb-numfmt="currency" role="menuitem">Currency · $1,250.00</button>
           <button type="button" class="popover-item" data-wb-numfmt="percent" role="menuitem">Percent · 12%</button>
           <button type="button" class="popover-item" data-wb-numfmt="date" role="menuitem">Date · Jul 4, 2026</button>
+          <div class="popover-section"></div>
+          <button type="button" class="popover-item" data-wb-numfmt="__custom" role="menuitem">Custom format…</button>
         </div>
       </span>
     </div>
@@ -13978,7 +14127,18 @@ function bindGridEvents(g) {
   const toolbar = g.els.body.querySelector(".wb-toolbar");
   if (toolbar) toolbar.addEventListener("click", (e) => {
     const numfmt = e.target.closest("[data-wb-numfmt]");
-    if (numfmt) { formatSelection(g, { num: numfmt.getAttribute("data-wb-numfmt") || null }); closeAllPopovers(); return; }
+    if (numfmt) {
+      const v = numfmt.getAttribute("data-wb-numfmt");
+      closeAllPopovers();
+      if (v === "__custom") {
+        const cur = (g.sheet.cells.get(cellKey(g.active.r, g.active.c)) || {}).format || {};
+        const code = window.prompt("Custom number format\n\nExamples:\n  #,##0.00        1,234.50\n  #,##0,\"K\"       thousands → 1K\n  0.0%            percent\n  $#,##0;($#,##0) red-style negatives in parens\n  mmm d, yyyy     Jul 4, 2026", cur.fmt || "#,##0.00");
+        if (code != null) formatSelection(g, { fmt: code.trim() || null, num: code.trim() ? "custom" : null });
+        return;
+      }
+      formatSelection(g, { num: v || null, fmt: null });
+      return;
+    }
     // × on a custom swatch: forget the color, keep the picker open
     const colorDel = e.target.closest("[data-wb-colordel]");
     if (colorDel) {
@@ -17034,7 +17194,7 @@ export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   computePivot, pivotAggregate, pivotTableHtml,

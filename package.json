@@ -4,9 +4,10 @@
   "description": "Local dev tooling. Run `npm install` once, then `npm run smoke` before every push.",
   "scripts": {
     "smoke": "node scripts/smoke-check-live.mjs",
-    "test": "node scripts/test-formula-engine.mjs && node scripts/test-recalc-incremental.mjs && node scripts/test-ops-command-center.mjs",
+    "test": "node scripts/test-formula-engine.mjs && node scripts/test-recalc-incremental.mjs && node scripts/test-custom-format.mjs && node scripts/test-ops-command-center.mjs",
     "test:engine": "node scripts/test-formula-engine.mjs",
     "test:recalc": "node scripts/test-recalc-incremental.mjs",
+    "test:format": "node scripts/test-custom-format.mjs",
     "test:template": "node scripts/test-ops-command-center.mjs",
     "build": "node scripts/bust-cache.mjs",
     "prepare": "git config core.hooksPath .githooks"
