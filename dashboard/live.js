@@ -57642,22 +57642,30 @@ function bindSchedWeekNav() {
       } else {
         statusMsg = "No drivers are scheduled yet — the FT/PT mix appears once the week is staffed.";
       }
-      // Hiring recommendation to bring the mix back to the 85% FT target.
-      //   too low  → hire FT: x where (ft+x)/(total+x) = 0.85
-      //   too high → hire PT: y where ft/(total+y) = 0.85
-      let hireMsg = "";
+      // Rebalance recommendation to bring the mix back to the 85% FT
+      // target. The mix is a ratio over the drivers already scheduled, so
+      // the lever is schedule conversion, not headcount — hiring is the
+      // Coverage KPI's recommendation, tied to an actual shortfall.
+      //   too low  → convert PT→FT: c where (ft + c) / total = 0.85
+      //   too high → shift  FT→PT:  s where (ft - s) / total = 0.85
+      // Only shown when the move actually lands in the 80–90% healthy
+      // band — on tiny rosters no whole-driver move can, and advice that
+      // overshoots the band reads worse than none.
+      let rebalanceMsg = "";
       if (live && live.totalScheduled > 0 && tier !== "green") {
         const ft = live.ftCount || 0, total = live.totalScheduled || 0;
         if (ftPct < 85) {
-          const x = Math.ceil((0.85 * total - ft) / 0.15);
-          if (x > 0) hireMsg = `To reach the 85% target, hire <strong>${x}</strong> more full-time driver${x === 1 ? "" : "s"} (or convert part-time drivers to full-time).`;
+          const c = Math.ceil(0.85 * total - ft);
+          if (c > 0 && Math.round((ft + c) / total * 100) <= 90)
+            rebalanceMsg = `To reach the 85% target, move <strong>${c}</strong> part-time driver${c === 1 ? "" : "s"} to full-time schedules (40h+) — no new hires needed. Headcount is driven by Coverage, not by the mix.`;
         } else if (ftPct > 85) {
-          const y = Math.ceil(ft / 0.85 - total);
-          if (y > 0) hireMsg = `To reach the 85% target, add <strong>${y}</strong> more part-time driver${y === 1 ? "" : "s"} (or shift full-time drivers to part-time).`;
+          const s = Math.ceil(ft - 0.85 * total);
+          if (s > 0 && Math.round((ft - s) / total * 100) >= 80)
+            rebalanceMsg = `To reach the 85% target, move <strong>${s}</strong> full-time driver${s === 1 ? "" : "s"} to part-time schedules — no new hires needed. Headcount is driven by Coverage, not by the mix.`;
         }
       }
-      const hireHtml = hireMsg
-        ? `<div class="rr-cov-needed-sub" style="margin-top:8px">${hireMsg}</div>` : "";
+      const rebalanceHtml = rebalanceMsg
+        ? `<div class="rr-cov-needed-sub" style="margin-top:8px">${rebalanceMsg}</div>` : "";
       const curLine = live && live.totalScheduled > 0
         ? `${ftPct}% Full-Time / ${ptPct}% Part-Time`
         : "—";
@@ -57680,7 +57688,7 @@ function bindSchedWeekNav() {
               <div class="rr-cov-needed-sub"><strong>Target</strong> · 85% Full-Time</div>
               <div class="rr-cov-needed-sub" style="margin-top:4px"><strong>Healthy range</strong> · 80%–90% Full-Time</div>
               <div class="rr-cov-needed-sub" style="margin-top:10px">${statusMsg}</div>
-              ${hireHtml}
+              ${rebalanceHtml}
             </div>
             <p class="rr-cov-empty" style="margin-top:12px">Target is not 100%. RouteReady treats FT/PT Mix as an optimization metric, not a maximization metric.</p>
           </div>
