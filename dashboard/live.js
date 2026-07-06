@@ -53955,16 +53955,27 @@ async function renderScheduleWeek() {
       const S = window._rrEffectiveSettings || {};
       const maxDays = parseInt(S.max_days_per_week, 10) || 5;
       const allowOverride = !!S.allow_availability_override;
+      // Working-hour limits (Smart Fill's "Enforced" rules): a backup is a
+      // standard block; skip a driver if a new block would push them over
+      // the weekly hour cap.
+      const blockHours = parseFloat(S.default_block_hours) || 10;
+      const weeklyCap = parseFloat(S.weekly_hour_cap) || (maxDays * blockHours);
       // Distinct scheduled days per driver this week (drives the max-days gate).
       const daysPerDriver = new Map();
       for (const [, set] of schedByDate) for (const id of set) daysPerDriver.set(id, (daysPerDriver.get(id) || 0) + 1);
-      // A representative productive shift per date → template for created backups.
+      // A representative productive shift per date → source of the created
+      // backup's station + wave times. Prefer an SP (standard-parcel) shift so
+      // the wave/time matches a standard route; the ROUTE TYPE itself is always
+      // forced to SP below regardless of which rep we land on.
+      const isSPClass = (sh) => !sh.route_classification || String(sh.route_classification).toLowerCase() === "standard";
       const repByDate = new Map();
       for (const sh of (grid.shifts || [])) {
         if (!["scheduled", "completed"].includes(sh.status)) continue;
         if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
         if (!sh.station_id || !sh.starts_at || !sh.ends_at) continue;
-        if (!repByDate.has(sh.date)) repByDate.set(sh.date, sh);
+        const cur = repByDate.get(sh.date);
+        if (!cur) repByDate.set(sh.date, sh);
+        else if (isSPClass(sh) && !isSPClass(cur)) repByDate.set(sh.date, sh); // upgrade to an SP rep
       }
       const availSetOf = (d) => {
         const a = d.metadata?.availability?.days;
@@ -53975,9 +53986,10 @@ async function renderScheduleWeek() {
         return new Set((Array.isArray(p) ? p : []).map(x => String(x).slice(0, 3).toLowerCase()));
       };
       const nameOf = (d) => d.preferred_name || d.full_name || [d.first_name, d.last_name].filter(Boolean).join(" ") || "Driver";
-      // Running projection so a driver picked for two exposed days doesn't
-      // blow past max-days, and can't be double-picked for the same day.
-      const projected = new Map(daysPerDriver);
+      // Running projections so a driver picked for two exposed days doesn't
+      // blow past max-days or the weekly hour cap, and can't be double-picked.
+      const projected = new Map(daysPerDriver);           // days
+      const projHours = new Map();                         // extra hours from picks so far
       const recDays = [];
       for (const day of exposedDays) {
         const need = day.exposure;
@@ -53985,15 +53997,20 @@ async function renderScheduleWeek() {
         const scheduledThatDay = schedByDate.get(day.iso) || new Set();
         const rep = repByDate.get(day.iso) || null;
         const cands = drivers.filter((d) => {
-          if (d.status !== "active") return false;
-          if (atRiskIds.has(d.id)) return false;           // low-risk only — else exposure won't drop
-          if (scheduledThatDay.has(d.id)) return false;     // already working that day
-          if (ptoOn(d.id, day.iso)) return false;
-          if ((projected.get(d.id) || 0) >= maxDays) return false;
+          // Smart Fill hard gates (the "Enforced" rules), honored here:
+          if (d.status !== "active") return false;          // active drivers only
+          if (atRiskIds.has(d.id)) return false;            // low-risk only — else exposure won't drop
+          if (scheduledThatDay.has(d.id)) return false;      // already working that day
+          if (ptoOn(d.id, day.iso)) return false;            // not on approved PTO
+          if (d.dl_expires_on && String(d.dl_expires_on) < day.iso) return false; // DL valid through the shift date
+          if ((projected.get(d.id) || 0) >= maxDays) return false;                // max days per week
+          if ((hoursPerDriver.get(d.id) || 0) + (projHours.get(d.id) || 0) + blockHours > weeklyCap) return false; // weekly hour cap
           if (!allowOverride) {
             const av = availSetOf(d);
-            if (av && !av.has(dk)) return false;            // respect saved availability
+            if (av && !av.has(dk)) return false;            // saved availability includes this day-of-week
           }
+          // Certifications (DOT / XL / EDV) intentionally not gated: backups
+          // are always SP (standard parcel), which requires no certification.
           return true;
         });
         cands.sort((a, b) => {
@@ -54004,19 +54021,24 @@ async function renderScheduleWeek() {
           return nameOf(a).localeCompare(nameOf(b));
         });
         const picks = cands.slice(0, need).map((d) => ({ id: d.id, name: nameOf(d) }));
-        for (const p of picks) projected.set(p.id, (projected.get(p.id) || 0) + 1);
+        for (const p of picks) {
+          projected.set(p.id, (projected.get(p.id) || 0) + 1);
+          projHours.set(p.id, (projHours.get(p.id) || 0) + blockHours);
+        }
         recDays.push({
           iso: day.iso,
           weekday: day.weekday,
           need,
           picks,
           shortfall: Math.max(0, need - picks.length),
+          // Station + wave times come from the rep shift; the route type is
+          // ALWAYS SP (empty route_classification, no service type).
           template: rep ? {
             station_id: rep.station_id,
             starts_at: rep.starts_at,
             ends_at: rep.ends_at,
-            service_type_id: rep.service_type_id || null,
-            route_classification: rep.route_classification || null,
+            service_type_id: null,
+            route_classification: null,
           } : null,
         });
       }
