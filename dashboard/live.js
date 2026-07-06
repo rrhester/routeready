@@ -13188,12 +13188,22 @@ function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
     if (!model || !Array.isArray(model.buckets)) return "";
     const MIN_MODEL_DAYS = 20;   // need ~3 weeks of snapshots before we predict
     const MIN_BUCKET_SAMPLE = 8; // fall back to baseline below this many heads
-    const ELEVATED_FACTOR = 1.3; // only flag days meaningfully above baseline
+    const MIN_REF_HEADS = 40;    // matched non-bucket heads to trust the split
+    const ELEVATED_FACTOR = 1.3; // flag threshold, applied to the WEATHER-only
+                                 // lift when the calendar can be separated,
+                                 // else to the naive rate-vs-baseline lift
 
     const upByDate = new Map((model.upcoming || []).map((u) => [u.date, u.scheduled]));
     const baseline = Number(model.baseline_rate) || 0;
     const rateByBucket = new Map(
-      model.buckets.map((b) => [b.key, { rate: Number(b.rate) || 0, scheduled: b.scheduled || 0 }])
+      model.buckets.map((b) => [b.key, {
+        rate: Number(b.rate) || 0,
+        scheduled: b.scheduled || 0,
+        refHeads: b.ref_heads || 0,
+        // weather-only lift (naive lift with weekday-type + season removed)
+        weatherLift: b.weather_lift == null ? null : Number(b.weather_lift),
+        calExpRate: b.calendar_expected_rate == null ? null : Number(b.calendar_expected_rate),
+      }])
     );
 
     if ((model.sample_days || 0) < MIN_MODEL_DAYS || baseline <= 0) {
@@ -13235,7 +13245,13 @@ function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
       // Trust the bucket rate only with enough history; else use baseline.
       const trusted = b && b.scheduled >= MIN_BUCKET_SAMPLE;
       const rate = trusted ? b.rate : baseline;
-      if (rate < baseline * ELEVATED_FACTOR) continue; // not elevated
+      // Can we separate weather from the calendar for this bucket? Needs a
+      // real weather_lift and enough matched non-bucket history behind it.
+      const controlled = !!(trusted && b.weatherLift != null && b.refHeads >= MIN_REF_HEADS);
+      // Flag on the weather-only lift when we can isolate it; otherwise fall
+      // back to the naive rate-vs-baseline lift and say so.
+      const effLift = controlled ? b.weatherLift : (baseline > 0 ? rate / baseline : 0);
+      if (effLift < ELEVATED_FACTOR) continue; // not elevated by weather
       const expected = scheduled * rate;
       if (expected < 1) continue; // fewer than one expected callout — skip noise
       const wd = (() => {
@@ -13247,22 +13263,34 @@ function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
         bucket,
         expected: Math.round(expected),
         rate,
-        scheduled,
+        effLift,
+        controlled,
+        weatherLift: controlled ? b.weatherLift : null,
+        calExpRate: controlled ? b.calExpRate : null,
         trusted,
       });
     }
     if (rows.length === 0) return "";
-    rows.sort((a, b) => b.expected - a.expected || b.rate - a.rate);
+    rows.sort((a, b) => b.expected - a.expected || b.effLift - a.effLift);
 
     const baselinePct = Math.round(baseline * 100);
     const body = rows.slice(0, 3).map((r) => {
       const pct = Math.round(r.rate * 100);
       const label = WX_BUCKET_LABEL[r.bucket] || r.bucket;
       const conf = r.trusted ? "" : ` <span class="meta">· low sample</span>`;
+      // With the calendar controlled, lead with the weather-only multiple and
+      // show what the weekday/season alone would have predicted. Without it,
+      // fall back to the honest "vs typical" framing and flag that we can't
+      // yet separate weather from the calendar.
+      const detail = r.controlled
+        ? `${escapeHtml(label)} runs <strong>${pct}%</strong> — ≈${r.weatherLift.toFixed(1)}× weather once
+           weekday &amp; season are out <span class="meta">(calendar alone ≈${Math.round(r.calExpRate * 100)}%)</span>${conf}`
+        : `${escapeHtml(label)} runs <strong>${pct}%</strong> vs ${baselinePct}% typical
+           <span class="meta">· calendar not yet separable</span>${conf}`;
       return `<div class="wx-callout-row">
         <span class="wx-callout-day">${escapeHtml(r.wd)}</span>
         <span class="wx-callout-detail"><strong>~${r.expected}</strong> call-out${r.expected === 1 ? "" : "s"} ·
-          ${escapeHtml(label)} runs <strong>${pct}%</strong> vs ${baselinePct}% typical${conf}</span>
+          ${detail}</span>
       </div>`;
     }).join("");
 
