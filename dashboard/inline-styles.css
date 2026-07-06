@@ -28554,6 +28554,33 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:40px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
 }
 
+/* Pinned header · in the list/reports view the tab strip + action bar
+   (#rr-wb-cmd) stay put at the top and only the workbook cards
+   (#rr-wb-root) scroll. While this view is showing, the .main column is
+   capped to the viewport (instead of the page growing and the whole
+   window scrolling), so the topbar + the pinned cmd shell stay fixed and
+   #rr-wb-root owns the scroll. Using :has() to cap .main means we never
+   hardcode the topbar height — the view just flexes into whatever space
+   is left below it. Excluded in Workbook Mode (body.rr-wb-fullscreen),
+   which drives its own full-viewport layout further down. */
+body:not(.rr-wb-fullscreen):has(#view-workbooks.view.active) .main{
+  height:100vh;height:100dvh;min-height:0;overflow:hidden;
+}
+body:not(.rr-wb-fullscreen) #view-workbooks.view.active{
+  flex:1 1 auto;min-height:0;min-width:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+body:not(.rr-wb-fullscreen) #view-workbooks > .page{
+  flex:1 1 auto;min-height:0;min-width:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+body:not(.rr-wb-fullscreen) #view-workbooks .ws-cmd-shell{flex:0 0 auto}
+body:not(.rr-wb-fullscreen) #view-workbooks #rr-wb-root{
+  flex:1 1 auto;min-height:0;min-width:0;overflow-y:auto;
+  /* a hair of bottom room so the last row's hover shadow isn't clipped */
+  padding-bottom:2px;
+}
+
 /* cmd strip · same card as Workspaces (ws-* classes reused on this
    view so the hub chrome reads identical). */
 #view-workbooks .ws-cmd-shell{position:relative;margin-bottom:var(--s-4)}
