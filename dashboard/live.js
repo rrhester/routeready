@@ -10046,6 +10046,16 @@ function _rrNtPanelOpen(which) {
   // Close the other panel(s) WITHOUT releasing the body push, so the
   // schedule stays condensed and we slide panel→panel.
   Object.keys(_RR_NT_PANELS).forEach((other) => { if (other !== which) _rrNtMarkClosed(other); });
+  // The Operations Health dock is a sibling slide-out on the same edge:
+  // opening any rail panel dismisses it too, exactly as if its shield
+  // button had been clicked (class + aria + saved preference move
+  // together so nothing drifts out of sync).
+  if (!document.body.classList.contains("rr-sched-hide-openshifts")) {
+    document.body.classList.add("rr-sched-hide-openshifts");
+    const shield = document.querySelector("[data-rr-ophealth-toggle]");
+    if (shield) shield.setAttribute("aria-expanded", "false");
+    try { localStorage.setItem("rr-sched-hide-openshifts", "1"); } catch (_) {}
+  }
   el.classList.add("is-open");
   el.setAttribute("aria-hidden", "false");
   const btn = _rrNtToggleBtn(which);
@@ -37728,6 +37738,10 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     const show = document.body.classList.contains("rr-sched-hide-openshifts"); // hidden → reveal
+    // Slide-outs are mutually exclusive in BOTH directions: revealing the
+    // dock closes any open rail panel (Notes/Tasks/Forms/Contacts/Recog),
+    // just as opening one of those dismisses the dock.
+    if (show && typeof _rrNtPanelCloseAll === "function") _rrNtPanelCloseAll();
     document.body.classList.toggle("rr-sched-hide-openshifts", !show);
     ophBtn.setAttribute("aria-expanded", show ? "true" : "false");
     try { localStorage.setItem("rr-sched-hide-openshifts", show ? "0" : "1"); } catch (_) {}
