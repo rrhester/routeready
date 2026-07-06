@@ -239,6 +239,21 @@ function tokenize(src) {
     if (c === ")") { toks.push({ t: TOK_RP }); i++; continue; }
     if (c === "{") { toks.push({ t: TOK_LB }); i++; continue; }
     if (c === "}") { toks.push({ t: TOK_RB }); i++; continue; }
+    if (c === "[") {
+      // structured (table) reference selector: Table[Col], [@Col], [[#Data],[Col]]
+      // — consume the whole balanced bracket group as one token's raw inner text
+      let j = i + 1, depth = 1, inner = "";
+      while (j < n && depth > 0) {
+        const ch = src[j];
+        if (ch === "[") { depth++; inner += ch; }
+        else if (ch === "]") { depth--; if (depth === 0) { j++; break; } inner += ch; }
+        else inner += ch;
+        j++;
+      }
+      if (depth !== 0) throw new FormulaError("#ERROR", "unterminated [ ] in a table reference");
+      toks.push({ t: "sref", v: inner });
+      i = j; continue;
+    }
     if (c === ";") { toks.push({ t: TOK_SEMI }); i++; continue; }
     if (c === ",") { toks.push({ t: TOK_COMMA }); i++; continue; }
     if (c === ":") { toks.push({ t: TOK_COLON }); i++; continue; }
@@ -357,6 +372,8 @@ function parseFormula(src) {
   function parsePrimary() {
     const tok = next();
     if (!tok) throw new FormulaError("#ERROR", "unexpected end of formula");
+    // bare structured reference — [@Col] / [Col] / [#Totals] — implicit table
+    if (tok.t === "sref") return parseTableRef(null, tok.v);
     if (tok.t === TOK_NUM) {
       // whole-row range: 1:3 (columns open-ended)
       if (Number.isInteger(tok.v) && tok.v >= 1 && peek() && peek().t === TOK_COLON && toks[p + 1] && toks[p + 1].t === TOK_NUM && Number.isInteger(toks[p + 1].v) && toks[p + 1].v >= 1) {
@@ -386,6 +403,8 @@ function parseFormula(src) {
     if (tok.t === TOK_ID) {
       const id = tok.v;
       const up = id.toUpperCase();
+      // Table structured reference: Table1[Sales], Table1[[#Data],[Sales]]
+      if (peek() && peek().t === "sref") return parseTableRef(id, next().v);
       if (up === "TRUE" && !(peek() && peek().t === TOK_LP)) return { k: "bool", v: true };
       if (up === "FALSE" && !(peek() && peek().t === TOK_LP)) return { k: "bool", v: false };
       if (peek() && peek().t === TOK_LP) {
@@ -451,6 +470,30 @@ function parseFormula(src) {
       return { k: "range", a, b, sheet: sheetName };
     }
     return { k: "ref", ...a, sheet: sheetName };
+  }
+
+  // Build a structured-reference node from a table name (or null for the
+  // implicit table) and the raw text inside the [ ] group.
+  function parseTableRef(tableName, inner) {
+    let section = "data", column = null, colTo = null;
+    // split the inner text on top-level commas (nested [ ] stay together)
+    const parts = [];
+    { let depth = 0, cur = ""; for (const ch of inner) { if (ch === "[") { depth++; cur += ch; } else if (ch === "]") { depth--; cur += ch; } else if (ch === "," && depth === 0) { parts.push(cur); cur = ""; } else cur += ch; } if (cur.trim() !== "") parts.push(cur); }
+    if (!parts.length) parts.push("");
+    const unwrap = (s) => { s = s.trim(); while (s.startsWith("[") && s.endsWith("]")) s = s.slice(1, -1).trim(); return s; };
+    for (const raw of parts) {
+      let s = raw.trim();
+      if (s.startsWith("@")) { section = "thisrow"; s = unwrap(s.slice(1).trim()); if (s) column = s; continue; }
+      s = unwrap(s);
+      const upS = s.toUpperCase();
+      if (upS === "#ALL") section = "all";
+      else if (upS === "#DATA") section = "data";
+      else if (upS === "#HEADERS") section = "headers";
+      else if (upS === "#TOTALS") section = "totals";
+      else if (upS === "#THIS ROW") section = "thisrow";
+      else if (s) { if (column == null) column = s; else colTo = s; }
+    }
+    return { k: "tref", table: tableName || null, section, column, colTo };
   }
 
   const ast = parseCompare();
@@ -3134,6 +3177,7 @@ function timeFracOf(v) {
 function evalFormula(src, ctx) {
   let ast = parseFormula(src);
   if (ctx && ctx.names instanceof Map && ctx.names.size) ast = bindNames(ast, ctx.names);
+  if (ctx && ctx.tables instanceof Map && ctx.tables.size) ast = bindTableRefs(ast, ctx.tables);
   return evalAst(ast, ctx);
 }
 
@@ -3148,9 +3192,70 @@ function evalAst(ast, ctx) {
   finally { ctx.__inEval--; }
 }
 
+// Turn a structured (table) reference node into a concrete ref/range node,
+// using the tables registry (ctx.tables: upper-name → def) and, for [@…]/implicit
+// refs, the cell currently being evaluated (ctx.cur).
+function resolveTableRef(node, ctx) {
+  const tables = ctx.tables;
+  let def;
+  if (node.table) def = tables && tables.get(node.table.toUpperCase());
+  else if (tables && ctx.cur) for (const d of tables.values()) { if (ctx.cur.r >= d.r0 && ctx.cur.r <= d.r1 && ctx.cur.c >= d.c0 && ctx.cur.c <= d.c1) { def = d; break; } }
+  if (!def) throw new FormulaError("#REF", node.table ? `unknown table '${node.table}'` : "not inside a table");
+  const dataR0 = def.r0 + 1, dataR1 = def.totalRow ? def.r1 - 1 : def.r1;
+  let r0, r1;
+  if (node.section === "headers") r0 = r1 = def.r0;
+  else if (node.section === "totals") { if (!def.totalRow) throw new FormulaError("#REF", "table has no totals row"); r0 = r1 = def.r1; }
+  else if (node.section === "all") { r0 = def.r0; r1 = def.r1; }
+  else if (node.section === "thisrow") { r0 = r1 = ctx.cur ? ctx.cur.r : dataR0; }
+  else { r0 = dataR0; r1 = Math.max(dataR0, dataR1); }
+  let c0, c1;
+  if (node.column) {
+    const ci = def.cols.get(node.column.toUpperCase());
+    if (ci == null) throw new FormulaError("#REF", `unknown table column '${node.column}'`);
+    c0 = ci; c1 = node.colTo ? (def.cols.get(node.colTo.toUpperCase()) ?? ci) : ci;
+    if (c1 < c0) { const t = c0; c0 = c1; c1 = t; }
+  } else { c0 = def.c0; c1 = def.c1; }
+  return r0 === r1 && c0 === c1 ? { k: "ref", row: r0, col: c0 } : { k: "range", a: { row: r0, col: c0 }, b: { row: r1, col: c1 } };
+}
+
+// Build the tables registry (upper name → def with column-name→index map) from
+// sheet.meta.tables, reading column names off each table's header row.
+function buildTablesRegistry(sheet) {
+  const defs = sheet && sheet.meta && Array.isArray(sheet.meta.tables) ? sheet.meta.tables : [];
+  const map = new Map();
+  for (const t of defs) {
+    if (!t || !t.name || ![t.r0, t.c0, t.r1, t.c1].every(Number.isInteger)) continue;
+    const cols = new Map();
+    for (let c = t.c0; c <= t.c1; c++) {
+      const cell = sheet.cells.get(cellKey(t.r0, c));
+      const name = cell ? String((cell.formula ? cell.computed : cell.value) ?? "").trim() : "";
+      if (name) cols.set(name.toUpperCase(), c);
+    }
+    map.set(String(t.name).toUpperCase(), { name: t.name, r0: t.r0, c0: t.c0, r1: t.r1, c1: t.c1, totalRow: !!t.totalRow, cols });
+  }
+  return map;
+}
+
+// A table grows downward when non-empty cells are written in the row directly
+// below it (Excel's auto-expand). Mutates sheet.meta.tables + persists.
+function autoExpandTables(sheet, applied) {
+  const tables = sheet.meta && sheet.meta.tables;
+  if (!Array.isArray(tables) || !tables.length) return false;
+  let changed = false;
+  for (const t of tables) {
+    const rowsBelow = new Set(applied.filter((a) => a.next && a.c >= t.c0 && a.c <= t.c1 && a.r > t.r1).map((a) => a.r));
+    let nr = t.r1;
+    while (rowsBelow.has(nr + 1)) nr++;
+    if (nr > t.r1) { t.r1 = nr; changed = true; }
+  }
+  if (changed) { sheet.meta = { ...sheet.meta, tables: [...tables] }; if (typeof saveSheetMeta === "function") saveSheetMeta(sheet.id); }
+  return changed;
+}
+
 function evalNode(node, ctx) {
   if ((ctx.__ops = (ctx.__ops | 0) + 1) > MAX_EVAL_OPS) throw new FormulaError("#NUM", "formula too complex — operation budget exceeded");
   switch (node.k) {
+    case "tref": { const rn = resolveTableRef(node, ctx); return rn.k === "range" ? gridOfRange(rn, ctx) : evalNode(rn, ctx); }
     case "num": return node.v;
     case "str": return node.v;
     case "bool": return node.v;
@@ -3914,6 +4019,26 @@ function extractRefs(src, bounds, names) {
 // matching Excel. `names` is a Map of UPPERCASE name -> range|ref AST node.
 // Returns a new tree; the input is left untouched.
 function cloneNode(n) { return JSON.parse(JSON.stringify(n)); }
+// Resolve explicit-table structured refs (Sales[Amount], Sales[[#Data],[Amount]])
+// into concrete range/ref nodes so range-consuming functions (SUMIF, VLOOKUP, …)
+// see a normal range. [@…] and bare [Col] stay as tref nodes — they need the
+// evaluating cell's position (ctx.cur) and resolve at eval time.
+function bindTableRefs(node, tables) {
+  if (!node || typeof node !== "object") return node;
+  if (node.k === "tref") {
+    if (node.table && node.section !== "thisrow") {
+      try { return resolveTableRef(node, { tables }); } catch (_) { return node; }
+    }
+    return node;
+  }
+  switch (node.k) {
+    case "func": return { ...node, args: node.args.map((a) => bindTableRefs(a, tables)) };
+    case "call": return { ...node, fn: bindTableRefs(node.fn, tables), args: node.args.map((a) => bindTableRefs(a, tables)) };
+    case "arrlit": return { ...node, rows: node.rows.map((row) => row.map((el) => bindTableRefs(el, tables))) };
+    default: { const out = { ...node }; if (node.l) out.l = bindTableRefs(node.l, tables); if (node.r) out.r = bindTableRefs(node.r, tables); if (node.v && typeof node.v === "object") out.v = bindTableRefs(node.v, tables); return out; }
+  }
+}
+
 function bindNames(node, names, bound) {
   if (!node || typeof node !== "object") return node;
   switch (node.k) {
@@ -3952,6 +4077,7 @@ function hasDynamicRefs(ast) {
   let found = false;
   (function walk(n) {
     if (!n || typeof n !== "object" || found) return;
+    if (n.k === "tref") { found = true; return; } // table refs resolve against the tables registry at eval time
     if (n.k === "func") {
       if (n.name === "INDIRECT" || n.name === "OFFSET") { found = true; return; }
       n.args.forEach(walk); return;
@@ -5634,11 +5760,12 @@ function recalcCone(sheet, dirtyKeys) {
   }
   const depBounds = { rowCount: usedR + 1, colCount: usedC + 1 };
   const names = namesForSheet(sheet);
+  const tableReg = buildTablesRegistry(sheet);
   const asts = new Map(), deps = new Map(), parseErr = new Map();
   for (const key of formulaKeys) {
     const cell = sheet.cells.get(key);
     let ast;
-    try { ast = cachedParse(cell.formula); if (names.size) ast = bindNames(ast, names); }
+    try { ast = cachedParse(cell.formula); if (names.size) ast = bindNames(ast, names); if (tableReg.size) ast = bindTableRefs(ast, tableReg); }
     catch (e) { parseErr.set(key, e instanceof FormulaError ? e.code : "#ERROR"); continue; }
     if (hasDynamicRefs(ast)) return false; // eval-time refs → full recompute
     asts.set(key, ast);
@@ -5677,6 +5804,7 @@ function recalcCone(sheet, dirtyKeys) {
   }
   const ctx = {
     rowCount: sheet.rowCount, colCount: sheet.colCount,
+    tables: buildTablesRegistry(sheet),
     getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
     getFormula: (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell && cell.formula ? cell.formula : null; },
   };
@@ -5712,12 +5840,14 @@ function recalcSheet(sheet, dirtyKeys) {
   // only formula cells matter as graph edges, and those are all in-use
   const depBounds = { rowCount: usedR + 1, colCount: usedC + 1 };
   const names = namesForSheet(sheet);
+  const tableReg = buildTablesRegistry(sheet);
   const asts = new Map();
   const deps = new Map();
   for (const [key, cell] of formulaCells) {
     try {
       let ast = cachedParse(cell.formula);
       if (names.size) ast = bindNames(ast, names);
+      if (tableReg.size) ast = bindTableRefs(ast, tableReg);
       asts.set(key, ast);
       deps.set(key, refsFromAst(ast, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
     } catch (e) {
@@ -5756,6 +5886,7 @@ function recalcSheet(sheet, dirtyKeys) {
   const ctx = {
     rowCount: sheet.rowCount,
     colCount: sheet.colCount,
+    tables: buildTablesRegistry(sheet),
     getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
     getFormula: (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell && cell.formula ? cell.formula : null; },
   };
@@ -8887,6 +9018,7 @@ function setCells(g, changes, opts) {
     if (g.undo.length > 100) g.undo.shift();
     g.redo = [];
   }
+  autoExpandTables(sheet, applied); // a table grows when you type in the row below it
   recalcWithSiblings(sheet, applied.map((a) => a.key));
   markCellsDirty(sheet, applied.map((a) => a.key));
   queueCellActivity(sheet, applied.map((a) => ({
@@ -10024,6 +10156,7 @@ function cfEvalCtx(sheet) {
     rowCount: sheet.rowCount, colCount: sheet.colCount,
     getCell: (r, c, sn) => (sn ? crossSheetValue(sheet, sn, r, c) : engineValue(sheet, r, c)),
     names: namesForSheet(sheet),
+    tables: buildTablesRegistry(sheet),
   };
   _cfCtxMemo.set(sheet, ctx);
   return ctx;
@@ -10145,7 +10278,7 @@ function shiftRuleRanges(sheet, axis, index, delta) {
   const meta = sheet.meta || {};
   const lo = axis === "row" ? "r0" : "c0", hi = axis === "row" ? "r1" : "c1";
   const cut = delta < 0 ? -delta : 0;
-  for (const key of ["validation", "condFormat", "merges", "charts", "pivots", "protected"]) {
+  for (const key of ["validation", "condFormat", "merges", "charts", "pivots", "protected", "tables"]) {
     if (!Array.isArray(meta[key]) || !meta[key].length) continue;
     const next = [];
     for (const rule of meta[key]) {
@@ -11707,6 +11840,51 @@ function toggleProtectSelection(g) {
   const refT = colLabel(rect.c0) + (rect.r0 + 1) + (rect.r1 !== rect.r0 || rect.c1 !== rect.c0 ? ":" + colLabel(rect.c1) + (rect.r1 + 1) : "");
   wbLog("sheet.protect", `${hit.length ? "unprotected" : "protected"} ${refT} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
   _toast(hit.length ? "Range unprotected" : "Range protected — only admins can edit it now", "success");
+}
+
+// Create an Excel-style table from the selection, or remove the table the
+// selection sits in. Tables enable structured refs (Table1[Column], [@Column]).
+function toggleTableSelection(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const existing = Array.isArray(sheet.meta && sheet.meta.tables) ? sheet.meta.tables : [];
+  const overlaps = (t) => !(t.r1 < rect.r0 || t.r0 > rect.r1 || t.c1 < rect.c0 || t.c0 > rect.c1);
+  const hit = existing.filter(overlaps);
+  const before = structSnapshot(sheet);
+  if (hit.length) {
+    sheet.meta = { ...(sheet.meta || {}), tables: existing.filter((t) => !hit.includes(t)) };
+    saveSheetMeta(sheet.id); pushStructUndo(g, before); repaintGrid(g);
+    _toast(`Removed table ${hit.map((t) => t.name).join(", ")} (cells kept)`, "success");
+    return;
+  }
+  if (rect.r0 === rect.r1) { _toast("Select a header row plus at least one data row", "info"); return; }
+  const headers = [];
+  for (let c = rect.c0; c <= rect.c1; c++) {
+    const cell = sheet.cells.get(cellKey(rect.r0, c));
+    const v = cell ? String((cell.formula ? cell.computed : cell.value) ?? "").trim() : "";
+    if (!v) { _toast("Every column needs a header in the top row of the selection", "warn"); return; }
+    headers.push(v);
+  }
+  if (new Set(headers.map((h) => h.toLowerCase())).size !== headers.length) { _toast("Table column headers must be unique", "warn"); return; }
+  let i = 1; const used = new Set(existing.map((t) => String(t.name).toLowerCase()));
+  while (used.has("table" + i)) i++;
+  const name = "Table" + i;
+  sheet.meta = { ...(sheet.meta || {}), tables: [...existing, { id: "tbl" + Math.random().toString(36).slice(2, 8), name, r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 }] };
+  saveSheetMeta(sheet.id);
+  pushStructUndo(g, before);
+  // style the header row (separate undoable step)
+  const hdr = [];
+  for (let c = rect.c0; c <= rect.c1; c++) {
+    const cell = sheet.cells.get(cellKey(rect.r0, c));
+    const base = cell ? cloneCell(cell) : { value: null, formula: null, type: null, format: {} };
+    base.format = { ...base.format, bold: true, bg: "header" };
+    hdr.push({ r: rect.r0, c, cell: base });
+  }
+  setCells(g, hdr);
+  computeGeometry(g); repaintGrid(g);
+  wbLog("sheet.table", `created table ${name} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
+  _toast(`Created ${name} — reference it as ${name}[${headers[0]}]`, "success");
 }
 
 // Goal seek: solve an input cell so a formula cell reaches a target value.
@@ -16005,6 +16183,7 @@ function wbMenuItems(menu, g) {
         ] },
         sep,
         { label: "Column stats", act: "data:stats", disabled: !g },
+        { label: "Create / remove table", act: "data:table", disabled: !ed || !g },
         { label: "Protect / unprotect selection", act: "data:protect", disabled: !g || !WB.canAdmin },
         { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
@@ -16140,6 +16319,7 @@ function wbMenuAction(act, g) {
     case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); persistFilterState(g); } return;
     case "data:fv-save": if (need()) saveFilterView(g); return;
     case "data:stats": if (need()) showColumnStats(g); return;
+    case "data:table": if (need()) toggleTableSelection(g); return;
     case "data:protect": toggleProtectSelection(g); return;
     case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
