@@ -8016,6 +8016,16 @@ body.rr-cmdk-open{ overflow:hidden }
 .sched-ophealth .oph-row[data-tier="green"] .oph-val{color:#16A34A}
 .sched-ophealth .oph-row[data-tier="yellow"] .oph-val{color:#B45309}
 .sched-ophealth .oph-row[data-tier="red"] .oph-val{color:var(--red)}
+.sched-ophealth .oph-sub-worst{display:block;margin-top:1px;color:var(--text-subtle);opacity:.85}
+.rr-callout-explain{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5;margin:0 0 12px}
+.rr-callout-days{display:flex;flex-direction:column}
+.rr-callout-day{display:flex;align-items:baseline;gap:10px;padding:8px 0;border-top:1px solid var(--border-subtle,rgba(15,23,42,.06))}
+.rr-callout-day:first-child{border-top:0}
+.rr-callout-day-name{flex:0 0 42px;font-size:var(--fs-sm);font-weight:700;color:var(--text)}
+.rr-callout-day-nums{flex:1;font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums}
+.rr-callout-day-status{font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
+.rr-callout-day-status.covered{color:#16A34A}
+.rr-callout-day-status.exposed{color:var(--red)}
 
 /* Make calendar cells feel buildable */
 .cal-cell.empty-slot{

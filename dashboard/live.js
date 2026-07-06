@@ -42883,6 +42883,74 @@ function _rrConfirmDialog(opts) {
 }
 window._rrConfirmDialog = _rrConfirmDialog;
 
+// Callout-exposure finalize warning. Advisory only — it never blocks
+// finalization (existing rules still own hard blocks). Resolves true when
+// the operator chooses "Finalize Anyway", false to go back and review.
+// `ce` is the window._rrCalloutExposure snapshot.
+function _rrCalloutExposureFinalizeDialog(ce) {
+  return new Promise((resolve) => {
+    document.getElementById("rr-callout-warn-backdrop")?.remove();
+    document.getElementById("rr-callout-warn-modal")?.remove();
+    const worst = ce && ce.worst;
+    const exposed = (ce && ce.exposedDays) || [];
+    const backdrop = document.createElement("div");
+    backdrop.id = "rr-callout-warn-backdrop";
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:10000";
+    document.body.appendChild(backdrop);
+    const m = document.createElement("div");
+    m.id = "rr-callout-warn-modal";
+    m.setAttribute("role", "dialog");
+    m.setAttribute("aria-modal", "true");
+    m.style.cssText =
+      "position:fixed;left:50%;top:84px;transform:translateX(-50%);width:420px;" +
+      "max-width:calc(100vw - 24px);background:var(--surface,#fff);" +
+      "border:1px solid var(--border,#E5E7EB);border-radius:12px;" +
+      "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:10001;opacity:0;" +
+      "transition:opacity 120ms ease-out;overflow:hidden";
+    const others = exposed.filter(d => !worst || d.iso !== worst.iso);
+    const otherLine = others.length
+      ? `<div style="font-size:12px;color:var(--text-subtle,#6B7280);margin-top:8px">${escapeHtml(others.map(d => `${d.weekday}: ${d.exposure} exposed`).join(" · "))}</div>`
+      : "";
+    m.innerHTML =
+      '<div style="padding:16px 18px 14px">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+          '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#DC2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
+          '<div style="font-size:15px;font-weight:700;color:var(--text,#111827)">Callout exposure detected</div>' +
+        '</div>' +
+        (worst
+          ? '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#6B7280)">' +
+              escapeHtml(`${worst.weekday} has ${worst.atRisk} at-risk scheduled driver${worst.atRisk === 1 ? "" : "s"} and only ${worst.cushionDrivers} cushion driver${worst.cushionDrivers === 1 ? "" : "s"}. ${worst.exposure} driver${worst.exposure === 1 ? "" : "s"} ${worst.exposure === 1 ? "is" : "are"} exposed if all at-risk drivers call out.`) +
+            '</div>'
+          : '') +
+        otherLine +
+        '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#6B7280);margin-top:10px">RouteReady recommends adding backup coverage or adjusting the schedule.</div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#E5E7EB);background:var(--canvas,#F9FAFB)">' +
+        '<button type="button" class="btn btn-sm" data-rr-callout-review>Review Schedule</button>' +
+        '<button type="button" class="btn btn-sm btn-primary" data-rr-callout-anyway>Finalize Anyway</button>' +
+      '</div>';
+    document.body.appendChild(m);
+    requestAnimationFrame(() => { m.style.opacity = "1"; });
+    let done = false;
+    const finish = (val) => {
+      if (done) return; done = true;
+      document.removeEventListener("keydown", onKey);
+      m.style.opacity = "0";
+      setTimeout(() => { m.remove(); backdrop.remove(); }, 120);
+      resolve(val);
+    };
+    const onKey = (ev) => { if (ev.key === "Escape") finish(false); };
+    document.addEventListener("keydown", onKey);
+    backdrop.addEventListener("click", () => finish(false));
+    m.addEventListener("click", (ev) => {
+      if (ev.target.closest("[data-rr-callout-review]")) finish(false);
+      else if (ev.target.closest("[data-rr-callout-anyway]")) finish(true);
+    });
+    requestAnimationFrame(() => m.querySelector("[data-rr-callout-review]")?.focus());
+  });
+}
+window._rrCalloutExposureFinalizeDialog = _rrCalloutExposureFinalizeDialog;
+
 // ─── Finalize · premium Draft → Live state transition ──────────────────
 // Treats Finalize as a ~2-second publish animation that communicates the
 // schedule has officially moved from Draft to Live. Calm, enterprise,
@@ -42982,6 +43050,16 @@ document.addEventListener("click", async (e) => {
     // Ignore re-clicks while a publish animation is in flight.
     if (window._rrFinalizePublishing) return;
     const target = !window._rrWeekFinalized;
+    // Callout-exposure gate — when any scheduled day is exposed (at-risk
+    // drivers outnumber the cushion), warn before finalizing. Advisory:
+    // "Finalize Anyway" proceeds, "Review Schedule" backs out. Never a
+    // hard block (existing rules still own those).
+    if (target && window._rrCalloutExposure?.anyExposed) {
+      const proceed = await _rrCalloutExposureFinalizeDialog(window._rrCalloutExposure);
+      if (!proceed) return;
+      await _rrFinalizePublish();
+      return;
+    }
     const ok = target
       ? await _rrConfirmDialog({
           title: "Finalize this week?",
@@ -53244,7 +53322,7 @@ async function renderScheduleWeek() {
   // the visible week (see `femRisks` computation further below).
   const femLookbackIso = fmtIsoDate(addDays(weekStart, -14));
 
-  const [gridRes, driversRes, toRes, femVehRes, femAssignRes, settingsRes] = await Promise.all([
+  const [gridRes, driversRes, toRes, femVehRes, femAssignRes, settingsRes, riskRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, is_trainer, role, station:station_id (code)")
@@ -53272,6 +53350,18 @@ async function renderScheduleWeek() {
     // Week's cushion % (route-plan buffer) — drives the coverage
     // denominator: ceil(target_routes × (1 + cushion%)).
     sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart }),
+    // "High Risk" for Callout Exposure = a driver with an active
+    // (unresolved) FINAL corrective action. Loaded here (not read from the
+    // roster's module maps) so exposure is correct even when the operator
+    // hasn't opened the roster this session. Best-effort — a failure just
+    // leaves the high-risk set empty.
+    sb.from("coachings")
+      .select("driver_id, severity, resolved_at, archived_at")
+      .eq("dsp_id", dspId)
+      .is("archived_at", null)
+      .is("resolved_at", null)
+      .eq("severity", "final")
+      .then((r) => r, () => ({ data: [] })),
   ]);
 
   // A load failure must NOT silently leave a blank or stale grid — the
@@ -53676,6 +53766,100 @@ async function renderScheduleWeek() {
     }
     return ids.size;
   })();
+
+  // ── Callout Exposure ────────────────────────────────────────────────
+  // The DSP deliberately schedules a CUSHION of extra drivers above the
+  // day's required route count; those extra drivers exist to absorb
+  // call-outs. Exposure is a DAY-BY-DAY question — call-out risk lives on
+  // each scheduled day independently, so we compute per day and never
+  // collapse to weekly-unique drivers.
+  //
+  //   requiredRoutes   = the day's raw route target (before cushion %)
+  //   scheduledDrivers = distinct ACTIVE drivers with an assigned,
+  //                      non-training scheduled/completed shift that day
+  //   cushionDrivers   = scheduledDrivers − requiredRoutes  (the extra
+  //                      scheduled capacity above routes needed — NOT
+  //                      open seats, NOT missing routes)
+  //   atRiskScheduled  = scheduled drivers that day who are "High Risk" —
+  //                      i.e. carry an active (unresolved) FINAL
+  //                      corrective action
+  //   exposure         = atRiskScheduled − cushionDrivers
+  //     exposure  < 0 → covered  ("Covered by +N" — cushion to spare)
+  //     exposure == 0 → covered  ("Covered exactly")
+  //     exposure  > 0 → exposed  (N drivers uncovered if all at-risk call out)
+  //
+  // A driver working multiple days is counted once PER scheduled day
+  // (exposure exists on each day). PTO / unavailable / N/A / inactive /
+  // unassigned / training shifts are excluded — only active drivers on
+  // assigned, in-schedule shifts count.
+  const _calloutExposure = (() => {
+    // "High Risk" = a driver with an active (unresolved) FINAL corrective
+    // action. These are the drivers whose call-out has to be absorbed by a
+    // cushion shift; if the cushion can't cover them, the day is exposed.
+    const atRiskIds = new Set(
+      (riskRes?.data || [])
+        .filter(c => c && c.driver_id && !c.resolved_at && c.severity === "final")
+        .map(c => c.driver_id)
+    );
+    // Distinct scheduled active drivers per date, and the at-risk subset.
+    const schedByDate = new Map(); // iso -> Set(driver_id)
+    for (const sh of (grid.shifts || [])) {
+      if (!["scheduled", "completed"].includes(sh.status)) continue;
+      if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
+      if (!sh.driver_id || !visibleDriverIds.has(sh.driver_id)) continue;
+      if (ptoOn(sh.driver_id, sh.date)) continue; // PTO drivers can't call out on a route
+      let set = schedByDate.get(sh.date);
+      if (!set) { set = new Set(); schedByDate.set(sh.date, set); }
+      set.add(sh.driver_id);
+    }
+    const labelFor = (exposure) => {
+      if (exposure > 0)  return { status: "exposed", label: `${exposure} driver${exposure === 1 ? "" : "s"} exposed` };
+      if (exposure === 0) return { status: "covered", label: "Covered exactly" };
+      return { status: "covered", label: `Covered by +${Math.abs(exposure)}` };
+    };
+    const wkShort = (iso) => {
+      try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
+      catch { return iso; }
+    };
+    const days = [];
+    for (const [iso, set] of schedByDate) {
+      const scheduledDrivers = set.size;
+      if (scheduledDrivers === 0) continue; // nobody scheduled → no call-out exposure
+      const requiredRoutes = targetByDate.get(iso) || 0;
+      let atRisk = 0;
+      for (const id of set) if (atRiskIds.has(id)) atRisk += 1;
+      const cushionDrivers = scheduledDrivers - requiredRoutes;
+      const rawExposure = atRisk - cushionDrivers;
+      // Callout exposure is a function of AT-RISK drivers — with none
+      // scheduled there is nothing to absorb, so the day is covered no
+      // matter how the cushion nets out. (An understaffed day with a
+      // negative cushion is the Coverage KPI's concern, not this one; it
+      // must not read as "exposed" when zero drivers are at risk.)
+      const exposure = atRisk === 0 ? Math.min(rawExposure, 0) : rawExposure;
+      const { status, label } = labelFor(exposure);
+      days.push({ iso, weekday: wkShort(iso), requiredRoutes, scheduledDrivers, cushionDrivers, atRisk, exposure, status, label });
+    }
+    days.sort((a, b) => a.iso.localeCompare(b.iso));
+    // Worst day = highest exposure (least covered). Tie → more at-risk, then earliest.
+    let worst = null;
+    for (const d of days) {
+      if (!worst
+        || d.exposure > worst.exposure
+        || (d.exposure === worst.exposure && d.atRisk > worst.atRisk)) {
+        worst = d;
+      }
+    }
+    const exposedDays = days.filter(d => d.exposure > 0);
+    return {
+      days,
+      worst,
+      exposedDays,
+      anyExposed: exposedDays.length > 0,
+      weekStart: _schedStart,
+    };
+  })();
+  window._rrCalloutExposure = _calloutExposure;
+
   // Stash the strip's Preferred metrics too so the Improve
   // Preferred drill-down can match — same pattern as the
   // _rrLiveSchedCoverage stash above. Operator caught a
@@ -54427,7 +54611,23 @@ async function renderScheduleWeek() {
           false);
       })() +
       row("rotation", rotationDotRed ? "red" : "green", "Fleet",
-        femRisks.length === 0 ? "Healthy" : `${femRisks.length} at risk`, rotationSub, femRisks.length > 0);
+        femRisks.length === 0 ? "Healthy" : `${femRisks.length} at risk`, rotationSub, femRisks.length > 0) +
+      (() => {
+        // Callout Exposure — worst-day summary. Red only when a day is
+        // actually exposed (at-risk scheduled drivers outnumber the
+        // cushion); covered / exact stay calm (green). Clicks open the
+        // by-day breakdown.
+        const ce = _calloutExposure;
+        const w = ce.worst;
+        if (!w) {
+          return row("callout", "green", "Callout Exposure", "—",
+            "No drivers scheduled yet", false);
+        }
+        const tier = w.exposure > 0 ? "red" : "green";
+        const sub = `${w.atRisk} at-risk scheduled · ${w.cushionDrivers} cushion driver${w.cushionDrivers === 1 ? "" : "s"}`
+          + `<span class="oph-sub-worst">Worst day: ${escapeHtml(w.weekday)}</span>`;
+        return row("callout", tier, "Callout Exposure", w.label, sub, true);
+      })();
 
     // Stash the rows + subtitle for the right-rail Operations Health panel —
     // renderSchedOpenShiftsPool (called below) paints them into the open-shifts
@@ -55508,6 +55708,61 @@ function bindSchedWeekNav() {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") document.getElementById("rr-sched-violations-modal")?.remove();
+  });
+  }
+
+  // ── KPI: clicking the Callout Exposure row opens a by-day breakdown —
+  // required routes / cushion / at-risk / status for every scheduled day,
+  // matching the violations drill-down card treatment. Exposed days are
+  // called out in red; covered / exact days stay calm.
+  if (!window._rrCalloutExposureHandlerInstalled) {
+  window._rrCalloutExposureHandlerInstalled = true;
+  document.addEventListener("click", (e) => {
+    const modal = document.getElementById("rr-sched-callout-modal");
+    if (modal) {
+      if (e.target === modal || e.target.closest("#rr-sched-callout-close")) modal.remove();
+      return;
+    }
+    const rowEl = e.target.closest('[data-rr-kpi="callout"]');
+    if (!rowEl) return;
+    e.preventDefault();
+    const ce = window._rrCalloutExposure;
+    if (!ce || !ce.worst) return;
+    const rowsHtml = ce.days.map(d => {
+      const statusCls = d.exposure > 0 ? "exposed" : "covered";
+      return `
+        <div class="rr-callout-day">
+          <span class="rr-callout-day-name">${escapeHtml(d.weekday)}</span>
+          <span class="rr-callout-day-nums">${d.atRisk} at-risk · ${d.cushionDrivers} cushion</span>
+          <span class="rr-callout-day-status ${statusCls}">${escapeHtml(d.label)}</span>
+        </div>`;
+    }).join("");
+    const headline = ce.anyExposed
+      ? `${ce.exposedDays.reduce((n, d) => n + d.exposure, 0)} driver${ce.exposedDays.reduce((n, d) => n + d.exposure, 0) === 1 ? "" : "s"} exposed across ${ce.exposedDays.length} day${ce.exposedDays.length === 1 ? "" : "s"}`
+      : "Every scheduled day is covered";
+    const m = document.createElement("div");
+    m.id = "rr-sched-callout-modal";
+    m.className = "modal-backdrop open";
+    m.innerHTML = `
+      <div class="modal-card" style="max-width:460px">
+        <div class="modal-head">
+          <div>
+            <p class="modal-title">Callout Exposure</p>
+            <p class="modal-sub">${escapeHtml(headline)}</p>
+          </div>
+          <button type="button" id="rr-sched-callout-close" class="modal-close" aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="rr-callout-explain">At-risk scheduled drivers are absorbed by the cushion (extra drivers scheduled above the day's routes). A day is exposed only when at-risk drivers outnumber the cushion.</p>
+          <div class="rr-callout-days">${rowsHtml}</div>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") document.getElementById("rr-sched-callout-modal")?.remove();
   });
   }
 
