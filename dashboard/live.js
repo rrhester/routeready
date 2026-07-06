@@ -58307,14 +58307,34 @@ function _rrPaintCellConflicts(scope, violations) {
   root.querySelectorAll('[data-rr-cell="driver-day"]').forEach((cell) => {
     cell.querySelectorAll(".rr-cell-conflict").forEach((el) => el.remove());
     const chip = cell.querySelector('.shift-chip[data-rr-shift-id]:not(.off):not(.timeoff)');
-    if (chip) chip.classList.remove("rr-chip-conflict");
+    if (chip) {
+      chip.classList.remove("rr-chip-conflict");
+      // Idempotent: restore whatever title the chip carried before we
+      // last flagged it (chips normally have none), so a resolved
+      // conflict doesn't leave a stale tooltip behind.
+      if (chip.dataset.rrConflictTitleSet) {
+        if (chip.dataset.rrConflictPrevTitle) chip.title = chip.dataset.rrConflictPrevTitle;
+        else chip.removeAttribute("title");
+        delete chip.dataset.rrConflictPrevTitle;
+        delete chip.dataset.rrConflictTitleSet;
+      }
+    }
     const notes = byCell.get((cell.dataset.rrCellDriver || "") + "|" + (cell.dataset.rrCellDate || ""));
     if (!notes || !chip) return;
     chip.classList.add("rr-chip-conflict");
+    const label = "Rule conflict: " + notes.join("; ");
+    // Surface the explanation on hover over the WHOLE chip, not just the
+    // little corner badge — the red border is what draws the eye, so the
+    // tooltip has to live there too. Stash any prior title so the clear
+    // pass above can put it back.
+    if (!chip.dataset.rrConflictTitleSet) {
+      chip.dataset.rrConflictPrevTitle = chip.getAttribute("title") || "";
+      chip.dataset.rrConflictTitleSet = "1";
+    }
+    chip.title = label;
     const badge = document.createElement("span");
     badge.className = "rr-cell-conflict";
     badge.setAttribute("role", "img");
-    const label = "Rule conflict: " + notes.join("; ");
     badge.setAttribute("aria-label", label);
     badge.title = label;
     badge.innerHTML = tri;
