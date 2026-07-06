@@ -828,6 +828,7 @@ const routes = {
   "/tasks/documents":   { render: renderDocumentsList,   tab: "/tasks", back: "/tasks", title: "Documents" },
   "/tasks/documents/sign":{ render: renderDocumentSign,  tab: "/tasks", back: "/tasks/documents", title: "Sign document" },
   "/tasks/i9":          { render: renderI9Section1,      tab: "/tasks", back: "/tasks", title: "Form I-9" },
+  "/tasks/scan":        { render: renderDocumentScanner, tab: "/tasks", back: "/tasks", title: "Scan a document" },
   "/settings/profile":      { render: renderSettingsProfile, tab: "/profile", back: "/settings", title: "Profile" },
   "/settings/license":      { render: renderSettingsLicense, tab: "/profile", back: "/settings", title: "Driver's license" },
   "/settings/pin":          { render: renderSettingsPin,     tab: "/profile", back: "/settings", title: "Sign-in PIN" },
@@ -2535,6 +2536,15 @@ function renderTasksHub() {
     <div id="rr-tasks-assignments-slot"></div>
     ${baseCards.map(taskCardHtml).join("")}
     <div id="rr-tasks-forms-slot"></div>
+    <div id="rr-tasks-tools-slot">
+      <div class="wt-sec">Tools</div>
+      ${taskCardHtml({
+        route: "/tasks/scan",
+        title: "Scan a document",
+        sub: "Snap photos with your phone → PDF you can send",
+        icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="8" width="10" height="8" rx="1"/></svg>',
+      })}
+    </div>
     <div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md);display:none">Nothing to do right now — you're all set.</div>`;
   // Skeleton-removal strategy:
   //   • The instant the first real card lands, drop the skeleton.
@@ -2549,7 +2559,7 @@ function renderTasksHub() {
   let _tasksPending = TASKS_RPC_COUNT;
   let _tasksRevealed = false;
   const slotHasContent = () => {
-    const slots = ["rr-tasks-onboarding-slot", "rr-tasks-assignments-slot", "rr-tasks-forms-slot"];
+    const slots = ["rr-tasks-onboarding-slot", "rr-tasks-assignments-slot", "rr-tasks-forms-slot", "rr-tasks-tools-slot"];
     return slots.some(id => {
       const el = document.getElementById(id);
       return el && el.children.length > 0;
@@ -2736,6 +2746,405 @@ function taskCardHtml(c) {
       </div>
       <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>`;
+}
+
+// ── Document scanner ────────────────────────────────────────────────
+// Turn phone photos into a shareable PDF, entirely on-device. The
+// driver captures one page at a time with the rear camera (or picks
+// existing photos), we downscale each shot on a canvas and re-encode
+// it as a baseline JPEG, then hand-assemble a PDF that embeds those
+// JPEGs via /DCTDecode — no third-party library, no build step, which
+// keeps the vanilla-module shell dependency-free. The finished PDF can
+// be sent straight to dispatch (reusing the chat-attachment bucket +
+// driver_chat_send) or saved / shared through the OS share sheet.
+//
+// State lives at module scope so an accidental tab-away doesn't wipe
+// captured pages; it's cleared explicitly after a successful send or
+// via "Start over".
+let _scanPages = [];          // [{ id, jpeg: Uint8Array, w, h, thumb }]
+let _scanBusy  = false;       // guards the capture/process pipeline
+
+// Max long-edge (px) we downscale each page to before JPEG encoding.
+// 2000px keeps text legible at Letter size while holding file size
+// down so uploads succeed on a phone's cellular connection.
+const _SCAN_MAX_EDGE = 2000;
+const _SCAN_JPEG_Q   = 0.82;
+
+// Decode a captured file to something drawImage() accepts, honoring
+// EXIF orientation so portrait phone shots aren't rotated sideways.
+// createImageBitmap with imageOrientation:"from-image" handles this in
+// one step where supported (Chrome/Android, recent Safari); the <img>
+// fallback covers the rest (modern browsers auto-apply orientation to
+// <img> by default).
+async function _scanLoadBitmap(file) {
+  if (typeof createImageBitmap === "function") {
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
+    catch { /* fall through to <img> */ }
+  }
+  return await new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload  = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("decode failed")); };
+    img.src = url;
+  });
+}
+
+// One captured file → { jpeg bytes, pixel dims, thumbnail dataURL }.
+// White-fills the canvas first so any transparency (e.g. a PNG the
+// driver picked from their gallery) flattens to white instead of
+// black once it's a JPEG.
+async function _scanProcessFile(file) {
+  const bmp = await _scanLoadBitmap(file);
+  const sw = bmp.width, sh = bmp.height;
+  const scale = Math.min(1, _SCAN_MAX_EDGE / Math.max(sw, sh));
+  const w = Math.max(1, Math.round(sw * scale));
+  const h = Math.max(1, Math.round(sh * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  if (typeof bmp.close === "function") bmp.close();
+
+  const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", _SCAN_JPEG_Q));
+  if (!blob) throw new Error("encode failed");
+  const jpeg = new Uint8Array(await blob.arrayBuffer());
+
+  // A small separate thumbnail keeps the DOM light — a full-res dataURL
+  // per page would balloon memory on a multi-page scan.
+  const tScale = Math.min(1, 220 / Math.max(w, h));
+  const tw = Math.max(1, Math.round(w * tScale));
+  const th = Math.max(1, Math.round(h * tScale));
+  const tc = document.createElement("canvas");
+  tc.width = tw; tc.height = th;
+  tc.getContext("2d").drawImage(canvas, 0, 0, tw, th);
+  const thumb = tc.toDataURL("image/jpeg", 0.7);
+
+  return { id: "p" + Date.now() + Math.random().toString(36).slice(2, 6), jpeg, w, h, thumb };
+}
+
+// Assemble a PDF (as a Blob) that embeds each page's JPEG on its own
+// US-Letter page, scaled to fit within a small margin and centered.
+// We build the file as raw bytes because the JPEG streams are binary —
+// a JS string would corrupt them. Object byte-offsets are tracked as
+// we go to write a valid xref table.
+function _scanBuildPdfBlob(pages) {
+  const enc   = (s) => new TextEncoder().encode(s);
+  const parts = [];
+  let length  = 0;
+  const push    = (u8) => { parts.push(u8); length += u8.length; };
+  const pushStr = (s)  => push(enc(s));
+
+  const PAGE_W = 612, PAGE_H = 792, MARGIN = 24;   // 72pt/in → 8.5×11 with ~1/3" margin
+  const N = pages.length;
+  const offsets = [];                              // offsets[objNum] = byte pos
+  const startObj = (n) => { offsets[n] = length; };
+
+  // Object numbering: 1=Catalog, 2=Pages, then per page i (0-based):
+  //   page = 3 + i*3, content = 4 + i*3, image = 5 + i*3
+  const pageNum = (i) => 3 + i * 3;
+  const kids = pages.map((_, i) => `${pageNum(i)} 0 R`).join(" ");
+
+  pushStr("%PDF-1.3\n");
+  push(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));   // binary marker
+
+  startObj(1);
+  pushStr("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+  startObj(2);
+  pushStr(`2 0 obj\n<< /Type /Pages /Kids [${kids}] /Count ${N} >>\nendobj\n`);
+
+  for (let i = 0; i < N; i++) {
+    const p = pages[i];
+    const pNum = pageNum(i), cNum = pNum + 1, iNum = pNum + 2;
+    const availW = PAGE_W - MARGIN * 2, availH = PAGE_H - MARGIN * 2;
+    const s = Math.min(availW / p.w, availH / p.h);
+    const dw = p.w * s, dh = p.h * s;
+    const tx = (PAGE_W - dw) / 2, ty = (PAGE_H - dh) / 2;
+
+    startObj(pNum);
+    pushStr(`${pNum} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] `
+      + `/Resources << /XObject << /Im0 ${iNum} 0 R >> >> /Contents ${cNum} 0 R >>\nendobj\n`);
+
+    const content = `q\n${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)} cm\n/Im0 Do\nQ\n`;
+    const contentBytes = enc(content);
+    startObj(cNum);
+    pushStr(`${cNum} 0 obj\n<< /Length ${contentBytes.length} >>\nstream\n`);
+    push(contentBytes);
+    pushStr("endstream\nendobj\n");
+
+    startObj(iNum);
+    pushStr(`${iNum} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${p.w} /Height ${p.h} `
+      + `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.jpeg.length} >>\nstream\n`);
+    push(p.jpeg);
+    pushStr("\nendstream\nendobj\n");
+  }
+
+  const totalObjs = 2 + N * 3;
+  const xrefPos = length;
+  pushStr(`xref\n0 ${totalObjs + 1}\n`);
+  pushStr("0000000000 65535 f \n");
+  for (let n = 1; n <= totalObjs; n++) {
+    pushStr(String(offsets[n] || 0).padStart(10, "0") + " 00000 n \n");
+  }
+  pushStr(`trailer\n<< /Size ${totalObjs + 1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`);
+
+  const out = new Uint8Array(length);
+  let o = 0;
+  for (const part of parts) { out.set(part, o); o += part.length; }
+  return new Blob([out], { type: "application/pdf" });
+}
+
+function _scanDefaultName() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `Document ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// Send the built PDF to dispatch through the existing chat pipeline:
+// upload to the driver-chat-attachments bucket, then driver_chat_send
+// with the attachment metadata. Mirrors the chat composer's own flow so
+// dispatch sees the document as a normal chat attachment.
+async function _scanSendToDispatch(blob, filename) {
+  const session = readSession();
+  if (!session?.token) { toast("Sign in again to send", "warn"); return false; }
+
+  let dspId = session.dsp_id, driverId = session.driver_id;
+  if (!dspId || !driverId) {
+    const { data: me, error } = await sb.rpc("driver_me", { p_token: session.token });
+    if (error || !me) { toast("Couldn't load your profile — try again", "warn"); return false; }
+    dspId = me.dsp_id || dspId; driverId = me.id || driverId;
+    const cur = readSession();
+    if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+  }
+  if (!dspId || !driverId) { toast("Profile incomplete — sign out and back in", "warn"); return false; }
+
+  const safe = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "document.pdf";
+  const path = `${dspId}/${driverId}/${Date.now()}-${safe}`;
+  const { error: upErr } = await sb.storage
+    .from("driver-chat-attachments")
+    .upload(path, blob, { contentType: "application/pdf", upsert: false });
+  if (upErr) { toast(_friendlyError(upErr, "Couldn't upload the PDF. Try again."), "warn"); return false; }
+
+  const { error: sendErr } = await sb.rpc("driver_chat_send", {
+    p_token:                 session.token,
+    p_body:                  `📄 Scanned document: ${filename}`,
+    p_attachment_path:       path,
+    p_attachment_mime:       "application/pdf",
+    p_attachment_name:       safe,
+    p_attachment_size_bytes: blob.size,
+  });
+  if (sendErr) { toast(_friendlyError(sendErr, "Couldn't send to dispatch. Try again."), "warn"); return false; }
+  return true;
+}
+
+// Hand the PDF to the OS share sheet (so the driver can email / message
+// / save it anywhere), falling back to a direct download when the Web
+// Share API can't take files (most desktop browsers, older iOS).
+async function _scanShareOrSave(blob, filename) {
+  const file = new File([blob], filename, { type: "application/pdf" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: filename }); return "shared"; }
+    catch (e) {
+      if (e && e.name === "AbortError") return "cancelled";   // user dismissed the sheet
+      /* otherwise fall through to download */
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return "downloaded";
+}
+
+function renderDocumentScanner() {
+  setHeader("Scan a document", "");
+  setRefresh(null);
+  const main = document.getElementById("main");
+
+  main.innerHTML = `
+    <div class="scan-page">
+      <input id="scan-file" type="file" accept="image/*" capture="environment" multiple hidden>
+
+      <div class="scan-intro">
+        Take a photo of each page with your phone. Pages combine into one
+        PDF you can send to dispatch or save.
+      </div>
+
+      <div id="scan-pages" class="scan-pages"></div>
+
+      <button id="scan-add" class="btn btn-primary btn-block" type="button">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+        <span id="scan-add-label">Add a page</span>
+      </button>
+
+      <div class="scan-namefield" id="scan-namefield" style="display:none">
+        <label class="field-label" for="scan-name">Document name</label>
+        <input class="field" id="scan-name" type="text" autocapitalize="words" autocomplete="off" />
+      </div>
+
+      <div class="scan-actions" id="scan-actions" style="display:none">
+        <button id="scan-send" class="btn btn-primary btn-block" type="button">Send to dispatch</button>
+        <button id="scan-share" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Save or share PDF</button>
+        <button id="scan-clear" class="btn btn-ghost btn-block" type="button" style="margin-top:8px;color:var(--red)">Start over</button>
+      </div>
+    </div>`;
+
+  const fileInput = document.getElementById("scan-file");
+  const addBtn    = document.getElementById("scan-add");
+
+  addBtn.addEventListener("click", () => { if (!_scanBusy) fileInput.click(); });
+
+  fileInput.addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []);
+    fileInput.value = "";                 // allow re-picking the same file
+    if (!files.length) return;
+    _scanBusy = true;
+    _scanSetBusy(true);
+    for (const f of files) {
+      if (!/^image\//.test(f.type) && !/\.(jpe?g|png|heic|heif|webp)$/i.test(f.name)) continue;
+      try { _scanPages.push(await _scanProcessFile(f)); }
+      catch { toast("Couldn't read one of the photos — try again", "warn"); }
+    }
+    _scanBusy = false;
+    _scanSetBusy(false);
+    _scanRenderPages();
+    _haptic("select");
+  });
+
+  document.getElementById("scan-pages").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-scan-act]");
+    if (!btn) return;
+    const id  = btn.getAttribute("data-scan-id");
+    const act = btn.getAttribute("data-scan-act");
+    const idx = _scanPages.findIndex((p) => p.id === id);
+    if (idx < 0) return;
+    if (act === "del") {
+      _scanPages.splice(idx, 1);
+      _haptic("tap");
+    } else if (act === "up" && idx > 0) {
+      [_scanPages[idx - 1], _scanPages[idx]] = [_scanPages[idx], _scanPages[idx - 1]];
+      _haptic("tap");
+    } else if (act === "down" && idx < _scanPages.length - 1) {
+      [_scanPages[idx + 1], _scanPages[idx]] = [_scanPages[idx], _scanPages[idx + 1]];
+      _haptic("tap");
+    }
+    _scanRenderPages();
+  });
+
+  document.getElementById("scan-send").addEventListener("click", async () => {
+    if (!_scanPages.length) return;
+    const btn = document.getElementById("scan-send");
+    const name = _scanNameValue();
+    btn.disabled = true; btn.textContent = "Sending…";
+    try {
+      const blob = _scanBuildPdfBlob(_scanPages);
+      const ok = await _scanSendToDispatch(blob, name.endsWith(".pdf") ? name : name + ".pdf");
+      if (ok) {
+        _haptic("success");
+        toast("Sent to dispatch", "ok");
+        _scanPages = [];
+        navigate("/chat");
+        return;
+      }
+    } catch (err) {
+      toast(_friendlyError(err, "Couldn't build the PDF. Try again."), "warn");
+    }
+    btn.disabled = false; btn.textContent = "Send to dispatch";
+  });
+
+  document.getElementById("scan-share").addEventListener("click", async () => {
+    if (!_scanPages.length) return;
+    const btn = document.getElementById("scan-share");
+    const name = _scanNameValue();
+    btn.disabled = true; btn.textContent = "Preparing…";
+    try {
+      const blob = _scanBuildPdfBlob(_scanPages);
+      const res = await _scanShareOrSave(blob, name.endsWith(".pdf") ? name : name + ".pdf");
+      if (res === "downloaded") toast("PDF downloaded", "ok");
+      else if (res === "shared") toast("Shared", "ok");
+    } catch (err) {
+      toast(_friendlyError(err, "Couldn't build the PDF. Try again."), "warn");
+    }
+    btn.disabled = false; btn.textContent = "Save or share PDF";
+  });
+
+  document.getElementById("scan-clear").addEventListener("click", async () => {
+    const ok = await confirmSheet({
+      title: "Start over?",
+      message: "This removes all captured pages.",
+      confirmText: "Start over",
+      danger: true,
+    });
+    if (!ok) return;
+    _scanPages = [];
+    _scanRenderPages();
+    _haptic("tap");
+  });
+
+  _scanRenderPages();
+}
+
+// Re-paint the page grid + toggle the name/actions block based on how
+// many pages are captured. Kept separate so every mutation (add,
+// delete, reorder) re-renders through one path.
+function _scanRenderPages() {
+  const wrap = document.getElementById("scan-pages");
+  if (!wrap) return;                       // route changed out from under us
+  const n = _scanPages.length;
+
+  wrap.innerHTML = n === 0
+    ? `<div class="scan-empty">No pages yet. Tap <strong>Add a page</strong> to capture the first one.</div>`
+    : _scanPages.map((p, i) => `
+        <div class="scan-page-card">
+          <div class="scan-thumb"><img src="${p.thumb}" alt="Page ${i + 1}"/></div>
+          <div class="scan-page-meta">
+            <div class="scan-page-n">Page ${i + 1}</div>
+            <div class="scan-page-dim">${p.w} × ${p.h}</div>
+          </div>
+          <div class="scan-page-ctl">
+            <button class="scan-ctl-btn" data-scan-act="up"   data-scan-id="${p.id}" aria-label="Move up"   ${i === 0 ? "disabled" : ""}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <button class="scan-ctl-btn" data-scan-act="down" data-scan-id="${p.id}" aria-label="Move down" ${i === n - 1 ? "disabled" : ""}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button class="scan-ctl-btn danger" data-scan-act="del" data-scan-id="${p.id}" aria-label="Delete page">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>`).join("");
+
+  const addLabel = document.getElementById("scan-add-label");
+  if (addLabel) addLabel.textContent = n === 0 ? "Add a page" : "Add another page";
+
+  const nameField = document.getElementById("scan-namefield");
+  const actions   = document.getElementById("scan-actions");
+  const nameInput = document.getElementById("scan-name");
+  if (nameField) nameField.style.display = n > 0 ? "" : "none";
+  if (actions)   actions.style.display   = n > 0 ? "" : "none";
+  if (nameInput && !nameInput.value) nameInput.value = _scanDefaultName();
+}
+
+function _scanNameValue() {
+  const el = document.getElementById("scan-name");
+  const v = (el?.value || "").trim();
+  return v || _scanDefaultName();
+}
+
+// Disable the capture button + show progress while photos are being
+// processed so rapid taps can't stack decodes.
+function _scanSetBusy(busy) {
+  const btn = document.getElementById("scan-add");
+  const label = document.getElementById("scan-add-label");
+  if (!btn) return;
+  btn.disabled = busy;
+  if (label) label.textContent = busy ? "Processing…" : (_scanPages.length ? "Add another page" : "Add a page");
 }
 
 // ── Chat ────────────────────────────────────────────────────────────

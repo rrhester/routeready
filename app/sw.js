@@ -13,11 +13,11 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-// v123 · Checklists tab surfaces the underlying load error (code +
-// message) instead of only the generic retry line, so backend issues
-// are diagnosable from the phone. Bumped so installed driver PWAs
+// v124 · Adds the on-device document scanner (Forms → Tools → Scan a
+// document): capture pages with the phone camera, combine into a PDF,
+// then send to dispatch or share/save. Bumped so installed driver PWAs
 // purge the old shell and pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v123";
+const SHELL_CACHE = "rr-app-shell-v124";
 const SHELL_FILES = [
   "./",
   "index.html",

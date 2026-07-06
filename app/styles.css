@@ -635,6 +635,44 @@ select.field{
 .task-pill.pill-pending{background:var(--amber-soft);color:var(--amber-dark)}
 .task-pill.pill-done{background:var(--green-soft);color:var(--green-dark)}
 
+/* ── Document scanner ───────────────────────────────────────────── */
+.scan-page{padding:4px 0 24px}
+.scan-intro{
+  font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5;
+  margin:2px 2px 16px;font-weight:500;
+}
+.scan-pages{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.scan-empty{
+  text-align:center;padding:32px 20px;color:var(--text-subtle);
+  font-size:var(--fs-sm);font-weight:500;
+  background:var(--canvas);border:1px dashed var(--border-strong);
+  border-radius:var(--r-card);line-height:1.5;
+}
+.scan-page-card{
+  display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-3);align-items:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);
+  padding:10px 12px;box-shadow:var(--shadow-card);
+}
+.scan-thumb{
+  width:52px;height:66px;border-radius:var(--r-sm);overflow:hidden;flex-shrink:0;
+  background:var(--canvas);border:1px solid var(--border);
+}
+.scan-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.scan-page-meta{min-width:0}
+.scan-page-n{font-size:var(--fs-base);font-weight:600;color:var(--text)}
+.scan-page-dim{font-size:11px;color:var(--text-subtle);margin-top:2px;font-weight:500}
+.scan-page-ctl{display:flex;gap:4px;flex-shrink:0}
+.scan-ctl-btn{
+  width:36px;height:36px;border-radius:var(--r-md);
+  background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:transform 120ms var(--ease-out), background 140ms var(--ease-out);
+}
+.scan-ctl-btn:active{transform:scale(.9)}
+.scan-ctl-btn:disabled{opacity:.35;cursor:not-allowed}
+.scan-ctl-btn.danger{color:var(--red)}
+.scan-namefield{margin:4px 2px 16px}
+
 /* ── Profile head ───────────────────────────────────────────── */
 .profile-head{
   display:flex;flex-direction:column;align-items:center;
