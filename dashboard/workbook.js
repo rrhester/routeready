@@ -6430,11 +6430,15 @@ function mountSheetBlock(block, body) {
   g.els.grid.addEventListener("click", (e) => {
     const addBtn = e.target.closest("[data-wb-dashaddmenu]");
     if (!addBtn) return;
+    // stop this click reaching the root "close popovers on outside click"
+    // handler, which would otherwise dismiss the menu we're about to open
+    e.stopPropagation();
     const r = addBtn.getBoundingClientRect();
-    const m = ctxMenu(r.left, r.bottom + 4, [["chart", "Chart"], ["kpi", "KPI tile"], ["table", "Table"], ["text", "Text / heading"]]
+    const m = ctxMenu(r.right, r.bottom + 4, [["chart", "Chart"], ["kpi", "KPI tile"], ["table", "Table"], ["text", "Text / heading"]]
       .map(([k, l]) => `<button type="button" class="popover-item" data-wb-add="${k}" role="menuitem">${l}</button>`).join(""));
     m.addEventListener("click", (ev) => {
       const b = ev.target.closest("[data-wb-add]"); if (!b) return;
+      ev.stopPropagation();
       closeAllPopovers();
       ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog }[b.getAttribute("data-wb-add")])(g);
     });
