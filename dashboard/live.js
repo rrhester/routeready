@@ -53322,10 +53322,10 @@ async function renderScheduleWeek() {
   // the visible week (see `femRisks` computation further below).
   const femLookbackIso = fmtIsoDate(addDays(weekStart, -14));
 
-  const [gridRes, driversRes, toRes, femVehRes, femAssignRes, settingsRes] = await Promise.all([
+  const [gridRes, driversRes, toRes, femVehRes, femAssignRes, settingsRes, riskRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, score, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, is_trainer, role, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, is_trainer, role, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
       // Only actual drivers belong on the driver schedule — staff rows
@@ -53350,6 +53350,19 @@ async function renderScheduleWeek() {
     // Week's cushion % (route-plan buffer) — drives the coverage
     // denominator: ceil(target_routes × (1 + cushion%)).
     sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart }),
+    // "High Risk" designation for Callout Exposure — the same signal the
+    // roster's High-Risk pill uses: an active (unresolved) corrective
+    // action of severity final / termination. Loaded here (not read from
+    // the roster's module maps) so exposure is correct even when the
+    // operator hasn't opened the roster this session. Best-effort — a
+    // failure just leaves the high-risk set empty.
+    sb.from("coachings")
+      .select("driver_id, severity, resolved_at, archived_at")
+      .eq("dsp_id", dspId)
+      .is("archived_at", null)
+      .is("resolved_at", null)
+      .in("severity", ["final", "termination"])
+      .then((r) => r, () => ({ data: [] })),
   ]);
 
   // A load failure must NOT silently leave a blank or stale grid — the
@@ -53768,9 +53781,9 @@ async function renderScheduleWeek() {
   //   cushionDrivers   = scheduledDrivers − requiredRoutes  (the extra
   //                      scheduled capacity above routes needed — NOT
   //                      open seats, NOT missing routes)
-  //   atRiskScheduled  = scheduled drivers that day flagged attendance
-  //                      risk (attendance score < 70, the same threshold
-  //                      the roster's "At risk" stage uses)
+  //   atRiskScheduled  = scheduled drivers that day carrying the "High
+  //                      Risk" designation (an active final / termination
+  //                      corrective action — the roster's High-Risk pill)
   //   exposure         = atRiskScheduled − cushionDrivers
   //     exposure  < 0 → covered  ("Covered by +N" — cushion to spare)
   //     exposure == 0 → covered  ("Covered exactly")
@@ -53781,8 +53794,16 @@ async function renderScheduleWeek() {
   // unassigned / training shifts are excluded — only active drivers on
   // assigned, in-schedule shifts count.
   const _calloutExposure = (() => {
+    // "High Risk" designation — a driver with an active (unresolved)
+    // corrective action of severity final / termination, exactly the
+    // roster's High-Risk pill. These are the drivers whose call-out has
+    // to be absorbed by a cushion shift; if the cushion can't cover them,
+    // the day is exposed.
     const atRiskIds = new Set(
-      drivers.filter(d => d.status === "active" && (d.score ?? 999) < 70).map(d => d.id)
+      (riskRes?.data || [])
+        .filter(c => c && c.driver_id && !c.resolved_at
+          && (c.severity === "final" || c.severity === "termination"))
+        .map(c => c.driver_id)
     );
     // Distinct scheduled active drivers per date, and the at-risk subset.
     const schedByDate = new Map(); // iso -> Set(driver_id)
