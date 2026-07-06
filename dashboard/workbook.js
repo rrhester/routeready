@@ -5595,6 +5595,7 @@ function renderDetailPage() {
   const root = wbRoot();
   const wb = WB.wb;
   if (!root || !wb) return;
+  installWbMailtoHook(); // route email links (cells & notes) to the RouteReady composer
   const cmd = document.getElementById("rr-wb-cmd");
   if (cmd) cmd.style.display = "none"; // full canvas while a workbook is open
   // Workbook Mode — the open workbook takes over the whole app window
@@ -6613,6 +6614,28 @@ function openWbLink(url) {
     return;
   }
   window.open(url, "_blank", "noopener");
+}
+
+// Intercept EVERY email (mailto:) link click anywhere in the workbook view —
+// spreadsheet cells, rich-text note blocks, anywhere — and route it to the
+// RouteReady composer instead of the OS mail app (Gmail). One capture-phase
+// listener on document (installed once) covers all render paths, present and
+// future, so a workbook email can never fall through to Gmail. We skip links
+// inside an editable region so clicking a link while editing a note still just
+// places the cursor. Web (http/https) links are left to their native handling.
+let _wbMailtoHooked = false;
+function installWbMailtoHook() {
+  if (_wbMailtoHooked) return;
+  _wbMailtoHooked = true;
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest && e.target.closest('a[href^="mailto:"], a[href^="MAILTO:"]');
+    if (!a) return;
+    if (!a.closest("#view-workbooks")) return;      // only inside the workbook view
+    if (a.closest('[contenteditable="true"]')) return; // editing a note → let the caret land
+    e.preventDefault();
+    e.stopPropagation();
+    openWbLink(a.getAttribute("href") || "");
+  }, true); // capture: run before the anchor's default navigation
 }
 
 const WB_COLORS = {
@@ -12552,20 +12575,7 @@ function bindGridEvents(g) {
     grid.focus();
   });
 
-  // A click on a rendered email link opens RouteReady's email composer
-  // (prefilled) instead of navigating to the mailto: handler. We always
-  // intercept email links — even if the composer isn't up yet — so a workbook
-  // email never falls through to the OS mail app (Gmail). Web links keep their
-  // native new-tab behaviour, so they're left untouched here.
-  grid.addEventListener("click", (e) => {
-    const a = e.target.closest("a.wb-cell-link");
-    if (!a) return;
-    const href = a.getAttribute("href") || "";
-    if (/^mailto:/i.test(href)) {
-      e.preventDefault();
-      openWbLink(href);
-    }
-  });
+  installWbMailtoHook();
 
   grid.addEventListener("dblclick", (e) => {
     // double-click a column divider → autofit that column (Excel)
