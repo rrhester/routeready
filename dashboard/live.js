@@ -40732,6 +40732,8 @@ function _rrPolPaint() {
   if (corrSel) corrSel.checked = saved.attendance_penalty === true;
   const prefSel = document.getElementById("rr-pol-preferred");
   if (prefSel) prefSel.checked = saved.preferred_days !== false;
+  const coffSel = document.getElementById("rr-pol-calloff-backups");
+  if (coffSel) coffSel.checked = saved.calloff_backup_fill === true;
 
 
 
@@ -40814,6 +40816,9 @@ document.addEventListener("change", (e) => {
       break;
     case "rr-pol-preferred":
       _rrPolApply((s) => { s.preferred_days = !!el.checked; });
+      break;
+    case "rr-pol-calloff-backups":
+      _rrPolApply((s) => { s.calloff_backup_fill = !!el.checked; });
       break;
   }
 });
@@ -50044,6 +50049,28 @@ async function autoFillScheduleWeek() {
     }
   }
   await renderScheduleWeek();
+  // Post-Smart-Fill call-off coverage · when "Auto-add call-off backups"
+  // is on, proactively schedule standby drivers on the days the call-off
+  // risk tool flags. The renderScheduleWeek() just awaited recomputes
+  // window._rrCalloutExposure, whose recommendation already sizes the
+  // backups off Callout Exposure (at-risk drivers vs cushion) + the
+  // weather forecast and picks low-risk, rule-compliant drivers — the
+  // exact plan the operator gets from the KPI's "Apply backups" button.
+  // We just apply it automatically. SIMULATION runs skip it (their write
+  // path is disabled). _rrApplyCalloutBackups re-renders on its own, so
+  // exposure and the van fill below see the added seats; it runs once
+  // per Smart Fill here, so the re-render can't loop back in.
+  try {
+    if (!_rrWhatIfOptions) {
+      const sf = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
+      const rec = window._rrCalloutExposure && window._rrCalloutExposure.recommendation;
+      if (sf.calloff_backup_fill === true
+          && rec && rec.totalAdds > 0
+          && typeof window._rrApplyCalloutBackups === "function") {
+        await window._rrApplyCalloutBackups();
+      }
+    }
+  } catch (_) { /* non-fatal — call-off backups are additive coverage */ }
   // Post-Smart-Fill van fill · the CP-SAT solver carries its own van
   // assignment logic but doesn't apply the 7 chain rules (primary /
   // backup / pool_fill / branded_first / FEM priority / rescue_*)

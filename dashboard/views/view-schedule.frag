@@ -629,6 +629,19 @@
                   </div>
 
                   <div class="pol-section">
+                  <h3 class="pol-section-title">Call-off coverage</h3>
+                  <p class="pol-section-sub">Get ahead of call-offs — Smart Fill can add standby backup drivers on the days your call-off risk tool flags.</p>
+                  <div class="rr-pol-rows">
+                    <div class="rr-pol-row">
+                      <label class="rr-pol-label" for="rr-pol-calloff-backups">Auto-add call-off backups <button type="button" class="rr-pol-info" data-rr-pol-info="When Smart Fill finishes, it proactively schedules extra standby drivers on days the Callout Exposure tool flags — where at-risk drivers outnumber the cushion, or the weather forecast predicts call-offs. Backups are low-risk, available drivers picked with the same Max Days / consecutive-days / rest / hour-cap rules Smart Fill already enforces, and are added as new seats (nobody loses a shift). It only adds what the risk tool recommends, and never more than there are available drivers." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
+                      <div class="rr-pol-control">
+                        <input type="checkbox" class="rr-pol-check" id="rr-pol-calloff-backups" title="After Smart Fill runs, automatically add standby backup drivers on days flagged by the call-off risk tool">
+                      </div>
+                    </div>
+                  </div>
+                  </div>
+
+                  <div class="pol-section">
                   <h3 class="pol-section-title">Scheduling order</h3>
                   <p class="pol-section-sub">Soft nudges that steer who Smart Fill picks when more than one driver fits.</p>
                   <div class="rr-pol-rows">
