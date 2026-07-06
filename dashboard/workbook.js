@@ -6333,6 +6333,8 @@ function mountSheetBlock(block, body) {
       </div>
       <div class="wb-gr-filterchip" hidden></div>
       <div class="wb-dash-bar" data-wb-dashbar>
+        <button type="button" class="btn btn-sm wb-dash-btn" data-wb-dashtidy title="Tidy — auto-arrange widgets into a grid">Tidy</button>
+        <button type="button" class="btn btn-sm wb-dash-btn" data-wb-dashpresent title="Present — full-screen, no edit chrome">Present</button>
         <button type="button" class="btn btn-sm wb-dash-add" data-wb-dashaddmenu aria-haspopup="menu" title="Add a widget">＋ Add widget ▾</button>
       </div>
     </div>
@@ -6409,7 +6411,7 @@ function mountSheetBlock(block, body) {
     const add = e.target.closest("[data-wb-dashadd]");
     if (add) {
       const kind = add.getAttribute("data-wb-dashadd");
-      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog }[kind] || openChartDialog)(g);
+      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog, filter: openControlDialog }[kind] || openChartDialog)(g);
       return;
     }
     const card = e.target.closest("[data-wb-embed-id]");
@@ -6422,10 +6424,33 @@ function mountSheetBlock(block, body) {
     if (action === "edit") openEmbedEditor(g, key, item);
     else if (action === "dup") duplicateEmbed(g, key, item);
     else {
-      const label = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile" }[key] || "widget";
+      const label = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile", controls: "filter" }[key] || "widget";
       confirmModal({ title: `Delete this ${label}?`, body: "The underlying cells are untouched.", confirmLabel: "Delete", danger: true, onConfirm: () => deleteEmbed(g, key, item.id) });
     }
   });
+  // Filter-control selects drive every widget on the dashboard
+  g.els.charts.addEventListener("change", (e) => {
+    const sel = e.target.closest("[data-wb-control]");
+    if (!sel || !WB.canEdit) return;
+    const ctrl = sheetControls(g.sheet).find((c) => c.id === sel.getAttribute("data-wb-control"));
+    if (!ctrl) return;
+    ctrl.value = sel.value;
+    g.sheet.meta = { ...(g.sheet.meta || {}), controls: sheetControls(g.sheet).slice() };
+    saveSheetMeta(g.sheet.id);
+    renderCharts(g);
+  });
+  // Tidy (auto-arrange) + Present (full-screen) on the dashboard toolbar
+  g.els.grid.addEventListener("click", (e) => {
+    if (e.target.closest("[data-wb-dashtidy]")) { e.stopPropagation(); tidyDashboard(g); return; }
+    const present = e.target.closest("[data-wb-dashpresent]");
+    if (present) {
+      e.stopPropagation();
+      const el = g.els.grid;
+      if (!document.fullscreenElement) { el.classList.add("is-presenting"); el.requestFullscreen && el.requestFullscreen().catch(() => {}); }
+      else { document.exitFullscreen && document.exitFullscreen(); }
+    }
+  });
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) g.els.grid.classList.remove("is-presenting"); });
   // Dashboard "＋ Add widget" toolbar (visible only on dashboard sheets)
   g.els.grid.addEventListener("click", (e) => {
     const addBtn = e.target.closest("[data-wb-dashaddmenu]");
@@ -6434,13 +6459,13 @@ function mountSheetBlock(block, body) {
     // handler, which would otherwise dismiss the menu we're about to open
     e.stopPropagation();
     const r = addBtn.getBoundingClientRect();
-    const m = ctxMenu(r.right, r.bottom + 4, [["chart", "Chart"], ["kpi", "KPI tile"], ["table", "Table"], ["text", "Text / heading"]]
+    const m = ctxMenu(r.right, r.bottom + 4, [["kpi", "KPI tile"], ["chart", "Chart"], ["table", "Table"], ["filter", "Filter control"], ["text", "Text / heading"]]
       .map(([k, l]) => `<button type="button" class="popover-item" data-wb-add="${k}" role="menuitem">${l}</button>`).join(""));
     m.addEventListener("click", (ev) => {
       const b = ev.target.closest("[data-wb-add]"); if (!b) return;
       ev.stopPropagation();
       closeAllPopovers();
-      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog }[b.getAttribute("data-wb-add")])(g);
+      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog, filter: openControlDialog }[b.getAttribute("data-wb-add")])(g);
     });
   });
   g.els.pivots.addEventListener("click", (e) => {
@@ -12144,7 +12169,7 @@ function chartRefText(ch) {
 // Range → {categories, series:[{name, values}]}. Row 1 of the range is
 // treated as headers; the first column as category labels when it isn't
 // numeric. A single-column range becomes one series over row numbers.
-function chartData(sheet, ch) {
+function chartData(sheet, ch, rowFilter) {
   const r1 = Math.min(ch.r1, sheet.rowCount - 1), c1 = Math.min(ch.c1, sheet.colCount - 1);
   const rawOf = (r, c) => {
     const cell = sheet.cells.get(cellKey(r, c));
@@ -12163,6 +12188,7 @@ function chartData(sheet, ch) {
     series.push({ name: String(rawOf(ch.r0, c) ?? colLabel(c)), values: [] });
   }
   for (let r = ch.r0 + 1; r <= r1; r++) {
+    if (rowFilter && !rowFilter(r)) continue;   // dashboard filter controls
     const label = single ? String(r + 1) : String(rawOf(r, ch.c0) ?? r + 1);
     let any = false;
     const rowVals = series.map((s, i) => {
@@ -12207,7 +12233,7 @@ function chartBarPath(x, y, w, h, up, color, title) {
 }
 
 function chartSvg(sheet, ch, opts = {}) {
-  const { categories, series } = chartData(sheet, ch);
+  const { categories, series } = chartData(sheet, ch, opts.rowFilter);
   if (!categories.length || !series.length) {
     return { svg: `<div class="wb-chart-empty">No numeric data in ${esc(chartRefText(ch))} yet.</div>`, legend: "" };
   }
@@ -12448,13 +12474,17 @@ function chartSvg(sheet, ch, opts = {}) {
 // A "dashboard" sheet (meta.kind === "dashboard") is just a grid sheet with
 // the cells hidden, so the widgets read as a clean dashboard page.
 
-const EMBED_KINDS = ["charts", "kpis", "tables", "texts"];
-const EMBED_META_KEY = { charts: "charts", kpis: "kpis", tables: "tables", texts: "texts" };
-const EMBED_DEFAULT_SIZE = { charts: { w: 440, h: 280 }, kpis: { w: 248, h: 132 }, tables: { w: 380, h: 240 }, texts: { w: 320, h: 120 } };
-function sheetKpis(sheet)   { const v = sheet.meta && sheet.meta.kpis;   return Array.isArray(v) ? v : []; }
-function sheetTables(sheet) { const v = sheet.meta && sheet.meta.tables; return Array.isArray(v) ? v : []; }
-function sheetTexts(sheet)  { const v = sheet.meta && sheet.meta.texts;  return Array.isArray(v) ? v : []; }
-function sheetEmbeds(sheet, key) { return key === "charts" ? sheetCharts(sheet) : key === "kpis" ? sheetKpis(sheet) : key === "tables" ? sheetTables(sheet) : sheetTexts(sheet); }
+const EMBED_KINDS = ["controls", "charts", "kpis", "tables", "texts"];
+const EMBED_META_KEY = { charts: "charts", kpis: "kpis", tables: "tables", texts: "texts", controls: "controls" };
+const EMBED_DEFAULT_SIZE = { charts: { w: 440, h: 280 }, kpis: { w: 248, h: 132 }, tables: { w: 380, h: 240 }, texts: { w: 320, h: 120 }, controls: { w: 240, h: 96 } };
+function sheetKpis(sheet)     { const v = sheet.meta && sheet.meta.kpis;     return Array.isArray(v) ? v : []; }
+function sheetTables(sheet)   { const v = sheet.meta && sheet.meta.tables;   return Array.isArray(v) ? v : []; }
+function sheetTexts(sheet)    { const v = sheet.meta && sheet.meta.texts;    return Array.isArray(v) ? v : []; }
+function sheetControls(sheet) { const v = sheet.meta && sheet.meta.controls; return Array.isArray(v) ? v : []; }
+function sheetEmbeds(sheet, key) {
+  return key === "charts" ? sheetCharts(sheet) : key === "kpis" ? sheetKpis(sheet)
+    : key === "tables" ? sheetTables(sheet) : key === "controls" ? sheetControls(sheet) : sheetTexts(sheet);
+}
 function allEmbeds(sheet) { return EMBED_KINDS.flatMap((key) => sheetEmbeds(sheet, key).map((item) => ({ key, item }))); }
 function isDashboardSheet(sheet) { return !!(sheet && sheet.meta && sheet.meta.kind === "dashboard"); }
 
@@ -12483,6 +12513,69 @@ function sheetDataRange(sheet) {
   return { r0: 0, c0: 0, r1, c1: Math.max(c1, 1) };
 }
 
+// ── Aggregation (KPI tiles compute from a range, not just a cell) ─────────────
+const KPI_AGGS = { cell: "Cell value", sum: "Sum", avg: "Average", count: "Count", min: "Minimum", max: "Maximum", last: "Latest" };
+function aggRange(sheet, ref, agg, rowFilter) {
+  const rg = parseRangeRefText(ref);
+  if (!rg) return embedCellNum(sheet, ref);   // a single cell
+  const vals = []; let count = 0, last = null;
+  for (let r = rg.r0; r <= rg.r1; r++) {
+    if (rowFilter && !rowFilter(r)) continue;
+    for (let c = rg.c0; c <= rg.c1; c++) {
+      const raw = embedCellRaw(sheet, { row: r, col: c });
+      if (raw == null || String(raw).trim() === "") continue;
+      count++;
+      const n = cellNumeric(raw);
+      if (n != null) { vals.push(n); last = n; }
+    }
+  }
+  if (agg === "count") return count;
+  if (!vals.length) return null;
+  if (agg === "sum") return vals.reduce((a, b) => a + b, 0);
+  if (agg === "avg") return vals.reduce((a, b) => a + b, 0) / vals.length;
+  if (agg === "min") return Math.min(...vals);
+  if (agg === "max") return Math.max(...vals);
+  if (agg === "last") return last;
+  return vals[0];
+}
+
+// ── Interactive filter controls ──────────────────────────────────────────────
+// A control on a dashboard is bound to a column of a source sheet; selecting a
+// value filters the rows that feed every widget reading from that same sheet.
+function distinctColumnValues(sheet, col, cap = 300) {
+  const seen = new Set(), out = [];
+  const rng = sheetDataRange(sheet);
+  for (let r = 1; r <= rng.r1 && out.length < cap; r++) {
+    const s = String(displayValue(sheet, r, col) ?? "").trim();
+    if (!s || seen.has(s)) continue;
+    seen.add(s); out.push(s);
+  }
+  return out.sort((a, b) => { const na = Number(a), nb = Number(b); return isFinite(na) && isFinite(nb) ? na - nb : a.localeCompare(b); });
+}
+// Combined row predicate for a source sheet from all active controls on the
+// dashboard that target it (AND across controls). Null = no filtering.
+function dashboardRowFilter(g, srcId) {
+  if (!isDashboardSheet(g.sheet)) return null;
+  const active = sheetControls(g.sheet).filter((c) => c.value != null && c.value !== "" && typeof c.col === "number" && embedSourceSheet(g, c).id === srcId);
+  if (!active.length) return null;
+  const src = (WB.sheetsByBlock.get(g.blockId) || []).find((s) => s.id === srcId) || g.sheet;
+  return (r) => active.every((c) => String(displayValue(src, r, c.col) ?? "").trim() === String(c.value));
+}
+function controlTileHtml(g, item) {
+  const src = embedSourceSheet(g, item);
+  const label = item.label || (typeof item.col === "number" ? String(displayValue(src, 0, item.col) || colLabel(item.col)) : "Filter");
+  if (typeof item.col !== "number") return { title: esc(label), body: `<div class="wb-chart-empty">Pick a column to filter on.</div>`, footer: "" };
+  const vals = distinctColumnValues(src, item.col);
+  const opts = [`<option value="">All</option>`].concat(vals.map((v) => `<option value="${esc(v)}" ${String(item.value) === v ? "selected" : ""}>${esc(v)}</option>`)).join("");
+  const body = `<div class="wb-control"><select class="wb-input wb-control-sel" data-wb-control="${esc(item.id)}" ${WB.canEdit ? "" : "disabled"}>${opts}</select></div>`;
+  return { title: esc(label), body, footer: "" };
+}
+function kpiValue(sheet, spec, rowFilter) {
+  const agg = spec.agg || "cell";
+  if (agg === "cell") return embedCellNum(sheet, spec.valueRef);
+  return aggRange(sheet, spec.valueRef, agg, rowFilter);
+}
+
 function unzoomedColX(sheet, c) { let x = 0; const n = Math.min(c, sheet.colCount); for (let i = 0; i < n; i++) x += colW(sheet, i); return x; }
 function unzoomedRowY(sheet, r) { let y = 0; const n = Math.min(r, sheet.rowCount); for (let i = 0; i < n; i++) y += rowH(sheet, i); return y; }
 
@@ -12504,13 +12597,15 @@ function chartDefaultLayout(g, range) { return embedDefaultLayout(g, "charts", r
 // from their source sheet (another sheet in the block) when one is set.
 function embedInnerHtml(g, key, item, L) {
   if (key === "texts") return textTileHtml(item);
+  if (key === "controls") return controlTileHtml(g, item);
   const src = embedSourceSheet(g, item);
+  const rowFilter = dashboardRowFilter(g, src.id);   // live dashboard filters
   if (key === "charts") {
-    const { svg, legend } = chartSvg(src, item, { W: L.w, H: Math.max(110, L.h - 40) });
+    const { svg, legend } = chartSvg(src, item, { W: L.w, H: Math.max(110, L.h - 40), rowFilter });
     return { title: esc(item.title || `${WB_CHART_TYPES[item.type] || "Chart"} · ${chartRefText(item)}`), body: svg, footer: legend ? `<div class="wb-chart-legend">${legend}</div>` : "" };
   }
-  if (key === "kpis") return kpiTileHtml(src, item);
-  return tableTileHtml(src, item);
+  if (key === "kpis") return kpiTileHtml(src, item, rowFilter);
+  return tableTileHtml(src, item, rowFilter);
 }
 
 function renderCharts(g) {                    // renders every embed kind
@@ -12524,9 +12619,10 @@ function renderCharts(g) {                    // renders every embed kind
         <div class="wb-dash-empty-title">Build your dashboard</div>
         <div class="wb-dash-empty-sub">Add widgets that pull live from your sheets. Drag to arrange, drag a corner to resize.</div>
         <div class="wb-dash-empty-actions">
-          <button type="button" class="btn btn-sm" data-wb-dashadd="chart">＋ Chart</button>
           <button type="button" class="btn btn-sm" data-wb-dashadd="kpi">＋ KPI tile</button>
+          <button type="button" class="btn btn-sm" data-wb-dashadd="chart">＋ Chart</button>
           <button type="button" class="btn btn-sm" data-wb-dashadd="table">＋ Table</button>
+          <button type="button" class="btn btn-sm" data-wb-dashadd="filter">＋ Filter</button>
           <button type="button" class="btn btn-sm" data-wb-dashadd="text">＋ Text</button>
         </div></div>`;
       return;
@@ -12626,6 +12722,30 @@ function duplicateEmbed(g, key, item) {
   const copy = { ...item, id: key.slice(0, 2) + Math.random().toString(36).slice(2, 8), layout: { ...L, x: L.x + 20, y: L.y + 20 } };
   saveEmbed(g, key, copy);
 }
+// Shelf-pack every widget left-to-right into a clean grid, preserving each
+// widget's size and its current reading order.
+function tidyDashboard(g) {
+  if (!WB.canEdit) return;
+  const items = allEmbeds(g.sheet).map((e) => e.item).filter((it) => it.layout);
+  if (!items.length) return;
+  items.sort((a, b) => (a.layout.y - b.layout.y) || (a.layout.x - b.layout.x));
+  const GAP = 16, MARGIN = 24;
+  const maxRight = MARGIN + Math.max(560, (g.els.scroll ? g.els.scroll.clientWidth : 1200) - MARGIN * 2);
+  let x = MARGIN, y = MARGIN, rowH = 0;
+  for (const it of items) {
+    const w = it.layout.w, h = it.layout.h;
+    if (x > MARGIN && x + w > maxRight) { x = MARGIN; y += rowH + GAP; rowH = 0; }
+    it.layout = { ...it.layout, x, y };
+    x += w + GAP; rowH = Math.max(rowH, h);
+  }
+  const meta = { ...(g.sheet.meta || {}) };
+  for (const key of EMBED_KINDS) meta[EMBED_META_KEY[key]] = sheetEmbeds(g.sheet, key).slice();
+  g.sheet.meta = meta;
+  saveSheetMeta(g.sheet.id);
+  computeGeometry(g);
+  renderCharts(g);
+  _toast("Widgets tidied", "ok");
+}
 function scrollEmbedIntoView(g, id) {
   g.els.charts?.querySelector(`[data-wb-embed-id="${CSS && CSS.escape ? CSS.escape(id) : id}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
 }
@@ -12661,14 +12781,15 @@ function kpiSparkline(sheet, rangeText, color) {
   const d = vals.map((v, i) => `${i ? "L" : "M"}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(" ");
   return `<svg class="wb-kpi-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
-function kpiTileHtml(sheet, spec) {
+function kpiTileHtml(sheet, spec, rowFilter) {
   const accent = chartPalette(spec)[0];
-  const num = embedCellNum(sheet, spec.valueRef);
-  const raw = embedCellRaw(sheet, spec.valueRef);
+  const agg = spec.agg || "cell";
+  const num = kpiValue(sheet, spec, rowFilter);
+  const raw = agg === "cell" ? embedCellRaw(sheet, spec.valueRef) : num;
   const valStr = num != null ? kpiFmt(num, spec.format) : (raw != null && String(raw).trim() !== "" ? esc(String(raw)) : "—");
   let delta = "";
   if (spec.compareRef) {
-    const cmp = embedCellNum(sheet, spec.compareRef);
+    const cmp = agg === "cell" ? embedCellNum(sheet, spec.compareRef) : aggRange(sheet, spec.compareRef, agg, null);
     if (num != null && cmp != null) {
       const d = num - cmp, up = d >= 0, good = spec.invert ? !up : up;
       const pct = cmp !== 0 ? Math.abs(d / cmp) * 100 : null;
@@ -12679,20 +12800,22 @@ function kpiTileHtml(sheet, spec) {
   const body = `<div class="wb-kpi"><div class="wb-kpi-value" style="color:${accent}">${valStr}</div>${delta}${spark}</div>`;
   return { title: esc(spec.label || "KPI"), body, footer: "" };
 }
-function tableTileHtml(sheet, spec) {
+function tableTileHtml(sheet, spec, rowFilter) {
   const rg = parseRangeRefText(spec.range);
   if (!rg) return { title: esc(spec.title || "Table"), body: `<div class="wb-chart-empty">Set a range like A1:C8 to show a table.</div>`, footer: "" };
-  const cap = Math.min(spec.maxRows || 200, rg.r1 - rg.r0 + 1);
   const header = spec.header !== false;
-  let rows = "";
-  for (let ri = 0; ri < cap; ri++) {
-    const r = rg.r0 + ri;
+  const cap = spec.maxRows || 200;
+  let rows = "", shown = 0;
+  for (let r = rg.r0; r <= rg.r1 && shown < cap; r++) {
+    const isHeader = header && r === rg.r0;
+    if (!isHeader && rowFilter && !rowFilter(r)) continue;   // dashboard filters
     let cells = "";
     for (let c = rg.c0; c <= rg.c1; c++) {
       const disp = esc(displayValue(sheet, r, c));
-      cells += (header && ri === 0) ? `<th>${disp}</th>` : `<td>${disp}</td>`;
+      cells += isHeader ? `<th>${disp}</th>` : `<td>${disp}</td>`;
     }
     rows += `<tr>${cells}</tr>`;
+    shown++;
   }
   const body = `<div class="wb-embed-tablewrap"><table class="wb-embed-table">${rows}</table></div>`;
   return { title: esc(spec.title || `Table · ${chartRefText({ c0: rg.c0, r0: rg.r0, c1: rg.c1, r1: rg.r1 })}`), body, footer: "" };
@@ -12811,6 +12934,7 @@ function openEmbedEditor(g, key, item) {
   if (key === "charts") return openChartDialog(g, item);
   if (key === "kpis") return openKpiDialog(g, item);
   if (key === "tables") return openTableDialog(g, item);
+  if (key === "controls") return openControlDialog(g, item);
   return openTextDialog(g, item);
 }
 
@@ -12846,47 +12970,56 @@ function openKpiDialog(g, existing) {
   const themeOpts = Object.entries(WB_CHART_THEMES).map(([k, l]) => `<option value="${k}" ${(existing && existing.theme || "route") === k ? "selected" : ""}>${l}</option>`).join("");
   const fmt = (existing && existing.format) || "compact";
   const fmtOpts = [["compact", "Compact (1.2k)"], ["number", "Number"], ["currency", "Currency ($)"], ["percent", "Percent (%)"]].map(([v, l]) => `<option value="${v}" ${fmt === v ? "selected" : ""}>${l}</option>`).join("");
-  const wrap = embedModalShell(existing ? "Edit KPI tile" : "Add KPI tile", "A scorecard: a headline value from a cell, with an optional comparison and sparkline.", `
+  const aggCur = (existing && existing.agg) || "cell";
+  const aggOpts = Object.entries(KPI_AGGS).map(([v, l]) => `<option value="${v}" ${aggCur === v ? "selected" : ""}>${l}</option>`).join("");
+  const wrap = embedModalShell(existing ? "Edit KPI tile" : "Add KPI tile", "A scorecard: a headline value or an aggregation over a range, with an optional comparison and sparkline. It honors dashboard filters.", `
     <label class="wb-field"><span class="wb-field-label">Label</span>
       <input type="text" class="wb-input" id="wb-kpi-label" maxlength="60" value="${esc((existing && existing.label) || "")}" placeholder="Routes today"></label>
     ${srcOpts ? `<label class="wb-field"><span class="wb-field-label">Data source (sheet)</span>
       <select class="wb-input" id="wb-kpi-src">${srcOpts}</select></label>` : ""}
     <div class="wb-field-row">
-      <label class="wb-field"><span class="wb-field-label">Value cell</span>
-        <input type="text" class="wb-input" id="wb-kpi-value" value="${esc((existing && existing.valueRef) || activeRef)}" placeholder="B2" spellcheck="false"></label>
-      <label class="wb-field"><span class="wb-field-label">Format</span>
-        <select class="wb-input" id="wb-kpi-format">${fmtOpts}</select></label>
+      <label class="wb-field"><span class="wb-field-label">Value</span>
+        <select class="wb-input" id="wb-kpi-agg">${aggOpts}</select></label>
+      <label class="wb-field"><span class="wb-field-label" id="wb-kpi-value-lbl">Cell or range</span>
+        <input type="text" class="wb-input" id="wb-kpi-value" value="${esc((existing && existing.valueRef) || activeRef)}" placeholder="B2 or B2:B99" spellcheck="false"></label>
     </div>
     <div class="wb-field-row">
+      <label class="wb-field"><span class="wb-field-label">Format</span>
+        <select class="wb-input" id="wb-kpi-format">${fmtOpts}</select></label>
       <label class="wb-field"><span class="wb-field-label">Compare to <span class="wb-field-opt">optional</span></span>
         <input type="text" class="wb-input" id="wb-kpi-compare" value="${esc((existing && existing.compareRef) || "")}" placeholder="B1" spellcheck="false"></label>
-      <label class="wb-field"><span class="wb-field-label">Sparkline range <span class="wb-field-opt">optional</span></span>
-        <input type="text" class="wb-input" id="wb-kpi-spark" value="${esc((existing && existing.sparkRange) || "")}" placeholder="B2:B9" spellcheck="false"></label>
     </div>
+    <label class="wb-field"><span class="wb-field-label">Sparkline range <span class="wb-field-opt">optional</span></span>
+      <input type="text" class="wb-input" id="wb-kpi-spark" value="${esc((existing && existing.sparkRange) || "")}" placeholder="B2:B9" spellcheck="false"></label>
     <div class="wb-field-row">
       <label class="wb-field"><span class="wb-field-label">Accent theme</span>
         <select class="wb-input" id="wb-kpi-theme">${themeOpts}</select></label>
       <div class="wb-field"><span class="wb-field-label">Options</span>
         <div class="wb-chart-opts"><label class="wb-check"><input type="checkbox" id="wb-kpi-invert" ${existing && existing.invert ? "checked" : ""}><span>Lower is better</span></label></div></div>
     </div>`, existing ? "Save" : "Add tile");
+  const aggSel = wrap.querySelector("#wb-kpi-agg"), valLbl = wrap.querySelector("#wb-kpi-value-lbl");
+  const syncAggLbl = () => { valLbl.textContent = aggSel.value === "cell" ? "Value cell" : "Range to " + KPI_AGGS[aggSel.value].toLowerCase(); };
+  aggSel.addEventListener("change", syncAggLbl); syncAggLbl();
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
     if (!e.target.closest("[data-wb-save]")) return;
+    const agg = wrap.querySelector("#wb-kpi-agg").value;
     const valueRef = wrap.querySelector("#wb-kpi-value").value.trim().toUpperCase();
-    const vrc = parseCellRef(valueRef);
-    if (!vrc) { _toast("Enter a value cell like B2", "warn"); return; }
+    const anchor = parseCellRef(valueRef) || parseRangeRefText(valueRef);
+    if (!anchor || (agg === "cell" && !parseCellRef(valueRef))) { _toast(agg === "cell" ? "Enter a value cell like B2" : "Enter a range like B2:B99", "warn"); return; }
+    const col = anchor.col != null ? anchor.col : anchor.c1, row = anchor.row != null ? anchor.row : anchor.r0;
     const cmp = wrap.querySelector("#wb-kpi-compare").value.trim().toUpperCase();
     const spark = wrap.querySelector("#wb-kpi-spark").value.trim().toUpperCase();
     const spec = {
       id: existing ? existing.id : "kp" + Math.random().toString(36).slice(2, 8),
       label: wrap.querySelector("#wb-kpi-label").value.trim(),
-      valueRef, format: wrap.querySelector("#wb-kpi-format").value,
-      compareRef: cmp && parseCellRef(cmp) ? cmp : "",
+      agg, valueRef, format: wrap.querySelector("#wb-kpi-format").value,
+      compareRef: cmp && (parseCellRef(cmp) || parseRangeRefText(cmp)) ? cmp : "",
       sparkRange: spark && parseRangeRefText(spark) ? spark : "",
       theme: wrap.querySelector("#wb-kpi-theme").value,
       invert: wrap.querySelector("#wb-kpi-invert").checked,
       srcSheetId: (wrap.querySelector("#wb-kpi-src") && wrap.querySelector("#wb-kpi-src").value) || (existing && existing.srcSheetId) || "",
-      layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "kpis", { c1: vrc.col, r0: vrc.row }),
+      layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "kpis", { c1: col, r0: row }),
     };
     saveEmbed(g, "kpis", spec);
     wbLog("sheet.kpi", `${existing ? "updated" : "added"} a KPI tile in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
@@ -12962,6 +13095,48 @@ function openTextDialog(g, existing) {
     wrap.remove();
   });
   setTimeout(() => wrap.querySelector("#wb-txt-heading")?.focus(), 30);
+}
+
+function openControlDialog(g, existing) {
+  if (!WB.canEdit) return;
+  const srcDef = existing ? embedSourceSheet(g, existing) : defaultSrcSheet(g);
+  const srcOpts = embedSourceOptions(g, (existing && existing.srcSheetId) || srcDef.id);
+  const colOptsFor = (sheet, sel) => {
+    const rng = sheetDataRange(sheet); let out = "";
+    for (let c = rng.c0; c <= rng.c1; c++) { const h = String(displayValue(sheet, 0, c) || "").trim() || `Column ${colLabel(c)}`; out += `<option value="${c}" ${sel === c ? "selected" : ""}>${esc(h)}</option>`; }
+    return out;
+  };
+  const curCol = existing && typeof existing.col === "number" ? existing.col : srcDef ? sheetDataRange(srcDef).c0 : 0;
+  const wrap = embedModalShell(existing ? "Edit filter" : "Add filter control", "A dropdown bound to a column. Picking a value filters every chart, KPI and table on this dashboard that reads from the same sheet.", `
+    <label class="wb-field"><span class="wb-field-label">Label <span class="wb-field-opt">optional</span></span>
+      <input type="text" class="wb-input" id="wb-ctl-label" maxlength="60" value="${esc((existing && existing.label) || "")}" placeholder="Driver"></label>
+    ${srcOpts ? `<label class="wb-field"><span class="wb-field-label">Data source (sheet)</span>
+      <select class="wb-input" id="wb-ctl-src">${srcOpts}</select></label>` : ""}
+    <label class="wb-field"><span class="wb-field-label">Filter column</span>
+      <select class="wb-input" id="wb-ctl-col">${colOptsFor(srcDef, curCol)}</select></label>`,
+    existing ? "Save" : "Add filter");
+  // repopulate the column list when the source sheet changes
+  const srcSel = wrap.querySelector("#wb-ctl-src"), colSel = wrap.querySelector("#wb-ctl-col");
+  if (srcSel) srcSel.addEventListener("change", () => {
+    const s = (WB.sheetsByBlock.get(g.blockId) || []).find((x) => x.id === srcSel.value);
+    if (s) colSel.innerHTML = colOptsFor(s, sheetDataRange(s).c0);
+  });
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-save]")) return;
+    const spec = {
+      id: existing ? existing.id : "fc" + Math.random().toString(36).slice(2, 8),
+      label: wrap.querySelector("#wb-ctl-label").value.trim(),
+      col: +colSel.value,
+      value: existing ? existing.value || "" : "",
+      srcSheetId: (srcSel && srcSel.value) || (existing && existing.srcSheetId) || "",
+      layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "controls", null),
+    };
+    saveEmbed(g, "controls", spec);
+    wbLog("sheet.control", `${existing ? "updated" : "added"} a filter control in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    wrap.remove();
+  });
+  setTimeout(() => wrap.querySelector("#wb-ctl-label")?.focus(), 30);
 }
 
 // ─── Pivot tables ────────────────────────────────────────────────────────────
@@ -14866,6 +15041,7 @@ function wbMenuItems(menu, g) {
       { label: "Chart…", act: "ins:chart", disabled: !ed || !g },
       { label: "KPI tile…", act: "ins:kpi", disabled: !ed || !g },
       { label: "Table…", act: "ins:table", disabled: !ed || !g },
+      { label: "Filter control…", act: "ins:filter", disabled: !ed || !g },
       { label: "Text / heading…", act: "ins:text", disabled: !ed || !g },
       { label: "Pivot table…", act: "ins:pivot", disabled: !ed || !g },
       { label: "Function", sub: [
@@ -15027,6 +15203,7 @@ function wbMenuAction(act, g) {
     case "ins:chart": if (need()) openChartDialog(g); return;
     case "ins:kpi": if (need()) openKpiDialog(g); return;
     case "ins:table": if (need()) openTableDialog(g); return;
+    case "ins:filter": if (need()) openControlDialog(g); return;
     case "ins:text": if (need()) openTextDialog(g); return;
     case "ins:pivot": if (need()) openPivotDialog(g); return;
     case "ins:fnbrowse": if (need()) {
@@ -16859,6 +17036,7 @@ export const __engine = {
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
+  chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,
   WB_IMG_RE, cellImgSrc,
