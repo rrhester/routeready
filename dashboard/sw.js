@@ -73,7 +73,8 @@
 //   2026-07-06.52 · Callout Exposure: the "at-risk" driver is now the roster's High-Risk designation (an active final/termination corrective action), loaded in the schedule render so it's correct without opening the roster first — not the attendance score. Cushion math + panel + finalize warning unchanged.
 //   2026-07-06.53 · Callout Exposure: narrow "High Risk" to exactly an active (unresolved) FINAL corrective action (drop termination) per operator definition.
 //   2026-07-06.54 · Callout Exposure: recommend + apply a fix. The by-day drill-down now proposes a backup-coverage plan — for each exposed day it picks enough available, low-risk drivers (respecting availability, PTO, max-days) to bring the day back to covered, and an "Apply backups" button creates those shifts (copying the day's real station/wave times). Additive only; re-renders with the new cushion folded in.
-const SW_DEPLOY_NONCE = "2026-07-06.54";
+//   2026-07-06.55 · Callout Exposure backups: always assign SP (standard parcel) — never inherit an XL/other route type from the day's first shift. Recommendation now honors the enforced Smart Fill rules too: DL valid through the shift date + weekly hour cap, on top of active/PTO/max-days/availability (certs are moot since backups are SP).
+const SW_DEPLOY_NONCE = "2026-07-06.55";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
