@@ -11887,6 +11887,47 @@ function toggleTableSelection(g) {
   _toast(`Created ${name} — reference it as ${name}[${headers[0]}]`, "success");
 }
 
+// Toggle a table's total row: a trailing row of =SUBTOTAL(109, Table[Col])
+// per numeric column (labelled "Total" in the first column).
+function toggleTableTotals(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const rect = selRect(g);
+  const tables = Array.isArray(sheet.meta && sheet.meta.tables) ? sheet.meta.tables : [];
+  const t = tables.find((x) => !(x.r1 < rect.r0 || x.r0 > rect.r1 || x.c1 < rect.c0 || x.c0 > rect.c1));
+  if (!t) { _toast("Put the cursor in a table first", "info"); return; }
+  const before = structSnapshot(sheet);
+  if (t.totalRow) {
+    const changes = [];
+    for (let c = t.c0; c <= t.c1; c++) changes.push({ r: t.r1, c, cell: null });
+    t.totalRow = false; t.r1 = t.r1 - 1;
+    sheet.meta = { ...sheet.meta, tables: [...tables] };
+    saveSheetMeta(sheet.id); pushStructUndo(g, before);
+    setCells(g, changes);
+    _toast("Total row removed", "success");
+    return;
+  }
+  const totalR = t.r1 + 1;
+  const changes = [];
+  let labelled = false;
+  for (let c = t.c0; c <= t.c1; c++) {
+    const colName = String((sheet.cells.get(cellKey(t.r0, c)) || {}).value ?? "").trim();
+    let numCount = 0;
+    for (let r = t.r0 + 1; r <= t.r1; r++) { const cell = sheet.cells.get(cellKey(r, c)); if (cell && cellNumeric(cell.formula ? cell.computed : cell.value) != null) numCount++; }
+    if (numCount > 0 && colName) {
+      changes.push({ r: totalR, c, cell: { value: null, formula: `=SUBTOTAL(109,${t.name}[${colName}])`, type: null, computed: null, err: null, format: { bold: true } } });
+    } else if (!labelled) {
+      changes.push({ r: totalR, c, cell: { value: "Total", formula: null, type: "text", computed: null, err: null, format: { bold: true } } });
+      labelled = true;
+    }
+  }
+  t.totalRow = true; t.r1 = totalR;
+  sheet.meta = { ...sheet.meta, tables: [...tables] };
+  saveSheetMeta(sheet.id); pushStructUndo(g, before);
+  setCells(g, changes);
+  _toast(`Total row added to ${t.name}`, "success");
+}
+
 // Goal seek: solve an input cell so a formula cell reaches a target value.
 function openGoalSeekDialog(g) {
   if (!WB.canEdit) return;
@@ -16184,6 +16225,7 @@ function wbMenuItems(menu, g) {
         sep,
         { label: "Column stats", act: "data:stats", disabled: !g },
         { label: "Create / remove table", act: "data:table", disabled: !ed || !g },
+        { label: "Toggle table total row", act: "data:table-totals", disabled: !ed || !g },
         { label: "Protect / unprotect selection", act: "data:protect", disabled: !g || !WB.canAdmin },
         { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
@@ -16320,6 +16362,7 @@ function wbMenuAction(act, g) {
     case "data:fv-save": if (need()) saveFilterView(g); return;
     case "data:stats": if (need()) showColumnStats(g); return;
     case "data:table": if (need()) toggleTableSelection(g); return;
+    case "data:table-totals": if (need()) toggleTableTotals(g); return;
     case "data:protect": toggleProtectSelection(g); return;
     case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
