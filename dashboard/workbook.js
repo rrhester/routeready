@@ -266,6 +266,12 @@ function tokenize(src) {
 const MAX_FORMULA_LEN = 2000;
 const MAX_RANGE_CELLS = 20000;
 const OPEN_END = 1048575; // sentinel bound for open-ended A:A / 1:3 ranges
+// Per-formula compute budget. A single MAKEARRAY/SEQUENCE is capped at
+// MAX_RANGE_CELLS, so a legitimate array formula runs comfortably under this;
+// a *terminating but exponential* lambda (e.g. a Y-combinator Fibonacci) would
+// otherwise run for minutes and freeze the tab, so we cut it off at #NUM.
+const MAX_EVAL_OPS = 5_000_000;
+const MAX_CLOSURE_DEPTH = 512; // guards self-applying LAMBDA recursion before the JS stack blows
 
 function parseFormula(src) {
   if (typeof src !== "string") throw new FormulaError("#ERROR", "not a formula");
@@ -301,10 +307,20 @@ function parseFormula(src) {
     return left;
   }
   function parseMulDiv() {
-    let left = parseUnary();
+    let left = parsePower();
     while (peek() && peek().t === TOK_OP && (peek().v === "*" || peek().v === "/")) {
       const op = next().v;
-      left = { k: "bin", op, l: left, r: parseUnary() };
+      left = { k: "bin", op, l: left, r: parsePower() };
+    }
+    return left;
+  }
+  // Precedence matches Excel/Sheets: unary minus binds TIGHTER than ^
+  // (so -2^2 = (-2)^2 = 4), and ^ is LEFT-associative (2^3^2 = (2^3)^2 = 64).
+  function parsePower() {
+    let left = parseUnary();
+    while (peek() && peek().t === TOK_OP && peek().v === "^") {
+      next();
+      left = { k: "bin", op: "^", l: left, r: parseUnary() };
     }
     return left;
   }
@@ -313,12 +329,7 @@ function parseFormula(src) {
       const op = next().v;
       return { k: "unary", op, v: parseUnary() };
     }
-    return parsePower();
-  }
-  function parsePower() {
-    const base = parsePostfix();
-    if (peek() && peek().t === TOK_OP && peek().v === "^") { next(); return { k: "bin", op: "^", l: base, r: parseUnary() }; }
-    return base;
+    return parsePostfix();
   }
   function parsePostfix() {
     let node = parsePrimary();
@@ -2922,13 +2933,22 @@ function timeFracOf(v) {
 function evalFormula(src, ctx) {
   let ast = parseFormula(src);
   if (ctx && ctx.names instanceof Map && ctx.names.size) ast = bindNames(ast, ctx.names);
-  const val = evalNode(ast, ctx);
-  return val;
+  return evalAst(ast, ctx);
 }
 
-function evalAst(ast, ctx) { return evalNode(ast, ctx); }
+// Top-level evaluation entry. Resets the per-formula op budget only on the
+// outermost call so a re-entrant eval (INDIRECT-style) can't refill the budget
+// mid-computation, while each cell in a sheet recalc still gets its own budget.
+function evalAst(ast, ctx) {
+  const outermost = (ctx.__inEval | 0) === 0;
+  if (outermost) { ctx.__ops = 0; ctx.__cdepth = 0; }
+  ctx.__inEval = (ctx.__inEval | 0) + 1;
+  try { return evalNode(ast, ctx); }
+  finally { ctx.__inEval--; }
+}
 
 function evalNode(node, ctx) {
+  if ((ctx.__ops = (ctx.__ops | 0) + 1) > MAX_EVAL_OPS) throw new FormulaError("#NUM", "formula too complex — operation budget exceeded");
   switch (node.k) {
     case "num": return node.v;
     case "str": return node.v;
@@ -3009,11 +3029,13 @@ function broadcast(l, r, fn) {
 // Invoke a LAMBDA closure with already-evaluated argument values.
 function callClosure(fn, argVals, ctx) {
   if (argVals.length !== fn.params.length) throw new FormulaError("#VALUE", `LAMBDA takes ${fn.params.length} arg${fn.params.length === 1 ? "" : "s"}`);
+  if ((ctx.__cdepth | 0) >= MAX_CLOSURE_DEPTH) throw new FormulaError("#NUM", "LAMBDA recursion too deep");
+  ctx.__cdepth = (ctx.__cdepth | 0) + 1;
   const saved = ctx.scope;
   ctx.scope = new Map(fn.scope || []);
   fn.params.forEach((p, i) => ctx.scope.set(p, argVals[i]));
   try { return evalNode(fn.body, ctx); }
-  finally { ctx.scope = saved; }
+  finally { ctx.scope = saved; ctx.__cdepth--; }
 }
 
 function fmtScalar(v) {
@@ -5225,7 +5247,13 @@ function recalcSheet(sheet) {
     color.set(key, BLACK);
     order.push(key);
   };
-  for (const key of formulaSet) if ((color.get(key) || WHITE) === WHITE) visit(key, new Set());
+  for (const key of formulaSet) {
+    if ((color.get(key) || WHITE) !== WHITE) continue;
+    // A pathologically deep dependency chain can overflow the recursive visit;
+    // contain it to the offending cell instead of aborting the whole recalc.
+    try { visit(key, new Set()); }
+    catch (e) { if (e instanceof RangeError) { const cell = sheet.cells.get(key); if (cell) cell.err = "#ERROR"; if (!order.includes(key)) order.push(key); } else throw e; }
+  }
 
   const ctx = {
     rowCount: sheet.rowCount,
@@ -11202,12 +11230,13 @@ async function createSheetWithCells(blockId, ps, fileName) {
   const sheet = normalizeSheet(ins.data);
   const rows = [];
   for (const c of ps.cells) {
-    const cell = { value: c.value ?? null, formula: c.formula ?? null, type: c.type ?? null, computed: null, err: null, format: {} };
+    const format = c.format && typeof c.format === "object" ? c.format : {};
+    const cell = { value: c.value ?? null, formula: c.formula ?? null, type: c.type ?? null, computed: null, err: null, format };
     sheet.cells.set(cellKey(c.r, c.c), cell);
     rows.push({
       dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, sheet_id: sheet.id,
       row_index: c.r, col_index: c.c,
-      value: cell.value, formula: cell.formula, value_type: cell.type, format: {},
+      value: cell.value, formula: cell.formula, value_type: cell.type, format,
       updated_by: _me() ? _me().id : null,
     });
   }
@@ -11539,6 +11568,75 @@ function xlsxJoinText(chunk) {
   return out;
 }
 
+// ── XLSX style reconstruction (reverse of buildXlsxBytes' styleFor) ──────────
+// Turns OOXML fonts / fills / borders / alignment / number-format codes back
+// into this app's cell.format model, so a workbook — including our own
+// exports — round-trips its formatting instead of importing as bare values.
+const XLSX_FONT_KEY = { "Arial": "arial", "Georgia": "georgia", "Times New Roman": "times", "Courier New": "courier", "Verdana": "verdana", "Trebuchet MS": "trebuchet" };
+
+function xlsxArgbToHex(argb) {
+  if (!argb) return null;
+  const h = argb.length === 8 ? argb.slice(2) : argb; // strip leading alpha
+  return /^[0-9a-fA-F]{6}$/.test(h) ? "#" + h.toLowerCase() : null;
+}
+
+// Classify a number-format code into the app's `num` keys.
+function classifyXlsxNumFmt(code) {
+  const c = String(code || "");
+  if (!c || /^general$/i.test(c)) return null;
+  const bare = c.replace(/\[[^\]]*\]/g, "").replace(/"[^"]*"/g, "");
+  if (/%/.test(c)) return "percent";
+  if (/[dmy]/i.test(bare) && !/[#0]/.test(bare)) return "date";
+  if (/[eE]\+/.test(c)) return "scientific";
+  if (/[$€£¥]/.test(c)) return "currency";
+  return "number";
+}
+// Built-in numFmt ids (ECMA-376 §18.8.30) → app `num` keys.
+function builtinXlsxNumClass(id) {
+  if (id === 0) return null; // General
+  if (id === 9 || id === 10) return "percent";
+  if ([14, 15, 16, 17, 22, 45, 46, 47].includes(id)) return "date";
+  if (id === 44 || [37, 38, 39, 40].includes(id)) return "accounting";
+  if ([5, 6, 7, 8, 42].includes(id)) return "currency";
+  if (id === 11 || id === 48) return "scientific";
+  if (id === 49) return "text";
+  if ([1, 2, 3, 4].includes(id)) return "number";
+  return null;
+}
+function parseXlsxFont(xml) {
+  const f = {};
+  if (/<b(?:\s[^>]*)?\/?>/.test(xml)) f.bold = true;
+  if (/<i(?:\s[^>]*)?\/?>/.test(xml)) f.italic = true;
+  if (/<u(?:\s[^>]*)?\/?>/.test(xml)) f.underline = true;
+  if (/<strike(?:\s[^>]*)?\/?>/.test(xml)) f.strike = true;
+  const col = /<color[^>]*rgb="([0-9A-Fa-f]{6,8})"/.exec(xml);
+  if (col) { const hex = xlsxArgbToHex(col[1]); if (hex && hex !== "#000000") f.fg = hex; }
+  const sz = /<sz[^>]*val="([\d.]+)"/.exec(xml);
+  if (sz) { const pt = +sz[1]; if (Math.abs(pt - 11) > 0.01) f.fs = Math.round(pt / 0.75); } // pt → px
+  const nm = /<name[^>]*val="([^"]+)"/.exec(xml);
+  if (nm && XLSX_FONT_KEY[nm[1]]) f.ff = XLSX_FONT_KEY[nm[1]];
+  return f;
+}
+function parseXlsxFill(xml) {
+  if (!/patternType="solid"/.test(xml)) return {};
+  const fg = /<fgColor[^>]*rgb="([0-9A-Fa-f]{6,8})"/.exec(xml);
+  const hex = fg ? xlsxArgbToHex(fg[1]) : null;
+  return hex ? { bg: hex } : {};
+}
+function parseXlsxBorder(xml) {
+  const present = [], styles = [];
+  for (const e of ["left", "right", "top", "bottom"]) {
+    const m = new RegExp(`<${e}\\b[^>]*style="([^"]+)"`).exec(xml);
+    if (m) { present.push(e); styles.push(m[1]); }
+  }
+  if (!present.length) return {};
+  const w = (s) => (s === "thick" ? 3 : s === "medium" || s === "double" ? 2 : 1);
+  const bw = Math.max(...styles.map(w));
+  const out = { border: present.length === 4 ? "all" : present[0] };
+  if (bw > 1) out.bw = bw;
+  return out;
+}
+
 const XLSX_ROW_CAP = 10000, XLSX_COL_CAP = 200;
 
 export async function parseXlsxBytes(buf) {
@@ -11556,24 +11654,39 @@ export async function parseXlsxBytes(buf) {
     while ((m = re.exec(ssXml))) shared.push(m[1] != null ? xlsxJoinText(m[1]) : "");
   }
 
-  // styles → which cell-format (xf) indices render as dates, so numeric
-  // date serials come back as readable dates instead of raw numbers
+  // styles → per-xf reconstruction: number-format class (drives dates + the
+  // `num` display format) plus font / fill / border / alignment, so formatting
+  // survives the round-trip instead of importing as bare values.
   const dateXf = new Set();
+  const xfFmt = [];      // xf index → reconstructed cell.format
   const stylesXml = get("xl/styles.xml");
   if (stylesXml) {
-    const customDate = new Map();
+    const customClass = new Map();
     let m;
     const nfRe = /<numFmt[^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g;
-    while ((m = nfRe.exec(stylesXml))) {
-      const code = xmlUnescape(m[2]).replace(/\[[^\]]*\]/g, "").replace(/"[^"]*"/g, "");
-      customDate.set(+m[1], /[dmy]/i.test(code) && !/[#0]/.test(code));
-    }
-    const builtinDate = new Set([14, 15, 16, 17, 22, 45, 46, 47]);
+    while ((m = nfRe.exec(stylesXml))) customClass.set(+m[1], classifyXlsxNumFmt(xmlUnescape(m[2])));
+    const classOf = (id) => (customClass.has(id) ? customClass.get(id) : builtinXlsxNumClass(id));
+    const section = (tag, re) => { const s = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`).exec(stylesXml); return s ? (s[1].match(re) || []) : []; };
+    const fontDefs = section("fonts", /<font(?:\s[^>]*)?>[\s\S]*?<\/font>|<font\s*\/>/g).map(parseXlsxFont);
+    const fillDefs = section("fills", /<fill(?:\s[^>]*)?>[\s\S]*?<\/fill>|<fill\s*\/>/g).map(parseXlsxFill);
+    const borderDefs = section("borders", /<border(?:\s[^>]*)?>[\s\S]*?<\/border>|<border\s*\/>/g).map(parseXlsxBorder);
     const cx = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml);
-    if (cx) (cx[1].match(/<xf\b[^>]*?\/?>/g) || []).forEach((xf, idx) => {
-      const nf = /numFmtId="(\d+)"/.exec(xf);
-      const id = nf ? +nf[1] : 0;
-      if (builtinDate.has(id) || customDate.get(id)) dateXf.add(idx);
+    if (cx) (cx[1].match(/<xf\b[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g) || []).forEach((xf, idx) => {
+      const attr = (n) => { const mm = new RegExp(`${n}="(\\d+)"`).exec(xf); return mm ? +mm[1] : 0; };
+      const cls = classOf(attr("numFmtId"));
+      if (cls === "date") dateXf.add(idx);
+      const fmt = { ...(fontDefs[attr("fontId")] || {}), ...(borderDefs[attr("borderId")] || {}) };
+      const fill = fillDefs[attr("fillId")];
+      if (fill && fill.bg) fmt.bg = fill.bg;
+      const al = /<alignment\b([^>]*?)\/?>/.exec(xf);
+      if (al) {
+        const h = /horizontal="([^"]+)"/.exec(al[1]); if (h) fmt.align = h[1];
+        const v = /vertical="([^"]+)"/.exec(al[1]); if (v && v[1] !== "bottom") fmt.valign = v[1] === "center" ? "middle" : v[1];
+        if (/wrapText="1"/.test(al[1])) fmt.wrap = true;
+        const rot = /textRotation="(\d+)"/.exec(al[1]); if (rot && (+rot[1] === 45 || +rot[1] === 90)) fmt.rot = +rot[1];
+      }
+      if (cls && cls !== "date") fmt.num = cls; // dates display via cell.type
+      if (Object.keys(fmt).length) xfFmt[idx] = fmt;
     });
   }
 
@@ -11660,8 +11773,11 @@ export async function parseXlsxBytes(buf) {
         if (s != null && dateXf.has(+s)) { const d = serialToDate(+rawV); value = d ? isoDate(d) : rawV; type = d ? "date" : "number"; }
         else { value = rawV; type = "number"; }
       }
-      if (formula == null && (value == null || value === "")) continue;
-      out.cells.push({ r, c, value, formula, type });
+      const fmt = s != null ? xfFmt[+s] : null;
+      if (formula == null && (value == null || value === "") && !fmt) continue;
+      const cell = { r, c, value, formula, type };
+      if (fmt) cell.format = { ...fmt };
+      out.cells.push(cell);
     }
     sheets.push(out);
   }
@@ -16437,7 +16553,7 @@ export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,
