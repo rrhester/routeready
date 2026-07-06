@@ -5316,6 +5316,35 @@ function applyCustomFormat(value, code, type) {
   return sign + renderNumericSection(Math.abs(n), sec);
 }
 
+// ── Goal Seek ────────────────────────────────────────────────────────────────
+// Find the input x that drives probe(x) to `goal`. probe returns the target
+// cell's value after setting the input and recalculating (NaN on error). Uses
+// the secant method with perturbation recovery — exact for linear targets,
+// convergent for smooth nonlinear ones. Returns the solved x, or null if it
+// can't converge within the iteration budget.
+function solveGoalSeek(probe, goal, x0) {
+  const tol = 1e-9 + Math.abs(goal) * 1e-9;
+  const f = (x) => { const v = probe(x); return typeof v === "number" && isFinite(v) ? v - goal : NaN; };
+  let x1 = typeof x0 === "number" && isFinite(x0) ? x0 : 0;
+  let f1 = f(x1);
+  if (isFinite(f1) && Math.abs(f1) <= tol) return x1;
+  let step = Math.abs(x1) > 1e-6 ? x1 * 0.01 : 1;
+  let x2 = x1 + step, f2 = f(x2);
+  for (let i = 0; i < 200; i++) {
+    if (isFinite(f2) && Math.abs(f2) <= tol) return x2;
+    if (!isFinite(f1) || !isFinite(f2) || f2 === f1) {
+      step *= 2; x2 = x1 + step; f2 = f(x2);
+      if (!isFinite(f2)) { x2 = x1 - step; f2 = f(x2); }
+      if (!isFinite(f2)) return null;
+      continue;
+    }
+    const x3 = x2 - f2 * (x2 - x1) / (f2 - f1); // secant step
+    if (!isFinite(x3) || Math.abs(x3) > 1e15) return null;
+    x1 = x2; f1 = f2; x2 = x3; f2 = f(x2);
+  }
+  return isFinite(f2) && Math.abs(f2) <= Math.max(tol, 1e-6 * (Math.abs(goal) + 1)) ? x2 : null;
+}
+
 function formatForDisplay(v, format, type) {
   if (v == null || v === "") return "";
   const numFmt = format && format.num;
@@ -11365,6 +11394,67 @@ function showColumnStats(g) {
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
 }
 
+// Goal seek: solve an input cell so a formula cell reaches a target value.
+function openGoalSeekDialog(g) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const activeRef = colLabel(g.active.c) + (g.active.r + 1);
+  const activeCell = sheet.cells.get(cellKey(g.active.r, g.active.c));
+  const setDefault = activeCell && activeCell.formula ? activeRef : "";
+  document.getElementById("wb-goalseek-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-goalseek-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Goal seek" style="width:430px">
+      <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">Goal seek</p><p class="rr-modal-sub">Find the input value that makes a formula cell hit a target.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+      <div class="rr-modal-body">
+        <label class="wb-field"><span class="wb-field-label">Set cell — a formula</span><input class="wb-input" id="wb-gs-set" value="${esc(setDefault)}" placeholder="B10" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">To value</span><input class="wb-input" id="wb-gs-to" placeholder="12000" autocomplete="off" spellcheck="false"></label>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">By changing cell</span><input class="wb-input" id="wb-gs-by" placeholder="A2" autocomplete="off" spellcheck="false"></label>
+        <p id="wb-gs-msg" style="margin-top:10px;min-height:18px;color:var(--text-subtle);font-size:12px"></p>
+      </div>
+      <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Cancel</button><button class="rr-modal-btn primary" type="button" id="wb-gs-run">Solve</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  wrap.querySelector("#wb-gs-run").addEventListener("click", () => {
+    const msg = wrap.querySelector("#wb-gs-msg");
+    const setRC = parseCellRef((wrap.querySelector("#wb-gs-set").value || "").trim());
+    const byRC = parseCellRef((wrap.querySelector("#wb-gs-by").value || "").trim());
+    const goal = Number((wrap.querySelector("#wb-gs-to").value || "").replace(/[$,%\s]/g, ""));
+    if (!setRC || !byRC) { msg.textContent = "Enter valid cell references (e.g. B10 and A2)."; return; }
+    if (!isFinite(goal)) { msg.textContent = "Enter a numeric target value."; return; }
+    const targetKey = cellKey(setRC.row, setRC.col), inputKey = cellKey(byRC.row, byRC.col);
+    const targetCell = sheet.cells.get(targetKey);
+    if (!targetCell || !targetCell.formula) { msg.textContent = "The “Set cell” must contain a formula."; return; }
+    const inputCell = sheet.cells.get(inputKey);
+    if (inputCell && inputCell.formula) { msg.textContent = "The “By changing cell” can’t contain a formula."; return; }
+    const orig = inputCell ? inputCell.value : null;
+    const ensureInput = () => { let c = sheet.cells.get(inputKey); if (!c) { c = { value: "0", formula: null, type: "number", computed: null, err: null, format: {} }; sheet.cells.set(inputKey, c); } return c; };
+    const probe = (x) => {
+      const c = ensureInput(); c.value = String(x); c.computed = null; c.err = null;
+      recalcSheet(sheet, [inputKey]);
+      const t = sheet.cells.get(targetKey);
+      return t && !t.err ? cellNumeric(t.formula ? t.computed : t.value) : NaN;
+    };
+    const sol = solveGoalSeek(probe, goal, cellNumeric(orig) ?? 0);
+    // always restore the original input, then apply any solution via setCells (undoable)
+    const c = sheet.cells.get(inputKey);
+    if (c) { if (orig == null) sheet.cells.delete(inputKey); else { c.value = orig; c.computed = null; c.err = null; } }
+    recalcSheet(sheet);
+    if (sol == null) { repaintGrid(g); msg.textContent = "Couldn’t converge on a solution. Try a different target or a closer starting value."; return; }
+    const rounded = Math.abs(sol - Math.round(sol)) < 1e-9 ? Math.round(sol) : parseFloat(sol.toPrecision(12));
+    setCells(g, [{ r: byRC.row, c: byRC.col, cell: { value: String(rounded), formula: null, type: "number", computed: null, err: null, format: inputCell && inputCell.format ? { ...inputCell.format } : {} } }]);
+    const tv = sheet.cells.get(targetKey);
+    _toast(`Goal seek: ${colLabel(byRC.col)}${byRC.row + 1} = ${rounded} → ${colLabel(setRC.col)}${setRC.row + 1} ≈ ${formatForDisplay(tv.computed, tv.format, "formula")}`, "success");
+    close();
+  });
+  setTimeout(() => wrap.querySelector(setDefault ? "#wb-gs-to" : "#wb-gs-set")?.focus(), 0);
+}
+
 function splitTextToColumns(g) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
@@ -15260,6 +15350,7 @@ function wbMenuItems(menu, g) {
         ] },
         sep,
         { label: "Column stats", act: "data:stats", disabled: !g },
+        { label: "Goal seek…", act: "data:goalseek", disabled: !ed || !g },
         { label: "Pivot table…", act: "data:pivot", disabled: !ed || !g },
         { label: "Named ranges…", act: "data:names", disabled: !g },
         { label: "Data validation…", act: "data:validation", disabled: !ed || !g },
@@ -15392,6 +15483,7 @@ function wbMenuAction(act, g) {
     case "data:filter-clear": if (need()) { g.filters = new Map(); computeGeometry(g); repaintGrid(g); persistFilterState(g); } return;
     case "data:fv-save": if (need()) saveFilterView(g); return;
     case "data:stats": if (need()) showColumnStats(g); return;
+    case "data:goalseek": if (need()) openGoalSeekDialog(g); return;
     case "data:pivot": if (need()) openPivotDialog(g); return;
     case "data:names": if (need()) openNamedRangesDialog(g); return;
     case "data:validation": if (need()) openValidationDialog(g); return;
@@ -17194,7 +17286,7 @@ export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
-  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat,
+  buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, solveGoalSeek,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   computePivot, pivotAggregate, pivotTableHtml,
