@@ -53850,11 +53850,107 @@ async function renderScheduleWeek() {
       }
     }
     const exposedDays = days.filter(d => d.exposure > 0);
+
+    // ── Recommended plan · add backup drivers to compensate ────────────
+    // For every exposed day, recommend enough AVAILABLE, LOW-RISK drivers
+    // to bring the day back to covered. Purely additive (new backup shifts)
+    // — nobody loses a shift. The backup must be low-risk: adding a
+    // high-risk driver raises the cushion AND the at-risk count by one, so
+    // exposure wouldn't move. Candidates must be active, not already
+    // working that day, not on PTO, within max-days, and (unless the
+    // availability-override is on) available that weekday. We copy the
+    // day's real shift (station / wave times / service type) so a created
+    // backup looks like a genuine seat for that day.
+    const recommendation = (() => {
+      if (exposedDays.length === 0) return { days: [], totalNeed: 0, totalAdds: 0, fullyResolves: true };
+      const DOWK = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+      const dayKeyOf = (iso) => DOWK[new Date(iso + "T00:00:00Z").getUTCDay()];
+      const S = window._rrEffectiveSettings || {};
+      const maxDays = parseInt(S.max_days_per_week, 10) || 5;
+      const allowOverride = !!S.allow_availability_override;
+      // Distinct scheduled days per driver this week (drives the max-days gate).
+      const daysPerDriver = new Map();
+      for (const [, set] of schedByDate) for (const id of set) daysPerDriver.set(id, (daysPerDriver.get(id) || 0) + 1);
+      // A representative productive shift per date → template for created backups.
+      const repByDate = new Map();
+      for (const sh of (grid.shifts || [])) {
+        if (!["scheduled", "completed"].includes(sh.status)) continue;
+        if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
+        if (!sh.station_id || !sh.starts_at || !sh.ends_at) continue;
+        if (!repByDate.has(sh.date)) repByDate.set(sh.date, sh);
+      }
+      const availSetOf = (d) => {
+        const a = d.metadata?.availability?.days;
+        return Array.isArray(a) && a.length ? new Set(a.map(x => String(x).slice(0, 3).toLowerCase())) : null;
+      };
+      const prefSetOf = (d) => {
+        const p = d.metadata?.availability?.preferred_days;
+        return new Set((Array.isArray(p) ? p : []).map(x => String(x).slice(0, 3).toLowerCase()));
+      };
+      const nameOf = (d) => d.preferred_name || d.full_name || [d.first_name, d.last_name].filter(Boolean).join(" ") || "Driver";
+      // Running projection so a driver picked for two exposed days doesn't
+      // blow past max-days, and can't be double-picked for the same day.
+      const projected = new Map(daysPerDriver);
+      const recDays = [];
+      for (const day of exposedDays) {
+        const need = day.exposure;
+        const dk = dayKeyOf(day.iso);
+        const scheduledThatDay = schedByDate.get(day.iso) || new Set();
+        const rep = repByDate.get(day.iso) || null;
+        const cands = drivers.filter((d) => {
+          if (d.status !== "active") return false;
+          if (atRiskIds.has(d.id)) return false;           // low-risk only — else exposure won't drop
+          if (scheduledThatDay.has(d.id)) return false;     // already working that day
+          if (ptoOn(d.id, day.iso)) return false;
+          if ((projected.get(d.id) || 0) >= maxDays) return false;
+          if (!allowOverride) {
+            const av = availSetOf(d);
+            if (av && !av.has(dk)) return false;            // respect saved availability
+          }
+          return true;
+        });
+        cands.sort((a, b) => {
+          const da = projected.get(a.id) || 0, db = projected.get(b.id) || 0;
+          if (da !== db) return da - db;                    // spread load — fewest days first
+          const pa = prefSetOf(a).has(dk) ? 1 : 0, pb = prefSetOf(b).has(dk) ? 1 : 0;
+          if (pa !== pb) return pb - pa;                    // prefer a preferred-day match
+          return nameOf(a).localeCompare(nameOf(b));
+        });
+        const picks = cands.slice(0, need).map((d) => ({ id: d.id, name: nameOf(d) }));
+        for (const p of picks) projected.set(p.id, (projected.get(p.id) || 0) + 1);
+        recDays.push({
+          iso: day.iso,
+          weekday: day.weekday,
+          need,
+          picks,
+          shortfall: Math.max(0, need - picks.length),
+          template: rep ? {
+            station_id: rep.station_id,
+            starts_at: rep.starts_at,
+            ends_at: rep.ends_at,
+            service_type_id: rep.service_type_id || null,
+            route_classification: rep.route_classification || null,
+          } : null,
+        });
+      }
+      const totalNeed = recDays.reduce((n, d) => n + d.need, 0);
+      const totalAdds = recDays.reduce((n, d) => n + d.picks.length, 0);
+      return {
+        days: recDays,
+        totalNeed,
+        totalAdds,
+        // Fully resolves only if every exposed seat has an available backup
+        // AND every exposed day has a template to build the shift from.
+        fullyResolves: totalAdds >= totalNeed && recDays.every((d) => d.template || d.picks.length === 0),
+      };
+    })();
+
     return {
       days,
       worst,
       exposedDays,
       anyExposed: exposedDays.length > 0,
+      recommendation,
       weekStart: _schedStart,
     };
   })();
@@ -55717,9 +55813,51 @@ function bindSchedWeekNav() {
   // called out in red; covered / exact days stay calm.
   if (!window._rrCalloutExposureHandlerInstalled) {
   window._rrCalloutExposureHandlerInstalled = true;
+  // Apply the recommended backup plan — create one new backup shift per
+  // recommended driver on each exposed day (additive; nobody loses a
+  // shift). Each created shift copies the day's real station / wave times
+  // / service type so it lands as a genuine seat. Re-renders after, which
+  // recomputes exposure with the new cushion folded in.
+  async function _rrApplyCalloutBackups(btn) {
+    const ce = window._rrCalloutExposure;
+    const rec = ce && ce.recommendation;
+    if (!rec || rec.totalAdds === 0) return;
+    if (btn) { btn.disabled = true; btn.dataset.busy = "1"; btn.textContent = "Adding backups…"; }
+    const jobs = [];
+    for (const day of rec.days) {
+      if (!day.template) continue;
+      for (const p of day.picks) jobs.push({ date: day.iso, driver_id: p.id, t: day.template });
+    }
+    let ok = 0, fail = 0;
+    for (const j of jobs) {
+      try {
+        if (typeof _markLocalShiftMutation === "function") _markLocalShiftMutation();
+        const { error } = await sb.rpc("create_shift", { p_payload: {
+          date: j.date,
+          station_id: j.t.station_id,
+          driver_id: j.driver_id,
+          shift_kind: "regular",
+          route_classification: j.t.route_classification,
+          service_type_id: j.t.service_type_id,
+          starts_at: j.t.starts_at,
+          ends_at: j.t.ends_at,
+        } });
+        if (error) { fail++; console.warn("callout backup add failed:", error.message); }
+        else ok++;
+      } catch (err) { fail++; console.warn("callout backup add threw:", err); }
+    }
+    document.getElementById("rr-sched-callout-modal")?.remove();
+    if (ok) toast(`${ok} backup shift${ok === 1 ? "" : "s"} added${fail ? ` · ${fail} failed` : ""}`, fail ? "warn" : "success");
+    else toast("Couldn't add backups" + (fail ? ": all inserts failed" : ""), "warn");
+    if (typeof renderScheduleWeek === "function") { try { await renderScheduleWeek(); } catch (_) {} }
+  }
+  window._rrApplyCalloutBackups = _rrApplyCalloutBackups;
+
   document.addEventListener("click", (e) => {
     const modal = document.getElementById("rr-sched-callout-modal");
     if (modal) {
+      const applyBtn = e.target.closest("[data-rr-callout-apply]");
+      if (applyBtn) { if (!applyBtn.dataset.busy) _rrApplyCalloutBackups(applyBtn); return; }
       if (e.target === modal || e.target.closest("#rr-sched-callout-close")) modal.remove();
       return;
     }
@@ -55740,6 +55878,33 @@ function bindSchedWeekNav() {
     const headline = ce.anyExposed
       ? `${ce.exposedDays.reduce((n, d) => n + d.exposure, 0)} driver${ce.exposedDays.reduce((n, d) => n + d.exposure, 0) === 1 ? "" : "s"} exposed across ${ce.exposedDays.length} day${ce.exposedDays.length === 1 ? "" : "s"}`
       : "Every scheduled day is covered";
+
+    // Recommended plan · additive backup coverage for the exposed days.
+    const rec = ce.recommendation || { days: [], totalNeed: 0, totalAdds: 0 };
+    let recHtml = "";
+    let footerHtml = "";
+    if (ce.anyExposed && rec.totalNeed > 0) {
+      const planRows = rec.days.filter(d => d.picks.length > 0 || d.shortfall > 0).map(d => {
+        const names = d.picks.map(p => escapeHtml(p.name)).join(", ");
+        const body = d.picks.length
+          ? `Add ${d.picks.length} backup${d.picks.length === 1 ? "" : "s"}: ${names}`
+          : "No available backup driver";
+        const short = d.shortfall > 0 && d.picks.length
+          ? `<span class="rr-callout-plan-short"> · ${d.shortfall} more needed</span>` : "";
+        return `<div class="rr-callout-plan-day"><span class="rr-callout-day-name">${escapeHtml(d.weekday)}</span><span class="rr-callout-plan-names">${body}${short}</span></div>`;
+      }).join("");
+      recHtml = `<div class="rr-callout-plan"><div class="rr-callout-plan-head">Recommended plan · add backup coverage</div>${planRows}</div>`;
+      if (rec.totalAdds > 0) {
+        const residual = rec.totalNeed - rec.totalAdds;
+        footerHtml = `<div class="rr-callout-foot">
+          <div class="rr-callout-foot-note">Adds ${rec.totalAdds} backup shift${rec.totalAdds === 1 ? "" : "s"}${residual > 0 ? ` · ${residual} seat${residual === 1 ? "" : "s"} still exposed (no available driver)` : ""}.</div>
+          <button type="button" class="btn btn-sm btn-primary" data-rr-callout-apply>Apply backups (${rec.totalAdds})</button>
+        </div>`;
+      } else {
+        footerHtml = `<div class="rr-callout-foot"><div class="rr-callout-foot-note">No available low-risk drivers to add on the exposed day${rec.days.length === 1 ? "" : "s"}. Consider adjusting availability or the route plan.</div></div>`;
+      }
+    }
+
     const m = document.createElement("div");
     m.id = "rr-sched-callout-modal";
     m.className = "modal-backdrop open";
@@ -55757,7 +55922,9 @@ function bindSchedWeekNav() {
         <div class="modal-body">
           <p class="rr-callout-explain">At-risk scheduled drivers are absorbed by the cushion (extra drivers scheduled above the day's routes). A day is exposed only when at-risk drivers outnumber the cushion.</p>
           <div class="rr-callout-days">${rowsHtml}</div>
+          ${recHtml}
         </div>
+        ${footerHtml}
       </div>`;
     document.body.appendChild(m);
   });

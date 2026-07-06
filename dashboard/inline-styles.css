@@ -8026,6 +8026,13 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-callout-day-status{font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
 .rr-callout-day-status.covered{color:#16A34A}
 .rr-callout-day-status.exposed{color:var(--red)}
+.rr-callout-plan{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+.rr-callout-plan-head{font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.03em;text-transform:uppercase;margin-bottom:8px}
+.rr-callout-plan-day{display:flex;align-items:baseline;gap:10px;padding:5px 0}
+.rr-callout-plan-names{flex:1;font-size:var(--fs-sm);color:var(--text)}
+.rr-callout-plan-short{color:var(--red);font-weight:600}
+.rr-callout-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-top:1px solid var(--border);background:var(--canvas)}
+.rr-callout-foot-note{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4}
 
 /* Make calendar cells feel buildable */
 .cal-cell.empty-slot{
