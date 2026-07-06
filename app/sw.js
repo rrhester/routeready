@@ -13,13 +13,13 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-// v127 · Document scanner gains automatic edge detection: pages are
-// auto-cropped to the detected document at capture (dependency-free
-// Sobel + extreme-corner pipeline), the camera shows a live outline and
-// only auto-fires when a document is framed, and the editor gets
-// Auto-detect / Whole-page controls. Bumped so installed driver PWAs
-// purge the old shell and pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v127";
+// v128 · Document scanner gains an offline send queue: a "Send to
+// dispatch" that can't reach the network stores the PDF in IndexedDB and
+// flushes automatically when connectivity returns (online event, app
+// foreground, scanner open) — so a scan in a dead zone is never lost.
+// Bumped so installed driver PWAs purge the old shell and pick up the
+// new app.js.
+const SHELL_CACHE = "rr-app-shell-v128";
 const SHELL_FILES = [
   "./",
   "index.html",

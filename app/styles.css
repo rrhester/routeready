@@ -641,6 +641,19 @@ select.field{
   font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5;
   margin:2px 2px 16px;font-weight:500;
 }
+.scan-queue-banner{
+  display:flex;align-items:center;gap:10px;justify-content:space-between;
+  margin:2px 0 14px;padding:10px 12px;border-radius:var(--r-card);
+  background:var(--amber-soft);border:1px solid var(--amber-border, rgba(217,119,6,.28));
+  color:var(--amber-dark);font-size:var(--fs-sm);font-weight:600;
+}
+.scan-queue-txt{display:flex;align-items:center;gap:8px;min-width:0;line-height:1.4}
+.scan-queue-txt svg{flex-shrink:0}
+.scan-queue-retry{
+  flex-shrink:0;padding:7px 12px;border-radius:999px;cursor:pointer;
+  background:var(--amber-dark);color:#fff;border:0;font-size:var(--fs-xs);font-weight:700;
+}
+.scan-queue-retry:disabled{opacity:.6}
 .scan-pages{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
 .scan-empty{
   text-align:center;padding:32px 20px;color:var(--text-subtle);

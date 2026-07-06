@@ -3239,41 +3239,129 @@ function _scanDefaultName() {
   return `Document ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-// Send the built PDF to dispatch through the existing chat pipeline:
-// upload to the driver-chat-attachments bucket, then driver_chat_send
-// with the attachment metadata. Mirrors the chat composer's own flow so
-// dispatch sees the document as a normal chat attachment.
-async function _scanSendToDispatch(blob, filename) {
+// Upload the built PDF to the driver-chat-attachments bucket and post it
+// to dispatch via driver_chat_send (same pipeline as a chat attachment).
+// Returns { ok } on success, or { ok:false, retriable } — retriable
+// means a transient/network failure worth queuing for a later retry;
+// non-retriable means a terminal problem (no session, incomplete
+// profile) where retrying the same way won't help.
+async function _scanUploadAndSend(blob, filename) {
   const session = readSession();
-  if (!session?.token) { toast("Sign in again to send", "warn"); return false; }
+  if (!session?.token) return { ok: false, retriable: false, reason: "no-session" };
 
   let dspId = session.dsp_id, driverId = session.driver_id;
   if (!dspId || !driverId) {
-    const { data: me, error } = await sb.rpc("driver_me", { p_token: session.token });
-    if (error || !me) { toast("Couldn't load your profile — try again", "warn"); return false; }
-    dspId = me.dsp_id || dspId; driverId = me.id || driverId;
-    const cur = readSession();
-    if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+    try {
+      const { data: me, error } = await sb.rpc("driver_me", { p_token: session.token });
+      if (error || !me) return { ok: false, retriable: true, reason: "profile" };
+      dspId = me.dsp_id || dspId; driverId = me.id || driverId;
+      const cur = readSession();
+      if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+    } catch { return { ok: false, retriable: true, reason: "profile" }; }
   }
-  if (!dspId || !driverId) { toast("Profile incomplete — sign out and back in", "warn"); return false; }
+  if (!dspId || !driverId) return { ok: false, retriable: false, reason: "incomplete" };
 
   const safe = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "document.pdf";
   const path = `${dspId}/${driverId}/${Date.now()}-${safe}`;
-  const { error: upErr } = await sb.storage
-    .from("driver-chat-attachments")
-    .upload(path, blob, { contentType: "application/pdf", upsert: false });
-  if (upErr) { toast(_friendlyError(upErr, "Couldn't upload the PDF. Try again."), "warn"); return false; }
+  try {
+    const { error: upErr } = await sb.storage
+      .from("driver-chat-attachments")
+      .upload(path, blob, { contentType: "application/pdf", upsert: false });
+    if (upErr) return { ok: false, retriable: true, reason: "upload" };
 
-  const { error: sendErr } = await sb.rpc("driver_chat_send", {
-    p_token:                 session.token,
-    p_body:                  `📄 Scanned document: ${filename}`,
-    p_attachment_path:       path,
-    p_attachment_mime:       "application/pdf",
-    p_attachment_name:       safe,
-    p_attachment_size_bytes: blob.size,
+    const { error: sendErr } = await sb.rpc("driver_chat_send", {
+      p_token:                 session.token,
+      p_body:                  `📄 Scanned document: ${filename}`,
+      p_attachment_path:       path,
+      p_attachment_mime:       "application/pdf",
+      p_attachment_name:       safe,
+      p_attachment_size_bytes: blob.size,
+    });
+    if (sendErr) return { ok: false, retriable: true, reason: "send" };
+    return { ok: true };
+  } catch {
+    return { ok: false, retriable: true, reason: "network" };
+  }
+}
+
+// ── Offline send queue ──────────────────────────────────────────────
+// Drivers scan in cellular dead zones (loading docks, rural routes). A
+// send that can't reach the network is stored — PDF blob and all — in
+// IndexedDB and flushed automatically when connectivity returns (the
+// `online` event, app foreground, or opening the scanner). So a scan is
+// never lost to a bad signal.
+const _SCAN_Q_DB = "rr-scan-queue";
+const _SCAN_Q_STORE = "docs";
+function _scanQueueDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_SCAN_Q_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(_SCAN_Q_STORE)) {
+        req.result.createObjectStore(_SCAN_Q_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
   });
-  if (sendErr) { toast(_friendlyError(sendErr, "Couldn't send to dispatch. Try again."), "warn"); return false; }
-  return true;
+}
+async function _scanQueueAdd(item) {
+  const db = await _scanQueueDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_SCAN_Q_STORE, "readwrite");
+    tx.objectStore(_SCAN_Q_STORE).put(item);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function _scanQueueAll() {
+  const db = await _scanQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_SCAN_Q_STORE, "readonly");
+    const r = tx.objectStore(_SCAN_Q_STORE).getAll();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror = () => resolve([]);
+  });
+}
+async function _scanQueueDelete(id) {
+  const db = await _scanQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_SCAN_Q_STORE, "readwrite");
+    tx.objectStore(_SCAN_Q_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+async function _scanQueueCount() {
+  try { return (await _scanQueueAll()).length; } catch { return 0; }
+}
+
+// Try to send every queued document. Stops at the first still-failing
+// item (likely still offline / signed out) to avoid hammering. Safe to
+// call repeatedly and concurrently-guarded.
+let _scanFlushing = false;
+async function _scanFlushQueue({ silent } = {}) {
+  if (_scanFlushing) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  if (!readSession()?.token) return;
+  _scanFlushing = true;
+  let sent = 0;
+  try {
+    const items = (await _scanQueueAll()).sort((a, b) => a.createdAt - b.createdAt);
+    for (const it of items) {
+      const res = await _scanUploadAndSend(it.blob, it.filename || it.name || "document.pdf");
+      if (res.ok) { await _scanQueueDelete(it.id); sent++; }
+      else break;   // leave the rest for the next flush
+    }
+  } catch { /* ignore — retried next trigger */ }
+  _scanFlushing = false;
+  if (sent && !silent) toast(`${sent} queued scan${sent === 1 ? "" : "s"} sent to dispatch`, "ok");
+  if (sent) { _haptic("success"); _scanUpdateQueueBanner(); }
+}
+
+// Flush whenever the network comes back. Wired once for the app's life.
+if (typeof window !== "undefined" && !window.__rrScanOnlineWired) {
+  window.__rrScanOnlineWired = true;
+  window.addEventListener("online", () => { _scanFlushQueue(); });
 }
 
 // Hand the PDF to the OS share sheet (so the driver can email / message
@@ -3306,6 +3394,8 @@ function renderDocumentScanner() {
   main.innerHTML = `
     <div class="scan-page">
       <input id="scan-file" type="file" accept="image/*" capture="environment" multiple hidden>
+
+      <div id="scan-queue-banner" class="scan-queue-banner" style="display:none"></div>
 
       <div class="scan-intro">
         Scan each page with your phone camera. Pages combine into one PDF
@@ -3394,20 +3484,57 @@ function renderDocumentScanner() {
     if (!_scanPages.length) return;
     const btn = document.getElementById("scan-send");
     const name = _scanNameValue();
+    const filename = name.endsWith(".pdf") ? name : name + ".pdf";
     btn.disabled = true; btn.textContent = "Sending…";
+
+    let blob;
     try {
-      const blob = _scanBuildPdfBlob(_scanPages);
-      const ok = await _scanSendToDispatch(blob, name.endsWith(".pdf") ? name : name + ".pdf");
-      if (ok) {
-        _haptic("success");
-        toast("Sent to dispatch", "ok");
-        _scanPages = [];
-        navigate("/chat");
-        return;
-      }
+      blob = _scanBuildPdfBlob(_scanPages);
     } catch (err) {
       toast(_friendlyError(err, "Couldn't build the PDF. Try again."), "warn");
+      btn.disabled = false; btn.textContent = "Send to dispatch";
+      return;
     }
+
+    // Offline up front, or a transient failure mid-send → save to the
+    // queue and let it flush automatically when the signal is back. The
+    // driver's scan is safe either way, so we clear the workspace.
+    const queueIt = async (line) => {
+      try {
+        await _scanQueueAdd({
+          id: "q" + Date.now() + Math.random().toString(36).slice(2, 7),
+          name, filename, blob, size: blob.size, createdAt: Date.now(),
+        });
+        _haptic("success");
+        toast(line, "ok");
+        _scanPages = [];
+        renderDocumentScanner();
+      } catch {
+        toast("Couldn't save the scan. Try again.", "warn");
+        btn.disabled = false; btn.textContent = "Send to dispatch";
+      }
+    };
+
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      await queueIt("Saved — will send to dispatch when you're back online");
+      return;
+    }
+
+    const res = await _scanUploadAndSend(blob, filename);
+    if (res.ok) {
+      _haptic("success");
+      toast("Sent to dispatch", "ok");
+      _scanPages = [];
+      navigate("/chat");
+      return;
+    }
+    if (res.retriable) {
+      await queueIt("Couldn't reach dispatch — saved, will retry when you're back online");
+      return;
+    }
+    // Terminal (no session / incomplete profile) — don't silently queue.
+    toast(res.reason === "no-session" ? "Sign in again to send"
+        : "Profile incomplete — sign out and back in", "warn");
     btn.disabled = false; btn.textContent = "Send to dispatch";
   });
 
@@ -3441,6 +3568,33 @@ function renderDocumentScanner() {
   });
 
   _scanRenderPages();
+
+  // Surface any queued (offline) scans and try to flush them now that
+  // the screen — and likely the network — is available again.
+  _scanUpdateQueueBanner();
+  _scanFlushQueue({ silent: true });
+}
+
+// Show/hide the "waiting to send" banner from the queue count, and wire
+// its "Retry now" action.
+async function _scanUpdateQueueBanner() {
+  const el = document.getElementById("scan-queue-banner");
+  if (!el) return;
+  const count = await _scanQueueCount();
+  if (!count) { el.style.display = "none"; el.innerHTML = ""; return; }
+  el.style.display = "";
+  el.innerHTML = `
+    <div class="scan-queue-txt">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+      <span>${count} scan${count === 1 ? "" : "s"} waiting to send — will retry automatically.</span>
+    </div>
+    <button class="scan-queue-retry" id="scan-queue-retry" type="button">Retry now</button>`;
+  const retry = document.getElementById("scan-queue-retry");
+  if (retry) retry.addEventListener("click", async () => {
+    retry.disabled = true; retry.textContent = "Sending…";
+    await _scanFlushQueue();
+    _scanUpdateQueueBanner();
+  });
 }
 
 // Re-paint the page grid + toggle the name/actions block based on how
