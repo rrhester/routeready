@@ -13459,7 +13459,7 @@ function duplicateEmbed(g, key, item) {
 }
 // Shelf-pack every widget left-to-right into a clean grid, preserving each
 // widget's size and its current reading order.
-function tidyDashboard(g) {
+function tidyDashboard(g, silent) {
   if (!WB.canEdit) return;
   const items = allEmbeds(g.sheet).map((e) => e.item).filter((it) => it.layout);
   if (!items.length) return;
@@ -13966,51 +13966,69 @@ function openInsightsDialog(g, existing) {
 }
 
 // ✨ Auto-build: analyze the data sheet and generate a full starter dashboard.
+// Analyze every data sheet in the block and compose a holistic, cross-sheet
+// command-center dashboard: headline KPIs drawn from each sheet, charts from
+// the richest sheets, filters, insights and a heatmap table.
 function autoBuildDashboard(g) {
   if (!WB.canEdit || !isDashboardSheet(g.sheet)) return;
-  const src = defaultSrcSheet(g);
-  if (!src || isDashboardSheet(src)) { _toast("Add a data sheet first, then Auto-build", "warn"); return; }
-  const rng = sheetDataRange(src);
-  const cols = analyzeColumns(src, rng);
-  const nums = cols.filter((c) => c.kind === "number");
-  const cats = cols.filter((c) => c.kind === "cat");
-  const dates = cols.filter((c) => c.kind === "date");
-  if (!nums.length) { _toast("No numeric columns found to summarize", "warn"); return; }
+  const sheets = blockDataSheets(g);
+  if (!sheets.length) { _toast("Add a data sheet first, then Auto-build", "warn"); return; }
+  // review all sheets; keep those with numeric data, richest first
+  const analyzed = sheets.map((s) => {
+    const rng = sheetDataRange(s);
+    const cols = analyzeColumns(s, rng);
+    const nums = cols.filter((c) => c.kind === "number");
+    const cats = cols.filter((c) => c.kind === "cat");
+    const dates = cols.filter((c) => c.kind === "date");
+    const rows = Math.max(0, rng.r1 - rng.r0);
+    return { s, rng, cols, nums, cats, dates, rows, score: nums.length * 2 + cats.length + dates.length * 1.5 + Math.min(rows, 60) / 60 };
+  }).filter((a) => a.nums.length && a.rows >= 1);
+  if (!analyzed.length) { _toast("No numeric data found on any sheet to summarize", "warn"); return; }
+  analyzed.sort((a, b) => b.score - a.score);
+
   const build = () => {
     const rid = (p) => p + Math.random().toString(36).slice(2, 8);
-    const themes = ["vibrant", "ocean", "forest", "sunset", "berry"];
-    const kpis = [], charts = [], tables = [], insights = [], controls = [];
-    insights.push({ id: rid("in"), label: "Insights", srcSheetId: src.id });
-    nums.slice(0, 4).forEach((n, i) => kpis.push({
-      id: rid("kp"), label: n.name, agg: "sum", valueRef: `${colLabel(n.c)}${rng.r0 + 2}:${colLabel(n.c)}${rng.r1 + 1}`,
-      format: "compact", theme: themes[i % themes.length], srcSheetId: src.id,
-    }));
-    // a chart over the first category (or date) vs the first numeric
-    const labelCol = dates[0] || cats[0] || cols[0];
-    if (labelCol) {
-      charts.push({
-        id: rid("ch"), type: dates[0] ? "line" : "column", title: `${nums[0].name} by ${labelCol.name}`,
-        theme: "vibrant", labels: false, grid: true, trend: !!dates[0], forecast: dates[0] ? 3 : 0,
-        r0: rng.r0, c0: labelCol.c, r1: rng.r1, c1: nums[0].c >= labelCol.c ? nums[0].c : labelCol.c,
-        srcSheetId: src.id,
-      });
+    const themes = ["vibrant", "ocean", "forest", "sunset", "berry", "route"];
+    const controls = [], insights = [], kpis = [], charts = [], tables = [], texts = [];
+    let ti = 0;
+    texts.push({ id: rid("tx"), heading: (WB.wb && WB.wb.title) || g.sheet.name, body: `Auto-built overview across ${analyzed.length} sheet${analyzed.length > 1 ? "s" : ""}.` });
+    // KPI row: the headline metric from each sheet, then fill toward ~8 tiles
+    const colRange = (a, col) => `${colLabel(col.c)}${a.rng.r0 + 2}:${colLabel(col.c)}${a.rng.r1 + 1}`;
+    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), format: "compact", theme: themes[ti++ % themes.length], srcSheetId: a.s.id });
+    for (const a of analyzed) { if (kpis.length >= 8) break; pushKpi(a, a.nums[0]); }
+    for (const a of analyzed) { if (kpis.length >= 8) break; if (a.nums[1]) pushKpi(a, a.nums[1]); }
+    // charts from the richest sheets that have a dimension with metrics to its right
+    const chartable = analyzed.map((a) => {
+      const dim = a.dates[0] || a.cats[0];
+      if (!dim) return null;
+      const right = a.nums.filter((n) => n.c > dim.c);
+      if (!right.length) return null;
+      return { a, dim, c0: dim.c, c1: Math.min(dim.c + 9, Math.max(...right.map((n) => n.c))) };
+    }).filter(Boolean).slice(0, 2);
+    for (const { a, dim, c0, c1 } of chartable) {
+      charts.push({ id: rid("ch"), type: a.dates[0] ? "line" : "column", title: `${a.s.name} · by ${dim.name}`, theme: "vibrant", labels: false, grid: true, trend: !!a.dates[0], forecast: a.dates[0] ? 3 : 0, r0: a.rng.r0, c0, r1: a.rng.r1, c1, srcSheetId: a.s.id });
     }
-    if (cats[0]) controls.push({ id: rid("fc"), label: cats[0].name, ctype: "value", col: cats[0].c, value: "", srcSheetId: src.id });
-    if (dates[0]) controls.push({ id: rid("fc"), label: `${dates[0].name} range`, ctype: "daterange", col: dates[0].c, value: "all", srcSheetId: src.id });
-    tables.push({ id: rid("tb"), title: "Data", range: rangeRefText(rng), header: true, maxRows: 50, heatmap: true, srcSheetId: src.id });
-    // give each a temporary layout; tidy re-flows them into a grid
+    // insights + heatmap table + filters from the single richest sheet
+    const top = analyzed[0];
+    insights.push({ id: rid("in"), label: `Insights · ${top.s.name}`, srcSheetId: top.s.id });
+    tables.push({ id: rid("tb"), title: top.s.name, range: rangeRefText(top.rng), header: true, maxRows: 40, heatmap: true, srcSheetId: top.s.id });
+    if (top.cats[0]) controls.push({ id: rid("fc"), label: top.cats[0].name, ctype: "value", col: top.cats[0].c, value: "", srcSheetId: top.s.id });
+    const dateSheet = analyzed.find((a) => a.dates.length);
+    if (dateSheet) controls.push({ id: rid("fc"), label: `${dateSheet.dates[0].name} range`, ctype: "daterange", col: dateSheet.dates[0].c, value: "all", srcSheetId: dateSheet.s.id });
+    // place in reading order; tidy re-flows into a grid
     let y = 24;
     const place = (arr, w, h) => arr.forEach((it) => { it.layout = { x: 24, y, w, h }; y += h + 16; });
-    place(controls, 240, 100); place(insights, 340, 200); place(kpis, 248, 132); place(charts, 460, 300); place(tables, 520, 300);
-    g.sheet.meta = { ...(g.sheet.meta || {}), controls, insights, kpis, charts, tables };
+    place(texts, 520, 86); place(controls, 240, 100); place(kpis, 248, 132); place(insights, 340, 200); place(charts, 460, 300); place(tables, 560, 320);
+    g.sheet.meta = { ...(g.sheet.meta || {}), controls, insights, kpis, charts, tables, texts };
     saveSheetMeta(g.sheet.id);
-    wbLog("sheet.autobuild", `auto-built a dashboard from ${src.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    wbLog("sheet.autobuild", `auto-built a dashboard across ${analyzed.length} sheets`, { target_type: "sheet", target_id: g.sheet.id });
     computeGeometry(g);
     renderCharts(g);
-    tidyDashboard(g);
+    tidyDashboard(g, true);
+    _toast(`Built a dashboard across ${analyzed.length} sheet${analyzed.length > 1 ? "s" : ""}`, "ok");
   };
   if (allEmbeds(g.sheet).length) {
-    confirmModal({ title: "Auto-build this dashboard?", body: `This replaces the current widgets with a fresh dashboard generated from “${esc(src.name)}”.`, confirmLabel: "Auto-build", onConfirm: build });
+    confirmModal({ title: "Auto-build this dashboard?", body: `This reviews all ${analyzed.length} data sheet${analyzed.length > 1 ? "s" : ""} and replaces the current widgets with a fresh command-center dashboard.`, confirmLabel: "Auto-build", onConfirm: build });
   } else build();
 }
 
