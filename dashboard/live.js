@@ -40008,58 +40008,12 @@ if (typeof _origOpenOkamiOverlay === "function") {
 // the dropdown. Restoring saved state on view show keeps the
 // checkboxes in sync across reloads.
 const _RR_SF_RULES_KEY = "rr-sched-smartfill-rules";
-// ─── v2 popover · segmented "pill" controls ──────────────────────────
-// These replaced the old dropdowns. Each .sf2-seg container gets a
-// synthetic `value` property (get → active pill's data-val, set →
-// activates the matching pill) so every bit of existing restore/persist
-// code that did `el.value = x` / read `el.value` keeps working without a
-// rewrite. Idempotent: safe to call repeatedly.
-function _rrInitSfSegments() {
-  document.querySelectorAll("#rr-sched-smartfill-rules-body .sf2-seg").forEach((seg) => {
-    if (seg._rrSegInit) return;
-    seg._rrSegInit = true;
-    Object.defineProperty(seg, "value", {
-      configurable: true,
-      get() {
-        const a = seg.querySelector(".sf2-seg-btn.is-active");
-        return a ? a.getAttribute("data-val") : "";
-      },
-      set(v) {
-        const want = String(v);
-        seg.querySelectorAll(".sf2-seg-btn").forEach((b) => {
-          const on = b.getAttribute("data-val") === want;
-          b.classList.toggle("is-active", on);
-          b.setAttribute("aria-checked", on ? "true" : "false");
-        });
-      },
-    });
-  });
-}
-// Clicking a pill activates it and fires a synthetic `change` from the
-// container, so the existing data-rr-sf-select / -budget / id-keyed
-// change handlers persist it exactly as they did for the old <select>.
-document.addEventListener("click", (e) => {
-  const btn = e.target && e.target.closest && e.target.closest(
-    "#rr-sched-smartfill-rules-body .sf2-seg-btn");
-  if (!btn) return;
-  const seg = btn.closest(".sf2-seg");
-  if (!seg) return;
-  e.preventDefault();
-  if (!seg._rrSegInit) _rrInitSfSegments();
-  const val = btn.getAttribute("data-val");
-  if (seg.value === val) return;        // already selected — no-op
-  seg.value = val;                       // setter repaints active pill
-  seg.dispatchEvent(new Event("change", { bubbles: true }));
-});
 
 function _restoreSmartFillRules() {
   let saved;
   try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
   catch (_) { saved = {}; }
   if (!saved || typeof saved !== "object") return;
-  // Wire up the synthetic .value on every segmented control before any
-  // of the value-setting restore code below runs.
-  _rrInitSfSegments();
   document.querySelectorAll("#rr-sched-smartfill-rules-body [data-rr-sf-rule]").forEach(cb => {
     const k = cb.getAttribute("data-rr-sf-rule");
     if (Object.prototype.hasOwnProperty.call(saved, k)) cb.checked = !!saved[k];
@@ -40287,11 +40241,7 @@ function _restoreSfEngineControls(saved) {
     const el = document.getElementById(id);
     if (!el) return;
     const v = savedVal != null ? String(savedVal) : String(def);
-    // Compute-budget controls are now .sf2-seg pill groups — validate
-    // the value against the available pills rather than <option>s.
-    const choices = el.classList && el.classList.contains("sf2-seg")
-      ? Array.from(el.querySelectorAll(".sf2-seg-btn")).map(b => b.getAttribute("data-val"))
-      : Array.from(el.options).map(o => o.value);
+    const choices = Array.from(el.options).map(o => o.value);
     el.value = choices.includes(v) ? v : String(def);
   };
   setSel("rr-sf-solve-time",         saved.solveTimeMs,     _RR_SF_ENGINE_DEFAULTS.solveTimeMs);
@@ -43053,6 +43003,13 @@ document.addEventListener("change", (e) => {
     const v = Math.max(1, Math.min(7, parseInt(sel.value, 10) || 6));
     saved.woc_max_consecutive_days = v;
     sel.value = String(v);
+    // Keep the Workload-limits quick control in step: pin the standard
+    // values, clear the pin otherwise so the quick select shows the
+    // injected "(current)" value instead of a stale pin.
+    try {
+      if (v === 4 || v === 5 || v === 6) localStorage.setItem(_RR_POL_CONSEC_KEY, String(v));
+      else localStorage.removeItem(_RR_POL_CONSEC_KEY);
+    } catch (_) {}
   } else if (sel.id === "rr-set-woc-max-hours") {
     // WOC — max hours a driver can be scheduled per week (1-168).
     const v = Math.max(1, Math.min(168, parseInt(sel.value, 10) || 40));

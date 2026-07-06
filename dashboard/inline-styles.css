@@ -15415,32 +15415,6 @@ body.rr-cmdk-open{ overflow:hidden }
                     #rr-sched-smartfill-rules-body .sf2-number:focus{
                       border-color:var(--accent);outline:1px solid var(--accent);outline-offset:-1px;
                     }
-                    /* Segmented "pill" control — replaces the old dropdowns
-                       so every option is visible inline instead of hidden
-                       behind a menu. One pill is .is-active at a time. The
-                       container exposes a synthetic .value (get/set wired up
-                       in live.js) so the existing restore/persist code drives
-                       it exactly like the <select> it replaced. */
-                    #rr-sched-smartfill-rules-body .sf2-seg{
-                      display:inline-flex;flex-wrap:wrap;gap:4px;
-                    }
-                    #rr-sched-smartfill-rules-body .sf2-seg-btn{
-                      padding:5px 11px;
-                      border:1px solid #D2D0CE;border-radius:999px;
-                      background:#fff;color:#111827;
-                      font-size:12px;font-weight:600;line-height:1.2;
-                      cursor:pointer;
-                      transition:border-color .12s,background .12s,color .12s;
-                    }
-                    #rr-sched-smartfill-rules-body .sf2-seg-btn:hover{
-                      border-color:var(--accent);background:rgba(37,99,235,.06);
-                    }
-                    #rr-sched-smartfill-rules-body .sf2-seg-btn.is-active{
-                      border-color:var(--accent);background:var(--accent);color:#fff;
-                    }
-                    #rr-sched-smartfill-rules-body .sf2-seg-btn:focus-visible{
-                      outline:2px solid var(--accent);outline-offset:1px;
-                    }
                     #rr-sched-smartfill-rules-body .sf2-section-body .sched-smartfill-rule{
                       margin:0;
                     }
@@ -25329,9 +25303,12 @@ body.rr-cmdk-open{ overflow:hidden }
    Engine tuning" (and the top-level section rows) render exactly like
    the rule rows: same type, same 26px height, chevron sitting on the
    same plumb line as the controls. */
+/* Columns: titles · (optional count pill) · 165px chevron gutter. The pill
+   gets its own auto column — sharing the titles' cell made it overlap the
+   Custom rules description text. */
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-section-head-inner{
   display:grid !important;
-  grid-template-columns:minmax(0,1fr) 165px !important;
+  grid-template-columns:minmax(0,1fr) auto 165px !important;
   column-gap:10px !important;
   align-items:center !important;
   padding:0 !important;
@@ -25341,10 +25318,10 @@ body.rr-cmdk-open{ overflow:hidden }
   grid-column:1;grid-row:1;min-width:0;
 }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-adhoc-count-pill{
-  grid-column:1;grid-row:1;justify-self:end;margin-right:0 !important;
+  grid-column:2;grid-row:1;justify-self:end;white-space:nowrap;margin-right:0 !important;
 }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf2-section-chev{
-  grid-column:2;grid-row:1;justify-self:start;
+  grid-column:3;grid-row:1;justify-self:start;
   width:12px;height:12px;
 }
 /* No hierarchy indent — nested section rows line up with the rule rows. */
@@ -25444,6 +25421,15 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-prio-help{
   display:none !important;
 }
+/* The base .sf-engine-datasources / .sf-engine-budget grids are two
+   across — inside the drawer's label|165px rows that leaves ~75px per
+   label, wrapping "Use approved PTO" one word per line. Single column
+   here (the roomy full page keeps the base 2-across layout via
+   .rr-as-page). */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover:not(.rr-as-page) .sf-engine-datasources,
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover:not(.rr-as-page) .sf-engine-budget{
+  display:flex !important;flex-direction:column !important;gap:2px !important;
+}
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-ds{
   display:grid !important;
   grid-template-columns:minmax(0,1fr) 165px !important;
@@ -25466,6 +25452,12 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-budget-label{
   font-size:12.5px !important;font-weight:400 !important;color:#0F172A !important;
+}
+/* Budget dropdowns sit as direct grid children (no .sf2-row-control
+   wrapper) — fill the 165px control column like every other dropdown. */
+#rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-budget-row > .rr-pol-select{
+  grid-column:2;width:100% !important;min-width:0 !important;max-width:none !important;
+  box-sizing:border-box !important;margin:0 !important;
 }
 #rr-sched-smartfill-rules-popover#rr-sched-smartfill-rules-popover .sf-engine-group-label{
   font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
@@ -25890,12 +25882,9 @@ body.rr-cmdk-open{ overflow:hidden }
   width:88px !important; min-width:0 !important; max-width:88px !important;
   text-align:right !important; padding:0 10px !important;
 }
-/* Checkbox + segmented controls: consistent type + rounded pills. */
+/* Checkbox rows: consistent type. */
 #view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sched-smartfill-rule{
   font-size:12.5px !important; color:#0F172A !important;
-}
-#view-schedule #rr-smartfill-page #rr-sched-smartfill-rules-body .sf2-seg-btn{
-  border-radius:8px !important;
 }
 
 /* ── Modern-panel rebuild · Stage 3 · stacked, full-width controls ──────

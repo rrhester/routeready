@@ -765,6 +765,22 @@
                       </div>
                       <div class="sf2-group-label">Working Hours Compliance (WOC)</div>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="woc" checked> <span class="sf-rule-name">Enforce WOC <button type="button" class="rr-pol-info" data-rr-pol-info="cap consecutive working days + weekly hours" aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
+                      <div class="sf2-row">
+                        <label class="sf2-row-label" for="rr-set-woc-max-days">Max consecutive days <button type="button" class="rr-pol-info" data-rr-pol-info="Hard ceiling — Smart Fill never schedules a driver more than this many days in a row. Rolling count, so it catches streaks across week boundaries; a day off or approved PTO resets it." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
+                        <div class="sf2-row-control">
+                          <input type="number" class="sf2-number" id="rr-set-woc-max-days" min="1" max="7" step="1" value="6">
+                          <span style="font-size:11px;color:#6B7280">days in a row</span>
+                        </div>
+                        <p class="sf2-row-help">The same setting as Max Consecutive Days under Workload limits — shown here too because WOC enforces it.</p>
+                      </div>
+                      <div class="sf2-row">
+                        <label class="sf2-row-label" for="rr-set-woc-max-hours">Max weekly hours <button type="button" class="rr-pol-info" data-rr-pol-info="Cap on scheduled hours per driver per week when WOC is enforced." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
+                        <div class="sf2-row-control">
+                          <input type="number" class="sf2-number" id="rr-set-woc-max-hours" min="1" max="168" step="1" value="40">
+                          <span style="font-size:11px;color:#6B7280">hours per week</span>
+                        </div>
+                        <p class="sf2-row-help">Cap on scheduled hours per driver per week when WOC is enforced.</p>
+                      </div>
                       <div class="sf2-group-label">Same-day shifts</div>
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-same-day">Same-day policy <button type="button" class="rr-pol-info" data-rr-pol-info="Block = one shift per driver per day. Allow = a driver can work two shifts the same day." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
@@ -793,22 +809,22 @@
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-att-scheduling">Reward good attendance</label>
                         <div class="sf2-row-control">
-                          <div id="rr-sf-att-scheduling" class="sf2-seg" role="radiogroup" aria-label="Reward good attendance" data-rr-sf-select="attendance_weight_combined">
-                            <button type="button" class="sf2-seg-btn is-active" data-val="off" role="radio" aria-checked="true">Off</button>
-                            <button type="button" class="sf2-seg-btn" data-val="low" role="radio" aria-checked="false">Low</button>
-                            <button type="button" class="sf2-seg-btn" data-val="medium" role="radio" aria-checked="false">Medium</button>
-                            <button type="button" class="sf2-seg-btn" data-val="high" role="radio" aria-checked="false">High</button>
-                          </div>
+                          <select class="rr-pol-select" id="rr-sf-att-scheduling" data-rr-sf-select="attendance_weight_combined" aria-label="Reward good attendance">
+                            <option value="off" selected>Off</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
                         </div>
                       </div>
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-set-affinity-weeks">History to look back on</label>
                         <div class="sf2-row-control">
-                          <div id="rr-set-affinity-weeks" class="sf2-seg" role="radiogroup" aria-label="History to look back on">
-                            <button type="button" class="sf2-seg-btn is-active" data-val="4" role="radio" aria-checked="true">4 weeks</button>
-                            <button type="button" class="sf2-seg-btn" data-val="6" role="radio" aria-checked="false">6 weeks</button>
-                            <button type="button" class="sf2-seg-btn" data-val="8" role="radio" aria-checked="false">8 weeks</button>
-                          </div>
+                          <select class="rr-pol-select" id="rr-set-affinity-weeks" aria-label="History to look back on">
+                            <option value="4" selected>4 weeks</option>
+                            <option value="6">6 weeks</option>
+                            <option value="8">8 weeks</option>
+                          </select>
                         </div>
                       </div>
                     </div>
@@ -906,29 +922,29 @@
                         <div class="sf-engine-budget">
                           <div class="sf-engine-budget-row">
                             <span class="sf-engine-budget-label">Solve time</span>
-                            <div class="sf2-seg" id="rr-sf-solve-time" role="radiogroup" aria-label="Solve time" data-rr-sf-budget="solveTimeMs">
-                              <button type="button" class="sf2-seg-btn" data-val="3000" role="radio" aria-checked="false">Quick (3s)</button>
-                              <button type="button" class="sf2-seg-btn is-active" data-val="8000" role="radio" aria-checked="true">Normal (8s)</button>
-                              <button type="button" class="sf2-seg-btn" data-val="30000" role="radio" aria-checked="false">Thorough (30s)</button>
-                            </div>
+                            <select class="rr-pol-select sf-engine-budget-select" id="rr-sf-solve-time" aria-label="Solve time" data-rr-sf-budget="solveTimeMs">
+                              <option value="3000">Quick (3s)</option>
+                              <option value="8000" selected>Normal (8s)</option>
+                              <option value="30000">Thorough (30s)</option>
+                            </select>
                           </div>
                           <div class="sf-engine-budget-row">
                             <span class="sf-engine-budget-label">Affinity history window</span>
-                            <div class="sf2-seg" id="rr-sf-affinity-weeks" role="radiogroup" aria-label="Affinity history window" data-rr-sf-budget="affinityWeeks">
-                              <button type="button" class="sf2-seg-btn" data-val="2" role="radio" aria-checked="false">2 weeks</button>
-                              <button type="button" class="sf2-seg-btn is-active" data-val="4" role="radio" aria-checked="true">4 weeks</button>
-                              <button type="button" class="sf2-seg-btn" data-val="8" role="radio" aria-checked="false">8 weeks</button>
-                            </div>
+                            <select class="rr-pol-select sf-engine-budget-select" id="rr-sf-affinity-weeks" aria-label="Affinity history window" data-rr-sf-budget="affinityWeeks">
+                              <option value="2">2 weeks</option>
+                              <option value="4" selected>4 weeks</option>
+                              <option value="8">8 weeks</option>
+                            </select>
                           </div>
                           <div class="sf-engine-budget-row">
                             <span class="sf-engine-budget-label">Max days per week</span>
-                            <div class="sf2-seg" id="rr-sf-max-days-override" role="radiogroup" aria-label="Max days per week" data-rr-sf-budget="maxDaysOverride">
-                              <button type="button" class="sf2-seg-btn" data-val="3" role="radio" aria-checked="false">3</button>
-                              <button type="button" class="sf2-seg-btn" data-val="4" role="radio" aria-checked="false">4</button>
-                              <button type="button" class="sf2-seg-btn is-active" data-val="5" role="radio" aria-checked="true">5</button>
-                              <button type="button" class="sf2-seg-btn" data-val="6" role="radio" aria-checked="false">6</button>
-                              <button type="button" class="sf2-seg-btn" data-val="7" role="radio" aria-checked="false">7</button>
-                            </div>
+                            <select class="rr-pol-select sf-engine-budget-select" id="rr-sf-max-days-override" aria-label="Max days per week" data-rr-sf-budget="maxDaysOverride">
+                              <option value="3">3 days</option>
+                              <option value="4">4 days</option>
+                              <option value="5" selected>5 days</option>
+                              <option value="6">6 days</option>
+                              <option value="7">7 days</option>
+                            </select>
                           </div>
                         </div>
                       </div>
