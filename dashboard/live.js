@@ -54872,20 +54872,49 @@ async function renderScheduleWeek() {
   };
   // Driver Affinity %: across this week's assigned shifts, the average
   // affinity each driver has for the weekday they were given — measured
-  // over the DSP's rolling period.
-  let affSum = 0, affDenom = 0;
+  // over the DSP's rolling period. Shifts whose driver has NO history
+  // inside the look-back window can't be scored, so they're excluded
+  // from the average (not counted as 0%) — that's why "N shifts
+  // measured" can sit well below the staffed count on young rosters.
+  let affSum = 0, affDenom = 0, affAssigned = 0;
   let _affMap = null;
+  const _affNoHistory = new Set();
+  const _affWithHistory = new Set();
   try {
     _affMap = await _rrComputeWeekdayAffinity(dspId, _schedStart, _rrAffinityWeeks());
     for (const sh of (grid.shifts || [])) {
       if (!sh.driver_id || sh.status !== "scheduled") continue;
+      affAssigned += 1;
       const arr = _affMap.get(sh.driver_id);
-      if (!arr) continue;
+      if (!arr) { _affNoHistory.add(sh.driver_id); continue; }
+      _affWithHistory.add(sh.driver_id);
       const dow = new Date(sh.date + "T12:00:00").getDay();
       affDenom += 1;
       affSum += arr[dow] || 0;
     }
   } catch (e) { console.warn("affinity KPI failed:", e); }
+  // Stash everything the Affinity drill-down popout needs (same pattern
+  // as _rrLiveSchedPreferred above) — the strip row used to be a dead
+  // end, leaving "N shifts measured" unexplained.
+  {
+    const _affWeeks = _rrAffinityWeeks();
+    const _affWk = new Date(_schedStart + "T12:00:00");
+    const _affName = (id) => {
+      const d = drivers.find((x) => x.id === id);
+      return d ? (d.preferred_name || d.full_name || "Driver") : "Driver";
+    };
+    window._rrLiveSchedAffinity = {
+      weekStart: _schedStart,
+      pct: affDenom > 0 ? Math.round(affSum / affDenom) : null,
+      measured: affDenom,
+      assigned: affAssigned,
+      rollingWeeks: _affWeeks,
+      histStart: fmtIsoDate(addDays(_affWk, -7 * _affWeeks)),
+      histEnd: fmtIsoDate(addDays(_affWk, -1)),
+      driversMeasured: _affWithHistory.size,
+      driversNoHistory: [..._affNoHistory].map(_affName).sort((a, b) => a.localeCompare(b)),
+    };
+  }
 
   // ── Driver Intelligence data ──────────────────────────────────────────
   // Everything the hover card (rendered into the open-shifts rail) needs,
@@ -55387,8 +55416,12 @@ async function renderScheduleWeek() {
         const affinityTier = affDenom === 0 ? "green" : affPct >= 75 ? "green" : affPct >= 50 ? "yellow" : "red";
         return row("affinity", affinityTier, "Affinity",
           affDenom > 0 ? `${affPct}%` : "—",
-          affDenom > 0 ? `${affDenom} shift${affDenom === 1 ? "" : "s"} measured` : "No driver scheduling history yet",
-          false);
+          affDenom > 0
+            ? (affAssigned > affDenom
+                ? `${affDenom} of ${affAssigned} shift${affAssigned === 1 ? "" : "s"} measured`
+                : `${affDenom} shift${affDenom === 1 ? "" : "s"} measured`)
+            : "No driver scheduling history yet",
+          true);
       })() +
       row("rotation", rotationDotRed ? "red" : "green", "Fleet",
         femRisks.length === 0 ? "Healthy" : `${femRisks.length} at risk`, rotationSub, femRisks.length > 0) +
@@ -57582,22 +57615,30 @@ function bindSchedWeekNav() {
       } else {
         statusMsg = "No drivers are scheduled yet — the FT/PT mix appears once the week is staffed.";
       }
-      // Hiring recommendation to bring the mix back to the 85% FT target.
-      //   too low  → hire FT: x where (ft+x)/(total+x) = 0.85
-      //   too high → hire PT: y where ft/(total+y) = 0.85
-      let hireMsg = "";
+      // Rebalance recommendation to bring the mix back to the 85% FT
+      // target. The mix is a ratio over the drivers already scheduled, so
+      // the lever is schedule conversion, not headcount — hiring is the
+      // Coverage KPI's recommendation, tied to an actual shortfall.
+      //   too low  → convert PT→FT: c where (ft + c) / total = 0.85
+      //   too high → shift  FT→PT:  s where (ft - s) / total = 0.85
+      // Only shown when the move actually lands in the 80–90% healthy
+      // band — on tiny rosters no whole-driver move can, and advice that
+      // overshoots the band reads worse than none.
+      let rebalanceMsg = "";
       if (live && live.totalScheduled > 0 && tier !== "green") {
         const ft = live.ftCount || 0, total = live.totalScheduled || 0;
         if (ftPct < 85) {
-          const x = Math.ceil((0.85 * total - ft) / 0.15);
-          if (x > 0) hireMsg = `To reach the 85% target, hire <strong>${x}</strong> more full-time driver${x === 1 ? "" : "s"} (or convert part-time drivers to full-time).`;
+          const c = Math.ceil(0.85 * total - ft);
+          if (c > 0 && Math.round((ft + c) / total * 100) <= 90)
+            rebalanceMsg = `To reach the 85% target, move <strong>${c}</strong> part-time driver${c === 1 ? "" : "s"} to full-time schedules (40h+) — no new hires needed. Headcount is driven by Coverage, not by the mix.`;
         } else if (ftPct > 85) {
-          const y = Math.ceil(ft / 0.85 - total);
-          if (y > 0) hireMsg = `To reach the 85% target, add <strong>${y}</strong> more part-time driver${y === 1 ? "" : "s"} (or shift full-time drivers to part-time).`;
+          const s = Math.ceil(ft - 0.85 * total);
+          if (s > 0 && Math.round((ft - s) / total * 100) >= 80)
+            rebalanceMsg = `To reach the 85% target, move <strong>${s}</strong> full-time driver${s === 1 ? "" : "s"} to part-time schedules — no new hires needed. Headcount is driven by Coverage, not by the mix.`;
         }
       }
-      const hireHtml = hireMsg
-        ? `<div class="rr-cov-needed-sub" style="margin-top:8px">${hireMsg}</div>` : "";
+      const rebalanceHtml = rebalanceMsg
+        ? `<div class="rr-cov-needed-sub" style="margin-top:8px">${rebalanceMsg}</div>` : "";
       const curLine = live && live.totalScheduled > 0
         ? `${ftPct}% Full-Time / ${ptPct}% Part-Time`
         : "—";
@@ -57620,7 +57661,7 @@ function bindSchedWeekNav() {
               <div class="rr-cov-needed-sub"><strong>Target</strong> · 85% Full-Time</div>
               <div class="rr-cov-needed-sub" style="margin-top:4px"><strong>Healthy range</strong> · 80%–90% Full-Time</div>
               <div class="rr-cov-needed-sub" style="margin-top:10px">${statusMsg}</div>
-              ${hireHtml}
+              ${rebalanceHtml}
             </div>
             <p class="rr-cov-empty" style="margin-top:12px">Target is not 100%. RouteReady treats FT/PT Mix as an optimization metric, not a maximization metric.</p>
           </div>
@@ -57667,6 +57708,116 @@ function bindSchedWeekNav() {
       const modal = document.getElementById("rr-ftpt-kpi-modal");
       if (!modal) return;
       if (e.target.closest('[data-rr-kpi="ftpt"]') || e.target.closest("#rr-ftpt-kpi-modal")) return;
+      modal.remove();
+    });
+  }
+
+  // ── Affinity KPI · click deep-dive (mirrors the FT/PT popout) ──
+  // Explains what the score means and, crucially, why "N shifts
+  // measured" can be far below the staffed count: only shifts whose
+  // driver has history inside the look-back window are scorable.
+  if (!window._rrAffinityKpiHandlerInstalled) {
+    window._rrAffinityKpiHandlerInstalled = true;
+
+    const _openAffinityModal = (anchorEl) => {
+      document.getElementById("rr-affinity-kpi-modal")?.remove();
+      const live = window._rrLiveSchedAffinity || null;
+      if (!live) return;
+      const fmtD = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const windowLbl = `${fmtD(live.histStart)} – ${fmtD(live.histEnd)}`;
+      const noHist = Array.isArray(live.driversNoHistory) ? live.driversNoHistory : [];
+      const shown = noHist.slice(0, 6).map(escapeHtml).join(", ");
+      const more = noHist.length - Math.min(6, noHist.length);
+      // The "why is the denominator small" box — the whole reason this
+      // popout exists. Three states: nothing measurable yet, partially
+      // measurable, fully measurable.
+      let whyHtml;
+      if (live.measured === 0) {
+        whyHtml = `
+          <div class="rr-cov-needed" style="margin-top:12px">
+            <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">Why nothing is measured yet</div>
+            <div class="rr-cov-needed-sub" style="margin-top:4px">No driver assigned this week has any shift inside the look-back window (${windowLbl}). That's expected right after a DSP starts scheduling in RouteReady — once this week is finalized it becomes next week's history, and the score starts filling in automatically.</div>
+          </div>`;
+      } else if (live.measured < live.assigned) {
+        whyHtml = `
+          <div class="rr-cov-needed" style="margin-top:12px">
+            <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">Why only ${live.measured} of ${live.assigned} shifts are measured</div>
+            <div class="rr-cov-needed-sub" style="margin-top:4px">A shift can only be scored when its driver has at least one assigned shift inside the look-back window (${windowLbl}). <strong>${live.driversMeasured}</strong> of this week's assigned drivers do; the other <strong>${noHist.length}</strong> have no shifts there yet — new drivers, or scheduling that started in RouteReady after ${fmtD(live.histStart)}. Their shifts are left out of the average rather than scored 0%.</div>
+            ${noHist.length ? `<div class="rr-cov-needed-sub" style="margin-top:6px"><strong>No history yet</strong> · ${shown}${more > 0 ? ` +${more} more` : ""}</div>` : ""}
+            <div class="rr-cov-needed-sub" style="margin-top:6px">As weekly schedules accrue, the measured count catches up to the staffed count on its own — nothing to fix.</div>
+          </div>`;
+      } else {
+        whyHtml = `
+          <div class="rr-cov-needed" style="margin-top:12px">
+            <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">Every assigned shift is measured</div>
+            <div class="rr-cov-needed-sub" style="margin-top:4px">All ${live.assigned} assigned shifts this week belong to drivers with history in the look-back window (${windowLbl}), so the score reflects the full schedule.</div>
+          </div>`;
+      }
+      const m = document.createElement("div");
+      m.id = "rr-affinity-kpi-modal";
+      m.className = "modal-backdrop open rr-cov-kpi-anchored";
+      m.innerHTML = `
+        <div id="rr-affinity-kpi-card" class="modal-card" style="max-width:460px">
+          <div class="modal-head">
+            <div>
+              <p class="modal-title">Driver Affinity${live.pct != null ? ` · ${live.pct}%` : ""}</p>
+              <p class="modal-sub">How familiar drivers are with the weekdays they were given</p>
+            </div>
+            <button type="button" id="rr-affinity-kpi-close" class="modal-close" aria-label="Close">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="rr-cov-needed">
+              <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">How it's scored</div>
+              <div class="rr-cov-needed-sub" style="margin-top:4px">Each measured shift is scored by how often its driver worked that same weekday over the last <strong>${live.rollingWeeks} week${live.rollingWeeks === 1 ? "" : "s"}</strong> (${windowLbl}). A driver who worked 3 of the last 4 Mondays scores 75% on a Monday shift. The KPI is the average across all measured shifts — higher means drivers are staying on the weekdays they know best.</div>
+            </div>
+            ${whyHtml}
+            <p class="rr-cov-empty" style="margin-top:12px">Look-back window: ${live.rollingWeeks} week${live.rollingWeeks === 1 ? "" : "s"} · adjust in Smart Fill → Preferences → "History to look back on".</p>
+          </div>
+        </div>`;
+      document.body.appendChild(m);
+      // Anchor + clamp identically to the Coverage popout.
+      const card = m.querySelector("#rr-affinity-kpi-card");
+      const a = anchorEl || document.querySelector('[data-rr-kpi="affinity"]');
+      if (card && a) {
+        const M = 12;
+        const r = a.getBoundingClientRect();
+        const vh = window.innerHeight;
+        card.style.position = "fixed";
+        card.style.margin = "0";
+        card.style.maxHeight = (vh - M * 2) + "px";
+        card.style.overflowY = "auto";
+        const cw = card.offsetWidth || 420;
+        let left = r.left;
+        if (left + cw > window.innerWidth - M) left = window.innerWidth - cw - M;
+        if (left < M) left = M;
+        card.style.left = left + "px";
+        const ch = card.offsetHeight || 0;
+        let top = r.bottom + 6;
+        if (top + ch > vh - M) top = vh - M - ch;
+        if (top < M) top = M;
+        card.style.top = top + "px";
+      }
+    };
+
+    document.addEventListener("click", (e) => {
+      const modal = document.getElementById("rr-affinity-kpi-modal");
+      if (modal && (e.target === modal || e.target.closest("#rr-affinity-kpi-close"))) { modal.remove(); return; }
+      const pillEl = e.target.closest('[data-rr-kpi="affinity"]');
+      if (!pillEl) return;
+      e.preventDefault();
+      _openAffinityModal(pillEl);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      document.getElementById("rr-affinity-kpi-modal")?.remove();
+    });
+    // Click-only: click the pill to open (handler above), click outside / Esc to close.
+    document.addEventListener("click", (e) => {
+      const modal = document.getElementById("rr-affinity-kpi-modal");
+      if (!modal) return;
+      if (e.target.closest('[data-rr-kpi="affinity"]') || e.target.closest("#rr-affinity-kpi-modal")) return;
       modal.remove();
     });
   }
