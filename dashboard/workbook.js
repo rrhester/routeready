@@ -13791,15 +13791,36 @@ function controlPredicate(control, src, now) {
   if (control.value == null || control.value === "") return null;
   return (r) => String(displayValue(src, r, control.col) ?? "").trim() === String(control.value);
 }
-// Combined row predicate for a source sheet from all active controls on the
-// dashboard that target it (AND across controls). Null = no filtering.
+// First column on `sheet` whose header (row 0) matches `nameLower`.
+function findColumnByName(sheet, nameLower) {
+  if (!nameLower) return null;
+  const rng = sheetDataRange(sheet);
+  for (let c = rng.c0; c <= rng.c1; c++) {
+    if (String(displayValue(sheet, 0, c) ?? "").trim().toLowerCase() === nameLower) return c;
+  }
+  return null;
+}
+// Combined row predicate for a target sheet. Controls filter ACROSS sheets: a
+// control bound to (say) "Driver" on the Roster sheet also drives any widget
+// whose source sheet has a "Driver" column — matched by header name. A control
+// simply doesn't apply to sheets that lack a matching column. (AND across
+// controls; null = no filtering.)
 function dashboardRowFilter(g, srcId) {
   if (!isDashboardSheet(g.sheet)) return null;
-  const src = (WB.sheetsByBlock.get(g.blockId) || []).find((s) => s.id === srcId) || g.sheet;
-  const preds = sheetControls(g.sheet)
-    .filter((c) => embedSourceSheet(g, c).id === srcId)
-    .map((c) => controlPredicate(c, src))
-    .filter(Boolean);
+  const target = (WB.sheetsByBlock.get(g.blockId) || []).find((s) => s.id === srcId) || g.sheet;
+  const preds = [];
+  for (const c of sheetControls(g.sheet)) {
+    if (typeof c.col !== "number") continue;
+    const ctrlSrc = embedSourceSheet(g, c);
+    let targetCol = c.col;
+    if (ctrlSrc.id !== target.id) {
+      const name = String(displayValue(ctrlSrc, 0, c.col) ?? "").trim().toLowerCase();
+      targetCol = findColumnByName(target, name);
+      if (targetCol == null) continue;   // this sheet has no matching column
+    }
+    const p = controlPredicate({ ...c, col: targetCol }, target);
+    if (p) preds.push(p);
+  }
   if (!preds.length) return null;
   return (r) => preds.every((p) => p(r));
 }
@@ -18689,7 +18710,7 @@ export const __engine = {
   condBarPercent, condIconPick, WB_CF_ICONSETS, isCellProtected, runQuery,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
-  dateRangeSerials, controlPredicate, DATE_PRESETS,
+  dateRangeSerials, controlPredicate, DATE_PRESETS, findColumnByName,
   linearFit, analyzeColumns, computeInsights,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,
