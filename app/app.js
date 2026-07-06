@@ -3211,13 +3211,31 @@ function _scanDetectQuad(srcCanvas) {
     g[i] = data[p] * 0.299 + data[p + 1] * 0.587 + data[p + 2] * 0.114;
   }
 
+  // Light 3×3 box blur before edge detection — suppresses paper texture,
+  // print noise, and JPEG blocking that would otherwise fire spurious
+  // edges and fragment the document outline.
+  const gb = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let s = 0, c = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = y + dy; if (yy < 0 || yy >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx; if (xx < 0 || xx >= w) continue;
+          s += g[yy * w + xx]; c++;
+        }
+      }
+      gb[y * w + x] = s / c;
+    }
+  }
+
   const mag = new Float32Array(w * h);
   let sum = 0, sum2 = 0, cnt = 0;
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const i = y * w + x;
-      const gx = -g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1] + g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1];
-      const gy = -g[i - w - 1] - 2 * g[i - w] - g[i - w + 1] + g[i + w - 1] + 2 * g[i + w] + g[i + w + 1];
+      const gx = -gb[i - w - 1] - 2 * gb[i - 1] - gb[i + w - 1] + gb[i - w + 1] + 2 * gb[i + 1] + gb[i + w + 1];
+      const gy = -gb[i - w - 1] - 2 * gb[i - w] - gb[i - w + 1] + gb[i + w - 1] + 2 * gb[i + w] + gb[i + w + 1];
       const m = Math.abs(gx) + Math.abs(gy);
       mag[i] = m; sum += m; sum2 += m * m; cnt++;
     }
@@ -3229,26 +3247,53 @@ function _scanDetectQuad(srcCanvas) {
   const edge = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) edge[i] = mag[i] > thr ? 1 : 0;
 
-  let tl = null, tr = null, br = null, bl = null, n = 0;
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      const i = y * w + x;
-      if (!edge[i]) continue;
-      // Speckle denoise: keep only edge pixels backed by neighbours, so a
-      // lone noisy pixel in a frame corner can't hijack an extreme.
-      const nb = edge[i - 1] + edge[i + 1] + edge[i - w] + edge[i + w]
-               + edge[i - w - 1] + edge[i - w + 1] + edge[i + w - 1] + edge[i + w + 1];
-      if (nb < 2) continue;
-      n++;
+  // ── Largest connected edge component ────────────────────────────────
+  // The document's border is one big connected outline that spans the
+  // frame; background clutter (desk text, other objects, hands) forms
+  // separate, smaller blobs. We label 8-connected edge components and
+  // keep the one with the largest bounding box — a thin page outline
+  // that spans the frame beats a dense-but-compact text block — then
+  // read the corners from just that component's extremes. Isolating the
+  // dominant outline is what makes detection robust to a messy
+  // background, where taking extremes over *all* edge pixels would let a
+  // stray blob in a corner drag the quad off the document.
+  const label = new Int32Array(w * h);   // 0 = unlabeled
+  const stack = [];
+  let best = null, lbl = 0;
+  for (let i0 = 0; i0 < w * h; i0++) {
+    if (!edge[i0] || label[i0]) continue;
+    lbl++;
+    label[i0] = lbl;
+    stack.length = 0; stack.push(i0);
+    let count = 0, minx = w, maxx = 0, miny = h, maxy = 0;
+    let tl = null, tr = null, br = null, bl = null;
+    while (stack.length) {
+      const p = stack.pop();
+      const x = p % w, y = (p / w) | 0;
+      count++;
+      if (x < minx) minx = x; if (x > maxx) maxx = x;
+      if (y < miny) miny = y; if (y > maxy) maxy = y;
       const s = x + y, d = x - y;
       if (!tl || s < tl[0] + tl[1]) tl = [x, y];
       if (!br || s > br[0] + br[1]) br = [x, y];
       if (!tr || d > tr[0] - tr[1]) tr = [x, y];
       if (!bl || d < bl[0] - bl[1]) bl = [x, y];
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = y + dy; if (yy < 0 || yy >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const xx = x + dx; if (xx < 0 || xx >= w) continue;
+          const ni = yy * w + xx;
+          if (edge[ni] && !label[ni]) { label[ni] = lbl; stack.push(ni); }
+        }
+      }
     }
+    if (count < 40) continue;                    // ignore speckle
+    const area = (maxx - minx + 1) * (maxy - miny + 1);
+    if (!best || area > best.area) best = { area, tl, tr, br, bl };
   }
-  if (n < 40 || !tl) return null;
-  const quad = [tl, tr, br, bl];
+  if (!best) return null;
+  const quad = [best.tl, best.tr, best.br, best.bl];
   if (!_scanQuadValid(quad, w, h)) return null;
   return quad.map((p) => [p[0] / scale, p[1] / scale]);
 }
