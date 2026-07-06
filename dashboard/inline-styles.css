@@ -2540,6 +2540,10 @@ button.card:focus-visible{
 }
 .wx-callout-detail strong{font-weight:700;color:var(--info-dark)}
 .wx-callout-detail .meta{color:var(--text-subtle);font-weight:500}
+.wx-callout-attrib{
+  display:block;margin-top:2px;font-size:var(--fs-xs);
+  color:var(--info-dark);font-weight:600;
+}
 .wx-callout-foot{
   font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-2);
 }
@@ -4329,6 +4333,26 @@ select.form-input{
 .status-btn.active.s-noshow{background:var(--text);border-color:var(--text);color:var(--text-inverse)}
 .status-btn.active.s-vto{background:var(--sky);border-color:var(--sky);color:var(--text-inverse)}
 .status-btn svg{width:14px;height:14px;stroke-width:2.5}
+
+/* Call-out cause picker — revealed under a row marked call-out / no-show */
+.checkin-reason{
+  grid-column:1 / -1;
+  display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2);
+  margin-top:var(--s-2);padding-top:var(--s-2);border-top:1px dashed var(--border);
+}
+.checkin-reason.hidden{display:none}
+.checkin-reason-label{
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--text-muted);
+}
+.reason-chip{
+  font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
+  background:var(--surface);border:1px solid var(--border);border-radius:999px;
+  padding:3px 10px;cursor:pointer;
+  transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+}
+.reason-chip:hover{border-color:var(--border-strong);color:var(--text)}
+.reason-chip.active{background:var(--info-dark);border-color:var(--info-dark);color:var(--text-inverse)}
 
 .checkin-foot{
   position:sticky;bottom:0;background:var(--surface);

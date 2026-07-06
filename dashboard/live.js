@@ -13131,6 +13131,20 @@ document.addEventListener("keydown", (e) => {
 const _CI_TO_STATUS = { present: "completed", late: "late", callout: "called_off", noshow: "no_show", vto: "vto" };
 const _STATUS_TO_CI = Object.fromEntries(Object.entries(_CI_TO_STATUS).map(([k, v]) => [v, k]));
 
+// Cause of a call-out (shifts.callout_reason) — captured in the check-in
+// tool when a shift is marked call-out / no-show. Values must match the
+// public.callout_reason enum (migration 0419). 'weather' feeds the direct
+// weather-attribution signal in weather_callout_model().
+const CALLOUT_REASONS = [
+  ["weather",   "Weather / roads"],
+  ["illness",   "Sick"],
+  ["personal",  "Personal"],
+  ["family",    "Family"],
+  ["transport", "Transport"],
+  ["other",     "Other"],
+];
+const CALLOUT_REASON_LABEL = Object.fromEntries(CALLOUT_REASONS);
+
 // ─── Dashboard · Weather (NWS forecast + alerts) ──────────────────────
 
 let _weatherRefreshTimer = null;
@@ -13203,6 +13217,9 @@ function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
         // weather-only lift (naive lift with weekday-type + season removed)
         weatherLift: b.weather_lift == null ? null : Number(b.weather_lift),
         calExpRate: b.calendar_expected_rate == null ? null : Number(b.calendar_expected_rate),
+        // directly-recorded attribution (from the check-in reason tag)
+        callouts: b.callouts || 0,
+        weatherCallouts: b.weather_callouts || 0,
       }])
     );
 
@@ -13267,6 +13284,9 @@ function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
         controlled,
         weatherLift: controlled ? b.weatherLift : null,
         calExpRate: controlled ? b.calExpRate : null,
+        // direct attribution from the check-in reason tag, when present
+        bucketCallouts: b.callouts || 0,
+        weatherCallouts: b.weatherCallouts || 0,
         trusted,
       });
     }
@@ -13287,10 +13307,15 @@ function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
            weekday &amp; season are out <span class="meta">(calendar alone ≈${Math.round(r.calExpRate * 100)}%)</span>${conf}`
         : `${escapeHtml(label)} runs <strong>${pct}%</strong> vs ${baselinePct}% typical
            <span class="meta">· calendar not yet separable</span>${conf}`;
+      // Direct attribution: when dispatch has tagged past call-outs in this
+      // bucket, show the recorded weather share — a fact, not an inference.
+      const attrib = r.weatherCallouts > 0 && r.bucketCallouts > 0
+        ? `<span class="wx-callout-attrib">${r.weatherCallouts} of ${r.bucketCallouts} past ${escapeHtml(label)} call-out${r.bucketCallouts === 1 ? "" : "s"} were tagged weather</span>`
+        : "";
       return `<div class="wx-callout-row">
         <span class="wx-callout-day">${escapeHtml(r.wd)}</span>
         <span class="wx-callout-detail"><strong>~${r.expected}</strong> call-out${r.expected === 1 ? "" : "s"} ·
-          ${detail}</span>
+          ${detail}${attrib}</span>
       </div>`;
     }).join("");
 
@@ -14257,19 +14282,24 @@ async function loadCheckinView() {
   // without manually navigating.
   const horizonIso = fmtIsoDate(addDays(new Date(), 7));
 
-  const [driversRes, shiftsRes] = await Promise.all([
+  const shiftQuery = (cols) => sb.from("shifts")
+    .select(cols)
+    .eq("dsp_id", dspId)
+    .gte("date", todayIso)
+    .lte("date", horizonIso)
+    .not("driver_id", "is", null)
+    .order("date", { ascending: true });
+
+  let [driversRes, shiftsRes] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, phone, station:station_id (code), tier")
       .eq("dsp_id", dspId)
       .eq("status", "active"),
-    sb.from("shifts")
-      .select("id, driver_id, status, date")
-      .eq("dsp_id", dspId)
-      .gte("date", todayIso)
-      .lte("date", horizonIso)
-      .not("driver_id", "is", null)
-      .order("date", { ascending: true }),
+    shiftQuery("id, driver_id, status, date, callout_reason"),
   ]);
+  // callout_reason ships with migration 0419 — degrade gracefully if the
+  // column isn't applied yet so check-in never hard-breaks.
+  if (shiftsRes.error) shiftsRes = await shiftQuery("id, driver_id, status, date");
 
   if (driversRes.error || shiftsRes.error) {
     console.warn("checkin load:", driversRes.error || shiftsRes.error);
@@ -14317,6 +14347,18 @@ async function loadCheckinView() {
         const active = ciKey === key ? " active" : "";
         return `<button type="button" class="status-btn s-${key}${active}" data-rr-ci-shift="${sh.id}" data-rr-ci-status="${key}" title="${title}">${svg}</button>`;
       };
+      // Reason (cause) picker — revealed when the row is marked call-out or
+      // no-show. Pre-selects any stored cause. 'weather' feeds the direct
+      // weather-attribution signal in the call-out forecast.
+      const showReason = ciKey === "callout" || ciKey === "noshow";
+      const reasonChips = CALLOUT_REASONS.map(([val, lbl]) =>
+        `<button type="button" class="reason-chip${sh.callout_reason === val ? " active" : ""}"
+           data-rr-reason-shift="${sh.id}" data-rr-reason="${val}">${escapeHtml(lbl)}</button>`
+      ).join("");
+      const reasonHtml = `<div class="checkin-reason${showReason ? "" : " hidden"}" data-rr-reason-box="${sh.id}">
+          <span class="checkin-reason-label">Reason</span>
+          ${reasonChips}
+        </div>`;
       return `<div class="checkin-row${markedClass}" data-name="${escapeHtml(initials)}">
         <div class="checkin-driver">
           <div class="avatar-sm ${tier}">${initials}</div>
@@ -14333,6 +14375,7 @@ async function loadCheckinView() {
           ${btn("noshow",  "No-show", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>')}
           ${btn("vto",     "VTO · Voluntary Time Off (operator-granted, no points)", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>')}
         </div>
+        ${reasonHtml}
       </div>`;
     });
 
@@ -14378,12 +14421,44 @@ document.addEventListener("click", async (e) => {
     row.classList.add("marked", `marked-${ciKey === "noshow" ? "noshow" : ciKey === "callout" ? "callout" : ciKey === "vto" ? "vto" : ciKey}`);
     row.querySelectorAll(".status-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
+
+    // Reveal the cause picker for absences; hide + clear it otherwise.
+    const reasonBox = row.querySelector(".checkin-reason");
+    if (reasonBox) {
+      if (newStatus === "called_off" || newStatus === "no_show") {
+        reasonBox.classList.remove("hidden");
+      } else {
+        reasonBox.classList.add("hidden");
+        const hadReason = !!reasonBox.querySelector(".reason-chip.active");
+        reasonBox.querySelectorAll(".reason-chip.active").forEach(c => c.classList.remove("active"));
+        // Drop any stored cause so a flipped-back shift doesn't keep it.
+        if (hadReason) sb.from("shifts").update({ callout_reason: null }).eq("id", shiftId);
+      }
+    }
   }
   _updateCheckinProgress();
   // Refresh the live Attendance Report (it queries shifts by status) so
   // the tally updates without a full nav. Shifts isn't in the realtime
   // channel, so we trigger the refresh here.
   if (typeof loadAttendanceLive === "function") loadAttendanceLive();
+});
+
+// Click handler: capture the cause of an absence on public.shifts.
+// Re-clicking the active chip clears it (toggle).
+document.addEventListener("click", async (e) => {
+  const chip = e.target.closest("[data-rr-reason][data-rr-reason-shift]");
+  if (!chip) return;
+  e.preventDefault();
+  const shiftId = chip.dataset.rrReasonShift;
+  if (!shiftId) return;
+  const box = chip.closest(".checkin-reason");
+  const wasActive = chip.classList.contains("active");
+  const value = wasActive ? null : chip.dataset.rrReason;
+  _markLocalShiftMutation();
+  const { error } = await sb.from("shifts").update({ callout_reason: value }).eq("id", shiftId);
+  if (error) { toast("Save failed: " + error.message, "warn"); return; }
+  box?.querySelectorAll(".reason-chip").forEach(c => c.classList.remove("active"));
+  if (value) chip.classList.add("active");
 });
 
 
