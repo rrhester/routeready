@@ -6172,6 +6172,7 @@ function mountSheetBlock(block, body) {
           <div class="wb-gr-cells"></div>
           <div class="wb-gr-refhl" aria-hidden="true"></div>
           <div class="wb-gr-sel" aria-hidden="true"></div>
+          <div class="wb-gr-charts" data-wb-charts></div>
           <div class="wb-addrows-row" data-wb-addrowsrow>
             <div class="wb-addrows" data-wb-addrows>
               <button type="button" class="wb-addrows-btn" data-wb-addbtn ${ro ? "disabled" : ""}>Add</button>
@@ -6183,7 +6184,6 @@ function mountSheetBlock(block, body) {
       </div>
       <div class="wb-gr-filterchip" hidden></div>
     </div>
-    <div class="wb-charts" data-wb-charts hidden></div>
     <div class="wb-pivots" data-wb-pivots hidden></div>
     <div class="wb-tabs" data-wb-tabs="${block.id}"></div>
     <div class="wb-statusbar" data-wb-statusbar>
@@ -6456,12 +6456,20 @@ function computeGeometry(g) {
   g.colX = new Array(sheet.colCount + 1);
   g.colX[0] = 0;
   for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + Math.round(colW(sheet, c) * z);
-  g.els.canvas.style.width = g.colX[sheet.colCount] + "px";
+  // floating charts can extend past the cells — grow the canvas so the scroll
+  // range reaches them (extents are in logical px; scale by zoom)
+  let chartW = 0, chartH = 0;
+  for (const ch of sheetCharts(sheet)) {
+    const L = ch.layout; if (!L) continue;
+    chartW = Math.max(chartW, (L.x + L.w) * z);
+    chartH = Math.max(chartH, (L.y + L.h) * z);
+  }
+  g.els.canvas.style.width = Math.max(g.colX[sheet.colCount], Math.ceil(chartW)) + "px";
   // trailing space hosts the "Add N more rows" bar (Sheets-style)
   const addRow = g.els.body.querySelector("[data-wb-addrowsrow]");
   const addH = addRow ? 48 : 0;
   if (addRow) addRow.style.top = g.rowY[rows.length] + 6 + "px";
-  g.els.canvas.style.height = (g.rowY[rows.length] + addH) + "px";
+  g.els.canvas.style.height = Math.max(g.rowY[rows.length] + addH, Math.ceil(chartH) + 12) + "px";
   sizeGrid(g);
 }
 
@@ -6492,6 +6500,7 @@ function setZoom(g, z) {
   cancelEdit(g);
   computeGeometry(g);
   repaintGrid(g);
+  renderCharts(g);   // reposition + resize floating charts for the new zoom
 }
 
 function idxFromPrefix(prefix, pos) {
@@ -11649,6 +11658,22 @@ function exportBlockXlsx(g) {
 // axis text and gridlines use the app's ink tokens.
 
 const WB_CHART_COLORS = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948", "#e87ba4", "#eb6834"];
+// Selectable color themes. "route" and "vibrant" are CVD-validated in fixed
+// order (worst adjacent ΔE clears the 8–12 floor band — legal because charts
+// ship a legend, and optionally direct data labels, as secondary encoding).
+// The single-family themes (ocean/sunset/forest/berry/mono) are deliberate
+// stylistic sets that lean on the legend + labels for series identity.
+const WB_CHART_PALETTES = {
+  route:   WB_CHART_COLORS,
+  vibrant: ["#2563eb", "#16a34a", "#f59e0b", "#db2777", "#7c3aed", "#dc2626", "#0891b2", "#ea580c"],
+  ocean:   ["#0369a1", "#0891b2", "#0d9488", "#059669", "#2563eb", "#4f46e5", "#0ea5e9", "#14b8a6"],
+  sunset:  ["#b91c1c", "#ea580c", "#f59e0b", "#db2777", "#e11d48", "#c026d3", "#f43f5e", "#fb923c"],
+  forest:  ["#15803d", "#4d7c0f", "#ca8a04", "#0f766e", "#166534", "#65a30d", "#a16207", "#047857"],
+  berry:   ["#7c3aed", "#c026d3", "#db2777", "#e11d48", "#9333ea", "#a21caf", "#be185d", "#6d28d9"],
+  mono:    ["#104281", "#184f95", "#1c5cab", "#256abf", "#2a78d6", "#3987e5", "#5598e7", "#86b6ef"],
+};
+const WB_CHART_THEMES = { route: "RouteReady", vibrant: "Vibrant", ocean: "Ocean", sunset: "Sunset", forest: "Forest", berry: "Berry", mono: "Monochrome blue" };
+function chartPalette(ch) { return WB_CHART_PALETTES[ch && ch.theme] || WB_CHART_COLORS; }
 const WB_CHART_TYPES = { column: "Column", bar: "Bar", stackcol: "Stacked column", stackbar: "Stacked bar", line: "Line", area: "Area", combo: "Combo (columns + line)", scatter: "Scatter", pie: "Pie" };
 
 function sheetCharts(sheet) {
@@ -11725,13 +11750,38 @@ function chartBarPath(x, y, w, h, up, color, title) {
   return `<path d="${d}" fill="${color}"><title>${title}</title></path>`;
 }
 
-function chartSvg(sheet, ch) {
+function chartSvg(sheet, ch, opts = {}) {
   const { categories, series } = chartData(sheet, ch);
   if (!categories.length || !series.length) {
     return { svg: `<div class="wb-chart-empty">No numeric data in ${esc(chartRefText(ch))} yet.</div>`, legend: "" };
   }
-  const color = (i) => WB_CHART_COLORS[i % WB_CHART_COLORS.length];
+  const PAL = chartPalette(ch);
+  const color = (i) => PAL[i % PAL.length];
   const t = (s) => esc(String(s));
+  // The chart draws into an SVG viewBox sized to the embed's aspect ratio, so a
+  // resized floating chart re-lays-out rather than just scaling a fixed image.
+  const W = Math.max(220, Math.round(opts.W || 480));
+  const H = Math.max(150, Math.round(opts.H || 220));
+  const showLabels = !!ch.labels;               // direct value labels on marks
+  const showGrid = ch.grid !== false;           // value-axis gridlines (default on)
+  const xTitle = (ch.xTitle || "").trim(), yTitle = (ch.yTitle || "").trim();
+  // Vertical/horizontal fill gradient per series — the "colorful" surface on
+  // bars, columns and single-series areas. Built lazily; injected as <defs>.
+  const gid = "g" + String(ch.id || "x").replace(/[^a-z0-9]/gi, "");
+  let defs = "";
+  const gradSeen = new Set();
+  const grad = (i, dir = "v") => {
+    const id = `${gid}-${dir}${i}`;
+    if (!gradSeen.has(id)) {
+      gradSeen.add(id);
+      const c = color(i);
+      const co = dir === "h" ? `x1="0" y1="0" x2="1" y2="0"` : `x1="0" y1="0" x2="0" y2="1"`;
+      defs += `<linearGradient id="${id}" ${co}><stop offset="0" stop-color="${c}" stop-opacity="0.96"/><stop offset="1" stop-color="${c}" stop-opacity="0.66"/></linearGradient>`;
+    }
+    return `url(#${id})`;
+  };
+  const wrap = (inner, label) => `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${t(ch.title || label)}">${defs ? `<defs>${defs}</defs>` : ""}${inner}</svg>`;
+  const dlabel = (x, y, s, cls) => showLabels ? `<text x="${x}" y="${y}" text-anchor="middle" class="wb-chart-dlabel${cls ? " " + cls : ""}">${t(s)}</text>` : "";
 
   if (ch.type === "pie") {
     const s0 = series[0];
@@ -11742,9 +11792,9 @@ function chartSvg(sheet, ch) {
     }
     const total = entries.reduce((a, e) => a + e.v, 0);
     if (!total) return { svg: `<div class="wb-chart-empty">Nothing to chart in ${esc(chartRefText(ch))}.</div>`, legend: "" };
-    const CX = 240, CY = 110, R = 92;
+    const CX = W / 2, CY = H / 2, R = Math.min(W, H) * 0.42;
     let a0 = -Math.PI / 2;
-    let paths = "";
+    let paths = "", labels = "";
     entries.forEach((e, i) => {
       const frac = e.v / total;
       const a1 = a0 + frac * Math.PI * 2;
@@ -11754,18 +11804,22 @@ function chartSvg(sheet, ch) {
       paths += frac >= 0.999
         ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${color(i)}"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></circle>`
         : `<path d="M${CX},${CY} L${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} Z" fill="${color(i)}" stroke="var(--surface)" stroke-width="2"><title>${t(e.label)} — ${chartFmt(e.v)} (${Math.round(frac * 100)}%)</title></path>`;
+      if (showLabels && frac >= 0.05) {
+        const am = (a0 + a1) / 2, lr = R * 0.62;
+        labels += dlabel(CX + lr * Math.cos(am), CY + lr * Math.sin(am) + 3, Math.round(frac * 100) + "%", "on-fill");
+      }
       a0 = a1;
     });
     const legend = entries.map((e, i) =>
       `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(i)}"></span>${t(e.label)} <span class="wb-chart-keyv">${Math.round((e.v / total) * 100)}%</span></span>`).join("");
-    return { svg: `<svg viewBox="0 0 480 220" role="img" aria-label="${t(ch.title || "Pie chart")}">${paths}</svg>`, legend };
+    return { svg: wrap(paths + labels, "Pie chart"), legend };
   }
 
   if (ch.type === "scatter") {
     // first data column = X (numeric), each further column = a Y series;
     // if X isn't numeric, fall back to the row index
     const xs = categories.map((lb, i) => { const n = Number(lb); return isFinite(n) && lb !== "" ? n : i; });
-    const W = 480, H = 220, padL = 46, padR = 12, padT = 10, padB = 26;
+    const padL = 46 + (yTitle ? 16 : 0), padR = 12, padT = 10, padB = 26 + (xTitle ? 16 : 0);
     const plotW = W - padL - padR, plotH = H - padT - padB;
     const ys = series.flatMap((s) => s.values).filter((v) => v != null);
     if (!ys.length) return { svg: `<div class="wb-chart-empty">No numeric data in ${esc(chartRefText(ch))} yet.</div>`, legend: "" };
@@ -11775,8 +11829,8 @@ function chartSvg(sheet, ch) {
     const px = (v) => padL + ((v - xLo) / (xHi - xLo || 1)) * plotW;
     const py = (v) => padT + plotH - ((v - yLo) / (yHi - yLo || 1)) * plotH;
     let out = "";
-    for (const tk of yt) { out += `<line x1="${padL}" y1="${py(tk)}" x2="${W - padR}" y2="${py(tk)}" stroke="var(--border-subtle)" stroke-width="1"/><text x="${padL - 6}" y="${py(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
-    for (const tk of xt) { out += `<text x="${px(tk)}" y="${H - 8}" text-anchor="middle" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
+    for (const tk of yt) { if (showGrid) out += `<line x1="${padL}" y1="${py(tk)}" x2="${W - padR}" y2="${py(tk)}" stroke="var(--border-subtle)" stroke-width="1"/>`; out += `<text x="${padL - 6}" y="${py(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
+    for (const tk of xt) { out += `<text x="${px(tk)}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${chartFmt(tk)}</text>`; }
     series.forEach((s, si) => {
       s.values.forEach((v, i) => {
         if (v == null) return;
@@ -11784,12 +11838,14 @@ function chartSvg(sheet, ch) {
       });
     });
     out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
+    if (xTitle) out += `<text x="${padL + plotW / 2}" y="${H - 5}" text-anchor="middle" class="wb-chart-axt">${t(xTitle)}</text>`;
+    if (yTitle) out += `<text x="13" y="${padT + plotH / 2}" text-anchor="middle" transform="rotate(-90 13 ${padT + plotH / 2})" class="wb-chart-axt">${t(yTitle)}</text>`;
     const legend = series.length > 1 ? series.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("") : "";
-    return { svg: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t(ch.title || "Scatter chart")}">${out}</svg>`, legend };
+    return { svg: wrap(out, "Scatter chart"), legend };
   }
 
   // shared cartesian frame
-  const W = 480, H = 220, padL = 46, padR = 10, padT = 10, padB = 26;
+  const padL = 46 + (yTitle ? 16 : 0), padR = 10, padT = 10, padB = 26 + (xTitle ? 16 : 0);
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const stacked = ch.type === "stackcol" || ch.type === "stackbar";
   const combo = ch.type === "combo";
@@ -11813,13 +11869,13 @@ function chartSvg(sheet, ch) {
   const vy = (v) => padT + plotH - ((v - lo) / span) * plotH;
   let out = "";
 
-  // gridlines + value axis labels (recessive ink)
+  // gridlines (optional) + value axis labels (recessive ink)
   for (const tk of ticks) {
     if (horizontal) {
-      out += `<line x1="${vx(tk)}" y1="${padT}" x2="${vx(tk)}" y2="${padT + plotH}" stroke="var(--border-subtle)" stroke-width="1"/>`;
-      out += `<text x="${vx(tk)}" y="${H - 8}" text-anchor="middle" class="wb-chart-tick">${chartFmt(tk)}</text>`;
+      if (showGrid) out += `<line x1="${vx(tk)}" y1="${padT}" x2="${vx(tk)}" y2="${padT + plotH}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+      out += `<text x="${vx(tk)}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${chartFmt(tk)}</text>`;
     } else {
-      out += `<line x1="${padL}" y1="${vy(tk)}" x2="${W - padR}" y2="${vy(tk)}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+      if (showGrid) out += `<line x1="${padL}" y1="${vy(tk)}" x2="${W - padR}" y2="${vy(tk)}" stroke="var(--border-subtle)" stroke-width="1"/>`;
       out += `<text x="${padL - 6}" y="${vy(tk) + 3}" text-anchor="end" class="wb-chart-tick">${chartFmt(tk)}</text>`;
     }
   }
@@ -11831,7 +11887,7 @@ function chartSvg(sheet, ch) {
     const short = String(label).slice(0, horizontal ? 9 : 10);
     return horizontal
       ? `<text x="${padL - 6}" y="${padT + ((i + 0.5) / nCat) * plotH + 3}" text-anchor="end" class="wb-chart-tick">${t(short)}</text>`
-      : `<text x="${padL + ((i + 0.5) / nCat) * plotW}" y="${H - 8}" text-anchor="middle" class="wb-chart-tick">${t(short)}</text>`;
+      : `<text x="${padL + ((i + 0.5) / nCat) * plotW}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${t(short)}</text>`;
   };
   categories.forEach((label, i) => { out += catLabel(label, i); });
 
@@ -11852,8 +11908,15 @@ function chartSvg(sheet, ch) {
           if (v == null || v === 0) return;
           const base = v >= 0 ? posAcc : negAcc;
           const title = `${t(label)} · ${t(s.name)}: ${chartFmt(v)}`;
-          if (horizontal) { const a = vx(base), b = vx(base + v); out += `<rect x="${Math.min(a, b)}" y="${off}" width="${Math.abs(b - a)}" height="${inner}" fill="${color(si)}"><title>${title}</title></rect>`; }
-          else { const a = vy(base), b = vy(base + v); out += `<rect x="${off}" y="${Math.min(a, b)}" width="${inner}" height="${Math.abs(b - a)}" fill="${color(si)}"><title>${title}</title></rect>`; }
+          if (horizontal) {
+            const a = vx(base), b = vx(base + v), seg = Math.abs(b - a);
+            out += `<rect x="${Math.min(a, b)}" y="${off}" width="${seg}" height="${inner}" fill="${color(si)}"><title>${title}</title></rect>`;
+            if (showLabels && seg >= 24) out += dlabel(Math.min(a, b) + seg / 2, off + inner / 2 + 3, chartFmt(v), "on-fill");
+          } else {
+            const a = vy(base), b = vy(base + v), seg = Math.abs(b - a);
+            out += `<rect x="${off}" y="${Math.min(a, b)}" width="${inner}" height="${seg}" fill="${color(si)}"><title>${title}</title></rect>`;
+            if (showLabels && seg >= 14) out += dlabel(off + inner / 2, Math.min(a, b) + seg / 2 + 3, chartFmt(v), "on-fill");
+          }
           if (v >= 0) posAcc += v; else negAcc += v;
         });
         return;
@@ -11866,10 +11929,12 @@ function chartSvg(sheet, ch) {
         if (horizontal) {
           const x0 = vx(Math.min(0, v)), x1 = vx(Math.max(0, v));
           const r = Math.min(4, (x1 - x0), bw / 2);
-          out += `<path d="M${x0},${off} L${x1 - r},${off} Q${x1},${off} ${x1},${off + r} L${x1},${off + bw - r} Q${x1},${off + bw} ${x1 - r},${off + bw} L${x0},${off + bw} Z" fill="${color(si)}"><title>${title}</title></path>`;
+          out += `<path d="M${x0},${off} L${x1 - r},${off} Q${x1},${off} ${x1},${off + r} L${x1},${off + bw - r} Q${x1},${off + bw} ${x1 - r},${off + bw} L${x0},${off + bw} Z" fill="${grad(si, "h")}"><title>${title}</title></path>`;
+          if (showLabels) { const ex = v >= 0 ? x1 + 4 : x0 - 4; out += `<text x="${ex}" y="${off + bw / 2 + 3}" text-anchor="${v >= 0 ? "start" : "end"}" class="wb-chart-dlabel">${t(chartFmt(v))}</text>`; }
         } else {
           const y0 = vy(Math.max(0, v)), y1 = vy(Math.min(0, v));
-          out += chartBarPath(off, y0, bw, Math.max(1, y1 - y0), v >= 0, color(si), title);
+          out += chartBarPath(off, y0, bw, Math.max(1, y1 - y0), v >= 0, grad(si, "v"), title);
+          if (showLabels) out += dlabel(off + bw / 2, v >= 0 ? y0 - 4 : y1 + 11, chartFmt(v));
         }
       });
     });
@@ -11881,7 +11946,7 @@ function chartSvg(sheet, ch) {
       s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy(v), i, v]); });
       if (pts.length) {
         out += `<path d="${pts.map((p, k) => `${k ? "L" : "M"}${p[0]},${p[1]}`).join(" ")}" fill="none" stroke="${color(si)}" stroke-width="2.5" stroke-linejoin="round"/>`;
-        for (const [x, y, i, v] of pts) out += `<circle cx="${x}" cy="${y}" r="3" fill="${color(si)}"><title>${t(categories[i])} · ${t(s.name)}: ${chartFmt(v)}</title></circle>`;
+        for (const [x, y, i, v] of pts) { out += `<circle cx="${x}" cy="${y}" r="3" fill="${color(si)}"><title>${t(categories[i])} · ${t(s.name)}: ${chartFmt(v)}</title></circle>`; if (showLabels && nCat <= 14) out += dlabel(x, y - 6, chartFmt(v)); }
       }
     }
     // zero baseline
@@ -11896,21 +11961,47 @@ function chartSvg(sheet, ch) {
       if (!pts.length) return;
       const line = pts.map((p, k) => `${k ? "L" : "M"}${p[0]},${p[1]}`).join(" ");
       if (ch.type === "area" && series.length === 1) {
-        out += `<path d="${line} L${pts[pts.length - 1][0]},${vy(Math.max(lo, 0))} L${pts[0][0]},${vy(Math.max(lo, 0))} Z" fill="${color(si)}29"/>`;
+        const c = color(si), aid = `${gid}-area${si}`;
+        if (!gradSeen.has(aid)) { gradSeen.add(aid); defs += `<linearGradient id="${aid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity="0.42"/><stop offset="1" stop-color="${c}" stop-opacity="0.04"/></linearGradient>`; }
+        out += `<path d="${line} L${pts[pts.length - 1][0]},${vy(Math.max(lo, 0))} L${pts[0][0]},${vy(Math.max(lo, 0))} Z" fill="url(#${aid})"/>`;
       }
       out += `<path d="${line}" fill="none" stroke="${color(si)}" stroke-width="2" stroke-linejoin="round"/>`;
       for (const [x, y, i, v] of pts) {
         out += `<circle cx="${x}" cy="${y}" r="3" fill="${color(si)}"><title>${t(categories[i])} · ${t(s.name)}: ${chartFmt(v)}</title></circle>`;
+        if (showLabels && nCat <= 14) out += dlabel(x, y - 6, chartFmt(v));
       }
     });
     out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
   }
 
+  // axis titles (secondary ink — never the series color)
+  if (xTitle) out += `<text x="${padL + plotW / 2}" y="${H - 5}" text-anchor="middle" class="wb-chart-axt">${t(xTitle)}</text>`;
+  if (yTitle) out += `<text x="13" y="${padT + plotH / 2}" text-anchor="middle" transform="rotate(-90 13 ${padT + plotH / 2})" class="wb-chart-axt">${t(yTitle)}</text>`;
+
   const legend = series.length > 1
     ? series.map((s, si) => `<span class="wb-chart-key"><span class="wb-chart-swatch" style="background:${color(si)}"></span>${t(s.name)}</span>`).join("")
     : "";
-  return { svg: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t(ch.title || WB_CHART_TYPES[ch.type] + " chart")}">${out}</svg>`, legend };
+  return { svg: wrap(out, WB_CHART_TYPES[ch.type] + " chart"), legend };
 }
+
+// ── Embedded (floating) charts ───────────────────────────────────────────────
+// Charts live on the grid as draggable / resizable objects, positioned in the
+// canvas coordinate space so they scroll with the cells. Position + size are
+// stored per chart in `layout` (logical, unzoomed px) and scaled by g.zoom.
+
+function unzoomedColX(sheet, c) { let x = 0; const n = Math.min(c, sheet.colCount); for (let i = 0; i < n; i++) x += colW(sheet, i); return x; }
+function unzoomedRowY(sheet, r) { let y = 0; const n = Math.min(r, sheet.rowCount); for (let i = 0; i < n; i++) y += rowH(sheet, i); return y; }
+
+// Drop a new chart just to the right of its data, cascading so several don't
+// land exactly on top of each other.
+function chartDefaultLayout(g, range) {
+  const sheet = g.sheet;
+  const step = sheetCharts(sheet).filter((c) => c.layout).length % 6;
+  const x = unzoomedColX(sheet, (range ? range.c1 : 0) + 1) + 16 + step * 22;
+  const y = unzoomedRowY(sheet, range ? range.r0 : 0) + step * 22;
+  return { x, y, w: 440, h: 280 };
+}
+function chartLayout(g, ch) { return ch.layout || chartDefaultLayout(g, ch); }
 
 function renderCharts(g) {
   const host = g.els.charts;
@@ -11918,18 +12009,71 @@ function renderCharts(g) {
   const charts = sheetCharts(g.sheet);
   if (!charts.length) { host.innerHTML = ""; host.hidden = true; return; }
   host.hidden = false;
+  const z = g.zoom || 1;
   host.innerHTML = charts.map((ch) => {
-    const { svg, legend } = chartSvg(g.sheet, ch);
-    return `<div class="wb-chart-card" data-wb-chart="${esc(ch.id)}">
-      <div class="wb-chart-head">
+    const L = chartLayout(g, ch);
+    const { svg, legend } = chartSvg(g.sheet, ch, { W: L.w, H: Math.max(120, L.h - 40) });
+    const style = `left:${L.x * z}px;top:${L.y * z}px;width:${L.w * z}px;height:${L.h * z}px`;
+    return `<div class="wb-embed-chart" data-wb-chart="${esc(ch.id)}" style="${style}">
+      <div class="wb-embed-head" ${WB.canEdit ? 'data-wb-chartdrag title="Drag to move"' : ""}>
         <span class="wb-chart-title">${esc(ch.title || `${WB_CHART_TYPES[ch.type] || "Chart"} · ${chartRefText(ch)}`)}</span>
         ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-chartact="edit" title="Edit chart" aria-label="Edit chart"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-chartact="delete" title="Delete chart" aria-label="Delete chart">×</button>` : ""}
       </div>
+      <div class="wb-embed-body">${svg}</div>
       ${legend ? `<div class="wb-chart-legend">${legend}</div>` : ""}
-      ${svg}
+      ${WB.canEdit ? `<span class="wb-embed-grip" data-wb-chartresize title="Drag to resize" aria-hidden="true"></span>` : ""}
     </div>`;
   }).join("");
+  bindEmbedChartInteract(g);
+}
+
+// Delegated drag (move) and resize for the floating chart cards. Bound once.
+function bindEmbedChartInteract(g) {
+  if (g._chartsBound) return;
+  g._chartsBound = true;
+  g.els.charts.addEventListener("mousedown", (e) => {
+    if (!WB.canEdit || e.button !== 0) return;
+    const card = e.target.closest("[data-wb-chart]");
+    if (!card || e.target.closest("button")) return;   // let button clicks through
+    const resizing = !!e.target.closest("[data-wb-chartresize]");
+    const dragging = !resizing && !!e.target.closest("[data-wb-chartdrag]");
+    if (!resizing && !dragging) return;
+    const ch = sheetCharts(g.sheet).find((x) => x.id === card.getAttribute("data-wb-chart"));
+    if (!ch) return;
+    e.preventDefault(); e.stopPropagation();
+    const z = g.zoom || 1;
+    const L0 = chartLayout(g, ch);
+    const start = { mx: e.clientX, my: e.clientY, x: L0.x, y: L0.y, w: L0.w, h: L0.h };
+    card.classList.add("is-active");
+    let pending = null;
+    const move = (ev) => {
+      const dx = (ev.clientX - start.mx) / z, dy = (ev.clientY - start.my) / z;
+      let { x, y, w, h } = start;
+      if (resizing) { w = Math.max(200, start.w + dx); h = Math.max(140, start.h + dy); }
+      else { x = Math.max(0, start.x + dx); y = Math.max(0, start.y + dy); }
+      card.style.left = `${x * z}px`; card.style.top = `${y * z}px`;
+      card.style.width = `${w * z}px`; card.style.height = `${h * z}px`;
+      pending = { x, y, w, h };
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+      card.classList.remove("is-active");
+      if (!pending) return;
+      ch.layout = { x: Math.round(pending.x), y: Math.round(pending.y), w: Math.round(pending.w), h: Math.round(pending.h) };
+      g.sheet.meta = { ...(g.sheet.meta || {}), charts: sheetCharts(g.sheet).slice() };
+      saveSheetMeta(g.sheet.id);
+      computeGeometry(g);   // grow the scroll range to reach the chart's new extent
+      renderCharts(g);      // re-lay-out the SVG at the new aspect / position
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+  });
+}
+
+function scrollEmbedChartIntoView(g, id) {
+  g.els.charts?.querySelector(`[data-wb-chart="${CSS && CSS.escape ? CSS.escape(id) : id}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
 }
 
 function scheduleChartRender(g) {
@@ -11955,9 +12099,9 @@ function openChartDialog(g, existing) {
   wrap.className = "rr-modal-backdrop";
   wrap.id = "wb-chart-modal";
   wrap.innerHTML = `
-    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${existing ? "Edit chart" : "Insert chart"}" style="width:460px">
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${existing ? "Edit chart" : "Insert chart"}" style="width:480px">
       <div class="rr-modal-head">
-        <div class="rr-modal-head-content"><p class="rr-modal-title">${existing ? "Edit chart" : "Insert chart"}</p><p class="rr-modal-sub">Row 1 of the range holds series names; the first column holds labels.</p></div>
+        <div class="rr-modal-head-content"><p class="rr-modal-title">${existing ? "Edit chart" : "Insert chart"}</p><p class="rr-modal-sub">Row 1 of the range holds series names; the first column holds labels. Drag the chart to move it, or its corner to resize.</p></div>
         <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
       </div>
       <div class="rr-modal-body">
@@ -11970,6 +12114,24 @@ function openChartDialog(g, existing) {
             </select></label>
           <label class="wb-field"><span class="wb-field-label">Data range</span>
             <input type="text" class="wb-input" id="wb-chart-range" value="${esc(defRef)}" placeholder="A1:C8" spellcheck="false"></label>
+        </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Color theme</span>
+            <select class="wb-input" id="wb-chart-theme">
+              ${Object.entries(WB_CHART_THEMES).map(([k, label]) => `<option value="${k}" ${(existing && existing.theme || "route") === k ? "selected" : ""}>${label}</option>`).join("")}
+            </select></label>
+          <div class="wb-field"><span class="wb-field-label">Options</span>
+            <div class="wb-chart-opts">
+              <label class="wb-check"><input type="checkbox" id="wb-chart-labels" ${existing && existing.labels ? "checked" : ""}><span>Data labels</span></label>
+              <label class="wb-check"><input type="checkbox" id="wb-chart-grid" ${!existing || existing.grid !== false ? "checked" : ""}><span>Gridlines</span></label>
+            </div>
+          </div>
+        </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">X-axis title <span class="wb-field-opt">optional</span></span>
+            <input type="text" class="wb-input" id="wb-chart-xtitle" maxlength="60" value="${esc((existing && existing.xTitle) || "")}" placeholder="e.g. Day"></label>
+          <label class="wb-field"><span class="wb-field-label">Y-axis title <span class="wb-field-opt">optional</span></span>
+            <input type="text" class="wb-input" id="wb-chart-ytitle" maxlength="60" value="${esc((existing && existing.yTitle) || "")}" placeholder="e.g. Routes"></label>
         </div>
       </div>
       <div class="rr-modal-foot">
@@ -11989,7 +12151,14 @@ function openChartDialog(g, existing) {
       id: existing ? existing.id : "ch" + Math.random().toString(36).slice(2, 8),
       type: wrap.querySelector("#wb-chart-type").value,
       title: wrap.querySelector("#wb-chart-title").value.trim(),
+      theme: wrap.querySelector("#wb-chart-theme").value,
+      labels: wrap.querySelector("#wb-chart-labels").checked,
+      grid: wrap.querySelector("#wb-chart-grid").checked,
+      xTitle: wrap.querySelector("#wb-chart-xtitle").value.trim(),
+      yTitle: wrap.querySelector("#wb-chart-ytitle").value.trim(),
       ...range,
+      // keep the on-grid position/size across edits; new charts get placed on render
+      layout: existing && existing.layout ? existing.layout : chartDefaultLayout(g, range),
     };
     const charts = sheetCharts(g.sheet).filter((c) => c.id !== spec.id);
     charts.push(spec);
@@ -11998,7 +12167,7 @@ function openChartDialog(g, existing) {
     wbLog("sheet.chart", `${existing ? "updated" : "added"} a ${WB_CHART_TYPES[spec.type].toLowerCase()} chart on ${chartRefText(spec)} in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
     wrap.remove();
     renderCharts(g);
-    g.els.charts?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    scrollEmbedChartIntoView(g, spec.id);
   });
   setTimeout(() => wrap.querySelector("#wb-chart-title")?.focus(), 30);
 }
