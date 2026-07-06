@@ -5199,7 +5199,102 @@ function parseDateLoose(s) {
 // ordered with cycle detection. Formula counts on operational sheets
 // are small (tens to low hundreds), so this stays well under a frame.
 
-function recalcSheet(sheet) {
+// Parsing every formula on every keystroke was the dominant recalc cost. The
+// AST for a given formula string is immutable (bindNames/eval never mutate it),
+// so we memoize it. Bounded LRU-ish: evict the oldest entry past the cap.
+const PARSE_CACHE = new Map();
+const PARSE_CACHE_MAX = 4000;
+function cachedParse(src) {
+  const hit = PARSE_CACHE.get(src);
+  if (hit !== undefined) return hit;
+  const ast = parseFormula(src); // may throw; we simply don't cache failures
+  if (PARSE_CACHE.size >= PARSE_CACHE_MAX) PARSE_CACHE.delete(PARSE_CACHE.keys().next().value);
+  PARSE_CACHE.set(src, ast);
+  return ast;
+}
+
+// Incremental recompute: re-evaluate only the edited cells and their dependent
+// cone, leaving every other cell's computed value untouched. This is provably
+// equivalent to a full recompute ONLY when no formula's result depends on
+// eval-time references (INDIRECT/OFFSET) or produces a spilled array — in those
+// cases we bail (return false) and the caller falls back to recalcSheet's full
+// path. Returns true iff it fully handled the recompute.
+function recalcCone(sheet, dirtyKeys) {
+  if (sheet.spill && sheet.spill.size) return false; // an existing spill needs the full path
+  let usedR = 0, usedC = 0;
+  const formulaKeys = [];
+  for (const [key, cell] of sheet.cells) {
+    const rc = keyRC(key);
+    if (rc.r > usedR) usedR = rc.r;
+    if (rc.c > usedC) usedC = rc.c;
+    if (cell.formula) { if (cell._arr) return false; formulaKeys.push(key); }
+  }
+  const depBounds = { rowCount: usedR + 1, colCount: usedC + 1 };
+  const names = namesForSheet(sheet);
+  const asts = new Map(), deps = new Map(), parseErr = new Map();
+  for (const key of formulaKeys) {
+    const cell = sheet.cells.get(key);
+    let ast;
+    try { ast = cachedParse(cell.formula); if (names.size) ast = bindNames(ast, names); }
+    catch (e) { parseErr.set(key, e instanceof FormulaError ? e.code : "#ERROR"); continue; }
+    if (hasDynamicRefs(ast)) return false; // eval-time refs → full recompute
+    asts.set(key, ast);
+    deps.set(key, refsFromAst(ast, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
+  }
+  // reverse edges: input cell key → dependent formula keys
+  const rev = new Map();
+  for (const [key, ds] of deps) for (const d of ds) { let a = rev.get(d); if (!a) rev.set(d, a = []); a.push(key); }
+  // cone = edited formula cells ∪ transitive dependents of every edited cell
+  const cone = new Set();
+  const queue = dirtyKeys.slice();
+  for (const k of dirtyKeys) if (asts.has(k) || parseErr.has(k)) cone.add(k);
+  while (queue.length) {
+    const k = queue.pop();
+    for (const dep of rev.get(k) || []) if (!cone.has(dep)) { cone.add(dep); queue.push(dep); }
+  }
+  if (!cone.size) { if (!sheet.spill) sheet.spill = new Map(); return true; } // nothing references the edit
+  // reset cone cells first (so cycle poisoning below isn't clobbered)
+  for (const key of cone) { const cell = sheet.cells.get(key); if (cell && cell.formula) { cell.err = parseErr.get(key) || null; cell.computed = null; cell._arr = null; } }
+  // topo order within the cone; detect cycles that live inside it
+  const WHITE = 0, GRAY = 1, BLACK = 2, color = new Map(), order = [];
+  const visit = (key, stack) => {
+    color.set(key, GRAY); stack.add(key);
+    for (const dep of deps.get(key) || []) {
+      if (!cone.has(dep)) continue;
+      const c = color.get(dep) || WHITE;
+      if (c === GRAY) { for (const kk of stack) { const cc = sheet.cells.get(kk); if (cc) cc.err = "#CIRCULAR"; } continue; }
+      if (c === WHITE) visit(dep, stack);
+    }
+    stack.delete(key); color.set(key, BLACK); order.push(key);
+  };
+  for (const key of cone) {
+    if ((color.get(key) || WHITE) !== WHITE) continue;
+    try { visit(key, new Set()); }
+    catch (e) { if (e instanceof RangeError) { const cc = sheet.cells.get(key); if (cc) cc.err = "#ERROR"; if (!order.includes(key)) order.push(key); } else throw e; }
+  }
+  const ctx = {
+    rowCount: sheet.rowCount, colCount: sheet.colCount,
+    getCell: (r, c, sheetName) => (sheetName ? crossSheetValue(sheet, sheetName, r, c) : engineValue(sheet, r, c)),
+    getFormula: (r, c) => { const cell = sheet.cells.get(cellKey(r, c)); return cell && cell.formula ? cell.formula : null; },
+  };
+  for (const key of order) {
+    const cell = sheet.cells.get(key);
+    if (!cell || !cell.formula || cell.err) continue;
+    try {
+      ctx.cur = keyRC(key);
+      const v = evalAst(asts.get(key), ctx);
+      if (v instanceof Arr) return false; // a spill appeared → let the full path lay it out
+      if (isClosure(v)) throw new FormulaError("#VALUE", "a LAMBDA needs to be called");
+      cell.computed = v; cell._arr = null;
+    } catch (e) { cell.err = e instanceof FormulaError ? e.code : "#ERROR"; cell.computed = null; cell._arr = null; }
+  }
+  if (!sheet.spill) sheet.spill = new Map();
+  return true;
+}
+
+function recalcSheet(sheet, dirtyKeys) {
+  // Fast path: recompute just the edited cells' dependent cone when it's sound.
+  if (dirtyKeys && dirtyKeys.length && recalcCone(sheet, dirtyKeys)) return;
   if (sheet.spill) sheet.spill.clear(); else sheet.spill = new Map();
   const formulaCells = [];
   let usedR = 0, usedC = 0;
@@ -5218,7 +5313,7 @@ function recalcSheet(sheet) {
   const deps = new Map();
   for (const [key, cell] of formulaCells) {
     try {
-      let ast = parseFormula(cell.formula);
+      let ast = cachedParse(cell.formula);
       if (names.size) ast = bindNames(ast, names);
       asts.set(key, ast);
       deps.set(key, refsFromAst(ast, depBounds).map((rc) => cellKey(rc.r ?? rc.row, rc.c ?? rc.col)));
@@ -5377,8 +5472,8 @@ function crossSheetValue(fromSheet, sheetName, r, c) {
 
 // Recalc a sheet, then any sibling sheets whose formulas read across
 // sheets (their inputs may have just changed).
-function recalcWithSiblings(sheet) {
-  recalcSheet(sheet);
+function recalcWithSiblings(sheet, dirtyKeys) {
+  recalcSheet(sheet, dirtyKeys);
   const sibs = WB.sheetsByBlock.get(sheet.blockId) || [];
   // named ranges can create cross-sheet reads that carry no "!" in the
   // formula text, so any defined name forces a full sibling recompute
@@ -8331,7 +8426,7 @@ function setCells(g, changes, opts) {
     if (g.undo.length > 100) g.undo.shift();
     g.redo = [];
   }
-  recalcWithSiblings(sheet);
+  recalcWithSiblings(sheet, applied.map((a) => a.key));
   markCellsDirty(sheet, applied.map((a) => a.key));
   queueCellActivity(sheet, applied.map((a) => ({
     r: a.r, c: a.c,
@@ -8355,7 +8450,7 @@ function undoGrid(g) {
     else sheet.cells.delete(ch.key);
   }
   g.redo.push(op);
-  recalcWithSiblings(sheet);
+  recalcWithSiblings(sheet, op.changes.map((c) => c.key));
   markCellsDirty(sheet, op.changes.map((c) => c.key));
   if (g.filters.size) computeGeometry(g);
   repaintGrid(g);
@@ -8372,7 +8467,7 @@ function redoGrid(g) {
     else sheet.cells.delete(ch.key);
   }
   g.undo.push(op);
-  recalcWithSiblings(sheet);
+  recalcWithSiblings(sheet, op.changes.map((c) => c.key));
   markCellsDirty(sheet, op.changes.map((c) => c.key));
   if (g.filters.size) computeGeometry(g);
   repaintGrid(g);

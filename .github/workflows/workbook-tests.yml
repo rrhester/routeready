@@ -1,0 +1,28 @@
+name: workbook-tests
+
+# The dashboard workbook (formula engine, recalc, XLSX interop) has a Node test
+# suite under scripts/ that nothing was running in CI. Gate it on changes to the
+# workbook module or its tests so regressions are caught on the PR.
+on:
+  pull_request:
+    paths:
+      - "dashboard/workbook.js"
+      - "scripts/**"
+      - "package.json"
+      - ".github/workflows/workbook-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/workbook.js"
+      - "scripts/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install
+      - run: npm test
