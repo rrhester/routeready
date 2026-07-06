@@ -29091,11 +29091,11 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 #view-workbooks .wb-tab.is-active .wb-tab-caret:hover{color:var(--text)}
 
-/* ── Embedded (floating) charts ── */
+/* ── Embedded (floating) dashboard widgets ── */
 /* Overlay layer inside the grid canvas: transparent + click-through except on
-   the chart cards themselves, so cells stay interactive around them. */
+   the widget cards themselves, so cells stay interactive around them. */
 #view-workbooks .wb-gr-charts{position:absolute;inset:0;pointer-events:none;z-index:3}
-#view-workbooks .wb-embed-chart{
+#view-workbooks .wb-embed{
   position:absolute;pointer-events:auto;box-sizing:border-box;
   display:flex;flex-direction:column;gap:2px;
   border:1px solid var(--border);border-radius:var(--r-md);
@@ -29103,13 +29103,13 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   box-shadow:0 1px 3px rgba(0,0,0,.08),0 6px 18px rgba(0,0,0,.08);
   overflow:hidden;
 }
-#view-workbooks .wb-embed-chart.is-active{
+#view-workbooks .wb-embed.is-active{
   box-shadow:0 2px 6px rgba(0,0,0,.12),0 12px 30px rgba(0,0,0,.16);
   outline:2px solid var(--accent,#2563EB);outline-offset:-1px;
-  user-select:none;
+  user-select:none;z-index:4;
 }
 #view-workbooks .wb-embed-head{display:flex;align-items:center;gap:6px;flex:none}
-#view-workbooks .wb-embed-head[data-wb-chartdrag]{cursor:move}
+#view-workbooks .wb-embed-head[data-wb-embed-drag]{cursor:move}
 #view-workbooks .wb-embed-body{flex:1 1 auto;min-height:0;display:flex}
 #view-workbooks .wb-embed-body svg{width:100%;height:100%;display:block}
 #view-workbooks .wb-embed-grip{
@@ -29118,8 +29118,43 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   background:linear-gradient(135deg,transparent 0 46%,var(--border-strong,#9aa0a6) 46% 54%,transparent 54% 70%,var(--border-strong,#9aa0a6) 70% 78%,transparent 78%);
   opacity:.55;
 }
-#view-workbooks .wb-embed-chart:hover .wb-embed-grip{opacity:.9}
-#view-workbooks .wb-chart-title{flex:1;font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#view-workbooks .wb-embed:hover .wb-embed-grip{opacity:.9}
+#view-workbooks .wb-embed-title,#view-workbooks .wb-chart-title{flex:1;font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* KPI scorecard */
+#view-workbooks .wb-embed-kpis .wb-embed-body{flex-direction:column;justify-content:center;gap:2px}
+#view-workbooks .wb-kpi{display:flex;flex-direction:column;gap:3px;min-width:0}
+#view-workbooks .wb-kpi-value{font-size:clamp(22px,7cqw,40px);font-weight:700;line-height:1.05;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#view-workbooks .wb-embed-kpis{container-type:inline-size}
+#view-workbooks .wb-kpi-delta{font-size:var(--fs-xs);font-weight:600;display:inline-flex;align-items:center;gap:3px}
+#view-workbooks .wb-kpi-delta.is-up{color:var(--green,#0ca30c)}
+#view-workbooks .wb-kpi-delta.is-down{color:var(--red,#d03b3b)}
+#view-workbooks .wb-kpi-spark{width:100%;height:26px;margin-top:2px;display:block}
+/* Table widget */
+#view-workbooks .wb-embed-tablewrap{flex:1 1 auto;min-height:0;overflow:auto;width:100%;border-radius:6px}
+#view-workbooks .wb-embed-table{border-collapse:collapse;width:100%;font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
+#view-workbooks .wb-embed-table th{position:sticky;top:0;background:var(--canvas,#f6f6f4);text-align:left;font-weight:600;color:var(--text);padding:4px 8px;border-bottom:1px solid var(--border-strong)}
+#view-workbooks .wb-embed-table td{padding:3px 8px;border-bottom:1px solid var(--border-subtle);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+#view-workbooks .wb-embed-table tr:nth-child(even) td{background:color-mix(in srgb,var(--text) 3%,transparent)}
+/* Text tile */
+#view-workbooks .wb-embed-texts .wb-embed-body{overflow:auto}
+#view-workbooks .wb-text-body{font-size:var(--fs-sm);color:var(--text-secondary,var(--text-muted));line-height:1.45;white-space:normal}
+#view-workbooks .wb-text-empty{color:var(--text-subtle);font-style:italic}
+/* Dashboard sheet: hide the spreadsheet chrome so the widgets are the page */
+#view-workbooks .wb-grid.is-dashboard{background:var(--canvas,#f6f6f4)}
+#view-workbooks .wb-grid.is-dashboard .wb-gr-corner,
+#view-workbooks .wb-grid.is-dashboard .wb-gr-cols,
+#view-workbooks .wb-grid.is-dashboard .wb-gr-rows{visibility:hidden}
+#view-workbooks .wb-grid.is-dashboard .wb-gr-cells{opacity:0;pointer-events:none}
+#view-workbooks .wb-grid.is-dashboard .wb-gr-sel,
+#view-workbooks .wb-grid.is-dashboard .wb-addrows-row{display:none}
+#view-workbooks .wb-dash-empty{
+  position:absolute;left:24px;top:24px;pointer-events:auto;max-width:440px;
+  border:1px dashed var(--border-strong);border-radius:var(--r-md);
+  background:var(--surface);padding:22px 24px;
+}
+#view-workbooks .wb-dash-empty-title{font-size:var(--fs-lg,17px);font-weight:700;color:var(--text)}
+#view-workbooks .wb-dash-empty-sub{font-size:var(--fs-sm);color:var(--text-muted);margin:4px 0 14px}
+#view-workbooks .wb-dash-empty-actions{display:flex;flex-wrap:wrap;gap:8px}
 #view-workbooks .wb-chart-legend{display:flex;flex-wrap:wrap;gap:2px 12px;margin:0;flex:none;max-height:38px;overflow:hidden}
 #view-workbooks .wb-chart-key{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);color:var(--text-muted)}
 #view-workbooks .wb-chart-keyv{color:var(--text-subtle)}

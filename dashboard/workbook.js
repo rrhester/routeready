@@ -6254,13 +6254,23 @@ function mountSheetBlock(block, body) {
   renderPivots(g);
   renderFillBar(g); // Schedule Intelligence Bar (from the last saved run)
   g.els.charts.addEventListener("click", (e) => {
-    const card = e.target.closest("[data-wb-chart]");
-    const act = e.target.closest("[data-wb-chartact]");
+    const add = e.target.closest("[data-wb-dashadd]");
+    if (add) {
+      const kind = add.getAttribute("data-wb-dashadd");
+      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog }[kind] || openChartDialog)(g);
+      return;
+    }
+    const card = e.target.closest("[data-wb-embed-id]");
+    const act = e.target.closest("[data-wb-embed-act]");
     if (!card || !act) return;
-    const ch = sheetCharts(g.sheet).find((x) => x.id === card.getAttribute("data-wb-chart"));
-    if (!ch) return;
-    if (act.getAttribute("data-wb-chartact") === "edit") openChartDialog(g, ch);
-    else confirmModal({ title: "Delete this chart?", body: "The underlying cells are untouched.", confirmLabel: "Delete chart", danger: true, onConfirm: () => deleteChart(g, ch.id) });
+    const key = card.getAttribute("data-wb-embed-kind");
+    const item = sheetEmbeds(g.sheet, key).find((x) => x.id === card.getAttribute("data-wb-embed-id"));
+    if (!item) return;
+    if (act.getAttribute("data-wb-embed-act") === "edit") openEmbedEditor(g, key, item);
+    else {
+      const label = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile" }[key] || "widget";
+      confirmModal({ title: `Delete this ${label}?`, body: "The underlying cells are untouched.", confirmLabel: "Delete", danger: true, onConfirm: () => deleteEmbed(g, key, item.id) });
+    }
   });
   g.els.pivots.addEventListener("click", (e) => {
     const card = e.target.closest("[data-wb-pivot]");
@@ -6456,11 +6466,11 @@ function computeGeometry(g) {
   g.colX = new Array(sheet.colCount + 1);
   g.colX[0] = 0;
   for (let c = 0; c < sheet.colCount; c++) g.colX[c + 1] = g.colX[c] + Math.round(colW(sheet, c) * z);
-  // floating charts can extend past the cells — grow the canvas so the scroll
+  // floating widgets can extend past the cells — grow the canvas so the scroll
   // range reaches them (extents are in logical px; scale by zoom)
   let chartW = 0, chartH = 0;
-  for (const ch of sheetCharts(sheet)) {
-    const L = ch.layout; if (!L) continue;
+  for (const { item } of allEmbeds(sheet)) {
+    const L = item.layout; if (!L) continue;
     chartW = Math.max(chartW, (L.x + L.w) * z);
     chartH = Math.max(chartH, (L.y + L.h) * z);
   }
@@ -10297,6 +10307,8 @@ function restoreViewState(g) {
   if (zs) zs.value = String(g.zoom);
   // View → Show state: gridlines per sheet (meta), formula bar per user
   g.els.grid.classList.toggle("is-nogrid", !!(sheet.meta && sheet.meta.nogrid));
+  // a dashboard sheet hides the cell/header chrome so the widgets are the page
+  g.els.grid.classList.toggle("is-dashboard", isDashboardSheet(sheet));
   if (WB.showFbar === undefined) {
     try { WB.showFbar = localStorage.getItem("rr-wb-fbar") !== "0"; } catch (_) { WB.showFbar = true; }
   }
@@ -10545,23 +10557,30 @@ function setFreeze(g, what) {
 
 // ─── Sheet CRUD ──────────────────────────────────────────────────────────────
 
-async function addSheetTo(blockId) {
+async function addSheetTo(blockId, opts = {}) {
   const g = GRIDS.get(blockId);
   const block = WB.blocks.find((b) => b.id === blockId);
   if (!block || !WB.canEdit) return;
   const sheets = WB.sheetsByBlock.get(blockId) || [];
+  const dash = !!opts.dashboard;
+  const name = dash
+    ? `Dashboard ${sheets.filter((s) => isDashboardSheet(s)).length + 1}`
+    : `Sheet ${sheets.length + 1}`;
   try {
-    const ins = await _sb().from("workbook_sheets").insert({
-      dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, block_id: blockId,
-      name: `Sheet ${sheets.length + 1}`,
+    const row = {
+      dsp_id: WB.wb.dsp_id, workbook_id: WB.wb.id, block_id: blockId, name,
       position: sheets.length ? Math.max(...sheets.map((s) => s.position)) + 1 : 0,
       row_count: 500,
-    }).select().single();
+    };
+    // a dashboard sheet is a grid sheet with cells hidden — the widgets are
+    // the whole surface (kind flag + gridlines off)
+    if (dash) row.meta = { kind: "dashboard", nogrid: true };
+    const ins = await _sb().from("workbook_sheets").insert(row).select().single();
     if (ins.error) throw ins.error;
     const sheet = normalizeSheet(ins.data);
     if (!WB.sheetsByBlock.has(blockId)) WB.sheetsByBlock.set(blockId, []);
     WB.sheetsByBlock.get(blockId).push(sheet);
-    wbLog("sheet.added", `added sheet “${sheet.name}”`, { target_type: "sheet", target_id: sheet.id });
+    wbLog("sheet.added", `added ${dash ? "dashboard" : "sheet"} “${sheet.name}”`, { target_type: "sheet", target_id: sheet.id });
     if (g) { renderSheetTabs(g); switchSheet(g, sheet.id); }
     else { const body = document.querySelector(`[data-wb-block-body="${blockId}"]`); if (body) mountSheetBlock(block, body); }
   } catch (e) { _toast("Couldn't add the sheet: " + ((e && e.message) || e), "error"); }
@@ -11984,73 +12003,117 @@ function chartSvg(sheet, ch, opts = {}) {
   return { svg: wrap(out, WB_CHART_TYPES[ch.type] + " chart"), legend };
 }
 
-// ── Embedded (floating) charts ───────────────────────────────────────────────
-// Charts live on the grid as draggable / resizable objects, positioned in the
-// canvas coordinate space so they scroll with the cells. Position + size are
-// stored per chart in `layout` (logical, unzoomed px) and scaled by g.zoom.
+// ── Embedded (floating) dashboard widgets ────────────────────────────────────
+// Charts, KPI scorecards, tables and text tiles all live on the sheet as
+// draggable / resizable cards positioned in the canvas coordinate space (they
+// scroll with the cells). Each kind is stored in its own sheet.meta array;
+// every item carries a `layout` in logical (unzoomed) px, scaled by g.zoom.
+// A "dashboard" sheet (meta.kind === "dashboard") is just a grid sheet with
+// the cells hidden, so the widgets read as a clean dashboard page.
+
+const EMBED_KINDS = ["charts", "kpis", "tables", "texts"];
+const EMBED_META_KEY = { charts: "charts", kpis: "kpis", tables: "tables", texts: "texts" };
+const EMBED_DEFAULT_SIZE = { charts: { w: 440, h: 280 }, kpis: { w: 248, h: 132 }, tables: { w: 380, h: 240 }, texts: { w: 320, h: 120 } };
+function sheetKpis(sheet)   { const v = sheet.meta && sheet.meta.kpis;   return Array.isArray(v) ? v : []; }
+function sheetTables(sheet) { const v = sheet.meta && sheet.meta.tables; return Array.isArray(v) ? v : []; }
+function sheetTexts(sheet)  { const v = sheet.meta && sheet.meta.texts;  return Array.isArray(v) ? v : []; }
+function sheetEmbeds(sheet, key) { return key === "charts" ? sheetCharts(sheet) : key === "kpis" ? sheetKpis(sheet) : key === "tables" ? sheetTables(sheet) : sheetTexts(sheet); }
+function allEmbeds(sheet) { return EMBED_KINDS.flatMap((key) => sheetEmbeds(sheet, key).map((item) => ({ key, item }))); }
+function isDashboardSheet(sheet) { return !!(sheet && sheet.meta && sheet.meta.kind === "dashboard"); }
 
 function unzoomedColX(sheet, c) { let x = 0; const n = Math.min(c, sheet.colCount); for (let i = 0; i < n; i++) x += colW(sheet, i); return x; }
 function unzoomedRowY(sheet, r) { let y = 0; const n = Math.min(r, sheet.rowCount); for (let i = 0; i < n; i++) y += rowH(sheet, i); return y; }
 
-// Drop a new chart just to the right of its data, cascading so several don't
-// land exactly on top of each other.
-function chartDefaultLayout(g, range) {
+// Drop a new widget near its data (or top-left on a dashboard), cascading so
+// several don't land exactly on top of each other.
+function embedDefaultLayout(g, key, range) {
   const sheet = g.sheet;
-  const step = sheetCharts(sheet).filter((c) => c.layout).length % 6;
-  const x = unzoomedColX(sheet, (range ? range.c1 : 0) + 1) + 16 + step * 22;
-  const y = unzoomedRowY(sheet, range ? range.r0 : 0) + step * 22;
-  return { x, y, w: 440, h: 280 };
+  const step = allEmbeds(sheet).filter((e) => e.item.layout).length % 8;
+  const sz = EMBED_DEFAULT_SIZE[key] || { w: 360, h: 200 };
+  const dash = isDashboardSheet(sheet);
+  const x = (dash ? 24 : unzoomedColX(sheet, (range ? range.c1 : 0) + 1) + 16) + step * 20;
+  const y = (dash ? 24 : unzoomedRowY(sheet, range ? range.r0 : 0)) + step * 20;
+  return { x, y, ...sz };
 }
-function chartLayout(g, ch) { return ch.layout || chartDefaultLayout(g, ch); }
+function embedLayout(g, key, item) { return item.layout || embedDefaultLayout(g, key, item); }
+function chartDefaultLayout(g, range) { return embedDefaultLayout(g, "charts", range); }  // chart dialog compat
 
-function renderCharts(g) {
+// Kind-specific inner content: { title, body, footer }.
+function embedInnerHtml(g, key, item, L) {
+  if (key === "charts") {
+    const { svg, legend } = chartSvg(g.sheet, item, { W: L.w, H: Math.max(110, L.h - 40) });
+    return { title: esc(item.title || `${WB_CHART_TYPES[item.type] || "Chart"} · ${chartRefText(item)}`), body: svg, footer: legend ? `<div class="wb-chart-legend">${legend}</div>` : "" };
+  }
+  if (key === "kpis") return kpiTileHtml(g.sheet, item);
+  if (key === "tables") return tableTileHtml(g.sheet, item);
+  return textTileHtml(item);
+}
+
+function renderCharts(g) {                    // renders every embed kind
   const host = g.els.charts;
   if (!host) return;
-  const charts = sheetCharts(g.sheet);
-  if (!charts.length) { host.innerHTML = ""; host.hidden = true; return; }
+  const embeds = allEmbeds(g.sheet);
+  if (!embeds.length) {
+    if (isDashboardSheet(g.sheet) && WB.canEdit) {
+      host.hidden = false;
+      host.innerHTML = `<div class="wb-dash-empty">
+        <div class="wb-dash-empty-title">Build your dashboard</div>
+        <div class="wb-dash-empty-sub">Add widgets that pull live from your sheets. Drag to arrange, drag a corner to resize.</div>
+        <div class="wb-dash-empty-actions">
+          <button type="button" class="btn btn-sm" data-wb-dashadd="chart">＋ Chart</button>
+          <button type="button" class="btn btn-sm" data-wb-dashadd="kpi">＋ KPI tile</button>
+          <button type="button" class="btn btn-sm" data-wb-dashadd="table">＋ Table</button>
+          <button type="button" class="btn btn-sm" data-wb-dashadd="text">＋ Text</button>
+        </div></div>`;
+      return;
+    }
+    host.innerHTML = ""; host.hidden = true; return;
+  }
   host.hidden = false;
   const z = g.zoom || 1;
-  host.innerHTML = charts.map((ch) => {
-    const L = chartLayout(g, ch);
-    const { svg, legend } = chartSvg(g.sheet, ch, { W: L.w, H: Math.max(120, L.h - 40) });
+  host.innerHTML = embeds.map(({ key, item }) => {
+    const L = embedLayout(g, key, item);
+    const inner = embedInnerHtml(g, key, item, L);
     const style = `left:${L.x * z}px;top:${L.y * z}px;width:${L.w * z}px;height:${L.h * z}px`;
-    return `<div class="wb-embed-chart" data-wb-chart="${esc(ch.id)}" style="${style}">
-      <div class="wb-embed-head" ${WB.canEdit ? 'data-wb-chartdrag title="Drag to move"' : ""}>
-        <span class="wb-chart-title">${esc(ch.title || `${WB_CHART_TYPES[ch.type] || "Chart"} · ${chartRefText(ch)}`)}</span>
-        ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-chartact="edit" title="Edit chart" aria-label="Edit chart"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-chartact="delete" title="Delete chart" aria-label="Delete chart">×</button>` : ""}
+    return `<div class="wb-embed wb-embed-${key}" data-wb-embed-kind="${key}" data-wb-embed-id="${esc(item.id)}" style="${style}">
+      <div class="wb-embed-head" ${WB.canEdit ? 'data-wb-embed-drag title="Drag to move"' : ""}>
+        <span class="wb-embed-title">${inner.title}</span>
+        ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="edit" title="Edit" aria-label="Edit"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="delete" title="Delete" aria-label="Delete">×</button>` : ""}
       </div>
-      <div class="wb-embed-body">${svg}</div>
-      ${legend ? `<div class="wb-chart-legend">${legend}</div>` : ""}
-      ${WB.canEdit ? `<span class="wb-embed-grip" data-wb-chartresize title="Drag to resize" aria-hidden="true"></span>` : ""}
+      <div class="wb-embed-body">${inner.body}</div>
+      ${inner.footer || ""}
+      ${WB.canEdit ? `<span class="wb-embed-grip" data-wb-embed-resize title="Drag to resize" aria-hidden="true"></span>` : ""}
     </div>`;
   }).join("");
-  bindEmbedChartInteract(g);
+  bindEmbedInteract(g);
 }
 
-// Delegated drag (move) and resize for the floating chart cards. Bound once.
-function bindEmbedChartInteract(g) {
-  if (g._chartsBound) return;
-  g._chartsBound = true;
+// Delegated drag (move) and resize for every floating widget. Bound once.
+function bindEmbedInteract(g) {
+  if (g._embedsBound) return;
+  g._embedsBound = true;
   g.els.charts.addEventListener("mousedown", (e) => {
     if (!WB.canEdit || e.button !== 0) return;
-    const card = e.target.closest("[data-wb-chart]");
+    const card = e.target.closest("[data-wb-embed-id]");
     if (!card || e.target.closest("button")) return;   // let button clicks through
-    const resizing = !!e.target.closest("[data-wb-chartresize]");
-    const dragging = !resizing && !!e.target.closest("[data-wb-chartdrag]");
+    const resizing = !!e.target.closest("[data-wb-embed-resize]");
+    const dragging = !resizing && !!e.target.closest("[data-wb-embed-drag]");
     if (!resizing && !dragging) return;
-    const ch = sheetCharts(g.sheet).find((x) => x.id === card.getAttribute("data-wb-chart"));
-    if (!ch) return;
+    const key = card.getAttribute("data-wb-embed-kind");
+    const item = sheetEmbeds(g.sheet, key).find((x) => x.id === card.getAttribute("data-wb-embed-id"));
+    if (!item) return;
     e.preventDefault(); e.stopPropagation();
     const z = g.zoom || 1;
-    const L0 = chartLayout(g, ch);
+    const L0 = embedLayout(g, key, item);
+    const min = key === "kpis" ? { w: 140, h: 90 } : key === "texts" ? { w: 140, h: 70 } : { w: 200, h: 130 };
     const start = { mx: e.clientX, my: e.clientY, x: L0.x, y: L0.y, w: L0.w, h: L0.h };
     card.classList.add("is-active");
     let pending = null;
     const move = (ev) => {
       const dx = (ev.clientX - start.mx) / z, dy = (ev.clientY - start.my) / z;
       let { x, y, w, h } = start;
-      if (resizing) { w = Math.max(200, start.w + dx); h = Math.max(140, start.h + dy); }
+      if (resizing) { w = Math.max(min.w, start.w + dx); h = Math.max(min.h, start.h + dy); }
       else { x = Math.max(0, start.x + dx); y = Math.max(0, start.y + dy); }
       card.style.left = `${x * z}px`; card.style.top = `${y * z}px`;
       card.style.width = `${w * z}px`; card.style.height = `${h * z}px`;
@@ -12061,19 +12124,107 @@ function bindEmbedChartInteract(g) {
       document.removeEventListener("mouseup", up);
       card.classList.remove("is-active");
       if (!pending) return;
-      ch.layout = { x: Math.round(pending.x), y: Math.round(pending.y), w: Math.round(pending.w), h: Math.round(pending.h) };
-      g.sheet.meta = { ...(g.sheet.meta || {}), charts: sheetCharts(g.sheet).slice() };
+      item.layout = { x: Math.round(pending.x), y: Math.round(pending.y), w: Math.round(pending.w), h: Math.round(pending.h) };
+      g.sheet.meta = { ...(g.sheet.meta || {}), [EMBED_META_KEY[key]]: sheetEmbeds(g.sheet, key).slice() };
       saveSheetMeta(g.sheet.id);
-      computeGeometry(g);   // grow the scroll range to reach the chart's new extent
-      renderCharts(g);      // re-lay-out the SVG at the new aspect / position
+      computeGeometry(g);   // grow the scroll range to reach the widget's new extent
+      renderCharts(g);      // re-lay-out at the new aspect / position
     };
     document.addEventListener("mousemove", move);
     document.addEventListener("mouseup", up);
   });
 }
 
-function scrollEmbedChartIntoView(g, id) {
-  g.els.charts?.querySelector(`[data-wb-chart="${CSS && CSS.escape ? CSS.escape(id) : id}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+// Persist one widget spec into its meta array (insert or replace by id).
+function saveEmbed(g, key, spec) {
+  const list = sheetEmbeds(g.sheet, key).filter((x) => x.id !== spec.id);
+  list.push(spec);
+  g.sheet.meta = { ...(g.sheet.meta || {}), [EMBED_META_KEY[key]]: list };
+  saveSheetMeta(g.sheet.id);
+  computeGeometry(g);
+  renderCharts(g);
+  scrollEmbedIntoView(g, spec.id);
+}
+function deleteEmbed(g, key, id) {
+  if (!WB.canEdit) return;
+  g.sheet.meta = { ...(g.sheet.meta || {}), [EMBED_META_KEY[key]]: sheetEmbeds(g.sheet, key).filter((x) => x.id !== id) };
+  saveSheetMeta(g.sheet.id);
+  renderCharts(g);
+}
+function scrollEmbedIntoView(g, id) {
+  g.els.charts?.querySelector(`[data-wb-embed-id="${CSS && CSS.escape ? CSS.escape(id) : id}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+}
+function scrollEmbedChartIntoView(g, id) { scrollEmbedIntoView(g, id); }   // chart dialog compat
+
+// ── Widget renderers: KPI scorecard, table, text ─────────────────────────────
+function embedCellRaw(sheet, ref) {
+  const rc = typeof ref === "string" ? parseCellRef(ref) : ref;
+  if (!rc) return null;
+  const cell = sheet.cells.get(cellKey(rc.row, rc.col));
+  return cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null;
+}
+function embedCellNum(sheet, ref) {
+  const raw = embedCellRaw(sheet, ref);
+  return raw == null ? null : cellNumeric(raw);
+}
+function kpiFmt(v, fmt) {
+  if (v == null || !isFinite(v)) return "—";
+  if (fmt === "currency") return "$" + v.toLocaleString(undefined, { maximumFractionDigits: Math.abs(v) < 100 ? 2 : 0 });
+  if (fmt === "percent") return (v * 100).toLocaleString(undefined, { maximumFractionDigits: 1 }) + "%";
+  if (fmt === "compact") return chartFmt(v);
+  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+function kpiSparkline(sheet, rangeText, color) {
+  const rg = parseRangeRefText(rangeText);
+  if (!rg) return "";
+  const vals = [];
+  for (let r = rg.r0; r <= rg.r1; r++) for (let c = rg.c0; c <= rg.c1; c++) { const n = embedCellNum(sheet, { row: r, col: c }); if (n != null) vals.push(n); }
+  if (vals.length < 2) return "";
+  const W = 150, H = 30, lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+  const px = (i) => (i / (vals.length - 1)) * W;
+  const py = (v) => H - 3 - ((v - lo) / span) * (H - 6);
+  const d = vals.map((v, i) => `${i ? "L" : "M"}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(" ");
+  return `<svg class="wb-kpi-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+function kpiTileHtml(sheet, spec) {
+  const accent = chartPalette(spec)[0];
+  const num = embedCellNum(sheet, spec.valueRef);
+  const raw = embedCellRaw(sheet, spec.valueRef);
+  const valStr = num != null ? kpiFmt(num, spec.format) : (raw != null && String(raw).trim() !== "" ? esc(String(raw)) : "—");
+  let delta = "";
+  if (spec.compareRef) {
+    const cmp = embedCellNum(sheet, spec.compareRef);
+    if (num != null && cmp != null) {
+      const d = num - cmp, up = d >= 0, good = spec.invert ? !up : up;
+      const pct = cmp !== 0 ? Math.abs(d / cmp) * 100 : null;
+      delta = `<span class="wb-kpi-delta ${good ? "is-up" : "is-down"}">${up ? "▲" : "▼"} ${kpiFmt(Math.abs(d), spec.format)}${pct != null ? ` · ${up ? "+" : "−"}${pct.toFixed(1)}%` : ""}</span>`;
+    }
+  }
+  const spark = spec.sparkRange ? kpiSparkline(sheet, spec.sparkRange, accent) : "";
+  const body = `<div class="wb-kpi"><div class="wb-kpi-value" style="color:${accent}">${valStr}</div>${delta}${spark}</div>`;
+  return { title: esc(spec.label || "KPI"), body, footer: "" };
+}
+function tableTileHtml(sheet, spec) {
+  const rg = parseRangeRefText(spec.range);
+  if (!rg) return { title: esc(spec.title || "Table"), body: `<div class="wb-chart-empty">Set a range like A1:C8 to show a table.</div>`, footer: "" };
+  const cap = Math.min(spec.maxRows || 200, rg.r1 - rg.r0 + 1);
+  const header = spec.header !== false;
+  let rows = "";
+  for (let ri = 0; ri < cap; ri++) {
+    const r = rg.r0 + ri;
+    let cells = "";
+    for (let c = rg.c0; c <= rg.c1; c++) {
+      const disp = esc(displayValue(sheet, r, c));
+      cells += (header && ri === 0) ? `<th>${disp}</th>` : `<td>${disp}</td>`;
+    }
+    rows += `<tr>${cells}</tr>`;
+  }
+  const body = `<div class="wb-embed-tablewrap"><table class="wb-embed-table">${rows}</table></div>`;
+  return { title: esc(spec.title || `Table · ${chartRefText({ c0: rg.c0, r0: rg.r0, c1: rg.c1, r1: rg.r1 })}`), body, footer: "" };
+}
+function textTileHtml(spec) {
+  const bodyTxt = spec.body ? `<div class="wb-text-body">${esc(spec.body).replace(/\n/g, "<br>")}</div>` : `<div class="wb-text-body wb-text-empty">Double-click Edit to add text…</div>`;
+  return { title: esc(spec.heading || "Text"), body: `<div class="wb-text">${bodyTxt}</div>`, footer: "" };
 }
 
 function scheduleChartRender(g) {
@@ -12172,11 +12323,149 @@ function openChartDialog(g, existing) {
   setTimeout(() => wrap.querySelector("#wb-chart-title")?.focus(), 30);
 }
 
-function deleteChart(g, chartId) {
+function openEmbedEditor(g, key, item) {
+  if (key === "charts") return openChartDialog(g, item);
+  if (key === "kpis") return openKpiDialog(g, item);
+  if (key === "tables") return openTableDialog(g, item);
+  return openTextDialog(g, item);
+}
+
+// Shared modal shell for the KPI / table / text widget dialogs.
+function embedModalShell(titleText, subText, bodyHtml, saveLabel) {
+  document.getElementById("wb-embed-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-embed-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${esc(titleText)}" style="width:470px">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">${esc(titleText)}</p>${subText ? `<p class="rr-modal-sub">${esc(subText)}</p>` : ""}</div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">${bodyHtml}</div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" data-wb-save>${esc(saveLabel)}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  return wrap;
+}
+
+function openKpiDialog(g, existing) {
   if (!WB.canEdit) return;
-  g.sheet.meta = { ...(g.sheet.meta || {}), charts: sheetCharts(g.sheet).filter((c) => c.id !== chartId) };
-  saveSheetMeta(g.sheet.id);
-  renderCharts(g);
+  const rect = selRect(g);
+  const activeRef = colLabel(rect.c0) + (rect.r0 + 1);
+  const themeOpts = Object.entries(WB_CHART_THEMES).map(([k, l]) => `<option value="${k}" ${(existing && existing.theme || "route") === k ? "selected" : ""}>${l}</option>`).join("");
+  const fmt = (existing && existing.format) || "compact";
+  const fmtOpts = [["compact", "Compact (1.2k)"], ["number", "Number"], ["currency", "Currency ($)"], ["percent", "Percent (%)"]].map(([v, l]) => `<option value="${v}" ${fmt === v ? "selected" : ""}>${l}</option>`).join("");
+  const wrap = embedModalShell(existing ? "Edit KPI tile" : "Add KPI tile", "A scorecard: a headline value from a cell, with an optional comparison and sparkline.", `
+    <label class="wb-field"><span class="wb-field-label">Label</span>
+      <input type="text" class="wb-input" id="wb-kpi-label" maxlength="60" value="${esc((existing && existing.label) || "")}" placeholder="Routes today"></label>
+    <div class="wb-field-row">
+      <label class="wb-field"><span class="wb-field-label">Value cell</span>
+        <input type="text" class="wb-input" id="wb-kpi-value" value="${esc((existing && existing.valueRef) || activeRef)}" placeholder="B2" spellcheck="false"></label>
+      <label class="wb-field"><span class="wb-field-label">Format</span>
+        <select class="wb-input" id="wb-kpi-format">${fmtOpts}</select></label>
+    </div>
+    <div class="wb-field-row">
+      <label class="wb-field"><span class="wb-field-label">Compare to <span class="wb-field-opt">optional</span></span>
+        <input type="text" class="wb-input" id="wb-kpi-compare" value="${esc((existing && existing.compareRef) || "")}" placeholder="B1" spellcheck="false"></label>
+      <label class="wb-field"><span class="wb-field-label">Sparkline range <span class="wb-field-opt">optional</span></span>
+        <input type="text" class="wb-input" id="wb-kpi-spark" value="${esc((existing && existing.sparkRange) || "")}" placeholder="B2:B9" spellcheck="false"></label>
+    </div>
+    <div class="wb-field-row">
+      <label class="wb-field"><span class="wb-field-label">Accent theme</span>
+        <select class="wb-input" id="wb-kpi-theme">${themeOpts}</select></label>
+      <div class="wb-field"><span class="wb-field-label">Options</span>
+        <div class="wb-chart-opts"><label class="wb-check"><input type="checkbox" id="wb-kpi-invert" ${existing && existing.invert ? "checked" : ""}><span>Lower is better</span></label></div></div>
+    </div>`, existing ? "Save" : "Add tile");
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-save]")) return;
+    const valueRef = wrap.querySelector("#wb-kpi-value").value.trim().toUpperCase();
+    const vrc = parseCellRef(valueRef);
+    if (!vrc) { _toast("Enter a value cell like B2", "warn"); return; }
+    const cmp = wrap.querySelector("#wb-kpi-compare").value.trim().toUpperCase();
+    const spark = wrap.querySelector("#wb-kpi-spark").value.trim().toUpperCase();
+    const spec = {
+      id: existing ? existing.id : "kp" + Math.random().toString(36).slice(2, 8),
+      label: wrap.querySelector("#wb-kpi-label").value.trim(),
+      valueRef, format: wrap.querySelector("#wb-kpi-format").value,
+      compareRef: cmp && parseCellRef(cmp) ? cmp : "",
+      sparkRange: spark && parseRangeRefText(spark) ? spark : "",
+      theme: wrap.querySelector("#wb-kpi-theme").value,
+      invert: wrap.querySelector("#wb-kpi-invert").checked,
+      layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "kpis", { c1: vrc.col, r0: vrc.row }),
+    };
+    saveEmbed(g, "kpis", spec);
+    wbLog("sheet.kpi", `${existing ? "updated" : "added"} a KPI tile in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    wrap.remove();
+  });
+  setTimeout(() => wrap.querySelector("#wb-kpi-label")?.focus(), 30);
+}
+
+function openTableDialog(g, existing) {
+  if (!WB.canEdit) return;
+  const rect = selRect(g);
+  const defRef = existing ? existing.range : `${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1}`;
+  const wrap = embedModalShell(existing ? "Edit table" : "Add table", "A compact, read-only view of a range — great for a top-N list on a dashboard.", `
+    <label class="wb-field"><span class="wb-field-label">Title <span class="wb-field-opt">optional</span></span>
+      <input type="text" class="wb-input" id="wb-tbl-title" maxlength="80" value="${esc((existing && existing.title) || "")}" placeholder="Open issues"></label>
+    <div class="wb-field-row">
+      <label class="wb-field"><span class="wb-field-label">Range</span>
+        <input type="text" class="wb-input" id="wb-tbl-range" value="${esc(defRef)}" placeholder="A1:D12" spellcheck="false"></label>
+      <label class="wb-field"><span class="wb-field-label">Max rows</span>
+        <input type="number" class="wb-input" id="wb-tbl-max" min="1" max="500" value="${(existing && existing.maxRows) || 25}"></label>
+    </div>
+    <div class="wb-field"><span class="wb-field-label">Options</span>
+      <div class="wb-chart-opts"><label class="wb-check"><input type="checkbox" id="wb-tbl-header" ${!existing || existing.header !== false ? "checked" : ""}><span>First row is a header</span></label></div></div>`,
+    existing ? "Save" : "Add table");
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-save]")) return;
+    const range = wrap.querySelector("#wb-tbl-range").value.trim().toUpperCase();
+    const rg = parseRangeRefText(range);
+    if (!rg) { _toast("Enter a range like A1:D12", "warn"); return; }
+    const spec = {
+      id: existing ? existing.id : "tb" + Math.random().toString(36).slice(2, 8),
+      title: wrap.querySelector("#wb-tbl-title").value.trim(),
+      range, maxRows: Math.max(1, Math.min(500, +wrap.querySelector("#wb-tbl-max").value || 25)),
+      header: wrap.querySelector("#wb-tbl-header").checked,
+      layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "tables", rg),
+    };
+    saveEmbed(g, "tables", spec);
+    wbLog("sheet.table", `${existing ? "updated" : "added"} a table widget on ${range} in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    wrap.remove();
+  });
+  setTimeout(() => wrap.querySelector("#wb-tbl-title")?.focus(), 30);
+}
+
+function openTextDialog(g, existing) {
+  if (!WB.canEdit) return;
+  const wrap = embedModalShell(existing ? "Edit text" : "Add text", "A heading and note to title and annotate your dashboard.", `
+    <label class="wb-field"><span class="wb-field-label">Heading <span class="wb-field-opt">optional</span></span>
+      <input type="text" class="wb-input" id="wb-txt-heading" maxlength="120" value="${esc((existing && existing.heading) || "")}" placeholder="Weekly operations"></label>
+    <label class="wb-field"><span class="wb-field-label">Body <span class="wb-field-opt">optional</span></span>
+      <textarea class="wb-input" id="wb-txt-body" rows="4" placeholder="Notes, context, a takeaway…">${esc((existing && existing.body) || "")}</textarea></label>`,
+    existing ? "Save" : "Add text");
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-save]")) return;
+    const heading = wrap.querySelector("#wb-txt-heading").value.trim();
+    const body = wrap.querySelector("#wb-txt-body").value.trim();
+    if (!heading && !body) { _toast("Add a heading or some text", "warn"); return; }
+    const spec = {
+      id: existing ? existing.id : "tx" + Math.random().toString(36).slice(2, 8),
+      heading, body,
+      layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "texts", null),
+    };
+    saveEmbed(g, "texts", spec);
+    wbLog("sheet.text", `${existing ? "updated" : "added"} a text tile in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    wrap.remove();
+  });
+  setTimeout(() => wrap.querySelector("#wb-txt-heading")?.focus(), 30);
 }
 
 // ─── Pivot tables ────────────────────────────────────────────────────────────
@@ -14075,8 +14364,12 @@ function wbMenuItems(menu, g) {
       { label: "Column left", act: "ins:col-left", disabled: !ed || !g },
       { label: "Column right", act: "ins:col-right", disabled: !ed || !g },
       { label: "New sheet", act: "ins:sheet", disabled: !ed || !g },
+      { label: "New dashboard", act: "ins:dashboard", disabled: !ed || !g },
       sep,
       { label: "Chart…", act: "ins:chart", disabled: !ed || !g },
+      { label: "KPI tile…", act: "ins:kpi", disabled: !ed || !g },
+      { label: "Table…", act: "ins:table", disabled: !ed || !g },
+      { label: "Text / heading…", act: "ins:text", disabled: !ed || !g },
       { label: "Pivot table…", act: "ins:pivot", disabled: !ed || !g },
       { label: "Function", sub: [
         ...["SUM", "AVERAGE", "COUNT", "MAX", "MIN", "IF", "COUNTIF", "SUMIF", "VLOOKUP", "XLOOKUP"].map((fn) => ({ label: fn, act: "ins:fn:" + fn, disabled: !ed || !g })),
@@ -14233,7 +14526,11 @@ function wbMenuAction(act, g) {
     case "ins:col-left": if (need()) restructure(g, "col", rect.c0, 1); return;
     case "ins:col-right": if (need()) restructure(g, "col", rect.c1 + 1, 1); return;
     case "ins:sheet": if (need()) addSheetTo(g.blockId); return;
+    case "ins:dashboard": if (need()) addSheetTo(g.blockId, { dashboard: true }); return;
     case "ins:chart": if (need()) openChartDialog(g); return;
+    case "ins:kpi": if (need()) openKpiDialog(g); return;
+    case "ins:table": if (need()) openTableDialog(g); return;
+    case "ins:text": if (need()) openTextDialog(g); return;
     case "ins:pivot": if (need()) openPivotDialog(g); return;
     case "ins:fnbrowse": if (need()) {
       const fnBtn = document.querySelector(`[data-wb-toolbar="${g.blockId}"] [data-wb-tb="fn-menu"]`);
@@ -16064,7 +16361,7 @@ export const __engine = {
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes, parseXlsxBytes, buildPrintTable,
-  chartSvg, WB_CHART_TYPES,
+  chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,
   WB_IMG_RE, cellImgSrc,
