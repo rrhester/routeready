@@ -71,7 +71,8 @@
 //   2026-07-05.50 · Workbook: emails/URLs render as clickable hyperlinks; clicking an email opens the RouteReady composer (never Gmail). Force pinned/installed/resumed apps off the stale shell so the new workbook.js (link handling) actually loads — the workbook link work was JS-only and never bumped this nonce, so resumed apps kept the pre-feature bundle and still opened Gmail.
 //   2026-07-06.51 · Schedule: add Callout Exposure to the Operations Health side panel. Per-day math — at-risk scheduled drivers (attendance score < 70) vs the cushion (scheduled drivers − required routes); a day is "exposed" only when at-risk drivers outnumber the cushion, otherwise "Covered by +N" / "Covered exactly". Panel shows the worst-day summary; click opens a by-day breakdown. Finalize warns (advisory, non-blocking) when any day is exposed. Grid/day-headers/shift-cards unchanged.
 //   2026-07-06.52 · Callout Exposure: the "at-risk" driver is now the roster's High-Risk designation (an active final/termination corrective action), loaded in the schedule render so it's correct without opening the roster first — not the attendance score. Cushion math + panel + finalize warning unchanged.
-const SW_DEPLOY_NONCE = "2026-07-06.52";
+//   2026-07-06.53 · Callout Exposure: narrow "High Risk" to exactly an active (unresolved) FINAL corrective action (drop termination) per operator definition.
+const SW_DEPLOY_NONCE = "2026-07-06.53";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

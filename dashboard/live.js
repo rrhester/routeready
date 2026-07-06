@@ -53350,18 +53350,17 @@ async function renderScheduleWeek() {
     // Week's cushion % (route-plan buffer) — drives the coverage
     // denominator: ceil(target_routes × (1 + cushion%)).
     sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart }),
-    // "High Risk" designation for Callout Exposure — the same signal the
-    // roster's High-Risk pill uses: an active (unresolved) corrective
-    // action of severity final / termination. Loaded here (not read from
-    // the roster's module maps) so exposure is correct even when the
-    // operator hasn't opened the roster this session. Best-effort — a
-    // failure just leaves the high-risk set empty.
+    // "High Risk" for Callout Exposure = a driver with an active
+    // (unresolved) FINAL corrective action. Loaded here (not read from the
+    // roster's module maps) so exposure is correct even when the operator
+    // hasn't opened the roster this session. Best-effort — a failure just
+    // leaves the high-risk set empty.
     sb.from("coachings")
       .select("driver_id, severity, resolved_at, archived_at")
       .eq("dsp_id", dspId)
       .is("archived_at", null)
       .is("resolved_at", null)
-      .in("severity", ["final", "termination"])
+      .eq("severity", "final")
       .then((r) => r, () => ({ data: [] })),
   ]);
 
@@ -53781,9 +53780,9 @@ async function renderScheduleWeek() {
   //   cushionDrivers   = scheduledDrivers − requiredRoutes  (the extra
   //                      scheduled capacity above routes needed — NOT
   //                      open seats, NOT missing routes)
-  //   atRiskScheduled  = scheduled drivers that day carrying the "High
-  //                      Risk" designation (an active final / termination
-  //                      corrective action — the roster's High-Risk pill)
+  //   atRiskScheduled  = scheduled drivers that day who are "High Risk" —
+  //                      i.e. carry an active (unresolved) FINAL
+  //                      corrective action
   //   exposure         = atRiskScheduled − cushionDrivers
   //     exposure  < 0 → covered  ("Covered by +N" — cushion to spare)
   //     exposure == 0 → covered  ("Covered exactly")
@@ -53794,15 +53793,12 @@ async function renderScheduleWeek() {
   // unassigned / training shifts are excluded — only active drivers on
   // assigned, in-schedule shifts count.
   const _calloutExposure = (() => {
-    // "High Risk" designation — a driver with an active (unresolved)
-    // corrective action of severity final / termination, exactly the
-    // roster's High-Risk pill. These are the drivers whose call-out has
-    // to be absorbed by a cushion shift; if the cushion can't cover them,
-    // the day is exposed.
+    // "High Risk" = a driver with an active (unresolved) FINAL corrective
+    // action. These are the drivers whose call-out has to be absorbed by a
+    // cushion shift; if the cushion can't cover them, the day is exposed.
     const atRiskIds = new Set(
       (riskRes?.data || [])
-        .filter(c => c && c.driver_id && !c.resolved_at
-          && (c.severity === "final" || c.severity === "termination"))
+        .filter(c => c && c.driver_id && !c.resolved_at && c.severity === "final")
         .map(c => c.driver_id)
     );
     // Distinct scheduled active drivers per date, and the at-risk subset.
