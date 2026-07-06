@@ -19310,8 +19310,25 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-chain-rescue-rec-stuck{
             color:var(--text-subtle);
           }
-          #rr-sched-vans-chain-body .ws-veh-input,#rr-sched-vans-chain-body .ws-veh-select{width:100%;font-size:13px;padding:7px 10px;background:var(--sch-surface);border:1px solid var(--sch-line);border-radius:6px;color:var(--text);font-family:inherit;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
-          #rr-sched-vans-chain-body .ws-veh-input:focus,#rr-sched-vans-chain-body .ws-veh-select:focus{outline:none;border-color:var(--sch-blue);box-shadow:0 0 0 1px var(--sch-blue)}
+          /* Inline-editable cells read as quiet text at rest — the
+             airy, low-chrome voice the Schedule page uses — and only
+             reveal their input affordance (hairline + fill) on row
+             hover / focus, so the board stops looking like a
+             data-entry form and matches the rest of the dashboard. */
+          #rr-sched-vans-chain-body .ws-veh-input,#rr-sched-vans-chain-body .ws-veh-select{width:100%;font-size:13px;padding:6px 10px;background-color:transparent;border:1px solid transparent;border-radius:6px;color:var(--text);font-family:inherit;transition:background-color var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast)}
+          /* Native select · strip the platform chrome and paint our
+             own chevron so a borderless select still reads as a
+             dropdown. background-color (not the shorthand) is used
+             everywhere below so the chevron image is never clobbered. */
+          #rr-sched-vans-chain-body .ws-veh-select{appearance:none;-webkit-appearance:none;padding-right:26px;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;background-size:11px}
+          /* Row hover lifts every editable field's hairline together
+             so the operator sees the whole row is editable at once. */
+          #rr-sched-vans-chain-body .ws-veh-table tbody tr:hover .ws-veh-input,#rr-sched-vans-chain-body .ws-veh-table tbody tr:hover .ws-veh-select{border-color:var(--sch-line)}
+          /* Direct hover on a field gives it a faint fill. */
+          #rr-sched-vans-chain-body .ws-veh-input:hover,#rr-sched-vans-chain-body .ws-veh-select:hover{background-color:var(--sch-surface,#fff);border-color:var(--sch-line-strong)}
+          /* Focus · full white card + soft blue ring. */
+          #rr-sched-vans-chain-body .ws-veh-input:focus,#rr-sched-vans-chain-body .ws-veh-select:focus{outline:none;background-color:var(--sch-surface,#fff);border-color:var(--sch-blue);box-shadow:0 0 0 3px var(--sch-blue-soft)}
+          #rr-sched-vans-chain-body .ws-veh-input::placeholder{color:var(--text-subtle)}
           #rr-sched-vans-chain-body .ws-veh-x{appearance:none;background:transparent;border:0;color:var(--text-subtle);cursor:pointer;padding:5px;border-radius:6px;display:inline-flex;opacity:0;transition:opacity var(--t-fast),color var(--t-fast),background var(--t-fast)}
           #rr-sched-vans-chain-body .ws-veh-table tbody tr:hover .ws-veh-x{opacity:1}
           #rr-sched-vans-chain-body .ws-veh-x:hover{background:var(--sch-hover);color:var(--sch-red)}
