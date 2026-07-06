@@ -72,10 +72,20 @@ Join the video interview here:
 ${roomUrl}
 
 No app or download needed — just open the link on your phone or computer at your time. Reply to this email if you need to reschedule.`;
-        await supa.from("email_messages").insert({
-          dsp_id: ev.dsp_id, applicant_id: ev.applicant_id, cal_event_id: ev.id, direction: "outbound", status: "queued",
+        // calendar_method 'request' (0429) → send-email attaches the .ics so
+        // the confirmation lands as a native calendar card. Retry without it
+        // if the column isn't migrated yet — losing the invite attachment
+        // beats losing the confirmation email.
+        const inviteRow: Record<string, unknown> = {
+          dsp_id: ev.dsp_id, applicant_id: ev.applicant_id, cal_event_id: ev.id, calendar_method: "request",
+          direction: "outbound", status: "queued",
           to_email: app.email, subject: "Your interview is confirmed", body_text: body,
-        });
+        };
+        const { error: insErr } = await supa.from("email_messages").insert(inviteRow);
+        if (insErr && /calendar_method/.test(insErr.message || "")) {
+          delete inviteRow.calendar_method;
+          await supa.from("email_messages").insert(inviteRow);
+        }
       }
     } else if (invitees.length > 0) {
       // Free-form event — branded invite to every listed email.
@@ -92,11 +102,15 @@ Join the video meeting here:
 ${roomUrl}
 ${note ? "\n" + note + "\n" : ""}
 No app or download needed — just open the link on your phone or computer at the time above.`;
-      const rows = invitees.map((email) => ({
-        dsp_id: ev.dsp_id, cal_event_id: ev.id, direction: "outbound", status: "queued",
+      const rows: Record<string, unknown>[] = invitees.map((email) => ({
+        dsp_id: ev.dsp_id, cal_event_id: ev.id, calendar_method: "request", direction: "outbound", status: "queued",
         to_email: email, subject: title, body_text: body,
       }));
-      await supa.from("email_messages").insert(rows);
+      const { error: insErr } = await supa.from("email_messages").insert(rows);
+      if (insErr && /calendar_method/.test(insErr.message || "")) {
+        for (const r of rows) delete r.calendar_method;
+        await supa.from("email_messages").insert(rows);
+      }
     }
     return jsonResponse({ ok: true, room: true });
   } catch (e) {

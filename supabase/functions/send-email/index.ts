@@ -6,6 +6,8 @@
 //   RESEND_FROM_EMAIL          e.g. "RouteReady <hello@gorouteready.com>"
 //   RESEND_REPLY_TO            (optional)
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+import { buildIcsRequest } from "../_shared/ics.ts";
+import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 interface Attachment { name?: string; url: string; content_type?: string; size?: number }
 interface QueuedRow {
@@ -13,6 +15,13 @@ interface QueuedRow {
   to_email: string; cc_emails: string[] | null;
   subject: string; body_text: string | null; body_html: string | null;
   attachments: Attachment[] | null; cal_event_id: string | null;
+  calendar_method?: string | null;   // 'request' | 'cancel' (0429)
+}
+interface InviteEvent {
+  id: string; kind: string | null; starts_at: string; ends_at: string | null;
+  title: string | null; timezone: string | null; location: string | null;
+  meeting_url: string | null; metadata: Record<string, unknown> | null;
+  ics_sequence?: number | null;
 }
 
 // Rebuild the Resend "From" header so:
@@ -93,8 +102,11 @@ Deno.serve(async (req) => {
   const payload = await req.json().catch(() => ({}));
   const limit = Math.min(payload?.limit ?? 50, 200);
 
+  // select("*") on purpose: calendar_method (0429) may not exist yet when
+  // this function deploys ahead of the manually-applied migration, and an
+  // explicit column list would fail the whole drain.
   let q = supa.from("email_messages")
-    .select("id, dsp_id, applicant_id, folder_id, to_email, cc_emails, subject, body_text, body_html, attachments, cal_event_id")
+    .select("*")
     .eq("status", "queued")
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -105,12 +117,13 @@ Deno.serve(async (req) => {
   if (!rows || rows.length === 0) return jsonResponse({ sent: 0 });
 
   // Pre-load the cal_events referenced by this batch so we can attach a real
-  // calendar invite (.ics) to interview invitations.
+  // calendar invite (.ics) to interview invitations. select("*") for the same
+  // migration-lag tolerance as above (ics_sequence is 0429).
   const evIds = Array.from(new Set((rows as QueuedRow[]).map((r) => r.cal_event_id).filter(Boolean) as string[]));
-  const evById = new Map<string, { starts_at: string; ends_at: string | null; title: string | null; timezone: string | null; meeting_url: string | null }>();
+  const evById = new Map<string, InviteEvent>();
   if (evIds.length > 0) {
     const { data: evRows } = await supa.from("cal_events")
-      .select("id, starts_at, ends_at, title, timezone, meeting_url").in("id", evIds);
+      .select("*").in("id", evIds);
     for (const e of evRows ?? []) if (e?.id) evById.set(e.id as string, e as never);
   }
 
@@ -170,10 +183,10 @@ Deno.serve(async (req) => {
     // inbound webhook (so cal_events.rsvp updates), so force the reply-to /
     // organizer to the inbound address when this row carries a cal_event_id.
     const isInvite = !!(row.cal_event_id && evById.has(row.cal_event_id));
+    const fromAddrM = fromHeader.match(/<([^>]+)>/);
+    const fromAddr = (fromAddrM ? fromAddrM[1] : fromHeader).trim();
     const inboundAddr = (() => {
       if (!inboundDomain) return null;
-      const m = fromHeader.match(/<([^>]+)>/);
-      const fromAddr = (m ? m[1] : fromHeader).trim();
       const at = fromAddr.indexOf("@");
       return at > 0 ? `${fromAddr.slice(0, at)}@${inboundDomain}` : null;
     })();
@@ -205,8 +218,53 @@ Deno.serve(async (req) => {
       .filter((a) => a?.url)
       .map((a) => ({ filename: a.name || "attachment", path: a.url, content_type: a.content_type }));
 
-    // Calendar invites are sent as a clean HTML email with Accept/Decline +
-    // Add-to-calendar buttons (built client-side) — no raw .ics attachment.
+    // Calendar invite (.ics) — rows stamped calendar_method 'request' or
+    // 'cancel' (0429) get a standards RFC 5545 METHOD:REQUEST / CANCEL part
+    // so Gmail/Outlook render the native event card and add it to the
+    // recipient's calendar. The HTML Accept/Decline + add-to-calendar
+    // buttons stay in the body as the fallback. ORGANIZER is the inbound
+    // reply address, so a native RSVP (METHOD:REPLY) routes back through
+    // webhook-email-inbound → cal_events.rsvp. Reminder emails also carry
+    // cal_event_id but no calendar_method — they never re-attach.
+    const ev = row.cal_event_id ? evById.get(row.cal_event_id) : undefined;
+    const method = row.calendar_method === "cancel" ? "CANCEL"
+      : row.calendar_method === "request" ? "REQUEST" : null;
+    if (ev && method) {
+      const fallbackTitle = ev.kind === "orientation" ? "Orientation"
+        : ev.kind === "interview" ? "Interview" : "Event";
+      const title = (ev.title || "").trim()
+        || (dsp?.name ? `${fallbackTitle} — ${dsp.name}` : fallbackTitle);
+      const md = (ev.metadata ?? {}) as Record<string, unknown>;
+      // Invitee-facing description: the composer note (free-form events
+      // only — interview rows may hold internal recruiter notes) + join link.
+      const note = ev.kind === "event" && typeof md.note === "string" ? md.note.trim() : "";
+      const desc = [note, ev.meeting_url ? `Join the video meeting: ${ev.meeting_url}` : ""]
+        .filter(Boolean).join("\n");
+      const ics = buildIcsRequest({
+        uid: `${row.cal_event_id}@gorouteready.com`,
+        start: ev.starts_at,
+        end: ev.ends_at,
+        title,
+        description: desc || undefined,
+        location: ev.location || ev.meeting_url || undefined,
+        organizerName: dsp?.name || "RouteReady",
+        organizerEmail: effectiveReplyTo || fromAddr,
+        attendeeEmail: row.to_email,
+        // CANCEL must carry a sequence >= the last REQUEST. The cancel email
+        // can be queued before cancel_cal_event_silent runs, so +1 here
+        // rather than trusting the row to have been bumped already.
+        sequence: (ev.ics_sequence ?? 0) + (method === "CANCEL" ? 1 : 0),
+        method,
+        allDay: md.all_day === true,
+        tzid: ev.timezone || undefined,
+      });
+      outAtts.push({
+        filename: method === "CANCEL" ? "cancel.ics" : "invite.ics",
+        content: encodeBase64(new TextEncoder().encode(ics)),
+        content_type: `text/calendar; method=${method}; charset=UTF-8`,
+      });
+    }
+
     if (outAtts.length > 0) body.attachments = outAtts;
 
     const resp = await fetch("https://api.resend.com/emails", {
