@@ -6710,6 +6710,7 @@ function mountSheetBlock(block, body) {
       </div>
       <div class="wb-gr-filterchip" hidden></div>
       <div class="wb-dash-bar" data-wb-dashbar>
+        <button type="button" class="btn btn-sm wb-dash-magic" data-wb-dashauto title="Auto-build a dashboard from your data">✨ Auto-build</button>
         <button type="button" class="btn btn-sm wb-dash-btn" data-wb-dashtidy title="Tidy — auto-arrange widgets into a grid">Tidy</button>
         <button type="button" class="btn btn-sm wb-dash-btn" data-wb-dashpresent title="Present — full-screen, no edit chrome">Present</button>
         <button type="button" class="btn btn-sm wb-dash-add" data-wb-dashaddmenu aria-haspopup="menu" title="Add a widget">＋ Add widget ▾</button>
@@ -6788,7 +6789,8 @@ function mountSheetBlock(block, body) {
     const add = e.target.closest("[data-wb-dashadd]");
     if (add) {
       const kind = add.getAttribute("data-wb-dashadd");
-      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog, filter: openControlDialog }[kind] || openChartDialog)(g);
+      if (kind === "auto") { autoBuildDashboard(g); return; }
+      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog, filter: openControlDialog, insights: openInsightsDialog }[kind] || openChartDialog)(g);
       return;
     }
     const card = e.target.closest("[data-wb-embed-id]");
@@ -6801,7 +6803,7 @@ function mountSheetBlock(block, body) {
     if (action === "edit") openEmbedEditor(g, key, item);
     else if (action === "dup") duplicateEmbed(g, key, item);
     else {
-      const label = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile", controls: "filter" }[key] || "widget";
+      const label = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile", controls: "filter", insights: "insights tile" }[key] || "widget";
       confirmModal({ title: `Delete this ${label}?`, body: "The underlying cells are untouched.", confirmLabel: "Delete", danger: true, onConfirm: () => deleteEmbed(g, key, item.id) });
     }
   });
@@ -6819,8 +6821,9 @@ function mountSheetBlock(block, body) {
     saveSheetMeta(g.sheet.id);
     renderCharts(g);
   });
-  // Tidy (auto-arrange) + Present (full-screen) on the dashboard toolbar
+  // Tidy (auto-arrange) + Present (full-screen) + Auto-build on the dashboard toolbar
   g.els.grid.addEventListener("click", (e) => {
+    if (e.target.closest("[data-wb-dashauto]")) { e.stopPropagation(); autoBuildDashboard(g); return; }
     if (e.target.closest("[data-wb-dashtidy]")) { e.stopPropagation(); tidyDashboard(g); return; }
     const present = e.target.closest("[data-wb-dashpresent]");
     if (present) {
@@ -6839,13 +6842,13 @@ function mountSheetBlock(block, body) {
     // handler, which would otherwise dismiss the menu we're about to open
     e.stopPropagation();
     const r = addBtn.getBoundingClientRect();
-    const m = ctxMenu(r.right, r.bottom + 4, [["kpi", "KPI tile"], ["chart", "Chart"], ["table", "Table"], ["filter", "Filter control"], ["text", "Text / heading"]]
+    const m = ctxMenu(r.right, r.bottom + 4, [["kpi", "KPI tile"], ["chart", "Chart"], ["table", "Table"], ["filter", "Filter control"], ["insights", "Insights ✨"], ["text", "Text / heading"]]
       .map(([k, l]) => `<button type="button" class="popover-item" data-wb-add="${k}" role="menuitem">${l}</button>`).join(""));
     m.addEventListener("click", (ev) => {
       const b = ev.target.closest("[data-wb-add]"); if (!b) return;
       ev.stopPropagation();
       closeAllPopovers();
-      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog, filter: openControlDialog }[b.getAttribute("data-wb-add")])(g);
+      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog, filter: openControlDialog, insights: openInsightsDialog }[b.getAttribute("data-wb-add")])(g);
     });
   });
   g.els.pivots.addEventListener("click", (e) => {
@@ -12899,9 +12902,19 @@ function chartSvg(sheet, ch, opts = {}) {
   const stacked = ch.type === "stackcol" || ch.type === "stackbar";
   const combo = ch.type === "combo";
   const horizontal = ch.type === "bar" || ch.type === "stackbar";
+  const nCat = categories.length;
+  // Trendline + forecast (column / line / area / combo only). `fc` reserves that
+  // many extra x-slots on the right for the projection.
+  const showTrend = !!ch.trend && (ch.type === "column" || ch.type === "line" || ch.type === "area" || ch.type === "combo");
+  const trendFits = showTrend ? series.map((s) => linearFit(s.values)) : [];
+  const fc = showTrend ? Math.max(0, Math.min(24, Math.round(+ch.forecast || 0))) : 0;
+  const xN = nCat + fc;
   let lo = 0, hi = 1;
   const allVals = series.flatMap((s) => s.values).filter((v) => v != null);
   if (allVals.length) { lo = Math.min(...allVals), hi = Math.max(...allVals); }
+  if (showTrend) {   // widen the domain so the trend + forecast endpoints fit
+    for (const f of trendFits) { if (!f) continue; for (const x of [0, nCat - 1 + fc]) { const yv = f.at(x); if (yv < lo) lo = yv; if (yv > hi) hi = yv; } }
+  }
   if (stacked) {
     // domain covers the per-category positive / negative running totals
     lo = 0; hi = 0;
@@ -12929,19 +12942,24 @@ function chartSvg(sheet, ch, opts = {}) {
     }
   }
 
-  const nCat = categories.length;
+  // forecast region shade + label (behind the marks)
+  if (showTrend && fc > 0) {
+    const bx = padL + (nCat / xN) * plotW;
+    out += `<rect x="${bx.toFixed(1)}" y="${padT}" width="${(W - padR - bx).toFixed(1)}" height="${plotH}" fill="var(--text)" opacity="0.04"/>`;
+    out += `<text x="${((bx + W - padR) / 2).toFixed(1)}" y="${padT + 11}" text-anchor="middle" class="wb-chart-tick">forecast</text>`;
+  }
   const catLabel = (label, i) => {
     const step = Math.ceil(nCat / (horizontal ? 12 : 8));
     if (i % step !== 0) return "";
     const short = String(label).slice(0, horizontal ? 9 : 10);
     return horizontal
-      ? `<text x="${padL - 6}" y="${padT + ((i + 0.5) / nCat) * plotH + 3}" text-anchor="end" class="wb-chart-tick">${t(short)}</text>`
-      : `<text x="${padL + ((i + 0.5) / nCat) * plotW}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${t(short)}</text>`;
+      ? `<text x="${padL - 6}" y="${padT + ((i + 0.5) / xN) * plotH + 3}" text-anchor="end" class="wb-chart-tick">${t(short)}</text>`
+      : `<text x="${padL + ((i + 0.5) / xN) * plotW}" y="${padT + plotH + 16}" text-anchor="middle" class="wb-chart-tick">${t(short)}</text>`;
   };
   categories.forEach((label, i) => { out += catLabel(label, i); });
 
   if (ch.type === "column" || ch.type === "bar" || stacked || combo) {
-    const band = (horizontal ? plotH : plotW) / nCat;
+    const band = (horizontal ? plotH : plotW) / xN;
     const inner = band * 0.72;
     // combo draws all-but-last series as grouped columns and overlays the
     // last as a line; a single-series combo is just a line
@@ -12990,7 +13008,7 @@ function chartSvg(sheet, ch, opts = {}) {
     // combo line overlay (the last series), plotted over the category midpoints
     if (combo && series.length > 1) {
       const s = series[series.length - 1], si = series.length - 1;
-      const cx = (i) => padL + ((i + 0.5) / nCat) * plotW;
+      const cx = (i) => padL + ((i + 0.5) / xN) * plotW;
       const pts = [];
       s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy(v), i, v]); });
       if (pts.length) {
@@ -13003,7 +13021,7 @@ function chartSvg(sheet, ch, opts = {}) {
     else out += `<line x1="${padL}" y1="${vy(0)}" x2="${W - padR}" y2="${vy(0)}" stroke="var(--border-strong)" stroke-width="1"/>`;
   } else {
     // line / area over category midpoints
-    const cx = (i) => padL + ((i + 0.5) / nCat) * plotW;
+    const cx = (i) => padL + ((i + 0.5) / xN) * plotW;
     series.forEach((s, si) => {
       const pts = [];
       s.values.forEach((v, i) => { if (v != null) pts.push([cx(i), vy(v), i, v]); });
@@ -13021,6 +13039,21 @@ function chartSvg(sheet, ch, opts = {}) {
       }
     });
     out += `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1"/>`;
+  }
+
+  // trendline (least-squares) + forecast projection, per series
+  if (showTrend) {
+    const cxT = (i) => padL + ((i + 0.5) / xN) * plotW;
+    series.forEach((s, si) => {
+      const f = trendFits[si]; if (!f) return;
+      const x0 = cxT(0), y0 = vy(f.at(0)), xe = cxT(nCat - 1), ye = vy(f.at(nCat - 1));
+      out += `<path d="M${x0.toFixed(1)},${y0.toFixed(1)} L${xe.toFixed(1)},${ye.toFixed(1)}" fill="none" stroke="${color(si)}" stroke-width="1.6" stroke-dasharray="5 4" opacity="0.9"><title>Trend · ${t(s.name)}</title></path>`;
+      if (fc > 0) {
+        const xf = cxT(nCat - 1 + fc), yf = vy(f.at(nCat - 1 + fc)), fv = f.at(nCat - 1 + fc);
+        out += `<path d="M${xe.toFixed(1)},${ye.toFixed(1)} L${xf.toFixed(1)},${yf.toFixed(1)}" fill="none" stroke="${color(si)}" stroke-width="1.6" stroke-dasharray="2 4" opacity="0.75"/>`;
+        out += `<circle cx="${xf.toFixed(1)}" cy="${yf.toFixed(1)}" r="3.2" fill="var(--surface)" stroke="${color(si)}" stroke-width="1.6"><title>Forecast · ${t(s.name)}: ${chartFmt(fv)}</title></circle>`;
+      }
+    });
   }
 
   // axis titles (secondary ink — never the series color)
@@ -13041,16 +13074,18 @@ function chartSvg(sheet, ch, opts = {}) {
 // A "dashboard" sheet (meta.kind === "dashboard") is just a grid sheet with
 // the cells hidden, so the widgets read as a clean dashboard page.
 
-const EMBED_KINDS = ["controls", "charts", "kpis", "tables", "texts"];
-const EMBED_META_KEY = { charts: "charts", kpis: "kpis", tables: "tables", texts: "texts", controls: "controls" };
-const EMBED_DEFAULT_SIZE = { charts: { w: 440, h: 280 }, kpis: { w: 248, h: 132 }, tables: { w: 380, h: 240 }, texts: { w: 320, h: 120 }, controls: { w: 264, h: 108 } };
+const EMBED_KINDS = ["controls", "insights", "kpis", "charts", "tables", "texts"];
+const EMBED_META_KEY = { charts: "charts", kpis: "kpis", tables: "tables", texts: "texts", controls: "controls", insights: "insights" };
+const EMBED_DEFAULT_SIZE = { charts: { w: 440, h: 280 }, kpis: { w: 248, h: 132 }, tables: { w: 380, h: 240 }, texts: { w: 320, h: 120 }, controls: { w: 264, h: 108 }, insights: { w: 340, h: 200 } };
 function sheetKpis(sheet)     { const v = sheet.meta && sheet.meta.kpis;     return Array.isArray(v) ? v : []; }
 function sheetTables(sheet)   { const v = sheet.meta && sheet.meta.tables;   return Array.isArray(v) ? v : []; }
 function sheetTexts(sheet)    { const v = sheet.meta && sheet.meta.texts;    return Array.isArray(v) ? v : []; }
 function sheetControls(sheet) { const v = sheet.meta && sheet.meta.controls; return Array.isArray(v) ? v : []; }
+function sheetInsights(sheet) { const v = sheet.meta && sheet.meta.insights; return Array.isArray(v) ? v : []; }
 function sheetEmbeds(sheet, key) {
   return key === "charts" ? sheetCharts(sheet) : key === "kpis" ? sheetKpis(sheet)
-    : key === "tables" ? sheetTables(sheet) : key === "controls" ? sheetControls(sheet) : sheetTexts(sheet);
+    : key === "tables" ? sheetTables(sheet) : key === "controls" ? sheetControls(sheet)
+    : key === "insights" ? sheetInsights(sheet) : sheetTexts(sheet);
 }
 function allEmbeds(sheet) { return EMBED_KINDS.flatMap((key) => sheetEmbeds(sheet, key).map((item) => ({ key, item }))); }
 function isDashboardSheet(sheet) { return !!(sheet && sheet.meta && sheet.meta.kind === "dashboard"); }
@@ -13191,6 +13226,86 @@ function kpiValue(sheet, spec, rowFilter) {
   return aggRange(sheet, spec.valueRef, agg, rowFilter);
 }
 
+// ── Least-squares fit (chart trendlines + forecast) ──────────────────────────
+function linearFit(ys) {
+  const pts = ys.map((y, i) => [i, y]).filter((p) => p[1] != null && isFinite(p[1]));
+  const n = pts.length;
+  if (n < 2) return null;
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (const [x, y] of pts) { sx += x; sy += y; sxx += x * x; sxy += x * y; }
+  const d = n * sxx - sx * sx;
+  if (!d) return null;
+  const slope = (n * sxy - sx * sy) / d, intercept = (sy - slope * sx) / n;
+  return { slope, intercept, at: (x) => slope * x + intercept };
+}
+
+// ── Column analysis (Auto-build) ─────────────────────────────────────────────
+function analyzeColumns(sheet, rng) {
+  const out = [];
+  for (let c = rng.c0; c <= rng.c1; c++) {
+    const name = String(displayValue(sheet, rng.r0, c) || colLabel(c));
+    let nums = 0, dates = 0, nonEmpty = 0; const distinct = new Set();
+    for (let r = rng.r0 + 1; r <= rng.r1; r++) {
+      const raw = embedCellRaw(sheet, { row: r, col: c });
+      if (raw == null || String(raw).trim() === "") continue;
+      nonEmpty++;
+      if (distinct.size < 60) distinct.add(String(displayValue(sheet, r, c)));
+      if (cellNumeric(raw) != null) nums++;
+      else if (dvDateSerial(raw) != null) dates++;
+    }
+    let kind = "text";
+    if (nonEmpty && nums / nonEmpty > 0.7) kind = "number";
+    else if (nonEmpty && dates / nonEmpty > 0.7) kind = "date";
+    else if (distinct.size && distinct.size <= Math.max(12, nonEmpty * 0.6)) kind = "cat";
+    out.push({ c, name, kind, distinct: distinct.size, nonEmpty });
+  }
+  return out;
+}
+
+// ── Auto-Insights: plain-English findings from the data ──────────────────────
+function computeInsights(sheet, rng, rowFilter) {
+  const cols = analyzeColumns(sheet, rng);
+  const nums = cols.filter((c) => c.kind === "number");
+  const cats = cols.filter((c) => c.kind === "cat");
+  const rows = [];
+  for (let r = rng.r0 + 1; r <= rng.r1; r++) { if (rowFilter && !rowFilter(r)) continue; rows.push(r); }
+  const out = [];
+  if (!rows.length || !nums.length) return [{ icon: "○", text: "Add numeric data to see automatic insights." }];
+  const primary = nums[0];
+  const valAt = (r) => embedCellNum(sheet, { row: r, col: primary.c });
+  const vals = rows.map(valAt).filter((v) => v != null);
+  const total = vals.reduce((a, b) => a + b, 0), avg = vals.length ? total / vals.length : 0;
+  out.push({ icon: "Σ", text: `${primary.name}: ${chartFmt(total)} total across ${rows.length} row${rows.length === 1 ? "" : "s"} (avg ${chartFmt(avg)}).` });
+  // peak row (labelled by the first categorical/text column if present)
+  const labelCol = cats[0] ? cats[0].c : (cols[0] && cols[0].c !== primary.c ? cols[0].c : null);
+  let peakR = null, peakV = -Infinity;
+  for (const r of rows) { const v = valAt(r); if (v != null && v > peakV) { peakV = v; peakR = r; } }
+  if (peakR != null) out.push({ icon: "▲", text: `Peak ${primary.name}: ${chartFmt(peakV)}${labelCol != null ? ` at ${displayValue(sheet, peakR, labelCol)}` : ""}.` });
+  // top category by the primary metric
+  if (cats[0]) {
+    const totals = new Map();
+    for (const r of rows) { const k = String(displayValue(sheet, r, cats[0].c) ?? "").trim(); const v = valAt(r); if (!k || v == null) continue; totals.set(k, (totals.get(k) || 0) + v); }
+    let best = null, bv = -Infinity; for (const [k, v] of totals) if (v > bv) { bv = v; best = k; }
+    if (best != null && total) out.push({ icon: "★", text: `${cats[0].name} “${best}” leads with ${chartFmt(bv)} — ${Math.round((bv / total) * 100)}% of the total.` });
+  }
+  // trend: last third vs first third of the (row-ordered) series
+  if (vals.length >= 6) {
+    const k = Math.max(1, Math.floor(vals.length / 3));
+    const first = vals.slice(0, k), lastSeg = vals.slice(-k);
+    const fa = first.reduce((a, b) => a + b, 0) / first.length, la = lastSeg.reduce((a, b) => a + b, 0) / lastSeg.length;
+    if (fa) { const pct = ((la - fa) / Math.abs(fa)) * 100; if (Math.abs(pct) >= 5) out.push({ icon: la >= fa ? "↗" : "↘", text: `Trending ${la >= fa ? "up" : "down"} ${Math.abs(pct).toFixed(0)}% from the start of the range to the end.` }); }
+  }
+  return out.slice(0, 5);
+}
+function insightsTileHtml(g, item) {
+  const src = embedSourceSheet(g, item);
+  const rng = item.range ? (parseRangeRefText(item.range) || sheetDataRange(src)) : sheetDataRange(src);
+  const rowFilter = dashboardRowFilter(g, src.id);
+  const items = computeInsights(src, rng, rowFilter);
+  const body = `<ul class="wb-insights">${items.map((i) => `<li><span class="wb-insight-ic">${esc(i.icon)}</span><span>${esc(i.text)}</span></li>`).join("")}</ul>`;
+  return { title: esc(item.label || "Insights"), body, footer: "" };
+}
+
 function unzoomedColX(sheet, c) { let x = 0; const n = Math.min(c, sheet.colCount); for (let i = 0; i < n; i++) x += colW(sheet, i); return x; }
 function unzoomedRowY(sheet, r) { let y = 0; const n = Math.min(r, sheet.rowCount); for (let i = 0; i < n; i++) y += rowH(sheet, i); return y; }
 
@@ -13213,6 +13328,7 @@ function chartDefaultLayout(g, range) { return embedDefaultLayout(g, "charts", r
 function embedInnerHtml(g, key, item, L) {
   if (key === "texts") return textTileHtml(item);
   if (key === "controls") return controlTileHtml(g, item);
+  if (key === "insights") return insightsTileHtml(g, item);
   const src = embedSourceSheet(g, item);
   const rowFilter = dashboardRowFilter(g, src.id);   // live dashboard filters
   if (key === "charts") {
@@ -13232,12 +13348,16 @@ function renderCharts(g) {                    // renders every embed kind
       host.hidden = false;
       host.innerHTML = `<div class="wb-dash-empty">
         <div class="wb-dash-empty-title">Build your dashboard</div>
-        <div class="wb-dash-empty-sub">Add widgets that pull live from your sheets. Drag to arrange, drag a corner to resize.</div>
+        <div class="wb-dash-empty-sub">Let RouteReady generate one from your data, or add widgets yourself. Drag to arrange, drag a corner to resize.</div>
+        <div class="wb-dash-empty-actions">
+          <button type="button" class="btn btn-sm wb-dash-magic" data-wb-dashadd="auto">✨ Auto-build from my data</button>
+        </div>
         <div class="wb-dash-empty-actions">
           <button type="button" class="btn btn-sm" data-wb-dashadd="kpi">＋ KPI tile</button>
           <button type="button" class="btn btn-sm" data-wb-dashadd="chart">＋ Chart</button>
           <button type="button" class="btn btn-sm" data-wb-dashadd="table">＋ Table</button>
           <button type="button" class="btn btn-sm" data-wb-dashadd="filter">＋ Filter</button>
+          <button type="button" class="btn btn-sm" data-wb-dashadd="insights">＋ Insights</button>
           <button type="button" class="btn btn-sm" data-wb-dashadd="text">＋ Text</button>
         </div></div>`;
       return;
@@ -13412,7 +13532,18 @@ function kpiTileHtml(sheet, spec, rowFilter) {
     }
   }
   const spark = spec.sparkRange ? kpiSparkline(sheet, spec.sparkRange, accent) : "";
-  const body = `<div class="wb-kpi"><div class="wb-kpi-value" style="color:${accent}">${valStr}</div>${delta}${spark}</div>`;
+  // goal / target gauge: a progress bar toward a target with a threshold color
+  let gauge = "";
+  const target = spec.target != null && spec.target !== "" ? Number(spec.target) : null;
+  if (target != null && isFinite(target) && target !== 0 && num != null) {
+    const frac = num / target, pct = Math.round(frac * 100);
+    const good = spec.invert ? frac <= 1 : frac >= 1;
+    const warn = spec.invert ? frac <= 1.1 : frac >= 0.7;
+    const barColor = good ? "var(--green,#0ca30c)" : warn ? "var(--amber,#eda100)" : "var(--red,#d03b3b)";
+    gauge = `<div class="wb-kpi-gauge" title="${pct}% of target ${kpiFmt(target, spec.format)}"><div class="wb-kpi-gauge-fill" style="width:${Math.max(0, Math.min(100, frac * 100)).toFixed(0)}%;background:${barColor}"></div></div>
+      <div class="wb-kpi-gaugelbl">${pct}% of ${kpiFmt(target, spec.format)} target</div>`;
+  }
+  const body = `<div class="wb-kpi"><div class="wb-kpi-value" style="color:${accent}">${valStr}</div>${delta}${gauge}${spark}</div>`;
   return { title: esc(spec.label || "KPI"), body, footer: "" };
 }
 const HEATMAP_STOPS = ["#eef5ff", "#bcd8f7", "#7db0ec"];  // light ramp — dark text stays readable
@@ -13530,6 +13661,12 @@ function openChartDialog(g, existing) {
           <label class="wb-field"><span class="wb-field-label">Y-axis title <span class="wb-field-opt">optional</span></span>
             <input type="text" class="wb-input" id="wb-chart-ytitle" maxlength="60" value="${esc((existing && existing.yTitle) || "")}" placeholder="e.g. Routes"></label>
         </div>
+        <div class="wb-field-row">
+          <div class="wb-field"><span class="wb-field-label">Trend <span class="wb-field-opt">column/line/area/combo</span></span>
+            <div class="wb-chart-opts"><label class="wb-check"><input type="checkbox" id="wb-chart-trend" ${existing && existing.trend ? "checked" : ""}><span>Trendline</span></label></div></div>
+          <label class="wb-field"><span class="wb-field-label">Forecast periods <span class="wb-field-opt">optional</span></span>
+            <input type="number" class="wb-input" id="wb-chart-forecast" min="0" max="24" value="${existing && existing.forecast ? esc(String(existing.forecast)) : 0}"></label>
+        </div>
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
@@ -13553,6 +13690,8 @@ function openChartDialog(g, existing) {
       grid: wrap.querySelector("#wb-chart-grid").checked,
       xTitle: wrap.querySelector("#wb-chart-xtitle").value.trim(),
       yTitle: wrap.querySelector("#wb-chart-ytitle").value.trim(),
+      trend: wrap.querySelector("#wb-chart-trend").checked,
+      forecast: Math.max(0, Math.min(24, +wrap.querySelector("#wb-chart-forecast").value || 0)),
       srcSheetId: (wrap.querySelector("#wb-chart-src") && wrap.querySelector("#wb-chart-src").value) || (existing && existing.srcSheetId) || "",
       ...range,
       // keep the on-grid position/size across edits; new charts get placed on render
@@ -13575,6 +13714,7 @@ function openEmbedEditor(g, key, item) {
   if (key === "kpis") return openKpiDialog(g, item);
   if (key === "tables") return openTableDialog(g, item);
   if (key === "controls") return openControlDialog(g, item);
+  if (key === "insights") return openInsightsDialog(g, item);
   return openTextDialog(g, item);
 }
 
@@ -13629,8 +13769,12 @@ function openKpiDialog(g, existing) {
       <label class="wb-field"><span class="wb-field-label">Compare to <span class="wb-field-opt">optional</span></span>
         <input type="text" class="wb-input" id="wb-kpi-compare" value="${esc((existing && existing.compareRef) || "")}" placeholder="B1" spellcheck="false"></label>
     </div>
-    <label class="wb-field"><span class="wb-field-label">Sparkline range <span class="wb-field-opt">optional</span></span>
-      <input type="text" class="wb-input" id="wb-kpi-spark" value="${esc((existing && existing.sparkRange) || "")}" placeholder="B2:B9" spellcheck="false"></label>
+    <div class="wb-field-row">
+      <label class="wb-field"><span class="wb-field-label">Sparkline range <span class="wb-field-opt">optional</span></span>
+        <input type="text" class="wb-input" id="wb-kpi-spark" value="${esc((existing && existing.sparkRange) || "")}" placeholder="B2:B9" spellcheck="false"></label>
+      <label class="wb-field"><span class="wb-field-label">Goal / target <span class="wb-field-opt">optional</span></span>
+        <input type="number" step="any" class="wb-input" id="wb-kpi-target" value="${existing && existing.target != null ? esc(String(existing.target)) : ""}" placeholder="e.g. 120"></label>
+    </div>
     <div class="wb-field-row">
       <label class="wb-field"><span class="wb-field-label">Accent theme</span>
         <select class="wb-input" id="wb-kpi-theme">${themeOpts}</select></label>
@@ -13656,6 +13800,7 @@ function openKpiDialog(g, existing) {
       agg, valueRef, format: wrap.querySelector("#wb-kpi-format").value,
       compareRef: cmp && (parseCellRef(cmp) || parseRangeRefText(cmp)) ? cmp : "",
       sparkRange: spark && parseRangeRefText(spark) ? spark : "",
+      target: (() => { const t = wrap.querySelector("#wb-kpi-target").value.trim(); return t !== "" && isFinite(+t) ? +t : null; })(),
       theme: wrap.querySelector("#wb-kpi-theme").value,
       invert: wrap.querySelector("#wb-kpi-invert").checked,
       srcSheetId: (wrap.querySelector("#wb-kpi-src") && wrap.querySelector("#wb-kpi-src").value) || (existing && existing.srcSheetId) || "",
@@ -13792,6 +13937,81 @@ function openControlDialog(g, existing) {
     wrap.remove();
   });
   setTimeout(() => wrap.querySelector("#wb-ctl-label")?.focus(), 30);
+}
+
+function openInsightsDialog(g, existing) {
+  if (!WB.canEdit) return;
+  const srcDef = existing ? embedSourceSheet(g, existing) : defaultSrcSheet(g);
+  const srcOpts = embedSourceOptions(g, (existing && existing.srcSheetId) || srcDef.id);
+  const wrap = embedModalShell(existing ? "Edit insights" : "Add insights", "RouteReady reads the data and writes the key findings automatically — totals, peaks, top category and trend. It updates as you filter.", `
+    <label class="wb-field"><span class="wb-field-label">Label <span class="wb-field-opt">optional</span></span>
+      <input type="text" class="wb-input" id="wb-ins-label" maxlength="60" value="${esc((existing && existing.label) || "")}" placeholder="Insights"></label>
+    ${srcOpts ? `<label class="wb-field"><span class="wb-field-label">Data source (sheet)</span>
+      <select class="wb-input" id="wb-ins-src">${srcOpts}</select></label>` : ""}`,
+    existing ? "Save" : "Add insights");
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
+    if (!e.target.closest("[data-wb-save]")) return;
+    const spec = {
+      id: existing ? existing.id : "in" + Math.random().toString(36).slice(2, 8),
+      label: wrap.querySelector("#wb-ins-label").value.trim(),
+      srcSheetId: (wrap.querySelector("#wb-ins-src") && wrap.querySelector("#wb-ins-src").value) || (existing && existing.srcSheetId) || "",
+      layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "insights", null),
+    };
+    saveEmbed(g, "insights", spec);
+    wbLog("sheet.insights", `${existing ? "updated" : "added"} an insights tile in ${g.sheet.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    wrap.remove();
+  });
+  setTimeout(() => wrap.querySelector("#wb-ins-label")?.focus(), 30);
+}
+
+// ✨ Auto-build: analyze the data sheet and generate a full starter dashboard.
+function autoBuildDashboard(g) {
+  if (!WB.canEdit || !isDashboardSheet(g.sheet)) return;
+  const src = defaultSrcSheet(g);
+  if (!src || isDashboardSheet(src)) { _toast("Add a data sheet first, then Auto-build", "warn"); return; }
+  const rng = sheetDataRange(src);
+  const cols = analyzeColumns(src, rng);
+  const nums = cols.filter((c) => c.kind === "number");
+  const cats = cols.filter((c) => c.kind === "cat");
+  const dates = cols.filter((c) => c.kind === "date");
+  if (!nums.length) { _toast("No numeric columns found to summarize", "warn"); return; }
+  const build = () => {
+    const rid = (p) => p + Math.random().toString(36).slice(2, 8);
+    const themes = ["vibrant", "ocean", "forest", "sunset", "berry"];
+    const kpis = [], charts = [], tables = [], insights = [], controls = [];
+    insights.push({ id: rid("in"), label: "Insights", srcSheetId: src.id });
+    nums.slice(0, 4).forEach((n, i) => kpis.push({
+      id: rid("kp"), label: n.name, agg: "sum", valueRef: `${colLabel(n.c)}${rng.r0 + 2}:${colLabel(n.c)}${rng.r1 + 1}`,
+      format: "compact", theme: themes[i % themes.length], srcSheetId: src.id,
+    }));
+    // a chart over the first category (or date) vs the first numeric
+    const labelCol = dates[0] || cats[0] || cols[0];
+    if (labelCol) {
+      charts.push({
+        id: rid("ch"), type: dates[0] ? "line" : "column", title: `${nums[0].name} by ${labelCol.name}`,
+        theme: "vibrant", labels: false, grid: true, trend: !!dates[0], forecast: dates[0] ? 3 : 0,
+        r0: rng.r0, c0: labelCol.c, r1: rng.r1, c1: nums[0].c >= labelCol.c ? nums[0].c : labelCol.c,
+        srcSheetId: src.id,
+      });
+    }
+    if (cats[0]) controls.push({ id: rid("fc"), label: cats[0].name, ctype: "value", col: cats[0].c, value: "", srcSheetId: src.id });
+    if (dates[0]) controls.push({ id: rid("fc"), label: `${dates[0].name} range`, ctype: "daterange", col: dates[0].c, value: "all", srcSheetId: src.id });
+    tables.push({ id: rid("tb"), title: "Data", range: rangeRefText(rng), header: true, maxRows: 50, heatmap: true, srcSheetId: src.id });
+    // give each a temporary layout; tidy re-flows them into a grid
+    let y = 24;
+    const place = (arr, w, h) => arr.forEach((it) => { it.layout = { x: 24, y, w, h }; y += h + 16; });
+    place(controls, 240, 100); place(insights, 340, 200); place(kpis, 248, 132); place(charts, 460, 300); place(tables, 520, 300);
+    g.sheet.meta = { ...(g.sheet.meta || {}), controls, insights, kpis, charts, tables };
+    saveSheetMeta(g.sheet.id);
+    wbLog("sheet.autobuild", `auto-built a dashboard from ${src.name}`, { target_type: "sheet", target_id: g.sheet.id });
+    computeGeometry(g);
+    renderCharts(g);
+    tidyDashboard(g);
+  };
+  if (allEmbeds(g.sheet).length) {
+    confirmModal({ title: "Auto-build this dashboard?", body: `This replaces the current widgets with a fresh dashboard generated from “${esc(src.name)}”.`, confirmLabel: "Auto-build", onConfirm: build });
+  } else build();
 }
 
 // ─── Pivot tables ────────────────────────────────────────────────────────────
@@ -15708,6 +15928,7 @@ function wbMenuItems(menu, g) {
       { label: "KPI tile…", act: "ins:kpi", disabled: !ed || !g },
       { label: "Table…", act: "ins:table", disabled: !ed || !g },
       { label: "Filter control…", act: "ins:filter", disabled: !ed || !g },
+      { label: "Insights ✨", act: "ins:insights", disabled: !ed || !g },
       { label: "Text / heading…", act: "ins:text", disabled: !ed || !g },
       { label: "Pivot table…", act: "ins:pivot", disabled: !ed || !g },
       { label: "Function", sub: [
@@ -15872,6 +16093,7 @@ function wbMenuAction(act, g) {
     case "ins:kpi": if (need()) openKpiDialog(g); return;
     case "ins:table": if (need()) openTableDialog(g); return;
     case "ins:filter": if (need()) openControlDialog(g); return;
+    case "ins:insights": if (need()) openInsightsDialog(g); return;
     case "ins:text": if (need()) openTextDialog(g); return;
     case "ins:pivot": if (need()) openPivotDialog(g); return;
     case "ins:fnbrowse": if (need()) {
@@ -17709,6 +17931,7 @@ export const __engine = {
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   dateRangeSerials, controlPredicate, DATE_PRESETS,
+  linearFit, analyzeColumns, computeInsights,
   computePivot, pivotAggregate, pivotTableHtml,
   autoLinkFor, cellLink, cellInnerHtml,
   WB_IMG_RE, cellImgSrc,
