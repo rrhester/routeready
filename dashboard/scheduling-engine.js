@@ -1654,24 +1654,30 @@ function runPhase(ctx, ws, matrix, phase) {
   const order = orderDrivers(ctx, ws.states);
   const rankMap = /* @__PURE__ */ new Map();
   order.forEach((d, i) => rankMap.set(d.driver_id, i + 1));
-  runFillCycle(
-    ctx,
-    ws,
-    matrix,
-    phase,
-    order,
-    rankMap,
-    (driver) => isAtOrOverTarget(ctx, ws, driver)
-  );
-  runFillCycle(
-    ctx,
-    ws,
-    matrix,
-    phase,
-    order,
-    rankMap,
+  const fcaLast = ctx.settings.attendance_penalty;
+  const skips = fcaLast ? [
+    // A — clean drivers under target.
+    (d) => d.attendance_final || isAtOrOverTarget(ctx, ws, d),
+    // B — clean drivers past target (soft-cap escape).
+    (d) => d.attendance_final,
+    // C — Final-corrective drivers under target.
+    (d) => !d.attendance_final || isAtOrOverTarget(ctx, ws, d),
+    // D — Final-corrective drivers past target (last resort).
+    (d) => !d.attendance_final
+  ] : [
+    // Pass A — only drivers UNDER their target_days_per_week can
+    // claim. Re-evaluated per call (day-count grows as they're
+    // assigned), so a driver naturally drops out of Pass A once they
+    // hit target. Target 0 collapses to "always true" — no soft cap.
+    (d) => isAtOrOverTarget(ctx, ws, d),
+    // Pass B — coverage escape hatch. Any still-eligible driver may
+    // claim remaining open shifts, even past their target. This is
+    // the OT mode — only kicks in when Pass A couldn't cover.
     () => false
-  );
+  ];
+  for (const skip of skips) {
+    runFillCycle(ctx, ws, matrix, phase, order, rankMap, skip);
+  }
 }
 function runMainPass(ctx, ws, matrix) {
   runPhase(ctx, ws, matrix, "dot");
@@ -2255,20 +2261,23 @@ function buildContext(input) {
     }
     seenShift.add(s.shift_id);
   }
-  // Isolate malformed driver records: one bad field (hire_date, PTO date,
-  // affinity, …) previously threw and nuked scheduling for the ENTIRE DSP.
-  // Drop the offending driver with a warning and continue instead.
   const droppedDrivers = [];
   const drivers = [];
   for (const raw of input.drivers) {
     try {
       drivers.push(normalizeDriver(raw));
     } catch (e) {
-      droppedDrivers.push({ driver_id: raw && raw.driver_id != null ? String(raw.driver_id) : "(no id)", error: (e && e.message) || String(e) });
+      droppedDrivers.push({
+        driver_id: raw && raw.driver_id != null ? String(raw.driver_id) : "(no id)",
+        error: e instanceof Error && e.message || String(e)
+      });
     }
   }
   if (droppedDrivers.length && typeof console !== "undefined" && console.warn) {
-    console.warn(`[scheduling-engine] dropped ${droppedDrivers.length} malformed driver record(s):`, droppedDrivers);
+    console.warn(
+      `[scheduling-engine] dropped ${droppedDrivers.length} malformed driver record(s):`,
+      droppedDrivers
+    );
   }
   drivers.sort(
     (a, b) => a.driver_id < b.driver_id ? -1 : a.driver_id > b.driver_id ? 1 : 0

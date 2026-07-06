@@ -70,7 +70,27 @@ function buildContext(input: EngineInput): EngineContext {
     seenShift.add(s.shift_id);
   }
 
-  const drivers: NormalizedDriver[] = input.drivers.map(normalizeDriver);
+  // Isolate malformed driver records: one bad field (hire_date, PTO date,
+  // affinity, …) previously threw and nuked scheduling for the ENTIRE DSP.
+  // Drop the offending driver with a warning and continue instead.
+  const droppedDrivers: { driver_id: string; error: string }[] = [];
+  const drivers: NormalizedDriver[] = [];
+  for (const raw of input.drivers) {
+    try {
+      drivers.push(normalizeDriver(raw));
+    } catch (e) {
+      droppedDrivers.push({
+        driver_id: raw && raw.driver_id != null ? String(raw.driver_id) : "(no id)",
+        error: (e instanceof Error && e.message) || String(e),
+      });
+    }
+  }
+  if (droppedDrivers.length && typeof console !== "undefined" && console.warn) {
+    console.warn(
+      `[scheduling-engine] dropped ${droppedDrivers.length} malformed driver record(s):`,
+      droppedDrivers,
+    );
+  }
   drivers.sort((a, b) =>
     a.driver_id < b.driver_id ? -1 : a.driver_id > b.driver_id ? 1 : 0,
   );
@@ -125,6 +145,7 @@ function buildContext(input: EngineInput): EngineContext {
     settings,
     drivers,
     driverById,
+    droppedDrivers,
     shifts,
     blackout,
     weekStartDay,

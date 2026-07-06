@@ -123,6 +123,19 @@ def solve(req: SolveRequest) -> SolveResponse:
     use_van_pairings    = bool(rules.get("use_van_pairings", True))
     use_attendance      = bool(rules.get("use_attendance", True))
     use_ad_hoc_rules    = bool(rules.get("use_ad_hoc_rules", True))
+    # "Schedule Final-corrective drivers last" — the Smart Fill policy
+    # checkbox (rules.attendance_penalty). Tri-state:
+    #   True   → schedule-last tier: the per-shift FCA penalty is escalated
+    #            above every soft term (target-days wall, affinity,
+    #            preferred days, fairness, OT), so a final-corrective
+    #            driver only works shifts no clean driver can legally
+    #            cover. Coverage still dominates — no route, XL above all,
+    #            is ever left open to keep an FCA driver off the schedule.
+    #   False  → no FCA-based preference at all.
+    #   absent → legacy soft penalty (weights.attendance per shift),
+    #            preserving behavior for operators who never touched the
+    #            checkbox.
+    attendance_penalty  = rules.get("attendance_penalty", None)
 
     max_days = int(req.max_days or 5)
     woc_on = bool(rules.get("woc", True))
@@ -472,12 +485,30 @@ def solve(req: SolveRequest) -> SolveResponse:
     # 5. Attendance-risk penalty — final-corrective drivers carry a
     # negative weight per assignment. The solver still picks them when
     # coverage demands, but prefers safer drivers when there's a choice.
-    if use_attendance:
+    #
+    # With the "Schedule Final-corrective drivers last" checkbox ON
+    # (rules.attendance_penalty is True), the penalty escalates to a
+    # schedule-last tier: it must beat the largest soft gain a single
+    # assignment can produce — the target-days wall (10k, ≤40k at the max
+    # slider), affinity (≤400), preferred days (≤20), OT/fairness (double
+    # digits) — so clean drivers absorb extra days before an FCA driver
+    # gets anything. It stays BELOW coverage, clamped to half the standard
+    # coverage weight even under a weights override, so no coverable route
+    # is ever left open to keep an FCA driver home. XL routes sit another
+    # ×1000 above that (W_COV_XL_MULT), so XL coverage is protected at all
+    # costs: an FCA driver who is the only XL-certified option still runs
+    # the XL route.
+    w_fca = 0
+    if use_attendance and attendance_penalty is not False:
+        if attendance_penalty is True:
+            w_fca = min(int(weights.get("attendance_last", 100_000)), W_COV // 2)
+        else:
+            w_fca = W_ATT
         for d in req.drivers:
             if d.final_corrective_action:
                 for s in open_shifts:
                     if (d.id, s.id) in assign:
-                        objective_terms.append(-W_ATT * assign[(d.id, s.id)])
+                        objective_terms.append(-w_fca * assign[(d.id, s.id)])
 
     # 5b. Soft target days/week per driver (R022 equivalent on CP-SAT).
     # DSPs commonly want every driver at e.g. 4 days a week, going past
@@ -857,6 +888,7 @@ def solve(req: SolveRequest) -> SolveResponse:
                 "use_van_pairings": use_van_pairings,
                 "use_attendance": use_attendance,
                 "use_ad_hoc_rules": use_ad_hoc_rules,
+                "attendance_penalty": attendance_penalty if isinstance(attendance_penalty, bool) else None,
                 "weights": {
                     "coverage": W_COV,
                     "coverage_xl_multiplier": W_COV_XL_MULT,
@@ -865,6 +897,7 @@ def solve(req: SolveRequest) -> SolveResponse:
                     "ot_risk": W_OT,
                     "fairness": W_FAIR,
                     "attendance": W_ATT,
+                    "attendance_fca_applied": w_fca,
                     "target_days": W_TARGET,
                 },
             }
