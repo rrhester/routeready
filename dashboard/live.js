@@ -72261,26 +72261,125 @@ function _reqMarkDecided(id) {
 // the Requests controls — Type / Status / Location filters + PTO report — in
 // that top-right slot instead, styled as schedule page buttons. Hidden tiles
 // (and any relocated chrome) are preserved and restored when leaving Requests.
+// The filters are custom dropdown BUTTONS (not native <select>s) so their open
+// menus wear the same .rr-status-picker chrome as the schedule page's pill
+// dropdowns instead of the OS-native listbox.
+function _rrReqFilterOptions(key) {
+  if (key === "type") return [
+    { value: "",             label: "All types" },
+    { value: "availability", label: "Availability", dot: "#2563EB" },
+    { value: "pto",          label: "PTO",          dot: "#6D28D9" },
+    { value: "unpaid",       label: "Unpaid",       dot: "#64748B" },
+  ];
+  if (key === "status") return [
+    { value: "",         label: "All statuses" },
+    { value: "pending",  label: "Pending",  dot: "#D97706" },
+    { value: "approved", label: "Approved", dot: "#16A34A" },
+    { value: "denied",   label: "Denied",   dot: "#DC2626" },
+  ];
+  // loc · station codes present in the current request stream.
+  return [{ value: "", label: "All locations" }]
+    .concat((_reqLocStations || []).map((s) => ({ value: s, label: s })));
+}
+function _rrReqFilterLabel(key) {
+  const cur = _reqFilter[key] || "";
+  const opt = _rrReqFilterOptions(key).find((o) => o.value === cur);
+  return opt ? opt.label : _rrReqFilterOptions(key)[0].label;
+}
 function _rrRequestsToolbarHtml() {
-  const s = (v, cur) => v === cur ? " selected" : "";
+  const filterBtn = (key, aria, title) =>
+    `<button type="button" class="sched-page-btn req-toolbar-filter" data-req-filter="${key}" aria-haspopup="menu" aria-expanded="false" aria-label="${aria}" title="${title}"><span class="req-filter-label">${escapeHtml(_rrReqFilterLabel(key))}</span></button>`;
   return `
-    <select class="sched-page-btn req-toolbar-filter" data-req-filter="type" aria-label="Request type" title="Filter by request type">
-      <option value=""${s("", _reqFilter.type)}>All types</option>
-      <option value="availability"${s("availability", _reqFilter.type)}>Availability</option>
-      <option value="pto"${s("pto", _reqFilter.type)}>PTO</option>
-      <option value="unpaid"${s("unpaid", _reqFilter.type)}>Unpaid</option>
-    </select>
-    <select class="sched-page-btn req-toolbar-filter" data-req-filter="status" aria-label="Status" title="Filter by status">
-      <option value=""${s("", _reqFilter.status)}>All statuses</option>
-      <option value="pending"${s("pending", _reqFilter.status)}>Pending</option>
-      <option value="approved"${s("approved", _reqFilter.status)}>Approved</option>
-      <option value="denied"${s("denied", _reqFilter.status)}>Denied</option>
-    </select>
-    <select class="sched-page-btn req-toolbar-filter" data-req-filter="loc" aria-label="Location" title="Filter by location"><option value="">All locations</option></select>
+    ${filterBtn("type", "Request type", "Filter by request type")}
+    ${filterBtn("status", "Status", "Filter by status")}
+    ${filterBtn("loc", "Location", "Filter by location")}
     <button type="button" class="req-toolbar-act" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>
     <button type="button" class="req-toolbar-act req-toolbar-primary" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
     <span class="rr-roster-chrome-host" id="rr-req-chrome-host"></span>`;
 }
+
+// ─── Requests filter dropdowns · custom popover ───────────────────────────
+// Same fixed-popover mechanism + .rr-status-picker chrome as the roster
+// status filter, so the Requests filters open the styled schedule-page menu
+// (rounded card, hover rows, check on the current pick) rather than the
+// browser's native <select> listbox. One shared node; contents rebuilt per
+// open. Delegated handlers so the wiring survives toolbar re-renders.
+function _rrEnsureReqFilterPop() {
+  let pop = document.getElementById("rr-req-filter-pop");
+  if (pop) return pop;
+  pop = document.createElement("div");
+  pop.id = "rr-req-filter-pop";
+  pop.className = "rr-status-picker";
+  pop.setAttribute("role", "menu");
+  pop.hidden = true;
+  document.body.appendChild(pop);
+  return pop;
+}
+function _rrCloseReqFilterMenu() {
+  const pop = document.getElementById("rr-req-filter-pop");
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  pop.innerHTML = "";
+  const t = document.querySelector('[data-req-filter][aria-expanded="true"]');
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+function _rrOpenReqFilterMenu(trigger) {
+  if (!trigger) return;
+  const key = trigger.getAttribute("data-req-filter");
+  const cur = _reqFilter[key] || "";
+  const pop = _rrEnsureReqFilterPop();
+  pop.innerHTML = _rrReqFilterOptions(key).map((o) => {
+    const isCur = o.value === cur;
+    return `<button type="button" role="menuitem" class="rr-status-picker-item${isCur ? " is-current" : ""}" data-req-filter-key="${key}" data-req-filter-pick="${escapeHtml(o.value)}">`
+      + `<span class="rr-status-picker-dot" style="background:${o.dot || "var(--text-subtle)"}"></span>`
+      + `<span class="rr-status-picker-label">${escapeHtml(o.label)}</span>`
+      + (isCur ? `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg>` : ``)
+      + `</button>`;
+  }).join("");
+  const r = trigger.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.left = `${Math.max(8, r.left)}px`;
+  pop.style.top  = `${r.bottom + 6}px`;
+  pop.style.minWidth = `${Math.max(180, r.width)}px`;
+  pop.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+}
+document.addEventListener("click", (e) => {
+  // Open / toggle on a Requests toolbar filter button.
+  const trigger = e.target.closest && e.target.closest("[data-req-filter]");
+  if (trigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    // stopPropagation keeps the Settings popover's own outside-click closer
+    // from running — close it explicitly so the two pops never stack.
+    if (typeof _rrCloseReqSettings === "function") _rrCloseReqSettings();
+    const isOpen = trigger.getAttribute("aria-expanded") === "true";
+    _rrCloseReqFilterMenu();
+    if (!isOpen) _rrOpenReqFilterMenu(trigger);
+    return;
+  }
+  // Pick an option → set the filter, relabel the trigger, re-render.
+  const opt = e.target.closest && e.target.closest("[data-req-filter-pick]");
+  if (opt) {
+    e.preventDefault();
+    e.stopPropagation();
+    const key = opt.getAttribute("data-req-filter-key");
+    const val = opt.getAttribute("data-req-filter-pick");
+    _rrCloseReqFilterMenu();
+    if (!key || _reqFilter[key] === val) return;
+    _reqFilter[key] = val;
+    const lbl = document.querySelector(`#rr-req-toolbar-bar [data-req-filter="${key}"] .req-filter-label`);
+    if (lbl) lbl.textContent = _rrReqFilterLabel(key);
+    if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
+    return;
+  }
+  // Outside click → close.
+  const pop = document.getElementById("rr-req-filter-pop");
+  if (pop && !pop.hidden && !e.target.closest("#rr-req-filter-pop")) _rrCloseReqFilterMenu();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseReqFilterMenu(); });
+window.addEventListener("scroll", _rrCloseReqFilterMenu, true);
+window.addEventListener("resize", _rrCloseReqFilterMenu);
 
 // ─── Driver-app request settings ──────────────────────────────────────────
 // The Settings pill in the Requests toolbar opens a small popover where the
@@ -72498,10 +72597,8 @@ function _renderSchedRequestsKpis() {
   // nodes; re-home it into the freshly-rendered host afterward.
   if (typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
   bar.innerHTML = _rrRequestsToolbarHtml();
-  bar.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
-    _reqFilter[el.getAttribute("data-req-filter")] = el.value;
-    if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
-  }));
+  // Filter clicks are handled by the delegated .rr-status-picker dropdown
+  // wiring next to _rrRequestsToolbarHtml, so nothing to attach here.
   if (typeof _rrMoveChromeToRequests === "function") _rrMoveChromeToRequests();
 }
 
@@ -72842,6 +72939,9 @@ async function _avDecide(btn) {
 // Filter state for the Requests page (type / status / location), applied to
 // both the Pending section and the Recent Decisions table.
 let _reqFilter = { type: "", status: "", loc: "" };
+// Station codes present in the current request stream — feeds the Location
+// filter dropdown's option list.
+let _reqLocStations = [];
 function _reqInitials(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "—";
@@ -73059,14 +73159,11 @@ async function renderSchedRequestStream() {
     });
 
   const pendingRowHtml = (it) => it.type === "availability" ? _reqAvailRowHtml(it.row, avCtx) : _toPendingRowHtml(it.row);
-  // Filters live in the top toolbar now — keep its Location options in sync
-  // with the stations currently on hand.
-  const _locSel = document.querySelector('#rr-req-toolbar-bar [data-req-filter="loc"]');
-  if (_locSel) {
-    _locSel.innerHTML = `<option value="">All locations</option>`
-      + stations.map((s) => `<option value="${escapeHtml(s)}"${s === _reqFilter.loc ? " selected" : ""}>${escapeHtml(s)}</option>`).join("");
-    _locSel.value = _reqFilter.loc;
-  }
+  // Filters live in the top toolbar now — keep the Location dropdown's
+  // options in sync with the stations currently on hand.
+  _reqLocStations = stations;
+  const _locLbl = document.querySelector('#rr-req-toolbar-bar [data-req-filter="loc"] .req-filter-label');
+  if (_locLbl) _locLbl.textContent = _rrReqFilterLabel("loc");
 
   host.innerHTML = `
     <div class="req-page">

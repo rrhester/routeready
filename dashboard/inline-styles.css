@@ -1745,11 +1745,12 @@ td.rr-lastcoach-col > span > span{color:#4B5563 !important}
 /* Requests controls live in a dedicated bar at the top of the Requests view.
    Match the schedule top buttons exactly: rounded RECT (8px = --sch-radius, not
    a full pill), thin border, white, ~38px tall, soft shadow. Both the filter
-   dropdowns (clean chevron, no native OS arrow) and the action buttons (PTO
-   report, Settings) share it via .req-toolbar-act. */
+   dropdowns (custom buttons opening an .rr-status-picker menu — see live.js —
+   so the open list matches the schedule dropdowns, not the OS listbox) and the
+   action buttons (PTO report, Settings) share it via .req-toolbar-act. */
 #view-schedule .req-toolbar-bar{display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;margin:0 0 var(--s-4);padding-top:var(--s-4)}
 #view-schedule .req-toolbar-bar #rr-pto-report-btn{margin-left:auto}
-#view-schedule .req-toolbar-bar select.req-toolbar-filter,
+#view-schedule .req-toolbar-bar .req-toolbar-filter,
 #view-schedule .req-toolbar-bar .req-toolbar-act{
   height:38px;line-height:1;
   border-radius:var(--sch-radius, 8px);
@@ -1772,15 +1773,14 @@ td.rr-lastcoach-col > span > span{color:#4B5563 !important}
 #view-schedule .req-toolbar-bar .req-toolbar-primary[aria-expanded="true"]{background-color:var(--accent);filter:brightness(1.06);box-shadow:0 0 0 3px var(--accent-soft)}
 /* Filter dropdowns · full-height hairline divider (sidebar colour) before the
    chevron, like the schedule split buttons. Two backgrounds: the chevron, then
-   a 1px vertical line spanning the pill height. */
-#view-schedule .req-toolbar-bar select.req-toolbar-filter{
+   a 1px vertical line spanning the pill height. Buttons now, so the label is
+   centred with flex (the old select needed text-align-last tricks). Tag-
+   qualified (button.) so this out-ranks the .sched-page-btn:hover background
+   SHORTHAND, which otherwise wipes the chevron image on hover. */
+#view-schedule .req-toolbar-bar button.req-toolbar-filter{
   appearance:none;-webkit-appearance:none;-moz-appearance:none;cursor:pointer;
-  /* Center the selected value in the box (operator 2026-06-27) — was left-aligned.
-     Chrome lays a <select>'s value out with an internal flexbox, so the
-     .sched-page-btn skin's flex-direction:column silently defeats text-align
-     here; pin the axis back to row or the value hugs the left edge. */
-  text-align:center;text-align-last:center;-moz-text-align-last:center;
-  flex-direction:row;align-items:center;
+  display:inline-flex;flex-direction:row;align-items:center;justify-content:center;
+  white-space:nowrap;
   padding:0 42px 0 14px;
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='2 4 6 8 10 4'/%3E%3C/svg%3E"),
@@ -1789,10 +1789,11 @@ td.rr-lastcoach-col > span > span{color:#4B5563 !important}
   background-position:right 13px center, right 30px center;
   background-size:11px, 1px 100%;
 }
-#view-schedule .req-toolbar-bar select.req-toolbar-filter:hover,
+#view-schedule .req-toolbar-bar .req-toolbar-filter:hover,
 #view-schedule .req-toolbar-bar .req-toolbar-act:not(.req-toolbar-primary):hover{background-color:var(--canvas);box-shadow:0 4px 12px rgba(15,23,42,.06)}
-#view-schedule .req-toolbar-bar select.req-toolbar-filter:focus-visible,
+#view-schedule .req-toolbar-bar .req-toolbar-filter:focus-visible,
 #view-schedule .req-toolbar-bar .req-toolbar-act:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+#view-schedule .req-toolbar-bar .req-toolbar-filter[aria-expanded="true"]{background-color:var(--canvas);box-shadow:0 0 0 3px var(--accent-soft)}
 
 /* Driver-app request settings popover · opened from the Settings pill. A
    small floating card (position set inline at open time) with grouped on/off
@@ -27500,7 +27501,7 @@ body.rr-cmdk-open{ overflow:hidden }
    against the real .rr-ab-btn. */
 
 /* ---- Requests ---- */
-#view-schedule.rrx-schedule .req-toolbar-bar select.req-toolbar-filter,
+#view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-filter,
 #view-schedule.rrx-schedule .req-toolbar-bar .req-toolbar-act {
   height: 36px !important;
   border-width: 1.5px !important;
