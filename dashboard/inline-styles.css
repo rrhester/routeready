@@ -29091,25 +29091,48 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 }
 #view-workbooks .wb-tab.is-active .wb-tab-caret:hover{color:var(--text)}
 
-/* ── Charts strip ── */
-#view-workbooks .wb-charts{
-  display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;
-  padding:12px 2px 4px;
-}
-#view-workbooks .wb-chart-card{
-  flex:0 1 520px;min-width:320px;max-width:560px;
+/* ── Embedded (floating) charts ── */
+/* Overlay layer inside the grid canvas: transparent + click-through except on
+   the chart cards themselves, so cells stay interactive around them. */
+#view-workbooks .wb-gr-charts{position:absolute;inset:0;pointer-events:none;z-index:3}
+#view-workbooks .wb-embed-chart{
+  position:absolute;pointer-events:auto;box-sizing:border-box;
+  display:flex;flex-direction:column;gap:2px;
   border:1px solid var(--border);border-radius:var(--r-md);
-  background:var(--surface);padding:10px 12px 8px;
+  background:var(--surface);padding:8px 10px 6px;
+  box-shadow:0 1px 3px rgba(0,0,0,.08),0 6px 18px rgba(0,0,0,.08);
+  overflow:hidden;
 }
-#view-workbooks .wb-chart-head{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+#view-workbooks .wb-embed-chart.is-active{
+  box-shadow:0 2px 6px rgba(0,0,0,.12),0 12px 30px rgba(0,0,0,.16);
+  outline:2px solid var(--accent,#2563EB);outline-offset:-1px;
+  user-select:none;
+}
+#view-workbooks .wb-embed-head{display:flex;align-items:center;gap:6px;flex:none}
+#view-workbooks .wb-embed-head[data-wb-chartdrag]{cursor:move}
+#view-workbooks .wb-embed-body{flex:1 1 auto;min-height:0;display:flex}
+#view-workbooks .wb-embed-body svg{width:100%;height:100%;display:block}
+#view-workbooks .wb-embed-grip{
+  position:absolute;right:0;bottom:0;width:16px;height:16px;
+  cursor:nwse-resize;pointer-events:auto;
+  background:linear-gradient(135deg,transparent 0 46%,var(--border-strong,#9aa0a6) 46% 54%,transparent 54% 70%,var(--border-strong,#9aa0a6) 70% 78%,transparent 78%);
+  opacity:.55;
+}
+#view-workbooks .wb-embed-chart:hover .wb-embed-grip{opacity:.9}
 #view-workbooks .wb-chart-title{flex:1;font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#view-workbooks .wb-chart-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:2px 0 4px}
+#view-workbooks .wb-chart-legend{display:flex;flex-wrap:wrap;gap:2px 12px;margin:0;flex:none;max-height:38px;overflow:hidden}
 #view-workbooks .wb-chart-key{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);color:var(--text-muted)}
 #view-workbooks .wb-chart-keyv{color:var(--text-subtle)}
 #view-workbooks .wb-chart-swatch{width:10px;height:10px;border-radius:3px;flex:none}
-#view-workbooks .wb-chart-card svg{width:100%;height:auto;display:block}
 #view-workbooks .wb-chart-tick{font-size:10px;fill:var(--text-subtle)}
+#view-workbooks .wb-chart-axt{font-size:11px;font-weight:600;fill:var(--text-muted)}
+#view-workbooks .wb-chart-dlabel{font-size:10px;font-weight:600;fill:var(--text-secondary,var(--text-muted));paint-order:stroke;stroke:var(--surface);stroke-width:2.5px;stroke-linejoin:round}
+#view-workbooks .wb-chart-dlabel.on-fill{fill:#fff;stroke:none}
 #view-workbooks .wb-chart-empty{padding:18px 4px;font-size:var(--fs-sm);color:var(--text-subtle)}
+/* Chart dialog: theme + option controls */
+#view-workbooks .wb-chart-opts,.rr-modal-panel .wb-chart-opts{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;min-height:34px}
+.rr-modal-panel .wb-check{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text);cursor:pointer;white-space:nowrap}
+.rr-modal-panel .wb-check input{margin:0;cursor:pointer}
 
 /* ── Pivot tables ── */
 #view-workbooks .wb-pivots{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;padding:4px 2px 8px}
