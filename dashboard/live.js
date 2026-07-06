@@ -53409,7 +53409,7 @@ async function renderScheduleWeek() {
   // the visible week (see `femRisks` computation further below).
   const femLookbackIso = fmtIsoDate(addDays(weekStart, -14));
 
-  const [gridRes, driversRes, toRes, femVehRes, femAssignRes, settingsRes, riskRes] = await Promise.all([
+  const [gridRes, driversRes, toRes, femVehRes, femAssignRes, settingsRes, riskRes, wocRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, is_trainer, role, station:station_id (code)")
@@ -53449,6 +53449,10 @@ async function renderScheduleWeek() {
       .is("resolved_at", null)
       .eq("severity", "final")
       .then((r) => r, () => ({ data: [] })),
+    // Working-hours-compliance limits (max consecutive days / min rest hours)
+    // so the Callout backup recommender honors the SAME always-enforced hard
+    // rules Smart Fill does. Best-effort — falls back to 6 days / 10h.
+    sb.rpc("get_woc_settings").then((r) => r, () => ({ data: null })),
   ]);
 
   // A load failure must NOT silently leave a blank or stale grid — the
@@ -53960,9 +53964,52 @@ async function renderScheduleWeek() {
       // the weekly hour cap.
       const blockHours = parseFloat(S.default_block_hours) || 10;
       const weeklyCap = parseFloat(S.weekly_hour_cap) || (maxDays * blockHours);
+      // WOC limits Smart Fill ALWAYS enforces: max consecutive working days
+      // and minimum rest between shifts. (Defaults 6 days / 10h.)
+      const woc = (wocRes && wocRes.data) || {};
+      const maxConsec = Number(woc.max_consecutive_days) || 6;
+      const minRestMs = (Number(woc.min_rest_hours) || 10) * 3600000;
       // Distinct scheduled days per driver this week (drives the max-days gate).
       const daysPerDriver = new Map();
       for (const [, set] of schedByDate) for (const id of set) daysPerDriver.set(id, (daysPerDriver.get(id) || 0) + 1);
+      // Per-driver worked dates + shift times this week, so we can enforce the
+      // consecutive-days run length and the min-rest gap against real shifts.
+      // (Computed within the loaded week — a run that spills into an adjacent
+      // week isn't visible here; a rare edge the next regen would still catch.)
+      const toMs = (ts) => { const t = Date.parse(ts); return Number.isFinite(t) ? t : null; };
+      const isoShift = (iso, n) => { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+      const driverDates = new Map();     // id -> Set(iso worked)
+      const driverDayTimes = new Map();  // id -> Map(iso -> { s, e } ms)
+      for (const sh of (grid.shifts || [])) {
+        if (!["scheduled", "completed"].includes(sh.status)) continue;
+        if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
+        if (!sh.driver_id || !visibleDriverIds.has(sh.driver_id)) continue;
+        let ds = driverDates.get(sh.driver_id);
+        if (!ds) { ds = new Set(); driverDates.set(sh.driver_id, ds); }
+        ds.add(sh.date);
+        if (sh.starts_at && sh.ends_at) {
+          let dt = driverDayTimes.get(sh.driver_id);
+          if (!dt) { dt = new Map(); driverDayTimes.set(sh.driver_id, dt); }
+          dt.set(sh.date, { s: toMs(sh.starts_at), e: toMs(sh.ends_at) });
+        }
+      }
+      // Consecutive-day run length that would result from working `iso`.
+      const consecutiveRunWith = (id, iso) => {
+        const ds = driverDates.get(id); if (!ds) return 1;
+        let len = 1;
+        for (let k = 1; ds.has(isoShift(iso, -k)); k++) len++;
+        for (let k = 1; ds.has(isoShift(iso, k)); k++) len++;
+        return len;
+      };
+      // Rest gap to the adjacent-day shifts is >= min rest.
+      const restOkFor = (id, iso, newS, newE) => {
+        const dt = driverDayTimes.get(id); if (!dt) return true;
+        const prev = dt.get(isoShift(iso, -1));
+        if (prev && prev.e != null && newS != null && (newS - prev.e) < minRestMs) return false;
+        const next = dt.get(isoShift(iso, 1));
+        if (next && next.s != null && newE != null && (next.s - newE) < minRestMs) return false;
+        return true;
+      };
       // A representative productive shift per date → source of the created
       // backup's station + wave times. Prefer an SP (standard-parcel) shift so
       // the wave/time matches a standard route; the ROUTE TYPE itself is always
@@ -53996,8 +54043,10 @@ async function renderScheduleWeek() {
         const dk = dayKeyOf(day.iso);
         const scheduledThatDay = schedByDate.get(day.iso) || new Set();
         const rep = repByDate.get(day.iso) || null;
+        const repS = rep ? toMs(rep.starts_at) : null;
+        const repE = rep ? toMs(rep.ends_at) : null;
         const cands = drivers.filter((d) => {
-          // Smart Fill hard gates (the "Enforced" rules), honored here:
+          // Smart Fill hard gates (the always-"Enforced" rules), honored here:
           if (d.status !== "active") return false;          // active drivers only
           if (atRiskIds.has(d.id)) return false;            // low-risk only — else exposure won't drop
           if (scheduledThatDay.has(d.id)) return false;      // already working that day
@@ -54005,6 +54054,8 @@ async function renderScheduleWeek() {
           if (d.dl_expires_on && String(d.dl_expires_on) < day.iso) return false; // DL valid through the shift date
           if ((projected.get(d.id) || 0) >= maxDays) return false;                // max days per week
           if ((hoursPerDriver.get(d.id) || 0) + (projHours.get(d.id) || 0) + blockHours > weeklyCap) return false; // weekly hour cap
+          if (consecutiveRunWith(d.id, day.iso) > maxConsec) return false;         // max consecutive working days
+          if (repS != null && repE != null && !restOkFor(d.id, day.iso, repS, repE)) return false; // min rest between shifts
           if (!allowOverride) {
             const av = availSetOf(d);
             if (av && !av.has(dk)) return false;            // saved availability includes this day-of-week
@@ -54024,6 +54075,16 @@ async function renderScheduleWeek() {
         for (const p of picks) {
           projected.set(p.id, (projected.get(p.id) || 0) + 1);
           projHours.set(p.id, (projHours.get(p.id) || 0) + blockHours);
+          // Fold the new backup into the adjacency maps so a later exposed
+          // day sees it for the consecutive-days / min-rest checks.
+          let ds = driverDates.get(p.id);
+          if (!ds) { ds = new Set(); driverDates.set(p.id, ds); }
+          ds.add(day.iso);
+          if (repS != null && repE != null) {
+            let dt = driverDayTimes.get(p.id);
+            if (!dt) { dt = new Map(); driverDayTimes.set(p.id, dt); }
+            dt.set(day.iso, { s: repS, e: repE });
+          }
         }
         recDays.push({
           iso: day.iso,
