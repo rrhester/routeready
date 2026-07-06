@@ -30,8 +30,20 @@ function extract(name) {
   assert.ok(m >= 0, `could not find end of ${name}`);
   return src.slice(start, start + name.length + 10 + m);
 }
+// The builder closes over the module-level _SCAN_PAGE_SIZES registry;
+// pull it in from source so the extracted function resolves it and we
+// test the real page-size values (not a duplicate).
+function extractConst(name) {
+  const start = src.indexOf(`const ${name} = {`);
+  assert.ok(start >= 0, `could not find const ${name}`);
+  const end = src.indexOf("\n};", start);
+  assert.ok(end >= 0, `could not find end of const ${name}`);
+  return src.slice(start, end + 3);
+}
 // eslint-disable-next-line no-eval
-const _scanBuildPdfBlob = eval(`(${extract("_scanBuildPdfBlob")})`);
+const _scanBuildPdfBlob = eval(
+  `(function () { ${extractConst("_SCAN_PAGE_SIZES")} return (${extract("_scanBuildPdfBlob")}); })()`
+);
 
 const _tests = [];
 const ok = (name, fn) => { _tests.push([name, fn]); };
@@ -47,8 +59,8 @@ const jpegOf = (len, seed) => {
 };
 const pagesOf = (specs) => specs.map((s, i) => ({ jpeg: jpegOf(s.len, i + 1), w: s.w, h: s.h }));
 
-async function bytesFor(pages) {
-  const blob = _scanBuildPdfBlob(pages);
+async function bytesFor(pages, opts) {
+  const blob = _scanBuildPdfBlob(pages, opts);
   return new Uint8Array(await blob.arrayBuffer());
 }
 // Latin1 view lets us locate ASCII structure while keeping byte offsets
@@ -111,6 +123,18 @@ for (const N of [1, 2, 5]) {
     assert.equal((s.match(/\/MediaBox \[0 0 612 792\]/g) || []).length, N, "MediaBox count wrong");
   });
 }
+
+// ── page size opt-in (A4) ────────────────────────────────────────────
+ok("pageSize:'a4' emits A4 MediaBox; default stays Letter", async () => {
+  const pages = pagesOf([{ len: 256, w: 1000, h: 1400 }]);
+  const a4 = latin1(await bytesFor(pages, { pageSize: "a4" }));
+  assert.ok(a4.includes("/MediaBox [0 0 595 842]"), "A4 MediaBox not emitted");
+  const letter = latin1(await bytesFor(pages, { pageSize: "letter" }));
+  assert.ok(letter.includes("/MediaBox [0 0 612 792]"), "Letter MediaBox not emitted");
+  // An unknown / missing size must fall back to Letter, never break.
+  const dflt = latin1(await bytesFor(pages, { pageSize: "tabloid" }));
+  assert.ok(dflt.includes("/MediaBox [0 0 612 792]"), "unknown size did not fall back to Letter");
+});
 
 // ── exact JPEG embedding (no binary corruption) ──────────────────────
 ok("image streams embed the exact JPEG bytes with a correct /Length", async () => {
