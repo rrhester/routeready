@@ -40,9 +40,17 @@ function extractConst(name) {
   assert.ok(end >= 0, `could not find end of const ${name}`);
   return src.slice(start, end + 3);
 }
+// The builder also calls _scanOcrTextOps (which calls _scanPdfEscapetext)
+// to emit the optional invisible OCR text layer; pull those in too so the
+// extracted function resolves them.
 // eslint-disable-next-line no-eval
 const _scanBuildPdfBlob = eval(
-  `(function () { ${extractConst("_SCAN_PAGE_SIZES")} return (${extract("_scanBuildPdfBlob")}); })()`
+  `(function () {
+     ${extractConst("_SCAN_PAGE_SIZES")}
+     ${extract("_scanPdfEscapeText")}
+     ${extract("_scanOcrTextOps")}
+     return (${extract("_scanBuildPdfBlob")});
+   })()`
 );
 
 const _tests = [];
@@ -177,6 +185,39 @@ ok("content stream scales the image to fit the page margins", async () => {
   assert.ok(tx >= 24 - 0.5 && ty >= 24 - 0.5, "image origin inside margin");
   // Aspect ratio preserved (2000×1000 → 2:1).
   assert.ok(Math.abs(sx / sy - 2) < 0.02, "aspect ratio not preserved");
+});
+
+// ── searchable OCR text layer ────────────────────────────────────────
+ok("OCR words add a font + invisible text layer, keeping xref valid", async () => {
+  const page = { jpeg: jpegOf(400, 3), w: 1000, h: 1400, ocrWords: [
+    { text: "INVOICE", x0: 100, y0: 80,  x1: 400, y1: 160 },
+    { text: "Total:",  x0: 100, y0: 300, x1: 260, y1: 340 },
+    { text: "(cash)",  x0: 280, y0: 300, x1: 420, y1: 340 },   // exercises paren escaping
+  ] };
+  const u8 = await bytesFor([page]);
+  const s = latin1(u8);
+
+  // One shared font object appended after the page's 3 objects (N=1 →
+  // font is object 6); total objects = 2 + 3 + 1 = 6.
+  const totalObjs = 6;
+  const { offsets } = parseXref(s, totalObjs);
+  for (let objNum = 1; objNum <= totalObjs; objNum++) {
+    assert.ok(s.startsWith(`${objNum} 0 obj`, offsets[objNum].off), `xref offset for obj ${objNum} wrong`);
+  }
+  assert.ok(s.includes("/Size 7"), "trailer /Size should account for the font object");
+  assert.ok(/6 0 obj\n<< \/Type \/Font \/Subtype \/Type1 \/BaseFont \/Helvetica/.test(s), "font object missing");
+  assert.ok(/\/Font << \/F0 6 0 R >>/.test(s), "page does not reference the font");
+
+  // Invisible render mode + the words are present (parens escaped).
+  assert.ok(s.includes("BT\n3 Tr\n"), "text layer not in invisible render mode");
+  assert.ok(s.includes("(INVOICE) Tj"), "OCR word INVOICE missing");
+  assert.ok(s.includes("(Total:) Tj"), "OCR word Total: missing");
+  assert.ok(s.includes("(\\(cash\\)) Tj"), "parentheses in OCR text not escaped");
+
+  // A page with no OCR words must NOT gain a font (backward compatible).
+  const plain = latin1(await bytesFor(pagesOf([{ len: 200, w: 800, h: 600 }])));
+  assert.ok(!plain.includes("/BaseFont"), "no-OCR PDF should have no font object");
+  assert.ok(!plain.includes("3 Tr"), "no-OCR PDF should have no text layer");
 });
 
 let n = 0;

@@ -2922,6 +2922,12 @@ function _scanSetPageSize(v) {
   if (!_SCAN_PAGE_SIZES[v]) return;
   try { localStorage.setItem("rr.scan.pagesize", v); } catch {}
 }
+function _scanGetOcr() {
+  try { return localStorage.getItem("rr.scan.ocr") === "1"; } catch { return false; }
+}
+function _scanSetOcr(on) {
+  try { localStorage.setItem("rr.scan.ocr", on ? "1" : "0"); } catch {}
+}
 
 // Decode a captured file to something drawImage() accepts, honoring
 // EXIF orientation so portrait phone shots aren't rotated sideways.
@@ -3449,7 +3455,12 @@ function _scanBuildPdfBlob(pages, opts) {
 
   // Object numbering: 1=Catalog, 2=Pages, then per page i (0-based):
   //   page = 3 + i*3, content = 4 + i*3, image = 5 + i*3
+  // If any page carries OCR words we add ONE shared font object after all
+  // page objects (number 3 + N*3), so the per-page numbering above is
+  // untouched and the no-OCR path is byte-for-byte unchanged.
   const pageNum = (i) => 3 + i * 3;
+  const hasOcr = pages.some((p) => p.ocrWords && p.ocrWords.length);
+  const fontNum = hasOcr ? 3 + N * 3 : 0;
   const kids = pages.map((_, i) => `${pageNum(i)} 0 R`).join(" ");
 
   pushStr("%PDF-1.3\n");
@@ -3468,11 +3479,15 @@ function _scanBuildPdfBlob(pages, opts) {
     const dw = p.w * s, dh = p.h * s;
     const tx = (PAGE_W - dw) / 2, ty = (PAGE_H - dh) / 2;
 
+    const fontRes = fontNum ? ` /Font << /F0 ${fontNum} 0 R >>` : "";
     startObj(pNum);
     pushStr(`${pNum} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] `
-      + `/Resources << /XObject << /Im0 ${iNum} 0 R >> >> /Contents ${cNum} 0 R >>\nendobj\n`);
+      + `/Resources << /XObject << /Im0 ${iNum} 0 R >>${fontRes} >> /Contents ${cNum} 0 R >>\nendobj\n`);
 
-    const content = `q\n${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)} cm\n/Im0 Do\nQ\n`;
+    // Image draw, then an invisible OCR text layer (if present) so the
+    // scan is searchable / selectable without altering its appearance.
+    const content = `q\n${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)} cm\n/Im0 Do\nQ\n`
+      + _scanOcrTextOps(p, { iw: p.w, ih: p.h, drawW: dw, drawH: dh, tx, ty });
     const contentBytes = enc(content);
     startObj(cNum);
     pushStr(`${cNum} 0 obj\n<< /Length ${contentBytes.length} >>\nstream\n`);
@@ -3486,7 +3501,13 @@ function _scanBuildPdfBlob(pages, opts) {
     pushStr("\nendstream\nendobj\n");
   }
 
-  const totalObjs = 2 + N * 3;
+  // Shared invisible-text font (base-14 Helvetica — no font file needed).
+  if (fontNum) {
+    startObj(fontNum);
+    pushStr(`${fontNum} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n`);
+  }
+
+  const totalObjs = 2 + N * 3 + (fontNum ? 1 : 0);
   const xrefPos = length;
   pushStr(`xref\n0 ${totalObjs + 1}\n`);
   pushStr("0000000000 65535 f \n");
@@ -3505,6 +3526,114 @@ function _scanDefaultName() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
   return `Document ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// Build the invisible (render-mode-3) text operators for one page's OCR
+// words. Each word's image-pixel bbox is mapped into the page's PDF
+// coordinate space (the image occupies drawW×drawH at (tx,ty); PDF y is
+// bottom-up while image y is top-down). Font size ≈ the box height and a
+// horizontal-scale (Tz) stretches the glyphs to roughly the box width so
+// selection tracks the underlying image. Text is invisible, so exact
+// metrics don't matter — searchability and rough selection do.
+function _scanOcrTextOps(p, geom) {
+  const words = p.ocrWords;
+  if (!words || !words.length) return "";
+  const { iw, ih, drawW, drawH, tx, ty } = geom;
+  let out = "BT\n3 Tr\n";
+  for (const wd of words) {
+    const text = _scanPdfEscapeText(wd.text);
+    if (!text) continue;
+    const bw = wd.x1 - wd.x0, bh = wd.y1 - wd.y0;
+    if (bw <= 0 || bh <= 0) continue;
+    const fontPt = Math.max(1, (bh / ih) * drawH);
+    const wPt = (bw / iw) * drawW;
+    const xPt = tx + (wd.x0 / iw) * drawW;
+    const yPt = ty + (1 - wd.y1 / ih) * drawH;          // baseline ≈ box bottom
+    const natural = 0.5 * fontPt * Math.max(1, text.length);   // ~0.5em avg advance
+    const tz = Math.max(10, Math.min(400, (wPt / natural) * 100));
+    out += `/F0 ${fontPt.toFixed(2)} Tf\n${tz.toFixed(1)} Tz\n1 0 0 1 ${xPt.toFixed(2)} ${yPt.toFixed(2)} Tm\n(${text}) Tj\n`;
+  }
+  out += "ET\n";
+  return out;
+}
+
+// PDF literal-string-safe, WinAnsi-safe text: escape ( ) backslash, drop
+// non-printable / non-Latin to a space (the text layer is English-first;
+// full Unicode would need an embedded CID font). Empty → "" so the caller
+// skips the word.
+function _scanPdfEscapeText(t) {
+  if (t == null) return "";
+  let out = "";
+  for (const ch of String(t)) {
+    const code = ch.charCodeAt(0);
+    if (code < 32 || code > 126) { out += " "; continue; }
+    if (ch === "(" || ch === ")" || ch === "\\") out += "\\" + ch;
+    else out += ch;
+  }
+  return out.trim();
+}
+
+// ── On-device OCR (Tesseract.js, lazy-loaded) ───────────────────────
+// OCR is opt-in ("Make searchable"). The engine (~a few MB of WASM + the
+// English model) is fetched from a CDN only on first use and then cached
+// by the browser / Tesseract's own IndexedDB store, so it doesn't weigh
+// on drivers who never turn it on. Everything runs on the phone — no
+// backend, no image ever leaves the device for OCR.
+const _SCAN_TESSERACT_SRC = "https://cdn.jsdelivr.net/npm/tesseract.js@4.1.4/dist/tesseract.min.js";
+let _scanTessPromise = null;
+function _scanLoadTesseract() {
+  if (typeof window !== "undefined" && window.Tesseract) return Promise.resolve(window.Tesseract);
+  if (_scanTessPromise) return _scanTessPromise;
+  _scanTessPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = _SCAN_TESSERACT_SRC;
+    s.async = true;
+    s.onload = () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error("tesseract missing"));
+    s.onerror = () => { _scanTessPromise = null; reject(new Error("tesseract load failed")); };
+    document.head.appendChild(s);
+  });
+  return _scanTessPromise;
+}
+
+// Normalize Tesseract's result to a flat list of { text, x0,y0,x1,y1 } in
+// image-pixel coords. v4 exposes data.words directly; we also walk the
+// block tree as a fallback in case a build only populates that.
+function _scanExtractWords(data) {
+  const map = (w) => ({
+    text: w.text,
+    x0: w.bbox.x0, y0: w.bbox.y0, x1: w.bbox.x1, y1: w.bbox.y1,
+    confidence: w.confidence,
+  });
+  let words = Array.isArray(data.words) ? data.words : [];
+  if (!words.length && Array.isArray(data.blocks)) {
+    for (const b of data.blocks)
+      for (const par of (b.paragraphs || []))
+        for (const ln of (par.lines || []))
+          for (const w of (ln.words || [])) words.push(w);
+  }
+  return words
+    .filter((w) => w && w.text && w.text.trim() && w.bbox && (w.confidence == null || w.confidence > 30))
+    .map(map);
+}
+
+// Run OCR over every captured page, stashing word boxes + full text on
+// each page. onProgress(pageIndex, total) drives the UI. Throws if the
+// engine can't load; the caller degrades to a non-searchable PDF.
+async function _scanRunOcr(onProgress) {
+  const T = await _scanLoadTesseract();
+  const worker = await T.createWorker("eng");
+  try {
+    for (let i = 0; i < _scanPages.length; i++) {
+      if (onProgress) onProgress(i + 1, _scanPages.length);
+      const p = _scanPages[i];
+      const blob = new Blob([p.jpeg], { type: "image/jpeg" });
+      const { data } = await worker.recognize(blob);
+      p.ocrWords = _scanExtractWords(data);
+      p.ocrText = (data.text || "").trim();
+    }
+  } finally {
+    try { await worker.terminate(); } catch {}
+  }
 }
 
 // Upload the built PDF to the driver-chat-attachments bucket and post it
@@ -3691,6 +3820,13 @@ function renderDocumentScanner() {
             <button type="button" class="scan-size-opt" data-scan-size="a4">A4</button>
           </div>
         </div>
+        <label class="scan-ocr-row" for="scan-ocr">
+          <span class="scan-ocr-txt">
+            <span class="scan-ocr-title">Make searchable</span>
+            <span class="scan-ocr-sub">Reads the text so the PDF is searchable. Runs on your phone; adds a little time.</span>
+          </span>
+          <input type="checkbox" id="scan-ocr" class="scan-ocr-check" />
+        </label>
         <button id="scan-send" class="btn btn-primary btn-block" type="button">Send to dispatch</button>
         <button id="scan-share" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Save or share PDF</button>
         <button id="scan-clear" class="btn btn-ghost btn-block" type="button" style="margin-top:8px;color:var(--red)">Start over</button>
@@ -3770,6 +3906,11 @@ function renderDocumentScanner() {
     const filename = name.endsWith(".pdf") ? name : name + ".pdf";
     btn.disabled = true; btn.textContent = "Sending…";
 
+    // Optional on-device OCR before building — degrades gracefully to a
+    // non-searchable PDF if the engine can't load (e.g. offline first use).
+    await _scanRunOcrIfEnabled((t) => { btn.textContent = t; });
+    btn.textContent = "Sending…";
+
     let blob;
     try {
       blob = _scanBuildPdfBlob(_scanPages, { pageSize: _scanGetPageSize() });
@@ -3826,6 +3967,8 @@ function renderDocumentScanner() {
     const btn = document.getElementById("scan-share");
     const name = _scanNameValue();
     btn.disabled = true; btn.textContent = "Preparing…";
+    await _scanRunOcrIfEnabled((t) => { btn.textContent = t; });
+    btn.textContent = "Preparing…";
     try {
       const blob = _scanBuildPdfBlob(_scanPages, { pageSize: _scanGetPageSize() });
       const res = await _scanShareOrSave(blob, name.endsWith(".pdf") ? name : name + ".pdf");
@@ -3836,6 +3979,17 @@ function renderDocumentScanner() {
     }
     btn.disabled = false; btn.textContent = "Save or share PDF";
   });
+
+  // Run OCR over the pages when "Make searchable" is on; on any failure,
+  // warn and continue so the export never gets blocked by OCR.
+  async function _scanRunOcrIfEnabled(setLabel) {
+    if (!_scanGetOcr()) return;
+    try {
+      await _scanRunOcr((i, total) => setLabel(`Reading text ${i}/${total}…`));
+    } catch {
+      toast("Couldn't read text — continuing without a searchable layer", "warn");
+    }
+  }
 
   document.getElementById("scan-clear").addEventListener("click", async () => {
     const ok = await confirmSheet({
@@ -3861,6 +4015,13 @@ function renderDocumentScanner() {
     paint();
     seg.querySelectorAll("[data-scan-size]").forEach((b) =>
       b.addEventListener("click", () => { _scanSetPageSize(b.getAttribute("data-scan-size")); paint(); _haptic("select"); }));
+  }
+
+  // "Make searchable" (OCR) toggle, persisted across sessions.
+  const ocrChk = document.getElementById("scan-ocr");
+  if (ocrChk) {
+    ocrChk.checked = _scanGetOcr();
+    ocrChk.addEventListener("change", () => { _scanSetOcr(ocrChk.checked); _haptic("select"); });
   }
 
   _scanRenderPages();

@@ -13,12 +13,13 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-// v130 · Document scanner edge detection is more robust: a pre-blur
-// plus largest-connected-edge-component isolation lock onto the page
-// outline and ignore background clutter that used to drag the auto-crop
-// off the document. Bumped so installed driver PWAs purge the old shell
-// and pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v130";
+// v131 · Document scanner gains optional on-device OCR ("Make
+// searchable"): Tesseract.js is lazy-loaded on first use and the PDF is
+// built with an invisible text layer over each page, so scans become
+// searchable / selectable. Runs entirely on the phone; degrades to a
+// normal PDF if the engine can't load. Bumped so installed driver PWAs
+// purge the old shell and pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v131";
 const SHELL_FILES = [
   "./",
   "index.html",
