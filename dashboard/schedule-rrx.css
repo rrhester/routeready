@@ -6519,35 +6519,37 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 }
 #view-schedule.rrx-schedule .day-risk-glyph {
   position: absolute;
-  top: 5px;
-  right: 6px;
+  top: 4px;
+  right: 5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
   padding: 0;
   margin: 0;
   border: 0;
-  border-radius: 5px;
-  background: transparent;
+  border-radius: 6px;
   line-height: 0;
   cursor: pointer;
-  opacity: .42;                 /* quiet at rest — reads as a hint, not an alarm */
+  /* Present at rest — a soft always-on chip + bolder icon so the day
+     reads as flagged at a glance, still calm enough not to shout. */
+  opacity: .82;
   transition: opacity .12s ease, background .12s ease, transform .12s ease;
 }
-#view-schedule.rrx-schedule .day-risk-glyph.red   { color: var(--red); }
-#view-schedule.rrx-schedule .day-risk-glyph.amber { color: var(--amber-dark); }
+#view-schedule.rrx-schedule .day-risk-glyph svg { width: 13px; height: 13px; }
+#view-schedule.rrx-schedule .day-risk-glyph.red   { color: var(--red);       background: var(--red-soft); }
+#view-schedule.rrx-schedule .day-risk-glyph.amber { color: var(--amber-dark); background: var(--amber-soft); }
 #view-schedule.rrx-schedule .day-risk-glyph:hover,
 #view-schedule.rrx-schedule .day-risk-glyph:focus-visible {
   opacity: 1;
   outline: none;
-  transform: scale(1.08);
+  transform: scale(1.1);
 }
 #view-schedule.rrx-schedule .day-risk-glyph.red:hover,
-#view-schedule.rrx-schedule .day-risk-glyph.red:focus-visible   { background: var(--red-soft); }
+#view-schedule.rrx-schedule .day-risk-glyph.red:focus-visible   { background: rgba(220, 38, 38, .17); }
 #view-schedule.rrx-schedule .day-risk-glyph.amber:hover,
-#view-schedule.rrx-schedule .day-risk-glyph.amber:focus-visible { background: var(--amber-soft); }
+#view-schedule.rrx-schedule .day-risk-glyph.amber:focus-visible { background: rgba(245, 158, 11, .22); }
 
 /* Highlight the whole day-header cell while its glyph is engaged, echoing the
    pop-out's tone. :has() is well-supported in the Chromium/Electron surfaces
