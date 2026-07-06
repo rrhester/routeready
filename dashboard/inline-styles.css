@@ -5058,6 +5058,25 @@ select.form-input{
 .toast.fade{animation:toastFade .2s ease forwards}
 @keyframes toastFade{to{transform:translateX(20px);opacity:0}}
 
+/* Actionable toast — turns a blocking warning into a one-click fix
+   (e.g. "Add driver to station BAL5?" with Add / Not now). Stacks the
+   prompt over a button row and runs a touch wider to fit the message. */
+.toast.toast-action{align-items:flex-start;max-width:420px}
+.toast-action-body{display:flex;flex-direction:column;gap:var(--s-2-5);min-width:0}
+.toast-action-msg{line-height:1.4}
+.toast-action-btns{display:flex;gap:var(--s-2);flex-wrap:wrap}
+.toast-action-btn{
+  appearance:none;-webkit-appearance:none;
+  border:1px solid rgba(255,255,255,.28);background:transparent;
+  color:var(--text-inverse);font:inherit;font-weight:600;font-size:var(--fs-sm);
+  padding:5px 12px;border-radius:var(--r-sm);cursor:pointer;
+  transition:background .12s ease,border-color .12s ease,filter .12s ease;
+}
+.toast-action-btn:hover{background:rgba(255,255,255,.12)}
+.toast-action-btn:disabled{opacity:.55;cursor:default}
+.toast-action-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.toast-action-btn.primary:hover{filter:brightness(1.08);background:var(--accent)}
+
 /* Generic modal overlay (for the new mockup-style modals) */
 .modal-backdrop{
   position:fixed;inset:0;

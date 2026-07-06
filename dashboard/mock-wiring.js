@@ -2218,6 +2218,78 @@
     setTimeout(function(){ el.classList.add('fade'); setTimeout(function(){ el.remove(); }, 250); }, 2800);
   }
 
+  // Actionable toast — like toast(), but instead of a dead-end warning it
+  // renders a prompt with buttons the operator can act on inline, e.g.
+  // "Add driver to station BAL5?  [Add]  [Not now]". Used to turn blocking
+  // scheduling exceptions (driver has no station, etc.) into one-click fixes.
+  // Unlike toast(), it never rides the success/info suppression and stays up
+  // long enough to click. opts:
+  //   { kind, html, actions:[{label, primary, onClick}], onConfirm, onDismiss,
+  //     confirmLabel, dismissLabel, timeout }
+  // Default actions are a primary confirm (onConfirm) + a dismiss (onDismiss).
+  // An action's onClick may be async; return true to keep the toast open
+  // (e.g. the operator still needs to pick something), otherwise it dismisses
+  // after the click. timeout: ms before auto-dismiss (default 14s; 0 = sticky).
+  function toastAction(msg, opts){
+    opts = opts || {};
+    var kind = opts.kind || 'warn';
+    var stack = document.getElementById('toast-stack');
+    if (!stack) { console.warn('[toastAction] no toast-stack for:', msg); return null; }
+    var el = document.createElement('div');
+    el.className = 'toast toast-action ' + kind;
+    var iconSvg = (kind === 'error' || kind === 'danger')
+      ? '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+      : '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    var body = document.createElement('div');
+    body.className = 'toast-action-body';
+    var msgEl = document.createElement('div');
+    msgEl.className = 'toast-action-msg';
+    if (opts.html) msgEl.innerHTML = opts.html; else msgEl.textContent = msg || '';
+    body.appendChild(msgEl);
+    var btnRow = document.createElement('div');
+    btnRow.className = 'toast-action-btns';
+    var actions = (opts.actions && opts.actions.length) ? opts.actions : [
+      { label: opts.confirmLabel || 'Yes', primary: true, onClick: opts.onConfirm },
+      { label: opts.dismissLabel || 'No', onClick: opts.onDismiss },
+    ];
+    var done = false;
+    var timer = null;
+    var dismiss = function(){
+      if (done) return; done = true;
+      if (timer) { clearTimeout(timer); timer = null; }
+      el.classList.add('fade');
+      setTimeout(function(){ el.remove(); }, 250);
+    };
+    actions.forEach(function(a){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'toast-action-btn' + (a.primary ? ' primary' : '');
+      b.textContent = a.label;
+      b.addEventListener('click', async function(){
+        if (timer) { clearTimeout(timer); timer = null; }
+        if (typeof a.onClick === 'function') {
+          b.disabled = true;
+          try {
+            var keepOpen = await a.onClick(el);
+            if (keepOpen === true) { b.disabled = false; return; }
+          } catch (err) {
+            console.warn('[toastAction] action failed:', err);
+          }
+        }
+        dismiss();
+      });
+      btnRow.appendChild(b);
+    });
+    body.appendChild(btnRow);
+    el.innerHTML = iconSvg;
+    el.appendChild(body);
+    stack.appendChild(el);
+    var ttl = (opts.timeout == null) ? 14000 : opts.timeout;
+    if (ttl > 0) timer = setTimeout(dismiss, ttl);
+    return { el: el, dismiss: dismiss };
+  }
+  window.toastAction = toastAction;
+
   // ─── GENERIC MODAL OPEN/CLOSE ──────────────────────────────
   function openModal(id){
     document.getElementById(id).classList.add('open');
