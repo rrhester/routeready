@@ -14024,6 +14024,121 @@ document.addEventListener("click", async (e) => {
   }
 });
 
+// Map an Open-Meteo WMO weather code to the same `conditions` vocabulary the
+// live NWS card writes (snow / thunderstorm / rain / cloudy / sunny), so
+// backfilled history buckets identically to logged-forward days.
+function wxWmoToConditions(code) {
+  const c = Number(code);
+  if (!Number.isFinite(c)) return null;
+  if (c === 0 || c === 1) return "sunny";           // clear / mainly clear
+  if (c === 2 || c === 3) return "cloudy";          // partly cloudy / overcast
+  if (c === 45 || c === 48) return "cloudy";        // fog
+  if (c >= 51 && c <= 67) return "rain";            // drizzle / rain / freezing rain
+  if (c >= 71 && c <= 77) return "snow";            // snow / snow grains
+  if (c >= 80 && c <= 82) return "rain";            // rain showers
+  if (c === 85 || c === 86) return "snow";          // snow showers
+  if (c >= 95) return "thunderstorm";               // thunderstorm (± hail)
+  return "cloudy";
+}
+
+// Settings: Backfill ~1 year of daily weather into weather_snapshots from the
+// Open-Meteo archive (free, no key, browser-side). Lets the call-out forecast
+// predict immediately against existing call-out history instead of waiting for
+// the daily card to accrue ~3 weeks of snapshots. Idempotent — skips dates we
+// already have so it never clobbers a real NWS snapshot.
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#rr-set-weather-backfill")) return;
+  e.preventDefault();
+  const btn = e.target.closest("#rr-set-weather-backfill");
+  const status = document.getElementById("rr-set-weather-backfill-status");
+  const setStatus = (text, kind) => {
+    if (!status) return;
+    status.style.color = kind === "warn" ? "var(--red)" : kind === "ok" ? "var(--green)" : "var(--text-subtle)";
+    status.textContent = text;
+  };
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { setStatus("DSP not loaded — refresh the page", "warn"); return; }
+  const meta = window.RR?.dsp?.metadata?.weather || {};
+  const lat = Number(meta.lat), lon = Number(meta.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    setStatus("Save your station lat/lon first", "warn");
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  setStatus("Fetching history…");
+  try {
+    const end = new Date(); end.setDate(end.getDate() - 1);        // through yesterday
+    const start = new Date(); start.setDate(start.getDate() - 365);
+    const endIso = fmtIsoDate(end), startIso = fmtIsoDate(start);
+    const url = `https://archive-api.open-meteo.com/v1/archive`
+      + `?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`
+      + `&start_date=${startIso}&end_date=${endIso}`
+      + `&daily=temperature_2m_max,temperature_2m_min,precipitation_hours,precipitation_sum,wind_gusts_10m_max,wind_speed_10m_max,weather_code`
+      + `&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`archive HTTP ${res.status}`);
+    const j = await res.json();
+    const d = j?.daily;
+    if (!d || !Array.isArray(d.time) || d.time.length === 0) throw new Error("no history returned");
+
+    // Skip dates we already have so a real NWS snapshot is never overwritten.
+    const { data: existing } = await sb.from("weather_snapshots")
+      .select("date").eq("dsp_id", dspId).gte("date", startIso).lte("date", endIso);
+    const have = new Set((existing || []).map(r => r.date));
+
+    const rows = [];
+    for (let i = 0; i < d.time.length; i++) {
+      const date = d.time[i];
+      if (have.has(date)) continue;
+      const hi = d.temperature_2m_max?.[i];
+      const lo = d.temperature_2m_min?.[i];
+      if (hi == null && lo == null) continue; // archive gap (recent lag) — skip
+      const gust = d.wind_gusts_10m_max?.[i];
+      const wind = d.wind_speed_10m_max?.[i];
+      const peakWind = gust ?? wind;
+      const precipHours = d.precipitation_hours?.[i];
+      // Archive has no forecast "% chance" — proxy with share of the day that
+      // saw precip. Only used for the heavy-rain / rain bucket thresholds.
+      const precipPct = precipHours != null ? Math.min(100, Math.round(precipHours / 24 * 100)) : null;
+      rows.push({
+        dsp_id: dspId,
+        date,
+        high_temp_f: hi != null ? Math.round(hi) : null,
+        low_temp_f:  lo != null ? Math.round(lo) : null,
+        precip_pct:  precipPct,
+        peak_wind_mph: peakWind != null ? Math.round(peakWind) : null,
+        conditions: wxWmoToConditions(d.weather_code?.[i]),
+        alerts: [],                 // no historical alert record available
+        source: "open-meteo",
+      });
+    }
+
+    if (rows.length === 0) {
+      setStatus("Already up to date — no new days to add", "ok");
+      if (btn) btn.disabled = false;
+      return;
+    }
+
+    let saved = 0;
+    for (let i = 0; i < rows.length; i += 200) {
+      const chunk = rows.slice(i, i + 200);
+      const { error } = await sb.from("weather_snapshots").upsert(chunk, { onConflict: "dsp_id,date" });
+      if (error) throw error;
+      saved += chunk.length;
+      setStatus(`Saving… ${saved}/${rows.length}`);
+    }
+    setStatus(`Backfilled ${saved} day${saved === 1 ? "" : "s"} ✓`, "ok");
+    toast(`Weather history backfilled — ${saved} days added`, "success");
+    if (typeof loadDashboardWeather === "function") loadDashboardWeather();
+  } catch (err) {
+    console.error("weather backfill failed:", err);
+    setStatus("Failed: " + (err.message || String(err)), "warn");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+
 // Pre-fill the settings inputs and show what's currently stored so the
 // operator never has to guess whether their save took.
 function _prefillWeatherInputs() {

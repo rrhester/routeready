@@ -105,6 +105,16 @@
                   <span id="rr-set-weather-status" class="u-xs-subtle"></span>
                 </div>
               </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Backfill weather history</div>
+                  <div class="form-help">Pull the last year of local daily weather (temp, precip, wind, conditions) for your station so the call-out forecast can start predicting today instead of waiting weeks to learn. Safe to re-run — it skips days already logged.</div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center;flex-wrap:wrap">
+                  <button class="btn btn-sm" id="rr-set-weather-backfill" type="button">Backfill 1 year</button>
+                  <span id="rr-set-weather-backfill-status" class="u-xs-subtle"></span>
+                </div>
+              </div>
             </div>
 
             <!-- SMS & MESSAGING SECTION · moved · now opens from the
