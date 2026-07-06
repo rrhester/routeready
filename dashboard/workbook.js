@@ -13649,8 +13649,9 @@ function renderCharts(g) {                    // renders every embed kind
   host.innerHTML = embeds.map(({ key, item }) => {
     const L = embedLayout(g, key, item);
     const inner = embedInnerHtml(g, key, item, L);
-    const style = `left:${L.x * z}px;top:${L.y * z}px;width:${L.w * z}px;height:${L.h * z}px`;
-    return `<div class="wb-embed wb-embed-${key}" data-wb-embed-kind="${key}" data-wb-embed-id="${esc(item.id)}" style="${style}">
+    const accentVar = inner.accent ? `--tile-accent:${inner.accent};` : "";
+    const style = `left:${L.x * z}px;top:${L.y * z}px;width:${L.w * z}px;height:${L.h * z}px;${accentVar}`;
+    return `<div class="wb-embed wb-embed-${key}${inner.cls ? " " + inner.cls : ""}" data-wb-embed-kind="${key}" data-wb-embed-id="${esc(item.id)}" style="${style}">
       <div class="wb-embed-head" ${WB.canEdit ? 'data-wb-embed-drag title="Drag to move"' : ""}>
         <span class="wb-embed-title">${inner.title}</span>
         ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="edit" title="Edit" aria-label="Edit"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -13821,14 +13822,19 @@ function kpiSparkline(sheet, rangeText, color) {
   const vals = [];
   for (let r = rg.r0; r <= rg.r1; r++) for (let c = rg.c0; c <= rg.c1; c++) { const n = embedCellNum(sheet, { row: r, col: c }); if (n != null) vals.push(n); }
   if (vals.length < 2) return "";
-  const W = 150, H = 30, lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+  const W = 150, H = 34, lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
   const px = (i) => (i / (vals.length - 1)) * W;
-  const py = (v) => H - 3 - ((v - lo) / span) * (H - 6);
-  const d = vals.map((v, i) => `${i ? "L" : "M"}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(" ");
-  return `<svg class="wb-kpi-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  const py = (v) => H - 4 - ((v - lo) / span) * (H - 8);
+  const line = vals.map((v, i) => `${i ? "L" : "M"}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(" ");
+  const id = "sp" + rangeText.replace(/[^a-z0-9]/gi, "");           // deterministic gradient id
+  const area = `M${px(0).toFixed(1)},${H} L` + vals.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(" L") + ` L${px(vals.length - 1).toFixed(1)},${H} Z`;
+  return `<svg class="wb-kpi-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">` +
+    `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity="0.28"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>` +
+    `<path d="${area}" fill="url(#${id})"/>` +
+    `<path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
 function kpiTileHtml(sheet, spec, rowFilter) {
-  const accent = chartPalette(spec)[0];
+  const accent = spec.accent || chartPalette(spec)[0];   // curated override wins
   const agg = spec.agg || "cell";
   const num = kpiValue(sheet, spec, rowFilter);
   const raw = agg === "cell" ? embedCellRaw(sheet, spec.valueRef) : num;
@@ -13855,7 +13861,7 @@ function kpiTileHtml(sheet, spec, rowFilter) {
       <div class="wb-kpi-gaugelbl">${pct}% of ${kpiFmt(target, spec.format)} target</div>`;
   }
   const body = `<div class="wb-kpi"><div class="wb-kpi-value" style="color:${accent}">${valStr}</div>${delta}${gauge}${spark}</div>`;
-  return { title: esc(spec.label || "KPI"), body, footer: "" };
+  return { title: esc(spec.label || "KPI"), body, footer: "", accent };
 }
 const HEATMAP_STOPS = ["#eef5ff", "#bcd8f7", "#7db0ec"];  // light ramp — dark text stays readable
 function tableTileHtml(sheet, spec, rowFilter) {
@@ -13904,6 +13910,11 @@ function tableTileHtml(sheet, spec, rowFilter) {
 }
 function textTileHtml(spec) {
   const bodyTxt = spec.body ? `<div class="wb-text-body">${esc(spec.body).replace(/\n/g, "<br>")}</div>` : `<div class="wb-text-body wb-text-empty">Double-click Edit to add text…</div>`;
+  // a hero header renders as a title band (bigger heading, its own layout) rather
+  // than the standard title-in-card-head
+  if (spec.hero) {
+    return { title: "", cls: "is-hero", body: `<div class="wb-hero"><div class="wb-hero-title">${esc(spec.heading || "Dashboard")}</div>${spec.body ? `<div class="wb-hero-sub">${esc(spec.body)}</div>` : ""}</div>`, footer: "" };
+  }
   return { title: esc(spec.heading || "Text"), body: `<div class="wb-text">${bodyTxt}</div>`, footer: "" };
 }
 
@@ -14299,13 +14310,15 @@ function autoBuildDashboard(g) {
 
   const build = () => {
     const rid = (p) => p + Math.random().toString(36).slice(2, 8);
-    const themes = ["vibrant", "ocean", "forest", "sunset", "berry", "route"];
+    // a cohesive, harmonious accent rhythm (cool → warm-neutral) — reads as
+    // designed, unlike a full rainbow; semantic red/amber is reserved for gauges
+    const ACCENTS = ["#2563eb", "#0891b2", "#0d9488", "#4f46e5", "#0ea5e9", "#059669", "#6366f1", "#0369a1"];
     const controls = [], insights = [], kpis = [], charts = [], tables = [], texts = [];
     let ti = 0;
-    texts.push({ id: rid("tx"), heading: (WB.wb && WB.wb.title) || g.sheet.name, body: `Auto-built overview across ${analyzed.length} sheet${analyzed.length > 1 ? "s" : ""}.` });
+    texts.push({ id: rid("tx"), hero: true, heading: (WB.wb && WB.wb.title) || g.sheet.name, body: `Live overview across ${analyzed.length} sheet${analyzed.length > 1 ? "s" : ""} · auto-built` });
     // KPI row: the headline metric from each sheet, then fill toward ~8 tiles
     const colRange = (a, col) => `${colLabel(col.c)}${a.rng.r0 + 2}:${colLabel(col.c)}${a.rng.r1 + 1}`;
-    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), sparkRange: colRange(a, col), format: "compact", theme: themes[ti++ % themes.length], srcSheetId: a.s.id });
+    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), sparkRange: colRange(a, col), format: "compact", accent: ACCENTS[ti++ % ACCENTS.length], srcSheetId: a.s.id });
     for (const a of analyzed) { if (kpis.length >= 8) break; pushKpi(a, a.nums[0]); }
     for (const a of analyzed) { if (kpis.length >= 8) break; if (a.nums[1]) pushKpi(a, a.nums[1]); }
     // charts from the richest sheets that have a dimension with metrics to its right

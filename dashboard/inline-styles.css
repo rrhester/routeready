@@ -29160,18 +29160,19 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-gr-charts{position:absolute;inset:0;pointer-events:none;z-index:3}
 #view-workbooks .wb-embed{
   position:absolute;pointer-events:auto;box-sizing:border-box;
-  display:flex;flex-direction:column;gap:2px;
-  border:1px solid var(--border);border-radius:var(--r-md);
-  background:var(--surface);padding:8px 10px 6px;
-  box-shadow:0 1px 3px rgba(0,0,0,.08),0 6px 18px rgba(0,0,0,.08);
-  overflow:hidden;
+  display:flex;flex-direction:column;gap:3px;
+  border:1px solid var(--border);border-radius:14px;
+  background:var(--surface);padding:11px 13px 9px;
+  box-shadow:0 1px 2px rgba(17,24,39,.05),0 4px 14px rgba(17,24,39,.07);
+  overflow:hidden;transition:box-shadow .16s ease,transform .16s ease;
 }
+#view-workbooks .wb-embed:hover{box-shadow:0 2px 5px rgba(17,24,39,.08),0 10px 26px rgba(17,24,39,.12)}
 #view-workbooks .wb-embed.is-active{
-  box-shadow:0 2px 6px rgba(0,0,0,.12),0 12px 30px rgba(0,0,0,.16);
+  box-shadow:0 2px 6px rgba(0,0,0,.12),0 16px 34px rgba(17,24,39,.18);
   outline:2px solid var(--accent,#2563EB);outline-offset:-1px;
   user-select:none;z-index:4;
 }
-#view-workbooks .wb-embed-head{display:flex;align-items:center;gap:6px;flex:none}
+#view-workbooks .wb-embed-head{display:flex;align-items:center;gap:6px;flex:none;min-height:18px}
 #view-workbooks .wb-embed-head[data-wb-embed-drag]{cursor:move}
 #view-workbooks .wb-embed-body{flex:1 1 auto;min-height:0;display:flex}
 #view-workbooks .wb-embed-body svg{width:100%;height:100%;display:block}
@@ -29179,19 +29180,28 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   position:absolute;right:0;bottom:0;width:16px;height:16px;
   cursor:nwse-resize;pointer-events:auto;
   background:linear-gradient(135deg,transparent 0 46%,var(--border-strong,#9aa0a6) 46% 54%,transparent 54% 70%,var(--border-strong,#9aa0a6) 70% 78%,transparent 78%);
-  opacity:.55;
+  opacity:0;transition:opacity .15s ease;
 }
-#view-workbooks .wb-embed:hover .wb-embed-grip{opacity:.9}
+#view-workbooks .wb-embed:hover .wb-embed-grip{opacity:.75}
 #view-workbooks .wb-embed-title,#view-workbooks .wb-chart-title{flex:1;font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* KPI scorecard */
-#view-workbooks .wb-embed-kpis .wb-embed-body{flex-direction:column;justify-content:center;gap:2px}
-#view-workbooks .wb-kpi{display:flex;flex-direction:column;gap:3px;min-width:0}
-#view-workbooks .wb-kpi-value{font-size:clamp(22px,7cqw,40px);font-weight:700;line-height:1.05;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* KPI scorecard — accent bar, eyebrow label, big value, edge-to-edge sparkline */
 #view-workbooks .wb-embed-kpis{container-type:inline-size}
+#view-workbooks .wb-embed-kpis{border-top:3px solid var(--tile-accent,var(--accent,#2563EB));background:linear-gradient(180deg,color-mix(in srgb,var(--tile-accent,#2563EB) 5%,var(--surface)),var(--surface) 62%)}
+#view-workbooks .wb-embed-kpis .wb-embed-title{text-transform:uppercase;letter-spacing:.05em;font-size:10.5px;font-weight:700;color:var(--text-muted)}
+#view-workbooks .wb-embed-kpis .wb-embed-body{flex-direction:column;justify-content:space-between;gap:2px}
+#view-workbooks .wb-kpi{display:flex;flex-direction:column;gap:2px;min-width:0;height:100%;justify-content:space-between}
+#view-workbooks .wb-kpi-value{font-size:clamp(24px,8cqw,42px);font-weight:750;line-height:1;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 #view-workbooks .wb-kpi-delta{font-size:var(--fs-xs);font-weight:600;display:inline-flex;align-items:center;gap:3px}
 #view-workbooks .wb-kpi-delta.is-up{color:var(--green,#0ca30c)}
 #view-workbooks .wb-kpi-delta.is-down{color:var(--red,#d03b3b)}
-#view-workbooks .wb-kpi-spark{width:100%;height:26px;margin-top:2px;display:block}
+#view-workbooks .wb-kpi-spark{width:auto;height:36px;display:block;margin:4px -13px -9px}
+/* Hero header band */
+#view-workbooks .wb-embed.is-hero{border:none;color:#fff;background:linear-gradient(120deg,#2563eb 0%,#4f46e5 55%,#7c3aed 100%);box-shadow:0 2px 8px rgba(46,50,160,.28),0 12px 30px rgba(46,50,160,.24)}
+#view-workbooks .wb-embed.is-hero .wb-embed-head{color:#fff}
+#view-workbooks .wb-embed.is-hero .wb-embed-body{align-items:center}
+#view-workbooks .wb-hero{display:flex;flex-direction:column;justify-content:center;gap:3px;height:100%;width:100%}
+#view-workbooks .wb-hero-title{font-size:22px;font-weight:750;letter-spacing:-.02em;line-height:1.1}
+#view-workbooks .wb-hero-sub{font-size:var(--fs-sm);opacity:.85;font-weight:500}
 /* Table widget */
 #view-workbooks .wb-embed-tablewrap{flex:1 1 auto;min-height:0;overflow:auto;width:100%;border-radius:6px}
 #view-workbooks .wb-embed-table{border-collapse:collapse;width:100%;font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
