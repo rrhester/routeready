@@ -66,17 +66,22 @@ Deno.serve(async (req) => {
   // Build the notification payload from the triggering message + unread count.
   let title = "Dispatch";
   let bodyText = "New message from dispatch";
+  // Where tapping the notification lands. Chat messages default to the chat
+  // thread; schedule events (offers / swaps / confirmations / publish) carry
+  // an explicit link_url so the tap opens the card the driver needs.
+  let linkUrl = "/app/#/chat";
 
   if (messageId) {
     const { data: msg } = await supa
       .from("driver_messages")
-      .select("body")
+      .select("body, link_url")
       .eq("id", messageId)
       .single();
     if (msg?.body) {
       const txt = String(msg.body);
       bodyText = txt.length > 80 ? txt.slice(0, 80) + "…" : txt;
     }
+    if (msg?.link_url) linkUrl = String(msg.link_url);
   }
 
   const { data: conv } = await supa
@@ -98,7 +103,7 @@ Deno.serve(async (req) => {
     title,
     body: bodyText,
     unread,
-    url: "/app/#/chat",
+    url: linkUrl,
   });
 
   let sent = 0, failed = 0, removed = 0;
