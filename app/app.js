@@ -2824,11 +2824,19 @@ async function _scanMakePage(drawable, sw, sh) {
   const origBlob = await new Promise((r) => src.toBlob(r, "image/jpeg", 0.92));
   const origJpeg = new Uint8Array(await origBlob.arrayBuffer());
 
+  // Auto-detect the document boundary and pre-crop to it, scanner-style.
+  // Detection is conservative (returns null unless confident), and the
+  // crop is non-destructive — the editor can reset to full frame or
+  // re-detect at any time.
+  let autoCrop = null;
+  try { autoCrop = _scanDetectQuad(src); } catch { autoCrop = null; }
+
   const page = {
     id: "p" + Date.now() + Math.random().toString(36).slice(2, 6),
     origJpeg, ow, oh,
     filter: "original",   // original | auto | gray | bw
-    crop: null,           // null = full frame, else [[x,y] ×4] TL,TR,BR,BL in source px
+    crop: autoCrop,       // null = full frame, else [[x,y] ×4] TL,TR,BR,BL in source px
+    autoCropped: !!autoCrop,
     jpeg: null, w: ow, h: oh, thumb: "",
   };
   await _scanComputeOutput(page, src);    // reuse the canvas we already drew
@@ -3053,6 +3061,105 @@ const _SCAN_FILTERS = [
 ];
 function _scanFilterLabel(key) {
   return (_SCAN_FILTERS.find((f) => f.key === key) || _SCAN_FILTERS[0]).label;
+}
+
+// ── Automatic document detection ────────────────────────────────────
+// Find the document's four corners with a lightweight, dependency-free
+// pipeline: downscale → grayscale → Sobel edge magnitude → adaptive
+// threshold + speckle denoise → take the extreme corner points
+// (min/max of x±y) → validate the quad is large, convex, and roughly
+// rectangular. Returns corners [TL, TR, BR, BL] in the INPUT canvas's
+// coordinate space, or null when there's no confident boundary — in
+// which case the caller simply leaves the page uncropped. Guards are
+// deliberately strict: a missed detection (full page kept) is a far
+// gentler failure than a wrong auto-crop, and either is one tap to fix
+// in the editor.
+function _scanDetectQuad(srcCanvas) {
+  const W0 = srcCanvas.width, H0 = srcCanvas.height;
+  const scale = Math.min(1, 320 / Math.max(W0, H0));
+  const w = Math.max(1, Math.round(W0 * scale));
+  const h = Math.max(1, Math.round(H0 * scale));
+  if (w < 16 || h < 16) return null;
+
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(srcCanvas, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h).data;
+
+  const g = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < w * h; i++, p += 4) {
+    g[i] = data[p] * 0.299 + data[p + 1] * 0.587 + data[p + 2] * 0.114;
+  }
+
+  const mag = new Float32Array(w * h);
+  let sum = 0, sum2 = 0, cnt = 0;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const gx = -g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1] + g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1];
+      const gy = -g[i - w - 1] - 2 * g[i - w] - g[i - w + 1] + g[i + w - 1] + 2 * g[i + w] + g[i + w + 1];
+      const m = Math.abs(gx) + Math.abs(gy);
+      mag[i] = m; sum += m; sum2 += m * m; cnt++;
+    }
+  }
+  const mean = sum / cnt;
+  const std = Math.sqrt(Math.max(0, sum2 / cnt - mean * mean));
+  const thr = mean + 1.1 * std;
+
+  const edge = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) edge[i] = mag[i] > thr ? 1 : 0;
+
+  let tl = null, tr = null, br = null, bl = null, n = 0;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      if (!edge[i]) continue;
+      // Speckle denoise: keep only edge pixels backed by neighbours, so a
+      // lone noisy pixel in a frame corner can't hijack an extreme.
+      const nb = edge[i - 1] + edge[i + 1] + edge[i - w] + edge[i + w]
+               + edge[i - w - 1] + edge[i - w + 1] + edge[i + w - 1] + edge[i + w + 1];
+      if (nb < 2) continue;
+      n++;
+      const s = x + y, d = x - y;
+      if (!tl || s < tl[0] + tl[1]) tl = [x, y];
+      if (!br || s > br[0] + br[1]) br = [x, y];
+      if (!tr || d > tr[0] - tr[1]) tr = [x, y];
+      if (!bl || d < bl[0] - bl[1]) bl = [x, y];
+    }
+  }
+  if (n < 40 || !tl) return null;
+  const quad = [tl, tr, br, bl];
+  if (!_scanQuadValid(quad, w, h)) return null;
+  return quad.map((p) => [p[0] / scale, p[1] / scale]);
+}
+
+// A candidate quad passes only if it's sizeable, convex, and its corner
+// angles are within a rectangle-ish range — rejecting slivers, noise
+// hulls, and near-full-frame boxes.
+function _scanQuadValid(q, w, h) {
+  const dist = (p, r) => Math.hypot(p[0] - r[0], p[1] - r[1]);
+  const minSide = Math.min(dist(q[0], q[1]), dist(q[1], q[2]), dist(q[2], q[3]), dist(q[3], q[0]));
+  if (minSide < 0.10 * Math.max(w, h)) return false;
+
+  let area = 0;
+  for (let i = 0; i < 4; i++) { const p = q[i], r = q[(i + 1) % 4]; area += p[0] * r[1] - r[0] * p[1]; }
+  const frac = Math.abs(area) / 2 / (w * h);
+  if (frac < 0.12 || frac > 0.99) return false;
+
+  let sign = 0;
+  for (let i = 0; i < 4; i++) {
+    const p0 = q[(i + 3) % 4], p1 = q[i], p2 = q[(i + 1) % 4];
+    const v1 = [p0[0] - p1[0], p0[1] - p1[1]], v2 = [p2[0] - p1[0], p2[1] - p1[1]];
+    const cross = v1[0] * v2[1] - v1[1] * v2[0];
+    const s = Math.sign(cross);
+    if (sign === 0) sign = s; else if (s !== 0 && s !== sign) return false;   // non-convex
+    const mag1 = Math.hypot(v1[0], v1[1]), mag2 = Math.hypot(v2[0], v2[1]);
+    if (!mag1 || !mag2) return false;
+    const ang = Math.acos(Math.max(-1, Math.min(1, (v1[0] * v2[0] + v1[1] * v2[1]) / (mag1 * mag2)))) * 180 / Math.PI;
+    if (ang < 42 || ang > 138) return false;
+  }
+  return true;
 }
 
 // Assemble a PDF (as a Blob) that embeds each page's JPEG on its own
@@ -3349,7 +3456,7 @@ function _scanRenderPages() {
     : _scanPages.map((p, i) => {
         const edited = (p.filter && p.filter !== "original") || p.crop;
         const tags = [];
-        if (p.crop) tags.push("Cropped");
+        if (p.crop) tags.push(p.autoCropped ? "Auto-cropped" : "Cropped");
         if (p.filter && p.filter !== "original") tags.push(_scanFilterLabel(p.filter));
         const tagLine = tags.length
           ? `<div class="scan-page-tags">${tags.map((t) => `<span class="scan-tag">${escapeHtml(t)}</span>`).join("")}</div>`
@@ -3452,13 +3559,19 @@ async function _scanOpenEditor(id) {
         </svg>
       </div>
     </div>
-    <div class="scan-editor-hint" id="scan-ed-hint">Drag the corners to the edges of your document</div>
+    <div class="scan-editor-cropbar">
+      <button class="scan-editor-pill" id="scan-ed-auto" type="button">Auto-detect</button>
+      <span class="scan-editor-hint" id="scan-ed-hint">Drag the corners to your document</span>
+      <button class="scan-editor-pill" id="scan-ed-reset" type="button">Whole page</button>
+    </div>
     <div class="scan-editor-filters">${filtersHtml}</div>`;
   document.body.appendChild(overlay);
   document.body.classList.add("scan-editing");
 
   _scanEditor = {
     id, corners, filter: page.filter, base, pw, ph,
+    ow: page.ow, oh: page.oh, full,          // full-res source for re-detection
+    auto: !!page.autoCropped,                 // did the current quad come from auto-detect?
     canvas: overlay.querySelector("#scan-ed-canvas"),
     svg: overlay.querySelector("#scan-ed-svg"),
     box: overlay.querySelector("#scan-ed-box"),
@@ -3474,6 +3587,29 @@ async function _scanOpenEditor(id) {
 
   overlay.querySelector("#scan-ed-cancel").addEventListener("click", _scanCloseEditor);
   overlay.querySelector("#scan-ed-apply").addEventListener("click", _scanApplyEditor);
+
+  // Auto-detect → snap corners to the found document (or nudge the user
+  // if nothing confident turns up). Whole page → reset to full frame.
+  overlay.querySelector("#scan-ed-auto").addEventListener("click", () => {
+    const q = _scanDetectQuad(_scanEditor.full);
+    if (q) {
+      _scanEditor.corners = q.map((p) => [p[0], p[1]]);
+      _scanEditor.auto = true;
+      _scanEditorRenderQuad();
+      _haptic("success");
+    } else {
+      const hint = document.getElementById("scan-ed-hint");
+      if (hint) hint.textContent = "No document found — drag the corners";
+      _haptic("warn");
+    }
+  });
+  overlay.querySelector("#scan-ed-reset").addEventListener("click", () => {
+    _scanEditor.corners = [[0, 0], [page.ow, 0], [page.ow, page.oh], [0, page.oh]];
+    _scanEditor.auto = false;
+    _scanEditorRenderQuad();
+    _haptic("tap");
+  });
+
   overlay.querySelectorAll("[data-scan-filter]").forEach((chip) => {
     chip.addEventListener("click", () => {
       _scanEditor.filter = chip.getAttribute("data-scan-filter");
@@ -3495,6 +3631,7 @@ async function _scanOpenEditor(id) {
     if (_scanEditor.dragIdx < 0) return;
     ev.preventDefault();
     _scanEditor.corners[_scanEditor.dragIdx] = toSrc(ev);
+    _scanEditor.auto = false;    // a manual nudge is no longer an auto-crop
     _scanEditorRenderQuad();
   };
   const onUp = () => { _scanEditor && (_scanEditor.dragIdx = -1); };
@@ -3561,6 +3698,7 @@ async function _scanApplyEditor() {
   const isFull = c.every((p, k) => Math.abs(p[0] - full[k][0]) < 1 && Math.abs(p[1] - full[k][1]) < 1);
 
   page.crop = isFull ? null : c.map((p) => [p[0], p[1]]);
+  page.autoCropped = !isFull && _scanEditor.auto;
   page.filter = _scanEditor.filter;
 
   try {
@@ -3608,6 +3746,9 @@ async function _scanOpenCamera() {
   overlay.innerHTML = `
     <video class="scan-cam-video" id="scan-cam-video" autoplay playsinline muted></video>
     <div class="scan-cam-guide" aria-hidden="true"></div>
+    <svg class="scan-cam-edge" id="scan-cam-edge" aria-hidden="true" preserveAspectRatio="none">
+      <polygon id="scan-cam-quad" points="" fill="rgba(37,99,235,.16)" stroke="#4d8bff" stroke-width="3"/>
+    </svg>
     <div class="scan-cam-top">
       <button class="scan-cam-icon" id="scan-cam-close" type="button" aria-label="Close camera">
         <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -3634,10 +3775,15 @@ async function _scanOpenCamera() {
   _scanCam = {
     stream, video, overlay,
     auto: true, added: 0, busy: false, armed: true, steady: 0, prev: null, loop: null,
+    tick: 0, quad: null,
     sample: document.createElement("canvas"),
+    detect: document.createElement("canvas"),
+    edgeSvg: overlay.querySelector("#scan-cam-edge"),
+    edgePoly: overlay.querySelector("#scan-cam-quad"),
     track: stream.getVideoTracks()[0] || null,
   };
   _scanCam.sample.width = 48; _scanCam.sample.height = 36;
+  _scanCam.detect.width = 200; _scanCam.detect.height = 150;
   _scanCamUpdateCount();
 
   // Torch, only where the device exposes the capability.
@@ -3682,10 +3828,24 @@ function _scanCamStabilityLoop() {
   const W = cam.sample.width, H = cam.sample.height;
   const STEADY = 3.2;   // mean luma delta below which the frame is "still"
 
+  const dctx = cam.detect.getContext("2d", { willReadFrequently: true });
+  const DW = cam.detect.width, DH = cam.detect.height;
+
   cam.loop = setInterval(() => {
     if (!_scanCam || cam.busy) return;
     const v = cam.video;
     if (!v.videoWidth) return;
+
+    // Live document detection every other tick (~2×/sec) — draw the
+    // found quad on the viewfinder and use it to gate auto-capture.
+    if ((cam.tick++ & 1) === 0) {
+      dctx.drawImage(v, 0, 0, DW, DH);
+      let q = null;
+      try { q = _scanDetectQuad(cam.detect); } catch { q = null; }
+      cam.quad = q;
+      _scanCamDrawQuad(q, DW, DH);
+    }
+
     sctx.drawImage(v, 0, 0, W, H);
     const cur = sctx.getImageData(0, 0, W, H).data;
     if (cam.prev) {
@@ -3698,16 +3858,39 @@ function _scanCamStabilityLoop() {
       diff /= (cur.length / 4);
       if (diff < STEADY) {
         cam.steady++;
-        if (cam.auto && cam.armed && cam.steady >= 2) _scanCamCapture();
-        else if (cam.auto && cam.armed) _scanCamStatus("Hold steady…");
+        // Auto-fire only when the frame is still AND a document is in
+        // view; otherwise coach the driver toward one.
+        if (cam.auto && cam.armed && cam.quad && cam.steady >= 2) _scanCamCapture();
+        else if (cam.auto && cam.armed) _scanCamStatus(cam.quad ? "Hold steady…" : "Point at a document");
       } else {
         cam.steady = 0;
         if (!cam.armed && diff > STEADY * 2) cam.armed = true;   // scene moved → re-arm
-        if (cam.auto && cam.armed) _scanCamStatus("Point at a document");
+        if (cam.auto && cam.armed) _scanCamStatus(cam.quad ? "Document detected" : "Point at a document");
       }
     }
     cam.prev = cur;
   }, 260);
+}
+
+// Paint the detected quad on the full-screen viewfinder overlay,
+// mapping detection-sample coordinates through the video's object-fit:
+// cover transform so the outline sits exactly on the real document.
+function _scanCamDrawQuad(quad, sampleW, sampleH) {
+  const cam = _scanCam;
+  if (!cam || !cam.edgeSvg) return;
+  if (!quad) { cam.edgePoly.setAttribute("points", ""); return; }
+  const rect = cam.overlay.getBoundingClientRect();
+  const cw = rect.width, ch = rect.height;
+  const vw = cam.video.videoWidth, vh = cam.video.videoHeight;
+  if (!vw || !vh) return;
+  cam.edgeSvg.setAttribute("viewBox", `0 0 ${cw} ${ch}`);
+  const scale = Math.max(cw / vw, ch / vh);          // object-fit: cover
+  const offX = (cw - vw * scale) / 2, offY = (ch - vh * scale) / 2;
+  const pts = quad.map(([x, y]) => {
+    const fx = x / sampleW, fy = y / sampleH;         // fraction of the frame
+    return `${(offX + fx * vw * scale).toFixed(1)},${(offY + fy * vh * scale).toFixed(1)}`;
+  }).join(" ");
+  cam.edgePoly.setAttribute("points", pts);
 }
 
 function _scanCamStatus(text) {

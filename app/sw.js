@@ -13,12 +13,13 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-// v126 · Document scanner gains a live camera: full-screen viewfinder
-// over the rear camera with a shutter, Auto steady-capture, torch, and
-// multi-page batch capture without leaving the camera (falls back to
-// the OS photo input where getUserMedia is blocked). Bumped so installed
-// driver PWAs purge the old shell and pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v126";
+// v127 · Document scanner gains automatic edge detection: pages are
+// auto-cropped to the detected document at capture (dependency-free
+// Sobel + extreme-corner pipeline), the camera shows a live outline and
+// only auto-fires when a document is framed, and the editor gets
+// Auto-detect / Whole-page controls. Bumped so installed driver PWAs
+// purge the old shell and pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v127";
 const SHELL_FILES = [
   "./",
   "index.html",
