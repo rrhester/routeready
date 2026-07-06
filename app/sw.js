@@ -13,11 +13,12 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-// v129 · Document scanner polish: per-page rotate, a capture blur/glare
-// warning hint, and a Letter/A4 page-size choice (remembered across
-// sessions). Bumped so installed driver PWAs purge the old shell and
-// pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v129";
+// v130 · Document scanner edge detection is more robust: a pre-blur
+// plus largest-connected-edge-component isolation lock onto the page
+// outline and ignore background clutter that used to drag the auto-crop
+// off the document. Bumped so installed driver PWAs purge the old shell
+// and pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v130";
 const SHELL_FILES = [
   "./",
   "index.html",
