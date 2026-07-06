@@ -1252,4 +1252,22 @@ await okA("xlsx export: data validation + conditional formatting serialize (and 
   assert.ok(parsed.sheets[0].cells.length >= 3);
 });
 
+await okA("xlsx round-trip: custom number-format codes survive", async () => {
+  const cells = new Map([
+    ["0,0", XC("1234.5", "number", { fmt: '#,##0.00" units"' })],
+    ["1,0", XC("1500", "number", { fmt: '#,##0,"K"' })],
+    ["2,0", XC("0.5", "number", { fmt: "0.0%" })],
+  ]);
+  const bytes = buildXlsxBytes([{ name: "F", cells, colWidths: {}, frozenRows: 0, frozenCols: 0, meta: {} }]);
+  const xml = new TextDecoder().decode(bytes);
+  assert.ok(xml.includes('numFmtId="165"'), "custom numFmt id declared");
+  assert.ok(/formatCode="[^"]*units/.test(xml), "custom code written to styles");
+  const parsed = await parseXlsxBytes(bytes);
+  const sh = parsed.sheets[0];
+  assert.equal(findCell(sh, 0, 0).format.fmt, '#,##0.00" units"', "code round-trips to format.fmt");
+  assert.equal(__engine.applyCustomFormat(findCell(sh, 0, 0).value, findCell(sh, 0, 0).format.fmt, "number"), "1,234.50 units");
+  assert.equal(findCell(sh, 1, 0).format.fmt, '#,##0,"K"');
+  assert.equal(findCell(sh, 2, 0).format.fmt, "0.0%");
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);

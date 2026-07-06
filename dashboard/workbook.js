@@ -12031,10 +12031,20 @@ function buildXlsxBytes(sheets) {
   };
   let cfPriority = 1;
 
+  // custom Excel format strings (format.fmt) get their own numFmt ids (165+)
+  const customNumFmts = [];
+  const customNumFmtIdx = new Map();
+  const customNumId = (code) => {
+    let id = customNumFmtIdx.get(code);
+    if (id == null) { id = 165 + customNumFmts.length; customNumFmts.push({ id, code }); customNumFmtIdx.set(code, id); }
+    return id;
+  };
   const styleFor = (cell) => {
     const f = (cell && cell.format) || {};
     const effNum = f.num || (cell && !cell.formula && ["currency", "percent", "date"].includes(cell.type) ? cell.type : null);
-    const numId = effNum != null && NUMFMT[effNum] != null ? NUMFMT[effNum] : 0;
+    const numId = typeof f.fmt === "string" && f.fmt.trim()
+      ? customNumId(f.fmt.trim())
+      : (effNum != null && NUMFMT[effNum] != null ? NUMFMT[effNum] : 0);
     const bold = !!(f.bold || f.bg === "header");
     const fgHex = f.fg ? (HEX_COLOR_RE.test(f.fg) ? "FF" + f.fg.slice(1).toUpperCase() : FG_HEX[f.fg] || "") : "";
     const pt = Number.isInteger(f.fs) ? Math.max(6, Math.round(f.fs * 0.75)) : 11; // px → pt
@@ -12152,7 +12162,8 @@ function buildXlsxBytes(sheets) {
   const names = sheets.map((sh) => xlsxSheetName(sh.name, used));
 
   const dxfXml = dxfs.length ? `<dxfs count="${dxfs.length}">${dxfs.join("")}</dxfs>` : "";
-  const stylesXml = `${XMLH}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/></numFmts><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="${borders.length}">${borders.join("")}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs>${dxfXml}</styleSheet>`;
+  const numFmtDefs = [`<numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/>`, ...customNumFmts.map((nf) => `<numFmt numFmtId="${nf.id}" formatCode="${xmlEsc(nf.code)}"/>`)];
+  const stylesXml = `${XMLH}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="${numFmtDefs.length}">${numFmtDefs.join("")}</numFmts><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="${borders.length}">${borders.join("")}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs>${dxfXml}</styleSheet>`;
   const workbookXml = `${XMLH}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n, i) => `<sheet name="${xmlEsc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`;
   const wbRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
   const rootRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
@@ -12332,9 +12343,10 @@ export async function parseXlsxBytes(buf) {
   const stylesXml = get("xl/styles.xml");
   if (stylesXml) {
     const customClass = new Map();
+    const customCode = new Map(); // id → raw formatCode (to round-trip custom codes)
     let m;
     const nfRe = /<numFmt[^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g;
-    while ((m = nfRe.exec(stylesXml))) customClass.set(+m[1], classifyXlsxNumFmt(xmlUnescape(m[2])));
+    while ((m = nfRe.exec(stylesXml))) { const code = xmlUnescape(m[2]); customClass.set(+m[1], classifyXlsxNumFmt(code)); customCode.set(+m[1], code); }
     const classOf = (id) => (customClass.has(id) ? customClass.get(id) : builtinXlsxNumClass(id));
     const section = (tag, re) => { const s = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`).exec(stylesXml); return s ? (s[1].match(re) || []) : []; };
     const fontDefs = section("fonts", /<font(?:\s[^>]*)?>[\s\S]*?<\/font>|<font\s*\/>/g).map(parseXlsxFont);
@@ -12343,7 +12355,8 @@ export async function parseXlsxBytes(buf) {
     const cx = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml);
     if (cx) (cx[1].match(/<xf\b[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g) || []).forEach((xf, idx) => {
       const attr = (n) => { const mm = new RegExp(`${n}="(\\d+)"`).exec(xf); return mm ? +mm[1] : 0; };
-      const cls = classOf(attr("numFmtId"));
+      const nfId = attr("numFmtId");
+      const cls = classOf(nfId);
       if (cls === "date") dateXf.add(idx);
       const fmt = { ...(fontDefs[attr("fontId")] || {}), ...(borderDefs[attr("borderId")] || {}) };
       const fill = fillDefs[attr("fillId")];
@@ -12355,7 +12368,10 @@ export async function parseXlsxBytes(buf) {
         if (/wrapText="1"/.test(al[1])) fmt.wrap = true;
         const rot = /textRotation="(\d+)"/.exec(al[1]); if (rot && (+rot[1] === 45 || +rot[1] === 90)) fmt.rot = +rot[1];
       }
-      if (cls && cls !== "date") fmt.num = cls; // dates display via cell.type
+      // a genuinely custom code (our exports use ids ≥165) round-trips verbatim
+      // as format.fmt; otherwise map to the preset class (dates via cell.type)
+      if (nfId >= 165 && customCode.has(nfId)) fmt.fmt = customCode.get(nfId);
+      else if (cls && cls !== "date") fmt.num = cls;
       if (Object.keys(fmt).length) xfFmt[idx] = fmt;
     });
   }
