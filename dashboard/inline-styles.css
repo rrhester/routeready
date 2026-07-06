@@ -29416,6 +29416,21 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
   font-size:var(--fs-sm);color:var(--text-muted);
 }
+/* Live-dataset chip */
+#view-workbooks .wb-livebar{
+  display:flex;align-items:center;gap:8px;margin-top:6px;padding:4px 10px;
+  background:var(--surface);border:1px solid var(--border);border-radius:999px;
+  font-size:var(--fs-xs);color:var(--text-muted);width:max-content;max-width:100%;
+}
+#view-workbooks .wb-live-dot{width:8px;height:8px;border-radius:50%;background:var(--green,#0ca30c);flex:none;box-shadow:0 0 0 0 rgba(12,163,12,.5);animation:wb-live-pulse 2.4s ease-out infinite}
+@keyframes wb-live-pulse{0%{box-shadow:0 0 0 0 rgba(12,163,12,.45)}70%{box-shadow:0 0 0 6px rgba(12,163,12,0)}100%{box-shadow:0 0 0 0 rgba(12,163,12,0)}}
+#view-workbooks .wb-live-src{font-weight:600;color:var(--text)}
+#view-workbooks .wb-live-at{color:var(--text-subtle)}
+#view-workbooks .wb-live-refresh{
+  margin-left:2px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);
+  border-radius:999px;padding:2px 10px;font-size:var(--fs-xs);font-weight:600;cursor:pointer;
+}
+#view-workbooks .wb-live-refresh:hover{border-color:var(--accent,#2563EB);color:var(--accent,#2563EB)}
 #view-workbooks .wb-intel-pill{
   display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;
   background:var(--surface-secondary,#F3F4F6);font-weight:600;color:var(--text);
