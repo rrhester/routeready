@@ -863,43 +863,43 @@
                         <div class="sf-engine-group-label">Priorities</div>
                         <div class="sf-engine-priorities" id="rr-sf-engine-priorities">
                           <div class="sf-engine-prio-row">
-                            <label for="rr-sf-prio-coverage" class="sf-engine-prio-name">Coverage</label>
+                            <label for="rr-sf-prio-coverage" class="sf-engine-prio-name">Coverage <button type="button" class="rr-pol-info" data-rr-pol-info="How aggressively to fill open shifts. Higher leaves fewer gaps but may push overtime or break other preferences." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                             <input id="rr-sf-prio-coverage" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="coverage" class="sf-engine-prio-slider" aria-label="Coverage priority"/>
                             <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
                             <p class="sf-engine-prio-help">How aggressively to fill open shifts. Higher leaves fewer gaps but may push overtime or break other preferences.</p>
                           </div>
                           <div class="sf-engine-prio-row">
-                            <label for="rr-sf-prio-fairness" class="sf-engine-prio-name">Fairness</label>
+                            <label for="rr-sf-prio-fairness" class="sf-engine-prio-name">Fairness <button type="button" class="rr-pol-info" data-rr-pol-info="Spread hours evenly across drivers. Higher balances paychecks week to week; lower lets seniority and preferences win." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                             <input id="rr-sf-prio-fairness" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="fairness" class="sf-engine-prio-slider" aria-label="Fairness priority"/>
                             <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
                             <p class="sf-engine-prio-help">Spread hours evenly across drivers. Higher balances paychecks week to week; lower lets seniority and preferences win.</p>
                           </div>
                           <div class="sf-engine-prio-row">
-                            <label for="rr-sf-prio-ot_avoidance" class="sf-engine-prio-name">Overtime avoidance</label>
+                            <label for="rr-sf-prio-ot_avoidance" class="sf-engine-prio-name">Overtime avoidance <button type="button" class="rr-pol-info" data-rr-pol-info="Penalty for crossing 40h. Higher leaves shifts open before pushing a driver into OT; lower fills the gap regardless." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                             <input id="rr-sf-prio-ot_avoidance" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="ot_avoidance" class="sf-engine-prio-slider" aria-label="Overtime avoidance priority"/>
                             <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
                             <p class="sf-engine-prio-help">Penalty for crossing 40h. Higher leaves shifts open before pushing a driver into OT; lower fills the gap regardless.</p>
                           </div>
                           <div class="sf-engine-prio-row">
-                            <label for="rr-sf-prio-stability" class="sf-engine-prio-name">Schedule stability</label>
+                            <label for="rr-sf-prio-stability" class="sf-engine-prio-name">Schedule stability <button type="button" class="rr-pol-info" data-rr-pol-info="Mirror last week&#x27;s pattern. Higher keeps drivers on the same days each week; lower lets the engine reshuffle freely." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                             <input id="rr-sf-prio-stability" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="stability" class="sf-engine-prio-slider" aria-label="Schedule stability priority"/>
                             <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
                             <p class="sf-engine-prio-help">Mirror last week's pattern. Higher keeps drivers on the same days each week; lower lets the engine reshuffle freely.</p>
                           </div>
                           <div class="sf-engine-prio-row">
-                            <label for="rr-sf-prio-van_continuity" class="sf-engine-prio-name">Van continuity</label>
+                            <label for="rr-sf-prio-van_continuity" class="sf-engine-prio-name">Van continuity <button type="button" class="rr-pol-info" data-rr-pol-info="Stick to a driver&#x27;s paired van. Higher keeps the primary/backup chain together; lower lets the engine swap vans to optimize other goals." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                             <input id="rr-sf-prio-van_continuity" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="van_continuity" class="sf-engine-prio-slider" aria-label="Van continuity priority"/>
                             <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
                             <p class="sf-engine-prio-help">Stick to a driver's paired van. Higher keeps the primary/backup chain together; lower lets the engine swap vans to optimize other goals.</p>
                           </div>
                           <div class="sf-engine-prio-row">
-                            <label for="rr-sf-prio-preferred_days" class="sf-engine-prio-name">Preferred days</label>
+                            <label for="rr-sf-prio-preferred_days" class="sf-engine-prio-name">Preferred days <button type="button" class="rr-pol-info" data-rr-pol-info="Honor driver day-of-week availability picks. Higher treats their picks as hard; lower treats them as hints the engine can override." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                             <input id="rr-sf-prio-preferred_days" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="preferred_days" class="sf-engine-prio-slider" aria-label="Preferred days priority"/>
                             <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
                             <p class="sf-engine-prio-help">Honor driver day-of-week availability picks. Higher treats their picks as hard; lower treats them as hints the engine can override.</p>
                           </div>
                           <div class="sf-engine-prio-row">
-                            <label for="rr-sf-prio-attendance_penalty" class="sf-engine-prio-name">Attendance penalty</label>
+                            <label for="rr-sf-prio-attendance_penalty" class="sf-engine-prio-name">Attendance penalty <button type="button" class="rr-pol-info" data-rr-pol-info="Weight on past attendance. Higher steers shifts away from drivers with recent no-shows or late points; lower ignores attendance history." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                             <input id="rr-sf-prio-attendance_penalty" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="attendance_penalty" class="sf-engine-prio-slider" aria-label="Attendance penalty priority"/>
                             <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
                             <p class="sf-engine-prio-help">Weight on past attendance. Higher steers shifts away from drivers with recent no-shows or late points; lower ignores attendance history.</p>
@@ -909,19 +909,19 @@
                       <div class="sf-engine-group">
                         <div class="sf-engine-group-label">Data sources</div>
                         <div class="sf-engine-datasources">
-                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="pto" checked> <span>Use approved PTO</span></label>
-                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="affinity" checked> <span>Use affinity history (last N weeks)</span></label>
-                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="van_pairings" checked> <span>Use van pairings</span></label>
-                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="attendance" checked> <span>Use attendance score</span></label>
-                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="fifth_day_optin" checked> <span>Use 5th-day opt-in flags</span></label>
-                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="ad_hoc_rules" checked> <span>Use ad-hoc custom rules</span></label>
+                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="pto" checked> <span>Use approved PTO <button type="button" class="rr-pol-info" data-rr-pol-info="Feed approved PTO into the engine — drivers are never scheduled on an approved day off. Turn off only to diagnose coverage problems." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
+                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="affinity" checked> <span>Use affinity history <button type="button" class="rr-pol-info" data-rr-pol-info="Let the engine read past schedules to learn each driver&#x27;s usual days. The window length is set under Compute budget." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
+                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="van_pairings" checked> <span>Use van pairings <button type="button" class="rr-pol-info" data-rr-pol-info="Use saved driver-van pairings when assigning vans, keeping drivers in their usual van." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
+                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="attendance" checked> <span>Use attendance score <button type="button" class="rr-pol-info" data-rr-pol-info="Give the engine each driver&#x27;s attendance score so the Attendance penalty priority can act on it." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
+                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="fifth_day_optin" checked> <span>Use 5th-day opt-in flags <button type="button" class="rr-pol-info" data-rr-pol-info="Respect the availability tool&#x27;s 5th-day opt-ins — only opted-in drivers are considered for a 5th day." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
+                          <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="ad_hoc_rules" checked> <span>Use ad-hoc custom rules <button type="button" class="rr-pol-info" data-rr-pol-info="Apply the Custom rules section (pair-forbidden, lock-to-day, blackouts) when the engine builds the week." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span></label>
                         </div>
                       </div>
                       <div class="sf-engine-group">
                         <div class="sf-engine-group-label">Compute budget</div>
                         <div class="sf-engine-budget">
                           <div class="sf-engine-budget-row">
-                            <span class="sf-engine-budget-label">Solve time</span>
+                            <span class="sf-engine-budget-label">Solve time <button type="button" class="rr-pol-info" data-rr-pol-info="How long the engine may search before returning its best schedule. Longer finds better answers on big rosters; Quick is fine for small ones." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span>
                             <select class="rr-pol-select sf-engine-budget-select" id="rr-sf-solve-time" aria-label="Solve time" data-rr-sf-budget="solveTimeMs">
                               <option value="3000">Quick (3s)</option>
                               <option value="8000" selected>Normal (8s)</option>
@@ -929,7 +929,7 @@
                             </select>
                           </div>
                           <div class="sf-engine-budget-row">
-                            <span class="sf-engine-budget-label">Affinity history window</span>
+                            <span class="sf-engine-budget-label">Affinity history window <button type="button" class="rr-pol-info" data-rr-pol-info="How many weeks of past schedules the engine reads when learning each driver&#x27;s usual days." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span>
                             <select class="rr-pol-select sf-engine-budget-select" id="rr-sf-affinity-weeks" aria-label="Affinity history window" data-rr-sf-budget="affinityWeeks">
                               <option value="2">2 weeks</option>
                               <option value="4" selected>4 weeks</option>
@@ -937,7 +937,7 @@
                             </select>
                           </div>
                           <div class="sf-engine-budget-row">
-                            <span class="sf-engine-budget-label">Max days per week</span>
+                            <span class="sf-engine-budget-label">Max days per week <button type="button" class="rr-pol-info" data-rr-pol-info="Solver-side cap on how many days one driver can be scheduled this week — the same setting as Max Days Per Week under Workload limits." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></span>
                             <select class="rr-pol-select sf-engine-budget-select" id="rr-sf-max-days-override" aria-label="Max days per week" data-rr-sf-budget="maxDaysOverride">
                               <option value="3">3 days</option>
                               <option value="4">4 days</option>
