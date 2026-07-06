@@ -6183,6 +6183,9 @@ function mountSheetBlock(block, body) {
         </div>
       </div>
       <div class="wb-gr-filterchip" hidden></div>
+      <div class="wb-dash-bar" data-wb-dashbar>
+        <button type="button" class="btn btn-sm wb-dash-add" data-wb-dashaddmenu aria-haspopup="menu" title="Add a widget">＋ Add widget ▾</button>
+      </div>
     </div>
     <div class="wb-pivots" data-wb-pivots hidden></div>
     <div class="wb-tabs" data-wb-tabs="${block.id}"></div>
@@ -6266,11 +6269,26 @@ function mountSheetBlock(block, body) {
     const key = card.getAttribute("data-wb-embed-kind");
     const item = sheetEmbeds(g.sheet, key).find((x) => x.id === card.getAttribute("data-wb-embed-id"));
     if (!item) return;
-    if (act.getAttribute("data-wb-embed-act") === "edit") openEmbedEditor(g, key, item);
+    const action = act.getAttribute("data-wb-embed-act");
+    if (action === "edit") openEmbedEditor(g, key, item);
+    else if (action === "dup") duplicateEmbed(g, key, item);
     else {
       const label = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile" }[key] || "widget";
       confirmModal({ title: `Delete this ${label}?`, body: "The underlying cells are untouched.", confirmLabel: "Delete", danger: true, onConfirm: () => deleteEmbed(g, key, item.id) });
     }
+  });
+  // Dashboard "＋ Add widget" toolbar (visible only on dashboard sheets)
+  g.els.grid.addEventListener("click", (e) => {
+    const addBtn = e.target.closest("[data-wb-dashaddmenu]");
+    if (!addBtn) return;
+    const r = addBtn.getBoundingClientRect();
+    const m = ctxMenu(r.left, r.bottom + 4, [["chart", "Chart"], ["kpi", "KPI tile"], ["table", "Table"], ["text", "Text / heading"]]
+      .map(([k, l]) => `<button type="button" class="popover-item" data-wb-add="${k}" role="menuitem">${l}</button>`).join(""));
+    m.addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-wb-add]"); if (!b) return;
+      closeAllPopovers();
+      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog }[b.getAttribute("data-wb-add")])(g);
+    });
   });
   g.els.pivots.addEventListener("click", (e) => {
     const card = e.target.closest("[data-wb-pivot]");
@@ -12021,6 +12039,31 @@ function sheetEmbeds(sheet, key) { return key === "charts" ? sheetCharts(sheet) 
 function allEmbeds(sheet) { return EMBED_KINDS.flatMap((key) => sheetEmbeds(sheet, key).map((item) => ({ key, item }))); }
 function isDashboardSheet(sheet) { return !!(sheet && sheet.meta && sheet.meta.kind === "dashboard"); }
 
+// A widget can read from another sheet in the same block (its `srcSheetId`) —
+// that's what makes a dedicated dashboard sheet useful: its widgets pull from
+// the data sheets. Falls back to the sheet the widget lives on.
+function blockDataSheets(g) { return (WB.sheetsByBlock.get(g.blockId) || []).filter((s) => !isDashboardSheet(s)); }
+function defaultSrcSheet(g) { if (!isDashboardSheet(g.sheet)) return g.sheet; return blockDataSheets(g)[0] || g.sheet; }
+function embedSourceSheet(g, item) {
+  if (!item || !item.srcSheetId) return g.sheet;
+  return (WB.sheetsByBlock.get(g.blockId) || []).find((s) => s.id === item.srcSheetId) || g.sheet;
+}
+function embedSourceOptions(g, selectedId) {
+  const sheets = blockDataSheets(g);
+  // only worth showing when there's a choice, or when we're on a dashboard (so
+  // the user can see which sheet the widget reads from)
+  if (!sheets.length || (sheets.length === 1 && !isDashboardSheet(g.sheet))) return "";
+  return sheets.map((s) => `<option value="${esc(s.id)}" ${s.id === selectedId ? "selected" : ""}>${esc(s.name)}</option>`).join("");
+}
+function rangeRefText(rg) { return `${colLabel(rg.c0)}${rg.r0 + 1}:${colLabel(rg.c1)}${rg.r1 + 1}`; }
+// The populated extent of a sheet (for auto-defaulting a new widget's range).
+function sheetDataRange(sheet) {
+  let r1 = -1, c1 = -1;
+  for (const key of sheet.cells.keys()) { const i = key.indexOf(","); const r = +key.slice(0, i), c = +key.slice(i + 1); if (r > r1) r1 = r; if (c > c1) c1 = c; }
+  if (r1 < 0) return { r0: 0, c0: 0, r1: 7, c1: 2 };
+  return { r0: 0, c0: 0, r1, c1: Math.max(c1, 1) };
+}
+
 function unzoomedColX(sheet, c) { let x = 0; const n = Math.min(c, sheet.colCount); for (let i = 0; i < n; i++) x += colW(sheet, i); return x; }
 function unzoomedRowY(sheet, r) { let y = 0; const n = Math.min(r, sheet.rowCount); for (let i = 0; i < n; i++) y += rowH(sheet, i); return y; }
 
@@ -12038,15 +12081,17 @@ function embedDefaultLayout(g, key, range) {
 function embedLayout(g, key, item) { return item.layout || embedDefaultLayout(g, key, item); }
 function chartDefaultLayout(g, range) { return embedDefaultLayout(g, "charts", range); }  // chart dialog compat
 
-// Kind-specific inner content: { title, body, footer }.
+// Kind-specific inner content: { title, body, footer }. Data-bound widgets read
+// from their source sheet (another sheet in the block) when one is set.
 function embedInnerHtml(g, key, item, L) {
+  if (key === "texts") return textTileHtml(item);
+  const src = embedSourceSheet(g, item);
   if (key === "charts") {
-    const { svg, legend } = chartSvg(g.sheet, item, { W: L.w, H: Math.max(110, L.h - 40) });
+    const { svg, legend } = chartSvg(src, item, { W: L.w, H: Math.max(110, L.h - 40) });
     return { title: esc(item.title || `${WB_CHART_TYPES[item.type] || "Chart"} · ${chartRefText(item)}`), body: svg, footer: legend ? `<div class="wb-chart-legend">${legend}</div>` : "" };
   }
-  if (key === "kpis") return kpiTileHtml(g.sheet, item);
-  if (key === "tables") return tableTileHtml(g.sheet, item);
-  return textTileHtml(item);
+  if (key === "kpis") return kpiTileHtml(src, item);
+  return tableTileHtml(src, item);
 }
 
 function renderCharts(g) {                    // renders every embed kind
@@ -12079,6 +12124,7 @@ function renderCharts(g) {                    // renders every embed kind
       <div class="wb-embed-head" ${WB.canEdit ? 'data-wb-embed-drag title="Drag to move"' : ""}>
         <span class="wb-embed-title">${inner.title}</span>
         ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="edit" title="Edit" aria-label="Edit"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="dup" title="Duplicate" aria-label="Duplicate"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-embed-act="delete" title="Delete" aria-label="Delete">×</button>` : ""}
       </div>
       <div class="wb-embed-body">${inner.body}</div>
@@ -12110,11 +12156,15 @@ function bindEmbedInteract(g) {
     const start = { mx: e.clientX, my: e.clientY, x: L0.x, y: L0.y, w: L0.w, h: L0.h };
     card.classList.add("is-active");
     let pending = null;
+    // snap to an 8px grid on dashboards (hold Alt for free placement) so tiles
+    // align cleanly; ordinary sheets place freely
+    const grid = isDashboardSheet(g.sheet) ? 8 : 1;
+    const snap = (v, ev) => (grid > 1 && !ev.altKey ? Math.round(v / grid) * grid : Math.round(v));
     const move = (ev) => {
       const dx = (ev.clientX - start.mx) / z, dy = (ev.clientY - start.my) / z;
       let { x, y, w, h } = start;
-      if (resizing) { w = Math.max(min.w, start.w + dx); h = Math.max(min.h, start.h + dy); }
-      else { x = Math.max(0, start.x + dx); y = Math.max(0, start.y + dy); }
+      if (resizing) { w = Math.max(min.w, snap(start.w + dx, ev)); h = Math.max(min.h, snap(start.h + dy, ev)); }
+      else { x = Math.max(0, snap(start.x + dx, ev)); y = Math.max(0, snap(start.y + dy, ev)); }
       card.style.left = `${x * z}px`; card.style.top = `${y * z}px`;
       card.style.width = `${w * z}px`; card.style.height = `${h * z}px`;
       pending = { x, y, w, h };
@@ -12150,6 +12200,12 @@ function deleteEmbed(g, key, id) {
   g.sheet.meta = { ...(g.sheet.meta || {}), [EMBED_META_KEY[key]]: sheetEmbeds(g.sheet, key).filter((x) => x.id !== id) };
   saveSheetMeta(g.sheet.id);
   renderCharts(g);
+}
+function duplicateEmbed(g, key, item) {
+  if (!WB.canEdit) return;
+  const L = item.layout || embedDefaultLayout(g, key, item);
+  const copy = { ...item, id: key.slice(0, 2) + Math.random().toString(36).slice(2, 8), layout: { ...L, x: L.x + 20, y: L.y + 20 } };
+  saveEmbed(g, key, copy);
 }
 function scrollEmbedIntoView(g, id) {
   g.els.charts?.querySelector(`[data-wb-embed-id="${CSS && CSS.escape ? CSS.escape(id) : id}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
@@ -12245,7 +12301,13 @@ function openChartDialog(g, existing) {
   if (!WB.canEdit) return;
   document.getElementById("wb-chart-modal")?.remove();
   const rect = selRect(g);
-  const defRef = existing ? chartRefText(existing) : `${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1}`;
+  const srcDef = existing ? embedSourceSheet(g, existing) : defaultSrcSheet(g);
+  // on a dashboard the current selection is meaningless — default to the source
+  // sheet's populated extent so a new chart draws immediately
+  const defRef = existing ? chartRefText(existing)
+    : isDashboardSheet(g.sheet) ? rangeRefText(sheetDataRange(srcDef))
+    : `${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1}`;
+  const srcOpts = embedSourceOptions(g, (existing && existing.srcSheetId) || srcDef.id);
   const wrap = document.createElement("div");
   wrap.className = "rr-modal-backdrop";
   wrap.id = "wb-chart-modal";
@@ -12258,6 +12320,8 @@ function openChartDialog(g, existing) {
       <div class="rr-modal-body">
         <label class="wb-field"><span class="wb-field-label">Title <span class="wb-field-opt">optional</span></span>
           <input type="text" class="wb-input" id="wb-chart-title" maxlength="120" value="${esc((existing && existing.title) || "")}" placeholder="Routes per day"></label>
+        ${srcOpts ? `<label class="wb-field"><span class="wb-field-label">Data source (sheet)</span>
+          <select class="wb-input" id="wb-chart-src">${srcOpts}</select></label>` : ""}
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">Chart type</span>
             <select class="wb-input" id="wb-chart-type">
@@ -12307,6 +12371,7 @@ function openChartDialog(g, existing) {
       grid: wrap.querySelector("#wb-chart-grid").checked,
       xTitle: wrap.querySelector("#wb-chart-xtitle").value.trim(),
       yTitle: wrap.querySelector("#wb-chart-ytitle").value.trim(),
+      srcSheetId: (wrap.querySelector("#wb-chart-src") && wrap.querySelector("#wb-chart-src").value) || (existing && existing.srcSheetId) || "",
       ...range,
       // keep the on-grid position/size across edits; new charts get placed on render
       layout: existing && existing.layout ? existing.layout : chartDefaultLayout(g, range),
@@ -12356,13 +12421,17 @@ function embedModalShell(titleText, subText, bodyHtml, saveLabel) {
 function openKpiDialog(g, existing) {
   if (!WB.canEdit) return;
   const rect = selRect(g);
-  const activeRef = colLabel(rect.c0) + (rect.r0 + 1);
+  const srcDef = existing ? embedSourceSheet(g, existing) : defaultSrcSheet(g);
+  const activeRef = existing || !isDashboardSheet(g.sheet) ? colLabel(rect.c0) + (rect.r0 + 1) : "B2";
+  const srcOpts = embedSourceOptions(g, (existing && existing.srcSheetId) || srcDef.id);
   const themeOpts = Object.entries(WB_CHART_THEMES).map(([k, l]) => `<option value="${k}" ${(existing && existing.theme || "route") === k ? "selected" : ""}>${l}</option>`).join("");
   const fmt = (existing && existing.format) || "compact";
   const fmtOpts = [["compact", "Compact (1.2k)"], ["number", "Number"], ["currency", "Currency ($)"], ["percent", "Percent (%)"]].map(([v, l]) => `<option value="${v}" ${fmt === v ? "selected" : ""}>${l}</option>`).join("");
   const wrap = embedModalShell(existing ? "Edit KPI tile" : "Add KPI tile", "A scorecard: a headline value from a cell, with an optional comparison and sparkline.", `
     <label class="wb-field"><span class="wb-field-label">Label</span>
       <input type="text" class="wb-input" id="wb-kpi-label" maxlength="60" value="${esc((existing && existing.label) || "")}" placeholder="Routes today"></label>
+    ${srcOpts ? `<label class="wb-field"><span class="wb-field-label">Data source (sheet)</span>
+      <select class="wb-input" id="wb-kpi-src">${srcOpts}</select></label>` : ""}
     <div class="wb-field-row">
       <label class="wb-field"><span class="wb-field-label">Value cell</span>
         <input type="text" class="wb-input" id="wb-kpi-value" value="${esc((existing && existing.valueRef) || activeRef)}" placeholder="B2" spellcheck="false"></label>
@@ -12397,6 +12466,7 @@ function openKpiDialog(g, existing) {
       sparkRange: spark && parseRangeRefText(spark) ? spark : "",
       theme: wrap.querySelector("#wb-kpi-theme").value,
       invert: wrap.querySelector("#wb-kpi-invert").checked,
+      srcSheetId: (wrap.querySelector("#wb-kpi-src") && wrap.querySelector("#wb-kpi-src").value) || (existing && existing.srcSheetId) || "",
       layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "kpis", { c1: vrc.col, r0: vrc.row }),
     };
     saveEmbed(g, "kpis", spec);
@@ -12409,10 +12479,16 @@ function openKpiDialog(g, existing) {
 function openTableDialog(g, existing) {
   if (!WB.canEdit) return;
   const rect = selRect(g);
-  const defRef = existing ? existing.range : `${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1}`;
+  const srcDef = existing ? embedSourceSheet(g, existing) : defaultSrcSheet(g);
+  const defRef = existing ? existing.range
+    : isDashboardSheet(g.sheet) ? rangeRefText(sheetDataRange(srcDef))
+    : `${colLabel(rect.c0)}${rect.r0 + 1}:${colLabel(rect.c1)}${rect.r1 + 1}`;
+  const srcOpts = embedSourceOptions(g, (existing && existing.srcSheetId) || srcDef.id);
   const wrap = embedModalShell(existing ? "Edit table" : "Add table", "A compact, read-only view of a range — great for a top-N list on a dashboard.", `
     <label class="wb-field"><span class="wb-field-label">Title <span class="wb-field-opt">optional</span></span>
       <input type="text" class="wb-input" id="wb-tbl-title" maxlength="80" value="${esc((existing && existing.title) || "")}" placeholder="Open issues"></label>
+    ${srcOpts ? `<label class="wb-field"><span class="wb-field-label">Data source (sheet)</span>
+      <select class="wb-input" id="wb-tbl-src">${srcOpts}</select></label>` : ""}
     <div class="wb-field-row">
       <label class="wb-field"><span class="wb-field-label">Range</span>
         <input type="text" class="wb-input" id="wb-tbl-range" value="${esc(defRef)}" placeholder="A1:D12" spellcheck="false"></label>
@@ -12433,6 +12509,7 @@ function openTableDialog(g, existing) {
       title: wrap.querySelector("#wb-tbl-title").value.trim(),
       range, maxRows: Math.max(1, Math.min(500, +wrap.querySelector("#wb-tbl-max").value || 25)),
       header: wrap.querySelector("#wb-tbl-header").checked,
+      srcSheetId: (wrap.querySelector("#wb-tbl-src") && wrap.querySelector("#wb-tbl-src").value) || (existing && existing.srcSheetId) || "",
       layout: existing && existing.layout ? existing.layout : embedDefaultLayout(g, "tables", rg),
     };
     saveEmbed(g, "tables", spec);
