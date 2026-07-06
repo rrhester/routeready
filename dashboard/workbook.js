@@ -7005,14 +7005,25 @@ function updateSelStats(g) {
   const { r0, r1, c0, c1 } = selRect(g);
   if (r0 === r1 && c0 === c1) { el.textContent = `${colLabel(c0)}${r0 + 1}`; return; }
   let sum = 0, nnum = 0, cnt = 0;
-  for (const [key, cell] of g.sheet.cells) {
-    const { r, c } = keyRC(key);
-    if (r < r0 || r > r1 || c < c0 || c > c1) continue;
+  const tally = (cell) => {
+    if (!cell) return;
     const raw = cell.formula ? (cell.err ? null : cell.computed) : cell.value;
-    if (raw == null || raw === "") continue;
+    if (raw == null || raw === "") return;
     cnt++;
     const num = cellNumeric(raw);
     if (num != null && cell.type !== "text") { sum += num; nnum++; }
+  };
+  // Walk whichever is smaller — the selected rectangle or the populated map —
+  // so a small selection on a large sheet doesn't rescan every filled cell.
+  const area = (r1 - r0 + 1) * (c1 - c0 + 1);
+  if (area <= g.sheet.cells.size) {
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) tally(g.sheet.cells.get(cellKey(r, c)));
+  } else {
+    for (const [key, cell] of g.sheet.cells) {
+      const { r, c } = keyRC(key);
+      if (r < r0 || r > r1 || c < c0 || c > c1) continue;
+      tally(cell);
+    }
   }
   const fmtN = (x) => {
     const r2 = Math.round(x * 100) / 100;
@@ -7089,6 +7100,7 @@ function paintFilterChip(g) {
 function setHidden(g, axis, from, to, hidden) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
+  const before = structSnapshot(sheet);
   const set = axis === "row" ? sheet.hiddenRows : sheet.hiddenCols;
   for (let i = from; i <= to; i++) {
     if (hidden) set.add(i);
@@ -7098,6 +7110,7 @@ function setHidden(g, axis, from, to, hidden) {
   if (axis === "row" && set.size >= sheet.rowCount) set.delete(from);
   if (axis === "col" && set.size >= sheet.colCount) set.delete(from);
   saveSheetMeta(sheet.id);
+  pushStructUndo(g, before);
   computeGeometry(g);
   repaintGrid(g);
 }
@@ -8465,10 +8478,57 @@ function setCells(g, changes, opts) {
   scheduleChartRender(g);
 }
 
+// ── Structural (non-cell) undo ──────────────────────────────────────────────
+// Freeze panes, column widths / row heights, hidden rows/cols and sheet.meta
+// (merges, data validation, conditional formats, charts, pivots) all persist
+// through one saveSheetMeta call, so a single snapshot captures the whole
+// structural state — that makes these ops Ctrl+Z-able like cell edits.
+function structSnapshot(sheet) {
+  return {
+    frozenRows: sheet.frozenRows || 0,
+    frozenCols: sheet.frozenCols || 0,
+    colWidths: { ...(sheet.colWidths || {}) },
+    rowHeights: { ...(sheet.rowHeights || {}) },
+    hiddenRows: [...(sheet.hiddenRows || [])],
+    hiddenCols: [...(sheet.hiddenCols || [])],
+    meta: JSON.parse(JSON.stringify(sheet.meta || {})),
+  };
+}
+function structRestore(sheet, s) {
+  sheet.frozenRows = s.frozenRows;
+  sheet.frozenCols = s.frozenCols;
+  sheet.colWidths = { ...s.colWidths };
+  sheet.rowHeights = { ...s.rowHeights };
+  sheet.hiddenRows = new Set(s.hiddenRows);
+  sheet.hiddenCols = new Set(s.hiddenCols);
+  sheet.meta = JSON.parse(JSON.stringify(s.meta));
+}
+function structEqual(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+// Record an undo entry for a structural mutation. Call with the snapshot taken
+// *before* the mutation; a no-op change records nothing.
+function pushStructUndo(g, before) {
+  if (!g || !before) return;
+  const after = structSnapshot(g.sheet);
+  if (structEqual(before, after)) return;
+  g.undo.push({ struct: { before, after }, sheetId: g.sheet.id });
+  if (g.undo.length > 100) g.undo.shift();
+  g.redo = [];
+}
+function applyStructState(g, snap) {
+  const sheet = g.sheet;
+  structRestore(sheet, snap);
+  saveSheetMeta(sheet.id);
+  computeGeometry(g);
+  repaintGrid(g);
+  syncFormulaBar(g);
+  scheduleChartRender(g);
+}
+
 function undoGrid(g) {
   const op = g.undo.pop();
   if (!op) return;
   const sheet = g.sheet;
+  if (op.struct) { g.redo.push(op); applyStructState(g, op.struct.before); return; }
   const inverse = [];
   for (const ch of op.changes) {
     inverse.push({ r: ch.r, c: ch.c, prev: cloneCell(sheet.cells.get(ch.key)), next: ch.prev, key: ch.key });
@@ -8488,6 +8548,7 @@ function redoGrid(g) {
   const op = g.redo.pop();
   if (!op) return;
   const sheet = g.sheet;
+  if (op.struct) { g.undo.push(op); applyStructState(g, op.struct.after); return; }
   for (const ch of op.changes) {
     if (ch.next) sheet.cells.set(ch.key, { ...ch.next, computed: null, err: null });
     else sheet.cells.delete(ch.key);
@@ -10604,8 +10665,10 @@ function mergePixelRect(g, m) {
 }
 
 function setMerges(g, merges) {
+  const before = structSnapshot(g.sheet);
   g.sheet.meta = { ...(g.sheet.meta || {}), merges };
   saveSheetMeta(g.sheet.id);
+  pushStructUndo(g, before);
   computeGeometry(g);
   repaintGrid(g);
 }
@@ -10684,6 +10747,7 @@ let AUTOFIT_MEASURE = null;
 function autofitColumns(g, c0, c1) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
+  const before = structSnapshot(sheet);
   if (!AUTOFIT_MEASURE) AUTOFIT_MEASURE = document.createElement("canvas").getContext("2d");
   const cs = getComputedStyle(g.els.cells);
   const widths = new Map();
@@ -10708,6 +10772,7 @@ function autofitColumns(g, c0, c1) {
   computeGeometry(g);
   repaintGrid(g);
   saveSheetMeta(sheet.id);
+  pushStructUndo(g, before);
 }
 
 // ─── Freeze ──────────────────────────────────────────────────────────────────
@@ -10715,10 +10780,12 @@ function autofitColumns(g, c0, c1) {
 function setFreeze(g, what) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
+  const before = structSnapshot(sheet);
   if (what === "row") sheet.frozenRows = sheet.frozenRows ? 0 : 1;
   else if (what === "col") sheet.frozenCols = sheet.frozenCols ? 0 : 1;
   else { sheet.frozenRows = 0; sheet.frozenCols = 0; }
   saveSheetMeta(sheet.id);
+  pushStructUndo(g, before);
   repaintGrid(g);
 }
 
@@ -13287,9 +13354,10 @@ function bindGridEvents(g) {
       e.preventDefault();
       const sheet = g.sheet;
       if (!WB.canEdit) return;
+      const rzBefore = structSnapshot(sheet);
       g.resize = rzCol
-        ? { kind: "col", idx: +rzCol.getAttribute("data-wb-rzcol"), startPos: e.clientX, startSize: colW(sheet, +rzCol.getAttribute("data-wb-rzcol")) }
-        : { kind: "row", idx: +rzRow.getAttribute("data-wb-rzrow"), startPos: e.clientY, startSize: rowH(sheet, +rzRow.getAttribute("data-wb-rzrow")) };
+        ? { kind: "col", idx: +rzCol.getAttribute("data-wb-rzcol"), startPos: e.clientX, startSize: colW(sheet, +rzCol.getAttribute("data-wb-rzcol")), before: rzBefore }
+        : { kind: "row", idx: +rzRow.getAttribute("data-wb-rzrow"), startPos: e.clientY, startSize: rowH(sheet, +rzRow.getAttribute("data-wb-rzrow")), before: rzBefore };
       document.body.style.cursor = rzCol ? "col-resize" : "row-resize";
       const onMove = (ev) => {
         const rs = g.resize;
@@ -13305,7 +13373,7 @@ function bindGridEvents(g) {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
         document.body.style.cursor = "";
-        if (g.resize) saveSheetMeta(g.sheet.id);
+        if (g.resize) { saveSheetMeta(g.sheet.id); pushStructUndo(g, g.resize.before); }
         g.resize = null;
       };
       document.addEventListener("mousemove", onMove);
