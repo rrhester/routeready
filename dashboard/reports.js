@@ -97,7 +97,7 @@ function timeText(ts) {
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
-const SHIFT_STATUS_LABEL = { scheduled: "Scheduled", completed: "Completed", late: "Late", no_show: "No-Show", called_off: "Called Off" };
+const SHIFT_STATUS_LABEL = { scheduled: "Scheduled", completed: "Completed", late: "Late", no_show: "No-Show", called_off: "Called Off", vto: "VTO" };
 function shiftStatusText(s) {
   return SHIFT_STATUS_LABEL[s] || cap(String(s || "").replace(/_/g, " ")) || DASH;
 }
@@ -158,8 +158,13 @@ const RB_ATT_FIELDS = {
   noShows: { label: "No-Shows", map: (a) => a.noShow },
   callOffs: { label: "Call-Offs", map: (a) => a.callOff },
   lates: { label: "Lates", map: (a) => a.late },
-  vto: { label: "VTO", map: (a) => a.vto },
   excused: { label: "Excused", map: (a) => a.excused },
+  // VTO — operator-granted, never scores and never counts against the
+  // driver, but the owner still wants the give-backs on paper.
+  vto: { label: "VTO", map: (a) => a.vto },
+  vtoHours: { label: "VTO Hrs", map: (a) => a.vtoHours },
+  vtoRate: { label: "VTO %", map: (a) => pctText(a.vtoPct) },
+  lastVto: { label: "Last VTO", map: (a) => a.lastVto || DASH },
   // Exception history
   lastException: { label: "Last Exception", map: (a) => a.lastException || DASH },
   lastExceptionType: { label: "Last Exception Type", map: (a) => a.lastExceptionType || DASH },
@@ -186,7 +191,8 @@ const RB_ATT_GROUPS = [
   { label: "Shift counts", keys: ["scheduled", "worked", "onTime", "hoursScheduled", "hoursWorked"] },
   { label: "Rates", keys: ["completion", "onTimePct", "lateRate", "absenceRate"] },
   { label: "Policy & points", keys: ["policyPoints", "policyOccurrences", "policyStanding", "pointsToNext", "nextStep", "pointsBreakdown", "expiringPoints", "nextDecayDate"] },
-  { label: "Exceptions", keys: ["totalExceptions", "noShows", "callOffs", "lates", "vto", "excused"] },
+  { label: "Exceptions", keys: ["totalExceptions", "noShows", "callOffs", "lates", "excused"] },
+  { label: "VTO", keys: ["vto", "vtoHours", "vtoRate", "lastVto"] },
   { label: "Exception history", keys: ["lastException", "lastExceptionType", "lastNoShow", "lastCallOff", "lastLate", "exceptionDay"] },
   { label: "Streaks & trend", keys: ["currentStreak", "bestStreak", "trend", "perfect"] },
   { label: "Risk & coaching", keys: ["attRisk", "coachingCount", "lastCoachingDate", "lastCoachingSeverity"] },
@@ -213,8 +219,11 @@ const RB_ATT_PICKER_LABEL = {
   expiringPoints: "Points Expiring in 14 Days",
   nextDecayDate: "Next Points Decay Date",
   totalExceptions: "Total Exceptions",
-  vto: "VTO (Voluntary Time Off)",
   excused: "Excused Absences",
+  vto: "VTO Count (Voluntary Time Off)",
+  vtoHours: "VTO Hours",
+  vtoRate: "VTO % of Scheduled",
+  lastVto: "Last VTO Date",
   lastException: "Last Exception Date",
   exceptionDay: "Most Common Exception Day",
   currentStreak: "Current Clean Streak",
@@ -231,7 +240,7 @@ const RB_ATT_PICKER_LABEL = {
 // the whole catalog, or a blank slate to build from scratch.
 const RB_ATT_PRESETS = [
   ["light", "Light", ["attDriverName", "completion", "policyPoints", "policyStanding", "attRisk"]],
-  ["standard", "Standard", ["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "policyPoints", "policyStanding", "attRisk"]],
+  ["standard", "Standard", ["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "vto", "policyPoints", "policyStanding", "attRisk"]],
   ["full", "Everything", RB_ATT_ORDER],
   ["none", "Clear", []],
 ];
@@ -281,7 +290,7 @@ const RB = {
   sel: {
     people: new Set(["driverName", "phoneNumber", "email", "status"]),
     schedule: new Set(["date", "schedDriverName", "routeCode", "startTime", "shiftStatus"]),
-    attendance: new Set(["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "policyPoints", "policyStanding", "attRisk"]),
+    attendance: new Set(["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "vto", "policyPoints", "policyStanding", "attRisk"]),
   },
   range: { schedule: "week", attendance: "policy" },
   live: true,        // live-updating workbook vs point-in-time snapshot
@@ -520,6 +529,7 @@ async function fetchAttendanceData(range, force) {
     scheduled: 0, worked: 0, onTime: 0, late: 0, noShow: 0, callOff: 0, vto: 0, excused: 0,
     hoursScheduled: 0, hoursWorked: 0,
     lastException: null, lastExceptionType: null, lastNoShow: null, lastCallOff: null, lastLate: null,
+    vtoHours: 0, lastVto: null,
     dayCounts: [0, 0, 0, 0, 0, 0, 0],
     run: 0, bestStreak: 0,
     oldWorked: 0, oldCountable: 0, newWorked: 0, newCountable: 0,
@@ -537,7 +547,10 @@ async function fetchAttendanceData(range, force) {
     // Excused and VTO count toward volume only — they never touch rates,
     // exception counters, points, or the clean streak.
     if (excusedIds.has(sh.id)) { if (inReport) a.excused++; continue; }
-    if (sh.status === "vto") { if (inReport) a.vto++; continue; }
+    if (sh.status === "vto") {
+      if (inReport) { a.vto++; a.vtoHours += hrs; a.lastVto = sh.date; } // ascending order
+      continue;
+    }
     // Rolling points over the policy decay window, independent of the
     // report period.
     const pts = PTS[sh.status] || 0;
@@ -644,7 +657,9 @@ async function fetchAttendanceData(range, force) {
       latePct: countable ? Math.round((a.late / countable) * 100) : null,
       absencePct: countable ? Math.round(((a.noShow + a.callOff) / countable) * 100) : null,
       totalExceptions: a.noShow + a.callOff + a.late,
-      noShow: a.noShow, callOff: a.callOff, late: a.late, vto: a.vto, excused: a.excused,
+      noShow: a.noShow, callOff: a.callOff, late: a.late, excused: a.excused,
+      vto: a.vto, vtoHours: a.vtoHours, lastVto: a.lastVto,
+      vtoPct: a.scheduled ? Math.round((a.vto / a.scheduled) * 100) : null,
       lastException: a.lastException, lastExceptionType: a.lastExceptionType,
       lastNoShow: a.lastNoShow, lastCallOff: a.lastCallOff, lastLate: a.lastLate,
       exceptionDay,

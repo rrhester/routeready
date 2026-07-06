@@ -9,7 +9,6 @@
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=d81b9eddf32b";
-import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=d81b9eddf32b";
 import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=d81b9eddf32b";
 import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=d81b9eddf32b";
 
@@ -10051,6 +10050,16 @@ function _rrNtPanelOpen(which) {
   // Close the other panel(s) WITHOUT releasing the body push, so the
   // schedule stays condensed and we slide panel→panel.
   Object.keys(_RR_NT_PANELS).forEach((other) => { if (other !== which) _rrNtMarkClosed(other); });
+  // The Operations Health dock is a sibling slide-out on the same edge:
+  // opening any rail panel dismisses it too, exactly as if its shield
+  // button had been clicked (class + aria + saved preference move
+  // together so nothing drifts out of sync).
+  if (!document.body.classList.contains("rr-sched-hide-openshifts")) {
+    document.body.classList.add("rr-sched-hide-openshifts");
+    const shield = document.querySelector("[data-rr-ophealth-toggle]");
+    if (shield) shield.setAttribute("aria-expanded", "false");
+    try { localStorage.setItem("rr-sched-hide-openshifts", "1"); } catch (_) {}
+  }
   el.classList.add("is-open");
   el.setAttribute("aria-hidden", "false");
   const btn = _rrNtToggleBtn(which);
@@ -37733,6 +37742,10 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     const show = document.body.classList.contains("rr-sched-hide-openshifts"); // hidden → reveal
+    // Slide-outs are mutually exclusive in BOTH directions: revealing the
+    // dock closes any open rail panel (Notes/Tasks/Forms/Contacts/Recog),
+    // just as opening one of those dismisses the dock.
+    if (show && typeof _rrNtPanelCloseAll === "function") _rrNtPanelCloseAll();
     document.body.classList.toggle("rr-sched-hide-openshifts", !show);
     ophBtn.setAttribute("aria-expanded", show ? "true" : "false");
     try { localStorage.setItem("rr-sched-hide-openshifts", show ? "0" : "1"); } catch (_) {}
@@ -53395,7 +53408,6 @@ const _RR_SCHED_KPI_DEFS = [
   { key: "violations", label: "Violations" },
   { key: "overtime",   label: "OT Risk" },
   { key: "ftpt",       label: "FT / PT split" },
-  { key: "flex",       label: "Flex Capacity" },
   { key: "preferred",  label: "Preferred-day rate" },
   { key: "affinity",   label: "Affinity match" },
   { key: "rotation",   label: "Fleet rotation" },
@@ -54874,20 +54886,49 @@ async function renderScheduleWeek() {
   };
   // Driver Affinity %: across this week's assigned shifts, the average
   // affinity each driver has for the weekday they were given — measured
-  // over the DSP's rolling period.
-  let affSum = 0, affDenom = 0;
+  // over the DSP's rolling period. Shifts whose driver has NO history
+  // inside the look-back window can't be scored, so they're excluded
+  // from the average (not counted as 0%) — that's why "N shifts
+  // measured" can sit well below the staffed count on young rosters.
+  let affSum = 0, affDenom = 0, affAssigned = 0;
   let _affMap = null;
+  const _affNoHistory = new Set();
+  const _affWithHistory = new Set();
   try {
     _affMap = await _rrComputeWeekdayAffinity(dspId, _schedStart, _rrAffinityWeeks());
     for (const sh of (grid.shifts || [])) {
       if (!sh.driver_id || sh.status !== "scheduled") continue;
+      affAssigned += 1;
       const arr = _affMap.get(sh.driver_id);
-      if (!arr) continue;
+      if (!arr) { _affNoHistory.add(sh.driver_id); continue; }
+      _affWithHistory.add(sh.driver_id);
       const dow = new Date(sh.date + "T12:00:00").getDay();
       affDenom += 1;
       affSum += arr[dow] || 0;
     }
   } catch (e) { console.warn("affinity KPI failed:", e); }
+  // Stash everything the Affinity drill-down popout needs (same pattern
+  // as _rrLiveSchedPreferred above) — the strip row used to be a dead
+  // end, leaving "N shifts measured" unexplained.
+  {
+    const _affWeeks = _rrAffinityWeeks();
+    const _affWk = new Date(_schedStart + "T12:00:00");
+    const _affName = (id) => {
+      const d = drivers.find((x) => x.id === id);
+      return d ? (d.preferred_name || d.full_name || "Driver") : "Driver";
+    };
+    window._rrLiveSchedAffinity = {
+      weekStart: _schedStart,
+      pct: affDenom > 0 ? Math.round(affSum / affDenom) : null,
+      measured: affDenom,
+      assigned: affAssigned,
+      rollingWeeks: _affWeeks,
+      histStart: fmtIsoDate(addDays(_affWk, -7 * _affWeeks)),
+      histEnd: fmtIsoDate(addDays(_affWk, -1)),
+      driversMeasured: _affWithHistory.size,
+      driversNoHistory: [..._affNoHistory].map(_affName).sort((a, b) => a.localeCompare(b)),
+    };
+  }
 
   // ── Driver Intelligence data ──────────────────────────────────────────
   // Everything the hover card (rendered into the open-shifts rail) needs,
@@ -55389,64 +55430,6 @@ async function renderScheduleWeek() {
           "FT/PT", totalScheduled > 0 ? `${ftPct} / ${ptPct}` : "—", "", ftStatus.tier !== "green");
       })() +
       (() => {
-        // Flex / Max-day · most routes/day the team could run with existing
-        // availability (same tested engine the edge function uses).
-        try {
-          const isoToKey = (iso) =>
-            ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(iso + "T00:00:00Z").getUTCDay()];
-          const routes = [];
-          for (const [iso, target] of plannedByDate) routes.push({ day: isoToKey(iso), routeTarget: target });
-          const schedDaysByDriver = new Map();
-          for (const sh of (grid.shifts || [])) {
-            if (!sh.driver_id || !visibleDriverIds.has(sh.driver_id)) continue;
-            if (!["scheduled", "completed"].includes(sh.status)) continue;
-            if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
-            const set = schedDaysByDriver.get(sh.driver_id) || new Set();
-            set.add(isoToKey(sh.date));
-            schedDaysByDriver.set(sh.driver_id, set);
-          }
-          const sched = window.RR?.dsp?.metadata?.scheduling || {};
-          const blockHours = Number(sched.default_block_hours) || 10;
-          const maxDaysPerWeek = Number(sched.max_days_per_week) || 5;
-          const weeklyHourCap = Number(sched.weekly_hour_cap) || maxDaysPerWeek * blockHours;
-          const weekIsos = [];
-          for (let i = 0; i < 7; i++) weekIsos.push(fmtIsoDate(addDays(weekStart, i)));
-          const flexDrivers = drivers
-            .filter((d) => d.status === "active")
-            .map((d) => {
-              const av = d.metadata?.availability || {};
-              const ptoDays = weekIsos.filter((iso) => ptoOn(d.id, iso)).map(isoToKey);
-              return {
-                id: d.id, active: true,
-                available: Array.isArray(av.days) ? av.days : [],
-                preferred: Array.isArray(av.preferred_days) ? av.preferred_days : [],
-                fifthDayOptIn: av.fifth_day_ok === true,
-                pto: ptoDays,
-                scheduledDays: [...(schedDaysByDriver.get(d.id) || [])],
-                scheduledHours: hoursPerDriver.get(d.id) || 0,
-                weeklyHourCap, blockHours, maxDaysPerWeek,
-                certifications: { dot: d.dot_certified === true, xl: d.xl_certified === true, edv: d.edv_certified === true },
-              };
-            });
-          if (routes.length === 0 || flexDrivers.length === 0) {
-            return row("flex", "green", "Max/day", "—", "", false);
-          }
-          const flexRes = computeFlexCapacity({ weekStart: _schedStart, drivers: flexDrivers, routes });
-          const fa = flexRes.kpi.comfortableRoutesAvailable;
-          const sa = flexRes.kpi.stretchRoutesAvailable;
-          const scen = STANDARD_SCENARIOS.map((s) => computeDailyMax(flexDrivers, s));
-          const peak40 = scen[0].peak;            // ≤40h
-          const peak50all = scen[2].peak;         // ≤50h, everyone 5th day
-          const flexTier = fa > 0 ? "green" : sa > 0 ? "yellow" : "red";
-          window._rrLiveFlex = { weekStart: _schedStart, result: flexRes, tier: flexTier, drivers: flexDrivers, blockHours };
-          const label = peak40 === peak50all ? `${peak40}` : `${peak40}–${peak50all}`;
-          return row("flex", flexTier, "Max/day", label, "", true);
-        } catch (err) {
-          console.warn("flex capacity KPI:", err);
-          return "";
-        }
-      })() +
-      (() => {
         const prefPct = prefDenom > 0 ? Math.round(prefHonored / prefDenom * 100) : 0;
         const preferredTier = prefDenom === 0 ? "green" : prefPct >= 80 ? "green" : prefPct >= 60 ? "yellow" : "red";
         return row("preferred", preferredTier, "Preferred",
@@ -55459,8 +55442,12 @@ async function renderScheduleWeek() {
         const affinityTier = affDenom === 0 ? "green" : affPct >= 75 ? "green" : affPct >= 50 ? "yellow" : "red";
         return row("affinity", affinityTier, "Affinity",
           affDenom > 0 ? `${affPct}%` : "—",
-          affDenom > 0 ? `${affDenom} shift${affDenom === 1 ? "" : "s"} measured` : "No driver scheduling history yet",
-          false);
+          affDenom > 0
+            ? (affAssigned > affDenom
+                ? `${affDenom} of ${affAssigned} shift${affAssigned === 1 ? "" : "s"} measured`
+                : `${affDenom} shift${affDenom === 1 ? "" : "s"} measured`)
+            : "No driver scheduling history yet",
+          true);
       })() +
       row("rotation", rotationDotRed ? "red" : "green", "Fleet",
         femRisks.length === 0 ? "Healthy" : `${femRisks.length} at risk`, rotationSub, femRisks.length > 0) +
@@ -57793,93 +57780,74 @@ function bindSchedWeekNav() {
     });
   }
 
-  // ── Flex Capacity KPI · hover deep-dive (mirrors the FT/PT popout) ──
-  if (!window._rrFlexKpiHandlerInstalled) {
-    window._rrFlexKpiHandlerInstalled = true;
+  // ── Affinity KPI · click deep-dive (mirrors the FT/PT popout) ──
+  // Explains what the score means and, crucially, why "N shifts
+  // measured" can be far below the staffed count: only shifts whose
+  // driver has history inside the look-back window are scorable.
+  if (!window._rrAffinityKpiHandlerInstalled) {
+    window._rrAffinityKpiHandlerInstalled = true;
 
-    const _openFlexModal = (anchorEl) => {
-      document.getElementById("rr-flex-kpi-modal")?.remove();
-      const live = window._rrLiveFlex || null;
-      const fdrivers = live?.drivers;
-      if (!fdrivers || fdrivers.length === 0) return;
-      const ORD = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
-      const LBL = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-      const KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-      // Three policies the operator asked for: ≤40h, ≤50h (opted-in 5th day),
-      // ≤50h (everyone 5th day) — distributed model.
-      const scen = STANDARD_SCENARIOS.map((s) => computeDailyMax(fdrivers, s));
-      const cellFor = (sIdx, dayKey) =>
-        scen[sIdx].perDay.find((x) => x.day === dayKey)?.routes ?? 0;
-      // Per-day table rows (Mon→Sun): three columns.
-      const rows = KEYS.map((k, i) => `
-        <div class="rr-flex-row">
-          <span class="rr-flex-c0">${LBL[i]}</span>
-          <span class="rr-flex-c">${cellFor(0, k)}</span>
-          <span class="rr-flex-c">${cellFor(1, k)}</span>
-          <span class="rr-flex-c">${cellFor(2, k)}</span>
-        </div>`).join("");
-      // Hire what-if: +10 FT (7 days) + 5 PT (≤3 days). Peak per scenario.
-      const hired = STANDARD_SCENARIOS.map((s) => computeDailyMax(withHires(fdrivers, 10, 5, { blockHours: live.blockHours || 10 }), s));
-      const hireRow = (i, lbl) => {
-        const before = scen[i].peak, after = hired[i].peak;
-        return `<div class="rr-flex-hrow"><span>${lbl}</span><span>peak ${before} <span class="rr-cov-arrow">→</span> <strong>${after}</strong> <span style="color:var(--green)">(+${after - before})</span></span></div>`;
-      };
+    const _openAffinityModal = (anchorEl) => {
+      document.getElementById("rr-affinity-kpi-modal")?.remove();
+      const live = window._rrLiveSchedAffinity || null;
+      if (!live) return;
+      const fmtD = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const windowLbl = `${fmtD(live.histStart)} – ${fmtD(live.histEnd)}`;
+      const noHist = Array.isArray(live.driversNoHistory) ? live.driversNoHistory : [];
+      const shown = noHist.slice(0, 6).map(escapeHtml).join(", ");
+      const more = noHist.length - Math.min(6, noHist.length);
+      // The "why is the denominator small" box — the whole reason this
+      // popout exists. Three states: nothing measurable yet, partially
+      // measurable, fully measurable.
+      let whyHtml;
+      if (live.measured === 0) {
+        whyHtml = `
+          <div class="rr-cov-needed" style="margin-top:12px">
+            <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">Why nothing is measured yet</div>
+            <div class="rr-cov-needed-sub" style="margin-top:4px">No driver assigned this week has any shift inside the look-back window (${windowLbl}). That's expected right after a DSP starts scheduling in RouteReady — once this week is finalized it becomes next week's history, and the score starts filling in automatically.</div>
+          </div>`;
+      } else if (live.measured < live.assigned) {
+        whyHtml = `
+          <div class="rr-cov-needed" style="margin-top:12px">
+            <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">Why only ${live.measured} of ${live.assigned} shifts are measured</div>
+            <div class="rr-cov-needed-sub" style="margin-top:4px">A shift can only be scored when its driver has at least one assigned shift inside the look-back window (${windowLbl}). <strong>${live.driversMeasured}</strong> of this week's assigned drivers do; the other <strong>${noHist.length}</strong> have no shifts there yet — new drivers, or scheduling that started in RouteReady after ${fmtD(live.histStart)}. Their shifts are left out of the average rather than scored 0%.</div>
+            ${noHist.length ? `<div class="rr-cov-needed-sub" style="margin-top:6px"><strong>No history yet</strong> · ${shown}${more > 0 ? ` +${more} more` : ""}</div>` : ""}
+            <div class="rr-cov-needed-sub" style="margin-top:6px">As weekly schedules accrue, the measured count catches up to the staffed count on its own — nothing to fix.</div>
+          </div>`;
+      } else {
+        whyHtml = `
+          <div class="rr-cov-needed" style="margin-top:12px">
+            <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">Every assigned shift is measured</div>
+            <div class="rr-cov-needed-sub" style="margin-top:4px">All ${live.assigned} assigned shifts this week belong to drivers with history in the look-back window (${windowLbl}), so the score reflects the full schedule.</div>
+          </div>`;
+      }
       const m = document.createElement("div");
-      m.id = "rr-flex-kpi-modal";
+      m.id = "rr-affinity-kpi-modal";
       m.className = "modal-backdrop open rr-cov-kpi-anchored";
       m.innerHTML = `
-        <div id="rr-flex-kpi-card" class="modal-card" style="max-width:480px">
+        <div id="rr-affinity-kpi-card" class="modal-card" style="max-width:460px">
           <div class="modal-head">
             <div>
-              <p class="modal-title">Flex Capacity · Max routes/day</p>
-              <p class="modal-sub">If everyone worked their availability, capped per policy</p>
+              <p class="modal-title">Driver Affinity${live.pct != null ? ` · ${live.pct}%` : ""}</p>
+              <p class="modal-sub">How familiar drivers are with the weekdays they were given</p>
             </div>
-            <button type="button" id="rr-flex-kpi-close" class="modal-close" aria-label="Close">
+            <button type="button" id="rr-affinity-kpi-close" class="modal-close" aria-label="Close">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
           <div class="modal-body">
-            <div class="rr-flex-table">
-              <div class="rr-flex-row rr-flex-head">
-                <span class="rr-flex-c0"></span>
-                <span class="rr-flex-c">≤40h</span>
-                <span class="rr-flex-c">≤50h<br><small>opted 5th</small></span>
-                <span class="rr-flex-c">≤50h<br><small>all 5th</small></span>
-              </div>
-              ${rows}
+            <div class="rr-cov-needed">
+              <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">How it's scored</div>
+              <div class="rr-cov-needed-sub" style="margin-top:4px">Each measured shift is scored by how often its driver worked that same weekday over the last <strong>${live.rollingWeeks} week${live.rollingWeeks === 1 ? "" : "s"}</strong> (${windowLbl}). A driver who worked 3 of the last 4 Mondays scores 75% on a Monday shift. The KPI is the average across all measured shifts — higher means drivers are staying on the weekdays they know best.</div>
             </div>
-            <div class="rr-cov-needed" style="margin-top:14px">
-              <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">What if you hired +10 FT &amp; +5 PT</div>
-              <div class="rr-cov-needed-sub" style="font-size:var(--fs-xs);margin-top:2px">FT available 7 days (work to the cap) · PT up to 3 days/week. Peak day:</div>
-              <div class="rr-flex-hires" style="margin-top:6px">
-                ${hireRow(0, "≤40h")}
-                ${hireRow(1, "≤50h · opted 5th")}
-                ${hireRow(2, "≤50h · all 5th")}
-              </div>
-            </div>
-            <div class="rr-cov-needed" style="margin-top:12px">
-              <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">How this is calculated</div>
-              <div class="rr-cov-needed-sub" style="margin-top:4px">Each active driver works up to <strong>cap ÷ block</strong> days (40h → 4 shifts, 50h → 5), bounded by their availability and max-days. That budget is spread across the days they're available, so a driver available 6 days contributes 4/6 of a route per day at 40h vs 5/6 at 50h. Summed across drivers and rounded = the day's max routes.</div>
-              <div class="rr-cov-needed-sub" style="margin-top:6px"><strong>≤40h</strong>: nobody exceeds 4 days. <strong>≤50h opted 5th</strong>: only drivers who opted in work a 5th day. <strong>≤50h all 5th</strong>: everyone works a 5th day if available.</div>
-            </div>
-            <p class="rr-cov-empty" style="margin-top:12px">Structural capacity (uses availability, not this week's PTO). Planning model, not a guarantee.</p>
+            ${whyHtml}
+            <p class="rr-cov-empty" style="margin-top:12px">Look-back window: ${live.rollingWeeks} week${live.rollingWeeks === 1 ? "" : "s"} · adjust in Smart Fill → Preferences → "History to look back on".</p>
           </div>
-        </div>
-        <style>
-          .rr-flex-table{margin-top:4px;display:flex;flex-direction:column;gap:1px}
-          .rr-flex-row{display:grid;grid-template-columns:48px 1fr 1fr 1fr;align-items:center;gap:6px;padding:6px 8px;border-radius:4px}
-          .rr-flex-row:nth-child(even){background:rgba(0,0,0,.025)}
-          .rr-flex-head{font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
-          .rr-flex-head small{font-weight:400;text-transform:none;letter-spacing:0}
-          .rr-flex-c0{font-weight:600;font-size:13px;color:var(--text)}
-          .rr-flex-c{text-align:center;font-size:14px;color:var(--text)}
-          .rr-flex-head .rr-flex-c{font-size:11px}
-          .rr-flex-hrow{display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:2px 0}
-          .rr-flex-hrow strong{color:var(--text)}
-        </style>`;
+        </div>`;
       document.body.appendChild(m);
-      const card = m.querySelector("#rr-flex-kpi-card");
-      const a = anchorEl || document.querySelector('[data-rr-kpi="flex"]');
+      // Anchor + clamp identically to the Coverage popout.
+      const card = m.querySelector("#rr-affinity-kpi-card");
+      const a = anchorEl || document.querySelector('[data-rr-kpi="affinity"]');
       if (card && a) {
         const M = 12;
         const r = a.getBoundingClientRect();
@@ -57888,7 +57856,7 @@ function bindSchedWeekNav() {
         card.style.margin = "0";
         card.style.maxHeight = (vh - M * 2) + "px";
         card.style.overflowY = "auto";
-        const cw = card.offsetWidth || 440;
+        const cw = card.offsetWidth || 420;
         let left = r.left;
         if (left + cw > window.innerWidth - M) left = window.innerWidth - cw - M;
         if (left < M) left = M;
@@ -57902,22 +57870,22 @@ function bindSchedWeekNav() {
     };
 
     document.addEventListener("click", (e) => {
-      const modal = document.getElementById("rr-flex-kpi-modal");
-      if (modal && (e.target === modal || e.target.closest("#rr-flex-kpi-close"))) { modal.remove(); return; }
-      const pillEl = e.target.closest('[data-rr-kpi="flex"]');
+      const modal = document.getElementById("rr-affinity-kpi-modal");
+      if (modal && (e.target === modal || e.target.closest("#rr-affinity-kpi-close"))) { modal.remove(); return; }
+      const pillEl = e.target.closest('[data-rr-kpi="affinity"]');
       if (!pillEl) return;
       e.preventDefault();
-      _openFlexModal(pillEl);
+      _openAffinityModal(pillEl);
     });
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
-      document.getElementById("rr-flex-kpi-modal")?.remove();
+      document.getElementById("rr-affinity-kpi-modal")?.remove();
     });
     // Click-only: click the pill to open (handler above), click outside / Esc to close.
     document.addEventListener("click", (e) => {
-      const modal = document.getElementById("rr-flex-kpi-modal");
+      const modal = document.getElementById("rr-affinity-kpi-modal");
       if (!modal) return;
-      if (e.target.closest('[data-rr-kpi="flex"]') || e.target.closest("#rr-flex-kpi-modal")) return;
+      if (e.target.closest('[data-rr-kpi="affinity"]') || e.target.closest("#rr-affinity-kpi-modal")) return;
       modal.remove();
     });
   }
@@ -72328,26 +72296,125 @@ function _reqMarkDecided(id) {
 // the Requests controls — Type / Status / Location filters + PTO report — in
 // that top-right slot instead, styled as schedule page buttons. Hidden tiles
 // (and any relocated chrome) are preserved and restored when leaving Requests.
+// The filters are custom dropdown BUTTONS (not native <select>s) so their open
+// menus wear the same .rr-status-picker chrome as the schedule page's pill
+// dropdowns instead of the OS-native listbox.
+function _rrReqFilterOptions(key) {
+  if (key === "type") return [
+    { value: "",             label: "All types" },
+    { value: "availability", label: "Availability", dot: "#2563EB" },
+    { value: "pto",          label: "PTO",          dot: "#6D28D9" },
+    { value: "unpaid",       label: "Unpaid",       dot: "#64748B" },
+  ];
+  if (key === "status") return [
+    { value: "",         label: "All statuses" },
+    { value: "pending",  label: "Pending",  dot: "#D97706" },
+    { value: "approved", label: "Approved", dot: "#16A34A" },
+    { value: "denied",   label: "Denied",   dot: "#DC2626" },
+  ];
+  // loc · station codes present in the current request stream.
+  return [{ value: "", label: "All locations" }]
+    .concat((_reqLocStations || []).map((s) => ({ value: s, label: s })));
+}
+function _rrReqFilterLabel(key) {
+  const cur = _reqFilter[key] || "";
+  const opt = _rrReqFilterOptions(key).find((o) => o.value === cur);
+  return opt ? opt.label : _rrReqFilterOptions(key)[0].label;
+}
 function _rrRequestsToolbarHtml() {
-  const s = (v, cur) => v === cur ? " selected" : "";
+  const filterBtn = (key, aria, title) =>
+    `<button type="button" class="sched-page-btn req-toolbar-filter" data-req-filter="${key}" aria-haspopup="menu" aria-expanded="false" aria-label="${aria}" title="${title}"><span class="req-filter-label">${escapeHtml(_rrReqFilterLabel(key))}</span></button>`;
   return `
-    <select class="sched-page-btn req-toolbar-filter" data-req-filter="type" aria-label="Request type" title="Filter by request type">
-      <option value=""${s("", _reqFilter.type)}>All types</option>
-      <option value="availability"${s("availability", _reqFilter.type)}>Availability</option>
-      <option value="pto"${s("pto", _reqFilter.type)}>PTO</option>
-      <option value="unpaid"${s("unpaid", _reqFilter.type)}>Unpaid</option>
-    </select>
-    <select class="sched-page-btn req-toolbar-filter" data-req-filter="status" aria-label="Status" title="Filter by status">
-      <option value=""${s("", _reqFilter.status)}>All statuses</option>
-      <option value="pending"${s("pending", _reqFilter.status)}>Pending</option>
-      <option value="approved"${s("approved", _reqFilter.status)}>Approved</option>
-      <option value="denied"${s("denied", _reqFilter.status)}>Denied</option>
-    </select>
-    <select class="sched-page-btn req-toolbar-filter" data-req-filter="loc" aria-label="Location" title="Filter by location"><option value="">All locations</option></select>
+    ${filterBtn("type", "Request type", "Filter by request type")}
+    ${filterBtn("status", "Status", "Filter by status")}
+    ${filterBtn("loc", "Location", "Filter by location")}
     <button type="button" class="req-toolbar-act" id="rr-pto-report-btn" title="Download PTO report"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>PTO report</span></button>
     <button type="button" class="req-toolbar-act req-toolbar-primary" data-rr-req-settings aria-haspopup="dialog" aria-expanded="false" title="Driver-app request settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span></button>
     <span class="rr-roster-chrome-host" id="rr-req-chrome-host"></span>`;
 }
+
+// ─── Requests filter dropdowns · custom popover ───────────────────────────
+// Same fixed-popover mechanism + .rr-status-picker chrome as the roster
+// status filter, so the Requests filters open the styled schedule-page menu
+// (rounded card, hover rows, check on the current pick) rather than the
+// browser's native <select> listbox. One shared node; contents rebuilt per
+// open. Delegated handlers so the wiring survives toolbar re-renders.
+function _rrEnsureReqFilterPop() {
+  let pop = document.getElementById("rr-req-filter-pop");
+  if (pop) return pop;
+  pop = document.createElement("div");
+  pop.id = "rr-req-filter-pop";
+  pop.className = "rr-status-picker";
+  pop.setAttribute("role", "menu");
+  pop.hidden = true;
+  document.body.appendChild(pop);
+  return pop;
+}
+function _rrCloseReqFilterMenu() {
+  const pop = document.getElementById("rr-req-filter-pop");
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  pop.innerHTML = "";
+  const t = document.querySelector('[data-req-filter][aria-expanded="true"]');
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+function _rrOpenReqFilterMenu(trigger) {
+  if (!trigger) return;
+  const key = trigger.getAttribute("data-req-filter");
+  const cur = _reqFilter[key] || "";
+  const pop = _rrEnsureReqFilterPop();
+  pop.innerHTML = _rrReqFilterOptions(key).map((o) => {
+    const isCur = o.value === cur;
+    return `<button type="button" role="menuitem" class="rr-status-picker-item${isCur ? " is-current" : ""}" data-req-filter-key="${key}" data-req-filter-pick="${escapeHtml(o.value)}">`
+      + `<span class="rr-status-picker-dot" style="background:${o.dot || "var(--text-subtle)"}"></span>`
+      + `<span class="rr-status-picker-label">${escapeHtml(o.label)}</span>`
+      + (isCur ? `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg>` : ``)
+      + `</button>`;
+  }).join("");
+  const r = trigger.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.left = `${Math.max(8, r.left)}px`;
+  pop.style.top  = `${r.bottom + 6}px`;
+  pop.style.minWidth = `${Math.max(180, r.width)}px`;
+  pop.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+}
+document.addEventListener("click", (e) => {
+  // Open / toggle on a Requests toolbar filter button.
+  const trigger = e.target.closest && e.target.closest("[data-req-filter]");
+  if (trigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    // stopPropagation keeps the Settings popover's own outside-click closer
+    // from running — close it explicitly so the two pops never stack.
+    if (typeof _rrCloseReqSettings === "function") _rrCloseReqSettings();
+    const isOpen = trigger.getAttribute("aria-expanded") === "true";
+    _rrCloseReqFilterMenu();
+    if (!isOpen) _rrOpenReqFilterMenu(trigger);
+    return;
+  }
+  // Pick an option → set the filter, relabel the trigger, re-render.
+  const opt = e.target.closest && e.target.closest("[data-req-filter-pick]");
+  if (opt) {
+    e.preventDefault();
+    e.stopPropagation();
+    const key = opt.getAttribute("data-req-filter-key");
+    const val = opt.getAttribute("data-req-filter-pick");
+    _rrCloseReqFilterMenu();
+    if (!key || _reqFilter[key] === val) return;
+    _reqFilter[key] = val;
+    const lbl = document.querySelector(`#rr-req-toolbar-bar [data-req-filter="${key}"] .req-filter-label`);
+    if (lbl) lbl.textContent = _rrReqFilterLabel(key);
+    if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
+    return;
+  }
+  // Outside click → close.
+  const pop = document.getElementById("rr-req-filter-pop");
+  if (pop && !pop.hidden && !e.target.closest("#rr-req-filter-pop")) _rrCloseReqFilterMenu();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseReqFilterMenu(); });
+window.addEventListener("scroll", _rrCloseReqFilterMenu, true);
+window.addEventListener("resize", _rrCloseReqFilterMenu);
 
 // ─── Driver-app request settings ──────────────────────────────────────────
 // The Settings pill in the Requests toolbar opens a small popover where the
@@ -72565,10 +72632,8 @@ function _renderSchedRequestsKpis() {
   // nodes; re-home it into the freshly-rendered host afterward.
   if (typeof _rrReturnChromeHome === "function") _rrReturnChromeHome();
   bar.innerHTML = _rrRequestsToolbarHtml();
-  bar.querySelectorAll("[data-req-filter]").forEach((el) => el.addEventListener("change", () => {
-    _reqFilter[el.getAttribute("data-req-filter")] = el.value;
-    if (typeof renderSchedRequestStream === "function") renderSchedRequestStream();
-  }));
+  // Filter clicks are handled by the delegated .rr-status-picker dropdown
+  // wiring next to _rrRequestsToolbarHtml, so nothing to attach here.
   if (typeof _rrMoveChromeToRequests === "function") _rrMoveChromeToRequests();
 }
 
@@ -72909,6 +72974,9 @@ async function _avDecide(btn) {
 // Filter state for the Requests page (type / status / location), applied to
 // both the Pending section and the Recent Decisions table.
 let _reqFilter = { type: "", status: "", loc: "" };
+// Station codes present in the current request stream — feeds the Location
+// filter dropdown's option list.
+let _reqLocStations = [];
 function _reqInitials(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "—";
@@ -73126,14 +73194,11 @@ async function renderSchedRequestStream() {
     });
 
   const pendingRowHtml = (it) => it.type === "availability" ? _reqAvailRowHtml(it.row, avCtx) : _toPendingRowHtml(it.row);
-  // Filters live in the top toolbar now — keep its Location options in sync
-  // with the stations currently on hand.
-  const _locSel = document.querySelector('#rr-req-toolbar-bar [data-req-filter="loc"]');
-  if (_locSel) {
-    _locSel.innerHTML = `<option value="">All locations</option>`
-      + stations.map((s) => `<option value="${escapeHtml(s)}"${s === _reqFilter.loc ? " selected" : ""}>${escapeHtml(s)}</option>`).join("");
-    _locSel.value = _reqFilter.loc;
-  }
+  // Filters live in the top toolbar now — keep the Location dropdown's
+  // options in sync with the stations currently on hand.
+  _reqLocStations = stations;
+  const _locLbl = document.querySelector('#rr-req-toolbar-bar [data-req-filter="loc"] .req-filter-label');
+  if (_locLbl) _locLbl.textContent = _rrReqFilterLabel("loc");
 
   host.innerHTML = `
     <div class="req-page">
