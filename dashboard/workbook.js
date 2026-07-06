@@ -4806,6 +4806,137 @@ function ingestCellRow(sheet, row) {
   sheet.cells.set(cellKey(row.row_index, row.col_index), cell);
 }
 
+// ─── Version-history snapshots ───────────────────────────────────────────────
+// A snapshot captures a sheet's full state (cells + structure + meta) as plain
+// JSON so it can be stored in workbook_snapshots.payload and restored later.
+function snapshotSheet(sheet) {
+  const cells = [];
+  for (const [key, cell] of sheet.cells) {
+    const rc = keyRC(key);
+    const row = { r: rc.r, c: rc.c };
+    if (cell.value != null) row.value = cell.value;
+    if (cell.formula != null) row.formula = cell.formula;
+    if (cell.type != null) row.value_type = cell.type;
+    if (cell.format && Object.keys(cell.format).length) row.format = cell.format;
+    cells.push(row);
+  }
+  return {
+    name: sheet.name, position: sheet.position,
+    row_count: sheet.rowCount, col_count: sheet.colCount,
+    frozen_rows: sheet.frozenRows || 0, frozen_cols: sheet.frozenCols || 0,
+    col_widths: sheet.colWidths || {}, row_heights: sheet.rowHeights || {},
+    meta: { ...(sheet.meta || {}), hiddenRows: [...(sheet.hiddenRows || [])], hiddenCols: [...(sheet.hiddenCols || [])] },
+    cells,
+  };
+}
+// Overwrite an in-memory sheet's state from a snapshot (caller persists + recalcs).
+function applySheetSnapshot(sheet, snap) {
+  if (Number.isInteger(snap.row_count)) sheet.rowCount = Math.max(1, snap.row_count);
+  if (Number.isInteger(snap.col_count)) sheet.colCount = Math.max(1, snap.col_count);
+  sheet.frozenRows = snap.frozen_rows || 0;
+  sheet.frozenCols = snap.frozen_cols || 0;
+  sheet.colWidths = { ...(snap.col_widths || {}) };
+  sheet.rowHeights = { ...(snap.row_heights || {}) };
+  sheet.meta = { ...(snap.meta || {}) };
+  sheet.hiddenRows = new Set(Array.isArray(snap.meta && snap.meta.hiddenRows) ? snap.meta.hiddenRows : []);
+  sheet.hiddenCols = new Set(Array.isArray(snap.meta && snap.meta.hiddenCols) ? snap.meta.hiddenCols : []);
+  sheet.cells = new Map();
+  for (const c of snap.cells || []) sheet.cells.set(cellKey(c.r, c.c), { value: c.value ?? null, formula: c.formula ?? null, type: c.value_type ?? null, format: c.format && typeof c.format === "object" ? { ...c.format } : {}, computed: null, err: null });
+}
+
+const WB_SNAPSHOT_MAX = 40; // keep the most recent N; prune older *auto* snapshots beyond that
+
+async function createWorkbookSnapshot(label, auto) {
+  const wb = WB.wb;
+  if (!wb) return null;
+  const payload = [];
+  for (const arr of WB.sheetsByBlock.values()) for (const sh of arr) payload.push({ id: sh.id, block_id: sh.blockId, ...snapshotSheet(sh) });
+  try {
+    const ins = await _sb().from("workbook_snapshots").insert({ dsp_id: wb.dsp_id, workbook_id: wb.id, label: String(label || "").slice(0, 120), auto: !!auto, payload, created_by: _me() ? _me().id : null }).select("id").single();
+    if (ins.error) throw ins.error;
+    pruneSnapshots();
+    return ins.data ? ins.data.id : null;
+  } catch (e) { console.warn("snapshot save:", e && e.message); if (!auto) _toast("Couldn't save the version — migration 0421 may be pending", "warn"); return null; }
+}
+
+async function pruneSnapshots() {
+  try {
+    const res = await _sb().from("workbook_snapshots").select("id, auto, created_at").eq("workbook_id", WB.wb.id).order("created_at", { ascending: false });
+    if (res.error || !res.data) return;
+    const excess = res.data.slice(WB_SNAPSHOT_MAX).filter((r) => r.auto).map((r) => r.id);
+    if (excess.length) await _sb().from("workbook_snapshots").delete().in("id", excess);
+  } catch (_) {}
+}
+
+async function listWorkbookSnapshots() {
+  try {
+    const res = await _sb().from("workbook_snapshots").select("id, label, auto, created_by, created_at").eq("workbook_id", WB.wb.id).order("created_at", { ascending: false }).limit(100);
+    return res.error ? [] : (res.data || []);
+  } catch (_) { return []; }
+}
+
+async function saveNamedVersion() {
+  if (!WB.canEdit) return;
+  const label = window.prompt("Name this version", "Version " + fmtWhen(new Date().toISOString()));
+  if (label == null) return;
+  const id = await createWorkbookSnapshot(label.trim() || "Version", false);
+  if (id) _toast("Version saved", "success");
+}
+
+async function restoreWorkbookSnapshot(snapshotId) {
+  const wb = WB.wb;
+  if (!wb || !WB.canEdit) return;
+  const res = await _sb().from("workbook_snapshots").select("payload").eq("id", snapshotId).single();
+  if (res.error || !res.data) { _toast("Couldn't load that version", "error"); return; }
+  await createWorkbookSnapshot("Before restore", true); // restore is itself reversible
+  const payload = Array.isArray(res.data.payload) ? res.data.payload : [];
+  const byId = new Map(payload.filter((s) => s.id).map((s) => [s.id, s]));
+  for (const arr of WB.sheetsByBlock.values()) for (const sh of arr) {
+    const snap = byId.get(sh.id) || payload.find((s) => s.name === sh.name && s.position === sh.position);
+    if (!snap) continue;
+    const dirty = new Set(sh.cells.keys());      // tombstone cells the snapshot doesn't have
+    applySheetSnapshot(sh, snap);
+    for (const k of sh.cells.keys()) dirty.add(k);
+    markCellsDirty(sh, [...dirty]);
+    saveSheetMeta(sh.id);
+  }
+  for (const arr of WB.sheetsByBlock.values()) arr.forEach((sh) => recalcSheet(sh));
+  if (scheduleCellFlush.flushNow) await scheduleCellFlush.flushNow();
+  for (const gg of GRIDS.values()) { computeGeometry(gg); repaintGrid(gg); syncFormulaBar(gg); scheduleChartRender(gg); }
+  _toast("Version restored", "success");
+}
+
+async function openVersionHistory() {
+  document.getElementById("wb-versions-modal")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop"; wrap.id = "wb-versions-modal";
+  wrap.innerHTML = `<div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Version history" style="width:460px">
+    <div class="rr-modal-head"><div class="rr-modal-head-content"><p class="rr-modal-title">Version history</p><p class="rr-modal-sub">Restore the whole workbook to an earlier point.</p></div><button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button></div>
+    <div class="rr-modal-body"><div id="wb-versions-list">Loading…</div></div>
+    <div class="rr-modal-foot"><button class="rr-modal-btn" type="button" data-wb-close>Close</button>${WB.canEdit ? `<button class="rr-modal-btn primary" type="button" id="wb-versions-save">Save current version</button>` : ""}</div>
+  </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) close(); });
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") close(); });
+  const listEl = wrap.querySelector("#wb-versions-list");
+  const paint = async () => {
+    const snaps = await listWorkbookSnapshots();
+    listEl.innerHTML = !snaps.length
+      ? `<p style="color:var(--text-subtle);padding:8px 0">No saved versions yet. Edits are captured when you save a version.</p>`
+      : snaps.map((s) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 2px;border-bottom:1px solid var(--border,#eef0f3)"><div style="min-width:0"><div style="font-weight:600">${esc(s.label || (s.auto ? "Autosave" : "Version"))}</div><div style="font-size:12px;color:var(--text-subtle)">${esc(userName(s.created_by))} · ${esc(relTime(s.created_at))}${s.auto ? " · auto" : ""}</div></div>${WB.canEdit ? `<button type="button" class="btn btn-sm" data-restore="${s.id}">Restore</button>` : ""}</div>`).join("");
+  };
+  wrap.querySelector("#wb-versions-save")?.addEventListener("click", async () => { await saveNamedVersion(); paint(); });
+  listEl.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-restore]");
+    if (!btn) return;
+    if (!window.confirm("Restore the workbook to this version? Your current state is saved as a version first, so you can undo this.")) return;
+    close();
+    await restoreWorkbookSnapshot(btn.getAttribute("data-restore"));
+  });
+  paint();
+}
+
 async function openWorkbook(id) {
   const root = wbRoot();
   if (!root) return;
@@ -16423,7 +16554,9 @@ function wbMenuItems(menu, g) {
       sep,
       { label: "Rename", act: "file:rename", disabled: !ed },
       { label: "Share", act: "file:share" },
-      { label: "Version history (activity)", act: "file:activity" },
+      { label: "Version history…", act: "file:versions", disabled: !g },
+      { label: "Save current version…", act: "file:save-version", disabled: !ed || !g },
+      { label: "Activity log", act: "file:activity" },
       { label: "Details", act: "file:details" },
       sep,
       { label: WB.wb && WB.wb.archived_at ? "Restore workbook" : "Archive workbook", act: "file:archive", disabled: !WB.canAdmin },
@@ -16600,6 +16733,8 @@ function wbMenuAction(act, g) {
     case "file:rename": { const t = document.getElementById("wb-title-input"); if (t) { t.focus(); t.select(); } return; }
     case "file:share": openPanelTab("sharing"); return;
     case "file:activity": openPanelTab("activity"); return;
+    case "file:versions": openVersionHistory(); return;
+    case "file:save-version": saveNamedVersion(); return;
     case "file:details": openPanelTab("details"); return;
     case "file:archive": archiveWorkbook(!!(WB.wb && WB.wb.archived_at)); return;
     case "file:delete": deleteWorkbookFlow(); return;
@@ -18547,7 +18682,7 @@ function fillDriverAction(g, driverId, act) {
 
 export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
-  fillSeries, cycleRefAnchor, errorHint, columnSuggestion,
+  fillSeries, cycleRefAnchor, errorHint, columnSuggestion, snapshotSheet, applySheetSnapshot,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, solveGoalSeek,
