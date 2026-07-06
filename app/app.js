@@ -5918,28 +5918,11 @@ function renderProfileHub() {
         </div>
       </div>
       <div id="rr-missed-slot" hidden></div>
-      <div class="home-quick">
-        <button class="home-quick-tile" type="button" data-nav="/schedule">
-          <span class="home-quick-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-          <span class="home-quick-label">Schedule</span>
-        </button>
-        <button class="home-quick-tile" type="button" data-nav="/chat">
-          <span class="home-quick-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-          <span class="home-quick-label">Message</span>
-        </button>
-        <button class="home-quick-tile" type="button" data-nav="/team">
-          <span class="home-quick-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-          <span class="home-quick-label">Team</span>
-        </button>
-      </div>
       <section class="up-next" id="rr-upnext-slot" hidden></section>
       <section class="van-docs" id="rr-vandocs-slot" hidden></section>
     </div>`;
 
   document.getElementById("rr-home-settings").addEventListener("click", () => { _haptic("tap"); navigate("/settings"); });
-  main.querySelectorAll(".home-quick-tile[data-nav]").forEach((el) => {
-    el.addEventListener("click", () => { _haptic("select"); navigate(el.dataset.nav); });
-  });
 
   // Photo upload — clicking the avatar opens the camera or picker.
   const fileInput = document.getElementById("rr-photo-input");

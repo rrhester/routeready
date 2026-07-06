@@ -2653,29 +2653,6 @@ body.is-home main > .home-hero{
 }
 .home-content > * + *{ margin-top:12px }
 
-/* ── Home quick-actions launcher ────────────────────────────────────
-   Three tap tiles that turn the home screen from a passive profile into
-   a launchpad: the driver's most common jumps (schedule, message
-   dispatch, team) one thumb-tap from the front door. */
-.home-quick{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:10px;
-}
-.home-quick-tile{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
-  padding:15px 8px 13px;
-  background:var(--surface);border:1px solid var(--border);border-radius:14px;
-  box-shadow:var(--shadow-card);color:var(--text);
-  transition:transform 150ms var(--ease-out), box-shadow 180ms var(--ease-out);
-}
-.home-quick-tile:active{transform:scale(.965);box-shadow:var(--shadow-card-strong)}
-.home-quick-icon{
-  width:42px;height:42px;border-radius:12px;
-  display:flex;align-items:center;justify-content:center;
-  background:var(--accent-soft);color:var(--accent);
-}
-.home-quick-icon svg{width:21px;height:21px}
-.home-quick-label{font-size:var(--fs-sm);font-weight:600;color:var(--text);letter-spacing:-.005em}
-
 /* ── Primary "Opens at" / check-in card — Outlook calendar tile
    Solid Fluent communicationBlue tile (no gradient, no radial
    blooms), Fluent --r-xl corners, depth-8 shadow.  This is the
