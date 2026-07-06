@@ -720,9 +720,19 @@ body.scan-editing{overflow:hidden}
 .scan-editor-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;touch-action:none}
 .scan-ed-handle{cursor:grab}
 .scan-ed-handle:active{cursor:grabbing}
-.scan-editor-hint{
-  text-align:center;font-size:var(--fs-xs);color:#94a3b8;padding:2px 16px 10px;flex-shrink:0;
+.scan-editor-cropbar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:2px 14px 10px;flex-shrink:0;
 }
+.scan-editor-hint{
+  flex:1;text-align:center;font-size:var(--fs-xs);color:#94a3b8;min-width:0;
+}
+.scan-editor-pill{
+  flex:0 0 auto;padding:8px 14px;border-radius:999px;cursor:pointer;
+  background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.20);
+  color:#e2e8f0;font-size:var(--fs-xs);font-weight:700;white-space:nowrap;
+}
+.scan-editor-pill:active{transform:scale(.94)}
 .scan-editor-filters{
   display:flex;gap:8px;padding:8px 14px 16px;flex-shrink:0;
   overflow-x:auto;-webkit-overflow-scrolling:touch;justify-content:center;
@@ -749,6 +759,8 @@ body.scan-camming{overflow:hidden}
   top:calc(env(safe-area-inset-top) + 76px);bottom:150px;
   border:2px dashed rgba(255,255,255,.55);border-radius:14px;pointer-events:none;
 }
+.scan-cam-edge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.scan-cam-edge polygon{filter:drop-shadow(0 0 3px rgba(0,0,0,.5))}
 .scan-cam-top{
   position:absolute;top:0;left:0;right:0;
   display:flex;align-items:center;justify-content:space-between;gap:10px;
