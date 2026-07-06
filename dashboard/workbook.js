@@ -6511,16 +6511,23 @@ function showShortcutsHelp() {
   const rows = [
     ["Navigate cells", "Arrow keys · Tab · Enter"],
     ["Jump to edge", "Ctrl + Arrow"],
-    ["Extend selection", "Shift + Arrow"],
+    ["Extend selection", "Shift + Arrow · Ctrl+Shift+Arrow"],
+    ["Select all / column / row", "Ctrl+A"],
     ["Edit cell", "Enter or F2 / double-click"],
     ["Start a formula", "="],
+    ["Cycle $ absolute refs (while editing)", "F4"],
+    ["Fill down · right", "Ctrl+D · Ctrl+R"],
+    ["Fill selection with value", "Ctrl+Enter"],
+    ["Fill to data extent", "Double-click the fill handle"],
+    ["Insert today's date", "Ctrl+;"],
     ["Copy · Cut · Paste", "Ctrl+C · Ctrl+X · Ctrl+V"],
     ["Paste values only", "Ctrl+Shift+V"],
     ["Undo · Redo", "Ctrl+Z · Ctrl+Y"],
     ["Bold · Italic · Underline", "Ctrl+B · Ctrl+I · Ctrl+U"],
-    ["Find & replace", "Ctrl+H"],
+    ["Find · Replace", "Ctrl+F · Ctrl+H"],
+    ["Toggle filter", "Ctrl+Shift+L"],
     ["Show formulas", "Ctrl+`"],
-    ["Fill down (drag handle)", "Drag the selection corner"],
+    ["This help", "Ctrl+/"],
     ["Clear cell contents", "Delete"],
   ];
   const body = `<div class="wb-shortcuts">${rows.map(([k, v]) =>
@@ -7911,6 +7918,130 @@ const _fFloat = (v) => (Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : Mat
 // Drag-fill: copies the source block into the extension; a numeric
 // column/row with a constant step extends the series (1,2 → 3,4…);
 // formulas shift their relative refs like a spreadsheet.
+// F4 while editing: cycle the $-anchoring of the reference under the caret
+// through Excel's four states — A1 → $A$1 → A$1 → $A1 → A1. Returns the new
+// text and caret, or null when the caret isn't on a cell reference.
+const F4_REF_RE = /(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})/g;
+function cycleRefAnchor(text, caret) {
+  let m;
+  F4_REF_RE.lastIndex = 0;
+  while ((m = F4_REF_RE.exec(text))) {
+    const start = m.index, end = start + m[0].length;
+    // the caret must sit within (or just after) the reference token
+    if (caret < start || caret > end) continue;
+    const col = m[2], row = m[4];
+    const states = [`${col}${row}`, `$${col}$${row}`, `${col}$${row}`, `$${col}${row}`];
+    const cur = `${m[1]}${col}${m[3]}${row}`;
+    const next = states[(states.indexOf(cur) + 1) % 4];
+    const out = text.slice(0, start) + next + text.slice(end);
+    return { text: out, caret: start + next.length };
+  }
+  return null;
+}
+
+function dowIndexOf(s) { const t = String(s).trim().toLowerCase(); let i = CUSTOM_DAYS.findIndex((d) => d.toLowerCase() === t); if (i >= 0) return { i, fmt: "full" }; i = CUSTOM_DAYS.findIndex((d) => d.slice(0, 3).toLowerCase() === t); return i >= 0 ? { i, fmt: "short" } : null; }
+function monIndexOf(s) { const t = String(s).trim().toLowerCase(); let i = CUSTOM_MONTHS.findIndex((m) => m.toLowerCase() === t); if (i >= 0) return { i, fmt: "full" }; i = CUSTOM_MONTHS.findIndex((m) => m.slice(0, 3).toLowerCase() === t); return i >= 0 ? { i, fmt: "short" } : null; }
+
+// Smart series extrapolation for the fill handle / Ctrl+D-R. Given the source
+// values, return the next `count` {value,type} objects (Excel-style): dates,
+// weekday/month names, "Item1"→"Item2" text+number, and linear numeric runs all
+// extend. A single plain number or anything unrecognized returns null so the
+// caller copies instead.
+function fillSeries(vals, count) {
+  const n = vals.length;
+  if (!n || count < 1) return null;
+  const strs = vals.map((v) => (v == null ? "" : String(v).trim()));
+  const constDiff = (arr) => { if (arr.length < 2) return null; const d = arr[1] - arr[0]; for (let i = 2; i < arr.length; i++) if (Math.abs(arr[i] - arr[i - 1] - d) > 1e-9) return null; return d; };
+  const roll = (base, step, k, fmt) => { const o = []; for (let j = 1; j <= k; j++) o.push(fmt(base + step * j)); return o; };
+  // dates — a single date increments by one day, like Excel
+  const dates = strs.map((s) => parseDateLoose(s));
+  if (strs.every((s) => s) && dates.every((d) => d)) {
+    const serials = dates.map((d) => dateToSerial(d));
+    const step = n === 1 ? 1 : constDiff(serials);
+    if (step != null) return roll(serials[n - 1], step, count, (x) => ({ value: isoDate(serialToDate(x)), type: "date" }));
+  }
+  // weekday names
+  const dow = strs.map((s) => dowIndexOf(s));
+  if (strs.every((s) => s) && dow.every(Boolean)) {
+    const idx = dow.map((d) => d.i), step = n === 1 ? 1 : constDiff(idx), fmt = dow[n - 1].fmt;
+    if (step != null) return roll(idx[n - 1], step, count, (x) => { const i = ((x % 7) + 7) % 7; return { value: fmt === "short" ? CUSTOM_DAYS[i].slice(0, 3) : CUSTOM_DAYS[i], type: "text" }; });
+  }
+  // month names
+  const mon = strs.map((s) => monIndexOf(s));
+  if (strs.every((s) => s) && mon.every(Boolean)) {
+    const idx = mon.map((m) => m.i), step = n === 1 ? 1 : constDiff(idx), fmt = mon[n - 1].fmt;
+    if (step != null) return roll(idx[n - 1], step, count, (x) => { const i = ((x % 12) + 12) % 12; return { value: fmt === "short" ? CUSTOM_MONTHS[i].slice(0, 3) : CUSTOM_MONTHS[i], type: "text" }; });
+  }
+  // plain numeric run — a single number copies, so require ≥2 with a constant diff
+  const nums = strs.map((s) => cellNumeric(s));
+  const allNumeric = strs.every((s) => cellNumeric(s) != null);
+  if (n >= 2 && allNumeric) {
+    const step = constDiff(nums);
+    if (step != null) return roll(nums[n - 1], step, count, (x) => ({ value: String(_fFloat(x)), type: "number" }));
+  }
+  // text with a trailing number: "Item1", "Q3", "Week 12" — but not a plain number
+  const tn = strs.map((s) => { const m = /^(.+?)(\d+)$/.exec(s); return m ? { pre: m[1], num: +m[2] } : null; });
+  if (!allNumeric && tn.every(Boolean) && tn.every((t) => t.pre === tn[0].pre)) {
+    const idx = tn.map((t) => t.num), step = n === 1 ? 1 : constDiff(idx), pre = tn[n - 1].pre;
+    if (step != null) return roll(idx[n - 1], step, count, (x) => ({ value: pre + x, type: "text" }));
+  }
+  return null;
+}
+
+// Ctrl+D / Ctrl+R: copy the selection's top row down / left column right into
+// the rest of the selection, shifting relative formula refs (Excel semantics).
+function fillWithinSelection(g, dir) {
+  if (!WB.canEdit) return;
+  const { r0, c0, r1, c1 } = selRect(g);
+  const changes = [];
+  if (dir === "down") {
+    if (r1 <= r0) return;
+    for (let c = c0; c <= c1; c++) { const src = g.sheet.cells.get(cellKey(r0, c)); for (let r = r0 + 1; r <= r1; r++) { let nx = src ? cloneCell(src) : null; if (nx && src.formula) { nx.formula = shiftFormulaRelative(src.formula, r - r0, 0); nx.computed = null; nx.err = null; } changes.push({ r, c, cell: nx }); } }
+  } else {
+    if (c1 <= c0) return;
+    for (let r = r0; r <= r1; r++) { const src = g.sheet.cells.get(cellKey(r, c0)); for (let c = c0 + 1; c <= c1; c++) { let nx = src ? cloneCell(src) : null; if (nx && src.formula) { nx.formula = shiftFormulaRelative(src.formula, 0, c - c0); nx.computed = null; nx.err = null; } changes.push({ r, c, cell: nx }); } }
+  }
+  if (changes.length) setCells(g, changes);
+}
+
+// Double-click the fill handle → fill down to the extent of the adjacent
+// column's data (Excel's killer gesture). Uses smart series via applyFill.
+function fillHandleToExtent(g) {
+  const sheet = g.sheet;
+  const { r0, c0, r1, c1 } = selRect(g);
+  const probeCol = c0 - 1 >= 0 ? c0 - 1 : (c1 + 1 < sheet.colCount ? c1 + 1 : -1);
+  if (probeCol < 0) return;
+  const hasData = (r) => { const cell = sheet.cells.get(cellKey(r, probeCol)); return !!(cell && ((cell.value != null && cell.value !== "") || cell.formula)); };
+  if (!hasData(r1 + 1)) return;
+  let last = r1;
+  for (let r = r1 + 1; r < sheet.rowCount && hasData(r); r++) last = r;
+  const count = last - r1;
+  if (count > 0) applyFill(g, { r0, c0, r1, c1 }, { axis: "row", count });
+}
+
+// Ctrl+Enter: fill the whole selection with the active cell's content
+// (relative refs shift from the active cell).
+function fillSelectionWithActive(g) {
+  if (!WB.canEdit) return;
+  const { r0, c0, r1, c1 } = selRect(g);
+  if (r0 === r1 && c0 === c1) return;
+  const src = g.sheet.cells.get(cellKey(g.active.r, g.active.c));
+  const changes = [];
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    if (r === g.active.r && c === g.active.c) continue;
+    let nx = src ? cloneCell(src) : null;
+    if (nx && src.formula) { nx.formula = shiftFormulaRelative(src.formula, r - g.active.r, c - g.active.c); nx.computed = null; nx.err = null; }
+    changes.push({ r, c, cell: nx });
+  }
+  if (changes.length) setCells(g, changes);
+}
+
+// Ctrl+; : insert today's date into the active cell.
+function insertTodayDate(g) {
+  if (!WB.canEdit) return;
+  setCells(g, [{ r: g.active.r, c: g.active.c, cell: { value: isoDate(new Date()), formula: null, type: "date", computed: null, err: null, format: {} } }]);
+}
+
 function applyFill(g, src, ext) {
   const sheet = g.sheet;
   const changes = [];
@@ -7923,12 +8054,9 @@ function applyFill(g, src, ext) {
   for (let lane = laneLo; lane <= laneHi; lane++) {
     const series = [];
     for (let i = srcLo; i <= srcHi; i++) series.push(sheet.cells.get(vertical ? cellKey(i, lane) : cellKey(lane, i)) || null);
-    const nums = series.map((cl) => (cl && !cl.formula ? cellNumeric(cl.value) : null));
-    let step = null;
-    if (series.length >= 2 && nums.every((v) => v != null)) {
-      step = nums[1] - nums[0];
-      for (let i = 2; i < nums.length; i++) if (Math.abs(nums[i] - nums[i - 1] - step) > 1e-9) { step = null; break; }
-    }
+    // detect a smart series over the (non-formula) source values; null ⇒ copy
+    const allValues = series.every((cl) => cl && !cl.formula && cl.value != null && cl.value !== "");
+    const seriesVals = allValues ? fillSeries(series.map((cl) => cl.value), ext.count) : null;
     for (let k = 1; k <= ext.count; k++) {
       const t = srcHi + k;
       if (vertical ? t >= sheet.rowCount : t >= sheet.colCount) break;
@@ -7941,9 +8069,10 @@ function applyFill(g, src, ext) {
           next.formula = vertical
             ? shiftFormulaRelative(srcCell.formula, t - (srcLo + si), 0)
             : shiftFormulaRelative(srcCell.formula, 0, t - (srcLo + si));
-        } else if (step != null) {
-          next.value = String(_fFloat(nums[srcLen - 1] + step * k));
-          next.type = "number";
+        } else if (seriesVals) {
+          next.value = seriesVals[k - 1].value;
+          next.type = seriesVals[k - 1].type;
+          next.formula = null; next.computed = null; next.err = null;
         }
       }
       changes.push(vertical ? { r: t, c: lane, cell: next } : { r: lane, c: t, cell: next });
@@ -9176,6 +9305,12 @@ function startEdit(g, r, c, initial) {
   input.addEventListener("keydown", (e) => {
     e.stopPropagation();
     const ed2 = g.editing;
+    if (e.key === "F4") { // cycle $-anchoring of the reference under the caret
+      e.preventDefault();
+      const res = cycleRefAnchor(input.value, input.selectionStart ?? input.value.length);
+      if (res) { input.value = res.text; input.setSelectionRange(res.caret, res.caret); if (ed2) ed2.enterMode = false; input.dispatchEvent(new Event("input")); }
+      return;
+    }
     if (e.key === "Tab" && g.els.fxpop && !g.els.fxpop.hidden && g.fxWord) {
       e.preventDefault();
       const first = g.els.fxpop.querySelector("[data-fx]");
@@ -9212,7 +9347,8 @@ function startEdit(g, r, c, initial) {
       }
       return; // edit mode: arrows move the caret
     }
-    if (e.key === "Enter") { e.preventDefault(); commitEdit(g, e.shiftKey ? -1 : 1, 0); }
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitEdit(g, 0, 0, { fillSelection: true }); }
+    else if (e.key === "Enter") { e.preventDefault(); commitEdit(g, e.shiftKey ? -1 : 1, 0); }
     else if (e.key === "Tab") { e.preventDefault(); commitEdit(g, 0, e.shiftKey ? -1 : 1); }
     else if (e.key === "Escape") {
       e.preventDefault();
@@ -9255,7 +9391,19 @@ function commitEdit(g, dr, dc, opts) {
       return;
     }
     if (!v.ok) _toast(v.msg, "warn");
-    setCells(g, [{ r: ed.r, c: ed.c, cell: nextCell }]);
+    if (opts && opts.fillSelection) {
+      // Ctrl+Enter: commit the typed value to every cell in the selection
+      const { r0, c0, r1, c1 } = selRect(g);
+      const changes = [];
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+        let cell = nextCell ? { ...nextCell, format: nextCell.format ? { ...nextCell.format } : {} } : null;
+        if (cell && cell.formula) { cell.formula = shiftFormulaRelative(nextCell.formula, r - ed.r, c - ed.c); cell.computed = null; cell.err = null; }
+        changes.push({ r, c, cell });
+      }
+      setCells(g, changes);
+    } else {
+      setCells(g, [{ r: ed.r, c: ed.c, cell: nextCell }]);
+    }
   }
   if (!opts || opts.refocus !== false) g.els.grid.focus();
   if (dr || dc) moveActive(g, dr, dc, false);
@@ -14920,6 +15068,8 @@ function bindGridEvents(g) {
     // double-click a column divider → autofit that column (Excel)
     const rz = e.target.closest("[data-wb-rzcol]");
     if (rz && WB.canEdit) { const c = +rz.getAttribute("data-wb-rzcol"); autofitColumns(g, c, c); return; }
+    // double-click the fill handle → fill down to the extent of adjacent data
+    if (e.target.closest("[data-wb-fillhandle]") && WB.canEdit) { fillHandleToExtent(g); return; }
     const cell = e.target.closest(".wb-cell");
     if (!cell || !WB.canEdit) return;
     const r = +cell.getAttribute("data-r"), c = +cell.getAttribute("data-c");
@@ -15019,6 +15169,12 @@ function bindGridEvents(g) {
     if (meta && k === "`") { e.preventDefault(); g.showFormulas = !g.showFormulas; repaintGrid(g); return; } // View → Show → Formulas
     if (meta && (k === "f" || k === "F")) { e.preventDefault(); openFindPanel(g, false); return; }
     if (meta && (k === "h" || k === "H")) { e.preventDefault(); if (WB.canEdit) openFindPanel(g, true); return; }
+    if (meta && !e.shiftKey && (k === "d" || k === "D")) { e.preventDefault(); fillWithinSelection(g, "down"); return; }  // fill down
+    if (meta && !e.shiftKey && (k === "r" || k === "R")) { e.preventDefault(); fillWithinSelection(g, "right"); return; } // fill right
+    if (meta && (k === "Enter")) { e.preventDefault(); fillSelectionWithActive(g); return; } // fill selection with the active cell
+    if (meta && (k === ";" || k === ":")) { e.preventDefault(); insertTodayDate(g); return; } // insert today's date
+    if (meta && e.shiftKey && (k === "l" || k === "L")) { e.preventDefault(); toggleFilterMode(g); return; } // toggle filter
+    if (meta && (k === "/" )) { e.preventDefault(); showShortcutsHelp(); return; } // shortcuts help
     if (meta && k.startsWith("Arrow")) {
       e.preventDefault();
       const dir = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[k];
@@ -18325,6 +18481,7 @@ function fillDriverAction(g, driverId, act) {
 
 export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
+  fillSeries, cycleRefAnchor,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, solveGoalSeek,
