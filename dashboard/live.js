@@ -23,8 +23,13 @@ window.RR = { sb, user: null, dsp: null };
 // Reports Builder — launched from the app-launcher Reports button; the
 // workbook-creation dependency is injected here so reports.js never
 // imports workbook.js directly (avoids a second module instance via a
-// mismatched ?v= specifier).
-initReportsBuilder({ createReportWorkbook });
+// mismatched ?v= specifier). evalPolicy hands the attendance report the
+// same normalized block policy the Attendance screen scores with —
+// function declarations hoist, so referencing _evalPolicy here is safe.
+initReportsBuilder({
+  createReportWorkbook,
+  evalPolicy: () => (typeof _evalPolicy === "function" ? _evalPolicy() : null),
+});
 registerReportProvider(buildReportData);
 registerReportsScreen(renderReportsInto);
 // Sheet-to-Schedule (workbook "Build Schedule from Sheet"): hand the

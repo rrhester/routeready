@@ -143,6 +143,16 @@ const RB_ATT_FIELDS = {
   onTimePct: { label: "On-Time %", map: (a) => pctText(a.onTimePct) },
   lateRate: { label: "Late %", map: (a) => pctText(a.latePct) },
   absenceRate: { label: "Absence %", map: (a) => pctText(a.absencePct) },
+  // Policy & points — always computed over the policy's rolling decay
+  // window (not the report period), so they match the Attendance screen.
+  policyPoints: { label: "Points", map: (a) => (a.policyPoints == null ? DASH : a.policyPoints) },
+  policyOccurrences: { label: "Occurrences", map: (a) => (a.policyOccurrences == null ? DASH : a.policyOccurrences) },
+  policyStanding: { label: "Standing", map: (a) => a.policyStanding || DASH },
+  pointsToNext: { label: "Pts to Next", map: (a) => (a.pointsToNext == null ? DASH : a.pointsToNext) },
+  nextStep: { label: "Next Step", map: (a) => a.nextStep || DASH },
+  pointsBreakdown: { label: "Points Breakdown", map: (a) => a.pointsBreakdown || DASH },
+  expiringPoints: { label: "Expiring Soon", map: (a) => (a.expiringPoints == null ? DASH : a.expiringPoints) },
+  nextDecayDate: { label: "Next Decay", map: (a) => a.nextDecayDate || DASH },
   // Exceptions
   totalExceptions: { label: "Exceptions", map: (a) => a.totalExceptions },
   noShows: { label: "No-Shows", map: (a) => a.noShow },
@@ -175,6 +185,7 @@ const RB_ATT_GROUPS = [
   { label: "Driver", keys: ["attDriverName", "attDriverStatus", "attStation", "attHireDate", "attTenure"] },
   { label: "Shift counts", keys: ["scheduled", "worked", "onTime", "hoursScheduled", "hoursWorked"] },
   { label: "Rates", keys: ["completion", "onTimePct", "lateRate", "absenceRate"] },
+  { label: "Policy & points", keys: ["policyPoints", "policyOccurrences", "policyStanding", "pointsToNext", "nextStep", "pointsBreakdown", "expiringPoints", "nextDecayDate"] },
   { label: "Exceptions", keys: ["totalExceptions", "noShows", "callOffs", "lates", "vto", "excused"] },
   { label: "Exception history", keys: ["lastException", "lastExceptionType", "lastNoShow", "lastCallOff", "lastLate", "exceptionDay"] },
   { label: "Streaks & trend", keys: ["currentStreak", "bestStreak", "trend", "perfect"] },
@@ -193,6 +204,14 @@ const RB_ATT_PICKER_LABEL = {
   onTimePct: "On-Time %",
   lateRate: "Late %",
   absenceRate: "Absence %",
+  policyPoints: "Policy Points (rolling)",
+  policyOccurrences: "Counted Occurrences",
+  policyStanding: "Policy Standing",
+  pointsToNext: "Points to Next Step",
+  nextStep: "Next Ladder Step",
+  pointsBreakdown: "Points Breakdown",
+  expiringPoints: "Points Expiring in 14 Days",
+  nextDecayDate: "Next Points Decay Date",
   totalExceptions: "Total Exceptions",
   vto: "VTO (Voluntary Time Off)",
   excused: "Excused Absences",
@@ -211,8 +230,8 @@ const RB_ATT_PICKER_LABEL = {
 // One-click starting points: a light standing report, the classic summary,
 // the whole catalog, or a blank slate to build from scratch.
 const RB_ATT_PRESETS = [
-  ["light", "Light", ["attDriverName", "completion", "totalExceptions", "attRisk"]],
-  ["standard", "Standard", ["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "attRisk"]],
+  ["light", "Light", ["attDriverName", "completion", "policyPoints", "policyStanding", "attRisk"]],
+  ["standard", "Standard", ["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "policyPoints", "policyStanding", "attRisk"]],
   ["full", "Everything", RB_ATT_ORDER],
   ["none", "Clear", []],
 ];
@@ -232,7 +251,7 @@ const RB_CATEGORIES = [
 const RB_REPORTS = [
   { id: "custom-people", category: "people", source: "people", title: "People Report", description: "Choose the fields to include. The report updates as you pick.", fields: [], custom: true },
   { id: "custom-schedule", category: "schedule", source: "schedule", title: "Schedule Report", description: "One row per shift for the period — open shifts show as “Open”.", fields: [], custom: true },
-  { id: "custom-attendance", category: "attendance", source: "attendance", title: "Attendance Report", description: "Per-driver attendance over the period — start from a quick pick, then add or remove any field. Excused shifts and VTO never count against a driver.", fields: [], custom: true },
+  { id: "custom-attendance", category: "attendance", source: "attendance", title: "Attendance Report", description: "Per-driver attendance — points, standing, and decay follow your attendance policy's rolling window no matter which period you pick. Excused shifts and VTO never count against a driver.", fields: [], custom: true },
 ];
 
 // Per-source wiring: field catalog, picker order, and the data fetch.
@@ -246,7 +265,7 @@ const RB_SOURCES = {
   attendance: {
     fields: RB_ATT_FIELDS, order: RB_ATT_ORDER, groups: RB_ATT_GROUPS, presets: RB_ATT_PRESETS,
     pickerLabels: RB_ATT_PICKER_LABEL, noun: ["driver", "drivers"],
-    ranges: [["7", "Last 7 days"], ["14", "Last 14 days"], ["30", "Last 30 days"], ["60", "Last 60 days"], ["90", "Last 90 days"]],
+    ranges: [["policy", "Policy window (rolling decay)"], ["7", "Last 7 days"], ["14", "Last 14 days"], ["30", "Last 30 days"], ["60", "Last 60 days"], ["90", "Last 90 days"]],
   },
 };
 
@@ -262,9 +281,9 @@ const RB = {
   sel: {
     people: new Set(["driverName", "phoneNumber", "email", "status"]),
     schedule: new Set(["date", "schedDriverName", "routeCode", "startTime", "shiftStatus"]),
-    attendance: new Set(["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "attRisk"]),
+    attendance: new Set(["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "policyPoints", "policyStanding", "attRisk"]),
   },
-  range: { schedule: "week", attendance: "30" },
+  range: { schedule: "week", attendance: "policy" },
   live: true,        // live-updating workbook vs point-in-time snapshot
 };
 
@@ -404,13 +423,36 @@ const ATT_POLICY_COACH_SOURCES = new Set(["auto_accrual", "attendance_decide", "
 const ATT_SEV_LABEL = { verbal: "Verbal", concern: "Concern", written: "Written", warning: "Warning", final: "Final", termination: "Termination" };
 const ATT_EXCEPTION_LABEL = { late: "Late", no_show: "No-Show", called_off: "Call-Off" };
 
+// Highest ladder rung whose threshold the driver's points have reached —
+// same walk as live.js's _evalLadderRung (ladder arrives sorted ascending).
+function attLadderRung(ladder, points) {
+  let rung = null;
+  for (const r of (ladder || [])) {
+    if (points >= r.threshold) rung = r;
+    else break;
+  }
+  return rung;
+}
+
 async function fetchAttendanceData(range, force) {
-  const days = Math.max(1, parseInt(range, 10) || 30);
-  const key = "attendance|" + days;
+  // The normalized attendance policy (injected by live.js). Points,
+  // standing, and decay fields all derive from it; when it's not
+  // available those fields render as "—" and the window falls back to 90d.
+  const EVAL = typeof RB.deps.evalPolicy === "function" ? (RB.deps.evalPolicy() || null) : null;
+  const decayDays = EVAL && Number(EVAL.decay_days) > 0 ? Number(EVAL.decay_days) : 90;
+  const days = range === "policy" ? decayDays : Math.max(1, parseInt(range, 10) || 30);
+  const key = "attendance|" + (range === "policy" ? "policy" : days) + "|" + decayDays;
   if (!force && RB.cache.has(key)) return RB.cache.get(key);
   const sb = _sb(), dsp = _dsp();
   if (!sb || !dsp) throw new Error("no session");
-  const from = new Date(); from.setDate(from.getDate() - (days - 1));
+  // Fetch the wider of the two windows: report counters use the picked
+  // period, rolling points always use the policy decay window.
+  const fetchDays = Math.max(days, decayDays);
+  const from = new Date(); from.setDate(from.getDate() - (fetchDays - 1));
+  const reportFrom = new Date(); reportFrom.setDate(reportFrom.getDate() - (days - 1));
+  const reportFromIso = isoDay(reportFrom);
+  const decayFrom = new Date(); decayFrom.setDate(decayFrom.getDate() - (decayDays - 1));
+  const decayFromIso = isoDay(decayFrom);
   const [drv, shifts, dec, coach] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, preferred_name, status, hire_date, station:station_id (code)")
@@ -439,7 +481,7 @@ async function fetchAttendanceData(range, force) {
       .eq("topic", "attendance")
       .eq("driver_visible", true)
       .is("archived_at", null)
-      .gte("occurred_at", from.toISOString())
+      .gte("occurred_at", reportFrom.toISOString())
       .order("occurred_at", { ascending: false })
       .limit(5000)
       .then((r) => r, () => ({ data: [] })),
@@ -461,7 +503,18 @@ async function fetchAttendanceData(range, force) {
   // Trend halves: recent half = the last ceil(days/2) days of the window.
   const mid = new Date(); mid.setDate(mid.getDate() - (Math.ceil(days / 2) - 1));
   const midIso = isoDay(mid);
-  const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // Per-event point values from the policy. A kind with no Event block
+  // (or 0 points) is logged but never scores — same as the live screen.
+  const PTS = {
+    late: EVAL && EVAL.events.late ? Number(EVAL.events.late.points) || 0 : 0,
+    called_off: EVAL && EVAL.events.callout ? Number(EVAL.events.callout.points) || 0 : 0,
+    no_show: EVAL && EVAL.events.no_show ? Number(EVAL.events.no_show.points) || 0 : 0,
+  };
+  // An event's points fall off decayDays after its date; "expiring soon"
+  // means within the next 14 days.
+  const expireCutoff = new Date(); expireCutoff.setDate(expireCutoff.getDate() - (decayDays - 14));
+  const expireCutoffIso = isoDay(expireCutoff);
 
   const blank = () => ({
     scheduled: 0, worked: 0, onTime: 0, late: 0, noShow: 0, callOff: 0, vto: 0, excused: 0,
@@ -470,6 +523,8 @@ async function fetchAttendanceData(range, force) {
     dayCounts: [0, 0, 0, 0, 0, 0, 0],
     run: 0, bestStreak: 0,
     oldWorked: 0, oldCountable: 0, newWorked: 0, newCountable: 0,
+    points: 0, occ: 0, expiring: 0, oldestCounted: null,
+    pLate: 0, pCallOff: 0, pNoShow: 0,
   });
   const agg = new Map();
   for (const sh of (shifts.data || [])) { // rows arrive date-ascending
@@ -477,12 +532,25 @@ async function fetchAttendanceData(range, force) {
     let a = agg.get(sh.driver_id);
     if (!a) { a = blank(); agg.set(sh.driver_id, a); }
     const hrs = Number(sh.block_hours) || 0;
-    a.scheduled++;
-    a.hoursScheduled += hrs;
+    const inReport = sh.date >= reportFromIso;
+    if (inReport) { a.scheduled++; a.hoursScheduled += hrs; }
     // Excused and VTO count toward volume only — they never touch rates,
-    // exception counters, or the clean streak.
-    if (excusedIds.has(sh.id)) { a.excused++; continue; }
-    if (sh.status === "vto") { a.vto++; continue; }
+    // exception counters, points, or the clean streak.
+    if (excusedIds.has(sh.id)) { if (inReport) a.excused++; continue; }
+    if (sh.status === "vto") { if (inReport) a.vto++; continue; }
+    // Rolling points over the policy decay window, independent of the
+    // report period.
+    const pts = PTS[sh.status] || 0;
+    if (EVAL && pts > 0 && sh.date >= decayFromIso) {
+      a.points += pts;
+      a.occ++;
+      if (sh.date <= expireCutoffIso) a.expiring += pts;
+      if (!a.oldestCounted) a.oldestCounted = sh.date; // ascending order
+      if (sh.status === "late") a.pLate++;
+      else if (sh.status === "called_off") a.pCallOff++;
+      else if (sh.status === "no_show") a.pNoShow++;
+    }
+    if (!inReport) continue;
     const workedShift = sh.status === "completed" || sh.status === "late";
     if (sh.date >= midIso) { a.newCountable++; if (workedShift) a.newWorked++; }
     else { a.oldCountable++; if (workedShift) a.oldWorked++; }
@@ -527,6 +595,41 @@ async function fetchAttendanceData(range, force) {
     for (const i of MON_FIRST) {
       if (a.dayCounts[i] > exceptionDayMax) { exceptionDayMax = a.dayCounts[i]; exceptionDay = DAY_LABEL[["sun", "mon", "tue", "wed", "thu", "fri", "sat"][i]]; }
     }
+    // Policy standing from the rolling point total — ladder walk, then the
+    // first-30 strict rule, mirroring the live Attendance screen.
+    let policyPoints = null, policyOccurrences = null, policyStanding = null,
+      pointsToNext = null, nextStep = null, pointsBreakdown = null,
+      expiringPoints = null, nextDecayDate = null;
+    if (EVAL) {
+      policyPoints = a.points;
+      policyOccurrences = a.occ;
+      expiringPoints = a.expiring;
+      if (a.oldestCounted) {
+        const dd = new Date(a.oldestCounted + "T00:00:00");
+        if (!isNaN(dd)) { dd.setDate(dd.getDate() + decayDays); nextDecayDate = isoDay(dd); }
+      }
+      const parts = [];
+      if (a.pLate) parts.push(`${a.pLate} late × ${PTS.late}`);
+      if (a.pCallOff) parts.push(`${a.pCallOff} call-off × ${PTS.called_off}`);
+      if (a.pNoShow) parts.push(`${a.pNoShow} no-show × ${PTS.no_show}`);
+      pointsBreakdown = parts.join(" · ") || null;
+      if (!EVAL.enabled) {
+        policyStanding = "Policy off";
+      } else {
+        const rung = attLadderRung(EVAL.ladder, a.points);
+        policyStanding = rung ? (ATT_SEV_LABEL[rung.severity] || cap(rung.severity)) : "Clear";
+        if (EVAL.first_30 && EVAL.first_30.active && p.hire_date && a.occ > 0 &&
+            (policyStanding === "Clear" || policyStanding === "Verbal")) {
+          const sinceHire = Math.floor((Date.now() - new Date(p.hire_date + "T12:00:00").getTime()) / 86400000);
+          if (sinceHire >= 0 && sinceHire <= (EVAL.first_30.days || 30)) policyStanding = "Written · 1st 30";
+        }
+        const next = (EVAL.ladder || []).find((r) => r.threshold > a.points);
+        if (next) {
+          pointsToNext = next.threshold - a.points;
+          nextStep = ATT_SEV_LABEL[next.severity] || cap(next.severity);
+        }
+      }
+    }
     const co = coachBy.get(p.id) || { n: 0, last: null, lastSev: null };
     return {
       name: p.preferred_name || p.full_name || DASH,
@@ -549,10 +652,14 @@ async function fetchAttendanceData(range, force) {
       trend,
       perfect: countable ? (a.noShow + a.callOff + a.late === 0 ? "Yes" : "No") : DASH,
       risk,
+      policyPoints, policyOccurrences, policyStanding, pointsToNext, nextStep,
+      pointsBreakdown, expiringPoints, nextDecayDate,
       coachings: co.n, lastCoachingDate: co.last, lastCoachingSeverity: co.lastSev,
     };
   });
-  rows.sort((x, y) => (RANK[x.risk] - RANK[y.risk]) || x.name.localeCompare(y.name));
+  // Highest rolling points first (the Attendance screen's default), then
+  // risk, then name — so the report leads with who needs attention.
+  rows.sort((x, y) => ((y.policyPoints || 0) - (x.policyPoints || 0)) || (RANK[x.risk] - RANK[y.risk]) || x.name.localeCompare(y.name));
   RB.cache.set(key, rows);
   return rows;
 }
