@@ -721,6 +721,16 @@ select.field{
   transition:background 140ms var(--ease-out), color 140ms var(--ease-out);
 }
 .scan-size-opt.on{background:var(--accent);color:#fff}
+.scan-ocr-row{
+  display:flex;align-items:center;gap:12px;justify-content:space-between;
+  margin:0 2px 14px;padding:12px 14px;cursor:pointer;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);
+  box-shadow:var(--shadow-card);
+}
+.scan-ocr-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.scan-ocr-title{font-size:var(--fs-base);font-weight:600;color:var(--text)}
+.scan-ocr-sub{font-size:11px;color:var(--text-subtle);line-height:1.4;font-weight:500}
+.scan-ocr-check{width:22px;height:22px;flex-shrink:0;accent-color:var(--accent);cursor:pointer}
 
 /* Page editor overlay (crop + enhance) */
 body.scan-editing{overflow:hidden}
