@@ -116,21 +116,106 @@ const RB_SCHED_FIELDS = {
 const RB_SCHED_ORDER = ["date", "day", "schedDriverName", "routeCode", "startTime", "endTime", "blockHours", "shiftStatus", "shiftNotes"];
 
 // ─── Attendance report fields ────────────────────────────────────────────────
-// Mappers receive a per-driver aggregate from fetchAttendanceData.
+// Mappers receive a per-driver aggregate from fetchAttendanceData. The catalog
+// is deliberately wide — the owner picks four fields for a light standing
+// report or everything for a full attendance-file dump. Semantics mirror the
+// live Attendance screen: excused shifts (a "deny" attendance decision) are
+// stripped from every counter, VTO never counts against the driver, and
+// coaching fields only count policy-produced attendance coachings.
+
+const pctText = (v) => (v == null ? DASH : v + "%");
 
 const RB_ATT_FIELDS = {
+  // Driver
   attDriverName: { label: "Driver", map: (a) => a.name },
   attDriverStatus: { label: "Driver Status", map: (a) => a.driverStatus },
-  scheduled: { label: "Scheduled", map: (a) => a.eligible },
+  attStation: { label: "Station", map: (a) => a.station },
+  attHireDate: { label: "Hire Date", map: (a) => a.hireDate || DASH },
+  attTenure: { label: "Tenure", map: (a) => a.tenure },
+  // Shift counts
+  scheduled: { label: "Scheduled", map: (a) => a.scheduled },
   worked: { label: "Worked", map: (a) => a.worked },
-  completion: { label: "Attendance %", map: (a) => (a.pct == null ? DASH : a.pct + "%") },
+  onTime: { label: "On Time", map: (a) => a.onTime },
+  hoursScheduled: { label: "Scheduled Hrs", map: (a) => a.hoursScheduled },
+  hoursWorked: { label: "Worked Hrs", map: (a) => a.hoursWorked },
+  // Rates
+  completion: { label: "Attendance %", map: (a) => pctText(a.pct) },
+  onTimePct: { label: "On-Time %", map: (a) => pctText(a.onTimePct) },
+  lateRate: { label: "Late %", map: (a) => pctText(a.latePct) },
+  absenceRate: { label: "Absence %", map: (a) => pctText(a.absencePct) },
+  // Exceptions
+  totalExceptions: { label: "Exceptions", map: (a) => a.totalExceptions },
   noShows: { label: "No-Shows", map: (a) => a.noShow },
   callOffs: { label: "Call-Offs", map: (a) => a.callOff },
   lates: { label: "Lates", map: (a) => a.late },
-  attRisk: { label: "Risk Level", map: (a) => a.risk },
+  vto: { label: "VTO", map: (a) => a.vto },
+  excused: { label: "Excused", map: (a) => a.excused },
+  // Exception history
   lastException: { label: "Last Exception", map: (a) => a.lastException || DASH },
+  lastExceptionType: { label: "Last Exception Type", map: (a) => a.lastExceptionType || DASH },
+  lastNoShow: { label: "Last No-Show", map: (a) => a.lastNoShow || DASH },
+  lastCallOff: { label: "Last Call-Off", map: (a) => a.lastCallOff || DASH },
+  lastLate: { label: "Last Late", map: (a) => a.lastLate || DASH },
+  exceptionDay: { label: "Top Exception Day", map: (a) => a.exceptionDay || DASH },
+  // Streaks & trend
+  currentStreak: { label: "Clean Streak", map: (a) => (a.countable ? a.currentStreak : DASH) },
+  bestStreak: { label: "Best Streak", map: (a) => (a.countable ? a.bestStreak : DASH) },
+  trend: { label: "Trend", map: (a) => a.trend },
+  perfect: { label: "Perfect", map: (a) => a.perfect },
+  // Risk & coaching
+  attRisk: { label: "Risk Level", map: (a) => a.risk },
+  coachingCount: { label: "Coachings", map: (a) => a.coachings },
+  lastCoachingDate: { label: "Last Coaching", map: (a) => a.lastCoachingDate || DASH },
+  lastCoachingSeverity: { label: "Coaching Level", map: (a) => a.lastCoachingSeverity || DASH },
 };
-const RB_ATT_ORDER = ["attDriverName", "attDriverStatus", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "attRisk", "lastException"];
+
+// Picker groups — rendered as sections so 33 checkboxes stay scannable.
+// Column order in the sheet follows this same order.
+const RB_ATT_GROUPS = [
+  { label: "Driver", keys: ["attDriverName", "attDriverStatus", "attStation", "attHireDate", "attTenure"] },
+  { label: "Shift counts", keys: ["scheduled", "worked", "onTime", "hoursScheduled", "hoursWorked"] },
+  { label: "Rates", keys: ["completion", "onTimePct", "lateRate", "absenceRate"] },
+  { label: "Exceptions", keys: ["totalExceptions", "noShows", "callOffs", "lates", "vto", "excused"] },
+  { label: "Exception history", keys: ["lastException", "lastExceptionType", "lastNoShow", "lastCallOff", "lastLate", "exceptionDay"] },
+  { label: "Streaks & trend", keys: ["currentStreak", "bestStreak", "trend", "perfect"] },
+  { label: "Risk & coaching", keys: ["attRisk", "coachingCount", "lastCoachingDate", "lastCoachingSeverity"] },
+];
+const RB_ATT_ORDER = RB_ATT_GROUPS.flatMap((g) => g.keys);
+
+const RB_ATT_PICKER_LABEL = {
+  attDriverName: "Driver Name",
+  scheduled: "Scheduled Shifts",
+  worked: "Worked Shifts",
+  onTime: "On-Time Shifts (no lates)",
+  hoursScheduled: "Scheduled Hours",
+  hoursWorked: "Worked Hours",
+  completion: "Attendance %",
+  onTimePct: "On-Time %",
+  lateRate: "Late %",
+  absenceRate: "Absence %",
+  totalExceptions: "Total Exceptions",
+  vto: "VTO (Voluntary Time Off)",
+  excused: "Excused Absences",
+  lastException: "Last Exception Date",
+  exceptionDay: "Most Common Exception Day",
+  currentStreak: "Current Clean Streak",
+  bestStreak: "Longest Clean Streak",
+  trend: "Attendance Trend",
+  perfect: "Perfect Attendance",
+  attRisk: "Attendance Risk",
+  coachingCount: "Attendance Coachings",
+  lastCoachingDate: "Last Coaching Date",
+  lastCoachingSeverity: "Last Coaching Severity",
+};
+
+// One-click starting points: a light standing report, the classic summary,
+// the whole catalog, or a blank slate to build from scratch.
+const RB_ATT_PRESETS = [
+  ["light", "Light", ["attDriverName", "completion", "totalExceptions", "attRisk"]],
+  ["standard", "Standard", ["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "attRisk"]],
+  ["full", "Everything", RB_ATT_ORDER],
+  ["none", "Clear", []],
+];
 
 // ─── Report catalog ──────────────────────────────────────────────────────────
 
@@ -147,7 +232,7 @@ const RB_CATEGORIES = [
 const RB_REPORTS = [
   { id: "custom-people", category: "people", source: "people", title: "People Report", description: "Choose the fields to include. The report updates as you pick.", fields: [], custom: true },
   { id: "custom-schedule", category: "schedule", source: "schedule", title: "Schedule Report", description: "One row per shift for the period — open shifts show as “Open”.", fields: [], custom: true },
-  { id: "custom-attendance", category: "attendance", source: "attendance", title: "Attendance Report", description: "Per-driver attendance over the period, counted from completed, late, no-show, and called-off shifts.", fields: [], custom: true },
+  { id: "custom-attendance", category: "attendance", source: "attendance", title: "Attendance Report", description: "Per-driver attendance over the period — start from a quick pick, then add or remove any field. Excused shifts and VTO never count against a driver.", fields: [], custom: true },
 ];
 
 // Per-source wiring: field catalog, picker order, and the data fetch.
@@ -159,8 +244,9 @@ const RB_SOURCES = {
     ranges: [["week", "This week (Mon–Sun)"], ["today", "Today"], ["next7", "Next 7 days"], ["last7", "Last 7 days"]],
   },
   attendance: {
-    fields: RB_ATT_FIELDS, order: RB_ATT_ORDER, pickerLabels: {}, noun: ["driver", "drivers"],
-    ranges: [["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"]],
+    fields: RB_ATT_FIELDS, order: RB_ATT_ORDER, groups: RB_ATT_GROUPS, presets: RB_ATT_PRESETS,
+    pickerLabels: RB_ATT_PICKER_LABEL, noun: ["driver", "drivers"],
+    ranges: [["7", "Last 7 days"], ["14", "Last 14 days"], ["30", "Last 30 days"], ["60", "Last 60 days"], ["90", "Last 90 days"]],
   },
 };
 
@@ -311,6 +397,13 @@ async function fetchScheduleData(range, force) {
   return rows;
 }
 
+// Coachings count only when the attendance policy produced them — same
+// filter as the live Attendance screen (triggering shift stamped, or a
+// policy source tag from the approval auto-fire / report send / backfill).
+const ATT_POLICY_COACH_SOURCES = new Set(["auto_accrual", "attendance_decide", "report"]);
+const ATT_SEV_LABEL = { verbal: "Verbal", concern: "Concern", written: "Written", warning: "Warning", final: "Final", termination: "Termination" };
+const ATT_EXCEPTION_LABEL = { late: "Late", no_show: "No-Show", called_off: "Call-Off" };
+
 async function fetchAttendanceData(range, force) {
   const days = Math.max(1, parseInt(range, 10) || 30);
   const key = "attendance|" + days;
@@ -318,43 +411,146 @@ async function fetchAttendanceData(range, force) {
   const sb = _sb(), dsp = _dsp();
   if (!sb || !dsp) throw new Error("no session");
   const from = new Date(); from.setDate(from.getDate() - (days - 1));
-  const [drv, shifts] = await Promise.all([
+  const [drv, shifts, dec, coach] = await Promise.all([
     sb.from("drivers")
-      .select("id, full_name, preferred_name, status")
+      .select("id, full_name, preferred_name, status, hire_date, station:station_id (code)")
       .eq("dsp_id", dsp.id)
       .neq("status", "terminated")
       .order("full_name")
       .limit(1000),
     sb.from("shifts")
-      .select("driver_id, status, date")
+      .select("id, driver_id, status, date, block_hours")
       .eq("dsp_id", dsp.id)
-      .in("status", ["completed", "late", "no_show", "called_off"])
+      .in("status", ["completed", "late", "no_show", "called_off", "vto"])
       .gte("date", isoDay(from))
+      .order("date")
       .limit(20000),
+    // Operator "deny" decisions = excused shifts; strip from every counter.
+    sb.from("attendance_decisions")
+      .select("shift_id")
+      .eq("dsp_id", dsp.id)
+      .eq("decision", "deny")
+      .gte("created_at", from.toISOString())
+      .limit(5000)
+      .then((r) => r, () => ({ data: [] })),
+    sb.from("coachings")
+      .select("driver_id, severity, occurred_at, triggering_shift_id, metadata")
+      .eq("dsp_id", dsp.id)
+      .eq("topic", "attendance")
+      .eq("driver_visible", true)
+      .is("archived_at", null)
+      .gte("occurred_at", from.toISOString())
+      .order("occurred_at", { ascending: false })
+      .limit(5000)
+      .then((r) => r, () => ({ data: [] })),
   ]);
   if (drv.error) throw drv.error;
   if (shifts.error) throw shifts.error;
-  const agg = new Map();
-  for (const sh of shifts.data || []) {
-    if (!sh.driver_id) continue;
-    const a = agg.get(sh.driver_id) || { eligible: 0, worked: 0, noShow: 0, callOff: 0, late: 0, lastException: null };
-    a.eligible++;
-    if (sh.status === "completed" || sh.status === "late") a.worked++;
-    if (sh.status === "no_show") a.noShow++;
-    if (sh.status === "called_off") a.callOff++;
-    if (sh.status === "late") a.late++;
-    if (sh.status !== "completed" && (!a.lastException || sh.date > a.lastException)) a.lastException = sh.date;
-    agg.set(sh.driver_id, a);
+
+  const excusedIds = new Set((dec.data || []).map((d) => d.shift_id));
+
+  const coachBy = new Map(); // driver_id → { n, last, lastSev } (rows arrive newest-first)
+  for (const c of (coach.data || [])) {
+    if (c.triggering_shift_id == null && !ATT_POLICY_COACH_SOURCES.has(c.metadata && c.metadata.source)) continue;
+    const a = coachBy.get(c.driver_id) || { n: 0, last: null, lastSev: null };
+    a.n++;
+    if (!a.last) { a.last = String(c.occurred_at || "").slice(0, 10); a.lastSev = ATT_SEV_LABEL[c.severity] || cap(c.severity) || null; }
+    coachBy.set(c.driver_id, a);
   }
+
+  // Trend halves: recent half = the last ceil(days/2) days of the window.
+  const mid = new Date(); mid.setDate(mid.getDate() - (Math.ceil(days / 2) - 1));
+  const midIso = isoDay(mid);
+  const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const blank = () => ({
+    scheduled: 0, worked: 0, onTime: 0, late: 0, noShow: 0, callOff: 0, vto: 0, excused: 0,
+    hoursScheduled: 0, hoursWorked: 0,
+    lastException: null, lastExceptionType: null, lastNoShow: null, lastCallOff: null, lastLate: null,
+    dayCounts: [0, 0, 0, 0, 0, 0, 0],
+    run: 0, bestStreak: 0,
+    oldWorked: 0, oldCountable: 0, newWorked: 0, newCountable: 0,
+  });
+  const agg = new Map();
+  for (const sh of (shifts.data || [])) { // rows arrive date-ascending
+    if (!sh.driver_id) continue;
+    let a = agg.get(sh.driver_id);
+    if (!a) { a = blank(); agg.set(sh.driver_id, a); }
+    const hrs = Number(sh.block_hours) || 0;
+    a.scheduled++;
+    a.hoursScheduled += hrs;
+    // Excused and VTO count toward volume only — they never touch rates,
+    // exception counters, or the clean streak.
+    if (excusedIds.has(sh.id)) { a.excused++; continue; }
+    if (sh.status === "vto") { a.vto++; continue; }
+    const workedShift = sh.status === "completed" || sh.status === "late";
+    if (sh.date >= midIso) { a.newCountable++; if (workedShift) a.newWorked++; }
+    else { a.oldCountable++; if (workedShift) a.oldWorked++; }
+    if (workedShift) {
+      a.worked++;
+      a.hoursWorked += hrs;
+      if (sh.status === "completed") a.onTime++;
+      a.run++;
+      if (a.run > a.bestStreak) a.bestStreak = a.run;
+    } else {
+      a.run = 0; // an absence breaks the clean streak; a late doesn't
+    }
+    if (sh.status !== "completed") {
+      a.lastException = sh.date;
+      a.lastExceptionType = ATT_EXCEPTION_LABEL[sh.status] || cap(sh.status);
+      const d = new Date(sh.date + "T00:00:00");
+      if (!isNaN(d)) a.dayCounts[d.getDay()]++;
+      if (sh.status === "late") a.lastLate = sh.date;
+      else if (sh.status === "no_show") { a.noShow++; a.lastNoShow = sh.date; }
+      else if (sh.status === "called_off") { a.callOff++; a.lastCallOff = sh.date; }
+    }
+    if (sh.status === "late") a.late++;
+  }
+
   // High/Medium/Low mirrors the roster risk model's attendance half
   const RANK = { High: 0, Medium: 1, Low: 2 };
+  const MON_FIRST = [1, 2, 3, 4, 5, 6, 0];
   const rows = (drv.data || []).map((p) => {
-    const a = agg.get(p.id) || { eligible: 0, worked: 0, noShow: 0, callOff: 0, late: 0, lastException: null };
-    const pct = a.eligible ? Math.round((a.worked / a.eligible) * 100) : null;
+    const a = agg.get(p.id) || blank();
+    const countable = a.worked + a.noShow + a.callOff;
+    const pct = countable ? Math.round((a.worked / countable) * 100) : null;
     let risk = "Low";
     if (a.noShow >= 1 || a.callOff >= 3) risk = "High";
     else if (a.callOff >= 1 || a.late >= 2 || (pct != null && pct < 85)) risk = "Medium";
-    return { name: p.preferred_name || p.full_name || DASH, driverStatus: cap(p.status) || DASH, ...a, pct, risk };
+    // Trend needs a real sample on both halves of the window.
+    let trend = DASH;
+    if (a.oldCountable >= 3 && a.newCountable >= 3) {
+      const diff = Math.round((a.newWorked / a.newCountable) * 100) - Math.round((a.oldWorked / a.oldCountable) * 100);
+      trend = diff >= 5 ? "Improving" : diff <= -5 ? "Slipping" : "Steady";
+    }
+    let exceptionDay = null, exceptionDayMax = 0;
+    for (const i of MON_FIRST) {
+      if (a.dayCounts[i] > exceptionDayMax) { exceptionDayMax = a.dayCounts[i]; exceptionDay = DAY_LABEL[["sun", "mon", "tue", "wed", "thu", "fri", "sat"][i]]; }
+    }
+    const co = coachBy.get(p.id) || { n: 0, last: null, lastSev: null };
+    return {
+      name: p.preferred_name || p.full_name || DASH,
+      driverStatus: cap(p.status) || DASH,
+      station: (p.station && p.station.code) || DASH,
+      hireDate: p.hire_date || null,
+      tenure: tenureText(p.hire_date),
+      scheduled: a.scheduled, worked: a.worked, onTime: a.onTime,
+      hoursScheduled: a.hoursScheduled, hoursWorked: a.hoursWorked,
+      countable, pct,
+      onTimePct: countable ? Math.round((a.onTime / countable) * 100) : null,
+      latePct: countable ? Math.round((a.late / countable) * 100) : null,
+      absencePct: countable ? Math.round(((a.noShow + a.callOff) / countable) * 100) : null,
+      totalExceptions: a.noShow + a.callOff + a.late,
+      noShow: a.noShow, callOff: a.callOff, late: a.late, vto: a.vto, excused: a.excused,
+      lastException: a.lastException, lastExceptionType: a.lastExceptionType,
+      lastNoShow: a.lastNoShow, lastCallOff: a.lastCallOff, lastLate: a.lastLate,
+      exceptionDay,
+      currentStreak: a.run, bestStreak: a.bestStreak,
+      trend,
+      perfect: countable ? (a.noShow + a.callOff + a.late === 0 ? "Yes" : "No") : DASH,
+      risk,
+      coachings: co.n, lastCoachingDate: co.last, lastCoachingSeverity: co.lastSev,
+    };
   });
   rows.sort((x, y) => (RANK[x.risk] - RANK[y.risk]) || x.name.localeCompare(y.name));
   RB.cache.set(key, rows);
@@ -462,6 +658,11 @@ export function renderReportsInto(container) {
   const renderCustomPanel = () => {
     const src = RB_SOURCES[RB.source];
     const sel = RB.sel[RB.source];
+    const fieldRow = (k) => `
+          <label class="rb-field-check">
+            <input type="checkbox" data-rb-field="${k}" ${sel.has(k) ? "checked" : ""}>
+            <span>${esc((src.pickerLabels && src.pickerLabels[k]) || src.fields[k].label)}</span>
+          </label>`;
     els.main.innerHTML = `
       <p class="rb-main-head">${esc(RB.report.title)}</p>
       <p class="rb-main-sub">${esc(RB.report.description)}</p>
@@ -472,12 +673,15 @@ export function renderReportsInto(container) {
           ${src.ranges.map(([v, label]) => `<option value="${v}" ${RB.range[RB.source] === v ? "selected" : ""}>${esc(label)}</option>`).join("")}
         </select>
       </label>` : ""}
+      ${src.presets ? `
+      <div class="rb-presets" role="group" aria-label="Quick picks">
+        <span class="rb-presets-label">Quick picks</span>
+        ${src.presets.map(([id, label]) => `<button type="button" class="rb-preset" data-rb-preset="${id}">${esc(label)}</button>`).join("")}
+      </div>` : ""}
       <div class="rb-fields">
-        ${src.order.map((k) => `
-          <label class="rb-field-check">
-            <input type="checkbox" data-rb-field="${k}" ${sel.has(k) ? "checked" : ""}>
-            <span>${esc((src.pickerLabels && src.pickerLabels[k]) || src.fields[k].label)}</span>
-          </label>`).join("")}
+        ${src.groups
+          ? src.groups.map((g) => `<p class="rb-field-group">${esc(g.label)}</p>` + g.keys.map(fieldRow).join("")).join("")
+          : src.order.map(fieldRow).join("")}
       </div>
       <p class="rb-main-head rb-live-head">Data updates</p>
       <div class="rb-live-opts">
@@ -619,6 +823,18 @@ export function renderReportsInto(container) {
   });
   wrap.addEventListener("click", (e) => {
     if (e.target.closest("[data-rb-retry]")) { renderPreview(true); return; }
+    const preset = e.target.closest("[data-rb-preset]");
+    if (preset) {
+      const src = RB_SOURCES[RB.source];
+      const p = (src.presets || []).find((x) => x[0] === preset.getAttribute("data-rb-preset"));
+      if (p) {
+        RB.sel[RB.source] = new Set(p[2]);
+        renderCustomPanel();
+        footState();
+        renderPreview();
+      }
+      return;
+    }
     const cat = e.target.closest("[data-rb-cat]");
     if (cat && !cat.disabled) {
       wrap.querySelectorAll(".rb-cat").forEach((b) => b.classList.toggle("is-active", b === cat));
