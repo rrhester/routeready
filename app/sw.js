@@ -13,11 +13,11 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-// v124 · Adds the on-device document scanner (Forms → Tools → Scan a
-// document): capture pages with the phone camera, combine into a PDF,
-// then send to dispatch or share/save. Bumped so installed driver PWAs
-// purge the old shell and pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v124";
+// v125 · Document scanner gains a page editor: per-page enhancement
+// filters (Color / Enhance / Grayscale / B&W document) and a crop step
+// with draggable corners + perspective dewarp, all on-device. Bumped so
+// installed driver PWAs purge the old shell and pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v125";
 const SHELL_FILES = [
   "./",
   "index.html",

@@ -649,18 +649,36 @@ select.field{
   border-radius:var(--r-card);line-height:1.5;
 }
 .scan-page-card{
-  display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-3);align-items:center;
+  display:grid;grid-template-columns:1fr auto;gap:var(--s-3);align-items:center;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);
   padding:10px 12px;box-shadow:var(--shadow-card);
 }
+.scan-open-edit{
+  display:flex;align-items:center;gap:var(--s-3);min-width:0;
+  background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:left;
+  font:inherit;color:inherit;transition:opacity 120ms var(--ease-out);
+}
+.scan-open-edit:active{opacity:.6}
 .scan-thumb{
+  position:relative;
   width:52px;height:66px;border-radius:var(--r-sm);overflow:hidden;flex-shrink:0;
   background:var(--canvas);border:1px solid var(--border);
 }
 .scan-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.scan-page-meta{min-width:0}
+.scan-thumb-edited{
+  position:absolute;right:3px;bottom:3px;width:18px;height:18px;border-radius:50%;
+  background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 3px rgba(0,0,0,.35);
+}
+.scan-page-meta{min-width:0;display:flex;flex-direction:column;gap:3px}
 .scan-page-n{font-size:var(--fs-base);font-weight:600;color:var(--text)}
-.scan-page-dim{font-size:11px;color:var(--text-subtle);margin-top:2px;font-weight:500}
+.scan-page-dim{font-size:11px;color:var(--accent);font-weight:600}
+.scan-page-tags{display:flex;flex-wrap:wrap;gap:4px}
+.scan-tag{
+  font-size:10px;font-weight:700;letter-spacing:.02em;
+  padding:2px 7px;border-radius:999px;
+  background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border);
+}
 .scan-page-ctl{display:flex;gap:4px;flex-shrink:0}
 .scan-ctl-btn{
   width:36px;height:36px;border-radius:var(--r-md);
@@ -672,6 +690,51 @@ select.field{
 .scan-ctl-btn:disabled{opacity:.35;cursor:not-allowed}
 .scan-ctl-btn.danger{color:var(--red)}
 .scan-namefield{margin:4px 2px 16px}
+
+/* Page editor overlay (crop + enhance) */
+body.scan-editing{overflow:hidden}
+.scan-editor{
+  position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;
+  background:#0f1115;color:#fff;
+  padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);
+  animation:scan-ed-in 180ms var(--ease-out);
+}
+@keyframes scan-ed-in{from{opacity:0}to{opacity:1}}
+.scan-editor-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px;flex-shrink:0;
+}
+.scan-editor-title{font-size:var(--fs-base);font-weight:700}
+.scan-editor-btn{
+  background:none;border:0;color:#cbd5e1;font-size:var(--fs-base);font-weight:600;
+  padding:8px 10px;cursor:pointer;border-radius:var(--r-md);
+}
+.scan-editor-btn.primary{color:#fff;background:var(--accent)}
+.scan-editor-btn:disabled{opacity:.5}
+.scan-editor-stage{
+  flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+  padding:8px 14px;overflow:hidden;
+}
+.scan-editor-box{position:relative;line-height:0;touch-action:none}
+.scan-editor-canvas{width:100%;height:100%;display:block;border-radius:2px}
+.scan-editor-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;touch-action:none}
+.scan-ed-handle{cursor:grab}
+.scan-ed-handle:active{cursor:grabbing}
+.scan-editor-hint{
+  text-align:center;font-size:var(--fs-xs);color:#94a3b8;padding:2px 16px 10px;flex-shrink:0;
+}
+.scan-editor-filters{
+  display:flex;gap:8px;padding:8px 14px 16px;flex-shrink:0;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;justify-content:center;
+}
+.scan-fchip{
+  flex:0 0 auto;padding:9px 16px;border-radius:999px;cursor:pointer;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);
+  color:#e2e8f0;font-size:var(--fs-sm);font-weight:600;white-space:nowrap;
+  transition:background 140ms var(--ease-out), transform 120ms var(--ease-out);
+}
+.scan-fchip:active{transform:scale(.94)}
+.scan-fchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
 
 /* ── Profile head ───────────────────────────────────────────── */
 .profile-head{

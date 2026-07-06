@@ -2794,36 +2794,262 @@ async function _scanLoadBitmap(file) {
 // White-fills the canvas first so any transparency (e.g. a PNG the
 // driver picked from their gallery) flattens to white instead of
 // black once it's a JPEG.
+// A captured file becomes a page whose *source* (the downscaled color
+// capture) is kept immutable. The exported JPEG + thumbnail are derived
+// from that source plus the page's current crop + filter, so edits stay
+// non-destructive and re-editable — pull the crop back out, switch the
+// filter off, and you're back to the original with no quality loss
+// beyond the one capture-time downscale.
 async function _scanProcessFile(file) {
   const bmp = await _scanLoadBitmap(file);
   const sw = bmp.width, sh = bmp.height;
   const scale = Math.min(1, _SCAN_MAX_EDGE / Math.max(sw, sh));
-  const w = Math.max(1, Math.round(sw * scale));
-  const h = Math.max(1, Math.round(sh * scale));
+  const ow = Math.max(1, Math.round(sw * scale));
+  const oh = Math.max(1, Math.round(sh * scale));
 
-  const canvas = document.createElement("canvas");
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, w, h);
-  ctx.drawImage(bmp, 0, 0, w, h);
+  const src = document.createElement("canvas");
+  src.width = ow; src.height = oh;
+  const sctx = src.getContext("2d");
+  sctx.fillStyle = "#fff";
+  sctx.fillRect(0, 0, ow, oh);
+  sctx.drawImage(bmp, 0, 0, ow, oh);
   if (typeof bmp.close === "function") bmp.close();
 
-  const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", _SCAN_JPEG_Q));
-  if (!blob) throw new Error("encode failed");
-  const jpeg = new Uint8Array(await blob.arrayBuffer());
+  // Master copy at higher quality — every edit re-derives from this, so
+  // it's encoded once, generously, and only the *export* uses the
+  // tighter quality knob.
+  const origBlob = await new Promise((r) => src.toBlob(r, "image/jpeg", 0.92));
+  const origJpeg = new Uint8Array(await origBlob.arrayBuffer());
 
-  // A small separate thumbnail keeps the DOM light — a full-res dataURL
-  // per page would balloon memory on a multi-page scan.
+  const page = {
+    id: "p" + Date.now() + Math.random().toString(36).slice(2, 6),
+    origJpeg, ow, oh,
+    filter: "original",   // original | auto | gray | bw
+    crop: null,           // null = full frame, else [[x,y] ×4] TL,TR,BR,BL in source px
+    jpeg: null, w: ow, h: oh, thumb: "",
+  };
+  await _scanComputeOutput(page, src);    // reuse the canvas we already decoded
+  return page;
+}
+
+// Re-derive a page's exported JPEG + thumbnail from its source, current
+// crop (perspective dewarp), and current filter. Runs at capture and
+// after every edit. Pass the freshly-decoded source canvas when you
+// already have it to skip a re-decode.
+async function _scanComputeOutput(page, srcCanvas) {
+  const src = srcCanvas || await _scanDecodeToCanvas(page.origJpeg, page.ow, page.oh);
+  const cropped = page.crop ? _scanWarp(src, page.crop) : src;
+  if (page.filter && page.filter !== "original") _scanApplyFilter(cropped, page.filter);
+  const w = cropped.width, h = cropped.height;
+
+  const blob = await new Promise((res) => cropped.toBlob(res, "image/jpeg", _SCAN_JPEG_Q));
+  if (!blob) throw new Error("encode failed");
+  page.jpeg = new Uint8Array(await blob.arrayBuffer());
+  page.w = w; page.h = h;
+
   const tScale = Math.min(1, 220 / Math.max(w, h));
   const tw = Math.max(1, Math.round(w * tScale));
   const th = Math.max(1, Math.round(h * tScale));
   const tc = document.createElement("canvas");
   tc.width = tw; tc.height = th;
-  tc.getContext("2d").drawImage(canvas, 0, 0, tw, th);
-  const thumb = tc.toDataURL("image/jpeg", 0.7);
+  tc.getContext("2d").drawImage(cropped, 0, 0, tw, th);
+  page.thumb = tc.toDataURL("image/jpeg", 0.7);
+}
 
-  return { id: "p" + Date.now() + Math.random().toString(36).slice(2, 6), jpeg, w, h, thumb };
+async function _scanDecodeToCanvas(jpegBytes, w, h) {
+  const blob = new Blob([jpegBytes], { type: "image/jpeg" });
+  let bmp;
+  if (typeof createImageBitmap === "function") {
+    bmp = await createImageBitmap(blob);
+  } else {
+    bmp = await new Promise((res, rej) => {
+      const img = new Image(); const url = URL.createObjectURL(blob);
+      img.onload = () => { URL.revokeObjectURL(url); res(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("decode failed")); };
+      img.src = url;
+    });
+  }
+  const c = document.createElement("canvas");
+  c.width = w || bmp.width; c.height = h || bmp.height;
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  if (typeof bmp.close === "function") bmp.close();
+  return c;
+}
+
+// ── Perspective dewarp ──────────────────────────────────────────────
+// Map the user's four source corners onto a straight rectangle, so a
+// page shot at an angle comes out flat and cropped to the document. We
+// inverse-map (destination pixel → source sample) with bilinear
+// filtering, sampling white outside the source. The output size is the
+// longer of each opposing edge pair so nothing is squashed.
+function _scanWarp(srcCanvas, corners) {
+  const [tl, tr, br, bl] = corners;
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  let outW = Math.max(1, Math.round(Math.max(dist(tl, tr), dist(bl, br))));
+  let outH = Math.max(1, Math.round(Math.max(dist(tl, bl), dist(tr, br))));
+  const cap = 1800, s = Math.min(1, cap / Math.max(outW, outH));
+  outW = Math.max(1, Math.round(outW * s));
+  outH = Math.max(1, Math.round(outH * s));
+
+  // Homography mapping the destination rectangle → the source quad, so
+  // each output pixel reads back into the original photo.
+  const dst = [[0, 0], [outW, 0], [outW, outH], [0, outH]];
+  const [a, b, c, d, e, f, g, h, i] = _scanHomography(dst, [tl, tr, br, bl]);
+
+  const sctx = srcCanvas.getContext("2d");
+  const sW = srcCanvas.width, sH = srcCanvas.height;
+  const sd = sctx.getImageData(0, 0, sW, sH).data;
+  const out = document.createElement("canvas");
+  out.width = outW; out.height = outH;
+  const octx = out.getContext("2d");
+  const oImg = octx.createImageData(outW, outH);
+  const od = oImg.data;
+
+  for (let oy = 0; oy < outH; oy++) {
+    for (let ox = 0; ox < outW; ox++) {
+      const den = g * ox + h * oy + i;
+      const sx = (a * ox + b * oy + c) / den;
+      const sy = (d * ox + e * oy + f) / den;
+      const oi = (oy * outW + ox) * 4;
+      if (sx < 0 || sy < 0 || sx >= sW - 1 || sy >= sH - 1) {
+        od[oi] = od[oi + 1] = od[oi + 2] = od[oi + 3] = 255;
+        continue;
+      }
+      const x0 = sx | 0, y0 = sy | 0, fx = sx - x0, fy = sy - y0;
+      const p00 = (y0 * sW + x0) * 4, p10 = p00 + 4, p01 = p00 + sW * 4, p11 = p01 + 4;
+      for (let k = 0; k < 3; k++) {
+        const top = sd[p00 + k] * (1 - fx) + sd[p10 + k] * fx;
+        const bot = sd[p01 + k] * (1 - fx) + sd[p11 + k] * fx;
+        od[oi + k] = (top * (1 - fy) + bot * fy) | 0;
+      }
+      od[oi + 3] = 255;
+    }
+  }
+  octx.putImageData(oImg, 0, 0);
+  return out;
+}
+
+// Solve the 3×3 homography H (h33 fixed to 1) mapping `from[i]` → `to[i]`
+// for four correspondences, via an 8×8 linear system.
+function _scanHomography(from, to) {
+  const A = [], bv = [];
+  for (let k = 0; k < 4; k++) {
+    const [X, Y] = from[k], [x, y] = to[k];
+    A.push([X, Y, 1, 0, 0, 0, -X * x, -Y * x]); bv.push(x);
+    A.push([0, 0, 0, X, Y, 1, -X * y, -Y * y]); bv.push(y);
+  }
+  const hh = _scanSolve8(A, bv);
+  return [hh[0], hh[1], hh[2], hh[3], hh[4], hh[5], hh[6], hh[7], 1];
+}
+
+// Gaussian elimination with partial pivoting for an 8×8 system.
+function _scanSolve8(A, b) {
+  const n = 8;
+  const M = A.map((row, idx) => row.concat(b[idx]));
+  for (let col = 0; col < n; col++) {
+    let piv = col;
+    for (let r = col + 1; r < n; r++) if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+    [M[col], M[piv]] = [M[piv], M[col]];
+    const pv = M[col][col] || 1e-9;
+    for (let c2 = col; c2 <= n; c2++) M[col][c2] /= pv;
+    for (let r = 0; r < n; r++) {
+      if (r === col) continue;
+      const factor = M[r][col];
+      if (!factor) continue;
+      for (let c2 = col; c2 <= n; c2++) M[r][c2] -= factor * M[col][c2];
+    }
+  }
+  return M.map((row) => row[n]);
+}
+
+// ── Enhancement filters ─────────────────────────────────────────────
+function _scanApplyFilter(canvas, filter) {
+  const ctx = canvas.getContext("2d");
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  _scanFilterImageData(img, filter);
+  ctx.putImageData(img, 0, 0);
+}
+
+function _scanFilterImageData(img, filter) {
+  if (filter === "gray") {
+    const d = img.data;
+    for (let p = 0; p < d.length; p += 4) {
+      const gray = (d[p] * 0.299 + d[p + 1] * 0.587 + d[p + 2] * 0.114) | 0;
+      d[p] = d[p + 1] = d[p + 2] = gray;
+    }
+  } else if (filter === "auto") {
+    _scanAutoLevels(img.data);
+  } else if (filter === "bw") {
+    _scanAdaptiveThreshold(img);
+  }
+}
+
+// Per-channel contrast stretch: clip the darkest/brightest 1% and
+// expand the rest to full range. Cheap "auto enhance" that lifts flat,
+// low-contrast phone photos.
+function _scanAutoLevels(d) {
+  const total = d.length / 4, cut = total * 0.01;
+  for (let ch = 0; ch < 3; ch++) {
+    const hist = new Uint32Array(256);
+    for (let p = ch; p < d.length; p += 4) hist[d[p]]++;
+    let c = 0, minv = 0;
+    for (let v = 0; v < 256; v++) { c += hist[v]; if (c >= cut) { minv = v; break; } }
+    c = 0; let maxv = 255;
+    for (let v = 255; v >= 0; v--) { c += hist[v]; if (c >= cut) { maxv = v; break; } }
+    if (maxv <= minv) { minv = 0; maxv = 255; }
+    const scl = 255 / (maxv - minv);
+    for (let p = ch; p < d.length; p += 4) {
+      const val = (d[p] - minv) * scl;
+      d[p] = val < 0 ? 0 : val > 255 ? 255 : val | 0;
+    }
+  }
+}
+
+// Adaptive mean threshold — the "document B&W" look. Each pixel is
+// compared against the mean of a local window (via an integral image
+// for O(1) window sums), so shadows and uneven lighting don't blow out
+// half the page the way a single global threshold would. Text stays
+// crisp; the paper goes pure white; file size drops sharply.
+function _scanAdaptiveThreshold(img) {
+  const W = img.width, H = img.height, d = img.data;
+  const g = new Float64Array(W * H);
+  for (let i = 0, p = 0; i < W * H; i++, p += 4) {
+    g[i] = d[p] * 0.299 + d[p + 1] * 0.587 + d[p + 2] * 0.114;
+  }
+  const IW = W + 1;
+  const S = new Float64Array(IW * (H + 1));
+  for (let y = 1; y <= H; y++) {
+    let rowSum = 0;
+    for (let x = 1; x <= W; x++) {
+      rowSum += g[(y - 1) * W + (x - 1)];
+      S[y * IW + x] = S[(y - 1) * IW + x] + rowSum;
+    }
+  }
+  const rad = Math.max(8, Math.round(Math.min(W, H) / 16));
+  const bias = 0.90;   // keep a pixel white only if it beats 90% of the local mean
+  for (let y = 0; y < H; y++) {
+    const y0 = Math.max(0, y - rad), y1 = Math.min(H - 1, y + rad);
+    for (let x = 0; x < W; x++) {
+      const x0 = Math.max(0, x - rad), x1 = Math.min(W - 1, x + rad);
+      const area = (x1 - x0 + 1) * (y1 - y0 + 1);
+      const sum = S[(y1 + 1) * IW + (x1 + 1)] - S[y0 * IW + (x1 + 1)]
+                - S[(y1 + 1) * IW + x0] + S[y0 * IW + x0];
+      const mean = sum / area;
+      const i = y * W + x, p = i * 4;
+      const val = g[i] > mean * bias ? 255 : 0;
+      d[p] = d[p + 1] = d[p + 2] = val;
+    }
+  }
+}
+
+const _SCAN_FILTERS = [
+  { key: "original", label: "Color" },
+  { key: "auto",     label: "Enhance" },
+  { key: "gray",     label: "Grayscale" },
+  { key: "bw",       label: "B&W" },
+];
+function _scanFilterLabel(key) {
+  return (_SCAN_FILTERS.find((f) => f.key === key) || _SCAN_FILTERS[0]).label;
 }
 
 // Assemble a PDF (as a Blob) that embeds each page's JPEG on its own
@@ -3024,7 +3250,11 @@ function renderDocumentScanner() {
     const act = btn.getAttribute("data-scan-act");
     const idx = _scanPages.findIndex((p) => p.id === id);
     if (idx < 0) return;
-    if (act === "del") {
+    if (act === "edit") {
+      _haptic("tap");
+      _scanOpenEditor(id);
+      return;
+    } else if (act === "del") {
       _scanPages.splice(idx, 1);
       _haptic("tap");
     } else if (act === "up" && idx > 0) {
@@ -3100,13 +3330,23 @@ function _scanRenderPages() {
 
   wrap.innerHTML = n === 0
     ? `<div class="scan-empty">No pages yet. Tap <strong>Add a page</strong> to capture the first one.</div>`
-    : _scanPages.map((p, i) => `
+    : _scanPages.map((p, i) => {
+        const edited = (p.filter && p.filter !== "original") || p.crop;
+        const tags = [];
+        if (p.crop) tags.push("Cropped");
+        if (p.filter && p.filter !== "original") tags.push(_scanFilterLabel(p.filter));
+        const tagLine = tags.length
+          ? `<div class="scan-page-tags">${tags.map((t) => `<span class="scan-tag">${escapeHtml(t)}</span>`).join("")}</div>`
+          : `<div class="scan-page-dim">Tap to crop &amp; enhance</div>`;
+        return `
         <div class="scan-page-card">
-          <div class="scan-thumb"><img src="${p.thumb}" alt="Page ${i + 1}"/></div>
-          <div class="scan-page-meta">
-            <div class="scan-page-n">Page ${i + 1}</div>
-            <div class="scan-page-dim">${p.w} × ${p.h}</div>
-          </div>
+          <button class="scan-open-edit" data-scan-act="edit" data-scan-id="${p.id}" aria-label="Edit page ${i + 1}">
+            <span class="scan-thumb"><img src="${p.thumb}" alt="Page ${i + 1}"/>${edited ? '<span class="scan-thumb-edited" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>' : ""}</span>
+            <span class="scan-page-meta">
+              <span class="scan-page-n">Page ${i + 1}</span>
+              ${tagLine}
+            </span>
+          </button>
           <div class="scan-page-ctl">
             <button class="scan-ctl-btn" data-scan-act="up"   data-scan-id="${p.id}" aria-label="Move up"   ${i === 0 ? "disabled" : ""}>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
@@ -3118,7 +3358,8 @@ function _scanRenderPages() {
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           </div>
-        </div>`).join("");
+        </div>`;
+      }).join("");
 
   const addLabel = document.getElementById("scan-add-label");
   if (addLabel) addLabel.textContent = n === 0 ? "Add a page" : "Add another page";
@@ -3145,6 +3386,183 @@ function _scanSetBusy(busy) {
   if (!btn) return;
   btn.disabled = busy;
   if (label) label.textContent = busy ? "Processing…" : (_scanPages.length ? "Add another page" : "Add a page");
+}
+
+// ── Page editor (crop + enhance) ────────────────────────────────────
+// A full-screen overlay for one page: a filtered preview of the source
+// with four draggable corner handles for the crop quad, plus a filter
+// row. "Apply" dewarps to the chosen quad, bakes in the filter, and
+// re-derives the page's export JPEG — all from the immutable source, so
+// re-opening the editor starts from the same place every time.
+let _scanEditor = null;   // { id, corners, filter, base, previewCanvas, svg, box, dragIdx }
+
+async function _scanOpenEditor(id) {
+  const page = _scanPages.find((p) => p.id === id);
+  if (!page || _scanEditor) return;
+
+  // Decode the source once for the editor at preview resolution.
+  const full = await _scanDecodeToCanvas(page.origJpeg, page.ow, page.oh);
+  const pScale = Math.min(1, 1000 / Math.max(page.ow, page.oh));
+  const pw = Math.max(1, Math.round(page.ow * pScale));
+  const ph = Math.max(1, Math.round(page.oh * pScale));
+  const preview = document.createElement("canvas");
+  preview.width = pw; preview.height = ph;
+  preview.getContext("2d").drawImage(full, 0, 0, pw, ph);
+  const base = preview.getContext("2d").getImageData(0, 0, pw, ph);
+
+  const corners = page.crop
+    ? page.crop.map((c) => [c[0], c[1]])
+    : [[0, 0], [page.ow, 0], [page.ow, page.oh], [0, page.oh]];
+
+  const idxOf = _scanPages.findIndex((p) => p.id === id) + 1;
+  const filtersHtml = _SCAN_FILTERS.map((f) =>
+    `<button class="scan-fchip${f.key === page.filter ? " on" : ""}" data-scan-filter="${f.key}" type="button">${escapeHtml(f.label)}</button>`
+  ).join("");
+
+  const overlay = document.createElement("div");
+  overlay.className = "scan-editor";
+  overlay.innerHTML = `
+    <div class="scan-editor-head">
+      <button class="scan-editor-btn" id="scan-ed-cancel" type="button">Cancel</button>
+      <div class="scan-editor-title">Page ${idxOf}</div>
+      <button class="scan-editor-btn primary" id="scan-ed-apply" type="button">Apply</button>
+    </div>
+    <div class="scan-editor-stage" id="scan-ed-stage">
+      <div class="scan-editor-box" id="scan-ed-box">
+        <canvas class="scan-editor-canvas" id="scan-ed-canvas" width="${pw}" height="${ph}"></canvas>
+        <svg class="scan-editor-svg" id="scan-ed-svg" viewBox="0 0 ${page.ow} ${page.oh}" preserveAspectRatio="none">
+          <polygon id="scan-ed-poly" points="" fill="rgba(37,99,235,.12)" stroke="#2563EB" stroke-width="2" vector-effect="non-scaling-stroke"/>
+          ${corners.map((_, k) => `<circle class="scan-ed-handle" data-h="${k}" r="${Math.max(page.ow, page.oh) / 42}" fill="#fff" stroke="#2563EB" stroke-width="2" vector-effect="non-scaling-stroke"/>`).join("")}
+        </svg>
+      </div>
+    </div>
+    <div class="scan-editor-hint" id="scan-ed-hint">Drag the corners to the edges of your document</div>
+    <div class="scan-editor-filters">${filtersHtml}</div>`;
+  document.body.appendChild(overlay);
+  document.body.classList.add("scan-editing");
+
+  _scanEditor = {
+    id, corners, filter: page.filter, base, pw, ph,
+    canvas: overlay.querySelector("#scan-ed-canvas"),
+    svg: overlay.querySelector("#scan-ed-svg"),
+    box: overlay.querySelector("#scan-ed-box"),
+    poly: overlay.querySelector("#scan-ed-poly"),
+    overlay, dragIdx: -1,
+  };
+
+  _scanEditorLayout();
+  _scanEditorRenderFilter();
+  _scanEditorRenderQuad();
+
+  window.addEventListener("resize", _scanEditorLayout);
+
+  overlay.querySelector("#scan-ed-cancel").addEventListener("click", _scanCloseEditor);
+  overlay.querySelector("#scan-ed-apply").addEventListener("click", _scanApplyEditor);
+  overlay.querySelectorAll("[data-scan-filter]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      _scanEditor.filter = chip.getAttribute("data-scan-filter");
+      overlay.querySelectorAll("[data-scan-filter]").forEach((c) => c.classList.toggle("on", c === chip));
+      _scanEditorRenderFilter();
+      _haptic("select");
+    });
+  });
+
+  // Corner dragging via pointer events on the SVG handles.
+  const svg = _scanEditor.svg;
+  const toSrc = (ev) => {
+    const r = svg.getBoundingClientRect();
+    const x = (ev.clientX - r.left) / r.width  * page.ow;
+    const y = (ev.clientY - r.top)  / r.height * page.oh;
+    return [Math.max(0, Math.min(page.ow, x)), Math.max(0, Math.min(page.oh, y))];
+  };
+  const onMove = (ev) => {
+    if (_scanEditor.dragIdx < 0) return;
+    ev.preventDefault();
+    _scanEditor.corners[_scanEditor.dragIdx] = toSrc(ev);
+    _scanEditorRenderQuad();
+  };
+  const onUp = () => { _scanEditor && (_scanEditor.dragIdx = -1); };
+  svg.querySelectorAll(".scan-ed-handle").forEach((h) => {
+    h.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      _scanEditor.dragIdx = Number(h.getAttribute("data-h"));
+      try { h.setPointerCapture(ev.pointerId); } catch {}
+      _haptic("tap");
+    });
+    h.addEventListener("pointermove", onMove);
+    h.addEventListener("pointerup", onUp);
+    h.addEventListener("pointercancel", onUp);
+  });
+  _scanEditor._onMove = onMove; _scanEditor._onUp = onUp;
+}
+
+// Size the canvas + SVG box to fit the stage while preserving the
+// source aspect ratio, so corner coords (kept in source space via the
+// SVG viewBox) line up exactly with the displayed image.
+function _scanEditorLayout() {
+  if (!_scanEditor) return;
+  const stage = document.getElementById("scan-ed-stage");
+  if (!stage) return;
+  const cw = stage.clientWidth, ch = stage.clientHeight;
+  const ar = _scanEditor.pw / _scanEditor.ph;
+  let w = cw, h = cw / ar;
+  if (h > ch) { h = ch; w = ch * ar; }
+  const box = _scanEditor.box;
+  box.style.width = Math.round(w) + "px";
+  box.style.height = Math.round(h) + "px";
+}
+
+function _scanEditorRenderFilter() {
+  if (!_scanEditor) return;
+  const { base, filter, canvas } = _scanEditor;
+  const img = new ImageData(new Uint8ClampedArray(base.data), base.width, base.height);
+  if (filter && filter !== "original") _scanFilterImageData(img, filter);
+  canvas.getContext("2d").putImageData(img, 0, 0);
+}
+
+function _scanEditorRenderQuad() {
+  if (!_scanEditor) return;
+  const c = _scanEditor.corners;
+  _scanEditor.poly.setAttribute("points", c.map((p) => `${p[0]},${p[1]}`).join(" "));
+  _scanEditor.svg.querySelectorAll(".scan-ed-handle").forEach((h) => {
+    const k = Number(h.getAttribute("data-h"));
+    h.setAttribute("cx", c[k][0]);
+    h.setAttribute("cy", c[k][1]);
+  });
+}
+
+async function _scanApplyEditor() {
+  if (!_scanEditor) return;
+  const page = _scanPages.find((p) => p.id === _scanEditor.id);
+  if (!page) { _scanCloseEditor(); return; }
+  const applyBtn = _scanEditor.overlay.querySelector("#scan-ed-apply");
+  applyBtn.disabled = true; applyBtn.textContent = "Applying…";
+
+  // Full-frame (within a pixel) means "no crop" — skip the warp so an
+  // untouched quad round-trips losslessly.
+  const c = _scanEditor.corners;
+  const full = [[0, 0], [page.ow, 0], [page.ow, page.oh], [0, page.oh]];
+  const isFull = c.every((p, k) => Math.abs(p[0] - full[k][0]) < 1 && Math.abs(p[1] - full[k][1]) < 1);
+
+  page.crop = isFull ? null : c.map((p) => [p[0], p[1]]);
+  page.filter = _scanEditor.filter;
+
+  try {
+    await _scanComputeOutput(page);
+    _haptic("success");
+  } catch (err) {
+    toast(_friendlyError(err, "Couldn't apply the edit. Try again."), "warn");
+  }
+  _scanCloseEditor();
+  _scanRenderPages();
+}
+
+function _scanCloseEditor() {
+  if (!_scanEditor) return;
+  window.removeEventListener("resize", _scanEditorLayout);
+  _scanEditor.overlay.remove();
+  document.body.classList.remove("scan-editing");
+  _scanEditor = null;
 }
 
 // ── Chat ────────────────────────────────────────────────────────────
