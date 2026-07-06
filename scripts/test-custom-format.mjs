@@ -55,4 +55,19 @@ ok("month vs minute disambiguation", f(st, "mm/dd h:mm"), "07/04 13:30");
 // text section with @
 ok("text passthrough via @", applyCustomFormat("hello", "0;;;@\" (note)\"", "text"), "hello (note)");
 
+// ── conditional formatting: data bars + icon sets ────────────────────────────
+const { condBarPercent, condIconPick, WB_CF_ICONSETS } = __engine;
+ok("databar grows from zero", condBarPercent({ min: 10, max: 100 }, 10), 10);   // (10-0)/(100-0)
+ok("databar mid value", condBarPercent({ min: 10, max: 100 }, 50), 50);
+ok("databar full at max", condBarPercent({ min: 0, max: 50 }, 50), 100);
+ok("databar clamps to 0", condBarPercent({ min: 0, max: 50 }, -5), 0);
+ok("databar with negative min uses 0 base span", Math.round(condBarPercent({ min: -50, max: 50 }, 0)), 50);
+ok("databar equal min/max", condBarPercent({ min: 5, max: 5 }, 5), 100);
+const pick = (icons, stats, n) => condIconPick({ icons }, stats, n).g;
+ok("iconset low third", pick("arrows", { min: 0, max: 90 }, 10), "▼");
+ok("iconset mid third", pick("arrows", { min: 0, max: 90 }, 45), "▬");
+ok("iconset high third", pick("arrows", { min: 0, max: 90 }, 80), "▲");
+ok("iconset traffic set", pick("traffic", { min: 0, max: 3 }, 3), "●");
+ok("iconset unknown set falls back to arrows", pick("nope", { min: 0, max: 9 }, 8), "▲");
+
 console.log(`✓ custom number formats: ${n} tests passed`);

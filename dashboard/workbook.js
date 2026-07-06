@@ -7143,7 +7143,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -7255,7 +7255,7 @@ function paintFrozen(g, sx, sy, c0, c1) {
       const fzFlt = r === 0 && g.filterMode && c <= (g.fltMaxC ?? -1)
         ? `<button type="button" class="wb-flt-btn ${g.filters.has(c) ? "is-filtered" : ""}" data-wb-fltbtn="${c}" title="Filter column ${colLabel(c)}" aria-label="Filter column ${colLabel(c)}">${g.filters.has(c) ? "▼" : "▾"}</button>`
         : "";
-      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}${fzFlt}</div>`;
+      html += `<div class="wb-cell" data-r="${r}" data-c="${c}" style="left:${g.colX[c]}px;top:0;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${condStyleFor(sheet, r, c, cell)}">${condIconFor(sheet, r, c, cell)}${cell ? cellInnerHtml(cell, displayValue(sheet, r, c)) : ""}${fzFlt}</div>`;
     }
     g.els.frozenTop.hidden = false;
     g.els.frozenTop.style.height = h + "px";
@@ -7274,7 +7274,7 @@ function paintFrozen(g, sx, sy, c0, c1) {
       const r = g.rows[di];
       const cell = sheet.cells.get(cellKey(r, 0));
       const h = g.rowY[di + 1] - g.rowY[di];
-      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${cell ? cellInnerHtml(cell, displayValue(sheet, r, 0)) : ""}</div>`;
+      html += `<div class="wb-cell" data-r="${r}" data-c="0" style="left:0;top:${g.rowY[di]}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, 0, cell) : ""}${condStyleFor(sheet, r, 0, cell)}">${condIconFor(sheet, r, 0, cell)}${cell ? cellInnerHtml(cell, displayValue(sheet, r, 0)) : ""}</div>`;
     }
     g.els.frozenLeft.hidden = false;
     g.els.frozenLeft.style.left = HDR_COL_W + "px";
@@ -9835,6 +9835,42 @@ function condRuleHits(rule, raw) {
 
 // Extra inline style for a painted cell; conditional formats win over
 // manual fills (Excel's precedence), so this appends AFTER cellStyle.
+// Data-bar fill fraction (0–100). Bars grow from 0 (or from the min when it's
+// negative), so an all-positive column bars proportionally from the left.
+function condBarPercent(stats, n) {
+  const base = Math.min(0, stats.min);
+  const span = stats.max - base;
+  if (!(span > 0)) return n > base ? 100 : 0;
+  return Math.max(0, Math.min(100, ((n - base) / span) * 100));
+}
+// Icon sets: three-way split of the value's position in [min,max].
+const WB_CF_ICONSETS = {
+  arrows: [{ g: "▼", c: "#B91C1C" }, { g: "▬", c: "#92400E" }, { g: "▲", c: "#166534" }],
+  traffic: [{ g: "●", c: "#DC2626" }, { g: "●", c: "#D97706" }, { g: "●", c: "#16A34A" }],
+  signs: [{ g: "✖", c: "#B91C1C" }, { g: "!", c: "#92400E" }, { g: "✔", c: "#166534" }],
+};
+function condIconPick(rule, stats, n) {
+  const set = WB_CF_ICONSETS[rule.icons] || WB_CF_ICONSETS.arrows;
+  if (stats.max === stats.min) return set[1];
+  const t = (n - stats.min) / (stats.max - stats.min);
+  return set[t >= 2 / 3 ? 2 : t >= 1 / 3 ? 1 : 0];
+}
+// The icon (if any) an icon-set CF rule paints in front of a cell's value.
+function condIconFor(sheet, r, c, cell) {
+  const rules = sheet.meta && sheet.meta.condFormat;
+  if (!Array.isArray(rules) || !rules.length) return "";
+  for (const rule of rules) {
+    if (rule.type !== "iconset" || !ruleCovers(rule, r, c)) continue;
+    const n = cellNumeric(cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null);
+    if (n == null) continue;
+    const st = cfScaleStats(sheet, rule);
+    if (st.empty) continue;
+    const ic = condIconPick(rule, st, n);
+    return `<span class="wb-cf-icon" style="color:${ic.c};margin-right:4px;font-size:.85em">${ic.g}</span>`;
+  }
+  return "";
+}
+
 function condStyleFor(sheet, r, c, cell) {
   const rules = sheet.meta && sheet.meta.condFormat;
   if (!Array.isArray(rules) || !rules.length) return "";
@@ -9848,6 +9884,17 @@ function condStyleFor(sheet, r, c, cell) {
       if (st.empty) continue;
       const t = st.max === st.min ? 0.5 : (n - st.min) / (st.max - st.min);
       out = `background:${cfScaleColor((WB_CF_SCALES[rule.scale] || WB_CF_SCALES.gyr).stops, t)};`;
+      continue;
+    }
+    if (rule.type === "databar") {
+      const n = cellNumeric(cell ? (cell.formula ? (cell.err ? null : cell.computed) : cell.value) : null);
+      if (n == null) continue;
+      const st = cfScaleStats(sheet, rule);
+      if (st.empty) continue;
+      const pct = condBarPercent(st, n);
+      const bar = WB_CF_STYLES[rule.style] ? WB_CF_STYLES[rule.style].fg : "#2a78d6";
+      // a soft bar behind the text: filled portion tinted, remainder clear
+      out = `background:linear-gradient(90deg, ${bar}2e 0, ${bar}2e ${pct.toFixed(1)}%, transparent ${pct.toFixed(1)}%);`;
       continue;
     }
     if (rule.type === "formula" || rule.kind === "formula") {
@@ -10234,6 +10281,8 @@ function openCondFormatDialog(g) {
             <select class="wb-input" id="wb-cf-type">
               <option value="single">Single color</option>
               <option value="scale">Color scale</option>
+              <option value="databar">Data bar</option>
+              <option value="iconset">Icon set</option>
             </select></label>
           <label class="wb-field" id="wb-cf-kind-field"><span class="wb-field-label">Format cells if…</span>
             <select class="wb-input" id="wb-cf-kind">${kindOpts}</select></label>
@@ -10246,6 +10295,8 @@ function openCondFormatDialog(g) {
           <input type="text" class="wb-input" id="wb-cf-formula" placeholder='=$D2=&quot;Late&quot;' spellcheck="false"></label>
         <label class="wb-field" id="wb-cf-scale-field" style="display:none"><span class="wb-field-label">Gradient</span>
           <select class="wb-input" id="wb-cf-scale">${scaleOpts}</select></label>
+        <label class="wb-field" id="wb-cf-icons-field" style="display:none"><span class="wb-field-label">Icon set</span>
+          <select class="wb-input" id="wb-cf-icons"><option value="arrows">▲ ▬ ▼  arrows</option><option value="traffic">●  traffic lights</option><option value="signs">✔ ! ✖  signs</option></select></label>
         <div class="wb-field" id="wb-cf-style-field"><span class="wb-field-label">Style</span>
           <div class="wb-cf-chips" id="wb-cf-chips">${chips}</div></div>
         <button type="button" class="btn btn-primary btn-sm" data-wb-cf-add>Add rule</button>
@@ -10266,6 +10317,14 @@ function openCondFormatDialog(g) {
             const sc = WB_CF_SCALES[rule.scale] || WB_CF_SCALES.gyr;
             swatch = `<span class="wb-cf-swatch" style="background:linear-gradient(90deg,${sc.stops.join(",")})"></span>`;
             what = sc.label;
+          } else if (rule.type === "databar") {
+            const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.blue;
+            swatch = `<span class="wb-cf-swatch" style="background:linear-gradient(90deg,${st.fg}55 66%,transparent 66%)"></span>`;
+            what = "Data bar";
+          } else if (rule.type === "iconset") {
+            const set = WB_CF_ICONSETS[rule.icons] || WB_CF_ICONSETS.arrows;
+            swatch = `<span class="wb-cf-swatch" style="background:transparent;font-size:11px;letter-spacing:1px">${set.map((x) => `<span style="color:${x.c}">${x.g}</span>`).join("")}</span>`;
+            what = "Icon set";
           } else {
             const st = WB_CF_STYLES[rule.style] || WB_CF_STYLES.amber;
             swatch = `<span class="wb-cf-swatch" style="background:${st.bg};color:${st.fg}">Aa</span>`;
@@ -10280,15 +10339,16 @@ function openCondFormatDialog(g) {
   const syncFields = () => {
     const type = wrap.querySelector("#wb-cf-type").value;
     const k = wrap.querySelector("#wb-cf-kind").value;
-    const isScale = type === "scale";
-    const isFormula = !isScale && k === "formula";
+    const isSingle = type === "single", isScale = type === "scale", isBar = type === "databar", isIcon = type === "iconset";
+    const isFormula = isSingle && k === "formula";
     const show = (id, on) => { wrap.querySelector(id).style.display = on ? "" : "none"; };
-    show("#wb-cf-kind-field", !isScale);
-    show("#wb-cf-v1-field", !isScale && !isFormula && k !== "empty" && k !== "notempty");
-    show("#wb-cf-v2-field", !isScale && !isFormula && k === "between");
+    show("#wb-cf-kind-field", isSingle);
+    show("#wb-cf-v1-field", isSingle && !isFormula && k !== "empty" && k !== "notempty");
+    show("#wb-cf-v2-field", isSingle && !isFormula && k === "between");
     show("#wb-cf-formula-field", isFormula);
     show("#wb-cf-scale-field", isScale);
-    show("#wb-cf-style-field", !isScale);
+    show("#wb-cf-icons-field", isIcon);
+    show("#wb-cf-style-field", isSingle || isBar); // data bar borrows the style chips for its colour
   };
   paintRules();
   syncFields();
@@ -10315,6 +10375,11 @@ function openCondFormatDialog(g) {
       const rules = sheetRules(sheet, "condFormat").slice();
       if (type === "scale") {
         rules.push({ ...base, type: "colorscale", scale: wrap.querySelector("#wb-cf-scale").value || "gyr" });
+      } else if (type === "databar") {
+        const style = wrap.querySelector(".wb-cf-chip.is-on")?.getAttribute("data-cf-style") || "blue";
+        rules.push({ ...base, type: "databar", style });
+      } else if (type === "iconset") {
+        rules.push({ ...base, type: "iconset", icons: wrap.querySelector("#wb-cf-icons").value || "arrows" });
       } else {
         const kind = wrap.querySelector("#wb-cf-kind").value;
         const style = wrap.querySelector(".wb-cf-chip.is-on")?.getAttribute("data-cf-style") || "green";
@@ -17287,6 +17352,7 @@ export const __engine = {
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, solveGoalSeek,
+  condBarPercent, condIconPick, WB_CF_ICONSETS,
   chartSvg, WB_CHART_TYPES, kpiTileHtml, tableTileHtml, textTileHtml, kpiSparkline, kpiFmt, embedCellNum,
   chartData, aggRange, distinctColumnValues, kpiValue, KPI_AGGS,
   computePivot, pivotAggregate, pivotTableHtml,
