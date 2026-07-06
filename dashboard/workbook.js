@@ -6842,6 +6842,7 @@ function mountSheetBlock(block, body) {
       <div class="wb-gr-filterchip" hidden></div>
       <div class="wb-dash-bar" data-wb-dashbar>
         <button type="button" class="btn btn-sm wb-dash-magic" data-wb-dashauto title="Auto-build a dashboard from your data">✨ Auto-build</button>
+        <button type="button" class="btn btn-sm wb-dash-btn" data-wb-dashrefresh title="Refresh live data feeding this dashboard">⟳ Refresh data</button>
         <button type="button" class="btn btn-sm wb-dash-btn" data-wb-dashtidy title="Tidy — auto-arrange widgets into a grid">Tidy</button>
         <button type="button" class="btn btn-sm wb-dash-btn" data-wb-dashpresent title="Present — full-screen, no edit chrome">Present</button>
         <button type="button" class="btn btn-sm wb-dash-add" data-wb-dashaddmenu aria-haspopup="menu" title="Add a widget">＋ Add widget ▾</button>
@@ -6959,6 +6960,7 @@ function mountSheetBlock(block, body) {
   // Tidy (auto-arrange) + Present (full-screen) + Auto-build on the dashboard toolbar
   g.els.grid.addEventListener("click", (e) => {
     if (e.target.closest("[data-wb-dashauto]")) { e.stopPropagation(); autoBuildDashboard(g); return; }
+    if (e.target.closest("[data-wb-dashrefresh]")) { e.stopPropagation(); refreshDashboardData(g); return; }
     if (e.target.closest("[data-wb-dashtidy]")) { e.stopPropagation(); tidyDashboard(g); return; }
     const present = e.target.closest("[data-wb-dashpresent]");
     if (present) {
@@ -13737,19 +13739,50 @@ function duplicateEmbed(g, key, item) {
 }
 // Shelf-pack every widget left-to-right into a clean grid, preserving each
 // widget's size and its current reading order.
+// A 12-column grid placer: aligned columns, uniform gutters, rows advanced by
+// the tallest cell. Shared by Auto-build and Tidy for a designed look.
+function dashGridPlacer(g) {
+  const M = 24, G = 16, COLS = 12;
+  const avail = Math.max(760, Math.min((g.els.scroll ? g.els.scroll.clientWidth : 1320) - 8, 1460));
+  const colW = (avail - 2 * M - (COLS - 1) * G) / COLS;
+  const spanW = (n) => Math.round(n * colW + (n - 1) * G);
+  let y = M;
+  const row = (cells) => {
+    let x = M; const h = Math.max(...cells.map((c) => c.h));
+    for (const c of cells) { c.it.layout = { x, y, w: spanW(c.n), h: c.h }; x += spanW(c.n) + G; }
+    y += h + G;
+  };
+  const flow = (arr, n, h, per) => { for (let i = 0; i < arr.length; i += per) row(arr.slice(i, i + per).map((it) => ({ it, n, h }))); };
+  return { row, flow, spanW, M, G, COLS };
+}
+// Snap a pixel width to the nearest whole column span (1..12).
+function nearestSpan(g, w) {
+  const gr = dashGridPlacer(g);
+  let best = 1, bd = Infinity;
+  for (let n = 1; n <= gr.COLS; n++) { const d = Math.abs(gr.spanW(n) - w); if (d < bd) { bd = d; best = n; } }
+  return best;
+}
+// Tidy: group widgets by kind (so a row shares one height), snap each to a
+// column span, and flow them into aligned grid rows — a clean, designed layout.
 function tidyDashboard(g, silent) {
   if (!WB.canEdit) return;
-  const items = allEmbeds(g.sheet).map((e) => e.item).filter((it) => it.layout);
-  if (!items.length) return;
-  items.sort((a, b) => (a.layout.y - b.layout.y) || (a.layout.x - b.layout.x));
-  const GAP = 16, MARGIN = 24;
-  const maxRight = MARGIN + Math.max(560, (g.els.scroll ? g.els.scroll.clientWidth : 1200) - MARGIN * 2);
-  let x = MARGIN, y = MARGIN, rowH = 0;
-  for (const it of items) {
-    const w = it.layout.w, h = it.layout.h;
-    if (x > MARGIN && x + w > maxRight) { x = MARGIN; y += rowH + GAP; rowH = 0; }
-    it.layout = { ...it.layout, x, y };
-    x += w + GAP; rowH = Math.max(rowH, h);
+  const embeds = allEmbeds(g.sheet).filter((e) => e.item.layout);
+  if (!embeds.length) return;
+  const order = { texts: 0, controls: 1, kpis: 2, insights: 3, charts: 4, tables: 5 };
+  embeds.sort((a, b) => (order[a.key] - order[b.key]) || (a.item.layout.y - b.item.layout.y) || (a.item.layout.x - b.item.layout.x));
+  const gr = dashGridPlacer(g);
+  // consume runs of the same kind into rows, keeping each widget's height but
+  // normalising the row height to the run's max so tops and bottoms align
+  let i = 0;
+  while (i < embeds.length) {
+    const key = embeds[i].key;
+    const run = []; while (i < embeds.length && embeds[i].key === key) run.push(embeds[i++]);
+    const per = key === "kpis" ? 4 : key === "controls" ? 4 : key === "tables" ? 1 : key === "insights" ? 2 : key === "texts" ? 1 : 2;
+    for (let j = 0; j < run.length; j += per) {
+      const slice = run.slice(j, j + per);
+      const h = Math.max(...slice.map((e) => e.item.layout.h));
+      gr.row(slice.map((e) => ({ it: e.item, n: key === "tables" || key === "texts" ? 12 : nearestSpan(g, e.item.layout.w), h })));
+    }
   }
   const meta = { ...(g.sheet.meta || {}) };
   for (const key of EMBED_KINDS) meta[EMBED_META_KEY[key]] = sheetEmbeds(g.sheet, key).slice();
@@ -13757,7 +13790,7 @@ function tidyDashboard(g, silent) {
   saveSheetMeta(g.sheet.id);
   computeGeometry(g);
   renderCharts(g);
-  _toast("Widgets tidied", "ok");
+  if (!silent) _toast("Widgets tidied", "ok");
 }
 function scrollEmbedIntoView(g, id) {
   g.els.charts?.querySelector(`[data-wb-embed-id="${CSS && CSS.escape ? CSS.escape(id) : id}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
@@ -14272,7 +14305,7 @@ function autoBuildDashboard(g) {
     texts.push({ id: rid("tx"), heading: (WB.wb && WB.wb.title) || g.sheet.name, body: `Auto-built overview across ${analyzed.length} sheet${analyzed.length > 1 ? "s" : ""}.` });
     // KPI row: the headline metric from each sheet, then fill toward ~8 tiles
     const colRange = (a, col) => `${colLabel(col.c)}${a.rng.r0 + 2}:${colLabel(col.c)}${a.rng.r1 + 1}`;
-    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), format: "compact", theme: themes[ti++ % themes.length], srcSheetId: a.s.id });
+    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), sparkRange: colRange(a, col), format: "compact", theme: themes[ti++ % themes.length], srcSheetId: a.s.id });
     for (const a of analyzed) { if (kpis.length >= 8) break; pushKpi(a, a.nums[0]); }
     for (const a of analyzed) { if (kpis.length >= 8) break; if (a.nums[1]) pushKpi(a, a.nums[1]); }
     // charts from the richest sheets that have a dimension with metrics to its right
@@ -14293,16 +14326,21 @@ function autoBuildDashboard(g) {
     if (top.cats[0]) controls.push({ id: rid("fc"), label: top.cats[0].name, ctype: "value", col: top.cats[0].c, value: "", srcSheetId: top.s.id });
     const dateSheet = analyzed.find((a) => a.dates.length);
     if (dateSheet) controls.push({ id: rid("fc"), label: `${dateSheet.dates[0].name} range`, ctype: "daterange", col: dateSheet.dates[0].c, value: "all", srcSheetId: dateSheet.s.id });
-    // place in reading order; tidy re-flows into a grid
-    let y = 24;
-    const place = (arr, w, h) => arr.forEach((it) => { it.layout = { x: 24, y, w, h }; y += h + 16; });
-    place(texts, 520, 86); place(controls, 240, 100); place(kpis, 248, 132); place(insights, 340, 200); place(charts, 460, 300); place(tables, 560, 320);
+    // ── designed layout: a real 12-column grid, aligned rows, uniform tiles ──
+    const gr = dashGridPlacer(g);
+    if (texts[0]) gr.row([{ it: texts[0], n: 12, h: 76 }]);            // header band
+    if (controls.length) gr.flow(controls, 3, 96, 4);                  // filter strip
+    if (kpis.length) gr.flow(kpis, 3, 120, 4);                         // compact KPI scorecards, 4 across
+    const restCharts = charts.slice();
+    if (insights[0] && restCharts[0]) gr.row([{ it: insights[0], n: 5, h: 272 }, { it: restCharts.shift(), n: 7, h: 272 }]);
+    else if (insights[0]) gr.flow([insights[0]], 6, 220, 1);
+    if (restCharts.length) gr.flow(restCharts, 6, 272, 2);             // charts, 2 across
+    if (tables.length) gr.flow(tables, 12, 328, 1);                    // full-width table
     g.sheet.meta = { ...(g.sheet.meta || {}), controls, insights, kpis, charts, tables, texts };
     saveSheetMeta(g.sheet.id);
     wbLog("sheet.autobuild", `auto-built a dashboard across ${analyzed.length} sheets`, { target_type: "sheet", target_id: g.sheet.id });
     computeGeometry(g);
     renderCharts(g);
-    tidyDashboard(g, true);
     _toast(`Built a dashboard across ${analyzed.length} sheet${analyzed.length > 1 ? "s" : ""}`, "ok");
   };
   if (allEmbeds(g.sheet).length) {
@@ -17288,8 +17326,28 @@ function liveLoaderFor(src) {
 function refreshLiveData(g) {
   const src = g.sheet.meta && g.sheet.meta.fill && g.sheet.meta.fill.source;
   const fn = liveLoaderFor(src);
-  if (!fn) { _toast("This sheet isn't a live dataset", "info"); return; }
-  fn(g);
+  if (!fn) { _toast("This sheet isn't a live dataset", "info"); return Promise.resolve(); }
+  return Promise.resolve(fn(g));
+}
+// Dashboard-level refresh: re-pull every live dataset feeding this dashboard's
+// widgets, then recompute. Reuses switchSheet + the proven loaders (each runs
+// on the active sheet), then returns to the dashboard.
+async function refreshDashboardData(g) {
+  if (!WB.canEdit || !isDashboardSheet(g.sheet)) return;
+  const dashId = g.sheet.id;
+  const sheets = WB.sheetsByBlock.get(g.blockId) || [];
+  const srcIds = [...new Set(allEmbeds(g.sheet).map((e) => e.item.srcSheetId).filter(Boolean))];
+  const live = srcIds.map((id) => sheets.find((s) => s.id === id)).filter((s) => s && s.meta && s.meta.fill && s.meta.fill.source);
+  if (!live.length) { _toast("No live datasets feed this dashboard yet — load one from the Data menu", "info"); return; }
+  _toast(`Refreshing ${live.length} dataset${live.length > 1 ? "s" : ""}…`, "info");
+  for (const s of live) {
+    switchSheet(g, s.id);        // g.sheet becomes the source; the loader targets it
+    try { await refreshLiveData(g); } catch (e) { console.warn("live refresh:", e && e.message); }
+  }
+  switchSheet(g, dashId);        // back to the dashboard
+  computeGeometry(g);
+  renderCharts(g);
+  _toast("Dashboard refreshed with live data", "success");
 }
 function agoText(iso) {
   if (!iso) return "";
