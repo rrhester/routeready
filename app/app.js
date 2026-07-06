@@ -2806,6 +2806,23 @@ let _scanBusy  = false;       // guards the capture/process pipeline
 const _SCAN_MAX_EDGE = 2000;
 const _SCAN_JPEG_Q   = 0.82;
 
+// PDF page size (points, 72/in). Letter is the default; A4 is opt-in and
+// remembered across sessions. Kept as a small module registry so the
+// send/share paths and the builder all agree.
+const _SCAN_PAGE_SIZES = {
+  letter: { w: 612, h: 792 },
+  a4:     { w: 595, h: 842 },
+};
+function _scanGetPageSize() {
+  let v = "letter";
+  try { v = localStorage.getItem("rr.scan.pagesize") || "letter"; } catch {}
+  return _SCAN_PAGE_SIZES[v] ? v : "letter";
+}
+function _scanSetPageSize(v) {
+  if (!_SCAN_PAGE_SIZES[v]) return;
+  try { localStorage.setItem("rr.scan.pagesize", v); } catch {}
+}
+
 // Decode a captured file to something drawImage() accepts, honoring
 // EXIF orientation so portrait phone shots aren't rotated sideways.
 // createImageBitmap with imageOrientation:"from-image" handles this in
@@ -2873,6 +2890,8 @@ async function _scanMakePage(drawable, sw, sh) {
     filter: "original",   // original | auto | gray | bw
     crop: autoCrop,       // null = full frame, else [[x,y] ×4] TL,TR,BR,BL in source px
     autoCropped: !!autoCrop,
+    rotate: 0,            // 0 | 90 | 180 | 270 (clockwise), applied at export
+    warn: _scanQualityWarnings(src),   // ["Blurry"], ["Glare"], … — non-blocking hints
     jpeg: null, w: ow, h: oh, thumb: "",
   };
   await _scanComputeOutput(page, src);    // reuse the canvas we already drew
@@ -2887,9 +2906,12 @@ async function _scanComputeOutput(page, srcCanvas) {
   const src = srcCanvas || await _scanDecodeToCanvas(page.origJpeg, page.ow, page.oh);
   const cropped = page.crop ? _scanWarp(src, page.crop) : src;
   if (page.filter && page.filter !== "original") _scanApplyFilter(cropped, page.filter);
-  const w = cropped.width, h = cropped.height;
+  // Rotation is applied last, after crop + filter, so it never disturbs
+  // the crop geometry (which stays defined in the un-rotated source).
+  const finalC = _scanRotateCanvas(cropped, page.rotate || 0);
+  const w = finalC.width, h = finalC.height;
 
-  const blob = await new Promise((res) => cropped.toBlob(res, "image/jpeg", _SCAN_JPEG_Q));
+  const blob = await new Promise((res) => finalC.toBlob(res, "image/jpeg", _SCAN_JPEG_Q));
   if (!blob) throw new Error("encode failed");
   page.jpeg = new Uint8Array(await blob.arrayBuffer());
   page.w = w; page.h = h;
@@ -2899,8 +2921,69 @@ async function _scanComputeOutput(page, srcCanvas) {
   const th = Math.max(1, Math.round(h * tScale));
   const tc = document.createElement("canvas");
   tc.width = tw; tc.height = th;
-  tc.getContext("2d").drawImage(cropped, 0, 0, tw, th);
+  tc.getContext("2d").drawImage(finalC, 0, 0, tw, th);
   page.thumb = tc.toDataURL("image/jpeg", 0.7);
+}
+
+// Rotate a canvas by a multiple of 90° (clockwise). Returns the input
+// unchanged for 0°; swaps dimensions for 90°/270°.
+function _scanRotateCanvas(canvas, deg) {
+  const d = ((deg % 360) + 360) % 360;
+  if (d === 0) return canvas;
+  const swap = d === 90 || d === 270;
+  const out = document.createElement("canvas");
+  out.width = swap ? canvas.height : canvas.width;
+  out.height = swap ? canvas.width : canvas.height;
+  const ctx = out.getContext("2d");
+  ctx.translate(out.width / 2, out.height / 2);
+  ctx.rotate(d * Math.PI / 180);
+  ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+  return out;
+}
+
+// Quick capture-quality heuristics on a small grayscale downsample:
+//   • blur  — variance of the Sobel edge response (a sharp page has
+//     lots of high-frequency edge energy; a blurry one is flat).
+//   • glare — fraction of blown-out near-white pixels clustered enough
+//     to be a reflection rather than plain white paper.
+// Both are conservative so we rarely nag on a good shot; the result is a
+// non-blocking hint, never a block. Returns e.g. ["Blurry"] or [].
+function _scanQualityWarnings(srcCanvas) {
+  const warns = [];
+  try {
+    const W0 = srcCanvas.width, H0 = srcCanvas.height;
+    const scale = Math.min(1, 400 / Math.max(W0, H0));
+    const w = Math.max(1, Math.round(W0 * scale)), h = Math.max(1, Math.round(H0 * scale));
+    if (w < 24 || h < 24) return warns;
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(srcCanvas, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+
+    const g = new Float32Array(w * h);
+    let blown = 0;
+    for (let i = 0, p = 0; i < w * h; i++, p += 4) {
+      g[i] = d[p] * 0.299 + d[p + 1] * 0.587 + d[p + 2] * 0.114;
+      if (d[p] > 250 && d[p + 1] > 250 && d[p + 2] > 250) blown++;
+    }
+    // Sobel response variance (sharpness).
+    let sum = 0, sum2 = 0, cnt = 0;
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x;
+        const gx = -g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1] + g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1];
+        const gy = -g[i - w - 1] - 2 * g[i - w] - g[i - w + 1] + g[i + w - 1] + 2 * g[i + w] + g[i + w + 1];
+        const m = Math.abs(gx) + Math.abs(gy);
+        sum += m; sum2 += m * m; cnt++;
+      }
+    }
+    const mean = sum / cnt;
+    const variance = sum2 / cnt - mean * mean;
+    if (variance < 90) warns.push("Blurry");            // conservative floor
+    if (blown / (w * h) > 0.10) warns.push("Glare");     // >10% blown-out
+  } catch { /* quality hints are best-effort */ }
+  return warns;
 }
 
 async function _scanDecodeToCanvas(jpegBytes, w, h) {
@@ -3203,14 +3286,18 @@ function _scanQuadValid(q, w, h) {
 // We build the file as raw bytes because the JPEG streams are binary —
 // a JS string would corrupt them. Object byte-offsets are tracked as
 // we go to write a valid xref table.
-function _scanBuildPdfBlob(pages) {
+function _scanBuildPdfBlob(pages, opts) {
   const enc   = (s) => new TextEncoder().encode(s);
   const parts = [];
   let length  = 0;
   const push    = (u8) => { parts.push(u8); length += u8.length; };
   const pushStr = (s)  => push(enc(s));
 
-  const PAGE_W = 612, PAGE_H = 792, MARGIN = 24;   // 72pt/in → 8.5×11 with ~1/3" margin
+  // Default to US Letter; callers pass { pageSize: 'a4' } to switch. The
+  // no-arg default keeps existing callers (and the regression test) on
+  // 612×792.
+  const size = (opts && _SCAN_PAGE_SIZES[opts.pageSize]) || _SCAN_PAGE_SIZES.letter;
+  const PAGE_W = size.w, PAGE_H = size.h, MARGIN = 24;   // 72pt/in, ~1/3" margin
   const N = pages.length;
   const offsets = [];                              // offsets[objNum] = byte pos
   const startObj = (n) => { offsets[n] = length; };
@@ -3452,6 +3539,13 @@ function renderDocumentScanner() {
       </div>
 
       <div class="scan-actions" id="scan-actions" style="display:none">
+        <div class="scan-size-row">
+          <span class="scan-size-label">Page size</span>
+          <div class="scan-size-seg" id="scan-size-seg" role="group" aria-label="PDF page size">
+            <button type="button" class="scan-size-opt" data-scan-size="letter">Letter</button>
+            <button type="button" class="scan-size-opt" data-scan-size="a4">A4</button>
+          </div>
+        </div>
         <button id="scan-send" class="btn btn-primary btn-block" type="button">Send to dispatch</button>
         <button id="scan-share" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Save or share PDF</button>
         <button id="scan-clear" class="btn btn-ghost btn-block" type="button" style="margin-top:8px;color:var(--red)">Start over</button>
@@ -3492,7 +3586,7 @@ function renderDocumentScanner() {
     _haptic("select");
   });
 
-  document.getElementById("scan-pages").addEventListener("click", (e) => {
+  document.getElementById("scan-pages").addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-scan-act]");
     if (!btn) return;
     const id  = btn.getAttribute("data-scan-id");
@@ -3502,6 +3596,14 @@ function renderDocumentScanner() {
     if (act === "edit") {
       _haptic("tap");
       _scanOpenEditor(id);
+      return;
+    } else if (act === "rotate") {
+      const p = _scanPages[idx];
+      p.rotate = (((p.rotate || 0) + 90) % 360);
+      _haptic("tap");
+      btn.disabled = true;
+      try { await _scanComputeOutput(p); } catch { toast("Couldn't rotate — try again", "warn"); }
+      _scanRenderPages();
       return;
     } else if (act === "del") {
       _scanPages.splice(idx, 1);
@@ -3525,7 +3627,7 @@ function renderDocumentScanner() {
 
     let blob;
     try {
-      blob = _scanBuildPdfBlob(_scanPages);
+      blob = _scanBuildPdfBlob(_scanPages, { pageSize: _scanGetPageSize() });
     } catch (err) {
       toast(_friendlyError(err, "Couldn't build the PDF. Try again."), "warn");
       btn.disabled = false; btn.textContent = "Send to dispatch";
@@ -3580,7 +3682,7 @@ function renderDocumentScanner() {
     const name = _scanNameValue();
     btn.disabled = true; btn.textContent = "Preparing…";
     try {
-      const blob = _scanBuildPdfBlob(_scanPages);
+      const blob = _scanBuildPdfBlob(_scanPages, { pageSize: _scanGetPageSize() });
       const res = await _scanShareOrSave(blob, name.endsWith(".pdf") ? name : name + ".pdf");
       if (res === "downloaded") toast("PDF downloaded", "ok");
       else if (res === "shared") toast("Shared", "ok");
@@ -3602,6 +3704,19 @@ function renderDocumentScanner() {
     _scanRenderPages();
     _haptic("tap");
   });
+
+  // Page-size segmented control (Letter / A4), persisted across sessions.
+  const seg = document.getElementById("scan-size-seg");
+  if (seg) {
+    const paint = () => {
+      const cur = _scanGetPageSize();
+      seg.querySelectorAll("[data-scan-size]").forEach((b) =>
+        b.classList.toggle("on", b.getAttribute("data-scan-size") === cur));
+    };
+    paint();
+    seg.querySelectorAll("[data-scan-size]").forEach((b) =>
+      b.addEventListener("click", () => { _scanSetPageSize(b.getAttribute("data-scan-size")); paint(); _haptic("select"); }));
+  }
 
   _scanRenderPages();
 
@@ -3644,12 +3759,14 @@ function _scanRenderPages() {
   wrap.innerHTML = n === 0
     ? `<div class="scan-empty">No pages yet. Tap <strong>Add a page</strong> to capture the first one.</div>`
     : _scanPages.map((p, i) => {
-        const edited = (p.filter && p.filter !== "original") || p.crop;
+        const edited = (p.filter && p.filter !== "original") || p.crop || p.rotate;
         const tags = [];
         if (p.crop) tags.push(p.autoCropped ? "Auto-cropped" : "Cropped");
         if (p.filter && p.filter !== "original") tags.push(_scanFilterLabel(p.filter));
-        const tagLine = tags.length
-          ? `<div class="scan-page-tags">${tags.map((t) => `<span class="scan-tag">${escapeHtml(t)}</span>`).join("")}</div>`
+        const warnTags = (p.warn || []).map((wn) => `<span class="scan-tag warn">⚠ ${escapeHtml(wn)}</span>`).join("");
+        const okTags = tags.map((t) => `<span class="scan-tag">${escapeHtml(t)}</span>`).join("");
+        const tagLine = (tags.length || warnTags)
+          ? `<div class="scan-page-tags">${warnTags}${okTags}</div>`
           : `<div class="scan-page-dim">Tap to crop &amp; enhance</div>`;
         return `
         <div class="scan-page-card">
@@ -3661,6 +3778,9 @@ function _scanRenderPages() {
             </span>
           </button>
           <div class="scan-page-ctl">
+            <button class="scan-ctl-btn" data-scan-act="rotate" data-scan-id="${p.id}" aria-label="Rotate page">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
+            </button>
             <button class="scan-ctl-btn" data-scan-act="up"   data-scan-id="${p.id}" aria-label="Move up"   ${i === 0 ? "disabled" : ""}>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
             </button>

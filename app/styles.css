@@ -692,6 +692,9 @@ select.field{
   padding:2px 7px;border-radius:999px;
   background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border);
 }
+.scan-tag.warn{
+  background:var(--amber-soft);color:var(--amber-dark);border-color:var(--amber-border, rgba(217,119,6,.28));
+}
 .scan-page-ctl{display:flex;gap:4px;flex-shrink:0}
 .scan-ctl-btn{
   width:36px;height:36px;border-radius:var(--r-md);
@@ -703,6 +706,21 @@ select.field{
 .scan-ctl-btn:disabled{opacity:.35;cursor:not-allowed}
 .scan-ctl-btn.danger{color:var(--red)}
 .scan-namefield{margin:4px 2px 16px}
+.scan-size-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:0 2px 14px;
+}
+.scan-size-label{font-size:var(--fs-sm);font-weight:600;color:var(--text-muted)}
+.scan-size-seg{
+  display:inline-flex;background:var(--canvas);border:1px solid var(--border);
+  border-radius:999px;padding:2px;
+}
+.scan-size-opt{
+  padding:6px 16px;border-radius:999px;cursor:pointer;border:0;background:transparent;
+  font-size:var(--fs-sm);font-weight:700;color:var(--text-muted);
+  transition:background 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.scan-size-opt.on{background:var(--accent);color:#fff}
 
 /* Page editor overlay (crop + enhance) */
 body.scan-editing{overflow:hidden}

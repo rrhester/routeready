@@ -13,13 +13,11 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-// v128 · Document scanner gains an offline send queue: a "Send to
-// dispatch" that can't reach the network stores the PDF in IndexedDB and
-// flushes automatically when connectivity returns (online event, app
-// foreground, scanner open) — so a scan in a dead zone is never lost.
-// Bumped so installed driver PWAs purge the old shell and pick up the
-// new app.js.
-const SHELL_CACHE = "rr-app-shell-v128";
+// v129 · Document scanner polish: per-page rotate, a capture blur/glare
+// warning hint, and a Letter/A4 page-size choice (remembered across
+// sessions). Bumped so installed driver PWAs purge the old shell and
+// pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v129";
 const SHELL_FILES = [
   "./",
   "index.html",
