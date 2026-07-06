@@ -1270,4 +1270,23 @@ await okA("xlsx round-trip: custom number-format codes survive", async () => {
   assert.equal(findCell(sh, 2, 0).format.fmt, "0.0%");
 });
 
+await okA("xlsx round-trip: Excel tables survive as <table> parts", async () => {
+  const cells = new Map([
+    ["0,0", XC("Region", "text")], ["0,1", XC("Amount", "text")],
+    ["1,0", XC("East", "text")], ["1,1", XC("100", "number")],
+    ["2,0", XC("West", "text")], ["2,1", XC("250", "number")],
+  ]);
+  const meta = { tables: [{ name: "Sales", r0: 0, c0: 0, r1: 2, c1: 1 }] };
+  const bytes = buildXlsxBytes([{ name: "S", cells, colWidths: {}, frozenRows: 0, frozenCols: 0, meta }]);
+  const xml = new TextDecoder().decode(bytes);
+  assert.ok(/<table\b[^>]*displayName="Sales"[^>]*ref="A1:B3"/.test(xml), "table part written with ref");
+  assert.ok(xml.includes('<tableColumn id="1" name="Region"'), "table columns written");
+  assert.ok(/<tableParts count="1"><tablePart r:id="rtbl1"\/>/.test(xml), "worksheet references the table part");
+  const parsed = await parseXlsxBytes(bytes);
+  const t = parsed.sheets[0].tables && parsed.sheets[0].tables[0];
+  assert.ok(t, "table recovered on import");
+  assert.equal(t.name, "Sales");
+  assert.deepEqual([t.r0, t.c0, t.r1, t.c1], [0, 0, 2, 1]);
+});
+
 console.log(`✓ formula engine + xlsx: ${n} tests passed`);
