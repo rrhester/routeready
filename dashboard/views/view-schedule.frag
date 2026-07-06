@@ -643,12 +643,12 @@
 
                   <div class="pol-section">
                   <h3 class="pol-section-title">Scheduling order</h3>
-                  <p class="pol-section-sub">Soft nudges that steer who Smart Fill picks when more than one driver fits.</p>
+                  <p class="pol-section-sub">Steer who Smart Fill picks when more than one driver fits.</p>
                   <div class="rr-pol-rows">
                     <div class="rr-pol-row">
-                      <label class="rr-pol-label" for="rr-pol-corrective">Schedule Final-corrective drivers last <button type="button" class="rr-pol-info" data-rr-pol-info="Drivers on a Final coaching ladder go to the back of the line when Smart Fill chooses between eligible drivers." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
+                      <label class="rr-pol-label" for="rr-pol-corrective">Schedule Final-corrective drivers last <button type="button" class="rr-pol-info" data-rr-pol-info="Drivers on a Final coaching ladder only get shifts nobody else can cover: drivers in good standing fill first — even picking up extra days past their weekly target — before a Final-corrective driver is scheduled at all. Coverage always wins, though: a route is never left open (XL routes above all) when a Final-corrective driver is the only one certified and available to run it." aria-label="What this rule does"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><line x1="6" y1="5.4" x2="6" y2="8.6"/><circle cx="6" cy="3.3" r="0.6" fill="currentColor" stroke="none"/></svg></button></label>
                       <div class="rr-pol-control">
-                        <input type="checkbox" class="rr-pol-check" id="rr-pol-corrective" title="Drivers on a Final coaching ladder are scheduled last">
+                        <input type="checkbox" class="rr-pol-check" id="rr-pol-corrective" title="Final-corrective drivers only get shifts no other eligible driver can cover — XL and route coverage always come first">
                       </div>
                     </div>
                     <div class="rr-pol-row">

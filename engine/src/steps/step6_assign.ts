@@ -170,22 +170,39 @@ function runPhase(
   const rankMap = new Map<string, number>();
   order.forEach((d, i) => rankMap.set(d.driver_id, i + 1));
 
-  // Pass A — only drivers UNDER their target_days_per_week can claim.
-  // Re-evaluated per call (driver's day-count grows as they're assigned),
-  // so a driver naturally drops out of Pass A once they hit target. When
-  // target is 0, this collapses to "always true" — no soft-cap filter.
-  runFillCycle(
-    ctx, ws, matrix, phase, order, rankMap,
-    (driver) => isAtOrOverTarget(ctx, ws, driver),
-  );
-
-  // Pass B — coverage escape hatch. Any still-eligible driver may claim
-  // remaining open shifts, even if it pushes them past their target.
-  // This is the OT mode — only kicks in when Pass A couldn't cover.
-  runFillCycle(
-    ctx, ws, matrix, phase, order, rankMap,
-    () => false,
-  );
+  // Attendance Penalty ("Schedule Final-corrective drivers last") is a
+  // tiered fill, not just a pick order: drivers in good standing fill
+  // first — past their soft target if coverage needs it — and a
+  // Final-corrective driver only claims what clean drivers cannot
+  // legally cover. Coverage still wins: the FCA tiers run before the
+  // phase ends, and phases fill dot → xl → standard, so an XL route is
+  // never left open when an FCA driver is the only one certified for it.
+  const fcaLast = ctx.settings.attendance_penalty;
+  const skips: Array<(driver: NormalizedDriver) => boolean> = fcaLast
+    ? [
+        // A — clean drivers under target.
+        (d) => d.attendance_final || isAtOrOverTarget(ctx, ws, d),
+        // B — clean drivers past target (soft-cap escape).
+        (d) => d.attendance_final,
+        // C — Final-corrective drivers under target.
+        (d) => !d.attendance_final || isAtOrOverTarget(ctx, ws, d),
+        // D — Final-corrective drivers past target (last resort).
+        (d) => !d.attendance_final,
+      ]
+    : [
+        // Pass A — only drivers UNDER their target_days_per_week can
+        // claim. Re-evaluated per call (day-count grows as they're
+        // assigned), so a driver naturally drops out of Pass A once they
+        // hit target. Target 0 collapses to "always true" — no soft cap.
+        (d) => isAtOrOverTarget(ctx, ws, d),
+        // Pass B — coverage escape hatch. Any still-eligible driver may
+        // claim remaining open shifts, even past their target. This is
+        // the OT mode — only kicks in when Pass A couldn't cover.
+        () => false,
+      ];
+  for (const skip of skips) {
+    runFillCycle(ctx, ws, matrix, phase, order, rankMap, skip);
+  }
 }
 
 export function runMainPass(

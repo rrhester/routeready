@@ -777,6 +777,63 @@ test("attendance penalty rotates Final-corrective drivers last", () => {
   );
 });
 
+test("attendance penalty schedules Final-corrective drivers last, not just later", () => {
+  // Two drivers, two days, soft target of 1 day each. A mere pick-order
+  // penalty would still split the days 1-and-1; schedule-last means the
+  // clean driver absorbs BOTH days (the target is soft) and the
+  // Final-corrective driver gets nothing.
+  const base = {
+    shifts: [
+      shift({ shift_id: "s1", date: "2026-05-25" }),
+      shift({ shift_id: "s2", date: "2026-05-26" }),
+    ],
+    drivers: [
+      driver({ driver_id: "a_fca", attendance_final: true }),
+      driver({ driver_id: "b_ok" }),
+    ],
+  };
+  const r = runEngine(
+    input({
+      ...base,
+      settings: { attendance_penalty: true, target_days_per_week: 1 },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 2);
+  for (const a of r.assigned_shifts) assert.equal(a.driver_id, "b_ok");
+  // Sanity: without the penalty the soft target splits the days 1-and-1.
+  const off = runEngine(
+    input({ ...base, settings: { target_days_per_week: 1 } }),
+  );
+  const counts = new Map<string, number>();
+  for (const a of off.assigned_shifts) {
+    counts.set(a.driver_id, (counts.get(a.driver_id) ?? 0) + 1);
+  }
+  assert.equal(counts.get("a_fca"), 1);
+  assert.equal(counts.get("b_ok"), 1);
+});
+
+test("attendance penalty never leaves an XL route open — FCA driver still covers it", () => {
+  // The FCA driver is the only XL-certified one. Schedule-last must not
+  // strand the XL route: coverage (XL above all) beats keeping a
+  // Final-corrective driver off the schedule.
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "s_xl", date: "2026-05-25", route_type: "xl" }),
+        shift({ shift_id: "s_std", date: "2026-05-25" }),
+      ],
+      drivers: [
+        driver({ driver_id: "a_fca", xl_certified: true, attendance_final: true }),
+        driver({ driver_id: "b_ok" }),
+      ],
+      settings: { attendance_penalty: true },
+    }),
+  );
+  const byShift = new Map(r.assigned_shifts.map((a) => [a.shift_id, a.driver_id]));
+  assert.equal(byShift.get("s_xl"), "a_fca");
+  assert.equal(byShift.get("s_std"), "b_ok");
+});
+
 // --- Random order + rotation start day -------------------------------------
 
 test("random scheduling method is deterministic per week", () => {

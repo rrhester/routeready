@@ -144,6 +144,82 @@ def test_coverage_still_dominates_when_only_choice_is_risky():
     assert result.assigned_shifts[0].driver_id == "d_risky"
 
 
+def test_fca_schedule_last_beats_the_target_days_wall():
+    """attendance_penalty=True ("Schedule Final-corrective drivers last")
+    escalates the FCA penalty above the target-days wall: the clean
+    driver absorbs BOTH days — going past her soft target — and the
+    final-corrective driver gets nothing. Under the legacy soft penalty
+    (checkbox untouched) the solver would split 1-and-1 instead, because
+    an FCA shift (-100) is cheaper than an over-target day (-10k)."""
+    base = dict(
+        drivers=[
+            {"id": "d_risky", "available_dows": [1, 2], "final_corrective_action": True},
+            {"id": "d_clean", "available_dows": [1, 2]},
+        ],
+        shifts=[
+            {"id": "s1", "date": "2026-06-01", "route_type": "standard", "duration_hours": 10},
+            {"id": "s2", "date": "2026-06-02", "route_type": "standard", "duration_hours": 10},
+        ],
+    )
+    # Legacy (key absent): target wall wins — each driver takes one day.
+    legacy = solve(_req(rules={"target_days_per_week": 1}, **base))
+    legacy_counts = {}
+    for a in legacy.assigned_shifts:
+        legacy_counts[a.driver_id] = legacy_counts.get(a.driver_id, 0) + 1
+    assert legacy_counts == {"d_risky": 1, "d_clean": 1}
+    # Schedule-last: the clean driver takes both; the FCA driver sits.
+    hard = solve(_req(
+        rules={"attendance_penalty": True, "target_days_per_week": 1}, **base,
+    ))
+    assert len(hard.assigned_shifts) == 2
+    assert all(a.driver_id == "d_clean" for a in hard.assigned_shifts)
+
+
+def test_fca_schedule_last_never_sacrifices_xl_coverage():
+    """XL routes are protected at all costs: when the final-corrective
+    driver is the only XL-certified one, she still runs the XL route
+    even in schedule-last mode — and the clean driver keeps the
+    standard route."""
+    r = _req(
+        rules={"attendance_penalty": True},
+        drivers=[
+            {"id": "d_risky_xl", "available_dows": [1], "xl_certified": True,
+             "final_corrective_action": True},
+            {"id": "d_clean", "available_dows": [1]},
+        ],
+        shifts=[
+            {"id": "s_xl", "date": "2026-06-01", "route_type": "xl", "duration_hours": 10},
+            {"id": "s_std", "date": "2026-06-01", "route_type": "standard", "duration_hours": 10},
+        ],
+    )
+    result = solve(r)
+    assert len(result.uncovered_shifts) == 0
+    by_shift = {a.shift_id: a.driver_id for a in result.assigned_shifts}
+    assert by_shift["s_xl"] == "d_risky_xl"
+    assert by_shift["s_std"] == "d_clean"
+
+
+def test_fca_penalty_off_when_checkbox_explicitly_false():
+    """attendance_penalty=False disables the FCA preference entirely —
+    a final-corrective driver with strong Monday affinity beats a clean
+    driver with none (the legacy soft penalty would have outweighed the
+    affinity edge and flipped the pick)."""
+    r = _req(
+        rules={"attendance_penalty": False},
+        drivers=[
+            {"id": "d_risky", "available_dows": [1], "final_corrective_action": True,
+             "weekday_affinity": [0, 90, 0, 0, 0, 0, 0]},
+            {"id": "d_clean", "available_dows": [1]},
+        ],
+        shifts=[
+            {"id": "s1", "date": "2026-06-01", "route_type": "standard", "duration_hours": 10},
+        ],
+    )
+    result = solve(r)
+    assert len(result.assigned_shifts) == 1
+    assert result.assigned_shifts[0].driver_id == "d_risky"
+
+
 def test_coverage_still_dominates_when_ot_is_the_only_option():
     """Coverage must beat OT avoidance — a 40h-locked driver still
     takes the open shift if she's the only eligible driver."""

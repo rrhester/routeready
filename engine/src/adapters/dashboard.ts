@@ -205,9 +205,14 @@ function mapDriver(
     last_name: name.last,
     status: status === "onboarding" ? "onboarding" : "active",
     employment_type: "full_time",
+    // A MISSING hire date must not make the driver the most senior (seniority
+    // sorts ascending, so "2000-01-01" put unknown-tenure drivers at the front
+    // of every priority queue — a data gap becoming top scheduling priority).
+    // Default unknown tenure to a far-future date so they sort LEAST senior;
+    // hire_date is only used for seniority ordering in the engine.
     hire_date: raw.hire_date && raw.hire_date.length >= 10
       ? raw.hire_date.slice(0, 10)
-      : "2000-01-01",
+      : "2999-12-31",
     license_expiration_date: raw.dl_expires_on
       ? raw.dl_expires_on.slice(0, 10)
       : null,

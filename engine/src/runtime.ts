@@ -18,6 +18,8 @@ export interface EngineContext {
   settings: Settings;
   drivers: NormalizedDriver[];
   driverById: Map<string, NormalizedDriver>;
+  /** Malformed driver records dropped during normalization (see buildContext). */
+  droppedDrivers: { driver_id: string; error: string }[];
   shifts: NormalizedShift[];
   blackout: Set<string>;
   weekStartDay: number;
