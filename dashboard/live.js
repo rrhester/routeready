@@ -13458,6 +13458,20 @@ async function loadDashboardWeather() {
       }
     }
 
+    // Share the daily forecast with the schedule view's weather-header
+    // overlay (keyed by ISO date) so it doesn't have to re-fetch NWS.
+    try {
+      const wxMap = {};
+      for (const d of dayPairs) {
+        let iso; try { iso = fmtIsoDate(new Date(d.startTime)); } catch { continue; }
+        wxMap[iso] = { short: d.short, hi: d.hi, lo: d.lo, precip: d.precip, wind: d.wind };
+      }
+      window._rrWxForecastByIso = wxMap;
+      if (typeof _rrApplySchedWeatherToHeaders === "function" && _rrSchedWeatherOn()) {
+        _rrApplySchedWeatherToHeaders();
+      }
+    } catch (_) { /* non-fatal */ }
+
     const hourlyPeriods = (hourly?.properties?.periods || []).slice(0, 14);
     const peakRain = hourlyPeriods.reduce((m, h) => Math.max(m, h.probabilityOfPrecipitation?.value || 0), 0);
     const peakWindMph = hourlyPeriods.reduce((m, h) => {
@@ -37653,6 +37667,24 @@ document.addEventListener("click", (e) => {
     compactBtn.setAttribute("aria-label", "Grid density: " + next + " (click to cycle)");
     return;
   }
+  // Weather forecast overlay — swap each day header from the date +
+  // coverage/route counts to a single forecast glyph and back. No data
+  // reload: _rrApplySchedWeatherToHeaders reads the markup stashed on each
+  // header cell during render. When switching on, ensure the forecast is
+  // loaded (schedule view may open before the dashboard weather card runs)
+  // and re-apply once it lands.
+  const wxBtn = e.target.closest("#rr-sched-weather-toggle");
+  if (wxBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const on = !_rrSchedWeatherOn();
+    try { localStorage.setItem("rr-sched-weather", on ? "1" : "0"); } catch (_) {}
+    _rrApplySchedWeatherToHeaders();
+    if (on) {
+      _rrEnsureSchedWxForecast().then(() => _rrApplySchedWeatherToHeaders()).catch(() => {});
+    }
+    return;
+  }
   // Staff view — operator wants to STAY on the Week's .cal-grid
   // layout (same chrome, same header, same row format) but see
   // only staff (role <> 'driver') instead of drivers. Hides every
@@ -55439,10 +55471,25 @@ async function renderScheduleWeek() {
         riskGlyph = `<button type="button" class="day-risk-glyph ${_sev}" data-rr-day-risk="${iso}" aria-haspopup="dialog" aria-label="${escapeHtml(_riskAria)}"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>`;
       }
 
-      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}${targetLine}${riskGlyph}`;
+      // Stash the day's ISO + the "normal" header markup so the Weather
+      // overlay (below) can swap between the date/coverage view and a
+      // forecast glyph without a full grid re-render.
+      const _normalHead = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}${targetLine}${riskGlyph}`;
+      cellHead.dataset.rrIso = iso;
+      cellHead.dataset.rrDateHtml = _normalHead;
+      cellHead.innerHTML = _normalHead;
     }
     window._rrDayRiskByIso = _dayRiskMap;
     _rrInstallDayRiskHover();
+  }
+
+  // Weather-forecast overlay on the day headers (toggled by the driver-header
+  // #rr-sched-weather-toggle icon). Re-apply on every render so week nav /
+  // coverage updates keep the forecast view when it's on; kick a forecast
+  // fetch if the store is empty so freshly-opened schedules fill in.
+  try { _rrApplySchedWeatherToHeaders(); } catch (_) {}
+  if (_rrSchedWeatherOn()) {
+    try { _rrEnsureSchedWxForecast().then(() => _rrApplySchedWeatherToHeaders()).catch(() => {}); } catch (_) {}
   }
 
   // ── Header action bar (operator mockup 2026-06-12) · coverage card +
@@ -58811,6 +58858,190 @@ function _rrDayRiskWxLabel(b) {
     alert: "severe-weather alert", snow: "snow", thunderstorm: "thunderstorms",
     heavy_rain: "heavy rain", rain: "rain", heat: "extreme heat", cold: "freezing temps",
   })[b] || "weather";
+}
+
+// ── Schedule day-header weather overlay ───────────────────────────────
+// Driver-header icon (#rr-sched-weather-toggle) flips each day column's
+// header from "Sun 5 · 35/32 · Routes 28" to a single forecast glyph
+// (sun / cloud / rain / storm / snow / heat / cold / wind). Forecast is
+// pulled from the DSP's NWS point — the same source as the dashboard
+// weather card — and cached on window._rrWxForecastByIso keyed by ISO date.
+
+function _rrSchedWeatherOn() {
+  try { return localStorage.getItem("rr-sched-weather") === "1"; } catch (_) { return false; }
+}
+
+// Map an NWS forecast day (short text + temps + precip + wind) to a display
+// bucket. Distinct from the call-out model's wxCalloutBucket: this keeps
+// clear vs. cloudy separate and adds wind/fog so the glyph reads visually.
+function _rrWxDisplayKey(fc) {
+  if (!fc) return "unknown";
+  const s = String(fc.short || "").toLowerCase();
+  const precip = Number(fc.precip) || 0;
+  const hi = fc.hi == null ? null : Number(fc.hi);
+  const lo = fc.lo == null ? null : Number(fc.lo);
+  const windMph = parseInt(String(fc.wind || "").match(/(\d+)/)?.[1] || "0", 10);
+  if (s.includes("snow") || s.includes("sleet") || s.includes("wintry") || s.includes("flurr") || s.includes("blizzard") || s.includes("ice")) return "snow";
+  if (s.includes("thunder") || s.includes("tstorm") || s.includes("storm")) return "storm";
+  if (s.includes("fog") || s.includes("haze") || s.includes("mist") || s.includes("smoke")) return "fog";
+  if (s.includes("rain") || s.includes("shower") || s.includes("drizzle") || precip >= 50) {
+    return (precip >= 60 || s.includes("heavy")) ? "heavyrain" : "rain";
+  }
+  if (hi != null && hi >= 95) return "heat";
+  if (lo != null && lo <= 32) return "cold";
+  if (windMph >= 25) return "wind";
+  if (s.includes("cloud") || s.includes("overcast")) {
+    return (s.includes("partly") || s.includes("few") || s.includes("mostly sunny") || s.includes("mostly clear")) ? "partly" : "cloudy";
+  }
+  if (s.includes("sun") || s.includes("clear") || s.includes("fair") || s.includes("hot")) {
+    return (hi != null && hi >= 95) ? "heat" : "sunny";
+  }
+  return "sunny";
+}
+
+// Convert a stored call-out bucket (fallback when no full forecast row is
+// available) to the same display key space as _rrWxDisplayKey.
+function _rrWxDisplayKeyFromBucket(b) {
+  return ({
+    alert: "storm", snow: "snow", thunderstorm: "storm", heavy_rain: "heavyrain",
+    rain: "rain", heat: "heat", cold: "cold", clear: "sunny",
+  })[b] || "unknown";
+}
+
+const RR_WX_ICON = {
+  sunny:     { label: "Sunny",  color: "#f0a83c", svg: `<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M18.8 5.2l-1.7 1.7M6.9 17.1l-1.7 1.7"/>` },
+  partly:    { label: "Partly cloudy", color: "#8aa0b6", svg: `<circle cx="8" cy="8" r="3.2"/><path d="M8 1.9v1.7M1.9 8h1.7M3.6 3.6l1.2 1.2M12.4 3.6l-1.2 1.2"/><path d="M17.5 20H10a3.5 3.5 0 0 1-.3-6.98A5 5 0 0 1 19 14.2a3 3 0 0 1-1.5 5.8z"/>` },
+  cloudy:    { label: "Cloudy", color: "#8aa0b6", svg: `<path d="M17.5 18H7a4 4 0 0 1-.4-7.98A5.5 5.5 0 0 1 17.6 11 3.5 3.5 0 0 1 17.5 18z"/>` },
+  rain:      { label: "Rain",   color: "#4a90d9", svg: `<path d="M17.5 15H7a4 4 0 0 1-.4-7.98A5.5 5.5 0 0 1 17.6 8 3.5 3.5 0 0 1 17.5 15z"/><path d="M8 18.5v2M12 18.5v2.5M16 18.5v2"/>` },
+  heavyrain: { label: "Heavy rain", color: "#2f6fb3", svg: `<path d="M17.5 14H7a4 4 0 0 1-.4-7.98A5.5 5.5 0 0 1 17.6 7 3.5 3.5 0 0 1 17.5 14z"/><path d="M7 17l-1 3M11 17l-1 3.5M15 17l-1 3M19 17l-1 3"/>` },
+  storm:     { label: "Storms", color: "#7a5cc0", svg: `<path d="M17.5 13H7a4 4 0 0 1-.4-7.98A5.5 5.5 0 0 1 17.6 6 3.5 3.5 0 0 1 17.5 13z"/><path d="M12.5 13l-3 4.5h3l-2 3.5"/>` },
+  snow:      { label: "Snow",   color: "#7fb2d9", svg: `<path d="M17.5 13H7a4 4 0 0 1-.4-7.98A5.5 5.5 0 0 1 17.6 6 3.5 3.5 0 0 1 17.5 13z"/><path d="M8 16.9v3.2M6.4 17.54l3.2 1.92M9.6 17.54l-3.2 1.92M16 17.1v2.8M14.6 17.66l2.8 1.68M17.4 17.66l-2.8 1.68"/>` },
+  heat:      { label: "High heat", color: "#e8622e", svg: `<circle cx="9" cy="9" r="3.6"/><path d="M9 1.9v1.8M9 14.3v1.8M1.9 9h1.8M14.3 9h1.8M4 4l1.3 1.3M12.7 12.7L14 14M14 4l-1.3 1.3M4 14l1.3-1.3"/><path d="M19 6v8.2a3 3 0 1 1-3 0V6a1.5 1.5 0 0 1 3 0z"/><circle cx="17.5" cy="17.5" r="1.4"/>` },
+  cold:      { label: "Freezing", color: "#4a90d9", svg: `<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9"/><path d="M12 3l-2.2 2.2M12 3l2.2 2.2M12 21l-2.2-2.2M12 21l2.2-2.2M4.2 7.5l.1 3M4.2 7.5l2.9-.7M19.8 16.5l-.1-3M19.8 16.5l-2.9.7M19.8 7.5l-.1 3M19.8 7.5l-2.9-.7M4.2 16.5l.1-3M4.2 16.5l2.9.7"/>` },
+  wind:      { label: "Windy",  color: "#7f95a8", svg: `<path d="M3 8h11a2.5 2.5 0 1 0-2.5-2.5"/><path d="M3 13h16a2.8 2.8 0 1 1-2.8 2.8"/><path d="M3 18h8a2.2 2.2 0 1 0-2.2 2.2"/>` },
+  fog:       { label: "Fog",    color: "#93a3b2", svg: `<path d="M4 9h13a4 4 0 0 0-8-1.5A3 3 0 0 0 4 9z" opacity="0.9"/><path d="M3 13h16M5 16.5h14M4 20h12"/>` },
+  unknown:   { label: "—",      color: "var(--text-subtle)", svg: `<path d="M17.5 14H7a4 4 0 0 1-.4-7.98A5.5 5.5 0 0 1 17.6 7 3.5 3.5 0 0 1 17.5 14z"/><path d="M10.4 10.2a1.6 1.6 0 1 1 2.2 1.5c-.6.3-.9.6-.9 1.3"/><path d="M11.7 15.4h.01"/>` },
+};
+
+function _rrSchedWxForDate(iso) {
+  const fc = (window._rrWxForecastByIso || {})[iso];
+  if (fc) return { key: _rrWxDisplayKey(fc), fc };
+  const b = (window._rrWeatherCalloutRisk && window._rrWeatherCalloutRisk.days && window._rrWeatherCalloutRisk.days[iso]) || null;
+  if (b && b.bucket) return { key: _rrWxDisplayKeyFromBucket(b.bucket), fc: null };
+  return { key: "unknown", fc: null };
+}
+
+function _rrSchedWxHeadHtml(iso) {
+  const { key, fc } = _rrSchedWxForDate(iso);
+  const ic = RR_WX_ICON[key] || RR_WX_ICON.unknown;
+  let wd = "";
+  try { wd = RR_DAY_SHORT[new Date(iso + "T00:00:00").getDay()]; } catch (_) {}
+  const tempLine = fc && fc.hi != null
+    ? `<span class="rr-wx-head-temp">${Math.round(fc.hi)}°${fc.lo != null ? `<span class="rr-wx-head-lo"> / ${Math.round(fc.lo)}°</span>` : ""}</span>`
+    : "";
+  return `<span class="rr-wx-head-day">${wd}</span>`
+    + `<span class="rr-wx-head-ic" style="color:${ic.color}" aria-hidden="true">`
+    +   `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ic.svg}</svg>`
+    + `</span>`
+    + `<span class="rr-wx-head-label">${escapeHtml(ic.label)}</span>`
+    + tempLine;
+}
+
+function _rrSchedWxHeadTitle(iso) {
+  const { key, fc } = _rrSchedWxForDate(iso);
+  const ic = RR_WX_ICON[key] || RR_WX_ICON.unknown;
+  let wd = "";
+  try { wd = new Date(iso + "T00:00:00").toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }); } catch (_) { wd = iso; }
+  if (!fc) {
+    return key === "unknown"
+      ? `${wd} — no forecast available for this day`
+      : `${wd} — ${ic.label} (from your call-out weather model)`;
+  }
+  const parts = [wd + " — " + (fc.short || ic.label)];
+  if (fc.hi != null) parts.push(`High ${Math.round(fc.hi)}°${fc.lo != null ? ` / Low ${Math.round(fc.lo)}°` : ""}`);
+  if (Number(fc.precip) > 0) parts.push(`${fc.precip}% precip`);
+  if (fc.wind) parts.push(`Wind ${fc.wind}`);
+  return parts.join(" · ");
+}
+
+// Swap the schedule's day headers between the normal date/coverage view and
+// the forecast glyphs, driven purely by the persisted toggle + the markup
+// stashed on each header cell during render. Safe to call any time.
+function _rrApplySchedWeatherToHeaders() {
+  const on = _rrSchedWeatherOn();
+  document.body.classList.toggle("rr-sched-weather", on);
+  const btn = document.getElementById("rr-sched-weather-toggle");
+  if (btn) btn.setAttribute("aria-pressed", on ? "true" : "false");
+  const headRow = document.querySelector("#sched-sub-week .cal-grid.head")
+    || document.querySelector("#view-schedule .cal-wrap .cal-grid.head");
+  if (!headRow) return;
+  const heads = headRow.querySelectorAll(".cal-cell-head");
+  heads.forEach((h, i) => {
+    if (i === 0) return; // the "Driver" label cell
+    const iso = h.dataset.rrIso;
+    if (!iso) return;
+    if (on) {
+      h.classList.add("rr-wx-head");
+      h.innerHTML = _rrSchedWxHeadHtml(iso);
+      h.title = _rrSchedWxHeadTitle(iso);
+    } else if (h.classList.contains("rr-wx-head")) {
+      h.classList.remove("rr-wx-head");
+      h.removeAttribute("title");
+      if (h.dataset.rrDateHtml != null) h.innerHTML = h.dataset.rrDateHtml;
+    }
+  });
+}
+
+// Lightweight NWS forecast fetch scoped to the schedule weather overlay, so
+// the toggle works even when the dashboard weather card hasn't run. Populates
+// window._rrWxForecastByIso (day ISO → { short, hi, lo, precip, wind }) and
+// caches for 30 min. Returns null when the DSP has no lat/lon configured.
+let _rrSchedWxFetchAt = 0;
+let _rrSchedWxFetching = null;
+async function _rrEnsureSchedWxForecast(force) {
+  const store = window._rrWxForecastByIso;
+  const fresh = store && Object.keys(store).length && (Date.now() - _rrSchedWxFetchAt < 30 * 60 * 1000);
+  if (fresh && !force) return store;
+  if (_rrSchedWxFetching) return _rrSchedWxFetching;
+  const meta = (window.RR && window.RR.dsp && window.RR.dsp.metadata && window.RR.dsp.metadata.weather) || {};
+  const lat = Number(meta.lat), lon = Number(meta.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  _rrSchedWxFetching = (async () => {
+    try {
+      const headers = { "User-Agent": "RouteReady/1.0 (dashboard)", "Accept": "application/geo+json" };
+      const pointsRes = await fetch(`https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`, { headers });
+      if (!pointsRes.ok) throw new Error(`points HTTP ${pointsRes.status}`);
+      const points = await pointsRes.json();
+      const forecastUrl = points?.properties?.forecast;
+      if (!forecastUrl) throw new Error("no forecast URL from NWS");
+      const fRes = await fetch(forecastUrl, { headers });
+      if (!fRes.ok) throw new Error(`forecast HTTP ${fRes.status}`);
+      const forecast = await fRes.json();
+      const periods = forecast?.properties?.periods || [];
+      const map = {};
+      // Daytime periods carry the day's condition + high; the following
+      // nighttime period carries the low.
+      for (const p of periods) {
+        if (!p.isDaytime) continue;
+        let iso; try { iso = fmtIsoDate(new Date(p.startTime)); } catch { continue; }
+        map[iso] = { short: p.shortForecast, hi: p.temperature, lo: null, precip: p.probabilityOfPrecipitation?.value || 0, wind: p.windSpeed };
+      }
+      for (const p of periods) {
+        if (p.isDaytime) continue;
+        let iso; try { iso = fmtIsoDate(new Date(p.startTime)); } catch { continue; }
+        if (map[iso] && map[iso].lo == null) map[iso].lo = p.temperature;
+      }
+      window._rrWxForecastByIso = map;
+      _rrSchedWxFetchAt = Date.now();
+      return map;
+    } catch (e) {
+      console.warn("sched weather forecast:", e);
+      return null;
+    } finally {
+      _rrSchedWxFetching = null;
+    }
+  })();
+  return _rrSchedWxFetching;
 }
 
 // ── Daily risk indicator · hover/tap card for the schedule day headers.

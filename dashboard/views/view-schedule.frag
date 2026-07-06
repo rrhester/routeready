@@ -1858,6 +1858,21 @@
                           style="position:relative;top:0;right:0">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>
                   </button>
+                  <!-- Weather forecast overlay · flips each day header from the
+                       date + coverage/route counts to a single forecast glyph
+                       (sun / cloud / rain / storm / snow / heat / cold / wind)
+                       so the operator can read the week's weather at a glance.
+                       Toggles body.rr-sched-weather; state persists in
+                       localStorage('rr-sched-weather'). Forecast comes from the
+                       DSP's NWS point (same source as the dashboard weather
+                       card); handler + rendering live in live.js keyed on
+                       #rr-sched-weather-toggle. -->
+                  <button class="rr-tf-icon" id="rr-sched-weather-toggle" type="button"
+                          title="Weather forecast — show each day's forecast instead of the date and route counts"
+                          aria-label="Show weather forecast on day headers" aria-pressed="false"
+                          style="position:relative;top:0;right:0">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.6v1.4M8 13v1.4M1.6 8h1.4M13 8h1.4M3.6 3.6l1 1M11.4 11.4l1 1M12.4 3.6l-1 1M4.6 11.4l-1 1"/><path d="M17.5 20H10a3.5 3.5 0 0 1-.3-6.98A5 5 0 0 1 19 14.2a3 3 0 0 1-1.5 5.8z"/></svg>
+                  </button>
                 </div>
               </div>
               <div class="cal-cell-head today">Tue<span class="day-num">1</span></div>

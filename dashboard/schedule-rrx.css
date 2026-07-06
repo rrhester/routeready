@@ -6639,3 +6639,76 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   transition: background .12s ease;
 }
 .rr-day-risk-pop .rr-drp-details:hover { background: rgba(37, 99, 235, .07); }
+
+/* ─── Weather-forecast day-header overlay ──────────────────────────────
+   Driver-header icon #rr-sched-weather-toggle flips each day column's
+   header from the date + coverage/route counts to a single forecast glyph
+   (sun / cloud / rain / storm / snow / heat / cold / wind). live.js paints
+   the `.rr-wx-head` markup; these rules lay it out and light the toggle. */
+
+/* Active toggle — same brand-blue tint the other rr-tf-icon toggles use. */
+#rr-sched-weather-toggle.is-on,
+#rr-sched-weather-toggle[aria-pressed="true"] {
+  background: #EFF6FC;
+  border-color: #2563EB;
+  color: #2563EB;
+}
+
+/* A day header showing the forecast: stack weekday · glyph · label · temp,
+   centered, replacing the date/coverage lines. */
+#view-schedule.rrx-schedule .cal-cell-head.rr-wx-head {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  text-align: center;
+  line-height: 1.15;
+}
+#view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-day {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+#view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1px 0;
+}
+#view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-ic svg {
+  width: 26px;
+  height: 26px;
+}
+#view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-temp {
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--text);
+}
+#view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-lo {
+  font-weight: 500;
+  color: var(--text-subtle);
+}
+
+/* Compact / ultra / super density: shrink the glyph so the forecast view
+   tracks the same vertical rhythm as the tighter date headers. */
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-ic svg,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-ic svg,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-ic svg {
+  width: 20px;
+  height: 20px;
+}
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-label {
+  display: none;
+}
