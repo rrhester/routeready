@@ -5672,6 +5672,44 @@ function solveGoalSeek(probe, goal, x0) {
   return isFinite(f2) && Math.abs(f2) <= Math.max(tol, 1e-6 * (Math.abs(goal) + 1)) ? x2 : null;
 }
 
+// Plain-English explanation for an error cell's hover tooltip.
+const WB_ERROR_HINTS = {
+  "#REF": "A cell reference is invalid — a referenced cell may have been deleted.",
+  "#DIV/0": "The formula divides by zero.",
+  "#VALUE": "A value in the formula is the wrong type.",
+  "#NAME": "The formula uses a name or function that isn’t recognized.",
+  "#N/A": "No value is available — a lookup may have found no match.",
+  "#NUM": "A number in the formula is invalid or out of range.",
+  "#NULL": "The formula refers to an empty range intersection.",
+  "#CIRCULAR": "Circular reference — the formula depends on its own cell.",
+  "#SPILL": "The array result can’t spill — a cell in its path isn’t empty.",
+  "#ERROR": "The formula couldn’t be evaluated.",
+};
+function errorHint(code) {
+  if (!code) return "";
+  return WB_ERROR_HINTS[String(code).replace(/!$/, "")] || "This cell has a formula error.";
+}
+
+// Excel-style value autocomplete: the nearest existing TEXT entry in the same
+// column that starts with what's been typed (case-insensitive), or null.
+function columnSuggestion(sheet, r, c, typed) {
+  if (!typed || typed.startsWith("=") || cellNumeric(typed) != null) return null;
+  const low = typed.toLowerCase();
+  let best = null, bestDist = Infinity;
+  for (const [key, cell] of sheet.cells) {
+    if (!cell || cell.formula || cell.type !== "text") continue;
+    const v = cell.value;
+    if (typeof v !== "string" || v.length <= typed.length) continue;
+    const rc = keyRC(key);
+    if (rc.c !== c || rc.r === r) continue;
+    if (v.toLowerCase().startsWith(low) && v.toLowerCase() !== low) {
+      const dist = Math.abs(rc.r - r);
+      if (dist < bestDist) { bestDist = dist; best = v; }
+    }
+  }
+  return best;
+}
+
 function formatForDisplay(v, format, type) {
   if (v == null || v === "") return "";
   const numFmt = format && format.num;
@@ -7494,7 +7532,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -9357,9 +9395,17 @@ function startEdit(g, r, c, initial) {
       g.els.grid.focus();
     }
   });
-  input.addEventListener("input", () => {
+  input.addEventListener("input", (e) => {
     const ed2 = g.editing;
     if (ed2) { ed2.point = null; ed2.pointRC = null; ed2.pointAnchor = null; ed2.enterMode = false; }
+    // Excel value autocomplete: while typing forward at the end of a plain-text
+    // cell, offer the nearest matching earlier entry in the column as a
+    // selected suffix (Enter/Tab accepts; typing more replaces it).
+    if (ed2 && e && typeof e.inputType === "string" && e.inputType.startsWith("insert") && input.selectionStart === input.value.length) {
+      const typed = input.value;
+      const sug = typed && !typed.startsWith("=") ? columnSuggestion(g.sheet, ed2.r, ed2.c, typed) : null;
+      if (sug) { input.value = sug; input.setSelectionRange(typed.length, sug.length); }
+    }
     if (g.els.fbarInput && document.activeElement !== g.els.fbarInput) g.els.fbarInput.value = input.value;
     updateFxPop(g);
     paintFormulaRefs(g);
@@ -18494,7 +18540,7 @@ function fillDriverAction(g, driverId, act) {
 
 export const __engine = {
   parseFormula, evalFormula, evalAst, extractRefs, bindNames, isValidRangeName, cfScaleColor, buildPasteCell, pasteValueParts, valueSatisfiesRule, dvDateSerial, matchesCriterion, FormulaError, Arr,
-  fillSeries, cycleRefAnchor,
+  fillSeries, cycleRefAnchor, errorHint, columnSuggestion,
   colLabel, colIndex, cellRef, parseCellRef,
   dateToSerial, serialToDate, isoDate, parseDateLoose,
   buildXlsxBytes, parseXlsxBytes, buildPrintTable, formatForDisplay, applyCustomFormat, solveGoalSeek,
