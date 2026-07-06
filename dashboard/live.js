@@ -55403,17 +55403,29 @@ async function renderScheduleWeek() {
       (() => {
         // FT/PT mix by scheduled PAID BLOCK hours (4×10h day = 40h = Full-Time).
         let ftCount = 0, ptCount = 0;
+        const ptCandidates = [];
         for (const d of drivers) {
           if (d.status && d.status !== "active") continue;
           const h = blockHoursPerDriver.get(d.id) || 0;
           if (h >= 40) ftCount += 1;
-          else ptCount += 1;
+          else {
+            ptCount += 1;
+            const days = Array.isArray(d.metadata?.availability?.days)
+              ? d.metadata.availability.days.length : null;
+            ptCandidates.push({ id: d.id, name: displayDriverName(d), availDays: days, hours: h });
+          }
         }
+        // Convert-to-FT conversation list for the KPI popout: least
+        // available first (fewest availability days, then fewest scheduled
+        // hours; unknown availability sorts after known).
+        ptCandidates.sort((a, b) =>
+          ((a.availDays ?? 99) - (b.availDays ?? 99)) || (a.hours - b.hours) ||
+          (a.name || "").localeCompare(b.name || ""));
         const totalScheduled = ftCount + ptCount;
         const ftPct = totalScheduled > 0 ? Math.round(ftCount / totalScheduled * 100) : 0;
         const ptPct = totalScheduled > 0 ? 100 - ftPct : 0;
         const ftStatus = _ftptStatus(ftPct, totalScheduled);
-        window._rrLiveFtpt = { weekStart: _schedStart, ftPct, ptPct, ftCount, ptCount, totalScheduled, tier: ftStatus.tier };
+        window._rrLiveFtpt = { weekStart: _schedStart, ftPct, ptPct, ftCount, ptCount, totalScheduled, ptCandidates, tier: ftStatus.tier };
         return row("ftpt", totalScheduled > 0 ? ftStatus.tier : "green",
           "FT/PT", totalScheduled > 0 ? `${ftPct} / ${ptPct}` : "—", "", ftStatus.tier !== "green");
       })() +
@@ -57639,12 +57651,18 @@ function bindSchedWeekNav() {
       // band — on tiny rosters no whole-driver move can, and advice that
       // overshoots the band reads worse than none.
       let rebalanceMsg = "";
+      // Below target only: the c least-available part-timers are the
+      // conversation list — their limited availability is what's holding
+      // the mix down, so they're who the operator speaks with first.
+      let convertCands = null;
       if (live && live.totalScheduled > 0 && tier !== "green") {
         const ft = live.ftCount || 0, total = live.totalScheduled || 0;
         if (ftPct < 85) {
           const c = Math.ceil(0.85 * total - ft);
-          if (c > 0 && Math.round((ft + c) / total * 100) <= 90)
+          if (c > 0 && Math.round((ft + c) / total * 100) <= 90) {
             rebalanceMsg = `To reach the 85% target, move <strong>${c}</strong> part-time driver${c === 1 ? "" : "s"} to full-time schedules (40h+) — no new hires needed. Headcount is driven by Coverage, not by the mix.`;
+            convertCands = (live.ptCandidates || []).slice(0, c);
+          }
         } else if (ftPct > 85) {
           const s = Math.ceil(ft - 0.85 * total);
           if (s > 0 && Math.round((ft - s) / total * 100) >= 80)
@@ -57653,6 +57671,11 @@ function bindSchedWeekNav() {
       }
       const rebalanceHtml = rebalanceMsg
         ? `<div class="rr-cov-needed-sub" style="margin-top:8px">${rebalanceMsg}</div>` : "";
+      const candHtml = convertCands && convertCands.length
+        ? `<div class="rr-cov-needed-sub" style="margin-top:8px"><strong>Least available</strong> · ${convertCands.map((p) =>
+            `${escapeHtml(p.name || "Unnamed driver")}${p.availDays != null ? ` (${p.availDays}d avail)` : ""}`).join(", ")}</div>
+          <div style="margin-top:10px"><button type="button" id="rr-ftpt-task-btn" class="btn btn-sm">Create task${convertCands.length === 1 ? "" : "s"} · speak with ${convertCands.length} driver${convertCands.length === 1 ? "" : "s"}</button></div>`
+        : "";
       const curLine = live && live.totalScheduled > 0
         ? `${ftPct}% Full-Time / ${ptPct}% Part-Time`
         : "—";
@@ -57676,11 +57699,42 @@ function bindSchedWeekNav() {
               <div class="rr-cov-needed-sub" style="margin-top:4px"><strong>Healthy range</strong> · 80%–90% Full-Time</div>
               <div class="rr-cov-needed-sub" style="margin-top:10px">${statusMsg}</div>
               ${rebalanceHtml}
+              ${candHtml}
             </div>
             <p class="rr-cov-empty" style="margin-top:12px">Target is not 100%. RouteReady treats FT/PT Mix as an optimization metric, not a maximization metric.</p>
           </div>
         </div>`;
       document.body.appendChild(m);
+      // "Create tasks" → one rail task per least-available part-timer, in
+      // the exact rail-task shape (mirrors _rrCalNewTaskDialog) so each
+      // conversation is completable on its own. Re-clicks and re-opens
+      // don't duplicate: a driver with an open convert task is skipped.
+      const taskBtn = m.querySelector("#rr-ftpt-task-btn");
+      if (taskBtn && convertCands && convertCands.length) {
+        taskBtn.addEventListener("click", () => {
+          const tasks = _rrLoadTasks();
+          let added = 0;
+          for (const p of convertCands) {
+            if (tasks.some((t) => !t.done && t.kind === "ftpt_convert" && t.driverId === p.id)) continue;
+            const detail = `${p.hours}h scheduled${p.availDays != null ? `, ${p.availDays}d available` : ""}`;
+            tasks.push({
+              id: _rrNtId("t"),
+              title: `Speak with ${p.name || "driver"} about a full-time schedule (${detail})`,
+              due: "", done: false, ts: Date.now(),
+              kind: "ftpt_convert", driverId: p.id,
+            });
+            added += 1;
+          }
+          if (added) { _rrSaveTasks(tasks); _rrRenderTasks(); }
+          taskBtn.disabled = true;
+          taskBtn.textContent = added
+            ? `${added} task${added === 1 ? "" : "s"} added ✓`
+            : "Already on your task list";
+          // Surface the new tasks: open the rail Tasks panel (deferred a
+          // tick so panel render runs off the click).
+          setTimeout(() => { try { if (typeof _rrNtPanelOpen === "function") _rrNtPanelOpen("tasks"); } catch (_) {} }, 0);
+        });
+      }
       // Anchor + clamp identically to the Coverage popout.
       const card = m.querySelector("#rr-ftpt-kpi-card");
       const a = anchorEl || document.querySelector('[data-rr-kpi="ftpt"]');
