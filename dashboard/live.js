@@ -13143,6 +13143,140 @@ function _scheduleWeatherRefresh() {
   }, 5 * 60 * 1000);
 }
 
+// Map a day's weather to ONE call-out bucket, most-severe wins.
+// KEEP IN SYNC with private.weather_callout_bucket() in
+// supabase/migrations/0417_weather_callout_model.sql — the model is trained
+// server-side with that logic and applied to the forecast with this one.
+function wxCalloutBucket({ conditions, precip, hi, lo, hasAlert }) {
+  if (hasAlert) return "alert";
+  if (conditions === "snow") return "snow";
+  if (conditions === "thunderstorm") return "thunderstorm";
+  if (conditions === "rain" && (precip || 0) >= 60) return "heavy_rain";
+  if (conditions === "rain" || (precip || 0) >= 40) return "rain";
+  if ((hi ?? -999) >= 95) return "heat";
+  if ((lo ?? 999) <= 32) return "cold";
+  return "clear";
+}
+
+const WX_BUCKET_LABEL = {
+  alert: "severe-weather alert",
+  snow: "snow",
+  thunderstorm: "thunderstorms",
+  heavy_rain: "heavy rain",
+  rain: "rain",
+  heat: "extreme heat",
+  cold: "freezing temps",
+  clear: "clear",
+};
+
+// Same short→condition mapping the weather snapshot uses, so the forecast
+// buckets line up with what we stored historically.
+function wxConditionFromShort(short) {
+  const s = (short || "").toLowerCase();
+  if (s.includes("snow")) return "snow";
+  if (s.includes("thunder")) return "thunderstorm";
+  if (s.includes("rain") || s.includes("shower")) return "rain";
+  if (s.includes("cloud")) return "cloudy";
+  if (s.includes("sun") || s.includes("clear")) return "sunny";
+  return s.split(" ")[0] || null;
+}
+
+// Turn the learned model + this week's forecast into up-to-3 elevated-risk
+// day callouts. Returns "" when we don't have enough history to be honest.
+function wxCalloutRiskHtml(model, dayPairs, activeAlerts) {
+  try {
+    if (!model || !Array.isArray(model.buckets)) return "";
+    const MIN_MODEL_DAYS = 20;   // need ~3 weeks of snapshots before we predict
+    const MIN_BUCKET_SAMPLE = 8; // fall back to baseline below this many heads
+    const ELEVATED_FACTOR = 1.3; // only flag days meaningfully above baseline
+
+    const upByDate = new Map((model.upcoming || []).map((u) => [u.date, u.scheduled]));
+    const baseline = Number(model.baseline_rate) || 0;
+    const rateByBucket = new Map(
+      model.buckets.map((b) => [b.key, { rate: Number(b.rate) || 0, scheduled: b.scheduled || 0 }])
+    );
+
+    if ((model.sample_days || 0) < MIN_MODEL_DAYS || baseline <= 0) {
+      // Feature is discoverable but honest about needing more data.
+      if ((model.sample_days || 0) > 0 && upByDate.size > 0) {
+        return `<div class="wx-callout-risk learning">
+          <div class="wx-callout-head">Call-out forecast</div>
+          <div class="wx-callout-note">Learning your call-out patterns from weather —
+            ${MIN_MODEL_DAYS - (model.sample_days || 0)} more day${MIN_MODEL_DAYS - (model.sample_days || 0) === 1 ? "" : "s"}
+            of history until predictions turn on.</div>
+        </div>`;
+      }
+      return "";
+    }
+
+    // Does an active alert's window cover this calendar day?
+    const alertCoversDate = (iso) => (activeAlerts || []).some((a) => {
+      const start = new Date(a.onset || a.effective || a.sent || Date.now());
+      const end = new Date(a.ends || a.expires || Date.now());
+      const dayStart = new Date(iso + "T00:00:00");
+      const dayEnd = new Date(iso + "T23:59:59");
+      return start <= dayEnd && end >= dayStart;
+    });
+
+    const rows = [];
+    for (const d of dayPairs) {
+      let iso;
+      try { iso = fmtIsoDate(new Date(d.startTime)); } catch { continue; }
+      const scheduled = upByDate.get(iso);
+      if (!scheduled) continue;
+      const bucket = wxCalloutBucket({
+        conditions: wxConditionFromShort(d.short),
+        precip: d.precip,
+        hi: d.hi,
+        lo: d.lo,
+        hasAlert: alertCoversDate(iso),
+      });
+      const b = rateByBucket.get(bucket);
+      // Trust the bucket rate only with enough history; else use baseline.
+      const trusted = b && b.scheduled >= MIN_BUCKET_SAMPLE;
+      const rate = trusted ? b.rate : baseline;
+      if (rate < baseline * ELEVATED_FACTOR) continue; // not elevated
+      const expected = scheduled * rate;
+      if (expected < 1) continue; // fewer than one expected callout — skip noise
+      const wd = (() => {
+        try { return new Date(d.startTime).toLocaleDateString([], { weekday: "short" }); }
+        catch { return (d.label || "").slice(0, 3); }
+      })();
+      rows.push({
+        wd,
+        bucket,
+        expected: Math.round(expected),
+        rate,
+        scheduled,
+        trusted,
+      });
+    }
+    if (rows.length === 0) return "";
+    rows.sort((a, b) => b.expected - a.expected || b.rate - a.rate);
+
+    const baselinePct = Math.round(baseline * 100);
+    const body = rows.slice(0, 3).map((r) => {
+      const pct = Math.round(r.rate * 100);
+      const label = WX_BUCKET_LABEL[r.bucket] || r.bucket;
+      const conf = r.trusted ? "" : ` <span class="meta">· low sample</span>`;
+      return `<div class="wx-callout-row">
+        <span class="wx-callout-day">${escapeHtml(r.wd)}</span>
+        <span class="wx-callout-detail"><strong>~${r.expected}</strong> call-out${r.expected === 1 ? "" : "s"} ·
+          ${escapeHtml(label)} runs <strong>${pct}%</strong> vs ${baselinePct}% typical${conf}</span>
+      </div>`;
+    }).join("");
+
+    return `<div class="wx-callout-risk">
+      <div class="wx-callout-head">Call-out forecast <span class="meta">· learned from ${model.sample_days} days</span></div>
+      ${body}
+      <div class="wx-callout-foot">Plan backups in <a href="#" onclick="goto('schedule');return false;">Schedule → Callout Exposure</a>.</div>
+    </div>`;
+  } catch (e) {
+    console.warn("callout risk render:", e);
+    return "";
+  }
+}
+
 async function loadDashboardWeather() {
   const card = document.getElementById("rr-weather-card");
   const body = document.getElementById("rr-weather-body");
@@ -13174,6 +13308,15 @@ async function loadDashboardWeather() {
   body.innerHTML = `
     <div class="rr-tp-section-head">Weather</div>
     <div class="wx-body" style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading local forecast…</div>`;
+
+  // Kick off the learned call-out model in parallel with the NWS fetches;
+  // awaited just before render. Never let it break the weather card.
+  const calloutModelPromise = (window.RR?.dsp?.id
+    ? sb.rpc("weather_callout_model", { p_days: 7 }).then(
+        (r) => (r && !r.error ? r.data : null),
+        () => null
+      )
+    : Promise.resolve(null));
 
   try {
     const headers = { "User-Agent": "RouteReady/1.0 (dashboard)", "Accept": "application/geo+json" };
@@ -13467,6 +13610,10 @@ async function loadDashboardWeather() {
 
     const feelsClass = feelsLike == null ? "" : (feelsLike >= 100 ? "hot" : feelsLike <= 20 ? "cold" : "");
 
+    // Weather → call-out prediction (learned from this DSP's own history).
+    const calloutModel = await calloutModelPromise;
+    const calloutRiskHtml = wxCalloutRiskHtml(calloutModel, dayPairs, activeAlerts);
+
     body.innerHTML = `
       <div class="rr-tp-section-head">
         Weather${locName ? ` · ${escapeHtml(locName)}` : ""}
@@ -13486,6 +13633,7 @@ async function loadDashboardWeather() {
 
         ${alertHtml}
         ${advisoryHtml}
+        ${calloutRiskHtml}
 
         <div class="wx-eyebrow">Next 14 hours</div>
         <div class="wx-strip">${hourlyHtml}</div>

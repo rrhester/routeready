@@ -2516,6 +2516,36 @@ button.card:focus-visible{
 .wx-advisory-row::before{content:"•";color:var(--amber-dark);flex-shrink:0}
 .wx-advisory-row strong{font-weight:700;color:var(--amber-dark)}
 
+/* Weather → call-out forecast (learned from this DSP's own history) */
+.wx-callout-risk{
+  margin-top:var(--s-3);
+  background:var(--info-soft);
+  border:1px solid var(--accent-border);border-left-width:3px;
+  border-radius:var(--r-md);
+  padding:var(--s-2-5) var(--s-3);
+}
+.wx-callout-head{
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--info-dark);margin-bottom:var(--s-1);
+}
+.wx-callout-head .meta{
+  font-weight:500;letter-spacing:0;text-transform:none;color:var(--text-subtle);
+}
+.wx-callout-row{
+  font-size:var(--fs-xs);color:var(--text);line-height:1.45;
+  margin-top:3px;display:flex;gap:var(--s-2);align-items:baseline;
+}
+.wx-callout-day{
+  font-weight:700;color:var(--info-dark);flex-shrink:0;min-width:2.4em;
+}
+.wx-callout-detail strong{font-weight:700;color:var(--info-dark)}
+.wx-callout-detail .meta{color:var(--text-subtle);font-weight:500}
+.wx-callout-foot{
+  font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-2);
+}
+.wx-callout-foot a{color:var(--info-dark);font-weight:600}
+.wx-callout-note{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.45}
+
 /* Eyebrow above each strip — same idiom as .kpi-label / .tp-wave-head-label */
 .wx-eyebrow{
   font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
