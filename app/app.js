@@ -7584,6 +7584,52 @@ async function refreshChecklistsBadge() {
 // Answers post as { <item_id>: { v, note?, photos? } } to
 // driver_save_checklist / driver_submit_checklist.
 
+// Per-fill photo model: itemId -> [{ path } (already uploaded) |
+// { file, url } (newly picked)]. Rebuilt on every render of the fill
+// screen so multiple photos, previews and removal all work off one source.
+let _clkPhotos = {};
+
+// Downscale + JPEG-encode a captured photo so a ~6 MB phone shot uploads
+// as a couple hundred KB. Reuses the scanner's orientation-aware decode.
+// Never blocks a submit — any failure falls back to the original file.
+async function _clkCompressPhoto(file) {
+  if (!file || !/^image\//.test(file.type || "")) return file;
+  try {
+    const bmp = await _scanLoadBitmap(file);
+    const sw = bmp.width || bmp.naturalWidth, sh = bmp.height || bmp.naturalHeight;
+    const MAX = 1600;
+    const scale = Math.min(1, MAX / Math.max(sw, sh));
+    const ow = Math.max(1, Math.round(sw * scale)), oh = Math.max(1, Math.round(sh * scale));
+    const c = document.createElement("canvas");
+    c.width = ow; c.height = oh;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, ow, oh);
+    ctx.drawImage(bmp, 0, 0, ow, oh);
+    if (typeof bmp.close === "function") bmp.close();
+    const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.82));
+    if (!blob) return file;
+    if (blob.size >= file.size && scale === 1) return file;   // already small
+    return new File([blob], (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch (_) {
+    return file;
+  }
+}
+
+// Paint the thumbnail strip for a photo item from _clkPhotos. New photos
+// show a preview; restored (already-uploaded) ones show a labeled chip.
+function _clkRenderPhotoStrip(itemId) {
+  const strip = document.querySelector(`[data-rr-clk-photostrip="${CSS.escape(itemId)}"]`);
+  if (!strip) return;
+  const list = _clkPhotos[itemId] || [];
+  strip.innerHTML = list.map((p, i) => `
+    <div class="clk-thumb" style="position:relative;width:64px;height:64px;margin:0 8px 8px 0">
+      ${p.url
+        ? `<img src="${escapeHtml(p.url)}" alt="Photo ${i + 1}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border,#d1d5db)"/>`
+        : `<span style="display:flex;width:64px;height:64px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border,#d1d5db);background:var(--surface,#f3f4f6);font-size:11px;color:var(--text-subtle,#6b7280)">Photo ${i + 1}</span>`}
+      <button type="button" data-rr-clk-photodel="${escapeHtml(itemId)}|${i}" aria-label="Remove photo ${i + 1}" style="position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;border:none;background:#111827;color:#fff;font-size:12px;line-height:1;cursor:pointer">✕</button>
+    </div>`).join("");
+}
+
 function _clkItemHtml(item) {
   // Required is announced via aria-required on the control/group; the red
   // star is decorative (aria-hidden) so it isn't the only cue.
@@ -7609,7 +7655,14 @@ function _clkItemHtml(item) {
   } else if (item.item_type === "number") {
     control = `<input type="number" id="${fid}" inputmode="decimal" step="any" data-rr-clk="${id}" data-rr-clk-type="number"${areq}${descBy}/>`;
   } else if (item.item_type === "photo") {
-    control = `<input type="file" id="${fid}" accept="image/*" capture="environment" data-rr-clk="${id}" data-rr-clk-type="photo"${areq}${descBy}/><div class="clk-photo-note" data-rr-clk-photonote="${id}" hidden></div>`;
+    control = `<div class="clk-photos">
+      <div class="clk-photo-strip" data-rr-clk-photostrip="${id}" style="display:flex;flex-wrap:wrap"></div>
+      <label class="clk-photo-add" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-strong,#cbd5e1);border-radius:10px;cursor:pointer;font-size:var(--fs-sm)">
+        <input type="file" id="${fid}" accept="image/*" multiple hidden data-rr-clk="${id}" data-rr-clk-type="photo"${areq}${descBy}/>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <span>Add photo</span>
+      </label>
+    </div>`;
   } else if (item.item_type === "signature") {
     labelFor = "";  // canvas isn't a labelable form control
     control = `<div class="clk-sigwrap">
@@ -7662,26 +7715,7 @@ async function _clkCollect(items, opts = {}) {
       const sel = el.querySelector("input[type=radio]:checked");
       if (sel) out[item.id] = { v: sel.value };
     } else if (t === "photo") {
-      const existing = el.dataset.rrExisting ? JSON.parse(el.dataset.rrExisting) : [];
-      const f = el.files?.[0];
-      if (f && !skipUploads) {
-        // Same bucket + dsp-prefixed path contract as form photo fields:
-        // the FIRST folder must be the DSP id so dispatch can sign URLs.
-        const ts = Date.now();
-        const safe = (f.name || "photo").replace(/[^A-Za-z0-9._-]+/g, "-");
-        const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
-        out[item.id] = { photos: existing };
-        uploads.push(
-          sb.storage.from("driver-documents").upload(path, f, { contentType: f.type, upsert: false })
-            .then(({ error }) => {
-              if (error) { uploadFailed++; console.warn("checklist photo upload failed:", error.message); }
-              else out[item.id] = { photos: existing.concat([path]) };
-            })
-            .catch((e) => { uploadFailed++; console.warn("checklist photo upload error:", e); })
-        );
-      } else if (existing.length) {
-        out[item.id] = { photos: existing };
-      }
+      // Photos are handled off _clkPhotos after the loop (below).
     } else if (t === "signature") {
       if (el._rrHasInk) out[item.id] = { v: el.toDataURL("image/png") };
       else if (el.dataset.rrExistingSig) out[item.id] = { v: el.dataset.rrExistingSig };
@@ -7690,11 +7724,40 @@ async function _clkCollect(items, opts = {}) {
       if (v !== "") out[item.id] = { v };
     }
   }
+
+  // Photos: upload any not-yet-stored files (unless this is a local-draft
+  // pass), stamping the storage path back onto the entry. The DSP-id-first
+  // path contract lets dispatch sign URLs.
+  if (!skipUploads) {
+    for (const item of items) {
+      if (item.item_type !== "photo") continue;
+      for (const entry of (_clkPhotos[item.id] || [])) {
+        if (entry.path || !entry.file) continue;
+        const ff = entry.file;
+        const safe = (ff.name || "photo").replace(/[^A-Za-z0-9._-]+/g, "-");
+        const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        uploads.push(
+          sb.storage.from("driver-documents").upload(path, ff, { contentType: ff.type, upsert: false })
+            .then(({ error }) => { if (error) { uploadFailed++; console.warn("checklist photo upload failed:", error.message); } else { entry.path = path; } })
+            .catch((e) => { uploadFailed++; console.warn("checklist photo upload error:", e); })
+        );
+      }
+    }
+  }
   if (uploads.length) await Promise.all(uploads);
-  // A dropped photo used to be swallowed as a console.warn while the
-  // answer kept the pre-upload (empty) list — so a driver could "save"
-  // or "submit" and silently lose the photo. Surface it instead: throw
-  // so the caller can warn and keep the work on the phone.
+
+  // Build photo answers from whatever now has a stored path (new uploads +
+  // restored photos). Local-draft passes carry only the already-stored ones.
+  for (const item of items) {
+    if (item.item_type !== "photo") continue;
+    const paths = (_clkPhotos[item.id] || []).filter((e) => e.path).map((e) => e.path);
+    if (paths.length) out[item.id] = { photos: paths };
+  }
+
+  // A dropped photo used to be swallowed as a console.warn while the answer
+  // kept the pre-upload (empty) list — so a driver could "save" or "submit"
+  // and silently lose the photo. Surface it: throw so the caller can warn
+  // and keep the work on the phone.
   if (uploadFailed) {
     const err = new Error("photo_upload_failed");
     err.rrUploadFailed = uploadFailed;
@@ -7774,6 +7837,7 @@ async function renderChecklistFill() {
   const DRAFT_KEY = `checklist:${id}`;
   const draft = getDraft(DRAFT_KEY);
   const restore = Object.assign({}, answers, (draft && typeof draft === "object") ? draft : {});
+  _clkPhotos = {};   // fresh photo model per render
   let restoredAny = false;
   for (const item of items) {
     const ans = restore[item.id];
@@ -7788,9 +7852,8 @@ async function renderChecklistFill() {
     } else if (t === "photo") {
       const photos = Array.isArray(ans.photos) ? ans.photos : [];
       if (photos.length) {
-        el.dataset.rrExisting = JSON.stringify(photos);
-        const note = formEl.querySelector(`[data-rr-clk-photonote="${CSS.escape(item.id)}"]`);
-        if (note) { note.hidden = false; note.textContent = `${photos.length} photo${photos.length === 1 ? "" : "s"} already attached — adding another keeps them.`; }
+        _clkPhotos[item.id] = photos.map((p) => ({ path: p }));
+        _clkRenderPhotoStrip(item.id);
         restoredAny = true;
       }
     } else if (t === "signature") {
@@ -7825,6 +7888,39 @@ async function renderChecklistFill() {
   };
   formEl.addEventListener("input", saveLocal);
   formEl.addEventListener("change", saveLocal);
+
+  // Photo picking: compress each selection and append to the item's model,
+  // so multiple photos accumulate across taps (the input is cleared so the
+  // same file can be re-picked). Thumbnails render immediately.
+  formEl.addEventListener("change", async (e) => {
+    const inp = e.target.closest?.('input[data-rr-clk-type="photo"]');
+    if (!inp) return;
+    const itemId = inp.getAttribute("data-rr-clk");
+    const files = Array.from(inp.files || []);
+    inp.value = "";
+    if (!files.length) return;
+    if (!_clkPhotos[itemId]) _clkPhotos[itemId] = [];
+    for (const f of files) {
+      const c = await _clkCompressPhoto(f);
+      _clkPhotos[itemId].push({ file: c, url: URL.createObjectURL(c) });
+    }
+    _clkRenderPhotoStrip(itemId);
+  });
+
+  // Remove a photo (revoke its preview URL so we don't leak object URLs).
+  formEl.addEventListener("click", (e) => {
+    const del = e.target.closest?.("[data-rr-clk-photodel]");
+    if (!del) return;
+    e.preventDefault();
+    const raw = del.getAttribute("data-rr-clk-photodel");
+    const cut = raw.lastIndexOf("|");
+    const itemId = raw.slice(0, cut), i = parseInt(raw.slice(cut + 1), 10);
+    const list = _clkPhotos[itemId];
+    if (!list || !list[i]) return;
+    if (list[i].url) { try { URL.revokeObjectURL(list[i].url); } catch (_) {} }
+    list.splice(i, 1);
+    _clkRenderPhotoStrip(itemId);
+  });
 
   // Save progress → server, so dispatch sees "In progress". Photos are
   // uploaded here too (skipUploads used to drop a freshly-snapped photo
