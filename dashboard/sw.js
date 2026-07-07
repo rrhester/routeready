@@ -80,7 +80,8 @@
 //   2026-07-06.59 · Schedule rail: split the combined Checklists / My Tasks panel into two slide-outs, each with its own rail icon — the green check tile now opens Checklists directly, and a new violet circle-check (carrying the open-task badge) opens the personal My Tasks list. The in-panel segmented switcher is gone.
 //   2026-07-07.60 · Messages: URLs in chat bodies render as clickable links (driver chat, channels, support threads, orientation chat — dashboard side matches the driver app), and Ctrl+V pastes an image from the clipboard straight into the direct-chat/channel composer as a pending attachment.
 //   2026-07-07.61 · My Tasks → team tasks (migration 0432): the rail list is now server-backed (public.team_tasks) so it follows the account to any desktop, and a leader can assign tasks to other leadership via the new "Assign to" picker. My Tasks / Delegated view chips (with open counts), "from X" / "→ X" provenance pills, assignee avatars, realtime per-DSP sync with an in-app popup when a task is assigned to you (no email), one-time import of the old device-local list (backup kept), and a full localStorage fallback until the migration is applied.
-const SW_DEPLOY_NONCE = "2026-07-07.61";
+//   2026-07-07.62 · My Tasks: tone down the new team-tasks accents per operator — the My Tasks / Delegated switcher becomes flat text tabs with a dark-slate underline on a hairline (no violet pills), "from X" / "→ X" provenance is plain muted text (no pill), and teammate avatars drop the violet tint. CSS-only.
+const SW_DEPLOY_NONCE = "2026-07-07.62";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
