@@ -412,15 +412,10 @@
   }
 
   // ─── COACH DRAWER ──────────────────────────────────────────
-  var MOCK_DRIVERS = [
-    {name:'Marcus Davidson', meta:'KMO1 · Score 62 · 18 mo tenure'},
-    {name:'Tasha Reyes',     meta:'KMO2 · Score 68 · 9 mo tenure'},
-    {name:'Kerwin Whitfield',meta:'KMO1 · Score 71 · 24 mo tenure'},
-    {name:'Jordan Beckett',  meta:'KMO3 · Score 73 · 6 mo tenure'},
-    {name:'Asha Thornton',   meta:'KMO2 · Score 74 · 14 mo tenure'},
-    {name:'Devon Patterson', meta:'KMO3 · Score 79 · 11 mo tenure'},
-    {name:'Camille Foster',  meta:'KMO1 · Score 82 · 22 mo tenure'},
-  ];
+  // Legacy mockup roster — neutralized to empty so no fabricated driver
+  // names can render. Real surfaces use live Supabase data (New-DM picker,
+  // coaching drawer).
+  var MOCK_DRIVERS = [];
 
   function openCoachDrawer(driverName, category, contextText){
     var drawer = document.getElementById('cd-drawer');
@@ -1525,29 +1520,6 @@
     openModal('modal-doc-preview');
   }
 
-  // ─── SAFETY QUEUE ─────────────────────────────────────────
-  function openSafetyQueue(){
-    document.getElementById('safety-drawer').classList.add('open');
-    document.getElementById('ap-backdrop').classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
-  function closeSafetyQueue(){
-    document.getElementById('safety-drawer').classList.remove('open');
-    document.getElementById('ap-backdrop').classList.remove('open');
-    document.body.style.overflow = '';
-  }
-
-  // ─── QUALITY QUEUE ────────────────────────────────────────
-  function openQualityQueue(){
-    document.getElementById('quality-drawer').classList.add('open');
-    document.getElementById('ap-backdrop').classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
-  function closeQualityQueue(){
-    document.getElementById('quality-drawer').classList.remove('open');
-    document.getElementById('ap-backdrop').classList.remove('open');
-    document.body.style.overflow = '';
-  }
 
   // ─── ASSET CATEGORY DRAWER ────────────────────────────────
   var ASSET_CAT_DATA = {
