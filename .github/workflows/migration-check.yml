@@ -4,22 +4,25 @@ name: Migration check (apply from scratch)
 # Launch-readiness P0-1 safety gate.
 #
 # The single production Supabase project auto-deploys migrations on every
-# merge to main (deploy-migrations.yml), with no pre-merge validation. One
-# bad migration therefore hits every customer at once, mid-workday, with no
-# staging to catch it. This check closes that gap: on every PR that touches
-# a migration, it spins up a THROWAWAY local Supabase (Postgres + the auth /
-# storage / extensions schemas the migrations depend on) and applies the
-# ENTIRE migration set from zero.
+# merge to main (deploy-migrations.yml), with no pre-merge validation and no
+# staging. One bad migration therefore hits every customer at once. This
+# check closes that gap: on every PR that touches a migration, it boots a
+# THROWAWAY local Supabase (Postgres + the auth / storage / extensions the
+# migrations depend on) and applies the ENTIRE migration set from zero.
 #
-# What a green run proves:
-#   • every migration is valid SQL and applies in order,
-#   • no dependency / ordering breakage (incl. the duplicate 0421 / 0432
-#     ordinals),
-#   • the database can be rebuilt from migrations alone — i.e. disaster
-#     recovery actually works.
+# It applies migrations exactly the way production does — via psql, in
+# filename order, tracked by full filename — NOT via the Supabase CLI's own
+# `schema_migrations` ledger. That matters because the CLI keys its ledger on
+# the numeric prefix and would choke on the intentional duplicate ordinals
+# (0264 / 0421 / 0432), whereas prod's apply-migrations.sh keys on the full
+# filename and applies them fine. So this gate mirrors real prod behaviour.
 #
-# Hermetic: no project refs, DB passwords, or secrets. Nothing here can
-# touch production; it only ever talks to the ephemeral local stack.
+# A green run proves every migration is valid SQL, applies in order with no
+# dependency breakage, and that the database can be rebuilt from migrations
+# alone — i.e. disaster recovery actually works.
+#
+# Hermetic: no project refs, DB passwords, or secrets. It only ever talks to
+# the ephemeral local stack, never production.
 # ─────────────────────────────────────────────────────────────────────────
 
 on:
@@ -29,7 +32,6 @@ on:
       - '.github/workflows/migration-check.yml'
   workflow_dispatch:
 
-# Don't pile up local-stack boots on rapid pushes to the same PR.
 concurrency:
   group: migration-check-${{ github.ref }}
   cancel-in-progress: true
@@ -45,15 +47,31 @@ jobs:
         with:
           version: latest
 
-      - name: Apply every migration from zero (local Supabase)
-        # `supabase db start` boots the local stack AND applies every file in
-        # supabase/migrations in filename order. A migration that errors makes
-        # the CLI exit non-zero, which fails this check and blocks the merge.
-        run: supabase db start
+      - name: Install psql client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
 
-      - name: List applied migrations
-        if: always()
-        run: supabase migration list --local || true
+      - name: Boot a clean local Supabase (no repo migrations)
+        # Stash the repo migrations so `db start` brings up a pristine Supabase
+        # (auth + storage schemas, pg_cron / pg_net preloaded) WITHOUT applying
+        # them itself — its ledger keys on the numeric prefix and would fail on
+        # our duplicate ordinals. We apply them ourselves in the next step,
+        # tracked by filename exactly like the production runner.
+        run: |
+          mkdir -p /tmp/rr-migrations
+          mv supabase/migrations/*.sql /tmp/rr-migrations/
+          supabase db start
+          mv /tmp/rr-migrations/*.sql supabase/migrations/
+
+      - name: Apply every migration from zero (fail on first error)
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          for f in $(ls supabase/migrations/*.sql | sort); do
+            echo "▶ $(basename "$f")"
+            psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+          echo "✓ all migrations applied cleanly from scratch"
 
       - name: Tear down
         if: always()
