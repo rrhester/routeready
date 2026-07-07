@@ -5945,7 +5945,7 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-task-due.is-over{color:#DC2626}
 #rr-util-rail-mount .ntp-task-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:var(--text-muted,#64748b);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;overflow:hidden}
 #rr-util-rail-mount .ntp-task-avatar img{width:100%;height:100%;object-fit:cover}
-/* Team tasks (0431): violet tint marks a row involving a teammate —
+/* Team tasks (0432): violet tint marks a row involving a teammate —
    their avatar on rows I delegated, and rows assigned to me by others. */
 #rr-util-rail-mount .ntp-task-avatar.is-other{background:#ede9fe;color:#6d28d9}
 /* "from Ryan" / "→ Dana" — quiet provenance pill beside the title. */

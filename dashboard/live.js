@@ -8644,7 +8644,7 @@ function _onbChatBubblesHTML(messages, peerReadAt) {
     }
     const mine = m.sender_kind === "dispatch";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-    const body = m.body ? escapeHtml(m.body) : (m.attachment_name ? "📎 " + escapeHtml(m.attachment_name) : "");
+    const body = m.body ? linkifyEscaped(escapeHtml(m.body), mine) : (m.attachment_name ? "📎 " + escapeHtml(m.attachment_name) : "");
     out += `<div class="onb-chat-row ${mine ? "mine" : "theirs"}"><div class="onb-chat-bubble">${body}</div><div class="onb-chat-time">${escapeHtml(time)}</div></div>`;
     if (i === lastMineIdx && mine && peer && dt && peer >= dt.getTime()) out += `<div class="onb-chat-read">Read</div>`;
   });
@@ -9481,7 +9481,7 @@ function _rrRenderNotes() {
     </div>`;
   }).join("");
 }
-// ── Team tasks · server-backed My Tasks (migration 0431) ──────────────
+// ── Team tasks · server-backed My Tasks (migration 0432) ──────────────
 // The rail list lives in public.team_tasks so it follows the account to
 // any desktop and lets a leader assign tasks to other leadership
 // (dashboard users, role >= dispatcher). Delivery is realtime-only — the
@@ -22198,7 +22198,7 @@ async function loadIvCalendar() {
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, series_id, series_exception, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         // Lower bound is critical: without it, ascending order + limit(500)
@@ -22228,6 +22228,18 @@ async function loadIvCalendar() {
     ]);
     if (a.error) throw a.error;
     let bookings = b.data || [];
+    if (b.error) {
+      // Pre-0431 fallback: series columns may not exist yet — retry with the
+      // previous column set so nothing else degrades.
+      const b1 = await sb.from("cal_events")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, calendar_id, google_sync_status, applicants:applicant_id (full_name, email, phone)")
+        .eq("dsp_id", window.RR.dsp.id)
+        .in("status", ["scheduled", "rescheduled"])
+        .gte("starts_at", _ivcalQueryFloorISO())
+        .order("starts_at", { ascending: true })
+        .limit(1000);
+      if (!b1.error) { bookings = b1.data || []; b.error = null; }
+    }
     if (b.error) {
       // Pre-migration fallback: the calendar_id column / calendars table may
       // not exist yet (operator applies migrations manually). Re-fetch without
@@ -23181,6 +23193,34 @@ function _ivcalConfirmInvites(count) {
   });
 }
 
+// Outlook-style scope chooser for recurring-series edits/deletes.
+// Resolves "this" | "following" | "all" | null (cancelled).
+function _ivcalSeriesScope(mode) {
+  return new Promise((resolve) => {
+    const back = document.createElement("div");
+    back.className = "rr-invite-confirm-back";
+    const del = mode === "delete";
+    back.innerHTML = `<div class="rr-invite-confirm" role="dialog" aria-modal="true" aria-label="Recurring event">
+      <div class="rr-ic-title">This is a recurring event. ${del ? "Delete" : "Apply the change to"}…</div>
+      <div class="rr-ic-acts" style="flex-wrap:wrap;justify-content:flex-end">
+        <button type="button" class="rr-ic-btn rr-ic-link" data-ic="">Cancel</button>
+        <button type="button" class="rr-ic-btn rr-ic-link" data-ic="this">Just this event</button>
+        <button type="button" class="rr-ic-btn rr-ic-link" data-ic="following">This and following</button>
+        <button type="button" class="rr-ic-btn rr-ic-send" data-ic="all">All events</button>
+      </div>
+    </div>`;
+    document.body.appendChild(back);
+    const done = (v) => { back.remove(); document.removeEventListener("keydown", onKey, true); resolve(v || null); };
+    function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); done(null); } }
+    document.addEventListener("keydown", onKey, true);
+    back.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-ic]");
+      if (b) { done(b.getAttribute("data-ic")); return; }
+      if (e.target === back) done(null);
+    });
+  });
+}
+
 // Outlook-style click-to-create. Opens a pop-out event editor (To / Subject
 // / date-time / body). By default the event is a plain calendar invite; the
 // user adds a video meeting on demand via the blue "Schedule Meeting" button.
@@ -23778,9 +23818,12 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   // ── Build the series of (date) occurrences for a recurrence rule (capped). ──
   function expandOccurrences(rule, baseDateISO) {
     const out = [];
-    const CAP = 60;
+    const CAP = 180;
     const start = new Date((rule.rangeStart || baseDateISO) + "T00:00:00");
-    const until = rule.end.type === "until" && rule.end.until ? new Date(rule.end.until + "T00:00:00") : null;
+    // "No end date" runs a rolling 12 months out (was: silently stopped at
+    // occurrence 60); count/until rules still honor their own bounds.
+    let until = rule.end.type === "until" && rule.end.until ? new Date(rule.end.until + "T00:00:00") : null;
+    if (rule.end.type === "none") { until = new Date(start); until.setMonth(until.getMonth() + 12); }
     const maxN = rule.end.type === "count" ? Math.max(1, rule.end.count) : CAP;
     const interval = Math.max(1, rule.interval || 1);
     if (rule.pattern === "weekly") {
@@ -23924,10 +23967,43 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         const startISO = isAllDay ? _ivLocalToISO(sdate, "00:00", tz) : _ivLocalToISO(sdate, stime, tz);
         const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
         if (new Date(endISO) <= new Date(startISO)) { toast("End must be after start", "warn"); if (btn) btn.style.opacity = ""; return; }
+        // Recurring-series member → ask the scope (Outlook-style). "Just this
+        // event" falls through to the single-row patch below and detaches the
+        // occurrence; wider scopes rewrite the series server-side.
+        if (ev0.series_id) {
+          const scope = await _ivcalSeriesScope("edit");
+          if (!scope) { if (btn) btn.style.opacity = ""; return; }
+          if (scope !== "this") {
+            try {
+              const calSel2 = document.getElementById("rr-ne-calendar");
+              const args = {
+                p_event_id: editEv.id, p_scope: scope,
+                p_title: ev0.kind === "event" ? title : null,
+                p_location: location || null,
+                p_note: bodyText || "",
+                // Shift every occurrence by the same delta the operator gave
+                // this one, and normalize duration to the edited length.
+                p_start_shift_seconds: Math.round((new Date(startISO) - new Date(ev0.starts_at)) / 1000),
+                p_duration_seconds: Math.round((new Date(endISO) - new Date(startISO)) / 1000),
+                p_reminders: readReminders(),
+              };
+              if (calSel2 && calSel2.value) args.p_calendar_id = calSel2.value;
+              const { data: n, error } = await sb.rpc("update_calendar_series", args);
+              if (error) throw error;
+              toast(`Series updated · ${n} event${n === 1 ? "" : "s"}`, "success");
+              closeEditor(); loadIvCalendar();
+              if (typeof loadCalBookingsList === "function") loadCalBookingsList();
+            } catch (err) { toast("Couldn't update series: " + (err.message || err), "warn"); if (btn) btn.style.opacity = ""; }
+            return;
+          }
+        }
         // reminders: undefined drops the key from the rebuilt metadata, so
         // clearing every chip removes the reminders entirely.
         const editReminders = readReminders();
         const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done), attachments: attRefs, all_day: isAllDay, reminders: editReminders.length ? editReminders : undefined } };
+        // Editing one occurrence of a series detaches it so series-wide
+        // rewrites ("this and following" / "all") skip it from now on.
+        if (ev0.series_id) patch.series_exception = true;
         // Did the time actually move? A rescheduled meeting should (a) be flagged
         // 'rescheduled' and (b) prompt to notify the attendee — Outlook/Google
         // both do this. Previously an edit silently stranded the candidate on the
@@ -23990,8 +24066,51 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       if (attachments.some(a => a && !a.vaultId)) toast("Note: locally-attached files show here but aren't sent with auto-invites yet", "info");
       let made = 0, firstId = null;
       const createdIds = [];
+      const newReminders = readReminders();
+      let seriesDone = false;
       try {
-        for (let i = 0; i < dates.length; i++) {
+        if (recurrence && dates.length > 1) {
+          // One atomic RPC creates the whole linked series (0431): every
+          // occurrence carries series_id, the rule is stored for display,
+          // and invites/rsvp go on the anchor only. Falls back to the
+          // legacy per-date loop if the migration isn't applied yet.
+          const occ = dates.map(d => ({
+            s: isAllDay ? _ivLocalToISO(d, "00:00", tz) : _ivLocalToISO(d, stime, tz),
+            e: isAllDay ? _ivLocalToISO(d, "23:59", tz) : _ivLocalToISO(d, etime, tz),
+          }));
+          const acceptUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/accept";
+          const declineUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/decline";
+          const gcalUrl = _rrGcalUrl(subjTitle, occ[0].s, occ[0].e, roomUrl ? ("Join the video meeting: " + roomUrl) : "", location || roomUrl || "");
+          const outlookUrl = _rrOutlookUrl(subjTitle, occ[0].s, occ[0].e, roomUrl ? ("Join the video meeting: " + roomUrl) : "", location || roomUrl || "");
+          const { dateStr, timeStr } = fmtRange(dates[0], stime, dates[0], etime, isAllDay);
+          const inv = _rrInviteEmail({
+            dspName: window.RR?.dsp?.name, title: subjTitle, dateStr, timeStr, joinUrl: roomUrl,
+            location, message: bodyText, gcalUrl, outlookUrl, acceptUrl, declineUrl,
+          });
+          const extra = {};
+          if (isTask) { extra.is_task = true; extra.task_done = false; }
+          if (attRefs.length) extra.attachments = attRefs;
+          if (isAllDay) extra.all_day = true;
+          if (newReminders.length) extra.reminders = newReminders;
+          const calSel0 = document.getElementById("rr-ne-calendar");
+          const args = {
+            p_title: subjTitle, p_occurrences: occ, p_rule: recurrence,
+            p_invitees: invitees, p_note: bodyText || null, p_timezone: tz,
+            p_meeting_url: roomUrl || null, p_body_text: inv.text, p_body_html: inv.html,
+            p_rsvp_token: rsvpToken, p_extra: Object.keys(extra).length ? extra : null,
+          };
+          if (calSel0 && calSel0.value) args.p_calendar_id = calSel0.value;
+          const { data: res, error } = await sb.rpc("create_calendar_series", args);
+          if (!error) {
+            made = (res && res.count) || occ.length;
+            firstId = (res && res.anchor_id) || null;
+            seriesDone = true;
+          } else if (!/create_calendar_series/.test(error.message || "")) {
+            throw error;
+          }
+          // Function missing (pre-0431) → fall through to the legacy loop.
+        }
+        if (!seriesDone) for (let i = 0; i < dates.length; i++) {
           const d = dates[i];
           const ed = (recurrence || d === sdate) ? d : edate; // series keeps same-day end
           const startISO = isAllDay ? _ivLocalToISO(d, "00:00", tz) : _ivLocalToISO(d, stime, tz);
@@ -24025,10 +24144,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           made++;
         }
         // Merge the task flag, Vault attachments and/or reminders into the
-        // freshly-created events. Read-modify-write per id so the invitees/note
+        // freshly-created events (legacy loop only — the series RPC merges
+        // p_extra server-side). Read-modify-write per id so the invitees/note
         // the RPC set are preserved (only the first occurrence of a series
         // carries invitees).
-        const newReminders = readReminders();
         if ((isTask || attRefs.length || isAllDay || newReminders.length) && createdIds.length) {
           for (const cid of createdIds) {
             const { data: row } = await sb.from("cal_events").select("metadata").eq("id", cid).maybeSingle();
@@ -24255,6 +24374,7 @@ function _ivcalEventBlock(ev, type, lay) {
   // The camera glyph is its own hit target: clicking it opens the video
   // interview workspace (the rest of the chip opens the reading pane/editor).
   if (ev.meeting_url) icons += `<span class="ei-cam-hit" data-ivcal-room="1" title="Open video interview" role="button" tabindex="-1">${_IVCAL_CAM_SVG}</span>`;
+  if (ev.series_id) icons += `<span title="Recurring event">↻</span>`;
   if (type !== "session" && rsvp === "accepted") icons += "✓"; else if (rsvp === "pending") icons += "✉";
   const ico = icons ? `<span class="ei">${icons}</span>` : "";
   const inner = (h < 30)
@@ -25491,7 +25611,43 @@ async function _ivcalDeleteEvent(kind, id, notify) {
     try { await sb.rpc("interview_session_remove", { p_id: id }); } catch (e) { return toast("Couldn't remove: " + (e.message||e), "warn"); }
     _ivcalSelected = null; loadIvCalendar(); return;
   }
-  if (!confirm("Cancel this event? Attendees will be notified and it will be removed.")) return;
+  // Series member → scope chooser. Wider scopes cancel server-side (incl.
+  // detached instances); "just this event" falls through to the single
+  // cancel below, skipping the redundant confirm.
+  let viaSeriesChooser = false;
+  if (ev.series_id) {
+    const scope = await _ivcalSeriesScope("delete");
+    if (!scope) return;
+    if (scope !== "this") {
+      try {
+        if (notify) {
+          const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+          // Invitees live on the anchor occurrence — collect across the series.
+          const rows = ((_ivcalCache && _ivcalCache.bookings) || []).filter(x => x.series_id === ev.series_id);
+          const seen = new Set();
+          const emails = rows
+            .flatMap(x => (x.metadata && Array.isArray(x.metadata.invitees)) ? x.metadata.invitees : [])
+            .filter(em => typeof em === "string" && em.includes("@") && !seen.has(em) && (seen.add(em), true));
+          const anchor = rows.reduce((a, x) => (!a || new Date(x.starts_at) < new Date(a.starts_at)) ? x : a, null);
+          if (dsp && emails.length && anchor) {
+            const titl = ev.title || "Event";
+            await _rrQueueCalEmails(emails.map(em => ({
+              dsp_id: dsp, direction: "outbound", status: "queued", to_email: em,
+              subject: "Canceled: " + titl, cal_event_id: anchor.id, calendar_method: "cancel",
+              body_text: `Hi,\n\nThis recurring meeting has been canceled:\n${titl}\n\nApologies for any inconvenience.` })));
+          }
+        }
+        const { data: n, error } = await sb.rpc("cancel_calendar_series", { p_event_id: id, p_scope: scope });
+        if (error) throw error;
+        toast(`Series canceled · ${n} event${n === 1 ? "" : "s"}`, "success");
+        _ivcalSelected = null; loadIvCalendar();
+        if (typeof loadCalBookingsList === "function") loadCalBookingsList();
+      } catch (e) { toast("Couldn't cancel series: " + (e.message || e), "warn"); }
+      return;
+    }
+    viaSeriesChooser = true;
+  }
+  if (!viaSeriesChooser && !confirm("Cancel this event? Attendees will be notified and it will be removed.")) return;
   try {
     if (notify) {
       const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
@@ -25632,13 +25788,18 @@ function _ivcalInstallDrag() {
     _ivcalSuppressClick = true;
     const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
     try {
+      // Dragging one occurrence of a series detaches it ("just this event"
+      // semantics) so series-wide rewrites skip it from now on. series_id
+      // only appears post-0431, so the column is guaranteed to exist.
+      const dragged = ((_ivcalCache && _ivcalCache.bookings) || []).find(x => String(x.id) === String(d.id));
+      const detach = (dragged && dragged.series_id) ? { series_exception: true } : {};
       if (d.mode === "move" && d.newStart != null) {
         const date = (d.curCol || d.col).getAttribute("data-ivcal-date");
-        await sb.from("cal_events").update({ starts_at: _ivLocalToISO(date, _ivMinToHHMM(d.newStart), tz), ends_at: _ivLocalToISO(date, _ivMinToHHMM(d.newStart + d.dur), tz) }).eq("id", d.id);
+        await sb.from("cal_events").update({ starts_at: _ivLocalToISO(date, _ivMinToHHMM(d.newStart), tz), ends_at: _ivLocalToISO(date, _ivMinToHHMM(d.newStart + d.dur), tz), ...detach }).eq("id", d.id);
         toast("Moved", "success"); loadIvCalendar();
       } else if (d.mode === "resize" && d.newEnd != null) {
         const date = d.col.getAttribute("data-ivcal-date");
-        await sb.from("cal_events").update({ ends_at: _ivLocalToISO(date, _ivMinToHHMM(d.newEnd), tz) }).eq("id", d.id);
+        await sb.from("cal_events").update({ ends_at: _ivLocalToISO(date, _ivMinToHHMM(d.newEnd), tz), ...detach }).eq("id", d.id);
         toast("Updated", "success"); loadIvCalendar();
       } else if (d.mode === "create") {
         if (d.ghost) d.ghost.remove();
@@ -26789,6 +26950,24 @@ function renderScreeningQuestionRow(q) {
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Wrap http(s) URLs in an ALREADY-ESCAPED chat body with clickable
+// anchors.  Must run after escapeHtml (and any \n→<br> pass) so the
+// regex never sees raw user HTML; [^\s<] stops the match at whitespace
+// and at our inserted <br> tags.  Trailing punctuation stays outside
+// the href so a sentence-ending period isn't part of the link.
+// `onAccent` flips the link to inherit its color — for white-on-accent
+// bubbles where an accent-colored link would vanish into the
+// background.  Mirrors linkifyEscaped in app/app.js so operator and
+// driver see the same treatment.
+function linkifyEscaped(escaped, onAccent) {
+  return String(escaped || "").replace(/(https?:\/\/[^\s<]+)/gi, (raw) => {
+    const href = raw.replace(/[.,;:!?)\]>]+$/, "");
+    const tail = raw.slice(href.length);
+    const color = onAccent ? "color:inherit" : "color:var(--accent-text,var(--accent))";
+    return `<a href="${href}" target="_blank" rel="noopener" style="${color};text-decoration:underline;font-weight:600;word-break:break-all">${href}</a>${tail}`;
+  });
 }
 
 // Renders a small phone-icon `tel:` link followed by the formatted number.
@@ -33157,7 +33336,7 @@ function _supBubblesHTML(msgs) {
     }
     const mine = m.sender_kind === "dsp";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-    const body = m.body ? escapeHtml(m.body) : "";
+    const body = m.body ? linkifyEscaped(escapeHtml(m.body), mine) : "";
     const author = mine ? "" : `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-text);margin-bottom:3px">RouteReady Support</div>`;
     out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
@@ -33423,7 +33602,7 @@ function _supAdmBubblesHTML(msgs) {
     }
     const mine = m.sender_kind === "support";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-    const body = m.body ? escapeHtml(m.body) : "";
+    const body = m.body ? linkifyEscaped(escapeHtml(m.body), mine) : "";
     const author = `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">${escapeHtml((m.sender_name || (mine ? "RouteReady Support" : "DSP")))}${m.sender_role && !mine ? ` · ${escapeHtml(m.sender_role)}` : ""}</div>`;
     out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
@@ -33444,6 +33623,58 @@ async function _supAdmSend() {
   _supAdmScrollSig = "";
   await _supAdmRefreshThread(true);
   _supAdmRefreshList(false);
+}
+
+// ─── Composer attachment wiring (shared: direct chat + channels) ────────
+// Routes the paperclip file-picker AND Ctrl/Cmd+V image paste through
+// one staging path: size-check → pending slot → preview card with a
+// remove button.  Paste is why this exists — operators paste
+// screenshots straight into the composer instead of saving a file and
+// re-attaching it.  `setPending` stores the staged File wherever the
+// composer's submit handler reads it from (window._rrMcPending /
+// window._rrCcPending).
+function _rrWireComposerAttach({ ta, fileInput, previewEl, attachBtn, setPending }) {
+  const clear = () => {
+    fileInput.value = "";
+    setPending(null);
+    previewEl.style.display = "none";
+    previewEl.innerHTML = "";
+  };
+  const stage = (f) => {
+    if (!f) { clear(); return; }
+    if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
+    setPending(f);
+    const isImg = f.type.startsWith("image/");
+    const sizeKb = Math.round(f.size / 1024);
+    previewEl.style.display = "";
+    previewEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:var(--s-2);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
+        ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover">`
+                : `<span style="font-size:var(--fs-lg)">📎</span>`}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
+          <div class="u-subtle">${sizeKb} KB</div>
+        </div>
+        <button type="button" data-rr-attach-clear aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
+      </div>`;
+    previewEl.querySelector("[data-rr-attach-clear]").addEventListener("click", clear);
+  };
+  attachBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => stage(fileInput.files?.[0]));
+  // Clipboard images arrive named "image.png" — rename with a timestamp
+  // so back-to-back pastes don't all upload under the same name.
+  ta.addEventListener("paste", (e) => {
+    const item = Array.from(e.clipboardData?.items || [])
+      .find((x) => x.kind === "file" && x.type.startsWith("image/"));
+    const f = item && item.getAsFile();
+    if (!f) return;               // plain text — let the browser paste it
+    e.preventDefault();
+    const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "") || "png";
+    const d = new Date(); const pad = (n) => String(n).padStart(2, "0");
+    const name = `pasted-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.${ext}`;
+    stage(new File([f], name, { type: f.type }));
+  });
+  return { clear };
 }
 
 async function refreshDriverChatThread(scrollToBottom) {
@@ -33574,35 +33805,15 @@ async function refreshDriverChatThread(scrollToBottom) {
       }
     });
 
-    // Attachment picker — paperclip opens the file input.  Pending
-    // file sits on window._rrMcPending until send.
+    // Attachment picker — paperclip opens the file input, and Ctrl+V
+    // pastes an image straight into the composer.  Pending file sits
+    // on window._rrMcPending until send.
     const fileInput = document.getElementById("rr-mc-file");
     const previewEl = document.getElementById("rr-mc-attach-preview");
-    document.getElementById("rr-mc-attach").addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", () => {
-      const f = fileInput.files?.[0];
-      if (!f) { window._rrMcPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
-      if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
-      window._rrMcPending = f;
-      const isImg = f.type.startsWith("image/");
-      const sizeKb = Math.round(f.size / 1024);
-      previewEl.style.display = "";
-      previewEl.innerHTML = `
-        <div style="display:flex;align-items:center;gap:var(--s-2);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
-          ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover">`
-                  : `<span style="font-size:var(--fs-lg)">📎</span>`}
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
-            <div class="u-subtle">${sizeKb} KB</div>
-          </div>
-          <button type="button" id="rr-mc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
-        </div>`;
-      document.getElementById("rr-mc-attach-clear").addEventListener("click", () => {
-        fileInput.value = "";
-        window._rrMcPending = null;
-        previewEl.style.display = "none";
-        previewEl.innerHTML = "";
-      });
+    const attachCtl = _rrWireComposerAttach({
+      ta, fileInput, previewEl,
+      attachBtn: document.getElementById("rr-mc-attach"),
+      setPending: (f) => { window._rrMcPending = f; },
     });
 
     document.getElementById("rr-mc-form").addEventListener("submit", async (e) => {
@@ -33622,7 +33833,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       // losing it.
       const stubId = "rrmc-stub-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
       const threadEl = document.getElementById("rr-mc-thread");
-      const stubBody = body ? `<div>${escapeHtml(body).replace(/\n/g, "<br>")}</div>` : "";
+      const stubBody = body ? `<div>${linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>"))}</div>` : "";
       const stubAttach = file ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${escapeHtml(file.name)} (uploading…)</div>` : "";
       const nowTime = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
       const stubHtml = `<div class="rr-mc-bubble dispatch pending" data-rr-stub="${stubId}" data-group-pos="single">
@@ -33681,12 +33892,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           }
         }
       });
-      if (file) {
-        window._rrMcPending = null;
-        fileInput.value = "";
-        previewEl.style.display = "none";
-        previewEl.innerHTML = "";
-      }
+      if (file) attachCtl.clear();
 
       let attachment = null;
       if (file) {
@@ -33863,7 +34069,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       if (isDeleted) {
         bodyHtml = `<div class="rr-mc-deleted-body">Message deleted</div>`;
       } else if (m.body) {
-        bodyHtml = `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>`;
+        bodyHtml = `<div>${linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))}</div>`;
       }
       // Hover actions — only on the dispatcher's own non-deleted
       // bubbles within the 15-minute edit window.  Visual affordance
@@ -34533,31 +34739,10 @@ async function refreshChannelThread(scrollToBottom) {
 
     const fileInput = document.getElementById("rr-cc-file");
     const previewEl = document.getElementById("rr-cc-attach-preview");
-    document.getElementById("rr-cc-attach").addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", () => {
-      const f = fileInput.files?.[0];
-      if (!f) { window._rrCcPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
-      if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
-      window._rrCcPending = f;
-      const isImg = f.type.startsWith("image/");
-      const sizeKb = Math.round(f.size / 1024);
-      previewEl.style.display = "";
-      previewEl.innerHTML = `
-        <div style="display:flex;align-items:center;gap:var(--s-2);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
-          ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover">`
-                  : `<span style="font-size:var(--fs-lg)">📎</span>`}
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
-            <div class="u-subtle">${sizeKb} KB</div>
-          </div>
-          <button type="button" id="rr-cc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
-        </div>`;
-      document.getElementById("rr-cc-attach-clear").addEventListener("click", () => {
-        fileInput.value = "";
-        window._rrCcPending = null;
-        previewEl.style.display = "none";
-        previewEl.innerHTML = "";
-      });
+    const attachCtl = _rrWireComposerAttach({
+      ta, fileInput, previewEl,
+      attachBtn: document.getElementById("rr-cc-attach"),
+      setPending: (f) => { window._rrCcPending = f; },
     });
 
     document.getElementById("rr-cc-form").addEventListener("submit", async (e) => {
@@ -34598,12 +34783,7 @@ async function refreshChannelThread(scrollToBottom) {
       // the height shrink mechanically.  The call below is a no-op
       // stub kept for compatibility (see _syncComposerPos definition).
       if (typeof _syncComposerPos === "function") _syncComposerPos();
-      if (file) {
-        window._rrCcPending = null;
-        fileInput.value = "";
-        previewEl.style.display = "none";
-        previewEl.innerHTML = "";
-      }
+      if (file) attachCtl.clear();
       await refreshChannelThread(true);
       refreshChannelList(false);
     });
@@ -34663,7 +34843,7 @@ async function refreshChannelThread(scrollToBottom) {
       const senderLabel = m.sender_kind === "dispatch"
         ? (m.sender_name ? `Dispatch · ${m.sender_name}` : "Dispatch")
         : (m.sender_name || "Driver");
-      const bodyHtml = m.body ? `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>` : "";
+      const bodyHtml = m.body ? `<div>${linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))}</div>` : "";
       const showSender = (pos === "first" || pos === "single");
       return `<div class="rr-cc-bubble ${m.sender_kind}" data-group-pos="${pos}">
         ${showSender ? `<div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>` : ""}

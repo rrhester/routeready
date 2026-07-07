@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────
--- Migration 0431 · Team tasks — server-backed My Tasks with assignment
+-- Migration 0432 · Team tasks — server-backed My Tasks with assignment
 --
 -- Promotes the schedule rail's "My Tasks" list from device-local
 -- localStorage to a Supabase table so a DSP can assign tasks to the
