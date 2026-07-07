@@ -7615,6 +7615,25 @@ async function _clkCompressPhoto(file) {
   }
 }
 
+// data:image/png;base64,… → Blob, for uploading a signature canvas.
+function _dataUrlToBlob(dataUrl) {
+  const [head, b64] = String(dataUrl).split(",");
+  const mime = (head.match(/data:([^;]+)/) || [])[1] || "image/png";
+  const bin = atob(b64 || "");
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// Sign a driver-documents storage path for display (anon can sign this
+// private bucket). Returns null on failure so callers can fall back.
+async function _clkSignedUrl(path) {
+  try {
+    const { data } = await sb.storage.from("driver-documents").createSignedUrl(path, 3600);
+    return data?.signedUrl || null;
+  } catch (_) { return null; }
+}
+
 // Paint the thumbnail strip for a photo item from _clkPhotos. New photos
 // show a preview; restored (already-uploaded) ones show a labeled chip.
 function _clkRenderPhotoStrip(itemId) {
@@ -7690,11 +7709,21 @@ function _clkAnswerDisplay(item, ans) {
     return n ? `${n} photo${n === 1 ? "" : "s"} attached` : "No photo";
   }
   if (item.item_type === "signature") {
-    return (typeof v === "string" && v.startsWith("data:image"))
-      ? `<img class="clk-sig-img" src="${escapeHtml(v)}" alt="Signature"/>` : "Signed";
+    if (typeof v === "string" && v.startsWith("data:image")) return `<img class="clk-sig-img" src="${escapeHtml(v)}" alt="Signature"/>`;
+    if (typeof v === "string" && v) return `<img class="clk-sig-img" data-rr-sig-path="${escapeHtml(v)}" alt="Signature"/>`;  // signed after render
+    return "Signed";
   }
   const s = v == null || v === "" ? "—" : String(v);
   return escapeHtml(s);
+}
+
+// Swap stored-signature <img data-rr-sig-path> placeholders for signed URLs.
+function _clkEnhanceSignatures(root) {
+  (root || document).querySelectorAll("img[data-rr-sig-path]").forEach((img) => {
+    const p = img.getAttribute("data-rr-sig-path");
+    img.removeAttribute("data-rr-sig-path");
+    _clkSignedUrl(p).then((u) => { if (u) img.src = u; });
+  });
 }
 
 async function _clkCollect(items, opts = {}) {
@@ -7717,8 +7746,11 @@ async function _clkCollect(items, opts = {}) {
     } else if (t === "photo") {
       // Photos are handled off _clkPhotos after the loop (below).
     } else if (t === "signature") {
-      if (el._rrHasInk) out[item.id] = { v: el.toDataURL("image/png") };
-      else if (el.dataset.rrExistingSig) out[item.id] = { v: el.dataset.rrExistingSig };
+      // Fresh ink on a server pass is uploaded below; on a local-draft pass
+      // it's kept inline so it survives a reload. An untouched pad keeps its
+      // existing value (a storage path, or a legacy inline data URL).
+      if (el._rrHasInk && skipUploads) out[item.id] = { v: el.toDataURL("image/png") };
+      else if (!el._rrHasInk && el.dataset.rrExistingSig) out[item.id] = { v: el.dataset.rrExistingSig };
     } else {
       const v = (el.value || "").trim();
       if (v !== "") out[item.id] = { v };
@@ -7742,6 +7774,21 @@ async function _clkCollect(items, opts = {}) {
             .catch((e) => { uploadFailed++; console.warn("checklist photo upload error:", e); })
         );
       }
+    }
+
+    // Signatures: upload freshly-drawn ink as a PNG to storage instead of
+    // stuffing tens of KB of base64 into value_text on every save.
+    for (const item of items) {
+      if (item.item_type !== "signature") continue;
+      const el = document.querySelector(`#rr-clk-fill [data-rr-clk="${CSS.escape(item.id)}"]`);
+      if (!el || !el._rrHasInk) continue;
+      const blob = _dataUrlToBlob(el.toDataURL("image/png"));
+      const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/sig-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+      uploads.push(
+        sb.storage.from("driver-documents").upload(path, blob, { contentType: "image/png", upsert: false })
+          .then(({ error }) => { if (error) { uploadFailed++; console.warn("checklist signature upload failed:", error.message); } else { out[item.id] = { v: path }; } })
+          .catch((e) => { uploadFailed++; console.warn("checklist signature upload error:", e); })
+      );
     }
   }
   if (uploads.length) await Promise.all(uploads);
@@ -7803,6 +7850,7 @@ async function renderChecklistFill() {
             </div>`).join("")}
         </div>
       </div>`;
+    _clkEnhanceSignatures(main);
     return;
   }
 
@@ -7858,17 +7906,23 @@ async function renderChecklistFill() {
       }
     } else if (t === "signature") {
       const v = ans.v;
-      if (typeof v === "string" && v.startsWith("data:image")) {
+      if (typeof v === "string" && v) {
+        // Keep the stored value (storage path, or a legacy inline data URL)
+        // as the existing answer; draw it for display without marking it as
+        // new ink, so an untouched pad keeps the path instead of re-uploading.
         el.dataset.rrExistingSig = v;
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const ctx = el.getContext("2d");
-            ctx.drawImage(img, 0, 0, el.clientWidth || el.width, el.clientHeight || 140);
-            el._rrHasInk = true;
-          } catch (_) {}
+        const draw = (srcUrl) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const ctx = el.getContext("2d");
+              ctx.drawImage(img, 0, 0, el.clientWidth || el.width, el.clientHeight || 140);
+            } catch (_) {}
+          };
+          img.src = srcUrl;
         };
-        img.src = v;
+        if (v.startsWith("data:image")) draw(v);
+        else _clkSignedUrl(v).then((u) => { if (u) draw(u); });
         restoredAny = true;
       }
     } else {
@@ -8214,6 +8268,9 @@ function _initSignaturePad(canvasId, clearBtnId) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, cssW, cssH);
     canvas._rrHasInk = false;
+    // Clearing also drops any restored signature so "clear + submit" means
+    // no signature, rather than silently keeping the old one.
+    delete canvas.dataset.rrExistingSig;
   });
 }
 

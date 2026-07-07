@@ -82218,8 +82218,11 @@ async function _clfCreateAssignment() {
 // ── Responses pane ────────────────────────────────────────────────────
 
 function _clfAnswerValHtml(a) {
-  if (a.item_type === "signature" && (a.value_text || "").startsWith("data:image")) {
-    return `<img class="clf-resp-sig" src="${escapeHtml(a.value_text)}" alt="Signature"/>`;
+  if (a.item_type === "signature") {
+    const v = a.value_text || "";
+    if (v.startsWith("data:image")) return `<img class="clf-resp-sig" src="${escapeHtml(v)}" alt="Signature"/>`;   // legacy inline
+    if (v) return `<button type="button" class="btn btn-sm" data-rr-clf-photo="${escapeHtml(v)}">View signature</button>`;  // stored path → signed URL
+    return `<span style="color:var(--text-subtle)">Not signed</span>`;
   }
   if (a.item_type === "photo") {
     const photos = Array.isArray(a.photo_urls) ? a.photo_urls : [];
@@ -82237,7 +82240,7 @@ function _clfAnswerValHtml(a) {
 function _clfAnswerCsvVal(a) {
   if (!a) return "";
   let v;
-  if (a.item_type === "signature") v = (a.value_text || "").startsWith("data:image") ? "Signed" : (a.value_text || "");
+  if (a.item_type === "signature") v = (a.value_text || "") ? "Signed" : "";
   else if (a.item_type === "photo") { const n = Array.isArray(a.photo_urls) ? a.photo_urls.length : 0; v = n ? `${n} photo${n === 1 ? "" : "s"}` : "No photo"; }
   else if (a.item_type === "checkbox") v = a.value_bool ? "Done" : "Not done";
   else if (a.item_type === "yes_no") v = (a.value_text || "").replace(/^yes$/i, "Yes").replace(/^no$/i, "No");
