@@ -23483,6 +23483,28 @@ function _ivcalSeriesScope(mode) {
   });
 }
 
+// Find-a-time · given busy intervals (array of {start,end} epoch ms), return
+// up to `limit` open slot starts (Date) of durationMin, on a 30-min grid,
+// within [workStartMin, workEndMin] local minutes, over `days` days from
+// fromDate (a local 00:00 Date). Skips slots that start in the past (< nowMs).
+// Pure + module-scoped so it's unit-testable independent of the composer.
+function _ivFindOpenSlots(busy, durationMin, fromDate, days, workStartMin, workEndMin, nowMs, limit) {
+  const out = [];
+  const STEP = 30;
+  const durMs = durationMin * 60000;
+  const blocks = (busy || []).slice().sort((a, b) => a.start - b.start);
+  for (let d = 0; d < days && out.length < limit; d++) {
+    const day = new Date(fromDate); day.setDate(fromDate.getDate() + d); day.setHours(0, 0, 0, 0);
+    for (let mm = workStartMin; mm + durationMin <= workEndMin && out.length < limit; mm += STEP) {
+      const s = new Date(day); s.setHours(0, mm, 0, 0);
+      const sMs = s.getTime(), eMs = sMs + durMs;
+      if (sMs < nowMs) continue;                       // no past slots
+      if (!blocks.some(b => b.start < eMs && b.end > sMs)) out.push(s);
+    }
+  }
+  return out;
+}
+
 // Outlook-style click-to-create. Opens a pop-out event editor (To / Subject
 // / date-time / body). By default the event is a plain calendar invite; the
 // user adds a video meeting on demand via the blue "Schedule Meeting" button.
@@ -23671,6 +23693,13 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-aslot.taken{background:#F1F3F4;border-color:#E0E3E7;color:#9aa0a6;cursor:not-allowed;text-decoration:line-through}
       #rr-ivcal-new .rr-ne-aday{flex:0 0 100%;font-size:12px;font-weight:600;color:#5F6368;margin:2px 0 0}
       #rr-ivcal-new .rr-ne-anone{font-size:12.5px;color:#5F6368;line-height:1.5}
+      /* "Find a time that works" — free/busy suggested-time chips */
+      #rr-ivcal-new .rr-ne-ft{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+      #rr-ivcal-new .rr-ne-ft[hidden]{display:none}
+      #rr-ivcal-new .rr-ne-ftslot{border:1px solid #b7e4c7;background:#eafaf0;color:#15803d;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 11px;border-radius:999px;line-height:1}
+      #rr-ivcal-new .rr-ne-ftslot:hover{background:#d6f5e2;border-color:#8fd6ab}
+      #rr-ivcal-new .rr-ne-ftslot.sel{background:#16A34A;border-color:#16A34A;color:#fff}
+      #rr-ivcal-new .rr-ne-ftwarn{flex:0 0 100%;font-size:12px;font-weight:600;color:#B45309;margin:0 0 2px}
       /* Reminder ("notify me before") toggle chips */
       #rr-ivcal-new .rr-ne-remind{display:flex;flex-wrap:wrap;gap:6px;padding:7px 0}
       #rr-ivcal-new .rr-ne-remchip{border:1px solid #E0E3E7;background:#F8F9FA;color:#3C4043;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 11px;border-radius:999px;line-height:1}
@@ -23723,6 +23752,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></span><div class="rr-ne-gcell">
           <input id="rr-ne-required" type="text" placeholder="Add guests" style="${fld};width:100%">
           <input id="rr-ne-optional" type="text" placeholder="Optional guests" style="${fld};width:100%;margin-top:4px">
+          <button type="button" class="rr-ne-glink" id="rr-ne-findtime" data-ne-findtime style="margin-top:6px">🔍 Find a time that works</button>
+          <div id="rr-ne-ftbox" class="rr-ne-ft" hidden></div>
         </div></div>
         <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M22 8l-5 4 5 4z"/></svg></span><div class="rr-ne-gcell">
           <button type="button" class="rr-ne-glink" data-ne-vproxy>Add video conferencing</button>
@@ -23862,6 +23893,82 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   });
   // Keep the slot list in sync when the event's date changes while it's open.
   document.getElementById("rr-ne-sdate")?.addEventListener("change", () => { if (_availBox && !_availBox.hidden) _neRenderAvail(); });
+
+  // "Find a time that works" — free/busy across the guest list (Google's
+  // Suggested times / Outlook's Scheduling Assistant). Pulls each guest's busy
+  // blocks (calendar_busy) and suggests open slots when everyone is free;
+  // clicking a suggestion snaps the event to it.
+  const _ftBox = document.getElementById("rr-ne-ftbox");
+  const _ftTog = document.getElementById("rr-ne-findtime");
+  const _neGuestEmails = () => {
+    const grab = (id) => (((document.getElementById(id) || {}).value) || "").split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
+    return Array.from(new Set([...grab("rr-ne-required"), ...grab("rr-ne-optional")]));
+  };
+  const _neDurMin = () => {
+    const st = (document.getElementById("rr-ne-stime") || {}).value, et = (document.getElementById("rr-ne-etime") || {}).value;
+    if (!st || !et) return 30;
+    const [sh, sm] = st.split(":").map(Number), [eh, em] = et.split(":").map(Number);
+    const d = (eh * 60 + em) - (sh * 60 + sm); return d > 0 ? d : 30;
+  };
+  async function _neRenderFindTime() {
+    if (!_ftBox) return;
+    const emails = _neGuestEmails();
+    if (!emails.length) { _ftBox.innerHTML = `<div class="rr-ne-anone">Add guest emails above, then I'll find times when everyone's free.</div>`; return; }
+    _ftBox.innerHTML = `<div class="rr-ne-anone">Checking calendars…</div>`;
+    const DAYS = 14;
+    const sdEl = document.getElementById("rr-ne-sdate");
+    const fromDay = (sdEl && sdEl.value) ? new Date(sdEl.value + "T00:00:00") : new Date();
+    fromDay.setHours(0, 0, 0, 0);
+    const to = new Date(fromDay); to.setDate(to.getDate() + DAYS);
+    const durMin = _neDurMin();
+    let rows;
+    try {
+      const { data, error } = await sb.rpc("calendar_busy", {
+        p_emails: emails, p_from: fromDay.toISOString(), p_to: to.toISOString(),
+        p_exclude_event_id: (isEdit && editEv) ? editEv.id : null,
+      });
+      if (error) throw error;
+      rows = data || [];
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      _ftBox.innerHTML = `<div class="rr-ne-anone">${/calendar_busy/.test(msg) ? "Find-a-time needs the latest database migration (0434)." : "Couldn't check calendars: " + escapeHtml(msg)}</div>`;
+      return;
+    }
+    const busy = rows.map(r => ({ start: new Date(r.starts_at).getTime(), end: new Date(r.ends_at).getTime() }));
+    // Conflict badge for the currently-chosen time.
+    let warn = "";
+    const cd = (document.getElementById("rr-ne-sdate") || {}).value, ct = (document.getElementById("rr-ne-stime") || {}).value;
+    if (cd && ct) {
+      const cs = new Date(cd + "T" + ct + ":00").getTime(), ce = cs + durMin * 60000;
+      const n = rows.filter(r => new Date(r.starts_at).getTime() < ce && new Date(r.ends_at).getTime() > cs).length;
+      if (n) warn = `<div class="rr-ne-ftwarn">⚠ ${n} guest conflict${n > 1 ? "s" : ""} at the current time</div>`;
+    }
+    const slots = _ivFindOpenSlots(busy, durMin, fromDay, DAYS, 8 * 60, 18 * 60, Date.now(), 6);
+    if (!slots.length) { _ftBox.innerHTML = warn + `<div class="rr-ne-anone">No open ${durMin}-min slot for everyone in the next ${DAYS} days (business hours).</div>`; return; }
+    const chips = slots.map(s => {
+      const lbl = s.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + " · " + s.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      return `<button type="button" class="rr-ne-ftslot" data-iso="${_ivcalISODate(s)}" data-mm="${s.getHours() * 60 + s.getMinutes()}" data-dur="${durMin}">${escapeHtml(lbl)}</button>`;
+    }).join("");
+    _ftBox.innerHTML = warn + `<div class="rr-ne-aday">Everyone's free — pick a time:</div>` + chips;
+  }
+  _ftTog?.addEventListener("click", () => {
+    if (!_ftBox) return;
+    const show = _ftBox.hidden; _ftBox.hidden = !show;
+    _ftTog.textContent = show ? "Hide suggested times" : "🔍 Find a time that works";
+    if (show) _neRenderFindTime();
+  });
+  _ftBox?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".rr-ne-ftslot"); if (!btn) return;
+    const iso = btn.getAttribute("data-iso"), mm = parseInt(btn.getAttribute("data-mm"), 10), dur = parseInt(btn.getAttribute("data-dur"), 10);
+    const sdEl = document.getElementById("rr-ne-sdate"), edEl = document.getElementById("rr-ne-edate"), sEl = document.getElementById("rr-ne-stime"), eEl = document.getElementById("rr-ne-etime");
+    if (sdEl) { sdEl.value = iso; sdEl.dispatchEvent(new Event("change", { bubbles: true })); }
+    if (edEl) edEl.value = iso;
+    if (sEl) { sEl.value = _ivMinToHHMM(mm); sEl.dispatchEvent(new Event("change", { bubbles: true })); }
+    if (eEl) { eEl.value = _ivMinToHHMM(mm + dur); eEl.dispatchEvent(new Event("change", { bubbles: true })); }
+    _ftBox.querySelectorAll(".rr-ne-ftslot.sel").forEach(x => x.classList.remove("sel"));
+    btn.classList.add("sel");
+    toast("Time set — everyone's free then", "success");
+  });
   // "Add attachment from Vault" opens the Vault picker; picked files become
   // attachment chips and persist on the event (metadata.attachments).
   m.querySelector("[data-ne-vaultattach]")?.addEventListener("click", () => {
