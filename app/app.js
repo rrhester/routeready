@@ -4388,9 +4388,7 @@ function renderDocumentScanner() {
           </span>
           <input type="checkbox" id="scan-ocr" class="scan-ocr-check" />
         </label>
-        <button id="scan-categorize" class="btn btn-primary btn-block" type="button">What are you uploading?</button>
-        <button id="scan-send" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Send to dispatch</button>
-        <button id="scan-share" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Save or share PDF</button>
+        <button id="scan-categorize" class="btn btn-primary btn-block" type="button">Continue</button>
         <button id="scan-clear" class="btn btn-ghost btn-block" type="button" style="margin-top:8px;color:var(--red)">Start over</button>
       </div>
     </div>`;
@@ -4461,102 +4459,14 @@ function renderDocumentScanner() {
     _scanRenderPages();
   });
 
-  document.getElementById("scan-send").addEventListener("click", async () => {
-    if (!_scanPages.length) return;
-    const btn = document.getElementById("scan-send");
-    const name = _scanNameValue();
-    const filename = name.endsWith(".pdf") ? name : name + ".pdf";
-    btn.disabled = true; btn.textContent = "Sending…";
-
-    // Optional on-device OCR before building — degrades gracefully to a
-    // non-searchable PDF if the engine can't load (e.g. offline first use).
-    await _scanRunOcrIfEnabled((t) => { btn.textContent = t; });
-    btn.textContent = "Sending…";
-
-    let blob;
-    try {
-      blob = _scanBuildPdfBlob(_scanPages, { pageSize: _scanGetPageSize() });
-    } catch (err) {
-      toast(_friendlyError(err, "Couldn't build the PDF. Try again."), "warn");
-      btn.disabled = false; btn.textContent = "Send to dispatch";
-      return;
-    }
-
-    // Offline up front, or a transient failure mid-send → save to the
-    // queue and let it flush automatically when the signal is back. The
-    // driver's scan is safe either way, so we clear the workspace.
-    const queueIt = async (line) => {
-      try {
-        await _scanQueueAdd({
-          id: "q" + Date.now() + Math.random().toString(36).slice(2, 7),
-          name, filename, blob, size: blob.size, createdAt: Date.now(),
-        });
-        _haptic("success");
-        toast(line, "ok");
-        _scanPages = [];
-        renderDocumentScanner();
-      } catch {
-        toast("Couldn't save the scan. Try again.", "warn");
-        btn.disabled = false; btn.textContent = "Send to dispatch";
-      }
-    };
-
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      await queueIt("Saved — will send to dispatch when you're back online");
-      return;
-    }
-
-    const res = await _scanUploadAndSend(blob, filename);
-    if (res.ok) {
-      _haptic("success");
-      toast("Sent to dispatch", "ok");
-      _scanPages = [];
-      navigate("/chat");
-      return;
-    }
-    if (res.retriable) {
-      await queueIt("Couldn't reach dispatch — saved, will retry when you're back online");
-      return;
-    }
-    // Terminal (no session / incomplete profile) — don't silently queue.
-    toast(res.reason === "no-session" ? "Sign in again to send"
-        : "Profile incomplete — sign out and back in", "warn");
-    btn.disabled = false; btn.textContent = "Send to dispatch";
-  });
-
+  // Categorizing what you scanned is mandatory — the "What are you uploading?"
+  // chooser is the only way forward, so a Receipt is always classified (and
+  // never silently dropped into chat un-categorized). Non-receipt types still
+  // reach dispatch, just from inside the chooser.
   document.getElementById("scan-categorize").addEventListener("click", () => {
     if (!_scanPages.length || _scanBusy) return;
     _scanChooseUploadType();
   });
-
-  document.getElementById("scan-share").addEventListener("click", async () => {
-    if (!_scanPages.length) return;
-    const btn = document.getElementById("scan-share");
-    const name = _scanNameValue();
-    btn.disabled = true; btn.textContent = "Preparing…";
-    await _scanRunOcrIfEnabled((t) => { btn.textContent = t; });
-    btn.textContent = "Preparing…";
-    try {
-      const blob = _scanBuildPdfBlob(_scanPages, { pageSize: _scanGetPageSize() });
-      const res = await _scanShareOrSave(blob, name.endsWith(".pdf") ? name : name + ".pdf");
-      if (res === "downloaded") toast("PDF downloaded", "ok");
-      else if (res === "shared") toast("Shared", "ok");
-    } catch (err) {
-      toast(_friendlyError(err, "Couldn't build the PDF. Try again."), "warn");
-    }
-    btn.disabled = false; btn.textContent = "Save or share PDF";
-  });
-
-  // Run OCR over the pages when "Make searchable" is on; on any failure,
-  // warn and continue so the export never gets blocked by OCR.
-  async function _scanRunOcrIfEnabled(setLabel) {
-    if (!_scanGetOcr()) return;
-    try {
-      await _scanRunOcr((i, total) => setLabel(`Reading text ${i}/${total}…`));
-    } catch {
-      toast("Couldn't read text — continuing without a searchable layer", "warn");
-    }
-  }
 
   document.getElementById("scan-clear").addEventListener("click", async () => {
     const ok = await confirmSheet({

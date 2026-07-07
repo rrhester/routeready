@@ -4471,6 +4471,11 @@ const WB_TEMPLATES = [
   },
 ];
 
+// Which templates the "New workbook" gallery offers. The full WB_TEMPLATES set
+// stays defined (so existing workbooks keep their template badge), but for now
+// the gallery shows only the Receipt Ledger.
+const WB_GALLERY_TEMPLATES = ["receipt-ledger"];
+
 // ─── Module state ────────────────────────────────────────────────────────────
 // One workbook open at a time. Sheet cell data lives in sparse Maps
 // keyed "row,col"; grids (see the grid engine below) hold per-block
@@ -6388,7 +6393,7 @@ function openCreateModal() {
               <span class="wb-tpl-cat">Start fresh</span>
               <span class="wb-tpl-desc">One empty spreadsheet — add notes and checklists as you go.</span>
             </button>
-            ${WB_TEMPLATES.map(tplCard).join("")}
+            ${WB_TEMPLATES.filter((t) => WB_GALLERY_TEMPLATES.includes(t.key)).map(tplCard).join("")}
           </div>
         </div>
       </div>
