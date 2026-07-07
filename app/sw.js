@@ -19,7 +19,12 @@
 // searchable / selectable. Runs entirely on the phone; degrades to a
 // normal PDF if the engine can't load. Bumped so installed driver PWAs
 // purge the old shell and pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v132";
+//
+// v133 · Receipt Intake: after scanning, "What are you uploading?" is now a
+// mandatory step (the direct "Send to dispatch" / "Save or share PDF" bypass
+// buttons are gone), and the full Receipt submission flow ships. Bumped so
+// installed driver PWAs purge the old shell and pick up the new app.js + CSS.
+const SHELL_CACHE = "rr-app-shell-v133";
 const SHELL_FILES = [
   "./",
   "index.html",
