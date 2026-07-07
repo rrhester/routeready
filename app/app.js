@@ -7668,6 +7668,18 @@ async function renderFormFill() {
     const btnEarly = e.target.querySelector("button[type=submit]");
     if (btnEarly) { btnEarly.disabled = true; btnEarly.textContent = "Uploading…"; }
     const answers = await _collectFormAnswers(fields);
+    // Block submit if any photo/file upload failed — otherwise the driver
+    // believes the attachment was submitted when only an error marker was
+    // stored (and it would even pass required validation as a truthy value).
+    const failedUpload = fields.find((f) => {
+      const v = answers[f.id];
+      return v && typeof v === "object" && v.error;
+    });
+    if (failedUpload) {
+      if (btnEarly) { btnEarly.disabled = false; btnEarly.textContent = "Submit"; }
+      toast(`Couldn't upload "${failedUpload.label || "attachment"}" — check your connection and try again.`, "warn");
+      return;
+    }
     if (btnEarly) { btnEarly.textContent = "Submitting…"; }
     // Required-field validation. A conditional field that is currently
     // HIDDEN (its rule isn't met) is NOT required and must not block submit:
@@ -7851,6 +7863,7 @@ async function _collectFormAnswers(fields, opts = {}) {
   // storage round-trip — drafts never spend bandwidth.
   const skipUploads = !!opts.skipUploads;
   const photoUploads = [];
+  const gpsCaptures = [];
   document.querySelectorAll("#rr-form-fill [data-rr-field]").forEach((el) => {
     // Conditional logic: a field whose condition isn't currently met sits
     // inside a hidden [data-cond-field] wrapper. Skip it entirely so it is
@@ -7900,17 +7913,75 @@ async function _collectFormAnswers(fields, opts = {}) {
         out[fid] = null;
       }
     } else if (t === "file") {
+      if (skipUploads) return;  // drafts never spend bandwidth
+      // Previously the file's bytes were discarded — only {name,size,type}
+      // was stored, so dispatchers got an unusable filename. Now we upload
+      // the file to storage and keep its path, mirroring the photo branch.
       const f = el.files?.[0];
-      out[fid] = f ? { name: f.name, size: f.size, type: f.type } : null;
+      if (f) {
+        const ts = Date.now();
+        const safe = (f.name || "file").replace(/[^A-Za-z0-9._-]+/g, "-");
+        // Same DSP-first path prefix as photos so the existing
+        // driver-documents SELECT policy lets dispatchers read it back.
+        const path = `${dspId || "no-dsp"}/dvic/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        out[fid] = { path, name: f.name, size: f.size, type: f.type, uploading: true };
+        photoUploads.push(
+          sb.storage.from("driver-documents").upload(path, f, { contentType: f.type, upsert: false })
+            .then(({ error }) => {
+              if (error) {
+                console.warn("Form file upload failed:", error.message);
+                out[fid] = { name: f.name, size: f.size, type: f.type, error: error.message };
+              } else {
+                out[fid] = { path, name: f.name, size: f.size, type: f.type };
+              }
+            })
+            .catch((e) => {
+              console.warn("Form file upload error:", e);
+              out[fid] = { name: f.name, size: f.size, type: f.type, error: String(e) };
+            })
+        );
+      } else {
+        out[fid] = null;
+      }
     } else if (t === "gps") {
-      out[fid] = el.dataset.rrGps || null;
+      // Previously read el.dataset.rrGps, which was never set anywhere —
+      // so a GPS field always submitted null despite promising "captured
+      // when you submit". Now we actually capture the location at submit
+      // time. Draft passes never prompt for location.
+      if (el.dataset.rrGps) {
+        try { out[fid] = JSON.parse(el.dataset.rrGps); } catch { out[fid] = el.dataset.rrGps; }
+      } else {
+        out[fid] = null;
+      }
+      if (!skipUploads && !el.dataset.rrGps && "geolocation" in navigator) {
+        gpsCaptures.push(new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const g = {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracy: Math.round(pos.coords.accuracy || 0),
+                at: new Date().toISOString(),
+              };
+              el.dataset.rrGps = JSON.stringify(g);
+              out[fid] = g;
+              resolve();
+            },
+            // Permission denied / no fix — leave null, never block submit.
+            () => { out[fid] = null; resolve(); },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+          );
+        }));
+      }
     } else {
       out[fid] = el.value || "";
     }
   });
-  // Wait for all photo uploads to settle before returning so the
-  // submission's answers contain the final paths.
-  if (photoUploads.length) await Promise.all(photoUploads);
+  // Wait for all photo/file uploads and GPS captures to settle before
+  // returning so the submission's answers contain the final paths/coords.
+  if (photoUploads.length || gpsCaptures.length) {
+    await Promise.all([...photoUploads, ...gpsCaptures]);
+  }
   return out;
 }
 
