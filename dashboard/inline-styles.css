@@ -7710,6 +7710,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .subm-status{font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-md)}
 .subm-status.complete{background:var(--green-soft);color:var(--green)}
 .subm-status.flagged{background:var(--red-soft);color:var(--red)}
+/* Submissions tab · filter bar + review footer */
+.subm-filterbar{display:flex;flex-wrap:wrap;gap:var(--s-2);align-items:center;margin-bottom:var(--s-3)}
+.subm-filter-date{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-muted)}
+.subm-filter-date input{font:inherit;font-size:var(--fs-sm);border:1px solid var(--border);border-radius:var(--r-md);padding:4px 8px;background:var(--surface);color:var(--text)}
+.subm-filterbar [data-rr-subm-export]{margin-left:auto}
+.subm-review-foot{display:flex;flex-direction:column;gap:10px;padding:14px 18px;border-top:1px solid var(--border)}
+.subm-review-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.subm-review-flag{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text-muted);cursor:pointer}
+.subm-review-actions{display:flex;justify-content:flex-end;gap:8px}
 
 /* ─────────────────────────────────────────────────────────────
    FLEET + ASSET TRACKING
