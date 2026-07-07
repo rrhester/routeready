@@ -82218,6 +82218,68 @@ function _clfAnswerValHtml(a) {
   return a.value_text ? escapeHtml(a.value_text) : "—";
 }
 
+// Plain-text answer value for the CSV export (no HTML; photos/signatures
+// collapse to a short marker so the file stays audit-legible).
+function _clfAnswerCsvVal(a) {
+  if (!a) return "";
+  let v;
+  if (a.item_type === "signature") v = (a.value_text || "").startsWith("data:image") ? "Signed" : (a.value_text || "");
+  else if (a.item_type === "photo") { const n = Array.isArray(a.photo_urls) ? a.photo_urls.length : 0; v = n ? `${n} photo${n === 1 ? "" : "s"}` : "No photo"; }
+  else if (a.item_type === "checkbox") v = a.value_bool ? "Done" : "Not done";
+  else if (a.item_type === "yes_no") v = (a.value_text || "").replace(/^yes$/i, "Yes").replace(/^no$/i, "No");
+  else if (a.item_type === "number") v = a.value_number != null ? String(a.value_number) : "";
+  else v = a.value_text || "";
+  if (a.note) v = (v ? v + " " : "") + `(Note: ${a.note})`;
+  if (a.failed_flag) v = (v ? v + " " : "") + "[FLAG]";
+  return v;
+}
+
+// Compliance export: the full submission history for the open checklist,
+// one row per submission with a column per item. Pulls a wide window so
+// the file is an audit record, not just what's on screen.
+async function _clfExportCsv() {
+  const tpl = _clfState.editing;
+  if (!tpl) { toast("Open a checklist first", "warn"); return; }
+  const btn = document.querySelector("[data-rr-clf-export]");
+  if (btn) { btn.disabled = true; btn.textContent = "Exporting…"; }
+  try {
+    const res = await sb.rpc("checklist_form_responses", { p_template_id: tpl.id, p_days: 3650 });
+    if (res.error) throw res.error;
+    const subs = Array.isArray(res.data?.submissions) ? res.data.submissions : [];
+    if (subs.length === 0) { toast("No submissions to export yet", "warn"); return; }
+    const items = (Array.isArray(tpl.items) ? tpl.items.slice() : [])
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const stLabel = { not_started: "Not started", in_progress: "In progress", reopened: "Reopened", submitted: "Completed" };
+    const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : "");
+    const header = ["Checklist", "Driver", "Status", "Period", "Due", "Started", "Submitted", "Overdue", "Flagged", ...items.map((i) => i.label || "Item")];
+    const rows = [header];
+    for (const s of subs) {
+      const byId = {};
+      for (const a of (s.answers || [])) byId[a.item_id] = a;
+      rows.push([
+        tpl.name || "",
+        s.driver_name || "",
+        s.overdue ? "Overdue" : (stLabel[s.status] || s.status || ""),
+        s.period_key || "",
+        fmt(s.due_at), fmt(s.started_at), fmt(s.submitted_at),
+        s.overdue ? "Yes" : "",
+        s.failed_count || 0,
+        ...items.map((i) => _clfAnswerCsvVal(byId[i.id])),
+      ]);
+    }
+    const bom = String.fromCharCode(0xFEFF);
+    const csv = bom + rows.map((r) => r.map(_schedCsvField).join(",")).join("\r\n");
+    const slug = (tpl.name || "checklist").replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "checklist";
+    _downloadBlob(`checklist-${slug}-${new Date().toISOString().slice(0, 10)}.csv`,
+      new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    toast(`Exported ${subs.length} submission${subs.length === 1 ? "" : "s"}`, "success");
+  } catch (e) {
+    toast("Couldn't export: " + (e.message || e), "warn");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Export CSV"; }
+  }
+}
+
 async function _clfRenderResponses() {
   const host = document.getElementById("rr-clf-responses-root");
   if (!host) return;
@@ -82275,7 +82337,10 @@ async function _clfRenderResponses() {
         ${todayHtml}
       </div>
       <div class="clf-resp-section">
-        <div class="clf-resp-h">Submissions · last 14 days</div>
+        <div class="clf-resp-h" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <span>Submissions · last 14 days</span>
+          <button type="button" class="btn btn-sm" data-rr-clf-export title="Download the full submission history as CSV">Export CSV</button>
+        </div>
         ${subsHtml}
       </div>
     </div>`;
@@ -82295,6 +82360,9 @@ document.addEventListener("click", async (e) => {
 
   // new checklist
   if (e.target.closest("[data-rr-clf-new]")) { openClfBuilder(null); return; }
+
+  // export responses to CSV
+  if (e.target.closest("[data-rr-clf-export]")) { _clfExportCsv(); return; }
 
   // card overflow menu
   const dots = e.target.closest("[data-rr-clf-dots]");
