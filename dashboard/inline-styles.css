@@ -29271,7 +29271,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-kpi-delta.is-down{color:var(--red,#d03b3b)}
 #view-workbooks .wb-kpi-spark{width:auto;height:36px;display:block;margin:4px -13px -9px}
 /* Hero header band */
-#view-workbooks .wb-embed.is-hero{border:none;color:#fff;padding:0;background:linear-gradient(120deg,#2563eb 0%,#4f46e5 55%,#7c3aed 100%);box-shadow:0 2px 8px rgba(46,50,160,.28),0 12px 30px rgba(46,50,160,.24)}
+#view-workbooks .wb-embed.is-hero{border:none;color:#fff;padding:0;background:linear-gradient(120deg,#2f6bdd 0%,#2563eb 100%);box-shadow:0 1px 3px rgba(37,99,235,.12),0 6px 18px rgba(37,99,235,.12)}
 /* the (empty) head only carries the edit buttons — float it so the title band
    uses the full card height and never clips */
 #view-workbooks .wb-embed.is-hero .wb-embed-head{position:absolute;top:9px;right:13px;min-height:0;color:#fff;z-index:1}
@@ -29303,22 +29303,22 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-grid.is-dashboard .wb-dash-bar{display:flex}
 #view-workbooks .wb-dash-btn{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.1),0 3px 10px rgba(0,0,0,.08)}
 #view-workbooks .wb-dash-magic{
-  background:linear-gradient(120deg,#7c3aed,#2563eb);color:#fff;border:none;font-weight:600;
-  box-shadow:0 1px 3px rgba(0,0,0,.14),0 4px 14px rgba(80,60,200,.3);
+  background:var(--accent,#2563EB);color:#fff;border:none;font-weight:600;
+  box-shadow:0 1px 2px rgba(0,0,0,.08),0 2px 6px rgba(37,99,235,.12);
 }
-#view-workbooks .wb-dash-magic:hover{filter:brightness(1.06)}
+#view-workbooks .wb-dash-magic:hover{background:var(--accent-hover,#1D4ED8);filter:none}
 /* AI analyst: ask-anything bar (top-left of a dashboard) + follow-up chips */
 #view-workbooks .wb-ai-bar{position:absolute;left:14px;top:10px;z-index:7;display:none;align-items:center;gap:8px;
   padding:5px 6px 5px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--border);
-  box-shadow:0 1px 3px rgba(0,0,0,.1),0 8px 24px rgba(80,60,200,.14);width:min(46vw,520px)}
+  box-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.06);width:min(46vw,520px)}
 #view-workbooks .wb-grid.is-dashboard .wb-ai-bar{display:flex}
 #view-workbooks .wb-ai-spark{flex:none;font-size:15px;line-height:1}
 #view-workbooks .wb-ai-q{flex:1;min-width:0;border:none;background:transparent;outline:none;font-size:var(--fs-sm);color:var(--text);padding:4px 2px}
 #view-workbooks .wb-ai-q::placeholder{color:var(--text-subtle)}
 #view-workbooks .wb-ai-q:disabled{opacity:.6}
 #view-workbooks .wb-ai-go{flex:none;border:none;cursor:pointer;font-weight:600;color:#fff;border-radius:999px;padding:6px 16px;
-  font-size:var(--fs-sm);background:linear-gradient(120deg,#7c3aed,#2563eb);box-shadow:0 1px 3px rgba(0,0,0,.14),0 4px 12px rgba(80,60,200,.28)}
-#view-workbooks .wb-ai-go:hover{filter:brightness(1.06)}
+  font-size:var(--fs-sm);background:var(--accent,#2563EB);box-shadow:0 1px 2px rgba(37,99,235,.16)}
+#view-workbooks .wb-ai-go:hover{background:var(--accent-hover,#1D4ED8);filter:none}
 #view-workbooks .wb-ai-go:disabled{cursor:default}
 #view-workbooks .wb-ai-go.is-loading{position:relative;color:transparent}
 #view-workbooks .wb-ai-go.is-loading::after{content:"";position:absolute;inset:0;margin:auto;width:14px;height:14px;
@@ -29337,7 +29337,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-embed-insights .wb-embed-body{overflow:auto}
 #view-workbooks .wb-insights{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
 #view-workbooks .wb-insights li{display:flex;gap:8px;font-size:var(--fs-sm);color:var(--text-secondary,var(--text-muted));line-height:1.35}
-#view-workbooks .wb-insight-ic{flex:none;width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;background:linear-gradient(120deg,#7c3aed,#2563eb)}
+#view-workbooks .wb-insight-ic{flex:none;width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;background:var(--accent,#2563EB)}
 #view-workbooks .wb-dash-add{
   background:var(--accent,#2563EB);color:#fff;border:none;font-weight:600;
   box-shadow:0 1px 3px rgba(0,0,0,.12),0 4px 12px rgba(0,0,0,.12);
