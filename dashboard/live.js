@@ -45049,6 +45049,82 @@ async function openAuditLog(objectType, objectId) {
 }
 window.openAuditLog = openAuditLog;
 
+// ── Client-errors viewer (platform admin) ───────────────────────────────
+// Reads production JS-error telemetry (client_errors, migration 0385/0441)
+// so the RouteReady operator sees dashboard errors in-app instead of the
+// SQL editor. RLS scopes reads to platform_admin; everyone else sees empty.
+async function openClientErrors() {
+  var pb = document.getElementById("rr-cerr-backdrop"); if (pb) pb.remove();
+  var pm = document.getElementById("rr-cerr-modal"); if (pm) pm.remove();
+  var backdrop = document.createElement("div");
+  backdrop.id = "rr-cerr-backdrop";
+  backdrop.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.32);z-index:10000;opacity:0;transition:opacity 120ms ease-out";
+  document.body.appendChild(backdrop);
+  var m = document.createElement("div");
+  m.id = "rr-cerr-modal";
+  m.setAttribute("role", "dialog");
+  m.setAttribute("aria-modal", "true");
+  m.setAttribute("aria-label", "Client errors");
+  m.style.cssText = "position:fixed;left:50%;top:48px;transform:translateX(-50%);width:900px;max-width:calc(100vw - 24px);max-height:calc(100vh - 96px);display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border,#E5E7EB);border-radius:12px;box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:10001;opacity:0;transition:opacity 120ms ease-out;overflow:hidden";
+  m.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border,#E5E7EB)">' +
+      '<div><div style="font-size:15px;font-weight:700;color:var(--text,#111827)">Client errors</div>' +
+      '<div style="font-size:12px;color:var(--text-subtle,#6B7280)">Dashboard JS errors captured in production (most recent first)</div></div>' +
+      '<button type="button" class="btn btn-sm" data-rr-cerr-close>Close</button>' +
+    '</div>' +
+    '<div id="rr-cerr-body" style="overflow:auto;padding:6px 0">' +
+      '<div style="padding:24px;text-align:center;color:var(--text-subtle,#6B7280);font-size:13px">Loading errors\u2026</div>' +
+    '</div>';
+  document.body.appendChild(m);
+  requestAnimationFrame(function () { m.style.opacity = "1"; backdrop.style.opacity = "1"; });
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    m.style.opacity = "0"; backdrop.style.opacity = "0";
+    setTimeout(function () { m.remove(); backdrop.remove(); }, 120);
+  }
+  var onKey = function (ev) { if (ev.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", close);
+  m.addEventListener("click", function (ev) { if (ev.target.closest("[data-rr-cerr-close]")) close(); });
+
+  var body = m.querySelector("#rr-cerr-body");
+  try {
+    var res = await sb.from("client_errors")
+      .select("created_at, page, message, source, app_version, dsp_id")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (res.error) throw res.error;
+    var rows = res.data || [];
+    if (!rows.length) {
+      body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-subtle,#6B7280);font-size:13px">No client errors recorded.<br>Dashboard JS errors will appear here as they happen.</div>';
+      return;
+    }
+    var srcColor = { onerror: "#DC2626", unhandledrejection: "#B45309", manual: "#2563EB" };
+    var fmt = function (ts) { try { return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ts || ""; } };
+    body.innerHTML =
+      '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
+      '<thead><tr style="text-align:left;color:var(--text-subtle,#6B7280);font-size:11px;text-transform:uppercase;letter-spacing:.04em">' +
+      '<th style="padding:8px 18px;font-weight:600">When</th><th style="padding:8px 12px;font-weight:600">Source</th>' +
+      '<th style="padding:8px 12px;font-weight:600">Page</th><th style="padding:8px 18px;font-weight:600">Message</th>' +
+      '<th style="padding:8px 18px;font-weight:600">Build</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        var sc = srcColor[r.source] || "#6B7280";
+        var page = (r.page || "").replace(/^\//, "");
+        return '<tr style="border-top:1px solid var(--border,#EEF0F3);vertical-align:top">' +
+          '<td style="padding:9px 18px;white-space:nowrap;color:var(--text-subtle,#6B7280)">' + escapeHtml(fmt(r.created_at)) + '</td>' +
+          '<td style="padding:9px 12px;white-space:nowrap"><span style="color:' + sc + ';font-weight:600">' + escapeHtml(r.source || "") + '</span></td>' +
+          '<td style="padding:9px 12px;white-space:nowrap;color:var(--text-subtle,#6B7280);font-family:ui-monospace,Menlo,monospace;font-size:11.5px">' + escapeHtml(page) + '</td>' +
+          '<td style="padding:9px 18px;color:var(--text,#374151)">' + escapeHtml(r.message || "") + '</td>' +
+          '<td style="padding:9px 18px;white-space:nowrap;color:var(--text-subtle,#9CA3AF);font-family:ui-monospace,Menlo,monospace;font-size:11px">' + escapeHtml((r.app_version || "").slice(0, 12)) + '</td>' +
+          '</tr>';
+      }).join("") +
+      '</tbody></table>';
+  } catch (e) {
+    body.innerHTML = '<div style="padding:28px;text-align:center;color:#B91C1C;font-size:13px">Unable to load client errors.<br><span style="color:var(--text-subtle,#6B7280)">' + escapeHtml((e && e.message) || String(e)) + '</span></div>';
+  }
+}
+window.openClientErrors = openClientErrors;
+
 // Callout-exposure finalize warning. Advisory only — it never blocks
 // finalization (existing rules still own hard blocks). Resolves true when
 // the operator chooses "Finalize Anyway", false to go back and review.
