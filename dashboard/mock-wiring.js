@@ -1578,25 +1578,82 @@
     document.body.style.overflow = '';
   }
 
-  // ─── NEW DIRECT MESSAGE PICKER ────────────────────────────
-  function renderNewDmList(filter){
+  // ─── NEW DIRECT MESSAGE PICKER (real roster) ──────────────
+  // Loads the tenant's real active drivers from Supabase and opens a
+  // REAL conversation via live.js _ddMessageDriver(). Replaces the old
+  // MOCK_DRIVERS placeholder list (which showed fabricated names and
+  // just toasted on click). Roster is fetched lazily the first time the
+  // modal opens and cached for the session.
+  var _rrNewDmRoster = null;    // cache: [{ id, name, meta }]
+  var _rrNewDmLoading = false;
+
+  function _rrDmEsc(s){
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+    });
+  }
+
+  function _rrNewDmRenderRows(filter){
     var list = document.getElementById('new-dm-list');
     if (!list) return;
+    if (_rrNewDmLoading && !_rrNewDmRoster) {
+      list.innerHTML = '<div class="rr-empty-inline">Loading drivers…</div>';
+      return;
+    }
+    var roster = _rrNewDmRoster || [];
     var q = (filter || '').trim().toLowerCase();
     var html = '';
-    (typeof MOCK_DRIVERS !== 'undefined' ? MOCK_DRIVERS : []).forEach(function(d){
-      if (q && d.name.toLowerCase().indexOf(q) === -1 && d.meta.toLowerCase().indexOf(q) === -1) return;
-      var initials = d.name.split(' ').map(function(p){return p[0];}).join('').slice(0,2);
-      html += '<button class="popover-item" style="width:100%;justify-content:flex-start;gap:var(--s-2-5);padding:var(--s-2-5) var(--s-3-5);border-bottom:1px solid var(--border)" onclick="closeModal(\'modal-new-dm\');toast(\'Conversation opened with ' + d.name + '\')">' +
-        '<div style="width:28px;height:28px;border-radius:50%;background:var(--canvas);display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted)">' + initials + '</div>' +
-        '<div style="text-align:left"><div style="font-weight:600;font-size:var(--fs-md);color:var(--text)">' + d.name + '</div><div class="u-xs-subtle">' + d.meta + '</div></div>' +
+    roster.forEach(function(d){
+      if (q && d.name.toLowerCase().indexOf(q) === -1) return;
+      var initials = d.name.split(' ').map(function(p){ return p[0] || ''; }).join('').slice(0,2).toUpperCase();
+      html += '<button class="popover-item" data-rr-dm-driver="' + _rrDmEsc(d.id) + '" style="width:100%;justify-content:flex-start;gap:var(--s-2-5);padding:var(--s-2-5) var(--s-3-5);border-bottom:1px solid var(--border)">' +
+        '<div style="width:28px;height:28px;border-radius:50%;background:var(--canvas);display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted)">' + _rrDmEsc(initials) + '</div>' +
+        '<div style="text-align:left"><div style="font-weight:600;font-size:var(--fs-md);color:var(--text)">' + _rrDmEsc(d.name) + '</div>' + (d.meta ? '<div class="u-xs-subtle">' + _rrDmEsc(d.meta) + '</div>' : '') + '</div>' +
         '</button>';
     });
-    list.innerHTML = html || '<div class="rr-empty-inline">No drivers match "' + filter + '"</div>';
+    list.innerHTML = html || '<div class="rr-empty-inline">' + (roster.length ? 'No drivers match that search' : 'No active drivers yet') + '</div>';
   }
-  function filterNewDm(v){ renderNewDmList(v); }
-  // Render once on load + whenever the modal opens
-  document.addEventListener('DOMContentLoaded', function(){ renderNewDmList(''); });
+
+  function renderNewDmList(filter){
+    _rrNewDmRenderRows(filter);
+    if (_rrNewDmRoster || _rrNewDmLoading) return;   // already have it / in flight
+    var sb = (typeof window !== 'undefined') ? window.sb : null;
+    var dspId = (window.RR && window.RR.dsp) ? window.RR.dsp.id : null;
+    if (!sb || !dspId || typeof sb.from !== 'function') return;   // not signed in yet — empty state stands
+    _rrNewDmLoading = true;
+    _rrNewDmRenderRows(filter);
+    sb.from('drivers')
+      .select('id, full_name, preferred_name, status')
+      .eq('dsp_id', dspId)
+      .eq('status', 'active')
+      .order('full_name')
+      .then(function(res){
+        _rrNewDmLoading = false;
+        var rows = (res && res.data) || [];
+        _rrNewDmRoster = rows.map(function(r){
+          return { id: r.id, name: r.preferred_name || r.full_name || 'Driver', meta: '' };
+        });
+        var inp = document.getElementById('new-dm-search');
+        _rrNewDmRenderRows(inp ? inp.value : '');
+      }, function(){
+        _rrNewDmLoading = false;
+        _rrNewDmRoster = [];
+        _rrNewDmRenderRows('');
+      });
+  }
+  function filterNewDm(v){ _rrNewDmRenderRows(v); }
+
+  // Delegate clicks on a picked driver → open the real conversation.
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest ? e.target.closest('[data-rr-dm-driver]') : null;
+    if (!btn) return;
+    var list = document.getElementById('new-dm-list');
+    if (!list || !list.contains(btn)) return;
+    var id = btn.getAttribute('data-rr-dm-driver');
+    if (typeof window.closeModal === 'function') window.closeModal('modal-new-dm');
+    if (typeof _ddMessageDriver === 'function') _ddMessageDriver(id);
+    else if (typeof window._ddMessageDriver === 'function') window._ddMessageDriver(id);
+  });
 
   // ─── OKAMI STRATEGY PILL CYCLING ─────────────────────────
   function cycleStrategy(pill){
