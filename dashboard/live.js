@@ -62910,11 +62910,31 @@ async function openSubmissionDetail(submId) {
 
   let fields = [];
   try { const { data: f } = await sb.rpc("get_form", { p_id: s.form_id }); if (f && Array.isArray(f.fields)) fields = f.fields; } catch (_) {}
+  const fieldById = new Map(fields.filter(f => f.id).map(f => [f.id, f]));
   const labelOf = new Map(fields.filter(f => f.id).map(f => [f.id, f.label || (_FIELD_TYPE_LABELS && _FIELD_TYPE_LABELS[f.type]) || f.id]));
-  const fmtVal = (v) => {
+  // Type-aware answer rendering: signature pads come through as PNG data
+  // URLs, photo/file fields as { path, name, size, type } objects, and GPS
+  // as { lat, lng, accuracy } — render each meaningfully instead of dumping
+  // a base64 blob or "[object Object]".
+  const fmtVal = (v, field) => {
     if (v == null || v === "") return `<span class="u-subtle">—</span>`;
+    const t = field?.type;
+    if (t === "signature" || (typeof v === "string" && v.startsWith("data:image"))) {
+      return `<img src="${escapeHtml(String(v))}" alt="Signature" style="max-width:220px;max-height:120px;border:1px solid var(--border);border-radius:8px;background:#fff"/>`;
+    }
+    if (v && typeof v === "object" && !Array.isArray(v) && ("lat" in v) && ("lng" in v)) {
+      const acc = v.accuracy ? ` (±${v.accuracy}m)` : "";
+      const q = encodeURIComponent(`${v.lat},${v.lng}`);
+      return `<a href="https://maps.google.com/?q=${q}" target="_blank" rel="noopener">${escapeHtml(`${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)}`)}${escapeHtml(acc)}</a>`;
+    }
+    if (v && typeof v === "object" && !Array.isArray(v) && (v.path || v.name)) {
+      const nm = escapeHtml(v.name || "Attachment");
+      const kb = v.size ? ` · ${Math.round(v.size / 1024)} KB` : "";
+      return v.error ? `<span class="u-subtle">Upload failed (${nm})</span>` : `📎 ${nm}${kb}`;
+    }
     if (Array.isArray(v)) return v.length ? escapeHtml(v.join(", ")) : `<span class="u-subtle">—</span>`;
     if (typeof v === "boolean") return v ? "Yes" : "No";
+    if (typeof v === "object") return escapeHtml(JSON.stringify(v));
     return escapeHtml(String(v));
   };
   const ans = (s.answers && typeof s.answers === "object") ? s.answers : {};
@@ -62923,7 +62943,7 @@ async function openSubmissionDetail(submId) {
   if (!body) return;
   body.innerHTML = (orderedKeys.length === 0
     ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No answers recorded.</div>`
-    : `<div style="display:flex;flex-direction:column;gap:var(--s-3)">${orderedKeys.map(k => `<div><div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">${escapeHtml(labelOf.get(k) || k)}</div><div style="font-size:var(--fs-md)">${fmtVal(ans[k])}</div></div>`).join("")}</div>`)
+    : `<div style="display:flex;flex-direction:column;gap:var(--s-3)">${orderedKeys.map(k => `<div><div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">${escapeHtml(labelOf.get(k) || k)}</div><div style="font-size:var(--fs-md)">${fmtVal(ans[k], fieldById.get(k))}</div></div>`).join("")}</div>`)
     + (s.notes ? `<div style="margin-top:14px;padding:var(--s-2-5) var(--s-3);background:var(--canvas);border-radius:8px;font-size:var(--fs-sm);color:var(--text-muted)"><strong>Notes:</strong> ${escapeHtml(s.notes)}</div>` : "");
 }
 
