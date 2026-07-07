@@ -850,6 +850,7 @@ const routes = {
   "/tasks/documents/sign":{ render: renderDocumentSign,  tab: "/tasks", back: "/tasks/documents", title: "Sign document" },
   "/tasks/i9":          { render: renderI9Section1,      tab: "/tasks", back: "/tasks", title: "Form I-9" },
   "/tasks/scan":        { render: renderDocumentScanner, tab: "/tasks", back: "/tasks", title: "Scan a document" },
+  "/tasks/scan/receipt":{ render: renderReceiptForm,      tab: "/tasks", back: "/tasks/scan", title: "Submit a receipt" },
   "/settings/profile":      { render: renderSettingsProfile, tab: "/profile", back: "/settings", title: "Profile" },
   "/settings/license":      { render: renderSettingsLicense, tab: "/profile", back: "/settings", title: "Driver's license" },
   "/settings/pin":          { render: renderSettingsPin,     tab: "/profile", back: "/settings", title: "Sign-in PIN" },
@@ -3798,6 +3799,434 @@ async function _scanShareOrSave(blob, filename) {
   return "downloaded";
 }
 
+// ── Receipt intake ("What are you uploading?" → Receipt) ────────────
+// The scanner builds the same photo pipeline; here we branch on what the
+// captured pages *are*. Receipts get a short structured flow that files a
+// durable receipt record + a Receipt Ledger row for the DSP. The other
+// categories keep the existing "send to dispatch" behavior so nothing the
+// driver relied on breaks.
+const _UPLOAD_TYPES = [
+  { key: "receipt",  label: "Receipt",           emoji: "🧾" },
+  { key: "vehicle",  label: "Vehicle Document",  emoji: "🚐" },
+  { key: "driver",   label: "Driver Document",   emoji: "📄" },
+  { key: "incident", label: "Incident / Damage", emoji: "⚠️" },
+  { key: "hr",       label: "Attendance / HR",   emoji: "🗓️" },
+  { key: "other",    label: "Other",             emoji: "📁" },
+];
+const _RECEIPT_CATEGORIES = [
+  "Fuel", "Maintenance", "Tires", "Tolls / Parking", "Supplies",
+  "Uniforms / Equipment", "Reimbursement", "Cleaning", "Other",
+];
+const _RECEIPT_PAYMENTS = ["Card", "Cash", "Fuel Card", "Check", "Other"];
+
+// Draft carried from the scanner into the receipt form (module-scoped so a
+// route change doesn't lose it). Cleared on submit / start-over.
+let _receiptDraft = null;
+
+// Present the "What are you uploading?" chooser as a bottom sheet.
+function _scanChooseUploadType() {
+  const body = document.createElement("div");
+  body.className = "rr-uploadtype-list";
+  body.innerHTML = _UPLOAD_TYPES.map((t) => `
+    <button type="button" class="rr-uploadtype" data-upl="${t.key}">
+      <span class="rr-uploadtype-emoji" aria-hidden="true">${t.emoji}</span>
+      <span class="rr-uploadtype-label">${escapeHtml(t.label)}</span>
+      <span class="rr-uploadtype-chev" aria-hidden="true">›</span>
+    </button>`).join("");
+  body.querySelectorAll("[data-upl]").forEach((b) =>
+    b.addEventListener("click", () => { _haptic("tap"); _closeSheet(b.getAttribute("data-upl")); }));
+  openSheet({
+    title: "What are you uploading?",
+    body,
+    actions: [{ label: "Cancel", kind: "ghost", value: null }],
+  }).then((choice) => { if (choice) _scanHandleUploadType(choice); });
+}
+
+function _scanHandleUploadType(choice) {
+  if (choice === "receipt") {
+    try {
+      _receiptDraft = _receiptBuildDraft();
+      navigate("/tasks/scan/receipt");
+    } catch (err) {
+      toast(_friendlyError(err, "Couldn't prepare the receipt image. Try again."), "warn");
+    }
+    return;
+  }
+  const label = (_UPLOAD_TYPES.find((t) => t.key === choice) || {}).label || "Document";
+  _scanSendToDispatch(label);
+}
+
+// Package the captured pages for a receipt: a single page is uploaded as a
+// crisp JPEG (best for an image preview); multiple pages combine into a PDF.
+function _receiptBuildDraft() {
+  const pages = _scanPages;
+  if (!pages.length) throw new Error("no pages");
+  if (pages.length === 1 && pages[0].jpeg) {
+    return {
+      blob: new Blob([pages[0].jpeg], { type: "image/jpeg" }),
+      mime: "image/jpeg", ext: "jpg",
+      thumb: pages[0].thumb || "", pageCount: 1,
+      pages: pages.slice(), ocrText: pages[0].ocrText || "",
+    };
+  }
+  const blob = _scanBuildPdfBlob(pages, { pageSize: _scanGetPageSize() });
+  return {
+    blob, mime: "application/pdf", ext: "pdf",
+    thumb: pages[0] ? pages[0].thumb : "", pageCount: pages.length,
+    pages: pages.slice(), ocrText: pages.map((p) => p.ocrText || "").join("\n").trim(),
+  };
+}
+
+// Non-receipt categories: keep the established chat delivery, labeled by type.
+async function _scanSendToDispatch(typeLabel) {
+  if (!_scanPages.length) return;
+  const base = _scanNameValue();
+  const name = typeLabel ? `${typeLabel} — ${base}` : base;
+  const filename = name.endsWith(".pdf") ? name : name + ".pdf";
+  if (_scanGetOcr()) { try { await _scanRunOcr(() => {}); } catch { /* non-blocking */ } }
+  let blob;
+  try { blob = _scanBuildPdfBlob(_scanPages, { pageSize: _scanGetPageSize() }); }
+  catch (err) { toast(_friendlyError(err, "Couldn't build the PDF. Try again."), "warn"); return; }
+
+  const queueIt = async (line) => {
+    try {
+      await _scanQueueAdd({ id: "q" + Date.now() + Math.random().toString(36).slice(2, 7), name, filename, blob, size: blob.size, createdAt: Date.now() });
+      _haptic("success"); toast(line, "ok"); _scanPages = []; renderDocumentScanner();
+    } catch { toast("Couldn't save the scan. Try again.", "warn"); }
+  };
+
+  toast("Sending…", "default");
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    await queueIt("Saved — will send to dispatch when you're back online"); return;
+  }
+  const res = await _scanUploadAndSend(blob, filename);
+  if (res.ok) { _haptic("success"); toast("Sent to dispatch", "ok"); _scanPages = []; navigate("/chat"); return; }
+  if (res.retriable) { await queueIt("Couldn't reach dispatch — saved, will retry when you're back online"); return; }
+  toast(res.reason === "no-session" ? "Sign in again to send" : "Profile incomplete — sign out and back in", "warn");
+}
+
+// ── Receipt submission screen ───────────────────────────────────────
+function renderReceiptForm() {
+  if (!_receiptDraft) { navigate("/tasks/scan"); return; }
+  setHeader("Submit a receipt", "");
+  setRefresh(null);
+  const main = document.getElementById("main");
+  const today = fmtIsoDate(new Date());
+  const d = _receiptDraft;
+
+  main.innerHTML = `
+    <div class="receipt-form">
+      <div class="receipt-preview">
+        ${d.thumb ? `<img src="${d.thumb}" alt="Receipt preview">` : `<div class="receipt-preview-fallback">📄</div>`}
+        <div class="receipt-preview-meta">
+          <div class="receipt-preview-title">${d.pageCount > 1 ? `${d.pageCount}-page PDF` : "1 photo"}</div>
+          <div class="receipt-preview-sub">Stored securely in RouteReady</div>
+        </div>
+        <button type="button" id="receipt-autofill" class="btn btn-sm btn-ghost">✨ Auto-fill</button>
+      </div>
+
+      <label class="field-label">Category <span class="req">*</span></label>
+      <div class="receipt-chips" id="receipt-cat">
+        ${_RECEIPT_CATEGORIES.map((c) => `<button type="button" class="receipt-chip" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("")}
+      </div>
+
+      <label class="field-label" for="receipt-amount">Total amount <span class="req">*</span></label>
+      <div class="receipt-amount-wrap">
+        <span class="receipt-amount-cur">$</span>
+        <input class="field receipt-amount" id="receipt-amount" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off">
+      </div>
+
+      <label class="field-label" for="receipt-vendor">Vendor</label>
+      <input class="field" id="receipt-vendor" type="text" placeholder="e.g. Shell, AutoZone" autocapitalize="words" autocomplete="off">
+
+      <div class="receipt-row2">
+        <div>
+          <label class="field-label" for="receipt-date">Receipt date</label>
+          <input class="field" id="receipt-date" type="date" value="${today}">
+        </div>
+        <div>
+          <label class="field-label" for="receipt-tax">Tax</label>
+          <input class="field" id="receipt-tax" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        </div>
+      </div>
+
+      <label class="field-label">Payment</label>
+      <div class="receipt-chips" id="receipt-pay">
+        ${_RECEIPT_PAYMENTS.map((p) => `<button type="button" class="receipt-chip" data-pay="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join("")}
+      </div>
+
+      <details class="receipt-more">
+        <summary>Attach to a van / route (optional)</summary>
+        <label class="field-label" for="receipt-van">Van</label>
+        <input class="field" id="receipt-van" type="text" placeholder="e.g. 4271" autocomplete="off">
+        <label class="field-label" for="receipt-route">Route date</label>
+        <input class="field" id="receipt-route" type="date" value="${today}">
+      </details>
+
+      <label class="field-label" for="receipt-notes">Notes</label>
+      <textarea class="field" id="receipt-notes" rows="2" placeholder="Anything the office should know"></textarea>
+
+      <button id="receipt-submit" class="btn btn-primary btn-block" type="button" style="margin-top:14px">Submit receipt</button>
+      <button id="receipt-cancel" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Cancel</button>
+    </div>`;
+
+  const pick = (host, attr) => {
+    let val = null;
+    host.querySelectorAll(".receipt-chip").forEach((b) => b.addEventListener("click", () => {
+      const was = b.classList.contains("on");
+      host.querySelectorAll(".receipt-chip").forEach((x) => x.classList.remove("on"));
+      if (!was) { b.classList.add("on"); val = b.getAttribute(attr); } else { val = null; }
+      _haptic("select");
+    }));
+    return () => val;
+  };
+  const getCat = pick(document.getElementById("receipt-cat"), "data-cat");
+  const getPay = pick(document.getElementById("receipt-pay"), "data-pay");
+
+  // Best-effort van prefill from today's assignment (never blocks the form).
+  (async () => {
+    try {
+      const s = readSession();
+      if (!s?.token) return;
+      const vRes = await sb.rpc("driver_vehicle_days", { p_token: s.token });
+      const row = (Array.isArray(vRes?.data) ? vRes.data : []).find((r) => r && r.date === today && r.vehicle);
+      const vanEl = document.getElementById("receipt-van");
+      if (row && vanEl && !vanEl.value) vanEl.value = row.vehicle;
+    } catch { /* no van data — fine */ }
+  })();
+
+  document.getElementById("receipt-autofill").addEventListener("click", (e) => _receiptOcrAutofill(e.currentTarget));
+  document.getElementById("receipt-cancel").addEventListener("click", () => navigate("/tasks/scan"));
+  document.getElementById("receipt-submit").addEventListener("click", (e) => {
+    const num = (id) => { const v = parseFloat(String(document.getElementById(id).value).replace(/[^0-9.]/g, "")); return isFinite(v) ? v : null; };
+    const val = (id) => (document.getElementById(id).value || "").trim() || null;
+    const rec = {
+      category:   getCat(),
+      amount:     num("receipt-amount"),
+      tax:        num("receipt-tax"),
+      vendor:     val("receipt-vendor"),
+      receiptDate: val("receipt-date"),
+      payment:    getPay(),
+      van:        val("receipt-van"),
+      routeDate:  val("receipt-route"),
+      notes:      val("receipt-notes"),
+      blob: d.blob, mime: d.mime, ext: d.ext,
+      filename: `receipt.${d.ext}`, ocrText: _receiptDraft.ocrText || null,
+      createdAt: Date.now(), id: "r" + Date.now() + Math.random().toString(36).slice(2, 7),
+    };
+    _receiptSubmit(e.currentTarget, rec);
+  });
+}
+
+// Run the on-device OCR over the draft pages and prefill empty fields. Fully
+// optional and guarded — the form works without it.
+async function _receiptOcrAutofill(btn) {
+  const pages = (_receiptDraft && _receiptDraft.pages) || [];
+  if (!pages.length) { toast("No photo to read", "warn"); return; }
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "Reading…";
+  try {
+    _scanPages = pages;                     // _scanRunOcr reads the module list
+    await _scanRunOcr((i, t) => { btn.textContent = `Reading ${i}/${t}…`; });
+    const text = pages.map((p) => p.ocrText || "").join("\n").trim();
+    _receiptDraft.ocrText = text;
+    const g = _receiptGuessFields(text);
+    const amt = document.getElementById("receipt-amount");
+    const dt  = document.getElementById("receipt-date");
+    const vn  = document.getElementById("receipt-vendor");
+    if (g.amount != null && amt && !amt.value) amt.value = g.amount.toFixed(2);
+    if (g.date && dt) dt.value = g.date;
+    if (g.vendor && vn && !vn.value) vn.value = g.vendor;
+    _haptic("success");
+    toast(g.amount != null || g.vendor ? "Filled what we could — please check it" : "Couldn't read much — enter the details", "ok");
+  } catch {
+    toast("Couldn't read the receipt — enter the details", "warn");
+  }
+  btn.disabled = false; btn.textContent = orig;
+}
+
+// Pure text → { amount, date (YYYY-MM-DD), vendor }. Exported for tests.
+function _receiptGuessFields(text) {
+  const out = { amount: null, date: null, vendor: null };
+  if (!text) return out;
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const totalRe = /(grand\s+total|total\s+due|amount\s+due|balance\s+due|total|amount)/i;
+  const money = /(\d{1,3}(?:,\d{3})+(?:\.\d{2})|\d+\.\d{2})/g;
+  let best = null;
+  for (const l of lines) {
+    if (!totalRe.test(l)) continue;
+    let m, last = null; money.lastIndex = 0;
+    while ((m = money.exec(l))) last = m[1];
+    if (last != null) best = parseFloat(last.replace(/,/g, ""));
+  }
+  if (best == null) {
+    let m; const re = /\b(\d+\.\d{2})\b/g; const flat = text.replace(/,/g, "");
+    while ((m = re.exec(flat))) { const v = parseFloat(m[1]); if (best == null || v > best) best = v; }
+  }
+  out.amount = best;
+  const dm = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/) || text.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/);
+  if (dm) out.date = _receiptNormalizeDate(dm);
+  for (const l of lines.slice(0, 6)) {
+    if (/[A-Za-z]{3,}/.test(l) && !/\d{3,}/.test(l) && !totalRe.test(l)) { out.vendor = l.slice(0, 60); break; }
+  }
+  return out;
+}
+function _receiptNormalizeDate(dm) {
+  try {
+    let y, mo, day;
+    if (String(dm[1]).length === 4) { y = +dm[1]; mo = +dm[2]; day = +dm[3]; }
+    else { mo = +dm[1]; day = +dm[2]; y = +dm[3]; if (y < 100) y += 2000; }
+    if (!(mo >= 1 && mo <= 12) || !(day >= 1 && day <= 31)) return null;
+    const z = (n) => String(n).padStart(2, "0");
+    return `${y}-${z(mo)}-${z(day)}`;
+  } catch { return null; }
+}
+
+async function _receiptSubmit(btn, rec) {
+  if (!rec.category) { toast("Choose a category", "warn"); return; }
+  if (!(rec.amount > 0)) { toast("Enter the total amount", "warn"); document.getElementById("receipt-amount")?.focus(); return; }
+  btn.disabled = true; btn.textContent = "Submitting…";
+
+  const done = (line, dup) => {
+    _haptic("success");
+    toast(dup ? "Submitted — flagged as a possible duplicate for review" : line, "ok");
+    _receiptDraft = null; _scanPages = [];
+    navigate("/tasks");
+  };
+
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    try { await _receiptQueueAdd(rec); done("Saved — will submit when you're back online"); }
+    catch { toast("Couldn't save the receipt. Try again.", "warn"); btn.disabled = false; btn.textContent = "Submit receipt"; }
+    return;
+  }
+
+  const res = await _receiptUploadAndSubmit(rec);
+  if (res.ok) { done("Receipt submitted", res.duplicate); return; }
+  if (res.retriable) {
+    try { await _receiptQueueAdd(rec); done("Couldn't reach RouteReady — saved, will retry when you're back online"); }
+    catch { toast("Couldn't save the receipt. Try again.", "warn"); btn.disabled = false; btn.textContent = "Submit receipt"; }
+    return;
+  }
+  toast(res.reason === "no-session" ? "Sign in again to submit" : "Couldn't submit — try again", "warn");
+  btn.disabled = false; btn.textContent = "Submit receipt";
+}
+
+// Upload the image to the private 'receipts' bucket, then record the receipt.
+async function _receiptUploadAndSubmit(rec) {
+  const session = readSession();
+  if (!session?.token) return { ok: false, retriable: false, reason: "no-session" };
+  let dspId = session.dsp_id, driverId = session.driver_id;
+  if (!dspId || !driverId) {
+    try {
+      const { data: me, error } = await sb.rpc("driver_me", { p_token: session.token });
+      if (error || !me) return { ok: false, retriable: true, reason: "profile" };
+      dspId = me.dsp_id || dspId; driverId = me.id || driverId;
+      const cur = readSession();
+      if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+    } catch { return { ok: false, retriable: true, reason: "profile" }; }
+  }
+  if (!dspId || !driverId) return { ok: false, retriable: false, reason: "incomplete" };
+
+  const path = `${dspId}/${driverId}/${Date.now()}-receipt.${rec.ext || "jpg"}`;
+  try {
+    const { error: upErr } = await sb.storage
+      .from("receipts")
+      .upload(path, rec.blob, { contentType: rec.mime || "image/jpeg", upsert: false });
+    if (upErr) return { ok: false, retriable: true, reason: "upload" };
+
+    const { data, error } = await sb.rpc("driver_receipt_submit", {
+      p_token:           session.token,
+      p_storage_key:     path,
+      p_category:        rec.category,
+      p_total_amount:    rec.amount,
+      p_vendor_name:     rec.vendor || null,
+      p_receipt_date:    rec.receiptDate || null,
+      p_tax_amount:      rec.tax ?? null,
+      p_payment_type:    rec.payment || null,
+      p_van_id:          null,
+      p_van_number:      rec.van || null,
+      p_route_date:      rec.routeDate || null,
+      p_shift_id:        null,
+      p_notes:           rec.notes || null,
+      p_file_name:       rec.filename || `receipt.${rec.ext || "jpg"}`,
+      p_file_size_bytes: rec.blob.size,
+      p_mime_type:       rec.mime || "image/jpeg",
+      p_ocr_raw_text:    rec.ocrText || null,
+      p_ocr_confidence:  null,
+    });
+    if (error) return { ok: false, retriable: true, reason: "rpc" };
+    return { ok: true, duplicate: !!(data && data.duplicate_flag) };
+  } catch { return { ok: false, retriable: true, reason: "network" }; }
+}
+
+// ── Offline receipt queue (IndexedDB) ───────────────────────────────
+// A receipt is never lost to a bad signal — same contract as the scan
+// queue, in its own store so the two flush independently.
+const _RCPT_Q_DB = "rr-receipt-queue";
+const _RCPT_Q_STORE = "receipts";
+function _receiptQueueDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_RCPT_Q_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(_RCPT_Q_STORE)) {
+        req.result.createObjectStore(_RCPT_Q_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _receiptQueueAdd(item) {
+  const db = await _receiptQueueDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_RCPT_Q_STORE, "readwrite");
+    tx.objectStore(_RCPT_Q_STORE).put(item);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function _receiptQueueAll() {
+  const db = await _receiptQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_RCPT_Q_STORE, "readonly");
+    const r = tx.objectStore(_RCPT_Q_STORE).getAll();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror = () => resolve([]);
+  });
+}
+async function _receiptQueueDelete(id) {
+  const db = await _receiptQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_RCPT_Q_STORE, "readwrite");
+    tx.objectStore(_RCPT_Q_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+let _receiptFlushing = false;
+async function _receiptFlushQueue({ silent } = {}) {
+  if (_receiptFlushing) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  if (!readSession()?.token) return;
+  _receiptFlushing = true;
+  let sent = 0;
+  try {
+    const items = (await _receiptQueueAll()).sort((a, b) => a.createdAt - b.createdAt);
+    for (const it of items) {
+      const res = await _receiptUploadAndSubmit(it);
+      if (res.ok) { await _receiptQueueDelete(it.id); sent++; }
+      else break;
+    }
+  } catch { /* retried next trigger */ }
+  _receiptFlushing = false;
+  if (sent && !silent) toast(`${sent} saved receipt${sent === 1 ? "" : "s"} submitted`, "ok");
+  if (sent) _haptic("success");
+}
+if (typeof window !== "undefined" && !window.__rrReceiptOnlineWired) {
+  window.__rrReceiptOnlineWired = true;
+  window.addEventListener("online", () => { _receiptFlushQueue(); });
+}
+
 function renderDocumentScanner() {
   setHeader("Scan a document", "");
   setRefresh(null);
@@ -3842,7 +4271,8 @@ function renderDocumentScanner() {
           </span>
           <input type="checkbox" id="scan-ocr" class="scan-ocr-check" />
         </label>
-        <button id="scan-send" class="btn btn-primary btn-block" type="button">Send to dispatch</button>
+        <button id="scan-categorize" class="btn btn-primary btn-block" type="button">What are you uploading?</button>
+        <button id="scan-send" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Send to dispatch</button>
         <button id="scan-share" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Save or share PDF</button>
         <button id="scan-clear" class="btn btn-ghost btn-block" type="button" style="margin-top:8px;color:var(--red)">Start over</button>
       </div>
@@ -3977,6 +4407,11 @@ function renderDocumentScanner() {
     btn.disabled = false; btn.textContent = "Send to dispatch";
   });
 
+  document.getElementById("scan-categorize").addEventListener("click", () => {
+    if (!_scanPages.length || _scanBusy) return;
+    _scanChooseUploadType();
+  });
+
   document.getElementById("scan-share").addEventListener("click", async () => {
     if (!_scanPages.length) return;
     const btn = document.getElementById("scan-share");
@@ -4045,6 +4480,7 @@ function renderDocumentScanner() {
   // the screen — and likely the network — is available again.
   _scanUpdateQueueBanner();
   _scanFlushQueue({ silent: true });
+  _receiptFlushQueue({ silent: true });
 }
 
 // Show/hide the "waiting to send" banner from the queue count, and wire

@@ -7602,6 +7602,18 @@ function cellImgSrc(cell) {
   return ok ? src : null;
 }
 
+// A Receipt Ledger cell that points at a stored receipt image. format.receipt
+// holds only the private storage key (no image bytes) so the grid stays light
+// at thousands of rows; the "View Receipt" button mints a signed URL on click.
+// The key shape is validated so nothing but a plausible object path renders.
+const WB_RECEIPT_RE = /^[A-Za-z0-9][A-Za-z0-9._/\-]{0,300}$/;
+function cellReceiptRef(cell) {
+  const r = cell && cell.format && cell.format.receipt;
+  const path = r && typeof r.path === "string" ? r.path : null;
+  if (!path || !WB_RECEIPT_RE.test(path)) return null;
+  return { path, name: (r && typeof r.name === "string" && r.name) ? r.name : "receipt" };
+}
+
 function repaintGrid(g) {
   if (g.raf) return;
   g.raf = requestAnimationFrame(() => { g.raf = 0; paintNow(g); });
@@ -7679,14 +7691,19 @@ function paintNow(g) {
     const dvMark = isDv && dvStyle === "arrow" ? `<span class="wb-dv-mark" data-wb-dvchip="${r},${c}" title="Pick from list" aria-label="Pick from list">▾</span>` : "";
     // a cell image takes over the cell's face; click opens the lightbox
     const imgSrc = cell ? cellImgSrc(cell) : null;
-    const inner = imgSrc
+    // a Receipt Ledger cell renders a "View Receipt" button in place of text;
+    // the image itself stays in storage and is fetched (signed) on click
+    const receiptRef = cell ? cellReceiptRef(cell) : null;
+    const inner = receiptRef
+      ? `<button type="button" class="wb-cell-receipt" data-wb-receipt="${esc(receiptRef.path)}" title="Open the stored receipt"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>View Receipt</button>`
+      : imgSrc
       ? `<img class="wb-cell-img" src="${imgSrc}" data-wb-img="${r},${c}" alt="Cell image" title="Click to enlarge" draggable="false">`
       : dvCheck
       ? `<span class="wb-dv-checkbox ${dvChecked ? "is-checked" : ""}" data-wb-dvcheck="${r},${c}" role="checkbox" aria-checked="${dvChecked}" title="Toggle">${dvChecked ? "☑" : "☐"}</span>`
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -10102,6 +10119,55 @@ function openImageLightbox(src) {
   box.addEventListener("click", close);
   document.addEventListener("keydown", onKey, true);
   document.body.appendChild(box);
+}
+
+// Receipt preview: mint a short-lived signed URL for the private receipt
+// object (never store the image in the sheet) and show it in a clean modal —
+// an <img> for photos, an <iframe> for PDFs. The path came from the cell's
+// validated format.receipt, so a bad/expired object degrades to a message
+// rather than a broken box.
+async function openReceiptPreview(path) {
+  if (!path) return;
+  document.querySelectorAll(".wb-rcpt-modal").forEach((b) => b.remove());
+  closeAllPopovers();
+  const box = document.createElement("div");
+  box.className = "wb-rcpt-modal";
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-modal", "true");
+  box.setAttribute("aria-label", "Receipt preview");
+  box.innerHTML = `
+    <div class="wb-rcpt-panel" role="document">
+      <div class="wb-rcpt-head">
+        <span class="wb-rcpt-title">Receipt</span>
+        <span class="wb-rcpt-actions">
+          <a class="wb-rcpt-open" target="_blank" rel="noopener noreferrer" hidden>Open in new tab ↗</a>
+          <button type="button" class="wb-rcpt-close" data-wb-rcpt-close aria-label="Close">✕</button>
+        </span>
+      </div>
+      <div class="wb-rcpt-body"><div class="wb-rcpt-loading">Loading receipt…</div></div>
+    </div>`;
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const close = () => { document.removeEventListener("keydown", onKey, true); box.remove(); };
+  box.addEventListener("click", (e) => { if (e.target === box || e.target.closest("[data-wb-rcpt-close]")) close(); });
+  document.addEventListener("keydown", onKey, true);
+  document.body.appendChild(box);
+
+  const bodyEl = box.querySelector(".wb-rcpt-body");
+  try {
+    const res = await _sb().storage.from("receipts").createSignedUrl(path, 3600);
+    const url = res && res.data && res.data.signedUrl;
+    if (res && res.error) throw res.error;
+    if (!url) throw new Error("no url");
+    const openLink = box.querySelector(".wb-rcpt-open");
+    if (openLink) { openLink.href = url; openLink.hidden = false; }
+    if (/\.pdf(\?|$)/i.test(path)) {
+      bodyEl.innerHTML = `<iframe class="wb-rcpt-frame" src="${esc(url)}" title="Receipt PDF"></iframe>`;
+    } else {
+      bodyEl.innerHTML = `<img class="wb-rcpt-img" src="${esc(url)}" alt="Receipt">`;
+    }
+  } catch (_) {
+    bodyEl.innerHTML = `<div class="wb-rcpt-error">Couldn't load this receipt. It may have been removed, or you may not have access.</div>`;
+  }
 }
 
 function clearSelection(g, { formatToo } = {}) {
@@ -15235,7 +15301,7 @@ function bindGridEvents(g) {
     // from the document click delegate — opening here on mousedown would
     // be undone by the click-away closer, and the repaint that follows
     // setActive would detach the node before its click event fires)
-    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-dvcheck]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && e.target.closest("[data-wb-img]"))) { e.preventDefault(); return; }
+    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-dvcheck]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && (e.target.closest("[data-wb-img]") || e.target.closest("[data-wb-receipt]")))) { e.preventDefault(); return; }
 
     // ── drag-fill handle ──
     const fh = e.target.closest("[data-wb-fillhandle]");
@@ -17331,6 +17397,14 @@ function installRootListeners() {
         const src = cellImgSrc(g.sheet.cells.get(cellKey(rc.r, rc.c)));
         if (src) openImageLightbox(src);
       }
+      return;
+    }
+
+    // "View Receipt" button in a Receipt Ledger cell → signed preview modal
+    const rcptEl = e.target.closest("[data-wb-receipt]");
+    if (rcptEl) {
+      e.preventDefault();
+      openReceiptPreview(rcptEl.getAttribute("data-wb-receipt") || "");
       return;
     }
 
