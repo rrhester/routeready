@@ -5566,6 +5566,14 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
   border-radius:8px; background:#7C3AED; color:#fff; font-size:10px; font-weight:700;
   line-height:16px; text-align:center; box-shadow:0 0 0 2px var(--canvas,#F9FAFB); pointer-events:none;
 }
+/* Unread-message dot on the My Tasks icon — a small blue pip at the
+   top-left (opposite the open-count badge), shown when any task has a
+   comment I haven't seen. (0435) */
+#rr-util-rail-mount .sched-util-udot{
+  position:absolute; top:1px; left:1px; width:9px; height:9px; z-index:2;
+  border-radius:50%; background:#2563EB; box-shadow:0 0 0 2px var(--canvas,#F9FAFB); pointer-events:none;
+}
+#rr-util-rail-mount .sched-util-udot[hidden]{display:none}
 /* Operations Health shield — gold + filled, its own color distinct from
    the blue Notes bookmark. */
 #rr-util-rail-mount .sched-util-btn--ops{color:rgb(246,161,0)}
@@ -5968,6 +5976,12 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-task-ack{flex:0 0 auto;font-size:11px;line-height:1;font-weight:700}
 #rr-util-rail-mount .ntp-task-ack.is-wait{color:#D97706}
 #rr-util-rail-mount .ntp-task-ack.is-done{color:#059669}
+/* Comment indicator on rows (0435): muted 💬 + count; lit blue with a
+   pip when there's a message I haven't seen. */
+#rr-util-rail-mount .ntp-task-msg{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--text-subtle,#94a3b8)}
+#rr-util-rail-mount .ntp-task-msg svg{width:12px;height:12px}
+#rr-util-rail-mount .ntp-task-msg.is-unread{color:#2563EB}
+#rr-util-rail-mount .ntp-task-msg-dot{position:absolute;top:-3px;right:-4px;width:6px;height:6px;border-radius:50%;background:#2563EB}
 /* Delete (trash) — appears on row hover, red on its own hover. */
 #rr-util-rail-mount .ntp-task-del{appearance:none;cursor:pointer;flex:0 0 auto;border:0;background:transparent;color:var(--text-subtle,#94a3b8);padding:4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,background .15s,color .15s}
 #rr-util-rail-mount .ntp-task:hover .ntp-task-del{opacity:1}
