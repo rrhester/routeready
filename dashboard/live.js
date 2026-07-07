@@ -22181,6 +22181,7 @@ function _ivcalRender() {
 
   // Keep the current-time line ticking (created once, cheap minute updates).
   if (!_ivcalNowTimer) _ivcalNowTimer = setInterval(_ivcalTickNow, 60000);
+  _rrInstallReminderTick();
 
   host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
   host.querySelectorAll("[data-ivcal-side]").forEach(btn => btn.onclick = (e) => { e.stopPropagation(); _ivcalToggleSide(); });
@@ -23101,6 +23102,11 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-aslot.taken{background:#F1F3F4;border-color:#E0E3E7;color:#9aa0a6;cursor:not-allowed;text-decoration:line-through}
       #rr-ivcal-new .rr-ne-aday{flex:0 0 100%;font-size:12px;font-weight:600;color:#5F6368;margin:2px 0 0}
       #rr-ivcal-new .rr-ne-anone{font-size:12.5px;color:#5F6368;line-height:1.5}
+      /* Reminder ("notify me before") toggle chips */
+      #rr-ivcal-new .rr-ne-remind{display:flex;flex-wrap:wrap;gap:6px;padding:7px 0}
+      #rr-ivcal-new .rr-ne-remchip{border:1px solid #E0E3E7;background:#F8F9FA;color:#3C4043;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 11px;border-radius:999px;line-height:1}
+      #rr-ivcal-new .rr-ne-remchip:hover{background:#F1F3F4}
+      #rr-ivcal-new .rr-ne-remchip.sel{background:#E8F0FE;border-color:#1A73E8;color:#1A73E8}
     </style>
     <div class="rr-ne-card is-gcard" id="rr-ne-card">
       <div class="rr-ne-titlebar">
@@ -23141,6 +23147,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         </div></div>
         <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><div class="rr-ne-gcell">
           <button type="button" class="rr-ne-glink" id="rr-ne-repeat" data-ne-repeat>Does not repeat</button>
+        </div></div>
+        <div class="rr-ne-grow"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><div class="rr-ne-gcell">
+          <div class="rr-ne-remind" id="rr-ne-remind" title="Remind me before this starts (popup here + email)">${[[5,"5 min"],[10,"10 min"],[15,"15 min"],[30,"30 min"],[60,"1 hour"],[1440,"1 day"]].map(([mm,lb]) => `<button type="button" class="rr-ne-remchip" data-ne-rem="${mm}">${lb}</button>`).join("")}</div>
         </div></div>
         <div class="rr-ne-grow rr-ne-evonly"><span class="rr-ne-gico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></span><div class="rr-ne-gcell">
           <input id="rr-ne-required" type="text" placeholder="Add guests" style="${fld};width:100%">
@@ -23213,6 +23222,18 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   // "Repeat" row opens the recurrence popover (works for events AND tasks — a
   // recurring task creates one task occurrence per date in the rule).
   m.querySelector("[data-ne-repeat]")?.addEventListener("click", () => m.querySelector('[data-ne-act="recur"]')?.click());
+  // Reminder chips toggle. First-ever selection asks for browser-notification
+  // permission (user-gesture context) so popups can outlive the tab focus;
+  // denial is fine — in-app toasts and the email backstop still fire.
+  m.querySelectorAll("[data-ne-rem]").forEach(b => b.addEventListener("click", () => {
+    b.classList.toggle("sel");
+    if (b.classList.contains("sel") && "Notification" in window && Notification.permission === "default") {
+      try { Notification.requestPermission().catch(() => {}); } catch (_) {}
+    }
+  }));
+  const readReminders = () => Array.from(m.querySelectorAll("[data-ne-rem].sel"))
+    .map(b => parseInt(b.getAttribute("data-ne-rem"), 10))
+    .filter(Number.isFinite).sort((a, b2) => a - b2);
   // "Show my interview availability" — list the operator's own open interview
   // slots for the selected day (from the active booking schedule, mirrored into
   // _ivcalCache.windows). Clicking a slot snaps the event start/end to it, so
@@ -23352,6 +23373,13 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     if (ev0.metadata && Array.isArray(ev0.metadata.attachments)) {
       for (const r of ev0.metadata.attachments) attachments.push(r);
       renderChips();
+    }
+    // Light up the saved reminder chips.
+    if (ev0.metadata && Array.isArray(ev0.metadata.reminders)) {
+      for (const mm of ev0.metadata.reminders) {
+        const b = m.querySelector(`[data-ne-rem="${mm}"]`);
+        if (b) b.classList.add("sel");
+      }
     }
     // Clear the attendee placeholders' relevance + relabel ribbon for editing.
     const sendTile = m.querySelector('[data-ne-act="send"] span'); if (sendTile) sendTile.textContent = "Update";
@@ -23629,7 +23657,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         const startISO = isAllDay ? _ivLocalToISO(sdate, "00:00", tz) : _ivLocalToISO(sdate, stime, tz);
         const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
         if (new Date(endISO) <= new Date(startISO)) { toast("End must be after start", "warn"); if (btn) btn.style.opacity = ""; return; }
-        const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done), attachments: attRefs, all_day: isAllDay } };
+        // reminders: undefined drops the key from the rebuilt metadata, so
+        // clearing every chip removes the reminders entirely.
+        const editReminders = readReminders();
+        const patch = { starts_at: startISO, ends_at: endISO, location: location || null, metadata: { ...(ev0.metadata || {}), note: bodyText || null, is_task: isTask || !!(ev0.metadata && ev0.metadata.is_task), task_done: !!(ev0.metadata && ev0.metadata.task_done), attachments: attRefs, all_day: isAllDay, reminders: editReminders.length ? editReminders : undefined } };
         // Did the time actually move? A rescheduled meeting should (a) be flagged
         // 'rescheduled' and (b) prompt to notify the attendee — Outlook/Google
         // both do this. Previously an edit silently stranded the candidate on the
@@ -23726,16 +23757,19 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           if (newId) createdIds.push(newId);
           made++;
         }
-        // Merge the task flag and/or Vault attachments into the freshly-created
-        // events. Read-modify-write per id so the invitees/note the RPC set are
-        // preserved (only the first occurrence of a series carries invitees).
-        if ((isTask || attRefs.length || isAllDay) && createdIds.length) {
+        // Merge the task flag, Vault attachments and/or reminders into the
+        // freshly-created events. Read-modify-write per id so the invitees/note
+        // the RPC set are preserved (only the first occurrence of a series
+        // carries invitees).
+        const newReminders = readReminders();
+        if ((isTask || attRefs.length || isAllDay || newReminders.length) && createdIds.length) {
           for (const cid of createdIds) {
             const { data: row } = await sb.from("cal_events").select("metadata").eq("id", cid).maybeSingle();
             const md = { ...((row && row.metadata) || {}) };
             if (isTask) { md.is_task = true; md.task_done = false; }
             if (attRefs.length) md.attachments = attRefs;
             if (isAllDay) md.all_day = true;
+            if (newReminders.length) md.reminders = newReminders;
             await sb.from("cal_events").update({ metadata: md }).eq("id", cid);
           }
         }
@@ -24029,6 +24063,57 @@ function _ivcalTickNow() {
   line.style.top = _ivcalYpos(nowMin) + "px";
   const lbl = line.querySelector(".oc-now-lbl");
   if (lbl) lbl.textContent = now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+// ── Per-event reminder popups (metadata.reminders = minutes before) ────────
+// Runs on its own interval, NOT gated to the calendar tab, so a reminder set
+// on an event still pops while the operator is on Drivers/Fleet/etc. Late
+// reminders (dashboard opened after the offset passed but before the event)
+// fire once on the next tick — same as Google surfacing a missed alert.
+// localStorage dedupes across refreshes; the event-reminders cron emails the
+// creator as the backstop when the dashboard is closed entirely.
+let _rrRemTimer = null;
+function _rrInstallReminderTick() {
+  if (_rrRemTimer) return;
+  _rrRemTimer = setInterval(_rrReminderTick, 30000);
+}
+function _rrReminderTick() {
+  const evs = (_ivcalCache && _ivcalCache.bookings) || [];
+  if (!evs.length) return;
+  const now = Date.now();
+  let fired;
+  try { fired = JSON.parse(localStorage.getItem("rr-rem-fired") || "{}"); } catch (_) { fired = {}; }
+  let dirty = false;
+  for (const ev of evs) {
+    const rems = (ev.metadata && Array.isArray(ev.metadata.reminders)) ? ev.metadata.reminders : null;
+    if (!rems || !rems.length) continue;
+    if (ev.status && ev.status !== "scheduled" && ev.status !== "rescheduled") continue;
+    const start = new Date(ev.starts_at).getTime();
+    if (!(start > now)) continue;               // never nag after it started
+    for (const mm of rems) {
+      const offset = parseInt(mm, 10);
+      if (!Number.isFinite(offset) || now < start - offset * 60000) continue;
+      const key = ev.id + ":" + offset;
+      if (fired[key]) continue;
+      fired[key] = now; dirty = true;
+      const title = ev.title
+        || (ev.applicants && rrTitleCaseName(ev.applicants.full_name))
+        || (ev.kind === "orientation" ? "Orientation" : "Interview");
+      const inMin = Math.max(1, Math.round((start - now) / 60000));
+      const msg = title + " starts in " + (inMin >= 60 ? Math.round(inMin / 60) + " hr" : inMin + " min");
+      toast("🔔 " + msg, "info");
+      try {
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("RouteReady reminder", { body: msg, tag: key });
+        }
+      } catch (_) { /* toast already shown */ }
+    }
+  }
+  if (dirty) {
+    const cutoff = now - 7 * 86400000;          // prune so the log can't grow forever
+    for (const k of Object.keys(fired)) if (fired[k] < cutoff) delete fired[k];
+    try { localStorage.setItem("rr-rem-fired", JSON.stringify(fired)); } catch (_) { /* private mode */ }
+  }
 }
 
 // An event is all-day when it was saved as such (metadata.all_day) or — for
