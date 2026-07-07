@@ -22538,6 +22538,15 @@ function _ivcalPeriodLabel() {
   if (_ivcalView === "year") return String(a.getFullYear());
   if (_ivcalView === "day") return a.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
   if (_ivcalView === "month") return a.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+  if (_ivcalView === "agenda") {
+    const s = new Date(a); s.setHours(0,0,0,0);
+    const e = new Date(s); e.setDate(s.getDate() + _IVCAL_AGENDA_DAYS - 1);
+    const startStr = s.toLocaleDateString(undefined, { month:"short", day:"numeric" });
+    const endStr = (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear())
+      ? `${e.getDate()}, ${e.getFullYear()}`
+      : e.toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" });
+    return `${startStr} – ${endStr}`;
+  }
   // Within the same month, show "Jun 8 – 12, 2026" — built by hand because
   // toLocaleDateString({day,year}) (day + year, no month) makes V8 emit a
   // literal "2026 (day: 12)" since there's no locale pattern for that combo.
@@ -22560,6 +22569,7 @@ function _ivcalNav(dir) {
   const a = new Date(_ivcalAnchor);
   if (dir === 0) _ivcalAnchor = new Date();
   else if (_ivcalView === "day") { a.setDate(a.getDate()+dir); _ivcalAnchor = a; }
+  else if (_ivcalView === "agenda") { a.setDate(a.getDate()+_IVCAL_AGENDA_DAYS*dir); _ivcalAnchor = a; }
   else if (_ivcalView === "week" || _ivcalView === "workweek") { a.setDate(a.getDate()+7*dir); _ivcalAnchor = a; }
   else if (_ivcalView === "year") { a.setFullYear(a.getFullYear()+dir); _ivcalAnchor = a; }
   else { a.setMonth(a.getMonth()+dir); _ivcalAnchor = a; }
@@ -22575,6 +22585,7 @@ function _ivcalMiniBase() {
 function _ivcalViewRange() {
   const a = _ivcalAnchor;
   if (_ivcalView === "day") { const s = new Date(a); s.setHours(0,0,0,0); return { start: s, end: s }; }
+  if (_ivcalView === "agenda") { const s = new Date(a); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+_IVCAL_AGENDA_DAYS-1); return { start: s, end: e }; }
   if (_ivcalView === "workweek") { const s = _ivcalWeekStart(a); s.setDate(s.getDate()+1); const e = new Date(s); e.setDate(s.getDate()+4); return { start: s, end: e }; }
   if (_ivcalView === "week") { const s = _ivcalWeekStart(a); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(0,0,0,0); return { start: s, end: e }; }
   // Year view shades only the anchor day in the mini-calendar — shading all 365
@@ -22667,6 +22678,7 @@ function _ivcalRender() {
   const flt = (k, label, cat) => `<label><input type="checkbox" data-ivcal-filter="${k}"${_ivcalFilters[k]?" checked":""}><span class="dot" style="background:${_IVCAL_CAT_COLOR[cat]}"></span>${label}</label>`;
   const inner = _ivcalView === "year" ? _ivcalYear()
     : _ivcalView === "month" ? _ivcalMonth()
+    : _ivcalView === "agenda" ? _ivcalAgenda()
     : _ivcalTimeGrid(_ivcalView === "day" ? 1 : (_ivcalView === "workweek" ? 5 : 7));
   const pane = _ivcalSelected ? _ivcalPaneHtml() : "";
 
@@ -22684,7 +22696,7 @@ function _ivcalRender() {
           <button class="oc-btn oc-ico" data-ivcal-nav="-1" title="Previous">‹</button>
           <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next">›</button>
           <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
-          ${(_ivcalView === "month" || _ivcalView === "year") ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
+          ${(_ivcalView === "month" || _ivcalView === "year" || _ivcalView === "agenda") ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
           <span class="oc-sp"></span>
           <button class="oc-btn oc-ico oc-search-btn" data-ivcal-search title="Search events (/)" aria-label="Search events"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         </div>
@@ -24954,6 +24966,74 @@ function _ivcalMonth() {
     cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${tChips}${pillsHtml}${more}</div>`;
   }
   return `<div class="oc-cal"><div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-mhead">${dowHead}</div><div class="oc-mgrid">${cells}</div></div></div>`;
+}
+
+// Agenda / Schedule view · a scrollable list of upcoming events grouped by
+// day (Google's "Schedule" view / Outlook's agenda). Answers "what's on today
+// and next" without scanning a grid. Rolls _IVCAL_AGENDA_DAYS forward from the
+// anchor; prev/next page by that window. Rows carry data-ivcal-kind/-id so
+// they inherit the same click/keyboard/context wiring as grid chips.
+const _IVCAL_AGENDA_DAYS = 30;
+function _ivcalAgenda() {
+  const a0 = new Date(_ivcalAnchor); a0.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const relLabel = (d) => {
+    const diff = Math.round((d - today) / 864e5);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Tomorrow";
+    if (diff === -1) return "Yesterday";
+    return d.toLocaleDateString(undefined, { weekday:"long" });
+  };
+  let blocks = "";
+  let shown = 0;
+  for (let i = 0; i < _IVCAL_AGENDA_DAYS; i++) {
+    const d = new Date(a0); d.setDate(a0.getDate() + i);
+    const items = [];
+    _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => { if (_ivcalFilterOk(s,"session")) items.push({ ev:s, type:"session" }); });
+    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ ev:b, type:"booking" }); });
+    if (_ivcalGoogleVisible()) {
+      _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt").forEach(ge => items.push({ ev:ge, type:"google" }));
+    }
+    if (!items.length) continue;
+    items.sort((x,y) => new Date(x.ev.starts_at || x.ev.sortAt) - new Date(y.ev.starts_at || y.ev.sortAt));
+    const rows = items.map(({ ev, type }) => _ivcalAgendaRow(ev, type)).join("");
+    const isToday = d.getTime() === today.getTime();
+    blocks += `<div class="oc-ag-day${isToday?" today":""}">
+      <div class="oc-ag-date"><span class="oc-ag-dnum">${d.getDate()}</span><div class="oc-ag-dmeta"><span class="oc-ag-drel">${escapeHtml(relLabel(d))}</span><span class="oc-ag-dmon">${escapeHtml(d.toLocaleDateString(undefined,{month:"short",year:d.getFullYear()!==today.getFullYear()?"numeric":undefined}))}</span></div></div>
+      <div class="oc-ag-rows">${rows}</div>
+    </div>`;
+    shown++;
+  }
+  const empty = shown ? "" : `<div class="oc-ag-empty">Nothing scheduled in the next ${_IVCAL_AGENDA_DAYS} days.<br><span>Use the arrows to look further ahead, or click a day in the mini-calendar.</span></div>`;
+  return `<div class="oc-cal oc-agenda"><div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-ag-list">${blocks}${empty}</div></div></div>`;
+}
+
+// A single agenda row for one event/session/google item.
+function _ivcalAgendaRow(ev, type) {
+  if (type === "google") {
+    const s = new Date(ev.sortAt);
+    const tm = ev.allDay ? "All day" : s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+    return `<div class="oc-ag-row oc-ag-google" data-ivcal-glink="${escapeHtml(ev.htmlLink||"")}" title="${escapeHtml((ev.title||"(busy)")+" · Google")}"><span class="oc-ag-time">${escapeHtml(tm)}</span><span class="oc-ag-bar" style="background:${_ivcalGoogleColor}"></span><span class="oc-ag-title">${escapeHtml(ev.title||"(busy)")}</span><span class="oc-ag-tag">Google</span></div>`;
+  }
+  const kindAttr = type === "session" ? "session" : "booking";
+  const s = new Date(ev.starts_at);
+  const e = ev.ends_at ? new Date(ev.ends_at) : null;
+  const allDay = kindAttr === "booking" && _ivcalIsAllDay(ev);
+  const tm = allDay ? "All day"
+    : s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) + (e ? " – " + e.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) : "");
+  const label = _ivcalEventLabel(ev, type);
+  const cat = _ivcalCat(ev, type);
+  const color = (kindAttr === "booking" && ev.metadata && ev.metadata.color) || (kindAttr === "booking" ? _ivcalCalColor(ev) : null);
+  const barStyle = color ? ` style="background:${color}"` : "";
+  const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
+  const isTask = kindAttr === "booking" && ev.metadata && ev.metadata.is_task;
+  const done = isTask && ev.metadata.task_done;
+  const cam = ev.meeting_url ? `<span class="ei-cam-hit" data-ivcal-room="1" title="Open video" role="button" tabindex="-1">${_IVCAL_CAM_SVG}</span>` : "";
+  const rsvp = (kindAttr === "booking" && type !== "session") ? (ev.rsvp || "accepted") : "accepted";
+  const rsvpIco = rsvp === "pending" ? `<span class="oc-ag-rsvp" title="Awaiting RSVP">✉</span>` : (rsvp === "declined" ? `<span class="oc-ag-rsvp" title="Declined">✕</span>` : "");
+  const series = ev.series_id ? `<span class="oc-ag-tag" title="Recurring">↻</span>` : "";
+  const tag = type === "session" ? `<span class="oc-ag-tag">Group</span>` : (ev.kind && ev.kind !== "event" ? `<span class="oc-ag-tag">${escapeHtml(ev.kind === "orientation" ? "Orientation" : "Interview")}</span>` : "");
+  return `<div class="oc-ag-row cat-${cat}${sel?" sel":""}${rsvp==="declined"?" declined":""}${done?" is-done":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(tm+" · "+label)}"><span class="oc-ag-time">${escapeHtml(tm)}</span><span class="oc-ag-bar"${barStyle}></span><span class="oc-ag-title">${escapeHtml(label)}</span>${cam}${rsvpIco}${series}${tag}</div>`;
 }
 
 // Year view · a 12-month overview (Google-style). Each month is a compact
