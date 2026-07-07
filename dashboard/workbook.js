@@ -5045,6 +5045,7 @@ async function openWorkbook(id) {
     WB.dirtyCells = new Map();
     WB.pendingActivity = [];
     GRIDS.clear();
+    await ensureReceiptLedgerExtras();
     renderDetailPage();
     openRealtime();
     refreshLiveReports();
@@ -6476,6 +6477,84 @@ async function openOrCreateReceiptLedger(wrap) {
   const wb = await createWorkbook({ title: "Receipt Ledger", description: "", visibility: "org", templateKey: "receipt-ledger" });
   if (wrap) wrap.remove();
   await openWorkbook(wb.id);
+}
+
+// Whenever the Receipt Ledger is opened — any way, and regardless of migration
+// state — guarantee (1) the Status column is a dropdown and (2) a "How it
+// works" tab exists. Runs client-side so it doesn't depend on the server heal
+// or on opening via the template card. Never throws (open must not break).
+async function ensureReceiptLedgerExtras() {
+  try {
+    const wb = WB.wb;
+    if (!wb || wb.template_key !== "receipt-ledger" || !WB.canEdit) return;
+    const allSheets = [].concat(...Array.from(WB.sheetsByBlock.values()));
+    const ledger = allSheets.find((sh) => sh.name === "Receipt Ledger");
+
+    // 1) The Status dropdown lives in the sheet's data-validation meta. Add it
+    //    if it's missing so the Status column always renders as a picker.
+    if (ledger) {
+      const rules = Array.isArray(ledger.meta && ledger.meta.validation) ? ledger.meta.validation : [];
+      if (!rules.some((r) => r && r.id === "dv-status")) {
+        const RULE = {
+          id: "dv-status", type: "list", style: "chip", mode: "warn",
+          r0: 1, c0: 10, r1: 9999, c1: 10,
+          list: ["Unreconciled", "Matched", "Needs Review", "Duplicate Possible", "Rejected", "Reimbursable"],
+          colors: ["#E8EAED", "#D9EAD3", "#FFF2CC", "#FCE5CD", "#F4CCCC", "#C9DAF8"],
+        };
+        ledger.meta = { ...(ledger.meta || {}), validation: rules.filter((r) => !(r && r.c0 === 10 && r.c1 === 10)).concat([RULE]) };
+        if (!(ledger.frozenRows >= 1)) ledger.frozenRows = 1;
+        saveSheetMeta(ledger.id);
+      }
+    }
+
+    // 2) A "How it works" tab so the DSP understands the scanner ↔ ledger flow.
+    if (ledger && !allSheets.some((sh) => sh.name === "How it works")) {
+      await createSheetWithCells(ledger.blockId, receiptGuideSpec(), "guide");
+    }
+  } catch (e) {
+    console.warn("receipt ledger extras:", e && e.message);
+  }
+}
+
+// The instructions tab content — one column of calm, plain-language guidance.
+function receiptGuideSpec() {
+  const H = (v) => ({ v, f: { bold: true } });
+  const T = (v) => ({ v, f: {} });
+  const lines = [
+    { v: "Receipt Ledger — How it works", f: { bold: true, bg: "header" } },
+    T(""),
+    H("The short version"),
+    T("Drivers scan receipts in the RouteReady app. Each one shows up here automatically as a new row you reconcile against your card, fuel, or bank statement."),
+    T(""),
+    H("1 · Driver scans a receipt"),
+    T("In the app: Scan or upload → tap “Receipt” → pick a category → confirm the amount, vendor and date → Submit. Poor signal is fine; the app saves it and sends when back online."),
+    T(""),
+    H("2 · It lands in this ledger"),
+    T("A new row appears on the “Receipt Ledger” tab, marked Unreconciled — with the date, who uploaded it, driver, van, category, vendor, amount, tax and payment type."),
+    T(""),
+    H("3 · Open the receipt image"),
+    T("Click “View Receipt” in the Receipt column to open the scanned image or PDF. Images are stored securely; the sheet only keeps a link, so it stays fast with thousands of receipts."),
+    T(""),
+    H("4 · Reconcile it"),
+    T("Compare the row to your statement, then click the Status cell and choose:"),
+    T("      •  Matched — found it on the statement (reconciled)"),
+    T("      •  Reimbursable — the company owes the driver"),
+    T("      •  Needs Review — something looks off"),
+    T("      •  Duplicate Possible — the app flagged a likely repeat"),
+    T("      •  Rejected — not a valid business expense"),
+    T("      •  Unreconciled — not checked yet (the default)"),
+    T(""),
+    H("5 · Remove an entry"),
+    T("Open “View Receipt” and click “Delete entry” to permanently remove a receipt and its stored image. Other rows are unaffected."),
+    T(""),
+    H("Good to know"),
+    T("Edit the Status or Notes cells anytime — changes save automatically and stay in sync with the underlying receipt. New receipts add themselves; you never add rows by hand."),
+  ];
+  return {
+    name: "How it works",
+    cells: lines.map((c, r) => ({ r, c: 0, value: c.v, formula: null, type: "text", format: c.f || {} })),
+    merges: [], colWidths: { 0: 820 }, frozenRows: 1, frozenCols: 0,
+  };
 }
 
 // ─── Detail page ─────────────────────────────────────────────────────────────
