@@ -7516,8 +7516,13 @@ function renderChecklistsHub() {
   if (!session?.token) { writeSession(null); render(); return; }
   const main = document.getElementById("main");
   main.innerHTML = `
+    <div id="rr-clk-outbox-banner" hidden style="margin-bottom:12px"></div>
     <div id="rr-clk-hub-skel">${taskSkeletonHtml(2)}</div>
     <div id="rr-clk-hub"></div>`;
+
+  // Surface anything queued offline, and try to flush now that we're here.
+  _clkPaintOutboxBanner();
+  _clkFlushOutbox({ silent: true });
 
   sb.rpc("driver_list_checklists", { p_token: session.token }).then(({ data, error }) => {
     if (currentRoute() !== "/checklists") return;
@@ -7813,6 +7818,165 @@ async function _clkCollect(items, opts = {}) {
   return out;
 }
 
+// ── Offline submit queue (outbox) ─────────────────────────────────────
+//
+// A checklist submit needs the network twice: to upload photos/signatures
+// to storage, and to call driver_submit_checklist. If a driver is in a
+// dead zone, both fail. The outbox persists the *raw* answer inputs (photo
+// blobs, signature PNGs, field values) to IndexedDB and replays the whole
+// upload+submit when connectivity returns. Replays are idempotent — the
+// server's already_submitted guard + the unique-per-period index mean a
+// double-fire just no-ops.
+
+const _CLK_DB = "rr-checklist-outbox", _CLK_STORE = "outbox";
+function _clkDb() {
+  return new Promise((resolve, reject) => {
+    let req;
+    try { req = indexedDB.open(_CLK_DB, 1); } catch (e) { reject(e); return; }
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(_CLK_STORE)) db.createObjectStore(_CLK_STORE, { keyPath: "id" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function _clkIdbTx(mode, fn) {
+  return _clkDb().then((db) => new Promise((res, rej) => {
+    const tx = db.transaction(_CLK_STORE, mode);
+    const store = tx.objectStore(_CLK_STORE);
+    let out;
+    Promise.resolve(fn(store)).then((v) => { out = v; });
+    tx.oncomplete = () => res(out);
+    tx.onerror = () => rej(tx.error);
+    tx.onabort = () => rej(tx.error);
+  }));
+}
+const _clkOutboxAdd = (rec) => _clkIdbTx("readwrite", (s) => s.put(rec));
+const _clkOutboxDel = (id) => _clkIdbTx("readwrite", (s) => s.delete(id));
+const _clkOutboxAll = () => _clkIdbTx("readonly", (s) => new Promise((res) => { const r = s.getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }));
+async function _clkOutboxCount() { try { return (await _clkOutboxAll()).length; } catch (_) { return 0; } }
+
+// Snapshot the form's raw inputs without uploading anything — safe to
+// stash offline. Photos keep already-uploaded paths + not-yet-uploaded
+// blobs; signatures keep fresh ink as a data URL or an existing value.
+function _clkCaptureRaw(items) {
+  const rec = { fields: {}, photos: {}, signatures: {} };
+  for (const item of items) {
+    const el = document.querySelector(`#rr-clk-fill [data-rr-clk="${CSS.escape(item.id)}"]`);
+    if (!el) continue;
+    const t = el.getAttribute("data-rr-clk-type");
+    if (t === "checkbox") rec.fields[item.id] = { v: el.checked ? "true" : "false" };
+    else if (t === "yes_no") { const s = el.querySelector("input[type=radio]:checked"); if (s) rec.fields[item.id] = { v: s.value }; }
+    else if (t === "photo") {
+      const entries = _clkPhotos[item.id] || [];
+      const paths = entries.filter((e) => e.path).map((e) => e.path);
+      const blobs = entries.filter((e) => e.file).map((e) => e.file);
+      if (paths.length || blobs.length) rec.photos[item.id] = { paths, blobs };
+    } else if (t === "signature") {
+      if (el._rrHasInk) rec.signatures[item.id] = { dataUrl: el.toDataURL("image/png") };
+      else if (el.dataset.rrExistingSig) rec.signatures[item.id] = { existing: el.dataset.rrExistingSig };
+    } else { const v = (el.value || "").trim(); if (v) rec.fields[item.id] = { v }; }
+  }
+  return rec;
+}
+
+// Is `item` (by type) empty in a raw capture? Used to validate required
+// items before we queue, so an offline submit still enforces them.
+function _clkRawEmpty(item, rec) {
+  if (item.item_type === "photo") { const p = rec.photos[item.id]; return !p || ((p.paths || []).length + (p.blobs || []).length) === 0; }
+  if (item.item_type === "signature") return !rec.signatures[item.id];
+  if (item.item_type === "checkbox") return (rec.fields[item.id]?.v) !== "true";
+  const v = rec.fields[item.id]?.v;
+  return v == null || v === "";
+}
+
+// Turn a stored record into a submit payload: upload its media (getting
+// storage paths) then assemble the { itemId: {...} } answers.
+async function _clkReplayRecord(rec) {
+  const answers = {};
+  const dspId = rec.dspId, driverId = rec.driverId;
+  for (const [id, v] of Object.entries(rec.fields || {})) answers[id] = v;
+  for (const [id, p] of Object.entries(rec.photos || {})) {
+    const paths = [...(p.paths || [])];
+    for (const blob of (p.blobs || [])) {
+      const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+      const { error } = await sb.storage.from("driver-documents").upload(path, blob, { contentType: blob.type || "image/jpeg", upsert: false });
+      if (error) throw error;
+      paths.push(path);
+    }
+    if (paths.length) answers[id] = { photos: paths };
+  }
+  for (const [id, s] of Object.entries(rec.signatures || {})) {
+    if (s.existing) { answers[id] = { v: s.existing }; continue; }
+    if (s.dataUrl) {
+      const blob = _dataUrlToBlob(s.dataUrl);
+      const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/sig-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+      const { error } = await sb.storage.from("driver-documents").upload(path, blob, { contentType: "image/png", upsert: false });
+      if (error) throw error;
+      answers[id] = { v: path };
+    }
+  }
+  return answers;
+}
+
+let _clkFlushing = false;
+async function _clkFlushOutbox(opts = {}) {
+  if (_clkFlushing) return 0;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return 0;
+  _clkFlushing = true;
+  let done = 0, dropped = 0;
+  try {
+    const recs = await _clkOutboxAll();
+    for (const rec of recs) {
+      try {
+        const answers = await _clkReplayRecord(rec);
+        const { error } = await sb.rpc("driver_submit_checklist", { p_token: rec.token, p_assignment_id: rec.assignmentId, p_answers: answers });
+        if (error) {
+          const msg = String(error.message || "");
+          // Already handled server-side, or no longer submittable (template
+          // changed) — drop so the queue can't get stuck on it.
+          if (msg.startsWith("already_submitted") || msg.startsWith("missing_required") || msg.startsWith("assignment_not_found") || msg.startsWith("not_assigned") || msg.startsWith("checklist_not_active")) {
+            await _clkOutboxDel(rec.id); dropped++; continue;
+          }
+          throw error;   // network/transient → stop and retry later
+        }
+        await _clkOutboxDel(rec.id); done++;
+      } catch (_) {
+        break;   // network failure — leave the rest queued
+      }
+    }
+  } catch (_) { /* idb unavailable */ } finally { _clkFlushing = false; }
+  if (done && !opts.silent) toast(`Submitted ${done} checklist${done === 1 ? "" : "s"} that ${done === 1 ? "was" : "were"} waiting`, "ok");
+  if (dropped && !opts.silent) toast(`${dropped} queued checklist${dropped === 1 ? "" : "s"} couldn't be submitted and ${dropped === 1 ? "was" : "were"} discarded`, "warn");
+  _clkPaintOutboxBanner();
+  if (typeof refreshChecklistsBadge === "function") { try { refreshChecklistsBadge(); } catch (_) {} }
+  return done;
+}
+
+// Paint the "waiting to send" banner wherever a host slot exists.
+async function _clkPaintOutboxBanner() {
+  const host = document.getElementById("rr-clk-outbox-banner");
+  if (!host) return;
+  const n = await _clkOutboxCount();
+  if (!n) { host.innerHTML = ""; host.hidden = true; return; }
+  host.hidden = false;
+  const off = (typeof navigator !== "undefined" && navigator.onLine === false);
+  host.innerHTML = `<div class="clk-banner clk-banner-due" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+    <span>${n} checklist${n === 1 ? "" : "s"} waiting to send${off ? " — you're offline" : ""}.</span>
+    <button type="button" class="btn btn-sm" data-rr-clk-outbox-retry ${off ? "disabled" : ""}>Send now</button>
+  </div>`;
+}
+
+// Register connectivity + retry handlers once.
+if (typeof window !== "undefined" && !window.__rrClkOutboxWired) {
+  window.__rrClkOutboxWired = true;
+  window.addEventListener("online", () => { _clkFlushOutbox(); });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest?.("[data-rr-clk-outbox-retry]")) { e.preventDefault(); _clkFlushOutbox(); }
+  });
+}
+
 async function renderChecklistFill() {
   const main = document.getElementById("main");
   main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
@@ -7864,6 +8028,7 @@ async function renderChecklistFill() {
 
   main.innerHTML = `
     <div class="form-fill-page">
+      <div id="rr-clk-outbox-banner" hidden></div>
       ${reopened}${dueLine}
       ${cl.description ? `<div class="form-fill-desc">${escapeHtml(cl.description)}</div>` : ""}
       <form id="rr-clk-fill">
@@ -7874,6 +8039,7 @@ async function renderChecklistFill() {
     </div>`;
 
   const formEl = document.getElementById("rr-clk-fill");
+  _clkPaintOutboxBanner();
 
   // Signature pads first (before restore paints saved ink back on).
   items.filter(i => i.item_type === "signature").forEach(i => {
@@ -8002,42 +8168,81 @@ async function renderChecklistFill() {
   formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("button[type=submit]");
-    if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+    const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = "Submit checklist"; } };
+    if (btn) { btn.disabled = true; btn.textContent = "Submitting…"; }
+
+    // Validate required from the raw capture first, so an offline submit
+    // still enforces them without needing to upload anything.
+    const raw = _clkCaptureRaw(items);
+    for (const item of items) {
+      if (item.required && _clkRawEmpty(item, raw)) {
+        toast(`"${item.label || "Untitled item"}" is required`, "warn");
+        resetBtn();
+        return;
+      }
+    }
+
+    // Queue the raw submission to IndexedDB and let the outbox replay it.
+    const queueOffline = async () => {
+      const rec = {
+        id: `${id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        token: session.token, assignmentId: id,
+        dspId: session?.dsp_id || null, driverId: session?.driver_id || null,
+        name: cl.name || "Checklist", fields: raw.fields, photos: raw.photos,
+        signatures: raw.signatures, createdAt: Date.now(),
+      };
+      try {
+        await _clkOutboxAdd(rec);
+        clearDraft(DRAFT_KEY);
+        _haptic("success");
+        toast("No connection — saved. It'll submit automatically when you're back online.", "ok");
+        navigate("/checklists");
+        return true;
+      } catch (_) {
+        toast("Couldn't save offline — your answers are still on this phone.", "warn");
+        resetBtn();
+        return false;
+      }
+    };
+
+    // Obviously offline → don't even try the uploads that will fail.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) { await queueOffline(); return; }
+
+    if (btn) btn.textContent = "Uploading…";
     let cur;
     try {
       cur = await _clkCollect(items);
     } catch (err) {
-      if (btn) { btn.disabled = false; btn.textContent = "Submit checklist"; }
-      toast(err?.rrUploadFailed
-        ? "A photo didn't upload — check your signal and try again."
-        : _friendlyError(err, "Couldn't upload — try again."), "warn");
+      // An upload blip mid-submit (dropped signal) → queue rather than lose it.
+      if (err?.rrUploadFailed) { await queueOffline(); return; }
+      resetBtn();
+      toast(_friendlyError(err, "Couldn't upload — try again."), "warn");
       return;
     }
+
     if (btn) btn.textContent = "Submitting…";
-    for (const item of items) {
-      if (!item.required) continue;
-      const a = cur[item.id];
-      let empty = !a;
-      if (!empty) {
-        if (item.item_type === "photo") empty = !Array.isArray(a.photos) || a.photos.length === 0;
-        else if (item.item_type === "checkbox") empty = a.v !== "true";
-        else empty = a.v == null || a.v === "";
-      }
-      if (empty) {
-        toast(`"${item.label || "Untitled item"}" is required`, "warn");
-        if (btn) { btn.disabled = false; btn.textContent = "Submit checklist"; }
+    let subErr;
+    try {
+      ({ error: subErr } = await sb.rpc("driver_submit_checklist", {
+        p_token: session.token, p_assignment_id: id, p_answers: cur,
+      }));
+    } catch (netErr) {
+      await queueOffline();   // network threw → queue
+      return;
+    }
+    if (subErr) {
+      const msg = String(subErr.message || "");
+      if (msg.startsWith("missing_required:")) {
+        toast(`"${msg.slice("missing_required:".length)}" is required`, "warn");
+        resetBtn();
         return;
       }
-    }
-    const { error: subErr } = await sb.rpc("driver_submit_checklist", {
-      p_token: session.token, p_assignment_id: id, p_answers: cur,
-    });
-    if (subErr) {
-      if (btn) { btn.disabled = false; btn.textContent = "Submit checklist"; }
-      const msg = String(subErr.message || "");
-      toast(msg.startsWith("missing_required:")
-        ? `"${msg.slice("missing_required:".length)}" is required`
-        : _friendlyError(subErr, "Couldn't submit. Your answers are still here — try again."), "warn");
+      if (msg.startsWith("already_submitted")) {
+        clearDraft(DRAFT_KEY); toast("Already submitted", "ok"); navigate("/checklists"); return;
+      }
+      if (_clkIsNetworkErr(subErr)) { await queueOffline(); return; }
+      resetBtn();
+      toast(_friendlyError(subErr, "Couldn't submit. Your answers are still here — try again."), "warn");
       return;
     }
     clearDraft(DRAFT_KEY);
@@ -8045,6 +8250,14 @@ async function renderChecklistFill() {
     toast("Checklist submitted", "ok");
     navigate("/checklists");
   });
+}
+
+// A best-effort "does this look like a connectivity failure?" check so we
+// queue on network errors but surface real server errors.
+function _clkIsNetworkErr(err) {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  const m = String(err?.message || err || "").toLowerCase();
+  return /failed to fetch|networkerror|network error|load failed|fetch failed|timeout|timed out/.test(m);
 }
 
 
