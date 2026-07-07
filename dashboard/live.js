@@ -35224,7 +35224,7 @@ document.addEventListener("click", async (e) => {
   if (delBtn) {
     e.preventDefault(); e.stopPropagation();
     const id = delBtn.getAttribute("data-rr-mc-delete");
-    if (!confirm("Delete this message? The driver's copy will show 'Message deleted'.")) return;
+    if (!(await _rrConfirmDialog({ title: "Delete this message?", body: "The driver's copy will show 'Message deleted'.", confirmLabel: "Delete", danger: true }))) return;
     const { error } = await sb.rpc("dispatch_chat_delete", { p_message_id: id });
     if (error) { toast("Delete failed: " + error.message, "warn"); return; }
     refreshDriverChatThread(false);
@@ -38016,7 +38016,7 @@ document.addEventListener("click", async (e) => {
   if (blDel) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    if (!confirm("Delete this blackout?")) return;
+    if (!(await _rrConfirmDialog({ title: "Delete this blackout?", body: "This removes the availability blackout.", confirmLabel: "Delete", danger: true }))) return;
     const id = blDel.getAttribute("data-rr-blackout-delete");
     const { error } = await sb.rpc("availability_blackout_delete", { p_id: id });
     if (error) { toast("Delete failed: " + error.message, "warn"); return; }
@@ -61097,7 +61097,7 @@ async function _tplOpenApply(templateId, name) {
 }
 
 async function _tplDelete(templateId, name) {
-  if (!confirm(`Delete ${name}?`)) return;
+  if (!(await _rrConfirmDialog({ title: `Delete ${name}?`, confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.rpc("template_delete", { p_template_id: templateId });
   if (error) { toast(error.message || "Couldn't delete", "warn"); return; }
   toast("Template deleted", "success");
@@ -64246,7 +64246,7 @@ document.addEventListener("click", async (e) => {
     e.preventDefault(); e.stopPropagation();
     const id = del.getAttribute("data-rr-form-delete");
     const name = del.getAttribute("data-rr-form-title") || "this form";
-    if (!confirm(`Delete "${name}"? Its submissions are removed too. This can't be undone.`)) return;
+    if (!(await _rrConfirmDialog({ title: `Delete "${name}"?`, body: "Its submissions are removed too. This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
     del.disabled = true;
     const { error } = await sb.rpc("delete_form", { p_id: id });
     if (error) { toast("Delete failed: " + error.message, "warn"); del.disabled = false; return; }
@@ -66375,7 +66375,7 @@ async function _wsVehAdd() {
 
 async function _wsVehArchive(id) {
   const v = _wsVehById(id); if (!v) return;
-  if (!confirm(`Remove "${v.name || "this van"}" from the list? Its driver assignments are cleared.`)) return;
+  if (!(await _rrConfirmDialog({ title: `Remove "${v.name || "this van"}"?`, body: "It's removed from the list and its driver assignments are cleared.", confirmLabel: "Remove", danger: true }))) return;
   const { error } = await sb.rpc("vehicle_archive", { p_id: id });
   if (error) { toast("Couldn't remove it: " + (error.message || "try again"), "warn"); return; }
   loadWorkspacesView();
@@ -66622,7 +66622,7 @@ async function _wsAddRow() {
 }
 
 async function _wsDeleteRow(rowId) {
-  if (!confirm("Delete this row? This can't be undone.")) return;
+  if (!(await _rrConfirmDialog({ title: "Delete this row?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.rpc("assignment_row_delete", { p_row_id: rowId });
   if (error) { toast("Couldn't delete: " + (error.message || "try again"), "warn"); return; }
   _wsBoard.rows = (_wsBoard.rows || []).filter(r => r.id !== rowId);
@@ -66761,7 +66761,7 @@ async function _wsRenameBoard() {
 
 async function _wsArchiveBoard() {
   if (!_wsBoardId) return;
-  if (!confirm("Archive this board? It'll be hidden from the list; its rows and history are kept.")) return;
+  if (!(await _rrConfirmDialog({ title: "Archive this board?", body: "It'll be hidden from the list; its rows and history are kept.", confirmLabel: "Archive" }))) return;
   const { error } = await sb.rpc("assignment_board_archive", { p_board_id: _wsBoardId, p_archived: true });
   if (error) { toast("Couldn't archive: " + (error.message || "try again"), "warn"); return; }
   _wsBoardId = null;
@@ -67741,7 +67741,7 @@ async function _cbArchiveTemplate() {
 }
 async function _cbDeleteTemplate() {
   if (!_cbTpl) return;
-  if (!window.confirm(`Delete "${_cbTpl.name || "this template"}"? This can't be undone.`)) return;
+  if (!(await _rrConfirmDialog({ title: `Delete "${_cbTpl.name || "this template"}"?`, body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.from("checklist_templates").delete().eq("id", _cbTpl.id);
   if (error) { toast("Couldn't delete: " + error.message, "warn"); return; }
   toast("Template deleted", "success");
@@ -67773,7 +67773,7 @@ async function _cbAddItem(sectionId) {
 }
 async function _cbDeleteSection(id) {
   if (!_cbTpl) return;
-  if (!window.confirm("Delete this section and all its items?")) return;
+  if (!(await _rrConfirmDialog({ title: "Delete this section?", body: "This deletes the section and all its items.", confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.rpc("checklist_section_delete", { p_id: id });
   if (error) { toast("Couldn't delete", "warn"); return; }
   _cbTpl.sections = (_cbTpl.sections || []).filter(s => s.id !== id);
@@ -71808,7 +71808,7 @@ document.addEventListener("click", async (e) => {
   }
   if (e.target.closest("[data-rr-fd-archive]")) {
     e.preventDefault();
-    if (!confirm("Archive this van? It'll be removed from the roster but kept in history.")) return;
+    if (!(await _rrConfirmDialog({ title: "Archive this van?", body: "It'll be removed from the roster but kept in history.", confirmLabel: "Archive" }))) return;
     const id = _fdVehicle?.vehicle?.id;
     if (!id) return;
     const { error } = await sb.rpc("vehicle_archive", { p_id: id, p_unarchive: false });
@@ -72857,7 +72857,7 @@ async function _stfSaveShift() {
 
 async function _stfDeleteShift() {
   if (!_stfEditing) return;
-  if (!confirm("Delete this shift?")) return;
+  if (!(await _rrConfirmDialog({ title: "Delete this shift?", body: "This removes the shift from the schedule.", confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.rpc("staff_shift_delete", { p_id: _stfEditing.id });
   if (error) { toast("Delete failed: " + error.message, "warn"); return; }
   toast("Shift deleted.", "ok");
@@ -72988,7 +72988,7 @@ function _stfShowStaffForm(existing) {
 }
 
 async function _stfArchiveStaff(id) {
-  if (!confirm("Archive this staff member? Their historical shifts stay, they just stop appearing in the active schedule.")) return;
+  if (!(await _rrConfirmDialog({ title: "Archive this staff member?", body: "Their historical shifts stay; they just stop appearing in the active schedule.", confirmLabel: "Archive" }))) return;
   const { error } = await sb.rpc("staff_member_archive", { p_id: id, p_unarchive: false });
   if (error) { toast("Archive failed: " + error.message, "warn"); return; }
   toast("Archived.", "ok");
