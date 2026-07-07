@@ -3040,6 +3040,12 @@
                 <div class="ntp-section-title">All Tasks</div>
                 <button type="button" class="ntp-addtask-btn" data-rr-task-add-open><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Task</button>
               </div>
+              <!-- Server-mode view chips (unhidden by live.js once team
+                   tasks load): my open tasks vs. ones I've delegated. -->
+              <div class="ntp-task-views" data-rr-task-views hidden role="tablist" aria-label="Task views">
+                <button type="button" class="ntp-task-view-b on" data-rr-task-view="mine" role="tab" aria-selected="true">My Tasks <b>0</b></button>
+                <button type="button" class="ntp-task-view-b" data-rr-task-view="delegated" role="tab" aria-selected="false">Delegated <b>0</b></button>
+              </div>
               <div class="ntp-task-form" data-rr-task-form hidden>
                 <input type="text" class="ntp-task-input" data-rr-task-title placeholder="Task title…" aria-label="Task title" maxlength="200"/>
                 <div class="ntp-task-form-row">
@@ -3072,6 +3078,13 @@
                   <span class="ntp-rep-lbl">for</span>
                   <input type="number" class="ntp-task-date ntp-task-repcount" data-rr-task-repeat-count min="1" max="60" value="8" aria-label="Number of occurrences"/>
                   <span class="ntp-rep-lbl">occurrences</span>
+                </div>
+                <!-- Assign to a leadership teammate (server mode only —
+                     live.js unhides + fills this once team tasks load). -->
+                <div class="ntp-task-form-row" data-rr-task-assignee-row hidden>
+                  <select class="ntp-task-date ntp-task-assignee" data-rr-task-assignee aria-label="Assign to" title="Assign to">
+                    <option value="">Assign to: Myself</option>
+                  </select>
                 </div>
                 <div class="ntp-task-form-row">
                   <button type="button" class="ntp-add-btn ntp-add-btn-sm" data-rr-task-add>Add</button>
