@@ -12985,6 +12985,9 @@ body.rr-cmdk-open{ overflow:hidden }
                punched back to the plain surface (white) by .oc-avail below. */
             #rr-ivcal .oc-col{position:relative;border-left:1px solid var(--oc-colsep);cursor:default;background:rgba(37,99,235,.06)}
             #rr-ivcal .oc-col.today{background:var(--oc-today)}
+            /* Working-hours shading · dims the off-hours band. Below the grid
+               lines and events; non-interactive so clicks still create. */
+            #rr-ivcal .oc-offhrs{position:absolute;left:0;right:0;background:rgba(15,23,42,.045);pointer-events:none;z-index:0}
             #rr-ivcal .oc-hline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-rowline)}
             #rr-ivcal .oc-hhline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-rowline2)}
             #rr-ivcal .oc-now{position:absolute;left:0;right:0;height:0;border-top:2px solid #DC2626;z-index:5;pointer-events:none}
@@ -13146,6 +13149,19 @@ body.rr-cmdk-open{ overflow:hidden }
             .oc-menu .oc-sw{width:22px;height:22px;border-radius:6px;border:2px solid transparent;cursor:pointer;padding:0;outline:none}
             .oc-menu .oc-sw.on{border-color:var(--text);box-shadow:0 0 0 2px var(--surface) inset}
             .oc-menu .sep{height:1px;background:var(--border-subtle,rgba(15,23,42,.07));margin:4px 0}
+            /* Calendar settings popover (week start / clock / working hours) */
+            .oc-setmenu{min-width:236px;padding:10px 12px}
+            .oc-setmenu .oc-set-sec{padding:6px 0}
+            .oc-setmenu .oc-set-sec + .oc-set-sec{border-top:1px solid var(--border-subtle,rgba(15,23,42,.07))}
+            .oc-setmenu .oc-set-h{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin:2px 0 7px}
+            .oc-setmenu .oc-set-seg{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+            .oc-setmenu .oc-set-seg button{flex:1;justify-content:center;width:auto;border-radius:0;padding:7px 8px;font-size:12.5px;font-weight:600;color:var(--text-subtle)}
+            .oc-setmenu .oc-set-seg button + button{border-left:1px solid var(--border)}
+            .oc-setmenu .oc-set-seg button.on{background:var(--accent-soft,rgba(37,99,235,.12));color:var(--accent,#2563EB)}
+            .oc-setmenu .oc-set-row{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text);cursor:pointer;padding:3px 0}
+            .oc-setmenu .oc-set-work{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;color:var(--text-subtle)}
+            .oc-setmenu .oc-set-work.off{opacity:.4;pointer-events:none}
+            .oc-setmenu .oc-set-work input[type=time]{font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)}
             /* Right-click color palette (Google-style event recolor) */
             .oc-menu .oc-ctx-colors{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:6px 8px 8px}
             .oc-menu .oc-ctx-sw{width:20px;height:20px;border-radius:50%;border:0;padding:0;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(15,23,42,.12);position:relative;transition:transform .08s}

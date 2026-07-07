@@ -22091,6 +22091,33 @@ function _ivcalSaveToggles() {
     localStorage.setItem("rr_ivcal_showavail", _ivcalShowAvail ? "1" : "0");
   } catch (_) {}
 }
+
+// ── Personal display preferences (device-local, like the toggles above) ──
+//   • week start Sun (default) / Mon
+//   • 12-hour (default) / 24-hour clock
+//   • working-hours shading: dim the off-hours on the day/week grid
+let _ivWeekStartMon = (() => { try { return localStorage.getItem("rr_ivcal_weekstart") === "mon"; } catch (_) { return false; } })();
+let _ivClock24 = (() => { try { return localStorage.getItem("rr_ivcal_clock") === "24"; } catch (_) { return false; } })();
+let _ivWork = (() => {
+  try { const j = JSON.parse(localStorage.getItem("rr_ivcal_workhours") || "null"); if (j && typeof j.start === "number" && typeof j.end === "number") return { on: !!j.on, start: j.start, end: j.end }; } catch (_) {}
+  return { on: false, start: 8 * 60, end: 17 * 60 };   // 8:00 AM – 5:00 PM
+})();
+function _ivSavePrefs() {
+  try {
+    localStorage.setItem("rr_ivcal_weekstart", _ivWeekStartMon ? "mon" : "sun");
+    localStorage.setItem("rr_ivcal_clock", _ivClock24 ? "24" : "12");
+    localStorage.setItem("rr_ivcal_workhours", JSON.stringify(_ivWork));
+  } catch (_) {}
+}
+// Time-format options honoring the 12/24h preference. Pass extra opts to merge.
+function _ivClockOpts(extra) {
+  return Object.assign({ hour: _ivClock24 ? "2-digit" : "numeric", minute: "2-digit", hour12: !_ivClock24 }, extra || {});
+}
+// Day labels rotated to the chosen week start (for month/year headers).
+function _ivDayLabels() { return _ivWeekStartMon ? CAL_DAY_LABELS.slice(1).concat(CAL_DAY_LABELS[0]) : CAL_DAY_LABELS.slice(); }
+// Monday of d's week, independent of the week-start pref — Work Week is always
+// Mon–Fri regardless of whether the week grid starts Sun or Mon.
+function _ivMondayOf(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 // Legend swatch per built-in calendar (events keep their status-based color;
 // these are just the dots shown next to each built-in in My Calendars).
 const _IVCAL_KIND_COLOR = { interview:"#2563EB", orientation:"#B45309", event:"#0D9488", session:"#7C3AED" };
@@ -22730,10 +22757,10 @@ async function loadIvCalendar() {
 }
 window.loadIvCalendar = loadIvCalendar;
 
-function _ivcalWeekStart(d) { const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - x.getDay()); return x; }
+function _ivcalWeekStart(d) { const x = new Date(d); x.setHours(0,0,0,0); const off = _ivWeekStartMon ? ((x.getDay()+6)%7) : x.getDay(); x.setDate(x.getDate() - off); return x; }
 function _ivcalISODate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 function _ivcalYpos(min) { const c = Math.max(_IVCAL_H0*60, Math.min(_IVCAL_H1*60, min)); return (c - _IVCAL_H0*60) / 60 * _IVCAL_RH; }
-function _ivcalHourLabel(h) { const ampm = h>=12?"PM":"AM"; const h12=(h%12)||12; return `${h12} ${ampm}`; }
+function _ivcalHourLabel(h) { if (_ivClock24) return String(h).padStart(2,"0") + ":00"; const ampm = h>=12?"PM":"AM"; const h12=(h%12)||12; return `${h12} ${ampm}`; }
 
 function _ivcalPeriodLabel() {
   const a = _ivcalAnchor;
@@ -22760,7 +22787,7 @@ function _ivcalPeriodLabel() {
     return `${startStr} – ${endStr}`;
   };
   if (_ivcalView === "workweek") {
-    const ws = _ivcalWeekStart(a); ws.setDate(ws.getDate()+1); const we = new Date(ws); we.setDate(ws.getDate()+4);
+    const ws = _ivMondayOf(a); const we = new Date(ws); we.setDate(ws.getDate()+4);
     return range(ws, we);
   }
   const start = _ivcalWeekStart(a), end = new Date(start); end.setDate(start.getDate()+6);
@@ -22788,7 +22815,7 @@ function _ivcalViewRange() {
   const a = _ivcalAnchor;
   if (_ivcalView === "day") { const s = new Date(a); s.setHours(0,0,0,0); return { start: s, end: s }; }
   if (_ivcalView === "agenda") { const s = new Date(a); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+_IVCAL_AGENDA_DAYS-1); return { start: s, end: e }; }
-  if (_ivcalView === "workweek") { const s = _ivcalWeekStart(a); s.setDate(s.getDate()+1); const e = new Date(s); e.setDate(s.getDate()+4); return { start: s, end: e }; }
+  if (_ivcalView === "workweek") { const s = _ivMondayOf(a); const e = new Date(s); e.setDate(s.getDate()+4); return { start: s, end: e }; }
   if (_ivcalView === "week") { const s = _ivcalWeekStart(a); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(0,0,0,0); return { start: s, end: e }; }
   // Year view shades only the anchor day in the mini-calendar — shading all 365
   // days would just flood the navigator.
@@ -22901,6 +22928,7 @@ function _ivcalRender() {
           ${(_ivcalView === "month" || _ivcalView === "year" || _ivcalView === "agenda") ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
           <span class="oc-sp"></span>
           <button class="oc-btn oc-ico oc-search-btn" data-ivcal-search title="Search events (/)" aria-label="Search events"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+          <button class="oc-btn oc-ico" data-ivcal-settings title="Calendar settings" aria-label="Calendar settings"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
         </div>
         ${_ivcalAvailNudge()}
         ${inner}
@@ -22929,6 +22957,7 @@ function _ivcalRender() {
   host.querySelectorAll("[data-ivcal-side]").forEach(btn => btn.onclick = (e) => { e.stopPropagation(); _ivcalToggleSide(); });
   host.querySelectorAll("[data-ivcal-zoom]").forEach(btn => btn.onclick = () => _ivcalSetZoom(parseInt(btn.getAttribute("data-ivcal-zoom"), 10)));
   host.querySelector("[data-ivcal-search]")?.addEventListener("click", () => _ivcalOpenSearch());
+  host.querySelector("[data-ivcal-settings]")?.addEventListener("click", (e) => { e.stopPropagation(); _ivcalSettingsMenu(e.currentTarget); });
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
   // Mini-calendar (date navigator) wiring.
   host.querySelectorAll("[data-mini-nav]").forEach(b => b.onclick = () => {
@@ -23341,8 +23370,8 @@ function _ivcalFmtWhen(ev) {
   const s = new Date(ev.starts_at);
   const e = ev.ends_at ? new Date(ev.ends_at) : null;
   const dateStr = s.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
-  const timeStr = s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })
-    + (e ? " – " + e.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) : "");
+  const timeStr = s.toLocaleTimeString([], _ivClockOpts())
+    + (e ? " – " + e.toLocaleTimeString([], _ivClockOpts()) : "");
   return { dateStr, timeStr };
 }
 
@@ -23746,7 +23775,7 @@ What to expect:
 Please use the Accept or Decline buttons below to confirm. We look forward to meeting you!`;
 
   const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
-  const fmtTime = (hhmm) => { const [h,mm] = String(hhmm||"").split(":").map(Number); const x = new Date(); x.setHours(h||0, mm||0, 0, 0); return x.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }); };
+  const fmtTime = (hhmm) => { const [h,mm] = String(hhmm||"").split(":").map(Number); const x = new Date(); x.setHours(h||0, mm||0, 0, 0); return x.toLocaleTimeString([], _ivClockOpts()); };
   const fmtRange = (sdate, stime, edate, etime, allDay) => {
     const sameDay = !edate || edate === sdate;
     if (allDay) return { dateStr: sameDay ? fmtDate(sdate) : `${fmtDate(sdate)} – ${fmtDate(edate)}`, timeStr: "All day" };
@@ -24934,7 +24963,7 @@ function _ivcalEventBlock(ev, type, lay) {
   const top = _ivcalYpos(s.getHours()*60 + s.getMinutes());
   const bot = _ivcalYpos(e.getHours()*60 + e.getMinutes());
   const h = Math.max(18, bot - top);
-  const time = s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+  const time = s.toLocaleTimeString([], _ivClockOpts());
   const kindAttr = type === "session" ? "session" : "booking";
   const label = _ivcalEventLabel(ev, type);
   const cat = _ivcalCat(ev, type);
@@ -25124,7 +25153,7 @@ function _ivcalTzAbbr(tz, when) {
 function _ivcalTimeGrid(ndays) {
   let startDay;
   if (ndays === 1) { startDay = new Date(_ivcalAnchor); startDay.setHours(0,0,0,0); }
-  else if (_ivcalView === "workweek") { startDay = _ivcalWeekStart(_ivcalAnchor); startDay.setDate(startDay.getDate()+1); } // Monday
+  else if (_ivcalView === "workweek") { startDay = _ivMondayOf(_ivcalAnchor); } // Monday, always Mon–Fri
   else startDay = _ivcalWeekStart(_ivcalAnchor);
   const gridH = (_IVCAL_H1 - _IVCAL_H0) * _IVCAL_RH;
   const today = new Date(); today.setHours(0,0,0,0);
@@ -25172,7 +25201,7 @@ function _ivcalTimeGrid(ndays) {
       lines += `<div class="oc-hline" style="top:${y}px"></div><div class="oc-hhline" style="top:${y+_IVCAL_RH/2}px"></div>`;
     }
     const nowLine = (isToday && nowMin >= _IVCAL_H0*60 && nowMin <= _IVCAL_H1*60)
-      ? `<div class="oc-now" style="top:${_ivcalYpos(nowMin)}px"><span class="oc-now-lbl">${escapeHtml(now.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}))}</span></div>` : "";
+      ? `<div class="oc-now" style="top:${_ivcalYpos(nowMin)}px"><span class="oc-now-lbl">${escapeHtml(now.toLocaleTimeString(undefined,_ivClockOpts()))}</span></div>` : "";
     // Gather every timed event for the day across sources, then lay them out
     // side-by-side where they overlap. All-day Google chips stack at the top
     // and don't participate in the column layout.
@@ -25197,7 +25226,15 @@ function _ivcalTimeGrid(ndays) {
     }
     _ivcalLayoutDay(timed);
     for (const it of timed) evs += it.render(it._lw < 100 ? { lx: it._lx, lw: it._lw } : null);
-    return `<div class="oc-col${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${shade}${lines}${nowLine}${evs}</div>`;
+    // Working-hours shading: dim the off-hours (before start / after end).
+    let workShade = "";
+    if (_ivWork.on) {
+      const h0 = _IVCAL_H0 * 60, h1 = _IVCAL_H1 * 60;
+      const ws = Math.max(h0, Math.min(h1, _ivWork.start)), we = Math.max(h0, Math.min(h1, _ivWork.end));
+      if (ws > h0) workShade += `<div class="oc-offhrs" style="top:0;height:${_ivcalYpos(ws)}px"></div>`;
+      if (we < h1) workShade += `<div class="oc-offhrs" style="top:${_ivcalYpos(we)}px;height:${_ivcalYpos(h1) - _ivcalYpos(we)}px"></div>`;
+    }
+    return `<div class="oc-col${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${workShade}${shade}${lines}${nowLine}${evs}</div>`;
   }).join("");
 
   // All-day lane · one horizontal cell per day, pinned with the day headers.
@@ -25240,7 +25277,7 @@ function _ivcalMonth() {
   const a = _ivcalAnchor;
   const gridStart = _ivcalWeekStart(new Date(a.getFullYear(), a.getMonth(), 1));
   const today = new Date(); today.setHours(0,0,0,0);
-  const dowHead = CAL_DAY_LABELS.map(d => `<div class="oc-mdow">${d}</div>`).join("");
+  const dowHead = _ivDayLabels().map(d => `<div class="oc-mdow">${d}</div>`).join("");
   let cells = "";
   for (let i=0;i<42;i++){
     const d = new Date(gridStart); d.setDate(gridStart.getDate()+i);
@@ -25255,10 +25292,10 @@ function _ivcalMonth() {
     items.sort((x,y) => x.t - y.t);
     const pillHtml = (it) => {
       if (it.google) {
-        const gtm = it.allDay ? "" : it.t.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+        const gtm = it.allDay ? "" : it.t.toLocaleTimeString([], _ivClockOpts());
         return `<div class="oc-pill oc-pill-google" data-ivcal-glink="${escapeHtml(it.link)}" style="color:${_ivcalGoogleColor}" title="${escapeHtml((gtm?gtm+" ":"")+it.label+" · Google")}"><span class="oc-pdot" style="background:${_ivcalGoogleColor}"></span>${escapeHtml(gtm?gtm+" ":"")}${escapeHtml(it.label)}</div>`;
       }
-      const tm = it.t.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+      const tm = it.t.toLocaleTimeString([], _ivClockOpts());
       const sel = _ivcalSelected && _ivcalSelected.kind === it.kind && String(_ivcalSelected.id) === String(it.id);
       const dotStyle = it.color ? ` style="background:${it.color}"` : "";
       const pillStyle = it.color ? ` style="color:${it.color}"` : "";
@@ -25321,7 +25358,7 @@ function _ivcalAgenda() {
 function _ivcalAgendaRow(ev, type) {
   if (type === "google") {
     const s = new Date(ev.sortAt);
-    const tm = ev.allDay ? "All day" : s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+    const tm = ev.allDay ? "All day" : s.toLocaleTimeString([], _ivClockOpts());
     return `<div class="oc-ag-row oc-ag-google" data-ivcal-glink="${escapeHtml(ev.htmlLink||"")}" title="${escapeHtml((ev.title||"(busy)")+" · Google")}"><span class="oc-ag-time">${escapeHtml(tm)}</span><span class="oc-ag-bar" style="background:${_ivcalGoogleColor}"></span><span class="oc-ag-title">${escapeHtml(ev.title||"(busy)")}</span><span class="oc-ag-tag">Google</span></div>`;
   }
   const kindAttr = type === "session" ? "session" : "booking";
@@ -25329,7 +25366,7 @@ function _ivcalAgendaRow(ev, type) {
   const e = ev.ends_at ? new Date(ev.ends_at) : null;
   const allDay = kindAttr === "booking" && _ivcalIsAllDay(ev);
   const tm = allDay ? "All day"
-    : s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) + (e ? " – " + e.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) : "");
+    : s.toLocaleTimeString([], _ivClockOpts()) + (e ? " – " + e.toLocaleTimeString([], _ivClockOpts()) : "");
   const label = _ivcalEventLabel(ev, type);
   const cat = _ivcalCat(ev, type);
   const color = (kindAttr === "booking" && ev.metadata && ev.metadata.color) || (kindAttr === "booking" ? _ivcalCalColor(ev) : null);
@@ -25368,7 +25405,7 @@ function _ivcalYear() {
     _rrTasksAll().forEach(t => { if (!t.done && t.due && t.due.slice(0, 4) === String(year)) busy.add(t.due); });
   }
 
-  const dow = CAL_DAY_LABELS.map(d => `<span class="oc-ydow">${d[0]}</span>`).join("");
+  const dow = _ivDayLabels().map(d => `<span class="oc-ydow">${d[0]}</span>`).join("");
   let months = "";
   for (let m = 0; m < 12; m++) {
     const first = new Date(year, m, 1);
@@ -26043,6 +26080,66 @@ function _ivcalSearchIndex() {
   }
   return out;
 }
+// Personal calendar-settings popover: week start, clock, working hours.
+// Device-local (localStorage); applies on change with a re-render.
+function _ivcalSettingsMenu(btn) {
+  _ivcalCloseMenus();
+  document.getElementById("rr-ivcal-setmenu")?.remove();
+  const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  const menu = document.createElement("div");
+  menu.id = "rr-ivcal-setmenu";
+  menu.className = "oc-menu oc-setmenu";
+  menu.innerHTML = `
+    <div class="oc-set-sec">
+      <div class="oc-set-h">Week starts on</div>
+      <div class="oc-set-seg" data-set-weekstart>
+        <button class="${_ivWeekStartMon ? "" : "on"}" data-ws="sun">Sunday</button>
+        <button class="${_ivWeekStartMon ? "on" : ""}" data-ws="mon">Monday</button>
+      </div>
+    </div>
+    <div class="oc-set-sec">
+      <div class="oc-set-h">Time format</div>
+      <div class="oc-set-seg" data-set-clock>
+        <button class="${_ivClock24 ? "" : "on"}" data-ck="12">12-hour</button>
+        <button class="${_ivClock24 ? "on" : ""}" data-ck="24">24-hour</button>
+      </div>
+    </div>
+    <div class="oc-set-sec">
+      <label class="oc-set-row"><input type="checkbox" data-set-workon${_ivWork.on ? " checked" : ""}> Shade working hours</label>
+      <div class="oc-set-work${_ivWork.on ? "" : " off"}" data-set-workrow>
+        <input type="time" data-set-wstart value="${hhmm(_ivWork.start)}"> <span>to</span> <input type="time" data-set-wend value="${hhmm(_ivWork.end)}">
+      </div>
+    </div>`;
+  document.body.appendChild(menu);
+  _ivcalPlaceMenu(menu, btn);
+  const rerender = () => { _ivSavePrefs(); _ivcalRender(); };
+  menu.querySelector("[data-set-weekstart]").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-ws]"); if (!b) return;
+    _ivWeekStartMon = b.getAttribute("data-ws") === "mon";
+    menu.querySelectorAll("[data-set-weekstart] button").forEach(x => x.classList.toggle("on", x === b));
+    rerender();
+  });
+  menu.querySelector("[data-set-clock]").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-ck]"); if (!b) return;
+    _ivClock24 = b.getAttribute("data-ck") === "24";
+    menu.querySelectorAll("[data-set-clock] button").forEach(x => x.classList.toggle("on", x === b));
+    rerender();
+  });
+  const workRow = menu.querySelector("[data-set-workrow]");
+  menu.querySelector("[data-set-workon]").addEventListener("change", (e) => {
+    _ivWork.on = e.target.checked; workRow.classList.toggle("off", !_ivWork.on); rerender();
+  });
+  const readWork = () => {
+    const toMin = (v) => { const [h, m] = String(v || "").split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+    const s = toMin(menu.querySelector("[data-set-wstart]").value), en = toMin(menu.querySelector("[data-set-wend]").value);
+    if (en > s) { _ivWork.start = s; _ivWork.end = en; rerender(); }
+  };
+  menu.querySelector("[data-set-wstart]").addEventListener("change", readWork);
+  menu.querySelector("[data-set-wend]").addEventListener("change", readWork);
+  const off = (ev) => { if (!menu.contains(ev.target) && !ev.target.closest("[data-ivcal-settings]")) { menu.remove(); document.removeEventListener("mousedown", off); } };
+  setTimeout(() => document.addEventListener("mousedown", off), 0);
+}
+
 function _ivcalOpenSearch() {
   document.getElementById("rr-ivcal-search")?.remove();
   const idx = _ivcalSearchIndex();
@@ -26238,7 +26335,7 @@ function _ivcalHoverHide() { clearTimeout(_ivcalHoverTimer); _ivcalCloseHover();
 function _ivcalQuickCreate(e, dateISO, startMin) {
   _ivcalCloseMenus();
   const q = document.createElement("div"); q.className = "oc-quick";
-  const t = (min) => { const x = new Date(); x.setHours(Math.floor(min/60), min%60, 0, 0); return x.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }); };
+  const t = (min) => { const x = new Date(); x.setHours(Math.floor(min/60), min%60, 0, 0); return x.toLocaleTimeString([], _ivClockOpts()); };
   q.innerHTML = `
     <input type="text" data-oc-q-title placeholder="Add a title" autofocus>
     <div class="qt">${escapeHtml(new Date(dateISO+"T00:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))} · ${escapeHtml(t(startMin))} – ${escapeHtml(t(startMin+30))}</div>
@@ -26386,7 +26483,7 @@ const _ivcalSnap = (min) => Math.round(min / 15) * 15;
 function _ivcalColsNow() { const s = document.getElementById("rr-ivcal-scroll"); return s ? Array.from(s.querySelectorAll(".oc-col[data-ivcal-date]")) : []; }
 function _ivcalYToMin(col, clientY) { const r = col.getBoundingClientRect(); return _IVCAL_H0*60 + ((clientY - r.top) / _IVCAL_RH) * 60; }
 function _ivcalColAt(clientX) { for (const c of _ivcalColsNow()) { const r = c.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right) return c; } return null; }
-const _ivcalTStr = (min) => { const x = new Date(); x.setHours(Math.floor(min/60), ((min%60)+60)%60, 0, 0); return x.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }); };
+const _ivcalTStr = (min) => { const x = new Date(); x.setHours(Math.floor(min/60), ((min%60)+60)%60, 0, 0); return x.toLocaleTimeString([], _ivClockOpts()); };
 
 function _ivcalInstallDrag() {
   const scroll = document.getElementById("rr-ivcal-scroll");
