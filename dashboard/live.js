@@ -22680,6 +22680,27 @@ function _ivcalCat(ev, kind) {
   if (r === "declined") return "gray";
   return "blue";
 }
+
+// Display hue for an event — the color it PAINTS with on the grid. Kept
+// separate from _ivcalCat (which drives the status filters + legend, and
+// must not change) so the grid can read by calendar/kind — matching the
+// "My calendars" legend (interviews blue, orientations amber, events teal,
+// group sessions purple) — instead of by RSVP status. Precedence: a
+// per-event color (right-click recolor) → the event's custom calendar
+// color → the built-in kind color. Exception statuses keep their alarm
+// colors (no-show red, cancelled/declined gray) so problems still pop.
+function _ivcalHue(ev, type) {
+  if (type !== "session") {
+    if (ev.status === "no_show") return "#B91C1C";
+    if (ev.status === "cancelled") return "#6B7280";
+    if ((ev.rsvp || "accepted") === "declined") return "#6B7280";
+  }
+  if (ev.metadata && ev.metadata.color) return ev.metadata.color;
+  const cc = _ivcalCalColor(ev);
+  if (cc) return cc;
+  const k = type === "session" ? "session" : _ivcalEvKind(ev);
+  return _IVCAL_KIND_COLOR[k] || "#2563EB";
+}
 // Schedule-aligned palette so the calendar's category dots/tags match the
 // shift-chip colors used across the Schedule and Onboarding surfaces.
 const _IVCAL_CAT_COLOR = { blue:"#2563EB", green:"#16A34A", orange:"#B45309", gray:"#6B7280", teal:"#0D9488", red:"#B91C1C" };
@@ -25084,9 +25105,14 @@ function _ivcalEventBlock(ev, type, lay) {
   const rz = kindAttr === "booking" ? `<div class="oc-rz" data-oc-resize></div>` : "";
   // A per-event color (right-click → recolor) wins over the custom-calendar
   // color, which in turn overrides the status-based category palette.
-  const cc = (ev.metadata && ev.metadata.color) || _ivcalCalColor(ev);
-  const ccStyle = cc ? `;border-left-color:${cc};border-color:${cc}55;background:${cc}1f;color:${cc}` : "";
-  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time+" · "+label)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)}${ccStyle}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
+  // Display hue keyed to calendar/kind (see _ivcalHue) so the grid matches
+  // the My-calendars legend, surfaced as --ev-hue for the CSS to paint the
+  // fill, hairline, left rail and text from one color. Pending events get a
+  // dashed rail (.is-pending) instead of a separate hue.
+  const hue = _ivcalHue(ev, type);
+  const isPend = type !== "session" && (ev.rsvp || "accepted") === "pending"
+    && ev.status !== "no_show" && ev.status !== "cancelled";
+  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${isPend?" is-pending":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time+" · "+label)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};--ev-hue:${hue}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
 }
 
 // Side-by-side column layout: when timed events overlap, split the column so
@@ -25219,9 +25245,8 @@ function _ivcalAllDayBar(ev, type) {
   const label = _ivcalEventLabel(ev, type);
   const cat = _ivcalCat(ev, type);
   const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
-  const cc = (ev.metadata && ev.metadata.color) || _ivcalCalColor(ev);
-  const ccStyle = cc ? `border-left-color:${cc};background:${cc}1f;color:${cc}` : "";
-  return `<div class="oc-adbar cat-${cat}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml("All day · " + label)}" style="${ccStyle}" title="${escapeHtml("All day · " + label)}"><span class="oc-adbar-t">${escapeHtml(label)}</span></div>`;
+  const hue = _ivcalHue(ev, type);
+  return `<div class="oc-adbar cat-${cat}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml("All day · " + label)}" style="--ev-hue:${hue}" title="${escapeHtml("All day · " + label)}"><span class="oc-adbar-t">${escapeHtml(label)}</span></div>`;
 }
 function _ivcalGoogleAllDayBar(ge) {
   return `<div class="oc-adbar oc-adbar-google" data-ivcal-glink="${escapeHtml(ge.htmlLink || "")}" style="color:${_ivcalGoogleColor};border-left-color:${_ivcalGoogleColor};background:${_ivcalGoogleColor}1a" title="${escapeHtml((ge.title || "(busy)") + " · all day · Google")}"><span class="oc-pdot" style="background:${_ivcalGoogleColor}"></span><span class="oc-adbar-t">${escapeHtml(ge.title || "(busy)")}</span></div>`;
@@ -25261,7 +25286,8 @@ function _ivcalTimeGrid(ndays) {
     const n = _ivcalDayItems(d, (_ivcalCache && _ivcalCache.bookings) || [], "starts_at")
       .filter(b => _ivcalFilterOk(b, "booking") && !_ivcalIsAllDay(b)).length;
     const meta = n ? `${n} interview${n === 1 ? "" : "s"}` : "—";
-    return `<div class="oc-dh${isToday?" today":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta">${meta}</div></div>`;
+    const _wk = d.getDay() === 0 || d.getDay() === 6;
+    return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta">${meta}</div></div>`;
   }).join("");
 
   let gutter = "";
@@ -25324,7 +25350,8 @@ function _ivcalTimeGrid(ndays) {
       if (ws > h0) workShade += `<div class="oc-offhrs" style="top:0;height:${_ivcalYpos(ws)}px"></div>`;
       if (we < h1) workShade += `<div class="oc-offhrs" style="top:${_ivcalYpos(we)}px;height:${_ivcalYpos(h1) - _ivcalYpos(we)}px"></div>`;
     }
-    return `<div class="oc-col${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${workShade}${shade}${lines}${nowLine}${evs}</div>`;
+    const _wk = d.getDay() === 0 || d.getDay() === 6;
+    return `<div class="oc-col${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${workShade}${shade}${lines}${nowLine}${evs}</div>`;
   }).join("");
 
   // All-day lane · one horizontal cell per day, pinned with the day headers.
@@ -25374,8 +25401,8 @@ function _ivcalMonth() {
     const out = d.getMonth() !== a.getMonth();
     const isToday = d.getTime() === today.getTime();
     const items = [];
-    _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => { if (_ivcalFilterOk(s,"session")) items.push({ t:new Date(s.starts_at), label:_ivcalEventLabel(s,"session"), cat:_ivcalCat(s,"session"), kind:"session", id:s.id, declined:false }); });
-    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ t:new Date(b.starts_at), label:_ivcalEventLabel(b,"booking"), cat:_ivcalCat(b,"booking"), kind:"booking", id:b.id, declined:(b.rsvp==="declined"), color:((b.metadata && b.metadata.color) || _ivcalCalColor(b)) }); });
+    _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => { if (_ivcalFilterOk(s,"session")) items.push({ t:new Date(s.starts_at), label:_ivcalEventLabel(s,"session"), cat:_ivcalCat(s,"session"), kind:"session", id:s.id, declined:false, hue:_ivcalHue(s,"session") }); });
+    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ t:new Date(b.starts_at), label:_ivcalEventLabel(b,"booking"), cat:_ivcalCat(b,"booking"), kind:"booking", id:b.id, declined:(b.rsvp==="declined"), hue:_ivcalHue(b,"booking"), pending:((b.rsvp||"accepted")==="pending" && b.status!=="no_show" && b.status!=="cancelled") }); });
     if (_ivcalGoogleVisible()) {
       _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt").forEach(ge => { items.push({ t:new Date(ge.sortAt), label:ge.title || "(busy)", google:true, link:ge.htmlLink || "", allDay:ge.allDay }); });
     }
@@ -25387,9 +25414,10 @@ function _ivcalMonth() {
       }
       const tm = it.t.toLocaleTimeString([], _ivClockOpts());
       const sel = _ivcalSelected && _ivcalSelected.kind === it.kind && String(_ivcalSelected.id) === String(it.id);
-      const dotStyle = it.color ? ` style="background:${it.color}"` : "";
-      const pillStyle = it.color ? ` style="color:${it.color}"` : "";
-      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${sel?" sel":""}"${pillStyle} data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" tabindex="0" role="button" aria-label="${escapeHtml(tm+" "+it.label)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"${dotStyle}></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
+      // One hue drives the dot (and the pending dashed ring) via --ev-hue so
+      // the month dot matches the My-calendars legend and the week grid.
+      const hueVar = it.hue ? ` style="--ev-hue:${it.hue}"` : "";
+      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${it.pending?" is-pending":""}${sel?" sel":""}"${hueVar} data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" tabindex="0" role="button" aria-label="${escapeHtml(tm+" "+it.label)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
     };
     // Open team tasks due this day sit above the event pills (max 2
     // chips; the rest fold into the "+N more" count).
@@ -25399,7 +25427,8 @@ function _ivcalMonth() {
     const moreN = Math.max(0, items.length - maxPills) + Math.max(0, dayTasks.length - 2);
     const more = moreN > 0 ? `<div class="oc-more">+${moreN} more</div>` : "";
     const pillsHtml = items.slice(0, maxPills).map((it) => pillHtml(it)).join("");
-    cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${tChips}${pillsHtml}${more}</div>`;
+    const _wk = d.getDay() === 0 || d.getDay() === 6;
+    cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${tChips}${pillsHtml}${more}</div>`;
   }
   return `<div class="oc-cal"><div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-mhead">${dowHead}</div><div class="oc-mgrid">${cells}</div></div></div>`;
 }
@@ -25459,8 +25488,8 @@ function _ivcalAgendaRow(ev, type) {
     : s.toLocaleTimeString([], _ivClockOpts()) + (e ? " – " + e.toLocaleTimeString([], _ivClockOpts()) : "");
   const label = _ivcalEventLabel(ev, type);
   const cat = _ivcalCat(ev, type);
-  const color = (kindAttr === "booking" && ev.metadata && ev.metadata.color) || (kindAttr === "booking" ? _ivcalCalColor(ev) : null);
-  const barStyle = color ? ` style="background:${color}"` : "";
+  // Color rail keyed to the event's calendar/kind (matches the legend + grid).
+  const barStyle = ` style="background:${_ivcalHue(ev, type)}"`;
   const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
   const isTask = kindAttr === "booking" && ev.metadata && ev.metadata.is_task;
   const done = isTask && ev.metadata.task_done;
