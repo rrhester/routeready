@@ -21771,9 +21771,60 @@ function _ivcalMyCalendars() {
     <div class="oc-cals-h"><span>Connected calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
     <div class="oc-cals-grp">${builtin}${availRow}</div>
     ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
+    <button type="button" class="oc-cals-feed" data-ivcal-feedall title="Subscribe to this calendar from Google, Apple or Outlook">🔗 Subscribe in another calendar app…</button>
     ${_ivcalGoogleRow()}
     ${_ivcalLegend()}
   </div>`;
+}
+
+// Subscribe-feed dialog: mints (or fetches) the scope's token via
+// calendar_feed_link and shows copyable https + webcal URLs. Revoke kills
+// the URL; reopening mints a fresh one (rotation).
+async function _ivcalFeedDialog(cal) {
+  let token;
+  try {
+    const { data, error } = await sb.rpc("calendar_feed_link", cal ? { p_calendar_id: cal.id } : {});
+    if (error) throw error;
+    token = data;
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    toast(/calendar_feed_link/.test(msg) ? "Subscribe feeds need the latest database migration (0433)" : "Couldn't create the feed link: " + msg, "warn");
+    return;
+  }
+  const httpsUrl = `${window.RR_CONFIG.SUPABASE_URL}/functions/v1/calendar-feed?t=${token}`;
+  const webcalUrl = httpsUrl.replace(/^https:/, "webcal:");
+  const scope = cal ? `“${cal.name}”` : "all RouteReady events";
+  const back = document.createElement("div");
+  back.className = "rr-invite-confirm-back";
+  back.innerHTML = `<div class="rr-invite-confirm" role="dialog" aria-modal="true" aria-label="Subscribe link" style="max-width:520px">
+    <div class="rr-ic-title">Subscribe to ${escapeHtml(scope)}</div>
+    <div style="font-size:13px;color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">Paste this URL into Google Calendar (Other calendars → From URL), Apple Calendar (File → New Calendar Subscription) or Outlook (Add calendar → Subscribe from web). Read-only; updates roll in on the app's refresh schedule. Anyone with the link can view.</div>
+    <input type="text" readonly value="${escapeHtml(httpsUrl)}" style="width:100%;font-size:12px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px" onclick="this.select()">
+    <div class="rr-ic-acts" style="flex-wrap:wrap">
+      <button type="button" class="rr-ic-btn rr-ic-link" data-fd="revoke" title="Kill this URL — a new one is minted next time">Revoke link</button>
+      <span style="flex:1"></span>
+      <button type="button" class="rr-ic-btn rr-ic-link" data-fd="webcal">Copy webcal://</button>
+      <button type="button" class="rr-ic-btn rr-ic-send" data-fd="copy">Copy link</button>
+    </div>
+  </div>`;
+  document.body.appendChild(back);
+  const done = () => { back.remove(); document.removeEventListener("keydown", onKey, true); };
+  function onKey(ev) { if (ev.key === "Escape") { ev.stopPropagation(); done(); } }
+  document.addEventListener("keydown", onKey, true);
+  back.addEventListener("click", async (ev) => {
+    const b = ev.target.closest("[data-fd]");
+    if (!b) { if (ev.target === back) done(); return; }
+    const act = b.getAttribute("data-fd");
+    if (act === "copy" || act === "webcal") {
+      try { await navigator.clipboard.writeText(act === "webcal" ? webcalUrl : httpsUrl); toast("Link copied", "success"); } catch (_) { toast("Copy failed — select the URL and copy manually", "warn"); }
+    } else if (act === "revoke") {
+      try {
+        const { error } = await sb.rpc("calendar_feed_revoke", cal ? { p_calendar_id: cal.id } : {});
+        if (error) throw error;
+        toast("Feed link revoked — subscribers lose access", "success"); done();
+      } catch (e2) { toast("Couldn't revoke: " + ((e2 && e2.message) || e2), "warn"); }
+    }
+  });
 }
 
 // Preview what an applicant sees for a schedule — loads the public booking
@@ -22045,10 +22096,11 @@ function _ivcalCalendarMenu(e, id) {
   if (!cal) return;
   const menu = document.createElement("div");
   menu.className = "oc-menu";
-  menu.innerHTML = `<button data-cm="edit">Edit calendar…</button><button data-cm="delete" class="danger">Delete calendar</button>`;
+  menu.innerHTML = `<button data-cm="edit">Edit calendar…</button><button data-cm="feed">Subscribe link…</button><button data-cm="delete" class="danger">Delete calendar</button>`;
   document.body.appendChild(menu);
   _ivcalPlaceMenu(menu, (e.target && e.target.closest("[data-ivcal-calmenu]")) || e.target);
   menu.querySelector('[data-cm="edit"]').onclick = () => { _ivcalCloseMenus(); _ivcalCalendarDialog(cal); };
+  menu.querySelector('[data-cm="feed"]').onclick = () => { _ivcalCloseMenus(); _ivcalFeedDialog(cal); };
   menu.querySelector('[data-cm="delete"]').onclick = () => { _ivcalCloseMenus(); _ivcalDeleteCalendar(cal); };
   const off = (ev) => { if (!menu.contains(ev.target)) { _ivcalCloseMenus(); document.removeEventListener("mousedown", off); } };
   setTimeout(() => document.addEventListener("mousedown", off), 0);
@@ -22630,6 +22682,7 @@ function _ivcalRender() {
     if (typeof window.obSub === "function") window.obSub("funnel");
   });
   host.querySelectorAll("[data-ivcal-addcal]").forEach(b => b.onclick = (e) => { e.stopPropagation(); _ivcalCalendarDialog(null); });
+  host.querySelectorAll("[data-ivcal-feedall]").forEach(b => b.onclick = (e) => { e.stopPropagation(); _ivcalFeedDialog(null); });
   host.querySelectorAll("[data-ivcal-calmenu]").forEach(b => b.onclick = (e) => {
     e.stopPropagation(); _ivcalCalendarMenu(e, b.getAttribute("data-ivcal-calmenu"));
   });
