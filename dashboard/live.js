@@ -62913,6 +62913,19 @@ function _condValueLabel(triggerField, value) {
 }
 
 let _formSubmCache = [];
+// Client-side filter state for the Submissions tab. list_form_submissions
+// returns the whole tenant's submissions in one shot, so filtering + CSV
+// export run over the cache without extra round-trips.
+let _formSubmFilter = { formId: "", status: "", flagged: "", q: "", since: "", until: "" };
+
+// Triage states + their display label / accent. Mirrors the values the
+// form_review_submission RPC (0440) accepts.
+const _SUBM_STATUS = {
+  submitted: { label: "Submitted",       color: "var(--text-muted)" },
+  reviewed:  { label: "Reviewed",        color: "var(--green-dark, #15803d)" },
+  follow_up: { label: "Needs follow-up", color: "var(--amber-dark, #b45309)" },
+  resolved:  { label: "Resolved",        color: "var(--text-subtle)" },
+};
 
 // Submission detail modal — opened by the "View" button on a submission row.
 async function openSubmissionDetail(submId) {
@@ -62930,7 +62943,19 @@ async function openSubmissionDetail(submId) {
         <div><p class="modal-title">${escapeHtml(s.form_title || "Form")}</p><p class="modal-sub">${escapeHtml(s.driver_name || "Driver")} · ${escapeHtml(when)}${s.flagged ? " · ⚑ flagged" : ""}</p></div>
         <button class="modal-close" type="button" data-rr-subm-close aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
-      <div class="modal-body" id="rr-subm-detail-body" style="max-height:70vh;overflow-y:auto"><div class="rr-loading">Loading</div></div>
+      <div class="modal-body" id="rr-subm-detail-body" style="max-height:52vh;overflow-y:auto"><div class="rr-loading">Loading</div></div>
+      <div class="subm-review-foot">
+        <div class="subm-review-row">
+          <select class="forms-toolbar-select" id="rr-subm-status">
+            ${Object.entries(_SUBM_STATUS).map(([k, v]) => `<option value="${k}" ${(s.status || "submitted") === k ? "selected" : ""}>${escapeHtml(v.label)}</option>`).join("")}
+          </select>
+          <label class="subm-review-flag"><input type="checkbox" id="rr-subm-flag" ${s.flagged ? "checked" : ""}/> Flag</label>
+        </div>
+        <textarea class="field-prop-input" id="rr-subm-notes" rows="2" placeholder="Add a note (optional)">${escapeHtml(s.notes || "")}</textarea>
+        <div class="subm-review-actions">
+          <button class="btn btn-sm btn-primary" type="button" data-rr-subm-save="${escapeHtml(s.id)}">Save review</button>
+        </div>
+      </div>
     </div>`;
   document.body.appendChild(overlay);
   document.body.style.overflow = "hidden";
@@ -62972,8 +62997,7 @@ async function openSubmissionDetail(submId) {
   if (!body) return;
   body.innerHTML = (orderedKeys.length === 0
     ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No answers recorded.</div>`
-    : `<div style="display:flex;flex-direction:column;gap:var(--s-3)">${orderedKeys.map(k => `<div><div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">${escapeHtml(labelOf.get(k) || k)}</div><div style="font-size:var(--fs-md)">${fmtVal(ans[k], fieldById.get(k))}</div></div>`).join("")}</div>`)
-    + (s.notes ? `<div style="margin-top:14px;padding:var(--s-2-5) var(--s-3);background:var(--canvas);border-radius:8px;font-size:var(--fs-sm);color:var(--text-muted)"><strong>Notes:</strong> ${escapeHtml(s.notes)}</div>` : "");
+    : `<div style="display:flex;flex-direction:column;gap:var(--s-3)">${orderedKeys.map(k => `<div><div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">${escapeHtml(labelOf.get(k) || k)}</div><div style="font-size:var(--fs-md)">${fmtVal(ans[k], fieldById.get(k))}</div></div>`).join("")}</div>`);
 }
 
 async function loadFormSubmissions() {
@@ -62985,31 +63009,167 @@ async function loadFormSubmissions() {
     list.innerHTML = `<div class="rr-empty-inline" style="color:var(--red)">Couldn't load submissions: ${escapeHtml(error.message)}</div>`;
     return;
   }
-  const subs = data || [];
-  _formSubmCache = subs;
-  if (subs.length === 0) {
+  _formSubmCache = data || [];
+  _renderSubmTab();
+}
+
+// Apply the current filter to the cache.
+function _submFiltered() {
+  const f = _formSubmFilter;
+  const q = (f.q || "").trim().toLowerCase();
+  const sinceMs = f.since ? new Date(f.since + "T00:00:00").getTime() : null;
+  const untilMs = f.until ? new Date(f.until + "T23:59:59").getTime() : null;
+  return _formSubmCache.filter(s => {
+    if (f.formId && s.form_id !== f.formId) return false;
+    if (f.status && (s.status || "submitted") !== f.status) return false;
+    if (f.flagged === "yes" && !s.flagged) return false;
+    if (f.flagged === "no" && s.flagged) return false;
+    if (q && !`${s.form_title || ""} ${s.driver_name || ""}`.toLowerCase().includes(q)) return false;
+    if (sinceMs || untilMs) {
+      const t = s.submitted_at ? new Date(s.submitted_at).getTime() : 0;
+      if (sinceMs && t < sinceMs) return false;
+      if (untilMs && t > untilMs) return false;
+    }
+    return true;
+  });
+}
+
+// Filter bar + export + rows container. Rendered once per tab load; the
+// rows re-render in place as filters change (no refetch).
+function _renderSubmTab() {
+  const list = document.getElementById("rr-subm-list");
+  if (!list) return;
+  if (_formSubmCache.length === 0) {
     list.innerHTML = `<div class="rr-empty-inline">Submissions will appear here once drivers start filling out published forms.</div>`;
     return;
   }
-  const rows = subs.map(s => {
+  // Distinct forms present, for the form filter.
+  const forms = [];
+  const seenF = new Set();
+  _formSubmCache.forEach(s => {
+    if (s.form_id && !seenF.has(s.form_id)) { seenF.add(s.form_id); forms.push({ id: s.form_id, title: s.form_title || "Form" }); }
+  });
+  forms.sort((a, b) => a.title.localeCompare(b.title));
+  const f = _formSubmFilter;
+  const opt = (v, label, sel) => `<option value="${escapeHtml(v)}" ${sel === v ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  list.innerHTML = `
+    <div class="subm-filterbar">
+      <input type="search" class="forms-toolbar-select" data-rr-subm-filter="q" placeholder="Search form or driver" value="${escapeHtml(f.q || "")}" style="min-width:160px"/>
+      <select class="forms-toolbar-select" data-rr-subm-filter="formId">
+        ${opt("", "All forms", f.formId)}${forms.map(fm => opt(fm.id, fm.title, f.formId)).join("")}
+      </select>
+      <select class="forms-toolbar-select" data-rr-subm-filter="status">
+        ${opt("", "Any status", f.status)}${Object.entries(_SUBM_STATUS).map(([k, v]) => opt(k, v.label, f.status)).join("")}
+      </select>
+      <select class="forms-toolbar-select" data-rr-subm-filter="flagged">
+        ${opt("", "Flagged: any", f.flagged)}${opt("yes", "Flagged only", f.flagged)}${opt("no", "Not flagged", f.flagged)}
+      </select>
+      <label class="subm-filter-date">From <input type="date" data-rr-subm-filter="since" value="${escapeHtml(f.since || "")}"/></label>
+      <label class="subm-filter-date">To <input type="date" data-rr-subm-filter="until" value="${escapeHtml(f.until || "")}"/></label>
+      <button class="btn btn-sm" type="button" data-rr-subm-export title="Download the filtered submissions as CSV">Export CSV</button>
+    </div>
+    <div id="rr-subm-rows"></div>`;
+  _renderSubmRows();
+}
+
+function _renderSubmRows() {
+  const host = document.getElementById("rr-subm-rows");
+  if (!host) return;
+  const rows = _submFiltered();
+  if (rows.length === 0) {
+    host.innerHTML = `<div class="rr-empty-inline">No submissions match these filters.</div>`;
+    return;
+  }
+  const body = rows.map(s => {
     const when = s.submitted_at ? new Date(s.submitted_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
     const answerCount = s.answers && typeof s.answers === "object" ? Object.keys(s.answers).length : 0;
+    const st = _SUBM_STATUS[s.status] || _SUBM_STATUS.submitted;
+    const flag = s.flagged ? `<span title="Flagged" style="color:var(--red);margin-right:4px">⚑</span>` : "";
     return `
       <div class="subm-row" data-rr-subm-id="${escapeHtml(s.id)}">
         <div class="form-card-icon" style="width:32px;height:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
-        <div><div class="subm-form-name">${escapeHtml(s.form_title || "Form")} · ${escapeHtml(s.driver_name || "Driver")}</div><div class="subm-form-meta">${answerCount} answer${answerCount === 1 ? "" : "s"}</div></div>
-        <span class="subm-status complete">${escapeHtml(s.status || "submitted")}</span>
+        <div><div class="subm-form-name">${flag}${escapeHtml(s.form_title || "Form")} · ${escapeHtml(s.driver_name || "Driver")}</div><div class="subm-form-meta">${answerCount} answer${answerCount === 1 ? "" : "s"}</div></div>
+        <span class="subm-status" style="color:${st.color}">${escapeHtml(st.label)}</span>
         <div class="cell-time">${escapeHtml(when)}</div>
         <button class="btn btn-sm" type="button" data-rr-subm-view="${escapeHtml(s.id)}">View</button>
       </div>`;
   }).join("");
-  list.innerHTML = `
+  host.innerHTML = `
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:0 0 8px">${rows.length} of ${_formSubmCache.length} submission${_formSubmCache.length === 1 ? "" : "s"}</div>
     <div class="card card-flush">
       <div class="subm-row" style="background:var(--canvas);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;cursor:default">
         <div></div><div>Form · Driver</div><div>Status</div><div>Submitted</div><div></div>
       </div>
-      ${rows}
+      ${body}
     </div>`;
+}
+
+// Plain-text cell for CSV — collapses signatures/photos/gps/arrays.
+function _submCsvCell(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return v.startsWith("data:image") ? "[signature]" : v;
+  if (Array.isArray(v)) return v.join("; ");
+  if (typeof v === "object") {
+    if (v.name || v.path) return v.name || v.path;
+    if ("lat" in v && "lng" in v) return `${v.lat},${v.lng}`;
+    return JSON.stringify(v);
+  }
+  return String(v);
+}
+function _csvEscape(s) {
+  s = String(s == null ? "" : s);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// Export the currently-filtered submissions to CSV. Answer columns are
+// labelled from each form's field definitions (fetched once per distinct
+// form) so the file reads like the form, not raw field ids.
+async function _exportSubmissionsCsv() {
+  const rows = _submFiltered();
+  if (!rows.length) { toast("No submissions to export", "warn"); return; }
+  const formIds = [...new Set(rows.map(r => r.form_id))];
+  const labelMaps = {};
+  await Promise.all(formIds.map(async fid => {
+    try {
+      const { data: fm } = await sb.rpc("get_form", { p_id: fid });
+      const m = {};
+      (fm?.fields || []).forEach(fld => {
+        if (fld.id && !["section_header", "divider", "instructions"].includes(fld.type)) m[fld.id] = fld.label || fld.id;
+      });
+      labelMaps[fid] = m;
+    } catch { labelMaps[fid] = {}; }
+  }));
+  // Union of answer columns (keyed by field id — ids are unique per form).
+  const cols = [];
+  const seen = new Set();
+  rows.forEach(r => {
+    const m = labelMaps[r.form_id] || {};
+    Object.keys(r.answers || {}).forEach(id => {
+      if (!seen.has(id)) { seen.add(id); cols.push({ id, label: m[id] || id }); }
+    });
+  });
+  const header = ["Form", "Driver", "Submitted", "Status", "Flagged", "Notes", ...cols.map(c => c.label)];
+  const lines = [header.map(_csvEscape).join(",")];
+  rows.forEach(r => {
+    const base = [
+      r.form_title || "",
+      r.driver_name || "",
+      r.submitted_at ? new Date(r.submitted_at).toISOString() : "",
+      (_SUBM_STATUS[r.status] || _SUBM_STATUS.submitted).label,
+      r.flagged ? "yes" : "no",
+      r.notes || "",
+    ];
+    const ans = cols.map(c => _submCsvCell((r.answers || {})[c.id]));
+    lines.push([...base, ...ans].map(_csvEscape).join(","));
+  });
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `form-submissions-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast(`Exported ${rows.length} submission${rows.length === 1 ? "" : "s"}`, "ok");
 }
 
 async function loadFormsList() {
@@ -64301,6 +64461,37 @@ document.addEventListener("click", async (e) => {
     await openSubmissionDetail(sv.getAttribute("data-rr-subm-view"));
     return;
   }
+  // Export the filtered submissions to CSV.
+  if (e.target.closest("[data-rr-subm-export]")) {
+    e.preventDefault();
+    await _exportSubmissionsCsv();
+    return;
+  }
+  // Save a submission review (status / flag / notes).
+  const svSave = e.target.closest("[data-rr-subm-save]");
+  if (svSave) {
+    e.preventDefault();
+    const id = svSave.getAttribute("data-rr-subm-save");
+    const status  = document.getElementById("rr-subm-status")?.value || "submitted";
+    const flagged = !!document.getElementById("rr-subm-flag")?.checked;
+    const notes   = document.getElementById("rr-subm-notes")?.value || "";
+    svSave.disabled = true; svSave.textContent = "Saving…";
+    const { data, error } = await sb.rpc("form_review_submission", {
+      p_id: id, p_status: status, p_flagged: flagged, p_notes: notes,
+    });
+    if (error) {
+      svSave.disabled = false; svSave.textContent = "Save review";
+      toast("Couldn't save review: " + escapeHtml(error.message), "warn");
+      return;
+    }
+    const idx = _formSubmCache.findIndex(x => x.id === id);
+    if (idx >= 0) _formSubmCache[idx] = { ..._formSubmCache[idx], status: data.status, flagged: data.flagged, notes: data.notes };
+    toast("Review saved", "ok");
+    document.getElementById("rr-subm-detail-modal")?.remove();
+    document.body.style.overflow = "";
+    _renderSubmRows();
+    return;
+  }
   // Open builder in EDIT mode
   const card = e.target.closest("[data-rr-form-edit]");
   if (card) {
@@ -64535,6 +64726,15 @@ document.addEventListener("change", (e) => {
   _renderBuilderProps();
   _renderBuilderCanvas();
   _renderBuilderPreview();
+});
+
+// Submissions-tab filter controls → update filter state + re-render rows.
+document.addEventListener("input", (e) => {
+  const filterEl = e.target.closest("[data-rr-subm-filter]");
+  if (filterEl) {
+    const key = filterEl.getAttribute("data-rr-subm-filter");
+    if (key in _formSubmFilter) { _formSubmFilter[key] = filterEl.value; _renderSubmRows(); }
+  }
 });
 
 // Inputs in the props panel update _formsState in place.
