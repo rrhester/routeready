@@ -1175,8 +1175,9 @@
   // cache live.js exposes — window.rrGetForms() / window._formsCache,
   // populated by loadFormsList). The panel chrome (header, search,
   // trigger chips, pagination) lives in view-schedule.frag; this module
-  // owns the card render + the search / chip / page state and re-renders
-  // on change. If the cache is cold we trigger a load (only works when
+  // owns the card render, the search / chip / page state, and the per-card
+  // ⋮ menu (Edit / Delete — delete goes through the delete_form RPC) and
+  // re-renders on change. If the cache is cold we trigger a load (only works when
   // the forms view grid is mounted) and re-render; otherwise we show a
   // clean empty state — never placeholder rows.
   var RR_FTOOL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12l2 2 4-4"/></svg>';
@@ -1257,8 +1258,68 @@
       +     '<div class="rr-fp-card-sub">' + rrFpEsc(trigger) + ' • Driver App</div>'
       +     '<div class="rr-fp-card-meta">' + meta + '</div>'
       +   '</div>'
-      +   '<button type="button" class="rr-fp-card-dots" data-rr-fp-cardmenu title="More" aria-label="Form options">' + RR_FP_DOTS + '</button>'
+      +   '<button type="button" class="rr-fp-card-dots" data-rr-fp-cardmenu aria-haspopup="menu" aria-expanded="false" title="More" aria-label="Form options">' + RR_FP_DOTS + '</button>'
       + '</div>';
+  }
+  // ── Three-dot card menu (Edit / Delete) ───────────────────────────────
+  // Reuses the checklist panel's .rr-clf-menu dropdown styling (scoped to
+  // #rr-util-rail-mount, which hosts this panel too); rr-fp-menu is the JS
+  // hook so the two panels' handlers never cross. Delete calls the same
+  // delete_form RPC the Forms workspace grid uses, then drops the form from
+  // the shared live cache and repaints.
+  function rrFpCloseMenus(){
+    var menus = document.querySelectorAll('#rr-sched-forms .rr-fp-menu');
+    for (var i = 0; i < menus.length; i++) menus[i].remove();
+    var cards = document.querySelectorAll('#rr-sched-forms .rr-fp-card--menu-open');
+    for (var j = 0; j < cards.length; j++) cards[j].classList.remove('rr-fp-card--menu-open');
+    var dots = document.querySelectorAll('#rr-sched-forms [data-rr-fp-cardmenu][aria-expanded="true"]');
+    for (var k = 0; k < dots.length; k++) dots[k].setAttribute('aria-expanded', 'false');
+  }
+  function rrFpOpenMenu(btn){
+    rrFpCloseMenus();
+    var card = btn.closest('.rr-fp-card');
+    if (!card) return;
+    var id = card.getAttribute('data-rr-fp-id') || '';
+    var menu = document.createElement('div');
+    menu.className = 'rr-clf-menu rr-fp-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML =
+        '<button type="button" role="menuitem" data-rr-fp-menu="edit" data-id="' + rrFpEsc(id) + '">Edit</button>'
+      + '<button type="button" role="menuitem" class="rr-clf-menu-danger" data-rr-fp-menu="delete" data-id="' + rrFpEsc(id) + '">Delete</button>';
+    // The card's :hover transform creates a stacking context that would trap
+    // the absolutely-positioned menu behind later sibling cards — elevate the
+    // card while its menu is open (same trick as the checklist panel).
+    card.classList.add('rr-fp-card--menu-open');
+    card.appendChild(menu);
+    btn.setAttribute('aria-expanded', 'true');
+  }
+  function rrFpDeleteForm(id){
+    if (!id) return;
+    var forms = rrFtoolGetForms();
+    var form = null;
+    for (var i = 0; i < forms.length; i++) { if (forms[i] && forms[i].id === id) { form = forms[i]; break; } }
+    var title = (form && form.title) || 'this form';
+    if (!window.confirm('Delete "' + title + '"? Its submissions are removed too. This can\'t be undone.')) return;
+    var sb = (typeof window !== 'undefined') ? window.sb : null;
+    if (!sb || typeof sb.rpc !== 'function') { toast('Not signed in yet — try again in a moment.', 'warn'); return; }
+    sb.rpc('delete_form', { p_id: id }).then(function(res){
+      if (res && res.error) { toast('Delete failed: ' + res.error.message, 'warn'); return; }
+      // Drop the form from the live cache IN PLACE — window._formsCache is
+      // the same array rrGetForms() returns, so splicing here updates every
+      // rail consumer — then repaint this panel and, when the Forms view
+      // grid is mounted, do a full refresh (loadFormsList no-ops otherwise).
+      try {
+        var cache = window._formsCache;
+        if (Array.isArray(cache)) {
+          for (var c = cache.length - 1; c >= 0; c--) { if (cache[c] && cache[c].id === id) cache.splice(c, 1); }
+        }
+      } catch (_) {}
+      toast('Form deleted', 'success');
+      rrFtoolRender();
+      try { if (document.getElementById('rr-forms-grid') && typeof window.loadFormsList === 'function') window.loadFormsList(); } catch (_) {}
+    }, function(err){
+      toast('Delete failed: ' + ((err && err.message) ? err.message : 'network error'), 'warn');
+    });
   }
   // Apply current search + chip filter to the live forms.
   function rrFpFilter(forms){
@@ -1330,6 +1391,9 @@
   });
   // Click delegation for chips, pager, the three-dot menu, and card open.
   document.addEventListener('click', function(e){
+    // Any click that isn't the ⋮ toggle or inside an open card menu
+    // dismisses the menu (the toggle branch below manages its own state).
+    if (!(e.target.closest && (e.target.closest('#rr-sched-forms [data-rr-fp-cardmenu]') || e.target.closest('#rr-sched-forms .rr-fp-menu')))) rrFpCloseMenus();
     // Filter chip → set active trigger, reset to page 1.
     var chip = e.target.closest && e.target.closest('#rr-fp-chips .rr-fp-chip');
     if (chip) {
@@ -1359,14 +1423,40 @@
       if (typeof window._rrNtPanelCloseAll === 'function') window._rrNtPanelCloseAll();
       return;
     }
-    // Three-dot card menu / toolbar stubs — visual only, swallow the click
-    // so it never falls through to opening the form. Use
+    // Three-dot card menu → toggle the Edit/Delete dropdown. Use
     // stopImmediatePropagation (not just stopPropagation): live.js registers
     // its own document-level [data-rr-form-edit] click listener AFTER this
     // one (mock-wiring.js loads first), and stopPropagation would NOT prevent
     // a sibling listener on the same node from firing — so the ⋮ would still
     // open the editor. stopImmediatePropagation blocks live.js's listener.
-    if (e.target.closest && e.target.closest('#rr-sched-forms [data-rr-fp-cardmenu], #rr-sched-forms [data-rr-fp-newmenu], #rr-sched-forms [data-rr-fp-trig], #rr-sched-forms [data-rr-fp-opt]')) {
+    var fpDots = e.target.closest && e.target.closest('#rr-sched-forms [data-rr-fp-cardmenu]');
+    if (fpDots) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      var fpDotsCard = fpDots.closest('.rr-fp-card');
+      var fpOpenMenu = fpDotsCard && fpDotsCard.querySelector('.rr-fp-menu');
+      rrFpCloseMenus();
+      if (!fpOpenMenu) rrFpOpenMenu(fpDots);
+      return;
+    }
+    // Menu actions: Edit re-drives the card's own open path (synthetic click
+    // → panel closes → live.js's [data-rr-form-edit] listener opens the
+    // builder); Delete confirms, then calls the delete_form RPC.
+    var fpAct = e.target.closest && e.target.closest('#rr-sched-forms [data-rr-fp-menu]');
+    if (fpAct) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      var fpActCard = fpAct.closest('.rr-fp-card');
+      var fpAction = fpAct.getAttribute('data-rr-fp-menu');
+      var fpId = fpAct.getAttribute('data-id') || '';
+      rrFpCloseMenus();
+      if (fpAction === 'edit' && fpActCard) fpActCard.click();
+      else if (fpAction === 'delete') rrFpDeleteForm(fpId);
+      return;
+    }
+    // Remaining toolbar stubs (new-form caret, trigger dropdown, view
+    // options) — visual only, swallow the click so it never falls through.
+    if (e.target.closest && e.target.closest('#rr-sched-forms [data-rr-fp-newmenu], #rr-sched-forms [data-rr-fp-trig], #rr-sched-forms [data-rr-fp-opt]')) {
       e.preventDefault();
       e.stopImmediatePropagation();
       return;
@@ -1388,10 +1478,12 @@
   // the rail and lets live.js's [data-rr-form-edit] listener open the form)
   // is reused verbatim — no divergent open logic.
   document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') { rrFpCloseMenus(); return; }
     if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
     if (!e.target.closest) return;
-    // Don't intercept keys aimed at the ⋮ button — let it behave as a button.
-    if (e.target.closest('#rr-sched-forms [data-rr-fp-cardmenu]')) return;
+    // Don't intercept keys aimed at the ⋮ button or its dropdown — let them
+    // behave as native buttons.
+    if (e.target.closest('#rr-sched-forms [data-rr-fp-cardmenu]') || e.target.closest('#rr-sched-forms .rr-fp-menu')) return;
     var card = e.target.closest('#rr-sched-forms-list .rr-fp-card');
     if (!card) return;
     e.preventDefault(); // stop Space from scrolling the panel
