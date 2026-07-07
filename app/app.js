@@ -2781,7 +2781,11 @@ function renderTasksHub() {
   // Failures surface as an inline diagnostic instead of being
   // swallowed; "no forms yet" stays silent (no visual noise on
   // tenants that haven't published anything).
-  sb.rpc("driver_list_forms", { p_token: session.token }).then(({ data, error }) => {
+  // Flush any submissions queued while offline now that the hub — and
+  // likely the network — is available again (guarded + silent).
+  _formFlushQueue({ silent: true });
+
+  sb.rpc("driver_list_forms", { p_token: session.token }).then(async ({ data, error }) => {
     const slot = document.getElementById("rr-tasks-forms-slot");
     if (!slot) return;
     if (error) {
@@ -2792,8 +2796,13 @@ function renderTasksHub() {
       return;
     }
     const forms = Array.isArray(data) ? data : [];
-    if (forms.length === 0) return;
-    slot.innerHTML = `<div class="wt-sec">Forms<span class="wt-sec-n">${forms.length}</span></div>` + forms.map(f => {
+    let queued = 0;
+    try { queued = await _formQueueCount(); } catch {}
+    if (forms.length === 0 && queued === 0) return;
+    const queuedNote = queued > 0
+      ? `<div class="wt-form-pending">${queued} form${queued === 1 ? "" : "s"} waiting to sync — will submit automatically.</div>`
+      : "";
+    slot.innerHTML = `<div class="wt-sec">Forms<span class="wt-sec-n">${forms.length}</span></div>` + queuedNote + forms.map(f => {
       const oncePer = !!f.settings?.once_per_driver;
       const done = oncePer && f.submission_count > 0;
       return taskCardHtml({
@@ -3775,6 +3784,114 @@ async function _scanFlushQueue({ silent } = {}) {
 if (typeof window !== "undefined" && !window.__rrScanOnlineWired) {
   window.__rrScanOnlineWired = true;
   window.addEventListener("online", () => { _scanFlushQueue(); });
+}
+
+
+// ── Offline form-submission queue ────────────────────────────────────
+// Drivers fill forms in the same dead zones they scan in. If a submit
+// can't reach the network, the whole submission — scalar answers plus
+// any captured photo/file blobs — is stored in IndexedDB and flushed
+// automatically when connectivity returns (the `online` event or the
+// next Tasks-hub mount). On flush we upload the deferred files first,
+// splice their storage paths into the answers, then call
+// driver_submit_form. So a form is never lost to a bad signal.
+const _FORM_Q_DB = "rr-form-queue";
+const _FORM_Q_STORE = "subs";
+function _formQueueDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_FORM_Q_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(_FORM_Q_STORE)) {
+        req.result.createObjectStore(_FORM_Q_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _formQueueAdd(item) {
+  const db = await _formQueueDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_FORM_Q_STORE, "readwrite");
+    tx.objectStore(_FORM_Q_STORE).put(item);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function _formQueueAll() {
+  const db = await _formQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_FORM_Q_STORE, "readonly");
+    const r = tx.objectStore(_FORM_Q_STORE).getAll();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror = () => resolve([]);
+  });
+}
+async function _formQueueDelete(id) {
+  const db = await _formQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_FORM_Q_STORE, "readwrite");
+    tx.objectStore(_FORM_Q_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+async function _formQueueCount() {
+  try { return (await _formQueueAll()).length; } catch { return 0; }
+}
+
+// Send every queued submission, oldest first. Stops at the first item
+// that still can't go through (offline / storage hiccup) so we don't
+// hammer; server-rejected items (already submitted, unpublished, no
+// longer assigned) are dropped so a permanently-invalid submission
+// can't jam the queue forever. Safe to call repeatedly; guarded.
+let _formFlushing = false;
+async function _formFlushQueue({ silent } = {}) {
+  if (_formFlushing) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  const session = readSession();
+  if (!session?.token) return;
+  _formFlushing = true;
+  let sent = 0;
+  try {
+    const items = (await _formQueueAll()).sort((a, b) => a.createdAt - b.createdAt);
+    for (const it of items) {
+      const answers = { ...(it.answers || {}) };
+      // Upload any deferred files, splicing their paths into the answers.
+      let stuck = false;
+      for (const fr of (it.files || [])) {
+        const ts = Date.now();
+        const safe = (fr.name || "file").replace(/[^A-Za-z0-9._-]+/g, "-");
+        const path = `${session.dsp_id || "no-dsp"}/dvic/${session.driver_id || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        const { error } = await sb.storage.from("driver-documents")
+          .upload(path, fr.blob, { contentType: fr.type, upsert: false });
+        if (error) { stuck = true; break; }
+        answers[fr.fid] = { path, name: fr.name, size: fr.blob?.size, type: fr.type };
+      }
+      if (stuck) break;  // still offline / storage down — retry next trigger
+      const { error: subErr } = await sb.rpc("driver_submit_form", {
+        p_token:   session.token,
+        p_form_id: it.formId,
+        p_answers: answers,
+      });
+      if (!subErr) { await _formQueueDelete(it.id); sent++; continue; }
+      // Server rejected it (already_submitted / form_not_found / no longer
+      // assigned) — drop so it doesn't block everything behind it.
+      if (subErr.code === "P0001" || /already_submitted|form_not_found/i.test(subErr.message || "")) {
+        await _formQueueDelete(it.id);
+        continue;
+      }
+      break;  // unknown/transient server error — stop and retry later
+    }
+  } catch { /* transport threw — retried on next trigger */ }
+  _formFlushing = false;
+  if (sent && !silent) toast(`${sent} saved form${sent === 1 ? "" : "s"} submitted`, "ok");
+  if (sent) _haptic("success");
+}
+
+if (typeof window !== "undefined" && !window.__rrFormOnlineWired) {
+  window.__rrFormOnlineWired = true;
+  window.addEventListener("online", () => { _formFlushQueue(); });
 }
 
 // Hand the PDF to the OS share sheet (so the driver can email / message
@@ -7605,7 +7722,7 @@ async function renderFormFill() {
       const t = root.getAttribute("data-rr-type");
       if (t === "short_text" || t === "long_text" || t === "email" ||
           t === "phone"      || t === "number"    || t === "date"  ||
-          t === "time"       || t === "signature" || t === "dropdown") {
+          t === "time"       || t === "dropdown") {
         if ("value" in root) root.value = val;
       }
     }
@@ -7640,6 +7757,13 @@ async function renderFormFill() {
       toast("Restored your in-progress answers", "ok");
     }
   }
+
+  // Wire a real canvas signature pad for every signature field (drawn ink
+  // is read back as a PNG data URL at submit; not draft-restorable).
+  fields.filter(f => f.type === "signature").forEach(f => {
+    _initSignaturePad(`ff-${f.id}`, `ff-${f.id}-clear`);
+  });
+
   // Debounced save on any text change.
   let _formDraftTimer = null;
   const _saveFormDraft = () => {
@@ -7665,22 +7789,34 @@ async function renderFormFill() {
 
   _formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const btnEarly = e.target.querySelector("button[type=submit]");
-    if (btnEarly) { btnEarly.disabled = true; btnEarly.textContent = "Uploading…"; }
-    const answers = await _collectFormAnswers(fields);
-    // Block submit if any photo/file upload failed — otherwise the driver
-    // believes the attachment was submitted when only an error marker was
-    // stored (and it would even pass required validation as a truthy value).
-    const failedUpload = fields.find((f) => {
-      const v = answers[f.id];
-      return v && typeof v === "object" && v.error;
-    });
-    if (failedUpload) {
-      if (btnEarly) { btnEarly.disabled = false; btnEarly.textContent = "Submit"; }
-      toast(`Couldn't upload "${failedUpload.label || "attachment"}" — check your connection and try again.`, "warn");
-      return;
+    const btn = e.target.querySelector("button[type=submit]");
+    const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = "Submit"; } };
+    if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+
+    // If we're offline up front, collect with deferred file uploads so the
+    // raw blobs ride along in the queue and upload on flush.
+    const offline = (typeof navigator !== "undefined" && navigator.onLine === false);
+    const deferredFiles = [];
+    const answers = await _collectFormAnswers(
+      fields,
+      offline ? { deferFiles: true, deferredFiles } : {}
+    );
+
+    // Online only: block submit if any photo/file upload failed — otherwise
+    // the driver believes the attachment was submitted when only an error
+    // marker was stored (it would even pass required validation as truthy).
+    if (!offline) {
+      const failedUpload = fields.find((f) => {
+        const v = answers[f.id];
+        return v && typeof v === "object" && v.error;
+      });
+      if (failedUpload) {
+        resetBtn();
+        toast(`Couldn't upload "${failedUpload.label || "attachment"}" — check your connection and try again.`, "warn");
+        return;
+      }
     }
-    if (btnEarly) { btnEarly.textContent = "Submitting…"; }
+
     // Required-field validation. A conditional field that is currently
     // HIDDEN (its rule isn't met) is NOT required and must not block submit:
     // its wrapper has [hidden], and _collectFormAnswers already omitted it,
@@ -7693,19 +7829,63 @@ async function renderFormFill() {
       const v = answers[f.id];
       const empty = v == null || v === "" || (Array.isArray(v) && v.length === 0);
       if (empty) {
+        resetBtn();
         toast(`"${f.label || "Untitled"}" is required`, "warn");
         return;
       }
     }
-    const btn = e.target.querySelector("button[type=submit]");
-    if (btn) { btn.disabled = true; btn.textContent = "Submitting…"; }
-    const { error: subErr } = await sb.rpc("driver_submit_form", {
-      p_token:   session.token,
-      p_form_id: id,
-      p_answers: answers,
-    });
+
+    // Persist offline (or when the network drops mid-submit): store the
+    // submission for the queue to flush later so nothing is lost to a bad
+    // signal. queueAndLeave() clears the draft and returns to Tasks.
+    const queueAndLeave = async (files) => {
+      try {
+        await _formQueueAdd({
+          id:        `${id}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+          formId:    id,
+          formTitle: form.title || "Form",
+          answers,
+          files:     files || [],
+          createdAt: Date.now(),
+        });
+      } catch (qErr) {
+        resetBtn();
+        toast("Couldn't save this to submit later — please try again with signal.", "warn");
+        return false;
+      }
+      clearDraft(DRAFT_KEY);
+      _haptic("success");
+      toast("Saved — we'll submit this when you're back online", "ok");
+      navigate("/tasks");
+      return true;
+    };
+
+    if (offline) { await queueAndLeave(deferredFiles); return; }
+
+    if (btn) { btn.textContent = "Submitting…"; }
+    let subErr = null;
+    try {
+      const res = await sb.rpc("driver_submit_form", {
+        p_token:   session.token,
+        p_form_id: id,
+        p_answers: answers,
+      });
+      subErr = res.error;
+    } catch (netErr) {
+      // Transport threw — almost always the network dropped mid-request.
+      // Photos already uploaded (answers carry their paths), so queue with
+      // no deferred files and let the flusher re-POST when signal returns.
+      await queueAndLeave([]);
+      return;
+    }
     if (subErr) {
-      if (btn) { btn.disabled = false; btn.textContent = "Submit"; }
+      // Network went away between collect and response — queue rather than
+      // make the driver refill. Any other error is a real server rejection.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        await queueAndLeave([]);
+        return;
+      }
+      resetBtn();
       toast(_friendlyError(subErr, "Couldn't submit. Your answers are still here — try again."), "warn");
       return;
     }
@@ -7838,9 +8018,13 @@ function _formFieldInnerHtml(f) {
     case "file":
       return row(`<input class="field" id="${id}" type="file" data-rr-field="${escapeHtml(f.id)}" data-rr-type="file"/>`);
     case "signature":
-      // MVP: a text-typed signature.  A real signature pad lands in a
-      // follow-up — for now this proves the field type works end to end.
-      return row(`<input class="field" id="${id}" type="text" placeholder="Type your name to sign" data-rr-field="${escapeHtml(f.id)}" data-rr-type="signature"/>`);
+      // Real canvas signature pad (shared _initSignaturePad, wired after
+      // render). The canvas carries data-rr-field so _collectFormAnswers
+      // reads its ink as a PNG data URL, matching the Checklist flow.
+      return row(`<div class="form-fill-sigwrap">
+          <canvas class="form-fill-sigpad" id="${id}" data-rr-field="${escapeHtml(f.id)}" data-rr-type="signature" height="140"></canvas>
+          <button type="button" class="form-fill-sigclear" id="${id}-clear">Clear</button>
+        </div>`);
     case "gps":
       // GPS captures lat/lng on submit (see _collectFormAnswers).
       return row(`<div class="form-fill-gps" data-rr-field="${escapeHtml(f.id)}" data-rr-type="gps">Location will be captured when you submit.</div>`);
@@ -7882,6 +8066,15 @@ async function _collectFormAnswers(fields, opts = {}) {
       out[fid] = Array.from(el.querySelectorAll("input[type=checkbox]:checked")).map((c) => c.value);
     } else if (t === "photo") {
       if (skipUploads) return;  // skip in draft mode
+      // Offline path: carry the raw blob for the queue to upload later.
+      if (opts.deferFiles) {
+        const f = el.files?.[0];
+        if (f) {
+          opts.deferredFiles.push({ fid, blob: f, name: f.name, type: f.type });
+          out[fid] = { name: f.name, size: f.size, type: f.type, deferred: true };
+        } else { out[fid] = null; }
+        return;
+      }
       // Upload the captured photo to driver-documents under a path
       // gated by the existing DSP-tenant SELECT policy (0021): the
       // FIRST folder MUST be the DSP id so dispatchers on that DSP
@@ -7914,6 +8107,15 @@ async function _collectFormAnswers(fields, opts = {}) {
       }
     } else if (t === "file") {
       if (skipUploads) return;  // drafts never spend bandwidth
+      // Offline path: carry the raw blob for the queue to upload later.
+      if (opts.deferFiles) {
+        const f = el.files?.[0];
+        if (f) {
+          opts.deferredFiles.push({ fid, blob: f, name: f.name, type: f.type });
+          out[fid] = { name: f.name, size: f.size, type: f.type, deferred: true };
+        } else { out[fid] = null; }
+        return;
+      }
       // Previously the file's bytes were discarded — only {name,size,type}
       // was stored, so dispatchers got an unusable filename. Now we upload
       // the file to storage and keep its path, mirroring the photo branch.
@@ -7943,6 +8145,11 @@ async function _collectFormAnswers(fields, opts = {}) {
       } else {
         out[fid] = null;
       }
+    } else if (t === "signature") {
+      if (skipUploads) return;  // don't bloat localStorage drafts with base64 ink
+      // Canvas pad: export ink as a PNG data URL, or "" when unsigned so
+      // required validation treats an empty pad as missing.
+      out[fid] = el._rrHasInk ? el.toDataURL("image/png") : "";
     } else if (t === "gps") {
       // Previously read el.dataset.rrGps, which was never set anywhere —
       // so a GPS field always submitted null despite promising "captured
