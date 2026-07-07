@@ -85,6 +85,42 @@ export interface GCalListItem {
   allDay: boolean; htmlLink: string | null;
 }
 
+// Raw events.list page for the two-way pull (google-calendar-pull). Unlike
+// gcalListEvents this keeps cancelled items (they signal deletions during
+// incremental sync) and surfaces page/sync tokens. A stale syncToken makes
+// Google answer 410 GONE — surfaced as SYNC_TOKEN_GONE so the caller can
+// drop the token and run a fresh windowed sync.
+export interface GCalSyncPage {
+  // deno-lint-ignore no-explicit-any
+  items: any[];
+  nextPageToken: string | null;
+  nextSyncToken: string | null;
+}
+export async function gcalSyncList(
+  t: string, cal: string,
+  opts: { syncToken?: string | null; pageToken?: string | null; timeMin?: string; timeMax?: string },
+): Promise<GCalSyncPage> {
+  const qs = new URLSearchParams({ singleEvents: "true", maxResults: "250", showDeleted: "true" });
+  if (opts.pageToken) qs.set("pageToken", opts.pageToken);
+  // syncToken is mutually exclusive with timeMin/timeMax per the API.
+  if (opts.syncToken && !opts.pageToken) qs.set("syncToken", opts.syncToken);
+  else if (!opts.syncToken) {
+    if (opts.timeMin) qs.set("timeMin", opts.timeMin);
+    if (opts.timeMax) qs.set("timeMax", opts.timeMax);
+  }
+  const res = await fetch(`${CAL_BASE}/${encodeURIComponent(cal)}/events?${qs}`, {
+    headers: { authorization: `Bearer ${t}` },
+  });
+  if (res.status === 410) throw new Error("SYNC_TOKEN_GONE");
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`gcal_list_failed: ${json?.error?.message || res.status}`);
+  return {
+    items: json.items || [],
+    nextPageToken: json.nextPageToken || null,
+    nextSyncToken: json.nextSyncToken || null,
+  };
+}
+
 // List a calendar's events in [timeMin, timeMax]. singleEvents expands
 // recurring series into instances. Cancelled instances are dropped.
 export async function gcalListEvents(

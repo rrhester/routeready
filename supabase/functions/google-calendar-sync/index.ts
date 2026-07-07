@@ -42,11 +42,15 @@ Deno.serve(async (req) => {
   }
 
   const { data: ev } = await supa.from("cal_events")
-    .select("id,dsp_id,applicant_id,kind,status,starts_at,ends_at,timezone,location,meeting_url,google_event_id,google_calendar_id")
+    .select("id,dsp_id,applicant_id,kind,status,starts_at,ends_at,timezone,location,meeting_url,title,metadata,google_event_id,google_calendar_id")
     .eq("id", cal_event_id).maybeSingle();
 
   const dspId = ev?.dsp_id;
   if (!dspId) return jsonResponse({ ok: true, skipped: "no_event" });
+  // Tasks live on the RouteReady calendar only (Google models them separately).
+  if (ev?.metadata && (ev.metadata as Record<string, unknown>).is_task === true) {
+    return jsonResponse({ ok: true, skipped: "task" });
+  }
 
   const { data: acct } = await supa.from("google_calendar_accounts")
     .select("*").eq("dsp_id", dspId).maybeSingle();
@@ -56,15 +60,25 @@ Deno.serve(async (req) => {
     const token = await getAccessToken(supa, acct);
     const cal = ev?.google_calendar_id || acct.calendar_id;
 
-    // Only the applicant's name goes to Google — NEVER internal recruiter notes.
-    // The event lands on the connecting user's primary calendar, which may be
-    // shared, so screening notes/PII must not leak into the description.
-    const { data: app } = ev?.applicant_id
-      ? await supa.from("applicants").select("full_name").eq("id", ev.applicant_id).maybeSingle()
-      : { data: null };
-    const word = ev?.kind === "orientation" ? "Orientation" : "Interview";
-    const title = `${word} · ${app?.full_name || "Applicant"}`;
-    const description = [ev?.location, ev?.meeting_url].filter(Boolean).join("\n\n");
+    // Interviews: only the applicant's name goes to Google — NEVER internal
+    // recruiter notes. The event lands on the connecting user's primary
+    // calendar, which may be shared, so screening notes/PII must not leak.
+    // Free-form events: the composer note is invitee-facing (it already goes
+    // in the invite email), so it's safe to carry into the description.
+    let title: string, description: string;
+    if (ev?.kind === "event") {
+      title = (ev.title || "").trim() || "Event";
+      const md = (ev.metadata ?? {}) as Record<string, unknown>;
+      const note = typeof md.note === "string" ? md.note.trim() : "";
+      description = [note, ev.location, ev.meeting_url].filter(Boolean).join("\n\n");
+    } else {
+      const { data: app } = ev?.applicant_id
+        ? await supa.from("applicants").select("full_name").eq("id", ev.applicant_id).maybeSingle()
+        : { data: null };
+      const word = ev?.kind === "orientation" ? "Orientation" : "Interview";
+      title = `${word} · ${app?.full_name || "Applicant"}`;
+      description = [ev?.location, ev?.meeting_url].filter(Boolean).join("\n\n");
+    }
     const payload = { title, description, startsAt: ev!.starts_at, endsAt: ev!.ends_at, timezone: ev!.timezone };
 
     const cancelled = ["cancelled", "no_show"].includes(ev?.status ?? "");
