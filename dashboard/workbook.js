@@ -14221,7 +14221,10 @@ function kpiTileHtml(sheet, spec, rowFilter) {
     gauge = `<div class="wb-kpi-gauge" title="${pct}% of target ${kpiFmt(target, spec.format)}"><div class="wb-kpi-gauge-fill" style="width:${Math.max(0, Math.min(100, frac * 100)).toFixed(0)}%;background:${barColor}"></div></div>
       <div class="wb-kpi-gaugelbl">${pct}% of ${kpiFmt(target, spec.format)} target</div>`;
   }
-  const body = `<div class="wb-kpi"><div class="wb-kpi-value" style="color:${accent}">${valStr}</div>${delta}${gauge}${spark}</div>`;
+  // ink numbers read cleaner/more professional; accent then lives only in the
+  // sparkline + tile edge. Opt-in via spec.inkValue (auto-build sets it).
+  const valueColor = spec.inkValue ? "var(--text)" : accent;
+  const body = `<div class="wb-kpi"><div class="wb-kpi-value" style="color:${valueColor}">${valStr}</div>${delta}${gauge}${spark}</div>`;
   return { title: esc(spec.label || "KPI"), body, footer: "", accent };
 }
 const HEATMAP_STOPS = ["#eef5ff", "#bcd8f7", "#7db0ec"];  // light ramp — dark text stays readable
@@ -14671,15 +14674,16 @@ function autoBuildDashboard(g) {
 
   const build = () => {
     const rid = (p) => p + Math.random().toString(36).slice(2, 8);
-    // a cohesive, harmonious accent rhythm (cool → warm-neutral) — reads as
-    // designed, unlike a full rainbow; semantic red/amber is reserved for gauges
-    const ACCENTS = ["#2563eb", "#0891b2", "#0d9488", "#4f46e5", "#0ea5e9", "#059669", "#6366f1", "#0369a1"];
+    // One restrained brand accent across the whole scorecard — a professional
+    // dashboard reads as a single system, not a rainbow. The big number stays
+    // ink (inkValue) so the accent lives only in the sparkline + tile edge;
+    // semantic red/amber is reserved for gauges.
+    const KPI_ACCENT = "#2563eb";
     const controls = [], insights = [], kpis = [], charts = [], tables = [], texts = [];
-    let ti = 0;
     texts.push({ id: rid("tx"), hero: true, heading: (WB.wb && WB.wb.title) || g.sheet.name, body: `Live overview across ${analyzed.length} sheet${analyzed.length > 1 ? "s" : ""} · auto-built` });
     // KPI row: the headline metric from each sheet, then fill toward ~8 tiles
     const colRange = (a, col) => `${colLabel(col.c)}${a.rng.r0 + 2}:${colLabel(col.c)}${a.rng.r1 + 1}`;
-    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), sparkRange: colRange(a, col), format: "compact", accent: ACCENTS[ti++ % ACCENTS.length], srcSheetId: a.s.id });
+    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), sparkRange: colRange(a, col), format: "compact", accent: KPI_ACCENT, inkValue: true, srcSheetId: a.s.id });
     for (const a of analyzed) { if (kpis.length >= 8) break; pushKpi(a, a.nums[0]); }
     for (const a of analyzed) { if (kpis.length >= 8) break; if (a.nums[1]) pushKpi(a, a.nums[1]); }
     // charts from the richest sheets that have a dimension with metrics to its right
@@ -14691,7 +14695,7 @@ function autoBuildDashboard(g) {
       return { a, dim, c0: dim.c, c1: Math.min(dim.c + 9, Math.max(...right.map((n) => n.c))) };
     }).filter(Boolean).slice(0, 2);
     for (const { a, dim, c0, c1 } of chartable) {
-      charts.push({ id: rid("ch"), type: a.dates[0] ? "line" : "column", title: `${a.s.name} · by ${dim.name}`, theme: "vibrant", labels: false, grid: true, trend: !!a.dates[0], forecast: a.dates[0] ? 3 : 0, r0: a.rng.r0, c0, r1: a.rng.r1, c1, srcSheetId: a.s.id });
+      charts.push({ id: rid("ch"), type: a.dates[0] ? "line" : "column", title: `${a.s.name} · by ${dim.name}`, theme: "route", labels: false, grid: true, trend: !!a.dates[0], forecast: a.dates[0] ? 3 : 0, r0: a.rng.r0, c0, r1: a.rng.r1, c1, srcSheetId: a.s.id });
     }
     // insights + heatmap table + filters from the single richest sheet
     const top = analyzed[0];
@@ -14702,7 +14706,7 @@ function autoBuildDashboard(g) {
     if (dateSheet) controls.push({ id: rid("fc"), label: `${dateSheet.dates[0].name} range`, ctype: "daterange", col: dateSheet.dates[0].c, value: "all", srcSheetId: dateSheet.s.id });
     // ── designed layout: a real 12-column grid, aligned rows, uniform tiles ──
     const gr = dashGridPlacer(g);
-    if (texts[0]) gr.row([{ it: texts[0], n: 12, h: 76 }]);            // header band
+    if (texts[0]) gr.row([{ it: texts[0], n: 12, h: 62 }]);            // header band
     if (controls.length) gr.flow(controls, 3, 96, 4);                  // filter strip
     if (kpis.length) gr.flow(kpis, 3, 120, 4);                         // compact KPI scorecards, 4 across
     const restCharts = charts.slice();
@@ -14754,10 +14758,11 @@ const AI_KPI_FORMATS = ["number", "compact", "currency", "percent"];
 // charts, tables, texts } shape the dashboard stores in sheet.meta.
 function aiPlanToSpecs(plan, ctx, rid) {
   rid = rid || ((p) => p + Math.random().toString(36).slice(2, 8));
-  const ACCENTS = ["#2563eb", "#0891b2", "#0d9488", "#4f46e5", "#0ea5e9", "#059669", "#6366f1", "#0369a1"];
+  // one restrained brand accent + ink numbers — same clean scorecard system as
+  // Auto-build (no per-tile rainbow)
+  const KPI_ACCENT = "#2563eb";
   const out = { controls: [], insights: [], kpis: [], charts: [], tables: [], texts: [] };
   out.texts.push({ id: rid("tx"), hero: true, heading: String((plan && plan.headline) || "AI answer"), body: String((plan && plan.answer) || "") });
-  let ai = 0;
   const colRef = (rng, ci) => `${colLabel(ci)}${rng.r0 + 2}:${colLabel(ci)}${rng.r1 + 1}`;
   const widgets = plan && Array.isArray(plan.widgets) ? plan.widgets : [];
   for (const w of widgets) {
@@ -14772,7 +14777,7 @@ function aiPlanToSpecs(plan, ctx, rid) {
       const spec = {
         id: rid("kp"), label: w.title || String(w.column), agg: AI_KPI_AGGS.includes(w.agg) ? w.agg : "sum",
         valueRef: ref, sparkRange: ref, format: AI_KPI_FORMATS.includes(w.format) ? w.format : "compact",
-        accent: ACCENTS[ai++ % ACCENTS.length], srcSheetId: sh.id,
+        accent: KPI_ACCENT, inkValue: true, srcSheetId: sh.id,
       };
       if (typeof w.target === "number" && isFinite(w.target)) spec.target = w.target;
       out.kpis.push(spec);
@@ -14782,7 +14787,7 @@ function aiPlanToSpecs(plan, ctx, rid) {
       if (catI == null || !vals.length) continue;
       out.charts.push({
         id: rid("ch"), type: AI_CHART_TYPES[w.chartType] ? w.chartType : "column",
-        title: w.title || sh.name, theme: "vibrant", labels: false, grid: true,
+        title: w.title || sh.name, theme: "route", labels: false, grid: true,
         r0: R.r0, c0: catI, r1: R.r1, c1: Math.max(catI, ...vals), srcSheetId: sh.id,
       });
     } else if (w.type === "table") {
