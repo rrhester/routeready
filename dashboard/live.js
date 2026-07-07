@@ -44976,6 +44976,79 @@ function _rrConfirmDialog(opts) {
 }
 window._rrConfirmDialog = _rrConfirmDialog;
 
+// ── Activity log viewer ─────────────────────────────────────────────────
+// Renders the append-only audit trail (migration 0433) via the ops-gated
+// public.audit_feed() RPC. Self-contained modal opened from Settings.
+// Optional (objectType, objectId) filters to a single record's timeline.
+async function openAuditLog(objectType, objectId) {
+  var pb = document.getElementById("rr-audit-backdrop"); if (pb) pb.remove();
+  var pm = document.getElementById("rr-audit-modal"); if (pm) pm.remove();
+  var backdrop = document.createElement("div");
+  backdrop.id = "rr-audit-backdrop";
+  backdrop.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.32);z-index:10000;opacity:0;transition:opacity 120ms ease-out";
+  document.body.appendChild(backdrop);
+  var m = document.createElement("div");
+  m.id = "rr-audit-modal";
+  m.setAttribute("role", "dialog");
+  m.setAttribute("aria-modal", "true");
+  m.setAttribute("aria-label", "Activity log");
+  m.style.cssText = "position:fixed;left:50%;top:56px;transform:translateX(-50%);width:760px;max-width:calc(100vw - 24px);max-height:calc(100vh - 112px);display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border,#E5E7EB);border-radius:12px;box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:10001;opacity:0;transition:opacity 120ms ease-out;overflow:hidden";
+  m.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border,#E5E7EB)">' +
+      '<div><div style="font-size:15px;font-weight:700;color:var(--text,#111827)">Activity log</div>' +
+      '<div style="font-size:12px;color:var(--text-subtle,#6B7280)">Who changed what \u2014 drivers, schedule, roles, and documents</div></div>' +
+      '<button type="button" class="btn btn-sm" data-rr-audit-close>Close</button>' +
+    '</div>' +
+    '<div id="rr-audit-body" style="overflow:auto;padding:6px 0">' +
+      '<div style="padding:24px;text-align:center;color:var(--text-subtle,#6B7280);font-size:13px">Loading activity\u2026</div>' +
+    '</div>';
+  document.body.appendChild(m);
+  requestAnimationFrame(function () { m.style.opacity = "1"; backdrop.style.opacity = "1"; });
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    m.style.opacity = "0"; backdrop.style.opacity = "0";
+    setTimeout(function () { m.remove(); backdrop.remove(); }, 120);
+  }
+  var onKey = function (ev) { if (ev.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", close);
+  m.addEventListener("click", function (ev) { if (ev.target.closest("[data-rr-audit-close]")) close(); });
+
+  var body = m.querySelector("#rr-audit-body");
+  try {
+    var res = await sb.rpc("audit_feed", { p_object_type: objectType || null, p_object_id: objectId || null, p_limit: 200 });
+    if (res.error) throw res.error;
+    var rows = res.data || [];
+    if (!rows.length) {
+      body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-subtle,#6B7280);font-size:13px">No activity recorded yet.<br>Changes to drivers, schedule, roles, and documents will appear here.</div>';
+      return;
+    }
+    var label = { drivers: "Driver", app_users: "Team member", driver_documents: "Document", shifts: "Shift" };
+    var actionColor = { insert: "#059669", update: "#2563EB", delete: "#DC2626" };
+    var fmt = function (ts) { try { return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ts || ""; } };
+    body.innerHTML =
+      '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+      '<thead><tr style="text-align:left;color:var(--text-subtle,#6B7280);font-size:11px;text-transform:uppercase;letter-spacing:.04em">' +
+      '<th style="padding:8px 18px;font-weight:600">When</th><th style="padding:8px 12px;font-weight:600">Who</th>' +
+      '<th style="padding:8px 12px;font-weight:600">What</th><th style="padding:8px 18px;font-weight:600">Details</th>' +
+      '</tr></thead><tbody>' +
+      rows.map(function (r) {
+        var who = r.actor_email ? escapeHtml(r.actor_email) : (r.actor_type === "system" ? "System" : "\u2014");
+        var obj = label[r.object_type] || escapeHtml(r.object_type || "");
+        var ac = actionColor[r.action] || "#6B7280";
+        return '<tr style="border-top:1px solid var(--border,#EEF0F3)">' +
+          '<td style="padding:9px 18px;white-space:nowrap;color:var(--text-subtle,#6B7280)">' + escapeHtml(fmt(r.occurred_at)) + '</td>' +
+          '<td style="padding:9px 12px">' + who + (r.actor_role ? ' <span style="color:var(--text-subtle,#9CA3AF)">\u00b7 ' + escapeHtml(r.actor_role) + '</span>' : '') + '</td>' +
+          '<td style="padding:9px 12px;white-space:nowrap"><span style="color:' + ac + ';font-weight:600;text-transform:capitalize">' + escapeHtml(r.action) + '</span> <span style="color:var(--text-subtle,#6B7280)">' + obj + '</span></td>' +
+          '<td style="padding:9px 18px;color:var(--text,#374151)">' + escapeHtml(r.summary || "") + '</td></tr>';
+      }).join("") +
+      '</tbody></table>';
+  } catch (e) {
+    body.innerHTML = '<div style="padding:28px;text-align:center;color:#B91C1C;font-size:13px">Unable to load the activity log.<br><span style="color:var(--text-subtle,#6B7280)">' + escapeHtml((e && e.message) || String(e)) + '</span></div>';
+  }
+}
+window.openAuditLog = openAuditLog;
+
 // Callout-exposure finalize warning. Advisory only — it never blocks
 // finalization (existing rules still own hard blocks). Resolves true when
 // the operator chooses "Finalize Anyway", false to go back and review.
