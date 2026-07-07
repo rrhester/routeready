@@ -63950,15 +63950,30 @@ function _renderBuilderProps() {
           </select>
           <div class="props-soon-sub" style="margin-top:2px">On a vehicle inspection (DVIC) form, choosing this answer records the inspection as <strong>failed</strong>. Leave unset if this question doesn't indicate a defect.</div>
         </div>` : "";
+      // Field-level rules, persisted to field.validation and enforced on
+      // both the driver app and the server (0439). Only the rules that
+      // apply to this field type are shown.
+      const val = (f.validation && typeof f.validation === "object") ? f.validation : {};
+      const numInput = (key, label, placeholder) =>
+        `<div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
+          <span class="field-prop-label">${label}</span>
+          <input class="field-prop-input" type="number" inputmode="numeric" data-rr-val="${key}" placeholder="${placeholder}" value="${val[key] != null ? escapeHtml(String(val[key])) : ""}"/>
+        </div>`;
+      let rulesHtml = "";
+      if (f.type === "short_text" || f.type === "long_text") {
+        rulesHtml = numInput("minLen", "Minimum length", "No minimum") + numInput("maxLen", "Maximum length", "No maximum");
+      } else if (f.type === "number") {
+        rulesHtml = numInput("min", "Minimum value", "No minimum") + numInput("max", "Maximum value", "No maximum");
+      } else if (f.type === "email" || f.type === "phone") {
+        rulesHtml = `<div class="props-note">${f.type === "email" ? "Email" : "Phone"} format is checked automatically on submit.</div>`;
+      } else if (!flagRow) {
+        rulesHtml = `<div class="props-note">This field type has no extra rules beyond Required.</div>`;
+      }
       panel = `
         <div class="field-prop-row" style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5)"><span class="field-prop-label" style="margin-bottom:0">Required</span>
           <label class="toggle"><input type="checkbox" data-rr-prop="required" ${f.required ? "checked" : ""}/><span class="toggle-slider"></span></label></div>
         ${flagRow}
-        <div class="props-soon">
-          <span class="props-soon-pill">Coming soon</span>
-          <div class="props-soon-title">Field-level validation</div>
-          <div class="props-soon-sub">Min / max length, numeric ranges, and pattern matching land in an upcoming release. The Required toggle above already saves today.</div>
-        </div>`;
+        ${rulesHtml}`;
     }
   } else if (active === "logic") {
     panel = _renderLogicPanel(f);
@@ -64513,6 +64528,20 @@ document.addEventListener("input", (e) => {
     _markBuilderDirty();
     _renderBuilderCanvas();
     return;
+  }
+  // Field-level validation rules → field.validation.{minLen,maxLen,min,max}.
+  const valEl = e.target.closest("[data-rr-val]");
+  if (valEl) {
+    const f = _formsState.fields.find(x => x.id === _formsState.selectedId);
+    if (!f) return;
+    const key = valEl.getAttribute("data-rr-val");
+    const raw = valEl.value.trim();
+    const obj = (f.validation && typeof f.validation === "object") ? f.validation : {};
+    if (raw === "" || isNaN(Number(raw))) delete obj[key];
+    else obj[key] = Number(raw);
+    if (Object.keys(obj).length) f.validation = obj; else delete f.validation;
+    _markBuilderDirty();
+    return;  // no canvas re-render needed; keeps input focus while typing
   }
   // Toolbox search — filter field cards across all sections.
   if (e.target.id === "rr-palette-search") {
