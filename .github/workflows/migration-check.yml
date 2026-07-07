@@ -1,0 +1,60 @@
+name: Migration check (apply from scratch)
+
+# ─────────────────────────────────────────────────────────────────────────
+# Launch-readiness P0-1 safety gate.
+#
+# The single production Supabase project auto-deploys migrations on every
+# merge to main (deploy-migrations.yml), with no pre-merge validation. One
+# bad migration therefore hits every customer at once, mid-workday, with no
+# staging to catch it. This check closes that gap: on every PR that touches
+# a migration, it spins up a THROWAWAY local Supabase (Postgres + the auth /
+# storage / extensions schemas the migrations depend on) and applies the
+# ENTIRE migration set from zero.
+#
+# What a green run proves:
+#   • every migration is valid SQL and applies in order,
+#   • no dependency / ordering breakage (incl. the duplicate 0421 / 0432
+#     ordinals),
+#   • the database can be rebuilt from migrations alone — i.e. disaster
+#     recovery actually works.
+#
+# Hermetic: no project refs, DB passwords, or secrets. Nothing here can
+# touch production; it only ever talks to the ephemeral local stack.
+# ─────────────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/migration-check.yml'
+  workflow_dispatch:
+
+# Don't pile up local-stack boots on rapid pushes to the same PR.
+concurrency:
+  group: migration-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-from-scratch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Apply every migration from zero (local Supabase)
+        # `supabase db start` boots the local stack AND applies every file in
+        # supabase/migrations in filename order. A migration that errors makes
+        # the CLI exit non-zero, which fails this check and blocks the merge.
+        run: supabase db start
+
+      - name: List applied migrations
+        if: always()
+        run: supabase migration list --local || true
+
+      - name: Tear down
+        if: always()
+        run: supabase stop --no-backup || true
