@@ -9539,6 +9539,8 @@ function _rrTaskFromRow(r) {
     assigneeName: r.assignee_name || "",
     creatorId: r.created_by || null,
     creatorName: r.creator_name || "",
+    ackAt: r.acknowledged_at || null,
+    ackName: r.acknowledged_name || "",
   };
 }
 function _rrTasksMe() { try { return (window.RR && window.RR.user && window.RR.user.id) || ""; } catch (_) { return ""; } }
@@ -9588,6 +9590,16 @@ function _rrTasksRefetchSoon() {
 // Per-DSP realtime: RLS scopes events, so private tasks only ever reach
 // their creator + assignee. DELETE events don't pass the dsp filter
 // (old row carries just the PK) — panel-open refetch covers those.
+// A second subscription on team_task_events surfaces acknowledge +
+// comment activity to the task's creator (no email, matching the rest).
+function _rrTaskNotify(msg, tag) {
+  toast("🔔 " + msg, "info");
+  try {
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("RouteReady task", { body: msg, tag });
+    }
+  } catch (_) { /* toast already shown */ }
+}
 function _rrTasksSubscribe() {
   if (_rrTasksChannel) return;
   const dspId = (window.RR && window.RR.dsp && window.RR.dsp.id) || "";
@@ -9598,15 +9610,27 @@ function _rrTasksSubscribe() {
         const row = payload && payload.new;
         if (payload && payload.eventType === "INSERT" && row &&
             row.assignee_user_id === _rrTasksMe() && row.created_by && row.created_by !== _rrTasksMe()) {
-          const msg = "New task assigned to you: " + (row.title || "");
-          toast("🔔 " + msg, "info");
-          try {
-            if ("Notification" in window && Notification.permission === "granted") {
-              new Notification("RouteReady task", { body: msg, tag: "tt-" + row.id });
-            }
-          } catch (_) { /* toast already shown */ }
+          _rrTaskNotify("New task assigned to you: " + (row.title || ""), "tt-" + row.id);
         }
         _rrTasksRefetchSoon();
+      })
+      // Activity log: notify the CREATOR when their delegated task is
+      // acknowledged or commented on by someone else. RLS already limits
+      // these events to the task's participants.
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_task_events", filter: "dsp_id=eq." + dspId }, (payload) => {
+        const ev = payload && payload.new;
+        if (!ev || ev.actor_user_id === _rrTasksMe()) return;   // my own action
+        const t = _rrTasksCache.find((x) => x.id === ev.task_id);
+        // Only ping the creator (the person tracking the delegation).
+        const iCreated = t ? t.creatorId === _rrTasksMe() : false;
+        if (ev.kind === "acknowledged" && iCreated) {
+          _rrTaskNotify(`${(t && t.assigneeName ? t.assigneeName.split(" ")[0] : "Your teammate")} acknowledged: ${(t && t.title) || "a task"}`, "tte-" + ev.id);
+        } else if (ev.kind === "comment" && t && (t.creatorId === _rrTasksMe() || t.assigneeId === _rrTasksMe())) {
+          _rrTaskNotify(`New comment on: ${t.title || "a task"}`, "tte-" + ev.id);
+        }
+        // If the detail modal is open on this task, refresh its thread.
+        if (_rrTaskDetailId && _rrTaskDetailId === ev.task_id) _rrTaskDetailLoadThread(ev.task_id);
+        if (ev.kind === "acknowledged") _rrTasksRefetchSoon();   // ack column changed
       })
       .subscribe();
   } catch (_) {}
@@ -9872,6 +9896,159 @@ function _rrTaskDeleteApply(task, series) {
   toast(series ? "Series deleted" : "Task deleted", "success");
 }
 
+// ── Task detail modal · acknowledge + comments + activity trail ───────
+// Clicking a task row opens a centered modal with the task's header, an
+// Acknowledge action (for an assignee on an unacknowledged delegated
+// task) or its ack status (for the creator), and a chronological thread
+// that interleaves the auto-logged activity (created / assigned / due
+// changed / completed / reopened / acknowledged) with the comment
+// discussion. Server mode only — the localStorage fallback has no
+// participants, so rows there aren't clickable. (Migration 0434.)
+let _rrTaskDetailId = null;
+const _RR_TT_ACTS = {
+  created:      (e) => `${_rrTtActor(e)} created this task`,
+  assigned:     (e) => `${_rrTtActor(e)} assigned it to ${escapeHtml(e.to_name || "a teammate")}`,
+  due_changed:  (e) => `${_rrTtActor(e)} ${e.meta && e.meta.to ? "set the due date to " + escapeHtml(_rrNtFmtDue(e.meta.to)) : "cleared the due date"}`,
+  completed:    (e) => `${_rrTtActor(e)} marked it complete`,
+  reopened:     (e) => `${_rrTtActor(e)} reopened it`,
+  acknowledged: (e) => `${_rrTtActor(e)} acknowledged it`,
+};
+function _rrTtActor(e) { return `<b>${escapeHtml((e.actor_name || "Someone").split(" ")[0])}</b>`; }
+function _rrTtWhen(iso) {
+  try {
+    const d = new Date(iso), now = Date.now(), diff = now - d.getTime();
+    if (diff < 60000) return "just now";
+    if (diff < 3600000) return Math.round(diff / 60000) + "m ago";
+    if (diff < 86400000) return Math.round(diff / 3600000) + "h ago";
+    return d.toLocaleDateString([], { month: "short", day: "numeric" }) + ", " +
+           d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch (_) { return ""; }
+}
+function _rrTaskOpenDetail(id) {
+  if (_rrTasksMode !== "server") return;
+  const t = _rrTasksCache.find((x) => x.id === id);
+  if (!t) return;
+  _rrTaskDetailId = id;
+  document.getElementById("rr-task-detail")?.remove();
+  const back = document.createElement("div");
+  back.className = "rr-td-back";
+  back.id = "rr-task-detail";
+  back.innerHTML = `
+    <div class="rr-td-card" role="dialog" aria-modal="true" aria-label="Task details">
+      <div class="rr-td-head">
+        <div class="rr-td-title"></div>
+        <button type="button" class="rr-td-x" data-rr-td-close aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="rr-td-meta"></div>
+      <div class="rr-td-thread" id="rr-td-thread"><div class="rr-td-loading">Loading…</div></div>
+      <div class="rr-td-composer">
+        <input type="text" class="rr-td-input" data-rr-td-input placeholder="Add a comment…" maxlength="2000" aria-label="Add a comment"/>
+        <button type="button" class="rr-td-send" data-rr-td-send>Send</button>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+  requestAnimationFrame(() => back.classList.add("open"));
+  back.addEventListener("click", (e) => { if (e.target === back) _rrTaskCloseDetail(); });
+  _rrTaskDetailRenderHead(t);
+  _rrTaskDetailLoadThread(id);
+  setTimeout(() => { try { back.querySelector("[data-rr-td-input]").focus(); } catch (_) {} }, 80);
+}
+function _rrTaskCloseDetail() {
+  _rrTaskDetailId = null;
+  const b = document.getElementById("rr-task-detail");
+  if (b) { b.classList.remove("open"); setTimeout(() => b.remove(), 160); }
+}
+function _rrTaskDetailRenderHead(t) {
+  const card = document.querySelector("#rr-task-detail .rr-td-card");
+  if (!card) return;
+  const me = _rrTasksMe();
+  const titleEl = card.querySelector(".rr-td-title");
+  if (titleEl) titleEl.innerHTML = `<span class="rr-td-title-t${t.done ? " is-done" : ""}">${escapeHtml(t.title || "")}</span>`;
+  const metaEl = card.querySelector(".rr-td-meta");
+  const bits = [];
+  if (t.due) bits.push(`<span class="rr-td-chip${_rrNtDueClass(t.due)}">Due ${escapeHtml(_rrNtFmtDue(t.due))}</span>`);
+  if (t.assigneeId && t.assigneeId !== t.creatorId) {
+    bits.push(`<span class="rr-td-chip">${t.assigneeId === me ? "Assigned to you" : "Assigned to " + escapeHtml(t.assigneeName || "")}</span>`);
+    bits.push(`<span class="rr-td-chip">from ${escapeHtml(t.creatorName || "")}</span>`);
+  }
+  bits.push(`<span class="rr-td-chip">${t.done ? "Completed" : "Open"}</span>`);
+  // Acknowledge control / status — only meaningful on delegated tasks.
+  let ack = "";
+  const isDelegated = t.assigneeId && t.assigneeId !== t.creatorId;
+  if (isDelegated) {
+    if (t.ackAt) {
+      ack = `<div class="rr-td-ack is-done">✓ Acknowledged${t.ackName ? " by " + escapeHtml(t.ackName.split(" ")[0]) : ""} · ${escapeHtml(_rrTtWhen(t.ackAt))}</div>`;
+    } else if (t.assigneeId === me) {
+      ack = `<button type="button" class="rr-td-ackbtn" data-rr-td-ack>Acknowledge — I've got this</button>`;
+    } else {
+      ack = `<div class="rr-td-ack is-wait">Awaiting acknowledgment from ${escapeHtml((t.assigneeName || "").split(" ")[0] || "the assignee")}</div>`;
+    }
+  }
+  if (metaEl) metaEl.innerHTML = `<div class="rr-td-chips">${bits.join("")}</div>${ack}`;
+}
+async function _rrTaskDetailLoadThread(id) {
+  try {
+    const { data, error } = await sb.rpc("team_task_thread", { p_id: id });
+    if (error) throw error;
+    if (_rrTaskDetailId !== id) return;                 // modal closed / switched
+    // Keep the cached row's ack fields fresh from the authoritative task.
+    if (data && data.task) {
+      const t = _rrTasksCache.find((x) => x.id === id);
+      if (t) { const nr = _rrTaskFromRow(data.task); Object.assign(t, nr); _rrTaskDetailRenderHead(t); }
+    }
+    _rrTaskDetailRenderThread((data && data.events) || []);
+  } catch (_) {
+    const th = document.getElementById("rr-td-thread");
+    if (th) th.innerHTML = `<div class="rr-td-loading">Couldn't load activity.</div>`;
+  }
+}
+function _rrTaskDetailRenderThread(events) {
+  const th = document.getElementById("rr-td-thread");
+  if (!th) return;
+  const me = _rrTasksMe();
+  if (!events.length) { th.innerHTML = `<div class="rr-td-loading">No activity yet.</div>`; return; }
+  th.innerHTML = events.map((e) => {
+    if (e.kind === "comment") {
+      const mine = e.actor_user_id === me;
+      const init = ((e.actor_name || "•").trim().slice(0, 1) || "•").toUpperCase();
+      return `<div class="rr-td-c${mine ? " mine" : ""}">
+        <span class="rr-td-c-av" title="${escapeHtml(e.actor_name || "")}">${escapeHtml(init)}</span>
+        <div class="rr-td-c-bub">
+          <div class="rr-td-c-top"><span class="rr-td-c-who">${escapeHtml(mine ? "You" : (e.actor_name || ""))}</span><span class="rr-td-c-when">${escapeHtml(_rrTtWhen(e.created_at))}</span></div>
+          <div class="rr-td-c-body">${escapeHtml(e.body || "").replace(/\n/g, "<br>")}</div>
+        </div>
+      </div>`;
+    }
+    const fn = _RR_TT_ACTS[e.kind];
+    const txt = fn ? fn(e) : escapeHtml(e.kind);
+    return `<div class="rr-td-act"><span class="rr-td-act-dot"></span><span class="rr-td-act-t">${txt}</span><span class="rr-td-act-when">${escapeHtml(_rrTtWhen(e.created_at))}</span></div>`;
+  }).join("");
+  th.scrollTop = th.scrollHeight;
+}
+function _rrTaskAck(id) {
+  const t = _rrTasksCache.find((x) => x.id === id);
+  if (!t) return;
+  sb.rpc("team_task_ack", { p_id: id }).then(({ data, error }) => {
+    if (error) { toast("Couldn't acknowledge — try again", "error"); return; }
+    if (data) { Object.assign(t, _rrTaskFromRow(data)); }
+    if (_rrTaskDetailId === id) { _rrTaskDetailRenderHead(t); _rrTaskDetailLoadThread(id); }
+    _rrRenderTasks();
+    toast("Acknowledged — the assigner has been notified", "success");
+  });
+}
+function _rrTaskSendComment() {
+  const id = _rrTaskDetailId;
+  const inp = document.querySelector("#rr-task-detail [data-rr-td-input]");
+  if (!id || !inp) return;
+  const body = (inp.value || "").trim();
+  if (!body) { try { inp.focus(); } catch (_) {} return; }
+  inp.value = "";
+  sb.rpc("team_task_comment", { p_id: id, p_body: body }).then(({ error }) => {
+    if (error) { toast("Couldn't post the comment", "error"); inp.value = body; return; }
+    if (_rrTaskDetailId === id) _rrTaskDetailLoadThread(id);
+  });
+}
+
 function _rrRenderTasks() {
   const list = document.getElementById("rr-sched-tasks-list");
   const badge = document.getElementById("rr-nt-task-badge");
@@ -9932,10 +10109,21 @@ function _rrRenderTasks() {
       : (server && _rrTaskIsDelegated(t)
         ? `<span class="ntp-task-from" title="Assigned to ${escapeHtml(t.assigneeName || "")}">→ ${escapeHtml((t.assigneeName || "").split(" ")[0] || "teammate")}</span>`
         : "");
+    // Acknowledge indicator on delegated rows: green ✓ once acknowledged,
+    // amber ● while it's still awaiting (a quiet nudge for the assignee,
+    // an at-a-glance status for the creator). Server mode only.
+    let ackDot = "";
+    if (server && t.assigneeId && t.assigneeId !== t.creatorId) {
+      if (t.ackAt) ackDot = `<span class="ntp-task-ack is-done" title="Acknowledged${t.ackName ? " by " + escapeHtml(t.ackName) : ""}">✓</span>`;
+      else if (!t.done) ackDot = `<span class="ntp-task-ack is-wait" title="${t.assigneeId === me ? "Not yet acknowledged — open to acknowledge" : "Awaiting acknowledgment from " + escapeHtml(t.assigneeName || "")}">●</span>`;
+    }
+    // Server rows open a detail modal (activity + comments + ack) on click.
+    const openAttr = server ? ` data-rr-task-open="${escapeHtml(t.id)}"` : "";
+    const titleCls = server ? "ntp-task-title ntp-task-title--click" : "ntp-task-title";
     return `<div class="ntp-task${t.done ? " is-done" : ""}" role="listitem" data-rr-task-id="${escapeHtml(t.id)}">
       <button type="button" class="ntp-task-check" data-rr-task-toggle="${escapeHtml(t.id)}" role="checkbox" aria-checked="${t.done ? "true" : "false"}" aria-label="Toggle complete">${_RR_NTCHECK}</button>
-      <span class="ntp-task-title" title="${escapeHtml(t.title || "")}">${escapeHtml(t.title || "")}</span>
-      ${who}${rep}${due}
+      <span class="${titleCls}"${openAttr} title="${escapeHtml(t.title || "")}${server ? " — open details" : ""}">${escapeHtml(t.title || "")}</span>
+      ${who}${ackDot}${rep}${due}
       <span class="ntp-task-avatar${fromOther || (server && _rrTaskIsDelegated(t)) ? " is-other" : ""}" title="${escapeHtml(avName)}">${escapeHtml(init)}</span>
       ${del}
     </div>`;
@@ -10726,6 +10914,13 @@ document.addEventListener("click", (e) => {
   // View chips: My Tasks ↔ Delegated (server mode only).
   const vb = e.target.closest("[data-rr-task-view]");
   if (vb) { e.preventDefault(); _rrTasksView = vb.getAttribute("data-rr-task-view") === "delegated" ? "delegated" : "mine"; _rrRenderTasks(); return; }
+  // Open the task detail modal (activity + comments + ack).
+  const openRow = e.target.closest("[data-rr-task-open]");
+  if (openRow) { e.preventDefault(); _rrTaskOpenDetail(openRow.getAttribute("data-rr-task-open")); return; }
+  // Task detail modal · close / acknowledge / send comment.
+  if (e.target.closest("[data-rr-td-close]")) { e.preventDefault(); _rrTaskCloseDetail(); return; }
+  if (e.target.closest("[data-rr-td-ack]")) { e.preventDefault(); if (_rrTaskDetailId) _rrTaskAck(_rrTaskDetailId); return; }
+  if (e.target.closest("[data-rr-td-send]")) { e.preventDefault(); _rrTaskSendComment(); return; }
   const tg = e.target.closest("[data-rr-task-toggle]");
   if (tg) {
     e.preventDefault();
@@ -10832,6 +11027,13 @@ document.addEventListener("input", (e) => {
   if (e.target.closest && e.target.closest("#rr-sched-contacts [data-rr-contact-search]")) _rrRenderContacts();
 });
 document.addEventListener("keydown", (e) => {
+  // Task detail modal: Escape closes it (ahead of the rail-panel close);
+  // Enter in the composer sends the comment.
+  if (_rrTaskDetailId) {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); _rrTaskCloseDetail(); return; }
+    const ci = e.target.closest && e.target.closest("#rr-task-detail [data-rr-td-input]");
+    if (ci && e.key === "Enter") { e.preventDefault(); _rrTaskSendComment(); return; }
+  }
   if (e.key === "Enter") {
     const tt = e.target.closest && e.target.closest("#rr-sched-tasks [data-rr-task-title]");
     if (tt) { e.preventDefault(); _rrAddTaskFromForm(); return; }

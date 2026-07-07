@@ -5960,6 +5960,14 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-task-view-b b{font-weight:600;font-size:11.5px;margin-left:4px;opacity:.65}
 #rr-util-rail-mount .ntp-task-view-b:hover{color:var(--text,#0f172a)}
 #rr-util-rail-mount .ntp-task-view-b.on{color:var(--text,#0f172a);border-bottom-color:var(--text,#0f172a)}
+/* Clickable title (server rows open the detail modal). */
+#rr-util-rail-mount .ntp-task-title--click{cursor:pointer}
+#rr-util-rail-mount .ntp-task-title--click:hover{text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--border,rgba(15,23,42,.3))}
+/* Acknowledge indicator on delegated rows (0434): amber ● awaiting,
+   green ✓ acknowledged. */
+#rr-util-rail-mount .ntp-task-ack{flex:0 0 auto;font-size:11px;line-height:1;font-weight:700}
+#rr-util-rail-mount .ntp-task-ack.is-wait{color:#D97706}
+#rr-util-rail-mount .ntp-task-ack.is-done{color:#059669}
 /* Delete (trash) — appears on row hover, red on its own hover. */
 #rr-util-rail-mount .ntp-task-del{appearance:none;cursor:pointer;flex:0 0 auto;border:0;background:transparent;color:var(--text-subtle,#94a3b8);padding:4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,background .15s,color .15s}
 #rr-util-rail-mount .ntp-task:hover .ntp-task-del{opacity:1}
@@ -5971,6 +5979,56 @@ a.ctpd-val:hover{text-decoration:underline}
 .ntp-task-del-pop{position:fixed;z-index:10060;background:#fff;border:1px solid rgba(15,23,42,.12);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:4px;display:flex;flex-direction:column;gap:1px;min-width:210px}
 .ntp-task-del-pop button{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:13px;color:#111827;text-align:left;padding:8px 12px;border-radius:7px}
 .ntp-task-del-pop button:hover{background:rgba(220,38,38,.08);color:#DC2626}
+
+/* ── Task detail modal (0434) · acknowledge + comments + activity ────
+   Appended to <body>, so styled unscoped. Centered card with a header,
+   meta chips + acknowledge control, a scrolling activity/comment thread,
+   and a comment composer pinned at the bottom. */
+.rr-td-back{position:fixed;inset:0;z-index:10070;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.42);opacity:0;transition:opacity .16s;padding:20px}
+.rr-td-back.open{opacity:1}
+.rr-td-card{width:min(520px,96vw);max-height:86vh;display:flex;flex-direction:column;background:#fff;border:1px solid rgba(15,23,42,.10);border-radius:16px;box-shadow:0 24px 64px rgba(15,23,42,.28);transform:translateY(8px) scale(.99);transition:transform .16s;overflow:hidden}
+.rr-td-back.open .rr-td-card{transform:none}
+.rr-td-head{display:flex;align-items:flex-start;gap:12px;padding:18px 18px 12px}
+.rr-td-title{flex:1;min-width:0}
+.rr-td-title-t{font-size:16px;font-weight:700;line-height:1.35;color:#0f172a;overflow-wrap:anywhere}
+.rr-td-title-t.is-done{color:#94a3b8;text-decoration:line-through}
+.rr-td-x{appearance:none;cursor:pointer;flex:0 0 auto;border:0;background:transparent;color:#94a3b8;padding:5px;border-radius:8px;display:inline-flex}
+.rr-td-x:hover{background:rgba(15,23,42,.06);color:#0f172a}
+.rr-td-meta{padding:0 18px 14px;border-bottom:1px solid rgba(15,23,42,.07)}
+.rr-td-chips{display:flex;flex-wrap:wrap;gap:6px}
+.rr-td-chip{font-size:11.5px;font-weight:600;color:#475569;background:#f1f5f9;border-radius:999px;padding:3px 10px}
+.rr-td-chip.is-soon{color:#c2410c;background:#ffedd5}
+.rr-td-chip.is-over{color:#b91c1c;background:#fee2e2}
+.rr-td-ack{margin-top:10px;font-size:12.5px;font-weight:600;border-radius:9px;padding:8px 11px}
+.rr-td-ack.is-done{color:#047857;background:#ecfdf5;border:1px solid #a7f3d0}
+.rr-td-ack.is-wait{color:#b45309;background:#fffbeb;border:1px solid #fde68a}
+.rr-td-ackbtn{margin-top:10px;appearance:none;cursor:pointer;border:0;border-radius:9px;background:#059669;color:#fff;font:inherit;font-size:13px;font-weight:600;padding:9px 14px;transition:background .15s}
+.rr-td-ackbtn:hover{background:#047857}
+.rr-td-thread{flex:1;min-height:120px;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px}
+.rr-td-loading{color:#94a3b8;font-size:13px;text-align:center;padding:20px}
+/* Activity line — quiet, dotted timeline. */
+.rr-td-act{display:flex;align-items:baseline;gap:8px;font-size:12.5px;color:#64748b;line-height:1.4}
+.rr-td-act-dot{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:#cbd5e1;transform:translateY(-1px)}
+.rr-td-act-t{flex:1;min-width:0}
+.rr-td-act-t b{font-weight:600;color:#334155}
+.rr-td-act-when{flex:0 0 auto;font-size:11px;color:#a3aab7}
+/* Comment bubble. */
+.rr-td-c{display:flex;gap:9px;align-items:flex-start}
+.rr-td-c.mine{flex-direction:row-reverse}
+.rr-td-c-av{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:#e2e8f0;color:#64748b;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.rr-td-c.mine .rr-td-c-av{background:#dbeafe;color:#1d4ed8}
+.rr-td-c-bub{max-width:78%;background:#f8fafc;border:1px solid rgba(15,23,42,.07);border-radius:12px;padding:7px 11px}
+.rr-td-c.mine .rr-td-c-bub{background:#eff6ff;border-color:#dbeafe}
+.rr-td-c-top{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+.rr-td-c-who{font-size:11.5px;font-weight:700;color:#334155}
+.rr-td-c-when{font-size:10.5px;color:#a3aab7}
+.rr-td-c-body{font-size:13px;color:#1e293b;line-height:1.4;overflow-wrap:anywhere}
+/* Composer. */
+.rr-td-composer{flex:0 0 auto;display:flex;gap:8px;padding:12px 18px;border-top:1px solid rgba(15,23,42,.07);background:#fff}
+.rr-td-input{flex:1;min-width:0;border:1px solid rgba(15,23,42,.14);border-radius:10px;background:#fff;font:inherit;font-size:13.5px;color:#0f172a;padding:9px 12px;outline:none}
+.rr-td-input:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+.rr-td-send{appearance:none;cursor:pointer;flex:0 0 auto;border:0;border-radius:10px;background:#2563EB;color:#fff;font:inherit;font-size:13px;font-weight:600;padding:0 16px;transition:background .15s}
+.rr-td-send:hover{background:#1d4ed8}
 
 /* ── Driver Forms panel · enterprise card list ──────────────────────
    The Forms rail icon opens #rr-sched-forms (a .sched-notes-panel like
