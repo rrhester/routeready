@@ -9482,6 +9482,7 @@ let _rrNotesShowAll = false;
 const _RR_NTPIN = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg>`;
 const _RR_NTMENU = `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>`;
 const _RR_NTCHECK = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const _RR_MSG_ICON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
 
 function _rrRenderNotes() {
   const list = document.getElementById("rr-sched-notes-list");
@@ -9541,7 +9542,32 @@ function _rrTaskFromRow(r) {
     creatorName: r.creator_name || "",
     ackAt: r.acknowledged_at || null,
     ackName: r.acknowledged_name || "",
+    commentCount: r.comment_count || 0,
+    lastCommentMs: Date.parse(r.last_comment_at) || 0,
+    lastCommentBy: r.last_comment_by || null,
+    myReadMs: Date.parse(r.my_read_at) || 0,
   };
+}
+// Merge a server row into a cached task in place. Only team_tasks_list
+// carries the 0435 comment/read metadata — team_task_json (returned by
+// ack / thread / toggle / set_due) omits it, so when merging one of those
+// we PRESERVE the cached badge state instead of resetting it to zero
+// (otherwise opening or acknowledging a task would blank its message
+// badge until the next full refetch).
+function _rrTaskMerge(t, data) {
+  const nr = _rrTaskFromRow(data);
+  if (!(data && "comment_count" in data)) {
+    nr.commentCount  = t.commentCount;
+    nr.lastCommentMs = t.lastCommentMs;
+    nr.lastCommentBy = t.lastCommentBy;
+    nr.myReadMs      = t.myReadMs;
+  }
+  Object.assign(t, nr);
+}
+// A task is "unread" when its newest comment is by someone else and is
+// newer than the last time I opened it. (0435)
+function _rrTaskUnread(t) {
+  return !!(t.lastCommentMs && t.lastCommentBy && t.lastCommentBy !== _rrTasksMe() && t.lastCommentMs > t.myReadMs);
 }
 function _rrTasksMe() { try { return (window.RR && window.RR.user && window.RR.user.id) || ""; } catch (_) { return ""; } }
 // Every task in the active store (server cache or device-local list).
@@ -9628,9 +9654,15 @@ function _rrTasksSubscribe() {
         } else if (ev.kind === "comment" && t && (t.creatorId === _rrTasksMe() || t.assigneeId === _rrTasksMe())) {
           _rrTaskNotify(`New comment on: ${t.title || "a task"}`, "tte-" + ev.id);
         }
-        // If the detail modal is open on this task, refresh its thread.
-        if (_rrTaskDetailId && _rrTaskDetailId === ev.task_id) _rrTaskDetailLoadThread(ev.task_id);
-        if (ev.kind === "acknowledged") _rrTasksRefetchSoon();   // ack column changed
+        // If the detail modal is open on this task, refresh its thread —
+        // and treat it as read (I'm looking at it).
+        if (_rrTaskDetailId && _rrTaskDetailId === ev.task_id) {
+          _rrTaskDetailLoadThread(ev.task_id);
+          if (ev.kind === "comment") _rrTaskMarkRead(ev.task_id);
+        }
+        // Refetch the list so row badges (unread count / ✓) update — for
+        // comments (new message) and acknowledged (column changed).
+        if (ev.kind === "comment" || ev.kind === "acknowledged") _rrTasksRefetchSoon();
       })
       .subscribe();
   } catch (_) {}
@@ -9951,6 +9983,7 @@ function _rrTaskOpenDetail(id) {
   back.addEventListener("click", (e) => { if (e.target === back) _rrTaskCloseDetail(); });
   _rrTaskDetailRenderHead(t);
   _rrTaskDetailLoadThread(id);
+  _rrTaskMarkRead(id);                                  // opening = read
   setTimeout(() => { try { back.querySelector("[data-rr-td-input]").focus(); } catch (_) {} }, 80);
 }
 function _rrTaskCloseDetail() {
@@ -9991,10 +10024,11 @@ async function _rrTaskDetailLoadThread(id) {
     const { data, error } = await sb.rpc("team_task_thread", { p_id: id });
     if (error) throw error;
     if (_rrTaskDetailId !== id) return;                 // modal closed / switched
-    // Keep the cached row's ack fields fresh from the authoritative task.
+    // Keep the cached row's ack fields fresh from the authoritative task
+    // (preserving the comment/read badge state team_task_json omits).
     if (data && data.task) {
       const t = _rrTasksCache.find((x) => x.id === id);
-      if (t) { const nr = _rrTaskFromRow(data.task); Object.assign(t, nr); _rrTaskDetailRenderHead(t); }
+      if (t) { _rrTaskMerge(t, data.task); _rrTaskDetailRenderHead(t); }
     }
     _rrTaskDetailRenderThread((data && data.events) || []);
   } catch (_) {
@@ -10025,12 +10059,22 @@ function _rrTaskDetailRenderThread(events) {
   }).join("");
   th.scrollTop = th.scrollHeight;
 }
+// Mark a task's thread read (opening it): clears the unread badge
+// immediately (optimistic) and persists via the RPC so it stays cleared
+// after a refetch. (0435)
+function _rrTaskMarkRead(id) {
+  const t = _rrTasksCache.find((x) => x.id === id);
+  if (t) { t.myReadMs = Date.now(); _rrRenderTasks(); }
+  // supabase-js query builders are lazy — attach .then() so the request
+  // actually fires (fire-and-forget; errors are non-fatal).
+  try { sb.rpc("team_task_mark_read", { p_id: id }).then(() => {}, () => {}); } catch (_) {}
+}
 function _rrTaskAck(id) {
   const t = _rrTasksCache.find((x) => x.id === id);
   if (!t) return;
   sb.rpc("team_task_ack", { p_id: id }).then(({ data, error }) => {
     if (error) { toast("Couldn't acknowledge — try again", "error"); return; }
-    if (data) { Object.assign(t, _rrTaskFromRow(data)); }
+    if (data) { _rrTaskMerge(t, data); }
     if (_rrTaskDetailId === id) { _rrTaskDetailRenderHead(t); _rrTaskDetailLoadThread(id); }
     _rrRenderTasks();
     toast("Acknowledged — the assigner has been notified", "success");
@@ -10046,6 +10090,7 @@ function _rrTaskSendComment() {
   sb.rpc("team_task_comment", { p_id: id, p_body: body }).then(({ error }) => {
     if (error) { toast("Couldn't post the comment", "error"); inp.value = body; return; }
     if (_rrTaskDetailId === id) _rrTaskDetailLoadThread(id);
+    _rrTasksRefetchSoon();   // update the row's comment count (server stamped my read marker)
   });
 }
 
@@ -10060,6 +10105,10 @@ function _rrRenderTasks() {
   // I've delegated out.
   const openMine = all.filter((t) => !t.done && (!server || _rrTaskIsMine(t))).length;
   if (badge) { badge.textContent = String(openMine); badge.style.display = openMine ? "" : "none"; }
+  // Unread-message dot on the Tasks rail icon: any task (mine or
+  // delegated) with a message I haven't seen. (0435)
+  const udot = document.getElementById("rr-nt-task-udot");
+  if (udot) { const anyUnread = server && all.some(_rrTaskUnread); udot.hidden = !anyUnread; }
   if (!list) return;
   // View chips (server only): Mine vs Delegated, with open counts.
   const views = document.querySelector("#rr-sched-tasks [data-rr-task-views]");
@@ -10117,13 +10166,20 @@ function _rrRenderTasks() {
       if (t.ackAt) ackDot = `<span class="ntp-task-ack is-done" title="Acknowledged${t.ackName ? " by " + escapeHtml(t.ackName) : ""}">✓</span>`;
       else if (!t.done) ackDot = `<span class="ntp-task-ack is-wait" title="${t.assigneeId === me ? "Not yet acknowledged — open to acknowledge" : "Awaiting acknowledgment from " + escapeHtml(t.assigneeName || "")}">●</span>`;
     }
+    // Comment indicator: 💬 count on any task with a discussion, lit in
+    // accent (with a dot) when there's a message I haven't seen. (0435)
+    let msg = "";
+    if (server && t.commentCount) {
+      const un = _rrTaskUnread(t);
+      msg = `<span class="ntp-task-msg${un ? " is-unread" : ""}" title="${t.commentCount} comment${t.commentCount === 1 ? "" : "s"}${un ? " · new message" : ""} — open to read">${_RR_MSG_ICON}<b>${t.commentCount}</b>${un ? '<i class="ntp-task-msg-dot" aria-hidden="true"></i>' : ""}</span>`;
+    }
     // Server rows open a detail modal (activity + comments + ack) on click.
     const openAttr = server ? ` data-rr-task-open="${escapeHtml(t.id)}"` : "";
     const titleCls = server ? "ntp-task-title ntp-task-title--click" : "ntp-task-title";
     return `<div class="ntp-task${t.done ? " is-done" : ""}" role="listitem" data-rr-task-id="${escapeHtml(t.id)}">
       <button type="button" class="ntp-task-check" data-rr-task-toggle="${escapeHtml(t.id)}" role="checkbox" aria-checked="${t.done ? "true" : "false"}" aria-label="Toggle complete">${_RR_NTCHECK}</button>
       <span class="${titleCls}"${openAttr} title="${escapeHtml(t.title || "")}${server ? " — open details" : ""}">${escapeHtml(t.title || "")}</span>
-      ${who}${ackDot}${rep}${due}
+      ${who}${ackDot}${msg}${rep}${due}
       <span class="ntp-task-avatar${fromOther || (server && _rrTaskIsDelegated(t)) ? " is-other" : ""}" title="${escapeHtml(avName)}">${escapeHtml(init)}</span>
       ${del}
     </div>`;

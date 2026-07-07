@@ -2928,6 +2928,7 @@
           <button type="button" class="sched-util-btn sched-util-btn--tasks" data-rr-tasks-toggle title="My Tasks" aria-label="My Tasks" aria-expanded="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="currentColor"/><polyline points="7.8 12.4 10.7 15.3 16.2 9.4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span class="sched-util-badge" id="rr-nt-task-badge" aria-hidden="true">0</span>
+            <span class="sched-util-udot" id="rr-nt-task-udot" hidden aria-hidden="true"></span>
           </button>
           <button type="button" class="sched-util-btn sched-util-btn--checklists" data-rr-checklists-toggle title="Checklists" aria-label="Checklists" aria-expanded="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4.5" fill="currentColor"/><polyline points="7.5 12.4 10.5 15.4 16.5 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
