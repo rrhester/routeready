@@ -80,6 +80,43 @@ export function buildIcsRequest(o: IcsOpts): string {
   return lines.join("\r\n");
 }
 
+// Multi-event VCALENDAR for the subscribe feeds (calendar-feed function).
+// No METHOD (this is a published calendar, not an invite); X-WR-CALNAME
+// names the subscription in the client; PUBLISHED-TTL hints refresh cadence.
+export interface FeedEvent {
+  uid: string; start: string; end?: string | null; title: string;
+  description?: string; location?: string; allDay?: boolean; tzid?: string;
+}
+export function buildIcsFeed(name: string, events: FeedEvent[]): string {
+  const stamp = icsDate(new Date().toISOString());
+  const lines: (string | null)[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//RouteReady//Calendar Feed//EN",
+    "CALSCALE:GREGORIAN",
+    `X-WR-CALNAME:${esc(name)}`,
+    "X-PUBLISHED-TTL:PT15M",
+  ];
+  for (const o of events) {
+    const end = o.end || new Date(new Date(o.start).getTime() + 30 * 60_000).toISOString();
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${o.uid}`,
+      `DTSTAMP:${stamp}`,
+      o.allDay ? `DTSTART;VALUE=DATE:${icsDateOnly(o.start, o.tzid)}` : `DTSTART:${icsDate(o.start)}`,
+      o.allDay ? `DTEND;VALUE=DATE:${icsDateOnlyNext(end, o.tzid)}` : `DTEND:${icsDate(end)}`,
+      `SUMMARY:${esc(o.title)}`,
+      o.description ? `DESCRIPTION:${esc(o.description)}` : null,
+      o.location ? `LOCATION:${esc(o.location)}` : null,
+      "STATUS:CONFIRMED",
+      "TRANSP:OPAQUE",
+      "END:VEVENT",
+    );
+  }
+  lines.push("END:VCALENDAR");
+  return (lines.filter(Boolean) as string[]).join("\r\n");
+}
+
 // Pull the response out of a calendar REPLY. Returns the UID and the
 // PARTSTAT (ACCEPTED / DECLINED / TENTATIVE) if this is a METHOD:REPLY.
 export function parseIcsReply(text: string): { uid: string | null; partstat: string | null } {
