@@ -4445,6 +4445,30 @@ const WB_TEMPLATES = [
       ],
     }),
   },
+  {
+    // Unlike the others, this template is a live ledger: picking it opens the
+    // DSP's single Receipt Ledger (creating it if needed via
+    // receipt_ledger_ensure) so it's the same durable workbook the phone
+    // scanner writes into — see openOrCreateReceiptLedger. The build() spec
+    // below is only a fallback layout for environments where the receipt
+    // migrations aren't applied yet.
+    key: "receipt-ledger",
+    name: "Receipt Ledger",
+    category: "Finance",
+    desc: "Receipts scanned in the app land here automatically — reconcile against your card, fuel, or bank statement.",
+    build: () => ({
+      title: "Receipt Ledger",
+      description: "Receipts submitted from the RouteReady app — reconcile against your card / fuel statements.",
+      blocks: [
+        { type: "sheet", title: "Receipt Ledger", sheets: [{
+          name: "Receipt Ledger",
+          cols: ["Date", "Uploaded By", "Driver", "Van", "Category", "Vendor", "Amount", "Tax", "Payment Type", "Route Date", "Status", "Receipt", "Notes"],
+          colWidths: { 1: 150, 5: 160, 12: 220 },
+          rows: [],
+        }] },
+      ],
+    }),
+  },
 ];
 
 // ─── Module state ────────────────────────────────────────────────────────────
@@ -6404,6 +6428,12 @@ async function submitCreate(wrap) {
   btn.disabled = true;
   btn.textContent = "Creating…";
   try {
+    // The Receipt Ledger is a per-DSP singleton the phone scanner feeds — open
+    // the existing one (or provision it) rather than spawning a duplicate.
+    if (tplKey === "receipt-ledger") {
+      await openOrCreateReceiptLedger(wrap);
+      return;
+    }
     const wb = await createWorkbook({ title, description: desc, visibility: vis, templateKey: tplKey || null });
     wrap.remove();
     await openWorkbook(wb.id);
@@ -6413,6 +6443,36 @@ async function submitCreate(wrap) {
     const msg = (e && e.message) || String(e);
     _toast(wbMigrationErr(msg) ? "Workbooks schema isn't deployed yet — apply migration 0412 and retry" : "Couldn't create the workbook: " + msg, "error");
   }
+}
+
+// Open the DSP's single Receipt Ledger — the one the phone scanner writes into.
+// Order: open an existing ledger → provision via receipt_ledger_ensure (same
+// server function receipts use, so the sheet gets its header + Status dropdown)
+// → fall back to a plain template build if the receipt migrations aren't live
+// yet. The `dispatcher`-gated RPC and the partial unique index guarantee one
+// ledger per DSP, so this never spawns a duplicate.
+async function openOrCreateReceiptLedger(wrap) {
+  const s = _sb();
+  const dsp = _dsp();
+  // 1. Existing ledger?
+  const ex = await s.from("workbooks").select("id")
+    .eq("dsp_id", dsp.id).eq("template_key", "receipt-ledger")
+    .is("archived_at", null).maybeSingle();
+  if (ex.data && ex.data.id) { if (wrap) wrap.remove(); await openWorkbook(ex.data.id); return; }
+
+  // 2. Provision via the shared server function (full sheet + Status dropdown).
+  try {
+    const res = await s.rpc("receipt_ledger_ensure");
+    if (!res.error && res.data) {
+      const id = res.data.workbook_id || res.data.id || res.data;
+      if (id) { if (wrap) wrap.remove(); await openWorkbook(id); return; }
+    }
+  } catch (_) { /* fall through to a client build */ }
+
+  // 3. Fallback (receipt migrations not applied yet): build the layout locally.
+  const wb = await createWorkbook({ title: "Receipt Ledger", description: "", visibility: "org", templateKey: "receipt-ledger" });
+  if (wrap) wrap.remove();
+  await openWorkbook(wb.id);
 }
 
 // ─── Detail page ─────────────────────────────────────────────────────────────
