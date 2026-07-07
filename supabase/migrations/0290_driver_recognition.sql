@@ -128,9 +128,9 @@ as $$
           -- next Feb 28/29 — try Feb 29 if the candidate year is leap, else Feb 28
           (
             select case
-              when (date_part('year', make_date(y::int, 1, 1)) % 4 = 0
-                    and (date_part('year', make_date(y::int, 1, 1)) % 100 <> 0
-                         or date_part('year', make_date(y::int, 1, 1)) % 400 = 0))
+              when (y::int % 4 = 0
+                    and (y::int % 100 <> 0
+                         or y::int % 400 = 0))
                 then make_date(y::int, 2, 29)
               else make_date(y::int, 2, 28)
             end
