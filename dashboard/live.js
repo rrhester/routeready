@@ -81717,7 +81717,7 @@ function _clfSidebarPaint() {
     if (f.overdue_count > 0) sum.push(`<span class="rr-clf-warn">${f.overdue_count} overdue</span>`);
     if (f.failed_today > 0) sum.push(`<span class="rr-clf-warn">${f.failed_today} flagged</span>`);
     return `
-      <div class="rr-fp-card" data-rr-clf-edit="${escapeHtml(f.id)}" role="listitem" tabindex="0">
+      <div class="rr-fp-card" data-rr-clf-edit="${escapeHtml(f.id)}" role="button" tabindex="0" aria-label="Open checklist ${escapeHtml(f.name || "Untitled checklist")}">
         <span class="rr-fp-card-ico">${_CLF_TYPE_ICONS.checkbox}</span>
         <div class="rr-fp-card-body">
           <div class="rr-fp-card-top">
@@ -81749,16 +81749,28 @@ function _clfOpenMenu(btn, id) {
   menu.className = "rr-clf-menu";
   menu.setAttribute("role", "menu");
   menu.innerHTML = `
-    <button type="button" data-rr-clf-menu="edit" data-id="${escapeHtml(id)}">Edit</button>
-    <button type="button" data-rr-clf-menu="duplicate" data-id="${escapeHtml(id)}">Duplicate</button>
-    <button type="button" data-rr-clf-menu="${archived ? "restore" : "archive"}" data-id="${escapeHtml(id)}">${archived ? "Restore" : "Archive"}</button>
-    <button type="button" class="rr-clf-menu-danger" data-rr-clf-menu="delete" data-id="${escapeHtml(id)}">Delete</button>`;
+    <button type="button" role="menuitem" data-rr-clf-menu="edit" data-id="${escapeHtml(id)}">Edit</button>
+    <button type="button" role="menuitem" data-rr-clf-menu="duplicate" data-id="${escapeHtml(id)}">Duplicate</button>
+    <button type="button" role="menuitem" data-rr-clf-menu="${archived ? "restore" : "archive"}" data-id="${escapeHtml(id)}">${archived ? "Restore" : "Archive"}</button>
+    <button type="button" role="menuitem" class="rr-clf-menu-danger" data-rr-clf-menu="delete" data-id="${escapeHtml(id)}">Delete</button>`;
   const card = btn.closest(".rr-fp-card");
   // The card's :hover transform creates a stacking context that would trap the
   // absolutely-positioned menu behind later sibling cards. Elevate the card
   // while its menu is open so the overflowing menu paints above its neighbours.
   card?.classList.add("rr-fp-card--menu-open");
   card?.appendChild(menu);
+
+  // Keyboard menu: arrow keys roam, Escape closes back to the trigger.
+  const items = Array.from(menu.querySelectorAll('[role="menuitem"]'));
+  items[0]?.focus();
+  menu.addEventListener("keydown", (ev) => {
+    const i = items.indexOf(document.activeElement);
+    if (ev.key === "ArrowDown") { ev.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+    else if (ev.key === "ArrowUp") { ev.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+    else if (ev.key === "Home") { ev.preventDefault(); items[0]?.focus(); }
+    else if (ev.key === "End") { ev.preventDefault(); items[items.length - 1]?.focus(); }
+    else if (ev.key === "Escape") { ev.preventDefault(); _clfCloseMenus(); btn.focus(); }
+  });
 }
 
 // ── Builder modal ─────────────────────────────────────────────────────
@@ -81806,7 +81818,9 @@ async function openClfBuilder(id) {
 
 function _clfSetTab(tab) {
   document.querySelectorAll("[data-rr-clf-tab]").forEach((b) => {
-    b.classList.toggle("is-active", b.getAttribute("data-rr-clf-tab") === tab);
+    const on = b.getAttribute("data-rr-clf-tab") === tab;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
   });
   document.querySelectorAll("#modal-clf-builder [data-rr-clf-pane]").forEach((p) => {
     p.classList.toggle("is-active", p.getAttribute("data-rr-clf-pane") === tab);
@@ -82348,6 +82362,18 @@ async function _clfRenderResponses() {
 
 // ── Delegated events ─────────────────────────────────────────────────
 
+// Keyboard activation for the sidebar checklist cards (role="button",
+// tabindex 0) — Enter/Space opens, matching the click handler below.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+  const card = e.target.closest?.("[data-rr-clf-edit]");
+  if (!card || e.target.closest(".rr-clf-menu") || e.target.closest("[data-rr-clf-dots]")) return;
+  // Only when the card itself is focused, not a control inside it.
+  if (document.activeElement !== card) return;
+  e.preventDefault();
+  openClfBuilder(card.getAttribute("data-rr-clf-edit"));
+});
+
 document.addEventListener("click", async (e) => {
   // sidebar chips
   const chip = e.target.closest("[data-rr-clf-chip]");
@@ -82716,16 +82742,22 @@ document.addEventListener("click", (e) => {
   const dev = e.target.closest("[data-rr-clf-preview-device]");
   if (dev) {
     _clfPreviewDevice = dev.getAttribute("data-rr-clf-preview-device");
-    document.querySelectorAll("[data-rr-clf-preview-device]").forEach((b) =>
-      b.classList.toggle("is-active", b === dev));
+    document.querySelectorAll("[data-rr-clf-preview-device]").forEach((b) => {
+      const on = b === dev;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
     _clfRenderPreview();
     return;
   }
   const ori = e.target.closest("[data-rr-clf-preview-orient]");
   if (ori) {
     _clfPreviewOrient = ori.getAttribute("data-rr-clf-preview-orient");
-    document.querySelectorAll("[data-rr-clf-preview-orient]").forEach((b) =>
-      b.classList.toggle("is-active", b === ori));
+    document.querySelectorAll("[data-rr-clf-preview-orient]").forEach((b) => {
+      const on = b === ori;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
     _clfRenderPreview();
   }
 });

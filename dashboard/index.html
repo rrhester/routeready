@@ -3110,15 +3110,15 @@ Evidence attached:
         </div>
       </div>
       <div class="builder-tabs" role="tablist">
-        <button type="button" class="builder-tab is-active" data-rr-clf-tab="build" role="tab">Build</button>
-        <button type="button" class="builder-tab" data-rr-clf-tab="assign" role="tab">Assign</button>
-        <button type="button" class="builder-tab" data-rr-clf-tab="responses" role="tab">Responses</button>
+        <button type="button" class="builder-tab is-active" data-rr-clf-tab="build" role="tab" aria-selected="true" aria-controls="clf-pane-build">Build</button>
+        <button type="button" class="builder-tab" data-rr-clf-tab="assign" role="tab" aria-selected="false" aria-controls="clf-pane-assign">Assign</button>
+        <button type="button" class="builder-tab" data-rr-clf-tab="responses" role="tab" aria-selected="false" aria-controls="clf-pane-responses">Responses</button>
       </div>
     </div>
 
     <div class="builder-panes">
       <!-- ── BUILD PANE — item palette · canvas · settings ─────────── -->
-      <div class="builder-pane is-active" data-rr-clf-pane="build">
+      <div class="builder-pane is-active" data-rr-clf-pane="build" id="clf-pane-build" role="tabpanel">
         <div class="clf-grid">
           <div class="field-palette clf-palette">
             <div class="palette-group is-open">
@@ -3164,11 +3164,11 @@ Evidence attached:
             <div class="builder-preview-bar">
               <span class="builder-preview-label">Driver preview</span>
               <div class="builder-device-toggle" role="group" aria-label="Preview device">
-                <button type="button" class="builder-device-btn is-active" data-rr-clf-preview-device="phone" title="Phone">Phone</button>
-                <button type="button" class="builder-device-btn" data-rr-clf-preview-device="tablet" title="Tablet">Tablet</button>
+                <button type="button" class="builder-device-btn is-active" data-rr-clf-preview-device="phone" title="Phone" aria-pressed="true">Phone</button>
+                <button type="button" class="builder-device-btn" data-rr-clf-preview-device="tablet" title="Tablet" aria-pressed="false">Tablet</button>
                 <span class="builder-device-sep" aria-hidden="true"></span>
-                <button type="button" class="builder-device-btn is-active" data-rr-clf-preview-orient="portrait" title="Portrait">Portrait</button>
-                <button type="button" class="builder-device-btn" data-rr-clf-preview-orient="landscape" title="Landscape">Landscape</button>
+                <button type="button" class="builder-device-btn is-active" data-rr-clf-preview-orient="portrait" title="Portrait" aria-pressed="true">Portrait</button>
+                <button type="button" class="builder-device-btn" data-rr-clf-preview-orient="landscape" title="Landscape" aria-pressed="false">Landscape</button>
               </div>
             </div>
             <div class="builder-preview-stage" id="rr-clf-preview-stage">
@@ -3209,12 +3209,12 @@ Evidence attached:
       </div>
 
       <!-- ── ASSIGN PANE — scopes + scheduling (rendered by live.js) ── -->
-      <div class="builder-pane" data-rr-clf-pane="assign">
+      <div class="builder-pane" data-rr-clf-pane="assign" id="clf-pane-assign" role="tabpanel">
         <div class="clf-subpane" id="rr-clf-assign-root"></div>
       </div>
 
       <!-- ── RESPONSES PANE — completion status (rendered by live.js) ─ -->
-      <div class="builder-pane" data-rr-clf-pane="responses">
+      <div class="builder-pane" data-rr-clf-pane="responses" id="clf-pane-responses" role="tabpanel">
         <div class="clf-subpane" id="rr-clf-responses-root"></div>
       </div>
     </div>

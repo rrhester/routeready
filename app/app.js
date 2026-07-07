@@ -7585,33 +7585,44 @@ async function refreshChecklistsBadge() {
 // driver_save_checklist / driver_submit_checklist.
 
 function _clkItemHtml(item) {
-  const req = item.required ? ' <span style="color:#dc2626">*</span>' : "";
-  const help = item.helper_text ? `<div class="clk-helper">${escapeHtml(item.helper_text)}</div>` : "";
+  // Required is announced via aria-required on the control/group; the red
+  // star is decorative (aria-hidden) so it isn't the only cue.
+  const req = item.required ? ' <span class="clk-req" aria-hidden="true" style="color:#dc2626">*</span>' : "";
+  const areq = item.required ? ' aria-required="true"' : "";
+  const help = item.helper_text ? `<div class="clk-helper" id="clk-help-${escapeHtml(item.id)}">${escapeHtml(item.helper_text)}</div>` : "";
+  const descBy = item.helper_text ? ` aria-describedby="clk-help-${escapeHtml(item.id)}"` : "";
   const id = escapeHtml(item.id);
+  const fid = `clk-field-${id}`;     // control id, targeted by the row <label for>
+  const lid = `clk-lbl-${id}`;       // row label id, for group/canvas labelling
+  // Types with a single native control get a plain label[for]; radiogroup,
+  // checkbox and signature need explicit association instead.
   let control = "";
+  let labelFor = ` for="${fid}"`;
   if (item.item_type === "checkbox") {
-    control = `<label class="clk-checkrow"><input type="checkbox" data-rr-clk="${id}" data-rr-clk-type="checkbox"/><span>Mark as done</span></label>`;
+    control = `<label class="clk-checkrow"><input type="checkbox" id="${fid}" data-rr-clk="${id}" data-rr-clk-type="checkbox"${areq}${descBy}/><span>Mark as done</span></label>`;
   } else if (item.item_type === "yes_no") {
-    control = `<div class="form-fill-choice-row" data-rr-clk="${id}" data-rr-clk-type="yes_no">
+    labelFor = "";  // a group can't be targeted by label[for]
+    control = `<div class="form-fill-choice-row" role="radiogroup" aria-labelledby="${lid}"${areq}${descBy} data-rr-clk="${id}" data-rr-clk-type="yes_no">
       <label><input type="radio" name="clk-${id}" value="yes"/><span>Yes</span></label>
       <label><input type="radio" name="clk-${id}" value="no"/><span>No</span></label>
     </div>`;
   } else if (item.item_type === "number") {
-    control = `<input type="number" inputmode="decimal" step="any" data-rr-clk="${id}" data-rr-clk-type="number"/>`;
+    control = `<input type="number" id="${fid}" inputmode="decimal" step="any" data-rr-clk="${id}" data-rr-clk-type="number"${areq}${descBy}/>`;
   } else if (item.item_type === "photo") {
-    control = `<input type="file" accept="image/*" capture="environment" data-rr-clk="${id}" data-rr-clk-type="photo"/><div class="clk-photo-note" data-rr-clk-photonote="${id}" hidden></div>`;
+    control = `<input type="file" id="${fid}" accept="image/*" capture="environment" data-rr-clk="${id}" data-rr-clk-type="photo"${areq}${descBy}/><div class="clk-photo-note" data-rr-clk-photonote="${id}" hidden></div>`;
   } else if (item.item_type === "signature") {
+    labelFor = "";  // canvas isn't a labelable form control
     control = `<div class="clk-sigwrap">
-      <canvas class="clk-sigpad" id="clk-sig-${id}" data-rr-clk="${id}" data-rr-clk-type="signature" height="140"></canvas>
+      <canvas class="clk-sigpad" id="clk-sig-${id}" role="img" tabindex="0" aria-labelledby="${lid}" aria-label="Signature pad — sign with your finger" data-rr-clk="${id}" data-rr-clk-type="signature" height="140"></canvas>
       <button type="button" class="clk-sigclear" id="clk-sigclear-${id}">Clear</button>
     </div>`;
   } else if (item.item_type === "note") {
-    control = `<textarea rows="3" data-rr-clk="${id}" data-rr-clk-type="note"></textarea>`;
+    control = `<textarea rows="3" id="${fid}" data-rr-clk="${id}" data-rr-clk-type="note"${areq}${descBy}></textarea>`;
   } else {
-    control = `<input type="text" data-rr-clk="${id}" data-rr-clk-type="short_text"/>`;
+    control = `<input type="text" id="${fid}" data-rr-clk="${id}" data-rr-clk-type="short_text"${areq}${descBy}/>`;
   }
   return `<div class="form-fill-row clk-row">
-    <label class="form-fill-label">${escapeHtml(item.label || "Untitled item")}${req}</label>
+    <label class="form-fill-label" id="${lid}"${labelFor}>${escapeHtml(item.label || "Untitled item")}${req}</label>
     ${help}
     ${control}
   </div>`;
