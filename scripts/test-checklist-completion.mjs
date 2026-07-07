@@ -58,4 +58,22 @@ ok("same instant in UTC is already the next day",  dspToday("2026-07-07T02:00:00
 ok("midday ET stays the same day",                 dspToday("2026-07-07T16:00:00Z", "America/New_York"), "2026-07-07");
 ok("evening PT resolves to the local (prior) day", dspToday("2026-07-07T05:00:00Z", "America/Los_Angeles"), "2026-07-06");
 
-console.log(`\n✓ checklist completion/timezone contract — ${n} assertions passed`);
+// ── 3. Due / overdue reminder kind ────────────────────────────────────
+// Mirror of the window logic in public.checklist_due_reminders_run
+// (migration 0438): past due ⇒ 'overdue'; within p_soon_minutes before
+// due ⇒ 'due_soon'; otherwise no reminder; and nothing without a due time.
+function reminderKind(dueAtMs, nowMs, soonMinutes) {
+  if (dueAtMs == null) return null;
+  if (dueAtMs < nowMs) return "overdue";
+  if (dueAtMs <= nowMs + soonMinutes * 60000) return "due_soon";
+  return null;
+}
+const NOW = Date.parse("2026-07-07T15:00:00Z");
+const MIN = 60000;
+ok("past due ⇒ overdue",              reminderKind(NOW - 5 * MIN, NOW, 45), "overdue");
+ok("30m before due, 45m window ⇒ due_soon", reminderKind(NOW + 30 * MIN, NOW, 45), "due_soon");
+ok("exactly at window edge ⇒ due_soon",     reminderKind(NOW + 45 * MIN, NOW, 45), "due_soon");
+ok("beyond window ⇒ no reminder",     reminderKind(NOW + 90 * MIN, NOW, 45), null);
+ok("no due time ⇒ no reminder",       reminderKind(null, NOW, 45), null);
+
+console.log(`\n✓ checklist completion/timezone/reminder contract — ${n} assertions passed`);

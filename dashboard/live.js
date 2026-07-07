@@ -38861,6 +38861,26 @@ function scheduleChatRealtime(payload) {
   }, 250);
 }
 
+// A driver submitted (or updated) a checklist. Staff have no Web Push, so
+// this realtime row IS the alert: if it carries flagged answers, toast
+// dispatch, and live-refresh the driver-checklist Responses view when it's
+// open on that template. Backed by checklist_submissions.failed_count
+// (migration 0437) + the supabase_realtime publication.
+function _clfRealtimeSubmission(payload) {
+  const row = (payload && payload.new) || {};
+  try {
+    if (typeof _clfState !== "undefined" && _clfState && _clfState.editing &&
+        _clfState.editing.id === row.template_id && typeof _clfRenderResponses === "function") {
+      _clfRenderResponses();
+    }
+  } catch (_) {}
+  if (payload && payload.eventType !== "DELETE" &&
+      row.status === "submitted" && (row.failed_count || 0) > 0) {
+    const n = row.failed_count;
+    toast(`⚑ A driver flagged ${n} item${n === 1 ? "" : "s"} on a checklist — review in Checklists → Responses`, "warn");
+  }
+}
+
 // Realtime subscriptions — one channel covers all the tables we care about.
 sb.channel("rr-dashboard")
   .on("postgres_changes", { event: "*", schema: "public", table: "applicants" },              scheduleRefresh)
@@ -38878,6 +38898,8 @@ sb.channel("rr-dashboard")
   .on("postgres_changes", { event: "UPDATE", schema: "public", table: "driver_messages" },         scheduleChatRealtime)
   .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_channel_messages" }, scheduleChatRealtime)
   .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_reactions" }, scheduleChatRealtime)
+  // Checklist submissions — flag alerts + live Responses refresh.
+  .on("postgres_changes", { event: "*", schema: "public", table: "checklist_submissions" }, _clfRealtimeSubmission)
   .subscribe();
 
 window.addEventListener("focus", refreshActiveView);
