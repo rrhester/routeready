@@ -8646,7 +8646,7 @@ function _onbChatBubblesHTML(messages, peerReadAt) {
     }
     const mine = m.sender_kind === "dispatch";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-    const body = m.body ? escapeHtml(m.body) : (m.attachment_name ? "📎 " + escapeHtml(m.attachment_name) : "");
+    const body = m.body ? linkifyEscaped(escapeHtml(m.body), mine) : (m.attachment_name ? "📎 " + escapeHtml(m.attachment_name) : "");
     out += `<div class="onb-chat-row ${mine ? "mine" : "theirs"}"><div class="onb-chat-bubble">${body}</div><div class="onb-chat-time">${escapeHtml(time)}</div></div>`;
     if (i === lastMineIdx && mine && peer && dt && peer >= dt.getTime()) out += `<div class="onb-chat-read">Read</div>`;
   });
@@ -26685,6 +26685,24 @@ function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// Wrap http(s) URLs in an ALREADY-ESCAPED chat body with clickable
+// anchors.  Must run after escapeHtml (and any \n→<br> pass) so the
+// regex never sees raw user HTML; [^\s<] stops the match at whitespace
+// and at our inserted <br> tags.  Trailing punctuation stays outside
+// the href so a sentence-ending period isn't part of the link.
+// `onAccent` flips the link to inherit its color — for white-on-accent
+// bubbles where an accent-colored link would vanish into the
+// background.  Mirrors linkifyEscaped in app/app.js so operator and
+// driver see the same treatment.
+function linkifyEscaped(escaped, onAccent) {
+  return String(escaped || "").replace(/(https?:\/\/[^\s<]+)/gi, (raw) => {
+    const href = raw.replace(/[.,;:!?)\]>]+$/, "");
+    const tail = raw.slice(href.length);
+    const color = onAccent ? "color:inherit" : "color:var(--accent-text,var(--accent))";
+    return `<a href="${href}" target="_blank" rel="noopener" style="${color};text-decoration:underline;font-weight:600;word-break:break-all">${href}</a>${tail}`;
+  });
+}
+
 // Renders a small phone-icon `tel:` link followed by the formatted number.
 // `phone` may be a raw or pretty number; we only keep digits + leading `+` for
 // the href so the device dialer accepts it. Mirrors the worksheet-board phone
@@ -33051,7 +33069,7 @@ function _supBubblesHTML(msgs) {
     }
     const mine = m.sender_kind === "dsp";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-    const body = m.body ? escapeHtml(m.body) : "";
+    const body = m.body ? linkifyEscaped(escapeHtml(m.body), mine) : "";
     const author = mine ? "" : `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-text);margin-bottom:3px">RouteReady Support</div>`;
     out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
@@ -33317,7 +33335,7 @@ function _supAdmBubblesHTML(msgs) {
     }
     const mine = m.sender_kind === "support";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-    const body = m.body ? escapeHtml(m.body) : "";
+    const body = m.body ? linkifyEscaped(escapeHtml(m.body), mine) : "";
     const author = `<div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:3px">${escapeHtml((m.sender_name || (mine ? "RouteReady Support" : "DSP")))}${m.sender_role && !mine ? ` · ${escapeHtml(m.sender_role)}` : ""}</div>`;
     out += `<div style="display:flex;flex-direction:column;max-width:84%;${mine ? "align-self:flex-end;align-items:flex-end" : "align-self:flex-start;align-items:flex-start"}">${author}<div style="padding:var(--s-2) var(--s-3);border-radius:var(--r-xl);font-size:var(--fs-sm);line-height:1.45;word-break:break-word;white-space:pre-wrap;${mine ? "background:var(--accent-hover);color:#fff;border-bottom-right-radius:5px" : "background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px"}">${body}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px">${escapeHtml(time)}</div></div>`;
   });
@@ -33338,6 +33356,58 @@ async function _supAdmSend() {
   _supAdmScrollSig = "";
   await _supAdmRefreshThread(true);
   _supAdmRefreshList(false);
+}
+
+// ─── Composer attachment wiring (shared: direct chat + channels) ────────
+// Routes the paperclip file-picker AND Ctrl/Cmd+V image paste through
+// one staging path: size-check → pending slot → preview card with a
+// remove button.  Paste is why this exists — operators paste
+// screenshots straight into the composer instead of saving a file and
+// re-attaching it.  `setPending` stores the staged File wherever the
+// composer's submit handler reads it from (window._rrMcPending /
+// window._rrCcPending).
+function _rrWireComposerAttach({ ta, fileInput, previewEl, attachBtn, setPending }) {
+  const clear = () => {
+    fileInput.value = "";
+    setPending(null);
+    previewEl.style.display = "none";
+    previewEl.innerHTML = "";
+  };
+  const stage = (f) => {
+    if (!f) { clear(); return; }
+    if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
+    setPending(f);
+    const isImg = f.type.startsWith("image/");
+    const sizeKb = Math.round(f.size / 1024);
+    previewEl.style.display = "";
+    previewEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:var(--s-2);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
+        ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover">`
+                : `<span style="font-size:var(--fs-lg)">📎</span>`}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
+          <div class="u-subtle">${sizeKb} KB</div>
+        </div>
+        <button type="button" data-rr-attach-clear aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
+      </div>`;
+    previewEl.querySelector("[data-rr-attach-clear]").addEventListener("click", clear);
+  };
+  attachBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => stage(fileInput.files?.[0]));
+  // Clipboard images arrive named "image.png" — rename with a timestamp
+  // so back-to-back pastes don't all upload under the same name.
+  ta.addEventListener("paste", (e) => {
+    const item = Array.from(e.clipboardData?.items || [])
+      .find((x) => x.kind === "file" && x.type.startsWith("image/"));
+    const f = item && item.getAsFile();
+    if (!f) return;               // plain text — let the browser paste it
+    e.preventDefault();
+    const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "") || "png";
+    const d = new Date(); const pad = (n) => String(n).padStart(2, "0");
+    const name = `pasted-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.${ext}`;
+    stage(new File([f], name, { type: f.type }));
+  });
+  return { clear };
 }
 
 async function refreshDriverChatThread(scrollToBottom) {
@@ -33468,35 +33538,15 @@ async function refreshDriverChatThread(scrollToBottom) {
       }
     });
 
-    // Attachment picker — paperclip opens the file input.  Pending
-    // file sits on window._rrMcPending until send.
+    // Attachment picker — paperclip opens the file input, and Ctrl+V
+    // pastes an image straight into the composer.  Pending file sits
+    // on window._rrMcPending until send.
     const fileInput = document.getElementById("rr-mc-file");
     const previewEl = document.getElementById("rr-mc-attach-preview");
-    document.getElementById("rr-mc-attach").addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", () => {
-      const f = fileInput.files?.[0];
-      if (!f) { window._rrMcPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
-      if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
-      window._rrMcPending = f;
-      const isImg = f.type.startsWith("image/");
-      const sizeKb = Math.round(f.size / 1024);
-      previewEl.style.display = "";
-      previewEl.innerHTML = `
-        <div style="display:flex;align-items:center;gap:var(--s-2);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
-          ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover">`
-                  : `<span style="font-size:var(--fs-lg)">📎</span>`}
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
-            <div class="u-subtle">${sizeKb} KB</div>
-          </div>
-          <button type="button" id="rr-mc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
-        </div>`;
-      document.getElementById("rr-mc-attach-clear").addEventListener("click", () => {
-        fileInput.value = "";
-        window._rrMcPending = null;
-        previewEl.style.display = "none";
-        previewEl.innerHTML = "";
-      });
+    const attachCtl = _rrWireComposerAttach({
+      ta, fileInput, previewEl,
+      attachBtn: document.getElementById("rr-mc-attach"),
+      setPending: (f) => { window._rrMcPending = f; },
     });
 
     document.getElementById("rr-mc-form").addEventListener("submit", async (e) => {
@@ -33516,7 +33566,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       // losing it.
       const stubId = "rrmc-stub-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
       const threadEl = document.getElementById("rr-mc-thread");
-      const stubBody = body ? `<div>${escapeHtml(body).replace(/\n/g, "<br>")}</div>` : "";
+      const stubBody = body ? `<div>${linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>"))}</div>` : "";
       const stubAttach = file ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${escapeHtml(file.name)} (uploading…)</div>` : "";
       const nowTime = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
       const stubHtml = `<div class="rr-mc-bubble dispatch pending" data-rr-stub="${stubId}" data-group-pos="single">
@@ -33575,12 +33625,7 @@ async function refreshDriverChatThread(scrollToBottom) {
           }
         }
       });
-      if (file) {
-        window._rrMcPending = null;
-        fileInput.value = "";
-        previewEl.style.display = "none";
-        previewEl.innerHTML = "";
-      }
+      if (file) attachCtl.clear();
 
       let attachment = null;
       if (file) {
@@ -33757,7 +33802,7 @@ async function refreshDriverChatThread(scrollToBottom) {
       if (isDeleted) {
         bodyHtml = `<div class="rr-mc-deleted-body">Message deleted</div>`;
       } else if (m.body) {
-        bodyHtml = `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>`;
+        bodyHtml = `<div>${linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))}</div>`;
       }
       // Hover actions — only on the dispatcher's own non-deleted
       // bubbles within the 15-minute edit window.  Visual affordance
@@ -34427,31 +34472,10 @@ async function refreshChannelThread(scrollToBottom) {
 
     const fileInput = document.getElementById("rr-cc-file");
     const previewEl = document.getElementById("rr-cc-attach-preview");
-    document.getElementById("rr-cc-attach").addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", () => {
-      const f = fileInput.files?.[0];
-      if (!f) { window._rrCcPending = null; previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
-      if (f.size > 15 * 1024 * 1024) { toast("File too large (max 15 MB)", "warn"); fileInput.value = ""; return; }
-      window._rrCcPending = f;
-      const isImg = f.type.startsWith("image/");
-      const sizeKb = Math.round(f.size / 1024);
-      previewEl.style.display = "";
-      previewEl.innerHTML = `
-        <div style="display:flex;align-items:center;gap:var(--s-2);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 8px;font-size:var(--fs-sm)">
-          ${isImg ? `<img src="${URL.createObjectURL(f)}" alt="" style="width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover">`
-                  : `<span style="font-size:var(--fs-lg)">📎</span>`}
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
-            <div class="u-subtle">${sizeKb} KB</div>
-          </div>
-          <button type="button" id="rr-cc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
-        </div>`;
-      document.getElementById("rr-cc-attach-clear").addEventListener("click", () => {
-        fileInput.value = "";
-        window._rrCcPending = null;
-        previewEl.style.display = "none";
-        previewEl.innerHTML = "";
-      });
+    const attachCtl = _rrWireComposerAttach({
+      ta, fileInput, previewEl,
+      attachBtn: document.getElementById("rr-cc-attach"),
+      setPending: (f) => { window._rrCcPending = f; },
     });
 
     document.getElementById("rr-cc-form").addEventListener("submit", async (e) => {
@@ -34492,12 +34516,7 @@ async function refreshChannelThread(scrollToBottom) {
       // the height shrink mechanically.  The call below is a no-op
       // stub kept for compatibility (see _syncComposerPos definition).
       if (typeof _syncComposerPos === "function") _syncComposerPos();
-      if (file) {
-        window._rrCcPending = null;
-        fileInput.value = "";
-        previewEl.style.display = "none";
-        previewEl.innerHTML = "";
-      }
+      if (file) attachCtl.clear();
       await refreshChannelThread(true);
       refreshChannelList(false);
     });
@@ -34557,7 +34576,7 @@ async function refreshChannelThread(scrollToBottom) {
       const senderLabel = m.sender_kind === "dispatch"
         ? (m.sender_name ? `Dispatch · ${m.sender_name}` : "Dispatch")
         : (m.sender_name || "Driver");
-      const bodyHtml = m.body ? `<div>${escapeHtml(m.body).replace(/\n/g, "<br>")}</div>` : "";
+      const bodyHtml = m.body ? `<div>${linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"))}</div>` : "";
       const showSender = (pos === "first" || pos === "single");
       return `<div class="rr-cc-bubble ${m.sender_kind}" data-group-pos="${pos}">
         ${showSender ? `<div class="rr-cc-sender">${escapeHtml(senderLabel)}</div>` : ""}
