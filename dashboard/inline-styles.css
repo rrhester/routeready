@@ -12958,6 +12958,22 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-adbar:hover{filter:brightness(.97)}
             #rr-ivcal .oc-adbar .oc-adbar-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
             #rr-ivcal .oc-adbar.sel{box-shadow:0 0 0 2px rgba(37,99,235,.35)}
+            /* Team-task chips · open tasks on their due date. Deliberately
+               quiet (slate, no fill) so events keep visual priority; the
+               small square check completes the task in place. */
+            #rr-ivcal .oc-taskchip{font-size:11.5px;font-weight:500;line-height:1.35;border:1px solid var(--oc-colsep,#e2e8f0);border-left:3px solid #94a3b8;border-radius:4px;padding:2px 6px;background:#fff;color:#334155;cursor:grab;display:flex;align-items:center;gap:5px;min-width:0}
+            #rr-ivcal .oc-taskchip:hover{background:#f8fafc}
+            #rr-ivcal .oc-taskchip:active{cursor:grabbing}
+            #rr-ivcal .oc-taskchip-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+            #rr-ivcal .oc-taskchip-check{appearance:none;cursor:pointer;flex:0 0 auto;width:13px;height:13px;border-radius:3px;border:1.4px solid #cbd5e1;background:#fff;color:#fff;display:inline-flex;align-items:center;justify-content:center;padding:0}
+            #rr-ivcal .oc-taskchip-check:hover{border-color:#64748b;background:#f1f5f9}
+            #rr-ivcal .oc-taskchip-check svg{opacity:0;width:9px;height:9px}
+            #rr-ivcal .oc-taskchip-check:hover svg{opacity:.55;color:#475569}
+            #rr-ivcal .oc-taskchip-init{flex:0 0 auto;width:15px;height:15px;border-radius:50%;background:#e2e8f0;color:#64748b;display:inline-flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700}
+            /* Month cells: the chip sits above the event pills. */
+            #rr-ivcal .oc-mcell .oc-taskchip{margin:0 2px 2px;font-size:11px;padding:1px 5px}
+            /* Drag-over target while rescheduling a task. */
+            #rr-ivcal .oc-taskdrop{outline:2px dashed #94a3b8;outline-offset:-2px;background:rgba(148,163,184,.08)}
             #rr-ivcal .oc-scroll{overflow-y:auto;height:580px}
             #rr-ivcal .oc-grid{display:grid;grid-template-columns:50px repeat(var(--days),1fr);position:relative}
             #rr-ivcal .oc-gutter{position:relative}
@@ -28076,7 +28092,8 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .rr-cal-task-card .rr-cal-task-field{ margin-bottom:14px !important; }
 .rr-cal-task-card input[type="text"],
-.rr-cal-task-card input[type="date"]{
+.rr-cal-task-card input[type="date"],
+.rr-cal-task-card select{
   width:100% !important; box-sizing:border-box !important; height:40px !important; padding:0 12px !important;
   background:#FFFFFF !important; color:var(--sidebar-bg, #0F172A) !important;
   border:1.5px solid #CBD5E1 !important; border-radius:10px !important;
@@ -28084,10 +28101,12 @@ body.rr-cmdk-open{ overflow:hidden }
   transition:border-color .12s ease, box-shadow .12s ease !important;
 }
 .rr-cal-task-card input[type="text"]:focus,
-.rr-cal-task-card input[type="date"]:focus{
+.rr-cal-task-card input[type="date"]:focus,
+.rr-cal-task-card select:focus{
   border-color:var(--accent, #2563EB) !important;
   box-shadow:0 0 0 3px rgba(37,99,235,.16) !important;
 }
+.rr-cal-task-card .rr-cal-task-field[hidden]{ display:none !important; }
 .rr-cal-task-actions{
   display:flex !important; align-items:center !important; justify-content:flex-end !important;
   gap:10px !important; margin-top:18px !important;
