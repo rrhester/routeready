@@ -548,7 +548,7 @@ begin
     '0 13 * * *',
     $cron$ select public.recognition_autofire(current_date); $cron$
   );
-exception when undefined_function or undefined_table or undefined_schema then
+exception when undefined_function or undefined_table or invalid_schema_name then
   raise notice 'pg_cron not enabled — wire your own scheduler to call public.recognition_autofire(current_date) daily';
 end $$;
 
