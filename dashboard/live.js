@@ -68243,6 +68243,10 @@ function _clRenderRunner() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33"/></svg>
           Assign / due
         </button>
+        ${inst.status !== 'archived' ? `<button class="cl-rn-meta-btn" type="button" data-cl-complete>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${inst.status === 'completed' ? '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>' : '<polyline points="20 6 9 17 4 12"/>'}</svg>
+          ${inst.status === 'completed' ? 'Reopen' : 'Mark complete'}
+        </button>` : ''}
         <button class="cl-rn-meta-btn" type="button" data-cl-archive>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
           ${inst.status === 'archived' ? 'Restore' : 'Archive'}
@@ -68322,7 +68326,12 @@ async function _clToggleItem(itemId) {
   // parent instance status actually flipped (which changes the chip).
   const allReq = items.filter(i => i.required);
   const wasCompleted = _clOpenInstance.status === "completed";
-  const shouldBeCompleted = allReq.length > 0 && allReq.every(i => i.completed_at);
+  // Mirror private.checklist_instance_reconcile: complete when every
+  // required item is done; if there are no required items, fall back to
+  // "every item done" so all-optional checklists can still finish.
+  const shouldBeCompleted = allReq.length > 0
+    ? allReq.every(i => i.completed_at)
+    : (items.length > 0 && items.every(i => i.completed_at));
   let statusChanged = false;
   if (shouldBeCompleted && !wasCompleted) {
     _clOpenInstance.status = "completed";
@@ -68354,6 +68363,23 @@ async function _clArchiveRunner() {
   await loadChecklistInstances();
   await loadChecklistTodaySummary();
   _clCloseRunner();
+}
+// Manually flip an instance complete / back to active. Useful for
+// all-optional checklists (nothing required to auto-complete) or to
+// force-close a list that's "done enough". Toggling items afterward
+// re-reconciles as usual.
+async function _clSetComplete() {
+  if (!_clOpenInstance) return;
+  const target = _clOpenInstance.status !== "completed";
+  _clSetRunnerSave("saving", "Saving…");
+  const { data, error } = await sb.rpc("checklist_instance_set_complete", { p_id: _clOpenInstance.id, p_complete: target });
+  if (error) { _clSetRunnerSave("err", "Couldn't save"); toast("Couldn't update", "warn"); return; }
+  _clOpenInstance.status = data?.status || (target ? "completed" : "active");
+  _clOpenInstance.completed_at = data?.completed_at || null;
+  _clSetRunnerSave("saved", "Saved");
+  _clRenderRunner();
+  await loadChecklistInstances();
+  await loadChecklistTodaySummary();
 }
 function _clOpenMetaPop() {
   if (!_clOpenInstance) return;
@@ -68532,6 +68558,7 @@ document.addEventListener("click", (e) => {
   // Meta popover
   if (e.target.closest?.("[data-cl-meta]")) { e.preventDefault(); _clOpenMetaPop(); return; }
   // Archive
+  if (e.target.closest?.("[data-cl-complete]")) { e.preventDefault(); _clSetComplete(); return; }
   if (e.target.closest?.("[data-cl-archive]")) { e.preventDefault(); _clArchiveRunner(); return; }
 });
 

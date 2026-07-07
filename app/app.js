@@ -7640,6 +7640,7 @@ async function _clkCollect(items, opts = {}) {
   const dspId    = session?.dsp_id    || null;
   const skipUploads = !!opts.skipUploads;
   const uploads = [];
+  let uploadFailed = 0;
   for (const item of items) {
     const el = document.querySelector(`#rr-clk-fill [data-rr-clk="${CSS.escape(item.id)}"]`);
     if (!el) continue;
@@ -7662,10 +7663,10 @@ async function _clkCollect(items, opts = {}) {
         uploads.push(
           sb.storage.from("driver-documents").upload(path, f, { contentType: f.type, upsert: false })
             .then(({ error }) => {
-              if (error) console.warn("checklist photo upload failed:", error.message);
+              if (error) { uploadFailed++; console.warn("checklist photo upload failed:", error.message); }
               else out[item.id] = { photos: existing.concat([path]) };
             })
-            .catch((e) => console.warn("checklist photo upload error:", e))
+            .catch((e) => { uploadFailed++; console.warn("checklist photo upload error:", e); })
         );
       } else if (existing.length) {
         out[item.id] = { photos: existing };
@@ -7679,6 +7680,15 @@ async function _clkCollect(items, opts = {}) {
     }
   }
   if (uploads.length) await Promise.all(uploads);
+  // A dropped photo used to be swallowed as a console.warn while the
+  // answer kept the pre-upload (empty) list — so a driver could "save"
+  // or "submit" and silently lose the photo. Surface it instead: throw
+  // so the caller can warn and keep the work on the phone.
+  if (uploadFailed) {
+    const err = new Error("photo_upload_failed");
+    err.rrUploadFailed = uploadFailed;
+    throw err;
+  }
   return out;
 }
 
@@ -7805,12 +7815,14 @@ async function renderChecklistFill() {
   formEl.addEventListener("input", saveLocal);
   formEl.addEventListener("change", saveLocal);
 
-  // Save progress → server, so dispatch sees "In progress".
+  // Save progress → server, so dispatch sees "In progress". Photos are
+  // uploaded here too (skipUploads used to drop a freshly-snapped photo
+  // on Save — it only persisted on final Submit, so Save→leave lost it).
   document.getElementById("rr-clk-save")?.addEventListener("click", async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true; btn.textContent = "Saving…";
     try {
-      const cur = await _clkCollect(items, { skipUploads: true });
+      const cur = await _clkCollect(items);
       const { error: saveErr } = await sb.rpc("driver_save_checklist", {
         p_token: session.token, p_assignment_id: id, p_answers: cur,
       });
@@ -7818,7 +7830,9 @@ async function renderChecklistFill() {
       setDraft(DRAFT_KEY, cur);
       toast("Progress saved", "ok");
     } catch (err) {
-      toast(_friendlyError(err, "Couldn't save progress — it's still on this phone."), "warn");
+      toast(err?.rrUploadFailed
+        ? "A photo didn't upload — check your signal and tap Save again."
+        : _friendlyError(err, "Couldn't save progress — it's still on this phone."), "warn");
     } finally {
       btn.disabled = false; btn.textContent = "Save progress";
     }
@@ -7828,7 +7842,16 @@ async function renderChecklistFill() {
     e.preventDefault();
     const btn = e.target.querySelector("button[type=submit]");
     if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
-    const cur = await _clkCollect(items);
+    let cur;
+    try {
+      cur = await _clkCollect(items);
+    } catch (err) {
+      if (btn) { btn.disabled = false; btn.textContent = "Submit checklist"; }
+      toast(err?.rrUploadFailed
+        ? "A photo didn't upload — check your signal and try again."
+        : _friendlyError(err, "Couldn't upload — try again."), "warn");
+      return;
+    }
     if (btn) btn.textContent = "Submitting…";
     for (const item of items) {
       if (!item.required) continue;
