@@ -2805,12 +2805,24 @@ function renderTasksHub() {
     slot.innerHTML = `<div class="wt-sec">Forms<span class="wt-sec-n">${forms.length}</span></div>` + queuedNote + forms.map(f => {
       const oncePer = !!f.settings?.once_per_driver;
       const done = oncePer && f.submission_count > 0;
+      if (done) {
+        // Completed once-per-driver form: render as done and NOT tappable.
+        // The server rejects a second submit anyway; this spares the driver
+        // the confusing open → refill → "already submitted" round-trip.
+        const when = f.last_submitted_at ? new Date(f.last_submitted_at).toLocaleDateString() : "";
+        return `
+          <div class="task-card is-done" aria-disabled="true">
+            <span class="task-icon" style="color:var(--green,#16a34a)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <div class="task-text">
+              <div class="task-title">${escapeHtml(f.title || "Untitled form")}</div>
+              <div class="task-sub">Submitted${when ? " · " + escapeHtml(when) : ""}</div>
+            </div>
+          </div>`;
+      }
       return taskCardHtml({
         route: `/tasks/form?id=${encodeURIComponent(f.id)}`,
         title: f.title || "Untitled form",
-        sub:   done
-          ? `Submitted · ${new Date(f.last_submitted_at).toLocaleDateString()}`
-          : (f.description || `${f.field_count} question${f.field_count === 1 ? "" : "s"}`),
+        sub:   f.description || `${f.field_count} question${f.field_count === 1 ? "" : "s"}`,
         icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
       });
     }).join("");
@@ -2972,6 +2984,33 @@ async function _scanLoadBitmap(file) {
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("decode failed")); };
     img.src = url;
   });
+}
+
+// Downscale a captured image to a sane max edge and JPEG-encode it before
+// upload, so multi-MB phone photos don't crawl over a weak connection.
+// Non-images and already-small shots pass through untouched; any failure
+// falls back to the original file. Reuses _scanLoadBitmap for EXIF-correct
+// orientation so portrait shots aren't rotated.
+async function _downscaleImageFile(file, maxEdge = 1600, quality = 0.8) {
+  if (!file || !/^image\//.test(file.type || "")) return file;
+  try {
+    const bmp = await _scanLoadBitmap(file);
+    const sw = bmp.width, sh = bmp.height;
+    const scale = Math.min(1, maxEdge / Math.max(sw, sh || 1));
+    if (scale >= 1 && (file.size || 0) < 1_200_000) { if (bmp.close) bmp.close(); return file; }
+    const w = Math.max(1, Math.round(sw * scale));
+    const h = Math.max(1, Math.round(sh * scale));
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bmp, 0, 0, w, h);
+    if (bmp.close) bmp.close();
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", quality));
+    if (!blob || blob.size >= (file.size || Infinity)) return file;  // no win → keep original
+    const name = (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  } catch { return file; }
 }
 
 // A capture (from the file picker or the live camera) becomes a page
@@ -7880,6 +7919,11 @@ function _formFieldInnerHtml(f) {
   const help = f.help ? `<div class="form-fill-help">${escapeHtml(f.help)}</div>` : "";
   const req  = f.required ? `<span style="color:var(--red);margin-left:3px">*</span>` : "";
   const row  = (input) => `<div class="form-fill-row"><label class="form-fill-label" for="${id}">${lbl}${req}</label>${help}${input}</div>`;
+  // Group row for radio/checkbox groups: the question is a <span> (not a
+  // <label for>, which can only target one control) and the group carries
+  // role="group" + aria-labelledby so screen readers announce the question
+  // with the choices.
+  const grow = (input) => `<div class="form-fill-row"><span class="form-fill-label" id="${id}-lbl">${lbl}${req}</span>${help}${input}</div>`;
   switch (f.type) {
     case "instructions":
       return `<div class="form-fill-instructions"><div class="form-fill-instructions-title">${lbl || "Instructions"}</div><div>${escapeHtml(f.help || "")}</div></div>`;
@@ -7900,25 +7944,25 @@ function _formFieldInnerHtml(f) {
     case "time":
       return row(`<input class="field" id="${id}" type="time" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
     case "yes_no":
-      return row(`
-        <div class="form-fill-choice-row" data-rr-field="${escapeHtml(f.id)}" data-rr-type="yes_no">
+      return grow(`
+        <div class="form-fill-choice-row" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="yes_no">
           <label class="form-fill-choice"><input type="radio" name="${id}" value="yes"/><span>Yes</span></label>
           <label class="form-fill-choice"><input type="radio" name="${id}" value="no"/><span>No</span></label>
         </div>`);
     case "rating":
-      return row(`
-        <div class="form-fill-rating" data-rr-field="${escapeHtml(f.id)}" data-rr-type="rating">
+      return grow(`
+        <div class="form-fill-rating" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="rating">
           ${[1,2,3,4,5].map(n => `<label class="form-fill-rating-star"><input type="radio" name="${id}" value="${n}"/><span>${n}</span></label>`).join("")}
         </div>`);
     case "single_choice": {
       const opts = (f.options || []).map((o, i) => `
         <label class="form-fill-choice"><input type="radio" name="${id}" value="${escapeHtml(o)}"/><span>${escapeHtml(o)}</span></label>`).join("");
-      return row(`<div class="form-fill-choice-col" data-rr-field="${escapeHtml(f.id)}" data-rr-type="single_choice">${opts}</div>`);
+      return grow(`<div class="form-fill-choice-col" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="single_choice">${opts}</div>`);
     }
     case "multi_choice": {
       const opts = (f.options || []).map((o, i) => `
         <label class="form-fill-choice"><input type="checkbox" value="${escapeHtml(o)}"/><span>${escapeHtml(o)}</span></label>`).join("");
-      return row(`<div class="form-fill-choice-col" data-rr-field="${escapeHtml(f.id)}" data-rr-type="multi_choice">${opts}</div>`);
+      return grow(`<div class="form-fill-choice-col" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="multi_choice">${opts}</div>`);
     }
     case "dropdown": {
       const opts = (f.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
@@ -8018,6 +8062,7 @@ async function _collectFormAnswers(fields, opts = {}) {
   const skipUploads = !!opts.skipUploads;
   const photoUploads = [];
   const gpsCaptures = [];
+  const deferOps = [];  // async prep for offline-queued blobs (e.g. downscale)
   document.querySelectorAll("#rr-form-fill [data-rr-field]").forEach((el) => {
     // Conditional logic: a field whose condition isn't currently met sits
     // inside a hidden [data-cond-field] wrapper. Skip it entirely so it is
@@ -8036,12 +8081,14 @@ async function _collectFormAnswers(fields, opts = {}) {
       out[fid] = Array.from(el.querySelectorAll("input[type=checkbox]:checked")).map((c) => c.value);
     } else if (t === "photo") {
       if (skipUploads) return;  // skip in draft mode
-      // Offline path: carry the raw blob for the queue to upload later.
+      // Offline path: carry the (downscaled) blob for the queue to upload later.
       if (opts.deferFiles) {
         const f = el.files?.[0];
         if (f) {
-          opts.deferredFiles.push({ fid, blob: f, name: f.name, type: f.type });
           out[fid] = { name: f.name, size: f.size, type: f.type, deferred: true };
+          deferOps.push(_downscaleImageFile(f).then((up) => {
+            opts.deferredFiles.push({ fid, blob: up, name: f.name, type: up.type });
+          }));
         } else { out[fid] = null; }
         return;
       }
@@ -8058,16 +8105,17 @@ async function _collectFormAnswers(fields, opts = {}) {
         const path = `${dspId || "no-dsp"}/dvic/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
         out[fid] = { path, name: f.name, size: f.size, type: f.type, uploading: true };
         photoUploads.push(
-          sb.storage.from("driver-documents").upload(path, f, { contentType: f.type, upsert: false })
-            .then(({ error }) => {
-              if (error) {
-                console.warn("DVIC photo upload failed:", error.message);
-                out[fid] = { name: f.name, size: f.size, type: f.type, error: error.message };
-              } else {
-                out[fid] = { path, name: f.name, size: f.size, type: f.type };
-              }
-            })
-            .catch((e) => {
+          _downscaleImageFile(f).then((up) =>
+            sb.storage.from("driver-documents").upload(path, up, { contentType: up.type, upsert: false })
+              .then(({ error }) => {
+                if (error) {
+                  console.warn("DVIC photo upload failed:", error.message);
+                  out[fid] = { name: f.name, size: f.size, type: f.type, error: error.message };
+                } else {
+                  out[fid] = { path, name: f.name, size: up.size, type: up.type };
+                }
+              })
+          ).catch((e) => {
               console.warn("DVIC photo upload error:", e);
               out[fid] = { name: f.name, size: f.size, type: f.type, error: String(e) };
             })
@@ -8154,10 +8202,11 @@ async function _collectFormAnswers(fields, opts = {}) {
       out[fid] = el.value || "";
     }
   });
-  // Wait for all photo/file uploads and GPS captures to settle before
-  // returning so the submission's answers contain the final paths/coords.
-  if (photoUploads.length || gpsCaptures.length) {
-    await Promise.all([...photoUploads, ...gpsCaptures]);
+  // Wait for all photo/file uploads, GPS captures, and offline blob prep
+  // to settle before returning so the answers carry final paths/coords and
+  // the queue carries the downscaled blobs.
+  if (photoUploads.length || gpsCaptures.length || deferOps.length) {
+    await Promise.all([...photoUploads, ...gpsCaptures, ...deferOps]);
   }
   return out;
 }
