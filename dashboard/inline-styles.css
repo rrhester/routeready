@@ -30450,3 +30450,122 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   border-left:3px solid var(--ev-hue, #2563EB) !important;
   color:color-mix(in srgb, var(--ev-hue, #2563EB) 82%, #0F172A) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DIRECTION A — "Refined Baseline" maturity pass  (2026-07-07)
+   -----------------------------------------------------------------------
+   A light re-skin of the Schedule WEEK board toward a calmer, more
+   operational finish. Scoped to #view-schedule.rrx-schedule and placed at
+   end-of-sheet so it wins at equal specificity over the earlier coverage /
+   chip / badge rules in this file.
+
+   To REVERT: delete this whole banner-to-banner block, and revert the
+   companion `.rr-ab-cov-meter` injection in live.js (renderScheduleWeek,
+   search "DIRECTION A · coverage meter"). Nothing else references it.
+
+   Four moves, matching the Direction-A mockup:
+     1. Coverage floating card  → integrated inline meter in the command bar
+     2. Red "V" / gold "OT" dots → quiet soft-fill chips
+     3. All grid digits          → tabular (column-aligned) numerals
+     4. Shift chip               → flatter + calmer, so the TIME leads and
+                                   the route code recedes
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── (1) Coverage · fold the floating card into the command band ──────── */
+#view-schedule.rrx-schedule .rr-ab-coverage {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 5px !important;
+  /* strip the card chrome — no fill, no border, no shadow, no radius */
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  /* anchor it into the bar with a hairline divider instead of a box */
+  border-left: 1px solid var(--rr-border-primary, #E5E7EB) !important;
+  padding: 3px 4px 3px 14px !important;
+  min-width: 172px;
+}
+#view-schedule.rrx-schedule .rr-ab-coverage-main { align-items: baseline; gap: 6px; }
+#view-schedule.rrx-schedule .rr-ab-cov-num {
+  font-size: 15px;                     /* calmer than the 18px card number */
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+}
+#view-schedule.rrx-schedule .rr-ab-cov-unit { font-size: 10.5px; }
+#view-schedule.rrx-schedule .rr-ab-coverage-sub { margin-top: 0; }
+/* the meter element is appended by renderScheduleWeek (see live.js) */
+#view-schedule.rrx-schedule .rr-ab-cov-meter {
+  display: block;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--border-subtle, #F3F4F6);
+  overflow: hidden;
+}
+#view-schedule.rrx-schedule .rr-ab-cov-meter > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green, #16A34A);
+  transition: width .3s cubic-bezier(.2, 0, .2, 1);
+}
+#view-schedule.rrx-schedule .rr-ab-cov-meter[data-state="gap"] > i { background: var(--red, #DC2626); }
+#view-schedule.rrx-schedule .rr-ab-cov-meter[data-state="cushion"] > i { background: var(--amber-bright, #F59E0B); }
+
+/* ── (2) Row status flags · loud dots → quiet soft chips ─────────────────
+   The "V" (scheduled without a van) and "OT" (over hours) markers ship as
+   filled SVG discs that read like unread-notification badges. Hide the disc
+   and render a small typographic chip in its place — same meaning, calmer
+   voice. Saturated red stays reserved for the genuine DL-expiry warning,
+   which is intentionally left untouched. */
+#view-schedule.rrx-schedule .cal-row-label-vanwarn svg,
+#view-schedule.rrx-schedule .cal-row-label-otwarn svg { display: none !important; }
+#view-schedule.rrx-schedule .cal-row-label-vanwarn,
+#view-schedule.rrx-schedule .cal-row-label-otwarn { line-height: 1 !important; }
+#view-schedule.rrx-schedule .cal-row-label-vanwarn::after,
+#view-schedule.rrx-schedule .cal-row-label-otwarn::after {
+  font: 700 9.5px/1 var(--rr-font-family, 'Inter', 'Segoe UI', sans-serif);
+  letter-spacing: .03em;
+  padding: 3px 5px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+}
+#view-schedule.rrx-schedule .cal-row-label-vanwarn::after {
+  content: "V";
+  color: #B42318;
+  background: rgba(220, 38, 38, .10);
+  border-color: rgba(220, 38, 38, .16);
+}
+#view-schedule.rrx-schedule .cal-row-label-otwarn::after {
+  content: "OT";
+  color: #B54708;
+  background: rgba(245, 158, 11, .14);
+  border-color: rgba(245, 158, 11, .26);
+}
+
+/* ── (3) Tabular numerals · align every digit column across the grid ──── */
+#view-schedule.rrx-schedule .cal-wrap { font-variant-numeric: tabular-nums; }
+
+/* ── (4) Shift chip · flatter + calmer, so the time leads ────────────────
+   Trade the raised tile for a hairline, soften the fill one notch, and let
+   the route code recede to a quiet label above the time. */
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: #EFF4FB !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .07) !important;
+}
+#view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: #E4EEFB !important;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .28) !important;
+}
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
+  color: var(--text-subtle, #6B7280) !important;
+  font-weight: 650 !important;
+  letter-spacing: .02em;
+}
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
+  color: var(--text, #111827) !important;
+  font-weight: 650 !important;
+}
+/* end DIRECTION A ═══════════════════════════════════════════════════════ */

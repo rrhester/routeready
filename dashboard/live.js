@@ -57243,6 +57243,16 @@ async function renderScheduleWeek() {
           abSub.textContent = "All routes covered";
         }
         abSub.classList.toggle("is-ok", abRouteGap === 0 && abCushionOpen === 0);
+        // DIRECTION A · coverage meter — a slim fill bar under the count so
+        // coverage reads as a metric, not a floating card. State drives the
+        // colour: green (covered) / amber (cushion open) / red (routes open).
+        // CSS lives in inline-styles.css (search "DIRECTION A"); remove both
+        // to revert. Idempotent — reuses the existing bar across re-renders.
+        let abMeter = abCard.querySelector(".rr-ab-cov-meter");
+        if (!abMeter) { abMeter = document.createElement("span"); abMeter.className = "rr-ab-cov-meter"; abCard.appendChild(abMeter); }
+        const abPct = abNeeded > 0 ? Math.max(3, Math.min(100, (abFilled / abNeeded) * 100)) : 0;
+        abMeter.dataset.state = abRouteGap > 0 ? "gap" : (abCushionOpen > 0 ? "cushion" : "ok");
+        abMeter.innerHTML = `<i style="width:${abPct}%"></i>`;
       }
     }
   } catch (e) { console.warn("action bar paint:", e); }
