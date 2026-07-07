@@ -30379,3 +30379,58 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 
 /* Sticky footer actions (right side of the shared .builder-foot) */
 .clf-foot-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+/* ════════════════════════════════════════════════════════════════════════
+   CALENDAR · hue-keyed events + weekend rhythm (2026-07-07)
+   Each event paints from a single --ev-hue (set inline by _ivcalHue), keyed
+   to its calendar/kind — so the week grid, month dots and agenda all match
+   the "My calendars" legend (interviews blue, orientations amber, events
+   teal, sessions purple). Restores the crisp colored left rail the earlier
+   visual-weight-reduction pass had flattened. Last in the file so it wins
+   over the earlier cat-* overrides.
+   ════════════════════════════════════════════════════════════════════════ */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-blue,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-green,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-orange,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-gray,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-red,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-teal{
+  background:color-mix(in srgb, var(--ev-hue, #2563EB) 11%, #FFFFFF) !important;
+  border:1px solid color-mix(in srgb, var(--ev-hue, #2563EB) 26%, transparent) !important;
+  border-left:4px solid var(--ev-hue, #2563EB) !important;
+  color:color-mix(in srgb, var(--ev-hue, #2563EB) 82%, #0F172A) !important;
+}
+/* Pending (unconfirmed RSVP) · dashed rail + airier fill so it reads as
+   "not locked in" without inventing a second hue. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.is-pending{
+  border-left-style:dashed !important;
+  background:color-mix(in srgb, var(--ev-hue, #2563EB) 6%, #FFFFFF) !important;
+}
+/* Declined / cancelled resolve to gray via _ivcalHue — keep the strikethrough. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.declined .en,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.declined .et{ text-decoration:line-through; }
+
+/* Month pills + agenda share the same hue: filled dot, dashed ring when pending. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-pill .oc-pdot{ background:var(--ev-hue, #2563EB) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-pill.is-pending .oc-pdot{
+  background:transparent !important; box-shadow:inset 0 0 0 1.5px var(--ev-hue, #2563EB) !important;
+}
+
+/* Weekend rhythm · a whisper-quiet neutral wash so Sat & Sun read as the
+   week's bookends without competing with events. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.oc-wknd{ background:#F1F4F9 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.oc-wknd .dow{ color:#9AA4B2 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mcell.oc-wknd{ background:#F7F9FC !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mcell.oc-wknd.out{ background:#F1F4F9 !important; }
+
+/* Today column · lift the blue wash a touch so "today" is unmistakable,
+   and keep it winning on a weekend-today. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.today{ background:rgba(37,99,235,.07) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.oc-wknd.today{ background:rgba(37,99,235,.07) !important; }
+
+/* All-day lane bars read from the same --ev-hue as timed events. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-adbar{
+  background:color-mix(in srgb, var(--ev-hue, #2563EB) 12%, #FFFFFF) !important;
+  border-left:3px solid var(--ev-hue, #2563EB) !important;
+  color:color-mix(in srgb, var(--ev-hue, #2563EB) 82%, #0F172A) !important;
+}
