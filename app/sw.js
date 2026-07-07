@@ -19,7 +19,7 @@
 // searchable / selectable. Runs entirely on the phone; degrades to a
 // normal PDF if the engine can't load. Bumped so installed driver PWAs
 // purge the old shell and pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v131";
+const SHELL_CACHE = "rr-app-shell-v132";
 const SHELL_FILES = [
   "./",
   "index.html",

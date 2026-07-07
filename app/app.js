@@ -804,6 +804,21 @@ function taskSkeletonHtml(n = 3){
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
 }
+// Wrap http(s) URLs in an ALREADY-ESCAPED chat body with clickable
+// anchors.  Must run after escapeHtml (and any \n→<br> pass) so the
+// regex never sees raw user HTML; [^\s<] stops the match at whitespace
+// and at our inserted <br> tags.  Trailing punctuation stays outside
+// the href so a sentence-ending period isn't part of the link.
+// `onAccent` flips the link to inherit its color — for white-on-accent
+// bubbles where var(--accent) would vanish into the background.
+function linkifyEscaped(escaped, onAccent) {
+  return String(escaped || "").replace(/(https?:\/\/[^\s<]+)/gi, (raw) => {
+    const href = raw.replace(/[.,;:!?)\]>]+$/, "");
+    const tail = raw.slice(href.length);
+    const color = onAccent ? "color:inherit" : "color:var(--accent)";
+    return `<a href="${href}" target="_blank" rel="noopener" style="${color};text-decoration:underline;font-weight:600;word-break:break-all">${href}</a>${tail}`;
+  });
+}
 function initialsOf(name) {
   return (name || "").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
 }
@@ -4793,7 +4808,7 @@ async function renderChat() {
     const stubId = "stub-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
     const nowTime = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     const stubBody = body
-      ? `<div class="chat-body">${escapeHtml(body).replace(/\n/g, "<br>")}</div>`
+      ? `<div class="chat-body">${linkifyEscaped(escapeHtml(body).replace(/\n/g, "<br>"), true)}</div>`
       : "";
     const stubAttach = file
       ? `<div style="font-size:var(--fs-xs);opacity:.85;margin-bottom:4px">📎 ${escapeHtml(file.name)} (uploading…)</div>`
@@ -5249,16 +5264,11 @@ function chatBubbleHtml(m, pos) {
   const t = new Date(m.created_at);
   const time = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const groupAttr = pos ? ` data-group-pos="${pos}"` : "";
-  // Body — escape first, then swap http(s) URLs into <a> tags.  /i
-  // catches uppercased schemes; trailing punctuation stripped so a
-  // sentence-ending period isn't part of the href.
+  // Body — escape first, then swap http(s) URLs into <a> tags.  The
+  // driver's own bubble is white-on-accent, so its links inherit the
+  // white instead of using var(--accent).
   const body = m.body
-    ? escapeHtml(m.body).replace(/\n/g, "<br>")
-        .replace(/(https?:\/\/[^\s<]+)/gi, (raw) => {
-          const trim = raw.replace(/[.,;:!?)\]>]+$/, "");
-          const tail = raw.slice(trim.length);
-          return `<a href="${trim}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;font-weight:600;word-break:break-all">${trim}</a>${tail}`;
-        })
+    ? linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"), mine)
     : "";
 
   // Attachment — Supabase signed URL keeps a bucket-private file
@@ -5836,12 +5846,7 @@ function channelBubbleHtml(m, pos) {
   const groupAttr = pos ? ` data-group-pos="${pos}"` : "";
   const showSender = !mine && (pos === "first" || pos === "single" || !pos);
   const body = m.body
-    ? escapeHtml(m.body).replace(/\n/g, "<br>")
-        .replace(/(https?:\/\/[^\s<]+)/gi, (raw) => {
-          const trim = raw.replace(/[.,;:!?)\]>]+$/, "");
-          const tail = raw.slice(trim.length);
-          return `<a href="${trim}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;font-weight:600;word-break:break-all">${trim}</a>${tail}`;
-        })
+    ? linkifyEscaped(escapeHtml(m.body).replace(/\n/g, "<br>"), mine)
     : "";
 
   let attachment = "";
