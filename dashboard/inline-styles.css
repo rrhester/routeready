@@ -29690,6 +29690,13 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 .wb-rcpt-title{font-weight:700;font-size:var(--fs-base,14px);color:var(--text,#0f172a)}
 .wb-rcpt-actions{display:flex;align-items:center;gap:14px}
 .wb-rcpt-open{font-size:var(--fs-sm,12px);font-weight:600;color:var(--accent,#2563EB)}
+.wb-rcpt-del{
+  margin-right:auto;border:1px solid var(--red,#DC2626);background:transparent;cursor:pointer;
+  font-size:var(--fs-sm,12px);font-weight:600;color:var(--red,#DC2626);
+  padding:4px 10px;border-radius:6px;
+}
+.wb-rcpt-del:hover{background:var(--red,#DC2626);color:#fff}
+.wb-rcpt-del:disabled{opacity:.6;cursor:default}
 .wb-rcpt-close{
   border:none;background:transparent;cursor:pointer;font-size:16px;line-height:1;
   color:var(--text-subtle,#6B7280);padding:4px 6px;border-radius:6px;

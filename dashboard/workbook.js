@@ -6454,22 +6454,25 @@ async function submitCreate(wrap) {
 async function openOrCreateReceiptLedger(wrap) {
   const s = _sb();
   const dsp = _dsp();
-  // 1. Existing ledger?
-  const ex = await s.from("workbooks").select("id")
-    .eq("dsp_id", dsp.id).eq("template_key", "receipt-ledger")
-    .is("archived_at", null).maybeSingle();
-  if (ex.data && ex.data.id) { if (wrap) wrap.remove(); await openWorkbook(ex.data.id); return; }
 
-  // 2. Provision via the shared server function (full sheet + Status dropdown).
+  // 1. Provision via the shared server function. It's idempotent AND
+  //    self-healing — it (re)applies the Status dropdown to an existing sheet —
+  //    so always call it, even when the ledger already exists.
   try {
     const res = await s.rpc("receipt_ledger_ensure");
     if (!res.error && res.data) {
       const id = res.data.workbook_id || res.data.id || res.data;
       if (id) { if (wrap) wrap.remove(); await openWorkbook(id); return; }
     }
-  } catch (_) { /* fall through to a client build */ }
+  } catch (_) { /* fall through */ }
 
-  // 3. Fallback (receipt migrations not applied yet): build the layout locally.
+  // 2. Fallback (receipt migrations not applied yet): open an existing ledger,
+  //    else build the layout locally.
+  const ex = await s.from("workbooks").select("id")
+    .eq("dsp_id", dsp.id).eq("template_key", "receipt-ledger")
+    .is("archived_at", null).maybeSingle();
+  if (ex.data && ex.data.id) { if (wrap) wrap.remove(); await openWorkbook(ex.data.id); return; }
+
   const wb = await createWorkbook({ title: "Receipt Ledger", description: "", visibility: "org", templateKey: "receipt-ledger" });
   if (wrap) wrap.remove();
   await openWorkbook(wb.id);
@@ -10186,10 +10189,12 @@ function openImageLightbox(src) {
 // an <img> for photos, an <iframe> for PDFs. The path came from the cell's
 // validated format.receipt, so a bad/expired object degrades to a message
 // rather than a broken box.
-async function openReceiptPreview(path) {
+async function openReceiptPreview(path, g, row) {
   if (!path) return;
   document.querySelectorAll(".wb-rcpt-modal").forEach((b) => b.remove());
   closeAllPopovers();
+  // Deletable when we know the ledger row it maps to and the viewer can edit.
+  const canDelete = !!(g && g.sheet && Number.isInteger(row) && row > 0 && WB.canEdit);
   const box = document.createElement("div");
   box.className = "wb-rcpt-modal";
   box.setAttribute("role", "dialog");
@@ -10200,6 +10205,7 @@ async function openReceiptPreview(path) {
       <div class="wb-rcpt-head">
         <span class="wb-rcpt-title">Receipt</span>
         <span class="wb-rcpt-actions">
+          ${canDelete ? `<button type="button" class="wb-rcpt-del" data-wb-rcpt-del>Delete entry</button>` : ""}
           <a class="wb-rcpt-open" target="_blank" rel="noopener noreferrer" hidden>Open in new tab ↗</a>
           <button type="button" class="wb-rcpt-close" data-wb-rcpt-close aria-label="Close">✕</button>
         </span>
@@ -10208,7 +10214,10 @@ async function openReceiptPreview(path) {
     </div>`;
   const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
   const close = () => { document.removeEventListener("keydown", onKey, true); box.remove(); };
-  box.addEventListener("click", (e) => { if (e.target === box || e.target.closest("[data-wb-rcpt-close]")) close(); });
+  box.addEventListener("click", (e) => {
+    if (e.target.closest("[data-wb-rcpt-del]")) { e.preventDefault(); deleteReceiptEntry(g, row, path, box, close); return; }
+    if (e.target === box || e.target.closest("[data-wb-rcpt-close]")) close();
+  });
   document.addEventListener("keydown", onKey, true);
   document.body.appendChild(box);
 
@@ -10227,6 +10236,35 @@ async function openReceiptPreview(path) {
     }
   } catch (_) {
     bodyEl.innerHTML = `<div class="wb-rcpt-error">Couldn't load this receipt. It may have been removed, or you may not have access.</div>`;
+  }
+}
+
+// Delete the receipt this ledger row maps to: remove the record (a DB trigger
+// clears the row's cells), delete the stored image, and blank the row in the
+// open grid. Addressed by (sheet, row) so it works on rows created before the
+// receipt id was tracked, and never shifts other rows.
+async function deleteReceiptEntry(g, row, path, box, close) {
+  if (!g || !g.sheet || !Number.isInteger(row)) return;
+  if (!window.confirm("Delete this receipt from the ledger?\n\nThis removes the record and the stored image, and can't be undone.")) return;
+  const delBtn = box.querySelector("[data-wb-rcpt-del]");
+  if (delBtn) { delBtn.disabled = true; delBtn.textContent = "Deleting…"; }
+  try {
+    const res = await _sb().rpc("receipt_delete_at", { p_sheet_id: g.sheet.id, p_row_index: row });
+    if (res.error) throw res.error;
+    const key = res.data && res.data.file_storage_key;
+    if (key) { try { await _sb().storage.from("receipts").remove([key]); } catch (_) { /* orphan swept later */ } }
+    // Blank the row locally so the grid reflects the delete immediately.
+    for (let c = 0; c < (g.sheet.colCount || 13); c++) g.sheet.cells.delete(cellKey(row, c));
+    repaintGrid(g);
+    _toast("Receipt deleted", "info");
+    if (close) close();
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    if (delBtn) { delBtn.disabled = false; delBtn.textContent = "Delete entry"; }
+    _toast(/not_found/.test(msg) ? "This entry was already removed" :
+           /forbidden/.test(msg) ? "You don't have permission to delete receipts" :
+           /receipt_delete_at|schema cache|does not exist/.test(msg) ? "Apply migration 0439 to enable delete" :
+           "Couldn't delete: " + msg, "error");
   }
 }
 
@@ -17454,7 +17492,11 @@ function installRootListeners() {
     const rcptEl = e.target.closest("[data-wb-receipt]");
     if (rcptEl) {
       e.preventDefault();
-      openReceiptPreview(rcptEl.getAttribute("data-wb-receipt") || "");
+      const cellEl = rcptEl.closest(".wb-cell");
+      const gridEl = rcptEl.closest("[data-wb-gridfocus]");
+      const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
+      const row = cellEl ? +cellEl.getAttribute("data-r") : null;
+      openReceiptPreview(rcptEl.getAttribute("data-wb-receipt") || "", g || null, row);
       return;
     }
 
