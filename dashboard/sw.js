@@ -86,7 +86,8 @@
 //   2026-07-07.65 · Team tasks accountability (migration 0434): clicking a task opens a detail modal with an activity trail (created / assigned / due changed / completed / reopened / acknowledged, auto-logged by a DB trigger) interleaved with a per-task comment thread. Delegated tasks gain an "Acknowledge — I've got this" action for the assignee, an at-a-glance ✓/● ack indicator on rows, and a realtime in-app notice to the assigner when their task is acknowledged or commented on (no email). Falls back cleanly (rows non-clickable) until the migration is applied.
 //   2026-07-07.66 · Team tasks unread messages (migration 0435): tasks with a comment now carry a 💬 count on the row, lit blue with a pip when there's a message you haven't seen, and the My Tasks rail icon shows a small blue unread dot — so a comment left while you were away is flagged persistently instead of only a transient toast. Opening a task marks it read (per-user), and the Delegated view doubles as a "did anyone reply?" inbox. Realtime comment now also refreshes the row badges. No email.
 //   2026-07-07.67 · Workbook dashboard: tone down the loud accents per operator. The "Auto-build" / "Ask" / "Auto-build from my data" buttons and the Auto-Insights icon drop the violet→blue gradient and purple glow for a flat, on-brand accent blue; the hero KPI band softens from a tri-colour violet gradient to a quiet single-hue blue; and the AI ask-bar loses its purple-tinted shadow. CSS-only.
-const SW_DEPLOY_NONCE = "2026-07-07.67";
+//   2026-07-07.68 · Workbook dashboard: drop the redundant "Build your dashboard" empty-state card. An empty dashboard now stays clean — the always-visible top bar (✨ Auto-build · ＋ Add widget) and the "Ask about your data" bar already offer every action the card duplicated.
+const SW_DEPLOY_NONCE = "2026-07-07.68";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without

@@ -13993,24 +13993,9 @@ function renderCharts(g) {                    // renders every embed kind
   if (!host) return;
   const embeds = allEmbeds(g.sheet);
   if (!embeds.length) {
-    if (isDashboardSheet(g.sheet) && WB.canEdit) {
-      host.hidden = false;
-      host.innerHTML = `<div class="wb-dash-empty">
-        <div class="wb-dash-empty-title">Build your dashboard</div>
-        <div class="wb-dash-empty-sub">Let RouteReady generate one from your data, or add widgets yourself. Drag to arrange, drag a corner to resize.</div>
-        <div class="wb-dash-empty-actions">
-          <button type="button" class="btn btn-sm wb-dash-magic" data-wb-dashadd="auto">✨ Auto-build from my data</button>
-        </div>
-        <div class="wb-dash-empty-actions">
-          <button type="button" class="btn btn-sm" data-wb-dashadd="kpi">＋ KPI tile</button>
-          <button type="button" class="btn btn-sm" data-wb-dashadd="chart">＋ Chart</button>
-          <button type="button" class="btn btn-sm" data-wb-dashadd="table">＋ Table</button>
-          <button type="button" class="btn btn-sm" data-wb-dashadd="filter">＋ Filter</button>
-          <button type="button" class="btn btn-sm" data-wb-dashadd="insights">＋ Insights</button>
-          <button type="button" class="btn btn-sm" data-wb-dashadd="text">＋ Text</button>
-        </div></div>`;
-      return;
-    }
+    // No widgets yet: the persistent top bar (✨ Auto-build · ＋ Add widget)
+    // and the "Ask about your data" bar are the entry points, so the empty
+    // canvas stays clean — no redundant build-your-dashboard card.
     host.innerHTML = ""; host.hidden = true; return;
   }
   host.hidden = false;
