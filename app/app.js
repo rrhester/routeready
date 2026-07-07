@@ -7817,20 +7817,21 @@ async function renderFormFill() {
       }
     }
 
-    // Required-field validation. A conditional field that is currently
-    // HIDDEN (its rule isn't met) is NOT required and must not block submit:
-    // its wrapper has [hidden], and _collectFormAnswers already omitted it,
-    // so we skip the check for it. A revealed conditional field is validated
-    // like any other.
+    // Validation — required + field-level rules (min/max length, numeric
+    // range, email/phone format, choice membership), mirroring the server
+    // (migration 0439). A conditional field that is currently HIDDEN (its
+    // rule isn't met) is skipped: not required, not validated. On the first
+    // failure we scroll to and focus the offending field so the driver
+    // isn't left hunting for it on a long form.
     for (const f of fields) {
-      if (!f.required) continue;
+      if (["section_header", "divider", "instructions"].includes(f.type)) continue;
       const condWrap = _formEl.querySelector(`[data-cond-field="${CSS.escape(f.id)}"]`);
       if (condWrap && condWrap.hidden) continue;
-      const v = answers[f.id];
-      const empty = v == null || v === "" || (Array.isArray(v) && v.length === 0);
-      if (empty) {
+      const err = _validateFormAnswer(f, answers[f.id]);
+      if (err) {
         resetBtn();
-        toast(`"${f.label || "Untitled"}" is required`, "warn");
+        _focusFormField(_formEl, f.id);
+        toast(err, "warn");
         return;
       }
     }
@@ -8032,6 +8033,65 @@ function _formFieldInnerHtml(f) {
     default:
       return row(`<input class="field" id="${id}" type="text" data-rr-field="${escapeHtml(f.id)}" data-rr-type="short_text"/>`);
   }
+}
+
+// Validate one answer against its field's rules. Returns an error string
+// (already user-facing) or null when the answer is acceptable. Mirrors the
+// server-side checks in migration 0439 so the app and DB agree.
+function _validateFormAnswer(f, v) {
+  const label = f.label || "This field";
+  const empty = v == null || v === "" || (Array.isArray(v) && v.length === 0);
+  if (empty) return f.required ? `"${label}" is required` : null;
+  const val = (f.validation && typeof f.validation === "object") ? f.validation : {};
+  switch (f.type) {
+    case "email":
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v))) return `"${label}" needs a valid email address`;
+      break;
+    case "phone":
+      if (String(v).replace(/\D/g, "").length < 7) return `"${label}" needs a valid phone number`;
+      break;
+    case "number": {
+      const n = Number(v);
+      if (!isFinite(n)) return `"${label}" must be a number`;
+      if (val.min != null && n < val.min) return `"${label}" must be at least ${val.min}`;
+      if (val.max != null && n > val.max) return `"${label}" must be at most ${val.max}`;
+      break;
+    }
+    case "rating": {
+      const n = Number(v);
+      if (!(n >= 1 && n <= 5)) return `"${label}" has an invalid rating`;
+      break;
+    }
+    case "short_text":
+    case "long_text": {
+      const len = String(v).length;
+      if (val.minLen != null && len < val.minLen) return `"${label}" must be at least ${val.minLen} characters`;
+      if (val.maxLen != null && len > val.maxLen) return `"${label}" must be ${val.maxLen} characters or fewer`;
+      break;
+    }
+    case "single_choice":
+    case "dropdown": {
+      const opts = Array.isArray(f.options) ? f.options : [];
+      if (opts.length && !opts.includes(String(v))) return `"${label}" has an invalid selection`;
+      break;
+    }
+    case "multi_choice": {
+      const opts = Array.isArray(f.options) ? f.options : [];
+      if (opts.length && Array.isArray(v) && v.some(x => !opts.includes(x))) return `"${label}" has an invalid selection`;
+      break;
+    }
+  }
+  return null;
+}
+
+// Scroll to and focus a field by id so a validation error is immediately
+// visible — beats a lone toast on a long form.
+function _focusFormField(formEl, fid) {
+  const root = formEl.querySelector(`[data-rr-field="${CSS.escape(fid)}"]`);
+  if (!root) return;
+  const target = (root.matches("input,select,textarea") ? root : root.querySelector("input,select,textarea")) || root;
+  try { target.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { try { target.scrollIntoView(); } catch {} }
+  try { target.focus({ preventScroll: true }); } catch {}
 }
 
 async function _collectFormAnswers(fields, opts = {}) {
