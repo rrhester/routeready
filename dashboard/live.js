@@ -10136,13 +10136,16 @@ function _rrAddTaskFromForm() {
       const d = new Date(base);
       let guard = 0;
       while (dates.length < count && guard++ < 800) { if (set.has(d.getDay())) dates.push(new Date(d)); d.setDate(d.getDate() + 1); }
-    } else if (repeat === "monthly") {
+    } else if (repeat === "monthly" || repeat === "quarterly") {
+      // Quarterly = the same day-of-month / Nth-weekday pattern, stepping
+      // three months at a time.
+      const step = repeat === "quarterly" ? 3 : 1;
       const mode = (document.querySelector("#rr-sched-tasks [data-rr-task-monthly]") || {}).value || `dom-${base.getDate()}`;
       const dow = base.getDay(), nth = Math.ceil(base.getDate() / 7);
       const pickDay = mode.startsWith("dom-") ? (parseInt(mode.slice(4), 10) || base.getDate()) : null;
       const base0 = new Date(base.getFullYear(), base.getMonth(), base.getDate());   // midnight, for "on/after due" compare
       for (let i = 0; dates.length < count && i < count + 18; i++) {
-        const y = base.getFullYear(), m = base.getMonth() + i;
+        const y = base.getFullYear(), m = base.getMonth() + i * step;
         let dt = null;
         if (mode === "lastdow") {
           const last = new Date(y, m + 1, 0);
@@ -10158,6 +10161,13 @@ function _rrAddTaskFromForm() {
           dt = new Date(y, m, Math.min(pickDay, last));
         }
         if (dt && dt >= base0) dates.push(dt);   // don't create occurrences before the due date
+      }
+    } else if (repeat === "annually") {
+      // Same date each year; Feb 29 clamps to the 28th in non-leap years.
+      for (let i = 0; i < count; i++) {
+        const y = base.getFullYear() + i;
+        const last = new Date(y, base.getMonth() + 1, 0).getDate();
+        dates.push(new Date(y, base.getMonth(), Math.min(base.getDate(), last)));
       }
     } else { // daily
       for (let i = 0; i < count; i++) { const d = new Date(base); d.setDate(base.getDate() + i); dates.push(d); }
@@ -10591,7 +10601,9 @@ function _rrTaskRepSync() {
   const mo = root.querySelector("[data-rr-task-rep-monthly]");
   const cr = root.querySelector("[data-rr-task-rep-count-row]");
   if (wk) wk.hidden = repeat !== "weekly";
-  if (mo) mo.hidden = repeat !== "monthly";
+  // Quarterly reuses the monthly day-pattern picker (every 3 months on day N /
+  // the Nth weekday); annually just repeats on the due date, no extra row.
+  if (mo) mo.hidden = repeat !== "monthly" && repeat !== "quarterly";
   if (cr) cr.hidden = !repeat;
   // Weekly: default-select the due date's weekday if nothing is chosen yet.
   if (repeat === "weekly" && due) {
@@ -10602,7 +10614,7 @@ function _rrTaskRepSync() {
   }
   // Monthly: let the operator pick the day of the month (1–31) directly, plus a
   // "Nth/last weekday" pattern. Default to the due date's day (or today's).
-  if (repeat === "monthly" && mo) {
+  if ((repeat === "monthly" || repeat === "quarterly") && mo) {
     const sel = mo.querySelector("[data-rr-task-monthly]");
     if (sel) {
       const base = due || new Date();
@@ -23498,6 +23510,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
             <label><input type="radio" name="rr-ne-pat" value="daily"> Daily</label>
             <label><input type="radio" name="rr-ne-pat" value="weekly" checked> Weekly</label>
             <label><input type="radio" name="rr-ne-pat" value="monthly"> Monthly</label>
+            <label><input type="radio" name="rr-ne-pat" value="quarterly"> Quarterly</label>
+            <label><input type="radio" name="rr-ne-pat" value="yearly"> Yearly</label>
             <div class="rr-ne-prow"><span>Every</span><input type="number" id="rr-ne-rec-interval" min="1" value="1" style="width:54px"><span id="rr-ne-rec-unit">week(s)</span></div>
             <div class="rr-ne-days" id="rr-ne-rec-days">${dows.map((d,i)=>`<label><input type="checkbox" value="${i}"${i===anchorDow?" checked":""}>${d}</label>`).join("")}</div>
           </div>
@@ -23746,7 +23760,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   function syncRecurUnit() {
     const pat = (m.querySelector("input[name=rr-ne-pat]:checked")||{}).value || "weekly";
     const unit = document.getElementById("rr-ne-rec-unit");
-    if (unit) unit.textContent = pat === "daily" ? "day(s)" : pat === "monthly" ? "month(s)" : "week(s)";
+    if (unit) unit.textContent = pat === "daily" ? "day(s)" : pat === "monthly" ? "month(s)" : pat === "quarterly" ? "quarter(s)" : pat === "yearly" ? "year(s)" : "week(s)";
     document.getElementById("rr-ne-rec-days").style.display = pat === "weekly" ? "" : "none";
   }
   m.querySelectorAll("input[name=rr-ne-pat]").forEach(r => r.addEventListener("change", syncRecurUnit));
@@ -23755,6 +23769,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     const every = rule.interval > 1 ? `every ${rule.interval} ` : "every ";
     let s = "Occurs " + (rule.pattern === "daily" ? every + (rule.interval>1?"days":"day")
       : rule.pattern === "monthly" ? every + (rule.interval>1?"months":"month")
+      : rule.pattern === "quarterly" ? every + (rule.interval>1?"quarters":"quarter")
+      : rule.pattern === "yearly" ? every + (rule.interval>1?"years":"year")
       : every + (rule.interval>1?"weeks":"week") + " on " + rule.weekdays.map(i=>dows[i]).join(", "));
     s += " from " + new Date(rule.rangeStart+"T00:00:00").toLocaleDateString();
     if (rule.end.type === "count") s += `, ${rule.end.count} times`;
@@ -23820,10 +23836,15 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     const out = [];
     const CAP = 180;
     const start = new Date((rule.rangeStart || baseDateISO) + "T00:00:00");
-    // "No end date" runs a rolling 12 months out (was: silently stopped at
-    // occurrence 60); count/until rules still honor their own bounds.
+    // "No end date" runs a rolling horizon out (was: silently stopped at
+    // occurrence 60); count/until rules still honor their own bounds. The
+    // horizon widens for sparse cadences so quarterly/yearly series still
+    // yield a useful run of occurrences.
     let until = rule.end.type === "until" && rule.end.until ? new Date(rule.end.until + "T00:00:00") : null;
-    if (rule.end.type === "none") { until = new Date(start); until.setMonth(until.getMonth() + 12); }
+    if (rule.end.type === "none") {
+      const months = rule.pattern === "yearly" ? 60 : rule.pattern === "quarterly" ? 36 : 12;
+      until = new Date(start); until.setMonth(until.getMonth() + months);
+    }
     const maxN = rule.end.type === "count" ? Math.max(1, rule.end.count) : CAP;
     const interval = Math.max(1, rule.interval || 1);
     if (rule.pattern === "weekly") {
@@ -23844,6 +23865,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       while (out.length < maxN && guard < 2000) {
         if (!until || d <= until) out.push(_ivcalISODate(d)); else break;
         if (rule.pattern === "daily") d.setDate(d.getDate() + interval);
+        else if (rule.pattern === "quarterly") d.setMonth(d.getMonth() + 3 * interval);
+        else if (rule.pattern === "yearly") d.setFullYear(d.getFullYear() + interval);
         else d.setMonth(d.getMonth() + interval);
         guard++;
       }
