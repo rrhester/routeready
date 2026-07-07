@@ -1,10 +1,14 @@
 
       <div class="page">
-        <div class="page-header">
+        <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)">
           <div>
             <h1 class="page-title">Settings</h1>
             <p class="page-sub">Workspace, integrations, hiring, and team configuration</p>
           </div>
+          <button class="btn btn-ghost" type="button" onclick="openAuditLog()" title="Who changed what - drivers, schedule, roles, documents">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 3"/></svg>
+            Activity log
+          </button>
         </div>
 
         <div class="settings-layout">
