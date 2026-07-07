@@ -3830,7 +3830,7 @@ async function _runAdminAction(action, dspId) {
       _openAdminManageUsers(dspId);
       return;
     case "suspend": {
-      if (!confirm(`Suspend "${dsp.name}"?\n\nAll users at this DSP will lose access until you reactivate.`)) return;
+      if (!(await _rrConfirmDialog({ title: `Suspend "${dsp.name}"?`, body: "All users at this DSP will lose access until you reactivate.", confirmLabel: "Suspend", danger: true }))) return;
       const { error } = await sb.rpc("admin_suspend_dsp", { p_dsp_id: dspId });
       if (error) {
         if (_isAuthError(error)) _forceRelogin("session_expired");
@@ -3842,7 +3842,7 @@ async function _runAdminAction(action, dspId) {
       return;
     }
     case "reactivate": {
-      if (!confirm(`Reactivate "${dsp.name}"?`)) return;
+      if (!(await _rrConfirmDialog({ title: `Reactivate "${dsp.name}"?`, confirmLabel: "Reactivate" }))) return;
       const { error } = await sb.rpc("admin_reactivate_dsp", { p_dsp_id: dspId });
       if (error) {
         if (_isAuthError(error)) _forceRelogin("session_expired");
@@ -22618,7 +22618,7 @@ function _ivcalCalendarMenu(e, id) {
 }
 
 async function _ivcalDeleteCalendar(cal) {
-  if (!confirm(`Delete the calendar "${cal.name}"? Events on it stay on the calendar but become uncategorized.`)) return;
+  if (!(await _rrConfirmDialog({ title: `Delete the calendar "${cal.name}"?`, body: "Events on it stay on the calendar but become uncategorized.", confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.from("calendars").delete().eq("id", cal.id);
   if (error) { toast("Couldn't delete calendar: " + (error.message || error), "warn"); return; }
   delete _ivcalCalVis[cal.id]; _ivcalSaveToggles();
@@ -23203,7 +23203,7 @@ function _ivcalRender() {
   });
   host.querySelectorAll("[data-ivcal-await-send]").forEach(b => b.onclick = async (e) => {
     e.stopPropagation();
-    if (!confirm("Resend the interview booking link so they can pick a time?")) return;
+    if (!(await _rrConfirmDialog({ title: "Resend booking link?", body: "The applicant gets a fresh link to pick a time.", confirmLabel: "Resend" }))) return;
     const id = b.getAttribute("data-ivcal-await-send"), orig = b.textContent;
     b.disabled = true; b.textContent = "Sending…";
     try {
@@ -26490,7 +26490,7 @@ function _ivcalQuickCreate(e, dateISO, startMin) {
 async function _ivcalDeleteEvent(kind, id, notify) {
   const ev = _ivcalFindEv(kind, id); if (!ev) return;
   if (kind === "session") {
-    if (!confirm("Remove this group session?")) return;
+    if (!(await _rrConfirmDialog({ title: "Remove this group session?", confirmLabel: "Remove", danger: true }))) return;
     try { await sb.rpc("interview_session_remove", { p_id: id }); } catch (e) { return toast("Couldn't remove: " + (e.message||e), "warn"); }
     _ivcalSelected = null; loadIvCalendar(); return;
   }
@@ -26530,7 +26530,7 @@ async function _ivcalDeleteEvent(kind, id, notify) {
     }
     viaSeriesChooser = true;
   }
-  if (!viaSeriesChooser && !confirm("Cancel this event? Attendees will be notified and it will be removed.")) return;
+  if (!viaSeriesChooser && !(await _rrConfirmDialog({ title: "Cancel this event?", body: "Attendees will be notified and it will be removed.", confirmLabel: "Cancel event", cancelLabel: "Keep" }))) return;
   try {
     if (notify) {
       const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
@@ -27017,7 +27017,7 @@ async function _ivAddSession(tz) {
 }
 
 async function _ivRemoveSession(id) {
-  if (!confirm("Remove this group session?")) return;
+  if (!(await _rrConfirmDialog({ title: "Remove this group session?", confirmLabel: "Remove", danger: true }))) return;
   try { const { error } = await sb.rpc("interview_session_remove", { p_id: id }); if (error) throw error; loadInterviewAvailabilityEditor(); }
   catch(e){ toast("Couldn't remove: "+(e.message||e),"warn"); }
 }
@@ -27504,7 +27504,7 @@ document.addEventListener("click", async (e) => {
   e.stopImmediatePropagation();
   const eventId = btn.getAttribute("data-rr-cal-remove");
   if (!eventId) return;
-  if (!confirm("Remove this booking? No message will be sent to the applicant and they will not get a re-booking link.")) return;
+  if (!(await _rrConfirmDialog({ title: "Remove this booking?", body: "No message will be sent to the applicant and they will not get a re-booking link.", confirmLabel: "Remove", danger: true }))) return;
   btn.disabled = true;
   const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: eventId });
   if (error) {
@@ -29878,7 +29878,7 @@ async function _tpDatesChanged() {
 
 async function _tpClear() {
   const s = _tpModalState; if (!s) return;
-  if (!confirm("Clear the training pairing? You can re-pair before activating.")) return;
+  if (!(await _rrConfirmDialog({ title: "Clear the training pairing?", body: "You can re-pair before activating.", confirmLabel: "Clear", danger: true }))) return;
   const { error } = await sb.rpc("clear_training_pairing", { p_trainee_id: s.driverId });
   if (error) { toast("Couldn't clear: " + error.message, "warn"); return; }
   s.pair = null;
@@ -35794,7 +35794,7 @@ document.addEventListener("click", async (e) => {
     const id = archBtn.getAttribute("data-rr-channel-archive");
     const meta = _msgChannelList.find(c => c.id === id) || {};
     const goingArchive = !meta.archived_at;
-    if (!confirm(goingArchive ? "Archive this channel? Members keep history but can't post." : "Unarchive this channel?")) return;
+    if (!(await _rrConfirmDialog({ title: goingArchive ? "Archive this channel?" : "Unarchive this channel?", body: goingArchive ? "Members keep history but can't post." : "The channel becomes active again.", confirmLabel: goingArchive ? "Archive" : "Unarchive" }))) return;
     const { error } = await sb.rpc("dispatch_channel_archive", { p_channel_id: id, p_archived: goingArchive });
     if (error) { toast(error.message, "warn"); return; }
     delete document.getElementById("rr-msg-conv")?.dataset.rrChannelId;
@@ -36571,7 +36571,7 @@ document.addEventListener("click", async (e) => {
     const side = rmBtn.getAttribute("data-rr-dl-side") || "front";
     const col  = side === "back" ? "dl_back_image_path" : "dl_image_path";
     const label = side === "back" ? "back image" : "front image";
-    if (!confirm(`Remove the license ${label}?`)) return;
+    if (!(await _rrConfirmDialog({ title: `Remove the license ${label}?`, confirmLabel: "Remove", danger: true }))) return;
     const currentPath = _ddDriver.driver[col];
     if (currentPath) {
       await sb.storage.from("driver-documents").remove([currentPath]).catch(() => {});
@@ -46457,7 +46457,7 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, contactId, anchorEv) {
 
   const delBtn = m.querySelector("#rr-fc-delete");
   if (delBtn) delBtn.addEventListener("click", async () => {
-    if (!confirm("Delete this event?")) return;
+    if (!(await _rrConfirmDialog({ title: "Delete this event?", confirmLabel: "Delete", danger: true }))) return;
     delBtn.disabled = true;
     try {
       const { error } = await sb.rpc("fleet_calendar_event_delete", { p_id: ev.id });
@@ -61485,7 +61485,7 @@ document.addEventListener("click", async (e) => {
     e.preventDefault();
     const id = ta.getAttribute("data-rr-target-id");
     const status = ta.getAttribute("data-rr-target-action");
-    if (status === "cancelled" && !confirm("Remove this hiring target?")) return;
+    if (status === "cancelled" && !(await _rrConfirmDialog({ title: "Remove this hiring target?", confirmLabel: "Remove", danger: true }))) return;
     ta.disabled = true;
     const { error } = await sb.rpc("hiring_target_upsert", { p_payload: { id, status } });
     if (error) { toast("Failed: " + error.message, "warn"); ta.disabled = false; return; }
@@ -66184,7 +66184,7 @@ async function _docsOpenAudit(envelopeId) {
 
 // ── Archive a template ─────────────────────────────────────────────────
 async function _docsArchiveTemplate(id) {
-  if (!confirm("Archive this template? Existing envelopes still work; you just won't be able to send new ones.")) return;
+  if (!(await _rrConfirmDialog({ title: "Archive this template?", body: "Existing envelopes still work; you just won't be able to send new ones.", confirmLabel: "Archive" }))) return;
   const { error } = await sb.from("document_templates").update({ archived_at: new Date().toISOString() }).eq("id", id);
   if (error) { toast("Couldn't archive: " + error.message, "warn"); return; }
   toast("Template archived", "warn");
@@ -71256,7 +71256,7 @@ function _roOpenManageModal(ro) {
   });
 
   wrap.querySelector("[data-ro-action='complete']").addEventListener("click", async () => {
-    if (!confirm("Mark RO " + (ro.code || "") + " as completed?")) return;
+    if (!(await _rrConfirmDialog({ title: "Mark repair order completed?", body: "RO " + (ro.code || "") + " will be marked complete.", confirmLabel: "Mark completed" }))) return;
     const costInput = wrap.querySelector("#ro-cost").value;
     const args = { p_id: ro.id };
     if (costInput) args.p_cost_cents = Math.round(parseFloat(costInput) * 100);
