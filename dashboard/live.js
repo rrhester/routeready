@@ -7214,11 +7214,9 @@ function _rrCalNewTaskDialog() {
     const title = (titleInp.value || "").trim();
     if (!title) { focusTitle(); return; }
     const due = (dueInp && dueInp.value) || "";
-    // Exact rail-task shape + helpers (mirrors _rrAddTaskFromForm).
-    const a = _rrLoadTasks();
-    a.push({ id: _rrNtId("t"), title, due, done: false, ts: Date.now() });
-    _rrSaveTasks(a);
-    _rrRenderTasks();
+    // Routes through the shared create helper (server-backed team task,
+    // or the device-local list until the migration is applied).
+    _rrTaskCreate({ title, due }).then(() => _rrRenderTasks()).catch(() => {});
     close();
     // Surface the new task: open the rail Tasks panel so the user sees it.
     // Deferred so panel layout/render runs off the submit tick (and never
@@ -9483,29 +9481,268 @@ function _rrRenderNotes() {
     </div>`;
   }).join("");
 }
+// ── Team tasks · server-backed My Tasks (migration 0431) ──────────────
+// The rail list lives in public.team_tasks so it follows the account to
+// any desktop and lets a leader assign tasks to other leadership
+// (dashboard users, role >= dispatcher). Delivery is realtime-only — the
+// assignee's dashboard pops an in-app notice the moment an INSERT lands;
+// there is no email. Until the migration is applied (or when Supabase is
+// unreachable) everything falls back to the old device-local
+// localStorage list: same rendering, minus assignment.
+let _rrTasksMode = null;          // null = undecided · 'server' · 'local'
+let _rrTasksCache = [];           // server rows mapped to the rail-task shape
+let _rrTasksLoadP = null;         // in-flight first load (shared promise)
+let _rrTasksView = "mine";        // 'mine' | 'delegated'
+let _rrTasksChannel = null;
+let _rrTaskMembers = null;        // leadership picker cache [{id,name,email,role}]
+let _rrTasksRefetchT = null;
+
+function _rrTaskFromRow(r) {
+  const meta = (r && r.meta) || {};
+  return {
+    id: r.id, title: r.title || "", due: r.due_date || "",
+    done: r.status === "done",
+    ts: Date.parse(r.created_at) || 0,
+    series: r.series_key || null, repeat: r.repeat_label || null,
+    kind: meta.kind || null, driverId: meta.driver_id || null,
+    assigneeId: r.assignee_user_id || null,
+    assigneeName: r.assignee_name || "",
+    creatorId: r.created_by || null,
+    creatorName: r.creator_name || "",
+  };
+}
+function _rrTasksMe() { try { return (window.RR && window.RR.user && window.RR.user.id) || ""; } catch (_) { return ""; } }
+// Every task in the active store (server cache or device-local list).
+function _rrTasksAll() { return _rrTasksMode === "server" ? _rrTasksCache : _rrLoadTasks(); }
+// Mine = personal or assigned to me. Delegated = I created it for someone else.
+function _rrTaskIsMine(t) { const me = _rrTasksMe(); return !t.assigneeId || t.assigneeId === me; }
+function _rrTaskIsDelegated(t) { const me = _rrTasksMe(); return !!t.assigneeId && t.assigneeId !== me && t.creatorId === me; }
+
+function _rrTasksEnsureLoaded() {
+  if (_rrTasksMode !== null) return Promise.resolve();
+  if (_rrTasksLoadP) return _rrTasksLoadP;
+  _rrTasksLoadP = (async () => {
+    if (typeof sb === "undefined" || !sb || typeof sb.rpc !== "function") { _rrTasksMode = "local"; return; }
+    try {
+      const { data, error } = await sb.rpc("team_tasks_list");
+      if (error) throw error;
+      _rrTasksMode = "server";
+      _rrTasksCache = (Array.isArray(data) ? data : []).map(_rrTaskFromRow);
+      _rrTasksSubscribe();
+      await _rrTasksImportLocalOnce();
+    } catch (_) {
+      // Migration not applied yet / offline — keep the old local behavior.
+      _rrTasksMode = "local";
+    } finally {
+      _rrRenderTasks();
+    }
+  })();
+  return _rrTasksLoadP;
+}
+async function _rrTasksRefetch() {
+  if (_rrTasksMode !== "server") return;
+  try {
+    const { data, error } = await sb.rpc("team_tasks_list");
+    if (error) throw error;
+    _rrTasksCache = (Array.isArray(data) ? data : []).map(_rrTaskFromRow);
+    _rrRenderTasks();
+  } catch (_) { /* transient — keep the current cache */ }
+}
+function _rrTasksRefetchSoon() {
+  clearTimeout(_rrTasksRefetchT);
+  _rrTasksRefetchT = setTimeout(_rrTasksRefetch, 350);
+}
+// Per-DSP realtime: RLS scopes events, so private tasks only ever reach
+// their creator + assignee. DELETE events don't pass the dsp filter
+// (old row carries just the PK) — panel-open refetch covers those.
+function _rrTasksSubscribe() {
+  if (_rrTasksChannel) return;
+  const dspId = (window.RR && window.RR.dsp && window.RR.dsp.id) || "";
+  if (!dspId) return;
+  try {
+    _rrTasksChannel = sb.channel("rr-team-tasks-" + dspId)
+      .on("postgres_changes", { event: "*", schema: "public", table: "team_tasks", filter: "dsp_id=eq." + dspId }, (payload) => {
+        const row = payload && payload.new;
+        if (payload && payload.eventType === "INSERT" && row &&
+            row.assignee_user_id === _rrTasksMe() && row.created_by && row.created_by !== _rrTasksMe()) {
+          const msg = "New task assigned to you: " + (row.title || "");
+          toast("🔔 " + msg, "info");
+          try {
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification("RouteReady task", { body: msg, tag: "tt-" + row.id });
+            }
+          } catch (_) { /* toast already shown */ }
+        }
+        _rrTasksRefetchSoon();
+      })
+      .subscribe();
+  } catch (_) {}
+}
+// One-time move of the old device-local list into the account (flagged
+// per browser+DSP so it can never double-import). The local copy is kept
+// under a -backup key rather than destroyed.
+async function _rrTasksImportLocalOnce() {
+  const flag = _rrNtKey("tasks") + ":imported";
+  try { if (localStorage.getItem(flag)) return; } catch (_) { return; }
+  const local = _rrLoadTasks();
+  if (local.length) {
+    const payload = local.map((t) => ({
+      title: t.title || "", due: t.due || "", done: !!t.done, ts: t.ts || null,
+      series: t.series || null, repeat: t.repeat || null,
+      kind: t.kind || null, driver_id: t.driverId || null,
+    }));
+    const { data, error } = await sb.rpc("team_tasks_import", { p_tasks: payload });
+    if (error) return;                          // leave the flag unset — retry next boot
+    (Array.isArray(data) ? data : []).forEach((r) => _rrTasksCache.push(_rrTaskFromRow(r)));
+    try { localStorage.setItem(_rrNtKey("tasks") + ":backup", JSON.stringify(local)); } catch (_) {}
+    _rrSaveTasks([]);
+    if (Array.isArray(data) && data.length) toast(`Moved ${data.length} task${data.length === 1 ? "" : "s"} to your account — they now follow you to any desktop`, "success");
+  }
+  try { localStorage.setItem(flag, "1"); } catch (_) {}
+}
+async function _rrTaskMembersLoad() {
+  if (_rrTaskMembers) return _rrTaskMembers;
+  try {
+    const { data, error } = await sb.rpc("team_task_members");
+    if (error) throw error;
+    _rrTaskMembers = Array.isArray(data) ? data : [];
+  } catch (_) { _rrTaskMembers = []; }
+  return _rrTaskMembers;
+}
+// Unhide + fill the "Assign to" picker (server mode only; the row stays
+// hidden on the local fallback where assignment can't work).
+async function _rrTasksAssigneeFill() {
+  if (_rrTasksMode !== "server") return;
+  const sel = document.querySelector("#rr-sched-tasks [data-rr-task-assignee]");
+  const row = document.querySelector("#rr-sched-tasks [data-rr-task-assignee-row]");
+  if (row) row.hidden = false;
+  if (!sel || sel.options.length > 1) return;
+  const me = _rrTasksMe();
+  const members = await _rrTaskMembersLoad();
+  sel.innerHTML = `<option value="">Assign to: Myself</option>` +
+    members.filter((m) => m.id !== me)
+      .map((m) => `<option value="${escapeHtml(m.id)}">Assign to: ${escapeHtml(m.name || m.email || "")}</option>`)
+      .join("");
+}
+// Create task(s) in whichever store is active. spec = {title, due, dues,
+// series, repeat, assigneeId, kind, driverId}. Server rows land in the
+// cache directly (no refetch); resolves to the created rail-shape tasks.
+async function _rrTaskCreate(spec) {
+  const title = (spec.title || "").trim();
+  if (!title) return null;
+  await _rrTasksEnsureLoaded();
+  if (_rrTasksMode === "server") {
+    const { data, error } = await sb.rpc("team_task_create", {
+      p_title: title,
+      p_due: spec.due || null,
+      p_assignee_user_id: spec.assigneeId || null,
+      p_series: spec.series || null,
+      p_repeat: spec.repeat || null,
+      p_meta: (spec.kind || spec.driverId)
+        ? { kind: spec.kind || undefined, driver_id: spec.driverId || undefined }
+        : null,
+      p_dues: (spec.dues && spec.dues.length) ? spec.dues : null,
+    });
+    if (error) { toast("Couldn't save the task — try again", "error"); throw error; }
+    const rows = (Array.isArray(data) ? data : []).map(_rrTaskFromRow);
+    rows.forEach((r) => _rrTasksCache.push(r));
+    return rows;
+  }
+  // Device-local fallback — exact legacy shape.
+  const tasks = _rrLoadTasks();
+  const mk = (due, i) => {
+    const t = { id: _rrNtId("t"), title, due: due || "", done: false, ts: Date.now() + (i || 0) };
+    if (spec.series) t.series = spec.series;
+    if (spec.repeat) t.repeat = spec.repeat;
+    if (spec.kind) t.kind = spec.kind;
+    if (spec.driverId) t.driverId = spec.driverId;
+    return t;
+  };
+  const made = (spec.dues && spec.dues.length) ? spec.dues.map((d, i) => mk(d, i)) : [mk(spec.due)];
+  made.forEach((t) => tasks.push(t));
+  _rrSaveTasks(tasks);
+  return made;
+}
+// Delete one task or its whole repeat series from the active store.
+function _rrTaskDeleteApply(task, series) {
+  if (_rrTasksMode === "server") {
+    _rrTasksCache = _rrTasksCache.filter((x) => series ? x.series !== task.series : x.id !== task.id);
+    _rrRenderTasks();
+    sb.rpc("team_task_delete", { p_id: task.id, p_series: !!series }).then(({ error }) => {
+      if (error) { toast("Couldn't delete the task", "error"); _rrTasksRefetch(); }
+    });
+  } else {
+    _rrSaveTasks(_rrLoadTasks().filter((x) => series ? x.series !== task.series : x.id !== task.id));
+    _rrRenderTasks();
+  }
+  toast(series ? "Series deleted" : "Task deleted", "success");
+}
+
 function _rrRenderTasks() {
   const list = document.getElementById("rr-sched-tasks-list");
   const badge = document.getElementById("rr-nt-task-badge");
-  const tasks = _rrLoadTasks().slice().sort((a, b) =>
+  if (_rrTasksMode === null) _rrTasksEnsureLoaded();   // kicks a rerender when resolved
+  const server = _rrTasksMode === "server";
+  const me = _rrTasksMe();
+  const all = _rrTasksAll();
+  // Rail badge = MY open tasks (personal + assigned to me), never ones
+  // I've delegated out.
+  const openMine = all.filter((t) => !t.done && (!server || _rrTaskIsMine(t))).length;
+  if (badge) { badge.textContent = String(openMine); badge.style.display = openMine ? "" : "none"; }
+  if (!list) return;
+  // View chips (server only): Mine vs Delegated, with open counts.
+  const views = document.querySelector("#rr-sched-tasks [data-rr-task-views]");
+  if (views) {
+    views.hidden = !server;
+    if (server) {
+      const nDeleg = all.filter((t) => !t.done && _rrTaskIsDelegated(t)).length;
+      const bMine = views.querySelector('[data-rr-task-view="mine"]');
+      const bDeleg = views.querySelector('[data-rr-task-view="delegated"]');
+      if (bMine) { bMine.classList.toggle("on", _rrTasksView === "mine"); bMine.setAttribute("aria-selected", _rrTasksView === "mine" ? "true" : "false"); const c = bMine.querySelector("b"); if (c) c.textContent = String(openMine); }
+      if (bDeleg) { bDeleg.classList.toggle("on", _rrTasksView === "delegated"); bDeleg.setAttribute("aria-selected", _rrTasksView === "delegated" ? "true" : "false"); const c = bDeleg.querySelector("b"); if (c) c.textContent = String(nDeleg); }
+    }
+  }
+  const sub = document.querySelector("#rr-sched-tasks .rr-fp-subtitle");
+  if (sub && server) sub.textContent = "Your to-dos + tasks across the leadership team";
+  // The add form is always on screen in this panel, so surface the
+  // assignee picker as soon as server mode confirms (idempotent — fills
+  // once, then early-returns).
+  if (server) _rrTasksAssigneeFill();
+  let tasks = all.slice();
+  if (server) tasks = tasks.filter((t) => _rrTasksView === "delegated" ? _rrTaskIsDelegated(t) : _rrTaskIsMine(t));
+  tasks.sort((a, b) =>
     ((a.done ? 1 : 0) - (b.done ? 1 : 0)) ||
     ((a.due ? Date.parse(a.due + "T12:00:00") : Infinity) - (b.due ? Date.parse(b.due + "T12:00:00") : Infinity)) ||
     ((b.ts || 0) - (a.ts || 0)));
-  const open = tasks.filter((t) => !t.done).length;
-  // Open-task count rides the Tasks rail icon as a small badge.
-  if (badge) { badge.textContent = String(open); badge.style.display = open ? "" : "none"; }
-  if (!list) return;
-  if (!tasks.length) { list.innerHTML = `<div class="ntp-empty">No tasks yet — add one above.</div>`; return; }
-  const shown = tasks;
-  const init = (_rrNtUserName() || "").trim().slice(0, 1).toUpperCase() || "•";
-  list.innerHTML = shown.map((t) => {
+  if (!tasks.length) {
+    list.innerHTML = `<div class="ntp-empty">${server && _rrTasksView === "delegated"
+      ? "Nothing delegated — use “+ Add Task” and pick a teammate to assign one."
+      : "No tasks yet — add one above."}</div>`;
+    return;
+  }
+  const myInit = (_rrNtUserName() || "").trim().slice(0, 1).toUpperCase() || "•";
+  list.innerHTML = tasks.map((t) => {
     const due = t.due ? `<span class="ntp-task-due${_rrNtDueClass(t.due)}">${escapeHtml(_rrNtFmtDue(t.due))}</span>` : "";
     const rep = t.repeat ? `<span class="ntp-task-rep" title="Repeats ${escapeHtml(t.repeat)}">🔁</span>` : "";
-    const del = `<button type="button" class="ntp-task-del" data-rr-task-del="${escapeHtml(t.id)}" title="Delete task" aria-label="Delete task"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
+    // Only the creator may delete (an assignee completes a delegated
+    // task, they don't delete it) — matches the server rule.
+    const canDelete = !server || !t.creatorId || t.creatorId === me;
+    const del = canDelete ? `<button type="button" class="ntp-task-del" data-rr-task-del="${escapeHtml(t.id)}" title="Delete task" aria-label="Delete task"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : "";
+    // Avatar = who the task is on: me for my rows, the assignee for
+    // delegated rows. "from X" marks tasks someone assigned to me.
+    const avName = (server && !_rrTaskIsMine(t)) ? (t.assigneeName || "") : (_rrNtUserName() || "");
+    const init = (avName || "").trim().slice(0, 1).toUpperCase() || myInit;
+    const fromOther = server && t.creatorId && t.creatorId !== me && _rrTaskIsMine(t);
+    const who = fromOther
+      ? `<span class="ntp-task-from" title="Assigned by ${escapeHtml(t.creatorName || "")}">from ${escapeHtml((t.creatorName || "").split(" ")[0] || "teammate")}</span>`
+      : (server && _rrTaskIsDelegated(t)
+        ? `<span class="ntp-task-from" title="Assigned to ${escapeHtml(t.assigneeName || "")}">→ ${escapeHtml((t.assigneeName || "").split(" ")[0] || "teammate")}</span>`
+        : "");
     return `<div class="ntp-task${t.done ? " is-done" : ""}" role="listitem" data-rr-task-id="${escapeHtml(t.id)}">
       <button type="button" class="ntp-task-check" data-rr-task-toggle="${escapeHtml(t.id)}" role="checkbox" aria-checked="${t.done ? "true" : "false"}" aria-label="Toggle complete">${_RR_NTCHECK}</button>
       <span class="ntp-task-title" title="${escapeHtml(t.title || "")}">${escapeHtml(t.title || "")}</span>
-      ${rep}${due}
-      <span class="ntp-task-avatar" title="${escapeHtml(_rrNtUserName() || "")}">${escapeHtml(init)}</span>
+      ${who}${rep}${due}
+      <span class="ntp-task-avatar${fromOther || (server && _rrTaskIsDelegated(t)) ? " is-other" : ""}" title="${escapeHtml(avName)}">${escapeHtml(init)}</span>
       ${del}
     </div>`;
   }).join("");
@@ -9870,12 +10107,18 @@ function _rrAddTaskFromForm() {
   const de = document.querySelector("#rr-sched-tasks [data-rr-task-due]");
   const re = document.querySelector("#rr-sched-tasks [data-rr-task-repeat]");
   const rc = document.querySelector("#rr-sched-tasks [data-rr-task-repeat-count]");
+  const asel = document.querySelector("#rr-sched-tasks [data-rr-task-assignee]");
   if (!ti) return;
   const title = (ti.value || "").trim();
   if (!title) { try { ti.focus(); } catch (_) {} return; }
   const due = (de && de.value) || "";
   const repeat = (re && re.value) || "";
-  const tasks = _rrLoadTasks();
+  // Assignment (server mode only — the picker stays hidden on the local
+  // fallback). Empty value = myself.
+  const assigneeId = (_rrTasksMode === "server" && asel && asel.value) || "";
+  const assigneeName = assigneeId
+    ? ((asel.options[asel.selectedIndex] || {}).textContent || "").replace(/^Assign to:\s*/, "")
+    : "";
   const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   if (repeat && due) {
     // Repeat on a schedule: materialize one task per occurrence, each completable
@@ -9919,16 +10162,25 @@ function _rrAddTaskFromForm() {
     } else { // daily
       for (let i = 0; i < count; i++) { const d = new Date(base); d.setDate(base.getDate() + i); dates.push(d); }
     }
-    dates.forEach((d, i) => tasks.push({ id: _rrNtId("t"), title, due: isoOf(d), done: false, ts: Date.now() + i, series, repeat }));
-    toast(`Added ${dates.length} recurring task${dates.length !== 1 ? "s" : ""}`, "success");
+    _rrTaskCreate({ title, dues: dates.map(isoOf), series, repeat, assigneeId })
+      .then((made) => {
+        const n = (made && made.length) || 0;
+        toast(`Added ${n} recurring task${n !== 1 ? "s" : ""}${assigneeName ? " for " + assigneeName : ""}`, "success");
+        if (assigneeId) _rrTasksView = "delegated";   // show the operator what they just delegated
+        _rrRenderTasks();
+      }).catch(() => {});
   } else {
     if (repeat && !due) toast("Pick a due date to repeat — added as a single task", "info");
-    tasks.push({ id: _rrNtId("t"), title, due, done: false, ts: Date.now() });
+    _rrTaskCreate({ title, due, assigneeId })
+      .then(() => {
+        if (assigneeName) { toast(`Task assigned to ${assigneeName}`, "success"); _rrTasksView = "delegated"; }
+        _rrRenderTasks();
+      }).catch(() => {});
   }
-  _rrSaveTasks(tasks);
   ti.value = ""; if (de) de.value = "";
   if (re) re.value = "";
   if (rc) rc.value = "8";
+  if (asel) asel.value = "";
   const root = document.getElementById("rr-sched-tasks");
   if (root) {
     root.querySelectorAll("[data-rr-task-dows] .on").forEach(c => c.classList.remove("on"));
@@ -10104,6 +10356,10 @@ function _rrNtPanelOpen(which) {
   const view = _rrUtilRailView() || document.getElementById("view-schedule");
   if (view) view.classList.add("rr-notes-open");
   _rrNtRenderAll();
+  // Tasks are server-backed: refresh on open (also covers DELETE events,
+  // which realtime can't deliver through the dsp filter) and warm the
+  // assignee picker.
+  if (which === "tasks") { _rrTasksRefetchSoon(); _rrTasksAssigneeFill(); }
   if (which === "notes") {
     // Focus the composer once the slide + content fade have settled
     // (~240ms), so the cursor lands in a panel that's already in place.
@@ -10257,18 +10513,32 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("[data-rr-task-add-open]")) {
     e.preventDefault();
     const f = document.querySelector("#rr-sched-tasks [data-rr-task-form]");
-    if (f) { f.hidden = !f.hidden; if (!f.hidden) { const ti = f.querySelector("[data-rr-task-title]"); if (ti) setTimeout(() => { try { ti.focus(); } catch (_) {} }, 40); } }
+    if (f) { f.hidden = !f.hidden; if (!f.hidden) { _rrTasksAssigneeFill(); const ti = f.querySelector("[data-rr-task-title]"); if (ti) setTimeout(() => { try { ti.focus(); } catch (_) {} }, 40); } }
     return;
   }
   if (e.target.closest("[data-rr-task-add]")) { e.preventDefault(); _rrAddTaskFromForm(); return; }
   if (e.target.closest("[data-rr-task-cancel]")) { e.preventDefault(); const f = document.querySelector("#rr-sched-tasks [data-rr-task-form]"); if (f) f.hidden = true; return; }
+  // View chips: My Tasks ↔ Delegated (server mode only).
+  const vb = e.target.closest("[data-rr-task-view]");
+  if (vb) { e.preventDefault(); _rrTasksView = vb.getAttribute("data-rr-task-view") === "delegated" ? "delegated" : "mine"; _rrRenderTasks(); return; }
   const tg = e.target.closest("[data-rr-task-toggle]");
   if (tg) {
     e.preventDefault();
     const id = tg.getAttribute("data-rr-task-toggle");
-    const tasks = _rrLoadTasks();
-    const t = tasks.find((x) => x.id === id);
-    if (t) { t.done = !t.done; _rrSaveTasks(tasks); _rrRenderTasks(); }
+    if (_rrTasksMode === "server") {
+      const t = _rrTasksCache.find((x) => x.id === id);
+      if (t) {
+        t.done = !t.done;                       // optimistic; revert on failure
+        _rrRenderTasks();
+        sb.rpc("team_task_toggle", { p_id: id }).then(({ error }) => {
+          if (error) { t.done = !t.done; _rrRenderTasks(); toast("Couldn't update the task — try again", "error"); }
+        });
+      }
+    } else {
+      const tasks = _rrLoadTasks();
+      const t = tasks.find((x) => x.id === id);
+      if (t) { t.done = !t.done; _rrSaveTasks(tasks); _rrRenderTasks(); }
+    }
     return;
   }
   // Delete a task. Repeating tasks are materialized occurrences sharing a
@@ -10277,14 +10547,12 @@ document.addEventListener("click", (e) => {
   if (dl) {
     e.preventDefault();
     const id = dl.getAttribute("data-rr-task-del");
-    const tasks = _rrLoadTasks();
-    const t = tasks.find((x) => x.id === id);
+    const all = _rrTasksAll();
+    const t = all.find((x) => x.id === id);
     if (!t) return;
-    const kin = t.series ? tasks.filter((x) => x.series === t.series) : [t];
+    const kin = t.series ? all.filter((x) => x.series === t.series) : [t];
     if (kin.length > 1) { _rrTaskDelMenu(dl, t, kin.length); return; }
-    _rrSaveTasks(tasks.filter((x) => x.id !== id));
-    _rrRenderTasks();
-    toast("Task deleted", "success");
+    _rrTaskDeleteApply(t, false);
     return;
   }
 });
@@ -10306,9 +10574,8 @@ function _rrTaskDelMenu(btn, task, count) {
   pop.addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-del]"); if (!b) return;
     const all = b.getAttribute("data-del") === "series";
-    _rrSaveTasks(_rrLoadTasks().filter((x) => all ? x.series !== task.series : x.id !== task.id));
-    close(); _rrRenderTasks();
-    toast(all ? "Series deleted" : "Task deleted", "success");
+    close();
+    _rrTaskDeleteApply(task, all);
   });
 }
 // Keep the recurrence sub-controls (weekday picker / monthly pattern / count) in
@@ -57968,21 +58235,21 @@ function bindSchedWeekNav() {
       // don't duplicate: a driver with an open convert task is skipped.
       const taskBtn = m.querySelector("#rr-ftpt-task-btn");
       if (taskBtn && convertCands && convertCands.length) {
-        taskBtn.addEventListener("click", () => {
-          const tasks = _rrLoadTasks();
+        taskBtn.addEventListener("click", async () => {
+          const existing = _rrTasksAll();
           let added = 0;
           for (const p of convertCands) {
-            if (tasks.some((t) => !t.done && t.kind === "ftpt_convert" && t.driverId === p.id)) continue;
+            if (existing.some((t) => !t.done && t.kind === "ftpt_convert" && String(t.driverId) === String(p.id))) continue;
             const detail = `${p.hours}h scheduled${p.availDays != null ? `, ${p.availDays}d available` : ""}`;
-            tasks.push({
-              id: _rrNtId("t"),
-              title: `Speak with ${p.name || "driver"} about a full-time schedule (${detail})`,
-              due: "", done: false, ts: Date.now(),
-              kind: "ftpt_convert", driverId: p.id,
-            });
-            added += 1;
+            try {
+              await _rrTaskCreate({
+                title: `Speak with ${p.name || "driver"} about a full-time schedule (${detail})`,
+                kind: "ftpt_convert", driverId: p.id,
+              });
+              added += 1;
+            } catch (_) { /* toast already shown by _rrTaskCreate */ }
           }
-          if (added) { _rrSaveTasks(tasks); _rrRenderTasks(); }
+          if (added) _rrRenderTasks();
           taskBtn.disabled = true;
           taskBtn.textContent = added
             ? `${added} task${added === 1 ? "" : "s"} added ✓`
