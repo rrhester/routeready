@@ -63909,16 +63909,37 @@ function _renderBuilderProps() {
           <textarea class="field-prop-input" data-rr-prop="options" rows="4" placeholder="One per line">${escapeHtml((f.options || []).join("\n"))}</textarea>
         </div>` : ""}`;
   } else if (active === "validation") {
-    panel = isLayout
-      ? `<div class="props-note">Layout blocks don't collect an answer, so they have no validation rules.</div>`
-      : `
+    if (isLayout) {
+      panel = `<div class="props-note">Layout blocks don't collect an answer, so they have no validation rules.</div>`;
+    } else {
+      // Defect-flag rule (drives DVIC pass/fail). Only meaningful on a
+      // vehicle-inspection form and only for discrete-answer field types,
+      // so we surface it just there. Selecting a value stores field.flag_on;
+      // the driver_submit_form RPC records the inspection as "failed" when
+      // any field's answer matches its flag_on rule (else "passed").
+      const isDvicForm = !!document.getElementById("rr-form-is-dvic")?.checked;
+      const flagValues = f.type === "multi_choice"
+        ? (f.options || []).map(o => ({ value: String(o), label: String(o) }))
+        : _condValuesForField(f);
+      const flagRow = (isDvicForm && flagValues.length > 0) ? `
+        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
+          <span class="field-prop-label">Mark van as failed when answer is</span>
+          <select class="field-prop-input" data-rr-prop="flag_on">
+            <option value="">— No defect rule —</option>
+            ${flagValues.map(v => `<option value="${escapeHtml(String(v.value))}" ${String(f.flag_on ?? "") === String(v.value) ? "selected" : ""}>${escapeHtml(String(v.label))}</option>`).join("")}
+          </select>
+          <div class="props-soon-sub" style="margin-top:2px">On a vehicle inspection (DVIC) form, choosing this answer records the inspection as <strong>failed</strong>. Leave unset if this question doesn't indicate a defect.</div>
+        </div>` : "";
+      panel = `
         <div class="field-prop-row" style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5)"><span class="field-prop-label" style="margin-bottom:0">Required</span>
           <label class="toggle"><input type="checkbox" data-rr-prop="required" ${f.required ? "checked" : ""}/><span class="toggle-slider"></span></label></div>
+        ${flagRow}
         <div class="props-soon">
           <span class="props-soon-pill">Coming soon</span>
           <div class="props-soon-title">Field-level validation</div>
           <div class="props-soon-sub">Min / max length, numeric ranges, and pattern matching land in an upcoming release. The Required toggle above already saves today.</div>
         </div>`;
+    }
   } else if (active === "logic") {
     panel = _renderLogicPanel(f);
   } else if (active === "appearance") {
@@ -64463,6 +64484,9 @@ document.addEventListener("input", (e) => {
       f.required = propEl.checked;
     } else if (key === "options") {
       f.options = propEl.value.split("\n").map(s => s.trim()).filter(Boolean);
+    } else if (key === "flag_on") {
+      // Empty = no defect rule; drop the key so it isn't persisted.
+      if (propEl.value) f.flag_on = propEl.value; else delete f.flag_on;
     } else {
       f[key] = propEl.value;
     }
