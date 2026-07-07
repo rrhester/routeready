@@ -9548,6 +9548,22 @@ function _rrTaskFromRow(r) {
     myReadMs: Date.parse(r.my_read_at) || 0,
   };
 }
+// Merge a server row into a cached task in place. Only team_tasks_list
+// carries the 0435 comment/read metadata — team_task_json (returned by
+// ack / thread / toggle / set_due) omits it, so when merging one of those
+// we PRESERVE the cached badge state instead of resetting it to zero
+// (otherwise opening or acknowledging a task would blank its message
+// badge until the next full refetch).
+function _rrTaskMerge(t, data) {
+  const nr = _rrTaskFromRow(data);
+  if (!(data && "comment_count" in data)) {
+    nr.commentCount  = t.commentCount;
+    nr.lastCommentMs = t.lastCommentMs;
+    nr.lastCommentBy = t.lastCommentBy;
+    nr.myReadMs      = t.myReadMs;
+  }
+  Object.assign(t, nr);
+}
 // A task is "unread" when its newest comment is by someone else and is
 // newer than the last time I opened it. (0435)
 function _rrTaskUnread(t) {
@@ -10008,10 +10024,11 @@ async function _rrTaskDetailLoadThread(id) {
     const { data, error } = await sb.rpc("team_task_thread", { p_id: id });
     if (error) throw error;
     if (_rrTaskDetailId !== id) return;                 // modal closed / switched
-    // Keep the cached row's ack fields fresh from the authoritative task.
+    // Keep the cached row's ack fields fresh from the authoritative task
+    // (preserving the comment/read badge state team_task_json omits).
     if (data && data.task) {
       const t = _rrTasksCache.find((x) => x.id === id);
-      if (t) { const nr = _rrTaskFromRow(data.task); Object.assign(t, nr); _rrTaskDetailRenderHead(t); }
+      if (t) { _rrTaskMerge(t, data.task); _rrTaskDetailRenderHead(t); }
     }
     _rrTaskDetailRenderThread((data && data.events) || []);
   } catch (_) {
@@ -10057,7 +10074,7 @@ function _rrTaskAck(id) {
   if (!t) return;
   sb.rpc("team_task_ack", { p_id: id }).then(({ data, error }) => {
     if (error) { toast("Couldn't acknowledge — try again", "error"); return; }
-    if (data) { Object.assign(t, _rrTaskFromRow(data)); }
+    if (data) { _rrTaskMerge(t, data); }
     if (_rrTaskDetailId === id) { _rrTaskDetailRenderHead(t); _rrTaskDetailLoadThread(id); }
     _rrRenderTasks();
     toast("Acknowledged — the assigner has been notified", "success");
