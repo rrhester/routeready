@@ -7194,6 +7194,10 @@ function _rrCalNewTaskDialog() {
         <label for="rr-cal-task-due">Due date <span style="font-weight:400;color:#94A3B8">(optional)</span></label>
         <input type="date" id="rr-cal-task-due">
       </div>
+      <div class="rr-cal-task-field" data-rr-cal-task-assignee-row hidden>
+        <label for="rr-cal-task-assignee">Assign to</label>
+        <select id="rr-cal-task-assignee"><option value="">Myself</option></select>
+      </div>
       <div class="rr-cal-task-actions">
         <button type="button" class="rr-cal-task-btn rr-cal-task-cancel" data-rr-task-cancel>Cancel</button>
         <button type="submit" class="rr-cal-task-btn rr-cal-task-add">Add task</button>
@@ -7204,8 +7208,26 @@ function _rrCalNewTaskDialog() {
   const close = () => { ov.remove(); };
   const titleInp = ov.querySelector("#rr-cal-task-title");
   const dueInp = ov.querySelector("#rr-cal-task-due");
+  const aselInp = ov.querySelector("#rr-cal-task-assignee");
   const focusTitle = () => { try { titleInp.focus(); } catch (_) {} };
   focusTitle();
+  // Server mode: surface the leadership assignee picker (parity with the
+  // rail form). Stays hidden on the localStorage fallback.
+  (async () => {
+    try {
+      await _rrTasksEnsureLoaded();
+      if (_rrTasksMode !== "server" || !ov.isConnected) return;
+      const me = _rrTasksMe();
+      const members = await _rrTaskMembersLoad();
+      if (!ov.isConnected || !aselInp) return;
+      aselInp.innerHTML = `<option value="">Myself</option>` +
+        members.filter((m) => m.id !== me)
+          .map((m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name || m.email || "")}</option>`)
+          .join("");
+      const row = ov.querySelector("[data-rr-cal-task-assignee-row]");
+      if (row) row.hidden = false;
+    } catch (_) {}
+  })();
   ov.addEventListener("click", (ev) => { if (ev.target === ov) close(); });
   ov.querySelector("[data-rr-task-cancel]").addEventListener("click", close);
   ov.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); close(); } });
@@ -7214,9 +7236,17 @@ function _rrCalNewTaskDialog() {
     const title = (titleInp.value || "").trim();
     if (!title) { focusTitle(); return; }
     const due = (dueInp && dueInp.value) || "";
+    const assigneeId = (aselInp && aselInp.value) || "";
+    const assigneeName = assigneeId
+      ? ((aselInp.options[aselInp.selectedIndex] || {}).textContent || "").trim()
+      : "";
     // Routes through the shared create helper (server-backed team task,
     // or the device-local list until the migration is applied).
-    _rrTaskCreate({ title, due }).then(() => _rrRenderTasks()).catch(() => {});
+    _rrTaskCreate({ title, due, assigneeId })
+      .then(() => {
+        if (assigneeName) { toast(`Task assigned to ${assigneeName}`, "success"); _rrTasksView = "delegated"; }
+        _rrRenderTasks();
+      }).catch(() => {});
     close();
     // Surface the new task: open the rail Tasks panel so the user sees it.
     // Deferred so panel layout/render runs off the submit tick (and never
@@ -9530,9 +9560,12 @@ function _rrTasksEnsureLoaded() {
       _rrTasksCache = (Array.isArray(data) ? data : []).map(_rrTaskFromRow);
       _rrTasksSubscribe();
       await _rrTasksImportLocalOnce();
+      // Due-today nudges: fire once now, then ride the 30s reminder tick.
+      try { _rrInstallReminderTick(); _rrTaskDueTick(); } catch (_) {}
     } catch (_) {
       // Migration not applied yet / offline — keep the old local behavior.
       _rrTasksMode = "local";
+      try { _rrInstallReminderTick(); _rrTaskDueTick(); } catch (_) {}
     } finally {
       _rrRenderTasks();
     }
@@ -9663,6 +9696,167 @@ async function _rrTaskCreate(spec) {
   _rrSaveTasks(tasks);
   return made;
 }
+// Toggle a task open/done in the active store (rail checkbox + the
+// calendar chip's check both land here). Optimistic; reverts on failure.
+function _rrTaskToggleById(id) {
+  if (_rrTasksMode === "server") {
+    const t = _rrTasksCache.find((x) => x.id === id);
+    if (!t) return;
+    t.done = !t.done;
+    _rrRenderTasks();
+    sb.rpc("team_task_toggle", { p_id: id }).then(({ error }) => {
+      if (error) { t.done = !t.done; _rrRenderTasks(); toast("Couldn't update the task — try again", "error"); }
+    });
+  } else {
+    const tasks = _rrLoadTasks();
+    const t = tasks.find((x) => x.id === id);
+    if (t) { t.done = !t.done; _rrSaveTasks(tasks); _rrRenderTasks(); }
+  }
+}
+// Change a task's due date (calendar drag-drop lands here). Optimistic.
+function _rrTaskSetDue(id, iso) {
+  if (!iso) return;
+  if (_rrTasksMode === "server") {
+    const t = _rrTasksCache.find((x) => x.id === id);
+    if (!t || t.due === iso) return;
+    const prev = t.due;
+    t.due = iso;
+    sb.rpc("team_task_set_due", { p_id: id, p_due: iso }).then(({ error }) => {
+      if (error) { t.due = prev; _rrRenderTasks(); toast("Couldn't reschedule the task — try again", "error"); }
+    });
+  } else {
+    const tasks = _rrLoadTasks();
+    const t = tasks.find((x) => x.id === id);
+    if (!t || t.due === iso) return;
+    t.due = iso;
+    _rrSaveTasks(tasks);
+  }
+  _rrRenderTasks();
+  toast("Task moved to " + _rrNtFmtDue(iso), "success");
+}
+// ── Team tasks on the operations calendar ─────────────────────────────
+// Open tasks with a due date render as quiet chips on the calendar
+// (all-day lane in week/day views, top of the cell in month view):
+// complete from the chip, click through to the rail panel, drag to
+// another day to reschedule. Delegated tasks carry the assignee's
+// initial. Gated by the "Tasks" row in My Calendars.
+function _rrCalTasksForDate(iso) {
+  try { if (typeof _ivcalFilters !== "undefined" && _ivcalFilters.tasks === false) return []; } catch (_) {}
+  return _rrTasksAll().filter((t) => !t.done && t.due === iso);
+}
+function _rrCalTaskChip(t) {
+  const me = _rrTasksMe();
+  const deleg = !!t.assigneeId && t.assigneeId !== me;
+  const who = deleg
+    ? `<span class="oc-taskchip-init" title="Assigned to ${escapeHtml(t.assigneeName || "")}">${escapeHtml(((t.assigneeName || "").trim().slice(0, 1) || "•").toUpperCase())}</span>`
+    : "";
+  const tip = "Task · " + (t.title || "")
+    + (deleg ? " · assigned to " + (t.assigneeName || "")
+             : (t.creatorId && t.creatorId !== me ? " · from " + (t.creatorName || "") : ""))
+    + " · drag to another day to reschedule";
+  return `<div class="oc-taskchip" draggable="true" data-rr-caltask="${escapeHtml(t.id)}" tabindex="0" role="button" aria-label="${escapeHtml("Task: " + (t.title || ""))}" title="${escapeHtml(tip)}">
+    <button type="button" class="oc-taskchip-check" data-rr-caltask-done="${escapeHtml(t.id)}" title="Mark complete" aria-label="Mark task complete">${_RR_NTCHECK}</button>
+    <span class="oc-taskchip-t">${escapeHtml(t.title || "")}</span>${who}
+  </div>`;
+}
+// Repaint the calendar when the set of dated open tasks changes (task
+// added / completed / rescheduled / realtime update). Hash-guarded so
+// ordinary panel re-renders never force a full calendar rebuild.
+let _rrCalTaskHash = null;
+let _rrCalTaskSyncT = null;
+function _rrTasksCalendarSync() {
+  try {
+    const h = _rrTasksAll().filter((t) => !t.done && t.due)
+      .map((t) => t.id + ":" + t.due + ":" + (t.assigneeId || "")).sort().join("|");
+    if (h === _rrCalTaskHash) return;
+    const first = _rrCalTaskHash === null;
+    _rrCalTaskHash = h;
+    if (first) return;                                  // initial snapshot, nothing to repaint
+    clearTimeout(_rrCalTaskSyncT);
+    _rrCalTaskSyncT = setTimeout(() => {
+      try {
+        if (document.querySelector("#rr-ivcal-body .oc-cal") && typeof _ivcalRender === "function" && _ivcalCache) _ivcalRender();
+      } catch (_) {}
+    }, 80);
+  } catch (_) {}
+}
+// Chip interactions — capture phase, so a chip click can never fall
+// through to the day cell's own handlers (select / quick-create).
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  const done = e.target.closest("[data-rr-caltask-done]");
+  if (done) {
+    e.preventDefault(); e.stopPropagation();
+    _rrTaskToggleById(done.getAttribute("data-rr-caltask-done"));
+    return;
+  }
+  const chip = e.target.closest("[data-rr-caltask]");
+  if (chip) {
+    e.preventDefault(); e.stopPropagation();
+    // Click-through: open the rail Tasks panel.
+    try { if (typeof _rrNtPanelOpen === "function") _rrNtPanelOpen("tasks"); } catch (_) {}
+  }
+}, true);
+// Drag a chip onto any calendar day (all-day lane, time column, or month
+// cell — they all carry data-ivcal-date) to reschedule the task.
+document.addEventListener("dragstart", (e) => {
+  const chip = e.target && e.target.closest && e.target.closest("[data-rr-caltask]");
+  if (!chip || !e.dataTransfer) return;
+  e.dataTransfer.setData("text/rr-caltask", chip.getAttribute("data-rr-caltask") || "");
+  e.dataTransfer.effectAllowed = "move";
+});
+function _rrCalTaskDropCell(e) {
+  return (e.target && e.target.closest && e.target.closest("#rr-ivcal-body [data-ivcal-date]")) || null;
+}
+document.addEventListener("dragover", (e) => {
+  if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes("text/rr-caltask")) return;
+  const cell = _rrCalTaskDropCell(e);
+  if (!cell) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".oc-taskdrop").forEach((x) => { if (x !== cell) x.classList.remove("oc-taskdrop"); });
+  cell.classList.add("oc-taskdrop");
+});
+document.addEventListener("drop", (e) => {
+  if (!e.dataTransfer) return;
+  const id = e.dataTransfer.getData("text/rr-caltask");
+  if (!id) return;
+  const cell = _rrCalTaskDropCell(e);
+  document.querySelectorAll(".oc-taskdrop").forEach((x) => x.classList.remove("oc-taskdrop"));
+  if (!cell) return;
+  e.preventDefault(); e.stopPropagation();
+  _rrTaskSetDue(id, cell.getAttribute("data-ivcal-date"));
+}, true);
+document.addEventListener("dragend", () => {
+  document.querySelectorAll(".oc-taskdrop").forEach((x) => x.classList.remove("oc-taskdrop"));
+});
+// Tasks due today (mine) nudge once per day while the dashboard is open —
+// in-app toast + browser notification, same dedupe log as event
+// reminders. No email, matching the rest of the team-tasks feature.
+function _rrTaskDueTick() {
+  try {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const due = _rrTasksAll().filter((t) => !t.done && t.due === today && (_rrTasksMode !== "server" || _rrTaskIsMine(t)));
+    if (!due.length) return;
+    let fired;
+    try { fired = JSON.parse(localStorage.getItem("rr-rem-fired") || "{}"); } catch (_) { fired = {}; }
+    let dirty = false;
+    for (const t of due) {
+      const key = "task:" + t.id + ":" + today;
+      if (fired[key]) continue;
+      fired[key] = Date.now(); dirty = true;
+      const msg = "Due today: " + (t.title || "");
+      toast("📋 " + msg, "info");
+      try {
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("RouteReady task", { body: msg, tag: key });
+        }
+      } catch (_) { /* toast already shown */ }
+    }
+    if (dirty) { try { localStorage.setItem("rr-rem-fired", JSON.stringify(fired)); } catch (_) {} }
+  } catch (_) {}
+}
 // Delete one task or its whole repeat series from the active store.
 function _rrTaskDeleteApply(task, series) {
   if (_rrTasksMode === "server") {
@@ -9746,6 +9940,7 @@ function _rrRenderTasks() {
       ${del}
     </div>`;
   }).join("");
+  _rrTasksCalendarSync();   // repaint calendar chips if the dated set changed
 }
 // ── Contacts panel · Google-Contacts-style list on the utility rail ──
 // Same storage tier as Notes/Tasks (localStorage per DSP); rows carry
@@ -10534,21 +10729,7 @@ document.addEventListener("click", (e) => {
   const tg = e.target.closest("[data-rr-task-toggle]");
   if (tg) {
     e.preventDefault();
-    const id = tg.getAttribute("data-rr-task-toggle");
-    if (_rrTasksMode === "server") {
-      const t = _rrTasksCache.find((x) => x.id === id);
-      if (t) {
-        t.done = !t.done;                       // optimistic; revert on failure
-        _rrRenderTasks();
-        sb.rpc("team_task_toggle", { p_id: id }).then(({ error }) => {
-          if (error) { t.done = !t.done; _rrRenderTasks(); toast("Couldn't update the task — try again", "error"); }
-        });
-      }
-    } else {
-      const tasks = _rrLoadTasks();
-      const t = tasks.find((x) => x.id === id);
-      if (t) { t.done = !t.done; _rrSaveTasks(tasks); _rrRenderTasks(); }
-    }
+    _rrTaskToggleById(tg.getAttribute("data-rr-task-toggle"));
     return;
   }
   // Delete a task. Repeating tasks are materialized occurrences sharing a
@@ -21678,7 +21859,7 @@ let _ivcalClipboard = null;           // copied event for paste
 // Built-in calendars (event kinds), toggled in the "My Calendars" sidebar.
 // Persisted so the operator's overlay choices stick across reloads.
 const _ivcalFilters = (() => {
-  const d = { interview: true, orientation: true, event: true, session: true };
+  const d = { interview: true, orientation: true, event: true, session: true, tasks: true };
   try { Object.assign(d, JSON.parse(localStorage.getItem("rr_ivcal_filters") || "{}")); } catch (_) {}
   return d;
 })();
@@ -21757,6 +21938,10 @@ function _ivcalMyCalendars() {
   // to see when applicants can book.
   const availRow =
     `<label class="oc-cal-row" title="Show the light-blue bookable-hours shading on the calendar"><input type="checkbox" data-ivcal-showavail${_ivcalShowAvail?" checked":""}><span class="oc-cal-dot" style="background:#93C5FD"></span><span class="oc-cal-name">Bookable hours</span></label>`;
+  // My Tasks overlay toggle · open tasks show as quiet chips on their
+  // due date (rides the shared data-ivcal-filter change handler).
+  const tasksRow =
+    `<label class="oc-cal-row" title="Show open My-Tasks due dates as chips on the calendar"><input type="checkbox" data-ivcal-filter="tasks"${_ivcalFilters.tasks!==false?" checked":""}><span class="oc-cal-dot" style="background:#94A3B8"></span><span class="oc-cal-name">Tasks</span></label>`;
   const custom = cals.map(c => {
     const on = _ivcalCalVis[c.id] !== false;
     return `<div class="oc-cal-row"><label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="${escapeHtml(c.id)}"${on?" checked":""}><span class="oc-cal-dot" style="background:${escapeHtml(c.color||'#2563EB')}"></span><span class="oc-cal-name">${escapeHtml(c.name)}</span></label><button class="oc-cal-menu" data-ivcal-calmenu="${escapeHtml(c.id)}" title="Calendar options" aria-label="Calendar options">⋯</button></div>`;
@@ -21769,7 +21954,7 @@ function _ivcalMyCalendars() {
   return `<div class="oc-cals">
     ${_ivcalAwaiting()}
     <div class="oc-cals-h"><span>Connected calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
-    <div class="oc-cals-grp">${builtin}${availRow}</div>
+    <div class="oc-cals-grp">${builtin}${tasksRow}${availRow}</div>
     ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
     <button type="button" class="oc-cals-feed" data-ivcal-feedall title="Subscribe to this calendar from Google, Apple or Outlook">🔗 Subscribe in another calendar app…</button>
     ${_ivcalGoogleRow()}
@@ -24541,6 +24726,7 @@ function _rrInstallReminderTick() {
   _rrRemTimer = setInterval(_rrReminderTick, 30000);
 }
 function _rrReminderTick() {
+  _rrTaskDueTick();                       // team-task due-today nudges ride the same tick
   const evs = (_ivcalCache && _ivcalCache.bookings) || [];
   if (!evs.length) return;
   const now = Date.now();
@@ -24697,6 +24883,10 @@ function _ivcalTimeGrid(ndays) {
   let _anyAllDay = false;
   const adCols = days.map(d => {
     let bars = "";
+    // Open team tasks due this day render first — quiet gray chips.
+    for (const t of _rrCalTasksForDate(_ivcalISODate(d))) {
+      bars += _rrCalTaskChip(t); _anyAllDay = true;
+    }
     for (const b of _ivcalDayItems(d, _ivcalCache.bookings, "starts_at")) {
       if (!_ivcalFilterOk(b, "booking") || !_ivcalIsAllDay(b)) continue;
       bars += _ivcalAllDayBar(b, "booking"); _anyAllDay = true;
@@ -24742,7 +24932,7 @@ function _ivcalMonth() {
       _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt").forEach(ge => { items.push({ t:new Date(ge.sortAt), label:ge.title || "(busy)", google:true, link:ge.htmlLink || "", allDay:ge.allDay }); });
     }
     items.sort((x,y) => x.t - y.t);
-    const pills = items.slice(0,4).map(it => {
+    const pillHtml = (it) => {
       if (it.google) {
         const gtm = it.allDay ? "" : it.t.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
         return `<div class="oc-pill oc-pill-google" data-ivcal-glink="${escapeHtml(it.link)}" style="color:${_ivcalGoogleColor}" title="${escapeHtml((gtm?gtm+" ":"")+it.label+" · Google")}"><span class="oc-pdot" style="background:${_ivcalGoogleColor}"></span>${escapeHtml(gtm?gtm+" ":"")}${escapeHtml(it.label)}</div>`;
@@ -24752,9 +24942,16 @@ function _ivcalMonth() {
       const dotStyle = it.color ? ` style="background:${it.color}"` : "";
       const pillStyle = it.color ? ` style="color:${it.color}"` : "";
       return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${sel?" sel":""}"${pillStyle} data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" tabindex="0" role="button" aria-label="${escapeHtml(tm+" "+it.label)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"${dotStyle}></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
-    }).join("");
-    const more = items.length > 4 ? `<div class="oc-more">+${items.length-4} more</div>` : "";
-    cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${pills}${more}</div>`;
+    };
+    // Open team tasks due this day sit above the event pills (max 2
+    // chips; the rest fold into the "+N more" count).
+    const dayTasks = _rrCalTasksForDate(_ivcalISODate(d));
+    const tChips = dayTasks.slice(0, 2).map(_rrCalTaskChip).join("");
+    const maxPills = 4 - Math.min(dayTasks.length, 2);
+    const moreN = Math.max(0, items.length - maxPills) + Math.max(0, dayTasks.length - 2);
+    const more = moreN > 0 ? `<div class="oc-more">+${moreN} more</div>` : "";
+    const pillsHtml = items.slice(0, maxPills).map((it) => pillHtml(it)).join("");
+    cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${tChips}${pillsHtml}${more}</div>`;
   }
   return `<div class="oc-cal"><div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-mhead">${dowHead}</div><div class="oc-mgrid">${cells}</div></div></div>`;
 }
@@ -24776,6 +24973,11 @@ function _ivcalYear() {
   mark(_ivcalCache.sessions, "starts_at", "session");
   mark(_ivcalCache.bookings, "starts_at", "booking");
   if (_ivcalGoogleVisible()) mark(_ivcalCache.googleEvents || [], "sortAt", null);
+  // Open team-task due dates count as busy days too (subject to the
+  // Tasks toggle in My Calendars).
+  if (_ivcalFilters.tasks !== false) {
+    _rrTasksAll().forEach(t => { if (!t.done && t.due && t.due.slice(0, 4) === String(year)) busy.add(t.due); });
+  }
 
   const dow = CAL_DAY_LABELS.map(d => `<span class="oc-ydow">${d[0]}</span>`).join("");
   let months = "";
