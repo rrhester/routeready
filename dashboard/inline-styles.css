@@ -12688,6 +12688,10 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-mini-nav{appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-sub);font-size:15px;line-height:1;padding:1px 7px;border-radius:5px}
             #rr-ivcal .oc-mini-nav:hover{background:var(--oc-hover);color:var(--oc-blue)}
             #rr-ivcal .oc-mini-nav-sp{display:inline-block;width:24px}
+            #rr-ivcal .oc-mini-navs{display:inline-flex;align-items:center;gap:2px}
+            /* Single-month mini (no week-number column) */
+            #rr-ivcal .oc-mini-solo .oc-mini-row{grid-template-columns:repeat(7,1fr)}
+            #rr-ivcal .oc-mini-solo .oc-mini-row::before{display:none}
             #rr-ivcal .oc-mini-row{display:grid;grid-template-columns:20px repeat(7,1fr);align-items:center;gap:1px;position:relative}
             /* Hairline divider between the week-number column and the weekdays. */
             #rr-ivcal .oc-mini-row::before{content:"";position:absolute;left:20px;top:0;bottom:0;width:1px;background:var(--oc-colsep);pointer-events:none}
@@ -12707,6 +12711,16 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-cals-add{appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-sub);font-size:18px;line-height:1;width:22px;height:22px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center}
             #rr-ivcal .oc-cals-add:hover{background:var(--oc-hover);color:var(--oc-blue)}
             #rr-ivcal .oc-cals-grp{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+            /* Collapsible sidebar sections (Google-style rail) */
+            #rr-ivcal .oc-sec{border-top:1px solid var(--oc-colsep);padding:2px 0}
+            #rr-ivcal .oc-sec:first-child{border-top:0}
+            #rr-ivcal .oc-sec-h{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none;padding:10px 2px 8px;border-radius:6px}
+            #rr-ivcal .oc-sec-h:hover{background:var(--oc-hover)}
+            #rr-ivcal .oc-sec-h:focus-visible{outline:2px solid var(--oc-blue);outline-offset:-2px}
+            #rr-ivcal .oc-sec-t{flex:1 1 auto;min-width:0;font-size:14px;font-weight:600;color:var(--oc-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            #rr-ivcal .oc-sec-r{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px}
+            #rr-ivcal .oc-sec-chev{color:var(--oc-sub);transition:transform var(--t-fast)}
+            #rr-ivcal .oc-sec-chev.c{transform:rotate(-90deg)}
             #rr-ivcal .oc-cal-row{display:flex;align-items:center;gap:7px;padding:3px 4px;border-radius:5px;font-size:13px;color:var(--oc-ink);cursor:pointer}
             #rr-ivcal .oc-cal-row:hover{background:var(--oc-hover)}
             #rr-ivcal .oc-cal-lbl{display:flex;align-items:center;gap:7px;flex:1;min-width:0;cursor:pointer}

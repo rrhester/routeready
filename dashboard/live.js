@@ -22175,20 +22175,45 @@ function _ivcalMyCalendars() {
     const on = _ivcalCalVis[c.id] !== false;
     return `<div class="oc-cal-row"><label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="${escapeHtml(c.id)}"${on?" checked":""}><span class="oc-cal-dot" style="background:${escapeHtml(c.color||'#2563EB')}"></span><span class="oc-cal-name">${escapeHtml(c.name)}</span></label><button class="oc-cal-menu" data-ivcal-calmenu="${escapeHtml(c.id)}" title="Calendar options" aria-label="Calendar options">⋯</button></div>`;
   }).join("");
-  // Availability (weekly hours & sessions, holidays & date overrides) and
-  // Booking pages moved out of the sidebar into the toolbar "Availability"
-  // dropdown menu (_rrBuildAvailMenu). The _ivcalAvailabilityRow /
-  // _ivcalBookingPages builders are retained for reference but no longer
-  // rendered here.
+  // Google-style collapsible rail: My calendars (RouteReady-owned + toggles)
+  // and Other calendars (Google overlay + subscribe feeds), each remembered
+  // open/closed per browser via _ivcalSecState.
+  const addCal = `<button type="button" class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button>`;
+  const myBody = _ivSecOpen("mycals")
+    ? `<div class="oc-cals-grp">${builtin}${custom}${tasksRow}${availRow}</div>`
+    : "";
+  const feedRow = `<button type="button" class="oc-cals-feed" data-ivcal-feedall title="Subscribe to this calendar from Google, Apple or Outlook">🔗 Subscribe in another calendar app…</button>`;
+  const otherBody = _ivSecOpen("othercals")
+    ? `<div class="oc-cals-grp">${_ivcalGoogleRow()}${feedRow}</div>`
+    : "";
   return `<div class="oc-cals">
     ${_ivcalAwaiting()}
-    <div class="oc-cals-h"><span>Connected calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
-    <div class="oc-cals-grp">${builtin}${tasksRow}${availRow}</div>
-    ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
-    <button type="button" class="oc-cals-feed" data-ivcal-feedall title="Subscribe to this calendar from Google, Apple or Outlook">🔗 Subscribe in another calendar app…</button>
-    ${_ivcalGoogleRow()}
+    ${_ivcalBookingPagesSection()}
+    <div class="oc-sec">${_ivSecHead("mycals", "My calendars", addCal)}${myBody}</div>
+    <div class="oc-sec">${_ivSecHead("othercals", "Other calendars")}${otherBody}</div>
     ${_ivcalLegend()}
   </div>`;
+}
+
+// Booking-pages section (always shown so the operator can add the first one),
+// reusing the existing per-schedule row wiring (data-ivcal-bp*).
+function _ivcalBookingPagesSection() {
+  const scheds = (_ivcalCache && _ivcalCache.schedules) || [];
+  const pageIco = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>`;
+  const eyeIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const add = `<button type="button" class="oc-cals-add" data-ivcal-bp-add title="New booking page" aria-label="New booking page">+</button>`;
+  let body = "";
+  if (_ivSecOpen("bookingpages")) {
+    body = scheds.length ? scheds.map(s =>
+      `<div class="oc-bp-row" data-ivcal-bp="${escapeHtml(s.id)}" title="Edit “${escapeHtml(s.name)}”">
+        <span class="oc-bp-ico">${pageIco}</span>
+        <span class="oc-bp-name">${escapeHtml(s.name)}</span>
+        ${s.is_active ? `<span class="oc-bp-active" title="Active booking schedule">active</span>` : ""}
+        <button type="button" class="oc-cal-menu oc-bp-preview" data-ivcal-bp-preview="${escapeHtml(s.id)}" title="Preview what applicants see" aria-label="Preview booking page">${eyeIco}</button>
+      </div>`).join("")
+      : `<div class="oc-cals-empty">No booking pages yet — click + to add one.</div>`;
+  }
+  return `<div class="oc-sec">${_ivSecHead("bookingpages", "Booking pages", add)}${body}</div>`;
 }
 
 // Subscribe-feed dialog: mints (or fetches) the scope's token via
@@ -22274,6 +22299,24 @@ function _ivcalBookingPreview(id, name) {
 //    that schedule, and "+" starts a new one. Hidden until schedules exist
 //    (i.e. the 0400 migration is applied). Collapsible like Google's rail.
 let _ivcalBPCollapsed = (() => { try { return localStorage.getItem("rr_ivcal_bp_collapsed") === "1"; } catch (_) { return false; } })();
+
+// ── Generic collapsible sidebar sections (Google-style rail). Each section
+//    is open by default; collapse state is remembered per browser. ─────────
+let _ivcalSecState = (() => { try { return JSON.parse(localStorage.getItem("rr_ivcal_sections") || "{}"); } catch (_) { return {}; } })();
+function _ivSecOpen(id) { return _ivcalSecState[id] !== false; }
+function _ivSecToggle(id) {
+  _ivcalSecState[id] = !_ivSecOpen(id);
+  try { localStorage.setItem("rr_ivcal_sections", JSON.stringify(_ivcalSecState)); } catch (_) {}
+  _ivcalRender();
+}
+// Section header with a rotating chevron + optional trailing control (an add
+// button, count badge, etc.). The header row toggles the section; the trailing
+// control keeps its own click via stopPropagation in its handler.
+function _ivSecHead(id, label, trailing) {
+  const chev = `<svg class="oc-sec-chev${_ivSecOpen(id) ? "" : " c"}" viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 6 8 10 12 6"/></svg>`;
+  return `<div class="oc-sec-h" data-ivcal-sec="${id}" role="button" tabindex="0" aria-expanded="${_ivSecOpen(id) ? "true" : "false"}"><span class="oc-sec-t">${escapeHtml(label)}</span><span class="oc-sec-r">${trailing || ""}${chev}</span></div>`;
+}
+
 function _ivcalBookingPages() {
   const scheds = (_ivcalCache && _ivcalCache.schedules) || [];
   if (!scheds.length) return "";
@@ -22326,13 +22369,11 @@ function _ivcalAwaiting() {
   }).join("");
   const more = list.length > LIM
     ? `<button type="button" class="oc-await-more" data-ivcal-await-more>+${list.length - LIM} more in Funnel</button>` : "";
-  const body = list.length
-    ? rows + more
-    : `<div class="oc-await-empty">All caught up — nobody's waiting on a time.</div>`;
-  return `<div class="oc-cals-grp oc-await">
-    <div class="oc-cals-h oc-await-h"><span>Interview booking</span>${list.length ? `<span class="oc-await-count">${list.length}</span>` : ""}</div>
-    ${body}
-  </div>`;
+  const body = _ivSecOpen("awaiting")
+    ? (list.length ? rows + more : `<div class="oc-await-empty">All caught up — nobody's waiting on a time.</div>`)
+    : "";
+  const count = list.length ? `<span class="oc-await-count">${list.length}</span>` : "";
+  return `<div class="oc-sec oc-await">${_ivSecHead("awaiting", "Interview booking", count)}${body}</div>`;
 }
 
 // Google Calendar in My Calendars. Reuses the existing OAuth flow; status comes
@@ -22854,29 +22895,22 @@ function _ivcalCreatePill() {
   </div>`;
 }
 function _ivcalMiniMonths() {
-  const base = _ivcalMiniBase();
-  const next = new Date(base.getFullYear(), base.getMonth()+1, 1);
-  return _ivcalMiniMonth(base, true) + _ivcalMiniMonth(next, false);
-}
-function _ivcalMiniMonth(first, isFirst) {
+  // Single clean month (Google-style), prev/next arrows in the header.
+  const first = _ivcalMiniBase();
   const mo = first.getMonth();
   const title = first.toLocaleDateString(undefined, { month:"long", year:"numeric" });
-  const gridStart = _ivcalWeekStart(first); // Sunday on/before the 1st
+  const gridStart = _ivcalWeekStart(first); // honors the week-start pref
   const today = new Date(); today.setHours(0,0,0,0);
   const rng = _ivcalViewRange();
   const head = `<div class="oc-mini-h">
-    ${isFirst ? `<button class="oc-mini-nav" data-mini-nav="-1" aria-label="Previous month">‹</button>` : `<span class="oc-mini-nav-sp"></span>`}
     <span class="oc-mini-title">${escapeHtml(title)}</span>
-    ${isFirst ? `<span class="oc-mini-nav-sp"></span>` : `<button class="oc-mini-nav" data-mini-nav="1" aria-label="Next month">›</button>`}
+    <span class="oc-mini-navs"><button class="oc-mini-nav" data-mini-nav="-1" aria-label="Previous month">‹</button><button class="oc-mini-nav" data-mini-nav="1" aria-label="Next month">›</button></span>
   </div>`;
-  const dow = `<div class="oc-mini-row oc-mini-dow"><span class="oc-mini-wk">WK</span>` +
-    ["S","M","T","W","T","F","S"].map(d => `<span>${d}</span>`).join("") + `</div>`;
+  const dowLabels = _ivWeekStartMon ? ["M","T","W","T","F","S","S"] : ["S","M","T","W","T","F","S"];
+  const dow = `<div class="oc-mini-row oc-mini-dow">` + dowLabels.map(d => `<span>${d}</span>`).join("") + `</div>`;
   let rows = "";
   const cur = new Date(gridStart);
   for (let w = 0; w < 6; w++) {
-    const wkStart = new Date(cur);
-    const thu = new Date(wkStart); thu.setDate(wkStart.getDate()+4);
-    const wkNo = _isoWeek(thu);
     let cells = "";
     for (let i = 0; i < 7; i++) {
       const d = new Date(cur);
@@ -22886,9 +22920,9 @@ function _ivcalMiniMonth(first, isFirst) {
       cells += `<button class="oc-mini-d${out?" out":""}${isToday?" today":""}${inRange?" in-range":""}" data-mini-date="${_ivcalISODate(d)}">${d.getDate()}</button>`;
       cur.setDate(cur.getDate()+1);
     }
-    rows += `<div class="oc-mini-row"><button class="oc-mini-wk wk-btn" data-mini-week="${_ivcalISODate(wkStart)}" title="Week ${wkNo} — click for this week">${wkNo}</button>${cells}</div>`;
+    rows += `<div class="oc-mini-row">${cells}</div>`;
   }
-  return `<div class="oc-mini">${head}${dow}${rows}</div>`;
+  return `<div class="oc-mini oc-mini-solo">${head}${dow}${rows}</div>`;
 }
 
 function _ivcalDayItems(day, arr, key) {
@@ -23079,17 +23113,17 @@ function _ivcalRender() {
     if (typeof _ivToggleRules === "function") _ivToggleRules(true);
   });
   host.querySelector("[data-ivcal-overrides]")?.addEventListener("click", () => _rrOpenDateOverrides());
-  const _bpToggle = host.querySelector("[data-ivcal-bp-toggle]");
-  if (_bpToggle) {
+  // Collapsible sidebar sections (My calendars / Other calendars / Booking
+  // pages / Interview booking). The trailing + buttons keep their own handlers
+  // (which stopPropagation), so a click on them doesn't toggle the section.
+  host.querySelectorAll("[data-ivcal-sec]").forEach(h => {
     const doToggle = (e) => {
-      if (e.target.closest("[data-ivcal-bp-add]")) return;
-      _ivcalBPCollapsed = !_ivcalBPCollapsed;
-      try { localStorage.setItem("rr_ivcal_bp_collapsed", _ivcalBPCollapsed ? "1" : "0"); } catch (_) {}
-      _ivcalRender();
+      if (e.target.closest(".oc-cals-add")) return;   // + button, not a toggle
+      _ivSecToggle(h.getAttribute("data-ivcal-sec"));
     };
-    _bpToggle.addEventListener("click", doToggle);
-    _bpToggle.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); doToggle(e); } });
-  }
+    h.addEventListener("click", doToggle);
+    h.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); doToggle(e); } });
+  });
   host.querySelectorAll("[data-ivcal-await-send]").forEach(b => b.onclick = async (e) => {
     e.stopPropagation();
     if (!confirm("Resend the interview booking link so they can pick a time?")) return;
