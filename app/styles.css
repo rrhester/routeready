@@ -694,6 +694,10 @@ select.field{
   box-shadow:var(--shadow-card);
 }
 .task-card:active{transform:scale(.992);box-shadow:var(--shadow-card-strong)}
+/* Completed once-per-driver form — shown for reference, not tappable. */
+.task-card.is-done{cursor:default;opacity:.72;box-shadow:none}
+.task-card.is-done:active{transform:none;box-shadow:none}
+.task-card.is-done .task-icon{background:var(--green-soft,#dcfce7);border-color:var(--green-soft,#bbf7d0)}
 .task-icon{
   width:36px;height:36px;border-radius:var(--r-md);
   background:var(--accent-soft);
