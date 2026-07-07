@@ -16639,7 +16639,7 @@ document.addEventListener("click", async (e) => {
   if (!btn) return;
   const id   = btn.getAttribute("data-rr-team-remove");
   const name = btn.getAttribute("data-rr-team-name-display") || "this teammate";
-  if (!confirm(`Remove ${name} from the team? They'll lose dashboard access immediately. Re-invite them later if needed.`)) return;
+  if (!(await _rrConfirmDialog({ title: "Remove teammate?", body: `Remove ${name} from the team? They'll lose dashboard access immediately. Re-invite them later if needed.`, confirmLabel: "Remove", danger: true }))) return;
   btn.disabled = true;
   const { error } = await sb.from("app_users").update({ active: false }).eq("id", id);
   if (error) { toast("Remove failed: " + error.message, "warn"); btn.disabled = false; return; }
@@ -18688,7 +18688,7 @@ async function loadTodayAttendance() {
 
   document.getElementById("rr-today-refresh").addEventListener("click", loadTodayAttendance);
   document.getElementById("rr-today-finalize").addEventListener("click", async () => {
-    if (!confirm("Finalize today's attendance?\n\nThis locks every record for today into the permanent log. Pending check-ins after this won't be retroactive without re-opening the day.")) return;
+    if (!(await _rrConfirmDialog({ title: "Finalize today's attendance?", body: "This locks every record for today into the permanent log. Pending check-ins after this won't be retroactive without re-opening the day.", confirmLabel: "Finalize" }))) return;
     const today = new Date().toISOString().slice(0, 10);
     const { error } = await sb.rpc("attendance_approve_day", { p_day: today });
     if (error) { toast("Finalize failed: " + error.message, "warn"); return; }
@@ -21805,7 +21805,7 @@ document.addEventListener("click", async (e) => {
   if (closeBtn && !closeBtn.disabled) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    if (!confirm("Close interview day? Anyone booked but not yet acted on will be marked No Show.")) return;
+    if (!(await _rrConfirmDialog({ title: "Close interview day?", body: "Anyone booked but not yet acted on will be marked No Show.", confirmLabel: "Close day" }))) return;
     closeBtn.disabled = true;
     // Close the DAY THE OPERATOR IS VIEWING, not whatever's "currently open"
     // server-side. Without p_day_id, the RPC defaults to today's open day,
@@ -21952,7 +21952,7 @@ document.addEventListener("click", async (e) => {
   if (campBtn && !campBtn.disabled) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    if (!confirm("Send the referral link to ALL active + onboarding drivers right now?")) return;
+    if (!(await _rrConfirmDialog({ title: "Send referral link?", body: "This sends the referral link to ALL active + onboarding drivers right now.", confirmLabel: "Send to all" }))) return;
     campBtn.disabled = true;
     const { data, error } = await sb.rpc("send_referral_campaign");
     campBtn.disabled = false;
@@ -22467,7 +22467,7 @@ async function _ivcalGoogleConnect() {
   }
 }
 async function _ivcalGoogleDisconnect() {
-  if (!confirm("Disconnect Google Calendar? Future interviews won't sync to Google.")) return;
+  if (!(await _rrConfirmDialog({ title: "Disconnect Google Calendar?", body: "Future interviews won't sync to Google.", confirmLabel: "Disconnect", danger: true }))) return;
   try {
     const { error } = await sb.functions.invoke("google-calendar-disconnect", { body: {} });
     if (error) throw error;
@@ -25711,7 +25711,7 @@ function _ivcalOpenRoom(ev) {
     if (act === "profile") { if (apptId) { saveRoom(); close(); _ivcalOpenApplicant(apptId); } return; }
     if (!apptId) return;
     if (act === "hire") {
-      if (!confirm(`Hire ${who}? This advances them to onboarding and creates a driver record.`)) return;
+      if (!(await _rrConfirmDialog({ title: `Hire ${who}?`, body: "This advances them to onboarding and creates a driver record.", confirmLabel: "Hire" }))) return;
       b.disabled = true;
       try {
         await saveRoom();
@@ -25724,7 +25724,7 @@ function _ivcalOpenRoom(ev) {
       return;
     }
     if (act === "schedule") {
-      if (!confirm(`Send ${who} a booking link to schedule the next interview?`)) return;
+      if (!(await _rrConfirmDialog({ title: "Send booking link?", body: `Send ${who} a booking link to schedule the next interview.`, confirmLabel: "Send link" }))) return;
       b.disabled = true;
       try {
         const { error } = await sb.rpc("send_booking_link", { p_id: apptId, p_kind: "interview" });
@@ -25735,7 +25735,7 @@ function _ivcalOpenRoom(ev) {
       return;
     }
     if (act === "reject") {
-      if (!confirm(`Reject ${who}? They'll be moved to Rejected.`)) return;
+      if (!(await _rrConfirmDialog({ title: `Reject ${who}?`, body: "They'll be moved to Rejected.", confirmLabel: "Reject", danger: true }))) return;
       b.disabled = true;
       try {
         const { error } = await sb.rpc("decline_applicant", { p_id: apptId, p_reason: "Rejected from interview" });
@@ -26783,7 +26783,7 @@ async function loadInterviewAvailabilityEditor() {
   });
   document.getElementById("rr-iv-sched-del")?.addEventListener("click", async () => {
     if (_ivCurSchedId === "__new") return;
-    if (!confirm("Delete this schedule?")) return;
+    if (!(await _rrConfirmDialog({ title: "Delete schedule?", body: "This schedule will be permanently deleted.", confirmLabel: "Delete", danger: true }))) return;
     try {
       const { error } = await sb.rpc("interview_schedule_delete", { p_id: _ivCurSchedId });
       if (error) throw error;
@@ -27837,7 +27837,7 @@ document.addEventListener("click", async (e) => {
   const delBtn = e.target.closest("[data-rr-delete-question]");
   if (delBtn) {
     e.preventDefault(); e.stopImmediatePropagation();
-    if (!confirm("Delete this question? Existing responses will be removed.")) return;
+    if (!(await _rrConfirmDialog({ title: "Delete question?", body: "Existing responses will be removed.", confirmLabel: "Delete", danger: true }))) return;
     const id = delBtn.getAttribute("data-rr-delete-question");
     const { error } = await sb.from("screening_questions").delete().eq("id", id);
     if (error) { toast("Delete failed: " + error.message, "warn"); return; }
@@ -44807,8 +44807,11 @@ function _rrConfirmDialog(opts) {
     document.getElementById("rr-confirm-modal")?.remove();
     const backdrop = document.createElement("div");
     backdrop.id = "rr-confirm-backdrop";
-    backdrop.style.cssText = "position:fixed;inset:0;background:transparent;z-index:10000";
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.32);z-index:10000;opacity:0;transition:opacity 120ms ease-out";
     document.body.appendChild(backdrop);
+    // Destructive actions get a red confirm button so a delete never looks like
+    // a routine "OK". Base class stays btn-primary; danger just recolors it.
+    const okStyle = opts.danger ? ' style="background:#DC2626;border-color:#DC2626;color:#fff"' : '';
     const m = document.createElement("div");
     m.id = "rr-confirm-modal";
     m.setAttribute("role", "dialog");
@@ -44822,19 +44825,20 @@ function _rrConfirmDialog(opts) {
     m.innerHTML =
       '<div style="padding:16px 18px 14px">' +
         (opts.title ? '<div style="font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text,#111827)">' + escapeHtml(opts.title) + '</div>' : '') +
-        '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#6B7280)">' + escapeHtml(opts.body || '') + '</div>' +
+        '<div style="font-size:13px;line-height:1.5;white-space:pre-line;color:var(--text-subtle,#6B7280)">' + escapeHtml(opts.body || '') + '</div>' +
       '</div>' +
       '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#E5E7EB);background:var(--canvas,#F9FAFB)">' +
         '<button type="button" class="btn btn-sm" data-rr-confirm-cancel>' + escapeHtml(opts.cancelLabel || "Cancel") + '</button>' +
-        '<button type="button" class="btn btn-sm btn-primary" data-rr-confirm-ok>' + escapeHtml(opts.confirmLabel || "Confirm") + '</button>' +
+        '<button type="button" class="btn btn-sm btn-primary" data-rr-confirm-ok' + okStyle + '>' + escapeHtml(opts.confirmLabel || "Confirm") + '</button>' +
       '</div>';
     document.body.appendChild(m);
-    requestAnimationFrame(() => { m.style.opacity = "1"; });
+    requestAnimationFrame(() => { m.style.opacity = "1"; backdrop.style.opacity = "1"; });
     let done = false;
     const finish = (val) => {
       if (done) return; done = true;
       document.removeEventListener("keydown", onKey);
       m.style.opacity = "0";
+      backdrop.style.opacity = "0";
       setTimeout(() => { m.remove(); backdrop.remove(); }, 120);
       resolve(val);
     };
