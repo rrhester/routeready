@@ -82018,7 +82018,8 @@ function _clfAssignDesc(a) {
     trainers: "Trainers",
   }[a.assignment_scope] || a.assignment_scope;
   const rr = a.repeat_rule || {};
-  const rep = { once: "One-time", daily: "Daily", weekly: "Weekly", date: `On ${rr.date || a.route_date || "date"}` }[rr.type || "once"];
+  const _wdName = { 1: "Mondays", 2: "Tuesdays", 3: "Wednesdays", 4: "Thursdays", 5: "Fridays", 6: "Saturdays", 7: "Sundays" };
+  const rep = { once: "One-time", daily: "Daily", weekly: rr.weekday ? `Weekly · ${_wdName[rr.weekday] || "weekly"}` : "Weekly", date: `On ${rr.date || a.route_date || "date"}` }[rr.type || "once"];
   const due = rr.due === "route_start" ? "due before route start"
     : rr.due === "shift_end" ? "due by end of shift"
     : rr.due === "time" && rr.due_time ? `due by ${rr.due_time}`
@@ -82095,6 +82096,16 @@ async function _clfRenderAssign() {
               <option value="date">Specific date</option>
             </select>
             <input type="date" id="rr-clf-repeat-date" style="display:none"/>
+            <select id="rr-clf-repeat-weekday" style="display:none" title="Which weekday this weekly checklist is due">
+              <option value="">Any scheduled day</option>
+              <option value="1">Mondays</option>
+              <option value="2">Tuesdays</option>
+              <option value="3">Wednesdays</option>
+              <option value="4">Thursdays</option>
+              <option value="5">Fridays</option>
+              <option value="6">Saturdays</option>
+              <option value="7">Sundays</option>
+            </select>
           </div>
         </div>
         <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
@@ -82184,6 +82195,10 @@ async function _clfCreateAssignment() {
     const d = document.getElementById("rr-clf-repeat-date")?.value;
     if (!d) { toast("Pick the date", "warn"); return; }
     rr.date = d;
+  }
+  if (repeat === "weekly") {
+    const wd = document.getElementById("rr-clf-repeat-weekday")?.value;
+    if (wd) rr.weekday = parseInt(wd, 10);   // ISO dow 1=Mon…7=Sun; blank = any scheduled day
   }
   const due = document.getElementById("rr-clf-due")?.value || "none";
   rr.due = due;
@@ -82603,6 +82618,8 @@ document.addEventListener("change", async (e) => {
   if (e.target?.id === "rr-clf-repeat") {
     const d = document.getElementById("rr-clf-repeat-date");
     if (d) d.style.display = e.target.value === "date" ? "" : "none";
+    const wd = document.getElementById("rr-clf-repeat-weekday");
+    if (wd) wd.style.display = e.target.value === "weekly" ? "" : "none";
     return;
   }
   if (e.target?.id === "rr-clf-due") {

@@ -76,4 +76,19 @@ ok("exactly at window edge ⇒ due_soon",     reminderKind(NOW + 45 * MIN, NOW, 
 ok("beyond window ⇒ no reminder",     reminderKind(NOW + 90 * MIN, NOW, 45), null);
 ok("no due time ⇒ no reminder",       reminderKind(null, NOW, 45), null);
 
-console.log(`\n✓ checklist completion/timezone/reminder contract — ${n} assertions passed`);
+// ── 4. Weekly weekday gate ────────────────────────────────────────────
+// Mirror of private.clf_in_window's weekly branch (migration 0439): a
+// weekly assignment with repeat_rule.weekday set is only in-window on that
+// ISO weekday (1=Mon…7=Sun); blank/absent stays every-day.
+function weeklyInWindow(weekday, isoDow) {
+  const wd = weekday === "" || weekday == null ? null : parseInt(weekday, 10);
+  if (wd == null || Number.isNaN(wd)) return true;
+  return isoDow === wd;
+}
+ok("weekly no weekday ⇒ any day",       weeklyInWindow(null, 3), true);
+ok("weekly blank weekday ⇒ any day",    weeklyInWindow("", 3), true);
+ok("weekly Mon ⇒ visible Monday",       weeklyInWindow(1, 1), true);
+ok("weekly Mon ⇒ hidden Wednesday",     weeklyInWindow(1, 3), false);
+ok("weekly Sun(7) ⇒ visible Sunday",    weeklyInWindow(7, 7), true);
+
+console.log(`\n✓ checklist completion/timezone/reminder/weekday contract — ${n} assertions passed`);
