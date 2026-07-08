@@ -7914,6 +7914,7 @@ function paintSelection(g) {
   }
   g.els.sel.innerHTML = html;
   updateSelStats(g);
+  if (WB.rangePick && WB.rangePick.g === g) refreshRangePickBar();
 }
 
 // Excel-style status stats for the current selection (Sum / Avg / Count).
@@ -14616,7 +14617,7 @@ function openChartDialog(g, existing) {
               ${Object.entries(WB_CHART_TYPES).map(([k, label]) => `<option value="${k}" ${(existing ? existing.type : "column") === k ? "selected" : ""}>${label}</option>`).join("")}
             </select></label>
           <label class="wb-field"><span class="wb-field-label">Data range</span>
-            <input type="text" class="wb-input" id="wb-chart-range" value="${esc(defRef)}" placeholder="A1:C8" spellcheck="false"></label>
+            ${wbRangeField("wb-chart-range", defRef, "A1:C8", { srcSelId: srcOpts ? "wb-chart-src" : "" })}</label>
         </div>
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">Color theme</span>
@@ -14649,6 +14650,7 @@ function openChartDialog(g, existing) {
       </div>
     </div>`;
   document.body.appendChild(wrap);
+  wireRangePick(g, wrap);
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
@@ -14716,6 +14718,141 @@ function embedModalShell(titleText, subText, bodyHtml, saveLabel) {
   return wrap;
 }
 
+// ── Pick-a-range-from-the-grid ────────────────────────────────────────────────
+// Widget dialogs (table / KPI / chart) take A1-style ranges. Rather than make
+// the user hand-type them, a grid button next to each range field drops the
+// dialog out of the way, lets them click across the grid (and switch sheets via
+// the tabs), then drops the selection back into the field. The dialog stays in
+// the DOM while hidden so every other field keeps its value.
+const WB_GRID_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
+
+// A range <input> paired with a "select on the grid" button. `srcSelId` links
+// the field to its Data-source <select> so a cross-sheet pick can update it;
+// `single` restricts the result to one cell (e.g. a KPI's compare cell).
+function wbRangeField(id, value, placeholder, opts) {
+  const o = opts || {};
+  const src = o.srcSelId ? ` data-wb-pick-src="${o.srcSelId}"` : "";
+  const single = o.single ? " data-wb-pick-single" : "";
+  return `<div class="wb-range-input">
+    <input type="text" class="wb-input" id="${id}" value="${esc(value)}" placeholder="${esc(placeholder)}" spellcheck="false">
+    <button type="button" class="wb-range-pick" data-wb-pick="${id}"${src}${single} title="Select on the grid" aria-label="Select this range on the grid">${WB_GRID_ICON}</button>
+  </div>`;
+}
+
+// Wire every pick button inside a freshly-built dialog.
+function wireRangePick(g, wrap) {
+  wrap.querySelectorAll("[data-wb-pick]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const input = wrap.querySelector("#" + btn.getAttribute("data-wb-pick"));
+      if (!input) return;
+      const srcId = btn.getAttribute("data-wb-pick-src");
+      const srcSelect = srcId ? wrap.querySelector("#" + srcId) : null;
+      beginRangePick(g, { wrap, input, srcSelect, single: btn.hasAttribute("data-wb-pick-single") });
+    });
+  });
+}
+
+// Is the currently-shown sheet a valid target for this pick? With a source
+// <select>, only sheets it lists qualify; without one the widget is pinned to
+// the sheet the dialog was opened on.
+function pickSheetValid(p, sheetId) {
+  if (p.srcSelect) return Array.from(p.srcSelect.options).some((o) => o.value === sheetId);
+  return sheetId === p.homeSheetId;
+}
+
+function beginRangePick(g, o) {
+  if (WB.rangePick) endRangePick(false);
+  const homeSheetId = g.sheet.id;
+  const srcSelect = o.srcSelect && o.srcSelect.options.length ? o.srcSelect : null;
+  WB.rangePick = { g, wrap: o.wrap, input: o.input, srcSelect, single: !!o.single, homeSheetId, showSheet: !!srcSelect };
+  // Start on the sheet the field currently reads from, so the pick is relative
+  // to the right data.
+  const targetSheetId = srcSelect && srcSelect.value ? srcSelect.value : homeSheetId;
+  if (targetSheetId !== g.sheet.id) switchSheet(g, targetSheetId);
+  seedPickSelection(g, o.input.value);
+  o.wrap.classList.add("is-picking"); // CSS hides the dialog while picking
+  const onKey = (e) => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); endRangePick(false); }
+    else if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); tryCommitRangePick(); }
+  };
+  WB.rangePick.onKey = onKey;
+  document.addEventListener("keydown", onKey, true);
+  showRangePickBar();
+  refreshRangePickBar();
+}
+
+// Highlight whatever the field already holds, so the pick starts from there.
+function seedPickSelection(g, val) {
+  const v = String(val || "").trim().toUpperCase();
+  if (!v) return;
+  const rg = parseRangeRefText(v);
+  if (rg) { selectRect(g, rg.r0, rg.c0, rg.r1, rg.c1); return; }
+  const c = parseCellRef(v);
+  if (c && c.row < g.sheet.rowCount && c.col < g.sheet.colCount) setActive(g, c.row, c.col);
+}
+
+function pickRefText(p, g) {
+  const rc = selRect(g);
+  if (p.single || (rc.r0 === rc.r1 && rc.c0 === rc.c1)) return colLabel(rc.c0) + (rc.r0 + 1);
+  return rangeRefText(rc);
+}
+
+function showRangePickBar() {
+  document.getElementById("wb-rangepick-bar")?.remove();
+  const bar = document.createElement("div");
+  bar.id = "wb-rangepick-bar";
+  bar.className = "wb-rangepick-bar";
+  bar.innerHTML = `
+    <div class="wb-rangepick-msg">${WB_GRID_ICON.replace('width="16" height="16"', 'width="22" height="22"')}
+      <div><strong>Select a range on the grid</strong>
+        <span class="wb-rangepick-hint">Drag across the cells you want${WB.rangePick && WB.rangePick.showSheet ? " — switch sheets with the tabs below" : ""}</span></div></div>
+    <div class="wb-rangepick-ref" id="wb-rangepick-ref">A1</div>
+    <button type="button" class="wb-rangepick-btn" data-wb-pickcancel>Cancel</button>
+    <button type="button" class="wb-rangepick-btn primary" data-wb-pickconfirm>Use this range</button>`;
+  document.body.appendChild(bar);
+  bar.querySelector("[data-wb-pickcancel]").addEventListener("click", () => endRangePick(false));
+  bar.querySelector("[data-wb-pickconfirm]").addEventListener("click", () => tryCommitRangePick());
+}
+
+function refreshRangePickBar() {
+  const p = WB.rangePick; if (!p) return;
+  const refEl = document.getElementById("wb-rangepick-ref");
+  if (!refEl) return;
+  const g = p.g;
+  const valid = pickSheetValid(p, g.sheet.id);
+  refEl.textContent = (p.showSheet ? g.sheet.name + "!" : "") + pickRefText(p, g);
+  refEl.classList.toggle("is-invalid", !valid);
+  const confirmBtn = document.querySelector("#wb-rangepick-bar [data-wb-pickconfirm]");
+  if (confirmBtn) confirmBtn.disabled = !valid;
+}
+
+function tryCommitRangePick() {
+  const p = WB.rangePick; if (!p) return;
+  if (!pickSheetValid(p, p.g.sheet.id)) {
+    _toast(p.srcSelect ? "Pick a range on one of the source sheets" : "Pick a range on this sheet", "warn");
+    return;
+  }
+  endRangePick(true);
+}
+
+function endRangePick(commit) {
+  const p = WB.rangePick; if (!p) return;
+  WB.rangePick = null;
+  if (p.onKey) document.removeEventListener("keydown", p.onKey, true);
+  document.getElementById("wb-rangepick-bar")?.remove();
+  const g = p.g;
+  if (commit) {
+    p.input.value = pickRefText(p, g);
+    if (p.srcSelect && Array.from(p.srcSelect.options).some((o) => o.value === g.sheet.id)) p.srcSelect.value = g.sheet.id;
+  }
+  // The dialog is bound to the sheet it was opened on — always return there so
+  // the widget saves to the right sheet.
+  if (g.sheet.id !== p.homeSheetId) switchSheet(g, p.homeSheetId);
+  p.wrap.classList.remove("is-picking");
+  setTimeout(() => { try { p.input.focus(); p.input.select(); } catch (_) { /* input gone */ } }, 20);
+}
+
 function openKpiDialog(g, existing) {
   if (!WB.canEdit) return;
   const rect = selRect(g);
@@ -14736,17 +14873,17 @@ function openKpiDialog(g, existing) {
       <label class="wb-field"><span class="wb-field-label">Value</span>
         <select class="wb-input" id="wb-kpi-agg">${aggOpts}</select></label>
       <label class="wb-field"><span class="wb-field-label" id="wb-kpi-value-lbl">Cell or range</span>
-        <input type="text" class="wb-input" id="wb-kpi-value" value="${esc((existing && existing.valueRef) || activeRef)}" placeholder="B2 or B2:B99" spellcheck="false"></label>
+        ${wbRangeField("wb-kpi-value", (existing && existing.valueRef) || activeRef, "B2 or B2:B99", { srcSelId: srcOpts ? "wb-kpi-src" : "" })}</label>
     </div>
     <div class="wb-field-row">
       <label class="wb-field"><span class="wb-field-label">Format</span>
         <select class="wb-input" id="wb-kpi-format">${fmtOpts}</select></label>
       <label class="wb-field"><span class="wb-field-label">Compare to <span class="wb-field-opt">optional</span></span>
-        <input type="text" class="wb-input" id="wb-kpi-compare" value="${esc((existing && existing.compareRef) || "")}" placeholder="B1" spellcheck="false"></label>
+        ${wbRangeField("wb-kpi-compare", (existing && existing.compareRef) || "", "B1", { srcSelId: srcOpts ? "wb-kpi-src" : "", single: true })}</label>
     </div>
     <div class="wb-field-row">
       <label class="wb-field"><span class="wb-field-label">Sparkline range <span class="wb-field-opt">optional</span></span>
-        <input type="text" class="wb-input" id="wb-kpi-spark" value="${esc((existing && existing.sparkRange) || "")}" placeholder="B2:B9" spellcheck="false"></label>
+        ${wbRangeField("wb-kpi-spark", (existing && existing.sparkRange) || "", "B2:B9", { srcSelId: srcOpts ? "wb-kpi-src" : "" })}</label>
       <label class="wb-field"><span class="wb-field-label">Goal / target <span class="wb-field-opt">optional</span></span>
         <input type="number" step="any" class="wb-input" id="wb-kpi-target" value="${existing && existing.target != null ? esc(String(existing.target)) : ""}" placeholder="e.g. 120"></label>
     </div>
@@ -14756,6 +14893,7 @@ function openKpiDialog(g, existing) {
       <div class="wb-field"><span class="wb-field-label">Options</span>
         <div class="wb-chart-opts"><label class="wb-check"><input type="checkbox" id="wb-kpi-invert" ${existing && existing.invert ? "checked" : ""}><span>Lower is better</span></label></div></div>
     </div>`, existing ? "Save" : "Add tile");
+  wireRangePick(g, wrap);
   const aggSel = wrap.querySelector("#wb-kpi-agg"), valLbl = wrap.querySelector("#wb-kpi-value-lbl");
   const syncAggLbl = () => { valLbl.textContent = aggSel.value === "cell" ? "Value cell" : "Range to " + KPI_AGGS[aggSel.value].toLowerCase(); };
   aggSel.addEventListener("change", syncAggLbl); syncAggLbl();
@@ -14803,7 +14941,7 @@ function openTableDialog(g, existing) {
       <select class="wb-input" id="wb-tbl-src">${srcOpts}</select></label>` : ""}
     <div class="wb-field-row">
       <label class="wb-field"><span class="wb-field-label">Range</span>
-        <input type="text" class="wb-input" id="wb-tbl-range" value="${esc(defRef)}" placeholder="A1:D12" spellcheck="false"></label>
+        ${wbRangeField("wb-tbl-range", defRef, "A1:D12", { srcSelId: srcOpts ? "wb-tbl-src" : "" })}</label>
       <label class="wb-field"><span class="wb-field-label">Max rows</span>
         <input type="number" class="wb-input" id="wb-tbl-max" min="1" max="500" value="${(existing && existing.maxRows) || 25}"></label>
     </div>
@@ -14813,6 +14951,7 @@ function openTableDialog(g, existing) {
         <label class="wb-check"><input type="checkbox" id="wb-tbl-heatmap" ${existing && existing.heatmap ? "checked" : ""}><span>Heatmap numeric cells</span></label>
       </div></div>`,
     existing ? "Save" : "Add table");
+  wireRangePick(g, wrap);
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
     if (!e.target.closest("[data-wb-save]")) return;
