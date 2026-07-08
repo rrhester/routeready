@@ -13,11 +13,11 @@
 // POST body (optional): { applicant_id?: uuid, limit?: int }
 //   - no body: drain up to 50 oldest queued for any tenant
 //   - applicant_id: drain only that applicant's queue (used after RPC)
-import { serviceClient, jsonResponse, badRequest, isWithinQuietHours } from "../_shared/supabase.ts";
+import { serviceClient, jsonResponse, badRequest, isWithinQuietHours, signMessageAttachment } from "../_shared/supabase.ts";
 
 const TWILIO_BASE = "https://api.twilio.com/2010-04-01";
 
-interface Attachment { name?: string; url: string; content_type?: string; size?: number }
+interface Attachment { name?: string; url?: string; path?: string; content_type?: string; size?: number }
 interface QueuedRow {
   id: string;
   dsp_id: string;
@@ -105,10 +105,17 @@ Deno.serve(async (req) => {
     form.set("Body", row.body);
     if (messagingService) form.set("MessagingServiceSid", messagingService);
     else form.set("From", fromNumber!);
-    // Twilio supports up to 10 MediaUrl params per MMS message.
+    // Twilio supports up to 10 MediaUrl params per MMS message. Attachments
+    // from the private message-attachments bucket (0447) must be signed fresh
+    // here; attachments from other buckets (e.g. fleet-bridge-attachments)
+    // already carry a valid signed url. Best-effort — a failure just drops
+    // that one attachment; the text still sends.
     const attachments = Array.isArray(row.attachments) ? row.attachments : [];
     for (const a of attachments.slice(0, 10)) {
-      if (a?.url) form.append("MediaUrl", a.url);
+      if (!a) continue;
+      const isMsgAtt = !!a.path || /\/object\/(?:public|sign)\/message-attachments\//.test(String(a.url || ""));
+      const url = isMsgAtt ? await signMessageAttachment(supa, a) : (a.url || null);
+      if (url) form.append("MediaUrl", url);
     }
 
     const resp = await fetch(`${TWILIO_BASE}/Accounts/${sid}/Messages.json`, {
