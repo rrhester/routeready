@@ -1,0 +1,31 @@
+name: driver-forms-tests
+
+# Node unit + fixture-parity tests for the driver-form CLIENT validator
+# (app/form-validation.js). The SERVER side of the same shared fixtures is
+# checked in migration-check.yml against the real driver_submit_form RPC — the
+# two suites share tests/driver-forms/validation-cases.json so a drift between
+# the JS and SQL validators turns one of them red.
+on:
+  pull_request:
+    paths:
+      - "app/form-validation.js"
+      - "scripts/test-driver-forms.mjs"
+      - "tests/driver-forms/**"
+      - "package.json"
+      - ".github/workflows/driver-forms-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "app/form-validation.js"
+      - "scripts/test-driver-forms.mjs"
+      - "tests/driver-forms/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node scripts/test-driver-forms.mjs
