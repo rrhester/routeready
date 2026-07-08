@@ -10466,8 +10466,8 @@ async function _rrTaskCreate(spec) {
       p_assignee_user_id: spec.assigneeId || null,
       p_series: spec.series || null,
       p_repeat: spec.repeat || null,
-      p_meta: (spec.kind || spec.driverId)
-        ? { kind: spec.kind || undefined, driver_id: spec.driverId || undefined }
+      p_meta: (spec.kind || spec.driverId || spec.recur)
+        ? { kind: spec.kind || undefined, driver_id: spec.driverId || undefined, recur: spec.recur || undefined }
         : null,
       p_dues: (spec.dues && spec.dues.length) ? spec.dues : null,
     });
@@ -10484,6 +10484,7 @@ async function _rrTaskCreate(spec) {
     if (spec.repeat) t.repeat = spec.repeat;
     if (spec.kind) t.kind = spec.kind;
     if (spec.driverId) t.driverId = spec.driverId;
+    if (spec.recur) t.recur = spec.recur;   // device-local mode has no sweep; kept for shape parity
     return t;
   };
   const made = (spec.dues && spec.dues.length) ? spec.dues.map((d, i) => mk(d, i)) : [mk(spec.due)];
@@ -11285,6 +11286,7 @@ function _rrAddTaskFromForm() {
   const de = document.querySelector("#rr-sched-tasks [data-rr-task-due]");
   const re = document.querySelector("#rr-sched-tasks [data-rr-task-repeat]");
   const rc = document.querySelector("#rr-sched-tasks [data-rr-task-repeat-count]");
+  const fv = document.querySelector("#rr-sched-tasks [data-rr-task-repeat-forever]");
   const asel = document.querySelector("#rr-sched-tasks [data-rr-task-assignee]");
   if (!ti) return;
   const title = (ti.value || "").trim();
@@ -11302,14 +11304,28 @@ function _rrAddTaskFromForm() {
     // Repeat on a schedule: materialize one task per occurrence, each completable
     // on its own, all sharing a series id. Honors weekday picks (weekly) and the
     // day-of-month / Nth-weekday pattern (monthly).
-    const count = Math.max(1, Math.min(60, parseInt(rc && rc.value, 10) || 1));
+    // "Repeat forever" has no end date. Occurrences are materialized rows (no
+    // rule-based top-up on this model), and the store caps a series at 60, so
+    // forever means "fill the series to that ceiling" — the longest rolling
+    // horizon we can lay down. A count-limited repeat uses the picked number.
+    const SERIES_MAX = 60;
+    const forever = !!(fv && fv.checked);
+    const count = forever
+      ? SERIES_MAX
+      : Math.max(1, Math.min(SERIES_MAX, parseInt(rc && rc.value, 10) || 1));
     const series = _rrNtId("s");
     const base = new Date(due + "T12:00:00");
     const dates = [];
+    // Forever series carry their recurrence rule in meta so the server-side
+    // top-up sweep (migration 0448) can keep extending them past this initial
+    // materialization. Count-limited repeats never set it, so the sweep skips
+    // them. Each branch fills in the pattern specifics it knows.
+    const recur = forever ? { forever: true, pattern: repeat } : null;
     if (repeat === "weekly") {
       const root = document.getElementById("rr-sched-tasks");
       let dows = Array.from(root.querySelectorAll("[data-rr-task-dows] .on")).map(c => +c.getAttribute("data-dow"));
       if (!dows.length) dows = [base.getDay()];
+      if (recur) recur.dows = dows;
       const set = new Set(dows);
       const d = new Date(base);
       let guard = 0;
@@ -11321,6 +11337,7 @@ function _rrAddTaskFromForm() {
       const mode = (document.querySelector("#rr-sched-tasks [data-rr-task-monthly]") || {}).value || `dom-${base.getDate()}`;
       const dow = base.getDay(), nth = Math.ceil(base.getDate() / 7);
       const pickDay = mode.startsWith("dom-") ? (parseInt(mode.slice(4), 10) || base.getDate()) : null;
+      if (recur) { recur.step = step; recur.mode = mode; recur.dow = dow; recur.nth = nth; if (pickDay != null) recur.dom = pickDay; }
       const base0 = new Date(base.getFullYear(), base.getMonth(), base.getDate());   // midnight, for "on/after due" compare
       for (let i = 0; dates.length < count && i < count + 18; i++) {
         const y = base.getFullYear(), m = base.getMonth() + i * step;
@@ -11342,6 +11359,7 @@ function _rrAddTaskFromForm() {
       }
     } else if (repeat === "annually") {
       // Same date each year; Feb 29 clamps to the 28th in non-leap years.
+      if (recur) { recur.month = base.getMonth() + 1; recur.day = base.getDate(); }
       for (let i = 0; i < count; i++) {
         const y = base.getFullYear() + i;
         const last = new Date(y, base.getMonth() + 1, 0).getDate();
@@ -11350,10 +11368,10 @@ function _rrAddTaskFromForm() {
     } else { // daily
       for (let i = 0; i < count; i++) { const d = new Date(base); d.setDate(base.getDate() + i); dates.push(d); }
     }
-    _rrTaskCreate({ title, dues: dates.map(isoOf), series, repeat, assigneeId })
+    _rrTaskCreate({ title, dues: dates.map(isoOf), series, repeat, assigneeId, recur })
       .then((made) => {
         const n = (made && made.length) || 0;
-        toast(`Added ${n} recurring task${n !== 1 ? "s" : ""}${assigneeName ? " for " + assigneeName : ""}`, "success");
+        toast(`Added ${n} recurring task${n !== 1 ? "s" : ""}${forever ? " (repeats forever)" : ""}${assigneeName ? " for " + assigneeName : ""}`, "success");
         if (assigneeId) _rrTasksView = "delegated";   // show the operator what they just delegated
         _rrRenderTasks();
       }).catch(() => {});
@@ -11368,10 +11386,13 @@ function _rrAddTaskFromForm() {
   ti.value = ""; if (de) de.value = "";
   if (re) re.value = "";
   if (rc) rc.value = "8";
+  if (fv) fv.checked = false;
   if (asel) asel.value = "";
   const root = document.getElementById("rr-sched-tasks");
   if (root) {
     root.querySelectorAll("[data-rr-task-dows] .on").forEach(c => c.classList.remove("on"));
+    const cr0 = root.querySelector("[data-rr-task-rep-count-row]");
+    if (cr0) cr0.classList.remove("rr-forever-on");
     ["[data-rr-task-rep-weekly]", "[data-rr-task-rep-monthly]", "[data-rr-task-rep-count-row]"].forEach(s => { const el = root.querySelector(s); if (el) el.hidden = true; });
   }
   const form = document.querySelector("#rr-sched-tasks [data-rr-task-form]"); if (form) form.hidden = true;
@@ -12020,6 +12041,12 @@ function _rrTaskRepSync() {
   // the Nth weekday); annually just repeats on the due date, no extra row.
   if (mo) mo.hidden = repeat !== "monthly" && repeat !== "quarterly";
   if (cr) cr.hidden = !repeat;
+  // "Repeat forever" hides the count controls (an occurrence count is moot
+  // with no end date). Class-driven so the row can stay flat flexbox.
+  if (cr) {
+    const fv = cr.querySelector("[data-rr-task-repeat-forever]");
+    cr.classList.toggle("rr-forever-on", !!(fv && fv.checked));
+  }
   // Weekly: default-select the due date's weekday if nothing is chosen yet.
   if (repeat === "weekly" && due) {
     const chips = root.querySelectorAll("[data-rr-task-dows] [data-dow]");
@@ -12052,7 +12079,7 @@ function _rrTaskRepSync() {
   }
 }
 document.addEventListener("change", (e) => {
-  if (e.target.closest && (e.target.closest("[data-rr-task-repeat]") || e.target.closest("#rr-sched-tasks [data-rr-task-due]"))) _rrTaskRepSync();
+  if (e.target.closest && (e.target.closest("[data-rr-task-repeat]") || e.target.closest("[data-rr-task-repeat-forever]") || e.target.closest("#rr-sched-tasks [data-rr-task-due]"))) _rrTaskRepSync();
 });
 // Weekday chips toggle.
 document.addEventListener("click", (e) => {

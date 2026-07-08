@@ -5963,6 +5963,10 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-task-rep{flex:0 0 auto;font-size:var(--fs-xs);opacity:.7;margin-left:2px}
 #rr-util-rail-mount .ntp-rep-extra{flex-wrap:wrap}
 #rr-util-rail-mount .ntp-rep-lbl{font-size:var(--fs-12-5);color:var(--text-muted,var(--rr-slate-500))}
+#rr-util-rail-mount .ntp-rep-forever{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-12-5);color:var(--text,var(--rr-slate-900));font-weight:600;cursor:pointer;user-select:none}
+#rr-util-rail-mount .ntp-rep-forever input{margin:0;cursor:pointer}
+/* When "Repeat forever" is on, the count controls are moot — hide them. */
+#rr-util-rail-mount .ntp-task-form-row.rr-forever-on .ntp-rep-count-el{display:none}
 #rr-util-rail-mount .ntp-dow{display:flex;gap:5px;flex-wrap:wrap}
 #rr-util-rail-mount .ntp-dow-b{width:30px;height:30px;border-radius:50%;border:1px solid var(--border,rgba(15,23,42,.14));background:var(--rr-white);color:var(--text,var(--rr-slate-900));font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;padding:0}
 #rr-util-rail-mount .ntp-dow-b:hover{background:#eef4ff}

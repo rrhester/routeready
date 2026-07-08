@@ -2756,11 +2756,12 @@
                 <div class="ntp-task-form-row ntp-rep-extra" data-rr-task-rep-monthly hidden>
                   <select class="ntp-task-date" data-rr-task-monthly aria-label="Monthly pattern"></select>
                 </div>
-                <!-- How many occurrences to create -->
+                <!-- How many occurrences to create — or repeat with no end date -->
                 <div class="ntp-task-form-row ntp-rep-extra" data-rr-task-rep-count-row hidden>
-                  <span class="ntp-rep-lbl">for</span>
-                  <input type="number" class="ntp-task-date ntp-task-repcount" data-rr-task-repeat-count min="1" max="60" value="8" aria-label="Number of occurrences"/>
-                  <span class="ntp-rep-lbl">occurrences</span>
+                  <label class="ntp-rep-forever"><input type="checkbox" data-rr-task-repeat-forever/>Repeat forever</label>
+                  <span class="ntp-rep-lbl ntp-rep-count-el">for</span>
+                  <input type="number" class="ntp-task-date ntp-task-repcount ntp-rep-count-el" data-rr-task-repeat-count min="1" max="60" value="8" aria-label="Number of occurrences"/>
+                  <span class="ntp-rep-lbl ntp-rep-count-el">occurrences</span>
                 </div>
                 <!-- Assign to a leadership teammate (server mode only —
                      live.js unhides + fills this once team tasks load). -->
