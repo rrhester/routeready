@@ -44,6 +44,30 @@
 }
 
 :root {
+  /* ── Primitive palette (design-system pay-down; role-neutral, values canonical) ── */
+  --rr-white: #ffffff;
+  --rr-blue-600: #2563eb;
+  --rr-blue-700: #1d4ed8;
+  --rr-blue-800: #1e40af;
+  --rr-slate-200: #e2e8f0;
+  --rr-slate-300: #cbd5e1;
+  --rr-slate-400: #94a3b8;
+  --rr-slate-500: #64748b;
+  --rr-slate-900: #0f172a;
+  --rr-gray-50: #f9fafb;
+  --rr-gray-100: #f3f4f6;
+  --rr-gray-200: #e5e7eb;
+  --rr-gray-300: #d1d5db;
+  --rr-gray-500: #6b7280;
+  --rr-gray-600: #4b5563;
+  --rr-gray-900: #111827;
+  --rr-amber-100: #fef3c7;
+  --rr-amber-600: #d97706;
+  --rr-amber-700: #b45309;
+  --rr-amber-800: #92400e;
+  --rr-green-600: #16a34a;
+  --rr-red-700: #b91c1c;
+
   /* ─── TYPOGRAPHY ─────────────────────────────────────────── */
   --rr-font-family:
     'Inter',
@@ -417,7 +441,7 @@
 /* Variants */
 .rrx-btn--primary {
   background: var(--rr-brand-primary);
-  color: #FFFFFF;
+  color: var(--rr-white);
 }
 .rrx-btn--primary:hover    { background: var(--rr-brand-hover); }
 .rrx-btn--primary:active   { background: var(--rr-brand-pressed); }
@@ -440,7 +464,7 @@
 
 .rrx-btn--danger {
   background: var(--rr-danger);
-  color: #FFFFFF;
+  color: var(--rr-white);
 }
 .rrx-btn--danger:hover  { background: #B92B2F; }
 .rrx-btn--danger:active { background: #A52529; }
@@ -1378,7 +1402,7 @@ body {
   appearance: none !important;
   width: 14px !important;
   height: 14px !important;
-  background: #E5E7EB !important;  /* visibly darker than surface */
+  background: var(--rr-gray-200) !important;  /* visibly darker than surface */
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -1386,7 +1410,7 @@ body {
 
 .app *::-webkit-scrollbar-track,
 .app *::-webkit-scrollbar-track:vertical {
-  background: #E5E7EB !important;
+  background: var(--rr-gray-200) !important;
   border-left: 1px solid #C8C6C4 !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -1403,9 +1427,9 @@ body {
 .app *::-webkit-scrollbar-thumb:window-inactive {
   -webkit-appearance: none !important;
   appearance: none !important;
-  background: #6B7280 !important;  /* dark — unmistakable against the track */
+  background: var(--rr-gray-500) !important;  /* dark — unmistakable against the track */
   background-clip: padding-box !important;
-  border: 3px solid #E5E7EB !important;
+  border: 3px solid var(--rr-gray-200) !important;
   border-radius: var(--rr-radius-pill) !important;
   min-height: 56px !important;
   visibility: visible !important;
@@ -1414,17 +1438,17 @@ body {
 }
 
 .app *::-webkit-scrollbar-thumb:hover {
-  background: #111827 !important;
+  background: var(--rr-gray-900) !important;
 }
 
 .app *::-webkit-scrollbar-corner {
-  background: #E5E7EB !important;
+  background: var(--rr-gray-200) !important;
 }
 
 /* Firefox: classic non-overlay scrollbar, same contrast. */
 .app * {
   scrollbar-width: auto;
-  scrollbar-color: #6B7280 #E5E7EB;
+  scrollbar-color: var(--rr-gray-500) var(--rr-gray-200);
 }
 
 /* Print-table styling used by the PTO report and any future
@@ -1445,15 +1469,15 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 8px 12px;
-  border-bottom: 2px solid #111827;
-  background: #F9FAFB;
-  color: #111827;
+  border-bottom: 2px solid var(--rr-gray-900);
+  background: var(--rr-gray-50);
+  color: var(--rr-gray-900);
 }
 
 #rr-ob-print-area .rr-print-pto-table td,
 #rr-sched-print-area .rr-print-pto-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid #E5E7EB;
-  color: #111827;
+  border-bottom: 1px solid var(--rr-gray-200);
+  color: var(--rr-gray-900);
   vertical-align: top;
 }
