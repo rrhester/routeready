@@ -245,6 +245,90 @@ const RB_ATT_PRESETS = [
   ["none", "Clear", []],
 ];
 
+// ─── Forms report fields ─────────────────────────────────────────────────────
+// Unlike the other sources, the Forms report's columns are *dynamic*: they come
+// from whichever form the operator picks, so the catalog is rebuilt per form
+// (formsCatalogFrom below). Every column is fixed metadata (driver / when /
+// review state) plus one column per input field on the form, mapped from the
+// submission's `answers` blob (keyed by field id). This is what makes "create a
+// form → generate its report" work: any published form becomes reportable.
+
+// Field types that collect no answer — skipped so they never become columns.
+const FORM_NON_INPUT = new Set(["section_header", "divider", "instructions"]);
+
+// Human labels for a field with no author-set label, by type. Mirrors the
+// builder's _FIELD_TYPE_LABELS so headers read the same as the form.
+const FORM_TYPE_LABEL = {
+  short_text: "Short text", long_text: "Long text", email: "Email", phone: "Phone",
+  number: "Number", single_choice: "Single choice", multi_choice: "Multi-select",
+  dropdown: "Dropdown", yes_no: "Yes / No", rating: "Rating", date: "Date", time: "Time",
+  photo: "Photo", file: "File", signature: "Signature", gps: "GPS location",
+};
+
+// Submission triage states → display label (mirrors live.js _SUBM_STATUS).
+const FORM_SUBM_STATUS = { submitted: "Submitted", reviewed: "Reviewed", follow_up: "Needs follow-up", resolved: "Resolved" };
+function submStatusText(s) { return FORM_SUBM_STATUS[s] || cap(String(s || "").replace(/_/g, " ")) || "Submitted"; }
+function submittedText(ts) {
+  if (!ts) return DASH;
+  const d = new Date(ts);
+  if (isNaN(d)) return DASH;
+  return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+// Plain-text rendering of one answer value — collapses signatures, photos,
+// GPS, files, arrays, and booleans to something a report cell can hold.
+function fmtAnswer(v, field) {
+  if (v == null || v === "") return DASH;
+  const t = field && field.type;
+  if (t === "signature" || (typeof v === "string" && v.startsWith("data:image"))) return "Signed";
+  if (v && typeof v === "object" && !Array.isArray(v) && "lat" in v && "lng" in v) {
+    const acc = v.accuracy ? ` (±${v.accuracy}m)` : "";
+    return `${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)}${acc}`;
+  }
+  if (v && typeof v === "object" && !Array.isArray(v) && (v.path || v.name)) {
+    return v.error ? "Upload failed" : (v.name || "Attachment");
+  }
+  if (Array.isArray(v)) return v.length ? v.join(", ") : DASH;
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+// Constant metadata columns present on every Forms report. Driver + when lead;
+// review state trails after the form's own answer columns.
+const FORM_META = {
+  fsDriver: { label: "Driver", map: (s) => s.driver_name || DASH },
+  fsSubmitted: { label: "Submitted", map: (s) => submittedText(s.submitted_at) },
+  fsStatus: { label: "Status", map: (s) => submStatusText(s.status) },
+  fsFlagged: { label: "Flagged", map: (s) => (s.flagged ? "Yes" : "No") },
+  fsNotes: { label: "Review Notes", map: (s) => s.notes || DASH },
+};
+
+// Build a { cat, order } field catalog for one form. Answer columns are keyed
+// by field id (unique per form) so they never collide with the fs* meta keys.
+function formsCatalogFrom(form) {
+  const cat = {
+    fsDriver: FORM_META.fsDriver,
+    fsSubmitted: FORM_META.fsSubmitted,
+    fsStatus: FORM_META.fsStatus,
+    fsFlagged: FORM_META.fsFlagged,
+    fsNotes: FORM_META.fsNotes,
+  };
+  const fieldOrder = [];
+  for (const f of (Array.isArray(form && form.fields) ? form.fields : [])) {
+    if (!f || !f.id || FORM_NON_INPUT.has(f.type)) continue;
+    const field = f;
+    cat[f.id] = {
+      label: f.label || FORM_TYPE_LABEL[f.type] || "Field",
+      map: (s) => fmtAnswer((s.answers && typeof s.answers === "object" ? s.answers : {})[field.id], field),
+    };
+    fieldOrder.push(f.id);
+  }
+  // Driver + when, then the form's answers, then the review columns.
+  const order = ["fsDriver", "fsSubmitted", ...fieldOrder, "fsStatus", "fsFlagged", "fsNotes"];
+  return { cat, order };
+}
+
 // ─── Report catalog ──────────────────────────────────────────────────────────
 
 const RB_CATEGORIES = [
@@ -252,6 +336,7 @@ const RB_CATEGORIES = [
   { key: "fleet", label: "Fleet", enabled: false },
   { key: "schedule", label: "Schedule", enabled: true },
   { key: "attendance", label: "Attendance", enabled: true },
+  { key: "forms", label: "Forms", enabled: true },
   { key: "hiring", label: "Hiring", enabled: false },
   { key: "compliance", label: "Compliance", enabled: false },
   { key: "custom", label: "Custom", enabled: false },
@@ -261,6 +346,7 @@ const RB_REPORTS = [
   { id: "custom-people", category: "people", source: "people", title: "People Report", description: "Choose the fields to include. The report updates as you pick.", fields: [], custom: true },
   { id: "custom-schedule", category: "schedule", source: "schedule", title: "Schedule Report", description: "One row per shift for the period — open shifts show as “Open”.", fields: [], custom: true },
   { id: "custom-attendance", category: "attendance", source: "attendance", title: "Attendance Report", description: "Per-driver attendance — points, standing, and decay follow your attendance policy's rolling window no matter which period you pick. Excused shifts and VTO never count against a driver.", fields: [], custom: true },
+  { id: "custom-forms", category: "forms", source: "forms", title: "Forms Report", description: "Pick a form to turn its submissions into a report — one row per submission, one column per field.", fields: [], custom: true },
 ];
 
 // Per-source wiring: field catalog, picker order, and the data fetch.
@@ -276,7 +362,19 @@ const RB_SOURCES = {
     pickerLabels: RB_ATT_PICKER_LABEL, noun: ["driver", "drivers"],
     ranges: [["policy", "Policy window (rolling decay)"], ["7", "Last 7 days"], ["14", "Last 14 days"], ["30", "Last 30 days"], ["60", "Last 60 days"], ["90", "Last 90 days"]],
   },
+  // Forms · fields + order are dynamic (built per selected form), so the
+  // static entries here are just placeholders; fieldsFor/orderFor read the
+  // live catalog off RB.forms instead.
+  forms: {
+    fields: FORM_META, order: [], pickerLabels: {}, noun: ["submission", "submissions"],
+    ranges: [["all", "All time"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"]],
+  },
 };
+
+// Field catalog + order for a source. Forms is dynamic (per selected form);
+// everything else is the static config above.
+function fieldsFor(source) { return source === "forms" ? RB.forms.catalog : (RB_SOURCES[source] || RB_SOURCES.people).fields; }
+function orderFor(source) { return source === "forms" ? RB.forms.order : (RB_SOURCES[source] || RB_SOURCES.people).order; }
 
 // ─── Data layer ──────────────────────────────────────────────────────────────
 
@@ -291,8 +389,12 @@ const RB = {
     people: new Set(["driverName", "phoneNumber", "email", "status"]),
     schedule: new Set(["date", "schedDriverName", "routeCode", "startTime", "shiftStatus"]),
     attendance: new Set(["attDriverName", "scheduled", "worked", "completion", "noShows", "callOffs", "lates", "vto", "policyPoints", "policyStanding", "attRisk"]),
+    forms: new Set(),  // populated by selectForm from the chosen form's fields
   },
-  range: { schedule: "week", attendance: "policy" },
+  range: { schedule: "week", attendance: "policy", forms: "all" },
+  // Forms source state: the operator's form list, the picked form, and its
+  // dynamically-built column catalog.
+  forms: { list: [], formId: "", catalog: {}, order: [], loaded: false },
   live: true,        // live-updating workbook vs point-in-time snapshot
 };
 
@@ -679,21 +781,64 @@ async function fetchAttendanceData(range, force) {
   return rows;
 }
 
+// ─── Forms data ──────────────────────────────────────────────────────────────
+
+// The operator's forms (with their field defs, so the report catalog needs no
+// extra round-trip). list_forms already excludes archived forms and returns
+// full rows including `fields`.
+async function fetchFormsList(force) {
+  if (RB.forms.loaded && !force) return RB.forms.list;
+  const sb = _sb(), dsp = _dsp();
+  if (!sb || !dsp) throw new Error("no session");
+  const { data, error } = await sb.rpc("list_forms");
+  if (error) throw error;
+  RB.forms.list = (Array.isArray(data) ? data : []).map((f) => ({
+    id: f.id,
+    title: f.title || "Untitled form",
+    status: f.status,
+    fields: Array.isArray(f.fields) ? f.fields : [],
+  }));
+  RB.forms.loaded = true;
+  return RB.forms.list;
+}
+
+// One row per submission for the selected form, honoring the period filter.
+async function fetchFormSubmissionsData(force) {
+  const formId = RB.forms.formId;
+  if (!formId) return [];
+  const range = RB.range.forms || "all";
+  const key = "forms|" + formId + "|" + range;
+  if (!force && RB.cache.has(key)) return RB.cache.get(key);
+  const sb = _sb(), dsp = _dsp();
+  if (!sb || !dsp) throw new Error("no session");
+  const { data, error } = await sb.rpc("list_form_submissions", { p_form_id: formId });
+  if (error) throw error;
+  let rows = Array.isArray(data) ? data : [];
+  if (range !== "all") {
+    const days = parseInt(range, 10) || 30;
+    const from = Date.now() - days * 86400000;
+    rows = rows.filter((s) => { const t = s.submitted_at ? Date.parse(s.submitted_at) : NaN; return Number.isFinite(t) && t >= from; });
+  }
+  RB.cache.set(key, rows);
+  return rows;
+}
+
 function getRows(source, force) {
   if (source === "schedule") return fetchScheduleData(RB.range.schedule, force);
   if (source === "attendance") return fetchAttendanceData(RB.range.attendance, force);
+  if (source === "forms") return fetchFormSubmissionsData(force);
   return fetchPeopleData(force);
 }
 
 // ─── Matrix builder (shared by preview, workbook, CSV, print) ────────────────
 
 function reportFields(report) {
-  const src = RB_SOURCES[report.source] || RB_SOURCES.people;
-  return report.custom ? src.order.filter((k) => RB.sel[report.source].has(k)) : report.fields;
+  const order = orderFor(report.source);
+  return report.custom ? order.filter((k) => RB.sel[report.source].has(k)) : report.fields;
 }
 
 function buildMatrix(report, rows) {
-  const cat = (RB_SOURCES[report.source] || RB_SOURCES.people).fields;
+  const cat = fieldsFor(report.source);
   const keys = reportFields(report);
   return {
     headers: keys.map((k) => cat[k].label),
@@ -701,11 +846,50 @@ function buildMatrix(report, rows) {
   };
 }
 
+// Display title — for a Forms report, name the selected form so the workbook,
+// print header, and CSV filename read like "Morning DVIC · Submissions".
+function reportTitle() {
+  if (RB.source === "forms") {
+    const f = RB.forms.list.find((x) => x.id === RB.forms.formId);
+    return (f && f.title ? f.title : "Form") + " · Submissions";
+  }
+  return RB.report.title;
+}
+
 // Data provider for live report workbooks — workbook.js calls this (via
 // registerReportProvider in live.js) with the stored report spec whenever a
 // live report is opened, and rewrites the sheet with what it returns.
 export async function buildReportData(spec) {
   const source = spec && RB_SOURCES[spec.source] ? spec.source : "people";
+
+  // Forms is self-contained: the workbook may be re-opened in a later session
+  // with an empty RB, so rebuild the column catalog straight from the form's
+  // current fields (get_form) and pull fresh submissions for it.
+  if (source === "forms") {
+    const formId = spec && spec.formId;
+    if (!formId) return null;
+    const sb = _sb(), dsp = _dsp();
+    if (!sb || !dsp) return null;
+    const [{ data: form }, subs] = await Promise.all([
+      sb.rpc("get_form", { p_id: formId }).then((r) => r, () => ({ data: null })),
+      sb.rpc("list_form_submissions", { p_form_id: formId }).then((r) => r, () => ({ data: [] })),
+    ]);
+    let rows = Array.isArray(subs && subs.data) ? subs.data : [];
+    const range = (spec && spec.range) || "all";
+    if (range !== "all") {
+      const days = parseInt(range, 10) || 30;
+      const from = Date.now() - days * 86400000;
+      rows = rows.filter((s) => { const t = s.submitted_at ? Date.parse(s.submitted_at) : NaN; return Number.isFinite(t) && t >= from; });
+    }
+    const { cat } = formsCatalogFrom(form || {});
+    const keys = (Array.isArray(spec && spec.fields) ? spec.fields : []).filter((k) => cat[k]);
+    if (!keys.length) return null;
+    return {
+      headers: keys.map((k) => cat[k].label),
+      rows: rows.map((r) => keys.map((k) => cat[k].map(r))),
+    };
+  }
+
   let rows;
   if (source === "schedule") rows = await fetchScheduleData((spec && spec.range) || "week", true);
   else if (source === "attendance") rows = await fetchAttendanceData((spec && spec.range) || "30", true);
@@ -740,6 +924,9 @@ export function renderReportsInto(container) {
   RB.source = "people";
   RB.data = null; // fresh data each visit — reports reflect the operation now
   RB.cache = new Map();
+  // Re-pull the forms list each visit (forms may have been created/edited);
+  // keep the last-picked form id so re-selecting it feels sticky.
+  RB.forms = { list: [], formId: RB.forms.formId || "", catalog: {}, order: [], loaded: false };
 
   container.innerHTML = `
     <div class="rr-reports-surface" data-rb-root>
@@ -780,14 +967,26 @@ export function renderReportsInto(container) {
   const renderCustomPanel = () => {
     const src = RB_SOURCES[RB.source];
     const sel = RB.sel[RB.source];
+    const cat = fieldsFor(RB.source);
+    const order = orderFor(RB.source);
     const fieldRow = (k) => `
           <label class="rb-field-check">
             <input type="checkbox" data-rb-field="${k}" ${sel.has(k) ? "checked" : ""}>
-            <span>${esc((src.pickerLabels && src.pickerLabels[k]) || src.fields[k].label)}</span>
+            <span>${esc((src.pickerLabels && src.pickerLabels[k]) || (cat[k] && cat[k].label) || k)}</span>
           </label>`;
+    // Forms leads with a form picker — the report is built from that form's
+    // submissions, so choosing the form defines the columns.
+    const formPicker = RB.source === "forms" ? `
+      <label class="rb-range-row">
+        <span class="rb-range-label">Form</span>
+        <select class="rb-range-sel" data-rb-form aria-label="Form">
+          ${RB.forms.list.map((f) => `<option value="${esc(f.id)}" ${RB.forms.formId === f.id ? "selected" : ""}>${esc(f.title)}${f.status && f.status !== "published" ? " (" + esc(f.status) + ")" : ""}</option>`).join("")}
+        </select>
+      </label>` : "";
     els.main.innerHTML = `
       <p class="rb-main-head">${esc(RB.report.title)}</p>
       <p class="rb-main-sub">${esc(RB.report.description)}</p>
+      ${formPicker}
       ${src.ranges ? `
       <label class="rb-range-row">
         <span class="rb-range-label">Period</span>
@@ -803,7 +1002,7 @@ export function renderReportsInto(container) {
       <div class="rb-fields">
         ${src.groups
           ? src.groups.map((g) => `<p class="rb-field-group">${esc(g.label)}</p>` + g.keys.map(fieldRow).join("")).join("")
-          : src.order.map(fieldRow).join("")}
+          : order.map(fieldRow).join("")}
       </div>
       <p class="rb-main-head rb-live-head">Data updates</p>
       <div class="rb-live-opts">
@@ -848,7 +1047,7 @@ export function renderReportsInto(container) {
     const { headers, rows } = buildMatrix(report, data);
     const shown = rows.slice(0, 25);
     els.preview.innerHTML = `
-      <p class="rb-preview-title">${esc(report.title)}</p>
+      <p class="rb-preview-title">${esc(reportTitle())}</p>
       <p class="rb-preview-sub">${rows.length} ${rows.length === 1 ? esc(noun[0]) : esc(noun[1])}${rows.length > shown.length ? ` · showing first ${shown.length}` : ""}</p>
       <div class="rb-table-wrap">
         <table class="rb-table">
@@ -859,11 +1058,57 @@ export function renderReportsInto(container) {
     footState();
   };
 
+  // Pick a form: rebuild its column catalog and default-select driver + when +
+  // every input field (review columns stay opt-in).
+  const selectForm = (id) => {
+    RB.forms.formId = id;
+    const form = RB.forms.list.find((f) => f.id === id) || null;
+    const { cat, order } = formsCatalogFrom(form || {});
+    RB.forms.catalog = cat;
+    RB.forms.order = order;
+    const sel = new Set(["fsDriver", "fsSubmitted", "fsStatus"]);
+    for (const f of (form && form.fields) || []) {
+      if (f && f.id && !FORM_NON_INPUT.has(f.type)) sel.add(f.id);
+    }
+    RB.sel.forms = sel;
+  };
+
+  // Forms category: load the operator's form list, then render the picker.
+  const enterFormsSource = async () => {
+    els.main.innerHTML = `<div class="rb-state"><span class="rb-spinner" aria-hidden="true"></span>Loading forms…</div>`;
+    els.preview.innerHTML = `<div class="rb-preview-blank">Pick a form to build its submission report.</div>`;
+    footState();
+    let list;
+    try { list = await fetchFormsList(); }
+    catch (e) {
+      console.warn("reports forms list:", e && e.message);
+      if (RB.source !== "forms" || !wrap.isConnected) return;
+      els.main.innerHTML = `<div class="rb-state is-error">Couldn't load your forms.<button type="button" class="btn btn-ghost btn-sm" data-rb-forms-retry>Retry</button></div>`;
+      return;
+    }
+    if (RB.source !== "forms" || !wrap.isConnected) return; // navigated away
+    if (!list.length) {
+      els.main.innerHTML = `
+        <p class="rb-main-head">${esc(RB.report.title)}</p>
+        <p class="rb-main-sub">${esc(RB.report.description)}</p>
+        <div class="rb-state">No forms yet. Build a form on the Workflows page — its submissions will be reportable here.</div>`;
+      footState();
+      return;
+    }
+    // Keep the last-picked form if it still exists, else pick the first.
+    if (!RB.forms.formId || !list.some((f) => f.id === RB.forms.formId)) selectForm(list[0].id);
+    else selectForm(RB.forms.formId);
+    renderCustomPanel();
+    footState();
+    renderPreview();
+  };
+
   const selectReport = (id) => {
     const report = RB_REPORTS.find((r) => r.id === id);
     if (!report) return;
     RB.report = report;
     RB.source = report.source;
+    if (report.source === "forms") { enterFormsSource(); return; }
     renderCustomPanel();
     footState();
     renderPreview();
@@ -880,7 +1125,7 @@ export function renderReportsInto(container) {
       const blob = new Blob(["\ufeff" + toCsv(headers, rows)], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = RB.report.title.replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() + ".csv";
+      a.download = reportTitle().replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() + ".csv";
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     } catch (_) { _toast("Unable to load report data", "error"); }
@@ -891,13 +1136,13 @@ export function renderReportsInto(container) {
       const { headers, rows } = await currentMatrix();
       const win = window.open("", "_blank");
       if (!win) { _toast("Allow pop-ups to print reports", "warn"); return; }
-      win.document.write(`<!doctype html><html><head><title>${esc(RB.report.title)}</title><style>
+      win.document.write(`<!doctype html><html><head><title>${esc(reportTitle())}</title><style>
         body{font:13px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#111827;margin:32px}
         h1{font-size:18px;margin:0 0 2px} p{margin:0 0 16px;color:#6B7280;font-size:12px}
         table{border-collapse:collapse;width:100%} th,td{border:1px solid #D1D5DB;padding:5px 8px;text-align:left;font-size:12px}
         th{background:#F3F4F6;font-weight:600}
       </style></head><body>
-        <h1>${esc(RB.report.title)}</h1>
+        <h1>${esc(reportTitle())}</h1>
         <p>${esc(_dsp().name || "")} · ${rows.length} ${esc(rows.length === 1 ? (RB_SOURCES[RB.source] || RB_SOURCES.people).noun[0] : (RB_SOURCES[RB.source] || RB_SOURCES.people).noun[1])} · ${new Date().toLocaleDateString()}</p>
         <table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
         <tbody>${rows.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>
@@ -914,13 +1159,19 @@ export function renderReportsInto(container) {
     els.foot.workbook.textContent = "Creating…";
     try {
       const { headers, rows } = await currentMatrix();
-      const title = RB.report.title;
+      const title = reportTitle();
       await RB.deps.createReportWorkbook({
         title,
         description: RB.report.description,
         headers,
         rows,
-        report: { source: RB.source, fields: reportFields(RB.report), live: RB.live, range: RB.range[RB.source] || null },
+        report: {
+          source: RB.source,
+          fields: reportFields(RB.report),
+          live: RB.live,
+          range: RB.range[RB.source] || null,
+          formId: RB.source === "forms" ? RB.forms.formId : undefined,
+        },
       });
       _toast(`Opening “${title}” in Workbooks${RB.live ? " — it refreshes on every open" : ""}`, "success");
     } catch (e) {
@@ -934,6 +1185,8 @@ export function renderReportsInto(container) {
   wrap.addEventListener("change", (e) => {
     const live = e.target.closest("[data-rb-live]");
     if (live) { RB.live = live.getAttribute("data-rb-live") === "1"; return; }
+    const form = e.target.closest("[data-rb-form]");
+    if (form) { selectForm(form.value); renderCustomPanel(); footState(); renderPreview(); return; }
     const range = e.target.closest("[data-rb-range]");
     if (range) { RB.range[RB.source] = range.value; renderPreview(); return; }
     const f = e.target.closest("[data-rb-field]");
@@ -945,6 +1198,7 @@ export function renderReportsInto(container) {
   });
   wrap.addEventListener("click", (e) => {
     if (e.target.closest("[data-rb-retry]")) { renderPreview(true); return; }
+    if (e.target.closest("[data-rb-forms-retry]")) { RB.forms.loaded = false; enterFormsSource(); return; }
     const preset = e.target.closest("[data-rb-preset]");
     if (preset) {
       const src = RB_SOURCES[RB.source];
