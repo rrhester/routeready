@@ -51762,6 +51762,99 @@ function _rrAbDone(id) {
   if (_rrAbBusyIds.size === 0) _rrAbProgressBar(false);
 }
 
+// Post-run recap for a Smart Fill solve. Surfaces the CP-SAT solver's own
+// signals — "solved to optimality", scale + solve time, coverage, and the
+// rules it held — so the operator sees the sophistication instead of a
+// silent grid fill. Read-only; dismissible. Data comes straight from the
+// SolveResponse (see the `summary` built in autoFillScheduleWeek).
+function _rrShowSmartFillSummary(s) {
+  if (!s) return;
+  try {
+    document.getElementById("rr-sf-summary-backdrop")?.remove();
+    const optimal = /optimal/i.test(s.solverStatus || "");
+    const statusLabel = optimal
+      ? "Solved to optimality"
+      : (s.ok ? "Best schedule found" : "Partial schedule");
+    const statusSub = optimal
+      ? "Every legal assignment was evaluated — this is the best schedule your rules allow, not just the first that fit."
+      : (s.ok
+          ? "The optimizer found a strong schedule within the time budget (a larger week can exceed the proof-of-optimality window)."
+          : "Some routes couldn't be covered under the current rules — see what's still open below.");
+    const secs = s.wallMs == null ? null
+      : (s.wallMs >= 1000 ? (s.wallMs / 1000).toFixed(1) + "s" : s.wallMs + "ms");
+    const scale = `Optimized <strong>${s.assigned}</strong> route${s.assigned === 1 ? "" : "s"} across `
+      + `<strong>${s.driverCount}</strong> driver${s.driverCount === 1 ? "" : "s"}`
+      + (secs ? ` in <strong>${escapeHtml(secs)}</strong>` : "");
+    const coverageLine = s.uncovered === 0
+      ? `<span style="color:var(--green-dark,#15803d);font-weight:600">All open routes covered</span>`
+      : `<strong>${s.assigned}</strong> filled · <span style="color:var(--amber-dark,#b45309);font-weight:600">${s.uncovered} still open</span>`;
+    const chips = (s.honored || []).map(h =>
+      `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--surface-2,var(--canvas,#f1f5f9));border:1px solid var(--border,#e5e7eb);border-radius:999px;padding:3px 9px;font-size:11px;color:var(--text,#111827);white-space:nowrap">`
+      + `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="var(--green-dark,#15803d)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`
+      + escapeHtml(h) + `</span>`).join("");
+
+    const backdrop = document.createElement("div");
+    backdrop.id = "rr-sf-summary-backdrop";
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.30);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:72px 16px 16px";
+    const closeAll = () => backdrop.remove();
+
+    const canDiagnose = typeof _rrSmartFillDiagnostics === "function" && !!window._rrLastSmartFillPayload;
+    const accent = optimal ? "var(--green-dark,#15803d)" : "var(--accent,#2563eb)";
+    const accentSoft = optimal ? "var(--green-soft,rgba(22,163,74,.12))" : "var(--accent-soft,rgba(37,99,235,.10))";
+
+    backdrop.innerHTML =
+      `<div role="dialog" aria-modal="true" aria-label="Smart Fill result" style="width:480px;max-width:calc(100vw - 24px);background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:14px;box-shadow:0 18px 56px rgba(15,23,42,.26);overflow:hidden;opacity:0;transform:translateY(-6px);transition:opacity 140ms ease-out,transform 140ms ease-out">`
+      + `<div style="padding:18px 20px 14px;background:linear-gradient(180deg,${accentSoft},transparent)">`
+        + `<div style="display:flex;align-items:center;gap:10px">`
+          + `<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:${accent};color:#fff;flex-shrink:0">`
+            + `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`
+          + `</span>`
+          + `<div style="flex:1;min-width:0">`
+            + `<div style="font-size:16px;font-weight:700;color:var(--text,#111827);letter-spacing:-.01em">${escapeHtml(statusLabel)}</div>`
+            + `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${accent}">Smart Fill · CP-SAT optimization engine</div>`
+          + `</div>`
+          + `<button type="button" id="rr-sf-summary-x" aria-label="Close" style="background:none;border:0;font-size:22px;line-height:1;cursor:pointer;color:var(--text-muted,#6b7280);padding:0 4px;align-self:flex-start">×</button>`
+        + `</div>`
+        + `<div style="font-size:13.5px;color:var(--text,#111827);margin-top:12px;line-height:1.5">${scale}.</div>`
+        + `<div style="font-size:12.5px;color:var(--text-subtle,#6b7280);margin-top:4px;line-height:1.5">${escapeHtml(statusSub)}</div>`
+      + `</div>`
+      + `<div style="padding:6px 20px 4px">`
+        + `<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--border-subtle,#f1f5f9)">`
+          + `<span style="font-size:12.5px;color:var(--text-subtle,#6b7280)">Coverage</span>`
+          + `<span style="font-size:13.5px;color:var(--text,#111827);font-variant-numeric:tabular-nums">${coverageLine}</span>`
+        + `</div>`
+        + `<div style="padding:11px 0;border-top:1px solid var(--border-subtle,#f1f5f9)">`
+          + `<div style="font-size:12.5px;color:var(--text-subtle,#6b7280);margin-bottom:8px">Rules held — <span style="color:var(--green-dark,#15803d);font-weight:600">0 violations</span></div>`
+          + `<div style="display:flex;flex-wrap:wrap;gap:6px">${chips}</div>`
+        + `</div>`
+      + `</div>`
+      + `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 20px;border-top:1px solid var(--border,#e5e7eb);background:var(--canvas,#f9fafb)">`
+        + `<span style="font-size:11px;color:var(--text-muted,#9ca3af)">${s.solverVersion ? escapeHtml(s.solverVersion) : "CP-SAT constraint solver"}</span>`
+        + `<div style="display:flex;gap:8px">`
+          + (canDiagnose ? `<button type="button" id="rr-sf-summary-why" class="btn btn-sm">See the decision report</button>` : "")
+          + `<button type="button" id="rr-sf-summary-done" class="btn btn-sm btn-primary">Done</button>`
+        + `</div>`
+      + `</div>`
+      + `</div>`;
+
+    document.body.appendChild(backdrop);
+    const card = backdrop.firstElementChild;
+    requestAnimationFrame(() => { card.style.opacity = "1"; card.style.transform = "translateY(0)"; });
+    backdrop.addEventListener("click", (ev) => {
+      if (ev.target === backdrop || ev.target.closest("#rr-sf-summary-x") || ev.target.closest("#rr-sf-summary-done")) {
+        closeAll();
+      } else if (ev.target.closest("#rr-sf-summary-why")) {
+        closeAll();
+        try { _rrSmartFillDiagnostics(); } catch (e) { console.warn("diagnostics:", e); }
+      }
+    });
+    document.addEventListener("keydown", function _esc(ev) {
+      if (ev.key === "Escape") { closeAll(); document.removeEventListener("keydown", _esc); }
+    });
+  } catch (e) { console.warn("smart fill summary:", e); }
+}
+window._rrShowSmartFillSummary = _rrShowSmartFillSummary;
+
 window.openAiSchedule = async function () {
   // Manual scheduling — Smart Fill is off; the board is filled by hand.
   try {
@@ -51791,10 +51884,11 @@ window.openAiSchedule = async function () {
   sfTiles.forEach((t) => t.classList.add("rr-sf-optimizing"));
   // Stage the upcoming Smart Fill render's card reveal.
   _rrSmartFillStaging = true;
+  let _sfRes = null;
   try {
     // No toast — the spinning bolt icon is enough feedback per
     // the operator's request.
-    await autoFillScheduleWeek();
+    _sfRes = await autoFillScheduleWeek();
   } finally {
     _rrSmartFillStaging = false;
     window._rrSfRunning = false;
@@ -51804,6 +51898,13 @@ window.openAiSchedule = async function () {
       btn.innerHTML = orig;
     }
     sfTiles.forEach((t) => t.classList.remove("rr-sf-optimizing"));
+  }
+  // Show the solve recap once the grid has begun re-rendering behind it, so
+  // the operator sees the filled week under the card. Only when a real solve
+  // actually produced a result (the error / "solver unavailable" paths return
+  // no summary and already toasted).
+  if (_sfRes && _sfRes.summary) {
+    setTimeout(() => _rrShowSmartFillSummary(_sfRes.summary), 450);
   }
 };
 
@@ -54787,7 +54888,38 @@ async function autoAssignDriversForWeek() {
       if (recErr) console.warn("record_optimization_result failed:", recErr);
     }
   } catch (e) { console.warn("optimization audit · record:", e); }
-  return { assigned, diagnostics };
+
+  // Post-run "solve summary" — turns the invisible CP-SAT solve into a
+  // visible recap so Smart Fill reads as the optimization engine it is,
+  // not a plain auto-fill. Built ONLY from what the solver actually
+  // returned (metrics.solver_status / solver_wall_ms) plus the rules that
+  // were enforced this run. Skipped for what-if sims (nothing was written).
+  const summary = _rrWhatIfOptions ? null : (() => {
+    const honored = [
+      "Driver licenses & certifications",
+      "Approved PTO",
+      "Saved availability",
+      "One shift per day",
+      `Max ${_maxDaysOut} days per week`,
+    ];
+    if (sfPayload.rules.consecutive_working_days) honored.push("Consecutive-day limits");
+    if (sfPayload.rules.min_rest) honored.push(`Min ${sfPayload.rules.min_rest_hours}h rest between shifts`);
+    if (sfPayload.rules.weekly_hour_cap_enforcement) honored.push(`Weekly hour cap (${_weeklyHourOut}h)`);
+    return {
+      ok: result.status === "ok",
+      solverStatus: (result.metrics && result.metrics.solver_status) || null,
+      wallMs: (result.metrics && result.metrics.solver_wall_ms != null)
+        ? result.metrics.solver_wall_ms : null,
+      assigned,
+      uncovered: (result.uncovered_shifts || []).length,
+      totalOpen: (engineShifts || []).filter(s => !s.is_locked).length,
+      driverCount: (sfPayload.drivers || []).length,
+      solverVersion: result.solver_version || null,
+      honored,
+    };
+  })();
+
+  return { assigned, diagnostics, summary };
 }
 
 function renderScheduleGrid() { /* removed */ }
