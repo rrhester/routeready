@@ -1661,6 +1661,7 @@
             <div class="rr-tgt-gap-card" id="rr-tgt-gap-card" hidden title="Largest weekly driver shortfall across the plan">
               <span class="rr-tgt-gap-card-label">Forecast gap</span>
               <span class="rr-tgt-gap-card-value" id="rr-tgt-gap-card-main">—</span>
+              <span class="rr-tgt-gap-card-sub" id="rr-tgt-gap-card-sub" hidden></span>
             </div>
             <button type="button" class="rr-tgt-save-plan" id="rr-tgt-save-plan">Save Plan</button>
             <span class="rr-tgt-chrome-host" id="rr-tgt-chrome-host"></span>

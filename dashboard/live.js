@@ -42260,21 +42260,68 @@ window._rrMoveSchedDemandToTargets = _rrMoveSchedDemandToTargets;
 function _rrRefreshTargetsGapCard() {
   const card = document.getElementById("rr-tgt-gap-card");
   if (!card) return;
-  const tbody = document.getElementById("okami-tbody");
-  let worst = null;
-  if (tbody) {
-    tbody.querySelectorAll("tr:not(.okami-detail) .plan-gap").forEach((el) => {
-      const v = parseInt(String(el.textContent).replace(/[^\-\d]/g, ""), 10);
-      if (Number.isFinite(v)) worst = (worst == null) ? v : Math.min(worst, v);
-    });
-  }
-  if (worst == null) { card.hidden = true; return; }
+  // Read through _rrReadOkamiWeeks (the same parser the Risk Forecast view
+  // uses) instead of scraping .plan-gap cells directly: it folds in the
+  // 13-week simulation's PTO-adjusted availability, so the card agrees
+  // with the projection after the operator runs Simulate.
+  let weeks = [];
+  try { weeks = (_rrReadOkamiWeeks() || []).filter((w) => Number.isFinite(w.gap)); } catch (_) {}
+  if (!weeks.length) { card.hidden = true; return; }
+  let worstWeek = weeks[0];
+  for (const w of weeks) if (w.gap < worstWeek.gap) worstWeek = w;
+  const worst = worstWeek.gap;
   card.hidden = false;
   const mainEl = document.getElementById("rr-tgt-gap-card-main");
   if (mainEl) mainEl.textContent = `${worst > 0 ? "+" : ""}${worst} Driver${Math.abs(worst) === 1 ? "" : "s"}`;
   card.classList.toggle("rr-tgt-gap-card--pos", worst >= 0);
+  // Prescription line — the one action the number implies. N covers the
+  // deepest short week; the date comes from the FIRST short week's hire-by
+  // (hiring by the earliest deadline covers every later break too).
+  const subEl = document.getElementById("rr-tgt-gap-card-sub");
+  const firstShort = weeks.find((w) => w.gap < 0) || null;
+  if (subEl) {
+    if (worst < 0) {
+      const n = Math.abs(worst);
+      const hireBy = firstShort && firstShort.hireBy && firstShort.hireBy !== "—" ? firstShort.hireBy : "";
+      subEl.textContent = hireBy
+        ? `Hire ${n} by ${hireBy}`
+        : `Hire ${n} for ${(firstShort && (firstShort.label || firstShort.dates)) || "the short week"}`;
+      subEl.hidden = false;
+    } else {
+      subEl.textContent = "Staffed through the plan";
+      subEl.hidden = false;
+    }
+  }
+  // A short plan gets a click-through to the full Risk forecast analysis
+  // (per-week narrative, hire-by dates, simulation deltas).
+  const clickable = worst < 0 && typeof _rrIntelShow === "function";
+  card.classList.toggle("is-clickable", clickable);
+  if (clickable) {
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+    card.title = "Largest weekly driver shortfall — open the Risk forecast analysis";
+  } else {
+    card.removeAttribute("role");
+    card.removeAttribute("tabindex");
+    card.title = "Largest weekly driver shortfall across the plan";
+  }
 }
 window._rrRefreshTargetsGapCard = _rrRefreshTargetsGapCard;
+
+// Gap card click-through → Risk forecast intel view (only armed while the
+// plan is short; _rrRefreshTargetsGapCard manages the is-clickable state).
+document.addEventListener("click", (e) => {
+  const card = e.target.closest && e.target.closest("#rr-tgt-gap-card.is-clickable");
+  if (!card) return;
+  try { _rrIntelShow("risk-forecast"); } catch (_) {}
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const card = e.target.closest && e.target.closest("#rr-tgt-gap-card.is-clickable");
+  if (!card) return;
+  e.preventDefault();
+  try { _rrIntelShow("risk-forecast"); } catch (_) {}
+});
 
 // Graduated gap severity for the Targets gap pill: positive = covered (green);
 // negative scales light → medium → dark red with the size of the shortfall.
