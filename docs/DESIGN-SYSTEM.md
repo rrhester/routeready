@@ -19,6 +19,26 @@ counts and **fail any PR that increases them.** The debt can now only shrink.
 This is the important first step: it stops the inconsistency from growing while
 the pay-down happens incrementally.
 
+### Progress (raw hex)
+
+| Batch | Raw hex | Δ |
+|---|--:|--:|
+| Baseline (ratchet installed) | 2,901 | — |
+| Batch 1 — top 15 colors → primitives (`inline-styles.css`) | 1,673 | −1,228 |
+| Batch 2 — full slate/gray/amber/green/red scales across the whole dashboard document family (`inline-styles`, `schedule-rrx`, `onboarding-rrx`) | 910 | −763 |
+
+The **33 primitives** shipped so far are role-neutral, Tailwind-standard names
+(`--rr-white`, `--rr-blue-{50,600,700,800}`, `--rr-slate-{50..900}`,
+`--rr-gray-{50..900}`, `--rr-amber-{100,600,700,800}`, `--rr-green-{600,700}`,
+`--rr-red-{50,600,700}`), each defined in `dashboard/inline-styles.css`'s
+`:root` — the one stylesheet loaded on every dashboard document. Every swap has
+a value **exactly equal** to the hex it replaced, so each batch is
+pixel-identical (verified byte-for-byte with the Playwright harness before
+landing). Remaining raw hex is mostly bespoke near-duplicate greys
+(`#eceff5`, `#e9edf3`, `#e6eaf2`, …) that should *collapse* to the scale above
+— a semantic decision, not a mechanical swap — plus the driver app
+(`app/*.css`), which is a separate document needing its own `:root` copy.
+
 ```
 node scripts/design-lint.mjs            # check (what CI runs)
 node scripts/design-lint.mjs --update   # lower the baseline after a real reduction
