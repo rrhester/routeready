@@ -129,10 +129,6 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M3 5h18v12H7l-4 4z"/><line x1="7" y1="10" x2="17" y2="10"/><line x1="7" y1="13" x2="14" y2="13"/></svg>
                     <span>Coaching</span>
                   </button>
-                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Coaching rules — coming soon">
-                    Rules
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-                  </button>
                 </div>
               </div>
             </div>
@@ -358,10 +354,6 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15.5 13.5"/></svg>
                     <span>Interview</span>
                   </button>
-                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Interview rules — coming soon">
-                    Rules
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-                  </button>
                 </div>
                 <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-overview">
                   <button class="subnav-item active" data-obsub="overview" onclick="obSub('overview')" title="Onboarding">
@@ -527,19 +519,11 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 14.5 11 16.5 15.5 11.5"/></svg>
                     <span>Work auth</span>
                   </button>
-                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Work auth rules — coming soon">
-                    Rules
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-                  </button>
                 </div>
                 <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-addapplicant">
                   <button class="subnav-item" onclick="openAddApplicantModal()" title="Add applicant">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="2" y="5" width="14" height="14"/><line x1="5" y1="9" x2="9" y2="9"/><line x1="5" y1="12" x2="13" y2="12"/><line x1="5" y1="15" x2="11" y2="15"/><line x1="20" y1="7" x2="20" y2="15"/><line x1="16" y1="11" x2="24" y2="11"/></svg>
                     <span>Add applicant</span>
-                  </button>
-                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Add applicant rules — coming soon">
-                    Rules
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
                 </div>
                 <!-- Import · keeps the former PDF-Upload icon + action, relabeled
@@ -552,10 +536,6 @@
                       <polyline class="rr-pdf-arrow" points="9 12 12 9 15 12"/>
                     </svg>
                     <span>Import</span>
-                  </button>
-                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Import rules — coming soon">
-                    Rules
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
                 </div>
                 <!-- The hidden file input openPdfUploadPicker() clicks now
