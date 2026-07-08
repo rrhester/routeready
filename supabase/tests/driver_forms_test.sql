@@ -82,6 +82,15 @@ insert into public.forms (id, dsp_id, title, status, fields, settings) values
      '[{"id":"brakes","type":"yes_no","flag_on":"fail"},{"id":"lights","type":"yes_no","flag_on":"fail"}]'::jsonb,
      '{"is_dvic": true}'::jsonb);
 
+-- Conditional-logic form: `details` is REQUIRED, but only VISIBLE when the
+-- earlier yes/no `has_issue` is answered "yes". Exercises the interaction of
+-- private.form_field_visible with the required check inside driver_submit_form.
+insert into public.forms (id, dsp_id, title, status, fields, settings) values
+  ('b0000000-0000-0000-0000-0000000000b1', '11111111-1111-1111-1111-111111111111', 'Conditional', 'published',
+     '[{"id":"has_issue","type":"yes_no","required":false},
+       {"id":"details","type":"short_text","required":true,"condition":{"fieldId":"has_issue","op":"eq","value":"yes"}}]'::jsonb,
+     '{}'::jsonb);
+
 
 -- ── 1. private.form_answer_flagged (DVIC pass/fail core, migration 0436) ──
 do $$
@@ -300,6 +309,40 @@ begin
   assert (v_res->>'result') = 'passed', 'dvic: no flagged field → passed';
 
   raise notice '✓ dvic branch (standing-van resolution + pass/fail derivation)';
+end $$;
+
+
+-- ── 8. Conditional required × visibility, end-to-end (migration 0439) ─
+-- A required field that is currently HIDDEN by an unmet condition must not
+-- block submission; once its trigger reveals it, the required check applies.
+-- This exercises the private.form_field_visible gate inside the RPC's
+-- validation loop, not just the helper in isolation (section 2).
+do $$
+declare v_blocked boolean;
+begin
+  -- Trigger says "no" → `details` hidden → its required rule does NOT apply.
+  perform public.driver_submit_form('tok_test_a', 'b0000000-0000-0000-0000-0000000000b1',
+    '{"has_issue":"no"}'::jsonb);
+
+  -- Trigger unanswered → `details` still hidden → still not required.
+  perform public.driver_submit_form('tok_test_a', 'b0000000-0000-0000-0000-0000000000b1',
+    '{}'::jsonb);
+
+  -- Trigger "yes" → `details` revealed + required + empty → must be rejected.
+  v_blocked := false;
+  begin
+    perform public.driver_submit_form('tok_test_a', 'b0000000-0000-0000-0000-0000000000b1',
+      '{"has_issue":"yes"}'::jsonb);
+  exception when others then
+    v_blocked := (sqlstate = 'P0002');   -- validation error class
+  end;
+  assert v_blocked, 'conditional: revealed required field must block when empty';
+
+  -- Trigger "yes" with the answer supplied → accepted.
+  perform public.driver_submit_form('tok_test_a', 'b0000000-0000-0000-0000-0000000000b1',
+    '{"has_issue":"yes","details":"brake noise"}'::jsonb);
+
+  raise notice '✓ conditional required × visibility (end-to-end through the RPC)';
 end $$;
 
 rollback;
