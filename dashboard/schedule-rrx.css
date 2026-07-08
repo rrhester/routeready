@@ -6901,7 +6901,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell-head.rr-wx-hea
   border-radius: 8px;
 }
 #view-schedule .rr-pool-shift.rr-kbd-carrying {
-  outline: 2px solid var(--accent, #2563EB);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
   border-radius: 8px;
   background: var(--accent-soft, rgba(37,99,235,.10)) !important;
@@ -6914,5 +6914,5 @@ body.rr-sched-carrying #view-schedule #sched-sub-week .cal-cell[data-rr-cell="dr
 }
 body.rr-sched-carrying #view-schedule #sched-sub-week .cal-cell[data-rr-cell="driver-day"]:focus-visible {
   box-shadow: var(--ring-focus, 0 0 0 3px rgba(37,99,235,.18)),
-              inset 0 0 0 2px var(--accent, #2563EB);
+              inset 0 0 0 2px var(--accent);
 }
