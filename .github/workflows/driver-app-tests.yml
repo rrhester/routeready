@@ -1,0 +1,40 @@
+# Driver-app E2E · drives the real driver PWA (app/) in headless Chromium with
+# a stubbed Supabase client and asserts the client-side form-fill behaviour:
+# conditional visibility, field validation, draft autosave, and the offline
+# submission queue. Hermetic — no network, no real backend.
+name: driver-app-tests
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "tests/driver-app/**"
+      - ".github/workflows/driver-app-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "tests/driver-app/**"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install test deps
+        run: npm install --no-save @playwright/test http-server
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run driver-app E2E tests
+        run: npx playwright test --config tests/driver-app/playwright.config.mjs
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: driver-app-results
+          path: test-results/
+          retention-days: 14
