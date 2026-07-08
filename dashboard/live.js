@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=fbb7a523dcf1";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=fbb7a523dcf1";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=fbb7a523dcf1";
+import { planScheduleWeek } from "./scheduling-engine.js?v=665b3dced425";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=665b3dced425";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=665b3dced425";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -46010,6 +46010,98 @@ function _rrViolationsFinalizeDialog(violations) {
 }
 window._rrViolationsFinalizeDialog = _rrViolationsFinalizeDialog;
 
+// Resolve a driver's display name + a friendly date label for the assign
+// override dialog below. Best-effort — both fall back to generic phrasing.
+function _rrAssignCtx(driverId, iso) {
+  let driverName = "";
+  try {
+    const d = (window._schedDriverList || []).find(x => x.id === driverId);
+    if (d && typeof displayDriverName === "function") driverName = displayDriverName(d);
+  } catch (_) {}
+  let dateLabel = "";
+  try {
+    if (iso) dateLabel = new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  } catch (_) {}
+  return { driverName, dateLabel };
+}
+
+// In-context confirmation for a manual assignment that breaks one or more
+// hard rules. Replaces the native confirm() the three manual-assign paths
+// used (drag from the pool, materialize a gap, move a chip between cells).
+// Promise-resolves true = "Assign anyway" (override), false = cancel.
+// Mirrors the visual language of _rrViolationsFinalizeDialog so overrides
+// read consistently, and defaults focus to Cancel so a reflexive Enter is
+// the safe choice (never a silent override).
+function _rrConfirmAssignOverride(violations, opts) {
+  const list = Array.isArray(violations) ? violations.filter(Boolean) : [];
+  return new Promise((resolve) => {
+    if (!list.length) { resolve(true); return; }
+    const o = opts || {};
+    const n = list.length;
+    const ctx = (o.driverName || o.dateLabel)
+      ? `Assigning ${escapeHtml(o.driverName || "this driver")}${o.dateLabel ? " on " + escapeHtml(o.dateLabel) : ""} breaks ${n} rule${n === 1 ? "" : "s"}:`
+      : `This assignment breaks ${n} rule${n === 1 ? "" : "s"}:`;
+    const backdrop = document.createElement("div");
+    backdrop.id = "rr-assign-override-backdrop";
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:10000";
+    document.body.appendChild(backdrop);
+    const m = document.createElement("div");
+    m.id = "rr-assign-override-modal";
+    m.setAttribute("role", "alertdialog");
+    m.setAttribute("aria-modal", "true");
+    m.setAttribute("aria-labelledby", "rr-assign-override-title");
+    m.style.cssText =
+      "position:fixed;left:50%;top:84px;transform:translateX(-50%);width:420px;" +
+      "max-width:calc(100vw - 24px);background:var(--surface,#fff);" +
+      "border:1px solid var(--border,#E5E7EB);border-radius:12px;" +
+      "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:10001;opacity:0;" +
+      "transition:opacity 120ms ease-out;overflow:hidden";
+    const SHOW = 5;
+    const rows = list.slice(0, SHOW).map(v =>
+      '<div style="display:flex;gap:8px;align-items:baseline;font-size:13px;line-height:1.5;margin-top:6px">' +
+        '<span aria-hidden="true" style="flex:0 0 auto;color:#DC2626;font-weight:700;line-height:1.4">•</span>' +
+        '<span style="color:var(--text,#111827)">' + escapeHtml(String(v)) + '</span>' +
+      '</div>').join("");
+    const more = n > SHOW
+      ? `<div style="font-size:12px;color:var(--text-subtle,#6B7280);margin-top:8px">+${n - SHOW} more</div>`
+      : "";
+    m.innerHTML =
+      '<div style="padding:16px 18px 14px">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+          '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#DC2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
+          '<div id="rr-assign-override-title" style="font-size:15px;font-weight:700;color:var(--text,#111827)">Rule violation' + (n === 1 ? "" : "s") + '</div>' +
+        '</div>' +
+        '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#6B7280)">' + ctx + '</div>' +
+        rows + more +
+      '</div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#E5E7EB);background:var(--canvas,#F9FAFB)">' +
+        '<button type="button" class="btn btn-sm" data-rr-assign-cancel>Cancel</button>' +
+        '<button type="button" class="btn btn-sm btn-primary" data-rr-assign-anyway>Assign anyway</button>' +
+      '</div>';
+    document.body.appendChild(m);
+    requestAnimationFrame(() => { m.style.opacity = "1"; });
+    let done = false;
+    const finish = (val) => {
+      if (done) return; done = true;
+      document.removeEventListener("keydown", onKey);
+      m.style.opacity = "0";
+      setTimeout(() => { m.remove(); backdrop.remove(); }, 120);
+      resolve(val);
+    };
+    // Escape cancels. Enter is intentionally NOT bound to override — the
+    // focused button (Cancel by default) handles Enter/Space natively.
+    const onKey = (ev) => { if (ev.key === "Escape") { ev.preventDefault(); finish(false); } };
+    document.addEventListener("keydown", onKey);
+    backdrop.addEventListener("click", () => finish(false));
+    m.addEventListener("click", (ev) => {
+      if (ev.target.closest("[data-rr-assign-cancel]")) finish(false);
+      else if (ev.target.closest("[data-rr-assign-anyway]")) finish(true);
+    });
+    requestAnimationFrame(() => m.querySelector("[data-rr-assign-cancel]")?.focus());
+  });
+}
+window._rrConfirmAssignOverride = _rrConfirmAssignOverride;
+
 // ─── Finalize · premium Draft → Live state transition ──────────────────
 // Treats Finalize as a ~2-second publish animation that communicates the
 // schedule has officially moved from Draft to Live. Calm, enterprise,
@@ -61438,8 +61530,8 @@ async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) 
   if (!_confirmLiveScheduleEdit()) return;
   const violations = await _checkAssignViolations(shiftId, shiftDate, driverId);
   if (violations.length > 0) {
-    const msg = "Rule violations:\n\n• " + violations.join("\n• ") + "\n\nSchedule anyway?";
-    if (!confirm(msg)) return;
+    const ok = await _rrConfirmAssignOverride(violations, _rrAssignCtx(driverId, shiftDate));
+    if (!ok) return;
   }
   // Capture the shift's current driver so the assign can be undone.
   let prevDriverId = null;
@@ -61517,8 +61609,8 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
     block_hours: block,
   });
   if (violations.length > 0) {
-    const msg = "Rule violations:\n\n• " + violations.join("\n• ") + "\n\nSchedule anyway?";
-    if (!confirm(msg)) return;
+    const ok = await _rrConfirmAssignOverride(violations, _rrAssignCtx(driverId, date));
+    if (!ok) return;
   }
 
   const insertPayload = {
@@ -63191,8 +63283,8 @@ document.addEventListener("drop", async (e) => {
   if (toDriver && (toDriver !== fromDriver || toDate !== fromDate)) {
     const violations = await _checkAssignViolations(shiftId, toDate, toDriver);
     if (violations.length > 0) {
-      const msg = "Rule violations:\n\n• " + violations.join("\n• ") + "\n\nSchedule anyway?";
-      if (!confirm(msg)) { _dragShift = null; return; }
+      const ok = await _rrConfirmAssignOverride(violations, _rrAssignCtx(toDriver, toDate));
+      if (!ok) { _dragShift = null; return; }
     }
   }
 

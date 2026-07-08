@@ -26,6 +26,14 @@ the pay-down happens incrementally.
 | Baseline (ratchet installed) | 2,901 | — |
 | Batch 1 — top 15 colors → primitives (`inline-styles.css`) | 1,673 | −1,228 |
 | Batch 2 — full slate/gray/amber/green/red scales across the whole dashboard document family (`inline-styles`, `schedule-rrx`, `onboarding-rrx`) | 910 | −763 |
+| Batch 3 — driver app onto its own primitive `:root` (`app/styles.css`, `app/rr-system.css`) | 758 | −152 |
+
+The driver app is a **separate document** from the dashboard, so it carries its
+own copy of the primitive palette in `app/rr-system.css`'s `:root` (22 of the
+primitives — only those actually used). Both surfaces now speak the same
+primitive vocabulary, which is what a later semantic-alias pass will build on
+(the app already has a mature semantic layer — `--rr-brand-primary`,
+`--rr-fg-primary`, … — that can point at these primitives).
 
 The **33 primitives** shipped so far are role-neutral, Tailwind-standard names
 (`--rr-white`, `--rr-blue-{50,600,700,800}`, `--rr-slate-{50..900}`,
