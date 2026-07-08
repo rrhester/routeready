@@ -14970,21 +14970,36 @@ function autoBuildDashboard(g) {
     const KPI_ACCENT = "#2563eb";
     const controls = [], insights = [], kpis = [], charts = [], tables = [], texts = [];
     texts.push({ id: rid("tx"), hero: true, heading: (WB.wb && WB.wb.title) || g.sheet.name, body: `Live overview across ${analyzed.length} sheet${analyzed.length > 1 ? "s" : ""} · auto-built` });
-    // KPI row: the headline metric from each sheet, then fill toward ~8 tiles
     const colRange = (a, col) => `${colLabel(col.c)}${a.rng.r0 + 2}:${colLabel(col.c)}${a.rng.r1 + 1}`;
-    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), sparkRange: colRange(a, col), format: "compact", accent: KPI_ACCENT, inkValue: true, srcSheetId: a.s.id });
+    // A column's non-null numeric values; "signal" = a non-zero total or more
+    // than one distinct value. Flat / all-zero metrics (e.g. Worked = 0) make
+    // dead "0" tiles and spiky one-blip sparklines, so we rank them last and
+    // only draw a sparkline when there's enough variation to read.
+    const colVals = (a, col) => { const out = []; for (let r = a.rng.r0 + 1; r <= a.rng.r1; r++) { const v = embedCellNum(a.s, { row: r, col: col.c }); if (v != null) out.push(v); } return out; };
+    const hasSignal = (a, col) => { const v = colVals(a, col); return v.length > 0 && (v.reduce((x, y) => x + y, 0) !== 0 || new Set(v).size > 1); };
+    const hasSpark = (a, col) => { const v = colVals(a, col); return v.length >= 3 && new Set(v).size > 1; };
+    // headline metric per sheet = its first numeric column that carries signal
+    for (const a of analyzed) a.nums.sort((x, y) => (hasSignal(a, y) ? 1 : 0) - (hasSignal(a, x) ? 1 : 0));
+    // KPI row: the headline metric from each sheet, then fill toward ~8 tiles
+    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), sparkRange: hasSpark(a, col) ? colRange(a, col) : undefined, format: "compact", accent: KPI_ACCENT, inkValue: true, srcSheetId: a.s.id });
     for (const a of analyzed) { if (kpis.length >= 8) break; pushKpi(a, a.nums[0]); }
     for (const a of analyzed) { if (kpis.length >= 8) break; if (a.nums[1]) pushKpi(a, a.nums[1]); }
-    // charts from the richest sheets that have a dimension with metrics to its right
+    // charts only where they render legibly. A date dimension → a line over time
+    // (reads well with many points). A categorical dimension is plotted one bar
+    // per row, so it's legible only for a low-cardinality group over few rows —
+    // over many near-unique rows it collapses into an unreadable smear, and no
+    // chart beats a broken one. Cap series at 4 so the legend stays clean.
     const chartable = analyzed.map((a) => {
-      const dim = a.dates[0] || a.cats[0];
+      const date = a.dates[0];
+      const dim = date || a.cats.find((c) => c.distinct <= 12 && c.distinct < a.rows);
       if (!dim) return null;
+      if (!date && a.rows > 26) return null;   // too many per-row bars to read
       const right = a.nums.filter((n) => n.c > dim.c);
       if (!right.length) return null;
-      return { a, dim, c0: dim.c, c1: Math.min(dim.c + 9, Math.max(...right.map((n) => n.c))) };
+      return { a, dim, date: !!date, c0: dim.c, c1: Math.min(dim.c + 4, Math.max(...right.map((n) => n.c))) };
     }).filter(Boolean).slice(0, 2);
-    for (const { a, dim, c0, c1 } of chartable) {
-      charts.push({ id: rid("ch"), type: a.dates[0] ? "line" : "column", title: `${a.s.name} · by ${dim.name}`, theme: "route", labels: false, grid: true, trend: !!a.dates[0], forecast: a.dates[0] ? 3 : 0, r0: a.rng.r0, c0, r1: a.rng.r1, c1, srcSheetId: a.s.id });
+    for (const { a, dim, date, c0, c1 } of chartable) {
+      charts.push({ id: rid("ch"), type: date ? "line" : "column", title: `${a.s.name} · by ${dim.name}`, theme: "route", labels: !date && a.rows <= 12, grid: true, trend: date, forecast: date ? 3 : 0, r0: a.rng.r0, c0, r1: a.rng.r1, c1, srcSheetId: a.s.id });
     }
     // insights + heatmap table + filters from the single richest sheet
     const top = analyzed[0];
