@@ -387,7 +387,7 @@
   right: 0;
   bottom: -4px;
   text-align: center;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: .01em;
   color: var(--rr-gray-900);
@@ -490,7 +490,7 @@
   border-radius: var(--rr-radius-medium) !important;
   color: var(--rr-fg-secondary) !important;
   font-family: var(--rr-font-family) !important;
-  font-size: 13px !important;
+  font-size: var(--fs-md) !important;
   font-weight: 500 !important;
   line-height: 1.2 !important;
   letter-spacing: 0 !important;
@@ -1156,7 +1156,7 @@
   border: 0;
   border-radius: var(--rr-radius-medium);
   color: var(--rr-fg-secondary);
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   transition: background var(--rr-motion-fast), color var(--rr-motion-fast);
 }
@@ -1258,7 +1258,7 @@
 }
 
 #rr-ob-print-area .rr-print-head {
-  font-size: 18px;
+  font-size: var(--fs-18);
   font-weight: 700;
   color: var(--rr-slate-900);
   margin: 0 0 16px;
@@ -1425,7 +1425,7 @@
 #view-onboarding-ops.rrx-onboarding #obsub-workauth .btn {
   font-family: var(--rr-font-family) !important;
   font-weight: 600 !important;
-  font-size: 13px !important;
+  font-size: var(--fs-md) !important;
   padding: 6px 12px !important;
   border-radius: var(--rr-radius-medium, 4px) !important;
   background: var(--rr-bg-card, var(--rr-white)) !important;
@@ -1588,7 +1588,7 @@
 #view-onboarding-ops.rrx-onboarding .ob-mx-head-title {
   font-family: var(--rr-font-family) !important;
   font-weight: 600 !important;
-  font-size: 14px !important;
+  font-size: var(--fs-base) !important;
   letter-spacing: -.005em !important;
   color: var(--rr-fg-primary, var(--rr-gray-900)) !important;
 }
@@ -1712,14 +1712,14 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-mx-namecell {
 body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-mx-namecell .avatar-sm {
   width: 24px !important;
   height: 24px !important;
-  font-size: 10px !important;
+  font-size: var(--fs-10) !important;
 }
 body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-mx-name {
-  font-size: 13px !important;
+  font-size: var(--fs-md) !important;
   line-height: 1.15 !important;
 }
 body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-mx-meta {
-  font-size: 11px !important;
+  font-size: var(--fs-xs) !important;
   line-height: 1.15 !important;
   margin-top: 1px !important;
 }
@@ -1810,7 +1810,7 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   background: transparent;
   color: var(--rr-fg-secondary, var(--rr-gray-500));
   font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
