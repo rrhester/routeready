@@ -12956,7 +12956,7 @@ async function _rrSmartFillDiagnostics(opts = {}) {
     run_id: window._rrLastOptimizationRunId || payload.run_id || null,
     dsp_id: window.RR?.dsp?.id || payload.dsp_id || null,
   };
-  if (typeof toast === "function") toast("Running Smart Fill diagnostics…", "info");
+  if (!opts.quiet && typeof toast === "function") toast("Running Smart Fill diagnostics…", "info");
   let result;
   try {
     const { data, error } = await sb.functions.invoke(
@@ -13002,7 +13002,7 @@ async function _rrSmartFillDiagnostics(opts = {}) {
       console.warn("[Smart Fill diagnostics] download failed:", e);
     }
   }
-  if (typeof toast === "function") {
+  if (!opts.quiet && typeof toast === "function") {
     const c = (trace.run_summary && trace.run_summary.counts) || {};
     toast(`Diagnostics ready — ${c.drivers_excluded ?? "?"} drivers excluded, ` +
           `${c.shifts_unfilled ?? "?"} shifts open.${_downloaded ? " Report downloaded." : " (See console.)"}`, "success");
@@ -51938,7 +51938,7 @@ function _rrShowSmartFillSummary(s) {
         closeAll();
       } else if (ev.target.closest("#rr-sf-summary-why")) {
         closeAll();
-        try { _rrSmartFillDiagnostics(); } catch (e) { console.warn("diagnostics:", e); }
+        try { _rrShowDecisionReportModal(); } catch (e) { console.warn("decision report:", e); }
       }
     });
     document.addEventListener("keydown", function _esc(ev) {
@@ -51947,6 +51947,55 @@ function _rrShowSmartFillSummary(s) {
   } catch (e) { console.warn("smart fill summary:", e); }
 }
 window._rrShowSmartFillSummary = _rrShowSmartFillSummary;
+
+// "See the decision report" — surfaces the CP-SAT solver's full trace
+// report (why each driver was/wasn't used, what was left open) in a
+// scrollable modal. Previously the button called _rrSmartFillDiagnostics
+// directly, which only console-logged the report + flashed a toast, so to
+// an operator "nothing happened". Now the report is shown in the UI.
+// Guarded end-to-end; the schedule is never touched (trace mode is a
+// read-only re-run of the last Smart Fill payload).
+async function _rrShowDecisionReportModal() {
+  document.getElementById("rr-sf-report-backdrop")?.remove();
+  const backdrop = document.createElement("div");
+  backdrop.id = "rr-sf-report-backdrop";
+  backdrop.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:10001;display:flex;align-items:center;justify-content:center;padding:24px";
+  backdrop.innerHTML =
+    `<div role="dialog" aria-modal="true" aria-label="Smart Fill decision report" style="width:720px;max-width:calc(100vw - 32px);max-height:82vh;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:12px;box-shadow:0 18px 56px rgba(15,23,42,.28);display:flex;flex-direction:column;overflow:hidden">`
+    + `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 18px;border-bottom:1px solid var(--border,#e5e7eb);flex-shrink:0">`
+      + `<div><div style="font-size:15px;font-weight:700;color:var(--text,#111827)">Decision report</div>`
+        + `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent,#2563eb)">Smart Fill · CP-SAT — how this schedule was built</div></div>`
+      + `<button type="button" id="rr-sf-report-x" aria-label="Close" style="background:none;border:0;font-size:22px;line-height:1;cursor:pointer;color:var(--text-muted,#6b7280);padding:0 4px">×</button>`
+    + `</div>`
+    + `<div id="rr-sf-report-body" style="flex:1;min-height:0;overflow:auto;padding:16px 18px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--text,#111827);white-space:pre-wrap;word-break:break-word">`
+      + `<span style="color:var(--text-subtle,#6b7280)">Generating the decision report…</span>`
+    + `</div>`
+    + `</div>`;
+  document.body.appendChild(backdrop);
+  const close = () => backdrop.remove();
+  backdrop.addEventListener("click", (ev) => {
+    if (ev.target === backdrop || ev.target.closest("#rr-sf-report-x")) close();
+  });
+  document.addEventListener("keydown", function _esc(ev) {
+    if (ev.key === "Escape") { close(); document.removeEventListener("keydown", _esc); }
+  });
+  const body = backdrop.querySelector("#rr-sf-report-body");
+  let trace = null;
+  try {
+    trace = await _rrSmartFillDiagnostics({ log: false, quiet: true });
+  } catch (e) { console.warn("decision report:", e); }
+  // The backdrop may have been closed while the solver ran.
+  if (!document.body.contains(backdrop)) return;
+  const report = trace && trace.report;
+  if (report) {
+    body.textContent = report;
+  } else {
+    body.innerHTML = `<div style="color:var(--text-subtle,#6b7280);font:13px/1.6 var(--font,system-ui,sans-serif)">`
+      + `Couldn't generate the decision report right now — the solver's trace mode didn't return one. `
+      + `Your schedule is unaffected (this is a read-only re-run). Please try again in a moment.</div>`;
+  }
+}
+window._rrShowDecisionReportModal = _rrShowDecisionReportModal;
 
 window.openAiSchedule = async function () {
   // Manual scheduling — Smart Fill is off; the board is filled by hand.
