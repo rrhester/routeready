@@ -27,6 +27,18 @@ the pay-down happens incrementally.
 | Batch 1 — top 15 colors → primitives (`inline-styles.css`) | 1,673 | −1,228 |
 | Batch 2 — full slate/gray/amber/green/red scales across the whole dashboard document family (`inline-styles`, `schedule-rrx`, `onboarding-rrx`) | 910 | −763 |
 | Batch 3 — driver app onto its own primitive `:root` (`app/styles.css`, `app/rr-system.css`) | 758 | −152 |
+| Batch 4 — driver app **semantic layer → primitives** (token definitions only) | 758 | 0* |
+
+*Batch 4 doesn't move the raw-hex count — it rewrites token *definitions*, not
+property values (which the ratchet measures). Its win is **architectural**: the
+app's semantic tokens (`--rr-brand-primary`, `--rr-fg-primary`, `--accent`,
+`--text`, `--green/--amber/--red`, …) now reference primitives
+(`--rr-brand-primary: var(--rr-blue-600)`) instead of holding their own hex. So
+the primitive palette is the **single source of truth** — change `--rr-blue-600`
+once and every brand surface follows. This is *step 2* (semantic aliases) of the
+plan below, shipped for the driver app. All 41 semantic tokens were verified to
+still resolve to their exact original colours (computed-style + visual gate), so
+it's pixel-identical.
 
 The driver app is a **separate document** from the dashboard, so it carries its
 own copy of the primitive palette in `app/rr-system.css`'s `:root` (22 of the
