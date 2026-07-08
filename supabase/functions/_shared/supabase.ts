@@ -14,6 +14,34 @@ export function serviceClient(): SupabaseClient {
   });
 }
 
+// message-attachments is a PRIVATE bucket (migration 0447). Turn a stored
+// attachment — either the new { path } form or a legacy { url } public URL —
+// into a fresh signed URL that an unauthenticated external fetcher (Twilio
+// MMS MediaUrl, Resend attachment path) can read for `ttlSeconds`. Signed via
+// the service role, so it bypasses RLS. Returns null on ANY failure so the
+// caller can skip the attachment WITHOUT failing the whole send.
+export async function signMessageAttachment(
+  supa: SupabaseClient,
+  att: { path?: string | null; url?: string | null } | null | undefined,
+  ttlSeconds = 86400,
+): Promise<string | null> {
+  try {
+    let path = att?.path ?? null;
+    if (!path && att?.url) {
+      const m = String(att.url).match(/\/object\/(?:public|sign)\/message-attachments\/([^?]+)/);
+      if (m) path = decodeURIComponent(m[1]);
+    }
+    if (!path) return null;
+    const { data, error } = await supa.storage
+      .from("message-attachments")
+      .createSignedUrl(path, ttlSeconds);
+    if (error || !data || !data.signedUrl) return null;
+    return data.signedUrl;
+  } catch (_) {
+    return null;
+  }
+}
+
 export function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
     ...init,

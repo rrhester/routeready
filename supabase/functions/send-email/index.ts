@@ -5,11 +5,11 @@
 //   RESEND_API_KEY
 //   RESEND_FROM_EMAIL          e.g. "RouteReady <hello@gorouteready.com>"
 //   RESEND_REPLY_TO            (optional)
-import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+import { serviceClient, jsonResponse, badRequest, signMessageAttachment } from "../_shared/supabase.ts";
 import { buildIcsRequest } from "../_shared/ics.ts";
 import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
-interface Attachment { name?: string; url: string; content_type?: string; size?: number }
+interface Attachment { name?: string; url?: string; path?: string; content_type?: string; size?: number }
 interface QueuedRow {
   id: string; dsp_id: string; applicant_id: string | null; folder_id: string | null;
   to_email: string; cc_emails: string[] | null;
@@ -211,12 +211,19 @@ Deno.serve(async (req) => {
     if (row.body_html) body.html = row.body_html;
     else body.text = row.body_text ?? "";
     if (effectiveReplyTo) body.reply_to = effectiveReplyTo;
-    // Resend supports `attachments: [{filename, path}]` where `path` is a
-    // public URL it fetches at send time.
+    // Resend fetches each attachment `path` (a URL) at send time. Attachments
+    // from the private message-attachments bucket (0447) must be signed fresh
+    // here; attachments from other buckets (e.g. fleet-bridge-attachments)
+    // already carry a valid signed url. Best-effort — a failure just drops
+    // that one attachment; the email still sends.
     const att = Array.isArray(row.attachments) ? row.attachments : [];
-    const outAtts: Record<string, unknown>[] = att
-      .filter((a) => a?.url)
-      .map((a) => ({ filename: a.name || "attachment", path: a.url, content_type: a.content_type }));
+    const outAtts: Record<string, unknown>[] = [];
+    for (const a of att) {
+      if (!a) continue;
+      const isMsgAtt = !!a.path || /\/object\/(?:public|sign)\/message-attachments\//.test(String(a.url || ""));
+      const url = isMsgAtt ? await signMessageAttachment(supa, a) : (a.url || null);
+      if (url) outAtts.push({ filename: a.name || "attachment", path: url, content_type: a.content_type });
+    }
 
     // Calendar invite (.ics) — rows stamped calendar_method 'request' or
     // 'cancel' (0429) get a standards RFC 5545 METHOD:REQUEST / CANCEL part

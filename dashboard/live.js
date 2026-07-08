@@ -30901,7 +30901,12 @@ async function _tpActivate() {
       const val = _sawValidate(list);
       if (!val.ok) { toast("Resolve the schedule issue first: " + val.violations[0], "warn"); return; }
       for (const sh of list) {
-        const { error } = await sb.rpc("assign_shift", { p_id: sh.id, p_driver_id: s.driverId });
+        // Staged shifts were open when staged — expect unassigned (0446)
+        // so a shift a dispatcher filled meanwhile is skipped, not stolen.
+        const { error } = await sb.rpc("assign_shift", {
+          p_id: sh.id, p_driver_id: s.driverId,
+          p_expected_driver_id: null, p_check_expected: true,
+        });
         if (error) console.warn("assign_shift on activate failed:", error);
         else if (sh.date) assignedDates.push(sh.date);
       }
@@ -31645,12 +31650,21 @@ async function _sawSave(driver) {
   if (!val.ok) { toast("Resolve compliance issues first: " + val.violations[0], "warn"); return; }
   const btn = document.querySelector("[data-saw-save]");
   if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
-  let ok = 0;
+  let ok = 0, raced = 0;
   for (const sh of list) {
-    const { error } = await sb.rpc("assign_shift", { p_id: sh.id, p_driver_id: st.driver.id });
-    if (error) console.warn("assign_shift failed:", error); else ok += 1;
+    // Staged from the open-shifts list — expect unassigned (0446) so a
+    // concurrently-filled shift is skipped instead of overwritten.
+    const { error } = await sb.rpc("assign_shift", {
+      p_id: sh.id, p_driver_id: st.driver.id,
+      p_expected_driver_id: null, p_check_expected: true,
+    });
+    if (error) {
+      if (_rrIsShiftConflict(error)) raced += 1;
+      console.warn("assign_shift failed:", error);
+    } else ok += 1;
   }
-  toast(`Scheduled ${ok} shift${ok === 1 ? "" : "s"} for the new hire`, ok ? "success" : "warn");
+  toast(`Scheduled ${ok} shift${ok === 1 ? "" : "s"} for the new hire`
+    + (raced ? ` · ${raced} already taken by another dispatcher` : ""), ok ? "success" : "warn");
   if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
   // Reload the section so the just-assigned shifts drop out of "open".
   await _sawLoadData(driver, st.firstDate, st.pair);
@@ -39276,6 +39290,15 @@ function openMessageEditor(template) {
   // upload + remove files before saving.
   let attachments = Array.isArray(t.attachments) ? [...t.attachments] : [];
 
+  // message-attachments is a private bucket (0447). Attachments store a
+  // storage `path`; legacy rows only have a public `url` we can derive the
+  // path from. Returns the storage path (or null).
+  const _msgAttPath = (a) => {
+    if (a?.path) return a.path;
+    const m2 = String(a?.url || "").match(/\/object\/(?:public|sign)\/message-attachments\/([^?]+)/);
+    return m2 ? decodeURIComponent(m2[1]) : null;
+  };
+
   let m = document.getElementById("rr-msg-modal");
   if (m) m.remove();
   m = document.createElement("div");
@@ -39293,7 +39316,7 @@ function openMessageEditor(template) {
           <div class="u-xs-subtle">${a.content_type || ""} · ${a.size ? Math.round(a.size/1024)+" KB" : ""}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <a class="btn btn-sm" href="${a.url}" target="_blank" rel="noreferrer">Open</a>
+          <button class="btn btn-sm" data-rr-att-open="${i}">Open</button>
           <button class="btn btn-sm" data-rr-att-remove="${i}" style="color:var(--red)">Remove</button>
         </div>
       </div>`).join("");
@@ -39359,6 +39382,19 @@ function openMessageEditor(template) {
       return;
     }
 
+    const openBtn = e.target.closest("[data-rr-att-open]");
+    if (openBtn) {
+      const a = attachments[parseInt(openBtn.getAttribute("data-rr-att-open"), 10)];
+      const p = a && _msgAttPath(a);
+      if (!p) { toast("Can't open this attachment", "warn"); return; }
+      try {
+        const { data: sg } = await sb.storage.from("message-attachments").createSignedUrl(p, 300);
+        if (sg?.signedUrl) window.open(sg.signedUrl, "_blank", "noopener");
+        else toast("Couldn't open attachment", "warn");
+      } catch (_) { toast("Couldn't open attachment", "warn"); }
+      return;
+    }
+
     if (e.target.closest("[data-rr-att-upload]")) {
       const input = m.querySelector("[data-rr-att-file]");
       const file = input?.files?.[0];
@@ -39368,9 +39404,10 @@ function openMessageEditor(template) {
         contentType: file.type, upsert: false,
       });
       if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
-      const { data: pub } = sb.storage.from("message-attachments").getPublicUrl(path);
+      // Private bucket (0447) — store the path; "Open" signs on click and the
+      // senders sign a fresh URL at send time.
       attachments.push({
-        name: file.name, url: pub.publicUrl,
+        name: file.name, path,
         content_type: file.type, size: file.size,
       });
       input.value = "";
@@ -39384,8 +39421,17 @@ function openMessageEditor(template) {
       if (!body.trim()) { toast("Body is required", "warn"); return; }
       const subject = isEmail ? m.querySelector("[data-rr-msg-subject]").value : t.subject;
       const active = m.querySelector("[data-rr-msg-active]").checked;
+      // Persist attachments in the canonical { name, path, … } form so the
+      // senders can sign them (0447). Migrate legacy rows to `path` where we
+      // can derive it; keep the old `url` only when we can't.
+      const attachmentsOut = attachments.map((a) => {
+        const p = _msgAttPath(a);
+        return p
+          ? { name: a.name, path: p, content_type: a.content_type, size: a.size }
+          : { name: a.name, url: a.url, content_type: a.content_type, size: a.size };
+      });
       const { error } = await sb.from("message_templates")
-        .update({ body, subject, active, attachments })
+        .update({ body, subject, active, attachments: attachmentsOut })
         .eq("id", t.id);
       if (error) { toast("Save failed: " + error.message, "warn"); return; }
       m.remove();
@@ -52098,7 +52144,9 @@ async function fillShiftsFromPreviousWeek() {
     }
 
     const wr = await _assignShiftsParallel(
-      assignments.map(a => ({ id: a.shiftId, driverId: a.driverId })));
+      // Expect unassigned: the rebuild cleared this week's assignments just
+      // above, so anything reassigned since belongs to another dispatcher.
+      assignments.map(a => ({ id: a.shiftId, driverId: a.driverId, expectedDriverId: null })));
     const assigned = wr.assigned;
     const open = thisRegular.length - assigned;
     toast(
@@ -52126,17 +52174,26 @@ window.fillShiftsFromPreviousWeek = fillShiftsFromPreviousWeek;
 // UPDATE by id with no cross-row contention, so we fire them in
 // bounded-concurrency waves — ~10x fewer wall-clock round-trips.
 async function _assignShiftsParallel(items, concurrency = 12) {
-  let assigned = 0, failed = 0, firstError = null;
+  let assigned = 0, failed = 0, conflicts = 0, firstError = null;
   for (let i = 0; i < items.length; i += concurrency) {
     const slice = items.slice(i, i + concurrency);
     const results = await Promise.all(slice.map(async (it) => {
       _markLocalShiftMutation();
-      const { error } = await sb.rpc("assign_shift", { p_id: it.id, p_driver_id: it.driverId });
+      // Items that carry expectedDriverId opt into the optimistic check
+      // (migration 0446): the write refuses instead of clobbering when
+      // the shift changed since the caller's snapshot.
+      const args = { p_id: it.id, p_driver_id: it.driverId };
+      if ("expectedDriverId" in it) {
+        args.p_expected_driver_id = it.expectedDriverId;
+        args.p_check_expected = true;
+      }
+      const { error } = await sb.rpc("assign_shift", args);
       return { it, error };
     }));
     for (const { it, error } of results) {
       if (error) {
         failed += 1;
+        if (_rrIsShiftConflict(error)) conflicts += 1;
         if (!firstError) firstError = error.message || "assign_shift failed";
         console.warn("assign_shift failed:", it.id, "->", it.driverId, error);
       } else {
@@ -52144,7 +52201,12 @@ async function _assignShiftsParallel(items, concurrency = 12) {
       }
     }
   }
-  return { assigned, failed, firstError };
+  // Any conflict means another dispatcher edited while we were writing —
+  // say so once (per batch, not per row) so the skips aren't mysterious.
+  if (conflicts > 0) {
+    toast(`${conflicts} shift${conflicts === 1 ? " was" : "s were"} changed by another dispatcher mid-write and left as-is.`, "warn");
+  }
+  return { assigned, failed, conflicts, firstError };
 }
 
 // ── Monthly view · weeks-down-the-left / days-across-the-top
@@ -54629,10 +54691,14 @@ async function autoAssignDriversForWeek() {
     }
   }
   const _shiftDate = new Map(allShiftsForDateLookup.map(s => [s.id, s.date]));
+  // Optimistic write: each row carries the driver the pre-run DB snapshot
+  // held, so assign_shift (0446) refuses instead of clobbering any shift a
+  // dispatcher touched while the solver was running.
+  const _shiftPrevDriver = new Map(allShiftsForDateLookup.map(s => [s.id, s.driver_id ?? null]));
   const toWrite = result.assigned_shifts
     .filter(a => a.source !== "locked" && a.source !== "preserved")
     .filter(a => !_trainBusy.has(`${a.driver_id}|${_shiftDate.get(a.shift_id)}`))
-    .map(a => ({ id: a.shift_id, driverId: a.driver_id }));
+    .map(a => ({ id: a.shift_id, driverId: a.driver_id, expectedDriverId: _shiftPrevDriver.get(a.shift_id) ?? null }));
   // What-if mode never writes back to the shifts table. Synthesize a
   // wr.assigned == toWrite.length, failed == 0 so downstream code
   // (metrics, diagnostics) keeps working unchanged.
@@ -62002,6 +62068,18 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
   return violations;
 }
 
+// True when an assign_shift error is the optimistic-concurrency refusal
+// (migration 0446): the shift's assignment changed since we last looked.
+function _rrIsShiftConflict(error) {
+  return !!(error && /shift_conflict/.test(error.message || ""));
+}
+// Standard handling for a lost race: tell the operator plainly and
+// refresh the board so they act on reality, not a stale grid.
+function _rrHandleShiftConflict() {
+  toast("That shift was just changed by another dispatcher — refreshing the board.", "warn");
+  if (typeof loadScheduleView === "function") { try { loadScheduleView(); } catch (_) {} }
+}
+
 async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) {
   if (!_confirmLiveScheduleEdit()) return;
   const violations = await _checkAssignViolations(shiftId, shiftDate, driverId);
@@ -62009,15 +62087,24 @@ async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) 
     const ok = await _rrConfirmAssignOverride(violations, _rrAssignCtx(driverId, shiftDate));
     if (!ok) return;
   }
-  // Capture the shift's current driver so the assign can be undone.
-  let prevDriverId = null;
+  // Capture the shift's current driver so the assign can be undone — and
+  // so the write can be optimistic: assign only if the shift still holds
+  // this driver when the UPDATE lands (migration 0446).
+  let prevDriverId = null, prevKnown = false;
   try {
     const { data: prev } = await sb.from("shifts").select("driver_id").eq("id", shiftId).single();
     prevDriverId = prev ? prev.driver_id : null;
+    prevKnown = true;
   } catch (_) {}
   _markLocalShiftMutation();
-  const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: driverId });
-  if (error) { toast("Assign failed: " + error.message, "warn"); return; }
+  const args = { p_id: shiftId, p_driver_id: driverId };
+  if (prevKnown) { args.p_expected_driver_id = prevDriverId; args.p_check_expected = true; }
+  const { error } = await sb.rpc("assign_shift", args);
+  if (error) {
+    if (_rrIsShiftConflict(error)) { _rrHandleShiftConflict(); return; }
+    toast("Assign failed: " + error.message, "warn");
+    return;
+  }
   toast(violations.length > 0 ? "Assigned (override)" : "Shift assigned", "success");
   if (prevDriverId !== driverId) {
     _rrPushUndo({
@@ -62025,8 +62112,18 @@ async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) 
              + (shiftDate ? " · " + shiftDate : ""),
       undo: async () => {
         _markLocalShiftMutation();
-        const { error: undoErr } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: prevDriverId });
-        if (undoErr) throw new Error(undoErr.message);
+        // Undo is optimistic too: only put the previous driver back if
+        // the shift still holds the driver WE assigned — never clobber a
+        // colleague's newer change.
+        const { error: undoErr } = await sb.rpc("assign_shift", {
+          p_id: shiftId, p_driver_id: prevDriverId,
+          p_expected_driver_id: driverId, p_check_expected: true,
+        });
+        if (undoErr) {
+          throw new Error(_rrIsShiftConflict(undoErr)
+            ? "the shift has since been changed by another dispatcher"
+            : undoErr.message);
+        }
         if (typeof renderScheduleWeek === "function") renderScheduleWeek();
       },
     });
@@ -62156,8 +62253,17 @@ function openAssignShiftModal(shiftId) {
       if (!_confirmLiveScheduleEdit()) return;
       const did = document.getElementById("rr-as-driver").value;
       _markLocalShiftMutation();
-      const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: did });
-      if (error) { toast("Assign failed: " + error.message, "warn"); return; }
+      // This modal only opens from an OPEN shift — expect unassigned so a
+      // colleague's just-made assignment is never silently overwritten.
+      const { error } = await sb.rpc("assign_shift", {
+        p_id: shiftId, p_driver_id: did,
+        p_expected_driver_id: null, p_check_expected: true,
+      });
+      if (error) {
+        if (_rrIsShiftConflict(error)) { m.remove(); _rrHandleShiftConflict(); return; }
+        toast("Assign failed: " + error.message, "warn");
+        return;
+      }
       m.remove();
       toast("Shift assigned", "success");
       loadScheduleView();
