@@ -84,6 +84,19 @@ test("R004 — XL route requires xl certification", () => {
   assert.equal(r.assigned_shifts[0].driver_id, "d2");
 });
 
+test("R004 — EDV route requires edv certification", () => {
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s1", route_type: "edv" })],
+      drivers: [
+        driver({ driver_id: "d1", edv_certified: false }),
+        driver({ driver_id: "d2", edv_certified: true }),
+      ],
+    }),
+  );
+  assert.equal(r.assigned_shifts[0].driver_id, "d2");
+});
+
 test("R005 — PTO on the shift date blocks the driver", () => {
   const r = runEngine(
     input({

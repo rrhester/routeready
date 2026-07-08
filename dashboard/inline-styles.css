@@ -147,11 +147,12 @@
 
   /* ── Route color coding (per route_classification) ────────────
      One hex variable per route type. The Schedule chip rules in
-     schedule-rrx.css derive fill / border / shadow from these via
-     color-mix at the standard 22% / 65% / 22% opacities so the
-     DSP only has to pick ONE color per route in the Week-view
-     Rules popover. The popover writes overrides on :root via
-     setProperty so the colors persist per-browser. */
+     schedule-rrx.css paint the fill with this hex EXACTLY and
+     derive only the crisp border via color-mix, so the DSP picks
+     ONE color per route in the Schedule Colors popover and sees
+     precisely that color on the grid. The popover JS also writes
+     a matching --rr-route-t-* auto-contrast text var (white on
+     dark picks, ink on light) next to each color override. */
   --rr-route-c-rescue:#DC2626;
   --rr-route-c-nursery:#0D9488;
   --rr-route-c-other:#6B7280;
@@ -17556,6 +17557,14 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-v2-intel-tile:focus-visible{
             outline:none;background:rgba(15,23,42,.04);color:var(--text);
             box-shadow:0 0 0 2px rgba(37,99,235,.30);
+          }
+          /* Not-yet-wired intel views ship disabled — muted, no hover
+             affordance, cursor default. Remove the class + disabled attr
+             when a view's renderer registers in _RR_INTEL_RENDERERS. */
+          #view-schedule .sched-v2-intel-tile-soon,
+          #view-schedule .sched-v2-intel-tile-soon:hover{
+            background:transparent;color:var(--text-subtle);
+            opacity:.55;cursor:default;
           }
           /* Active intel tile · subtle ring + brand color when its
              view is being shown. Same affordance as the schedule

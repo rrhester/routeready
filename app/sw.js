@@ -24,7 +24,11 @@
 // mandatory step (the direct "Send to dispatch" / "Save or share PDF" bypass
 // buttons are gone), and the full Receipt submission flow ships. Bumped so
 // installed driver PWAs purge the old shell and pick up the new app.js + CSS.
-const SHELL_CACHE = "rr-app-shell-v133";
+//
+// v134 · Receipt OCR confidence: the on-device OCR's confidence score now
+// rides along with receipt submissions (receipt_uploads.ocr_confidence was
+// always null). Bumped so installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v134";
 const SHELL_FILES = [
   "./",
   "index.html",

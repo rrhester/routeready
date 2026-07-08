@@ -6484,6 +6484,13 @@ async function openOrCreateReceiptLedger(wrap) {
   await openWorkbook(wb.id);
 }
 
+// Deep-link hook · the schedule rail's Receipts panel ("Open ledger") calls
+// this after goto("workbooks") so the singleton Receipt Ledger opens without
+// the operator hunting for its card.
+try {
+  window.rrOpenReceiptLedger = () => { try { return openOrCreateReceiptLedger(null); } catch (_) {} };
+} catch (_) {}
+
 // Whenever the Receipt Ledger is opened — any way, and regardless of migration
 // state — guarantee (1) the Status column is a dropdown and (2) a "How it
 // works" tab exists. Runs client-side so it doesn't depend on the server heal
@@ -18173,8 +18180,10 @@ function renderLiveBar(g) {
   if (!label) { if (bar) bar.remove(); return; }
   if (!bar) { bar = document.createElement("div"); bar.className = "wb-livebar"; bar.setAttribute("data-wb-livebar", ""); chrome.appendChild(bar); }
   const at = g.sheet.meta.fill.loadedAt;
+  // "Synced", not "Live" — the loader writes a point-in-time snapshot
+  // into the cells; it does not auto-update until someone hits Refresh.
   bar.innerHTML = `<span class="wb-live-dot" aria-hidden="true"></span>
-    <span class="wb-live-src">Live · ${esc(label)}</span>
+    <span class="wb-live-src">Synced · ${esc(label)}</span>
     <span class="wb-live-at">updated ${esc(agoText(at))}</span>
     ${WB.canEdit ? `<button type="button" class="wb-live-refresh" data-wb-liverefresh title="Re-pull the latest data">⟳ Refresh</button>` : ""}`;
 }
