@@ -29133,6 +29133,52 @@ body:not(.rr-wb-fullscreen) #view-workbooks #rr-wb-root{
 }
 .wb-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .wb-input[readonly]{background:var(--canvas);color:var(--text-muted)}
+
+/* range field + "select on the grid" button */
+.wb-range-input{display:flex;gap:6px;align-items:stretch}
+.wb-range-input .wb-input{flex:1;min-width:0}
+.wb-range-pick{
+  flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:36px;
+  border:1px solid var(--border-strong);border-radius:var(--r-md);
+  background:var(--surface);color:var(--text-muted);cursor:pointer;
+  transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
+}
+.wb-range-pick:hover{background:var(--canvas);color:var(--accent-text);border-color:var(--accent)}
+.wb-range-pick:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+
+/* the dialog steps out of the way while the user picks on the grid */
+.rr-modal-backdrop.is-picking{display:none}
+
+.wb-rangepick-bar{
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);
+  z-index:calc(var(--z-modal) + 5);
+  display:flex;align-items:center;gap:var(--s-4);flex-wrap:wrap;
+  max-width:calc(100vw - 32px);
+  padding:10px 12px 10px 14px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-xl);box-shadow:var(--shadow-xl);
+  animation:rrModalRise 180ms cubic-bezier(0.2,0.8,0.25,1) both;
+}
+.wb-rangepick-msg{display:flex;align-items:center;gap:10px;min-width:0}
+.wb-rangepick-msg > svg{color:var(--accent-text);flex:0 0 auto}
+.wb-rangepick-msg strong{display:block;font-size:var(--fs-sm);font-weight:700;color:var(--text);line-height:1.25}
+.wb-rangepick-hint{font-size:var(--fs-xs);color:var(--text-subtle)}
+.wb-rangepick-ref{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:var(--fs-sm);font-weight:700;color:var(--text);white-space:nowrap;
+  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 10px;
+}
+.wb-rangepick-ref.is-invalid{color:var(--red);border-color:var(--red)}
+.wb-rangepick-btn{
+  appearance:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);
+  font:inherit;font-size:var(--fs-sm);font-weight:600;padding:7px 12px;border-radius:var(--r-md);cursor:pointer;
+  transition:background var(--t-fast),border-color var(--t-fast);
+}
+.wb-rangepick-btn:hover{background:var(--canvas)}
+.wb-rangepick-btn.primary{border-color:transparent;background:var(--green-dark);color:var(--text-inverse)}
+.wb-rangepick-btn.primary:hover{background:#14532D}
+.wb-rangepick-btn:disabled{opacity:.5;cursor:not-allowed}
+.wb-rangepick-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .wb-vis-row{display:flex;gap:var(--s-3)}
 .wb-vis-opt{
   flex:1;display:flex;gap:var(--s-2-5);align-items:flex-start;cursor:pointer;
