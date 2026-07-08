@@ -8249,8 +8249,13 @@ function renderChecklistsHub() {
   if (!session?.token) { writeSession(null); render(); return; }
   const main = document.getElementById("main");
   main.innerHTML = `
+    <div id="rr-clk-outbox-banner" hidden style="margin-bottom:12px"></div>
     <div id="rr-clk-hub-skel">${taskSkeletonHtml(2)}</div>
     <div id="rr-clk-hub"></div>`;
+
+  // Surface anything queued offline, and try to flush now that we're here.
+  _clkPaintOutboxBanner();
+  _clkFlushOutbox({ silent: true });
 
   sb.rpc("driver_list_checklists", { p_token: session.token }).then(({ data, error }) => {
     if (currentRoute() !== "/checklists") return;
@@ -8317,34 +8322,117 @@ async function refreshChecklistsBadge() {
 // Answers post as { <item_id>: { v, note?, photos? } } to
 // driver_save_checklist / driver_submit_checklist.
 
+// Per-fill photo model: itemId -> [{ path } (already uploaded) |
+// { file, url } (newly picked)]. Rebuilt on every render of the fill
+// screen so multiple photos, previews and removal all work off one source.
+let _clkPhotos = {};
+
+// Downscale + JPEG-encode a captured photo so a ~6 MB phone shot uploads
+// as a couple hundred KB. Reuses the scanner's orientation-aware decode.
+// Never blocks a submit — any failure falls back to the original file.
+async function _clkCompressPhoto(file) {
+  if (!file || !/^image\//.test(file.type || "")) return file;
+  try {
+    const bmp = await _scanLoadBitmap(file);
+    const sw = bmp.width || bmp.naturalWidth, sh = bmp.height || bmp.naturalHeight;
+    const MAX = 1600;
+    const scale = Math.min(1, MAX / Math.max(sw, sh));
+    const ow = Math.max(1, Math.round(sw * scale)), oh = Math.max(1, Math.round(sh * scale));
+    const c = document.createElement("canvas");
+    c.width = ow; c.height = oh;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, ow, oh);
+    ctx.drawImage(bmp, 0, 0, ow, oh);
+    if (typeof bmp.close === "function") bmp.close();
+    const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.82));
+    if (!blob) return file;
+    if (blob.size >= file.size && scale === 1) return file;   // already small
+    return new File([blob], (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch (_) {
+    return file;
+  }
+}
+
+// data:image/png;base64,… → Blob, for uploading a signature canvas.
+function _dataUrlToBlob(dataUrl) {
+  const [head, b64] = String(dataUrl).split(",");
+  const mime = (head.match(/data:([^;]+)/) || [])[1] || "image/png";
+  const bin = atob(b64 || "");
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// Sign a driver-documents storage path for display (anon can sign this
+// private bucket). Returns null on failure so callers can fall back.
+async function _clkSignedUrl(path) {
+  try {
+    const { data } = await sb.storage.from("driver-documents").createSignedUrl(path, 3600);
+    return data?.signedUrl || null;
+  } catch (_) { return null; }
+}
+
+// Paint the thumbnail strip for a photo item from _clkPhotos. New photos
+// show a preview; restored (already-uploaded) ones show a labeled chip.
+function _clkRenderPhotoStrip(itemId) {
+  const strip = document.querySelector(`[data-rr-clk-photostrip="${CSS.escape(itemId)}"]`);
+  if (!strip) return;
+  const list = _clkPhotos[itemId] || [];
+  strip.innerHTML = list.map((p, i) => `
+    <div class="clk-thumb" style="position:relative;width:64px;height:64px;margin:0 8px 8px 0">
+      ${p.url
+        ? `<img src="${escapeHtml(p.url)}" alt="Photo ${i + 1}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border,#d1d5db)"/>`
+        : `<span style="display:flex;width:64px;height:64px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border,#d1d5db);background:var(--surface,#f3f4f6);font-size:11px;color:var(--text-subtle,#6b7280)">Photo ${i + 1}</span>`}
+      <button type="button" data-rr-clk-photodel="${escapeHtml(itemId)}|${i}" aria-label="Remove photo ${i + 1}" style="position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;border:none;background:#111827;color:#fff;font-size:12px;line-height:1;cursor:pointer">✕</button>
+    </div>`).join("");
+}
+
 function _clkItemHtml(item) {
-  const req = item.required ? ' <span style="color:#dc2626">*</span>' : "";
-  const help = item.helper_text ? `<div class="clk-helper">${escapeHtml(item.helper_text)}</div>` : "";
+  // Required is announced via aria-required on the control/group; the red
+  // star is decorative (aria-hidden) so it isn't the only cue.
+  const req = item.required ? ' <span class="clk-req" aria-hidden="true" style="color:#dc2626">*</span>' : "";
+  const areq = item.required ? ' aria-required="true"' : "";
+  const help = item.helper_text ? `<div class="clk-helper" id="clk-help-${escapeHtml(item.id)}">${escapeHtml(item.helper_text)}</div>` : "";
+  const descBy = item.helper_text ? ` aria-describedby="clk-help-${escapeHtml(item.id)}"` : "";
   const id = escapeHtml(item.id);
+  const fid = `clk-field-${id}`;     // control id, targeted by the row <label for>
+  const lid = `clk-lbl-${id}`;       // row label id, for group/canvas labelling
+  // Types with a single native control get a plain label[for]; radiogroup,
+  // checkbox and signature need explicit association instead.
   let control = "";
+  let labelFor = ` for="${fid}"`;
   if (item.item_type === "checkbox") {
-    control = `<label class="clk-checkrow"><input type="checkbox" data-rr-clk="${id}" data-rr-clk-type="checkbox"/><span>Mark as done</span></label>`;
+    control = `<label class="clk-checkrow"><input type="checkbox" id="${fid}" data-rr-clk="${id}" data-rr-clk-type="checkbox"${areq}${descBy}/><span>Mark as done</span></label>`;
   } else if (item.item_type === "yes_no") {
-    control = `<div class="form-fill-choice-row" data-rr-clk="${id}" data-rr-clk-type="yes_no">
+    labelFor = "";  // a group can't be targeted by label[for]
+    control = `<div class="form-fill-choice-row" role="radiogroup" aria-labelledby="${lid}"${areq}${descBy} data-rr-clk="${id}" data-rr-clk-type="yes_no">
       <label><input type="radio" name="clk-${id}" value="yes"/><span>Yes</span></label>
       <label><input type="radio" name="clk-${id}" value="no"/><span>No</span></label>
     </div>`;
   } else if (item.item_type === "number") {
-    control = `<input type="number" inputmode="decimal" step="any" data-rr-clk="${id}" data-rr-clk-type="number"/>`;
+    control = `<input type="number" id="${fid}" inputmode="decimal" step="any" data-rr-clk="${id}" data-rr-clk-type="number"${areq}${descBy}/>`;
   } else if (item.item_type === "photo") {
-    control = `<input type="file" accept="image/*" capture="environment" data-rr-clk="${id}" data-rr-clk-type="photo"/><div class="clk-photo-note" data-rr-clk-photonote="${id}" hidden></div>`;
+    control = `<div class="clk-photos">
+      <div class="clk-photo-strip" data-rr-clk-photostrip="${id}" style="display:flex;flex-wrap:wrap"></div>
+      <label class="clk-photo-add" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-strong,#cbd5e1);border-radius:10px;cursor:pointer;font-size:var(--fs-sm)">
+        <input type="file" id="${fid}" accept="image/*" multiple hidden data-rr-clk="${id}" data-rr-clk-type="photo"${areq}${descBy}/>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <span>Add photo</span>
+      </label>
+    </div>`;
   } else if (item.item_type === "signature") {
+    labelFor = "";  // canvas isn't a labelable form control
     control = `<div class="clk-sigwrap">
-      <canvas class="clk-sigpad" id="clk-sig-${id}" data-rr-clk="${id}" data-rr-clk-type="signature" height="140"></canvas>
+      <canvas class="clk-sigpad" id="clk-sig-${id}" role="img" tabindex="0" aria-labelledby="${lid}" aria-label="Signature pad — sign with your finger" data-rr-clk="${id}" data-rr-clk-type="signature" height="140"></canvas>
       <button type="button" class="clk-sigclear" id="clk-sigclear-${id}">Clear</button>
     </div>`;
   } else if (item.item_type === "note") {
-    control = `<textarea rows="3" data-rr-clk="${id}" data-rr-clk-type="note"></textarea>`;
+    control = `<textarea rows="3" id="${fid}" data-rr-clk="${id}" data-rr-clk-type="note"${areq}${descBy}></textarea>`;
   } else {
-    control = `<input type="text" data-rr-clk="${id}" data-rr-clk-type="short_text"/>`;
+    control = `<input type="text" id="${fid}" data-rr-clk="${id}" data-rr-clk-type="short_text"${areq}${descBy}/>`;
   }
   return `<div class="form-fill-row clk-row">
-    <label class="form-fill-label">${escapeHtml(item.label || "Untitled item")}${req}</label>
+    <label class="form-fill-label" id="${lid}"${labelFor}>${escapeHtml(item.label || "Untitled item")}${req}</label>
     ${help}
     ${control}
   </div>`;
@@ -8359,11 +8447,21 @@ function _clkAnswerDisplay(item, ans) {
     return n ? `${n} photo${n === 1 ? "" : "s"} attached` : "No photo";
   }
   if (item.item_type === "signature") {
-    return (typeof v === "string" && v.startsWith("data:image"))
-      ? `<img class="clk-sig-img" src="${escapeHtml(v)}" alt="Signature"/>` : "Signed";
+    if (typeof v === "string" && v.startsWith("data:image")) return `<img class="clk-sig-img" src="${escapeHtml(v)}" alt="Signature"/>`;
+    if (typeof v === "string" && v) return `<img class="clk-sig-img" data-rr-sig-path="${escapeHtml(v)}" alt="Signature"/>`;  // signed after render
+    return "Signed";
   }
   const s = v == null || v === "" ? "—" : String(v);
   return escapeHtml(s);
+}
+
+// Swap stored-signature <img data-rr-sig-path> placeholders for signed URLs.
+function _clkEnhanceSignatures(root) {
+  (root || document).querySelectorAll("img[data-rr-sig-path]").forEach((img) => {
+    const p = img.getAttribute("data-rr-sig-path");
+    img.removeAttribute("data-rr-sig-path");
+    _clkSignedUrl(p).then((u) => { if (u) img.src = u; });
+  });
 }
 
 async function _clkCollect(items, opts = {}) {
@@ -8373,6 +8471,7 @@ async function _clkCollect(items, opts = {}) {
   const dspId    = session?.dsp_id    || null;
   const skipUploads = !!opts.skipUploads;
   const uploads = [];
+  let uploadFailed = 0;
   for (const item of items) {
     const el = document.querySelector(`#rr-clk-fill [data-rr-clk="${CSS.escape(item.id)}"]`);
     if (!el) continue;
@@ -8383,36 +8482,232 @@ async function _clkCollect(items, opts = {}) {
       const sel = el.querySelector("input[type=radio]:checked");
       if (sel) out[item.id] = { v: sel.value };
     } else if (t === "photo") {
-      const existing = el.dataset.rrExisting ? JSON.parse(el.dataset.rrExisting) : [];
-      const f = el.files?.[0];
-      if (f && !skipUploads) {
-        // Same bucket + dsp-prefixed path contract as form photo fields:
-        // the FIRST folder must be the DSP id so dispatch can sign URLs.
-        const ts = Date.now();
-        const safe = (f.name || "photo").replace(/[^A-Za-z0-9._-]+/g, "-");
-        const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
-        out[item.id] = { photos: existing };
-        uploads.push(
-          sb.storage.from("driver-documents").upload(path, f, { contentType: f.type, upsert: false })
-            .then(({ error }) => {
-              if (error) console.warn("checklist photo upload failed:", error.message);
-              else out[item.id] = { photos: existing.concat([path]) };
-            })
-            .catch((e) => console.warn("checklist photo upload error:", e))
-        );
-      } else if (existing.length) {
-        out[item.id] = { photos: existing };
-      }
+      // Photos are handled off _clkPhotos after the loop (below).
     } else if (t === "signature") {
-      if (el._rrHasInk) out[item.id] = { v: el.toDataURL("image/png") };
-      else if (el.dataset.rrExistingSig) out[item.id] = { v: el.dataset.rrExistingSig };
+      // Fresh ink on a server pass is uploaded below; on a local-draft pass
+      // it's kept inline so it survives a reload. An untouched pad keeps its
+      // existing value (a storage path, or a legacy inline data URL).
+      if (el._rrHasInk && skipUploads) out[item.id] = { v: el.toDataURL("image/png") };
+      else if (!el._rrHasInk && el.dataset.rrExistingSig) out[item.id] = { v: el.dataset.rrExistingSig };
     } else {
       const v = (el.value || "").trim();
       if (v !== "") out[item.id] = { v };
     }
   }
+
+  // Photos: upload any not-yet-stored files (unless this is a local-draft
+  // pass), stamping the storage path back onto the entry. The DSP-id-first
+  // path contract lets dispatch sign URLs.
+  if (!skipUploads) {
+    for (const item of items) {
+      if (item.item_type !== "photo") continue;
+      for (const entry of (_clkPhotos[item.id] || [])) {
+        if (entry.path || !entry.file) continue;
+        const ff = entry.file;
+        const safe = (ff.name || "photo").replace(/[^A-Za-z0-9._-]+/g, "-");
+        const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        uploads.push(
+          sb.storage.from("driver-documents").upload(path, ff, { contentType: ff.type, upsert: false })
+            .then(({ error }) => { if (error) { uploadFailed++; console.warn("checklist photo upload failed:", error.message); } else { entry.path = path; } })
+            .catch((e) => { uploadFailed++; console.warn("checklist photo upload error:", e); })
+        );
+      }
+    }
+
+    // Signatures: upload freshly-drawn ink as a PNG to storage instead of
+    // stuffing tens of KB of base64 into value_text on every save.
+    for (const item of items) {
+      if (item.item_type !== "signature") continue;
+      const el = document.querySelector(`#rr-clk-fill [data-rr-clk="${CSS.escape(item.id)}"]`);
+      if (!el || !el._rrHasInk) continue;
+      const blob = _dataUrlToBlob(el.toDataURL("image/png"));
+      const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/sig-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+      uploads.push(
+        sb.storage.from("driver-documents").upload(path, blob, { contentType: "image/png", upsert: false })
+          .then(({ error }) => { if (error) { uploadFailed++; console.warn("checklist signature upload failed:", error.message); } else { out[item.id] = { v: path }; } })
+          .catch((e) => { uploadFailed++; console.warn("checklist signature upload error:", e); })
+      );
+    }
+  }
   if (uploads.length) await Promise.all(uploads);
+
+  // Build photo answers from whatever now has a stored path (new uploads +
+  // restored photos). Local-draft passes carry only the already-stored ones.
+  for (const item of items) {
+    if (item.item_type !== "photo") continue;
+    const paths = (_clkPhotos[item.id] || []).filter((e) => e.path).map((e) => e.path);
+    if (paths.length) out[item.id] = { photos: paths };
+  }
+
+  // A dropped photo used to be swallowed as a console.warn while the answer
+  // kept the pre-upload (empty) list — so a driver could "save" or "submit"
+  // and silently lose the photo. Surface it: throw so the caller can warn
+  // and keep the work on the phone.
+  if (uploadFailed) {
+    const err = new Error("photo_upload_failed");
+    err.rrUploadFailed = uploadFailed;
+    throw err;
+  }
   return out;
+}
+
+// ── Offline submit queue (outbox) ─────────────────────────────────────
+//
+// A checklist submit needs the network twice: to upload photos/signatures
+// to storage, and to call driver_submit_checklist. If a driver is in a
+// dead zone, both fail. The outbox persists the *raw* answer inputs (photo
+// blobs, signature PNGs, field values) to IndexedDB and replays the whole
+// upload+submit when connectivity returns. Replays are idempotent — the
+// server's already_submitted guard + the unique-per-period index mean a
+// double-fire just no-ops.
+
+const _CLK_DB = "rr-checklist-outbox", _CLK_STORE = "outbox";
+function _clkDb() {
+  return new Promise((resolve, reject) => {
+    let req;
+    try { req = indexedDB.open(_CLK_DB, 1); } catch (e) { reject(e); return; }
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(_CLK_STORE)) db.createObjectStore(_CLK_STORE, { keyPath: "id" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function _clkIdbTx(mode, fn) {
+  return _clkDb().then((db) => new Promise((res, rej) => {
+    const tx = db.transaction(_CLK_STORE, mode);
+    const store = tx.objectStore(_CLK_STORE);
+    let out;
+    Promise.resolve(fn(store)).then((v) => { out = v; });
+    tx.oncomplete = () => res(out);
+    tx.onerror = () => rej(tx.error);
+    tx.onabort = () => rej(tx.error);
+  }));
+}
+const _clkOutboxAdd = (rec) => _clkIdbTx("readwrite", (s) => s.put(rec));
+const _clkOutboxDel = (id) => _clkIdbTx("readwrite", (s) => s.delete(id));
+const _clkOutboxAll = () => _clkIdbTx("readonly", (s) => new Promise((res) => { const r = s.getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }));
+async function _clkOutboxCount() { try { return (await _clkOutboxAll()).length; } catch (_) { return 0; } }
+
+// Snapshot the form's raw inputs without uploading anything — safe to
+// stash offline. Photos keep already-uploaded paths + not-yet-uploaded
+// blobs; signatures keep fresh ink as a data URL or an existing value.
+function _clkCaptureRaw(items) {
+  const rec = { fields: {}, photos: {}, signatures: {} };
+  for (const item of items) {
+    const el = document.querySelector(`#rr-clk-fill [data-rr-clk="${CSS.escape(item.id)}"]`);
+    if (!el) continue;
+    const t = el.getAttribute("data-rr-clk-type");
+    if (t === "checkbox") rec.fields[item.id] = { v: el.checked ? "true" : "false" };
+    else if (t === "yes_no") { const s = el.querySelector("input[type=radio]:checked"); if (s) rec.fields[item.id] = { v: s.value }; }
+    else if (t === "photo") {
+      const entries = _clkPhotos[item.id] || [];
+      const paths = entries.filter((e) => e.path).map((e) => e.path);
+      const blobs = entries.filter((e) => e.file).map((e) => e.file);
+      if (paths.length || blobs.length) rec.photos[item.id] = { paths, blobs };
+    } else if (t === "signature") {
+      if (el._rrHasInk) rec.signatures[item.id] = { dataUrl: el.toDataURL("image/png") };
+      else if (el.dataset.rrExistingSig) rec.signatures[item.id] = { existing: el.dataset.rrExistingSig };
+    } else { const v = (el.value || "").trim(); if (v) rec.fields[item.id] = { v }; }
+  }
+  return rec;
+}
+
+// Is `item` (by type) empty in a raw capture? Used to validate required
+// items before we queue, so an offline submit still enforces them.
+function _clkRawEmpty(item, rec) {
+  if (item.item_type === "photo") { const p = rec.photos[item.id]; return !p || ((p.paths || []).length + (p.blobs || []).length) === 0; }
+  if (item.item_type === "signature") return !rec.signatures[item.id];
+  if (item.item_type === "checkbox") return (rec.fields[item.id]?.v) !== "true";
+  const v = rec.fields[item.id]?.v;
+  return v == null || v === "";
+}
+
+// Turn a stored record into a submit payload: upload its media (getting
+// storage paths) then assemble the { itemId: {...} } answers.
+async function _clkReplayRecord(rec) {
+  const answers = {};
+  const dspId = rec.dspId, driverId = rec.driverId;
+  for (const [id, v] of Object.entries(rec.fields || {})) answers[id] = v;
+  for (const [id, p] of Object.entries(rec.photos || {})) {
+    const paths = [...(p.paths || [])];
+    for (const blob of (p.blobs || [])) {
+      const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+      const { error } = await sb.storage.from("driver-documents").upload(path, blob, { contentType: blob.type || "image/jpeg", upsert: false });
+      if (error) throw error;
+      paths.push(path);
+    }
+    if (paths.length) answers[id] = { photos: paths };
+  }
+  for (const [id, s] of Object.entries(rec.signatures || {})) {
+    if (s.existing) { answers[id] = { v: s.existing }; continue; }
+    if (s.dataUrl) {
+      const blob = _dataUrlToBlob(s.dataUrl);
+      const path = `${dspId || "no-dsp"}/checklists/${driverId || "anon"}/sig-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+      const { error } = await sb.storage.from("driver-documents").upload(path, blob, { contentType: "image/png", upsert: false });
+      if (error) throw error;
+      answers[id] = { v: path };
+    }
+  }
+  return answers;
+}
+
+let _clkFlushing = false;
+async function _clkFlushOutbox(opts = {}) {
+  if (_clkFlushing) return 0;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return 0;
+  _clkFlushing = true;
+  let done = 0, dropped = 0;
+  try {
+    const recs = await _clkOutboxAll();
+    for (const rec of recs) {
+      try {
+        const answers = await _clkReplayRecord(rec);
+        const { error } = await sb.rpc("driver_submit_checklist", { p_token: rec.token, p_assignment_id: rec.assignmentId, p_answers: answers });
+        if (error) {
+          const msg = String(error.message || "");
+          // Already handled server-side, or no longer submittable (template
+          // changed) — drop so the queue can't get stuck on it.
+          if (msg.startsWith("already_submitted") || msg.startsWith("missing_required") || msg.startsWith("assignment_not_found") || msg.startsWith("not_assigned") || msg.startsWith("checklist_not_active")) {
+            await _clkOutboxDel(rec.id); dropped++; continue;
+          }
+          throw error;   // network/transient → stop and retry later
+        }
+        await _clkOutboxDel(rec.id); done++;
+      } catch (_) {
+        break;   // network failure — leave the rest queued
+      }
+    }
+  } catch (_) { /* idb unavailable */ } finally { _clkFlushing = false; }
+  if (done && !opts.silent) toast(`Submitted ${done} checklist${done === 1 ? "" : "s"} that ${done === 1 ? "was" : "were"} waiting`, "ok");
+  if (dropped && !opts.silent) toast(`${dropped} queued checklist${dropped === 1 ? "" : "s"} couldn't be submitted and ${dropped === 1 ? "was" : "were"} discarded`, "warn");
+  _clkPaintOutboxBanner();
+  if (typeof refreshChecklistsBadge === "function") { try { refreshChecklistsBadge(); } catch (_) {} }
+  return done;
+}
+
+// Paint the "waiting to send" banner wherever a host slot exists.
+async function _clkPaintOutboxBanner() {
+  const host = document.getElementById("rr-clk-outbox-banner");
+  if (!host) return;
+  const n = await _clkOutboxCount();
+  if (!n) { host.innerHTML = ""; host.hidden = true; return; }
+  host.hidden = false;
+  const off = (typeof navigator !== "undefined" && navigator.onLine === false);
+  host.innerHTML = `<div class="clk-banner clk-banner-due" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+    <span>${n} checklist${n === 1 ? "" : "s"} waiting to send${off ? " — you're offline" : ""}.</span>
+    <button type="button" class="btn btn-sm" data-rr-clk-outbox-retry ${off ? "disabled" : ""}>Send now</button>
+  </div>`;
+}
+
+// Register connectivity + retry handlers once.
+if (typeof window !== "undefined" && !window.__rrClkOutboxWired) {
+  window.__rrClkOutboxWired = true;
+  window.addEventListener("online", () => { _clkFlushOutbox(); });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest?.("[data-rr-clk-outbox-retry]")) { e.preventDefault(); _clkFlushOutbox(); }
+  });
 }
 
 async function renderChecklistFill() {
@@ -8452,6 +8747,7 @@ async function renderChecklistFill() {
             </div>`).join("")}
         </div>
       </div>`;
+    _clkEnhanceSignatures(main);
     return;
   }
 
@@ -8465,6 +8761,7 @@ async function renderChecklistFill() {
 
   main.innerHTML = `
     <div class="form-fill-page">
+      <div id="rr-clk-outbox-banner" hidden></div>
       ${reopened}${dueLine}
       ${cl.description ? `<div class="form-fill-desc">${escapeHtml(cl.description)}</div>` : ""}
       <form id="rr-clk-fill">
@@ -8475,6 +8772,7 @@ async function renderChecklistFill() {
     </div>`;
 
   const formEl = document.getElementById("rr-clk-fill");
+  _clkPaintOutboxBanner();
 
   // Signature pads first (before restore paints saved ink back on).
   items.filter(i => i.item_type === "signature").forEach(i => {
@@ -8486,6 +8784,7 @@ async function renderChecklistFill() {
   const DRAFT_KEY = `checklist:${id}`;
   const draft = getDraft(DRAFT_KEY);
   const restore = Object.assign({}, answers, (draft && typeof draft === "object") ? draft : {});
+  _clkPhotos = {};   // fresh photo model per render
   let restoredAny = false;
   for (const item of items) {
     const ans = restore[item.id];
@@ -8500,24 +8799,29 @@ async function renderChecklistFill() {
     } else if (t === "photo") {
       const photos = Array.isArray(ans.photos) ? ans.photos : [];
       if (photos.length) {
-        el.dataset.rrExisting = JSON.stringify(photos);
-        const note = formEl.querySelector(`[data-rr-clk-photonote="${CSS.escape(item.id)}"]`);
-        if (note) { note.hidden = false; note.textContent = `${photos.length} photo${photos.length === 1 ? "" : "s"} already attached — adding another keeps them.`; }
+        _clkPhotos[item.id] = photos.map((p) => ({ path: p }));
+        _clkRenderPhotoStrip(item.id);
         restoredAny = true;
       }
     } else if (t === "signature") {
       const v = ans.v;
-      if (typeof v === "string" && v.startsWith("data:image")) {
+      if (typeof v === "string" && v) {
+        // Keep the stored value (storage path, or a legacy inline data URL)
+        // as the existing answer; draw it for display without marking it as
+        // new ink, so an untouched pad keeps the path instead of re-uploading.
         el.dataset.rrExistingSig = v;
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const ctx = el.getContext("2d");
-            ctx.drawImage(img, 0, 0, el.clientWidth || el.width, el.clientHeight || 140);
-            el._rrHasInk = true;
-          } catch (_) {}
+        const draw = (srcUrl) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const ctx = el.getContext("2d");
+              ctx.drawImage(img, 0, 0, el.clientWidth || el.width, el.clientHeight || 140);
+            } catch (_) {}
+          };
+          img.src = srcUrl;
         };
-        img.src = v;
+        if (v.startsWith("data:image")) draw(v);
+        else _clkSignedUrl(v).then((u) => { if (u) draw(u); });
         restoredAny = true;
       }
     } else {
@@ -8538,12 +8842,47 @@ async function renderChecklistFill() {
   formEl.addEventListener("input", saveLocal);
   formEl.addEventListener("change", saveLocal);
 
-  // Save progress → server, so dispatch sees "In progress".
+  // Photo picking: compress each selection and append to the item's model,
+  // so multiple photos accumulate across taps (the input is cleared so the
+  // same file can be re-picked). Thumbnails render immediately.
+  formEl.addEventListener("change", async (e) => {
+    const inp = e.target.closest?.('input[data-rr-clk-type="photo"]');
+    if (!inp) return;
+    const itemId = inp.getAttribute("data-rr-clk");
+    const files = Array.from(inp.files || []);
+    inp.value = "";
+    if (!files.length) return;
+    if (!_clkPhotos[itemId]) _clkPhotos[itemId] = [];
+    for (const f of files) {
+      const c = await _clkCompressPhoto(f);
+      _clkPhotos[itemId].push({ file: c, url: URL.createObjectURL(c) });
+    }
+    _clkRenderPhotoStrip(itemId);
+  });
+
+  // Remove a photo (revoke its preview URL so we don't leak object URLs).
+  formEl.addEventListener("click", (e) => {
+    const del = e.target.closest?.("[data-rr-clk-photodel]");
+    if (!del) return;
+    e.preventDefault();
+    const raw = del.getAttribute("data-rr-clk-photodel");
+    const cut = raw.lastIndexOf("|");
+    const itemId = raw.slice(0, cut), i = parseInt(raw.slice(cut + 1), 10);
+    const list = _clkPhotos[itemId];
+    if (!list || !list[i]) return;
+    if (list[i].url) { try { URL.revokeObjectURL(list[i].url); } catch (_) {} }
+    list.splice(i, 1);
+    _clkRenderPhotoStrip(itemId);
+  });
+
+  // Save progress → server, so dispatch sees "In progress". Photos are
+  // uploaded here too (skipUploads used to drop a freshly-snapped photo
+  // on Save — it only persisted on final Submit, so Save→leave lost it).
   document.getElementById("rr-clk-save")?.addEventListener("click", async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true; btn.textContent = "Saving…";
     try {
-      const cur = await _clkCollect(items, { skipUploads: true });
+      const cur = await _clkCollect(items);
       const { error: saveErr } = await sb.rpc("driver_save_checklist", {
         p_token: session.token, p_assignment_id: id, p_answers: cur,
       });
@@ -8551,7 +8890,9 @@ async function renderChecklistFill() {
       setDraft(DRAFT_KEY, cur);
       toast("Progress saved", "ok");
     } catch (err) {
-      toast(_friendlyError(err, "Couldn't save progress — it's still on this phone."), "warn");
+      toast(err?.rrUploadFailed
+        ? "A photo didn't upload — check your signal and tap Save again."
+        : _friendlyError(err, "Couldn't save progress — it's still on this phone."), "warn");
     } finally {
       btn.disabled = false; btn.textContent = "Save progress";
     }
@@ -8560,33 +8901,81 @@ async function renderChecklistFill() {
   formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("button[type=submit]");
-    if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
-    const cur = await _clkCollect(items);
-    if (btn) btn.textContent = "Submitting…";
+    const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = "Submit checklist"; } };
+    if (btn) { btn.disabled = true; btn.textContent = "Submitting…"; }
+
+    // Validate required from the raw capture first, so an offline submit
+    // still enforces them without needing to upload anything.
+    const raw = _clkCaptureRaw(items);
     for (const item of items) {
-      if (!item.required) continue;
-      const a = cur[item.id];
-      let empty = !a;
-      if (!empty) {
-        if (item.item_type === "photo") empty = !Array.isArray(a.photos) || a.photos.length === 0;
-        else if (item.item_type === "checkbox") empty = a.v !== "true";
-        else empty = a.v == null || a.v === "";
-      }
-      if (empty) {
+      if (item.required && _clkRawEmpty(item, raw)) {
         toast(`"${item.label || "Untitled item"}" is required`, "warn");
-        if (btn) { btn.disabled = false; btn.textContent = "Submit checklist"; }
+        resetBtn();
         return;
       }
     }
-    const { error: subErr } = await sb.rpc("driver_submit_checklist", {
-      p_token: session.token, p_assignment_id: id, p_answers: cur,
-    });
+
+    // Queue the raw submission to IndexedDB and let the outbox replay it.
+    const queueOffline = async () => {
+      const rec = {
+        id: `${id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        token: session.token, assignmentId: id,
+        dspId: session?.dsp_id || null, driverId: session?.driver_id || null,
+        name: cl.name || "Checklist", fields: raw.fields, photos: raw.photos,
+        signatures: raw.signatures, createdAt: Date.now(),
+      };
+      try {
+        await _clkOutboxAdd(rec);
+        clearDraft(DRAFT_KEY);
+        _haptic("success");
+        toast("No connection — saved. It'll submit automatically when you're back online.", "ok");
+        navigate("/checklists");
+        return true;
+      } catch (_) {
+        toast("Couldn't save offline — your answers are still on this phone.", "warn");
+        resetBtn();
+        return false;
+      }
+    };
+
+    // Obviously offline → don't even try the uploads that will fail.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) { await queueOffline(); return; }
+
+    if (btn) btn.textContent = "Uploading…";
+    let cur;
+    try {
+      cur = await _clkCollect(items);
+    } catch (err) {
+      // An upload blip mid-submit (dropped signal) → queue rather than lose it.
+      if (err?.rrUploadFailed) { await queueOffline(); return; }
+      resetBtn();
+      toast(_friendlyError(err, "Couldn't upload — try again."), "warn");
+      return;
+    }
+
+    if (btn) btn.textContent = "Submitting…";
+    let subErr;
+    try {
+      ({ error: subErr } = await sb.rpc("driver_submit_checklist", {
+        p_token: session.token, p_assignment_id: id, p_answers: cur,
+      }));
+    } catch (netErr) {
+      await queueOffline();   // network threw → queue
+      return;
+    }
     if (subErr) {
-      if (btn) { btn.disabled = false; btn.textContent = "Submit checklist"; }
       const msg = String(subErr.message || "");
-      toast(msg.startsWith("missing_required:")
-        ? `"${msg.slice("missing_required:".length)}" is required`
-        : _friendlyError(subErr, "Couldn't submit. Your answers are still here — try again."), "warn");
+      if (msg.startsWith("missing_required:")) {
+        toast(`"${msg.slice("missing_required:".length)}" is required`, "warn");
+        resetBtn();
+        return;
+      }
+      if (msg.startsWith("already_submitted")) {
+        clearDraft(DRAFT_KEY); toast("Already submitted", "ok"); navigate("/checklists"); return;
+      }
+      if (_clkIsNetworkErr(subErr)) { await queueOffline(); return; }
+      resetBtn();
+      toast(_friendlyError(subErr, "Couldn't submit. Your answers are still here — try again."), "warn");
       return;
     }
     clearDraft(DRAFT_KEY);
@@ -8594,6 +8983,14 @@ async function renderChecklistFill() {
     toast("Checklist submitted", "ok");
     navigate("/checklists");
   });
+}
+
+// A best-effort "does this look like a connectivity failure?" check so we
+// queue on network errors but surface real server errors.
+function _clkIsNetworkErr(err) {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  const m = String(err?.message || err || "").toLowerCase();
+  return /failed to fetch|networkerror|network error|load failed|fetch failed|timeout|timed out/.test(m);
 }
 
 
@@ -8817,6 +9214,9 @@ function _initSignaturePad(canvasId, clearBtnId) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, cssW, cssH);
     canvas._rrHasInk = false;
+    // Clearing also drops any restored signature so "clear + submit" means
+    // no signature, rather than silently keeping the old one.
+    delete canvas.dataset.rrExistingSig;
   });
 }
 

@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=d81b9eddf32b";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=d81b9eddf32b";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=d81b9eddf32b";
+import { planScheduleWeek } from "./scheduling-engine.js?v=4ae68a8ac45d";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=4ae68a8ac45d";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=4ae68a8ac45d";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -39305,6 +39305,28 @@ function scheduleChatRealtime(payload) {
   }, 250);
 }
 
+// A driver submitted (or updated) a checklist. Staff have no Web Push, so
+// this realtime row IS the alert: if it carries flagged answers, toast
+// dispatch, and live-refresh the driver-checklist Responses view when it's
+// open on that template. Backed by checklist_submissions.failed_count
+// (migration 0437) + the supabase_realtime publication.
+function _clfRealtimeSubmission(payload) {
+  const row = (payload && payload.new) || {};
+  try {
+    if (typeof _clfState !== "undefined" && _clfState && _clfState.editing &&
+        _clfState.editing.id === row.template_id && typeof _clfRenderResponses === "function") {
+      _clfRenderResponses();
+    }
+  } catch (_) {}
+  if (payload && payload.eventType !== "DELETE" &&
+      row.status === "submitted" && (row.failed_count || 0) > 0) {
+    const n = row.failed_count;
+    toast(`⚑ A driver flagged ${n} item${n === 1 ? "" : "s"} on a checklist — open Checklists → Flags to resolve`, "warn");
+  }
+  // Keep the Flags badge live even when the drawer/panel isn't open.
+  _clfRefreshFlagBadge();
+}
+
 // Realtime subscriptions — one channel covers all the tables we care about.
 sb.channel("rr-dashboard")
   .on("postgres_changes", { event: "*", schema: "public", table: "applicants" },              scheduleRefresh)
@@ -39322,6 +39344,8 @@ sb.channel("rr-dashboard")
   .on("postgres_changes", { event: "UPDATE", schema: "public", table: "driver_messages" },         scheduleChatRealtime)
   .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_channel_messages" }, scheduleChatRealtime)
   .on("postgres_changes", { event: "*",      schema: "public", table: "driver_message_reactions" }, scheduleChatRealtime)
+  // Checklist submissions — flag alerts + live Responses refresh.
+  .on("postgres_changes", { event: "*", schema: "public", table: "checklist_submissions" }, _clfRealtimeSubmission)
   .subscribe();
 
 window.addEventListener("focus", refreshActiveView);
@@ -69119,6 +69143,10 @@ function _clRenderRunner() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33"/></svg>
           Assign / due
         </button>
+        ${inst.status !== 'archived' ? `<button class="cl-rn-meta-btn" type="button" data-cl-complete>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${inst.status === 'completed' ? '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>' : '<polyline points="20 6 9 17 4 12"/>'}</svg>
+          ${inst.status === 'completed' ? 'Reopen' : 'Mark complete'}
+        </button>` : ''}
         <button class="cl-rn-meta-btn" type="button" data-cl-archive>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
           ${inst.status === 'archived' ? 'Restore' : 'Archive'}
@@ -69198,7 +69226,12 @@ async function _clToggleItem(itemId) {
   // parent instance status actually flipped (which changes the chip).
   const allReq = items.filter(i => i.required);
   const wasCompleted = _clOpenInstance.status === "completed";
-  const shouldBeCompleted = allReq.length > 0 && allReq.every(i => i.completed_at);
+  // Mirror private.checklist_instance_reconcile: complete when every
+  // required item is done; if there are no required items, fall back to
+  // "every item done" so all-optional checklists can still finish.
+  const shouldBeCompleted = allReq.length > 0
+    ? allReq.every(i => i.completed_at)
+    : (items.length > 0 && items.every(i => i.completed_at));
   let statusChanged = false;
   if (shouldBeCompleted && !wasCompleted) {
     _clOpenInstance.status = "completed";
@@ -69230,6 +69263,23 @@ async function _clArchiveRunner() {
   await loadChecklistInstances();
   await loadChecklistTodaySummary();
   _clCloseRunner();
+}
+// Manually flip an instance complete / back to active. Useful for
+// all-optional checklists (nothing required to auto-complete) or to
+// force-close a list that's "done enough". Toggling items afterward
+// re-reconciles as usual.
+async function _clSetComplete() {
+  if (!_clOpenInstance) return;
+  const target = _clOpenInstance.status !== "completed";
+  _clSetRunnerSave("saving", "Saving…");
+  const { data, error } = await sb.rpc("checklist_instance_set_complete", { p_id: _clOpenInstance.id, p_complete: target });
+  if (error) { _clSetRunnerSave("err", "Couldn't save"); toast("Couldn't update", "warn"); return; }
+  _clOpenInstance.status = data?.status || (target ? "completed" : "active");
+  _clOpenInstance.completed_at = data?.completed_at || null;
+  _clSetRunnerSave("saved", "Saved");
+  _clRenderRunner();
+  await loadChecklistInstances();
+  await loadChecklistTodaySummary();
 }
 function _clOpenMetaPop() {
   if (!_clOpenInstance) return;
@@ -69408,6 +69458,7 @@ document.addEventListener("click", (e) => {
   // Meta popover
   if (e.target.closest?.("[data-cl-meta]")) { e.preventDefault(); _clOpenMetaPop(); return; }
   // Archive
+  if (e.target.closest?.("[data-cl-complete]")) { e.preventDefault(); _clSetComplete(); return; }
   if (e.target.closest?.("[data-cl-archive]")) { e.preventDefault(); _clArchiveRunner(); return; }
 });
 
@@ -82502,6 +82553,7 @@ async function _clfSidebarFetch() {
     if (error) throw error;
     _clfState.list = Array.isArray(data) ? data : [];
     _clfSidebarPaint();
+    _clfRefreshFlagBadge();
   } catch (e) {
     if (!_clfState.list) {
       const host = document.getElementById("rr-clf-list");
@@ -82513,6 +82565,194 @@ async function _clfSidebarFetch() {
 function _clfDisplayStatus(f) {
   if (f.status === "active" && (f.active_assignments || 0) > 0) return "assigned";
   return f.status || "draft";
+}
+
+// ── Flag resolution queue ─────────────────────────────────────────────
+// A persistent, actionable queue for flagged driver answers (checklist_
+// answers.failed_flag) — resolve / dismiss with a note, reopen, see who/
+// when. Backed by the checklist_flag* RPCs (migration 0441).
+
+async function _clfRefreshFlagBadge() {
+  const badge = document.getElementById("rr-clf-flags-badge");
+  if (!badge) return;
+  try {
+    const { data } = await sb.rpc("checklist_flags_open_count");
+    const n = Number(data) || 0;
+    badge.textContent = n ? String(n) : "";
+    badge.hidden = !n;
+  } catch (_) {}
+}
+
+function _clfFlagValue(fl) {
+  if (fl.item_type === "yes_no") return (fl.value_text || "—").replace(/^yes$/i, "Yes").replace(/^no$/i, "No");
+  if (fl.item_type === "checkbox") return fl.value_bool ? "Checked" : "Unchecked";
+  if (fl.item_type === "number") return fl.value_number != null ? String(fl.value_number) : "—";
+  return fl.value_text || "—";
+}
+
+function _clfOpenFlags() {
+  let root = document.getElementById("rr-clf-flags-drawer");
+  if (!root) { root = document.createElement("div"); root.id = "rr-clf-flags-drawer"; document.body.appendChild(root); }
+  root.style.cssText = "position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end";
+  root.innerHTML = `<div class="rr-clf-flags-panel" style="width:min(560px,100%);height:100%;background:var(--surface,#fff);box-shadow:-8px 0 30px rgba(0,0,0,.2);display:flex;flex-direction:column" role="dialog" aria-label="Flagged answers">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)">
+      <div><div style="font-weight:700;font-size:16px">Flagged answers</div><div style="font-size:12px;color:var(--text-subtle)">Review and resolve items drivers flagged</div></div>
+      <button type="button" data-rr-clf-flags-close aria-label="Close" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--text-subtle)">×</button>
+    </div>
+    <div style="padding:8px 18px;border-bottom:1px solid var(--border)"><label style="font-size:12px;color:var(--text-subtle);display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-rr-clf-flags-showresolved/> Show resolved</label></div>
+    <div id="rr-clf-flags-body" style="flex:1;overflow:auto;padding:12px 18px">Loading…</div>
+  </div>`;
+  _clfLoadFlags(false);
+}
+
+async function _clfLoadFlags(includeResolved) {
+  const body = document.getElementById("rr-clf-flags-body");
+  if (!body) return;
+  body.innerHTML = `<div class="rr-loading" style="padding:24px;text-align:center;color:var(--text-subtle)">Loading flags…</div>`;
+  let list = [];
+  try {
+    const { data, error } = await sb.rpc("checklist_flags_list", { p_include_resolved: !!includeResolved, p_limit: 200, p_offset: 0 });
+    if (error) throw error;
+    list = Array.isArray(data) ? data : [];
+  } catch (e) {
+    body.innerHTML = `<div class="rr-an-error">Couldn't load flags: ${escapeHtml(e.message || String(e))}</div>`;
+    return;
+  }
+  if (!list.length) {
+    body.innerHTML = `<div style="text-align:center;padding:40px 12px;color:var(--text-subtle)"><div style="font-size:30px">✓</div><div style="font-weight:600;margin-top:6px">No ${includeResolved ? "" : "open "}flags</div><div style="font-size:13px">Flagged answers show up here for you to resolve.</div></div>`;
+    return;
+  }
+  const when = (ts) => (ts ? new Date(ts).toLocaleString() : "");
+  body.innerHTML = list.map((fl) => {
+    const resolved = !!fl.flag_resolved_at;
+    return `<div class="rr-clf-flag-card" data-rr-clf-flag="${escapeHtml(fl.answer_id)}" style="border:1px solid var(--border);border-left:3px solid ${resolved ? "var(--border-strong,#cbd5e1)" : "#dc2626"};border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:10px">
+        <div style="font-weight:600">${escapeHtml(fl.item_label || "Item")}</div>
+        <div style="font-size:11px;color:var(--text-subtle);white-space:nowrap">${escapeHtml(when(fl.submitted_at))}</div>
+      </div>
+      <div style="font-size:13px;margin-top:2px">Answer: <strong style="color:${resolved ? "inherit" : "#dc2626"}">${escapeHtml(_clfFlagValue(fl))}</strong>${fl.note ? ` · <span style="color:var(--text-subtle)">${escapeHtml(fl.note)}</span>` : ""}</div>
+      <div style="font-size:12px;color:var(--text-subtle);margin-top:2px">${escapeHtml(fl.driver_name || "Driver")} · ${escapeHtml(fl.checklist_name || "Checklist")}</div>
+      ${resolved
+        ? `<div style="font-size:12px;color:var(--text-subtle);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${fl.flag_disposition === "dismissed" ? "Dismissed" : "Resolved"}${fl.resolved_by_email ? " by " + escapeHtml(fl.resolved_by_email.split("@")[0]) : ""} · ${escapeHtml(when(fl.flag_resolved_at))}${fl.flag_note ? ` — ${escapeHtml(fl.flag_note)}` : ""} <button type="button" data-rr-clf-flag-reopen="${escapeHtml(fl.answer_id)}" style="border:none;background:none;color:var(--accent,#2563eb);cursor:pointer;font-size:12px;margin-left:6px">Reopen</button></div>`
+        : `<div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+            <input type="text" data-rr-clf-flag-note placeholder="Add a note (optional)" style="flex:1;font:inherit;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;background:var(--canvas)"/>
+            <button type="button" class="btn btn-sm btn-primary" data-rr-clf-flag-resolve="${escapeHtml(fl.answer_id)}">Resolve</button>
+            <button type="button" class="btn btn-sm" data-rr-clf-flag-dismiss="${escapeHtml(fl.answer_id)}">Dismiss</button>
+          </div>`}
+    </div>`;
+  }).join("");
+}
+
+async function _clfActOnFlag(answerId, disposition, cardEl) {
+  const note = cardEl?.querySelector("[data-rr-clf-flag-note]")?.value || "";
+  try {
+    const { error } = await sb.rpc("checklist_flag_resolve", { p_answer_id: answerId, p_disposition: disposition, p_note: note });
+    if (error) throw error;
+    toast(disposition === "dismissed" ? "Flag dismissed" : "Flag resolved", "success");
+    await _clfLoadFlags(!!document.querySelector("[data-rr-clf-flags-showresolved]")?.checked);
+    _clfRefreshFlagBadge();
+  } catch (e) { toast("Couldn't update flag: " + (e.message || e), "warn"); }
+}
+
+async function _clfReopenFlag(answerId) {
+  try {
+    const { error } = await sb.rpc("checklist_flag_reopen", { p_answer_id: answerId });
+    if (error) throw error;
+    await _clfLoadFlags(!!document.querySelector("[data-rr-clf-flags-showresolved]")?.checked);
+    _clfRefreshFlagBadge();
+  } catch (e) { toast("Couldn't reopen: " + (e.message || e), "warn"); }
+}
+
+// ── Compliance insights ───────────────────────────────────────────────
+// A read-only dashboard (checklist_analytics, migration 0442): submitted /
+// on-time / overdue / flags KPIs, a submitted-per-day trend, top flagged
+// items, and per-checklist / per-driver breakdowns.
+
+let _clfInsightsDays = 30;
+
+function _clfOpenInsights() {
+  let root = document.getElementById("rr-clf-insights-drawer");
+  if (!root) { root = document.createElement("div"); root.id = "rr-clf-insights-drawer"; document.body.appendChild(root); }
+  root.style.cssText = "position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end";
+  root.innerHTML = `<div style="width:min(680px,100%);height:100%;background:var(--surface,#fff);box-shadow:-8px 0 30px rgba(0,0,0,.2);display:flex;flex-direction:column" role="dialog" aria-label="Compliance insights">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)">
+      <div><div style="font-weight:700;font-size:16px">Compliance insights</div><div style="font-size:12px;color:var(--text-subtle)">Driver checklist completion, on-time rate &amp; flags</div></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <select data-rr-clf-insights-days style="font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;background:var(--canvas)">
+          <option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option>
+        </select>
+        <button type="button" data-rr-clf-insights-close aria-label="Close" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--text-subtle)">×</button>
+      </div>
+    </div>
+    <div id="rr-clf-insights-body" style="flex:1;overflow:auto;padding:16px 18px">Loading…</div>
+  </div>`;
+  _clfLoadInsights();
+}
+
+async function _clfLoadInsights() {
+  const body = document.getElementById("rr-clf-insights-body");
+  if (!body) return;
+  body.innerHTML = `<div class="rr-loading" style="padding:24px;text-align:center;color:var(--text-subtle)">Loading insights…</div>`;
+  let a;
+  try {
+    const { data, error } = await sb.rpc("checklist_analytics", { p_days: _clfInsightsDays });
+    if (error) throw error;
+    a = data || {};
+  } catch (e) {
+    body.innerHTML = `<div class="rr-an-error">Couldn't load insights: ${escapeHtml(e.message || String(e))}</div>`;
+    return;
+  }
+  const t = a.totals || {};
+  const onTimeRate = (t.due_tracked || 0) > 0 ? Math.round((t.on_time / t.due_tracked) * 100) : null;
+  const kpi = (label, val, sub, color) => `<div style="flex:1;min-width:120px;border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+    <div style="font-size:22px;font-weight:700;color:${color || "var(--text)"}">${val}</div>
+    <div style="font-size:12px;color:var(--text-subtle)">${label}</div>${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${sub}</div>` : ""}</div>`;
+
+  const byDay = Array.isArray(a.by_day) ? a.by_day : [];
+  const dayMax = Math.max(1, ...byDay.map((d) => d.submitted || 0));
+  const trend = byDay.length
+    ? `<div style="display:flex;align-items:flex-end;gap:3px;height:90px;margin-top:8px">${byDay.map((d) => {
+        const h = Math.round(((d.submitted || 0) / dayMax) * 84);
+        return `<div title="${escapeHtml(d.day)} · ${d.submitted}" style="flex:1;min-width:3px;height:${Math.max(2, h)}px;background:var(--accent,#2563eb);border-radius:2px 2px 0 0;opacity:.85"></div>`;
+      }).join("")}</div><div style="font-size:11px;color:var(--text-subtle);margin-top:4px">${escapeHtml(byDay[0].day)} → ${escapeHtml(byDay[byDay.length - 1].day)}</div>`
+    : `<div style="font-size:13px;color:var(--text-subtle);padding:12px 0">No submissions in this window.</div>`;
+
+  const top = Array.isArray(a.top_flagged) ? a.top_flagged : [];
+  const topMax = Math.max(1, ...top.map((x) => x.count || 0));
+  const topHtml = top.length
+    ? top.map((x) => `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="width:150px;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(x.label)}">${escapeHtml(x.label)}</div>
+        <div style="flex:1;background:var(--canvas);border-radius:5px;overflow:hidden;height:16px"><div style="width:${Math.round((x.count / topMax) * 100)}%;height:100%;background:#dc2626;opacity:.8"></div></div>
+        <div style="width:28px;text-align:right;font-size:12px;font-weight:600">${x.count}</div></div>`).join("")
+    : `<div style="font-size:13px;color:var(--text-subtle)">No flagged answers 🎉</div>`;
+
+  const rowsTable = (arr, cols) => `<table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <thead><tr>${cols.map((c) => `<th style="text-align:${c.right ? "right" : "left"};padding:5px 6px;border-bottom:1px solid var(--border);color:var(--text-subtle);font-weight:600">${c.h}</th>`).join("")}</tr></thead>
+    <tbody>${arr.map((r) => `<tr>${cols.map((c) => `<td style="text-align:${c.right ? "right" : "left"};padding:5px 6px;border-bottom:1px solid var(--border)">${c.cell(r)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  const byChecklist = Array.isArray(a.by_checklist) ? a.by_checklist : [];
+  const byDriver = Array.isArray(a.by_driver) ? a.by_driver : [];
+
+  body.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      ${kpi("Submitted", t.submitted || 0, `${t.in_progress || 0} in progress`)}
+      ${kpi("On-time", onTimeRate == null ? "—" : onTimeRate + "%", `${t.on_time || 0} of ${t.due_tracked || 0} with a due time`)}
+      ${kpi("Overdue", t.overdue || 0, "open past due", (t.overdue || 0) > 0 ? "#dc2626" : null)}
+      ${kpi("Open flags", t.open_flags || 0, `${t.resolved_flags || 0} resolved`, (t.open_flags || 0) > 0 ? "#dc2626" : null)}
+    </div>
+    <div style="margin-top:20px;font-weight:600;font-size:13px">Submitted per day</div>${trend}
+    <div style="margin-top:20px;font-weight:600;font-size:13px;margin-bottom:8px">Top flagged items</div>${topHtml}
+    <div style="margin-top:20px;font-weight:600;font-size:13px;margin-bottom:6px">By checklist</div>
+    ${byChecklist.length ? rowsTable(byChecklist, [
+      { h: "Checklist", cell: (r) => escapeHtml(r.name || "Untitled") },
+      { h: "Submitted", right: true, cell: (r) => r.submitted || 0 },
+      { h: "Flagged", right: true, cell: (r) => `<span style="color:${(r.flagged || 0) > 0 ? "#dc2626" : "inherit"}">${r.flagged || 0}</span>` },
+    ]) : `<div style="font-size:13px;color:var(--text-subtle)">No data.</div>`}
+    <div style="margin-top:20px;font-weight:600;font-size:13px;margin-bottom:6px">By driver</div>
+    ${byDriver.length ? rowsTable(byDriver, [
+      { h: "Driver", cell: (r) => escapeHtml(r.name || "Driver") },
+      { h: "Submitted", right: true, cell: (r) => r.submitted || 0 },
+      { h: "Flagged", right: true, cell: (r) => `<span style="color:${(r.flagged || 0) > 0 ? "#dc2626" : "inherit"}">${r.flagged || 0}</span>` },
+    ]) : `<div style="font-size:13px;color:var(--text-subtle)">No data.</div>`}`;
 }
 
 function _clfSidebarPaint() {
@@ -82544,7 +82784,7 @@ function _clfSidebarPaint() {
     if (f.overdue_count > 0) sum.push(`<span class="rr-clf-warn">${f.overdue_count} overdue</span>`);
     if (f.failed_today > 0) sum.push(`<span class="rr-clf-warn">${f.failed_today} flagged</span>`);
     return `
-      <div class="rr-fp-card" data-rr-clf-edit="${escapeHtml(f.id)}" role="listitem" tabindex="0">
+      <div class="rr-fp-card" data-rr-clf-edit="${escapeHtml(f.id)}" role="button" tabindex="0" aria-label="Open checklist ${escapeHtml(f.name || "Untitled checklist")}">
         <span class="rr-fp-card-ico">${_CLF_TYPE_ICONS.checkbox}</span>
         <div class="rr-fp-card-body">
           <div class="rr-fp-card-top">
@@ -82576,16 +82816,28 @@ function _clfOpenMenu(btn, id) {
   menu.className = "rr-clf-menu";
   menu.setAttribute("role", "menu");
   menu.innerHTML = `
-    <button type="button" data-rr-clf-menu="edit" data-id="${escapeHtml(id)}">Edit</button>
-    <button type="button" data-rr-clf-menu="duplicate" data-id="${escapeHtml(id)}">Duplicate</button>
-    <button type="button" data-rr-clf-menu="${archived ? "restore" : "archive"}" data-id="${escapeHtml(id)}">${archived ? "Restore" : "Archive"}</button>
-    <button type="button" class="rr-clf-menu-danger" data-rr-clf-menu="delete" data-id="${escapeHtml(id)}">Delete</button>`;
+    <button type="button" role="menuitem" data-rr-clf-menu="edit" data-id="${escapeHtml(id)}">Edit</button>
+    <button type="button" role="menuitem" data-rr-clf-menu="duplicate" data-id="${escapeHtml(id)}">Duplicate</button>
+    <button type="button" role="menuitem" data-rr-clf-menu="${archived ? "restore" : "archive"}" data-id="${escapeHtml(id)}">${archived ? "Restore" : "Archive"}</button>
+    <button type="button" role="menuitem" class="rr-clf-menu-danger" data-rr-clf-menu="delete" data-id="${escapeHtml(id)}">Delete</button>`;
   const card = btn.closest(".rr-fp-card");
   // The card's :hover transform creates a stacking context that would trap the
   // absolutely-positioned menu behind later sibling cards. Elevate the card
   // while its menu is open so the overflowing menu paints above its neighbours.
   card?.classList.add("rr-fp-card--menu-open");
   card?.appendChild(menu);
+
+  // Keyboard menu: arrow keys roam, Escape closes back to the trigger.
+  const items = Array.from(menu.querySelectorAll('[role="menuitem"]'));
+  items[0]?.focus();
+  menu.addEventListener("keydown", (ev) => {
+    const i = items.indexOf(document.activeElement);
+    if (ev.key === "ArrowDown") { ev.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+    else if (ev.key === "ArrowUp") { ev.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+    else if (ev.key === "Home") { ev.preventDefault(); items[0]?.focus(); }
+    else if (ev.key === "End") { ev.preventDefault(); items[items.length - 1]?.focus(); }
+    else if (ev.key === "Escape") { ev.preventDefault(); _clfCloseMenus(); btn.focus(); }
+  });
 }
 
 // ── Builder modal ─────────────────────────────────────────────────────
@@ -82633,7 +82885,9 @@ async function openClfBuilder(id) {
 
 function _clfSetTab(tab) {
   document.querySelectorAll("[data-rr-clf-tab]").forEach((b) => {
-    b.classList.toggle("is-active", b.getAttribute("data-rr-clf-tab") === tab);
+    const on = b.getAttribute("data-rr-clf-tab") === tab;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
   });
   document.querySelectorAll("#modal-clf-builder [data-rr-clf-pane]").forEach((p) => {
     p.classList.toggle("is-active", p.getAttribute("data-rr-clf-pane") === tab);
@@ -82831,7 +83085,8 @@ function _clfAssignDesc(a) {
     trainers: "Trainers",
   }[a.assignment_scope] || a.assignment_scope;
   const rr = a.repeat_rule || {};
-  const rep = { once: "One-time", daily: "Daily", weekly: "Weekly", date: `On ${rr.date || a.route_date || "date"}` }[rr.type || "once"];
+  const _wdName = { 1: "Mondays", 2: "Tuesdays", 3: "Wednesdays", 4: "Thursdays", 5: "Fridays", 6: "Saturdays", 7: "Sundays" };
+  const rep = { once: "One-time", daily: "Daily", weekly: rr.weekday ? `Weekly · ${_wdName[rr.weekday] || "weekly"}` : "Weekly", date: `On ${rr.date || a.route_date || "date"}` }[rr.type || "once"];
   const due = rr.due === "route_start" ? "due before route start"
     : rr.due === "shift_end" ? "due by end of shift"
     : rr.due === "time" && rr.due_time ? `due by ${rr.due_time}`
@@ -82908,6 +83163,16 @@ async function _clfRenderAssign() {
               <option value="date">Specific date</option>
             </select>
             <input type="date" id="rr-clf-repeat-date" style="display:none"/>
+            <select id="rr-clf-repeat-weekday" style="display:none" title="Which weekday this weekly checklist is due">
+              <option value="">Any scheduled day</option>
+              <option value="1">Mondays</option>
+              <option value="2">Tuesdays</option>
+              <option value="3">Wednesdays</option>
+              <option value="4">Thursdays</option>
+              <option value="5">Fridays</option>
+              <option value="6">Saturdays</option>
+              <option value="7">Sundays</option>
+            </select>
           </div>
         </div>
         <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
@@ -82998,6 +83263,10 @@ async function _clfCreateAssignment() {
     if (!d) { toast("Pick the date", "warn"); return; }
     rr.date = d;
   }
+  if (repeat === "weekly") {
+    const wd = document.getElementById("rr-clf-repeat-weekday")?.value;
+    if (wd) rr.weekday = parseInt(wd, 10);   // ISO dow 1=Mon…7=Sun; blank = any scheduled day
+  }
   const due = document.getElementById("rr-clf-due")?.value || "none";
   rr.due = due;
   if (due === "time") {
@@ -83031,8 +83300,11 @@ async function _clfCreateAssignment() {
 // ── Responses pane ────────────────────────────────────────────────────
 
 function _clfAnswerValHtml(a) {
-  if (a.item_type === "signature" && (a.value_text || "").startsWith("data:image")) {
-    return `<img class="clf-resp-sig" src="${escapeHtml(a.value_text)}" alt="Signature"/>`;
+  if (a.item_type === "signature") {
+    const v = a.value_text || "";
+    if (v.startsWith("data:image")) return `<img class="clf-resp-sig" src="${escapeHtml(v)}" alt="Signature"/>`;   // legacy inline
+    if (v) return `<button type="button" class="btn btn-sm" data-rr-clf-photo="${escapeHtml(v)}">View signature</button>`;  // stored path → signed URL
+    return `<span style="color:var(--text-subtle)">Not signed</span>`;
   }
   if (a.item_type === "photo") {
     const photos = Array.isArray(a.photo_urls) ? a.photo_urls : [];
@@ -83043,6 +83315,68 @@ function _clfAnswerValHtml(a) {
   if (a.item_type === "yes_no") return escapeHtml((a.value_text || "—").replace(/^yes$/i, "Yes").replace(/^no$/i, "No"));
   if (a.item_type === "number") return a.value_number != null ? String(a.value_number) : "—";
   return a.value_text ? escapeHtml(a.value_text) : "—";
+}
+
+// Plain-text answer value for the CSV export (no HTML; photos/signatures
+// collapse to a short marker so the file stays audit-legible).
+function _clfAnswerCsvVal(a) {
+  if (!a) return "";
+  let v;
+  if (a.item_type === "signature") v = (a.value_text || "") ? "Signed" : "";
+  else if (a.item_type === "photo") { const n = Array.isArray(a.photo_urls) ? a.photo_urls.length : 0; v = n ? `${n} photo${n === 1 ? "" : "s"}` : "No photo"; }
+  else if (a.item_type === "checkbox") v = a.value_bool ? "Done" : "Not done";
+  else if (a.item_type === "yes_no") v = (a.value_text || "").replace(/^yes$/i, "Yes").replace(/^no$/i, "No");
+  else if (a.item_type === "number") v = a.value_number != null ? String(a.value_number) : "";
+  else v = a.value_text || "";
+  if (a.note) v = (v ? v + " " : "") + `(Note: ${a.note})`;
+  if (a.failed_flag) v = (v ? v + " " : "") + "[FLAG]";
+  return v;
+}
+
+// Compliance export: the full submission history for the open checklist,
+// one row per submission with a column per item. Pulls a wide window so
+// the file is an audit record, not just what's on screen.
+async function _clfExportCsv() {
+  const tpl = _clfState.editing;
+  if (!tpl) { toast("Open a checklist first", "warn"); return; }
+  const btn = document.querySelector("[data-rr-clf-export]");
+  if (btn) { btn.disabled = true; btn.textContent = "Exporting…"; }
+  try {
+    const res = await sb.rpc("checklist_form_responses", { p_template_id: tpl.id, p_days: 3650 });
+    if (res.error) throw res.error;
+    const subs = Array.isArray(res.data?.submissions) ? res.data.submissions : [];
+    if (subs.length === 0) { toast("No submissions to export yet", "warn"); return; }
+    const items = (Array.isArray(tpl.items) ? tpl.items.slice() : [])
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const stLabel = { not_started: "Not started", in_progress: "In progress", reopened: "Reopened", submitted: "Completed" };
+    const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : "");
+    const header = ["Checklist", "Driver", "Status", "Period", "Due", "Started", "Submitted", "Overdue", "Flagged", ...items.map((i) => i.label || "Item")];
+    const rows = [header];
+    for (const s of subs) {
+      const byId = {};
+      for (const a of (s.answers || [])) byId[a.item_id] = a;
+      rows.push([
+        tpl.name || "",
+        s.driver_name || "",
+        s.overdue ? "Overdue" : (stLabel[s.status] || s.status || ""),
+        s.period_key || "",
+        fmt(s.due_at), fmt(s.started_at), fmt(s.submitted_at),
+        s.overdue ? "Yes" : "",
+        s.failed_count || 0,
+        ...items.map((i) => _clfAnswerCsvVal(byId[i.id])),
+      ]);
+    }
+    const bom = String.fromCharCode(0xFEFF);
+    const csv = bom + rows.map((r) => r.map(_schedCsvField).join(",")).join("\r\n");
+    const slug = (tpl.name || "checklist").replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "checklist";
+    _downloadBlob(`checklist-${slug}-${new Date().toISOString().slice(0, 10)}.csv`,
+      new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    toast(`Exported ${subs.length} submission${subs.length === 1 ? "" : "s"}`, "success");
+  } catch (e) {
+    toast("Couldn't export: " + (e.message || e), "warn");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Export CSV"; }
+  }
 }
 
 async function _clfRenderResponses() {
@@ -83102,13 +83436,28 @@ async function _clfRenderResponses() {
         ${todayHtml}
       </div>
       <div class="clf-resp-section">
-        <div class="clf-resp-h">Submissions · last 14 days</div>
+        <div class="clf-resp-h" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <span>Submissions · last 14 days</span>
+          <button type="button" class="btn btn-sm" data-rr-clf-export title="Download the full submission history as CSV">Export CSV</button>
+        </div>
         ${subsHtml}
       </div>
     </div>`;
 }
 
 // ── Delegated events ─────────────────────────────────────────────────
+
+// Keyboard activation for the sidebar checklist cards (role="button",
+// tabindex 0) — Enter/Space opens, matching the click handler below.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+  const card = e.target.closest?.("[data-rr-clf-edit]");
+  if (!card || e.target.closest(".rr-clf-menu") || e.target.closest("[data-rr-clf-dots]")) return;
+  // Only when the card itself is focused, not a control inside it.
+  if (document.activeElement !== card) return;
+  e.preventDefault();
+  openClfBuilder(card.getAttribute("data-rr-clf-edit"));
+});
 
 document.addEventListener("click", async (e) => {
   // sidebar chips
@@ -83122,6 +83471,23 @@ document.addEventListener("click", async (e) => {
 
   // new checklist
   if (e.target.closest("[data-rr-clf-new]")) { openClfBuilder(null); return; }
+
+  // export responses to CSV
+  if (e.target.closest("[data-rr-clf-export]")) { _clfExportCsv(); return; }
+
+  // insights dashboard
+  if (e.target.closest("[data-rr-clf-insights]")) { _clfOpenInsights(); return; }
+  if (e.target.closest("[data-rr-clf-insights-close]") || e.target.id === "rr-clf-insights-drawer") { document.getElementById("rr-clf-insights-drawer")?.remove(); return; }
+
+  // flags queue
+  if (e.target.closest("[data-rr-clf-flags]")) { _clfOpenFlags(); return; }
+  if (e.target.closest("[data-rr-clf-flags-close]") || e.target.id === "rr-clf-flags-drawer") { document.getElementById("rr-clf-flags-drawer")?.remove(); return; }
+  const _fres = e.target.closest("[data-rr-clf-flag-resolve]");
+  if (_fres) { _clfActOnFlag(_fres.getAttribute("data-rr-clf-flag-resolve"), "resolved", _fres.closest("[data-rr-clf-flag]")); return; }
+  const _fdis = e.target.closest("[data-rr-clf-flag-dismiss]");
+  if (_fdis) { _clfActOnFlag(_fdis.getAttribute("data-rr-clf-flag-dismiss"), "dismissed", _fdis.closest("[data-rr-clf-flag]")); return; }
+  const _frep = e.target.closest("[data-rr-clf-flag-reopen]");
+  if (_frep) { _clfReopenFlag(_frep.getAttribute("data-rr-clf-flag-reopen")); return; }
 
   // card overflow menu
   const dots = e.target.closest("[data-rr-clf-dots]");
@@ -83333,6 +83699,8 @@ document.addEventListener("change", async (e) => {
   if (e.target?.id === "rr-clf-repeat") {
     const d = document.getElementById("rr-clf-repeat-date");
     if (d) d.style.display = e.target.value === "date" ? "" : "none";
+    const wd = document.getElementById("rr-clf-repeat-weekday");
+    if (wd) wd.style.display = e.target.value === "weekly" ? "" : "none";
     return;
   }
   if (e.target?.id === "rr-clf-due") {
@@ -83340,6 +83708,8 @@ document.addEventListener("change", async (e) => {
     if (t) t.style.display = e.target.value === "time" ? "" : "none";
     return;
   }
+  if (e.target?.matches?.("[data-rr-clf-flags-showresolved]")) { _clfLoadFlags(e.target.checked); return; }
+  if (e.target?.matches?.("[data-rr-clf-insights-days]")) { _clfInsightsDays = parseInt(e.target.value, 10) || 30; _clfLoadInsights(); return; }
 });
 
 // Drag-and-drop: reorder item rows by their handle; drag palette types in.
@@ -83475,16 +83845,22 @@ document.addEventListener("click", (e) => {
   const dev = e.target.closest("[data-rr-clf-preview-device]");
   if (dev) {
     _clfPreviewDevice = dev.getAttribute("data-rr-clf-preview-device");
-    document.querySelectorAll("[data-rr-clf-preview-device]").forEach((b) =>
-      b.classList.toggle("is-active", b === dev));
+    document.querySelectorAll("[data-rr-clf-preview-device]").forEach((b) => {
+      const on = b === dev;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
     _clfRenderPreview();
     return;
   }
   const ori = e.target.closest("[data-rr-clf-preview-orient]");
   if (ori) {
     _clfPreviewOrient = ori.getAttribute("data-rr-clf-preview-orient");
-    document.querySelectorAll("[data-rr-clf-preview-orient]").forEach((b) =>
-      b.classList.toggle("is-active", b === ori));
+    document.querySelectorAll("[data-rr-clf-preview-orient]").forEach((b) => {
+      const on = b === ori;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
     _clfRenderPreview();
   }
 });
