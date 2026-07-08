@@ -57940,10 +57940,13 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       : "Drag onto a driver, or press Enter to assign by keyboard";
     // Screen-reader label + keyboard affordance: the pool chip is a button
     // that "picks up" the shift for keyboard assignment (see the keydown
-    // handler in bindSchedWeekNav).
+    // handler in bindSchedWeekNav). `time` is an HTML snippet (it wraps the
+    // wave window in <span>s), so strip the tags — an aria-label must be
+    // plain text or a screen reader reads the literal markup.
+    const timeText = String(time).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     const kbdAria = (sh.virtual
-      ? `Open route gap, ${dayLabel(sh.date)}, ${time}`
-      : `Open shift, ${dayLabel(sh.date)}, ${time}${sh.route_code ? `, route ${sh.route_code}` : ""}`)
+      ? `Open route gap, ${dayLabel(sh.date)}, ${timeText}`
+      : `Open shift, ${dayLabel(sh.date)}, ${timeText}${sh.route_code ? `, route ${sh.route_code}` : ""}`)
       + ". Press Enter to pick up, then choose a driver and day.";
     return `<div class="rr-pool-shift" draggable="true" tabindex="0" role="button" aria-label="${escapeHtml(kbdAria)}"
         data-rr-pool-shift="${dragId}" data-rr-pool-shift-date="${sh.date}"${virtAttrs}
@@ -60242,6 +60245,24 @@ function bindSchedWeekNav() {
         _rrSchedRefocus = false;
         _rrSchedAnnounce("Couldn't assign that shift. " + (err?.message || ""));
       }
+      return;
+    }
+
+    // ── Enter/Space on a focused cell (not carrying) opens/edits its
+    // content, restoring the keyboard path the roving grid replaced: the
+    // day cells are the single tab stop (chips are tabindex -1), so we
+    // route activation through the cell to the existing click handler —
+    // assigned chip → edit modal, open chip → cover drawer, PTO chip →
+    // remove flow, empty available cell → add-shift modal.
+    if (!_rrSchedCarry && (e.key === "Enter" || e.key === " " || e.key === "Spacebar")) {
+      e.preventDefault();
+      const chip = cell.querySelector(".shift-chip.timeoff, .shift-chip.open, .shift-chip:not(.off)");
+      const tgt = chip || cell;
+      const r = tgt.getBoundingClientRect();
+      tgt.dispatchEvent(new MouseEvent("click", {
+        bubbles: true, cancelable: true,
+        clientX: r.left + r.width / 2, clientY: r.bottom,
+      }));
       return;
     }
 
