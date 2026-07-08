@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=4ae68a8ac45d";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=4ae68a8ac45d";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=4ae68a8ac45d";
+import { planScheduleWeek } from "./scheduling-engine.js?v=b8f298a86d48";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b8f298a86d48";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b8f298a86d48";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -83107,7 +83107,7 @@ function _clfFlagValue(fl) {
 function _clfOpenFlags() {
   let root = document.getElementById("rr-clf-flags-drawer");
   if (!root) { root = document.createElement("div"); root.id = "rr-clf-flags-drawer"; document.body.appendChild(root); }
-  root.style.cssText = "position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end";
+  root.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end";
   root.innerHTML = `<div class="rr-clf-flags-panel" style="width:min(560px,100%);height:100%;background:var(--surface,#fff);box-shadow:-8px 0 30px rgba(0,0,0,.2);display:flex;flex-direction:column" role="dialog" aria-label="Flagged answers">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)">
       <div><div style="font-weight:700;font-size:16px">Flagged answers</div><div style="font-size:12px;color:var(--text-subtle)">Review and resolve items drivers flagged</div></div>
@@ -83139,15 +83139,15 @@ async function _clfLoadFlags(includeResolved) {
   const when = (ts) => (ts ? new Date(ts).toLocaleString() : "");
   body.innerHTML = list.map((fl) => {
     const resolved = !!fl.flag_resolved_at;
-    return `<div class="rr-clf-flag-card" data-rr-clf-flag="${escapeHtml(fl.answer_id)}" style="border:1px solid var(--border);border-left:3px solid ${resolved ? "var(--border-strong,#cbd5e1)" : "#dc2626"};border-radius:10px;padding:12px 14px;margin-bottom:10px">
+    return `<div class="rr-clf-flag-card" data-rr-clf-flag="${escapeHtml(fl.answer_id)}" style="border:1px solid var(--border);border-left:3px solid ${resolved ? "var(--border-strong)" : "var(--red)"};border-radius:10px;padding:12px 14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;gap:10px">
         <div style="font-weight:600">${escapeHtml(fl.item_label || "Item")}</div>
         <div style="font-size:11px;color:var(--text-subtle);white-space:nowrap">${escapeHtml(when(fl.submitted_at))}</div>
       </div>
-      <div style="font-size:13px;margin-top:2px">Answer: <strong style="color:${resolved ? "inherit" : "#dc2626"}">${escapeHtml(_clfFlagValue(fl))}</strong>${fl.note ? ` · <span style="color:var(--text-subtle)">${escapeHtml(fl.note)}</span>` : ""}</div>
+      <div style="font-size:13px;margin-top:2px">Answer: <strong style="color:${resolved ? "inherit" : "var(--red)"}">${escapeHtml(_clfFlagValue(fl))}</strong>${fl.note ? ` · <span style="color:var(--text-subtle)">${escapeHtml(fl.note)}</span>` : ""}</div>
       <div style="font-size:12px;color:var(--text-subtle);margin-top:2px">${escapeHtml(fl.driver_name || "Driver")} · ${escapeHtml(fl.checklist_name || "Checklist")}</div>
       ${resolved
-        ? `<div style="font-size:12px;color:var(--text-subtle);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${fl.flag_disposition === "dismissed" ? "Dismissed" : "Resolved"}${fl.resolved_by_email ? " by " + escapeHtml(fl.resolved_by_email.split("@")[0]) : ""} · ${escapeHtml(when(fl.flag_resolved_at))}${fl.flag_note ? ` — ${escapeHtml(fl.flag_note)}` : ""} <button type="button" data-rr-clf-flag-reopen="${escapeHtml(fl.answer_id)}" style="border:none;background:none;color:var(--accent,#2563eb);cursor:pointer;font-size:12px;margin-left:6px">Reopen</button></div>`
+        ? `<div style="font-size:12px;color:var(--text-subtle);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${fl.flag_disposition === "dismissed" ? "Dismissed" : "Resolved"}${fl.resolved_by_email ? " by " + escapeHtml(fl.resolved_by_email.split("@")[0]) : ""} · ${escapeHtml(when(fl.flag_resolved_at))}${fl.flag_note ? ` — ${escapeHtml(fl.flag_note)}` : ""} <button type="button" data-rr-clf-flag-reopen="${escapeHtml(fl.answer_id)}" style="border:none;background:none;color:var(--accent);cursor:pointer;font-size:12px;margin-left:6px">Reopen</button></div>`
         : `<div style="display:flex;gap:8px;margin-top:10px;align-items:center">
             <input type="text" data-rr-clf-flag-note placeholder="Add a note (optional)" style="flex:1;font:inherit;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;background:var(--canvas)"/>
             <button type="button" class="btn btn-sm btn-primary" data-rr-clf-flag-resolve="${escapeHtml(fl.answer_id)}">Resolve</button>
@@ -83187,7 +83187,7 @@ let _clfInsightsDays = 30;
 function _clfOpenInsights() {
   let root = document.getElementById("rr-clf-insights-drawer");
   if (!root) { root = document.createElement("div"); root.id = "rr-clf-insights-drawer"; document.body.appendChild(root); }
-  root.style.cssText = "position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end";
+  root.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end";
   root.innerHTML = `<div style="width:min(680px,100%);height:100%;background:var(--surface,#fff);box-shadow:-8px 0 30px rgba(0,0,0,.2);display:flex;flex-direction:column" role="dialog" aria-label="Compliance insights">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)">
       <div><div style="font-weight:700;font-size:16px">Compliance insights</div><div style="font-size:12px;color:var(--text-subtle)">Driver checklist completion, on-time rate &amp; flags</div></div>
@@ -83227,7 +83227,7 @@ async function _clfLoadInsights() {
   const trend = byDay.length
     ? `<div style="display:flex;align-items:flex-end;gap:3px;height:90px;margin-top:8px">${byDay.map((d) => {
         const h = Math.round(((d.submitted || 0) / dayMax) * 84);
-        return `<div title="${escapeHtml(d.day)} · ${d.submitted}" style="flex:1;min-width:3px;height:${Math.max(2, h)}px;background:var(--accent,#2563eb);border-radius:2px 2px 0 0;opacity:.85"></div>`;
+        return `<div title="${escapeHtml(d.day)} · ${d.submitted}" style="flex:1;min-width:3px;height:${Math.max(2, h)}px;background:var(--accent);border-radius:2px 2px 0 0;opacity:.85"></div>`;
       }).join("")}</div><div style="font-size:11px;color:var(--text-subtle);margin-top:4px">${escapeHtml(byDay[0].day)} → ${escapeHtml(byDay[byDay.length - 1].day)}</div>`
     : `<div style="font-size:13px;color:var(--text-subtle);padding:12px 0">No submissions in this window.</div>`;
 
@@ -83236,7 +83236,7 @@ async function _clfLoadInsights() {
   const topHtml = top.length
     ? top.map((x) => `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
         <div style="width:150px;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(x.label)}">${escapeHtml(x.label)}</div>
-        <div style="flex:1;background:var(--canvas);border-radius:5px;overflow:hidden;height:16px"><div style="width:${Math.round((x.count / topMax) * 100)}%;height:100%;background:#dc2626;opacity:.8"></div></div>
+        <div style="flex:1;background:var(--canvas);border-radius:5px;overflow:hidden;height:16px"><div style="width:${Math.round((x.count / topMax) * 100)}%;height:100%;background:var(--red);opacity:.8"></div></div>
         <div style="width:28px;text-align:right;font-size:12px;font-weight:600">${x.count}</div></div>`).join("")
     : `<div style="font-size:13px;color:var(--text-subtle)">No flagged answers 🎉</div>`;
 
@@ -83250,8 +83250,8 @@ async function _clfLoadInsights() {
     <div style="display:flex;flex-wrap:wrap;gap:10px">
       ${kpi("Submitted", t.submitted || 0, `${t.in_progress || 0} in progress`)}
       ${kpi("On-time", onTimeRate == null ? "—" : onTimeRate + "%", `${t.on_time || 0} of ${t.due_tracked || 0} with a due time`)}
-      ${kpi("Overdue", t.overdue || 0, "open past due", (t.overdue || 0) > 0 ? "#dc2626" : null)}
-      ${kpi("Open flags", t.open_flags || 0, `${t.resolved_flags || 0} resolved`, (t.open_flags || 0) > 0 ? "#dc2626" : null)}
+      ${kpi("Overdue", t.overdue || 0, "open past due", (t.overdue || 0) > 0 ? "var(--red)" : null)}
+      ${kpi("Open flags", t.open_flags || 0, `${t.resolved_flags || 0} resolved`, (t.open_flags || 0) > 0 ? "var(--red)" : null)}
     </div>
     <div style="margin-top:20px;font-weight:600;font-size:13px">Submitted per day</div>${trend}
     <div style="margin-top:20px;font-weight:600;font-size:13px;margin-bottom:8px">Top flagged items</div>${topHtml}
@@ -83259,13 +83259,13 @@ async function _clfLoadInsights() {
     ${byChecklist.length ? rowsTable(byChecklist, [
       { h: "Checklist", cell: (r) => escapeHtml(r.name || "Untitled") },
       { h: "Submitted", right: true, cell: (r) => r.submitted || 0 },
-      { h: "Flagged", right: true, cell: (r) => `<span style="color:${(r.flagged || 0) > 0 ? "#dc2626" : "inherit"}">${r.flagged || 0}</span>` },
+      { h: "Flagged", right: true, cell: (r) => `<span style="color:${(r.flagged || 0) > 0 ? "var(--red)" : "inherit"}">${r.flagged || 0}</span>` },
     ]) : `<div style="font-size:13px;color:var(--text-subtle)">No data.</div>`}
     <div style="margin-top:20px;font-weight:600;font-size:13px;margin-bottom:6px">By driver</div>
     ${byDriver.length ? rowsTable(byDriver, [
       { h: "Driver", cell: (r) => escapeHtml(r.name || "Driver") },
       { h: "Submitted", right: true, cell: (r) => r.submitted || 0 },
-      { h: "Flagged", right: true, cell: (r) => `<span style="color:${(r.flagged || 0) > 0 ? "#dc2626" : "inherit"}">${r.flagged || 0}</span>` },
+      { h: "Flagged", right: true, cell: (r) => `<span style="color:${(r.flagged || 0) > 0 ? "var(--red)" : "inherit"}">${r.flagged || 0}</span>` },
     ]) : `<div style="font-size:13px;color:var(--text-subtle)">No data.</div>`}`;
 }
 
