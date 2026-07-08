@@ -11,46 +11,112 @@
      query = always applies), not the last, so an earlier tag silently
      wins. A stray #2563EB here used to paint the title bar saturated
      blue — removed 2026-06-26. -->
-<!-- ONE-TIME service-worker reset · runs before everything else on the
-     page so it bypasses every cache layer. Without this, operators
-     whose old SW (with stale-while-revalidate semantics) was already
-     installed kept loading the old bundle on every refresh even after
-     PRs #1870 + #1871 shipped the network-first replacement. The check
-     is gated on a localStorage flag so it only fires ONCE per browser;
-     subsequent visits skip the unregister + reload. To force another
-     round of resets in the future, bump the storage key. -->
+<!-- Full app purge · shared escape hatch for a wedged install. A stale
+     app shell (old service-worker / Cache-Storage entries pointing at
+     ?v= assets that no longer resolve) makes a view partial 404 and
+     aborts boot BEFORE the app reveals — the operator sits on the
+     "We couldn't load your data" card forever, and a plain reload just
+     re-serves the same stale shell. __rrPurgeAndReload() unregisters
+     every service worker AND deletes every Cache-Storage bucket, then
+     hard-reloads uncontrolled with a cache-buster so the shell comes
+     straight from the network. Defined before everything else (and
+     independent of live.js, which may never run on a wedged client) so
+     both the one-time auto-reset below and the failure card's
+     "Reset app" button can call it. -->
 <script>
 (function () {
-  var RESET_KEY = "rr-sw-reset-20260602-uihotfix";
+  window.__rrPurgeAndReload = function () {
+    var jobs = [];
+    try {
+      if ("serviceWorker" in navigator) {
+        jobs.push(navigator.serviceWorker.getRegistrations()
+          .then(function (regs) { return Promise.all((regs || []).map(function (r) { return r.unregister(); })); })
+          .catch(function () {}));
+      }
+    } catch (_) {}
+    try {
+      if (window.caches && caches.keys) {
+        jobs.push(caches.keys()
+          .then(function (keys) { return Promise.all((keys || []).map(function (k) { return caches.delete(k); })); })
+          .catch(function () {}));
+      }
+    } catch (_) {}
+    var done = function () {
+      var u = new URL(window.location.href);
+      u.searchParams.set("_swreset", String(Date.now()));
+      u.hash = "";
+      window.location.replace(u.toString());
+    };
+    // Never let a hung purge strand the operator — reload regardless
+    // after a short cap.
+    var fired = false;
+    var go = function () { if (fired) return; fired = true; done(); };
+    try { Promise.all(jobs).then(go, go); } catch (_) { go(); }
+    setTimeout(go, 2500);
+  };
+
+  // ── ONE-TIME auto-reset ────────────────────────────────────────────
+  // Gated on a localStorage flag so it fires ONCE per browser; bump the
+  // key to force another round after a deploy that could leave clients
+  // wedged on a stale shell (this is the documented lever — see PR
+  // history). Runs before the cache layers so it bypasses any stale
+  // shell a still-controlling SW might otherwise serve.
+  var RESET_KEY = "rr-sw-reset-20260708-dashlockout";
   if (!("serviceWorker" in navigator)) return;
   try {
     if (localStorage.getItem(RESET_KEY)) return; // already reset
   } catch (_) { return; }
   navigator.serviceWorker.getRegistrations().then(function (regs) {
-    if (!regs || regs.length === 0) {
-      // No SW registered yet — nothing to nuke. Set the flag so we
-      // don't run this branch on every fresh-install page load.
-      try { localStorage.setItem(RESET_KEY, "1"); } catch (_) {}
+    var hadSw = regs && regs.length > 0;
+    // Set the flag BEFORE any reload so the reset can never loop.
+    try { localStorage.setItem(RESET_KEY, "1"); } catch (_) {}
+    // Clear Cache Storage too — an old SW populated it, and unregister
+    // alone leaves those stale bytes behind for the next controller.
+    var clearCaches = (window.caches && caches.keys)
+      ? caches.keys().then(function (keys) {
+          return Promise.all((keys || []).map(function (k) { return caches.delete(k); }));
+        }).catch(function () {})
+      : Promise.resolve();
+    if (!hadSw) {
+      // Nothing was controlling this page — the clearCaches promise above
+      // already started tidying any stray buckets; no reload needed
+      // (avoids a gratuitous extra load for healthy fresh installs).
       return;
     }
-    // Unregister every SW under this origin's scope, then hard-reload
-    // so the page comes up with no SW controlling and fresh JS / CSS
-    // straight from the network. The reload runs ONCE because the
-    // flag is set before location.reload() fires.
-    Promise.all(regs.map(function (r) { return r.unregister(); }))
-      .then(function () {
-        try { localStorage.setItem(RESET_KEY, "1"); } catch (_) {}
-        // Use a one-time hash marker on the URL so a SW that hasn't
-        // fully released yet can't intercept this fetch.
-        var u = new URL(window.location.href);
-        u.searchParams.set("_swreset", String(Date.now()));
-        window.location.replace(u.toString());
-      })
-      .catch(function () {
-        try { localStorage.setItem(RESET_KEY, "1"); } catch (_) {}
-      });
+    Promise.all([
+      Promise.all(regs.map(function (r) { return r.unregister(); })).catch(function () {}),
+      clearCaches,
+    ]).then(function () {
+      var u = new URL(window.location.href);
+      u.searchParams.set("_swreset", String(Date.now()));
+      window.location.replace(u.toString());
+    }).catch(function () {});
   }).catch(function () {
     try { localStorage.setItem(RESET_KEY, "1"); } catch (_) {}
+  });
+})();
+
+// ── Boot-error capture ────────────────────────────────────────────────
+// The failure card (shown when live.js never flips __RR_BOOT_OK) used to
+// say only "connection hiccup" for EVERY cause — a frag 404, a thrown
+// boot IIFE, a blocked CDN import — leaving the operator and support
+// blind. Record the first real boot-phase error here (before live.js
+// loads) so the card can surface it. live.js's own telemetry still
+// reports it to client_errors; this is just the on-screen breadcrumb.
+(function () {
+  window.__RR_BOOT_ERR = null;
+  function capture(msg) {
+    if (window.__RR_BOOT_ERR || !msg) return;
+    window.__RR_BOOT_ERR = String(msg).slice(0, 300);
+  }
+  window.addEventListener("error", function (e) {
+    // Ignore benign resource-load errors on optional assets; keep script
+    // + module evaluation failures, which are the ones that wedge boot.
+    if (e && e.message) capture(e.message);
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    var r = e && e.reason;
+    capture(r && (r.message || String(r)));
   });
 })();
 </script>
@@ -146,11 +212,14 @@
   <div class="rr-boot-text">Loading your fleet…</div>
   <div class="rr-boot-err" role="alert">
     <div class="rr-boot-err-title">We couldn't load your data</div>
-    <div class="rr-boot-err-sub">Your live schedule and fleet information didn't come through — usually a connection hiccup. Your data is safe; nothing was lost.</div>
+    <div class="rr-boot-err-sub">Your live schedule and fleet information didn't come through — usually a connection hiccup or an out-of-date app. Your data is safe; nothing was lost.</div>
     <div class="rr-boot-err-actions">
       <button type="button" class="rr-boot-err-btn" onclick="location.reload()">Try again</button>
+      <button type="button" class="rr-boot-err-btn secondary" onclick="window.__rrPurgeAndReload&&window.__rrPurgeAndReload()">Reset app</button>
       <a class="rr-boot-err-btn secondary" href="./login.html">Sign in again</a>
     </div>
+    <div class="rr-boot-err-hint">If “Try again” doesn’t help, “Reset app” clears the cached app and reloads a fresh copy — you won’t lose any data.</div>
+    <div class="rr-boot-err-detail" id="rr-boot-err-detail" hidden></div>
   </div>
 </div>
 <script>
@@ -167,6 +236,17 @@
     if (window.__RR_BOOT_OK) { o.classList.add('rr-hide'); return; }
     o.classList.remove('rr-hide');
     o.classList.add('rr-failed');
+    // Surface the real reason if we captured one — turns a generic
+    // "connection hiccup" into an actionable breadcrumb for the operator
+    // and support (a frag 404 / stale shell reads very differently from a
+    // dropped network).
+    try {
+      var det = document.getElementById('rr-boot-err-detail');
+      if (det && window.__RR_BOOT_ERR) {
+        det.textContent = 'Details: ' + window.__RR_BOOT_ERR;
+        det.hidden = false;
+      }
+    } catch (_) {}
     var late = setInterval(function(){
       var ov = document.getElementById('rr-boot-overlay');
       if (!ov) { clearInterval(late); return; }
