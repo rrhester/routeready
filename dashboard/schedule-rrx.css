@@ -6163,12 +6163,21 @@ a.ctpd-val:hover{text-decoration:underline}
    very light #F7F9FC tint under it (inset just enough to read as
    a recessed tray) makes the white calendar feel set INTO the
    page rather than floating on it. Negative margin + matching
-   padding keep every control in exactly the same place. */
+   padding keep every control in exactly the same place.
+
+   The RIGHT side does NOT bleed: on the right the shell butts
+   against the utility rail with no page padding to absorb a -6px
+   margin, so a symmetric `margin:-6px` pushed the tray 6px past
+   its container. That overflow was clipped by the parent's
+   overflow:hidden, shearing the grid card's right edge / rounded
+   corner (reported as "the right edge of the schedule is cut
+   off"). Bleed top/bottom/left only — the grid (.cal-wrap) stays
+   in the exact same place either way. */
 #view-schedule.rrx-schedule .builder-shell {
   background: #F7F9FC;
   border-radius: 14px;
-  padding: 6px;
-  margin: -6px;
+  padding: 6px 0 6px 6px;
+  margin: -6px 0 -6px -6px;
 }
 
 /* (2) Layer 3 — the ONE unified container wrapping the driver
