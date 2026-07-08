@@ -38,7 +38,7 @@
      white cards; a calm neutral lets the cards define the structure
      with hairline borders alone). Mirrored on the Onboarding ground,
      Fleet ground, topbar, and light sidebar rail — keep in sync. */
-  background: #F9FAFB;
+  background: var(--rr-gray-50);
   font-family: var(--rr-font-family);
   color: var(--rr-fg-primary);
 }
@@ -136,9 +136,9 @@
   padding: var(--rr-space-100) var(--rr-space-160);
   margin: 0;
   /* Header bar matches the soft-blue sidebar rail (operator request).
-     Literal #EFF6FF because var(--sidebar-bg) resolves to the :root navy
+     Literal var(--rr-blue-50) because var(--sidebar-bg) resolves to the :root navy
      outside .sidebar scope. */
-  background: #EFF6FF;
+  background: var(--rr-blue-50);
   border: 1px solid var(--rr-border-primary);
   border-radius: var(--rr-radius-medium);
   box-shadow: none;
@@ -461,7 +461,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: var(--rr-fg-secondary, #6B7280);
+  color: var(--rr-fg-secondary, var(--rr-gray-500));
   font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
   font-size: 14px;
   font-weight: 600;
@@ -475,17 +475,17 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   flex: 0 0 auto;
   stroke-width: 1.8;
 }
-#rr-sched-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, #1F2937); }
+#rr-sched-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, var(--rr-gray-800)); }
 #rr-sched-viewseg .rr-viewseg-btn.active {
   /* Active label reads in primary ink — the rgb(194,231,255) light blue was
      too faint on the white bar (operator 2026-06-27). The light blue stays
      on the underline below as the active accent. */
-  color: var(--rr-fg-primary, #1F2937);
+  color: var(--rr-fg-primary, var(--rr-gray-800));
   border-bottom-color: rgb(194, 231, 255);
 }
-#rr-sched-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, #1F2937); }
+#rr-sched-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, var(--rr-gray-800)); }
 #rr-sched-viewseg .rr-viewseg-btn:focus-visible {
-  outline: 2px solid var(--accent, #2563EB);
+  outline: 2px solid var(--accent, var(--rr-blue-600));
   outline-offset: -3px;
   border-radius: 4px;
 }
@@ -905,8 +905,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-vans-rules-head {
-  background: #FFFFFF !important;
-  color: #0F172A !important;
+  background: var(--rr-white) !important;
+  color: var(--rr-slate-900) !important;
   padding: var(--rr-space-100) var(--rr-space-160) !important;
   border-bottom: 1px solid #EEF0F4 !important;
   border-top-left-radius: var(--rr-radius-large) !important;
@@ -920,11 +920,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-vans-rules-head-title {
   font: var(--rr-font-body-strong) !important;
-  color: #0F172A !important;
+  color: var(--rr-slate-900) !important;
 }
 
 #view-schedule.rrx-schedule .sched-vans-rules-info {
-  color: #64748B;
+  color: var(--rr-slate-500);
 }
 
 #view-schedule.rrx-schedule .sched-vans-rules-info:hover,
@@ -1007,7 +1007,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-draw-day.on {
   background: var(--rr-brand-primary);
   border-color: var(--rr-brand-primary);
-  color: #FFFFFF;
+  color: var(--rr-white);
 }
 
 #view-schedule.rrx-schedule .sched-draw-day-letter {
@@ -1364,7 +1364,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   overflow-y: scroll !important;
   scrollbar-gutter: stable !important;
   scrollbar-width: auto !important;
-  scrollbar-color: #6B7280 #E5E7EB !important;
+  scrollbar-color: var(--rr-gray-500) var(--rr-gray-200) !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar,
@@ -1379,7 +1379,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   appearance: none !important;
   width: 14px !important;
   height: 14px !important;
-  background: #E5E7EB !important;
+  background: var(--rr-gray-200) !important;
   display: block !important;
 }
 
@@ -1391,7 +1391,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-track {
-  background: #E5E7EB !important;
+  background: var(--rr-gray-200) !important;
   border-left: 1px solid rgba(15, 23, 42, 0.16) !important;
 }
 
@@ -1403,9 +1403,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-thumb {
-  background: #6B7280 !important;  /* dark — unmistakable against the light track */
+  background: var(--rr-gray-500) !important;  /* dark — unmistakable against the light track */
   background-clip: padding-box !important;
-  border: 3px solid #E5E7EB !important;
+  border: 3px solid var(--rr-gray-200) !important;
   border-radius: var(--rr-radius-pill) !important;
   min-height: 56px !important;
 }
@@ -1418,7 +1418,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-thumb:hover {
-  background: #111827 !important;
+  background: var(--rr-gray-900) !important;
 }
 
 /* macOS Chrome can still fade the thumb to invisible when idle
@@ -1454,7 +1454,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   appearance: none !important;
   width: 14px !important;
   height: 14px !important;
-  background: #E5E7EB !important;
+  background: var(--rr-gray-200) !important;
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -1464,7 +1464,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-corner,
 #view-schedule.rrx-schedule .pool-openshifts-foot::-webkit-scrollbar-corner,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-corner {
-  background: #E5E7EB !important;
+  background: var(--rr-gray-200) !important;
 }
 
 /* ============================================================
@@ -2221,7 +2221,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: .01em;
-  color: #111827;
+  color: var(--rr-gray-900);
   pointer-events: none;
   white-space: nowrap;
 }
@@ -2244,7 +2244,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: transparent;
   border: 0;
   border-radius: 999px;
-  color: #111827;
+  color: var(--rr-gray-900);
   opacity: 0.85;
   z-index: 1;
   transition: opacity var(--rr-motion-fast, 120ms ease-out),
@@ -2295,7 +2295,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   max-width: calc(100vw - 48px);
   max-height: calc(100vh - 200px);
   overflow-y: auto;
-  background: #fff;
+  background: var(--rr-white);
   border: 1px solid rgba(15, 23, 42, .12);
   border-radius: 8px;
   box-shadow: 0 14px 32px rgba(0, 0, 0, .18), 0 0 10px rgba(0, 0, 0, .10);
@@ -2315,7 +2315,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   align-items: center;
   gap: 8px;
   background: rgba(37,99,235, .08);
-  color: var(--sch-blue, #2563EB);
+  color: var(--sch-blue, var(--rr-blue-600));
   font-size: 13px;
   font-weight: 600;
   letter-spacing: .01em;
@@ -2327,7 +2327,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   width: 15px;
   height: 15px;
   flex: 0 0 auto;
-  color: var(--sch-blue, #2563EB);
+  color: var(--sch-blue, var(--rr-blue-600));
   stroke-width: 2;
 }
 #view-schedule.rrx-schedule #rr-sched-roster-rules-popover .rr-srr-body {
@@ -2482,10 +2482,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    fill="none" stroke-only → hollow outline; fill the polygon so it
    reads as a filled glyph). */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg {
-  color: #1D4ED8;
+  color: var(--rr-blue-700);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg polygon {
-  fill: #1D4ED8;
+  fill: var(--rr-blue-700);
 }
 
 /* ── Forecast mode (Monthly view) ──────────────────────────────────
@@ -2509,12 +2509,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: rgba(15, 23, 42, 0.06);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg {
-  color: var(--rr-comm-blue, #2563EB);
+  color: var(--rr-comm-blue, var(--rr-blue-600));
 }
 /* Draw the bolt as a solid glyph (the SVG ships fill="none" stroke-only,
    which renders a hollow outline). */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg polygon {
-  fill: var(--rr-comm-blue, #2563EB);
+  fill: var(--rr-comm-blue, var(--rr-blue-600));
 }
 
 /* ── Forecast · progress popover ───────────────────────────────────
@@ -2532,8 +2532,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   max-width: 220px;
   padding: 6px 11px;
   border-radius: 8px;
-  background: var(--rr-comm-blue, #2563EB);
-  color: #FFFFFF;
+  background: var(--rr-comm-blue, var(--rr-blue-600));
+  color: var(--rr-white);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.25;
@@ -2550,7 +2550,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   transform: translateX(-50%) rotate(45deg);
   width: 9px;
   height: 9px;
-  background: var(--rr-comm-blue, #2563EB);
+  background: var(--rr-comm-blue, var(--rr-blue-600));
   border-radius: 2px;
 }
 .rr-fc-progress-dot {
@@ -2711,7 +2711,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   bottom: 3px;
   height: 2px;
   border-radius: 2px;
-  background: var(--rr-comm-blue, #2563EB);
+  background: var(--rr-comm-blue, var(--rr-blue-600));
 }
 
 /* ============================================================
@@ -2839,7 +2839,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
      gradient read as glossy chrome; a quiet tint + outline carries the
      same "not live yet" semantics without competing with the data). */
   background: rgba(245, 158, 11, 0.15);
-  color: #92400E;
+  color: var(--rr-amber-800);
   border: 1px solid rgba(180, 120, 0, 0.35);
 }
 
@@ -2847,7 +2847,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   /* Flat green tint chip — the green twin of the amber "Draft" chip
      so the two states read as the same component in different states. */
   background: rgba(34, 197, 94, 0.15);
-  color: #15803D;
+  color: var(--rr-green-700);
   border: 1px solid rgba(21, 128, 61, 0.35);
   /* Operational pulse · a single, very subtle scale tick (100→103→100
      over ~800ms) then a long ~3.2s rest, like a Teams presence dot —
@@ -3039,53 +3039,53 @@ body:not(.rr-sched-compact):not(.rr-sched-ultra-compact):not(.rr-sched-super-com
    ============================================================ */
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-rescue) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-rescue) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-rescue) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-rescue) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-rescue) 92%, var(--rr-white)) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-nursery) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-nursery) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-nursery) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-nursery) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-nursery) 92%, var(--rr-white)) !important;
 }
 /* XL is a SERVICE type (not a route_classification), so it's keyed on the
    chip's data-rr-service-code instead. Placed after the route-class rules
    so an XL shift colors by XL even if it also carries a classification. */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-xl) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-xl) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-xl) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-xl) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-xl) 92%, var(--rr-white)) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-other) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-other) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-other) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-other) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-other) 92%, var(--rr-white)) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-reduction) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-reduction) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-reduction) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-reduction) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-reduction) 92%, var(--rr-white)) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-cycle_1) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-cycle_1) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-cycle_1) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-cycle_1) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-cycle_1) 92%, var(--rr-white)) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-cycle_2) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-cycle_2) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-cycle_2) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-cycle_2) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-cycle_2) 92%, var(--rr-white)) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-backup) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-backup) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-backup) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-backup) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-backup) 92%, var(--rr-white)) !important;
 }
 
 /* Training shift kinds · class training (shift_kind 'training') + road
@@ -3094,14 +3094,14 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
    also carries a route classification. The chip omits its built-in teal/amber
    inline tint while color-coding is on (see _schedShiftChip) so these paint. */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-class_training) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-class_training) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-class_training) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-class_training) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-class_training) 92%, var(--rr-white)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-kind="ride_along"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-road_training) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-road_training) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-road_training) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-road_training) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-road_training) 92%, var(--rr-white)) !important;
 }
 /* Trainer hosting a ride-along trainee — a regular shift that earns the
    .shift-chip-training class (extras.traineeName in _schedShiftChip). The
@@ -3109,9 +3109,9 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift
    wins over the route-class rules above when a trainer's shift also carries
    a Rescue/Nursery/etc. classification. */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.shift-chip-training[data-rr-shift-kind="regular"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-trainer_trainee) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-trainer_trainee) 92%, var(--rr-white)) !important;
 }
 
 /* PTO / time-off chips are clickable — clicking one offers to remove the
@@ -3128,11 +3128,11 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.shift-chip-tr
    it. The chip's amber comes from a CSS class (index.html), so these
    !important rules win. Text color follows the chosen hue too. */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff {
-  background: color-mix(in srgb, var(--rr-route-c-pto) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-pto) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-pto) 65%, transparent) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 
 /* Full-card color fill (operator 2026-06-12): with the chip painted
@@ -3143,7 +3143,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-r
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip:is([data-rr-route-class="rescue"],[data-rr-route-class="nursery"],[data-rr-service-code="XL"],[data-rr-route-class="other"],[data-rr-route-class="reduction"],[data-rr-route-class="cycle_1"],[data-rr-route-class="cycle_2"],[data-rr-route-class="backup"],[data-rr-shift-kind="training"],[data-rr-shift-kind="ride_along"],.shift-chip-training):not(.swap):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 
 /* ============================================================
@@ -3250,7 +3250,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   top: 1px;
   right: 2px;
   line-height: 1;
-  color: #2563EB;
+  color: var(--rr-blue-600);
   pointer-events: none;
 }
 #view-schedule .shift-chip .shift-chip-pin svg {
@@ -3326,7 +3326,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
 /* ============================================================
    Shift chips · crisp, restrained fill
    ------------------------------------------------------------
-   The prior translucent fill (#2563EB @ 22%) read as a hazy
+   The prior translucent fill (var(--rr-blue-600) @ 22%) read as a hazy
    blue wash over the canvas. Swapped to a clean OPAQUE light
    blue with a clearer, defined edge and higher-contrast route
    text. The chip still reads unmistakably as an assigned shift,
@@ -3335,21 +3335,21 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   /* Reference card (operator 2026-06-12): very light blue fill
-     (#EFF6FF), fully borderless — no ring, no colored left accent
+     (var(--rr-blue-50)), fully borderless — no ring, no colored left accent
      bar — with a quiet text hierarchy (time leads, Wave/Van muted).
      The outline keeps a uniform 1px width (transparent) so the card's
      size and the grid layout don't shift. */
-  background: #EFF6FF !important;
+  background: var(--rr-blue-50) !important;
   border: 1px solid transparent !important;
   box-shadow: none !important;
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) * {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
   font-weight: 800 !important;
 }
 
@@ -3363,16 +3363,16 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
    Card style toggle (Week rules popover · body.rr-sched-cards-blue)
    ------------------------------------------------------------
    WHITE (default): every assigned chip is the very light reference
-   blue (#EFF6FF), borderless, no side bar — even when Route color
+   blue (var(--rr-blue-50)), borderless, no side bar — even when Route color
    coding is on, so the per-type FULL fills are suppressed. The
    [data-rr-shift-id] qualifier + source order (this block sits AFTER
    the body.rr-sched-color-routes fills) wins the specificity tie.
    BLUE: solid blue fill.
    ============================================================ */
 body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #EFF6FF !important;
+  background: var(--rr-blue-50) !important;
   border: 1px solid transparent !important;
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: #E4EFFE !important;
@@ -3383,9 +3383,9 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .shift-chip[data-rr-shift-i
      (operator 2026-06-12: the picked look applies regardless of the
      legacy Card-style toggle — operators with "Blue" saved in
      localStorage must see it too). */
-  background: #EFF6FF !important;
+  background: var(--rr-blue-50) !important;
   border: 1px solid transparent !important;
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: #E4EFFE !important;
@@ -3442,7 +3442,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   font-size: 12px;
   line-height: 1.2;
   letter-spacing: -.005em;
-  color: #1F2937 !important;
+  color: var(--rr-gray-800) !important;
   font-variant-numeric: tabular-nums;
   /* Narrow cells truncate gracefully instead of hard-clipping into the
      corner badge. */
@@ -3457,7 +3457,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   font-size: 10.5px;
   font-weight: 500;
   line-height: 1.3;
-  color: #64748B !important;
+  color: var(--rr-slate-500) !important;
   font-variant-numeric: tabular-nums;
 }
 /* Van · supporting metadata — same muted gray as the Wave line. */
@@ -3466,7 +3466,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   font-size: 10.5px;
   font-weight: 500;
   line-height: 1.3;
-  color: #64748B !important;
+  color: var(--rr-slate-500) !important;
   font-variant-numeric: tabular-nums;
 }
 /* Van-unavailable · the one meaningful exception keeps a contained red
@@ -3488,7 +3488,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   letter-spacing: .04em;
   /* Informational tag (rotation-assigned van) — blue family, not the
      caution amber (palette minimization). */
-  color: #1D4ED8 !important;
+  color: var(--rr-blue-700) !important;
   margin-left: 3px;
 }
 /* Route eyebrow · crisp uppercase label above the time — softened to sit
@@ -3528,7 +3528,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 
 #view-schedule.rrx-schedule .pool-openshifts .open-shift:hover,
 #view-schedule.rrx-schedule .open-shift:hover {
-  border-color: #9CA3AF !important;
+  border-color: var(--rr-gray-400) !important;
   border-left-color: var(--rr-danger) !important;
   box-shadow: var(--rr-shadow-4);
 }
@@ -3538,7 +3538,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 #view-schedule.rrx-schedule .shift-chip.open {
   border-width: 1.5px !important;
   border-style: dashed !important;
-  border-color: #9CA3AF !important;
+  border-color: var(--rr-gray-400) !important;
   color: var(--rr-fg-primary) !important;
 }
 
@@ -3594,7 +3594,7 @@ body.rr-sched-focus #rr-sched-focus-toggle .ic-focus-off { display: inline !impo
 #view-schedule.rrx-schedule #rr-sched-focus-toggle[aria-pressed="true"],
 #view-schedule.rrx-schedule #rr-sched-compact-toggle[aria-pressed="true"] {
   background: var(--rr-brand-soft, rgba(37,99,235, 0.10));
-  color: var(--rr-brand-pressed, #1E40AF);
+  color: var(--rr-brand-pressed, var(--rr-blue-800));
 }
 
 /* ── Focus mode ────────────────────────────────────────────── */
@@ -3967,7 +3967,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-milestone {
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:first-child {
   /* Solid white — the sticky day-of-week header is fully opaque so
      driver rows never show through it as it scrolls. */
-  background: #FFFFFF !important;
+  background: var(--rr-white) !important;
 }
 
 /* ── Day-coverage completion · the header's hero number ───────
@@ -4102,8 +4102,8 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 .rr-faux-scrollbar {
   position: absolute;
   width: 9px;
-  background: #F9FAFB;
-  border-left: 1px solid #E5E7EB;
+  background: var(--rr-gray-50);
+  border-left: 1px solid var(--rr-gray-200);
   border-radius: 0 6px 6px 0;
   z-index: 20;
   pointer-events: auto;
@@ -4121,7 +4121,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 }
 .rr-faux-scrollbar-thumb:hover,
 .rr-faux-scrollbar-thumb:active {
-  background: #9CA3AF;
+  background: var(--rr-gray-400);
 }
 
 /* Hide the native scrollbar on faux-attached containers so the
@@ -4160,7 +4160,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
   height: 8px;
   border-radius: 50%;
   background: #60A5FA;
-  box-shadow: 0 0 0 1.5px #FFFFFF;
+  box-shadow: 0 0 0 1.5px var(--rr-white);
   pointer-events: none;
 }
 
@@ -4216,20 +4216,20 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
    for non-distracting. */
 #view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="completed"]::before {
   /* Checked-in / completed → calm green */
-  background: #16A34A;
+  background: var(--rr-green-600);
 }
 #view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="late"]::before {
   /* Late → warm amber */
-  background: #D97706;
+  background: var(--rr-amber-600);
 }
 #view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="vto"]::before {
   /* VTO → muted slate (driver opted out, not a problem) */
-  background: #64748B;
+  background: var(--rr-slate-500);
 }
 #view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="no_show"]::before,
 #view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="called_off"]::before {
   /* NCNS / called off → red */
-  background: #DC2626;
+  background: var(--rr-red-600);
 }
 
 /* ============================================================
@@ -4240,7 +4240,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 
    The base inline <style> block at index.html:11212 paints every
    Rules popover with a heavy brand-blue gradient header
-   (linear-gradient(135deg,#2563EB,#1E40AF)) that overwhelms the
+   (linear-gradient(135deg,var(--rr-blue-600),var(--rr-blue-800))) that overwhelms the
    small density picker. Real Fluent popovers are quiet — white
    surface, hairline border, soft shadow, no color band header.
 
@@ -4255,8 +4255,8 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 #view-schedule.rrx-schedule #rr-sched-today-rules-popover,
 #view-schedule.rrx-schedule #rr-sched-cal-rules-popover {
   /* Reset the inline acrylic / blur and use a clean Fluent card. */
-  background: #FFFFFF !important;
-  border: 1px solid #E5E7EB !important;
+  background: var(--rr-white) !important;
+  border: 1px solid var(--rr-gray-200) !important;
   border-radius: 4px !important;
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.14),
@@ -4277,7 +4277,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
   align-items: center !important;
   gap: 8px !important;
   background: transparent !important;
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
   font: 600 14px/20px var(--rr-font-family, 'Segoe UI') !important;
   letter-spacing: -.005em !important;
   padding: 14px 16px 10px !important;
@@ -4287,7 +4287,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 #view-schedule.rrx-schedule #rr-sched-week-rules-popover > :first-child *,
 #view-schedule.rrx-schedule #rr-sched-today-rules-popover > :first-child *,
 #view-schedule.rrx-schedule #rr-sched-cal-rules-popover > :first-child * {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 
 /* Body — quiet surface, no card-on-card translucent fill. */
@@ -4296,7 +4296,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 #view-schedule.rrx-schedule #rr-sched-cal-rules-popover > :last-child {
   background: transparent !important;
   padding: 0 16px 16px !important;
-  border-top: 1px solid #F9FAFB !important;
+  border-top: 1px solid var(--rr-gray-50) !important;
 }
 
 /* Density radio rows — tighten padding so the picker fits in the
@@ -4543,7 +4543,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: var(--surface-elevated, #FFFFFF);
+  background: var(--surface-elevated, var(--rr-white));
   border: 1px solid rgba(15, 23, 42, 0.20);
   border-radius: var(--sch-radius);
 }
@@ -4597,7 +4597,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 #view-schedule.rrx-schedule .sched-fc-target select {
   appearance: auto; font: inherit; font-size: var(--fs-xs); font-weight: 600;
-  color: var(--text); background: var(--sch-surface, #fff);
+  color: var(--text); background: var(--sch-surface, var(--rr-white));
   border: 1px solid var(--sch-line); border-radius: var(--r-md); padding: 2px 6px; cursor: pointer;
 }
 #view-schedule.rrx-schedule .sched-fc-wkhead {
@@ -4625,7 +4625,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .sched-fc-input {
   width: 100%; max-width: 54px; box-sizing: border-box;
   font: inherit; font-size: var(--fs-xs); font-weight: 600; font-variant-numeric: tabular-nums;
-  text-align: center; color: var(--text); background: var(--sch-surface, #fff);
+  text-align: center; color: var(--text); background: var(--sch-surface, var(--rr-white));
   border: 1px solid var(--sch-line); border-radius: var(--r-md); padding: 3px 4px;
 }
 #view-schedule.rrx-schedule .sched-fc-input:focus {
@@ -4672,7 +4672,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   display: inline-flex; align-items: center; gap: 3px;
   height: 18px; padding: 0 8px; border-radius: var(--rr-radius-pill, 9999px);
   font-size: 11px; font-weight: 700; letter-spacing: 0.01em; line-height: 1;
-  color: #15803D;
+  color: var(--rr-green-700);
   background: rgba(34, 197, 94, 0.15);
   border: 1px solid rgba(21, 128, 61, 0.35);
 }
@@ -4718,7 +4718,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 
 #view-schedule.rrx-schedule .sched-month-cell {
-  background: var(--surface-elevated, #FFFFFF);
+  background: var(--surface-elevated, var(--rr-white));
   display: flex; flex-direction: column;
   padding: 6px 8px;
   min-height: 0; overflow: hidden;
@@ -4761,7 +4761,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   grid-column: 1 / -1; grid-row: 1 / -1;
   display: flex; align-items: center; justify-content: center;
   color: var(--text-subtle); font-size: var(--fs-sm);
-  background: var(--surface-elevated, #FFFFFF);
+  background: var(--surface-elevated, var(--rr-white));
 }
 
 /* V2 strip view-tile order — REMOVED.
@@ -4791,7 +4791,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .rr-fc-model {
   flex: 0 0 320px; min-width: 0;
   display: flex; flex-direction: column; overflow-y: auto;
-  background: #fff; border: 1px solid rgba(15, 23, 42, 0.16);
+  background: var(--rr-white); border: 1px solid rgba(15, 23, 42, 0.16);
   border-radius: var(--sch-radius, 8px); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 #view-schedule.rrx-schedule .rr-fc-model-empty { padding: 16px; color: var(--text-subtle); font-size: var(--fs-sm); }
@@ -4806,7 +4806,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   text-align: left; font: inherit; font-size: var(--fs-sm); font-weight: 600; color: var(--text);
   padding: 9px 12px; border: 1px solid var(--sch-line); border-radius: var(--r-md);
-  background: var(--sch-surface, #fff); cursor: pointer; transition: background .12s, border-color .12s;
+  background: var(--sch-surface, var(--rr-white)); cursor: pointer; transition: background .12s, border-color .12s;
 }
 #view-schedule.rrx-schedule .rr-fc-scn:hover { background: var(--sch-hover); }
 #view-schedule.rrx-schedule .rr-fc-scn.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
@@ -4821,7 +4821,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .rr-fc-results,
 #view-schedule.rrx-schedule .rr-fc-balanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 #view-schedule.rrx-schedule .rr-fc-stat {
-  background: var(--canvas, #F9FAFB); border: 1px solid rgba(15, 23, 42, 0.10);
+  background: var(--canvas, var(--rr-gray-50)); border: 1px solid rgba(15, 23, 42, 0.10);
   border-radius: var(--r-md); padding: 9px 10px;
 }
 #view-schedule.rrx-schedule .rr-fc-stat-val { font-size: 18px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
@@ -4870,12 +4870,12 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile {
   background: rgba(37,99,235, 0.08);
-  color: #1D4ED8;
+  color: var(--rr-blue-700);
   box-shadow: inset 0 0 0 1px rgba(37,99,235, 0.25);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile:hover {
   background: rgba(37,99,235, 0.13);
-  color: #1D4ED8;
+  color: var(--rr-blue-700);
   box-shadow: inset 0 0 0 1px rgba(37,99,235, 0.35);
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile:active {
@@ -4883,7 +4883,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 /* Out-specifies the global var(--text) !important icon force. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"]) .sched-v2-tile svg {
-  color: #1D4ED8 !important;
+  color: var(--rr-blue-700) !important;
 }
 
 
@@ -4935,10 +4935,10 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   /* Quiet chrome (polish pass): a 1px hairline + dark-ink label reads as
      calm, understated toolbar chrome — the heavy 1.5px navy outline was
      too loud for an enterprise header. */
-  border: 1px solid var(--rr-border-primary, #E5E7EB);
+  border: 1px solid var(--rr-border-primary, var(--rr-gray-200));
   border-radius: 8px;
-  background: #FFFFFF;
-  color: var(--rr-fg-primary, #111827);
+  background: var(--rr-white);
+  color: var(--rr-fg-primary, var(--rr-gray-900));
   font: inherit;
   font-size: 12.5px;
   font-weight: 600;
@@ -4962,8 +4962,8 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   height: 18px;
   padding: 0 5px;
   border-radius: 5px;
-  background: var(--sidebar-bg, #0F172A);
-  color: #FFFFFF;
+  background: var(--sidebar-bg, var(--rr-slate-900));
+  color: var(--rr-white);
   font-size: 11.5px;
   font-weight: 700;
 }
@@ -4987,38 +4987,38 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule .rr-ab-coverage-main {
   font-size: 13px;
   font-weight: 600;
-  color: var(--rr-fg-primary, #111827);
+  color: var(--rr-fg-primary, var(--rr-gray-900));
 }
 #view-schedule .rr-ab-coverage-sub {
   font-size: 11px;
   font-weight: 500;
-  color: var(--red, #DC2626);
+  color: var(--red, var(--rr-red-600));
 }
 /* Fully covered reads as a quiet green check + muted label; red is
    reserved for the warning state (open routes). */
-#view-schedule .rr-ab-coverage-sub.is-ok { color: var(--rr-fg-secondary, #6B7280); }
+#view-schedule .rr-ab-coverage-sub.is-ok { color: var(--rr-fg-secondary, var(--rr-gray-500)); }
 #view-schedule .rr-ab-coverage-sub.is-ok::before {
   content: "✓";
-  color: #16A34A;
+  color: var(--rr-green-600);
   font-weight: 700;
   margin-right: 4px;
 }
 /* Primary — solid brand blue, lock glyph. */
 #view-schedule .rr-ab-primary {
-  background: var(--rr-comm-blue, #2563EB);
-  border-color: var(--rr-comm-blue, #2563EB);
-  color: #FFFFFF;
+  background: var(--rr-comm-blue, var(--rr-blue-600));
+  border-color: var(--rr-comm-blue, var(--rr-blue-600));
+  color: var(--rr-white);
 }
-#view-schedule .rr-ab-primary:hover { background: #1D4ED8; border-color: #1D4ED8; }
+#view-schedule .rr-ab-primary:hover { background: var(--rr-blue-700); border-color: var(--rr-blue-700); }
 #view-schedule .rr-ab-primary:active { background: #0A4A85; }
 /* Live state · a quiet status control, not a call-to-action (polish pass).
    White pill, hairline border, a small green "live" dot, dark-ink label —
    minimal emphasis. (The Finalize/draft state keeps the primary styling.) */
 #view-schedule .rr-ab-btn.rr-ab-live,
 #view-schedule .rr-ab-primary.rr-ab-live {
-  background: #FFFFFF;
-  border: 1px solid var(--rr-border-primary, #E5E7EB);
-  color: var(--rr-fg-primary, #111827);
+  background: var(--rr-white);
+  border: 1px solid var(--rr-border-primary, var(--rr-gray-200));
+  color: var(--rr-fg-primary, var(--rr-gray-900));
   font-weight: 600;
   box-shadow: none;
 }
@@ -5031,13 +5031,13 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #16A34A;
+  background: var(--rr-green-600);
   flex: 0 0 auto;
 }
 #view-schedule .rr-ab-btn.rr-ab-live:hover,
 #view-schedule .rr-ab-primary.rr-ab-live:hover {
-  background: var(--rr-bg-hover, #F3F4F6);
-  border-color: var(--border-strong, #D1D5DB);
+  background: var(--rr-bg-hover, var(--rr-gray-100));
+  border-color: var(--border-strong, var(--rr-gray-300));
 }
 /* Hold a constant width so the pill doesn't shrink when "Finalize" flips to
    the shorter "Live" — both states render at the same size, centered. */
@@ -5053,7 +5053,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   padding: 0;
   justify-content: center;
   border-color: transparent;
-  color: var(--text-muted, #64748B);
+  color: var(--text-muted, var(--rr-slate-500));
 }
 #view-schedule .rr-ab-more:hover { border-color: var(--border, rgba(15, 23, 42, .20)); }
 #view-schedule .rr-ab-menu {
@@ -5065,7 +5065,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   padding: 6px;
   border: 1px solid var(--border, rgba(15, 23, 42, .20));
   border-radius: 10px;
-  background: #FFFFFF;
+  background: var(--rr-white);
   box-shadow: 0 10px 28px rgba(2, 6, 23, .14);
 }
 #view-schedule .rr-ab-menu[hidden] { display: none; }
@@ -5079,7 +5079,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   font: inherit;
   font-size: 13px;
   text-align: left;
-  color: var(--text, #0F172A);
+  color: var(--text, var(--rr-slate-900));
   cursor: pointer;
 }
 #view-schedule .rr-ab-menu button:hover { background: rgba(15, 23, 42, .05); }
@@ -5093,7 +5093,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   font-weight: 700;
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--text, #0F172A);
+  color: var(--text, var(--rr-slate-900));
   margin-right: 2px;
 }
 #view-schedule .rr-ab-weeknav { display: flex; align-items: center; margin-right: 4px; }
@@ -5107,8 +5107,8 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   height: 36px;
   gap: 0;
   padding: 0;
-  background: #FFFFFF;
-  border: 1.5px solid var(--sidebar-bg, #0F172A);
+  background: var(--rr-white);
+  border: 1.5px solid var(--sidebar-bg, var(--rr-slate-900));
   border-radius: 8px;
   overflow: hidden;
   box-shadow: none;
@@ -5125,7 +5125,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--sidebar-bg, #0F172A);
+  color: var(--sidebar-bg, var(--rr-slate-900));
   cursor: pointer;
 }
 #view-schedule .rr-ab-weeknav .sched-week-nav-btn { width: 31px; padding: 0; }
@@ -5181,17 +5181,17 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   border: 1.5px solid transparent;
   border-radius: 9px;
   background: transparent;
-  color: var(--text-muted, #64748B);
+  color: var(--text-muted, var(--rr-slate-500));
   cursor: pointer;
 }
 #view-schedule .rr-ab > #rr-hdr-notif:hover,
 #view-schedule .rr-ab > #rr-hdr-avatar-btn:hover {
   background: rgba(15,23,42, .05);
-  color: var(--text, #0F172A);
+  color: var(--text, var(--rr-slate-900));
 }
 #view-schedule .rr-ab > #rr-hdr-avatar-btn .hdr-avatar {
   background: rgba(15,23,42, .08);
-  color: var(--text, #0F172A);
+  color: var(--text, var(--rr-slate-900));
 }
 
 /* ============================================================
@@ -5199,150 +5199,150 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
    ------------------------------------------------------------
    Placed at the END of the sheet so they outrank, by source order,
    both the card-style reference-card block (which deliberately
-   suppressed route fills back to #EFF6FF) and the global dark-text
+   suppressed route fills back to var(--rr-blue-50)) and the global dark-text
    rules. With color-coding ON, a classified chip is painted near-solid
    in its route color with white text; Standard (unclassified) chips
    keep the reference card.
    ============================================================ */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-rescue) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-rescue) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-rescue) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-rescue) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-rescue) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-rescue) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-nursery) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-nursery) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-nursery) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-nursery) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-nursery) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-nursery) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-other) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-other) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-other) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-other) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-other) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-other) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-reduction) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-reduction) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-reduction) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-reduction) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-reduction) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-reduction) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-cycle_1) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-cycle_1) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-cycle_1) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-cycle_1) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-cycle_1) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-cycle_1) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-cycle_2) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-cycle_2) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-cycle_2) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-cycle_2) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-cycle_2) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-cycle_2) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-backup) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-backup) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-backup) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-backup) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-backup) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-backup) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-xl) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-xl) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-xl) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-xl) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-xl) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-xl) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-class_training) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-class_training) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-class_training) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-class_training) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-class_training) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-class_training) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="ride_along"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-road_training) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-road_training) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-road_training) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-road_training) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="ride_along"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-shift-kind="ride_along"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-shift-kind="ride_along"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-road_training) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-road_training) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id].shift-chip-training[data-rr-shift-kind="regular"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-trainer_trainee) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-trainer_trainee) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id].shift-chip-training[data-rr-shift-kind="regular"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id].shift-chip-training[data-rr-shift-kind="regular"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id].shift-chip-training[data-rr-shift-kind="regular"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 88%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff {
-  background: color-mix(in srgb, var(--rr-route-c-pto) 92%, #FFFFFF) !important;
-  border-color: color-mix(in srgb, var(--rr-route-c-pto) 60%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-pto) 92%, var(--rr-white)) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-pto) 60%, var(--rr-slate-400)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 
 /* ============================================================
@@ -5369,7 +5369,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   gap: 4px !important;
   font-size: 10.5px !important;
   font-weight: 500 !important;
-  color: #64748B !important;
+  color: var(--rr-slate-500) !important;
   margin-top: 1px;
 }
 /* Wave + van share the line; the dot separator is drawn between spans. */
@@ -5393,14 +5393,14 @@ body:not(.rr-sched-compact):not(.rr-sched-ultra-compact):not(.rr-sched-super-com
    neighbors — emphasis comes from the navy outline, slightly
    heavier label and the brand-blue sparkle. Calm, Linear-style. */
 #view-schedule .rr-ab-btn#rr-ab-smartfill {
-  border: 1.5px solid var(--sidebar-bg, #0F172A);
+  border: 1.5px solid var(--sidebar-bg, var(--rr-slate-900));
   font-weight: 650;
 }
 #view-schedule .rr-ab-btn#rr-ab-smartfill > svg:first-child {
-  color: #2563EB;
+  color: var(--rr-blue-600);
 }
 #view-schedule .rr-ab-btn#rr-ab-smartfill:hover {
-  background: #EFF6FF;
+  background: var(--rr-blue-50);
 }
 
 /* ============================================================
@@ -5460,7 +5460,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-s
    #rr-ab-coverage-sub; .rr-ab-open is the injected count span). */
 #rr-ab-coverage .rr-ab-open,
 #rr-ab-coverage-sub .rr-ab-open {
-  color: #DC2626 !important;
+  color: var(--rr-red-600) !important;
   font-weight: 600;
 }
 
@@ -5487,21 +5487,21 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-s
    the route-color JS sets --rr-route-c-hub from DEFAULTS.
    ============================================================ */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 92%, #FFFFFF) !important;
+  background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 92%, var(--rr-white)) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 65%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 92%, #FFFFFF) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 92%, var(--rr-white)) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 92%, #FFFFFF) !important;
-  border: 1px solid color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 60%, #94A3B8) !important;
-  color: #111827 !important;
+  background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 92%, var(--rr-white)) !important;
+  border: 1px solid color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 60%, var(--rr-slate-400)) !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) *,
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #111827 !important;
+  color: var(--rr-gray-900) !important;
 }
 body.rr-sched-color-routes #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id][data-rr-service-code="HUB"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 88%, #94A3B8) !important;
+  background: color-mix(in srgb, var(--rr-route-c-hub, #D7CDEF) 88%, var(--rr-slate-400)) !important;
 }
 
 /* ── Shared right utility rail + Notes workspace ─────────────────────
@@ -5529,7 +5529,7 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
   padding:12px 0;
   /* Same color as the page background so the rail blends in as chrome
      rather than reading as a raised white panel (operator request). */
-  background:var(--canvas,#F9FAFB);
+  background:var(--canvas,var(--rr-gray-50));
 }
 #rr-util-rail-mount .sched-util-btn{
   appearance:none; cursor:pointer; position:relative;
@@ -5557,21 +5557,21 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 /* Checklists — keeps the green check tile (semantically "checklist /
    done"), distinct from the blue Notes bookmark and gold Operations
    shield. Opens the driver-checklist templates slide-out. */
-#rr-util-rail-mount .sched-util-btn--checklists{color:#16A34A}
+#rr-util-rail-mount .sched-util-btn--checklists{color:var(--rr-green-600)}
 #rr-util-rail-mount .sched-util-btn--checklists:hover{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.30)}
-#rr-util-rail-mount .sched-util-btn--checklists:focus-visible{border-color:#16A34A;box-shadow:0 0 0 3px rgba(22,163,74,.25)}
+#rr-util-rail-mount .sched-util-btn--checklists:focus-visible{border-color:var(--rr-green-600);box-shadow:0 0 0 3px rgba(22,163,74,.25)}
 /* Open-task count riding the My Tasks icon (hidden when zero, via JS). */
 #rr-util-rail-mount .sched-util-badge{
   position:absolute; top:0; right:0; min-width:16px; height:16px; padding:0 4px; z-index:2;
-  border-radius:8px; background:#7C3AED; color:#fff; font-size:10px; font-weight:700;
-  line-height:16px; text-align:center; box-shadow:0 0 0 2px var(--canvas,#F9FAFB); pointer-events:none;
+  border-radius:8px; background:#7C3AED; color:var(--rr-white); font-size:10px; font-weight:700;
+  line-height:16px; text-align:center; box-shadow:0 0 0 2px var(--canvas,var(--rr-gray-50)); pointer-events:none;
 }
 /* Unread-message dot on the My Tasks icon — a small blue pip at the
    top-left (opposite the open-count badge), shown when any task has a
    comment I haven't seen. (0435) */
 #rr-util-rail-mount .sched-util-udot{
   position:absolute; top:1px; left:1px; width:9px; height:9px; z-index:2;
-  border-radius:50%; background:#2563EB; box-shadow:0 0 0 2px var(--canvas,#F9FAFB); pointer-events:none;
+  border-radius:50%; background:var(--rr-blue-600); box-shadow:0 0 0 2px var(--canvas,var(--rr-gray-50)); pointer-events:none;
 }
 #rr-util-rail-mount .sched-util-udot[hidden]{display:none}
 /* Operations Health shield — gold + filled, its own color distinct from
@@ -5597,7 +5597,7 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
   display:flex;align-items:center;gap:10px;width:100%;
   padding:9px 10px;margin:0 0 10px;
   background:transparent;border:0;border-radius:8px;cursor:pointer;
-  font:inherit;font-size:13px;font-weight:600;color:var(--accent-text,#1D4ED8);
+  font:inherit;font-size:13px;font-weight:600;color:var(--accent-text,var(--rr-blue-700));
   transition:background var(--t-fast,.12s);
 }
 #rr-util-rail-mount .ctp-create:hover{background:var(--accent-soft,rgba(37,99,235,.08))}
@@ -5605,31 +5605,31 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 #rr-util-rail-mount .ctp-form{
   display:flex;flex-direction:column;gap:8px;
   padding:12px;margin:0 0 12px;
-  background:var(--canvas,#F9FAFB);
+  background:var(--canvas,var(--rr-gray-50));
   border:1px solid var(--border-subtle,rgba(15,23,42,.06));
   border-radius:10px;
 }
 #rr-util-rail-mount .ctp-form[hidden]{display:none}
 #rr-util-rail-mount .ctp-input{
   width:100%;height:32px;padding:0 10px;
-  border:1px solid var(--border,#E5E7EB);border-radius:var(--r-md,6px);
-  background:#fff;color:var(--text,#0F172A);
+  border:1px solid var(--border,var(--rr-gray-200));border-radius:var(--r-md,6px);
+  background:var(--rr-white);color:var(--text,var(--rr-slate-900));
   font:inherit;font-size:var(--fs-sm,12px);
   transition:border-color var(--t-fast,.12s), box-shadow var(--t-fast,.12s);
 }
-#rr-util-rail-mount .ctp-input::placeholder{color:var(--text-subtle,#94A3B8)}
-#rr-util-rail-mount .ctp-input:focus{outline:none;border-color:var(--accent,#2563EB);box-shadow:var(--ring-focus,0 0 0 3px rgba(37,99,235,.18))}
+#rr-util-rail-mount .ctp-input::placeholder{color:var(--text-subtle,var(--rr-slate-400))}
+#rr-util-rail-mount .ctp-input:focus{outline:none;border-color:var(--accent,var(--rr-blue-600));box-shadow:var(--ring-focus,0 0 0 3px rgba(37,99,235,.18))}
 #rr-util-rail-mount .ctp-form-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:2px}
 #rr-util-rail-mount .ctp-btn{
   height:28px;padding:0 12px;
-  border:1px solid var(--border,#E5E7EB);border-radius:var(--r-md,6px);
-  background:#fff;color:var(--text,#0F172A);
+  border:1px solid var(--border,var(--rr-gray-200));border-radius:var(--r-md,6px);
+  background:var(--rr-white);color:var(--text,var(--rr-slate-900));
   font:inherit;font-size:var(--fs-sm,12px);font-weight:600;cursor:pointer;
   transition:background var(--t-fast,.12s), border-color var(--t-fast,.12s);
 }
-#rr-util-rail-mount .ctp-btn:hover{background:var(--canvas,#F9FAFB)}
-#rr-util-rail-mount .ctp-btn-primary{background:var(--accent,#2563EB);border-color:var(--accent,#2563EB);color:#fff}
-#rr-util-rail-mount .ctp-btn-primary:hover{background:var(--accent-hover,#1D4ED8);border-color:var(--accent-hover,#1D4ED8)}
+#rr-util-rail-mount .ctp-btn:hover{background:var(--canvas,var(--rr-gray-50))}
+#rr-util-rail-mount .ctp-btn-primary{background:var(--accent,var(--rr-blue-600));border-color:var(--accent,var(--rr-blue-600));color:var(--rr-white)}
+#rr-util-rail-mount .ctp-btn-primary:hover{background:var(--accent-hover,var(--rr-blue-700));border-color:var(--accent-hover,var(--rr-blue-700))}
 #rr-util-rail-mount .ctp-search{margin:0 0 10px}
 #rr-util-rail-mount .ctp-list{display:flex;flex-direction:column}
 #rr-util-rail-mount .ctp-row{
@@ -5645,12 +5645,12 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 #rr-util-rail-mount .ctp-avatar{
   flex:0 0 auto;width:32px;height:32px;border-radius:50%;
   display:inline-flex;align-items:center;justify-content:center;
-  background:var(--accent-soft,rgba(37,99,235,.13));color:var(--accent-text,#1D4ED8);
+  background:var(--accent-soft,rgba(37,99,235,.13));color:var(--accent-text,var(--rr-blue-700));
   font-size:13px;font-weight:700;
 }
 #rr-util-rail-mount .ctp-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-#rr-util-rail-mount .ctp-name{font-size:13px;font-weight:600;color:var(--text,#0F172A);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#rr-util-rail-mount .ctp-sub{font-size:11px;color:var(--text-subtle,#94A3B8);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rr-util-rail-mount .ctp-name{font-size:13px;font-weight:600;color:var(--text,var(--rr-slate-900));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rr-util-rail-mount .ctp-sub{font-size:11px;color:var(--text-subtle,var(--rr-slate-400));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Quick actions (call / email / edit / delete) reveal on hover or
    keyboard focus, Google-style. */
 #rr-util-rail-mount .ctp-acts{display:none;align-items:center;gap:2px;flex:0 0 auto}
@@ -5659,12 +5659,12 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 #rr-util-rail-mount .ctp-act{
   display:inline-flex;align-items:center;justify-content:center;
   width:26px;height:26px;border-radius:50%;
-  border:0;background:transparent;color:var(--text-muted,#4B5563);cursor:pointer;
+  border:0;background:transparent;color:var(--text-muted,var(--rr-gray-600));cursor:pointer;
   transition:background var(--t-fast,.12s), color var(--t-fast,.12s);
 }
-#rr-util-rail-mount .ctp-act:hover{background:rgba(15,23,42,.06);color:var(--text,#0F172A)}
+#rr-util-rail-mount .ctp-act:hover{background:rgba(15,23,42,.06);color:var(--text,var(--rr-slate-900))}
 #rr-util-rail-mount .ctp-act:focus-visible{outline:none;box-shadow:var(--ring-focus,0 0 0 3px rgba(37,99,235,.18))}
-#rr-util-rail-mount .ctp-act-del:hover{background:var(--red-soft,rgba(220,38,38,.08));color:var(--red,#DC2626)}
+#rr-util-rail-mount .ctp-act-del:hover{background:var(--red-soft,rgba(220,38,38,.08));color:var(--red,var(--rr-red-600))}
 #rr-util-rail-mount .ctp-act svg{flex:0 0 auto}
 
 /* Repeatable field rows (emails / phones / addresses / dates /
@@ -5686,8 +5686,8 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 #rr-util-rail-mount .ctp-addrow{display:flex;flex-wrap:wrap;gap:6px}
 #rr-util-rail-mount .ctp-addbtn{
   appearance:none;cursor:pointer;
-  padding:4px 10px;border:1px solid var(--border,#E5E7EB);border-radius:999px;
-  background:#fff;color:var(--accent-text,#1D4ED8);
+  padding:4px 10px;border:1px solid var(--border,var(--rr-gray-200));border-radius:999px;
+  background:var(--rr-white);color:var(--accent-text,var(--rr-blue-700));
   font:inherit;font-size:var(--fs-xs,11px);font-weight:600;line-height:1.4;
   transition:background var(--t-fast,.12s), border-color var(--t-fast,.12s);
 }
@@ -5696,13 +5696,13 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 #rr-util-rail-mount .ctp-notes{height:auto;min-height:52px;padding:8px 10px;resize:vertical;line-height:1.45}
 
 /* Points of contact · section inside the form + display lines on rows. */
-#rr-util-rail-mount .ctp-pocs{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--border,#E5E7EB);padding-top:10px}
+#rr-util-rail-mount .ctp-pocs{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--border,var(--rr-gray-200));padding-top:10px}
 #rr-util-rail-mount .ctp-pocs-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-#rr-util-rail-mount .ctp-pocs-head span{font-size:var(--fs-xs,11px);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle,#94A3B8)}
+#rr-util-rail-mount .ctp-pocs-head span{font-size:var(--fs-xs,11px);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle,var(--rr-slate-400))}
 #rr-util-rail-mount .ctp-poc-add{
   appearance:none;cursor:pointer;
-  padding:3px 9px;border:1px solid var(--border,#E5E7EB);border-radius:999px;
-  background:#fff;color:var(--accent-text,#1D4ED8);
+  padding:3px 9px;border:1px solid var(--border,var(--rr-gray-200));border-radius:999px;
+  background:var(--rr-white);color:var(--accent-text,var(--rr-blue-700));
   font:inherit;font-size:var(--fs-xs,11px);font-weight:600;line-height:1.4;
   transition:background var(--t-fast,.12s), border-color var(--t-fast,.12s);
 }
@@ -5713,16 +5713,16 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 #rr-util-rail-mount .ctp-poc-row .ctp-input{flex:1;min-width:0;height:28px;font-size:var(--fs-xs,11px)}
 #rr-util-rail-mount .ctp-poc-del{
   flex:0 0 auto;width:22px;height:22px;border:0;border-radius:50%;
-  background:transparent;color:var(--text-subtle,#94A3B8);cursor:pointer;
+  background:transparent;color:var(--text-subtle,var(--rr-slate-400));cursor:pointer;
   font-size:15px;line-height:1;
   transition:background var(--t-fast,.12s), color var(--t-fast,.12s);
 }
-#rr-util-rail-mount .ctp-poc-del:hover{background:var(--red-soft,rgba(220,38,38,.08));color:var(--red,#DC2626)}
+#rr-util-rail-mount .ctp-poc-del:hover{background:var(--red-soft,rgba(220,38,38,.08));color:var(--red,var(--rr-red-600))}
 #rr-util-rail-mount .ctp-poc{
-  display:block;font-size:11px;color:var(--text-subtle,#94A3B8);
+  display:block;font-size:11px;color:var(--text-subtle,var(--rr-slate-400));
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-#rr-util-rail-mount .ctp-poc-tel{color:var(--accent-text,#1D4ED8);text-decoration:none}
+#rr-util-rail-mount .ctp-poc-tel{color:var(--accent-text,var(--rr-blue-700));text-decoration:none}
 #rr-util-rail-mount .ctp-poc-tel:hover{text-decoration:underline}
 
 /* ── Contact detail popup · click a row on the Contacts rail ──
@@ -5731,8 +5731,8 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 .ctpd{
   position:fixed; z-index:10070; width:300px; max-width:calc(100vw - 20px);
   max-height:calc(100vh - 20px); overflow-y:auto;
-  background:var(--surface,#fff); color:var(--text,#0F172A);
-  border:1px solid var(--border,#E5E7EB); border-radius:14px;
+  background:var(--surface,var(--rr-white)); color:var(--text,var(--rr-slate-900));
+  border:1px solid var(--border,var(--rr-gray-200)); border-radius:14px;
   box-shadow:0 18px 44px rgba(15,23,42,.20);
   padding:14px; display:flex; flex-direction:column; gap:12px;
   animation:ctpdIn .14s cubic-bezier(0,0,.2,1);
@@ -5743,48 +5743,48 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 .ctpd-avatar{
   flex:0 0 auto;width:40px;height:40px;border-radius:50%;
   display:inline-flex;align-items:center;justify-content:center;
-  background:var(--accent-soft,rgba(37,99,235,.13));color:var(--accent-text,#1D4ED8);
+  background:var(--accent-soft,rgba(37,99,235,.13));color:var(--accent-text,var(--rr-blue-700));
   font-size:16px;font-weight:700;
 }
 .ctpd-id{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.ctpd-name{font-size:15px;font-weight:700;color:var(--text,#0F172A);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ctpd-org{font-size:12px;color:var(--text-subtle,#94A3B8);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctpd-name{font-size:15px;font-weight:700;color:var(--text,var(--rr-slate-900));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctpd-org{font-size:12px;color:var(--text-subtle,var(--rr-slate-400));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ctpd-x{
   flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
   width:28px;height:28px;border-radius:50%;border:0;background:transparent;
-  color:var(--text-muted,#4B5563);cursor:pointer;transition:background .12s,color .12s;
+  color:var(--text-muted,var(--rr-gray-600));cursor:pointer;transition:background .12s,color .12s;
 }
-.ctpd-x:hover{background:rgba(15,23,42,.06);color:var(--text,#0F172A)}
+.ctpd-x:hover{background:rgba(15,23,42,.06);color:var(--text,var(--rr-slate-900))}
 .ctpd-body{display:flex;flex-direction:column;gap:10px}
 .ctpd-block{display:flex;align-items:flex-start;gap:10px}
 .ctpd-ic{
   flex:0 0 auto;width:26px;height:26px;border-radius:50%;margin-top:1px;
   display:inline-flex;align-items:center;justify-content:center;
-  background:var(--accent-soft,rgba(37,99,235,.10));color:var(--accent-text,#1D4ED8);
+  background:var(--accent-soft,rgba(37,99,235,.10));color:var(--accent-text,var(--rr-blue-700));
 }
 .ctpd-lines{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.ctpd-val{font-size:13px;color:var(--text,#0F172A);word-break:break-word}
-a.ctpd-val{color:var(--accent-text,#1D4ED8);text-decoration:none}
+.ctpd-val{font-size:13px;color:var(--text,var(--rr-slate-900));word-break:break-word}
+a.ctpd-val{color:var(--accent-text,var(--rr-blue-700));text-decoration:none}
 a.ctpd-val:hover{text-decoration:underline}
-.ctpd-sec-h{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle,#94A3B8);margin-bottom:6px}
-.ctpd-pocs{border-top:1px dashed var(--border,#E5E7EB);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+.ctpd-sec-h{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle,var(--rr-slate-400));margin-bottom:6px}
+.ctpd-pocs{border-top:1px dashed var(--border,var(--rr-gray-200));padding-top:10px;display:flex;flex-direction:column;gap:6px}
 .ctpd-poc{display:flex;flex-direction:column;gap:1px}
-.ctpd-poc-name{font-size:13px;font-weight:600;color:var(--text,#0F172A)}
-.ctpd-poc-meta{font-size:12px;color:var(--text-subtle,#94A3B8)}
-.ctpd-poc-tel{color:var(--accent-text,#1D4ED8);text-decoration:none}
+.ctpd-poc-name{font-size:13px;font-weight:600;color:var(--text,var(--rr-slate-900))}
+.ctpd-poc-meta{font-size:12px;color:var(--text-subtle,var(--rr-slate-400))}
+.ctpd-poc-tel{color:var(--accent-text,var(--rr-blue-700));text-decoration:none}
 .ctpd-poc-tel:hover{text-decoration:underline}
 .ctpd-notes{
-  border-top:1px dashed var(--border,#E5E7EB);padding-top:10px;
-  font-size:13px;color:var(--text-muted,#4B5563);white-space:pre-wrap;word-break:break-word;
+  border-top:1px dashed var(--border,var(--rr-gray-200));padding-top:10px;
+  font-size:13px;color:var(--text-muted,var(--rr-gray-600));white-space:pre-wrap;word-break:break-word;
 }
-.ctpd-empty{font-size:13px;color:var(--text-subtle,#94A3B8)}
-.ctpd-foot{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border,#E5E7EB);padding-top:12px}
+.ctpd-empty{font-size:13px;color:var(--text-subtle,var(--rr-slate-400))}
+.ctpd-foot{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border,var(--rr-gray-200));padding-top:12px}
 .ctpd .ctp-btn{
   font-size:13px;padding:6px 16px;border-radius:8px;cursor:pointer;
-  border:1px solid var(--border,#D1D5DB);background:var(--surface,#fff);color:var(--text,#0F172A);
+  border:1px solid var(--border,var(--rr-gray-300));background:var(--surface,var(--rr-white));color:var(--text,var(--rr-slate-900));
   transition:background .12s;
 }
-.ctpd .ctp-btn:hover{background:var(--canvas,#F9FAFB)}
+.ctpd .ctp-btn:hover{background:var(--canvas,var(--rr-gray-50))}
 /* Press ripple — a soft yellow circle blooms from the icon centre on
    pointer-down (spawned in JS, self-removing). GPU-only (transform +
    opacity), painted behind the icon, no layout impact. */
@@ -5808,7 +5808,7 @@ a.ctpd-val:hover{text-decoration:underline}
   display:flex; flex-direction:column;
   /* Same canvas as the schedule background so the white note cards pop,
      instead of reading as a brighter white panel (operator request). */
-  background:var(--canvas,#F9FAFB);
+  background:var(--canvas,var(--rr-gray-50));
   /* Flat like the schedule — a thin border on all four sides, no drop
      shadow (operator request), so the panel reads as a framed section,
      not a floating sheet. */
@@ -5847,79 +5847,79 @@ a.ctpd-val:hover{text-decoration:underline}
 
 /* ── Notes & Tasks panel · enterprise productivity rail ─────────────
    Calm Outlook/Google-grade chrome: light-canvas panel, white cards,
-   soft borders, restrained #2563EB accent, thin colored note-type rule. */
+   soft borders, restrained var(--rr-blue-600) accent, thin colored note-type rule. */
 #rr-util-rail-mount .ntp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px 11px}
-#rr-util-rail-mount .ntp-head-title{font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--text,#0f172a)}
+#rr-util-rail-mount .ntp-head-title{font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--text,var(--rr-slate-900))}
 #rr-util-rail-mount .ntp-icon-btn{
-  appearance:none;cursor:pointer;flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:var(--text-subtle,#94a3b8);
+  appearance:none;cursor:pointer;flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:var(--text-subtle,var(--rr-slate-400));
   display:inline-flex;align-items:center;justify-content:center;transition:background .15s,color .15s;
 }
-#rr-util-rail-mount .ntp-icon-btn:hover{background:rgba(15,23,42,.05);color:var(--text,#0f172a)}
-#rr-util-rail-mount .ntp-icon-btn.ntp-soft{border:1px solid var(--border,rgba(15,23,42,.10));background:#fff}
+#rr-util-rail-mount .ntp-icon-btn:hover{background:rgba(15,23,42,.05);color:var(--text,var(--rr-slate-900))}
+#rr-util-rail-mount .ntp-icon-btn.ntp-soft{border:1px solid var(--border,rgba(15,23,42,.10));background:var(--rr-white)}
 
 #rr-util-rail-mount .ntp-scroll{flex:1;min-height:0;overflow-y:auto;padding:14px}
 #rr-util-rail-mount .ntp-notes-block{display:flex;flex-direction:column}
 
-#rr-util-rail-mount .ntp-composer{border:1px solid var(--border,rgba(15,23,42,.12));border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.04);overflow:hidden}
+#rr-util-rail-mount .ntp-composer{border:1px solid var(--border,rgba(15,23,42,.12));border-radius:12px;background:var(--rr-white);box-shadow:0 1px 2px rgba(15,23,42,.04);overflow:hidden}
 #rr-util-rail-mount .ntp-composer-row{display:flex;align-items:flex-start;gap:9px;padding:10px 12px}
-#rr-util-rail-mount .ntp-composer-plus{flex:0 0 auto;color:#2563EB;display:flex;margin-top:2px}
-#rr-util-rail-mount .ntp-composer-input{flex:1;min-width:0;min-height:22px;max-height:140px;overflow-y:auto;outline:none;font:inherit;font-size:14px;line-height:1.5;color:var(--text,#0f172a)}
-#rr-util-rail-mount .ntp-composer-input:empty:before{content:attr(data-placeholder);color:var(--text-subtle,#94a3b8)}
-#rr-util-rail-mount .ntp-composer-input a{color:#2563EB}
-#rr-util-rail-mount .ntp-composer-pin{flex:0 0 auto;appearance:none;cursor:pointer;width:26px;height:26px;border-radius:7px;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
+#rr-util-rail-mount .ntp-composer-plus{flex:0 0 auto;color:var(--rr-blue-600);display:flex;margin-top:2px}
+#rr-util-rail-mount .ntp-composer-input{flex:1;min-width:0;min-height:22px;max-height:140px;overflow-y:auto;outline:none;font:inherit;font-size:14px;line-height:1.5;color:var(--text,var(--rr-slate-900))}
+#rr-util-rail-mount .ntp-composer-input:empty:before{content:attr(data-placeholder);color:var(--text-subtle,var(--rr-slate-400))}
+#rr-util-rail-mount .ntp-composer-input a{color:var(--rr-blue-600)}
+#rr-util-rail-mount .ntp-composer-pin{flex:0 0 auto;appearance:none;cursor:pointer;width:26px;height:26px;border-radius:7px;border:0;background:transparent;color:var(--text-subtle,var(--rr-slate-300));display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
 #rr-util-rail-mount .ntp-composer-pin:hover{background:rgba(15,23,42,.05)}
-#rr-util-rail-mount .ntp-composer-pin[aria-pressed="true"]{color:#2563EB}
-#rr-util-rail-mount .ntp-composer-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.07));background:var(--canvas,#f8fafc)}
+#rr-util-rail-mount .ntp-composer-pin[aria-pressed="true"]{color:var(--rr-blue-600)}
+#rr-util-rail-mount .ntp-composer-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.07));background:var(--canvas,var(--rr-slate-50))}
 #rr-util-rail-mount .ntp-fmt{display:flex;align-items:center;gap:1px}
-#rr-util-rail-mount .ntp-fmt-btn{appearance:none;cursor:pointer;width:26px;height:26px;border-radius:6px;border:0;background:transparent;color:var(--text-muted,#64748b);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;transition:background .15s,color .15s}
-#rr-util-rail-mount .ntp-fmt-btn:hover{background:rgba(15,23,42,.06);color:var(--text,#0f172a)}
+#rr-util-rail-mount .ntp-fmt-btn{appearance:none;cursor:pointer;width:26px;height:26px;border-radius:6px;border:0;background:transparent;color:var(--text-muted,var(--rr-slate-500));display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;transition:background .15s,color .15s}
+#rr-util-rail-mount .ntp-fmt-btn:hover{background:rgba(15,23,42,.06);color:var(--text,var(--rr-slate-900))}
 #rr-util-rail-mount .ntp-fmt-bold{font-weight:800}
 #rr-util-rail-mount .ntp-fmt-italic{font-style:italic;font-family:Georgia,'Times New Roman',serif}
-#rr-util-rail-mount .ntp-add-btn{appearance:none;cursor:pointer;border:0;border-radius:8px;background:#2563EB;color:#fff;font:inherit;font-size:13px;font-weight:600;padding:7px 14px;transition:background .15s}
-#rr-util-rail-mount .ntp-add-btn:hover{background:#1d4ed8}
+#rr-util-rail-mount .ntp-add-btn{appearance:none;cursor:pointer;border:0;border-radius:8px;background:var(--rr-blue-600);color:var(--rr-white);font:inherit;font-size:13px;font-weight:600;padding:7px 14px;transition:background .15s}
+#rr-util-rail-mount .ntp-add-btn:hover{background:var(--rr-blue-700)}
 #rr-util-rail-mount .ntp-add-btn-sm{padding:6px 12px;font-size:12.5px}
 
 #rr-util-rail-mount .ntp-filter{display:flex;align-items:center;gap:8px;margin:14px 0 10px}
-#rr-util-rail-mount .ntp-filter-sel{appearance:none;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:#fff;color:var(--text,#0f172a);font:inherit;font-size:12.5px;font-weight:600;padding:7px 9px;transition:background .15s}
-#rr-util-rail-mount .ntp-filter-sel:hover{background:var(--canvas,#f8fafc)}
-#rr-util-rail-mount .ntp-filter-sel svg{color:var(--text-subtle,#94a3b8)}
-#rr-util-rail-mount .ntp-search{flex:1;min-width:0;display:flex;align-items:center;gap:7px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:#fff;padding:0 9px}
-#rr-util-rail-mount .ntp-search svg{flex:0 0 auto;color:var(--text-subtle,#94a3b8)}
-#rr-util-rail-mount .ntp-search input{flex:1;min-width:0;border:0;outline:none;background:transparent;font:inherit;font-size:13px;color:var(--text,#0f172a);padding:7px 0}
-#rr-util-rail-mount .ntp-search input::placeholder{color:var(--text-subtle,#94a3b8)}
+#rr-util-rail-mount .ntp-filter-sel{appearance:none;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:var(--rr-white);color:var(--text,var(--rr-slate-900));font:inherit;font-size:12.5px;font-weight:600;padding:7px 9px;transition:background .15s}
+#rr-util-rail-mount .ntp-filter-sel:hover{background:var(--canvas,var(--rr-slate-50))}
+#rr-util-rail-mount .ntp-filter-sel svg{color:var(--text-subtle,var(--rr-slate-400))}
+#rr-util-rail-mount .ntp-search{flex:1;min-width:0;display:flex;align-items:center;gap:7px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:var(--rr-white);padding:0 9px}
+#rr-util-rail-mount .ntp-search svg{flex:0 0 auto;color:var(--text-subtle,var(--rr-slate-400))}
+#rr-util-rail-mount .ntp-search input{flex:1;min-width:0;border:0;outline:none;background:transparent;font:inherit;font-size:13px;color:var(--text,var(--rr-slate-900));padding:7px 0}
+#rr-util-rail-mount .ntp-search input::placeholder{color:var(--text-subtle,var(--rr-slate-400))}
 
 #rr-util-rail-mount .ntp-list{display:flex;flex-direction:column;gap:10px}
-#rr-util-rail-mount .ntp-note{position:relative;border:1px solid var(--border,rgba(15,23,42,.10));border-left:3px solid #2563EB;border-radius:10px;background:#fff;padding:11px 32px 12px 13px;box-shadow:0 1px 2px rgba(15,23,42,.04);transition:box-shadow .15s}
+#rr-util-rail-mount .ntp-note{position:relative;border:1px solid var(--border,rgba(15,23,42,.10));border-left:3px solid var(--rr-blue-600);border-radius:10px;background:var(--rr-white);padding:11px 32px 12px 13px;box-shadow:0 1px 2px rgba(15,23,42,.04);transition:box-shadow .15s}
 #rr-util-rail-mount .ntp-note:hover{box-shadow:0 2px 8px rgba(15,23,42,.07)}
 #rr-util-rail-mount .ntp-note[data-type="amber"]{border-left-color:#E0A82E}
-#rr-util-rail-mount .ntp-note[data-type="green"]{border-left-color:#16A34A}
+#rr-util-rail-mount .ntp-note[data-type="green"]{border-left-color:var(--rr-green-600)}
 #rr-util-rail-mount .ntp-note[data-type="violet"]{border-left-color:#7C3AED}
 #rr-util-rail-mount .ntp-note-top{display:flex;align-items:baseline;gap:8px;margin-bottom:4px;flex-wrap:wrap}
-#rr-util-rail-mount .ntp-note-time{font-size:11.5px;color:var(--text-subtle,#94a3b8);font-weight:500}
-#rr-util-rail-mount .ntp-note-author{font-size:11.5px;font-weight:600;color:var(--text-muted,#64748b)}
-#rr-util-rail-mount .ntp-note-body{font-size:13.5px;line-height:1.5;color:var(--text,#0f172a);word-break:break-word}
-#rr-util-rail-mount .ntp-note-body a{color:#2563EB}
+#rr-util-rail-mount .ntp-note-time{font-size:11.5px;color:var(--text-subtle,var(--rr-slate-400));font-weight:500}
+#rr-util-rail-mount .ntp-note-author{font-size:11.5px;font-weight:600;color:var(--text-muted,var(--rr-slate-500))}
+#rr-util-rail-mount .ntp-note-body{font-size:13.5px;line-height:1.5;color:var(--text,var(--rr-slate-900));word-break:break-word}
+#rr-util-rail-mount .ntp-note-body a{color:var(--rr-blue-600)}
 #rr-util-rail-mount .ntp-note-body img{max-width:100%;border-radius:6px;margin-top:6px}
-#rr-util-rail-mount .ntp-note-pin{position:absolute;top:9px;right:30px;width:22px;height:22px;border-radius:6px;appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
-#rr-util-rail-mount .ntp-note-pin:hover{background:rgba(15,23,42,.05);color:var(--text-muted,#64748b)}
-#rr-util-rail-mount .ntp-note.is-pinned .ntp-note-pin{color:#2563EB}
-#rr-util-rail-mount .ntp-note-menu{position:absolute;top:9px;right:7px;width:22px;height:22px;border-radius:6px;appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,#cbd5e1);display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
-#rr-util-rail-mount .ntp-note-menu:hover{background:rgba(15,23,42,.05);color:var(--text-muted,#64748b)}
-#rr-util-rail-mount .ntp-empty{font-size:12.5px;color:var(--text-subtle,#94a3b8);text-align:center;line-height:1.5;padding:22px 10px}
+#rr-util-rail-mount .ntp-note-pin{position:absolute;top:9px;right:30px;width:22px;height:22px;border-radius:6px;appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,var(--rr-slate-300));display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
+#rr-util-rail-mount .ntp-note-pin:hover{background:rgba(15,23,42,.05);color:var(--text-muted,var(--rr-slate-500))}
+#rr-util-rail-mount .ntp-note.is-pinned .ntp-note-pin{color:var(--rr-blue-600)}
+#rr-util-rail-mount .ntp-note-menu{position:absolute;top:9px;right:7px;width:22px;height:22px;border-radius:6px;appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,var(--rr-slate-300));display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
+#rr-util-rail-mount .ntp-note-menu:hover{background:rgba(15,23,42,.05);color:var(--text-muted,var(--rr-slate-500))}
+#rr-util-rail-mount .ntp-empty{font-size:12.5px;color:var(--text-subtle,var(--rr-slate-400));text-align:center;line-height:1.5;padding:22px 10px}
 
-#rr-util-rail-mount .ntp-viewall{display:inline-block;margin:11px 2px 4px;font-size:12.5px;font-weight:600;color:#2563EB;text-decoration:none;cursor:pointer}
+#rr-util-rail-mount .ntp-viewall{display:inline-block;margin:11px 2px 4px;font-size:12.5px;font-weight:600;color:var(--rr-blue-600);text-decoration:none;cursor:pointer}
 #rr-util-rail-mount .ntp-viewall:hover{text-decoration:underline}
 
 #rr-util-rail-mount .ntp-tasks-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.07))}
 /* In the dedicated Tasks panel the block stands alone — no divider above. */
 #rr-util-rail-mount .ntp-tasks-block--solo{margin-top:0;padding-top:2px;border-top:0}
 #rr-util-rail-mount .ntp-tasks-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-#rr-util-rail-mount .ntp-section-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted,#64748b)}
-#rr-util-rail-mount .ntp-addtask-btn{appearance:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:#fff;color:var(--text,#0f172a);font:inherit;font-size:12px;font-weight:600;padding:6px 10px;transition:background .15s}
-#rr-util-rail-mount .ntp-addtask-btn:hover{background:var(--canvas,#f8fafc)}
-#rr-util-rail-mount .ntp-task-form{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:10px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:10px;background:#fff}
-#rr-util-rail-mount .ntp-task-input,#rr-util-rail-mount .ntp-task-date{border:1px solid var(--border,rgba(15,23,42,.12));border-radius:7px;background:#fff;font:inherit;font-size:13px;color:var(--text,#0f172a);padding:7px 9px;outline:none}
-#rr-util-rail-mount .ntp-task-input:focus,#rr-util-rail-mount .ntp-task-date:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+#rr-util-rail-mount .ntp-section-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted,var(--rr-slate-500))}
+#rr-util-rail-mount .ntp-addtask-btn{appearance:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:var(--rr-white);color:var(--text,var(--rr-slate-900));font:inherit;font-size:12px;font-weight:600;padding:6px 10px;transition:background .15s}
+#rr-util-rail-mount .ntp-addtask-btn:hover{background:var(--canvas,var(--rr-slate-50))}
+#rr-util-rail-mount .ntp-task-form{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:10px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:10px;background:var(--rr-white)}
+#rr-util-rail-mount .ntp-task-input,#rr-util-rail-mount .ntp-task-date{border:1px solid var(--border,rgba(15,23,42,.12));border-radius:7px;background:var(--rr-white);font:inherit;font-size:13px;color:var(--text,var(--rr-slate-900));padding:7px 9px;outline:none}
+#rr-util-rail-mount .ntp-task-input:focus,#rr-util-rail-mount .ntp-task-date:focus{border-color:var(--rr-blue-600);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 #rr-util-rail-mount .ntp-task-form-row{display:flex;align-items:center;gap:8px}
 /* The class's display:flex outranks the UA [hidden]{display:none}, so the
    conditional recurrence rows (weekday picker / monthly pattern / count) would
@@ -5929,70 +5929,70 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-task-repcount{flex:0 0 64px;text-align:center}
 #rr-util-rail-mount .ntp-task-rep{flex:0 0 auto;font-size:11px;opacity:.7;margin-left:2px}
 #rr-util-rail-mount .ntp-rep-extra{flex-wrap:wrap}
-#rr-util-rail-mount .ntp-rep-lbl{font-size:12.5px;color:var(--text-muted,#64748b)}
+#rr-util-rail-mount .ntp-rep-lbl{font-size:12.5px;color:var(--text-muted,var(--rr-slate-500))}
 #rr-util-rail-mount .ntp-dow{display:flex;gap:5px;flex-wrap:wrap}
-#rr-util-rail-mount .ntp-dow-b{width:30px;height:30px;border-radius:50%;border:1px solid var(--border,rgba(15,23,42,.14));background:#fff;color:var(--text,#0f172a);font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:0}
+#rr-util-rail-mount .ntp-dow-b{width:30px;height:30px;border-radius:50%;border:1px solid var(--border,rgba(15,23,42,.14));background:var(--rr-white);color:var(--text,var(--rr-slate-900));font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:0}
 #rr-util-rail-mount .ntp-dow-b:hover{background:#eef4ff}
-#rr-util-rail-mount .ntp-dow-b.on{background:#2563EB;border-color:#2563EB;color:#fff}
-#rr-util-rail-mount .ntp-ghost-btn{appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-muted,#64748b);font:inherit;font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:7px}
+#rr-util-rail-mount .ntp-dow-b.on{background:var(--rr-blue-600);border-color:var(--rr-blue-600);color:var(--rr-white)}
+#rr-util-rail-mount .ntp-ghost-btn{appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-muted,var(--rr-slate-500));font:inherit;font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:7px}
 #rr-util-rail-mount .ntp-ghost-btn:hover{background:rgba(15,23,42,.05)}
 #rr-util-rail-mount .ntp-tasklist{display:flex;flex-direction:column;gap:1px}
 #rr-util-rail-mount .ntp-task{display:flex;align-items:center;gap:11px;padding:9px 6px;border-radius:8px;transition:background .15s}
-#rr-util-rail-mount .ntp-task:hover{background:#fff}
-#rr-util-rail-mount .ntp-task-check{appearance:none;cursor:pointer;flex:0 0 auto;width:18px;height:18px;border-radius:5px;border:1.6px solid #cbd5e1;background:#fff;color:#fff;display:inline-flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s}
-#rr-util-rail-mount .ntp-task-check:hover{border-color:#2563EB}
-#rr-util-rail-mount .ntp-task.is-done .ntp-task-check{background:#2563EB;border-color:#2563EB}
+#rr-util-rail-mount .ntp-task:hover{background:var(--rr-white)}
+#rr-util-rail-mount .ntp-task-check{appearance:none;cursor:pointer;flex:0 0 auto;width:18px;height:18px;border-radius:5px;border:1.6px solid var(--rr-slate-300);background:var(--rr-white);color:var(--rr-white);display:inline-flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s}
+#rr-util-rail-mount .ntp-task-check:hover{border-color:var(--rr-blue-600)}
+#rr-util-rail-mount .ntp-task.is-done .ntp-task-check{background:var(--rr-blue-600);border-color:var(--rr-blue-600)}
 #rr-util-rail-mount .ntp-task-check svg{opacity:0}
 #rr-util-rail-mount .ntp-task.is-done .ntp-task-check svg{opacity:1}
 /* Titles wrap (up to 3 lines, then ellipsis) so long tasks stay readable;
    the span's title attribute carries the full text past the clamp. */
-#rr-util-rail-mount .ntp-task-title{flex:1;min-width:0;font-size:13.5px;line-height:1.35;color:var(--text,#0f172a);overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow-wrap:anywhere}
-#rr-util-rail-mount .ntp-task.is-done .ntp-task-title{color:var(--text-subtle,#94a3b8);text-decoration:line-through}
-#rr-util-rail-mount .ntp-task-due{flex:0 0 auto;font-size:12px;font-weight:600;color:var(--text-subtle,#94a3b8)}
+#rr-util-rail-mount .ntp-task-title{flex:1;min-width:0;font-size:13.5px;line-height:1.35;color:var(--text,var(--rr-slate-900));overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+#rr-util-rail-mount .ntp-task.is-done .ntp-task-title{color:var(--text-subtle,var(--rr-slate-400));text-decoration:line-through}
+#rr-util-rail-mount .ntp-task-due{flex:0 0 auto;font-size:12px;font-weight:600;color:var(--text-subtle,var(--rr-slate-400))}
 #rr-util-rail-mount .ntp-task-due.is-soon{color:#EA580C}
-#rr-util-rail-mount .ntp-task-due.is-over{color:#DC2626}
-#rr-util-rail-mount .ntp-task-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:var(--text-muted,#64748b);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;overflow:hidden}
+#rr-util-rail-mount .ntp-task-due.is-over{color:var(--rr-red-600)}
+#rr-util-rail-mount .ntp-task-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--rr-slate-200);color:var(--text-muted,var(--rr-slate-500));display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;overflow:hidden}
 #rr-util-rail-mount .ntp-task-avatar img{width:100%;height:100%;object-fit:cover}
 /* Team tasks (0432): teammate rows get no special avatar tint — the
    tooltip + provenance text distinguish them (kept deliberately subtle,
    per operator: no purple, no bubbles). */
-#rr-util-rail-mount .ntp-task-avatar.is-other{background:#e2e8f0;color:var(--text-muted,#64748b)}
+#rr-util-rail-mount .ntp-task-avatar.is-other{background:var(--rr-slate-200);color:var(--text-muted,var(--rr-slate-500))}
 /* "from Ryan" / "→ Dana" — quiet muted text beside the title (no pill). */
-#rr-util-rail-mount .ntp-task-from{flex:0 0 auto;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:500;color:var(--text-subtle,#94a3b8)}
+#rr-util-rail-mount .ntp-task-from{flex:0 0 auto;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:500;color:var(--text-subtle,var(--rr-slate-400))}
 /* My Tasks ↔ Delegated switcher (hidden until server mode confirms) —
    flat text tabs on a hairline, dark-slate underline marks the active
    one. No pills, no accent fill. */
 #rr-util-rail-mount .ntp-task-views{display:flex;gap:16px;margin-bottom:10px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.07))}
 #rr-util-rail-mount .ntp-task-views[hidden]{display:none}
-#rr-util-rail-mount .ntp-task-view-b{appearance:none;cursor:pointer;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:transparent;color:var(--text-muted,#64748b);font:inherit;font-size:12.5px;font-weight:600;padding:2px 1px 7px;transition:color .15s,border-color .15s}
+#rr-util-rail-mount .ntp-task-view-b{appearance:none;cursor:pointer;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:transparent;color:var(--text-muted,var(--rr-slate-500));font:inherit;font-size:12.5px;font-weight:600;padding:2px 1px 7px;transition:color .15s,border-color .15s}
 #rr-util-rail-mount .ntp-task-view-b b{font-weight:600;font-size:11.5px;margin-left:4px;opacity:.65}
-#rr-util-rail-mount .ntp-task-view-b:hover{color:var(--text,#0f172a)}
-#rr-util-rail-mount .ntp-task-view-b.on{color:var(--text,#0f172a);border-bottom-color:var(--text,#0f172a)}
+#rr-util-rail-mount .ntp-task-view-b:hover{color:var(--text,var(--rr-slate-900))}
+#rr-util-rail-mount .ntp-task-view-b.on{color:var(--text,var(--rr-slate-900));border-bottom-color:var(--text,var(--rr-slate-900))}
 /* Clickable title (server rows open the detail modal). */
 #rr-util-rail-mount .ntp-task-title--click{cursor:pointer}
 #rr-util-rail-mount .ntp-task-title--click:hover{text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--border,rgba(15,23,42,.3))}
 /* Acknowledge indicator on delegated rows (0434): amber ● awaiting,
    green ✓ acknowledged. */
 #rr-util-rail-mount .ntp-task-ack{flex:0 0 auto;font-size:11px;line-height:1;font-weight:700}
-#rr-util-rail-mount .ntp-task-ack.is-wait{color:#D97706}
+#rr-util-rail-mount .ntp-task-ack.is-wait{color:var(--rr-amber-600)}
 #rr-util-rail-mount .ntp-task-ack.is-done{color:#059669}
 /* Comment indicator on rows (0435): muted 💬 + count; lit blue with a
    pip when there's a message I haven't seen. */
-#rr-util-rail-mount .ntp-task-msg{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--text-subtle,#94a3b8)}
+#rr-util-rail-mount .ntp-task-msg{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--text-subtle,var(--rr-slate-400))}
 #rr-util-rail-mount .ntp-task-msg svg{width:12px;height:12px}
-#rr-util-rail-mount .ntp-task-msg.is-unread{color:#2563EB}
-#rr-util-rail-mount .ntp-task-msg-dot{position:absolute;top:-3px;right:-4px;width:6px;height:6px;border-radius:50%;background:#2563EB}
+#rr-util-rail-mount .ntp-task-msg.is-unread{color:var(--rr-blue-600)}
+#rr-util-rail-mount .ntp-task-msg-dot{position:absolute;top:-3px;right:-4px;width:6px;height:6px;border-radius:50%;background:var(--rr-blue-600)}
 /* Delete (trash) — appears on row hover, red on its own hover. */
-#rr-util-rail-mount .ntp-task-del{appearance:none;cursor:pointer;flex:0 0 auto;border:0;background:transparent;color:var(--text-subtle,#94a3b8);padding:4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,background .15s,color .15s}
+#rr-util-rail-mount .ntp-task-del{appearance:none;cursor:pointer;flex:0 0 auto;border:0;background:transparent;color:var(--text-subtle,var(--rr-slate-400));padding:4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,background .15s,color .15s}
 #rr-util-rail-mount .ntp-task:hover .ntp-task-del{opacity:1}
-#rr-util-rail-mount .ntp-task-del:hover{background:rgba(220,38,38,.10);color:#DC2626}
-#rr-util-rail-mount .ntp-task-del:focus-visible{opacity:1;outline:2px solid #2563EB;outline-offset:1px}
+#rr-util-rail-mount .ntp-task-del:hover{background:rgba(220,38,38,.10);color:var(--rr-red-600)}
+#rr-util-rail-mount .ntp-task-del:focus-visible{opacity:1;outline:2px solid var(--rr-blue-600);outline-offset:1px}
 
 /* Delete chooser for repeating tasks — appended to <body> (not the rail),
    so styled unscoped. "This task" vs. "all N in this series". */
-.ntp-task-del-pop{position:fixed;z-index:10060;background:#fff;border:1px solid rgba(15,23,42,.12);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:4px;display:flex;flex-direction:column;gap:1px;min-width:210px}
-.ntp-task-del-pop button{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:13px;color:#111827;text-align:left;padding:8px 12px;border-radius:7px}
-.ntp-task-del-pop button:hover{background:rgba(220,38,38,.08);color:#DC2626}
+.ntp-task-del-pop{position:fixed;z-index:10060;background:var(--rr-white);border:1px solid rgba(15,23,42,.12);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:4px;display:flex;flex-direction:column;gap:1px;min-width:210px}
+.ntp-task-del-pop button{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:13px;color:var(--rr-gray-900);text-align:left;padding:8px 12px;border-radius:7px}
+.ntp-task-del-pop button:hover{background:rgba(220,38,38,.08);color:var(--rr-red-600)}
 
 /* ── Task detail modal (0434) · acknowledge + comments + activity ────
    Appended to <body>, so styled unscoped. Centered card with a header,
@@ -6000,49 +6000,49 @@ a.ctpd-val:hover{text-decoration:underline}
    and a comment composer pinned at the bottom. */
 .rr-td-back{position:fixed;inset:0;z-index:10070;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.42);opacity:0;transition:opacity .16s;padding:20px}
 .rr-td-back.open{opacity:1}
-.rr-td-card{width:min(520px,96vw);max-height:86vh;display:flex;flex-direction:column;background:#fff;border:1px solid rgba(15,23,42,.10);border-radius:16px;box-shadow:0 24px 64px rgba(15,23,42,.28);transform:translateY(8px) scale(.99);transition:transform .16s;overflow:hidden}
+.rr-td-card{width:min(520px,96vw);max-height:86vh;display:flex;flex-direction:column;background:var(--rr-white);border:1px solid rgba(15,23,42,.10);border-radius:16px;box-shadow:0 24px 64px rgba(15,23,42,.28);transform:translateY(8px) scale(.99);transition:transform .16s;overflow:hidden}
 .rr-td-back.open .rr-td-card{transform:none}
 .rr-td-head{display:flex;align-items:flex-start;gap:12px;padding:18px 18px 12px}
 .rr-td-title{flex:1;min-width:0}
-.rr-td-title-t{font-size:16px;font-weight:700;line-height:1.35;color:#0f172a;overflow-wrap:anywhere}
-.rr-td-title-t.is-done{color:#94a3b8;text-decoration:line-through}
-.rr-td-x{appearance:none;cursor:pointer;flex:0 0 auto;border:0;background:transparent;color:#94a3b8;padding:5px;border-radius:8px;display:inline-flex}
-.rr-td-x:hover{background:rgba(15,23,42,.06);color:#0f172a}
+.rr-td-title-t{font-size:16px;font-weight:700;line-height:1.35;color:var(--rr-slate-900);overflow-wrap:anywhere}
+.rr-td-title-t.is-done{color:var(--rr-slate-400);text-decoration:line-through}
+.rr-td-x{appearance:none;cursor:pointer;flex:0 0 auto;border:0;background:transparent;color:var(--rr-slate-400);padding:5px;border-radius:8px;display:inline-flex}
+.rr-td-x:hover{background:rgba(15,23,42,.06);color:var(--rr-slate-900)}
 .rr-td-meta{padding:0 18px 14px;border-bottom:1px solid rgba(15,23,42,.07)}
 .rr-td-chips{display:flex;flex-wrap:wrap;gap:6px}
-.rr-td-chip{font-size:11.5px;font-weight:600;color:#475569;background:#f1f5f9;border-radius:999px;padding:3px 10px}
+.rr-td-chip{font-size:11.5px;font-weight:600;color:var(--rr-slate-600);background:var(--rr-slate-100);border-radius:999px;padding:3px 10px}
 .rr-td-chip.is-soon{color:#c2410c;background:#ffedd5}
-.rr-td-chip.is-over{color:#b91c1c;background:#fee2e2}
+.rr-td-chip.is-over{color:var(--rr-red-700);background:#fee2e2}
 .rr-td-ack{margin-top:10px;font-size:12.5px;font-weight:600;border-radius:9px;padding:8px 11px}
 .rr-td-ack.is-done{color:#047857;background:#ecfdf5;border:1px solid #a7f3d0}
-.rr-td-ack.is-wait{color:#b45309;background:#fffbeb;border:1px solid #fde68a}
-.rr-td-ackbtn{margin-top:10px;appearance:none;cursor:pointer;border:0;border-radius:9px;background:#059669;color:#fff;font:inherit;font-size:13px;font-weight:600;padding:9px 14px;transition:background .15s}
+.rr-td-ack.is-wait{color:var(--rr-amber-700);background:#fffbeb;border:1px solid #fde68a}
+.rr-td-ackbtn{margin-top:10px;appearance:none;cursor:pointer;border:0;border-radius:9px;background:#059669;color:var(--rr-white);font:inherit;font-size:13px;font-weight:600;padding:9px 14px;transition:background .15s}
 .rr-td-ackbtn:hover{background:#047857}
 .rr-td-thread{flex:1;min-height:120px;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px}
-.rr-td-loading{color:#94a3b8;font-size:13px;text-align:center;padding:20px}
+.rr-td-loading{color:var(--rr-slate-400);font-size:13px;text-align:center;padding:20px}
 /* Activity line — quiet, dotted timeline. */
-.rr-td-act{display:flex;align-items:baseline;gap:8px;font-size:12.5px;color:#64748b;line-height:1.4}
-.rr-td-act-dot{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:#cbd5e1;transform:translateY(-1px)}
+.rr-td-act{display:flex;align-items:baseline;gap:8px;font-size:12.5px;color:var(--rr-slate-500);line-height:1.4}
+.rr-td-act-dot{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--rr-slate-300);transform:translateY(-1px)}
 .rr-td-act-t{flex:1;min-width:0}
-.rr-td-act-t b{font-weight:600;color:#334155}
+.rr-td-act-t b{font-weight:600;color:var(--rr-slate-700)}
 .rr-td-act-when{flex:0 0 auto;font-size:11px;color:#a3aab7}
 /* Comment bubble. */
 .rr-td-c{display:flex;gap:9px;align-items:flex-start}
 .rr-td-c.mine{flex-direction:row-reverse}
-.rr-td-c-av{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:#e2e8f0;color:#64748b;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
-.rr-td-c.mine .rr-td-c-av{background:#dbeafe;color:#1d4ed8}
-.rr-td-c-bub{max-width:78%;background:#f8fafc;border:1px solid rgba(15,23,42,.07);border-radius:12px;padding:7px 11px}
-.rr-td-c.mine .rr-td-c-bub{background:#eff6ff;border-color:#dbeafe}
+.rr-td-c-av{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--rr-slate-200);color:var(--rr-slate-500);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.rr-td-c.mine .rr-td-c-av{background:#dbeafe;color:var(--rr-blue-700)}
+.rr-td-c-bub{max-width:78%;background:var(--rr-slate-50);border:1px solid rgba(15,23,42,.07);border-radius:12px;padding:7px 11px}
+.rr-td-c.mine .rr-td-c-bub{background:var(--rr-blue-50);border-color:#dbeafe}
 .rr-td-c-top{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
-.rr-td-c-who{font-size:11.5px;font-weight:700;color:#334155}
+.rr-td-c-who{font-size:11.5px;font-weight:700;color:var(--rr-slate-700)}
 .rr-td-c-when{font-size:10.5px;color:#a3aab7}
-.rr-td-c-body{font-size:13px;color:#1e293b;line-height:1.4;overflow-wrap:anywhere}
+.rr-td-c-body{font-size:13px;color:var(--rr-slate-800);line-height:1.4;overflow-wrap:anywhere}
 /* Composer. */
-.rr-td-composer{flex:0 0 auto;display:flex;gap:8px;padding:12px 18px;border-top:1px solid rgba(15,23,42,.07);background:#fff}
-.rr-td-input{flex:1;min-width:0;border:1px solid rgba(15,23,42,.14);border-radius:10px;background:#fff;font:inherit;font-size:13.5px;color:#0f172a;padding:9px 12px;outline:none}
-.rr-td-input:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
-.rr-td-send{appearance:none;cursor:pointer;flex:0 0 auto;border:0;border-radius:10px;background:#2563EB;color:#fff;font:inherit;font-size:13px;font-weight:600;padding:0 16px;transition:background .15s}
-.rr-td-send:hover{background:#1d4ed8}
+.rr-td-composer{flex:0 0 auto;display:flex;gap:8px;padding:12px 18px;border-top:1px solid rgba(15,23,42,.07);background:var(--rr-white)}
+.rr-td-input{flex:1;min-width:0;border:1px solid rgba(15,23,42,.14);border-radius:10px;background:var(--rr-white);font:inherit;font-size:13.5px;color:var(--rr-slate-900);padding:9px 12px;outline:none}
+.rr-td-input:focus{border-color:var(--rr-blue-600);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+.rr-td-send{appearance:none;cursor:pointer;flex:0 0 auto;border:0;border-radius:10px;background:var(--rr-blue-600);color:var(--rr-white);font:inherit;font-size:13px;font-weight:600;padding:0 16px;transition:background .15s}
+.rr-td-send:hover{background:var(--rr-blue-700)}
 
 /* ── Driver Forms panel · enterprise card list ──────────────────────
    The Forms rail icon opens #rr-sched-forms (a .sched-notes-panel like
@@ -6054,22 +6054,22 @@ a.ctpd-val:hover{text-decoration:underline}
    icons in a faint tinted square. Header + search + chips + pagination
    chrome live in view-schedule.frag; the cards render from mock-wiring.js.
    Scoped to #rr-sched-forms so nothing leaks to Notes/Tasks. */
-#rr-util-rail-mount #rr-sched-forms.rr-fp{background:#FFFFFF}
+#rr-util-rail-mount #rr-sched-forms.rr-fp{background:var(--rr-white)}
 
 /* Header — title + subtitle on the left, primary New Form (split) + close
    on the right. The ONLY prominent blue in the panel. */
 #rr-util-rail-mount .rr-fp-head{align-items:flex-start;padding:16px 16px 12px}
 #rr-util-rail-mount .rr-fp-head-titles{min-width:0;flex:1}
-#rr-util-rail-mount .rr-fp-head .ntp-head-title{font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--text,#111827);line-height:1.2}
-#rr-util-rail-mount .rr-fp-subtitle{margin-top:3px;font-size:12px;color:var(--text-subtle,#6B7280);line-height:1.35}
+#rr-util-rail-mount .rr-fp-head .ntp-head-title{font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--text,var(--rr-gray-900));line-height:1.2}
+#rr-util-rail-mount .rr-fp-subtitle{margin-top:3px;font-size:12px;color:var(--text-subtle,var(--rr-gray-500));line-height:1.35}
 #rr-util-rail-mount .rr-fp-head-actions{flex:0 0 auto;display:flex;align-items:center;gap:8px}
 #rr-util-rail-mount .rr-fp-newsplit{display:inline-flex;align-items:stretch;border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(37,99,235,.18)}
 #rr-util-rail-mount .rr-fp-new,
-#rr-util-rail-mount .rr-fp-new-caret{appearance:none;cursor:pointer;border:0;background:#2563EB;color:#fff;font:inherit;display:inline-flex;align-items:center;justify-content:center;transition:background .15s}
+#rr-util-rail-mount .rr-fp-new-caret{appearance:none;cursor:pointer;border:0;background:var(--rr-blue-600);color:var(--rr-white);font:inherit;display:inline-flex;align-items:center;justify-content:center;transition:background .15s}
 #rr-util-rail-mount .rr-fp-new{font-size:12.5px;font-weight:600;padding:7px 11px;letter-spacing:-.01em}
 #rr-util-rail-mount .rr-fp-new-caret{padding:0 7px;border-left:1px solid rgba(255,255,255,.22)}
 #rr-util-rail-mount .rr-fp-new:hover,
-#rr-util-rail-mount .rr-fp-new-caret:hover{background:#1D4ED8}
+#rr-util-rail-mount .rr-fp-new-caret:hover{background:var(--rr-blue-700)}
 
 /* Toolbar — search row + filter chips. Sits below the header, above the
    scrollable card list, with a hairline separator. */
@@ -6077,62 +6077,62 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount #rr-sched-forms.is-open .rr-fp-toolbar{opacity:1;transition:opacity 120ms ease 100ms}
 @media (prefers-reduced-motion: reduce){#rr-util-rail-mount .rr-fp-toolbar{transition:none}}
 #rr-util-rail-mount .rr-fp-searchrow{display:flex;align-items:center;gap:8px}
-#rr-util-rail-mount .rr-fp-search{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:#F7F8FA;border:1px solid #E7EAF0;border-radius:10px;padding:0 10px;height:34px;color:var(--text-subtle,#6B7280);transition:border-color .15s,background .15s}
-#rr-util-rail-mount .rr-fp-search:focus-within{background:#fff;border-color:#C7D2E4}
+#rr-util-rail-mount .rr-fp-search{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:#F7F8FA;border:1px solid #E7EAF0;border-radius:10px;padding:0 10px;height:34px;color:var(--text-subtle,var(--rr-gray-500));transition:border-color .15s,background .15s}
+#rr-util-rail-mount .rr-fp-search:focus-within{background:var(--rr-white);border-color:#C7D2E4}
 #rr-util-rail-mount .rr-fp-search svg{flex:0 0 auto}
-#rr-util-rail-mount .rr-fp-search-input{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:13px;color:var(--text,#111827);outline:none}
-#rr-util-rail-mount .rr-fp-search-input::placeholder{color:var(--text-disabled,#9CA3AF)}
-#rr-util-rail-mount .rr-fp-trig{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;appearance:none;cursor:pointer;background:#fff;border:1px solid #E7EAF0;border-radius:10px;height:34px;padding:0 9px;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted,#4B5563);white-space:nowrap;transition:border-color .15s,background .15s}
+#rr-util-rail-mount .rr-fp-search-input{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:13px;color:var(--text,var(--rr-gray-900));outline:none}
+#rr-util-rail-mount .rr-fp-search-input::placeholder{color:var(--text-disabled,var(--rr-gray-400))}
+#rr-util-rail-mount .rr-fp-trig{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;appearance:none;cursor:pointer;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:10px;height:34px;padding:0 9px;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted,var(--rr-gray-600));white-space:nowrap;transition:border-color .15s,background .15s}
 #rr-util-rail-mount .rr-fp-trig:hover{background:#F7F8FA}
-#rr-util-rail-mount .rr-fp-trig svg{color:var(--text-subtle,#6B7280)}
-#rr-util-rail-mount .rr-fp-opt{flex:0 0 auto;appearance:none;cursor:pointer;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid #E7EAF0;border-radius:10px;color:var(--text-muted,#4B5563);transition:border-color .15s,background .15s}
+#rr-util-rail-mount .rr-fp-trig svg{color:var(--text-subtle,var(--rr-gray-500))}
+#rr-util-rail-mount .rr-fp-opt{flex:0 0 auto;appearance:none;cursor:pointer;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:10px;color:var(--text-muted,var(--rr-gray-600));transition:border-color .15s,background .15s}
 #rr-util-rail-mount .rr-fp-opt:hover{background:#F7F8FA}
 
 /* Filter chips — subtle pills. Selected: faint blue tint + blue text.
    Unselected: white, #E7EAF0 border, gray text. */
 #rr-util-rail-mount .rr-fp-chips{display:flex;flex-wrap:wrap;gap:6px}
-#rr-util-rail-mount .rr-fp-chip{appearance:none;cursor:pointer;background:#fff;border:1px solid #E7EAF0;border-radius:999px;padding:5px 11px;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted,#4B5563);transition:background .15s,border-color .15s,color .15s}
+#rr-util-rail-mount .rr-fp-chip{appearance:none;cursor:pointer;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:999px;padding:5px 11px;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted,var(--rr-gray-600));transition:background .15s,border-color .15s,color .15s}
 #rr-util-rail-mount .rr-fp-chip:hover{background:#F7F8FA}
-#rr-util-rail-mount .rr-fp-chip.is-active{background:rgba(37,99,235,.09);border-color:rgba(37,99,235,.22);color:#1E40AF;font-weight:600}
+#rr-util-rail-mount .rr-fp-chip.is-active{background:rgba(37,99,235,.09);border-color:rgba(37,99,235,.22);color:var(--rr-blue-800);font-weight:600}
 
 /* Card list — scrollable region between toolbar and pager. */
 #rr-util-rail-mount .rr-fp-scroll{padding:12px 16px}
 #rr-util-rail-mount .rr-fp-cards{display:flex;flex-direction:column;gap:10px}
-#rr-util-rail-mount .rr-fp-empty{color:var(--text-subtle,#6B7280)}
+#rr-util-rail-mount .rr-fp-empty{color:var(--text-subtle,var(--rr-gray-500))}
 
 /* Form card — white, very light border, 12px radius, no shadow at rest;
    light shadow + slight lift on hover only. */
-#rr-util-rail-mount .rr-fp-card{position:relative;display:flex;align-items:flex-start;gap:11px;width:100%;text-align:left;cursor:pointer;background:#fff;border:1px solid #E7EAF0;border-radius:12px;padding:12px 12px 11px;transition:box-shadow .16s ease,transform .16s ease,border-color .16s ease}
+#rr-util-rail-mount .rr-fp-card{position:relative;display:flex;align-items:flex-start;gap:11px;width:100%;text-align:left;cursor:pointer;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:12px;padding:12px 12px 11px;transition:box-shadow .16s ease,transform .16s ease,border-color .16s ease}
 #rr-util-rail-mount .rr-fp-card:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(17,24,39,.07);border-color:#DDE2EC}
-#rr-util-rail-mount .rr-fp-card-ico{flex:0 0 auto;width:34px;height:34px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:#F2F4F8;color:var(--text-muted,#4B5563)}
+#rr-util-rail-mount .rr-fp-card-ico{flex:0 0 auto;width:34px;height:34px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:#F2F4F8;color:var(--text-muted,var(--rr-gray-600))}
 #rr-util-rail-mount .rr-fp-card-ico svg{width:17px;height:17px;stroke-width:1.8}
 #rr-util-rail-mount .rr-fp-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
 #rr-util-rail-mount .rr-fp-card-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding-right:22px}
-#rr-util-rail-mount .rr-fp-card-title{font-size:13.5px;font-weight:600;color:var(--text,#111827);line-height:1.25;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#rr-util-rail-mount .rr-fp-card-sub{font-size:12px;color:var(--text-subtle,#6B7280);line-height:1.3}
-#rr-util-rail-mount .rr-fp-card-meta{font-size:11.5px;color:var(--text-disabled,#9CA3AF);line-height:1.3}
+#rr-util-rail-mount .rr-fp-card-title{font-size:13.5px;font-weight:600;color:var(--text,var(--rr-gray-900));line-height:1.25;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rr-util-rail-mount .rr-fp-card-sub{font-size:12px;color:var(--text-subtle,var(--rr-gray-500));line-height:1.3}
+#rr-util-rail-mount .rr-fp-card-meta{font-size:11.5px;color:var(--text-disabled,var(--rr-gray-400));line-height:1.3}
 
 /* Badges — soft, muted, low-saturation tints with darker muted text.
    Nothing vivid. */
 #rr-util-rail-mount .rr-fp-badge{flex:0 0 auto;font-size:10.5px;font-weight:600;line-height:1;white-space:nowrap;padding:3px 7px;border-radius:6px}
 #rr-util-rail-mount .rr-fp-st-published{background:#EAF1EC;color:#3F6B50}
 #rr-util-rail-mount .rr-fp-st-draft{background:#F4EFE3;color:#8A6D3B}
-#rr-util-rail-mount .rr-fp-st-archived{background:#F0F1F4;color:#6B7280}
+#rr-util-rail-mount .rr-fp-st-archived{background:#F0F1F4;color:var(--rr-gray-500)}
 #rr-util-rail-mount .rr-fp-rq-required{background:#EDEFF5;color:#475069}
 #rr-util-rail-mount .rr-fp-rq-optional{background:#F4F5F7;color:#8A93A3}
 
 /* Three-dot menu — monochrome, top-right, subtle. */
-#rr-util-rail-mount .rr-fp-card-dots{position:absolute;top:9px;right:8px;appearance:none;cursor:pointer;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;border-radius:6px;color:var(--text-disabled,#9CA3AF);transition:background .15s,color .15s}
-#rr-util-rail-mount .rr-fp-card-dots:hover{background:#F2F4F8;color:var(--text-muted,#4B5563)}
+#rr-util-rail-mount .rr-fp-card-dots{position:absolute;top:9px;right:8px;appearance:none;cursor:pointer;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;border-radius:6px;color:var(--text-disabled,var(--rr-gray-400));transition:background .15s,color .15s}
+#rr-util-rail-mount .rr-fp-card-dots:hover{background:#F2F4F8;color:var(--text-muted,var(--rr-gray-600))}
 #rr-util-rail-mount .rr-fp-card-dots svg{width:16px;height:16px}
 
 /* Pagination — pinned at the foot of the panel, quiet monochrome. */
-#rr-util-rail-mount .rr-fp-pager{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 16px;border-top:1px solid #E7EAF0;background:#FFFFFF}
-#rr-util-rail-mount .rr-fp-pager-label{font-size:12px;color:var(--text-subtle,#6B7280)}
+#rr-util-rail-mount .rr-fp-pager{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 16px;border-top:1px solid #E7EAF0;background:var(--rr-white)}
+#rr-util-rail-mount .rr-fp-pager-label{font-size:12px;color:var(--text-subtle,var(--rr-gray-500))}
 #rr-util-rail-mount .rr-fp-pager-btns{display:flex;align-items:center;gap:6px}
-#rr-util-rail-mount .rr-fp-pager-btn{appearance:none;cursor:pointer;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid #E7EAF0;border-radius:8px;color:var(--text-muted,#4B5563);transition:background .15s,border-color .15s,color .15s}
+#rr-util-rail-mount .rr-fp-pager-btn{appearance:none;cursor:pointer;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:8px;color:var(--text-muted,var(--rr-gray-600));transition:background .15s,border-color .15s,color .15s}
 #rr-util-rail-mount .rr-fp-pager-btn:hover:not(:disabled){background:#F7F8FA}
-#rr-util-rail-mount .rr-fp-pager-btn:disabled{cursor:default;color:#D1D5DB;border-color:#EFF1F5}
+#rr-util-rail-mount .rr-fp-pager-btn:disabled{cursor:default;color:var(--rr-gray-300);border-color:#EFF1F5}
 
 /* ============================================================
    Grounded-surface polish pass (2026-06-28)
@@ -6148,10 +6148,10 @@ a.ctpd-val:hover{text-decoration:underline}
    Exact hexes per the design spec:
      page floor   #F6F8FB
      workspace    #F7F9FC  (behind the calendar)
-     container    #FFFFFF + 1px #E6EAF2 + 12px radius
+     container    var(--rr-white) + 1px #E6EAF2 + 12px radius
    ============================================================ */
 
-/* (1)/(9) Layer 1 — page/window ground. Was the flat #F9FAFB
+/* (1)/(9) Layer 1 — page/window ground. Was the flat var(--rr-gray-50)
    near-white; the spec's #F6F8FB reads a hair cooler/deeper so
    the white toolbar + white calendar lift off it. */
 #view-schedule.rrx-schedule {
@@ -6181,7 +6181,7 @@ a.ctpd-val:hover{text-decoration:underline}
    (the grid is intentionally edge-to-edge with a sticky header);
    the radius + overflow:hidden already clip the corners cleanly. */
 #view-schedule.rrx-schedule .cal-wrap {
-  background: #FFFFFF;
+  background: var(--rr-white);
   border: 1px solid #E6EAF2 !important;
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -6248,7 +6248,7 @@ a.ctpd-val:hover{text-decoration:underline}
 }
 
 /* (7) Slightly darken the schedule cards. The assigned chip was
-   #EFF6FF (very light blue); drop it a few percent to #E8F1FE so
+   var(--rr-blue-50) (very light blue); drop it a few percent to #E8F1FE so
    the card reads as attached to the grid, not floating. Same
    radius, no shadow. Hover deepen kept proportional. */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here),
@@ -6299,7 +6299,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 
    Exact hexes (shared with the Schedule block):
      workspace tray  #F7F9FC
-     container       #FFFFFF + 1px #E6EAF2 + 12px radius
+     container       var(--rr-white) + 1px #E6EAF2 + 12px radius
      container shadow 0 1px 2px rgba(15,23,42,.04)
      control hairline #ECEFF5
    ============================================================ */
@@ -6334,7 +6334,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    sticky header. No padding added — the toolbar + table keep
    their own insets. */
 #view-schedule.rrx-schedule #ob-roster-mount .roster-split-list {
-  background: #FFFFFF;
+  background: var(--rr-white);
   border: 1px solid #E6EAF2;
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -6530,7 +6530,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    Enter/Space; give them a clear focus ring. :focus-visible only paints under
    keyboard focus, so this is inert for mouse users. */
 #view-schedule .shift-chip:focus-visible{
-  outline:2px solid var(--rr-brand-primary, #2563EB) !important;
+  outline:2px solid var(--rr-brand-primary, var(--rr-blue-600)) !important;
   outline-offset:2px !important;
   z-index:3;
 }
@@ -6540,14 +6540,14 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    double-book). Classes are added by _rrPaintCellConflicts at runtime only, so
    these rules are inert on the static/offline render. ── */
 #view-schedule .shift-chip.rr-chip-conflict{
-  outline:2px solid var(--rr-danger, #DC2626) !important;
+  outline:2px solid var(--rr-danger, var(--rr-red-600)) !important;
   outline-offset:-1px;
 }
 #view-schedule .rr-cell-conflict{
   position:absolute; top:-6px; left:-6px; z-index:4;
   display:inline-flex; align-items:center; justify-content:center;
   width:18px; height:18px; border-radius:50%;
-  background:var(--rr-danger, #DC2626); color:#fff;
+  background:var(--rr-danger, var(--rr-red-600)); color:var(--rr-white);
   box-shadow:0 1px 3px rgba(0,0,0,.28);
 }
 #view-schedule .rr-cell-conflict svg{ width:11px; height:11px; }
@@ -6560,47 +6560,47 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    are only what's new.
    ══════════════════════════════════════════════════════════════════ */
 #rr-util-rail-mount #rr-sched-checklists.rr-fp,
-#rr-util-rail-mount #rr-sched-tasks.rr-fp{background:#FFFFFF}
+#rr-util-rail-mount #rr-sched-tasks.rr-fp{background:var(--rr-white)}
 #rr-util-rail-mount #rr-sched-checklists.is-open .rr-fp-toolbar{opacity:1;transition:opacity 120ms ease 100ms}
 
 /* Segmented switcher under a panel header (Recognition's Upcoming/Sent) */
 #rr-util-rail-mount .rr-clf-seg{flex:0 0 auto;display:flex;gap:4px;margin:0 16px 12px;padding:3px;background:#F2F4F8;border:1px solid #E7EAF0;border-radius:10px;opacity:0;transition:opacity 120ms ease}
-#rr-util-rail-mount .rr-clf-seg-b{flex:1;appearance:none;cursor:pointer;border:0;background:transparent;border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text-subtle,#6B7280);transition:background .15s,color .15s,box-shadow .15s}
-#rr-util-rail-mount .rr-clf-seg-b:hover{color:var(--text-muted,#4B5563)}
-#rr-util-rail-mount .rr-clf-seg-b.is-active{background:#fff;color:var(--text,#111827);box-shadow:0 1px 2px rgba(17,24,39,.08)}
+#rr-util-rail-mount .rr-clf-seg-b{flex:1;appearance:none;cursor:pointer;border:0;background:transparent;border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text-subtle,var(--rr-gray-500));transition:background .15s,color .15s,box-shadow .15s}
+#rr-util-rail-mount .rr-clf-seg-b:hover{color:var(--text-muted,var(--rr-gray-600))}
+#rr-util-rail-mount .rr-clf-seg-b.is-active{background:var(--rr-white);color:var(--text,var(--rr-gray-900));box-shadow:0 1px 2px rgba(17,24,39,.08)}
 
 /* Checklist cards — extends .rr-fp-card */
-#rr-util-rail-mount .rr-clf-meta-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;color:var(--text-disabled,#9CA3AF);line-height:1.3}
-#rr-util-rail-mount .rr-clf-meta-row .rr-clf-warn{color:#B91C1C;font-weight:600}
+#rr-util-rail-mount .rr-clf-meta-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;color:var(--text-disabled,var(--rr-gray-400));line-height:1.3}
+#rr-util-rail-mount .rr-clf-meta-row .rr-clf-warn{color:var(--rr-red-700);font-weight:600}
 #rr-util-rail-mount .rr-clf-sum-ok{color:#3F6B50}
 #rr-util-rail-mount .rr-fp-st-active{background:#EAF1EC;color:#3F6B50}
-#rr-util-rail-mount .rr-fp-st-assigned{background:#E8EEFB;color:#1E40AF}
+#rr-util-rail-mount .rr-fp-st-assigned{background:#E8EEFB;color:var(--rr-blue-800)}
 
 /* Card overflow (⋯) menu */
 /* Card with an open ⋯ menu jumps above its siblings so the menu, which
    overflows the card's bounds, isn't painted behind the next card. */
 #rr-util-rail-mount .rr-fp-card.rr-fp-card--menu-open{z-index:30}
-#rr-util-rail-mount .rr-clf-menu{position:absolute;top:32px;right:8px;z-index:5;min-width:150px;background:#fff;border:1px solid #E7EAF0;border-radius:10px;box-shadow:0 8px 24px rgba(17,24,39,.12);padding:5px;display:flex;flex-direction:column}
-#rr-util-rail-mount .rr-clf-menu button{appearance:none;cursor:pointer;border:0;background:transparent;border-radius:7px;text-align:left;font:inherit;font-size:12.5px;color:var(--text,#111827);padding:7px 9px;transition:background .12s}
+#rr-util-rail-mount .rr-clf-menu{position:absolute;top:32px;right:8px;z-index:5;min-width:150px;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:10px;box-shadow:0 8px 24px rgba(17,24,39,.12);padding:5px;display:flex;flex-direction:column}
+#rr-util-rail-mount .rr-clf-menu button{appearance:none;cursor:pointer;border:0;background:transparent;border-radius:7px;text-align:left;font:inherit;font-size:12.5px;color:var(--text,var(--rr-gray-900));padding:7px 9px;transition:background .12s}
 #rr-util-rail-mount .rr-clf-menu button:hover{background:#F7F8FA}
-#rr-util-rail-mount .rr-clf-menu button.rr-clf-menu-danger{color:#B91C1C}
-#rr-util-rail-mount .rr-clf-menu button.rr-clf-menu-danger:hover{background:#FEF2F2}
+#rr-util-rail-mount .rr-clf-menu button.rr-clf-menu-danger{color:var(--rr-red-700)}
+#rr-util-rail-mount .rr-clf-menu button.rr-clf-menu-danger:hover{background:var(--rr-red-50)}
 
 /* ── Recognition rail panel (#rr-sched-recog) ─────────────────────────
    Rose award icon, same push-panel chrome as Notes/Checklists/Forms. */
 #rr-util-rail-mount .sched-util-btn--recog{color:#DB2777}
 #rr-util-rail-mount .sched-util-btn--recog:hover{background:rgba(219,39,119,.10);border-color:rgba(219,39,119,.28)}
 #rr-util-rail-mount .sched-util-btn--recog:focus-visible{border-color:#DB2777;box-shadow:0 0 0 3px rgba(219,39,119,.22)}
-#rr-util-rail-mount #rr-sched-recog.rr-fp{background:#FFFFFF}
+#rr-util-rail-mount #rr-sched-recog.rr-fp{background:var(--rr-white)}
 #rr-util-rail-mount #rr-sched-recog.is-open .rr-clf-seg{opacity:1;transition:opacity 120ms ease 100ms}
 #rr-util-rail-mount .rr-rgp-card{align-items:center}
 #rr-util-rail-mount .rr-rgp-ava{flex:0 0 auto;width:34px;height:34px;border-radius:9px;object-fit:cover;background:#F2F4F8}
 #rr-util-rail-mount .rr-rgp-ini{font-size:12px;font-weight:700;color:#9D174D;background:#FCE7F3}
 #rr-util-rail-mount .rr-rgp-btn{flex:0 0 auto;align-self:center;appearance:none;cursor:pointer;border:1px solid rgba(219,39,119,.35);background:#FDF2F8;color:#9D174D;border-radius:8px;font:inherit;font-size:11.5px;font-weight:600;padding:5px 10px;white-space:nowrap;transition:background .15s,border-color .15s}
 #rr-util-rail-mount .rr-rgp-btn:hover{background:#FCE7F3}
-#rr-util-rail-mount .rr-rgp-x{flex:0 0 auto;align-self:center;appearance:none;cursor:pointer;border:0;background:transparent;width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-disabled,#9CA3AF);transition:background .12s,color .12s}
-#rr-util-rail-mount .rr-rgp-x:hover{background:#FEF2F2;color:#B91C1C}
-#rr-util-rail-mount .rr-fp-st-sched{background:#E8EEFB;color:#1E40AF}
+#rr-util-rail-mount .rr-rgp-x{flex:0 0 auto;align-self:center;appearance:none;cursor:pointer;border:0;background:transparent;width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-disabled,var(--rr-gray-400));transition:background .12s,color .12s}
+#rr-util-rail-mount .rr-rgp-x:hover{background:var(--rr-red-50);color:var(--rr-red-700)}
+#rr-util-rail-mount .rr-fp-st-sched{background:#E8EEFB;color:var(--rr-blue-800)}
 
 /* ============================================================
    Daily risk indicator · subtle glyph in the day-header corner
@@ -6665,7 +6665,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   width: 262px;
   max-width: calc(100vw - 16px);
   padding: 13px 14px 0;
-  background: #FFFFFF;
+  background: var(--rr-white);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   box-shadow: 0 12px 34px rgba(15, 23, 42, .16), 0 2px 6px rgba(15, 23, 42, .08);
@@ -6744,8 +6744,8 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 #rr-sched-weather-toggle.is-on,
 #rr-sched-weather-toggle[aria-pressed="true"] {
   background: #EFF6FC;
-  border-color: #2563EB;
-  color: #2563EB;
+  border-color: var(--rr-blue-600);
+  color: var(--rr-blue-600);
 }
 
 /* A day header showing the forecast: stack weekday · glyph · label · temp,
@@ -6841,7 +6841,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell-head.rr-wx-hea
   #view-schedule.rrx-schedule #sched-sub-week .cal-grid.head > .cal-cell-head:first-child {
     position: sticky !important;
     left: 0 !important;
-    background: var(--surface, #fff) !important;
+    background: var(--surface, var(--rr-white)) !important;
     box-shadow: 1px 0 0 rgba(15, 23, 42, 0.10);
   }
   /* Layering: body label (3) < sticky header row (4) < header corner (5),
