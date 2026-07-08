@@ -70738,11 +70738,12 @@ let _fleetIssueFilters = { q: "", state: "open", severity: "" };
 let _fleetSearchT      = null;
 let _fleetIssuesSearchT = null;
 
-// Public photo URL builder — same pattern as driver-photos.
-function _flPhotoUrl(path) {
-  if (!path) return null;
-  return `${cfg.SUPABASE_URL}/storage/v1/object/public/vehicle-photos/${encodeURI(path)}`;
-}
+// vehicle-photos is a PRIVATE bucket (migration 0445) — reads go through
+// short-lived signed URLs, not a public URL. Signing happens once at
+// data-load time (see _flLoadRoster / loadFleetDrawer) and the signed URL is
+// stashed on `v.photo_url`; renderers just read that. Falls back to the van
+// icon whenever there's no photo or signing failed, so a sign hiccup only
+// costs the thumbnail, never breaks the row.
 
 function _flVanIconSvg() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 17h2l1-4h12l1 4h2"/><path d="M5 13v4M19 13v4"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/></svg>`;
@@ -70750,9 +70751,27 @@ function _flVanIconSvg() {
 
 function _flVehThumb(v, opts) {
   const cls = (opts && opts.cls) || "fl-veh-thumb";
-  const url = _flPhotoUrl(v.photo_path);
+  const url = v.photo_url || null;
   if (url) return `<div class="${cls}"><img src="${escapeHtml(url)}" alt=""></div>`;
   return `<div class="${cls}">${_flVanIconSvg()}</div>`;
+}
+
+// Batch-sign storage paths in a private bucket → Map(path → signedUrl).
+// Best-effort: any error (or an individual path that can't be signed) just
+// drops out of the map and the caller shows its placeholder. 8h TTL comfortably
+// outlives a roster/browsing session; re-loading the list re-signs.
+async function _flSignPhotos(bucket, paths, ttl) {
+  const uniq = [...new Set((paths || []).filter(Boolean))];
+  if (!uniq.length) return new Map();
+  const out = new Map();
+  try {
+    const { data, error } = await sb.storage.from(bucket).createSignedUrls(uniq, ttl || 60 * 60 * 8);
+    if (error || !Array.isArray(data)) return out;
+    for (const r of data) {
+      if (r && r.path && r.signedUrl && !r.error) out.set(r.path, r.signedUrl);
+    }
+  } catch (_) { /* fall through — placeholders */ }
+  return out;
 }
 
 function _flStatusPill(s) {
@@ -71217,6 +71236,10 @@ async function _flLoadRoster() {
     return;
   }
   _fleetRows = Array.isArray(data) ? data : [];
+  // vehicle-photos is private (0445) — sign the thumbnails up front so the
+  // sync renderers can just read v.photo_url.
+  const _vpSigs = await _flSignPhotos("vehicle-photos", _fleetRows.map((v) => v.photo_path));
+  for (const v of _fleetRows) v.photo_url = v.photo_path ? (_vpSigs.get(v.photo_path) || null) : null;
   _flPopulateStationFilter(_fleetRows);
   _flRenderRoster();
   _flPaintTabCounts();
@@ -72740,6 +72763,14 @@ async function loadFleetDrawer(vehicleId) {
   const { data, error } = await sb.rpc("vehicle_record", { p_id: vehicleId });
   if (error || !data) { toast("Couldn't load van: " + (error?.message || "not found"), "warn"); return; }
   _fdVehicle = data;
+  // vehicle-photos is private (0445) — sign the header thumbnail on open.
+  const _fdV = _fdVehicle.vehicle;
+  if (_fdV && _fdV.photo_path) {
+    try {
+      const { data: s } = await sb.storage.from("vehicle-photos").createSignedUrl(_fdV.photo_path, 60 * 60 * 8);
+      _fdV.photo_url = s?.signedUrl || null;
+    } catch (_) { _fdV.photo_url = null; }
+  }
   _fdPaintHead();
   // Activate the requested tab in the strip
   document.querySelectorAll("#rr-fd-drawer .fd-tab").forEach((t) => t.classList.toggle("active", t.getAttribute("data-rr-fd-tab") === _fdTab));
@@ -72767,7 +72798,7 @@ function _fdPaintHead() {
   const thumb = document.getElementById("rr-fd-thumb");
   if (thumb) {
     thumb.querySelector("img")?.remove();
-    const url = _flPhotoUrl(v.photo_path);
+    const url = v.photo_url || null;
     if (url) {
       const img = document.createElement("img");
       img.src = url; img.alt = "";
