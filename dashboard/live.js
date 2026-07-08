@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=b8f298a86d48";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=b8f298a86d48";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=b8f298a86d48";
+import { planScheduleWeek } from "./scheduling-engine.js?v=62ac5d31171c";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=62ac5d31171c";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=62ac5d31171c";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -4924,6 +4924,60 @@ async function _submitAdminEditDsp(e) {
 
 let _adminUsersCurrentDspId = null;
 
+// ── Admin drawer accessibility ──────────────────────────────────────────
+// Shared focus management for the three platform-admin side-drawers
+// (Manage users / Access & modules / DSP profile).  On open: remember the
+// trigger, move focus into the drawer, and trap Tab within it (aria-modal).
+// On close: restore focus to the trigger.  Drawers can stack (profile →
+// access), so we keep a small stack of previously-focused elements.
+const _rrDrawerFocusStack = [];
+function _rrDrawerFocusables(drawer) {
+  return Array.from(drawer.querySelectorAll(
+    'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+  )).filter((el) => el.offsetParent !== null);
+}
+function _rrTrapDrawer(drawer) {
+  if (!drawer) return;
+  _rrDrawerFocusStack.push(document.activeElement);
+  drawer.setAttribute("aria-modal", "true");
+  if (drawer._rrTrapHandler) drawer.removeEventListener("keydown", drawer._rrTrapHandler);
+  drawer._rrTrapHandler = (e) => {
+    if (e.key !== "Tab") return;
+    const f = _rrDrawerFocusables(drawer);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  drawer.addEventListener("keydown", drawer._rrTrapHandler);
+  // Move focus in once the open transition has begun.
+  setTimeout(() => {
+    const f = _rrDrawerFocusables(drawer);
+    (drawer.querySelector(".rr-drawer-close") || f[0])?.focus();
+  }, 40);
+}
+function _rrReleaseDrawer(drawer) {
+  if (!drawer) return;
+  if (drawer._rrTrapHandler) { drawer.removeEventListener("keydown", drawer._rrTrapHandler); drawer._rrTrapHandler = null; }
+  drawer.removeAttribute("aria-modal");
+  const prev = _rrDrawerFocusStack.pop();
+  if (prev && typeof prev.focus === "function") setTimeout(() => { try { prev.focus(); } catch (_) {} }, 0);
+}
+// Screen-reader announcer for admin actions (save / suspend / etc.).
+function _rrAdminAnnounce(msg) {
+  let el = document.getElementById("rr-admin-a11y-live");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "rr-admin-a11y-live";
+    el.className = "rr-sr-only";
+    el.setAttribute("aria-live", "polite");
+    el.setAttribute("aria-atomic", "true");
+    document.body.appendChild(el);
+  }
+  el.textContent = "";
+  setTimeout(() => { el.textContent = msg; }, 30);
+}
+
 function _openAdminManageUsers(dspId) {
   _adminUsersCurrentDspId = dspId;
   const drawer  = document.getElementById("rr-admin-users-drawer");
@@ -4948,6 +5002,7 @@ function _openAdminManageUsers(dspId) {
   drawer.classList.add("open");
   drawer.setAttribute("aria-hidden", "false");
   backdrop.classList.add("open");
+  _rrTrapDrawer(drawer);
 
   _loadAdminManageUsers(dspId);
 }
@@ -4955,7 +5010,7 @@ function _openAdminManageUsers(dspId) {
 function _closeAdminManageUsers() {
   const drawer   = document.getElementById("rr-admin-users-drawer");
   const backdrop = document.getElementById("rr-admin-users-backdrop");
-  if (drawer)   { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); }
+  if (drawer)   { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); _rrReleaseDrawer(drawer); }
   if (backdrop) backdrop.classList.remove("open");
   _adminUsersCurrentDspId = null;
 }
@@ -5024,12 +5079,13 @@ function _openAdminAccessDrawer(dspId) {
   drawer.classList.add("open");
   drawer.setAttribute("aria-hidden", "false");
   backdrop.classList.add("open");
+  _rrTrapDrawer(drawer);
 }
 
 function _closeAdminAccessDrawer() {
   const drawer   = document.getElementById("rr-admin-access-drawer");
   const backdrop = document.getElementById("rr-admin-access-backdrop");
-  if (drawer)   { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); }
+  if (drawer)   { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); _rrReleaseDrawer(drawer); }
   if (backdrop) backdrop.classList.remove("open");
   _adminAccessCurrentDspId = null;
 }
@@ -5076,6 +5132,7 @@ async function _saveAdminAccess() {
   const dsp = _admin.dsps.find((d) => d.id === dspId);
   if (dsp) { dsp.disabled_pages = disabledPages; dsp.disabled_features = disabledFeatures; }
   toast("Access updated.", "ok");
+  _rrAdminAnnounce(`Access saved for ${dsp?.name || "DSP"}.`);
   _renderPlatformAdminTable();
   _closeAdminAccessDrawer();
 }
@@ -5122,6 +5179,7 @@ function _openAdminDspProfile(dspId) {
   drawer.classList.add("open");
   drawer.setAttribute("aria-hidden", "false");
   backdrop.classList.add("open");
+  _rrTrapDrawer(drawer);
 
   _loadAdminDspProfile(dspId);
 }
@@ -5129,7 +5187,7 @@ function _openAdminDspProfile(dspId) {
 function _closeAdminDspProfile() {
   const drawer   = document.getElementById("rr-admin-profile-drawer");
   const backdrop = document.getElementById("rr-admin-profile-backdrop");
-  if (drawer)   { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); }
+  if (drawer)   { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); _rrReleaseDrawer(drawer); }
   if (backdrop) backdrop.classList.remove("open");
   _adminProfileCurrentDspId = null;
 }
