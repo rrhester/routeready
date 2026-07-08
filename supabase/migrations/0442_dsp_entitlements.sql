@@ -49,9 +49,11 @@ end;
 $$;
 
 -- ─── 2. admin_list_dsps() — now surfaces the two entitlement lists ────────
--- Same rolled-up rows as migration 0124, plus disabled_pages /
--- disabled_features so the control-center table + drawer can render the
--- module state without a second round-trip.
+-- Same rolled-up rows as before (owner/email = highest-authority active
+-- member, preferring platform_admin over owner — the display rule added
+-- in migration 0129), plus disabled_pages / disabled_features so the
+-- control-center table + drawer can render the module state without a
+-- second round-trip.
 drop function if exists public.admin_list_dsps();
 
 create function public.admin_list_dsps()
@@ -93,17 +95,25 @@ begin
       d.phone,
       d.address,
       d.notes,
-      (select email::text  from public.app_users
-        where dsp_id = d.id and role::text = 'owner' and active = true
-        order by created_at limit 1),
-      (select full_name    from public.app_users
-        where dsp_id = d.id and role::text = 'owner' and active = true
-        order by created_at limit 1),
-      (select count(*)::int from public.drivers
-        where dsp_id = d.id and status::text in ('active','onboarding')),
+      (select u.email::text  from public.app_users u
+        where u.dsp_id = d.id
+          and u.role::text in ('platform_admin', 'owner')
+          and u.active = true
+        order by case u.role::text when 'platform_admin' then 0 else 1 end,
+                 u.created_at
+        limit 1),
+      (select u.full_name    from public.app_users u
+        where u.dsp_id = d.id
+          and u.role::text in ('platform_admin', 'owner')
+          and u.active = true
+        order by case u.role::text when 'platform_admin' then 0 else 1 end,
+                 u.created_at
+        limit 1),
+      (select count(*)::int from public.drivers dr
+        where dr.dsp_id = d.id and dr.status::text in ('active','onboarding')),
       0::int,                                          -- route count placeholder
-      (select max(created_at) from public.app_users
-        where dsp_id = d.id and active = true),
+      (select max(u.created_at) from public.app_users u
+        where u.dsp_id = d.id and u.active = true),
       d.created_at,
       coalesce(array(select jsonb_array_elements_text(d.metadata->'disabled_pages')),    '{}'::text[]),
       coalesce(array(select jsonb_array_elements_text(d.metadata->'disabled_features')), '{}'::text[])
