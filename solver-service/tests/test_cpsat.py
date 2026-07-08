@@ -65,10 +65,12 @@ def test_respects_max_days_cap():
     assert len(result.uncovered_shifts) == 1
 
 
-def test_fifth_day_optin_does_not_exceed_max_days():
-    # A 5th-day opt-in expands availability but must NOT raise the hard
-    # max_days cap. One opted-in driver, available all week, 6 single-day
-    # shifts, cap=5 → at most 5 assigned to her (one left open), never 6.
+def test_fifth_day_optin_grants_exactly_one_extra_day():
+    # The 5th-day opt-in lifts the hard max_days cap by EXACTLY ONE for a
+    # driver who opted in (parity with the in-browser step8d_fifth_day_fill:
+    # each opted-in driver picks up at most one extra day). One opted-in
+    # driver, available all week, 7 single-day shifts, cap=5 → she works 6
+    # (5 + one extra), never 7; the 7th is left open.
     r = _req(
         max_days=5,
         rules={"use_fifth_day_optin": True},
@@ -78,16 +80,15 @@ def test_fifth_day_optin_does_not_exceed_max_days():
             "fifth_day_ok": True,
         }],
         shifts=[
-            {"id": "s1", "date": "2026-06-01", "route_type": "standard"},
-            {"id": "s2", "date": "2026-06-02", "route_type": "standard"},
-            {"id": "s3", "date": "2026-06-03", "route_type": "standard"},
-            {"id": "s4", "date": "2026-06-04", "route_type": "standard"},
-            {"id": "s5", "date": "2026-06-05", "route_type": "standard"},
-            {"id": "s6", "date": "2026-06-06", "route_type": "standard"},
+            {"id": f"s{i+1}", "date": d, "route_type": "standard"}
+            for i, d in enumerate([
+                "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04",
+                "2026-06-05", "2026-06-06", "2026-06-07",
+            ])
         ],
     )
     result = solve(r)
-    assert len(result.assigned_shifts) == 5
+    assert len(result.assigned_shifts) == 6
     assert len(result.uncovered_shifts) == 1
 
 

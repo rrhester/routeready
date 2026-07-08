@@ -270,17 +270,6 @@ def test_use_attendance_false_lets_preferred_days_pick_risky_driver():
 # ── use_fifth_day_optin toggle ────────────────────────────────────────
 
 
-@pytest.mark.xfail(
-    reason="Fifth-day semantics are an unresolved product decision. This test "
-    "expects fifth_day_ok to RAISE the hard max_days cap (4->5), matching the "
-    "in-browser step8d_fifth_day_fill. The current CP-SAT model DELIBERATELY "
-    "refuses to exceed max_days (see cpsat_model.py:'must NOT raise the cap' + "
-    "the passing test_cpsat.py::test_fifth_day_optin_does_not_exceed_max_days), "
-    "so the two tests directly contradict. Pending a decision on what 'fifth "
-    "day' means (bump the cap vs. only expand availability up to the cap); "
-    "tracked in the Tier-1 gap list.",
-    strict=True,
-)
 def test_use_fifth_day_optin_default_grants_extra_day():
     """Default-on: a driver with fifth_day_ok=True can take 5 shifts
     under a max_days=4 cap (cap bumps to 5)."""

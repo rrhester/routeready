@@ -170,6 +170,10 @@ def solve(req: SolveRequest) -> SolveResponse:
     # join only when the DSP sets "active_and_onboarding"). A driver whose
     # status isn't one of these is never given an assign variable.
     eligible_driver_status = str(rules.get("eligible_driver_status", "active"))
+    # Fifth-day opt-in (R/step8d). Default ON: a driver who opted in
+    # (fifth_day_ok) may work ONE day beyond max_days to cover an otherwise-
+    # open shift. Off → uniform max_days for everyone.
+    fifth_day_on = bool(rules.get("use_fifth_day_optin", True))
 
     # ── Inputs ────────────────────────────────────────────────────────
     pto_dates_by_driver: dict[str, set[str]] = defaultdict(set)
@@ -253,13 +257,15 @@ def solve(req: SolveRequest) -> SolveResponse:
         if ls.assigned_driver_id:
             locked_on_days[ls.assigned_driver_id].add(ls.date)
 
-    # Max days per week — a HARD ceiling for every driver. A 5th-day opt-in
-    # expands which days a driver is AVAILABLE for (baked into available_dows
-    # upstream by the dashboard), but it must NOT raise the cap past max_days:
-    # operators treat max_days as a hard limit, so the opt-in only helps fill a
-    # driver UP TO the cap, never beyond it. (To allow more days, raise
-    # max_days.) Previously opted-in drivers got max_days + 1, which let Smart
-    # Fill schedule e.g. 6 days against a 5-day cap.
+    # Max days per week — a HARD ceiling per driver, with the fifth-day
+    # opt-in. This matches the in-browser engine's rule (the production
+    # default): step8d_fifth_day_fill lifts the max-days cap by exactly ONE
+    # day for a driver who opted in (fifth_day_ok), so a leftover open shift
+    # can be covered by an extra day no clean-under-cap driver could take.
+    # Every OTHER rule (WOC, weekly hours, license, availability, cert,
+    # one-shift-per-day) still gates that extra day — only max-days is
+    # relaxed, and only by one. The `use_fifth_day_optin` toggle (default on)
+    # turns the whole behavior off, restoring a uniform max_days for all.
     for d in req.drivers:
         prebaked = len(locked_on_days.get(d.id, set()))
         flex = [
@@ -268,6 +274,8 @@ def solve(req: SolveRequest) -> SolveResponse:
             if did == d.id
         ]
         cap = max_days
+        if fifth_day_on and d.fifth_day_ok:
+            cap += 1  # one extra day for opted-in drivers (step8d parity)
         if flex:
             model.Add(sum(flex) <= max(0, cap - prebaked))
 
