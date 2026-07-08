@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=d81b9eddf32b";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=d81b9eddf32b";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=d81b9eddf32b";
+import { planScheduleWeek } from "./scheduling-engine.js?v=13fb9344ae95";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=13fb9344ae95";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=13fb9344ae95";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -38877,8 +38877,10 @@ function _clfRealtimeSubmission(payload) {
   if (payload && payload.eventType !== "DELETE" &&
       row.status === "submitted" && (row.failed_count || 0) > 0) {
     const n = row.failed_count;
-    toast(`⚑ A driver flagged ${n} item${n === 1 ? "" : "s"} on a checklist — review in Checklists → Responses`, "warn");
+    toast(`⚑ A driver flagged ${n} item${n === 1 ? "" : "s"} on a checklist — open Checklists → Flags to resolve`, "warn");
   }
+  // Keep the Flags badge live even when the drawer/panel isn't open.
+  _clfRefreshFlagBadge();
 }
 
 // Realtime subscriptions — one channel covers all the tables we care about.
@@ -81675,6 +81677,7 @@ async function _clfSidebarFetch() {
     if (error) throw error;
     _clfState.list = Array.isArray(data) ? data : [];
     _clfSidebarPaint();
+    _clfRefreshFlagBadge();
   } catch (e) {
     if (!_clfState.list) {
       const host = document.getElementById("rr-clf-list");
@@ -81686,6 +81689,102 @@ async function _clfSidebarFetch() {
 function _clfDisplayStatus(f) {
   if (f.status === "active" && (f.active_assignments || 0) > 0) return "assigned";
   return f.status || "draft";
+}
+
+// ── Flag resolution queue ─────────────────────────────────────────────
+// A persistent, actionable queue for flagged driver answers (checklist_
+// answers.failed_flag) — resolve / dismiss with a note, reopen, see who/
+// when. Backed by the checklist_flag* RPCs (migration 0441).
+
+async function _clfRefreshFlagBadge() {
+  const badge = document.getElementById("rr-clf-flags-badge");
+  if (!badge) return;
+  try {
+    const { data } = await sb.rpc("checklist_flags_open_count");
+    const n = Number(data) || 0;
+    badge.textContent = n ? String(n) : "";
+    badge.hidden = !n;
+  } catch (_) {}
+}
+
+function _clfFlagValue(fl) {
+  if (fl.item_type === "yes_no") return (fl.value_text || "—").replace(/^yes$/i, "Yes").replace(/^no$/i, "No");
+  if (fl.item_type === "checkbox") return fl.value_bool ? "Checked" : "Unchecked";
+  if (fl.item_type === "number") return fl.value_number != null ? String(fl.value_number) : "—";
+  return fl.value_text || "—";
+}
+
+function _clfOpenFlags() {
+  let root = document.getElementById("rr-clf-flags-drawer");
+  if (!root) { root = document.createElement("div"); root.id = "rr-clf-flags-drawer"; document.body.appendChild(root); }
+  root.style.cssText = "position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end";
+  root.innerHTML = `<div class="rr-clf-flags-panel" style="width:min(560px,100%);height:100%;background:var(--surface,#fff);box-shadow:-8px 0 30px rgba(0,0,0,.2);display:flex;flex-direction:column" role="dialog" aria-label="Flagged answers">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)">
+      <div><div style="font-weight:700;font-size:16px">Flagged answers</div><div style="font-size:12px;color:var(--text-subtle)">Review and resolve items drivers flagged</div></div>
+      <button type="button" data-rr-clf-flags-close aria-label="Close" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--text-subtle)">×</button>
+    </div>
+    <div style="padding:8px 18px;border-bottom:1px solid var(--border)"><label style="font-size:12px;color:var(--text-subtle);display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-rr-clf-flags-showresolved/> Show resolved</label></div>
+    <div id="rr-clf-flags-body" style="flex:1;overflow:auto;padding:12px 18px">Loading…</div>
+  </div>`;
+  _clfLoadFlags(false);
+}
+
+async function _clfLoadFlags(includeResolved) {
+  const body = document.getElementById("rr-clf-flags-body");
+  if (!body) return;
+  body.innerHTML = `<div class="rr-loading" style="padding:24px;text-align:center;color:var(--text-subtle)">Loading flags…</div>`;
+  let list = [];
+  try {
+    const { data, error } = await sb.rpc("checklist_flags_list", { p_include_resolved: !!includeResolved, p_limit: 200, p_offset: 0 });
+    if (error) throw error;
+    list = Array.isArray(data) ? data : [];
+  } catch (e) {
+    body.innerHTML = `<div class="rr-an-error">Couldn't load flags: ${escapeHtml(e.message || String(e))}</div>`;
+    return;
+  }
+  if (!list.length) {
+    body.innerHTML = `<div style="text-align:center;padding:40px 12px;color:var(--text-subtle)"><div style="font-size:30px">✓</div><div style="font-weight:600;margin-top:6px">No ${includeResolved ? "" : "open "}flags</div><div style="font-size:13px">Flagged answers show up here for you to resolve.</div></div>`;
+    return;
+  }
+  const when = (ts) => (ts ? new Date(ts).toLocaleString() : "");
+  body.innerHTML = list.map((fl) => {
+    const resolved = !!fl.flag_resolved_at;
+    return `<div class="rr-clf-flag-card" data-rr-clf-flag="${escapeHtml(fl.answer_id)}" style="border:1px solid var(--border);border-left:3px solid ${resolved ? "var(--border-strong,#cbd5e1)" : "#dc2626"};border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:10px">
+        <div style="font-weight:600">${escapeHtml(fl.item_label || "Item")}</div>
+        <div style="font-size:11px;color:var(--text-subtle);white-space:nowrap">${escapeHtml(when(fl.submitted_at))}</div>
+      </div>
+      <div style="font-size:13px;margin-top:2px">Answer: <strong style="color:${resolved ? "inherit" : "#dc2626"}">${escapeHtml(_clfFlagValue(fl))}</strong>${fl.note ? ` · <span style="color:var(--text-subtle)">${escapeHtml(fl.note)}</span>` : ""}</div>
+      <div style="font-size:12px;color:var(--text-subtle);margin-top:2px">${escapeHtml(fl.driver_name || "Driver")} · ${escapeHtml(fl.checklist_name || "Checklist")}</div>
+      ${resolved
+        ? `<div style="font-size:12px;color:var(--text-subtle);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">${fl.flag_disposition === "dismissed" ? "Dismissed" : "Resolved"}${fl.resolved_by_email ? " by " + escapeHtml(fl.resolved_by_email.split("@")[0]) : ""} · ${escapeHtml(when(fl.flag_resolved_at))}${fl.flag_note ? ` — ${escapeHtml(fl.flag_note)}` : ""} <button type="button" data-rr-clf-flag-reopen="${escapeHtml(fl.answer_id)}" style="border:none;background:none;color:var(--accent,#2563eb);cursor:pointer;font-size:12px;margin-left:6px">Reopen</button></div>`
+        : `<div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+            <input type="text" data-rr-clf-flag-note placeholder="Add a note (optional)" style="flex:1;font:inherit;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;background:var(--canvas)"/>
+            <button type="button" class="btn btn-sm btn-primary" data-rr-clf-flag-resolve="${escapeHtml(fl.answer_id)}">Resolve</button>
+            <button type="button" class="btn btn-sm" data-rr-clf-flag-dismiss="${escapeHtml(fl.answer_id)}">Dismiss</button>
+          </div>`}
+    </div>`;
+  }).join("");
+}
+
+async function _clfActOnFlag(answerId, disposition, cardEl) {
+  const note = cardEl?.querySelector("[data-rr-clf-flag-note]")?.value || "";
+  try {
+    const { error } = await sb.rpc("checklist_flag_resolve", { p_answer_id: answerId, p_disposition: disposition, p_note: note });
+    if (error) throw error;
+    toast(disposition === "dismissed" ? "Flag dismissed" : "Flag resolved", "success");
+    await _clfLoadFlags(!!document.querySelector("[data-rr-clf-flags-showresolved]")?.checked);
+    _clfRefreshFlagBadge();
+  } catch (e) { toast("Couldn't update flag: " + (e.message || e), "warn"); }
+}
+
+async function _clfReopenFlag(answerId) {
+  try {
+    const { error } = await sb.rpc("checklist_flag_reopen", { p_answer_id: answerId });
+    if (error) throw error;
+    await _clfLoadFlags(!!document.querySelector("[data-rr-clf-flags-showresolved]")?.checked);
+    _clfRefreshFlagBadge();
+  } catch (e) { toast("Couldn't reopen: " + (e.message || e), "warn"); }
 }
 
 function _clfSidebarPaint() {
@@ -82408,6 +82507,16 @@ document.addEventListener("click", async (e) => {
   // export responses to CSV
   if (e.target.closest("[data-rr-clf-export]")) { _clfExportCsv(); return; }
 
+  // flags queue
+  if (e.target.closest("[data-rr-clf-flags]")) { _clfOpenFlags(); return; }
+  if (e.target.closest("[data-rr-clf-flags-close]") || e.target.id === "rr-clf-flags-drawer") { document.getElementById("rr-clf-flags-drawer")?.remove(); return; }
+  const _fres = e.target.closest("[data-rr-clf-flag-resolve]");
+  if (_fres) { _clfActOnFlag(_fres.getAttribute("data-rr-clf-flag-resolve"), "resolved", _fres.closest("[data-rr-clf-flag]")); return; }
+  const _fdis = e.target.closest("[data-rr-clf-flag-dismiss]");
+  if (_fdis) { _clfActOnFlag(_fdis.getAttribute("data-rr-clf-flag-dismiss"), "dismissed", _fdis.closest("[data-rr-clf-flag]")); return; }
+  const _frep = e.target.closest("[data-rr-clf-flag-reopen]");
+  if (_frep) { _clfReopenFlag(_frep.getAttribute("data-rr-clf-flag-reopen")); return; }
+
   // card overflow menu
   const dots = e.target.closest("[data-rr-clf-dots]");
   if (dots) {
@@ -82627,6 +82736,7 @@ document.addEventListener("change", async (e) => {
     if (t) t.style.display = e.target.value === "time" ? "" : "none";
     return;
   }
+  if (e.target?.matches?.("[data-rr-clf-flags-showresolved]")) { _clfLoadFlags(e.target.checked); return; }
 });
 
 // Drag-and-drop: reorder item rows by their handle; drag palette types in.
