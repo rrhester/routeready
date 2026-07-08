@@ -20037,11 +20037,12 @@ document.addEventListener("click", (e) => {
 });
 
 
-// Renewal-reminder + license-block settings moved to:
-//   Settings → License renewals  (auto-reminders, channels, days, template)
-//   Schedule → Scheduling rules  (block scheduling past expiry)
-// Both write the same dsps.metadata.licenses object so the existing
-// background job keeps reading from one place.
+// Renewal-reminder settings live in Settings → License renewals
+// (auto-reminders, channels, days, template), written to
+// dsps.metadata.licenses so the background reminder job reads one place.
+// (The old "block scheduling past expiry" toggle was removed — it wrote
+// block_past_expiry, which no scheduling / Cover / pickup / swap code
+// read; the live DL gate is Smart Fill's dl_valid rule on the Schedule view.)
 function _rrPrefillLicenseSettings() {
   const lic = window.RR?.dsp?.metadata?.licenses || {};
   const setBool = (id, val) => {
@@ -20055,8 +20056,6 @@ function _rrPrefillLicenseSettings() {
   // off.  Operators opt into in-app explicitly.
   setBool("rr-lic-channel-sms",   lic.channel_sms   !== false);
   setBool("rr-lic-channel-inapp", lic.channel_inapp === true);
-  // Block past expiry: false by default (was the legacy default too).
-  setBool("rr-lic-block-input",   !!lic.block_past_expiry);
 
   const days = document.getElementById("rr-lic-days");
   if (days) days.value = Array.isArray(lic.reminder_days) ? lic.reminder_days.join(", ") : "30, 14";
@@ -20067,8 +20066,7 @@ function _rrPrefillLicenseSettings() {
 document.addEventListener("click", (e) => {
   if (e.target.closest('.settings-nav-item[data-set="licenses"]') ||
       e.target.closest('[data-rr-nav-item="settings"]')           ||
-      e.target.closest('a[href="#schedule"]')                     ||
-      e.target.closest('[data-rr-rules-section="license-compliance"]')) {
+      e.target.closest('a[href="#schedule"]')) {
     setTimeout(_rrPrefillLicenseSettings, 0);
   }
 });
@@ -20144,20 +20142,6 @@ document.addEventListener("change", async (e) => {
   } catch (err) {
     console.warn("Save DL message settings:", err && err.message);
   }
-});
-
-// Block-past-expiry toggle on the scheduling rules page is a one-shot
-// save — flip and persist.
-document.addEventListener("change", async (e) => {
-  if (e.target?.id !== "rr-lic-block-input") return;
-  const checked = !!e.target.checked;
-  const { data: dsp } = await sb.from("dsps").select("metadata").eq("id", window.RR.dsp.id).single();
-  const md = dsp?.metadata || {};
-  md.licenses = { ...(md.licenses || {}), block_past_expiry: checked };
-  const { error } = await sb.from("dsps").update({ metadata: md }).eq("id", window.RR.dsp.id);
-  if (error) { toast("Couldn't save: " + error.message, "warn"); e.target.checked = !checked; return; }
-  window.RR.dsp.metadata = md;
-  toast(checked ? "Block scheduling past expiry: ON" : "Block scheduling past expiry: OFF", "success");
 });
 
 function renderDriverStatusBadge(s) {
