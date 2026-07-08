@@ -3892,6 +3892,24 @@ async function _formQueueCount() {
   try { return (await _formQueueAll()).length; } catch { return 0; }
 }
 
+// Fire-and-forget driver-forms telemetry (migration 0447). Best-effort:
+// never throws, never blocks the UI, silent in preview mode. Powers the
+// dispatcher completion funnel — opened / submitted / submit_rejected /
+// queued_offline / flushed_ok / flushed_dropped.
+function _logFormEvent(event, formId, meta) {
+  try {
+    if (PREVIEW) return;
+    const s = readSession();
+    if (!s?.token) return;
+    sb.rpc("driver_log_form_event", {
+      p_token:   s.token,
+      p_form_id: formId || null,
+      p_event:   event,
+      p_meta:    meta || {},
+    }).then(() => {}, () => {});   // swallow both fulfilment and rejection
+  } catch (_) { /* telemetry must never surface an error into the driver's flow */ }
+}
+
 // Send every queued submission, oldest first. Stops at the first item
 // that still can't go through (offline / storage hiccup) so we don't
 // hammer; server-rejected items (already submitted, unpublished, no
@@ -3926,11 +3944,12 @@ async function _formFlushQueue({ silent } = {}) {
         p_form_id: it.formId,
         p_answers: answers,
       });
-      if (!subErr) { await _formQueueDelete(it.id); sent++; continue; }
+      if (!subErr) { await _formQueueDelete(it.id); sent++; _logFormEvent("flushed_ok", it.formId); continue; }
       // Server rejected it (already_submitted / form_not_found / no longer
       // assigned) — drop so it doesn't block everything behind it.
       if (subErr.code === "P0001" || /already_submitted|form_not_found/i.test(subErr.message || "")) {
         await _formQueueDelete(it.id);
+        _logFormEvent("flushed_dropped", it.formId, { code: subErr.code || null });
         continue;
       }
       break;  // unknown/transient server error — stop and retry later
@@ -7668,6 +7687,7 @@ async function renderFormFill() {
   }
 
   setHeader(form.title || "Form", "");
+  _logFormEvent("opened", id);
 
   const fields = Array.isArray(form.fields) ? form.fields : [];
   const fieldHtml = fields.map((f, i) => _formFieldHtml(f, fields, i)).join("");
@@ -7835,6 +7855,7 @@ async function renderFormFill() {
       }
       clearDraft(DRAFT_KEY);
       _haptic("success");
+      _logFormEvent("queued_offline", id);
       toast("Saved — we'll submit this when you're back online", "ok");
       navigate("/tasks");
       return true;
@@ -7866,11 +7887,13 @@ async function renderFormFill() {
         return;
       }
       resetBtn();
+      _logFormEvent("submit_rejected", id, { code: subErr.code || null });
       toast(_friendlyError(subErr, "Couldn't submit. Your answers are still here — try again."), "warn");
       return;
     }
     clearDraft(DRAFT_KEY);
     _haptic("success");
+    _logFormEvent("submitted", id);
     toast("Submitted", "ok");
     navigate("/tasks");
   });

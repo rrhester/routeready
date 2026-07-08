@@ -345,6 +345,50 @@ begin
   raise notice '✓ conditional required × visibility (end-to-end through the RPC)';
 end $$;
 
+
+-- ── 9. Form-funnel telemetry (migration 0447) ────────────────────────
+-- driver_log_form_event is the token-authed write path; private.form_funnel_agg
+-- rolls the events up; public.form_funnel_stats gates that on dispatcher role.
+do $$
+declare v_n int; v_agg jsonb; v_forbidden boolean := false;
+begin
+  perform public.driver_log_form_event('tok_test_a', '44444444-4444-4444-4444-444444444444', 'opened');
+  perform public.driver_log_form_event('tok_test_a', '44444444-4444-4444-4444-444444444444', 'opened');
+  perform public.driver_log_form_event('tok_test_a', '44444444-4444-4444-4444-444444444444', 'submitted');
+  perform public.driver_log_form_event('tok_test_a', '44444444-4444-4444-4444-444444444444', 'queued_offline');
+  perform public.driver_log_form_event('tok_test_a', '44444444-4444-4444-4444-444444444444', 'flushed_ok');
+  select count(*) into v_n from public.form_events where dsp_id = '11111111-1111-1111-1111-111111111111';
+  assert v_n = 5, 'telemetry: 5 events logged, got ' || v_n;
+
+  -- Unknown event names are silently ignored (fire-and-forget contract).
+  perform public.driver_log_form_event('tok_test_a', '44444444-4444-4444-4444-444444444444', 'bogus');
+  select count(*) into v_n from public.form_events where dsp_id = '11111111-1111-1111-1111-111111111111';
+  assert v_n = 5, 'telemetry: unknown event name must be ignored';
+
+  -- A form_id outside the driver''s DSP records a null linkage — no cross-tenant leak.
+  perform public.driver_log_form_event('tok_test_a', '00000000-0000-0000-0000-0000000000ff', 'opened');
+  select count(*) into v_n from public.form_events
+   where dsp_id = '11111111-1111-1111-1111-111111111111' and form_id is null and event = 'opened';
+  assert v_n = 1, 'telemetry: foreign form_id stored as null linkage';
+
+  -- Aggregation (pure helper): opened = 3 (2 real + 1 null-linked), completions
+  -- = submitted (1) + flushed_ok (1) = 2 → completion_rate 2/3.
+  v_agg := private.form_funnel_agg('11111111-1111-1111-1111-111111111111', 30);
+  assert (v_agg #>> '{totals,opened}')::int = 3,          'telemetry agg: opened = 3';
+  assert (v_agg #>> '{totals,completions}')::int = 2,     'telemetry agg: completions = 2';
+  assert (v_agg #>> '{totals,completion_rate}')::numeric = 0.667, 'telemetry agg: 2/3 completion rate';
+
+  -- The public wrapper refuses a caller who is not a dispatcher of the DSP.
+  begin
+    perform public.form_funnel_stats(30);
+  exception when others then
+    v_forbidden := (sqlerrm = 'forbidden');
+  end;
+  assert v_forbidden, 'telemetry: form_funnel_stats must gate on dispatcher role';
+
+  raise notice '✓ form-funnel telemetry (log event + aggregation + gate)';
+end $$;
+
 rollback;
 
 \echo '✓ driver_forms_test.sql — all sections passed'

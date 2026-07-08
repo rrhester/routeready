@@ -28,13 +28,17 @@ async function bootForm(page, form) {
 
   await page.addInitScript(({ form, session }) => {
     localStorage.setItem("rr.driver.session", JSON.stringify(session));
-    const mock = { handlers: {}, calls: [], submits: [] };
+    const mock = { handlers: {}, calls: [], submits: [], events: [] };
     mock.handlers.driver_get_form = () => ({ data: form, error: null });
     mock.handlers.driver_submit_form = (p) => {
       mock.submits.push(p);
       return { data: { id: "sub1", submitted_at: "2026-01-01T00:00:00Z" }, error: null };
     };
     mock.handlers.driver_list_forms = () => ({ data: [], error: null });
+    mock.handlers.driver_log_form_event = (p) => {
+      mock.events.push({ event: p.p_event, form: p.p_form_id });
+      return { data: null, error: null };
+    };
     window.__rrMock = mock;
     const from = () => ({
       upload: async () => ({ data: { path: "p" }, error: null }),
@@ -61,6 +65,7 @@ async function bootForm(page, form) {
 }
 
 const submits = (page) => page.evaluate(() => window.__rrMock.submits);
+const events = (page) => page.evaluate(() => window.__rrMock.events);
 const clickSubmit = (page) => page.click('#rr-form-fill button[type="submit"]');
 const queueCount = (page) => page.evaluate(() => new Promise((res) => {
   const req = indexedDB.open("rr-form-queue", 1);
@@ -153,6 +158,30 @@ test("in-progress answers are saved and restored across a reload", async ({ page
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForSelector("#rr-form-fill");
   await expect(page.locator('[data-rr-field="name"]')).toHaveValue("Draftee");
+});
+
+test("telemetry: an 'opened' event fires on load and 'submitted' on success", async ({ page }) => {
+  await bootForm(page, { id: "F8", title: "T", fields: [F_NAME, F_HURT], settings: {} });
+
+  await page.waitForFunction(() => window.__rrMock.events.some((e) => e.event === "opened"));
+  expect((await events(page)).find((e) => e.event === "opened").form).toBe("F8");
+
+  await page.fill('[data-rr-field="name"]', "Ada");
+  await page.check('[data-rr-field="hurt"] input[value="no"]');
+  await clickSubmit(page);
+
+  await page.waitForFunction(() => window.__rrMock.events.some((e) => e.event === "submitted"));
+  expect((await events(page)).find((e) => e.event === "submitted").form).toBe("F8");
+});
+
+test("telemetry: submitting offline fires a 'queued_offline' event", async ({ page }) => {
+  await bootForm(page, { id: "F9", title: "T", fields: [F_NAME, F_HURT], settings: {} });
+  await page.fill('[data-rr-field="name"]', "Ann");
+  await page.check('[data-rr-field="hurt"] input[value="no"]');
+  await page.context().setOffline(true);
+  await clickSubmit(page);
+  await page.waitForFunction(() => window.__rrMock.events.some((e) => e.event === "queued_offline"));
+  await page.context().setOffline(false);
 });
 
 test("submitting while offline queues the submission instead of sending it", async ({ page }) => {
