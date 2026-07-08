@@ -40,6 +40,22 @@
     { "name": "multi_choice subset → valid",          "field": { "id": "q", "type": "multi_choice", "label": "Pick",   "required": true, "options": ["a", "b", "c"] },        "value": ["a", "c"],     "valid": true  },
     { "name": "multi_choice with unknown → invalid",  "field": { "id": "q", "type": "multi_choice", "label": "Pick",   "required": true, "options": ["a", "b", "c"] },        "value": ["a", "z"],     "valid": false },
     { "name": "multi_choice required empty → invalid","field": { "id": "q", "type": "multi_choice", "label": "Pick",   "required": true, "options": ["a", "b"] },             "value": [],             "valid": false },
-    { "name": "multi_choice optional empty → valid",  "field": { "id": "q", "type": "multi_choice", "label": "Pick",   "required": false, "options": ["a", "b"] },            "value": [],             "valid": true  }
+    { "name": "multi_choice optional empty → valid",  "field": { "id": "q", "type": "multi_choice", "label": "Pick",   "required": false, "options": ["a", "b"] },            "value": [],             "valid": true  },
+
+    { "name": "date valid ISO → valid",               "field": { "id": "q", "type": "date", "label": "When",  "required": true },  "value": "2026-07-08", "valid": true  },
+    { "name": "date leap-day valid → valid",          "field": { "id": "q", "type": "date", "label": "When",  "required": true },  "value": "2024-02-29", "valid": true  },
+    { "name": "date optional empty → valid",          "field": { "id": "q", "type": "date", "label": "When",  "required": false }, "value": "",           "valid": true  },
+    { "name": "date impossible day → invalid",        "field": { "id": "q", "type": "date", "label": "When",  "required": true },  "value": "2026-02-30", "valid": false },
+    { "name": "date non-leap Feb 29 → invalid",       "field": { "id": "q", "type": "date", "label": "When",  "required": true },  "value": "2026-02-29", "valid": false },
+    { "name": "date month 13 → invalid",              "field": { "id": "q", "type": "date", "label": "When",  "required": true },  "value": "2026-13-01", "valid": false },
+    { "name": "date loose format → invalid",          "field": { "id": "q", "type": "date", "label": "When",  "required": true },  "value": "2026-7-8",   "valid": false },
+    { "name": "date non-date text → invalid",         "field": { "id": "q", "type": "date", "label": "When",  "required": true },  "value": "someday",    "valid": false },
+
+    { "name": "time valid HH:MM → valid",             "field": { "id": "q", "type": "time", "label": "At",    "required": true },  "value": "09:30",      "valid": true  },
+    { "name": "time with seconds → valid",            "field": { "id": "q", "type": "time", "label": "At",    "required": true },  "value": "08:15:30",   "valid": true  },
+    { "name": "time boundary 23:59 → valid",          "field": { "id": "q", "type": "time", "label": "At",    "required": true },  "value": "23:59",      "valid": true  },
+    { "name": "time hour 24 → invalid",               "field": { "id": "q", "type": "time", "label": "At",    "required": true },  "value": "24:00",      "valid": false },
+    { "name": "time minute 60 → invalid",             "field": { "id": "q", "type": "time", "label": "At",    "required": true },  "value": "12:60",      "valid": false },
+    { "name": "time single-digit hour → invalid",     "field": { "id": "q", "type": "time", "label": "At",    "required": true },  "value": "9:30",       "valid": false }
   ]
 }
