@@ -181,6 +181,27 @@
                           { name: "Berry",   hex: "#EFCDDB" },
                           { name: "Slate",   hex: "#D6DAE0" },
                         ];
+                        // Bold companions (operator 2026-07-08: colors
+                        // must read "sharp, clear and crisp — even small
+                        // differences matter"). Same 10 hues at full
+                        // saturation, straight from the dashboard's own
+                        // accent vocabulary (the Tailwind-600 family the
+                        // UI already uses), so a route can pop at a
+                        // glance while staying on-brand. Chips pick
+                        // white/ink text automatically (textOn below),
+                        // so every one of these stays readable.
+                        var PALETTE_BOLD = [
+                          { name: "Red",     hex: "#DC2626" },
+                          { name: "Orange",  hex: "#EA580C" },
+                          { name: "Amber",   hex: "#D97706" },
+                          { name: "Green",   hex: "#16A34A" },
+                          { name: "Teal",    hex: "#0D9488" },
+                          { name: "Blue",    hex: "#2563EB" },
+                          { name: "Violet",  hex: "#7C3AED" },
+                          { name: "Magenta", hex: "#C026D3" },
+                          { name: "Berry",   hex: "#DB2777" },
+                          { name: "Slate",   hex: "#475569" },
+                        ];
                         // Defaults map each route to one palette entry so
                         // first-time DSPs see a sensible default. These
                         // also override the :root --rr-route-c-* vars so
@@ -229,30 +250,72 @@
                             }
                           } catch (e) {}
                         }
+                        // Auto-contrast text for a picked chip color:
+                        // white for dark picks, the dashboard ink
+                        // (#111827) for light picks — whichever wins on
+                        // WCAG contrast — so ANY pick stays readable.
+                        function textOn(hex) {
+                          var m = /^#?([0-9a-fA-F]{6})$/.exec(String(hex || "").trim());
+                          if (!m) return "";
+                          var n = parseInt(m[1], 16);
+                          function lin(c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+                          var L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+                          // 0.0592 = luminance of #111827 (ink) + 0.05
+                          return (1.05 / (L + 0.05)) >= ((L + 0.05) / 0.0592) ? "#FFFFFF" : "#111827";
+                        }
+                        // Retired route types (kept for old shifts) color
+                        // from :root in inline-styles.css — mirror those
+                        // hexes here so they get text vars too (their
+                        // violet/pink fills need white text, not ink).
+                        var LEGACY_TEXT = {
+                          reduction: "#EA580C",
+                          cycle_1:   "#7C3AED",
+                          cycle_2:   "#DB2777",
+                          backup:    "#6B7280",
+                        };
                         function applyColor(route, hex) {
                           document.documentElement.style.setProperty("--rr-route-c-" + route, hex);
+                          // Publish the matching auto-contrast text color
+                          // (consumed as --rr-route-t-* by schedule-rrx.css).
+                          var t = textOn(hex);
+                          if (t) document.documentElement.style.setProperty("--rr-route-t-" + route, t);
                         }
                         function applyAll(map) {
                           Object.keys(DEFAULTS).forEach(function (k) {
                             applyColor(k, map[k] || DEFAULTS[k]);
+                          });
+                          Object.keys(LEGACY_TEXT).forEach(function (k) {
+                            var t = textOn(LEGACY_TEXT[k]);
+                            if (t) document.documentElement.style.setProperty("--rr-route-t-" + k, t);
                           });
                         }
                         function renderSwatches(route, current) {
                           var host = document.querySelector('[data-rr-route-swatches="' + route + '"]');
                           if (!host) return;
                           host.innerHTML = "";
-                          PALETTE.forEach(function (entry) {
-                            var b = document.createElement("button");
-                            b.type = "button";
-                            b.className = "rr-rcp-swatch";
-                            b.style.background = entry.hex;
-                            b.setAttribute("data-rr-route", route);
-                            b.setAttribute("data-rr-hex", entry.hex);
-                            b.setAttribute("title", entry.name);
-                            if (entry.hex.toUpperCase() === String(current).toUpperCase()) {
-                              b.classList.add("is-active");
-                            }
-                            host.appendChild(b);
+                          // Two rows per route: soft (calm tints) over
+                          // bold (full-saturation, crisp). Inline
+                          // flex-direction wins over the skin's row
+                          // layout without touching its !important gap.
+                          host.style.flexDirection = "column";
+                          [["soft", PALETTE], ["bold", PALETTE_BOLD]].forEach(function (set) {
+                            var row = document.createElement("div");
+                            row.style.display = "flex";
+                            row.style.gap = "2px";
+                            set[1].forEach(function (entry) {
+                              var b = document.createElement("button");
+                              b.type = "button";
+                              b.className = "rr-rcp-swatch";
+                              b.style.background = entry.hex;
+                              b.setAttribute("data-rr-route", route);
+                              b.setAttribute("data-rr-hex", entry.hex);
+                              b.setAttribute("title", entry.name + " · " + set[0]);
+                              if (entry.hex.toUpperCase() === String(current).toUpperCase()) {
+                                b.classList.add("is-active");
+                              }
+                              row.appendChild(b);
+                            });
+                            host.appendChild(row);
                           });
                         }
                         function renderAllSwatches(map) {
