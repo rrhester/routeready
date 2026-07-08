@@ -58151,6 +58151,9 @@ async function renderScheduleWeek() {
   // PD rows removed — Open Shifts pool on the right covers the same need
   // without taking grid real estate. Coverage strip stays.
   wrap.insertAdjacentHTML("beforeend", driverRowsHtml + coverageStripHtml + emptyHtml);
+  // Stamp WAI-ARIA grid semantics + roving tabindex onto the freshly
+  // painted rows so the board is keyboard- and screen-reader-operable.
+  _rrA11yStampScheduleGrid(wrap);
   // Smart Fill · staged reveal. When this render is the result of a
   // Smart Fill run (_rrSmartFillStaging set by openAiSchedule), animate
   // the shift cards into the grid one at a time with a small stagger so
@@ -58372,9 +58375,19 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       ? `border:1px dashed var(--sch-line-strong);border-radius:8px;background:repeating-linear-gradient(45deg,var(--surface),var(--surface) 6px,var(--canvas) 6px,var(--canvas) 12px);margin-bottom:4px`
       : `border:0;border-bottom:1px solid var(--sch-line);border-radius:0;background:transparent`;
     const tooltip = sh.virtual
-      ? "OKAMI gap · drag onto a driver to create + assign"
-      : "Drag onto a driver to assign";
-    return `<div class="rr-pool-shift" draggable="true"
+      ? "OKAMI gap · drag onto a driver, or press Enter to assign by keyboard"
+      : "Drag onto a driver, or press Enter to assign by keyboard";
+    // Screen-reader label + keyboard affordance: the pool chip is a button
+    // that "picks up" the shift for keyboard assignment (see the keydown
+    // handler in bindSchedWeekNav). `time` is an HTML snippet (it wraps the
+    // wave window in <span>s), so strip the tags — an aria-label must be
+    // plain text or a screen reader reads the literal markup.
+    const timeText = String(time).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const kbdAria = (sh.virtual
+      ? `Open route gap, ${dayLabel(sh.date)}, ${timeText}`
+      : `Open shift, ${dayLabel(sh.date)}, ${timeText}${sh.route_code ? `, route ${sh.route_code}` : ""}`)
+      + ". Press Enter to pick up, then choose a driver and day.";
+    return `<div class="rr-pool-shift" draggable="true" tabindex="0" role="button" aria-label="${escapeHtml(kbdAria)}"
         data-rr-pool-shift="${dragId}" data-rr-pool-shift-date="${sh.date}"${virtAttrs}
         style="display:flex;align-items:center;gap:var(--s-2-5);padding:8px var(--s-2-5);${styleEx};cursor:grab"
         title="${tooltip}">
@@ -58478,6 +58491,147 @@ function _subscribeSchedVehicleRealtime() {
     .on("postgres_changes", { event: "*", schema: "public", table: "vehicle_day_assignments", filter }, kick)
     .on("postgres_changes", { event: "*", schema: "public", table: "fleet_calendar_events", filter }, kick)
     .subscribe();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Schedule grid accessibility (keyboard + screen reader)
+//
+// The week board is a .cal-wrap of .cal-grid rows (one head row + one
+// per driver + a coverage strip); each driver row is a .cal-row-label
+// followed by seven [data-rr-cell="driver-day"] day cells. Historically
+// the grid carried no ARIA grid semantics and no keyboard path — drag-
+// and-drop was the only way to assign, so a keyboard / screen-reader
+// operator couldn't schedule at all.
+//
+// These helpers add the WAI-ARIA grid pattern on top of the existing
+// markup without changing the render:
+//   • _rrA11yStampScheduleGrid  — stamps role=grid/row/columnheader/
+//     rowheader/gridcell + per-cell labels + a single roving tabindex.
+//     Runs after every repaint (rows are rebuilt each render).
+//   • _rrSchedGridRows          — the 2-D array of day cells for nav.
+//   • keyboard handler (installed in bindSchedWeekNav) — Arrow/Home/End
+//     movement, and an Enter/Space "pick up → drop" flow that mirrors the
+//     pool-shift → cell drag exactly (same assign/materialize calls).
+// ─────────────────────────────────────────────────────────────────────
+
+// Roving-tabindex anchor + carry ("picked up") shift, kept across the
+// per-render rebuild so focus and an in-progress keyboard assignment
+// survive the repaint.
+let _rrSchedFocus = null;     // { driver, date } — cell that owns tabindex 0
+let _rrSchedRefocus = false;  // true → programmatically focus that cell after render
+let _rrSchedCarry = null;     // { id, date, virtual, station_id, wave_start } while a shift is picked up
+
+// Polite/assertive live region for announcing keyboard actions.
+function _rrSchedAnnounce(msg) {
+  let el = document.getElementById("rr-sched-a11y-live");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "rr-sched-a11y-live";
+    el.className = "rr-sr-only";
+    el.setAttribute("aria-live", "assertive");
+    el.setAttribute("aria-atomic", "true");
+    document.body.appendChild(el);
+  }
+  // Clear first so an identical repeat message still fires.
+  el.textContent = "";
+  setTimeout(() => { el.textContent = msg; }, 30);
+}
+
+// The grid's day cells as rows of seven, for arrow-key navigation.
+function _rrSchedGridRows(wrap) {
+  const rows = [];
+  wrap.querySelectorAll(".cal-grid").forEach(r => {
+    const cells = Array.from(r.querySelectorAll('[data-rr-cell="driver-day"]'));
+    if (cells.length) rows.push(cells);
+  });
+  return rows;
+}
+
+// Stamp ARIA grid semantics + roving tabindex onto the freshly-painted
+// grid. Idempotent and cheap; safe to call on every render.
+function _rrA11yStampScheduleGrid(wrap) {
+  if (!wrap) return;
+  try {
+    wrap.setAttribute("role", "grid");
+    wrap.setAttribute("aria-label", "Weekly driver schedule. Use arrow keys to move between cells; pick up an open shift from the list with Enter, then press Enter on a driver and day to assign.");
+    wrap.setAttribute("aria-readonly", "false");
+
+    // Column-header labels (Driver + the seven weekdays) so each day cell
+    // can name its date to a screen reader.
+    const colLabels = [];
+    const rowEls = Array.from(wrap.children).filter(el =>
+      el.classList.contains("cal-grid") || el.classList.contains("coverage-strip"));
+    let ariaRow = 0;
+    for (const row of rowEls) {
+      ariaRow++;
+      row.setAttribute("role", "row");
+      row.setAttribute("aria-rowindex", String(ariaRow));
+      const isHead = row.classList.contains("head");
+      let ariaCol = 0;
+      const driverName = row.querySelector(".cal-row-label-name")?.textContent.trim() || "";
+      for (const cell of Array.from(row.children)) {
+        ariaCol++;
+        cell.setAttribute("aria-colindex", String(ariaCol));
+        if (cell.classList.contains("cal-cell-head")) {
+          cell.setAttribute("role", "columnheader");
+          colLabels[ariaCol] = cell.textContent.trim().replace(/\s+/g, " ");
+        } else if (cell.classList.contains("cal-row-label") ||
+                   (row.classList.contains("coverage-strip") && ariaCol === 1)) {
+          cell.setAttribute("role", "rowheader");
+        } else if (cell.classList.contains("cal-cell") ||
+                   cell.classList.contains("coverage-cell")) {
+          cell.setAttribute("role", "gridcell");
+          // Day cells get a spoken label = "<driver>, <day>: <state>".
+          if (cell.matches('[data-rr-cell="driver-day"]')) {
+            const dayLbl = colLabels[ariaCol] || "";
+            let state = cell.textContent.trim().replace(/\s+/g, " ");
+            if (!state || /^N\/A$/i.test(state)) state = "not available";
+            else if (/^off$/i.test(state)) state = "off";
+            cell.setAttribute("aria-label", `${driverName}${driverName ? ", " : ""}${dayLbl}: ${state}`);
+            // Neutralize any focusable descendants (e.g. training chips)
+            // so the CELL is the single roving tab stop, not each chip.
+            cell.querySelectorAll('[tabindex="0"]').forEach(el => { el.tabIndex = -1; });
+            cell.tabIndex = -1;
+          }
+        }
+      }
+    }
+
+    // Place the single roving tabindex. Prefer the cell the operator last
+    // focused; else today's column on the first driver row; else the very
+    // first day cell.
+    const rows = _rrSchedGridRows(wrap);
+    if (!rows.length) return;
+    let anchor = null;
+    if (_rrSchedFocus) {
+      anchor = wrap.querySelector(
+        `[data-rr-cell="driver-day"][data-rr-cell-driver="${_rrSchedFocus.driver}"][data-rr-cell-date="${_rrSchedFocus.date}"]`);
+    }
+    if (!anchor) anchor = rows[0].find(c => c.classList.contains("today")) || rows[0][0];
+    if (anchor) {
+      anchor.tabIndex = 0;
+      _rrSchedFocus = { driver: anchor.dataset.rrCellDriver, date: anchor.dataset.rrCellDate };
+      if (_rrSchedRefocus) {
+        _rrSchedRefocus = false;
+        anchor.focus();
+      }
+    }
+    // Re-apply the "picked up" highlight if a carry survived the repaint.
+    if (_rrSchedCarry) document.body.classList.add("rr-sched-carrying");
+    else document.body.classList.remove("rr-sched-carrying");
+  } catch (e) {
+    console.warn("schedule · a11y stamp:", e);
+  }
+}
+
+// Move the roving focus to a target day cell.
+function _rrSchedFocusCell(cell) {
+  if (!cell) return;
+  const wrap = cell.closest(".cal-wrap");
+  if (wrap) wrap.querySelectorAll('[data-rr-cell="driver-day"][tabindex="0"]').forEach(c => { c.tabIndex = -1; });
+  cell.tabIndex = 0;
+  _rrSchedFocus = { driver: cell.dataset.rrCellDriver, date: cell.dataset.rrCellDate };
+  cell.focus();
 }
 
 function bindSchedWeekNav() {
@@ -60450,6 +60604,133 @@ function bindSchedWeekNav() {
     } else {
       await assignShiftToDriverWithRules(payload.id, payload.date, driverId, cell);
     }
+  });
+
+  // ── Keyboard: pick up a pool shift (Enter/Space), navigate the grid
+  // (arrows / Home / End), drop it on a driver-day cell (Enter/Space).
+  // A full keyboard-only equivalent of the drag path above, so keyboard
+  // and screen-reader operators can assign shifts. Delegated on `sub`, so
+  // it survives the per-render grid rebuild.
+  const _cancelCarry = (announce) => {
+    if (!_rrSchedCarry) return;
+    document.querySelectorAll(".rr-pool-shift.rr-kbd-carrying")
+      .forEach(el => { el.classList.remove("rr-kbd-carrying"); el.removeAttribute("aria-grabbed"); });
+    document.body.classList.remove("rr-sched-carrying");
+    _rrSchedCarry = null;
+    if (announce) _rrSchedAnnounce("Cancelled. Nothing was assigned.");
+  };
+
+  sub.addEventListener("keydown", async (e) => {
+    // ── Pick up an open shift from the pool.
+    const pool = e.target.closest("[data-rr-pool-shift]");
+    if (pool && (e.key === "Enter" || e.key === " " || e.key === "Spacebar")) {
+      e.preventDefault();
+      _cancelCarry(false);
+      const date = pool.dataset.rrPoolShiftDate;
+      _rrSchedCarry = {
+        id: pool.dataset.rrPoolShift,
+        date,
+        virtual: pool.dataset.rrPoolVirtual === "1",
+        station_id: pool.dataset.rrPoolStation || null,
+        wave_start: pool.dataset.rrPoolWave || null,
+      };
+      pool.classList.add("rr-kbd-carrying");
+      pool.setAttribute("aria-grabbed", "true");
+      document.body.classList.add("rr-sched-carrying");
+      // Announce the shift's description only (drop the chip's own "Press
+      // Enter to pick up" instruction, which no longer applies once held).
+      const desc = (pool.getAttribute("aria-label") || "open shift").split(/\.\s*Press /)[0];
+      _rrSchedAnnounce(`Picked up ${desc}. Use arrow keys to choose a driver and day, then press Enter to assign, or Escape to cancel.`);
+      // Jump focus into the grid — same date column on the first driver row.
+      const wrap = sub.querySelector(".cal-wrap");
+      const target = wrap && (
+        wrap.querySelector(`[data-rr-cell="driver-day"][data-rr-cell-date="${date}"]`)
+        || wrap.querySelector('[data-rr-cell="driver-day"]'));
+      if (target) _rrSchedFocusCell(target);
+      return;
+    }
+
+    const cell = e.target.closest('[data-rr-cell="driver-day"]');
+    if (!cell) return;
+
+    // ── Escape cancels an in-progress pickup.
+    if (e.key === "Escape" && _rrSchedCarry) {
+      e.preventDefault();
+      _cancelCarry(true);
+      return;
+    }
+
+    // ── Enter/Space drops the carried shift onto this driver-day.
+    if (_rrSchedCarry && (e.key === "Enter" || e.key === " " || e.key === "Spacebar")) {
+      e.preventDefault();
+      const driverId = cell.dataset.rrCellDriver;
+      if (!driverId) return;
+      const carry = _rrSchedCarry;
+      const driverName = cell.closest(".cal-grid")?.querySelector(".cal-row-label-name")?.textContent.trim() || "the driver";
+      _cancelCarry(false);
+      // Restore focus to this driver-day after the assign re-renders the grid.
+      _rrSchedFocus = { driver: driverId, date: carry.date };
+      _rrSchedRefocus = true;
+      _rrSchedAnnounce(`Assigning ${cell.getAttribute("aria-label") ? "shift to " + driverName : "shift"}…`);
+      try {
+        if (carry.virtual) {
+          await materializeVirtualShiftToDriver(
+            { id: carry.id, date: carry.date, virtual: true, station_id: carry.station_id, wave_start: carry.wave_start },
+            driverId, cell);
+        } else {
+          await assignShiftToDriverWithRules(carry.id, carry.date, driverId, cell);
+        }
+      } catch (err) {
+        _rrSchedRefocus = false;
+        _rrSchedAnnounce("Couldn't assign that shift. " + (err?.message || ""));
+      }
+      return;
+    }
+
+    // ── Enter/Space on a focused cell (not carrying) opens/edits its
+    // content, restoring the keyboard path the roving grid replaced: the
+    // day cells are the single tab stop (chips are tabindex -1), so we
+    // route activation through the cell to the existing click handler —
+    // assigned chip → edit modal, open chip → cover drawer, PTO chip →
+    // remove flow, empty available cell → add-shift modal.
+    if (!_rrSchedCarry && (e.key === "Enter" || e.key === " " || e.key === "Spacebar")) {
+      e.preventDefault();
+      const chip = cell.querySelector(".shift-chip.timeoff, .shift-chip.open, .shift-chip:not(.off)");
+      const tgt = chip || cell;
+      const r = tgt.getBoundingClientRect();
+      tgt.dispatchEvent(new MouseEvent("click", {
+        bubbles: true, cancelable: true,
+        clientX: r.left + r.width / 2, clientY: r.bottom,
+      }));
+      return;
+    }
+
+    // ── Arrow / Home / End navigation across the day cells.
+    const NAV = ["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", "Home", "End"];
+    if (!NAV.includes(e.key)) return;
+    const wrap = sub.querySelector(".cal-wrap");
+    if (!wrap) return;
+    const rows = _rrSchedGridRows(wrap);
+    let ri = -1, ci = -1;
+    for (let r = 0; r < rows.length; r++) {
+      const c = rows[r].indexOf(cell);
+      if (c !== -1) { ri = r; ci = c; break; }
+    }
+    if (ri === -1) return;
+    e.preventDefault();
+    const lastRow = rows.length - 1;
+    const lastCol = rows[ri].length - 1;
+    let nr = ri, nc = ci;
+    switch (e.key) {
+      case "ArrowRight": nc = Math.min(lastCol, ci + 1); break;
+      case "ArrowLeft":  nc = Math.max(0, ci - 1); break;
+      case "ArrowDown":  nr = Math.min(lastRow, ri + 1); break;
+      case "ArrowUp":    nr = Math.max(0, ri - 1); break;
+      case "Home":       if (e.ctrlKey) nr = 0; nc = 0; break;
+      case "End":        if (e.ctrlKey) nr = lastRow; nc = rows[nr].length - 1; break;
+    }
+    const dest = rows[nr] && rows[nr][Math.min(nc, rows[nr].length - 1)];
+    if (dest && dest !== cell) _rrSchedFocusCell(dest);
   });
 }
 
