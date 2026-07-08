@@ -1,0 +1,32 @@
+name: Design system ratchet
+
+# Enforces the design system by refusing to let raw-value counts grow.
+# World-class UIs read as one system because they're ruthlessly consistent;
+# RouteReady already has 284 tokens but bypasses them with raw hex,
+# !important, and one-off font sizes. This gate holds the line: any PR that
+# touches the shipped stylesheets and INCREASES raw hex / !important /
+# literal font-size counts fails. To pay the debt down, migrate raw values
+# to tokens, then `node scripts/design-lint.mjs --update` to lock in the win.
+#
+# See docs/DESIGN-SYSTEM.md for the canonical palette + how to reduce it.
+
+on:
+  pull_request:
+    paths:
+      - 'dashboard/**.css'
+      - 'app/**.css'
+      - 'scripts/design-lint.mjs'
+      - 'scripts/design-baseline.json'
+      - '.github/workflows/design-lint.yml'
+  workflow_dispatch:
+
+jobs:
+  ratchet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Design ratchet (raw values may only decrease)
+        run: node scripts/design-lint.mjs
