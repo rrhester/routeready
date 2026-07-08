@@ -2476,6 +2476,12 @@ async function handleAction(btn) {
       }
       btn.disabled = false;
       return;
+    } else if (action === "open_onboarding") {
+      // Hired-card CTA — the driver row already exists (record_outcome
+      // created it on hire); take the operator to the onboarding roster.
+      btn.disabled = false;
+      goto("onboarding-ops");
+      return;
     } else if (action === "email_thread") {
       // Look up the applicant's display name for the modal header.
       const { data: a } = await sb.from("applicants")
@@ -5878,7 +5884,7 @@ async function _submitBulkDrivers() {
 // Driver stage state — what the operator has filtered to.
 let _driverStage = "active";
 // Roster filter / sort state (set by the toolbar dropdowns + search).
-let _rosterFilters = { station: "", tenure: "", score: "", q: "", sort: "risk-desc" };
+let _rosterFilters = { station: "", tenure: "", score: "", risk: "", q: "", sort: "risk-desc" };
 
 // Status-header filter options · the Status column dropdown switches
 // _driverStage so the roster can show non-active drivers (On leave /
@@ -6045,7 +6051,10 @@ function _rowsForStage(rows, stage) {
     case "onboarding": return rows.filter(r => r.status === "onboarding");
     case "active":     return rows.filter(r => r.status === "active");
     case "seasonal":   return rows.filter(r => r.status === "seasonal");
-    case "atrisk":     return rows.filter(r => r.status === "active" && (r.score ?? 999) < 70);
+    // "At risk" = drivers with an open corrective action (the same signal
+    // the roster's Risk column shows). drivers.score is not used — nothing
+    // computes it.
+    case "atrisk":     return rows.filter(r => r.status === "active" && _rosterRisk.get(r.id));
     case "onleave":    return rows.filter(r => r.status === "leave");
     case "inactive":   return rows.filter(r => ["inactive","terminated"].includes(r.status));
     // Granular status filters driven by the Status-header dropdown.
@@ -6114,6 +6123,9 @@ function _applyRosterFiltersAndSort(rows) {
   // Risk rank from the map the roster loader fills: At Risk (2) > Watch (1)
   // > none (0). Drives the Risk column sort.
   const riskRank = (r) => { const v = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(r.id) : null; return v === "atrisk" ? 2 : v === "watch" ? 1 : 0; };
+  // "At risk" view chip → only drivers with an open corrective action
+  // (Watch or At Risk), the same signal the Risk column renders.
+  if (f.risk === "flagged") out = out.filter(r => riskRank(r) > 0);
   // Attendance points + last-coaching date drive their roster columns' sorts.
   const ptsVal = (r) => (_rosterAttPoints && _rosterAttPoints.get) ? (_rosterAttPoints.get(r.id) || 0) : 0;
   const lastCoachMs = (r) => { const iso = (_rosterLastCoached && _rosterLastCoached.get) ? _rosterLastCoached.get(r.id) : null; return iso ? new Date(iso).getTime() : null; };
@@ -6340,7 +6352,7 @@ function renderDriverTable(rows, error) {
       : _driverStage === "active"
       ? { title: "No active drivers yet", body: "Hire someone in Interview Day, or use Add driver / Bulk import to build the roster." }
       : _driverStage === "atrisk"
-      ? { title: "No at-risk drivers", body: "Drivers whose score drops below 70 surface here so you can intervene early." }
+      ? { title: "No at-risk drivers", body: "Drivers with an open corrective action (Watch or At Risk) surface here so you can intervene early." }
       : _driverStage === "seasonal"
       ? { title: "No seasonal drivers", body: "Drivers set to Seasonal appear here." }
       : _driverStage === "onleave"
@@ -12235,17 +12247,20 @@ function _rrApplyRosterView(view) {
     c.setAttribute("aria-pressed", on ? "true" : "false");
   });
   if (v === "atrisk") {
+    // Real risk signal (open corrective action), not the unused
+    // drivers.score field — score is never computed, so filtering on
+    // it always produced an empty list.
     _driverStage = "active";
-    _rosterFilters = { ..._rosterFilters, score: "0-69", tenure: "" };
+    _rosterFilters = { ..._rosterFilters, score: "", risk: "flagged", tenure: "" };
   } else if (v === "newhires") {
     _driverStage = "active";
-    _rosterFilters = { ..._rosterFilters, score: "", tenure: "0-30" };
+    _rosterFilters = { ..._rosterFilters, score: "", risk: "", tenure: "0-30" };
   } else if (v === "onleave") {
     _driverStage = "onleave";
-    _rosterFilters = { ..._rosterFilters, score: "", tenure: "" };
+    _rosterFilters = { ..._rosterFilters, score: "", risk: "", tenure: "" };
   } else {
     _driverStage = "active";
-    _rosterFilters = { ..._rosterFilters, score: "", tenure: "" };
+    _rosterFilters = { ..._rosterFilters, score: "", risk: "", tenure: "" };
   }
   if (typeof loadDriversRoster === "function") loadDriversRoster();
 }
@@ -77124,10 +77139,10 @@ async function _toFetchPendingCount() {
 //   • _recogRenderUpcoming/History — paint rows from the RPC payload
 //   • openRecogSendModal(opts)     — driver picker + send/schedule form
 //
-// The driver app does NOT yet read driver_recognitions — celebration
-// animations are a separate piece of work.  Until then, every "Send"
-// from this view persists a row that the animations layer will
-// consume when it's built.
+// The driver app DOES consume driver_recognitions: on app open,
+// checkAndShowPendingRecognition (app/app.js) fetches the pending
+// event and routes to the #/welcome celebration view. Rows sent or
+// scheduled here are delivered the next time the driver opens the app.
 
 let _recogUpcomingData = [];
 let _recogHistoryData  = [];

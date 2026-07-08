@@ -3695,6 +3695,9 @@ async function _scanRunOcr(onProgress) {
       const { data } = await worker.recognize(blob);
       p.ocrWords = _scanExtractWords(data);
       p.ocrText = (data.text || "").trim();
+      // Tesseract reports 0–100; keep it for the receipt pipeline
+      // (receipt_uploads.ocr_confidence stores 0–1).
+      p.ocrConfidence = (typeof data.confidence === "number") ? data.confidence : null;
     }
   } finally {
     try { await worker.terminate(); } catch {}
@@ -4169,6 +4172,7 @@ function renderReceiptForm() {
       notes:      val("receipt-notes"),
       blob: d.blob, mime: d.mime, ext: d.ext,
       filename: `receipt.${d.ext}`, ocrText: _receiptDraft.ocrText || null,
+      ocrConfidence: _receiptDraft.ocrConfidence ?? null,
       createdAt: Date.now(), id: "r" + Date.now() + Math.random().toString(36).slice(2, 7),
     };
     _receiptSubmit(e.currentTarget, rec);
@@ -4187,6 +4191,11 @@ async function _receiptOcrAutofill(btn) {
     await _scanRunOcr((i, t) => { btn.textContent = `Reading ${i}/${t}…`; });
     const text = pages.map((p) => p.ocrText || "").join("\n").trim();
     _receiptDraft.ocrText = text;
+    // Mean page confidence, scaled to the 0–1 range the DB column stores.
+    const confs = pages.map((p) => p.ocrConfidence).filter((c) => typeof c === "number");
+    _receiptDraft.ocrConfidence = confs.length
+      ? Math.max(0, Math.min(1, (confs.reduce((a, b) => a + b, 0) / confs.length) / 100))
+      : null;
     const g = _receiptGuessFields(text);
     const amt = document.getElementById("receipt-amount");
     const dt  = document.getElementById("receipt-date");
@@ -4309,7 +4318,7 @@ async function _receiptUploadAndSubmit(rec) {
       p_file_size_bytes: rec.blob.size,
       p_mime_type:       rec.mime || "image/jpeg",
       p_ocr_raw_text:    rec.ocrText || null,
-      p_ocr_confidence:  null,
+      p_ocr_confidence:  rec.ocrConfidence ?? null,
     });
     if (error) return { ok: false, retriable: true, reason: "rpc" };
     return { ok: true, duplicate: !!(data && data.duplicate_flag) };

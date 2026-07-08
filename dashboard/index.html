@@ -5080,12 +5080,15 @@ John,Smith,555-0101,john@example.com</code>
         var s = document.createElement('script');
         s.src = 'mock-wiring.js?v=665b3dced425';
         s.onload = function () {
-          // These three register DOMContentLoaded callbacks with no
+          // These register DOMContentLoaded callbacks with no
           // already-fired fallback (unlike the rest of the script);
           // DCL has long fired by now, so invoke them directly.
-          try { window.recomputeStaffingRisk && window.recomputeStaffingRisk(); } catch (e) {}
+          // recomputeStaffingRisk (mock-wiring) is intentionally NOT
+          // invoked: it paints hardcoded staffing numbers (78 active /
+          // 5 at risk). Live staffing math comes from live.js.
+          // recomputePipelineKPIs is likewise skipped — its mock KPI targets
+          // no longer exist; live.js's loadPipeline paints the real counts.
           try { window.renderNewDmList && window.renderNewDmList(''); } catch (e) {}
-          try { window.recomputePipelineKPIs && window.recomputePipelineKPIs(); } catch (e) {}
           resolve();
         };
         s.onerror = function () { window.__RR_VIEW_LOAD_FAILED = true; resolve(); };

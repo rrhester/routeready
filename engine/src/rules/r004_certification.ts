@@ -22,5 +22,8 @@ export function checkCertification(
   if (shift.route_type === "xl" && !driver.xl_certified) {
     return { rule: "R004", message: "Missing XL certification" };
   }
+  if (shift.route_type === "edv" && !driver.edv_certified) {
+    return { rule: "R004", message: "Missing EDV certification" };
+  }
   return null;
 }
