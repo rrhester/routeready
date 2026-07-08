@@ -16951,6 +16951,15 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-17);font-weight:700;line-height:1.05;color:#B23A2E;font-variant-numeric:tabular-nums;
           }
           #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.rr-tgt-gap-card--pos .rr-tgt-gap-card-value{color:var(--rr-green-700)}
+          /* Prescription sub-line · the action the gap number implies
+             ("Hire 3 by Aug 12" / "Staffed through the plan"). Quiet by
+             design — plain operational language, no extra color. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card-sub{
+            font-size:var(--fs-10-5);font-weight:600;line-height:1.2;color:var(--text-muted);white-space:nowrap;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.is-clickable{cursor:pointer}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.is-clickable:hover{background:var(--rr-gray-50)}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-gap-card.is-clickable:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(37,99,235,.30)}
           /* Save Plan · primary button matching the Schedule Finalize. */
           #view-schedule #rr-sched-targets-kpis .rr-tgt-save-plan{
             display:inline-flex;align-items:center;justify-content:center;
