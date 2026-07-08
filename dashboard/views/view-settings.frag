@@ -193,11 +193,11 @@
                 <details class="rules-section" data-rr-rules-section="floor" style="grid-column:1/-1" open>
                   <summary class="rules-section-title">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><polyline points="9 12 11 14 15 10"/></svg>
-                    Always enforced · system floor
+                    Always enforced · Cover &amp; self-service floor
                     <span class="rules-sub-badge ok">Locked</span>
                   </summary>
                   <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
-                    These guardrails apply to every DSP and aren't configurable. They protect against data corruption, payroll mistakes, and compliance violations. Open this section any time you want to see exactly what the schedule engine is doing behind the scenes.
+                    These guardrails are hardcoded into the server-side Cover, driver-pickup, and swap flows — they apply to every DSP and can't be switched off for those flows. They protect against data corruption, payroll mistakes, and compliance violations. Note that <strong>Smart Fill</strong> on the Schedule view exposes tunable equivalents of a few of these (same-day policy, DL check, onboarding eligibility) behind its rules popover; the gates below are what still runs on Cover / pickup / swap no matter how Smart Fill is configured.
                   </div>
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-2) 16px">
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
@@ -217,7 +217,7 @@
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Expired driver's license blocks scheduling</div>
-                        <div class="rule-help">Drivers whose DL expires on or before the shift date are skipped by Cover and pickup.</div>
+                        <div class="rule-help">Drivers whose DL expires <em>before</em> the shift date are skipped by Cover, pickup, and swap. (A license valid through the shift date itself still qualifies.)</div>
                       </div>
                       <span class="rules-sub-badge ok">Always on</span>
                     </div>
@@ -259,14 +259,14 @@
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Dispatcher-only writes</div>
-                        <div class="rule-help">Creating, editing, and deleting shifts requires the dispatcher role. Drivers can only act on their own shifts via Cover/pickup/swap flows.</div>
+                        <div class="rule-help">Creating, editing, and deleting shifts requires the dispatcher role or higher (dispatcher, ops, or owner). Drivers can only act on their own shifts via Cover/pickup/swap flows.</div>
                       </div>
                       <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
-                        <div class="rule-label">One pending offer per shift</div>
-                        <div class="rule-help">Cover offers and swap requests can't pile up on the same shift — a unique constraint enforces single-pending.</div>
+                        <div class="rule-label">One pending Cover offer per shift</div>
+                        <div class="rule-help">A unique index enforces a single pending Cover offer per shift. Swap requests are deduped per requester/target shift pair, so a driver can't send the same swap twice (a shift may still have more than one pending swap to different targets).</div>
                       </div>
                       <span class="rules-sub-badge ok">Always on</span>
                     </div>
@@ -407,22 +407,16 @@
                   <div id="rr-station-geofences"><div class="rr-loading">Loading station geofences</div></div>
                 </details>
 
-                <details class="rules-section" data-rr-rules-section="license-compliance" style="grid-column:1/-1">
-                  <summary class="rules-section-title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M7 10h6M7 14h4"/><circle cx="17" cy="14" r="2"/></svg>
-                    License compliance · block scheduling past expiry
-                  </summary>
-                  <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
-                    Hard rule: drivers with an expired driver's license can't be assigned to upcoming shifts.  Recommended for DOT compliance.  When OFF, expired licenses still surface as warnings on the schedule but assignments aren't blocked.
-                  </div>
-                  <div class="rule-row">
-                    <div>
-                      <div class="rule-label">Block scheduling past license expiry</div>
-                      <div class="rule-help">Reminder cadence and message templates live in <strong>Settings → License renewals</strong>.</div>
-                    </div>
-                    <label class="toggle"><input type="checkbox" id="rr-lic-block-input" data-rr-lic-block-input/><span class="toggle-slider"></span></label>
-                  </div>
-                </details>
+                <!-- "License compliance · block scheduling past expiry" removed:
+                     the rr-lic-block-input toggle only wrote
+                     dsps.metadata.licenses.block_past_expiry, which no scheduling /
+                     Cover / pickup / swap code ever read — a dead no-op whose OFF
+                     copy ("assignments aren't blocked") described behavior it could
+                     not produce. The live DL gate is the Smart Fill "DL valid
+                     required" rule (dl_valid) on the Schedule view; expired-license
+                     blocking on Cover / pickup / swap is always-on and listed in the
+                     system floor above. Renewal reminders live in
+                     Settings → License renewals. -->
 
               </div>
             </div>
