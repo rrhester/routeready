@@ -10,6 +10,8 @@ DOW convention: Sun=0..Sat=6 (matches _dow() and available_dows).
 
 from __future__ import annotations
 
+import pytest
+
 from rr_solver.cpsat_model import solve
 from rr_solver.models import SolveRequest
 
