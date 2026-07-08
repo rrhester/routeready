@@ -10374,6 +10374,40 @@ function clearSelection(g, { formatToo } = {}) {
   if (changes.length) setCells(g, changes);
 }
 
+// Delete the selected cells (contents + formatting) and pull the remaining
+// cells in each affected column/row back over the gap — the Google Sheets
+// "Delete cells and shift up / shift left" behaviour. Unlike delete-row /
+// delete-col this only reshapes within the selected band; cells outside the
+// selected rows (for shift-up) or columns (for shift-left) stay put.
+function deleteCellsShift(g, dir) {
+  if (!WB.canEdit) return;
+  const sheet = g.sheet;
+  const { r0, r1, c0, c1 } = selRect(g);
+  const nRows = r1 - r0 + 1;
+  const nCols = c1 - c0 + 1;
+  const changes = [];
+  if (dir === "up") {
+    for (let c = c0; c <= c1; c++) {
+      for (let r = r0; r < sheet.rowCount; r++) {
+        const src = r + nRows < sheet.rowCount ? sheet.cells.get(cellKey(r + nRows, c)) : null;
+        const dst = sheet.cells.get(cellKey(r, c));
+        if (!src && !dst) continue;
+        changes.push({ r, c, cell: src ? cloneCell(src) : null });
+      }
+    }
+  } else {
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c < sheet.colCount; c++) {
+        const src = c + nCols < sheet.colCount ? sheet.cells.get(cellKey(r, c + nCols)) : null;
+        const dst = sheet.cells.get(cellKey(r, c));
+        if (!src && !dst) continue;
+        changes.push({ r, c, cell: src ? cloneCell(src) : null });
+      }
+    }
+  }
+  if (changes.length) setCells(g, changes);
+}
+
 // ─── Formatting ──────────────────────────────────────────────────────────────
 
 function formatSelection(g, patch) {
@@ -16342,6 +16376,9 @@ function openSheetsCellMenu(g, x, y) {
     it(CTX_ICONS.trash, `Delete ${nRows > 1 ? nRows + " rows" : "row"}`, "delete-row", { disabled: ro }),
     it(CTX_ICONS.trash, `Delete ${nCols > 1 ? nCols + " columns" : "column"}`, "delete-col", { disabled: ro }),
     { icon: CTX_ICONS.trash, label: "Delete cells", sub: [
+      it(null, "Delete cells and shift up", "delete-cells-up", { disabled: ro }),
+      it(null, "Delete cells and shift left", "delete-cells-left", { disabled: ro }),
+      sep,
       it(null, "Clear contents", "clear-contents", { kbd: "Del", disabled: ro }),
       it(null, "Clear formatting", "clear-format", { disabled: ro }),
     ] },
@@ -16405,6 +16442,8 @@ function openSheetsCellMenu(g, x, y) {
       case "insert-sheet": addSheetTo(g.blockId); break;
       case "delete-row": restructure(g, "row", rect0.r0, -nRows); break;
       case "delete-col": restructure(g, "col", rect0.c0, -nCols); break;
+      case "delete-cells-up": deleteCellsShift(g, "up"); break;
+      case "delete-cells-left": deleteCellsShift(g, "left"); break;
       case "clear-contents": clearSelection(g); break;
       case "clear-format": clearFormatting(g); break;
       case "filter-toggle": toggleFilterMode(g); break;
