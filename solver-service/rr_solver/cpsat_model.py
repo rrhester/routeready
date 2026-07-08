@@ -62,6 +62,7 @@ def _is_eligible(
     driver: DriverIn,
     shift: ShiftIn,
     pto_dates_by_driver: dict[str, set[str]],
+    eligible_driver_status: Optional[str] = None,
 ) -> bool:
     """Static hard-rule check. If this returns False, the solver never
     even creates the assign variable for this (driver, shift) pair —
@@ -72,7 +73,7 @@ def _is_eligible(
     (and drifting from) the order applied here. This is a thin, behavior-
     preserving delegation: `is_eligible(...)` is exactly the old decision.
     """
-    return is_eligible(driver, shift, pto_dates_by_driver)
+    return is_eligible(driver, shift, pto_dates_by_driver, eligible_driver_status)
 
 
 def _is_van_type_compatible(route_type: str, van_type: str) -> bool:
@@ -164,6 +165,11 @@ def solve(req: SolveRequest) -> SolveResponse:
         min_rest_hours = float(rules.get("min_rest_hours") or 10)
     except (TypeError, ValueError):
         min_rest_hours = 10.0
+    # R002 driver-status policy. Default "active" mirrors the in-browser
+    # engine's default (only active drivers auto-fill; onboarding drivers
+    # join only when the DSP sets "active_and_onboarding"). A driver whose
+    # status isn't one of these is never given an assign variable.
+    eligible_driver_status = str(rules.get("eligible_driver_status", "active"))
 
     # ── Inputs ────────────────────────────────────────────────────────
     pto_dates_by_driver: dict[str, set[str]] = defaultdict(set)
@@ -196,7 +202,7 @@ def solve(req: SolveRequest) -> SolveResponse:
         for d in req.drivers:
             if s.date in locked_dates_by_driver.get(d.id, set()):
                 continue  # already booked that day via a locked shift
-            if _is_eligible(d, s, pto_dates_by_driver):
+            if _is_eligible(d, s, pto_dates_by_driver, eligible_driver_status):
                 es.append(d.id)
                 eligible_shifts_per_driver[d.id].append(s.id)
         eligible_drivers_per_shift[s.id] = es
@@ -630,90 +636,16 @@ def solve(req: SolveRequest) -> SolveResponse:
                 model.Add(pm >= a + va - 1)
                 objective_terms.append(W_VAN_CONT * pm)
 
-
-    # ── 5c. Van decision variables ────────────────────────────────────
-    # Vans become first-class assignments alongside drivers. The model
-    # decides which van goes to which open shift jointly with which
-    # driver, which:
-    #   • Maximizes the number of shifts that get a van (globally vs
-    #     greedy-per-shift like the heuristic).
-    #   • Honors van_pairings via a continuity bonus (pair_match AND).
-    #   • Prevents van double-booking per date.
-    #
-    # Locked shifts get their van via the heuristic _van_for_driver
-    # below (in the result-reading section). Slots those consume are
-    # pre-subtracted here so the CP-SAT model doesn't try to schedule
-    # the same (van, date) twice.
-    pre_consumed_van_dates: dict[str, set[str]] = defaultdict(set)
-    locked_van_assignment: dict[str, Optional[str]] = {}  # locked shift_id → van_id
-    # Compute heuristic van picks for locked shifts here, ONCE, so both
-    # this pre-subtraction step and the result-reading step agree.
-    _van_used_for_locked: dict[str, set[str]] = defaultdict(set)
-    for ls in locked_shifts:
-        if not ls.assigned_driver_id:
-            continue
-        vid = _van_for_driver(
-            ls.assigned_driver_id, ls.route_type,
-            pairings_by_driver, van_types, _van_used_for_locked, ls.date,
-        )
-        locked_van_assignment[ls.id] = vid
-        if vid:
-            _van_used_for_locked[vid].add(ls.date)
-            pre_consumed_van_dates[vid].add(ls.date)
-
-    # van_assign[v, s] for each open shift × type-compatible van whose
-    # date isn't already consumed by a locked row.
-    van_assign: dict[tuple[str, str], cp_model.IntVar] = {}
-    vans_per_shift: dict[str, list[str]] = defaultdict(list)
-    shifts_per_van_date: dict[tuple[str, str], list[str]] = defaultdict(list)
-    for s in open_shifts:
-        for v in req.vans:
-            if v.status != "active":
-                continue
-            if not _is_van_type_compatible(s.route_type, van_types.get(v.id, "standard")):
-                continue
-            if s.date in pre_consumed_van_dates.get(v.id, set()):
-                continue
-            key = (v.id, s.id)
-            var = model.NewBoolVar(f"van_{v.id}_{s.id}")
-            van_assign[key] = var
-            vans_per_shift[s.id].append(v.id)
-            shifts_per_van_date[(v.id, s.date)].append(s.id)
-
-    # At most one van per shift.
-    for s_id, vids in vans_per_shift.items():
-        model.Add(sum(van_assign[(v, s_id)] for v in vids) <= 1)
-
-    # Van can only be assigned to a covered shift.
-    # van_total[s] ≤ 1 - uncovered[s].
-    for s in open_shifts:
-        vids = vans_per_shift.get(s.id, [])
-        if vids:
-            model.Add(sum(van_assign[(v, s.id)] for v in vids) <= 1 - uncovered[s.id])
-
-    # No van double-book per date (open-shift side; locked already pre-consumed).
-    for (v_id, _date), sids in shifts_per_van_date.items():
-        model.Add(sum(van_assign[(v_id, s_id)] for s_id in sids) <= 1)
-
-    # Continuity bonus: when van_pairing (d, v) exists AND both d takes
-    # shift s AND v takes shift s, add a positive objective term.
-    W_VAN_CONT = int(weights.get("van_continuity", 10))
-    for vp in req.van_pairings:
-        if vp.van_id not in van_types:
-            continue
-        for s in open_shifts:
-            if (vp.driver_id, s.id) not in assign:
-                continue
-            if (vp.van_id, s.id) not in van_assign:
-                continue
-            # pair_match = assign[d, s] AND van_assign[v, s]
-            pm = model.NewBoolVar(f"pm_{vp.driver_id}_{vp.van_id}_{s.id}")
-            a = assign[(vp.driver_id, s.id)]
-            va = van_assign[(vp.van_id, s.id)]
-            model.Add(pm <= a)
-            model.Add(pm <= va)
-            model.Add(pm >= a + va - 1)
-            objective_terms.append(W_VAN_CONT * pm)
+    # Van coverage — a small reward per van actually assigned, so the model
+    # fills a free, type-compatible van onto every covered shift (the stated
+    # intent above), not only when a continuity pairing happens to pay out.
+    # Kept far below driver coverage (W_COV) and below the target/OT tiers so
+    # it can never trade a covered shift — or a non-OT schedule — for a van;
+    # it only breaks ties among otherwise-equal solutions. Ranks below the
+    # continuity bonus so a paired van still wins its shift.
+    W_VAN_COVER = int(weights.get("van_coverage", 3))
+    for _key, _var in van_assign.items():
+        objective_terms.append(W_VAN_COVER * _var)
 
 
     # ── 6. Ad-hoc constraints (Step 5.5) ──────────────────────────────
@@ -737,7 +669,14 @@ def solve(req: SolveRequest) -> SolveResponse:
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = max(0.5, req.time_budget_ms / 1000.0)
     solver.parameters.random_seed = req.solver_seed or 0
-    solver.parameters.num_search_workers = 4
+    # Determinism (matches the in-browser engine's byte-identical guarantee):
+    # a SINGLE search worker + fixed seed makes the solve reproducible run to
+    # run — identical input → identical schedule — even when the time budget
+    # cuts the search short (a single-threaded search is itself deterministic;
+    # the non-determinism came from multiple workers racing to report a
+    # tie-broken optimum). This is the guarantee the module docstring claims,
+    # which the previous `= 4` contradicted.
+    solver.parameters.num_search_workers = 1
 
     status_code = solver.Solve(model)
     status_name = solver.StatusName(status_code)
