@@ -369,6 +369,72 @@ window.RR.dsp = dspRow;
 // now that the account is in memory, re-apply so account colors win.
 try { if (typeof window._rrReapplyRouteColors === "function") window._rrReapplyRouteColors(); } catch (_) {}
 
+// ─── Per-DSP entitlements · platform-admin page/feature gating ──────────
+// A platform admin can turn top-level pages (nav modules) and in-app
+// features off for an entire DSP from the control center.  The choice
+// lives on dsps.metadata as two opt-out lists:
+//
+//     metadata.disabled_pages    → data-view keys hidden from the sidebar
+//     metadata.disabled_features → feature keys whose entry buttons hide
+//
+// Absent = everything enabled.  We enforce with a single injected
+// <style> block rather than per-element JS: the nav items exist at parse
+// time but the feature buttons live inside view frags that are injected
+// lazily on first navigation, so a stylesheet is the only approach that
+// covers markup which doesn't exist yet.  `settings` and `admin` are
+// never gateable (a restricted user must keep a way back / the admin
+// surface is platform-admin-only anyway).
+//
+// Catalog is shared with the control center via window.RR_ENTITLEMENTS
+// so the admin drawer and this gate can never drift apart.
+window.RR_ENTITLEMENTS = {
+  pages: [
+    { key: "schedule",       label: "Schedule",   desc: "Routes, dispatch & the daily board" },
+    { key: "onboarding-ops", label: "Onboarding", desc: "New-hire onboarding workflow" },
+    { key: "fleet2",         label: "Fleet",      desc: "Vehicles, maintenance & assignments" },
+    { key: "workbooks",      label: "Workbooks",  desc: "Spreadsheets & saved reports" },
+    { key: "messages",       label: "Messages",   desc: "Driver & team messaging" },
+    { key: "email",          label: "Email",      desc: "Connected email inbox" },
+    { key: "recognition",    label: "Recognition",desc: "Kudos & awards page" },
+  ],
+  features: [
+    { key: "notes",      label: "Notes",             desc: "Quick notes panel",            sel: "[data-rr-notes-toggle]" },
+    { key: "tasks",      label: "My Tasks",          desc: "Personal task list",           sel: "[data-rr-tasks-toggle]" },
+    { key: "checklists", label: "Checklists",        desc: "Shift checklists",             sel: "[data-rr-checklists-toggle]" },
+    { key: "contacts",   label: "Contacts",          desc: "Station contacts directory",   sel: "[data-rr-contacts-toggle]" },
+    { key: "ophealth",   label: "Operations Health", desc: "Live ops-health readout",      sel: "[data-rr-ophealth-toggle]" },
+    { key: "forms",      label: "Forms panel",       desc: "Quick-forms side panel",       sel: "[data-rr-forms-toggle]" },
+    { key: "recog",      label: "Kudos panel",       desc: "Recognition quick panel",      sel: "[data-rr-recog-toggle]" },
+  ],
+};
+
+(function applyDspEntitlements() {
+  const md = window.RR?.dsp?.metadata || {};
+  const disabledPages    = Array.isArray(md.disabled_pages)    ? md.disabled_pages    : [];
+  const disabledFeatures = Array.isArray(md.disabled_features) ? md.disabled_features : [];
+  const cat = window.RR_ENTITLEMENTS;
+  const rules = [];
+  disabledPages.forEach((key) => {
+    if (key === "settings" || key === "admin") return;
+    // data-view is a static, sanitised key from our own catalog; guard
+    // anyway so a malformed metadata value can't break the selector.
+    if (!/^[a-z0-9-]+$/.test(key)) return;
+    rules.push(`.nav-item[data-view="${key}"]{display:none !important}`);
+  });
+  disabledFeatures.forEach((key) => {
+    const f = cat.features.find((x) => x.key === key);
+    if (f && f.sel) rules.push(`${f.sel}{display:none !important}`);
+  });
+  let styleEl = document.getElementById("rr-dsp-entitlements");
+  if (!rules.length) { if (styleEl) styleEl.remove(); return; }
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "rr-dsp-entitlements";
+    (document.head || document.documentElement).appendChild(styleEl);
+  }
+  styleEl.textContent = rules.join("\n");
+})();
+
 // ─── Brand · paint DSP name + station code into the sidebar chip ────────
 // The chip in dashboard/index.html is a static placeholder ("Cardinal
 // Logistics") so the file looks fine in a static preview. Replace it
@@ -3606,20 +3672,21 @@ async function _loadPlatformAdminDsps() {
   // FIRST load to avoid a flash on subsequent re-paints.
   if (!_admin.loaded) {
     tbody.innerHTML = `
-      <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
-      <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
-      <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>`;
+      <tr><td colspan="11" class="rr-admin-skel"><span></span></td></tr>
+      <tr><td colspan="11" class="rr-admin-skel"><span></span></td></tr>
+      <tr><td colspan="11" class="rr-admin-skel"><span></span></td></tr>`;
   }
   const { data, error } = await sb.rpc("admin_list_dsps");
   if (error) {
     if (_isAuthError(error)) _forceRelogin("session_expired");
     console.error("admin_list_dsps failed:", error);
-    tbody.innerHTML = `<tr><td colspan="10" style="padding:var(--s-6);color:var(--red);text-align:center">${escapeHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" style="padding:var(--s-6);color:var(--red);text-align:center">${escapeHtml(error.message)}</td></tr>`;
     return;
   }
   _admin.dsps = data || [];
   _admin.loaded = true;
   _renderPlatformAdminTable();
+  _adminRenderInsights();
 }
 
 function _adminFilteredDsps() {
@@ -3665,6 +3732,161 @@ function _adminFmtRelative(iso) {
   const days = Math.floor(h / 24);
   if (days < 30) return `${days}d ago`;
   return d.toLocaleDateString();
+}
+
+// ── Control-center insights ─────────────────────────────────────────────
+// Everything below is derived client-side from the in-memory DSP list
+// (_admin.dsps) — no extra round-trips.  Drives the KPI context lines,
+// the Needs-attention queue, and the Portfolio snapshot.
+
+const _ADMIN_DAY_MS = 86400000;
+function _adminDaysSince(iso) {
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / _ADMIN_DAY_MS);
+}
+
+// Attention signals for one DSP.  Suspended is deliberately excluded —
+// it's an intentional admin state (surfaced as a red health dot), not a
+// "something's wrong" queue item.
+function _adminRowSignals(d) {
+  const sig = [];
+  if (!d || d.status === "suspended") return sig;
+  if (!d.owner_email) {
+    sig.push({ sev: 3, short: "No owner", label: "No owner has signed up yet" });
+  }
+  if (d.status === "pending") {
+    const age = _adminDaysSince(d.created_at);
+    if (age != null && age >= 7) {
+      sig.push({ sev: 3, short: `Pending ${age}d`, label: `Awaiting owner signup for ${age} days` });
+    }
+  }
+  if (d.status === "active" && (d.driver_count ?? 0) === 0) {
+    sig.push({ sev: 2, short: "0 drivers", label: "Active, but no drivers added yet" });
+  }
+  if (d.status === "active") {
+    const idle = _adminDaysSince(d.last_active_at);
+    if (idle != null && idle >= 30) {
+      sig.push({ sev: 1, short: `Idle ${idle}d`, label: `No sign-in activity for ${idle} days` });
+    }
+  }
+  return sig;
+}
+
+function _adminRenderInsights() {
+  const dsps = _admin.dsps || [];
+  const total = dsps.length;
+  const active    = dsps.filter((d) => d.status === "active").length;
+  const pending   = dsps.filter((d) => d.status === "pending");
+  const suspended = dsps.filter((d) => d.status === "suspended").length;
+
+  // ── KPI context lines ────────────────────────────────────────────────
+  const setSub = (key, html) => {
+    const el = document.querySelector(`#view-admin [data-rr-admin-substat="${key}"]`);
+    if (el) el.innerHTML = html;
+  };
+  const newLast30 = dsps.filter((d) => {
+    const age = _adminDaysSince(d.created_at);
+    return age != null && age <= 30;
+  }).length;
+  setSub("total", newLast30 > 0
+    ? `<span class="rr-kpi-trend rr-kpi-trend--up">+${newLast30}</span> new · last 30 days`
+    : `All registered DSPs`);
+
+  const activePct = total ? Math.round((active / total) * 100) : 0;
+  const bar = document.querySelector('#view-admin [data-rr-admin-bar="active"]');
+  if (bar) bar.style.width = `${activePct}%`;
+  setSub("active", total ? `${activePct}% of portfolio operating` : `Operating normally`);
+
+  const pendingAges = pending.map((d) => _adminDaysSince(d.created_at)).filter((a) => a != null);
+  const oldestPending = pendingAges.length ? Math.max(...pendingAges) : null;
+  setSub("pending", pending.length === 0
+    ? `None awaiting signup`
+    : (oldestPending != null
+        ? `Oldest waiting <strong>${oldestPending}d</strong>`
+        : `Awaiting owner signup`));
+
+  setSub("suspended", suspended > 0
+    ? `${suspended} account${suspended === 1 ? "" : "s"} disabled`
+    : `None suspended`);
+
+  _adminRenderAttention();
+  _adminRenderPortfolio();
+}
+
+function _adminRenderAttention() {
+  const host = document.getElementById("rr-admin-attention");
+  const countEl = document.getElementById("rr-admin-attention-count");
+  if (!host) return;
+
+  const flagged = (_admin.dsps || [])
+    .map((d) => ({ d, signals: _adminRowSignals(d) }))
+    .filter((x) => x.signals.length > 0)
+    .map((x) => ({ ...x, top: Math.max(...x.signals.map((s) => s.sev)) }))
+    .sort((a, b) => (b.top - a.top) || (a.d.name || "").localeCompare(b.d.name || ""));
+
+  if (countEl) {
+    countEl.hidden = flagged.length === 0;
+    countEl.textContent = String(flagged.length);
+  }
+
+  if (flagged.length === 0) {
+    host.innerHTML = `
+      <div class="rr-cc-allclear">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div class="rr-cc-allclear__title">All clear</div>
+        <div class="rr-cc-allclear__sub">No DSPs need attention right now.</div>
+      </div>`;
+    return;
+  }
+
+  const MAX = 6;
+  const shown = flagged.slice(0, MAX);
+  const sevClass = (s) => s >= 3 ? "high" : s >= 2 ? "med" : "low";
+  host.innerHTML = shown.map(({ d, signals, top }) => {
+    const chips = signals.slice(0, 3).map((s) =>
+      `<span class="rr-cc-chip rr-cc-chip--${sevClass(s.sev)}" title="${escapeHtml(s.label)}">${escapeHtml(s.short)}</span>`
+    ).join("");
+    return `
+      <button class="rr-cc-att-row" type="button" data-rr-admin-focus="${escapeHtml(d.id)}">
+        <span class="rr-cc-att-row__dot rr-cc-att-row__dot--${sevClass(top)}" aria-hidden="true"></span>
+        <span class="rr-cc-att-row__body">
+          <span class="rr-cc-att-row__name">${escapeHtml(d.name || "—")}${d.short_code ? ` <span class="rr-cc-att-row__code">${escapeHtml(d.short_code)}</span>` : ""}</span>
+          <span class="rr-cc-att-row__chips">${chips}</span>
+        </span>
+        <svg class="rr-cc-att-row__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>`;
+  }).join("") + (flagged.length > MAX
+    ? `<div class="rr-cc-att-more">+${flagged.length - MAX} more with signals</div>`
+    : "");
+}
+
+function _adminRenderPortfolio() {
+  const host = document.getElementById("rr-admin-portfolio");
+  if (!host) return;
+  const dsps = _admin.dsps || [];
+  const totalDrivers = dsps.reduce((sum, d) => sum + (d.driver_count ?? 0), 0);
+  const plans = [
+    { key: "starter",    label: "Starter",    cls: "starter" },
+    { key: "growth",     label: "Growth",     cls: "growth" },
+    { key: "enterprise", label: "Enterprise", cls: "enterprise" },
+  ];
+  const counts = plans.map((p) => ({ ...p, n: dsps.filter((d) => (d.subscription_plan || "starter") === p.key).length }));
+  const maxN = Math.max(1, ...counts.map((c) => c.n));
+
+  host.innerHTML = `
+    <div class="rr-cc-metric">
+      <div class="rr-cc-metric__value">${totalDrivers.toLocaleString()}</div>
+      <div class="rr-cc-metric__label">Drivers under management</div>
+    </div>
+    <div class="rr-cc-plans">
+      <div class="rr-cc-plans__head">Plan mix</div>
+      ${counts.map((c) => `
+        <div class="rr-cc-plan">
+          <span class="rr-cc-plan__name">${c.label}</span>
+          <span class="rr-cc-plan__track"><span class="rr-cc-plan__fill rr-cc-plan__fill--${c.cls}" style="width:${Math.round((c.n / maxN) * 100)}%"></span></span>
+          <span class="rr-cc-plan__n">${c.n}</span>
+        </div>`).join("")}
+    </div>`;
 }
 
 function _renderPlatformAdminTable() {
@@ -3743,6 +3965,29 @@ function _renderAdminRow(d) {
     ? phoneCell(d.phone)
     : `<span class="rr-admin-cell-muted">—</span>`;
 
+  // Health dot — a glanceable roll-up of this DSP's attention signals
+  // (same logic as the Needs-attention queue).  Green = all clear,
+  // amber = a soft signal, red = suspended.
+  const signals = _adminRowSignals(d);
+  const health = d.status === "suspended" ? "red" : (signals.length ? "amber" : "green");
+  const healthTitle = d.status === "suspended"
+    ? "Suspended"
+    : (signals.length ? signals.map((s) => s.short).join(" · ") : "All clear");
+
+  // Modules cell — how many pages/features are enabled vs the catalog.
+  // Full = "All on" chip; anything trimmed shows the fraction so an
+  // admin can see at a glance which DSPs are on a reduced package.
+  const cat = window.RR_ENTITLEMENTS || { pages: [], features: [] };
+  const totalMods = cat.pages.length + cat.features.length;
+  const offMods = (Array.isArray(d.disabled_pages) ? d.disabled_pages.length : 0)
+                + (Array.isArray(d.disabled_features) ? d.disabled_features.length : 0);
+  const onMods = Math.max(0, totalMods - offMods);
+  const modulesCell = totalMods === 0
+    ? `<span class="rr-admin-cell-muted">—</span>`
+    : (offMods === 0
+        ? `<button class="rr-admin-mods rr-admin-mods--all" data-rr-admin-action="access" type="button" title="All modules on">All on</button>`
+        : `<button class="rr-admin-mods rr-admin-mods--trimmed" data-rr-admin-action="access" type="button" title="${offMods} module${offMods === 1 ? "" : "s"} off — click to manage">${onMods}/${totalMods}</button>`);
+
   // Suspend vs Reactivate based on current status.
   const suspendItem = d.status === "suspended"
     ? `<button class="rr-admin-row-actions__item" data-rr-admin-action="reactivate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Reactivate account</button>`
@@ -3752,8 +3997,11 @@ function _renderAdminRow(d) {
     <tr data-rr-admin-row="${escapeHtml(d.id)}">
       <td>
         <div class="rr-admin-cell-dsp">
-          <div class="rr-admin-cell-dsp__name">${escapeHtml(d.name || "—")}</div>
-          ${d.short_code ? `<div class="rr-admin-cell-dsp__sub">${escapeHtml(d.short_code)}</div>` : ""}
+          <span class="rr-admin-health rr-admin-health--${health}" title="${escapeHtml(healthTitle)}" aria-label="${escapeHtml(healthTitle)}"></span>
+          <div style="min-width:0">
+            <div class="rr-admin-cell-dsp__name">${escapeHtml(d.name || "—")}</div>
+            ${d.short_code ? `<div class="rr-admin-cell-dsp__sub">${escapeHtml(d.short_code)}</div>` : ""}
+          </div>
         </div>
       </td>
       <td>${ownerLine}</td>
@@ -3763,6 +4011,7 @@ function _renderAdminRow(d) {
       <td class="rr-admin-cell-num">${d.driver_count ?? 0}</td>
       <td class="rr-admin-cell-num"><span class="rr-admin-cell-muted">${d.route_count ?? 0}</span></td>
       <td><span class="${planClass}">${escapeHtml(d.subscription_plan || "starter")}</span></td>
+      <td>${modulesCell}</td>
       <td class="rr-admin-cell-muted">${_adminFmtRelative(d.last_active_at)}</td>
       <td class="rr-admin-row-actions">
         <button class="rr-admin-row-actions__btn" data-rr-admin-toggle="${escapeHtml(d.id)}" aria-label="Open actions">
@@ -3772,6 +4021,7 @@ function _renderAdminRow(d) {
           <button class="rr-admin-row-actions__item" data-rr-admin-action="view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View details</button>
           <button class="rr-admin-row-actions__item" data-rr-admin-action="edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit account</button>
           <button class="rr-admin-row-actions__item" data-rr-admin-action="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Manage users</button>
+          <button class="rr-admin-row-actions__item" data-rr-admin-action="access"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Access &amp; modules</button>
           <div class="rr-admin-row-actions__sep"></div>
           ${suspendItem}
           <button class="rr-admin-row-actions__item rr-admin-row-actions__item--danger" data-rr-admin-action="delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>Delete account</button>
@@ -3828,6 +4078,9 @@ async function _runAdminAction(action, dspId) {
       return;
     case "users":
       _openAdminManageUsers(dspId);
+      return;
+    case "access":
+      _openAdminAccessDrawer(dspId);
       return;
     case "suspend": {
       if (!(await _rrConfirmDialog({ title: `Suspend "${dsp.name}"?`, body: "All users at this DSP will lose access until you reactivate.", confirmLabel: "Suspend", danger: true }))) return;
@@ -3923,6 +4176,29 @@ function _bindAdminPageHandlers() {
   prevEl?.addEventListener("click", () => { if (_admin.page > 1) { _admin.page -= 1; _renderPlatformAdminTable(); }});
   nextEl?.addEventListener("click", () => { _admin.page += 1; _renderPlatformAdminTable(); });
   emptyCta?.addEventListener("click", () => document.getElementById("rr-admin-add-dsp")?.click());
+
+  // Needs-attention queue → clicking a row focuses that DSP in the
+  // table below (search-narrow + scroll into view).  Delegated so it
+  // survives every re-paint of the attention list.
+  document.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-rr-admin-focus]");
+    if (!row) return;
+    const id = row.getAttribute("data-rr-admin-focus");
+    const dsp = (_admin.dsps || []).find((d) => d.id === id);
+    if (!dsp) return;
+    const searchEl = document.getElementById("rr-admin-search");
+    const term = dsp.short_code || dsp.name || "";
+    if (searchEl) { searchEl.value = term; }
+    _admin.search = term;
+    _admin.filterStatus = "";
+    _admin.filterPlan = "";
+    _admin.page = 1;
+    const fs = document.getElementById("rr-admin-filter-status"); if (fs) fs.value = "";
+    const fp = document.getElementById("rr-admin-filter-plan");   if (fp) fp.value = "";
+    _renderPlatformAdminTable();
+    const rowEl = document.querySelector(`[data-rr-admin-row="${CSS.escape(id)}"]`);
+    (rowEl || document.getElementById("rr-admin-tbody"))?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
 
   // "Add DSP client" → open the Phase-4a modal.
   document.getElementById("rr-admin-add-dsp")?.addEventListener("click", () => {
@@ -4666,6 +4942,145 @@ function _closeAdminManageUsers() {
   if (backdrop) backdrop.classList.remove("open");
   _adminUsersCurrentDspId = null;
 }
+
+// ─── Access & modules drawer ────────────────────────────────────────────
+// Turn top-level pages + in-app features on/off for one DSP.  Reads the
+// entitlement lists already present on each row (admin_list_dsps returns
+// disabled_pages / disabled_features) and writes via
+// admin_set_dsp_entitlements().  Catalog lives on window.RR_ENTITLEMENTS
+// so these toggles and the runtime gate share one source of truth.
+let _adminAccessCurrentDspId = null;
+
+function _openAdminAccessDrawer(dspId) {
+  _adminAccessCurrentDspId = dspId;
+  const drawer   = document.getElementById("rr-admin-access-drawer");
+  const backdrop = document.getElementById("rr-admin-access-backdrop");
+  const titleEl  = document.getElementById("rr-admin-access-title");
+  const subEl    = document.getElementById("rr-admin-access-sub");
+  const bodyEl   = document.getElementById("rr-admin-access-body");
+  const footEl   = document.getElementById("rr-admin-access-foot");
+  if (!drawer || !backdrop || !bodyEl) return;
+
+  const dsp = _admin.dsps.find((d) => d.id === dspId);
+  const cat = window.RR_ENTITLEMENTS || { pages: [], features: [] };
+  const disabledPages    = new Set(Array.isArray(dsp?.disabled_pages)    ? dsp.disabled_pages    : []);
+  const disabledFeatures = new Set(Array.isArray(dsp?.disabled_features) ? dsp.disabled_features : []);
+
+  if (titleEl) titleEl.textContent = `Access & modules · ${dsp?.name || "DSP"}`;
+  if (subEl)   subEl.textContent   = "Turn pages and features on or off for everyone in this DSP.";
+
+  const onCount  = cat.pages.length - disabledPages.size;
+  const onCountF = cat.features.length - disabledFeatures.size;
+
+  const row = (kind, item, isOn) => `
+    <label class="rr-access-row">
+      <span class="rr-access-row__meta">
+        <span class="rr-access-row__label">${escapeHtml(item.label)}</span>
+        <span class="rr-access-row__desc">${escapeHtml(item.desc || "")}</span>
+      </span>
+      <span class="rr-admin-toggle">
+        <input type="checkbox" data-rr-access-kind="${kind}" data-rr-access-key="${escapeHtml(item.key)}" ${isOn ? "checked" : ""} aria-label="${escapeHtml(item.label)}" />
+        <span class="rr-admin-toggle__slider"></span>
+      </span>
+    </label>`;
+
+  bodyEl.innerHTML = `
+    <div class="rr-access-group">
+      <div class="rr-access-group__head">
+        <span class="rr-admin-users-section-head" style="margin:0">Pages</span>
+        <span class="rr-access-group__count" data-rr-access-count="pages">${onCount}/${cat.pages.length} on</span>
+      </div>
+      <div class="rr-access-list">${cat.pages.map((p) => row("page", p, !disabledPages.has(p.key))).join("")}</div>
+    </div>
+    <div class="rr-access-group">
+      <div class="rr-access-group__head">
+        <span class="rr-admin-users-section-head" style="margin:0">Features</span>
+        <span class="rr-access-group__count" data-rr-access-count="features">${onCountF}/${cat.features.length} on</span>
+      </div>
+      <div class="rr-access-list">${cat.features.map((f) => row("feature", f, !disabledFeatures.has(f.key))).join("")}</div>
+    </div>
+    <p class="rr-access-note">Changes apply to <strong>every user</strong> in this DSP the next time they load the dashboard. Data stays protected by account permissions regardless — this controls what's visible, not who can sign in.</p>`;
+
+  if (footEl) footEl.hidden = false;
+  _refreshAccessCounts();
+
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden", "false");
+  backdrop.classList.add("open");
+}
+
+function _closeAdminAccessDrawer() {
+  const drawer   = document.getElementById("rr-admin-access-drawer");
+  const backdrop = document.getElementById("rr-admin-access-backdrop");
+  if (drawer)   { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); }
+  if (backdrop) backdrop.classList.remove("open");
+  _adminAccessCurrentDspId = null;
+}
+
+// Live "N/M on" counter next to each group head as toggles flip.
+function _refreshAccessCounts() {
+  const body = document.getElementById("rr-admin-access-body");
+  if (!body) return;
+  ["pages", "features"].forEach((group) => {
+    const kind = group === "pages" ? "page" : "feature";
+    const boxes = body.querySelectorAll(`[data-rr-access-kind="${kind}"]`);
+    const on = Array.from(boxes).filter((b) => b.checked).length;
+    const el = body.querySelector(`[data-rr-access-count="${group}"]`);
+    if (el) el.textContent = `${on}/${boxes.length} on`;
+  });
+}
+
+async function _saveAdminAccess() {
+  const dspId = _adminAccessCurrentDspId;
+  const body  = document.getElementById("rr-admin-access-body");
+  const saveBtn = document.getElementById("rr-admin-access-save");
+  if (!dspId || !body) return;
+
+  // Collect the OFF keys (opt-out model) from unchecked toggles.
+  const disabledPages = Array.from(body.querySelectorAll('[data-rr-access-kind="page"]'))
+    .filter((b) => !b.checked).map((b) => b.getAttribute("data-rr-access-key"));
+  const disabledFeatures = Array.from(body.querySelectorAll('[data-rr-access-kind="feature"]'))
+    .filter((b) => !b.checked).map((b) => b.getAttribute("data-rr-access-key"));
+
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+  const { error } = await sb.rpc("admin_set_dsp_entitlements", {
+    p_dsp_id:            dspId,
+    p_disabled_pages:    disabledPages,
+    p_disabled_features: disabledFeatures,
+  });
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save changes"; }
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    toast(`Couldn't save access: ${error.message}`, "warn");
+    return;
+  }
+  // Reflect locally so the table + a re-open of the drawer are correct
+  // without a full reload.
+  const dsp = _admin.dsps.find((d) => d.id === dspId);
+  if (dsp) { dsp.disabled_pages = disabledPages; dsp.disabled_features = disabledFeatures; }
+  toast("Access updated.", "ok");
+  _renderPlatformAdminTable();
+  _closeAdminAccessDrawer();
+}
+
+// Delegated handlers: toggle counters, save, close.
+(function bindAdminAccessHandlers() {
+  document.addEventListener("change", (e) => {
+    if (e.target && e.target.getAttribute && e.target.getAttribute("data-rr-access-kind")) {
+      _refreshAccessCounts();
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-admin-access-save")) { _saveAdminAccess(); return; }
+    if (e.target.closest("[data-rr-admin-access-close]")) _closeAdminAccessDrawer();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const drawer = document.getElementById("rr-admin-access-drawer");
+      if (drawer && drawer.classList.contains("open")) _closeAdminAccessDrawer();
+    }
+  });
+})();
 
 async function _loadAdminManageUsers(dspId) {
   const bodyEl = document.getElementById("rr-admin-users-body");

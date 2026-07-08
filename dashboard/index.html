@@ -2581,6 +2581,34 @@ Evidence attached:
 </aside>
 
 <!-- ═══════════════════════════════════════════════════════════
+     ACCESS & MODULES DRAWER  (platform admin)
+     Turn top-level pages + in-app features on/off for one DSP.
+     Backed by admin_list_dsps() (read, entitlement lists) +
+     admin_set_dsp_entitlements() (write).  Catalog comes from
+     window.RR_ENTITLEMENTS so the toggles and the runtime gate
+     never drift apart.
+     ═══════════════════════════════════════════════════════════ -->
+<div class="rr-drawer-backdrop" id="rr-admin-access-backdrop" data-rr-admin-access-close></div>
+<aside class="rr-drawer" id="rr-admin-access-drawer" aria-hidden="true" role="dialog" aria-labelledby="rr-admin-access-title">
+  <div class="rr-drawer-head">
+    <div style="min-width:0">
+      <p class="modal-title" id="rr-admin-access-title">Access &amp; modules</p>
+      <p class="modal-sub" id="rr-admin-access-sub">—</p>
+    </div>
+    <button class="rr-drawer-close" type="button" data-rr-admin-access-close aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="rr-drawer-body" id="rr-admin-access-body">
+    <!-- Populated by _openAdminAccessDrawer(). -->
+  </div>
+  <div class="rr-drawer-foot" id="rr-admin-access-foot" hidden>
+    <button class="btn btn-ghost btn-sm" type="button" data-rr-admin-access-close>Cancel</button>
+    <button class="btn btn-primary btn-sm" type="button" id="rr-admin-access-save">Save changes</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
      MAINTENANCE WORK ORDER MODAL
      ═══════════════════════════════════════════════════════════ -->
 <!-- ═══ WHAT'S NEW · update the list when meaningful improvements ship
