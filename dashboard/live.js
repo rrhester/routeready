@@ -53054,11 +53054,16 @@ async function autoFillScheduleWeek() {
     return;
   }
   let summaryAlert = null;
+  // Function-scoped so the post-render card display below (outside this
+  // if/else) can read it. Declaring `summary` as a const inside the else
+  // left it out of scope at the `if (summary)` check → ReferenceError.
+  let summary = null;
   if (failed.length > 0) {
     toast(`Synced ${calls.length - failed.length} of ${calls.length} day-stations · ${failed.length} failed`, "warn");
   } else {
     // Auto-assign drivers to the freshly-generated open shifts.
-    const { assigned, diagnostics, summary } = await autoAssignDriversForWeek();
+    const { assigned, diagnostics, summary: _sfSummary } = await autoAssignDriversForWeek();
+    summary = _sfSummary;
     if (assigned > 0) {
       toast(`Schedule synced · ${assigned} shift${assigned === 1 ? "" : "s"} auto-assigned`, "success");
     } else {
