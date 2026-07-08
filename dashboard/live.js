@@ -115,7 +115,7 @@ if (window.__RR_VIEW_LOAD_FAILED) throw new Error("view partials failed to load"
   try {
     // NOTE: every rail panel aside must be listed here — an unhoisted panel
     // renders as unstyled flow content at the bottom of the schedule view.
-    const ids = ["rr-sched-util-rail", "rr-sched-notes", "rr-sched-tasks", "rr-sched-checklists", "rr-sched-forms", "rr-sched-contacts", "rr-sched-recog"];
+    const ids = ["rr-sched-util-rail", "rr-sched-notes", "rr-sched-tasks", "rr-sched-checklists", "rr-sched-forms", "rr-sched-contacts", "rr-sched-recog", "rr-sched-receipts"];
     const nodes = ids.map((id) => document.getElementById(id)).filter(Boolean);
     if (!nodes.length) return;
     let mount = document.getElementById("rr-util-rail-mount");
@@ -405,6 +405,7 @@ window.RR_ENTITLEMENTS = {
     { key: "ophealth",   label: "Operations Health", desc: "Live ops-health readout",      sel: "[data-rr-ophealth-toggle]" },
     { key: "forms",      label: "Forms panel",       desc: "Quick-forms side panel",       sel: "[data-rr-forms-toggle]" },
     { key: "recog",      label: "Kudos panel",       desc: "Recognition quick panel",      sel: "[data-rr-recog-toggle]" },
+    { key: "receipts",   label: "Receipts panel",    desc: "Driver receipt review & reconcile", sel: "[data-rr-receipts-toggle]" },
   ],
 };
 
@@ -10214,7 +10215,7 @@ function _rrNtSanitize(html) {
 // Notes and Tasks are now two independent slide-out panels, each driven by
 // its own rail icon. Only one is open at a time (a panel manager enforces
 // it), so opening one closes the other.
-const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks", checklists: "rr-sched-checklists", forms: "rr-sched-forms", contacts: "rr-sched-contacts", recog: "rr-sched-recog" };
+const _RR_NT_PANELS = { notes: "rr-sched-notes", tasks: "rr-sched-tasks", checklists: "rr-sched-checklists", forms: "rr-sched-forms", contacts: "rr-sched-contacts", recog: "rr-sched-recog", receipts: "rr-sched-receipts" };
 
 let _rrNotesShowAll = false;
 const _RR_NTPIN = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V4h6v6.76a2 2 0 0 0 .59 1.42L18 14H6l2.41-1.82A2 2 0 0 0 9 10.76z"/></svg>`;
@@ -11495,6 +11496,7 @@ function _rrNtToggleBtn(which) {
     : which === "forms" ? "[data-rr-forms-toggle]"
     : which === "contacts" ? "[data-rr-contacts-toggle]"
     : which === "recog" ? "[data-rr-recog-toggle]"
+    : which === "receipts" ? "[data-rr-receipts-toggle]"
     : "[data-rr-notes-toggle]");
 }
 function _rrNtPanelIsOpen(which) { const el = _rrNtPanelEl(which); return !!(el && el.classList.contains("is-open")); }
@@ -11547,6 +11549,9 @@ function _rrNtPanelOpen(which) {
   // which realtime can't deliver through the dsp filter) and warm the
   // assignee picker.
   if (which === "tasks") { _rrTasksRefetchSoon(); _rrTasksAssigneeFill(); }
+  // Receipts are server-backed: (re)load on every open so the list reflects
+  // scans that landed since the panel was last visible.
+  if (which === "receipts") { try { _rcpLoad(); } catch (_) {} }
   if (which === "notes") {
     // Focus the composer once the slide + content fade have settled
     // (~240ms), so the cursor lands in a panel that's already in place.
@@ -11557,6 +11562,235 @@ function _rrNtPanelOpen(which) {
 function _rrNtPanelToggle(which) {
   if (_rrNtPanelIsOpen(which)) _rrNtPanelCloseAll();
   else _rrNtPanelOpen(which);
+}
+
+// ── Receipts panel · driver-submitted receipts (rail slide-out) ────────────
+// Manager-side surface over the receipt-intake RPCs (migration 0437,
+// dispatcher+): receipts_list / receipts_summary power the list, status
+// changes go through receipt_set_status (the 0436 trigger reflects them
+// into the Receipt Ledger workbook), and receipt_resync retries a failed
+// ledger projection. Images live in the PRIVATE `receipts` bucket — reads
+// are short-lived signed URLs, same as the workbook's View Receipt cell.
+let _rcpFilter = "all";       // 'all' | 'review' | 'open' | 'dupes'
+let _rcpRows = [];
+let _rcpLoadSeq = 0;
+
+const _RCP_STATUSES = ["Unreconciled", "Needs Review", "Duplicate Possible", "Matched", "Reimbursable", "Rejected"];
+// Status → pill class. Amber = needs a human decision; green = resolved
+// good; everything else stays neutral (color is reserved for status that
+// matters, per the design rules).
+function _rcpStatusClass(s) {
+  if (s === "Needs Review" || s === "Duplicate Possible") return "is-warn";
+  if (s === "Matched" || s === "Reimbursable") return "is-ok";
+  return "";
+}
+function _rcpFmtAmount(n) {
+  if (n == null || n === "") return "—";
+  const v = Number(n);
+  return Number.isFinite(v) ? "$" + v.toFixed(2) : "—";
+}
+function _rcpFmtDate(d) {
+  if (!d) return "";
+  try {
+    const dt = new Date(d + (String(d).length === 10 ? "T12:00:00" : ""));
+    return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch (_) { return String(d); }
+}
+
+async function _rcpLoad() {
+  const list = document.getElementById("rr-rcp-list");
+  if (!list) return;
+  const seq = ++_rcpLoadSeq;
+  list.innerHTML = `<div class="ntp-empty">Loading receipts…</div>`;
+  const args = { p_limit: 100 };
+  if (_rcpFilter === "review") args.p_status = "Needs Review";
+  else if (_rcpFilter === "open") args.p_status = "Unreconciled";
+  else if (_rcpFilter === "dupes") args.p_duplicates = true;
+  try {
+    const [listRes, sumRes] = await Promise.all([
+      sb.rpc("receipts_list", args),
+      sb.rpc("receipts_summary"),
+    ]);
+    if (seq !== _rcpLoadSeq) return; // a newer load superseded this one
+    if (listRes.error) throw listRes.error;
+    _rcpRows = Array.isArray(listRes.data) ? listRes.data : [];
+    _rcpRenderSummary(sumRes.error ? null : sumRes.data);
+    _rcpRenderList();
+  } catch (e) {
+    if (seq !== _rcpLoadSeq) return;
+    // 42883 = the receipt RPCs aren't installed yet (migrations 0435-0439).
+    const notInstalled = (e && (e.code === "42883" || /function .*receipts_list/i.test(e.message || "")));
+    list.innerHTML = `<div class="ntp-empty">${notInstalled
+      ? "Receipt intake isn't set up on this workspace yet (migrations 0435–0439)."
+      : "Couldn't load receipts — " + escapeHtml(e?.message || "unknown error") + "."}
+      <br><button type="button" class="rr-rcp-linkbtn" data-rr-rcp-reload>Try again</button></div>`;
+    const sum = document.getElementById("rr-rcp-summary");
+    if (sum) sum.hidden = true;
+  }
+}
+
+function _rcpSetFilter(f) {
+  _rcpFilter = f || "all";
+  document.querySelectorAll("#rr-rcp-chips [data-rr-rcp-chip]").forEach((c) => {
+    c.classList.toggle("is-active", c.getAttribute("data-rr-rcp-chip") === _rcpFilter);
+  });
+  _rcpLoad();
+}
+
+function _rcpRenderSummary(sum) {
+  const el = document.getElementById("rr-rcp-summary");
+  if (!el) return;
+  if (!sum || !sum.count) { el.hidden = true; return; }
+  const byStatus = sum.by_status || {};
+  const review = (byStatus["Needs Review"] || 0) + (byStatus["Duplicate Possible"] || 0);
+  const parts = [`${sum.count} receipt${sum.count === 1 ? "" : "s"}`, _rcpFmtAmount(sum.total_amount) + " total"];
+  if (review > 0) parts.push(`${review} need${review === 1 ? "s" : ""} review`);
+  el.textContent = parts.join(" · ");
+  el.hidden = false;
+}
+
+function _rcpRenderList() {
+  const list = document.getElementById("rr-rcp-list");
+  if (!list) return;
+  if (!_rcpRows.length) {
+    const msg = _rcpFilter === "all"
+      ? "No receipts yet. Drivers scan receipts from the driver app (Scanner → Receipt); they land here for review."
+      : "No receipts match this filter.";
+    list.innerHTML = `<div class="ntp-empty">${msg}</div>`;
+    return;
+  }
+  list.innerHTML = _rcpRows.map((r) => {
+    const title = `${escapeHtml(r.vendor_name || "No vendor")} · ${_rcpFmtAmount(r.total_amount)}`;
+    const who = r.driver_name || r.uploaded_by_name || "";
+    const sub = [_rcpFmtDate(r.receipt_date || r.upload_timestamp), who, r.category]
+      .filter(Boolean).map(escapeHtml).join(" · ");
+    const status = r.reconciliation_status || "Unreconciled";
+    const dup = r.duplicate_flag
+      ? `<span class="rr-rcp-pill is-warn" title="Same vendor + amount + date as another receipt">Possible duplicate</span>` : "";
+    const syncErr = r.ledger_sync_error
+      ? `<div class="rr-rcp-syncerr">Ledger sync failed
+           <button type="button" class="rr-rcp-linkbtn" data-rr-rcp-resync="${escapeHtml(r.id)}">Retry</button></div>` : "";
+    return `<button type="button" class="rr-fp-card" data-rr-rcp-row="${escapeHtml(r.id)}" role="listitem">
+      <div class="rr-fp-card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14v18l-2.33-1.6L14.33 21 12 19.4 9.67 21l-2.34-1.6L5 21z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg></div>
+      <div class="rr-fp-card-body">
+        <div class="rr-fp-card-top">
+          <span class="rr-fp-card-title">${title}</span>
+          <span class="rr-rcp-pill ${_rcpStatusClass(status)}">${escapeHtml(status)}</span>
+          ${dup}
+        </div>
+        <div class="rr-fp-card-sub">${sub || "&nbsp;"}</div>
+        ${syncErr}
+      </div>
+    </button>`;
+  }).join("");
+}
+
+async function _rcpResync(id, btn) {
+  if (!id) return;
+  if (btn) { btn.disabled = true; btn.textContent = "Retrying…"; }
+  try {
+    const { error } = await sb.rpc("receipt_resync", { p_receipt_id: id });
+    if (error) throw error;
+    toast("Ledger row re-synced", "success");
+    _rcpLoad();
+  } catch (e) {
+    toast("Re-sync failed: " + (e?.message || "unknown error"), "warn");
+    if (btn) { btn.disabled = false; btn.textContent = "Retry"; }
+  }
+}
+
+function _rcpOpenLedger() {
+  _rrNtPanelCloseAll();
+  goto("workbooks");
+  // workbook.js loads lazily with the Workbooks view; retry briefly until
+  // its rrOpenReceiptLedger hook is registered, then fall back to just
+  // landing on the Workbooks page (the ledger card is front and center).
+  let tries = 12;
+  (function attempt() {
+    if (typeof window.rrOpenReceiptLedger === "function") { window.rrOpenReceiptLedger(); return; }
+    if (--tries > 0) setTimeout(attempt, 250);
+  })();
+}
+
+async function _rcpOpenDetail(id) {
+  const r = _rcpRows.find((x) => String(x.id) === String(id));
+  if (!r) return;
+  document.getElementById("rr-rcp-detail")?.remove();
+  const status = r.reconciliation_status || "Unreconciled";
+  const facts = [
+    ["Vendor", r.vendor_name], ["Amount", _rcpFmtAmount(r.total_amount)],
+    ["Tax", r.tax_amount != null ? _rcpFmtAmount(r.tax_amount) : null],
+    ["Date", r.receipt_date], ["Category", r.category],
+    ["Payment", r.payment_type], ["Driver", r.driver_name],
+    ["Van", r.van_number], ["Route date", r.route_date],
+    ["Uploaded by", r.uploaded_by_name],
+  ].filter(([, v]) => v != null && v !== "");
+  const m = document.createElement("div");
+  m.id = "rr-rcp-detail";
+  m.className = "rr-rcp-modal";
+  m.innerHTML = `<div class="rr-rcp-modal-card" role="dialog" aria-modal="true" aria-label="Receipt detail">
+    <div class="rr-rcp-modal-head">
+      <div class="rr-rcp-modal-title">${escapeHtml(r.vendor_name || "Receipt")} · ${_rcpFmtAmount(r.total_amount)}</div>
+      <button type="button" class="ntp-icon-btn" data-rr-rcp-detail-close aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="rr-rcp-modal-body">
+      <div class="rr-rcp-modal-img" data-rr-rcp-img><div class="ntp-empty">Loading image…</div></div>
+      <div class="rr-rcp-modal-facts">
+        ${facts.map(([k, v]) => `<div class="rr-rcp-fact"><span>${escapeHtml(k)}</span><strong>${escapeHtml(String(v))}</strong></div>`).join("")}
+        <label class="rr-rcp-field">Status
+          <select data-rr-rcp-status>${_RCP_STATUSES.map((s) =>
+            `<option value="${escapeHtml(s)}"${s === status ? " selected" : ""}>${escapeHtml(s)}</option>`).join("")}</select>
+        </label>
+        <label class="rr-rcp-field">Notes
+          <textarea data-rr-rcp-notes rows="2" placeholder="Reconciliation notes…">${escapeHtml(r.notes || "")}</textarea>
+        </label>
+        <div class="rr-rcp-modal-actions">
+          <button type="button" class="btn btn-primary" data-rr-rcp-save>Save</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  m.addEventListener("click", (e) => {
+    if (e.target === m || e.target.closest("[data-rr-rcp-detail-close]")) { m.remove(); return; }
+    if (e.target.closest("[data-rr-rcp-save]")) _rcpSaveDetail(r.id, m);
+  });
+  const onKey = (e) => { if (e.key === "Escape") { m.remove(); document.removeEventListener("keydown", onKey); } };
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(m);
+  // Image · receipts is a private bucket — sign a short-lived read.
+  const imgHost = m.querySelector("[data-rr-rcp-img]");
+  if (r.file_storage_key) {
+    try {
+      const { data, error } = await sb.storage.from("receipts").createSignedUrl(r.file_storage_key, 3600);
+      if (error || !data?.signedUrl) throw error || new Error("no url");
+      if ((r.mime_type || "").includes("pdf")) {
+        imgHost.innerHTML = `<a class="rr-rcp-linkbtn" href="${escapeHtml(data.signedUrl)}" target="_blank" rel="noopener">Open PDF receipt ↗</a>`;
+      } else {
+        imgHost.innerHTML = `<img src="${escapeHtml(data.signedUrl)}" alt="Receipt image">`;
+      }
+    } catch (_) {
+      imgHost.innerHTML = `<div class="ntp-empty">Couldn't load the image.</div>`;
+    }
+  } else {
+    imgHost.innerHTML = `<div class="ntp-empty">No image attached.</div>`;
+  }
+}
+
+async function _rcpSaveDetail(id, modal) {
+  const saveBtn = modal.querySelector("[data-rr-rcp-save]");
+  const status = modal.querySelector("[data-rr-rcp-status]")?.value || null;
+  const notes = modal.querySelector("[data-rr-rcp-notes]")?.value ?? null;
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+  try {
+    const { error } = await sb.rpc("receipt_set_status", { p_receipt_id: id, p_status: status, p_notes: notes });
+    if (error) throw error;
+    toast("Receipt updated — ledger row synced", "success");
+    modal.remove();
+    _rcpLoad();
+  } catch (e) {
+    toast("Save failed: " + (e?.message || "unknown error"), "warn");
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save"; }
+  }
 }
 // Soft yellow press ripple from the icon centre (Google-style). Appends a
 // transient element that self-removes after the bloom; GPU-only (a CSS
@@ -11606,7 +11840,18 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("[data-rr-contacts-toggle]")) { e.preventDefault(); _rrNtPanelToggle("contacts"); return; }
   // Recognition — celebrate birthdays/anniversaries from the rail.
   if (e.target.closest("[data-rr-recog-toggle]")) { e.preventDefault(); _rrNtPanelToggle("recog"); return; }
-  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]") || e.target.closest("[data-rr-checklists-close]") || e.target.closest("[data-rr-forms-close]") || e.target.closest("[data-rr-contacts-close]") || e.target.closest("[data-rr-recog-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
+  // Receipts — review/reconcile driver-submitted receipts from the rail.
+  if (e.target.closest("[data-rr-receipts-toggle]")) { e.preventDefault(); _rrNtPanelToggle("receipts"); return; }
+  if (e.target.closest("[data-rr-notes-close]") || e.target.closest("[data-rr-tasks-close]") || e.target.closest("[data-rr-checklists-close]") || e.target.closest("[data-rr-forms-close]") || e.target.closest("[data-rr-contacts-close]") || e.target.closest("[data-rr-recog-close]") || e.target.closest("[data-rr-receipts-close]")) { e.preventDefault(); _rrNtPanelCloseAll(); return; }
+  // Receipts panel · filter chips, ledger link, per-row actions.
+  const rcpChip = e.target.closest("[data-rr-rcp-chip]");
+  if (rcpChip) { e.preventDefault(); _rcpSetFilter(rcpChip.getAttribute("data-rr-rcp-chip")); return; }
+  if (e.target.closest("[data-rr-rcp-ledger]")) { e.preventDefault(); _rcpOpenLedger(); return; }
+  const rcpRetry = e.target.closest("[data-rr-rcp-resync]");
+  if (rcpRetry) { e.preventDefault(); e.stopPropagation(); _rcpResync(rcpRetry.getAttribute("data-rr-rcp-resync"), rcpRetry); return; }
+  if (e.target.closest("[data-rr-rcp-reload]")) { e.preventDefault(); _rcpLoad(); return; }
+  const rcpRow = e.target.closest("[data-rr-rcp-row]");
+  if (rcpRow) { e.preventDefault(); _rcpOpenDetail(rcpRow.getAttribute("data-rr-rcp-row")); return; }
   // Contacts · create / save / cancel / edit / delete / add-field rows
   if (e.target.closest("[data-rr-contact-createtoggle]")) {
     e.preventDefault();
