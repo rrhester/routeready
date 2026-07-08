@@ -3334,6 +3334,44 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-prof-err__msg{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.4;
   font-family:var(--font-mono, ui-monospace, monospace);word-break:break-word}
 
+/* ─────────────────────────────────────────────────────────────
+   CONTROL-CENTER RESPONSIVE PASS
+   The DSP table carries 11 columns; rather than crush them or force a
+   long horizontal scroll on smaller screens, drop lower-priority columns
+   by width. Priority kept to the end: DSP · Status · Drivers · Modules ·
+   actions. Column order (1-indexed): 1 DSP · 2 Owner · 3 Email · 4 Phone ·
+   5 Status · 6 Drivers · 7 Routes · 8 Plan · 9 Modules · 10 Last active ·
+   11 actions.
+   ───────────────────────────────────────────────────────────── */
+/* KPI hero reflows before the band does. */
+@media (max-width:1180px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:560px){
+  .kpi-grid{grid-template-columns:1fr}
+}
+/* ≤1360px — drop Phone. */
+@media (max-width:1360px){
+  .rr-admin-table th:nth-child(4),.rr-admin-table td:nth-child(4){display:none}
+}
+/* ≤1200px — also drop Routes + Last active. */
+@media (max-width:1200px){
+  .rr-admin-table th:nth-child(7),.rr-admin-table td:nth-child(7),
+  .rr-admin-table th:nth-child(10),.rr-admin-table td:nth-child(10){display:none}
+}
+/* ≤1000px — also drop Owner + Email (owner stays reachable via the row's
+   profile drawer). */
+@media (max-width:1000px){
+  .rr-admin-table th:nth-child(2),.rr-admin-table td:nth-child(2),
+  .rr-admin-table th:nth-child(3),.rr-admin-table td:nth-child(3){display:none}
+}
+/* ≤760px — also drop Plan; the DSP profile drawer carries the full detail. */
+@media (max-width:760px){
+  .rr-admin-table th:nth-child(8),.rr-admin-table td:nth-child(8){display:none}
+  .rr-drawer--wide{width:100vw}
+  .rr-prof-tiles{grid-template-columns:repeat(2,1fr)}
+}
+
 /* Row actions · "..." menu */
 .rr-admin-row-actions{position:relative;text-align:right}
 .rr-admin-row-actions__btn{
