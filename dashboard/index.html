@@ -109,10 +109,10 @@
 <link rel="preconnect" href="https://doiwrhkirgblcvuskhno.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm">
-<link rel="modulepreload" href="./scheduling-engine.js?v=62641ea6a619">
-<link rel="modulepreload" href="./workbook.js?v=62641ea6a619">
-<link rel="modulepreload" href="./reports.js?v=62641ea6a619">
-<link rel="stylesheet" href="../app/rr-system.css?v=62641ea6a619">
+<link rel="modulepreload" href="./scheduling-engine.js?v=4ae68a8ac45d">
+<link rel="modulepreload" href="./workbook.js?v=4ae68a8ac45d">
+<link rel="modulepreload" href="./reports.js?v=4ae68a8ac45d">
+<link rel="stylesheet" href="../app/rr-system.css?v=4ae68a8ac45d">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
@@ -121,16 +121,16 @@
      structural classes). Single source of truth for chrome
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
-<link rel="stylesheet" href="tcp.css?v=62641ea6a619">
-<link rel="stylesheet" href="schedule-rrx.css?v=62641ea6a619">
+<link rel="stylesheet" href="tcp.css?v=4ae68a8ac45d">
+<link rel="stylesheet" href="schedule-rrx.css?v=4ae68a8ac45d">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
-<link rel="stylesheet" href="onboarding-rrx.css?v=62641ea6a619">
+<link rel="stylesheet" href="onboarding-rrx.css?v=4ae68a8ac45d">
 <!-- The dashboard's former inline styles · extracted so the no-cache
      HTML shell stops re-shipping ~1.2MB of CSS on every load; this
      file is cacheable and busts via the ?v= token like the rest. -->
-<link rel="stylesheet" href="inline-styles.css?v=62641ea6a619">
+<link rel="stylesheet" href="inline-styles.css?v=4ae68a8ac45d">
 <!-- style block 0 extracted to inline-styles.css -->
 </head>
 <body>
@@ -1637,12 +1637,12 @@
     </div>
 
     <!-- ─── DASHBOARD VIEW ─── -->
-    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=62641ea6a619">
+    <div class="view" id="view-dashboard" data-rr-view-src="views/view-dashboard.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-dashboard.frag (monolith split phase 2) -->
     </div>
 
     <!-- ─── HIRING PIPELINE VIEW ─── -->
-    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=62641ea6a619">
+    <div class="view" id="view-pipeline" data-rr-view-src="views/view-pipeline.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-pipeline.frag (monolith split phase 2) -->
     </div>
 
@@ -1650,28 +1650,28 @@
          ONBOARDING (OPERATIONS) VIEW — readiness command center.
          Populated by loadOnboardingOps() in live.js.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=62641ea6a619">
+    <div class="view rrx-onboarding" id="view-onboarding-ops" data-rr-view-src="views/view-onboarding-ops.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-onboarding-ops.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          DRIVERS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=62641ea6a619">
+    <div class="view" id="view-drivers" data-rr-view-src="views/view-drivers.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-drivers.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SETTINGS VIEW
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=62641ea6a619">
+    <div class="view" id="view-settings" data-rr-view-src="views/view-settings.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-settings.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          SCHEDULE VIEW — full DSP-grade schedule system
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=62641ea6a619">
+    <div class="view active rrx-schedule" id="view-schedule" data-rr-view-src="views/view-schedule.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-schedule.frag (monolith split phase 2) -->
     </div>
 
@@ -1680,14 +1680,14 @@
          (Amazon's term for DSP route plan horizon)
          ═══════════════════════════════════════════════════════════ -->
     <div id="rr-okami-backdrop" class="rr-okami-backdrop"></div>
-    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=62641ea6a619">
+    <div class="view" id="view-okami" data-rr-view-src="views/view-okami.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-okami.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          MESSAGES — real-time dispatch ↔ driver comms
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=62641ea6a619">
+    <div class="view" id="view-messages" data-rr-view-src="views/view-messages.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-messages.frag (monolith split phase 2) -->
     </div>
 
@@ -1698,7 +1698,7 @@
          Loader functions live in live.js (loadRecognitionView /
          loadRecognitionUpcoming / loadRecognitionHistory / …).
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=62641ea6a619">
+    <div class="view" id="view-recognition" data-rr-view-src="views/view-recognition.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-recognition.frag (monolith split phase 2) -->
     </div>
 
@@ -1713,7 +1713,7 @@
          scoped entirely to #view-fleet2 — it does not touch
          #view-schedule or schedule-rrx.css.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=62641ea6a619">
+    <div class="view rrx-schedule" id="view-fleet2" data-rr-view-src="views/view-fleet2.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-fleet2.frag (monolith split phase 2) -->
     </div>
 
@@ -1749,7 +1749,7 @@
          into [data-co-render="exceptions-table"] and
          [data-co-render="rules-list"].
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=62641ea6a619">
+    <div class="view" id="view-compliance" data-rr-view-src="views/view-compliance.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-compliance.frag (monolith split phase 2) -->
     </div>
 
@@ -1761,7 +1761,7 @@
          row to a driver links the driver profile, surfaces the task in
          the driver app, and logs the accountability trail.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=62641ea6a619">
+    <div class="view" id="view-workspaces" data-rr-view-src="views/view-workspaces.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-workspaces.frag (monolith split phase 2) -->
     </div>
 
@@ -1769,21 +1769,21 @@
          OPERATIONS WORKBOOK — spreadsheets + notes + checklists in
          one durable workbook (workbook.js renders into #rr-wb-root)
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-schedule" id="view-workbooks" data-rr-view-src="views/view-workbooks.frag?v=62641ea6a619">
+    <div class="view rrx-schedule" id="view-workbooks" data-rr-view-src="views/view-workbooks.frag?v=4ae68a8ac45d">
       <!-- markup lives in views/view-workbooks.frag -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          FORMS — DSP-built custom forms drivers fill out
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=62641ea6a619">
+    <div class="view" id="view-forms" data-rr-view-src="views/view-forms.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-forms.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          CHECKLISTS — recurring task lists (Open / Close / shift)
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=62641ea6a619">
+    <div class="view" id="view-checklists" data-rr-view-src="views/view-checklists.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-checklists.frag (monolith split phase 2) -->
     </div>
 
@@ -1793,7 +1793,7 @@
          audit flows. PDF signing service + driver-side viewer ship in
          later slices.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=62641ea6a619">
+    <div class="view" id="view-documents" data-rr-view-src="views/view-documents.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-documents.frag (monolith split phase 2) -->
     </div>
 
@@ -1802,7 +1802,7 @@
          Three-column shell (section rail · content · details/preview),
          painted by loadDriveView() over the existing document stores.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-drive" data-rr-view-src="views/view-drive.frag?v=62641ea6a619">
+    <div class="view" id="view-drive" data-rr-view-src="views/view-drive.frag?v=4ae68a8ac45d">
       <!-- markup in views/view-drive.frag -->
     </div>
 
@@ -1814,7 +1814,7 @@
          strip and flips the layout: the open-shifts-sized aside sits
          on the LEFT, the calendar-sized main panel on the RIGHT.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=62641ea6a619">
+    <div class="view" id="view-email" data-rr-view-src="views/view-email.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-email.frag (monolith split phase 2) -->
     </div>
 
@@ -1827,14 +1827,14 @@
          Phase 2 ships header + stats; Phase 3 fills the table area;
          Phase 4 wires the modals.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=62641ea6a619">
+    <div class="view" id="view-admin" data-rr-view-src="views/view-admin.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-admin.frag (monolith split phase 2) -->
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          BUILD YOUR OWN TOOL
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=62641ea6a619">
+    <div class="view" id="view-build" data-rr-view-src="views/view-build.frag?v=4ae68a8ac45d">
       <!-- markup extracted to views/view-build.frag (monolith split phase 2) -->
     </div>
 
@@ -2214,116 +2214,10 @@ Evidence attached:
 <!-- ═══════════════════════════════════════════════════════════
      SAFETY QUEUE DRAWER
      ═══════════════════════════════════════════════════════════ -->
-<aside class="detail-drawer" id="safety-drawer" aria-label="Safety queue">
-  <div class="detail-head">
-    <div>
-      <h2 class="detail-name">Safety infractions</h2>
-      <div class="detail-meta">3 events this week · acknowledge and coach</div>
-    </div>
-    <button class="cd-close" onclick="closeSafetyQueue()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-  </div>
-  <div class="detail-body">
-
-    <div class="attn-card sev-red u-mb-3">
-      <div class="attn-icon sev-red">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      </div>
-      <div class="attn-body">
-        <div class="attn-title">Minor accident · VAN-08</div>
-        <div class="attn-msg">Apr 29, 11:42 AM · Driver Travis Bell · Parking-lot collision, no injuries. Photos + report on file.</div>
-      </div>
-      <button class="btn btn-sm btn-primary" onclick="closeSafetyQueue();openCoachDrawer('Travis Bell','safety','Minor accident VAN-08 on Apr 29')">Coach</button>
-    </div>
-
-    <div class="attn-card sev-amber u-mb-3">
-      <div class="attn-icon sev-amber">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
-      </div>
-      <div class="attn-body">
-        <div class="attn-title">Mentor harsh-brake · Marcus Davidson</div>
-        <div class="attn-msg">Apr 30, 2:14 PM · Score impact -3 · 2nd event in 14 days · pattern forming.</div>
-      </div>
-      <button class="btn btn-sm btn-primary" onclick="closeSafetyQueue();openCoachDrawer('Marcus Davidson','safety','Mentor harsh-brake · 2 events in 14 days')">Coach</button>
-    </div>
-
-    <div class="attn-card sev-amber">
-      <div class="attn-icon sev-amber">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
-      </div>
-      <div class="attn-body">
-        <div class="attn-title">Mentor harsh-brake · Tasha Reyes</div>
-        <div class="attn-msg">May 1, 9:38 AM · Score impact -2 · isolated event.</div>
-      </div>
-      <button class="btn btn-sm btn-primary" onclick="closeSafetyQueue();openCoachDrawer('Tasha Reyes','safety','Mentor harsh-brake · isolated event May 1')">Coach</button>
-    </div>
-
-  </div>
-  <div class="detail-foot">
-    <button class="btn" onclick="closeSafetyQueue()">Close</button>
-    <button class="btn btn-primary" onclick="acknowledgeAllSafety()">Acknowledge all</button>
-  </div>
-</aside>
 
 <!-- ═══════════════════════════════════════════════════════════
      QUALITY QUEUE DRAWER
      ═══════════════════════════════════════════════════════════ -->
-<aside class="detail-drawer" id="quality-drawer" aria-label="Quality queue">
-  <div class="detail-head">
-    <div>
-      <h2 class="detail-name">Quality misses</h2>
-      <div class="detail-meta">8 items this week · review for dispute or coach</div>
-    </div>
-    <button class="cd-close" onclick="closeQualityQueue()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-  </div>
-  <div class="detail-body">
-
-    <div class="detail-section-label u-mb-2">DCR concessions · 5</div>
-    <div style="display:flex;flex-direction:column;gap:var(--s-2);margin-bottom:18px">
-      <div class="attn-card sev-amber">
-        <div class="attn-body">
-          <div class="attn-title">3 packages · Davidson · CX-14 · Apr 28</div>
-          <div class="attn-msg">Concession reason: "Not at address" — photos look correct.</div>
-        </div>
-        <button class="btn btn-sm" onclick="closeQualityQueue();openReconciliation('quality-dcr-1')">File dispute</button>
-      </div>
-      <div class="attn-card sev-amber">
-        <div class="attn-body">
-          <div class="attn-title">2 packages · Reyes · CX-22 · Apr 30</div>
-          <div class="attn-msg">Concession reason: "Damaged in transit" — driver photos OK at scan.</div>
-        </div>
-        <button class="btn btn-sm" onclick="closeQualityQueue();openReconciliation('quality-dcr-2')">File dispute</button>
-      </div>
-    </div>
-
-    <div class="detail-section-label u-mb-2">POD photo issues · 2</div>
-    <div style="display:flex;flex-direction:column;gap:var(--s-2);margin-bottom:18px">
-      <div class="attn-card sev-amber">
-        <div class="attn-body">
-          <div class="attn-title">Beckett · CX-09 · 4 packages flagged</div>
-          <div class="attn-msg">POD photos blurry or door-only. Coach on photo standards.</div>
-        </div>
-        <button class="btn btn-sm" onclick="closeQualityQueue();openCoachDrawer('Jordan Beckett','quality','POD photo quality · 4 flagged packages')">Coach</button>
-      </div>
-    </div>
-
-    <div class="detail-section-label u-mb-2">Scan compliance · 1</div>
-    <div style="display:flex;flex-direction:column;gap:var(--s-2)">
-      <div class="attn-card sev-amber">
-        <div class="attn-body">
-          <div class="attn-title">Whitfield · KMO1-14B · Apr 26</div>
-          <div class="attn-msg">3 packages flagged not scanned by Amazon — RouteReady scan log shows they WERE scanned. Likely sync issue.</div>
-        </div>
-        <button class="btn btn-sm" onclick="closeQualityQueue();openReconciliation('quality-scan-1')">File dispute</button>
-      </div>
-    </div>
-
-  </div>
-  <div class="detail-foot">
-    <button class="btn" onclick="closeQualityQueue()">Close</button>
-    <button class="btn" onclick="markAllQualityReviewed()">Mark all reviewed</button>
-    <button class="btn btn-primary" onclick="closeQualityQueue();goto('finances');setTimeout(function(){finSub('disputes');},50)">Open all in Finances →</button>
-  </div>
-</aside>
 
 <!-- ═══════════════════════════════════════════════════════════
      ASSET CATEGORY DRAWER (one drawer, 6 categories)
@@ -2687,6 +2581,34 @@ Evidence attached:
 </aside>
 
 <!-- ═══════════════════════════════════════════════════════════
+     ACCESS & MODULES DRAWER  (platform admin)
+     Turn top-level pages + in-app features on/off for one DSP.
+     Backed by admin_list_dsps() (read, entitlement lists) +
+     admin_set_dsp_entitlements() (write).  Catalog comes from
+     window.RR_ENTITLEMENTS so the toggles and the runtime gate
+     never drift apart.
+     ═══════════════════════════════════════════════════════════ -->
+<div class="rr-drawer-backdrop" id="rr-admin-access-backdrop" data-rr-admin-access-close></div>
+<aside class="rr-drawer" id="rr-admin-access-drawer" aria-hidden="true" role="dialog" aria-labelledby="rr-admin-access-title">
+  <div class="rr-drawer-head">
+    <div style="min-width:0">
+      <p class="modal-title" id="rr-admin-access-title">Access &amp; modules</p>
+      <p class="modal-sub" id="rr-admin-access-sub">—</p>
+    </div>
+    <button class="rr-drawer-close" type="button" data-rr-admin-access-close aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="rr-drawer-body" id="rr-admin-access-body">
+    <!-- Populated by _openAdminAccessDrawer(). -->
+  </div>
+  <div class="rr-drawer-foot" id="rr-admin-access-foot" hidden>
+    <button class="btn btn-ghost btn-sm" type="button" data-rr-admin-access-close>Cancel</button>
+    <button class="btn btn-primary btn-sm" type="button" id="rr-admin-access-save">Save changes</button>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
      MAINTENANCE WORK ORDER MODAL
      ═══════════════════════════════════════════════════════════ -->
 <!-- ═══ WHAT'S NEW · update the list when meaningful improvements ship
@@ -3030,12 +2952,12 @@ Evidence attached:
         </div>
       </div>
 
-      <!-- ── LOGIC PANE — coming soon ─────────────────────────────── -->
+      <!-- ── LOGIC PANE — points at the per-field Logic editor ────── -->
       <div class="builder-pane" data-rr-builder-pane="logic">
         <div class="builder-soon">
           <div class="builder-soon-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></div>
-          <div class="builder-soon-title">Conditional logic is coming soon</div>
-          <div class="builder-soon-sub">Show or hide fields based on earlier answers, branch the form, and skip sections that don't apply. We're polishing it now — it lands in an upcoming release.</div>
+          <div class="builder-soon-title">Conditional logic lives on each field</div>
+          <div class="builder-soon-sub">Show or hide a field based on an earlier answer. In the <strong>Build</strong> tab, select the field you want to control, open its <strong>Logic</strong> tab in the properties panel, and add a “show only if…” rule. Hidden fields aren’t required and aren’t submitted.</div>
         </div>
       </div>
 
@@ -5134,7 +5056,7 @@ John,Smith,555-0101,john@example.com</code>
     if (!window.__RR_VIEW_LOAD_FAILED) {
       await new Promise(function (resolve) {
         var s = document.createElement('script');
-        s.src = 'mock-wiring.js?v=62641ea6a619';
+        s.src = 'mock-wiring.js?v=4ae68a8ac45d';
         s.onload = function () {
           // These three register DOMContentLoaded callbacks with no
           // already-fired fallback (unlike the rest of the script);
@@ -5151,10 +5073,10 @@ John,Smith,555-0101,john@example.com</code>
   })();
 </script>
 <script src="./config.js"></script>
-<script src="./desktop-connect.js?v=62641ea6a619"></script>
-<script src="./fleet-sync.js?v=62641ea6a619"></script>
-<script src="./admin-crawl-tasks.js?v=62641ea6a619"></script>
-<script type="module" src="./live.js?v=62641ea6a619"></script>
+<script src="./desktop-connect.js?v=4ae68a8ac45d"></script>
+<script src="./fleet-sync.js?v=4ae68a8ac45d"></script>
+<script src="./admin-crawl-tasks.js?v=4ae68a8ac45d"></script>
+<script type="module" src="./live.js?v=4ae68a8ac45d"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

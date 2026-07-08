@@ -3110,8 +3110,12 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
    that lives inside the same wrap. */
 .rr-admin-row-actions__menu{z-index:40}
 
-/* DSP cell · name + station code stacked. */
-.rr-admin-cell-dsp{display:flex;flex-direction:column;gap:2px;min-width:160px}
+/* DSP cell · health dot + (name + station code stacked). */
+.rr-admin-cell-dsp{display:flex;flex-direction:row;align-items:center;gap:var(--s-3);min-width:160px}
+.rr-admin-health{width:8px;height:8px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 0 3px var(--surface)}
+.rr-admin-health--green{background:var(--green)}
+.rr-admin-health--amber{background:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+.rr-admin-health--red{background:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
 .rr-admin-cell-dsp__name{font-weight:600;color:var(--text)}
 .rr-admin-cell-dsp__sub{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .rr-admin-cell-muted{color:var(--text-subtle)}
@@ -3125,6 +3129,151 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 }
 .rr-admin-cell-plan--growth{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-soft)}
 .rr-admin-cell-plan--enterprise{background:rgba(37,99,235,.10);color:var(--violet);border-color:rgba(37,99,235,.20)}
+
+/* Modules cell · package roll-up chip (click → Access & modules drawer) */
+.rr-admin-mods{
+  font:inherit;font-size:var(--fs-xs);font-weight:600;letter-spacing:.02em;
+  padding:2px 9px;border-radius:var(--r-pill);cursor:pointer;
+  border:1px solid var(--border);background:var(--canvas);color:var(--text-muted);
+  font-variant-numeric:tabular-nums;transition:border-color var(--t-fast), background var(--t-fast), color var(--t-fast);
+}
+.rr-admin-mods:hover{border-color:var(--accent-border);color:var(--accent-text);background:var(--accent-soft)}
+.rr-admin-mods--all{color:var(--green);border-color:var(--green-soft-strong);background:var(--green-soft)}
+.rr-admin-mods--all:hover{background:var(--green-soft-strong);color:var(--green)}
+.rr-admin-mods--trimmed{color:var(--amber);border-color:var(--amber-soft-strong);background:var(--amber-soft)}
+
+/* ─────────────────────────────────────────────────────────────
+   CONTROL-CENTER BAND · Needs-attention queue + Portfolio snapshot.
+   Sits between the KPI hero and the DSP table on the admin view.
+   ───────────────────────────────────────────────────────────── */
+/* Thin utilisation bar inside the Active KPI card. */
+.rr-kpi-bar{height:5px;border-radius:var(--r-pill);background:var(--border-subtle);overflow:hidden;margin-top:var(--s-3)}
+.rr-kpi-bar span{display:block;height:100%;width:0;border-radius:var(--r-pill);
+  background:linear-gradient(90deg, var(--green) 0%, #22C55E 100%);
+  transition:width 600ms cubic-bezier(.33,0,.2,1)}
+.rr-kpi-trend{font-weight:700;font-variant-numeric:tabular-nums}
+.rr-kpi-trend--up{color:var(--green)}
+
+.rr-cc-band{
+  display:grid;grid-template-columns:1.35fr 1fr;gap:var(--s-4);
+  margin-bottom:var(--s-8);
+}
+@media (max-width:1080px){.rr-cc-band{grid-template-columns:1fr}}
+.rr-cc-panel{
+  background:var(--surface);background-image:var(--surface-grad);
+  border:1px solid var(--border);border-radius:var(--r-xl);
+  box-shadow:var(--shadow-sm), var(--highlight-top);
+  padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-4);min-width:0;
+}
+.rr-cc-panel__head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)}
+.rr-cc-panel__title{
+  display:flex;align-items:center;gap:var(--s-2);
+  font-size:var(--fs-base);font-weight:700;color:var(--text);letter-spacing:-.01em;margin:0;
+}
+.rr-cc-panel__title svg{width:16px;height:16px}
+.rr-cc-panel--attention .rr-cc-panel__title svg{color:var(--amber)}
+.rr-cc-panel--portfolio .rr-cc-panel__title svg{color:var(--accent)}
+.rr-cc-panel__sub{font-size:var(--fs-sm);color:var(--text-subtle);margin:3px 0 0;line-height:1.4}
+.rr-cc-badge{
+  flex:0 0 auto;min-width:22px;height:22px;padding:0 7px;border-radius:var(--r-pill);
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums;
+  background:var(--amber-soft-strong);color:var(--amber);
+}
+
+/* Skeleton shimmer shared by both panels while data loads. */
+.rr-cc-skel{display:flex;flex-direction:column;gap:var(--s-2)}
+.rr-cc-skel span{height:44px;border-radius:var(--r-md);
+  background:linear-gradient(90deg,#F3F4F6 0%,#F8FAFC 50%,#F3F4F6 100%);
+  background-size:200% 100%;animation:rr-admin-shimmer 1.4s ease-in-out infinite}
+
+/* Needs-attention rows */
+.rr-cc-attention-list{display:flex;flex-direction:column;gap:6px}
+.rr-cc-att-row{
+  display:flex;align-items:center;gap:var(--s-3);width:100%;text-align:left;
+  padding:10px var(--s-3);border-radius:var(--r-md);cursor:pointer;
+  background:var(--canvas);border:1px solid var(--border-subtle);
+  transition:border-color var(--t-fast), background var(--t-fast), transform var(--t-fast);
+}
+.rr-cc-att-row:hover{border-color:var(--accent-border);background:var(--surface);transform:translateX(2px)}
+.rr-cc-att-row__dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.rr-cc-att-row__dot--high{background:var(--red)}
+.rr-cc-att-row__dot--med{background:var(--amber)}
+.rr-cc-att-row__dot--low{background:var(--text-subtle)}
+.rr-cc-att-row__body{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.rr-cc-att-row__name{font-size:var(--fs-md);font-weight:600;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-cc-att-row__code{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500;
+  font-variant-numeric:tabular-nums;letter-spacing:.02em;margin-left:4px}
+.rr-cc-att-row__chips{display:flex;flex-wrap:wrap;gap:5px}
+.rr-cc-chip{
+  font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;
+  padding:1px 7px;border-radius:var(--r-pill);white-space:nowrap;
+  background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);
+}
+.rr-cc-chip--high{background:var(--red-soft);color:var(--red);border-color:transparent}
+.rr-cc-chip--med{background:var(--amber-soft);color:var(--amber);border-color:transparent}
+.rr-cc-chip--low{background:var(--border-subtle);color:var(--text-muted);border-color:transparent}
+.rr-cc-att-row__go{width:16px;height:16px;color:var(--text-subtle);flex:0 0 auto}
+.rr-cc-att-row:hover .rr-cc-att-row__go{color:var(--accent)}
+.rr-cc-att-more{font-size:var(--fs-xs);color:var(--text-subtle);text-align:center;padding:6px 0 2px}
+
+/* All-clear state */
+.rr-cc-allclear{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:2px;padding:var(--s-6) var(--s-4);color:var(--text-subtle);
+}
+.rr-cc-allclear svg{width:26px;height:26px;color:var(--green);margin-bottom:var(--s-2)}
+.rr-cc-allclear__title{font-size:var(--fs-base);font-weight:600;color:var(--text)}
+.rr-cc-allclear__sub{font-size:var(--fs-sm)}
+
+/* Portfolio snapshot */
+.rr-cc-portfolio{display:flex;flex-direction:column;gap:var(--s-5)}
+.rr-cc-metric{display:flex;flex-direction:column;gap:2px}
+.rr-cc-metric__value{font-size:28px;font-weight:700;letter-spacing:-.02em;color:var(--text);
+  font-variant-numeric:tabular-nums;line-height:1}
+.rr-cc-metric__label{font-size:var(--fs-sm);color:var(--text-muted)}
+.rr-cc-plans{display:flex;flex-direction:column;gap:var(--s-2)}
+.rr-cc-plans__head{font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);
+  letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+.rr-cc-plan{display:grid;grid-template-columns:74px 1fr 24px;align-items:center;gap:var(--s-2)}
+.rr-cc-plan__name{font-size:var(--fs-sm);color:var(--text-muted)}
+.rr-cc-plan__track{height:8px;border-radius:var(--r-pill);background:var(--border-subtle);overflow:hidden}
+.rr-cc-plan__fill{display:block;height:100%;border-radius:var(--r-pill);min-width:2px;
+  transition:width 600ms cubic-bezier(.33,0,.2,1)}
+.rr-cc-plan__fill--starter{background:var(--text-subtle)}
+.rr-cc-plan__fill--growth{background:var(--accent)}
+.rr-cc-plan__fill--enterprise{background:var(--violet-bright)}
+.rr-cc-plan__n{font-size:var(--fs-sm);font-weight:600;color:var(--text);text-align:right;
+  font-variant-numeric:tabular-nums}
+
+/* ─────────────────────────────────────────────────────────────
+   ACCESS & MODULES DRAWER · page/feature toggles for one DSP.
+   ───────────────────────────────────────────────────────────── */
+.rr-drawer-foot{
+  display:flex;align-items:center;justify-content:flex-end;gap:var(--s-2);
+  padding:var(--s-3) var(--s-5);border-top:1px solid var(--border);
+  background:var(--surface);
+}
+.rr-drawer-foot[hidden]{display:none}
+.rr-access-group{display:flex;flex-direction:column;gap:var(--s-2)}
+.rr-access-group__head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2)}
+.rr-access-group__count{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+  font-variant-numeric:tabular-nums}
+.rr-access-list{display:flex;flex-direction:column;gap:6px}
+.rr-access-row{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+  padding:var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);cursor:pointer;
+  transition:border-color var(--t-fast), background var(--t-fast);
+}
+.rr-access-row:hover{border-color:var(--border-strong);background:var(--surface-hover)}
+.rr-access-row__meta{display:flex;flex-direction:column;gap:1px;min-width:0}
+.rr-access-row__label{font-size:var(--fs-md);font-weight:600;color:var(--text)}
+.rr-access-row__desc{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.35}
+.rr-access-note{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5;
+  padding:var(--s-3);background:var(--canvas);border:1px solid var(--border-subtle);
+  border-radius:var(--r-md);margin:0}
 
 /* Row actions · "..." menu */
 .rr-admin-row-actions{position:relative;text-align:right}
@@ -7710,6 +7859,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .subm-status{font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-md)}
 .subm-status.complete{background:var(--green-soft);color:var(--green)}
 .subm-status.flagged{background:var(--red-soft);color:var(--red)}
+/* Submissions tab · filter bar + review footer */
+.subm-filterbar{display:flex;flex-wrap:wrap;gap:var(--s-2);align-items:center;margin-bottom:var(--s-3)}
+.subm-filter-date{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-muted)}
+.subm-filter-date input{font:inherit;font-size:var(--fs-sm);border:1px solid var(--border);border-radius:var(--r-md);padding:4px 8px;background:var(--surface);color:var(--text)}
+.subm-filterbar [data-rr-subm-export]{margin-left:auto}
+.subm-review-foot{display:flex;flex-direction:column;gap:10px;padding:14px 18px;border-top:1px solid var(--border)}
+.subm-review-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.subm-review-flag{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text-muted);cursor:pointer}
+.subm-review-actions{display:flex;justify-content:flex-end;gap:8px}
 
 /* ─────────────────────────────────────────────────────────────
    FLEET + ASSET TRACKING
@@ -29270,15 +29428,16 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-kpi-delta.is-up{color:var(--green,#0ca30c)}
 #view-workbooks .wb-kpi-delta.is-down{color:var(--red,#d03b3b)}
 #view-workbooks .wb-kpi-spark{width:auto;height:36px;display:block;margin:4px -13px -9px}
-/* Hero header band */
-#view-workbooks .wb-embed.is-hero{border:none;color:#fff;padding:0;background:linear-gradient(120deg,#2f6bdd 0%,#2563eb 100%);box-shadow:0 1px 3px rgba(37,99,235,.12),0 6px 18px rgba(37,99,235,.12)}
+/* Hero header band — a refined light header (clean surface + slim accent edge),
+   not a heavy saturated slab, so an auto-built dashboard reads as professional */
+#view-workbooks .wb-embed.is-hero{border:1px solid var(--border);border-left:3px solid var(--accent,#2563EB);color:var(--text);padding:0;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.04)}
 /* the (empty) head only carries the edit buttons — float it so the title band
    uses the full card height and never clips */
-#view-workbooks .wb-embed.is-hero .wb-embed-head{position:absolute;top:9px;right:13px;min-height:0;color:#fff;z-index:1}
-#view-workbooks .wb-embed.is-hero .wb-embed-body{align-items:center;padding:0 22px}
-#view-workbooks .wb-hero{display:flex;flex-direction:column;justify-content:center;gap:3px;height:100%;width:100%}
-#view-workbooks .wb-hero-title{font-size:22px;font-weight:750;letter-spacing:-.02em;line-height:1.1}
-#view-workbooks .wb-hero-sub{font-size:var(--fs-sm);opacity:.85;font-weight:500}
+#view-workbooks .wb-embed.is-hero .wb-embed-head{position:absolute;top:9px;right:13px;min-height:0;color:var(--text-muted);z-index:1}
+#view-workbooks .wb-embed.is-hero .wb-embed-body{align-items:center;padding:0 20px}
+#view-workbooks .wb-hero{display:flex;flex-direction:column;justify-content:center;gap:2px;height:100%;width:100%}
+#view-workbooks .wb-hero-title{font-size:18px;font-weight:700;letter-spacing:-.01em;line-height:1.15;color:var(--text)}
+#view-workbooks .wb-hero-sub{font-size:var(--fs-sm);color:var(--text-muted);font-weight:500}
 /* Table widget */
 #view-workbooks .wb-embed-tablewrap{flex:1 1 auto;min-height:0;overflow:auto;width:100%;border-radius:6px}
 #view-workbooks .wb-embed-table{border-collapse:collapse;width:100%;font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
@@ -29654,6 +29813,60 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   pointer-events:none;
 }
 @keyframes wb-imgbox-in{from{opacity:0}to{opacity:1}}
+
+/* Receipt Ledger — "View Receipt" cell button */
+.wb-cell.is-receipt{padding:0}
+.wb-cell-receipt{
+  display:inline-flex;align-items:center;gap:5px;max-width:100%;
+  padding:2px 9px;margin:1px 2px;border-radius:6px;cursor:pointer;
+  font:600 11px/1.4 var(--font,inherit);white-space:nowrap;
+  color:var(--accent,#2563EB);
+  background:var(--accent-soft,rgba(37,99,235,.08));
+  border:1px solid var(--accent-border,rgba(37,99,235,.24));
+  transition:background .12s ease,border-color .12s ease;
+}
+.wb-cell-receipt:hover{background:var(--accent-soft-strong,rgba(37,99,235,.14));border-color:var(--accent,#2563EB)}
+.wb-cell-receipt svg{flex-shrink:0;opacity:.85}
+
+/* Receipt preview modal */
+.wb-rcpt-modal{
+  position:fixed;inset:0;z-index:10060;
+  background:rgba(12,15,23,.72);
+  display:flex;align-items:center;justify-content:center;padding:28px;
+  animation:wb-imgbox-in .14s ease-out;
+}
+.wb-rcpt-panel{
+  display:flex;flex-direction:column;
+  width:min(760px,94vw);max-height:88vh;
+  background:var(--surface,#fff);border-radius:14px;overflow:hidden;
+  box-shadow:0 24px 70px rgba(0,0,0,.5);cursor:default;
+}
+.wb-rcpt-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 16px;border-bottom:1px solid var(--border,rgba(15,23,42,.14));
+}
+.wb-rcpt-title{font-weight:700;font-size:var(--fs-base,14px);color:var(--text,#0f172a)}
+.wb-rcpt-actions{display:flex;align-items:center;gap:14px}
+.wb-rcpt-open{font-size:var(--fs-sm,12px);font-weight:600;color:var(--accent,#2563EB)}
+.wb-rcpt-del{
+  margin-right:auto;border:1px solid var(--red,#DC2626);background:transparent;cursor:pointer;
+  font-size:var(--fs-sm,12px);font-weight:600;color:var(--red,#DC2626);
+  padding:4px 10px;border-radius:6px;
+}
+.wb-rcpt-del:hover{background:var(--red,#DC2626);color:#fff}
+.wb-rcpt-del:disabled{opacity:.6;cursor:default}
+.wb-rcpt-close{
+  border:none;background:transparent;cursor:pointer;font-size:16px;line-height:1;
+  color:var(--text-subtle,#6B7280);padding:4px 6px;border-radius:6px;
+}
+.wb-rcpt-close:hover{background:var(--surface-hover,rgba(15,23,42,.03));color:var(--text,#0f172a)}
+.wb-rcpt-body{
+  flex:1;min-height:220px;display:flex;align-items:center;justify-content:center;
+  background:var(--canvas,#f6f7f9);overflow:auto;padding:14px;
+}
+.wb-rcpt-img{max-width:100%;max-height:74vh;border-radius:8px;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.wb-rcpt-frame{width:100%;height:72vh;border:none;background:#fff;border-radius:8px}
+.wb-rcpt-loading,.wb-rcpt-error{color:var(--text-subtle,#6B7280);font-size:var(--fs-md,13px);padding:40px 16px;text-align:center;max-width:340px}
 
 .wb-dv-optrow{display:flex;gap:8px;margin-bottom:6px;align-items:center}
 .wb-dv-optrow .wb-input{flex:1}
@@ -30331,3 +30544,177 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 
 /* Sticky footer actions (right side of the shared .builder-foot) */
 .clf-foot-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+/* ════════════════════════════════════════════════════════════════════════
+   CALENDAR · hue-keyed events + weekend rhythm (2026-07-07)
+   Each event paints from a single --ev-hue (set inline by _ivcalHue), keyed
+   to its calendar/kind — so the week grid, month dots and agenda all match
+   the "My calendars" legend (interviews blue, orientations amber, events
+   teal, sessions purple). Restores the crisp colored left rail the earlier
+   visual-weight-reduction pass had flattened. Last in the file so it wins
+   over the earlier cat-* overrides.
+   ════════════════════════════════════════════════════════════════════════ */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-blue,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-green,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-orange,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-gray,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-red,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.cat-teal{
+  background:color-mix(in srgb, var(--ev-hue, #2563EB) 11%, #FFFFFF) !important;
+  border:1px solid color-mix(in srgb, var(--ev-hue, #2563EB) 26%, transparent) !important;
+  border-left:4px solid var(--ev-hue, #2563EB) !important;
+  color:color-mix(in srgb, var(--ev-hue, #2563EB) 82%, #0F172A) !important;
+}
+/* Pending (unconfirmed RSVP) · dashed rail + airier fill so it reads as
+   "not locked in" without inventing a second hue. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.is-pending{
+  border-left-style:dashed !important;
+  background:color-mix(in srgb, var(--ev-hue, #2563EB) 6%, #FFFFFF) !important;
+}
+/* Declined / cancelled resolve to gray via _ivcalHue — keep the strikethrough. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.declined .en,
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-ev.declined .et{ text-decoration:line-through; }
+
+/* Month pills + agenda share the same hue: filled dot, dashed ring when pending. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-pill .oc-pdot{ background:var(--ev-hue, #2563EB) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-pill.is-pending .oc-pdot{
+  background:transparent !important; box-shadow:inset 0 0 0 1.5px var(--ev-hue, #2563EB) !important;
+}
+
+/* Weekend rhythm · a whisper-quiet neutral wash so Sat & Sun read as the
+   week's bookends without competing with events. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.oc-wknd{ background:#F1F4F9 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-dh.oc-wknd .dow{ color:#9AA4B2 !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mcell.oc-wknd{ background:#F7F9FC !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-mcell.oc-wknd.out{ background:#F1F4F9 !important; }
+
+/* Today column · lift the blue wash a touch so "today" is unmistakable,
+   and keep it winning on a weekend-today. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.today{ background:rgba(37,99,235,.07) !important; }
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-col.oc-wknd.today{ background:rgba(37,99,235,.07) !important; }
+
+/* All-day lane bars read from the same --ev-hue as timed events. */
+#view-onboarding-ops[data-obsub="calendar"] #rr-ivcal .oc-adbar{
+  background:color-mix(in srgb, var(--ev-hue, #2563EB) 12%, #FFFFFF) !important;
+  border-left:3px solid var(--ev-hue, #2563EB) !important;
+  color:color-mix(in srgb, var(--ev-hue, #2563EB) 82%, #0F172A) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DIRECTION A — "Refined Baseline" maturity pass  (2026-07-07)
+   -----------------------------------------------------------------------
+   A light re-skin of the Schedule WEEK board toward a calmer, more
+   operational finish. Scoped to #view-schedule.rrx-schedule and placed at
+   end-of-sheet so it wins at equal specificity over the earlier coverage /
+   chip / badge rules in this file.
+
+   To REVERT: delete this whole banner-to-banner block, and revert the
+   companion `.rr-ab-cov-meter` injection in live.js (renderScheduleWeek,
+   search "DIRECTION A · coverage meter"). Nothing else references it.
+
+   Four moves, matching the Direction-A mockup:
+     1. Coverage floating card  → integrated inline meter in the command bar
+     2. Red "V" / gold "OT" dots → quiet soft-fill chips
+     3. All grid digits          → tabular (column-aligned) numerals
+     4. Shift chip               → flatter + calmer, so the TIME leads and
+                                   the route code recedes
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── (1) Coverage · fold the floating card into the command band ──────── */
+#view-schedule.rrx-schedule .rr-ab-coverage {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 5px !important;
+  /* strip the card chrome — no fill, no border, no shadow, no radius */
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  /* anchor it into the bar with a hairline divider instead of a box */
+  border-left: 1px solid var(--rr-border-primary, #E5E7EB) !important;
+  padding: 3px 4px 3px 14px !important;
+  min-width: 172px;
+}
+#view-schedule.rrx-schedule .rr-ab-coverage-main { align-items: baseline; gap: 6px; }
+#view-schedule.rrx-schedule .rr-ab-cov-num {
+  font-size: 15px;                     /* calmer than the 18px card number */
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+}
+#view-schedule.rrx-schedule .rr-ab-cov-unit { font-size: 10.5px; }
+#view-schedule.rrx-schedule .rr-ab-coverage-sub { margin-top: 0; }
+/* the meter element is appended by renderScheduleWeek (see live.js) */
+#view-schedule.rrx-schedule .rr-ab-cov-meter {
+  display: block;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--border-subtle, #F3F4F6);
+  overflow: hidden;
+}
+#view-schedule.rrx-schedule .rr-ab-cov-meter > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green, #16A34A);
+  transition: width .3s cubic-bezier(.2, 0, .2, 1);
+}
+#view-schedule.rrx-schedule .rr-ab-cov-meter[data-state="gap"] > i { background: var(--red, #DC2626); }
+#view-schedule.rrx-schedule .rr-ab-cov-meter[data-state="cushion"] > i { background: var(--amber-bright, #F59E0B); }
+
+/* ── (2) Row status flags · loud dots → quiet soft chips ─────────────────
+   The "V" (scheduled without a van) and "OT" (over hours) markers ship as
+   filled SVG discs that read like unread-notification badges. Hide the disc
+   and render a small typographic chip in its place — same meaning, calmer
+   voice. Saturated red stays reserved for the genuine DL-expiry warning,
+   which is intentionally left untouched. */
+#view-schedule.rrx-schedule .cal-row-label-vanwarn svg,
+#view-schedule.rrx-schedule .cal-row-label-otwarn svg { display: none !important; }
+#view-schedule.rrx-schedule .cal-row-label-vanwarn,
+#view-schedule.rrx-schedule .cal-row-label-otwarn { line-height: 1 !important; }
+#view-schedule.rrx-schedule .cal-row-label-vanwarn::after,
+#view-schedule.rrx-schedule .cal-row-label-otwarn::after {
+  font: 700 9.5px/1 var(--rr-font-family, 'Inter', 'Segoe UI', sans-serif);
+  letter-spacing: .03em;
+  padding: 3px 5px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+}
+#view-schedule.rrx-schedule .cal-row-label-vanwarn::after {
+  content: "V";
+  color: #B42318;
+  background: rgba(220, 38, 38, .10);
+  border-color: rgba(220, 38, 38, .16);
+}
+#view-schedule.rrx-schedule .cal-row-label-otwarn::after {
+  content: "OT";
+  color: #B54708;
+  background: rgba(245, 158, 11, .14);
+  border-color: rgba(245, 158, 11, .26);
+}
+
+/* ── (3) Tabular numerals · align every digit column across the grid ──── */
+#view-schedule.rrx-schedule .cal-wrap { font-variant-numeric: tabular-nums; }
+
+/* ── (4) Shift chip · flatter + calmer, so the time leads ────────────────
+   Trade the raised tile for a hairline, soften the fill one notch, and let
+   the route code recede to a quiet label above the time. */
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: #EFF4FB !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .07) !important;
+}
+#view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: #E4EEFB !important;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .28) !important;
+}
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
+  color: var(--text-subtle, #6B7280) !important;
+  font-weight: 650 !important;
+  letter-spacing: .02em;
+}
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
+  color: var(--text, #111827) !important;
+  font-weight: 650 !important;
+}
+/* end DIRECTION A ═══════════════════════════════════════════════════════ */

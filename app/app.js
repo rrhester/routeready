@@ -850,6 +850,7 @@ const routes = {
   "/tasks/documents/sign":{ render: renderDocumentSign,  tab: "/tasks", back: "/tasks/documents", title: "Sign document" },
   "/tasks/i9":          { render: renderI9Section1,      tab: "/tasks", back: "/tasks", title: "Form I-9" },
   "/tasks/scan":        { render: renderDocumentScanner, tab: "/tasks", back: "/tasks", title: "Scan a document" },
+  "/tasks/scan/receipt":{ render: renderReceiptForm,      tab: "/tasks", back: "/tasks/scan", title: "Submit a receipt" },
   "/settings/profile":      { render: renderSettingsProfile, tab: "/profile", back: "/settings", title: "Profile" },
   "/settings/license":      { render: renderSettingsLicense, tab: "/profile", back: "/settings", title: "Driver's license" },
   "/settings/pin":          { render: renderSettingsPin,     tab: "/profile", back: "/settings", title: "Sign-in PIN" },
@@ -2780,7 +2781,11 @@ function renderTasksHub() {
   // Failures surface as an inline diagnostic instead of being
   // swallowed; "no forms yet" stays silent (no visual noise on
   // tenants that haven't published anything).
-  sb.rpc("driver_list_forms", { p_token: session.token }).then(({ data, error }) => {
+  // Flush any submissions queued while offline now that the hub — and
+  // likely the network — is available again (guarded + silent).
+  _formFlushQueue({ silent: true });
+
+  sb.rpc("driver_list_forms", { p_token: session.token }).then(async ({ data, error }) => {
     const slot = document.getElementById("rr-tasks-forms-slot");
     if (!slot) return;
     if (error) {
@@ -2791,16 +2796,33 @@ function renderTasksHub() {
       return;
     }
     const forms = Array.isArray(data) ? data : [];
-    if (forms.length === 0) return;
-    slot.innerHTML = `<div class="wt-sec">Forms<span class="wt-sec-n">${forms.length}</span></div>` + forms.map(f => {
+    let queued = 0;
+    try { queued = await _formQueueCount(); } catch {}
+    if (forms.length === 0 && queued === 0) return;
+    const queuedNote = queued > 0
+      ? `<div class="wt-form-pending">${queued} form${queued === 1 ? "" : "s"} waiting to sync — will submit automatically.</div>`
+      : "";
+    slot.innerHTML = `<div class="wt-sec">Forms<span class="wt-sec-n">${forms.length}</span></div>` + queuedNote + forms.map(f => {
       const oncePer = !!f.settings?.once_per_driver;
       const done = oncePer && f.submission_count > 0;
+      if (done) {
+        // Completed once-per-driver form: render as done and NOT tappable.
+        // The server rejects a second submit anyway; this spares the driver
+        // the confusing open → refill → "already submitted" round-trip.
+        const when = f.last_submitted_at ? new Date(f.last_submitted_at).toLocaleDateString() : "";
+        return `
+          <div class="task-card is-done" aria-disabled="true">
+            <span class="task-icon" style="color:var(--green,#16a34a)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <div class="task-text">
+              <div class="task-title">${escapeHtml(f.title || "Untitled form")}</div>
+              <div class="task-sub">Submitted${when ? " · " + escapeHtml(when) : ""}</div>
+            </div>
+          </div>`;
+      }
       return taskCardHtml({
         route: `/tasks/form?id=${encodeURIComponent(f.id)}`,
         title: f.title || "Untitled form",
-        sub:   done
-          ? `Submitted · ${new Date(f.last_submitted_at).toLocaleDateString()}`
-          : (f.description || `${f.field_count} question${f.field_count === 1 ? "" : "s"}`),
+        sub:   f.description || `${f.field_count} question${f.field_count === 1 ? "" : "s"}`,
         icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
       });
     }).join("");
@@ -2962,6 +2984,33 @@ async function _scanLoadBitmap(file) {
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("decode failed")); };
     img.src = url;
   });
+}
+
+// Downscale a captured image to a sane max edge and JPEG-encode it before
+// upload, so multi-MB phone photos don't crawl over a weak connection.
+// Non-images and already-small shots pass through untouched; any failure
+// falls back to the original file. Reuses _scanLoadBitmap for EXIF-correct
+// orientation so portrait shots aren't rotated.
+async function _downscaleImageFile(file, maxEdge = 1600, quality = 0.8) {
+  if (!file || !/^image\//.test(file.type || "")) return file;
+  try {
+    const bmp = await _scanLoadBitmap(file);
+    const sw = bmp.width, sh = bmp.height;
+    const scale = Math.min(1, maxEdge / Math.max(sw, sh || 1));
+    if (scale >= 1 && (file.size || 0) < 1_200_000) { if (bmp.close) bmp.close(); return file; }
+    const w = Math.max(1, Math.round(sw * scale));
+    const h = Math.max(1, Math.round(sh * scale));
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bmp, 0, 0, w, h);
+    if (bmp.close) bmp.close();
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", quality));
+    if (!blob || blob.size >= (file.size || Infinity)) return file;  // no win → keep original
+    const name = (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  } catch { return file; }
 }
 
 // A capture (from the file picker or the live camera) becomes a page
@@ -3776,6 +3825,114 @@ if (typeof window !== "undefined" && !window.__rrScanOnlineWired) {
   window.addEventListener("online", () => { _scanFlushQueue(); });
 }
 
+
+// ── Offline form-submission queue ────────────────────────────────────
+// Drivers fill forms in the same dead zones they scan in. If a submit
+// can't reach the network, the whole submission — scalar answers plus
+// any captured photo/file blobs — is stored in IndexedDB and flushed
+// automatically when connectivity returns (the `online` event or the
+// next Tasks-hub mount). On flush we upload the deferred files first,
+// splice their storage paths into the answers, then call
+// driver_submit_form. So a form is never lost to a bad signal.
+const _FORM_Q_DB = "rr-form-queue";
+const _FORM_Q_STORE = "subs";
+function _formQueueDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_FORM_Q_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(_FORM_Q_STORE)) {
+        req.result.createObjectStore(_FORM_Q_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _formQueueAdd(item) {
+  const db = await _formQueueDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_FORM_Q_STORE, "readwrite");
+    tx.objectStore(_FORM_Q_STORE).put(item);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function _formQueueAll() {
+  const db = await _formQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_FORM_Q_STORE, "readonly");
+    const r = tx.objectStore(_FORM_Q_STORE).getAll();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror = () => resolve([]);
+  });
+}
+async function _formQueueDelete(id) {
+  const db = await _formQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_FORM_Q_STORE, "readwrite");
+    tx.objectStore(_FORM_Q_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+async function _formQueueCount() {
+  try { return (await _formQueueAll()).length; } catch { return 0; }
+}
+
+// Send every queued submission, oldest first. Stops at the first item
+// that still can't go through (offline / storage hiccup) so we don't
+// hammer; server-rejected items (already submitted, unpublished, no
+// longer assigned) are dropped so a permanently-invalid submission
+// can't jam the queue forever. Safe to call repeatedly; guarded.
+let _formFlushing = false;
+async function _formFlushQueue({ silent } = {}) {
+  if (_formFlushing) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  const session = readSession();
+  if (!session?.token) return;
+  _formFlushing = true;
+  let sent = 0;
+  try {
+    const items = (await _formQueueAll()).sort((a, b) => a.createdAt - b.createdAt);
+    for (const it of items) {
+      const answers = { ...(it.answers || {}) };
+      // Upload any deferred files, splicing their paths into the answers.
+      let stuck = false;
+      for (const fr of (it.files || [])) {
+        const ts = Date.now();
+        const safe = (fr.name || "file").replace(/[^A-Za-z0-9._-]+/g, "-");
+        const path = `${session.dsp_id || "no-dsp"}/dvic/${session.driver_id || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        const { error } = await sb.storage.from("driver-documents")
+          .upload(path, fr.blob, { contentType: fr.type, upsert: false });
+        if (error) { stuck = true; break; }
+        answers[fr.fid] = { path, name: fr.name, size: fr.blob?.size, type: fr.type };
+      }
+      if (stuck) break;  // still offline / storage down — retry next trigger
+      const { error: subErr } = await sb.rpc("driver_submit_form", {
+        p_token:   session.token,
+        p_form_id: it.formId,
+        p_answers: answers,
+      });
+      if (!subErr) { await _formQueueDelete(it.id); sent++; continue; }
+      // Server rejected it (already_submitted / form_not_found / no longer
+      // assigned) — drop so it doesn't block everything behind it.
+      if (subErr.code === "P0001" || /already_submitted|form_not_found/i.test(subErr.message || "")) {
+        await _formQueueDelete(it.id);
+        continue;
+      }
+      break;  // unknown/transient server error — stop and retry later
+    }
+  } catch { /* transport threw — retried on next trigger */ }
+  _formFlushing = false;
+  if (sent && !silent) toast(`${sent} saved form${sent === 1 ? "" : "s"} submitted`, "ok");
+  if (sent) _haptic("success");
+}
+
+if (typeof window !== "undefined" && !window.__rrFormOnlineWired) {
+  window.__rrFormOnlineWired = true;
+  window.addEventListener("online", () => { _formFlushQueue(); });
+}
+
 // Hand the PDF to the OS share sheet (so the driver can email / message
 // / save it anywhere), falling back to a direct download when the Web
 // Share API can't take files (most desktop browsers, older iOS).
@@ -3796,6 +3953,434 @@ async function _scanShareOrSave(blob, filename) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
   return "downloaded";
+}
+
+// ── Receipt intake ("What are you uploading?" → Receipt) ────────────
+// The scanner builds the same photo pipeline; here we branch on what the
+// captured pages *are*. Receipts get a short structured flow that files a
+// durable receipt record + a Receipt Ledger row for the DSP. The other
+// categories keep the existing "send to dispatch" behavior so nothing the
+// driver relied on breaks.
+const _UPLOAD_TYPES = [
+  { key: "receipt",  label: "Receipt",           emoji: "🧾" },
+  { key: "vehicle",  label: "Vehicle Document",  emoji: "🚐" },
+  { key: "driver",   label: "Driver Document",   emoji: "📄" },
+  { key: "incident", label: "Incident / Damage", emoji: "⚠️" },
+  { key: "hr",       label: "Attendance / HR",   emoji: "🗓️" },
+  { key: "other",    label: "Other",             emoji: "📁" },
+];
+const _RECEIPT_CATEGORIES = [
+  "Fuel", "Maintenance", "Tires", "Tolls / Parking", "Supplies",
+  "Uniforms / Equipment", "Reimbursement", "Cleaning", "Other",
+];
+const _RECEIPT_PAYMENTS = ["Card", "Cash", "Fuel Card", "Check", "Other"];
+
+// Draft carried from the scanner into the receipt form (module-scoped so a
+// route change doesn't lose it). Cleared on submit / start-over.
+let _receiptDraft = null;
+
+// Present the "What are you uploading?" chooser as a bottom sheet.
+function _scanChooseUploadType() {
+  const body = document.createElement("div");
+  body.className = "rr-uploadtype-list";
+  body.innerHTML = _UPLOAD_TYPES.map((t) => `
+    <button type="button" class="rr-uploadtype" data-upl="${t.key}">
+      <span class="rr-uploadtype-emoji" aria-hidden="true">${t.emoji}</span>
+      <span class="rr-uploadtype-label">${escapeHtml(t.label)}</span>
+      <span class="rr-uploadtype-chev" aria-hidden="true">›</span>
+    </button>`).join("");
+  body.querySelectorAll("[data-upl]").forEach((b) =>
+    b.addEventListener("click", () => { _haptic("tap"); _closeSheet(b.getAttribute("data-upl")); }));
+  openSheet({
+    title: "What are you uploading?",
+    body,
+    actions: [{ label: "Cancel", kind: "ghost", value: null }],
+  }).then((choice) => { if (choice) _scanHandleUploadType(choice); });
+}
+
+function _scanHandleUploadType(choice) {
+  if (choice === "receipt") {
+    try {
+      _receiptDraft = _receiptBuildDraft();
+      navigate("/tasks/scan/receipt");
+    } catch (err) {
+      toast(_friendlyError(err, "Couldn't prepare the receipt image. Try again."), "warn");
+    }
+    return;
+  }
+  const label = (_UPLOAD_TYPES.find((t) => t.key === choice) || {}).label || "Document";
+  _scanSendToDispatch(label);
+}
+
+// Package the captured pages for a receipt: a single page is uploaded as a
+// crisp JPEG (best for an image preview); multiple pages combine into a PDF.
+function _receiptBuildDraft() {
+  const pages = _scanPages;
+  if (!pages.length) throw new Error("no pages");
+  if (pages.length === 1 && pages[0].jpeg) {
+    return {
+      blob: new Blob([pages[0].jpeg], { type: "image/jpeg" }),
+      mime: "image/jpeg", ext: "jpg",
+      thumb: pages[0].thumb || "", pageCount: 1,
+      pages: pages.slice(), ocrText: pages[0].ocrText || "",
+    };
+  }
+  const blob = _scanBuildPdfBlob(pages, { pageSize: _scanGetPageSize() });
+  return {
+    blob, mime: "application/pdf", ext: "pdf",
+    thumb: pages[0] ? pages[0].thumb : "", pageCount: pages.length,
+    pages: pages.slice(), ocrText: pages.map((p) => p.ocrText || "").join("\n").trim(),
+  };
+}
+
+// Non-receipt categories: keep the established chat delivery, labeled by type.
+async function _scanSendToDispatch(typeLabel) {
+  if (!_scanPages.length) return;
+  const base = _scanNameValue();
+  const name = typeLabel ? `${typeLabel} — ${base}` : base;
+  const filename = name.endsWith(".pdf") ? name : name + ".pdf";
+  if (_scanGetOcr()) { try { await _scanRunOcr(() => {}); } catch { /* non-blocking */ } }
+  let blob;
+  try { blob = _scanBuildPdfBlob(_scanPages, { pageSize: _scanGetPageSize() }); }
+  catch (err) { toast(_friendlyError(err, "Couldn't build the PDF. Try again."), "warn"); return; }
+
+  const queueIt = async (line) => {
+    try {
+      await _scanQueueAdd({ id: "q" + Date.now() + Math.random().toString(36).slice(2, 7), name, filename, blob, size: blob.size, createdAt: Date.now() });
+      _haptic("success"); toast(line, "ok"); _scanPages = []; renderDocumentScanner();
+    } catch { toast("Couldn't save the scan. Try again.", "warn"); }
+  };
+
+  toast("Sending…", "default");
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    await queueIt("Saved — will send to dispatch when you're back online"); return;
+  }
+  const res = await _scanUploadAndSend(blob, filename);
+  if (res.ok) { _haptic("success"); toast("Sent to dispatch", "ok"); _scanPages = []; navigate("/chat"); return; }
+  if (res.retriable) { await queueIt("Couldn't reach dispatch — saved, will retry when you're back online"); return; }
+  toast(res.reason === "no-session" ? "Sign in again to send" : "Profile incomplete — sign out and back in", "warn");
+}
+
+// ── Receipt submission screen ───────────────────────────────────────
+function renderReceiptForm() {
+  if (!_receiptDraft) { navigate("/tasks/scan"); return; }
+  setHeader("Submit a receipt", "");
+  setRefresh(null);
+  const main = document.getElementById("main");
+  const today = fmtIsoDate(new Date());
+  const d = _receiptDraft;
+
+  main.innerHTML = `
+    <div class="receipt-form">
+      <div class="receipt-preview">
+        ${d.thumb ? `<img src="${d.thumb}" alt="Receipt preview">` : `<div class="receipt-preview-fallback">📄</div>`}
+        <div class="receipt-preview-meta">
+          <div class="receipt-preview-title">${d.pageCount > 1 ? `${d.pageCount}-page PDF` : "1 photo"}</div>
+          <div class="receipt-preview-sub">Stored securely in RouteReady</div>
+        </div>
+        <button type="button" id="receipt-autofill" class="btn btn-sm btn-ghost">✨ Auto-fill</button>
+      </div>
+
+      <label class="field-label">Category <span class="req">*</span></label>
+      <div class="receipt-chips" id="receipt-cat">
+        ${_RECEIPT_CATEGORIES.map((c) => `<button type="button" class="receipt-chip" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("")}
+      </div>
+
+      <label class="field-label" for="receipt-amount">Total amount <span class="req">*</span></label>
+      <div class="receipt-amount-wrap">
+        <span class="receipt-amount-cur">$</span>
+        <input class="field receipt-amount" id="receipt-amount" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off">
+      </div>
+
+      <label class="field-label" for="receipt-vendor">Vendor</label>
+      <input class="field" id="receipt-vendor" type="text" placeholder="e.g. Shell, AutoZone" autocapitalize="words" autocomplete="off">
+
+      <div class="receipt-row2">
+        <div>
+          <label class="field-label" for="receipt-date">Receipt date</label>
+          <input class="field" id="receipt-date" type="date" value="${today}">
+        </div>
+        <div>
+          <label class="field-label" for="receipt-tax">Tax</label>
+          <input class="field" id="receipt-tax" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        </div>
+      </div>
+
+      <label class="field-label">Payment</label>
+      <div class="receipt-chips" id="receipt-pay">
+        ${_RECEIPT_PAYMENTS.map((p) => `<button type="button" class="receipt-chip" data-pay="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join("")}
+      </div>
+
+      <details class="receipt-more">
+        <summary>Attach to a van / route (optional)</summary>
+        <label class="field-label" for="receipt-van">Van</label>
+        <input class="field" id="receipt-van" type="text" placeholder="e.g. 4271" autocomplete="off">
+        <label class="field-label" for="receipt-route">Route date</label>
+        <input class="field" id="receipt-route" type="date" value="${today}">
+      </details>
+
+      <label class="field-label" for="receipt-notes">Notes</label>
+      <textarea class="field" id="receipt-notes" rows="2" placeholder="Anything the office should know"></textarea>
+
+      <button id="receipt-submit" class="btn btn-primary btn-block" type="button" style="margin-top:14px">Submit receipt</button>
+      <button id="receipt-cancel" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Cancel</button>
+    </div>`;
+
+  const pick = (host, attr) => {
+    let val = null;
+    host.querySelectorAll(".receipt-chip").forEach((b) => b.addEventListener("click", () => {
+      const was = b.classList.contains("on");
+      host.querySelectorAll(".receipt-chip").forEach((x) => x.classList.remove("on"));
+      if (!was) { b.classList.add("on"); val = b.getAttribute(attr); } else { val = null; }
+      _haptic("select");
+    }));
+    return () => val;
+  };
+  const getCat = pick(document.getElementById("receipt-cat"), "data-cat");
+  const getPay = pick(document.getElementById("receipt-pay"), "data-pay");
+
+  // Best-effort van prefill from today's assignment (never blocks the form).
+  (async () => {
+    try {
+      const s = readSession();
+      if (!s?.token) return;
+      const vRes = await sb.rpc("driver_vehicle_days", { p_token: s.token });
+      const row = (Array.isArray(vRes?.data) ? vRes.data : []).find((r) => r && r.date === today && r.vehicle);
+      const vanEl = document.getElementById("receipt-van");
+      if (row && vanEl && !vanEl.value) vanEl.value = row.vehicle;
+    } catch { /* no van data — fine */ }
+  })();
+
+  document.getElementById("receipt-autofill").addEventListener("click", (e) => _receiptOcrAutofill(e.currentTarget));
+  document.getElementById("receipt-cancel").addEventListener("click", () => navigate("/tasks/scan"));
+  document.getElementById("receipt-submit").addEventListener("click", (e) => {
+    const num = (id) => { const v = parseFloat(String(document.getElementById(id).value).replace(/[^0-9.]/g, "")); return isFinite(v) ? v : null; };
+    const val = (id) => (document.getElementById(id).value || "").trim() || null;
+    const rec = {
+      category:   getCat(),
+      amount:     num("receipt-amount"),
+      tax:        num("receipt-tax"),
+      vendor:     val("receipt-vendor"),
+      receiptDate: val("receipt-date"),
+      payment:    getPay(),
+      van:        val("receipt-van"),
+      routeDate:  val("receipt-route"),
+      notes:      val("receipt-notes"),
+      blob: d.blob, mime: d.mime, ext: d.ext,
+      filename: `receipt.${d.ext}`, ocrText: _receiptDraft.ocrText || null,
+      createdAt: Date.now(), id: "r" + Date.now() + Math.random().toString(36).slice(2, 7),
+    };
+    _receiptSubmit(e.currentTarget, rec);
+  });
+}
+
+// Run the on-device OCR over the draft pages and prefill empty fields. Fully
+// optional and guarded — the form works without it.
+async function _receiptOcrAutofill(btn) {
+  const pages = (_receiptDraft && _receiptDraft.pages) || [];
+  if (!pages.length) { toast("No photo to read", "warn"); return; }
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "Reading…";
+  try {
+    _scanPages = pages;                     // _scanRunOcr reads the module list
+    await _scanRunOcr((i, t) => { btn.textContent = `Reading ${i}/${t}…`; });
+    const text = pages.map((p) => p.ocrText || "").join("\n").trim();
+    _receiptDraft.ocrText = text;
+    const g = _receiptGuessFields(text);
+    const amt = document.getElementById("receipt-amount");
+    const dt  = document.getElementById("receipt-date");
+    const vn  = document.getElementById("receipt-vendor");
+    if (g.amount != null && amt && !amt.value) amt.value = g.amount.toFixed(2);
+    if (g.date && dt) dt.value = g.date;
+    if (g.vendor && vn && !vn.value) vn.value = g.vendor;
+    _haptic("success");
+    toast(g.amount != null || g.vendor ? "Filled what we could — please check it" : "Couldn't read much — enter the details", "ok");
+  } catch {
+    toast("Couldn't read the receipt — enter the details", "warn");
+  }
+  btn.disabled = false; btn.textContent = orig;
+}
+
+// Pure text → { amount, date (YYYY-MM-DD), vendor }. Exported for tests.
+function _receiptGuessFields(text) {
+  const out = { amount: null, date: null, vendor: null };
+  if (!text) return out;
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const totalRe = /(grand\s+total|total\s+due|amount\s+due|balance\s+due|total|amount)/i;
+  const money = /(\d{1,3}(?:,\d{3})+(?:\.\d{2})|\d+\.\d{2})/g;
+  let best = null;
+  for (const l of lines) {
+    if (!totalRe.test(l)) continue;
+    let m, last = null; money.lastIndex = 0;
+    while ((m = money.exec(l))) last = m[1];
+    if (last != null) best = parseFloat(last.replace(/,/g, ""));
+  }
+  if (best == null) {
+    let m; const re = /\b(\d+\.\d{2})\b/g; const flat = text.replace(/,/g, "");
+    while ((m = re.exec(flat))) { const v = parseFloat(m[1]); if (best == null || v > best) best = v; }
+  }
+  out.amount = best;
+  const dm = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/) || text.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/);
+  if (dm) out.date = _receiptNormalizeDate(dm);
+  for (const l of lines.slice(0, 6)) {
+    if (/[A-Za-z]{3,}/.test(l) && !/\d{3,}/.test(l) && !totalRe.test(l)) { out.vendor = l.slice(0, 60); break; }
+  }
+  return out;
+}
+function _receiptNormalizeDate(dm) {
+  try {
+    let y, mo, day;
+    if (String(dm[1]).length === 4) { y = +dm[1]; mo = +dm[2]; day = +dm[3]; }
+    else { mo = +dm[1]; day = +dm[2]; y = +dm[3]; if (y < 100) y += 2000; }
+    if (!(mo >= 1 && mo <= 12) || !(day >= 1 && day <= 31)) return null;
+    const z = (n) => String(n).padStart(2, "0");
+    return `${y}-${z(mo)}-${z(day)}`;
+  } catch { return null; }
+}
+
+async function _receiptSubmit(btn, rec) {
+  if (!rec.category) { toast("Choose a category", "warn"); return; }
+  if (!(rec.amount > 0)) { toast("Enter the total amount", "warn"); document.getElementById("receipt-amount")?.focus(); return; }
+  btn.disabled = true; btn.textContent = "Submitting…";
+
+  const done = (line, dup) => {
+    _haptic("success");
+    toast(dup ? "Submitted — flagged as a possible duplicate for review" : line, "ok");
+    _receiptDraft = null; _scanPages = [];
+    navigate("/tasks");
+  };
+
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    try { await _receiptQueueAdd(rec); done("Saved — will submit when you're back online"); }
+    catch { toast("Couldn't save the receipt. Try again.", "warn"); btn.disabled = false; btn.textContent = "Submit receipt"; }
+    return;
+  }
+
+  const res = await _receiptUploadAndSubmit(rec);
+  if (res.ok) { done("Receipt submitted", res.duplicate); return; }
+  if (res.retriable) {
+    try { await _receiptQueueAdd(rec); done("Couldn't reach RouteReady — saved, will retry when you're back online"); }
+    catch { toast("Couldn't save the receipt. Try again.", "warn"); btn.disabled = false; btn.textContent = "Submit receipt"; }
+    return;
+  }
+  toast(res.reason === "no-session" ? "Sign in again to submit" : "Couldn't submit — try again", "warn");
+  btn.disabled = false; btn.textContent = "Submit receipt";
+}
+
+// Upload the image to the private 'receipts' bucket, then record the receipt.
+async function _receiptUploadAndSubmit(rec) {
+  const session = readSession();
+  if (!session?.token) return { ok: false, retriable: false, reason: "no-session" };
+  let dspId = session.dsp_id, driverId = session.driver_id;
+  if (!dspId || !driverId) {
+    try {
+      const { data: me, error } = await sb.rpc("driver_me", { p_token: session.token });
+      if (error || !me) return { ok: false, retriable: true, reason: "profile" };
+      dspId = me.dsp_id || dspId; driverId = me.id || driverId;
+      const cur = readSession();
+      if (cur) writeSession({ ...cur, dsp_id: dspId, driver_id: driverId });
+    } catch { return { ok: false, retriable: true, reason: "profile" }; }
+  }
+  if (!dspId || !driverId) return { ok: false, retriable: false, reason: "incomplete" };
+
+  const path = `${dspId}/${driverId}/${Date.now()}-receipt.${rec.ext || "jpg"}`;
+  try {
+    const { error: upErr } = await sb.storage
+      .from("receipts")
+      .upload(path, rec.blob, { contentType: rec.mime || "image/jpeg", upsert: false });
+    if (upErr) return { ok: false, retriable: true, reason: "upload" };
+
+    const { data, error } = await sb.rpc("driver_receipt_submit", {
+      p_token:           session.token,
+      p_storage_key:     path,
+      p_category:        rec.category,
+      p_total_amount:    rec.amount,
+      p_vendor_name:     rec.vendor || null,
+      p_receipt_date:    rec.receiptDate || null,
+      p_tax_amount:      rec.tax ?? null,
+      p_payment_type:    rec.payment || null,
+      p_van_id:          null,
+      p_van_number:      rec.van || null,
+      p_route_date:      rec.routeDate || null,
+      p_shift_id:        null,
+      p_notes:           rec.notes || null,
+      p_file_name:       rec.filename || `receipt.${rec.ext || "jpg"}`,
+      p_file_size_bytes: rec.blob.size,
+      p_mime_type:       rec.mime || "image/jpeg",
+      p_ocr_raw_text:    rec.ocrText || null,
+      p_ocr_confidence:  null,
+    });
+    if (error) return { ok: false, retriable: true, reason: "rpc" };
+    return { ok: true, duplicate: !!(data && data.duplicate_flag) };
+  } catch { return { ok: false, retriable: true, reason: "network" }; }
+}
+
+// ── Offline receipt queue (IndexedDB) ───────────────────────────────
+// A receipt is never lost to a bad signal — same contract as the scan
+// queue, in its own store so the two flush independently.
+const _RCPT_Q_DB = "rr-receipt-queue";
+const _RCPT_Q_STORE = "receipts";
+function _receiptQueueDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_RCPT_Q_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(_RCPT_Q_STORE)) {
+        req.result.createObjectStore(_RCPT_Q_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _receiptQueueAdd(item) {
+  const db = await _receiptQueueDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_RCPT_Q_STORE, "readwrite");
+    tx.objectStore(_RCPT_Q_STORE).put(item);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function _receiptQueueAll() {
+  const db = await _receiptQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_RCPT_Q_STORE, "readonly");
+    const r = tx.objectStore(_RCPT_Q_STORE).getAll();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror = () => resolve([]);
+  });
+}
+async function _receiptQueueDelete(id) {
+  const db = await _receiptQueueDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(_RCPT_Q_STORE, "readwrite");
+    tx.objectStore(_RCPT_Q_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+let _receiptFlushing = false;
+async function _receiptFlushQueue({ silent } = {}) {
+  if (_receiptFlushing) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  if (!readSession()?.token) return;
+  _receiptFlushing = true;
+  let sent = 0;
+  try {
+    const items = (await _receiptQueueAll()).sort((a, b) => a.createdAt - b.createdAt);
+    for (const it of items) {
+      const res = await _receiptUploadAndSubmit(it);
+      if (res.ok) { await _receiptQueueDelete(it.id); sent++; }
+      else break;
+    }
+  } catch { /* retried next trigger */ }
+  _receiptFlushing = false;
+  if (sent && !silent) toast(`${sent} saved receipt${sent === 1 ? "" : "s"} submitted`, "ok");
+  if (sent) _haptic("success");
+}
+if (typeof window !== "undefined" && !window.__rrReceiptOnlineWired) {
+  window.__rrReceiptOnlineWired = true;
+  window.addEventListener("online", () => { _receiptFlushQueue(); });
 }
 
 function renderDocumentScanner() {
@@ -3842,8 +4427,7 @@ function renderDocumentScanner() {
           </span>
           <input type="checkbox" id="scan-ocr" class="scan-ocr-check" />
         </label>
-        <button id="scan-send" class="btn btn-primary btn-block" type="button">Send to dispatch</button>
-        <button id="scan-share" class="btn btn-ghost btn-block" type="button" style="margin-top:8px">Save or share PDF</button>
+        <button id="scan-categorize" class="btn btn-primary btn-block" type="button">Continue</button>
         <button id="scan-clear" class="btn btn-ghost btn-block" type="button" style="margin-top:8px;color:var(--red)">Start over</button>
       </div>
     </div>`;
@@ -3914,97 +4498,14 @@ function renderDocumentScanner() {
     _scanRenderPages();
   });
 
-  document.getElementById("scan-send").addEventListener("click", async () => {
-    if (!_scanPages.length) return;
-    const btn = document.getElementById("scan-send");
-    const name = _scanNameValue();
-    const filename = name.endsWith(".pdf") ? name : name + ".pdf";
-    btn.disabled = true; btn.textContent = "Sending…";
-
-    // Optional on-device OCR before building — degrades gracefully to a
-    // non-searchable PDF if the engine can't load (e.g. offline first use).
-    await _scanRunOcrIfEnabled((t) => { btn.textContent = t; });
-    btn.textContent = "Sending…";
-
-    let blob;
-    try {
-      blob = _scanBuildPdfBlob(_scanPages, { pageSize: _scanGetPageSize() });
-    } catch (err) {
-      toast(_friendlyError(err, "Couldn't build the PDF. Try again."), "warn");
-      btn.disabled = false; btn.textContent = "Send to dispatch";
-      return;
-    }
-
-    // Offline up front, or a transient failure mid-send → save to the
-    // queue and let it flush automatically when the signal is back. The
-    // driver's scan is safe either way, so we clear the workspace.
-    const queueIt = async (line) => {
-      try {
-        await _scanQueueAdd({
-          id: "q" + Date.now() + Math.random().toString(36).slice(2, 7),
-          name, filename, blob, size: blob.size, createdAt: Date.now(),
-        });
-        _haptic("success");
-        toast(line, "ok");
-        _scanPages = [];
-        renderDocumentScanner();
-      } catch {
-        toast("Couldn't save the scan. Try again.", "warn");
-        btn.disabled = false; btn.textContent = "Send to dispatch";
-      }
-    };
-
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      await queueIt("Saved — will send to dispatch when you're back online");
-      return;
-    }
-
-    const res = await _scanUploadAndSend(blob, filename);
-    if (res.ok) {
-      _haptic("success");
-      toast("Sent to dispatch", "ok");
-      _scanPages = [];
-      navigate("/chat");
-      return;
-    }
-    if (res.retriable) {
-      await queueIt("Couldn't reach dispatch — saved, will retry when you're back online");
-      return;
-    }
-    // Terminal (no session / incomplete profile) — don't silently queue.
-    toast(res.reason === "no-session" ? "Sign in again to send"
-        : "Profile incomplete — sign out and back in", "warn");
-    btn.disabled = false; btn.textContent = "Send to dispatch";
+  // Categorizing what you scanned is mandatory — the "What are you uploading?"
+  // chooser is the only way forward, so a Receipt is always classified (and
+  // never silently dropped into chat un-categorized). Non-receipt types still
+  // reach dispatch, just from inside the chooser.
+  document.getElementById("scan-categorize").addEventListener("click", () => {
+    if (!_scanPages.length || _scanBusy) return;
+    _scanChooseUploadType();
   });
-
-  document.getElementById("scan-share").addEventListener("click", async () => {
-    if (!_scanPages.length) return;
-    const btn = document.getElementById("scan-share");
-    const name = _scanNameValue();
-    btn.disabled = true; btn.textContent = "Preparing…";
-    await _scanRunOcrIfEnabled((t) => { btn.textContent = t; });
-    btn.textContent = "Preparing…";
-    try {
-      const blob = _scanBuildPdfBlob(_scanPages, { pageSize: _scanGetPageSize() });
-      const res = await _scanShareOrSave(blob, name.endsWith(".pdf") ? name : name + ".pdf");
-      if (res === "downloaded") toast("PDF downloaded", "ok");
-      else if (res === "shared") toast("Shared", "ok");
-    } catch (err) {
-      toast(_friendlyError(err, "Couldn't build the PDF. Try again."), "warn");
-    }
-    btn.disabled = false; btn.textContent = "Save or share PDF";
-  });
-
-  // Run OCR over the pages when "Make searchable" is on; on any failure,
-  // warn and continue so the export never gets blocked by OCR.
-  async function _scanRunOcrIfEnabled(setLabel) {
-    if (!_scanGetOcr()) return;
-    try {
-      await _scanRunOcr((i, total) => setLabel(`Reading text ${i}/${total}…`));
-    } catch {
-      toast("Couldn't read text — continuing without a searchable layer", "warn");
-    }
-  }
 
   document.getElementById("scan-clear").addEventListener("click", async () => {
     const ok = await confirmSheet({
@@ -4045,6 +4546,7 @@ function renderDocumentScanner() {
   // the screen — and likely the network — is available again.
   _scanUpdateQueueBanner();
   _scanFlushQueue({ silent: true });
+  _receiptFlushQueue({ silent: true });
 }
 
 // Show/hide the "waiting to send" banner from the queue count, and wire
@@ -7169,7 +7671,7 @@ async function renderFormFill() {
       const t = root.getAttribute("data-rr-type");
       if (t === "short_text" || t === "long_text" || t === "email" ||
           t === "phone"      || t === "number"    || t === "date"  ||
-          t === "time"       || t === "signature" || t === "dropdown") {
+          t === "time"       || t === "dropdown") {
         if ("value" in root) root.value = val;
       }
     }
@@ -7204,6 +7706,13 @@ async function renderFormFill() {
       toast("Restored your in-progress answers", "ok");
     }
   }
+
+  // Wire a real canvas signature pad for every signature field (drawn ink
+  // is read back as a PNG data URL at submit; not draft-restorable).
+  fields.filter(f => f.type === "signature").forEach(f => {
+    _initSignaturePad(`ff-${f.id}`, `ff-${f.id}-clear`);
+  });
+
   // Debounced save on any text change.
   let _formDraftTimer = null;
   const _saveFormDraft = () => {
@@ -7229,35 +7738,104 @@ async function renderFormFill() {
 
   _formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const btnEarly = e.target.querySelector("button[type=submit]");
-    if (btnEarly) { btnEarly.disabled = true; btnEarly.textContent = "Uploading…"; }
-    const answers = await _collectFormAnswers(fields);
-    if (btnEarly) { btnEarly.textContent = "Submitting…"; }
-    // Required-field validation. A conditional field that is currently
-    // HIDDEN (its rule isn't met) is NOT required and must not block submit:
-    // its wrapper has [hidden], and _collectFormAnswers already omitted it,
-    // so we skip the check for it. A revealed conditional field is validated
-    // like any other.
-    for (const f of fields) {
-      if (!f.required) continue;
-      const condWrap = _formEl.querySelector(`[data-cond-field="${CSS.escape(f.id)}"]`);
-      if (condWrap && condWrap.hidden) continue;
-      const v = answers[f.id];
-      const empty = v == null || v === "" || (Array.isArray(v) && v.length === 0);
-      if (empty) {
-        toast(`"${f.label || "Untitled"}" is required`, "warn");
+    const btn = e.target.querySelector("button[type=submit]");
+    const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = "Submit"; } };
+    if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+
+    // If we're offline up front, collect with deferred file uploads so the
+    // raw blobs ride along in the queue and upload on flush.
+    const offline = (typeof navigator !== "undefined" && navigator.onLine === false);
+    const deferredFiles = [];
+    const answers = await _collectFormAnswers(
+      fields,
+      offline ? { deferFiles: true, deferredFiles } : {}
+    );
+
+    // Online only: block submit if any photo/file upload failed — otherwise
+    // the driver believes the attachment was submitted when only an error
+    // marker was stored (it would even pass required validation as truthy).
+    if (!offline) {
+      const failedUpload = fields.find((f) => {
+        const v = answers[f.id];
+        return v && typeof v === "object" && v.error;
+      });
+      if (failedUpload) {
+        resetBtn();
+        toast(`Couldn't upload "${failedUpload.label || "attachment"}" — check your connection and try again.`, "warn");
         return;
       }
     }
-    const btn = e.target.querySelector("button[type=submit]");
-    if (btn) { btn.disabled = true; btn.textContent = "Submitting…"; }
-    const { error: subErr } = await sb.rpc("driver_submit_form", {
-      p_token:   session.token,
-      p_form_id: id,
-      p_answers: answers,
-    });
+
+    // Validation — required + field-level rules (min/max length, numeric
+    // range, email/phone format, choice membership), mirroring the server
+    // (migration 0439). A conditional field that is currently HIDDEN (its
+    // rule isn't met) is skipped: not required, not validated. On the first
+    // failure we scroll to and focus the offending field so the driver
+    // isn't left hunting for it on a long form.
+    for (const f of fields) {
+      if (["section_header", "divider", "instructions"].includes(f.type)) continue;
+      const condWrap = _formEl.querySelector(`[data-cond-field="${CSS.escape(f.id)}"]`);
+      if (condWrap && condWrap.hidden) continue;
+      const err = _validateFormAnswer(f, answers[f.id]);
+      if (err) {
+        resetBtn();
+        _focusFormField(_formEl, f.id);
+        toast(err, "warn");
+        return;
+      }
+    }
+
+    // Persist offline (or when the network drops mid-submit): store the
+    // submission for the queue to flush later so nothing is lost to a bad
+    // signal. queueAndLeave() clears the draft and returns to Tasks.
+    const queueAndLeave = async (files) => {
+      try {
+        await _formQueueAdd({
+          id:        `${id}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+          formId:    id,
+          formTitle: form.title || "Form",
+          answers,
+          files:     files || [],
+          createdAt: Date.now(),
+        });
+      } catch (qErr) {
+        resetBtn();
+        toast("Couldn't save this to submit later — please try again with signal.", "warn");
+        return false;
+      }
+      clearDraft(DRAFT_KEY);
+      _haptic("success");
+      toast("Saved — we'll submit this when you're back online", "ok");
+      navigate("/tasks");
+      return true;
+    };
+
+    if (offline) { await queueAndLeave(deferredFiles); return; }
+
+    if (btn) { btn.textContent = "Submitting…"; }
+    let subErr = null;
+    try {
+      const res = await sb.rpc("driver_submit_form", {
+        p_token:   session.token,
+        p_form_id: id,
+        p_answers: answers,
+      });
+      subErr = res.error;
+    } catch (netErr) {
+      // Transport threw — almost always the network dropped mid-request.
+      // Photos already uploaded (answers carry their paths), so queue with
+      // no deferred files and let the flusher re-POST when signal returns.
+      await queueAndLeave([]);
+      return;
+    }
     if (subErr) {
-      if (btn) { btn.disabled = false; btn.textContent = "Submit"; }
+      // Network went away between collect and response — queue rather than
+      // make the driver refill. Any other error is a real server rejection.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        await queueAndLeave([]);
+        return;
+      }
+      resetBtn();
       toast(_friendlyError(subErr, "Couldn't submit. Your answers are still here — try again."), "warn");
       return;
     }
@@ -7341,6 +7919,11 @@ function _formFieldInnerHtml(f) {
   const help = f.help ? `<div class="form-fill-help">${escapeHtml(f.help)}</div>` : "";
   const req  = f.required ? `<span style="color:var(--red);margin-left:3px">*</span>` : "";
   const row  = (input) => `<div class="form-fill-row"><label class="form-fill-label" for="${id}">${lbl}${req}</label>${help}${input}</div>`;
+  // Group row for radio/checkbox groups: the question is a <span> (not a
+  // <label for>, which can only target one control) and the group carries
+  // role="group" + aria-labelledby so screen readers announce the question
+  // with the choices.
+  const grow = (input) => `<div class="form-fill-row"><span class="form-fill-label" id="${id}-lbl">${lbl}${req}</span>${help}${input}</div>`;
   switch (f.type) {
     case "instructions":
       return `<div class="form-fill-instructions"><div class="form-fill-instructions-title">${lbl || "Instructions"}</div><div>${escapeHtml(f.help || "")}</div></div>`;
@@ -7361,25 +7944,25 @@ function _formFieldInnerHtml(f) {
     case "time":
       return row(`<input class="field" id="${id}" type="time" data-rr-field="${escapeHtml(f.id)}" data-rr-type="${f.type}"/>`);
     case "yes_no":
-      return row(`
-        <div class="form-fill-choice-row" data-rr-field="${escapeHtml(f.id)}" data-rr-type="yes_no">
+      return grow(`
+        <div class="form-fill-choice-row" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="yes_no">
           <label class="form-fill-choice"><input type="radio" name="${id}" value="yes"/><span>Yes</span></label>
           <label class="form-fill-choice"><input type="radio" name="${id}" value="no"/><span>No</span></label>
         </div>`);
     case "rating":
-      return row(`
-        <div class="form-fill-rating" data-rr-field="${escapeHtml(f.id)}" data-rr-type="rating">
+      return grow(`
+        <div class="form-fill-rating" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="rating">
           ${[1,2,3,4,5].map(n => `<label class="form-fill-rating-star"><input type="radio" name="${id}" value="${n}"/><span>${n}</span></label>`).join("")}
         </div>`);
     case "single_choice": {
       const opts = (f.options || []).map((o, i) => `
         <label class="form-fill-choice"><input type="radio" name="${id}" value="${escapeHtml(o)}"/><span>${escapeHtml(o)}</span></label>`).join("");
-      return row(`<div class="form-fill-choice-col" data-rr-field="${escapeHtml(f.id)}" data-rr-type="single_choice">${opts}</div>`);
+      return grow(`<div class="form-fill-choice-col" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="single_choice">${opts}</div>`);
     }
     case "multi_choice": {
       const opts = (f.options || []).map((o, i) => `
         <label class="form-fill-choice"><input type="checkbox" value="${escapeHtml(o)}"/><span>${escapeHtml(o)}</span></label>`).join("");
-      return row(`<div class="form-fill-choice-col" data-rr-field="${escapeHtml(f.id)}" data-rr-type="multi_choice">${opts}</div>`);
+      return grow(`<div class="form-fill-choice-col" role="group" aria-labelledby="${id}-lbl" data-rr-field="${escapeHtml(f.id)}" data-rr-type="multi_choice">${opts}</div>`);
     }
     case "dropdown": {
       const opts = (f.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("");
@@ -7390,9 +7973,13 @@ function _formFieldInnerHtml(f) {
     case "file":
       return row(`<input class="field" id="${id}" type="file" data-rr-field="${escapeHtml(f.id)}" data-rr-type="file"/>`);
     case "signature":
-      // MVP: a text-typed signature.  A real signature pad lands in a
-      // follow-up — for now this proves the field type works end to end.
-      return row(`<input class="field" id="${id}" type="text" placeholder="Type your name to sign" data-rr-field="${escapeHtml(f.id)}" data-rr-type="signature"/>`);
+      // Real canvas signature pad (shared _initSignaturePad, wired after
+      // render). The canvas carries data-rr-field so _collectFormAnswers
+      // reads its ink as a PNG data URL, matching the Checklist flow.
+      return row(`<div class="form-fill-sigwrap">
+          <canvas class="form-fill-sigpad" id="${id}" data-rr-field="${escapeHtml(f.id)}" data-rr-type="signature" height="140"></canvas>
+          <button type="button" class="form-fill-sigclear" id="${id}-clear">Clear</button>
+        </div>`);
     case "gps":
       // GPS captures lat/lng on submit (see _collectFormAnswers).
       return row(`<div class="form-fill-gps" data-rr-field="${escapeHtml(f.id)}" data-rr-type="gps">Location will be captured when you submit.</div>`);
@@ -7400,6 +7987,65 @@ function _formFieldInnerHtml(f) {
     default:
       return row(`<input class="field" id="${id}" type="text" data-rr-field="${escapeHtml(f.id)}" data-rr-type="short_text"/>`);
   }
+}
+
+// Validate one answer against its field's rules. Returns an error string
+// (already user-facing) or null when the answer is acceptable. Mirrors the
+// server-side checks in migration 0439 so the app and DB agree.
+function _validateFormAnswer(f, v) {
+  const label = f.label || "This field";
+  const empty = v == null || v === "" || (Array.isArray(v) && v.length === 0);
+  if (empty) return f.required ? `"${label}" is required` : null;
+  const val = (f.validation && typeof f.validation === "object") ? f.validation : {};
+  switch (f.type) {
+    case "email":
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v))) return `"${label}" needs a valid email address`;
+      break;
+    case "phone":
+      if (String(v).replace(/\D/g, "").length < 7) return `"${label}" needs a valid phone number`;
+      break;
+    case "number": {
+      const n = Number(v);
+      if (!isFinite(n)) return `"${label}" must be a number`;
+      if (val.min != null && n < val.min) return `"${label}" must be at least ${val.min}`;
+      if (val.max != null && n > val.max) return `"${label}" must be at most ${val.max}`;
+      break;
+    }
+    case "rating": {
+      const n = Number(v);
+      if (!(n >= 1 && n <= 5)) return `"${label}" has an invalid rating`;
+      break;
+    }
+    case "short_text":
+    case "long_text": {
+      const len = String(v).length;
+      if (val.minLen != null && len < val.minLen) return `"${label}" must be at least ${val.minLen} characters`;
+      if (val.maxLen != null && len > val.maxLen) return `"${label}" must be ${val.maxLen} characters or fewer`;
+      break;
+    }
+    case "single_choice":
+    case "dropdown": {
+      const opts = Array.isArray(f.options) ? f.options : [];
+      if (opts.length && !opts.includes(String(v))) return `"${label}" has an invalid selection`;
+      break;
+    }
+    case "multi_choice": {
+      const opts = Array.isArray(f.options) ? f.options : [];
+      if (opts.length && Array.isArray(v) && v.some(x => !opts.includes(x))) return `"${label}" has an invalid selection`;
+      break;
+    }
+  }
+  return null;
+}
+
+// Scroll to and focus a field by id so a validation error is immediately
+// visible — beats a lone toast on a long form.
+function _focusFormField(formEl, fid) {
+  const root = formEl.querySelector(`[data-rr-field="${CSS.escape(fid)}"]`);
+  if (!root) return;
+  const target = (root.matches("input,select,textarea") ? root : root.querySelector("input,select,textarea")) || root;
+  try { target.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { try { target.scrollIntoView(); } catch {} }
+  try { target.focus({ preventScroll: true }); } catch {}
 }
 
 async function _collectFormAnswers(fields, opts = {}) {
@@ -7415,6 +8061,8 @@ async function _collectFormAnswers(fields, opts = {}) {
   // storage round-trip — drafts never spend bandwidth.
   const skipUploads = !!opts.skipUploads;
   const photoUploads = [];
+  const gpsCaptures = [];
+  const deferOps = [];  // async prep for offline-queued blobs (e.g. downscale)
   document.querySelectorAll("#rr-form-fill [data-rr-field]").forEach((el) => {
     // Conditional logic: a field whose condition isn't currently met sits
     // inside a hidden [data-cond-field] wrapper. Skip it entirely so it is
@@ -7433,6 +8081,17 @@ async function _collectFormAnswers(fields, opts = {}) {
       out[fid] = Array.from(el.querySelectorAll("input[type=checkbox]:checked")).map((c) => c.value);
     } else if (t === "photo") {
       if (skipUploads) return;  // skip in draft mode
+      // Offline path: carry the (downscaled) blob for the queue to upload later.
+      if (opts.deferFiles) {
+        const f = el.files?.[0];
+        if (f) {
+          out[fid] = { name: f.name, size: f.size, type: f.type, deferred: true };
+          deferOps.push(_downscaleImageFile(f).then((up) => {
+            opts.deferredFiles.push({ fid, blob: up, name: f.name, type: up.type });
+          }));
+        } else { out[fid] = null; }
+        return;
+      }
       // Upload the captured photo to driver-documents under a path
       // gated by the existing DSP-tenant SELECT policy (0021): the
       // FIRST folder MUST be the DSP id so dispatchers on that DSP
@@ -7446,16 +8105,17 @@ async function _collectFormAnswers(fields, opts = {}) {
         const path = `${dspId || "no-dsp"}/dvic/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
         out[fid] = { path, name: f.name, size: f.size, type: f.type, uploading: true };
         photoUploads.push(
-          sb.storage.from("driver-documents").upload(path, f, { contentType: f.type, upsert: false })
-            .then(({ error }) => {
-              if (error) {
-                console.warn("DVIC photo upload failed:", error.message);
-                out[fid] = { name: f.name, size: f.size, type: f.type, error: error.message };
-              } else {
-                out[fid] = { path, name: f.name, size: f.size, type: f.type };
-              }
-            })
-            .catch((e) => {
+          _downscaleImageFile(f).then((up) =>
+            sb.storage.from("driver-documents").upload(path, up, { contentType: up.type, upsert: false })
+              .then(({ error }) => {
+                if (error) {
+                  console.warn("DVIC photo upload failed:", error.message);
+                  out[fid] = { name: f.name, size: f.size, type: f.type, error: error.message };
+                } else {
+                  out[fid] = { path, name: f.name, size: up.size, type: up.type };
+                }
+              })
+          ).catch((e) => {
               console.warn("DVIC photo upload error:", e);
               out[fid] = { name: f.name, size: f.size, type: f.type, error: String(e) };
             })
@@ -7464,17 +8124,90 @@ async function _collectFormAnswers(fields, opts = {}) {
         out[fid] = null;
       }
     } else if (t === "file") {
+      if (skipUploads) return;  // drafts never spend bandwidth
+      // Offline path: carry the raw blob for the queue to upload later.
+      if (opts.deferFiles) {
+        const f = el.files?.[0];
+        if (f) {
+          opts.deferredFiles.push({ fid, blob: f, name: f.name, type: f.type });
+          out[fid] = { name: f.name, size: f.size, type: f.type, deferred: true };
+        } else { out[fid] = null; }
+        return;
+      }
+      // Previously the file's bytes were discarded — only {name,size,type}
+      // was stored, so dispatchers got an unusable filename. Now we upload
+      // the file to storage and keep its path, mirroring the photo branch.
       const f = el.files?.[0];
-      out[fid] = f ? { name: f.name, size: f.size, type: f.type } : null;
+      if (f) {
+        const ts = Date.now();
+        const safe = (f.name || "file").replace(/[^A-Za-z0-9._-]+/g, "-");
+        // Same DSP-first path prefix as photos so the existing
+        // driver-documents SELECT policy lets dispatchers read it back.
+        const path = `${dspId || "no-dsp"}/dvic/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        out[fid] = { path, name: f.name, size: f.size, type: f.type, uploading: true };
+        photoUploads.push(
+          sb.storage.from("driver-documents").upload(path, f, { contentType: f.type, upsert: false })
+            .then(({ error }) => {
+              if (error) {
+                console.warn("Form file upload failed:", error.message);
+                out[fid] = { name: f.name, size: f.size, type: f.type, error: error.message };
+              } else {
+                out[fid] = { path, name: f.name, size: f.size, type: f.type };
+              }
+            })
+            .catch((e) => {
+              console.warn("Form file upload error:", e);
+              out[fid] = { name: f.name, size: f.size, type: f.type, error: String(e) };
+            })
+        );
+      } else {
+        out[fid] = null;
+      }
+    } else if (t === "signature") {
+      if (skipUploads) return;  // don't bloat localStorage drafts with base64 ink
+      // Canvas pad: export ink as a PNG data URL, or "" when unsigned so
+      // required validation treats an empty pad as missing.
+      out[fid] = el._rrHasInk ? el.toDataURL("image/png") : "";
     } else if (t === "gps") {
-      out[fid] = el.dataset.rrGps || null;
+      // Previously read el.dataset.rrGps, which was never set anywhere —
+      // so a GPS field always submitted null despite promising "captured
+      // when you submit". Now we actually capture the location at submit
+      // time. Draft passes never prompt for location.
+      if (el.dataset.rrGps) {
+        try { out[fid] = JSON.parse(el.dataset.rrGps); } catch { out[fid] = el.dataset.rrGps; }
+      } else {
+        out[fid] = null;
+      }
+      if (!skipUploads && !el.dataset.rrGps && "geolocation" in navigator) {
+        gpsCaptures.push(new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const g = {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracy: Math.round(pos.coords.accuracy || 0),
+                at: new Date().toISOString(),
+              };
+              el.dataset.rrGps = JSON.stringify(g);
+              out[fid] = g;
+              resolve();
+            },
+            // Permission denied / no fix — leave null, never block submit.
+            () => { out[fid] = null; resolve(); },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+          );
+        }));
+      }
     } else {
       out[fid] = el.value || "";
     }
   });
-  // Wait for all photo uploads to settle before returning so the
-  // submission's answers contain the final paths.
-  if (photoUploads.length) await Promise.all(photoUploads);
+  // Wait for all photo/file uploads, GPS captures, and offline blob prep
+  // to settle before returning so the answers carry final paths/coords and
+  // the queue carries the downscaled blobs.
+  if (photoUploads.length || gpsCaptures.length || deferOps.length) {
+    await Promise.all([...photoUploads, ...gpsCaptures, ...deferOps]);
+  }
   return out;
 }
 

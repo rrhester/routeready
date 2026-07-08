@@ -4445,7 +4445,36 @@ const WB_TEMPLATES = [
       ],
     }),
   },
+  {
+    // Unlike the others, this template is a live ledger: picking it opens the
+    // DSP's single Receipt Ledger (creating it if needed via
+    // receipt_ledger_ensure) so it's the same durable workbook the phone
+    // scanner writes into — see openOrCreateReceiptLedger. The build() spec
+    // below is only a fallback layout for environments where the receipt
+    // migrations aren't applied yet.
+    key: "receipt-ledger",
+    name: "Receipt Ledger",
+    category: "Finance",
+    desc: "Receipts scanned in the app land here automatically — reconcile against your card, fuel, or bank statement.",
+    build: () => ({
+      title: "Receipt Ledger",
+      description: "Receipts submitted from the RouteReady app — reconcile against your card / fuel statements.",
+      blocks: [
+        { type: "sheet", title: "Receipt Ledger", sheets: [{
+          name: "Receipt Ledger",
+          cols: ["Date", "Uploaded By", "Driver", "Van", "Category", "Vendor", "Amount", "Tax", "Payment Type", "Route Date", "Status", "Receipt", "Notes"],
+          colWidths: { 1: 150, 5: 160, 12: 220 },
+          rows: [],
+        }] },
+      ],
+    }),
+  },
 ];
+
+// Which templates the "New workbook" gallery offers. The full WB_TEMPLATES set
+// stays defined (so existing workbooks keep their template badge), but for now
+// the gallery shows only the Receipt Ledger.
+const WB_GALLERY_TEMPLATES = ["receipt-ledger"];
 
 // ─── Module state ────────────────────────────────────────────────────────────
 // One workbook open at a time. Sheet cell data lives in sparse Maps
@@ -5021,6 +5050,7 @@ async function openWorkbook(id) {
     WB.dirtyCells = new Map();
     WB.pendingActivity = [];
     GRIDS.clear();
+    await ensureReceiptLedgerExtras();
     renderDetailPage();
     openRealtime();
     refreshLiveReports();
@@ -6363,7 +6393,7 @@ function openCreateModal() {
               <span class="wb-tpl-cat">Start fresh</span>
               <span class="wb-tpl-desc">One empty spreadsheet — add notes and checklists as you go.</span>
             </button>
-            ${WB_TEMPLATES.map(tplCard).join("")}
+            ${WB_TEMPLATES.filter((t) => WB_GALLERY_TEMPLATES.includes(t.key)).map(tplCard).join("")}
           </div>
         </div>
       </div>
@@ -6404,6 +6434,12 @@ async function submitCreate(wrap) {
   btn.disabled = true;
   btn.textContent = "Creating…";
   try {
+    // The Receipt Ledger is a per-DSP singleton the phone scanner feeds — open
+    // the existing one (or provision it) rather than spawning a duplicate.
+    if (tplKey === "receipt-ledger") {
+      await openOrCreateReceiptLedger(wrap);
+      return;
+    }
     const wb = await createWorkbook({ title, description: desc, visibility: vis, templateKey: tplKey || null });
     wrap.remove();
     await openWorkbook(wb.id);
@@ -6413,6 +6449,117 @@ async function submitCreate(wrap) {
     const msg = (e && e.message) || String(e);
     _toast(wbMigrationErr(msg) ? "Workbooks schema isn't deployed yet — apply migration 0412 and retry" : "Couldn't create the workbook: " + msg, "error");
   }
+}
+
+// Open the DSP's single Receipt Ledger — the one the phone scanner writes into.
+// Order: open an existing ledger → provision via receipt_ledger_ensure (same
+// server function receipts use, so the sheet gets its header + Status dropdown)
+// → fall back to a plain template build if the receipt migrations aren't live
+// yet. The `dispatcher`-gated RPC and the partial unique index guarantee one
+// ledger per DSP, so this never spawns a duplicate.
+async function openOrCreateReceiptLedger(wrap) {
+  const s = _sb();
+  const dsp = _dsp();
+
+  // 1. Provision via the shared server function. It's idempotent AND
+  //    self-healing — it (re)applies the Status dropdown to an existing sheet —
+  //    so always call it, even when the ledger already exists.
+  try {
+    const res = await s.rpc("receipt_ledger_ensure");
+    if (!res.error && res.data) {
+      const id = res.data.workbook_id || res.data.id || res.data;
+      if (id) { if (wrap) wrap.remove(); await openWorkbook(id); return; }
+    }
+  } catch (_) { /* fall through */ }
+
+  // 2. Fallback (receipt migrations not applied yet): open an existing ledger,
+  //    else build the layout locally.
+  const ex = await s.from("workbooks").select("id")
+    .eq("dsp_id", dsp.id).eq("template_key", "receipt-ledger")
+    .is("archived_at", null).maybeSingle();
+  if (ex.data && ex.data.id) { if (wrap) wrap.remove(); await openWorkbook(ex.data.id); return; }
+
+  const wb = await createWorkbook({ title: "Receipt Ledger", description: "", visibility: "org", templateKey: "receipt-ledger" });
+  if (wrap) wrap.remove();
+  await openWorkbook(wb.id);
+}
+
+// Whenever the Receipt Ledger is opened — any way, and regardless of migration
+// state — guarantee (1) the Status column is a dropdown and (2) a "How it
+// works" tab exists. Runs client-side so it doesn't depend on the server heal
+// or on opening via the template card. Never throws (open must not break).
+async function ensureReceiptLedgerExtras() {
+  try {
+    const wb = WB.wb;
+    if (!wb || wb.template_key !== "receipt-ledger" || !WB.canEdit) return;
+    const allSheets = [].concat(...Array.from(WB.sheetsByBlock.values()));
+    const ledger = allSheets.find((sh) => sh.name === "Receipt Ledger");
+
+    // 1) The Status dropdown lives in the sheet's data-validation meta. Add it
+    //    if it's missing so the Status column always renders as a picker.
+    if (ledger) {
+      const rules = Array.isArray(ledger.meta && ledger.meta.validation) ? ledger.meta.validation : [];
+      if (!rules.some((r) => r && r.id === "dv-status")) {
+        const RULE = {
+          id: "dv-status", type: "list", style: "chip", mode: "warn",
+          r0: 1, c0: 10, r1: 9999, c1: 10,
+          list: ["Unreconciled", "Matched", "Needs Review", "Duplicate Possible", "Rejected", "Reimbursable"],
+          colors: ["#E8EAED", "#D9EAD3", "#FFF2CC", "#FCE5CD", "#F4CCCC", "#C9DAF8"],
+        };
+        ledger.meta = { ...(ledger.meta || {}), validation: rules.filter((r) => !(r && r.c0 === 10 && r.c1 === 10)).concat([RULE]) };
+        if (!(ledger.frozenRows >= 1)) ledger.frozenRows = 1;
+        saveSheetMeta(ledger.id);
+      }
+    }
+
+    // 2) A "How it works" tab so the DSP understands the scanner ↔ ledger flow.
+    if (ledger && !allSheets.some((sh) => sh.name === "How it works")) {
+      await createSheetWithCells(ledger.blockId, receiptGuideSpec(), "guide");
+    }
+  } catch (e) {
+    console.warn("receipt ledger extras:", e && e.message);
+  }
+}
+
+// The instructions tab content — one column of calm, plain-language guidance.
+function receiptGuideSpec() {
+  const H = (v) => ({ v, f: { bold: true } });
+  const T = (v) => ({ v, f: {} });
+  const lines = [
+    { v: "Receipt Ledger — How it works", f: { bold: true, bg: "header" } },
+    T(""),
+    H("The short version"),
+    T("Drivers scan receipts in the RouteReady app. Each one shows up here automatically as a new row you reconcile against your card, fuel, or bank statement."),
+    T(""),
+    H("1 · Driver scans a receipt"),
+    T("In the app: Scan or upload → tap “Receipt” → pick a category → confirm the amount, vendor and date → Submit. Poor signal is fine; the app saves it and sends when back online."),
+    T(""),
+    H("2 · It lands in this ledger"),
+    T("A new row appears on the “Receipt Ledger” tab, marked Unreconciled — with the date, who uploaded it, driver, van, category, vendor, amount, tax and payment type."),
+    T(""),
+    H("3 · Open the receipt image"),
+    T("Click “View Receipt” in the Receipt column to open the scanned image or PDF. Images are stored securely; the sheet only keeps a link, so it stays fast with thousands of receipts."),
+    T(""),
+    H("4 · Reconcile it"),
+    T("Compare the row to your statement, then click the Status cell and choose:"),
+    T("      •  Matched — found it on the statement (reconciled)"),
+    T("      •  Reimbursable — the company owes the driver"),
+    T("      •  Needs Review — something looks off"),
+    T("      •  Duplicate Possible — the app flagged a likely repeat"),
+    T("      •  Rejected — not a valid business expense"),
+    T("      •  Unreconciled — not checked yet (the default)"),
+    T(""),
+    H("5 · Remove an entry"),
+    T("Open “View Receipt” and click “Delete entry” to permanently remove a receipt and its stored image. Other rows are unaffected."),
+    T(""),
+    H("Good to know"),
+    T("Edit the Status or Notes cells anytime — changes save automatically and stay in sync with the underlying receipt. New receipts add themselves; you never add rows by hand."),
+  ];
+  return {
+    name: "How it works",
+    cells: lines.map((c, r) => ({ r, c: 0, value: c.v, formula: null, type: "text", format: c.f || {} })),
+    merges: [], colWidths: { 0: 820 }, frozenRows: 1, frozenCols: 0,
+  };
 }
 
 // ─── Detail page ─────────────────────────────────────────────────────────────
@@ -7602,6 +7749,18 @@ function cellImgSrc(cell) {
   return ok ? src : null;
 }
 
+// A Receipt Ledger cell that points at a stored receipt image. format.receipt
+// holds only the private storage key (no image bytes) so the grid stays light
+// at thousands of rows; the "View Receipt" button mints a signed URL on click.
+// The key shape is validated so nothing but a plausible object path renders.
+const WB_RECEIPT_RE = /^[A-Za-z0-9][A-Za-z0-9._/\-]{0,300}$/;
+function cellReceiptRef(cell) {
+  const r = cell && cell.format && cell.format.receipt;
+  const path = r && typeof r.path === "string" ? r.path : null;
+  if (!path || !WB_RECEIPT_RE.test(path)) return null;
+  return { path, name: (r && typeof r.name === "string" && r.name) ? r.name : "receipt" };
+}
+
 function repaintGrid(g) {
   if (g.raf) return;
   g.raf = requestAnimationFrame(() => { g.raf = 0; paintNow(g); });
@@ -7679,14 +7838,19 @@ function paintNow(g) {
     const dvMark = isDv && dvStyle === "arrow" ? `<span class="wb-dv-mark" data-wb-dvchip="${r},${c}" title="Pick from list" aria-label="Pick from list">▾</span>` : "";
     // a cell image takes over the cell's face; click opens the lightbox
     const imgSrc = cell ? cellImgSrc(cell) : null;
-    const inner = imgSrc
+    // a Receipt Ledger cell renders a "View Receipt" button in place of text;
+    // the image itself stays in storage and is fetched (signed) on click
+    const receiptRef = cell ? cellReceiptRef(cell) : null;
+    const inner = receiptRef
+      ? `<button type="button" class="wb-cell-receipt" data-wb-receipt="${esc(receiptRef.path)}" title="Open the stored receipt"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>View Receipt</button>`
+      : imgSrc
       ? `<img class="wb-cell-img" src="${imgSrc}" data-wb-img="${r},${c}" alt="Cell image" title="Click to enlarge" draggable="false">`
       : dvCheck
       ? `<span class="wb-dv-checkbox ${dvChecked ? "is-checked" : ""}" data-wb-dvcheck="${r},${c}" role="checkbox" aria-checked="${dvChecked}" title="Toggle">${dvChecked ? "☑" : "☐"}</span>`
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -10102,6 +10266,90 @@ function openImageLightbox(src) {
   box.addEventListener("click", close);
   document.addEventListener("keydown", onKey, true);
   document.body.appendChild(box);
+}
+
+// Receipt preview: mint a short-lived signed URL for the private receipt
+// object (never store the image in the sheet) and show it in a clean modal —
+// an <img> for photos, an <iframe> for PDFs. The path came from the cell's
+// validated format.receipt, so a bad/expired object degrades to a message
+// rather than a broken box.
+async function openReceiptPreview(path, g, row) {
+  if (!path) return;
+  document.querySelectorAll(".wb-rcpt-modal").forEach((b) => b.remove());
+  closeAllPopovers();
+  // Deletable when we know the ledger row it maps to and the viewer can edit.
+  const canDelete = !!(g && g.sheet && Number.isInteger(row) && row > 0 && WB.canEdit);
+  const box = document.createElement("div");
+  box.className = "wb-rcpt-modal";
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-modal", "true");
+  box.setAttribute("aria-label", "Receipt preview");
+  box.innerHTML = `
+    <div class="wb-rcpt-panel" role="document">
+      <div class="wb-rcpt-head">
+        <span class="wb-rcpt-title">Receipt</span>
+        <span class="wb-rcpt-actions">
+          ${canDelete ? `<button type="button" class="wb-rcpt-del" data-wb-rcpt-del>Delete entry</button>` : ""}
+          <a class="wb-rcpt-open" target="_blank" rel="noopener noreferrer" hidden>Open in new tab ↗</a>
+          <button type="button" class="wb-rcpt-close" data-wb-rcpt-close aria-label="Close">✕</button>
+        </span>
+      </div>
+      <div class="wb-rcpt-body"><div class="wb-rcpt-loading">Loading receipt…</div></div>
+    </div>`;
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const close = () => { document.removeEventListener("keydown", onKey, true); box.remove(); };
+  box.addEventListener("click", (e) => {
+    if (e.target.closest("[data-wb-rcpt-del]")) { e.preventDefault(); deleteReceiptEntry(g, row, path, box, close); return; }
+    if (e.target === box || e.target.closest("[data-wb-rcpt-close]")) close();
+  });
+  document.addEventListener("keydown", onKey, true);
+  document.body.appendChild(box);
+
+  const bodyEl = box.querySelector(".wb-rcpt-body");
+  try {
+    const res = await _sb().storage.from("receipts").createSignedUrl(path, 3600);
+    const url = res && res.data && res.data.signedUrl;
+    if (res && res.error) throw res.error;
+    if (!url) throw new Error("no url");
+    const openLink = box.querySelector(".wb-rcpt-open");
+    if (openLink) { openLink.href = url; openLink.hidden = false; }
+    if (/\.pdf(\?|$)/i.test(path)) {
+      bodyEl.innerHTML = `<iframe class="wb-rcpt-frame" src="${esc(url)}" title="Receipt PDF"></iframe>`;
+    } else {
+      bodyEl.innerHTML = `<img class="wb-rcpt-img" src="${esc(url)}" alt="Receipt">`;
+    }
+  } catch (_) {
+    bodyEl.innerHTML = `<div class="wb-rcpt-error">Couldn't load this receipt. It may have been removed, or you may not have access.</div>`;
+  }
+}
+
+// Delete the receipt this ledger row maps to: remove the record (a DB trigger
+// clears the row's cells), delete the stored image, and blank the row in the
+// open grid. Addressed by (sheet, row) so it works on rows created before the
+// receipt id was tracked, and never shifts other rows.
+async function deleteReceiptEntry(g, row, path, box, close) {
+  if (!g || !g.sheet || !Number.isInteger(row)) return;
+  if (!window.confirm("Delete this receipt from the ledger?\n\nThis removes the record and the stored image, and can't be undone.")) return;
+  const delBtn = box.querySelector("[data-wb-rcpt-del]");
+  if (delBtn) { delBtn.disabled = true; delBtn.textContent = "Deleting…"; }
+  try {
+    const res = await _sb().rpc("receipt_delete_at", { p_sheet_id: g.sheet.id, p_row_index: row });
+    if (res.error) throw res.error;
+    const key = res.data && res.data.file_storage_key;
+    if (key) { try { await _sb().storage.from("receipts").remove([key]); } catch (_) { /* orphan swept later */ } }
+    // Blank the row locally so the grid reflects the delete immediately.
+    for (let c = 0; c < (g.sheet.colCount || 13); c++) g.sheet.cells.delete(cellKey(row, c));
+    repaintGrid(g);
+    _toast("Receipt deleted", "info");
+    if (close) close();
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    if (delBtn) { delBtn.disabled = false; delBtn.textContent = "Delete entry"; }
+    _toast(/not_found/.test(msg) ? "This entry was already removed" :
+           /forbidden/.test(msg) ? "You don't have permission to delete receipts" :
+           /receipt_delete_at|schema cache|does not exist/.test(msg) ? "Apply migration 0439 to enable delete" :
+           "Couldn't delete: " + msg, "error");
+  }
 }
 
 function clearSelection(g, { formatToo } = {}) {
@@ -14221,7 +14469,10 @@ function kpiTileHtml(sheet, spec, rowFilter) {
     gauge = `<div class="wb-kpi-gauge" title="${pct}% of target ${kpiFmt(target, spec.format)}"><div class="wb-kpi-gauge-fill" style="width:${Math.max(0, Math.min(100, frac * 100)).toFixed(0)}%;background:${barColor}"></div></div>
       <div class="wb-kpi-gaugelbl">${pct}% of ${kpiFmt(target, spec.format)} target</div>`;
   }
-  const body = `<div class="wb-kpi"><div class="wb-kpi-value" style="color:${accent}">${valStr}</div>${delta}${gauge}${spark}</div>`;
+  // ink numbers read cleaner/more professional; accent then lives only in the
+  // sparkline + tile edge. Opt-in via spec.inkValue (auto-build sets it).
+  const valueColor = spec.inkValue ? "var(--text)" : accent;
+  const body = `<div class="wb-kpi"><div class="wb-kpi-value" style="color:${valueColor}">${valStr}</div>${delta}${gauge}${spark}</div>`;
   return { title: esc(spec.label || "KPI"), body, footer: "", accent };
 }
 const HEATMAP_STOPS = ["#eef5ff", "#bcd8f7", "#7db0ec"];  // light ramp — dark text stays readable
@@ -14671,15 +14922,16 @@ function autoBuildDashboard(g) {
 
   const build = () => {
     const rid = (p) => p + Math.random().toString(36).slice(2, 8);
-    // a cohesive, harmonious accent rhythm (cool → warm-neutral) — reads as
-    // designed, unlike a full rainbow; semantic red/amber is reserved for gauges
-    const ACCENTS = ["#2563eb", "#0891b2", "#0d9488", "#4f46e5", "#0ea5e9", "#059669", "#6366f1", "#0369a1"];
+    // One restrained brand accent across the whole scorecard — a professional
+    // dashboard reads as a single system, not a rainbow. The big number stays
+    // ink (inkValue) so the accent lives only in the sparkline + tile edge;
+    // semantic red/amber is reserved for gauges.
+    const KPI_ACCENT = "#2563eb";
     const controls = [], insights = [], kpis = [], charts = [], tables = [], texts = [];
-    let ti = 0;
     texts.push({ id: rid("tx"), hero: true, heading: (WB.wb && WB.wb.title) || g.sheet.name, body: `Live overview across ${analyzed.length} sheet${analyzed.length > 1 ? "s" : ""} · auto-built` });
     // KPI row: the headline metric from each sheet, then fill toward ~8 tiles
     const colRange = (a, col) => `${colLabel(col.c)}${a.rng.r0 + 2}:${colLabel(col.c)}${a.rng.r1 + 1}`;
-    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), sparkRange: colRange(a, col), format: "compact", accent: ACCENTS[ti++ % ACCENTS.length], srcSheetId: a.s.id });
+    const pushKpi = (a, col) => kpis.push({ id: rid("kp"), label: `${a.s.name} · ${col.name}`, agg: "sum", valueRef: colRange(a, col), sparkRange: colRange(a, col), format: "compact", accent: KPI_ACCENT, inkValue: true, srcSheetId: a.s.id });
     for (const a of analyzed) { if (kpis.length >= 8) break; pushKpi(a, a.nums[0]); }
     for (const a of analyzed) { if (kpis.length >= 8) break; if (a.nums[1]) pushKpi(a, a.nums[1]); }
     // charts from the richest sheets that have a dimension with metrics to its right
@@ -14691,7 +14943,7 @@ function autoBuildDashboard(g) {
       return { a, dim, c0: dim.c, c1: Math.min(dim.c + 9, Math.max(...right.map((n) => n.c))) };
     }).filter(Boolean).slice(0, 2);
     for (const { a, dim, c0, c1 } of chartable) {
-      charts.push({ id: rid("ch"), type: a.dates[0] ? "line" : "column", title: `${a.s.name} · by ${dim.name}`, theme: "vibrant", labels: false, grid: true, trend: !!a.dates[0], forecast: a.dates[0] ? 3 : 0, r0: a.rng.r0, c0, r1: a.rng.r1, c1, srcSheetId: a.s.id });
+      charts.push({ id: rid("ch"), type: a.dates[0] ? "line" : "column", title: `${a.s.name} · by ${dim.name}`, theme: "route", labels: false, grid: true, trend: !!a.dates[0], forecast: a.dates[0] ? 3 : 0, r0: a.rng.r0, c0, r1: a.rng.r1, c1, srcSheetId: a.s.id });
     }
     // insights + heatmap table + filters from the single richest sheet
     const top = analyzed[0];
@@ -14702,7 +14954,7 @@ function autoBuildDashboard(g) {
     if (dateSheet) controls.push({ id: rid("fc"), label: `${dateSheet.dates[0].name} range`, ctype: "daterange", col: dateSheet.dates[0].c, value: "all", srcSheetId: dateSheet.s.id });
     // ── designed layout: a real 12-column grid, aligned rows, uniform tiles ──
     const gr = dashGridPlacer(g);
-    if (texts[0]) gr.row([{ it: texts[0], n: 12, h: 76 }]);            // header band
+    if (texts[0]) gr.row([{ it: texts[0], n: 12, h: 62 }]);            // header band
     if (controls.length) gr.flow(controls, 3, 96, 4);                  // filter strip
     if (kpis.length) gr.flow(kpis, 3, 120, 4);                         // compact KPI scorecards, 4 across
     const restCharts = charts.slice();
@@ -14754,10 +15006,11 @@ const AI_KPI_FORMATS = ["number", "compact", "currency", "percent"];
 // charts, tables, texts } shape the dashboard stores in sheet.meta.
 function aiPlanToSpecs(plan, ctx, rid) {
   rid = rid || ((p) => p + Math.random().toString(36).slice(2, 8));
-  const ACCENTS = ["#2563eb", "#0891b2", "#0d9488", "#4f46e5", "#0ea5e9", "#059669", "#6366f1", "#0369a1"];
+  // one restrained brand accent + ink numbers — same clean scorecard system as
+  // Auto-build (no per-tile rainbow)
+  const KPI_ACCENT = "#2563eb";
   const out = { controls: [], insights: [], kpis: [], charts: [], tables: [], texts: [] };
   out.texts.push({ id: rid("tx"), hero: true, heading: String((plan && plan.headline) || "AI answer"), body: String((plan && plan.answer) || "") });
-  let ai = 0;
   const colRef = (rng, ci) => `${colLabel(ci)}${rng.r0 + 2}:${colLabel(ci)}${rng.r1 + 1}`;
   const widgets = plan && Array.isArray(plan.widgets) ? plan.widgets : [];
   for (const w of widgets) {
@@ -14772,7 +15025,7 @@ function aiPlanToSpecs(plan, ctx, rid) {
       const spec = {
         id: rid("kp"), label: w.title || String(w.column), agg: AI_KPI_AGGS.includes(w.agg) ? w.agg : "sum",
         valueRef: ref, sparkRange: ref, format: AI_KPI_FORMATS.includes(w.format) ? w.format : "compact",
-        accent: ACCENTS[ai++ % ACCENTS.length], srcSheetId: sh.id,
+        accent: KPI_ACCENT, inkValue: true, srcSheetId: sh.id,
       };
       if (typeof w.target === "number" && isFinite(w.target)) spec.target = w.target;
       out.kpis.push(spec);
@@ -14782,7 +15035,7 @@ function aiPlanToSpecs(plan, ctx, rid) {
       if (catI == null || !vals.length) continue;
       out.charts.push({
         id: rid("ch"), type: AI_CHART_TYPES[w.chartType] ? w.chartType : "column",
-        title: w.title || sh.name, theme: "vibrant", labels: false, grid: true,
+        title: w.title || sh.name, theme: "route", labels: false, grid: true,
         r0: R.r0, c0: catI, r1: R.r1, c1: Math.max(catI, ...vals), srcSheetId: sh.id,
       });
     } else if (w.type === "table") {
@@ -15220,7 +15473,7 @@ function bindGridEvents(g) {
     // from the document click delegate — opening here on mousedown would
     // be undone by the click-away closer, and the repaint that follows
     // setActive would detach the node before its click event fires)
-    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-dvcheck]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && e.target.closest("[data-wb-img]"))) { e.preventDefault(); return; }
+    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-dvcheck]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && (e.target.closest("[data-wb-img]") || e.target.closest("[data-wb-receipt]")))) { e.preventDefault(); return; }
 
     // ── drag-fill handle ──
     const fh = e.target.closest("[data-wb-fillhandle]");
@@ -17316,6 +17569,18 @@ function installRootListeners() {
         const src = cellImgSrc(g.sheet.cells.get(cellKey(rc.r, rc.c)));
         if (src) openImageLightbox(src);
       }
+      return;
+    }
+
+    // "View Receipt" button in a Receipt Ledger cell → signed preview modal
+    const rcptEl = e.target.closest("[data-wb-receipt]");
+    if (rcptEl) {
+      e.preventDefault();
+      const cellEl = rcptEl.closest(".wb-cell");
+      const gridEl = rcptEl.closest("[data-wb-gridfocus]");
+      const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
+      const row = cellEl ? +cellEl.getAttribute("data-r") : null;
+      openReceiptPreview(rcptEl.getAttribute("data-wb-receipt") || "", g || null, row);
       return;
     }
 

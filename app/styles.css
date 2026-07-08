@@ -694,6 +694,10 @@ select.field{
   box-shadow:var(--shadow-card);
 }
 .task-card:active{transform:scale(.992);box-shadow:var(--shadow-card-strong)}
+/* Completed once-per-driver form — shown for reference, not tappable. */
+.task-card.is-done{cursor:default;opacity:.72;box-shadow:none}
+.task-card.is-done:active{transform:none;box-shadow:none}
+.task-card.is-done .task-icon{background:var(--green-soft,#dcfce7);border-color:var(--green-soft,#bbf7d0)}
 .task-icon{
   width:36px;height:36px;border-radius:var(--r-md);
   background:var(--accent-soft);
@@ -1920,6 +1924,7 @@ body.scan-camming{overflow:hidden}
 /* ── Operational assignments — driver "My Tasks" cards ──────────── */
 .wt-sec{display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin:18px 0 10px}
 .wt-sec-n{background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:700;padding:1px 7px;border-radius:8px}
+.wt-form-pending{font-size:var(--fs-xs);color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border,#E5E7EB);border-radius:10px;padding:8px 12px;margin:0 0 10px;line-height:1.4}
 /* Quiet "view more" link that closes out a hub section (e.g. completed
    checklists) without pulling a full card's worth of weight. */
 .rr-hub-link{display:inline-block;margin:2px 2px 6px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text);cursor:pointer}
@@ -3031,6 +3036,10 @@ body.is-home main > .home-hero{
 .clk-sigpad{display:block;width:100%;height:140px;border:1px dashed var(--border-strong,#D1D5DB);border-radius:12px;background:#fff;touch-action:none}
 .clk-sigclear{position:absolute;top:8px;right:8px;appearance:none;border:1px solid var(--border,#E5E7EB);background:var(--surface,#fff);border-radius:8px;font:inherit;font-size:12px;color:var(--text-muted,#4B5563);padding:4px 10px;cursor:pointer}
 .clk-photo-note{font-size:12px;color:var(--text-subtle,#6B7280);margin-top:6px}
+/* Form fill-out signature pad — mirrors the checklist pad. */
+.form-fill-sigwrap{position:relative}
+.form-fill-sigpad{display:block;width:100%;height:140px;border:1px dashed var(--border-strong,#D1D5DB);border-radius:12px;background:#fff;touch-action:none}
+.form-fill-sigclear{position:absolute;top:8px;right:8px;appearance:none;border:1px solid var(--border,#E5E7EB);background:var(--surface,#fff);border-radius:8px;font:inherit;font-size:12px;color:var(--text-muted,#4B5563);padding:4px 10px;cursor:pointer}
 .clk-banner{display:flex;align-items:flex-start;gap:10px;border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.45;margin-bottom:14px;border:1px solid}
 .clk-banner-sub{font-size:12.5px;color:inherit;opacity:.85;font-weight:400;margin-top:2px}
 .clk-banner-done{background:#F0F7F2;border-color:#CDE3D4;color:#2F5E42}
@@ -3045,3 +3054,62 @@ body.is-home main > .home-hero{
 /* Checklists tab hub — section headers between To do / Completed groups */
 .clk-hub-h{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle,#6B7280);margin:18px 2px 10px}
 .clk-hub-h:first-child{margin-top:4px}
+
+/* ── Receipt intake: "What are you uploading?" chooser ──────────────── */
+.rr-uploadtype-list{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.rr-uploadtype{
+  display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+  background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r-md);
+  padding:14px 16px;font-family:inherit;font-size:var(--fs-lg);font-weight:600;
+  color:var(--text);cursor:pointer;transition:border-color var(--t-fast),background var(--t-fast);
+}
+.rr-uploadtype:active{background:var(--surface-pressed)}
+.rr-uploadtype:hover{border-color:var(--border-strong)}
+.rr-uploadtype-emoji{font-size:22px;line-height:1;width:26px;text-align:center;flex-shrink:0}
+.rr-uploadtype-label{flex:1}
+.rr-uploadtype-chev{color:var(--text-subtle);font-size:22px;font-weight:400}
+
+/* ── Receipt submission form ────────────────────────────────────────── */
+.receipt-form{padding:4px 2px 24px}
+.receipt-form .field-label{margin-top:16px}
+.receipt-form .field-label .req{color:var(--red);margin-left:2px}
+.receipt-preview{
+  display:flex;align-items:center;gap:12px;background:var(--surface);
+  border:1.5px solid var(--border);border-radius:var(--r-md);padding:10px 12px;
+}
+.receipt-preview img{
+  width:52px;height:52px;object-fit:cover;border-radius:10px;
+  border:1px solid var(--border);background:#fff;flex-shrink:0;
+}
+.receipt-preview-fallback{
+  width:52px;height:52px;display:flex;align-items:center;justify-content:center;
+  font-size:26px;border-radius:10px;background:var(--canvas);flex-shrink:0;
+}
+.receipt-preview-meta{flex:1;min-width:0}
+.receipt-preview-title{font-size:var(--fs-base);font-weight:700;color:var(--text)}
+.receipt-preview-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
+.receipt-chips{display:flex;flex-wrap:wrap;gap:8px}
+.receipt-chip{
+  background:var(--surface);border:1.5px solid var(--border);border-radius:999px;
+  padding:8px 14px;font-family:inherit;font-size:var(--fs-md);font-weight:600;
+  color:var(--text);cursor:pointer;transition:all var(--t-fast);
+}
+.receipt-chip:active{background:var(--surface-pressed)}
+.receipt-chip.on{
+  background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text);
+}
+.receipt-amount-wrap{position:relative;display:flex;align-items:center}
+.receipt-amount-cur{
+  position:absolute;left:16px;font-size:var(--fs-lg);font-weight:600;color:var(--text-subtle);
+  pointer-events:none;
+}
+.receipt-amount{padding-left:30px;font-variant-numeric:tabular-nums}
+.receipt-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.receipt-more{margin-top:16px;border-top:1px solid var(--border-subtle);padding-top:6px}
+.receipt-more summary{
+  font-size:var(--fs-md);font-weight:600;color:var(--accent);cursor:pointer;
+  padding:8px 0;list-style:none;
+}
+.receipt-more summary::-webkit-details-marker{display:none}
+.receipt-more summary::before{content:"＋ ";font-weight:700}
+.receipt-more[open] summary::before{content:"− "}

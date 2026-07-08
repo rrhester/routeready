@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=62641ea6a619";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=62641ea6a619";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=62641ea6a619";
+import { planScheduleWeek } from "./scheduling-engine.js?v=4ae68a8ac45d";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=4ae68a8ac45d";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=4ae68a8ac45d";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -368,6 +368,72 @@ window.RR.dsp = dspRow;
 // from localStorage/defaults at parse time (before the DSP is loaded);
 // now that the account is in memory, re-apply so account colors win.
 try { if (typeof window._rrReapplyRouteColors === "function") window._rrReapplyRouteColors(); } catch (_) {}
+
+// ─── Per-DSP entitlements · platform-admin page/feature gating ──────────
+// A platform admin can turn top-level pages (nav modules) and in-app
+// features off for an entire DSP from the control center.  The choice
+// lives on dsps.metadata as two opt-out lists:
+//
+//     metadata.disabled_pages    → data-view keys hidden from the sidebar
+//     metadata.disabled_features → feature keys whose entry buttons hide
+//
+// Absent = everything enabled.  We enforce with a single injected
+// <style> block rather than per-element JS: the nav items exist at parse
+// time but the feature buttons live inside view frags that are injected
+// lazily on first navigation, so a stylesheet is the only approach that
+// covers markup which doesn't exist yet.  `settings` and `admin` are
+// never gateable (a restricted user must keep a way back / the admin
+// surface is platform-admin-only anyway).
+//
+// Catalog is shared with the control center via window.RR_ENTITLEMENTS
+// so the admin drawer and this gate can never drift apart.
+window.RR_ENTITLEMENTS = {
+  pages: [
+    { key: "schedule",       label: "Schedule",   desc: "Routes, dispatch & the daily board" },
+    { key: "onboarding-ops", label: "Onboarding", desc: "New-hire onboarding workflow" },
+    { key: "fleet2",         label: "Fleet",      desc: "Vehicles, maintenance & assignments" },
+    { key: "workbooks",      label: "Workbooks",  desc: "Spreadsheets & saved reports" },
+    { key: "messages",       label: "Messages",   desc: "Driver & team messaging" },
+    { key: "email",          label: "Email",      desc: "Connected email inbox" },
+    { key: "recognition",    label: "Recognition",desc: "Kudos & awards page" },
+  ],
+  features: [
+    { key: "notes",      label: "Notes",             desc: "Quick notes panel",            sel: "[data-rr-notes-toggle]" },
+    { key: "tasks",      label: "My Tasks",          desc: "Personal task list",           sel: "[data-rr-tasks-toggle]" },
+    { key: "checklists", label: "Checklists",        desc: "Shift checklists",             sel: "[data-rr-checklists-toggle]" },
+    { key: "contacts",   label: "Contacts",          desc: "Station contacts directory",   sel: "[data-rr-contacts-toggle]" },
+    { key: "ophealth",   label: "Operations Health", desc: "Live ops-health readout",      sel: "[data-rr-ophealth-toggle]" },
+    { key: "forms",      label: "Forms panel",       desc: "Quick-forms side panel",       sel: "[data-rr-forms-toggle]" },
+    { key: "recog",      label: "Kudos panel",       desc: "Recognition quick panel",      sel: "[data-rr-recog-toggle]" },
+  ],
+};
+
+(function applyDspEntitlements() {
+  const md = window.RR?.dsp?.metadata || {};
+  const disabledPages    = Array.isArray(md.disabled_pages)    ? md.disabled_pages    : [];
+  const disabledFeatures = Array.isArray(md.disabled_features) ? md.disabled_features : [];
+  const cat = window.RR_ENTITLEMENTS;
+  const rules = [];
+  disabledPages.forEach((key) => {
+    if (key === "settings" || key === "admin") return;
+    // data-view is a static, sanitised key from our own catalog; guard
+    // anyway so a malformed metadata value can't break the selector.
+    if (!/^[a-z0-9-]+$/.test(key)) return;
+    rules.push(`.nav-item[data-view="${key}"]{display:none !important}`);
+  });
+  disabledFeatures.forEach((key) => {
+    const f = cat.features.find((x) => x.key === key);
+    if (f && f.sel) rules.push(`${f.sel}{display:none !important}`);
+  });
+  let styleEl = document.getElementById("rr-dsp-entitlements");
+  if (!rules.length) { if (styleEl) styleEl.remove(); return; }
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "rr-dsp-entitlements";
+    (document.head || document.documentElement).appendChild(styleEl);
+  }
+  styleEl.textContent = rules.join("\n");
+})();
 
 // ─── Brand · paint DSP name + station code into the sidebar chip ────────
 // The chip in dashboard/index.html is a static placeholder ("Cardinal
@@ -3606,20 +3672,21 @@ async function _loadPlatformAdminDsps() {
   // FIRST load to avoid a flash on subsequent re-paints.
   if (!_admin.loaded) {
     tbody.innerHTML = `
-      <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
-      <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
-      <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>`;
+      <tr><td colspan="11" class="rr-admin-skel"><span></span></td></tr>
+      <tr><td colspan="11" class="rr-admin-skel"><span></span></td></tr>
+      <tr><td colspan="11" class="rr-admin-skel"><span></span></td></tr>`;
   }
   const { data, error } = await sb.rpc("admin_list_dsps");
   if (error) {
     if (_isAuthError(error)) _forceRelogin("session_expired");
     console.error("admin_list_dsps failed:", error);
-    tbody.innerHTML = `<tr><td colspan="10" style="padding:var(--s-6);color:var(--red);text-align:center">${escapeHtml(error.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" style="padding:var(--s-6);color:var(--red);text-align:center">${escapeHtml(error.message)}</td></tr>`;
     return;
   }
   _admin.dsps = data || [];
   _admin.loaded = true;
   _renderPlatformAdminTable();
+  _adminRenderInsights();
 }
 
 function _adminFilteredDsps() {
@@ -3665,6 +3732,161 @@ function _adminFmtRelative(iso) {
   const days = Math.floor(h / 24);
   if (days < 30) return `${days}d ago`;
   return d.toLocaleDateString();
+}
+
+// ── Control-center insights ─────────────────────────────────────────────
+// Everything below is derived client-side from the in-memory DSP list
+// (_admin.dsps) — no extra round-trips.  Drives the KPI context lines,
+// the Needs-attention queue, and the Portfolio snapshot.
+
+const _ADMIN_DAY_MS = 86400000;
+function _adminDaysSince(iso) {
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / _ADMIN_DAY_MS);
+}
+
+// Attention signals for one DSP.  Suspended is deliberately excluded —
+// it's an intentional admin state (surfaced as a red health dot), not a
+// "something's wrong" queue item.
+function _adminRowSignals(d) {
+  const sig = [];
+  if (!d || d.status === "suspended") return sig;
+  if (!d.owner_email) {
+    sig.push({ sev: 3, short: "No owner", label: "No owner has signed up yet" });
+  }
+  if (d.status === "pending") {
+    const age = _adminDaysSince(d.created_at);
+    if (age != null && age >= 7) {
+      sig.push({ sev: 3, short: `Pending ${age}d`, label: `Awaiting owner signup for ${age} days` });
+    }
+  }
+  if (d.status === "active" && (d.driver_count ?? 0) === 0) {
+    sig.push({ sev: 2, short: "0 drivers", label: "Active, but no drivers added yet" });
+  }
+  if (d.status === "active") {
+    const idle = _adminDaysSince(d.last_active_at);
+    if (idle != null && idle >= 30) {
+      sig.push({ sev: 1, short: `Idle ${idle}d`, label: `No sign-in activity for ${idle} days` });
+    }
+  }
+  return sig;
+}
+
+function _adminRenderInsights() {
+  const dsps = _admin.dsps || [];
+  const total = dsps.length;
+  const active    = dsps.filter((d) => d.status === "active").length;
+  const pending   = dsps.filter((d) => d.status === "pending");
+  const suspended = dsps.filter((d) => d.status === "suspended").length;
+
+  // ── KPI context lines ────────────────────────────────────────────────
+  const setSub = (key, html) => {
+    const el = document.querySelector(`#view-admin [data-rr-admin-substat="${key}"]`);
+    if (el) el.innerHTML = html;
+  };
+  const newLast30 = dsps.filter((d) => {
+    const age = _adminDaysSince(d.created_at);
+    return age != null && age <= 30;
+  }).length;
+  setSub("total", newLast30 > 0
+    ? `<span class="rr-kpi-trend rr-kpi-trend--up">+${newLast30}</span> new · last 30 days`
+    : `All registered DSPs`);
+
+  const activePct = total ? Math.round((active / total) * 100) : 0;
+  const bar = document.querySelector('#view-admin [data-rr-admin-bar="active"]');
+  if (bar) bar.style.width = `${activePct}%`;
+  setSub("active", total ? `${activePct}% of portfolio operating` : `Operating normally`);
+
+  const pendingAges = pending.map((d) => _adminDaysSince(d.created_at)).filter((a) => a != null);
+  const oldestPending = pendingAges.length ? Math.max(...pendingAges) : null;
+  setSub("pending", pending.length === 0
+    ? `None awaiting signup`
+    : (oldestPending != null
+        ? `Oldest waiting <strong>${oldestPending}d</strong>`
+        : `Awaiting owner signup`));
+
+  setSub("suspended", suspended > 0
+    ? `${suspended} account${suspended === 1 ? "" : "s"} disabled`
+    : `None suspended`);
+
+  _adminRenderAttention();
+  _adminRenderPortfolio();
+}
+
+function _adminRenderAttention() {
+  const host = document.getElementById("rr-admin-attention");
+  const countEl = document.getElementById("rr-admin-attention-count");
+  if (!host) return;
+
+  const flagged = (_admin.dsps || [])
+    .map((d) => ({ d, signals: _adminRowSignals(d) }))
+    .filter((x) => x.signals.length > 0)
+    .map((x) => ({ ...x, top: Math.max(...x.signals.map((s) => s.sev)) }))
+    .sort((a, b) => (b.top - a.top) || (a.d.name || "").localeCompare(b.d.name || ""));
+
+  if (countEl) {
+    countEl.hidden = flagged.length === 0;
+    countEl.textContent = String(flagged.length);
+  }
+
+  if (flagged.length === 0) {
+    host.innerHTML = `
+      <div class="rr-cc-allclear">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div class="rr-cc-allclear__title">All clear</div>
+        <div class="rr-cc-allclear__sub">No DSPs need attention right now.</div>
+      </div>`;
+    return;
+  }
+
+  const MAX = 6;
+  const shown = flagged.slice(0, MAX);
+  const sevClass = (s) => s >= 3 ? "high" : s >= 2 ? "med" : "low";
+  host.innerHTML = shown.map(({ d, signals, top }) => {
+    const chips = signals.slice(0, 3).map((s) =>
+      `<span class="rr-cc-chip rr-cc-chip--${sevClass(s.sev)}" title="${escapeHtml(s.label)}">${escapeHtml(s.short)}</span>`
+    ).join("");
+    return `
+      <button class="rr-cc-att-row" type="button" data-rr-admin-focus="${escapeHtml(d.id)}">
+        <span class="rr-cc-att-row__dot rr-cc-att-row__dot--${sevClass(top)}" aria-hidden="true"></span>
+        <span class="rr-cc-att-row__body">
+          <span class="rr-cc-att-row__name">${escapeHtml(d.name || "—")}${d.short_code ? ` <span class="rr-cc-att-row__code">${escapeHtml(d.short_code)}</span>` : ""}</span>
+          <span class="rr-cc-att-row__chips">${chips}</span>
+        </span>
+        <svg class="rr-cc-att-row__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>`;
+  }).join("") + (flagged.length > MAX
+    ? `<div class="rr-cc-att-more">+${flagged.length - MAX} more with signals</div>`
+    : "");
+}
+
+function _adminRenderPortfolio() {
+  const host = document.getElementById("rr-admin-portfolio");
+  if (!host) return;
+  const dsps = _admin.dsps || [];
+  const totalDrivers = dsps.reduce((sum, d) => sum + (d.driver_count ?? 0), 0);
+  const plans = [
+    { key: "starter",    label: "Starter",    cls: "starter" },
+    { key: "growth",     label: "Growth",     cls: "growth" },
+    { key: "enterprise", label: "Enterprise", cls: "enterprise" },
+  ];
+  const counts = plans.map((p) => ({ ...p, n: dsps.filter((d) => (d.subscription_plan || "starter") === p.key).length }));
+  const maxN = Math.max(1, ...counts.map((c) => c.n));
+
+  host.innerHTML = `
+    <div class="rr-cc-metric">
+      <div class="rr-cc-metric__value">${totalDrivers.toLocaleString()}</div>
+      <div class="rr-cc-metric__label">Drivers under management</div>
+    </div>
+    <div class="rr-cc-plans">
+      <div class="rr-cc-plans__head">Plan mix</div>
+      ${counts.map((c) => `
+        <div class="rr-cc-plan">
+          <span class="rr-cc-plan__name">${c.label}</span>
+          <span class="rr-cc-plan__track"><span class="rr-cc-plan__fill rr-cc-plan__fill--${c.cls}" style="width:${Math.round((c.n / maxN) * 100)}%"></span></span>
+          <span class="rr-cc-plan__n">${c.n}</span>
+        </div>`).join("")}
+    </div>`;
 }
 
 function _renderPlatformAdminTable() {
@@ -3743,6 +3965,29 @@ function _renderAdminRow(d) {
     ? phoneCell(d.phone)
     : `<span class="rr-admin-cell-muted">—</span>`;
 
+  // Health dot — a glanceable roll-up of this DSP's attention signals
+  // (same logic as the Needs-attention queue).  Green = all clear,
+  // amber = a soft signal, red = suspended.
+  const signals = _adminRowSignals(d);
+  const health = d.status === "suspended" ? "red" : (signals.length ? "amber" : "green");
+  const healthTitle = d.status === "suspended"
+    ? "Suspended"
+    : (signals.length ? signals.map((s) => s.short).join(" · ") : "All clear");
+
+  // Modules cell — how many pages/features are enabled vs the catalog.
+  // Full = "All on" chip; anything trimmed shows the fraction so an
+  // admin can see at a glance which DSPs are on a reduced package.
+  const cat = window.RR_ENTITLEMENTS || { pages: [], features: [] };
+  const totalMods = cat.pages.length + cat.features.length;
+  const offMods = (Array.isArray(d.disabled_pages) ? d.disabled_pages.length : 0)
+                + (Array.isArray(d.disabled_features) ? d.disabled_features.length : 0);
+  const onMods = Math.max(0, totalMods - offMods);
+  const modulesCell = totalMods === 0
+    ? `<span class="rr-admin-cell-muted">—</span>`
+    : (offMods === 0
+        ? `<button class="rr-admin-mods rr-admin-mods--all" data-rr-admin-action="access" type="button" title="All modules on">All on</button>`
+        : `<button class="rr-admin-mods rr-admin-mods--trimmed" data-rr-admin-action="access" type="button" title="${offMods} module${offMods === 1 ? "" : "s"} off — click to manage">${onMods}/${totalMods}</button>`);
+
   // Suspend vs Reactivate based on current status.
   const suspendItem = d.status === "suspended"
     ? `<button class="rr-admin-row-actions__item" data-rr-admin-action="reactivate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Reactivate account</button>`
@@ -3752,8 +3997,11 @@ function _renderAdminRow(d) {
     <tr data-rr-admin-row="${escapeHtml(d.id)}">
       <td>
         <div class="rr-admin-cell-dsp">
-          <div class="rr-admin-cell-dsp__name">${escapeHtml(d.name || "—")}</div>
-          ${d.short_code ? `<div class="rr-admin-cell-dsp__sub">${escapeHtml(d.short_code)}</div>` : ""}
+          <span class="rr-admin-health rr-admin-health--${health}" title="${escapeHtml(healthTitle)}" aria-label="${escapeHtml(healthTitle)}"></span>
+          <div style="min-width:0">
+            <div class="rr-admin-cell-dsp__name">${escapeHtml(d.name || "—")}</div>
+            ${d.short_code ? `<div class="rr-admin-cell-dsp__sub">${escapeHtml(d.short_code)}</div>` : ""}
+          </div>
         </div>
       </td>
       <td>${ownerLine}</td>
@@ -3763,6 +4011,7 @@ function _renderAdminRow(d) {
       <td class="rr-admin-cell-num">${d.driver_count ?? 0}</td>
       <td class="rr-admin-cell-num"><span class="rr-admin-cell-muted">${d.route_count ?? 0}</span></td>
       <td><span class="${planClass}">${escapeHtml(d.subscription_plan || "starter")}</span></td>
+      <td>${modulesCell}</td>
       <td class="rr-admin-cell-muted">${_adminFmtRelative(d.last_active_at)}</td>
       <td class="rr-admin-row-actions">
         <button class="rr-admin-row-actions__btn" data-rr-admin-toggle="${escapeHtml(d.id)}" aria-label="Open actions">
@@ -3772,6 +4021,7 @@ function _renderAdminRow(d) {
           <button class="rr-admin-row-actions__item" data-rr-admin-action="view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View details</button>
           <button class="rr-admin-row-actions__item" data-rr-admin-action="edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit account</button>
           <button class="rr-admin-row-actions__item" data-rr-admin-action="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Manage users</button>
+          <button class="rr-admin-row-actions__item" data-rr-admin-action="access"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Access &amp; modules</button>
           <div class="rr-admin-row-actions__sep"></div>
           ${suspendItem}
           <button class="rr-admin-row-actions__item rr-admin-row-actions__item--danger" data-rr-admin-action="delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>Delete account</button>
@@ -3829,8 +4079,11 @@ async function _runAdminAction(action, dspId) {
     case "users":
       _openAdminManageUsers(dspId);
       return;
+    case "access":
+      _openAdminAccessDrawer(dspId);
+      return;
     case "suspend": {
-      if (!confirm(`Suspend "${dsp.name}"?\n\nAll users at this DSP will lose access until you reactivate.`)) return;
+      if (!(await _rrConfirmDialog({ title: `Suspend "${dsp.name}"?`, body: "All users at this DSP will lose access until you reactivate.", confirmLabel: "Suspend", danger: true }))) return;
       const { error } = await sb.rpc("admin_suspend_dsp", { p_dsp_id: dspId });
       if (error) {
         if (_isAuthError(error)) _forceRelogin("session_expired");
@@ -3842,7 +4095,7 @@ async function _runAdminAction(action, dspId) {
       return;
     }
     case "reactivate": {
-      if (!confirm(`Reactivate "${dsp.name}"?`)) return;
+      if (!(await _rrConfirmDialog({ title: `Reactivate "${dsp.name}"?`, confirmLabel: "Reactivate" }))) return;
       const { error } = await sb.rpc("admin_reactivate_dsp", { p_dsp_id: dspId });
       if (error) {
         if (_isAuthError(error)) _forceRelogin("session_expired");
@@ -3923,6 +4176,29 @@ function _bindAdminPageHandlers() {
   prevEl?.addEventListener("click", () => { if (_admin.page > 1) { _admin.page -= 1; _renderPlatformAdminTable(); }});
   nextEl?.addEventListener("click", () => { _admin.page += 1; _renderPlatformAdminTable(); });
   emptyCta?.addEventListener("click", () => document.getElementById("rr-admin-add-dsp")?.click());
+
+  // Needs-attention queue → clicking a row focuses that DSP in the
+  // table below (search-narrow + scroll into view).  Delegated so it
+  // survives every re-paint of the attention list.
+  document.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-rr-admin-focus]");
+    if (!row) return;
+    const id = row.getAttribute("data-rr-admin-focus");
+    const dsp = (_admin.dsps || []).find((d) => d.id === id);
+    if (!dsp) return;
+    const searchEl = document.getElementById("rr-admin-search");
+    const term = dsp.short_code || dsp.name || "";
+    if (searchEl) { searchEl.value = term; }
+    _admin.search = term;
+    _admin.filterStatus = "";
+    _admin.filterPlan = "";
+    _admin.page = 1;
+    const fs = document.getElementById("rr-admin-filter-status"); if (fs) fs.value = "";
+    const fp = document.getElementById("rr-admin-filter-plan");   if (fp) fp.value = "";
+    _renderPlatformAdminTable();
+    const rowEl = document.querySelector(`[data-rr-admin-row="${CSS.escape(id)}"]`);
+    (rowEl || document.getElementById("rr-admin-tbody"))?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
 
   // "Add DSP client" → open the Phase-4a modal.
   document.getElementById("rr-admin-add-dsp")?.addEventListener("click", () => {
@@ -4666,6 +4942,145 @@ function _closeAdminManageUsers() {
   if (backdrop) backdrop.classList.remove("open");
   _adminUsersCurrentDspId = null;
 }
+
+// ─── Access & modules drawer ────────────────────────────────────────────
+// Turn top-level pages + in-app features on/off for one DSP.  Reads the
+// entitlement lists already present on each row (admin_list_dsps returns
+// disabled_pages / disabled_features) and writes via
+// admin_set_dsp_entitlements().  Catalog lives on window.RR_ENTITLEMENTS
+// so these toggles and the runtime gate share one source of truth.
+let _adminAccessCurrentDspId = null;
+
+function _openAdminAccessDrawer(dspId) {
+  _adminAccessCurrentDspId = dspId;
+  const drawer   = document.getElementById("rr-admin-access-drawer");
+  const backdrop = document.getElementById("rr-admin-access-backdrop");
+  const titleEl  = document.getElementById("rr-admin-access-title");
+  const subEl    = document.getElementById("rr-admin-access-sub");
+  const bodyEl   = document.getElementById("rr-admin-access-body");
+  const footEl   = document.getElementById("rr-admin-access-foot");
+  if (!drawer || !backdrop || !bodyEl) return;
+
+  const dsp = _admin.dsps.find((d) => d.id === dspId);
+  const cat = window.RR_ENTITLEMENTS || { pages: [], features: [] };
+  const disabledPages    = new Set(Array.isArray(dsp?.disabled_pages)    ? dsp.disabled_pages    : []);
+  const disabledFeatures = new Set(Array.isArray(dsp?.disabled_features) ? dsp.disabled_features : []);
+
+  if (titleEl) titleEl.textContent = `Access & modules · ${dsp?.name || "DSP"}`;
+  if (subEl)   subEl.textContent   = "Turn pages and features on or off for everyone in this DSP.";
+
+  const onCount  = cat.pages.length - disabledPages.size;
+  const onCountF = cat.features.length - disabledFeatures.size;
+
+  const row = (kind, item, isOn) => `
+    <label class="rr-access-row">
+      <span class="rr-access-row__meta">
+        <span class="rr-access-row__label">${escapeHtml(item.label)}</span>
+        <span class="rr-access-row__desc">${escapeHtml(item.desc || "")}</span>
+      </span>
+      <span class="rr-admin-toggle">
+        <input type="checkbox" data-rr-access-kind="${kind}" data-rr-access-key="${escapeHtml(item.key)}" ${isOn ? "checked" : ""} aria-label="${escapeHtml(item.label)}" />
+        <span class="rr-admin-toggle__slider"></span>
+      </span>
+    </label>`;
+
+  bodyEl.innerHTML = `
+    <div class="rr-access-group">
+      <div class="rr-access-group__head">
+        <span class="rr-admin-users-section-head" style="margin:0">Pages</span>
+        <span class="rr-access-group__count" data-rr-access-count="pages">${onCount}/${cat.pages.length} on</span>
+      </div>
+      <div class="rr-access-list">${cat.pages.map((p) => row("page", p, !disabledPages.has(p.key))).join("")}</div>
+    </div>
+    <div class="rr-access-group">
+      <div class="rr-access-group__head">
+        <span class="rr-admin-users-section-head" style="margin:0">Features</span>
+        <span class="rr-access-group__count" data-rr-access-count="features">${onCountF}/${cat.features.length} on</span>
+      </div>
+      <div class="rr-access-list">${cat.features.map((f) => row("feature", f, !disabledFeatures.has(f.key))).join("")}</div>
+    </div>
+    <p class="rr-access-note">Changes apply to <strong>every user</strong> in this DSP the next time they load the dashboard. Data stays protected by account permissions regardless — this controls what's visible, not who can sign in.</p>`;
+
+  if (footEl) footEl.hidden = false;
+  _refreshAccessCounts();
+
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden", "false");
+  backdrop.classList.add("open");
+}
+
+function _closeAdminAccessDrawer() {
+  const drawer   = document.getElementById("rr-admin-access-drawer");
+  const backdrop = document.getElementById("rr-admin-access-backdrop");
+  if (drawer)   { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); }
+  if (backdrop) backdrop.classList.remove("open");
+  _adminAccessCurrentDspId = null;
+}
+
+// Live "N/M on" counter next to each group head as toggles flip.
+function _refreshAccessCounts() {
+  const body = document.getElementById("rr-admin-access-body");
+  if (!body) return;
+  ["pages", "features"].forEach((group) => {
+    const kind = group === "pages" ? "page" : "feature";
+    const boxes = body.querySelectorAll(`[data-rr-access-kind="${kind}"]`);
+    const on = Array.from(boxes).filter((b) => b.checked).length;
+    const el = body.querySelector(`[data-rr-access-count="${group}"]`);
+    if (el) el.textContent = `${on}/${boxes.length} on`;
+  });
+}
+
+async function _saveAdminAccess() {
+  const dspId = _adminAccessCurrentDspId;
+  const body  = document.getElementById("rr-admin-access-body");
+  const saveBtn = document.getElementById("rr-admin-access-save");
+  if (!dspId || !body) return;
+
+  // Collect the OFF keys (opt-out model) from unchecked toggles.
+  const disabledPages = Array.from(body.querySelectorAll('[data-rr-access-kind="page"]'))
+    .filter((b) => !b.checked).map((b) => b.getAttribute("data-rr-access-key"));
+  const disabledFeatures = Array.from(body.querySelectorAll('[data-rr-access-kind="feature"]'))
+    .filter((b) => !b.checked).map((b) => b.getAttribute("data-rr-access-key"));
+
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+  const { error } = await sb.rpc("admin_set_dsp_entitlements", {
+    p_dsp_id:            dspId,
+    p_disabled_pages:    disabledPages,
+    p_disabled_features: disabledFeatures,
+  });
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save changes"; }
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    toast(`Couldn't save access: ${error.message}`, "warn");
+    return;
+  }
+  // Reflect locally so the table + a re-open of the drawer are correct
+  // without a full reload.
+  const dsp = _admin.dsps.find((d) => d.id === dspId);
+  if (dsp) { dsp.disabled_pages = disabledPages; dsp.disabled_features = disabledFeatures; }
+  toast("Access updated.", "ok");
+  _renderPlatformAdminTable();
+  _closeAdminAccessDrawer();
+}
+
+// Delegated handlers: toggle counters, save, close.
+(function bindAdminAccessHandlers() {
+  document.addEventListener("change", (e) => {
+    if (e.target && e.target.getAttribute && e.target.getAttribute("data-rr-access-kind")) {
+      _refreshAccessCounts();
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-admin-access-save")) { _saveAdminAccess(); return; }
+    if (e.target.closest("[data-rr-admin-access-close]")) _closeAdminAccessDrawer();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const drawer = document.getElementById("rr-admin-access-drawer");
+      if (drawer && drawer.classList.contains("open")) _closeAdminAccessDrawer();
+    }
+  });
+})();
 
 async function _loadAdminManageUsers(dspId) {
   const bodyEl = document.getElementById("rr-admin-users-body");
@@ -22618,7 +23033,7 @@ function _ivcalCalendarMenu(e, id) {
 }
 
 async function _ivcalDeleteCalendar(cal) {
-  if (!confirm(`Delete the calendar "${cal.name}"? Events on it stay on the calendar but become uncategorized.`)) return;
+  if (!(await _rrConfirmDialog({ title: `Delete the calendar "${cal.name}"?`, body: "Events on it stay on the calendar but become uncategorized.", confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.from("calendars").delete().eq("id", cal.id);
   if (error) { toast("Couldn't delete calendar: " + (error.message || error), "warn"); return; }
   delete _ivcalCalVis[cal.id]; _ivcalSaveToggles();
@@ -22679,6 +23094,27 @@ function _ivcalCat(ev, kind) {
   if (r === "pending") return "orange";
   if (r === "declined") return "gray";
   return "blue";
+}
+
+// Display hue for an event — the color it PAINTS with on the grid. Kept
+// separate from _ivcalCat (which drives the status filters + legend, and
+// must not change) so the grid can read by calendar/kind — matching the
+// "My calendars" legend (interviews blue, orientations amber, events teal,
+// group sessions purple) — instead of by RSVP status. Precedence: a
+// per-event color (right-click recolor) → the event's custom calendar
+// color → the built-in kind color. Exception statuses keep their alarm
+// colors (no-show red, cancelled/declined gray) so problems still pop.
+function _ivcalHue(ev, type) {
+  if (type !== "session") {
+    if (ev.status === "no_show") return "#B91C1C";
+    if (ev.status === "cancelled") return "#6B7280";
+    if ((ev.rsvp || "accepted") === "declined") return "#6B7280";
+  }
+  if (ev.metadata && ev.metadata.color) return ev.metadata.color;
+  const cc = _ivcalCalColor(ev);
+  if (cc) return cc;
+  const k = type === "session" ? "session" : _ivcalEvKind(ev);
+  return _IVCAL_KIND_COLOR[k] || "#2563EB";
 }
 // Schedule-aligned palette so the calendar's category dots/tags match the
 // shift-chip colors used across the Schedule and Onboarding surfaces.
@@ -23182,7 +23618,7 @@ function _ivcalRender() {
   });
   host.querySelectorAll("[data-ivcal-await-send]").forEach(b => b.onclick = async (e) => {
     e.stopPropagation();
-    if (!confirm("Resend the interview booking link so they can pick a time?")) return;
+    if (!(await _rrConfirmDialog({ title: "Resend booking link?", body: "The applicant gets a fresh link to pick a time.", confirmLabel: "Resend" }))) return;
     const id = b.getAttribute("data-ivcal-await-send"), orig = b.textContent;
     b.disabled = true; b.textContent = "Sending…";
     try {
@@ -25084,9 +25520,14 @@ function _ivcalEventBlock(ev, type, lay) {
   const rz = kindAttr === "booking" ? `<div class="oc-rz" data-oc-resize></div>` : "";
   // A per-event color (right-click → recolor) wins over the custom-calendar
   // color, which in turn overrides the status-based category palette.
-  const cc = (ev.metadata && ev.metadata.color) || _ivcalCalColor(ev);
-  const ccStyle = cc ? `;border-left-color:${cc};border-color:${cc}55;background:${cc}1f;color:${cc}` : "";
-  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time+" · "+label)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)}${ccStyle}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
+  // Display hue keyed to calendar/kind (see _ivcalHue) so the grid matches
+  // the My-calendars legend, surfaced as --ev-hue for the CSS to paint the
+  // fill, hairline, left rail and text from one color. Pending events get a
+  // dashed rail (.is-pending) instead of a separate hue.
+  const hue = _ivcalHue(ev, type);
+  const isPend = type !== "session" && (ev.rsvp || "accepted") === "pending"
+    && ev.status !== "no_show" && ev.status !== "cancelled";
+  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${isPend?" is-pending":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml(time+" · "+label)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};--ev-hue:${hue}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
 }
 
 // Side-by-side column layout: when timed events overlap, split the column so
@@ -25219,9 +25660,8 @@ function _ivcalAllDayBar(ev, type) {
   const label = _ivcalEventLabel(ev, type);
   const cat = _ivcalCat(ev, type);
   const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
-  const cc = (ev.metadata && ev.metadata.color) || _ivcalCalColor(ev);
-  const ccStyle = cc ? `border-left-color:${cc};background:${cc}1f;color:${cc}` : "";
-  return `<div class="oc-adbar cat-${cat}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml("All day · " + label)}" style="${ccStyle}" title="${escapeHtml("All day · " + label)}"><span class="oc-adbar-t">${escapeHtml(label)}</span></div>`;
+  const hue = _ivcalHue(ev, type);
+  return `<div class="oc-adbar cat-${cat}${sel ? " sel" : ""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" tabindex="0" role="button" aria-label="${escapeHtml("All day · " + label)}" style="--ev-hue:${hue}" title="${escapeHtml("All day · " + label)}"><span class="oc-adbar-t">${escapeHtml(label)}</span></div>`;
 }
 function _ivcalGoogleAllDayBar(ge) {
   return `<div class="oc-adbar oc-adbar-google" data-ivcal-glink="${escapeHtml(ge.htmlLink || "")}" style="color:${_ivcalGoogleColor};border-left-color:${_ivcalGoogleColor};background:${_ivcalGoogleColor}1a" title="${escapeHtml((ge.title || "(busy)") + " · all day · Google")}"><span class="oc-pdot" style="background:${_ivcalGoogleColor}"></span><span class="oc-adbar-t">${escapeHtml(ge.title || "(busy)")}</span></div>`;
@@ -25261,7 +25701,8 @@ function _ivcalTimeGrid(ndays) {
     const n = _ivcalDayItems(d, (_ivcalCache && _ivcalCache.bookings) || [], "starts_at")
       .filter(b => _ivcalFilterOk(b, "booking") && !_ivcalIsAllDay(b)).length;
     const meta = n ? `${n} interview${n === 1 ? "" : "s"}` : "—";
-    return `<div class="oc-dh${isToday?" today":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta">${meta}</div></div>`;
+    const _wk = d.getDay() === 0 || d.getDay() === 6;
+    return `<div class="oc-dh${isToday?" today":""}${_wk?" oc-wknd":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div><div class="oc-dh-meta">${meta}</div></div>`;
   }).join("");
 
   let gutter = "";
@@ -25324,7 +25765,8 @@ function _ivcalTimeGrid(ndays) {
       if (ws > h0) workShade += `<div class="oc-offhrs" style="top:0;height:${_ivcalYpos(ws)}px"></div>`;
       if (we < h1) workShade += `<div class="oc-offhrs" style="top:${_ivcalYpos(we)}px;height:${_ivcalYpos(h1) - _ivcalYpos(we)}px"></div>`;
     }
-    return `<div class="oc-col${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${workShade}${shade}${lines}${nowLine}${evs}</div>`;
+    const _wk = d.getDay() === 0 || d.getDay() === 6;
+    return `<div class="oc-col${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${workShade}${shade}${lines}${nowLine}${evs}</div>`;
   }).join("");
 
   // All-day lane · one horizontal cell per day, pinned with the day headers.
@@ -25374,8 +25816,8 @@ function _ivcalMonth() {
     const out = d.getMonth() !== a.getMonth();
     const isToday = d.getTime() === today.getTime();
     const items = [];
-    _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => { if (_ivcalFilterOk(s,"session")) items.push({ t:new Date(s.starts_at), label:_ivcalEventLabel(s,"session"), cat:_ivcalCat(s,"session"), kind:"session", id:s.id, declined:false }); });
-    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ t:new Date(b.starts_at), label:_ivcalEventLabel(b,"booking"), cat:_ivcalCat(b,"booking"), kind:"booking", id:b.id, declined:(b.rsvp==="declined"), color:((b.metadata && b.metadata.color) || _ivcalCalColor(b)) }); });
+    _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => { if (_ivcalFilterOk(s,"session")) items.push({ t:new Date(s.starts_at), label:_ivcalEventLabel(s,"session"), cat:_ivcalCat(s,"session"), kind:"session", id:s.id, declined:false, hue:_ivcalHue(s,"session") }); });
+    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ t:new Date(b.starts_at), label:_ivcalEventLabel(b,"booking"), cat:_ivcalCat(b,"booking"), kind:"booking", id:b.id, declined:(b.rsvp==="declined"), hue:_ivcalHue(b,"booking"), pending:((b.rsvp||"accepted")==="pending" && b.status!=="no_show" && b.status!=="cancelled") }); });
     if (_ivcalGoogleVisible()) {
       _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt").forEach(ge => { items.push({ t:new Date(ge.sortAt), label:ge.title || "(busy)", google:true, link:ge.htmlLink || "", allDay:ge.allDay }); });
     }
@@ -25387,9 +25829,10 @@ function _ivcalMonth() {
       }
       const tm = it.t.toLocaleTimeString([], _ivClockOpts());
       const sel = _ivcalSelected && _ivcalSelected.kind === it.kind && String(_ivcalSelected.id) === String(it.id);
-      const dotStyle = it.color ? ` style="background:${it.color}"` : "";
-      const pillStyle = it.color ? ` style="color:${it.color}"` : "";
-      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${sel?" sel":""}"${pillStyle} data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" tabindex="0" role="button" aria-label="${escapeHtml(tm+" "+it.label)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"${dotStyle}></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
+      // One hue drives the dot (and the pending dashed ring) via --ev-hue so
+      // the month dot matches the My-calendars legend and the week grid.
+      const hueVar = it.hue ? ` style="--ev-hue:${it.hue}"` : "";
+      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${it.pending?" is-pending":""}${sel?" sel":""}"${hueVar} data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" tabindex="0" role="button" aria-label="${escapeHtml(tm+" "+it.label)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
     };
     // Open team tasks due this day sit above the event pills (max 2
     // chips; the rest fold into the "+N more" count).
@@ -25399,7 +25842,8 @@ function _ivcalMonth() {
     const moreN = Math.max(0, items.length - maxPills) + Math.max(0, dayTasks.length - 2);
     const more = moreN > 0 ? `<div class="oc-more">+${moreN} more</div>` : "";
     const pillsHtml = items.slice(0, maxPills).map((it) => pillHtml(it)).join("");
-    cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${tChips}${pillsHtml}${more}</div>`;
+    const _wk = d.getDay() === 0 || d.getDay() === 6;
+    cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}${_wk?" oc-wknd":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${tChips}${pillsHtml}${more}</div>`;
   }
   return `<div class="oc-cal"><div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-mhead">${dowHead}</div><div class="oc-mgrid">${cells}</div></div></div>`;
 }
@@ -25459,8 +25903,8 @@ function _ivcalAgendaRow(ev, type) {
     : s.toLocaleTimeString([], _ivClockOpts()) + (e ? " – " + e.toLocaleTimeString([], _ivClockOpts()) : "");
   const label = _ivcalEventLabel(ev, type);
   const cat = _ivcalCat(ev, type);
-  const color = (kindAttr === "booking" && ev.metadata && ev.metadata.color) || (kindAttr === "booking" ? _ivcalCalColor(ev) : null);
-  const barStyle = color ? ` style="background:${color}"` : "";
+  // Color rail keyed to the event's calendar/kind (matches the legend + grid).
+  const barStyle = ` style="background:${_ivcalHue(ev, type)}"`;
   const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
   const isTask = kindAttr === "booking" && ev.metadata && ev.metadata.is_task;
   const done = isTask && ev.metadata.task_done;
@@ -26461,7 +26905,7 @@ function _ivcalQuickCreate(e, dateISO, startMin) {
 async function _ivcalDeleteEvent(kind, id, notify) {
   const ev = _ivcalFindEv(kind, id); if (!ev) return;
   if (kind === "session") {
-    if (!confirm("Remove this group session?")) return;
+    if (!(await _rrConfirmDialog({ title: "Remove this group session?", confirmLabel: "Remove", danger: true }))) return;
     try { await sb.rpc("interview_session_remove", { p_id: id }); } catch (e) { return toast("Couldn't remove: " + (e.message||e), "warn"); }
     _ivcalSelected = null; loadIvCalendar(); return;
   }
@@ -26501,7 +26945,7 @@ async function _ivcalDeleteEvent(kind, id, notify) {
     }
     viaSeriesChooser = true;
   }
-  if (!viaSeriesChooser && !confirm("Cancel this event? Attendees will be notified and it will be removed.")) return;
+  if (!viaSeriesChooser && !(await _rrConfirmDialog({ title: "Cancel this event?", body: "Attendees will be notified and it will be removed.", confirmLabel: "Cancel event", cancelLabel: "Keep" }))) return;
   try {
     if (notify) {
       const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
@@ -26988,7 +27432,7 @@ async function _ivAddSession(tz) {
 }
 
 async function _ivRemoveSession(id) {
-  if (!confirm("Remove this group session?")) return;
+  if (!(await _rrConfirmDialog({ title: "Remove this group session?", confirmLabel: "Remove", danger: true }))) return;
   try { const { error } = await sb.rpc("interview_session_remove", { p_id: id }); if (error) throw error; loadInterviewAvailabilityEditor(); }
   catch(e){ toast("Couldn't remove: "+(e.message||e),"warn"); }
 }
@@ -27475,7 +27919,7 @@ document.addEventListener("click", async (e) => {
   e.stopImmediatePropagation();
   const eventId = btn.getAttribute("data-rr-cal-remove");
   if (!eventId) return;
-  if (!confirm("Remove this booking? No message will be sent to the applicant and they will not get a re-booking link.")) return;
+  if (!(await _rrConfirmDialog({ title: "Remove this booking?", body: "No message will be sent to the applicant and they will not get a re-booking link.", confirmLabel: "Remove", danger: true }))) return;
   btn.disabled = true;
   const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: eventId });
   if (error) {
@@ -29849,7 +30293,7 @@ async function _tpDatesChanged() {
 
 async function _tpClear() {
   const s = _tpModalState; if (!s) return;
-  if (!confirm("Clear the training pairing? You can re-pair before activating.")) return;
+  if (!(await _rrConfirmDialog({ title: "Clear the training pairing?", body: "You can re-pair before activating.", confirmLabel: "Clear", danger: true }))) return;
   const { error } = await sb.rpc("clear_training_pairing", { p_trainee_id: s.driverId });
   if (error) { toast("Couldn't clear: " + error.message, "warn"); return; }
   s.pair = null;
@@ -35195,7 +35639,7 @@ document.addEventListener("click", async (e) => {
   if (delBtn) {
     e.preventDefault(); e.stopPropagation();
     const id = delBtn.getAttribute("data-rr-mc-delete");
-    if (!confirm("Delete this message? The driver's copy will show 'Message deleted'.")) return;
+    if (!(await _rrConfirmDialog({ title: "Delete this message?", body: "The driver's copy will show 'Message deleted'.", confirmLabel: "Delete", danger: true }))) return;
     const { error } = await sb.rpc("dispatch_chat_delete", { p_message_id: id });
     if (error) { toast("Delete failed: " + error.message, "warn"); return; }
     refreshDriverChatThread(false);
@@ -35765,7 +36209,7 @@ document.addEventListener("click", async (e) => {
     const id = archBtn.getAttribute("data-rr-channel-archive");
     const meta = _msgChannelList.find(c => c.id === id) || {};
     const goingArchive = !meta.archived_at;
-    if (!confirm(goingArchive ? "Archive this channel? Members keep history but can't post." : "Unarchive this channel?")) return;
+    if (!(await _rrConfirmDialog({ title: goingArchive ? "Archive this channel?" : "Unarchive this channel?", body: goingArchive ? "Members keep history but can't post." : "The channel becomes active again.", confirmLabel: goingArchive ? "Archive" : "Unarchive" }))) return;
     const { error } = await sb.rpc("dispatch_channel_archive", { p_channel_id: id, p_archived: goingArchive });
     if (error) { toast(error.message, "warn"); return; }
     delete document.getElementById("rr-msg-conv")?.dataset.rrChannelId;
@@ -36542,7 +36986,7 @@ document.addEventListener("click", async (e) => {
     const side = rmBtn.getAttribute("data-rr-dl-side") || "front";
     const col  = side === "back" ? "dl_back_image_path" : "dl_image_path";
     const label = side === "back" ? "back image" : "front image";
-    if (!confirm(`Remove the license ${label}?`)) return;
+    if (!(await _rrConfirmDialog({ title: `Remove the license ${label}?`, confirmLabel: "Remove", danger: true }))) return;
     const currentPath = _ddDriver.driver[col];
     if (currentPath) {
       await sb.storage.from("driver-documents").remove([currentPath]).catch(() => {});
@@ -37987,7 +38431,7 @@ document.addEventListener("click", async (e) => {
   if (blDel) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    if (!confirm("Delete this blackout?")) return;
+    if (!(await _rrConfirmDialog({ title: "Delete this blackout?", body: "This removes the availability blackout.", confirmLabel: "Delete", danger: true }))) return;
     const id = blDel.getAttribute("data-rr-blackout-delete");
     const { error } = await sb.rpc("availability_blackout_delete", { p_id: id });
     if (error) { toast("Delete failed: " + error.message, "warn"); return; }
@@ -44971,6 +45415,155 @@ function _rrConfirmDialog(opts) {
 }
 window._rrConfirmDialog = _rrConfirmDialog;
 
+// ── Activity log viewer ─────────────────────────────────────────────────
+// Renders the append-only audit trail (migration 0433) via the ops-gated
+// public.audit_feed() RPC. Self-contained modal opened from Settings.
+// Optional (objectType, objectId) filters to a single record's timeline.
+async function openAuditLog(objectType, objectId) {
+  var pb = document.getElementById("rr-audit-backdrop"); if (pb) pb.remove();
+  var pm = document.getElementById("rr-audit-modal"); if (pm) pm.remove();
+  var backdrop = document.createElement("div");
+  backdrop.id = "rr-audit-backdrop";
+  backdrop.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.32);z-index:10000;opacity:0;transition:opacity 120ms ease-out";
+  document.body.appendChild(backdrop);
+  var m = document.createElement("div");
+  m.id = "rr-audit-modal";
+  m.setAttribute("role", "dialog");
+  m.setAttribute("aria-modal", "true");
+  m.setAttribute("aria-label", "Activity log");
+  m.style.cssText = "position:fixed;left:50%;top:56px;transform:translateX(-50%);width:760px;max-width:calc(100vw - 24px);max-height:calc(100vh - 112px);display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border,#E5E7EB);border-radius:12px;box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:10001;opacity:0;transition:opacity 120ms ease-out;overflow:hidden";
+  m.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border,#E5E7EB)">' +
+      '<div><div style="font-size:15px;font-weight:700;color:var(--text,#111827)">Activity log</div>' +
+      '<div style="font-size:12px;color:var(--text-subtle,#6B7280)">Who changed what \u2014 drivers, schedule, roles, and documents</div></div>' +
+      '<button type="button" class="btn btn-sm" data-rr-audit-close>Close</button>' +
+    '</div>' +
+    '<div id="rr-audit-body" style="overflow:auto;padding:6px 0">' +
+      '<div style="padding:24px;text-align:center;color:var(--text-subtle,#6B7280);font-size:13px">Loading activity\u2026</div>' +
+    '</div>';
+  document.body.appendChild(m);
+  requestAnimationFrame(function () { m.style.opacity = "1"; backdrop.style.opacity = "1"; });
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    m.style.opacity = "0"; backdrop.style.opacity = "0";
+    setTimeout(function () { m.remove(); backdrop.remove(); }, 120);
+  }
+  var onKey = function (ev) { if (ev.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", close);
+  m.addEventListener("click", function (ev) { if (ev.target.closest("[data-rr-audit-close]")) close(); });
+
+  var body = m.querySelector("#rr-audit-body");
+  try {
+    var res = await sb.rpc("audit_feed", { p_object_type: objectType || null, p_object_id: objectId || null, p_limit: 200 });
+    if (res.error) throw res.error;
+    var rows = res.data || [];
+    if (!rows.length) {
+      body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-subtle,#6B7280);font-size:13px">No activity recorded yet.<br>Changes to drivers, schedule, roles, and documents will appear here.</div>';
+      return;
+    }
+    var label = { drivers: "Driver", app_users: "Team member", driver_documents: "Document", shifts: "Shift" };
+    var actionColor = { insert: "#059669", update: "#2563EB", delete: "#DC2626" };
+    var fmt = function (ts) { try { return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ts || ""; } };
+    body.innerHTML =
+      '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+      '<thead><tr style="text-align:left;color:var(--text-subtle,#6B7280);font-size:11px;text-transform:uppercase;letter-spacing:.04em">' +
+      '<th style="padding:8px 18px;font-weight:600">When</th><th style="padding:8px 12px;font-weight:600">Who</th>' +
+      '<th style="padding:8px 12px;font-weight:600">What</th><th style="padding:8px 18px;font-weight:600">Details</th>' +
+      '</tr></thead><tbody>' +
+      rows.map(function (r) {
+        var who = r.actor_email ? escapeHtml(r.actor_email) : (r.actor_type === "system" ? "System" : "\u2014");
+        var obj = label[r.object_type] || escapeHtml(r.object_type || "");
+        var ac = actionColor[r.action] || "#6B7280";
+        return '<tr style="border-top:1px solid var(--border,#EEF0F3)">' +
+          '<td style="padding:9px 18px;white-space:nowrap;color:var(--text-subtle,#6B7280)">' + escapeHtml(fmt(r.occurred_at)) + '</td>' +
+          '<td style="padding:9px 12px">' + who + (r.actor_role ? ' <span style="color:var(--text-subtle,#9CA3AF)">\u00b7 ' + escapeHtml(r.actor_role) + '</span>' : '') + '</td>' +
+          '<td style="padding:9px 12px;white-space:nowrap"><span style="color:' + ac + ';font-weight:600;text-transform:capitalize">' + escapeHtml(r.action) + '</span> <span style="color:var(--text-subtle,#6B7280)">' + obj + '</span></td>' +
+          '<td style="padding:9px 18px;color:var(--text,#374151)">' + escapeHtml(r.summary || "") + '</td></tr>';
+      }).join("") +
+      '</tbody></table>';
+  } catch (e) {
+    body.innerHTML = '<div style="padding:28px;text-align:center;color:#B91C1C;font-size:13px">Unable to load the activity log.<br><span style="color:var(--text-subtle,#6B7280)">' + escapeHtml((e && e.message) || String(e)) + '</span></div>';
+  }
+}
+window.openAuditLog = openAuditLog;
+
+// ── Client-errors viewer (platform admin) ───────────────────────────────
+// Reads production JS-error telemetry (client_errors, migration 0385/0441)
+// so the RouteReady operator sees dashboard errors in-app instead of the
+// SQL editor. RLS scopes reads to platform_admin; everyone else sees empty.
+async function openClientErrors() {
+  var pb = document.getElementById("rr-cerr-backdrop"); if (pb) pb.remove();
+  var pm = document.getElementById("rr-cerr-modal"); if (pm) pm.remove();
+  var backdrop = document.createElement("div");
+  backdrop.id = "rr-cerr-backdrop";
+  backdrop.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.32);z-index:10000;opacity:0;transition:opacity 120ms ease-out";
+  document.body.appendChild(backdrop);
+  var m = document.createElement("div");
+  m.id = "rr-cerr-modal";
+  m.setAttribute("role", "dialog");
+  m.setAttribute("aria-modal", "true");
+  m.setAttribute("aria-label", "Client errors");
+  m.style.cssText = "position:fixed;left:50%;top:48px;transform:translateX(-50%);width:900px;max-width:calc(100vw - 24px);max-height:calc(100vh - 96px);display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border,#E5E7EB);border-radius:12px;box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:10001;opacity:0;transition:opacity 120ms ease-out;overflow:hidden";
+  m.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border,#E5E7EB)">' +
+      '<div><div style="font-size:15px;font-weight:700;color:var(--text,#111827)">Client errors</div>' +
+      '<div style="font-size:12px;color:var(--text-subtle,#6B7280)">Dashboard JS errors captured in production (most recent first)</div></div>' +
+      '<button type="button" class="btn btn-sm" data-rr-cerr-close>Close</button>' +
+    '</div>' +
+    '<div id="rr-cerr-body" style="overflow:auto;padding:6px 0">' +
+      '<div style="padding:24px;text-align:center;color:var(--text-subtle,#6B7280);font-size:13px">Loading errors\u2026</div>' +
+    '</div>';
+  document.body.appendChild(m);
+  requestAnimationFrame(function () { m.style.opacity = "1"; backdrop.style.opacity = "1"; });
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    m.style.opacity = "0"; backdrop.style.opacity = "0";
+    setTimeout(function () { m.remove(); backdrop.remove(); }, 120);
+  }
+  var onKey = function (ev) { if (ev.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", close);
+  m.addEventListener("click", function (ev) { if (ev.target.closest("[data-rr-cerr-close]")) close(); });
+
+  var body = m.querySelector("#rr-cerr-body");
+  try {
+    var res = await sb.from("client_errors")
+      .select("created_at, page, message, source, app_version, dsp_id")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (res.error) throw res.error;
+    var rows = res.data || [];
+    if (!rows.length) {
+      body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-subtle,#6B7280);font-size:13px">No client errors recorded.<br>Dashboard JS errors will appear here as they happen.</div>';
+      return;
+    }
+    var srcColor = { onerror: "#DC2626", unhandledrejection: "#B45309", manual: "#2563EB" };
+    var fmt = function (ts) { try { return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ts || ""; } };
+    body.innerHTML =
+      '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
+      '<thead><tr style="text-align:left;color:var(--text-subtle,#6B7280);font-size:11px;text-transform:uppercase;letter-spacing:.04em">' +
+      '<th style="padding:8px 18px;font-weight:600">When</th><th style="padding:8px 12px;font-weight:600">Source</th>' +
+      '<th style="padding:8px 12px;font-weight:600">Page</th><th style="padding:8px 18px;font-weight:600">Message</th>' +
+      '<th style="padding:8px 18px;font-weight:600">Build</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        var sc = srcColor[r.source] || "#6B7280";
+        var page = (r.page || "").replace(/^\//, "");
+        return '<tr style="border-top:1px solid var(--border,#EEF0F3);vertical-align:top">' +
+          '<td style="padding:9px 18px;white-space:nowrap;color:var(--text-subtle,#6B7280)">' + escapeHtml(fmt(r.created_at)) + '</td>' +
+          '<td style="padding:9px 12px;white-space:nowrap"><span style="color:' + sc + ';font-weight:600">' + escapeHtml(r.source || "") + '</span></td>' +
+          '<td style="padding:9px 12px;white-space:nowrap;color:var(--text-subtle,#6B7280);font-family:ui-monospace,Menlo,monospace;font-size:11.5px">' + escapeHtml(page) + '</td>' +
+          '<td style="padding:9px 18px;color:var(--text,#374151)">' + escapeHtml(r.message || "") + '</td>' +
+          '<td style="padding:9px 18px;white-space:nowrap;color:var(--text-subtle,#9CA3AF);font-family:ui-monospace,Menlo,monospace;font-size:11px">' + escapeHtml((r.app_version || "").slice(0, 12)) + '</td>' +
+          '</tr>';
+      }).join("") +
+      '</tbody></table>';
+  } catch (e) {
+    body.innerHTML = '<div style="padding:28px;text-align:center;color:#B91C1C;font-size:13px">Unable to load client errors.<br><span style="color:var(--text-subtle,#6B7280)">' + escapeHtml((e && e.message) || String(e)) + '</span></div>';
+  }
+}
+window.openClientErrors = openClientErrors;
+
 // Callout-exposure finalize warning. Advisory only — it never blocks
 // finalization (existing rules still own hard blocks). Resolves true when
 // the operator chooses "Finalize Anyway", false to go back and review.
@@ -46452,7 +47045,7 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, contactId, anchorEv) {
 
   const delBtn = m.querySelector("#rr-fc-delete");
   if (delBtn) delBtn.addEventListener("click", async () => {
-    if (!confirm("Delete this event?")) return;
+    if (!(await _rrConfirmDialog({ title: "Delete this event?", confirmLabel: "Delete", danger: true }))) return;
     delBtn.disabled = true;
     try {
       const { error } = await sb.rpc("fleet_calendar_event_delete", { p_id: ev.id });
@@ -57238,6 +57831,16 @@ async function renderScheduleWeek() {
           abSub.textContent = "All routes covered";
         }
         abSub.classList.toggle("is-ok", abRouteGap === 0 && abCushionOpen === 0);
+        // DIRECTION A · coverage meter — a slim fill bar under the count so
+        // coverage reads as a metric, not a floating card. State drives the
+        // colour: green (covered) / amber (cushion open) / red (routes open).
+        // CSS lives in inline-styles.css (search "DIRECTION A"); remove both
+        // to revert. Idempotent — reuses the existing bar across re-renders.
+        let abMeter = abCard.querySelector(".rr-ab-cov-meter");
+        if (!abMeter) { abMeter = document.createElement("span"); abMeter.className = "rr-ab-cov-meter"; abCard.appendChild(abMeter); }
+        const abPct = abNeeded > 0 ? Math.max(3, Math.min(100, (abFilled / abNeeded) * 100)) : 0;
+        abMeter.dataset.state = abRouteGap > 0 ? "gap" : (abCushionOpen > 0 ? "cushion" : "ok");
+        abMeter.innerHTML = `<i style="width:${abPct}%"></i>`;
       }
     }
   } catch (e) { console.warn("action bar paint:", e); }
@@ -61092,7 +61695,7 @@ async function _tplOpenApply(templateId, name) {
 }
 
 async function _tplDelete(templateId, name) {
-  if (!confirm(`Delete ${name}?`)) return;
+  if (!(await _rrConfirmDialog({ title: `Delete ${name}?`, confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.rpc("template_delete", { p_template_id: templateId });
   if (error) { toast(error.message || "Couldn't delete", "warn"); return; }
   toast("Template deleted", "success");
@@ -61480,7 +62083,7 @@ document.addEventListener("click", async (e) => {
     e.preventDefault();
     const id = ta.getAttribute("data-rr-target-id");
     const status = ta.getAttribute("data-rr-target-action");
-    if (status === "cancelled" && !confirm("Remove this hiring target?")) return;
+    if (status === "cancelled" && !(await _rrConfirmDialog({ title: "Remove this hiring target?", confirmLabel: "Remove", danger: true }))) return;
     ta.disabled = true;
     const { error } = await sb.rpc("hiring_target_upsert", { p_payload: { id, status } });
     if (error) { toast("Failed: " + error.message, "warn"); ta.disabled = false; return; }
@@ -62908,6 +63511,19 @@ function _condValueLabel(triggerField, value) {
 }
 
 let _formSubmCache = [];
+// Client-side filter state for the Submissions tab. list_form_submissions
+// returns the whole tenant's submissions in one shot, so filtering + CSV
+// export run over the cache without extra round-trips.
+let _formSubmFilter = { formId: "", status: "", flagged: "", q: "", since: "", until: "" };
+
+// Triage states + their display label / accent. Mirrors the values the
+// form_review_submission RPC (0440) accepts.
+const _SUBM_STATUS = {
+  submitted: { label: "Submitted",       color: "var(--text-muted)" },
+  reviewed:  { label: "Reviewed",        color: "var(--green-dark, #15803d)" },
+  follow_up: { label: "Needs follow-up", color: "var(--amber-dark, #b45309)" },
+  resolved:  { label: "Resolved",        color: "var(--text-subtle)" },
+};
 
 // Submission detail modal — opened by the "View" button on a submission row.
 async function openSubmissionDetail(submId) {
@@ -62925,7 +63541,19 @@ async function openSubmissionDetail(submId) {
         <div><p class="modal-title">${escapeHtml(s.form_title || "Form")}</p><p class="modal-sub">${escapeHtml(s.driver_name || "Driver")} · ${escapeHtml(when)}${s.flagged ? " · ⚑ flagged" : ""}</p></div>
         <button class="modal-close" type="button" data-rr-subm-close aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
-      <div class="modal-body" id="rr-subm-detail-body" style="max-height:70vh;overflow-y:auto"><div class="rr-loading">Loading</div></div>
+      <div class="modal-body" id="rr-subm-detail-body" style="max-height:52vh;overflow-y:auto"><div class="rr-loading">Loading</div></div>
+      <div class="subm-review-foot">
+        <div class="subm-review-row">
+          <select class="forms-toolbar-select" id="rr-subm-status">
+            ${Object.entries(_SUBM_STATUS).map(([k, v]) => `<option value="${k}" ${(s.status || "submitted") === k ? "selected" : ""}>${escapeHtml(v.label)}</option>`).join("")}
+          </select>
+          <label class="subm-review-flag"><input type="checkbox" id="rr-subm-flag" ${s.flagged ? "checked" : ""}/> Flag</label>
+        </div>
+        <textarea class="field-prop-input" id="rr-subm-notes" rows="2" placeholder="Add a note (optional)">${escapeHtml(s.notes || "")}</textarea>
+        <div class="subm-review-actions">
+          <button class="btn btn-sm btn-primary" type="button" data-rr-subm-save="${escapeHtml(s.id)}">Save review</button>
+        </div>
+      </div>
     </div>`;
   document.body.appendChild(overlay);
   document.body.style.overflow = "hidden";
@@ -62934,11 +63562,31 @@ async function openSubmissionDetail(submId) {
 
   let fields = [];
   try { const { data: f } = await sb.rpc("get_form", { p_id: s.form_id }); if (f && Array.isArray(f.fields)) fields = f.fields; } catch (_) {}
+  const fieldById = new Map(fields.filter(f => f.id).map(f => [f.id, f]));
   const labelOf = new Map(fields.filter(f => f.id).map(f => [f.id, f.label || (_FIELD_TYPE_LABELS && _FIELD_TYPE_LABELS[f.type]) || f.id]));
-  const fmtVal = (v) => {
+  // Type-aware answer rendering: signature pads come through as PNG data
+  // URLs, photo/file fields as { path, name, size, type } objects, and GPS
+  // as { lat, lng, accuracy } — render each meaningfully instead of dumping
+  // a base64 blob or "[object Object]".
+  const fmtVal = (v, field) => {
     if (v == null || v === "") return `<span class="u-subtle">—</span>`;
+    const t = field?.type;
+    if (t === "signature" || (typeof v === "string" && v.startsWith("data:image"))) {
+      return `<img src="${escapeHtml(String(v))}" alt="Signature" style="max-width:220px;max-height:120px;border:1px solid var(--border);border-radius:8px;background:#fff"/>`;
+    }
+    if (v && typeof v === "object" && !Array.isArray(v) && ("lat" in v) && ("lng" in v)) {
+      const acc = v.accuracy ? ` (±${v.accuracy}m)` : "";
+      const q = encodeURIComponent(`${v.lat},${v.lng}`);
+      return `<a href="https://maps.google.com/?q=${q}" target="_blank" rel="noopener">${escapeHtml(`${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)}`)}${escapeHtml(acc)}</a>`;
+    }
+    if (v && typeof v === "object" && !Array.isArray(v) && (v.path || v.name)) {
+      const nm = escapeHtml(v.name || "Attachment");
+      const kb = v.size ? ` · ${Math.round(v.size / 1024)} KB` : "";
+      return v.error ? `<span class="u-subtle">Upload failed (${nm})</span>` : `📎 ${nm}${kb}`;
+    }
     if (Array.isArray(v)) return v.length ? escapeHtml(v.join(", ")) : `<span class="u-subtle">—</span>`;
     if (typeof v === "boolean") return v ? "Yes" : "No";
+    if (typeof v === "object") return escapeHtml(JSON.stringify(v));
     return escapeHtml(String(v));
   };
   const ans = (s.answers && typeof s.answers === "object") ? s.answers : {};
@@ -62947,8 +63595,7 @@ async function openSubmissionDetail(submId) {
   if (!body) return;
   body.innerHTML = (orderedKeys.length === 0
     ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No answers recorded.</div>`
-    : `<div style="display:flex;flex-direction:column;gap:var(--s-3)">${orderedKeys.map(k => `<div><div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">${escapeHtml(labelOf.get(k) || k)}</div><div style="font-size:var(--fs-md)">${fmtVal(ans[k])}</div></div>`).join("")}</div>`)
-    + (s.notes ? `<div style="margin-top:14px;padding:var(--s-2-5) var(--s-3);background:var(--canvas);border-radius:8px;font-size:var(--fs-sm);color:var(--text-muted)"><strong>Notes:</strong> ${escapeHtml(s.notes)}</div>` : "");
+    : `<div style="display:flex;flex-direction:column;gap:var(--s-3)">${orderedKeys.map(k => `<div><div style="font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">${escapeHtml(labelOf.get(k) || k)}</div><div style="font-size:var(--fs-md)">${fmtVal(ans[k], fieldById.get(k))}</div></div>`).join("")}</div>`);
 }
 
 async function loadFormSubmissions() {
@@ -62960,31 +63607,167 @@ async function loadFormSubmissions() {
     list.innerHTML = `<div class="rr-empty-inline" style="color:var(--red)">Couldn't load submissions: ${escapeHtml(error.message)}</div>`;
     return;
   }
-  const subs = data || [];
-  _formSubmCache = subs;
-  if (subs.length === 0) {
+  _formSubmCache = data || [];
+  _renderSubmTab();
+}
+
+// Apply the current filter to the cache.
+function _submFiltered() {
+  const f = _formSubmFilter;
+  const q = (f.q || "").trim().toLowerCase();
+  const sinceMs = f.since ? new Date(f.since + "T00:00:00").getTime() : null;
+  const untilMs = f.until ? new Date(f.until + "T23:59:59").getTime() : null;
+  return _formSubmCache.filter(s => {
+    if (f.formId && s.form_id !== f.formId) return false;
+    if (f.status && (s.status || "submitted") !== f.status) return false;
+    if (f.flagged === "yes" && !s.flagged) return false;
+    if (f.flagged === "no" && s.flagged) return false;
+    if (q && !`${s.form_title || ""} ${s.driver_name || ""}`.toLowerCase().includes(q)) return false;
+    if (sinceMs || untilMs) {
+      const t = s.submitted_at ? new Date(s.submitted_at).getTime() : 0;
+      if (sinceMs && t < sinceMs) return false;
+      if (untilMs && t > untilMs) return false;
+    }
+    return true;
+  });
+}
+
+// Filter bar + export + rows container. Rendered once per tab load; the
+// rows re-render in place as filters change (no refetch).
+function _renderSubmTab() {
+  const list = document.getElementById("rr-subm-list");
+  if (!list) return;
+  if (_formSubmCache.length === 0) {
     list.innerHTML = `<div class="rr-empty-inline">Submissions will appear here once drivers start filling out published forms.</div>`;
     return;
   }
-  const rows = subs.map(s => {
+  // Distinct forms present, for the form filter.
+  const forms = [];
+  const seenF = new Set();
+  _formSubmCache.forEach(s => {
+    if (s.form_id && !seenF.has(s.form_id)) { seenF.add(s.form_id); forms.push({ id: s.form_id, title: s.form_title || "Form" }); }
+  });
+  forms.sort((a, b) => a.title.localeCompare(b.title));
+  const f = _formSubmFilter;
+  const opt = (v, label, sel) => `<option value="${escapeHtml(v)}" ${sel === v ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  list.innerHTML = `
+    <div class="subm-filterbar">
+      <input type="search" class="forms-toolbar-select" data-rr-subm-filter="q" placeholder="Search form or driver" value="${escapeHtml(f.q || "")}" style="min-width:160px"/>
+      <select class="forms-toolbar-select" data-rr-subm-filter="formId">
+        ${opt("", "All forms", f.formId)}${forms.map(fm => opt(fm.id, fm.title, f.formId)).join("")}
+      </select>
+      <select class="forms-toolbar-select" data-rr-subm-filter="status">
+        ${opt("", "Any status", f.status)}${Object.entries(_SUBM_STATUS).map(([k, v]) => opt(k, v.label, f.status)).join("")}
+      </select>
+      <select class="forms-toolbar-select" data-rr-subm-filter="flagged">
+        ${opt("", "Flagged: any", f.flagged)}${opt("yes", "Flagged only", f.flagged)}${opt("no", "Not flagged", f.flagged)}
+      </select>
+      <label class="subm-filter-date">From <input type="date" data-rr-subm-filter="since" value="${escapeHtml(f.since || "")}"/></label>
+      <label class="subm-filter-date">To <input type="date" data-rr-subm-filter="until" value="${escapeHtml(f.until || "")}"/></label>
+      <button class="btn btn-sm" type="button" data-rr-subm-export title="Download the filtered submissions as CSV">Export CSV</button>
+    </div>
+    <div id="rr-subm-rows"></div>`;
+  _renderSubmRows();
+}
+
+function _renderSubmRows() {
+  const host = document.getElementById("rr-subm-rows");
+  if (!host) return;
+  const rows = _submFiltered();
+  if (rows.length === 0) {
+    host.innerHTML = `<div class="rr-empty-inline">No submissions match these filters.</div>`;
+    return;
+  }
+  const body = rows.map(s => {
     const when = s.submitted_at ? new Date(s.submitted_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
     const answerCount = s.answers && typeof s.answers === "object" ? Object.keys(s.answers).length : 0;
+    const st = _SUBM_STATUS[s.status] || _SUBM_STATUS.submitted;
+    const flag = s.flagged ? `<span title="Flagged" style="color:var(--red);margin-right:4px">⚑</span>` : "";
     return `
       <div class="subm-row" data-rr-subm-id="${escapeHtml(s.id)}">
         <div class="form-card-icon" style="width:32px;height:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
-        <div><div class="subm-form-name">${escapeHtml(s.form_title || "Form")} · ${escapeHtml(s.driver_name || "Driver")}</div><div class="subm-form-meta">${answerCount} answer${answerCount === 1 ? "" : "s"}</div></div>
-        <span class="subm-status complete">${escapeHtml(s.status || "submitted")}</span>
+        <div><div class="subm-form-name">${flag}${escapeHtml(s.form_title || "Form")} · ${escapeHtml(s.driver_name || "Driver")}</div><div class="subm-form-meta">${answerCount} answer${answerCount === 1 ? "" : "s"}</div></div>
+        <span class="subm-status" style="color:${st.color}">${escapeHtml(st.label)}</span>
         <div class="cell-time">${escapeHtml(when)}</div>
         <button class="btn btn-sm" type="button" data-rr-subm-view="${escapeHtml(s.id)}">View</button>
       </div>`;
   }).join("");
-  list.innerHTML = `
+  host.innerHTML = `
+    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:0 0 8px">${rows.length} of ${_formSubmCache.length} submission${_formSubmCache.length === 1 ? "" : "s"}</div>
     <div class="card card-flush">
       <div class="subm-row" style="background:var(--canvas);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;cursor:default">
         <div></div><div>Form · Driver</div><div>Status</div><div>Submitted</div><div></div>
       </div>
-      ${rows}
+      ${body}
     </div>`;
+}
+
+// Plain-text cell for CSV — collapses signatures/photos/gps/arrays.
+function _submCsvCell(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return v.startsWith("data:image") ? "[signature]" : v;
+  if (Array.isArray(v)) return v.join("; ");
+  if (typeof v === "object") {
+    if (v.name || v.path) return v.name || v.path;
+    if ("lat" in v && "lng" in v) return `${v.lat},${v.lng}`;
+    return JSON.stringify(v);
+  }
+  return String(v);
+}
+function _csvEscape(s) {
+  s = String(s == null ? "" : s);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// Export the currently-filtered submissions to CSV. Answer columns are
+// labelled from each form's field definitions (fetched once per distinct
+// form) so the file reads like the form, not raw field ids.
+async function _exportSubmissionsCsv() {
+  const rows = _submFiltered();
+  if (!rows.length) { toast("No submissions to export", "warn"); return; }
+  const formIds = [...new Set(rows.map(r => r.form_id))];
+  const labelMaps = {};
+  await Promise.all(formIds.map(async fid => {
+    try {
+      const { data: fm } = await sb.rpc("get_form", { p_id: fid });
+      const m = {};
+      (fm?.fields || []).forEach(fld => {
+        if (fld.id && !["section_header", "divider", "instructions"].includes(fld.type)) m[fld.id] = fld.label || fld.id;
+      });
+      labelMaps[fid] = m;
+    } catch { labelMaps[fid] = {}; }
+  }));
+  // Union of answer columns (keyed by field id — ids are unique per form).
+  const cols = [];
+  const seen = new Set();
+  rows.forEach(r => {
+    const m = labelMaps[r.form_id] || {};
+    Object.keys(r.answers || {}).forEach(id => {
+      if (!seen.has(id)) { seen.add(id); cols.push({ id, label: m[id] || id }); }
+    });
+  });
+  const header = ["Form", "Driver", "Submitted", "Status", "Flagged", "Notes", ...cols.map(c => c.label)];
+  const lines = [header.map(_csvEscape).join(",")];
+  rows.forEach(r => {
+    const base = [
+      r.form_title || "",
+      r.driver_name || "",
+      r.submitted_at ? new Date(r.submitted_at).toISOString() : "",
+      (_SUBM_STATUS[r.status] || _SUBM_STATUS.submitted).label,
+      r.flagged ? "yes" : "no",
+      r.notes || "",
+    ];
+    const ans = cols.map(c => _submCsvCell((r.answers || {})[c.id]));
+    lines.push([...base, ...ans].map(_csvEscape).join(","));
+  });
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `form-submissions-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast(`Exported ${rows.length} submission${rows.length === 1 ? "" : "s"}`, "ok");
 }
 
 async function loadFormsList() {
@@ -63933,16 +64716,52 @@ function _renderBuilderProps() {
           <textarea class="field-prop-input" data-rr-prop="options" rows="4" placeholder="One per line">${escapeHtml((f.options || []).join("\n"))}</textarea>
         </div>` : ""}`;
   } else if (active === "validation") {
-    panel = isLayout
-      ? `<div class="props-note">Layout blocks don't collect an answer, so they have no validation rules.</div>`
-      : `
+    if (isLayout) {
+      panel = `<div class="props-note">Layout blocks don't collect an answer, so they have no validation rules.</div>`;
+    } else {
+      // Defect-flag rule (drives DVIC pass/fail). Only meaningful on a
+      // vehicle-inspection form and only for discrete-answer field types,
+      // so we surface it just there. Selecting a value stores field.flag_on;
+      // the driver_submit_form RPC records the inspection as "failed" when
+      // any field's answer matches its flag_on rule (else "passed").
+      const isDvicForm = !!document.getElementById("rr-form-is-dvic")?.checked;
+      const flagValues = f.type === "multi_choice"
+        ? (f.options || []).map(o => ({ value: String(o), label: String(o) }))
+        : _condValuesForField(f);
+      const flagRow = (isDvicForm && flagValues.length > 0) ? `
+        <div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
+          <span class="field-prop-label">Mark van as failed when answer is</span>
+          <select class="field-prop-input" data-rr-prop="flag_on">
+            <option value="">— No defect rule —</option>
+            ${flagValues.map(v => `<option value="${escapeHtml(String(v.value))}" ${String(f.flag_on ?? "") === String(v.value) ? "selected" : ""}>${escapeHtml(String(v.label))}</option>`).join("")}
+          </select>
+          <div class="props-soon-sub" style="margin-top:2px">On a vehicle inspection (DVIC) form, choosing this answer records the inspection as <strong>failed</strong>. Leave unset if this question doesn't indicate a defect.</div>
+        </div>` : "";
+      // Field-level rules, persisted to field.validation and enforced on
+      // both the driver app and the server (0439). Only the rules that
+      // apply to this field type are shown.
+      const val = (f.validation && typeof f.validation === "object") ? f.validation : {};
+      const numInput = (key, label, placeholder) =>
+        `<div class="field-prop-row" style="flex-direction:column;align-items:stretch;gap:6px">
+          <span class="field-prop-label">${label}</span>
+          <input class="field-prop-input" type="number" inputmode="numeric" data-rr-val="${key}" placeholder="${placeholder}" value="${val[key] != null ? escapeHtml(String(val[key])) : ""}"/>
+        </div>`;
+      let rulesHtml = "";
+      if (f.type === "short_text" || f.type === "long_text") {
+        rulesHtml = numInput("minLen", "Minimum length", "No minimum") + numInput("maxLen", "Maximum length", "No maximum");
+      } else if (f.type === "number") {
+        rulesHtml = numInput("min", "Minimum value", "No minimum") + numInput("max", "Maximum value", "No maximum");
+      } else if (f.type === "email" || f.type === "phone") {
+        rulesHtml = `<div class="props-note">${f.type === "email" ? "Email" : "Phone"} format is checked automatically on submit.</div>`;
+      } else if (!flagRow) {
+        rulesHtml = `<div class="props-note">This field type has no extra rules beyond Required.</div>`;
+      }
+      panel = `
         <div class="field-prop-row" style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5)"><span class="field-prop-label" style="margin-bottom:0">Required</span>
           <label class="toggle"><input type="checkbox" data-rr-prop="required" ${f.required ? "checked" : ""}/><span class="toggle-slider"></span></label></div>
-        <div class="props-soon">
-          <span class="props-soon-pill">Coming soon</span>
-          <div class="props-soon-title">Field-level validation</div>
-          <div class="props-soon-sub">Min / max length, numeric ranges, and pattern matching land in an upcoming release. The Required toggle above already saves today.</div>
-        </div>`;
+        ${flagRow}
+        ${rulesHtml}`;
+    }
   } else if (active === "logic") {
     panel = _renderLogicPanel(f);
   } else if (active === "appearance") {
@@ -64200,7 +65019,7 @@ document.addEventListener("click", async (e) => {
     e.preventDefault(); e.stopPropagation();
     const id = del.getAttribute("data-rr-form-delete");
     const name = del.getAttribute("data-rr-form-title") || "this form";
-    if (!confirm(`Delete "${name}"? Its submissions are removed too. This can't be undone.`)) return;
+    if (!(await _rrConfirmDialog({ title: `Delete "${name}"?`, body: "Its submissions are removed too. This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
     del.disabled = true;
     const { error } = await sb.rpc("delete_form", { p_id: id });
     if (error) { toast("Delete failed: " + error.message, "warn"); del.disabled = false; return; }
@@ -64238,6 +65057,37 @@ document.addEventListener("click", async (e) => {
   if (sv) {
     e.preventDefault();
     await openSubmissionDetail(sv.getAttribute("data-rr-subm-view"));
+    return;
+  }
+  // Export the filtered submissions to CSV.
+  if (e.target.closest("[data-rr-subm-export]")) {
+    e.preventDefault();
+    await _exportSubmissionsCsv();
+    return;
+  }
+  // Save a submission review (status / flag / notes).
+  const svSave = e.target.closest("[data-rr-subm-save]");
+  if (svSave) {
+    e.preventDefault();
+    const id = svSave.getAttribute("data-rr-subm-save");
+    const status  = document.getElementById("rr-subm-status")?.value || "submitted";
+    const flagged = !!document.getElementById("rr-subm-flag")?.checked;
+    const notes   = document.getElementById("rr-subm-notes")?.value || "";
+    svSave.disabled = true; svSave.textContent = "Saving…";
+    const { data, error } = await sb.rpc("form_review_submission", {
+      p_id: id, p_status: status, p_flagged: flagged, p_notes: notes,
+    });
+    if (error) {
+      svSave.disabled = false; svSave.textContent = "Save review";
+      toast("Couldn't save review: " + escapeHtml(error.message), "warn");
+      return;
+    }
+    const idx = _formSubmCache.findIndex(x => x.id === id);
+    if (idx >= 0) _formSubmCache[idx] = { ..._formSubmCache[idx], status: data.status, flagged: data.flagged, notes: data.notes };
+    toast("Review saved", "ok");
+    document.getElementById("rr-subm-detail-modal")?.remove();
+    document.body.style.overflow = "";
+    _renderSubmRows();
     return;
   }
   // Open builder in EDIT mode
@@ -64476,6 +65326,15 @@ document.addEventListener("change", (e) => {
   _renderBuilderPreview();
 });
 
+// Submissions-tab filter controls → update filter state + re-render rows.
+document.addEventListener("input", (e) => {
+  const filterEl = e.target.closest("[data-rr-subm-filter]");
+  if (filterEl) {
+    const key = filterEl.getAttribute("data-rr-subm-filter");
+    if (key in _formSubmFilter) { _formSubmFilter[key] = filterEl.value; _renderSubmRows(); }
+  }
+});
+
 // Inputs in the props panel update _formsState in place.
 document.addEventListener("input", (e) => {
   const propEl = e.target.closest("[data-rr-prop]");
@@ -64487,12 +65346,29 @@ document.addEventListener("input", (e) => {
       f.required = propEl.checked;
     } else if (key === "options") {
       f.options = propEl.value.split("\n").map(s => s.trim()).filter(Boolean);
+    } else if (key === "flag_on") {
+      // Empty = no defect rule; drop the key so it isn't persisted.
+      if (propEl.value) f.flag_on = propEl.value; else delete f.flag_on;
     } else {
       f[key] = propEl.value;
     }
     _markBuilderDirty();
     _renderBuilderCanvas();
     return;
+  }
+  // Field-level validation rules → field.validation.{minLen,maxLen,min,max}.
+  const valEl = e.target.closest("[data-rr-val]");
+  if (valEl) {
+    const f = _formsState.fields.find(x => x.id === _formsState.selectedId);
+    if (!f) return;
+    const key = valEl.getAttribute("data-rr-val");
+    const raw = valEl.value.trim();
+    const obj = (f.validation && typeof f.validation === "object") ? f.validation : {};
+    if (raw === "" || isNaN(Number(raw))) delete obj[key];
+    else obj[key] = Number(raw);
+    if (Object.keys(obj).length) f.validation = obj; else delete f.validation;
+    _markBuilderDirty();
+    return;  // no canvas re-render needed; keeps input focus while typing
   }
   // Toolbox search — filter field cards across all sections.
   if (e.target.id === "rr-palette-search") {
@@ -65906,7 +66782,7 @@ async function _docsOpenAudit(envelopeId) {
 
 // ── Archive a template ─────────────────────────────────────────────────
 async function _docsArchiveTemplate(id) {
-  if (!confirm("Archive this template? Existing envelopes still work; you just won't be able to send new ones.")) return;
+  if (!(await _rrConfirmDialog({ title: "Archive this template?", body: "Existing envelopes still work; you just won't be able to send new ones.", confirmLabel: "Archive" }))) return;
   const { error } = await sb.from("document_templates").update({ archived_at: new Date().toISOString() }).eq("id", id);
   if (error) { toast("Couldn't archive: " + error.message, "warn"); return; }
   toast("Template archived", "warn");
@@ -66326,7 +67202,7 @@ async function _wsVehAdd() {
 
 async function _wsVehArchive(id) {
   const v = _wsVehById(id); if (!v) return;
-  if (!confirm(`Remove "${v.name || "this van"}" from the list? Its driver assignments are cleared.`)) return;
+  if (!(await _rrConfirmDialog({ title: `Remove "${v.name || "this van"}"?`, body: "It's removed from the list and its driver assignments are cleared.", confirmLabel: "Remove", danger: true }))) return;
   const { error } = await sb.rpc("vehicle_archive", { p_id: id });
   if (error) { toast("Couldn't remove it: " + (error.message || "try again"), "warn"); return; }
   loadWorkspacesView();
@@ -66573,7 +67449,7 @@ async function _wsAddRow() {
 }
 
 async function _wsDeleteRow(rowId) {
-  if (!confirm("Delete this row? This can't be undone.")) return;
+  if (!(await _rrConfirmDialog({ title: "Delete this row?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.rpc("assignment_row_delete", { p_row_id: rowId });
   if (error) { toast("Couldn't delete: " + (error.message || "try again"), "warn"); return; }
   _wsBoard.rows = (_wsBoard.rows || []).filter(r => r.id !== rowId);
@@ -66712,7 +67588,7 @@ async function _wsRenameBoard() {
 
 async function _wsArchiveBoard() {
   if (!_wsBoardId) return;
-  if (!confirm("Archive this board? It'll be hidden from the list; its rows and history are kept.")) return;
+  if (!(await _rrConfirmDialog({ title: "Archive this board?", body: "It'll be hidden from the list; its rows and history are kept.", confirmLabel: "Archive" }))) return;
   const { error } = await sb.rpc("assignment_board_archive", { p_board_id: _wsBoardId, p_archived: true });
   if (error) { toast("Couldn't archive: " + (error.message || "try again"), "warn"); return; }
   _wsBoardId = null;
@@ -67692,7 +68568,7 @@ async function _cbArchiveTemplate() {
 }
 async function _cbDeleteTemplate() {
   if (!_cbTpl) return;
-  if (!window.confirm(`Delete "${_cbTpl.name || "this template"}"? This can't be undone.`)) return;
+  if (!(await _rrConfirmDialog({ title: `Delete "${_cbTpl.name || "this template"}"?`, body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.from("checklist_templates").delete().eq("id", _cbTpl.id);
   if (error) { toast("Couldn't delete: " + error.message, "warn"); return; }
   toast("Template deleted", "success");
@@ -67724,7 +68600,7 @@ async function _cbAddItem(sectionId) {
 }
 async function _cbDeleteSection(id) {
   if (!_cbTpl) return;
-  if (!window.confirm("Delete this section and all its items?")) return;
+  if (!(await _rrConfirmDialog({ title: "Delete this section?", body: "This deletes the section and all its items.", confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.rpc("checklist_section_delete", { p_id: id });
   if (error) { toast("Couldn't delete", "warn"); return; }
   _cbTpl.sections = (_cbTpl.sections || []).filter(s => s.id !== id);
@@ -71005,7 +71881,7 @@ function _roOpenManageModal(ro) {
   });
 
   wrap.querySelector("[data-ro-action='complete']").addEventListener("click", async () => {
-    if (!confirm("Mark RO " + (ro.code || "") + " as completed?")) return;
+    if (!(await _rrConfirmDialog({ title: "Mark repair order completed?", body: "RO " + (ro.code || "") + " will be marked complete.", confirmLabel: "Mark completed" }))) return;
     const costInput = wrap.querySelector("#ro-cost").value;
     const args = { p_id: ro.id };
     if (costInput) args.p_cost_cents = Math.round(parseFloat(costInput) * 100);
@@ -71786,7 +72662,7 @@ document.addEventListener("click", async (e) => {
   }
   if (e.target.closest("[data-rr-fd-archive]")) {
     e.preventDefault();
-    if (!confirm("Archive this van? It'll be removed from the roster but kept in history.")) return;
+    if (!(await _rrConfirmDialog({ title: "Archive this van?", body: "It'll be removed from the roster but kept in history.", confirmLabel: "Archive" }))) return;
     const id = _fdVehicle?.vehicle?.id;
     if (!id) return;
     const { error } = await sb.rpc("vehicle_archive", { p_id: id, p_unarchive: false });
@@ -72835,7 +73711,7 @@ async function _stfSaveShift() {
 
 async function _stfDeleteShift() {
   if (!_stfEditing) return;
-  if (!confirm("Delete this shift?")) return;
+  if (!(await _rrConfirmDialog({ title: "Delete this shift?", body: "This removes the shift from the schedule.", confirmLabel: "Delete", danger: true }))) return;
   const { error } = await sb.rpc("staff_shift_delete", { p_id: _stfEditing.id });
   if (error) { toast("Delete failed: " + error.message, "warn"); return; }
   toast("Shift deleted.", "ok");
@@ -72966,7 +73842,7 @@ function _stfShowStaffForm(existing) {
 }
 
 async function _stfArchiveStaff(id) {
-  if (!confirm("Archive this staff member? Their historical shifts stay, they just stop appearing in the active schedule.")) return;
+  if (!(await _rrConfirmDialog({ title: "Archive this staff member?", body: "Their historical shifts stay; they just stop appearing in the active schedule.", confirmLabel: "Archive" }))) return;
   const { error } = await sb.rpc("staff_member_archive", { p_id: id, p_unarchive: false });
   if (error) { toast("Archive failed: " + error.message, "warn"); return; }
   toast("Archived.", "ok");
