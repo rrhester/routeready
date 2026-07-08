@@ -88,6 +88,18 @@ jobs:
           set -euo pipefail
           psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/driver_forms_test.sql
 
+      - name: Schedule-concurrency server tests (optimistic assign_shift + realtime publication)
+        # Exercises migration 0446 against the fully-migrated throwaway DB:
+        # legacy assigns, stale-expectation refusal (shift_conflict + DETAIL,
+        # row untouched), matching-expectation reassign, expected-null on an
+        # open shift, shift_not_found, and supabase_realtime membership for
+        # shifts / shift_offers / driver_checkins.
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/schedule_concurrency_test.sql
+
       - name: Tear down
         if: always()
         run: supabase stop --no-backup || true
