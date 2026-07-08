@@ -7,6 +7,7 @@
 // the feature set forces it.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { validateFormAnswer as _validateFormAnswer } from "./form-validation.js";
 
 const cfg = window.RR_CONFIG;
 const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
@@ -7989,54 +7990,11 @@ function _formFieldInnerHtml(f) {
   }
 }
 
-// Validate one answer against its field's rules. Returns an error string
-// (already user-facing) or null when the answer is acceptable. Mirrors the
-// server-side checks in migration 0439 so the app and DB agree.
-function _validateFormAnswer(f, v) {
-  const label = f.label || "This field";
-  const empty = v == null || v === "" || (Array.isArray(v) && v.length === 0);
-  if (empty) return f.required ? `"${label}" is required` : null;
-  const val = (f.validation && typeof f.validation === "object") ? f.validation : {};
-  switch (f.type) {
-    case "email":
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v))) return `"${label}" needs a valid email address`;
-      break;
-    case "phone":
-      if (String(v).replace(/\D/g, "").length < 7) return `"${label}" needs a valid phone number`;
-      break;
-    case "number": {
-      const n = Number(v);
-      if (!isFinite(n)) return `"${label}" must be a number`;
-      if (val.min != null && n < val.min) return `"${label}" must be at least ${val.min}`;
-      if (val.max != null && n > val.max) return `"${label}" must be at most ${val.max}`;
-      break;
-    }
-    case "rating": {
-      const n = Number(v);
-      if (!(n >= 1 && n <= 5)) return `"${label}" has an invalid rating`;
-      break;
-    }
-    case "short_text":
-    case "long_text": {
-      const len = String(v).length;
-      if (val.minLen != null && len < val.minLen) return `"${label}" must be at least ${val.minLen} characters`;
-      if (val.maxLen != null && len > val.maxLen) return `"${label}" must be ${val.maxLen} characters or fewer`;
-      break;
-    }
-    case "single_choice":
-    case "dropdown": {
-      const opts = Array.isArray(f.options) ? f.options : [];
-      if (opts.length && !opts.includes(String(v))) return `"${label}" has an invalid selection`;
-      break;
-    }
-    case "multi_choice": {
-      const opts = Array.isArray(f.options) ? f.options : [];
-      if (opts.length && Array.isArray(v) && v.some(x => !opts.includes(x))) return `"${label}" has an invalid selection`;
-      break;
-    }
-  }
-  return null;
-}
+// _validateFormAnswer lives in ./form-validation.js (imported at the top of
+// this file as validateFormAnswer). It was extracted into a standalone,
+// dependency-free module so it can be unit-tested in Node and diffed against
+// the server rules in migration 0439 — see that module's header for the
+// parity contract.
 
 // Scroll to and focus a field by id so a validation error is immediately
 // visible — beats a lone toast on a long form.

@@ -29,6 +29,8 @@ on:
   pull_request:
     paths:
       - 'supabase/migrations/**'
+      - 'supabase/tests/**'
+      - 'tests/driver-forms/**'
       - '.github/workflows/migration-check.yml'
   workflow_dispatch:
 
@@ -72,6 +74,19 @@ jobs:
             psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -q -f "$f"
           done
           echo "✓ all migrations applied cleanly from scratch"
+
+      - name: Driver-forms server tests (RPC gate / dedupe / validation parity)
+        # The whole schema is now live in the throwaway DB, so exercise the
+        # real driver_submit_form RPC and the 0436/0439 helpers against it:
+        # assignment gate, once-per-driver dedupe, and field-validation parity
+        # with the shared fixtures the JS validator is also checked against
+        # (tests/driver-forms/validation-cases.json). Run from the repo root so
+        # the suite's `\set … cat tests/driver-forms/...` resolves.
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/driver_forms_test.sql
 
       - name: Tear down
         if: always()

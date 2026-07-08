@@ -1,0 +1,45 @@
+{
+  "_comment": "Shared truth table for driver-form field validation. Consumed by BOTH the JS validator (scripts/test-driver-forms.mjs → app/form-validation.js) and the SQL validator (supabase/tests/driver_forms_test.sql → driver_submit_form in migration 0439). Each case is run through both engines; `valid` is the expected verdict. If the two implementations ever drift, one of those suites fails. Keep `value` as it would arrive from the client: strings for scalar inputs, arrays for multi_choice.",
+  "cases": [
+    { "name": "required text empty → invalid",        "field": { "id": "q", "type": "short_text",   "label": "Name",   "required": true },                                  "value": "",              "valid": false },
+    { "name": "optional text empty → valid",          "field": { "id": "q", "type": "short_text",   "label": "Name",   "required": false },                                 "value": "",              "valid": true  },
+    { "name": "required text present → valid",         "field": { "id": "q", "type": "short_text",   "label": "Name",   "required": true },                                  "value": "Ada",           "valid": true  },
+
+    { "name": "email valid → valid",                  "field": { "id": "q", "type": "email",        "label": "Email",  "required": true },                                  "value": "a@b.com",       "valid": true  },
+    { "name": "email missing @ → invalid",            "field": { "id": "q", "type": "email",        "label": "Email",  "required": true },                                  "value": "nope",          "valid": false },
+    { "name": "email missing dot → invalid",          "field": { "id": "q", "type": "email",        "label": "Email",  "required": true },                                  "value": "a@b",           "valid": false },
+    { "name": "email empty optional → valid",         "field": { "id": "q", "type": "email",        "label": "Email",  "required": false },                                 "value": "",              "valid": true  },
+
+    { "name": "phone 10 digits → valid",              "field": { "id": "q", "type": "phone",        "label": "Phone",  "required": true },                                  "value": "555-123-4567",  "valid": true  },
+    { "name": "phone 7 digits formatted → valid",     "field": { "id": "q", "type": "phone",        "label": "Phone",  "required": true },                                  "value": "(12) 34-567",   "valid": true  },
+    { "name": "phone 5 digits → invalid",             "field": { "id": "q", "type": "phone",        "label": "Phone",  "required": true },                                  "value": "12-345",        "valid": false },
+
+    { "name": "number in range → valid",              "field": { "id": "q", "type": "number",       "label": "Age",    "required": true, "validation": { "min": 1, "max": 10 } }, "value": "5",           "valid": true  },
+    { "name": "number below min → invalid",           "field": { "id": "q", "type": "number",       "label": "Age",    "required": true, "validation": { "min": 1, "max": 10 } }, "value": "0",           "valid": false },
+    { "name": "number above max → invalid",           "field": { "id": "q", "type": "number",       "label": "Age",    "required": true, "validation": { "min": 1, "max": 10 } }, "value": "11",          "valid": false },
+    { "name": "number at min boundary → valid",       "field": { "id": "q", "type": "number",       "label": "Age",    "required": true, "validation": { "min": 1, "max": 10 } }, "value": "1",           "valid": true  },
+    { "name": "number non-numeric → invalid",         "field": { "id": "q", "type": "number",       "label": "Age",    "required": true },                                  "value": "abc",           "valid": false },
+    { "name": "number no bounds → valid",             "field": { "id": "q", "type": "number",       "label": "Count",  "required": true },                                  "value": "42",            "valid": true  },
+
+    { "name": "rating 4 → valid",                     "field": { "id": "q", "type": "rating",       "label": "Rate",   "required": true },                                  "value": "4",             "valid": true  },
+    { "name": "rating 1 boundary → valid",            "field": { "id": "q", "type": "rating",       "label": "Rate",   "required": true },                                  "value": "1",             "valid": true  },
+    { "name": "rating 5 boundary → valid",            "field": { "id": "q", "type": "rating",       "label": "Rate",   "required": true },                                  "value": "5",             "valid": true  },
+    { "name": "rating 0 → invalid",                   "field": { "id": "q", "type": "rating",       "label": "Rate",   "required": true },                                  "value": "0",             "valid": false },
+    { "name": "rating 6 → invalid",                   "field": { "id": "q", "type": "rating",       "label": "Rate",   "required": true },                                  "value": "6",             "valid": false },
+
+    { "name": "short_text below minLen → invalid",    "field": { "id": "q", "type": "short_text",   "label": "Code",   "required": true, "validation": { "minLen": 3 } },     "value": "ab",           "valid": false },
+    { "name": "short_text above maxLen → invalid",    "field": { "id": "q", "type": "short_text",   "label": "Code",   "required": true, "validation": { "maxLen": 5 } },     "value": "abcdef",       "valid": false },
+    { "name": "short_text within len → valid",        "field": { "id": "q", "type": "short_text",   "label": "Code",   "required": true, "validation": { "minLen": 2, "maxLen": 5 } }, "value": "abc",  "valid": true  },
+    { "name": "long_text above maxLen → invalid",     "field": { "id": "q", "type": "long_text",    "label": "Notes",  "required": true, "validation": { "maxLen": 4 } },     "value": "hello",        "valid": false },
+
+    { "name": "single_choice in options → valid",     "field": { "id": "q", "type": "single_choice","label": "Pick",   "required": true, "options": ["a", "b"] },             "value": "a",            "valid": true  },
+    { "name": "single_choice not in options → invalid","field": { "id": "q", "type": "single_choice","label": "Pick",  "required": true, "options": ["a", "b"] },             "value": "c",            "valid": false },
+    { "name": "dropdown in options → valid",          "field": { "id": "q", "type": "dropdown",     "label": "Pick",   "required": true, "options": ["x", "y"] },             "value": "y",            "valid": true  },
+    { "name": "dropdown empty options (injected) → valid", "field": { "id": "q", "type": "dropdown", "label": "Van",   "required": true, "options": [] },                     "value": "Van 42",       "valid": true  },
+
+    { "name": "multi_choice subset → valid",          "field": { "id": "q", "type": "multi_choice", "label": "Pick",   "required": true, "options": ["a", "b", "c"] },        "value": ["a", "c"],     "valid": true  },
+    { "name": "multi_choice with unknown → invalid",  "field": { "id": "q", "type": "multi_choice", "label": "Pick",   "required": true, "options": ["a", "b", "c"] },        "value": ["a", "z"],     "valid": false },
+    { "name": "multi_choice required empty → invalid","field": { "id": "q", "type": "multi_choice", "label": "Pick",   "required": true, "options": ["a", "b"] },             "value": [],             "valid": false },
+    { "name": "multi_choice optional empty → valid",  "field": { "id": "q", "type": "multi_choice", "label": "Pick",   "required": false, "options": ["a", "b"] },            "value": [],             "valid": true  }
+  ]
+}
