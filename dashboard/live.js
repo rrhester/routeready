@@ -586,15 +586,35 @@ async function _loadDriverPhotos() {
       .eq("dsp_id", dspId)
       .not("photo_path", "is", null);
     if (error) { console.warn("loadDriverPhotos:", error); return _driverPhotos.map; }
-    for (const r of (data || [])) {
-      _driverPhotos.map.set(
-        r.id,
-        `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-photos/${r.photo_path}`
-      );
-    }
+    // driver-photos is a PRIVATE bucket (migration 0446) — sign the paths.
+    // Batch-sign once here; every avatar surface reads the signed URL from
+    // this map (keyed by driver id) via _driverPhotoUrl().
+    const rows = (data || []).filter((r) => r.photo_path);
+    const byPath = new Map(rows.map((r) => [r.photo_path, r.id]));
+    try {
+      const { data: signed } = await sb.storage
+        .from("driver-photos")
+        .createSignedUrls(rows.map((r) => r.photo_path), 60 * 60 * 8);
+      for (const s of (signed || [])) {
+        if (s && s.path && s.signedUrl && !s.error) {
+          const id = byPath.get(s.path);
+          if (id) _driverPhotos.map.set(id, s.signedUrl);
+        }
+      }
+    } catch (e) { console.warn("signDriverPhotos:", e); }
     return _driverPhotos.map;
   })();
   return _driverPhotos.loaded;
+}
+
+// Signed driver-photo URL for a driver id, or a "<driver_id>/…" storage path.
+// Backed by the pre-signed _driverPhotos map; returns null (→ initials) when
+// the driver has no photo or the map hasn't loaded yet.
+function _driverPhotoUrl(idOrPath) {
+  if (!idOrPath) return null;
+  const s = String(idOrPath);
+  const id = s.includes("/") ? s.split("/")[0] : s;
+  return _driverPhotos.map.get(id) || null;
 }
 
 function _resolveDriverIdForAvatar(el) {
@@ -18683,8 +18703,9 @@ function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
     : "";
 
   const renderRow = (r) => {
-    const av = r.driver_photo_path
-      ? `<img class="tp-driver-avatar" src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="">`
+    const _avU = _driverPhotoUrl(r.driver_photo_path);
+    const av = _avU
+      ? `<img class="tp-driver-avatar" src="${escapeHtml(_avU)}" alt="">`
       : `<div class="tp-driver-avatar">${escapeHtml(initials(r.driver_name))}</div>`;
 
     const timeStr = (r.starts_at || r.ends_at)
@@ -18789,8 +18810,9 @@ function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
   // separately from onboarding scaffolding.
   const trainingTotal = classTrainingRows.length + roadTrainingRows.length;
   const renderTrainingRow = (r, isClass) => {
-    const av = r.driver_photo_path
-      ? `<img class="tp-driver-avatar" src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="">`
+    const _avU = _driverPhotoUrl(r.driver_photo_path);
+    const av = _avU
+      ? `<img class="tp-driver-avatar" src="${escapeHtml(_avU)}" alt="">`
       : `<div class="tp-driver-avatar">${escapeHtml(initials(r.driver_name))}</div>`;
     const timeStr = (r.starts_at || r.ends_at)
       ? `<span style="font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.starts_at))}${r.ends_at ? " – " + escapeHtml(fmtTime(r.ends_at)) : ""}</span>`
@@ -18939,8 +18961,9 @@ function _renderTpVanRoster(data, error) {
   const initials = (name) => (name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 
   const body = rows.map((r) => {
-    const av = r.driver_photo_path
-      ? `<img src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
+    const _avU = _driverPhotoUrl(r.driver_photo_path);
+    const av = _avU
+      ? `<img src="${escapeHtml(_avU)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
       : `<div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700;flex:0 0 auto">${escapeHtml(initials(r.driver_name))}</div>`;
 
     const timeStr = (r.starts_at || r.ends_at)
@@ -77317,15 +77340,11 @@ function _recogDriverCell(r) {
     .map((s) => s[0].toUpperCase()).join("") || "?";
   // Photo URLs are constructed by the same getStorageUrl pattern the
   // rest of the dashboard uses; if it isn't loaded, fall back to initials.
+  // driver-photos is private (0446) — read the pre-signed URL from the map.
+  const _rgU = _driverPhotoUrl(r.photo_path);
   let avatarHtml;
-  if (r.photo_path && typeof sb?.storage?.from === "function") {
-    try {
-      const pub = sb.storage.from("driver-photos").getPublicUrl(r.photo_path);
-      const url = pub?.data?.publicUrl;
-      avatarHtml = url
-        ? `<img src="${escapeHtml(url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(initials)}'}))">`
-        : escapeHtml(initials);
-    } catch (e) { avatarHtml = escapeHtml(initials); }
+  if (_rgU) {
+    avatarHtml = `<img src="${escapeHtml(_rgU)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(initials)}'}))">`;
   } else {
     avatarHtml = escapeHtml(initials);
   }
@@ -84402,12 +84421,9 @@ function _rgpFmtDate(d) {
   } catch (_) { return String(d); }
 }
 function _rgpAvatar(name, path) {
-  if (path) {
-    try {
-      const { data } = sb.storage.from("driver-photos").getPublicUrl(path);
-      if (data?.publicUrl) return `<img class="rr-rgp-ava" src="${escapeHtml(data.publicUrl)}" alt="" loading="lazy"/>`;
-    } catch (_) {}
-  }
+  // driver-photos is private (0446) — read the pre-signed URL from the map.
+  const _u = _driverPhotoUrl(path);
+  if (_u) return `<img class="rr-rgp-ava" src="${escapeHtml(_u)}" alt="" loading="lazy"/>`;
   const ini = String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return `<span class="rr-fp-card-ico rr-rgp-ini">${escapeHtml(ini || "?")}</span>`;
 }

@@ -1042,11 +1042,20 @@ async function refreshDriverProfile(session, { force } = {}) {
     const profile = profRes?.data;
     if (meRes?.error || !data) return;
     const status = profile?.status ?? null;
-    const photoUrl = data.photo_path
-      ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-photos/${data.photo_path}`
-      : null;
     const cur = readSession();
     if (!cur) return;
+    // driver-photos is private (migration 0446) — sign the driver's own photo.
+    // Re-sign only when the path changed or we have no cached URL; the 7-day
+    // expiry outlives a session so we don't re-sign on every driver_me tick.
+    let photoUrl = cur.photo_url || null;
+    if (!data.photo_path) {
+      photoUrl = null;
+    } else if (data.photo_path !== cur.photo_path || !photoUrl) {
+      try {
+        const { data: _ps } = await sb.storage.from("driver-photos").createSignedUrl(data.photo_path, 7 * 24 * 60 * 60);
+        photoUrl = _ps?.signedUrl || null;
+      } catch (_) { photoUrl = null; }
+    }
     const dspName  = data.dsp_name  || cur.dsp_name  || "";
     const dspPhone = data.dsp_phone || cur.dsp_phone || "";
     const dspId    = data.dsp_id    || cur.dsp_id    || null;
@@ -6438,6 +6447,17 @@ async function renderTeam() {
   }
 
   const list = Array.isArray(data) ? data : [];
+  // driver-photos is private (0446) — batch-sign teammate photos once here so
+  // the (sync) row renderer can just read d.photo_url. Best-effort; any path
+  // that doesn't sign falls back to initials.
+  try {
+    const _paths = list.map((d) => d.photo_path).filter(Boolean);
+    if (_paths.length) {
+      const { data: _sig } = await sb.storage.from("driver-photos").createSignedUrls(_paths, 7 * 24 * 60 * 60);
+      const _m = new Map((_sig || []).filter((s) => s && s.path && s.signedUrl && !s.error).map((s) => [s.path, s.signedUrl]));
+      for (const d of list) d.photo_url = d.photo_path ? (_m.get(d.photo_path) || null) : null;
+    }
+  } catch (_) { /* initials fallback */ }
   if (list.length === 0) {
     main.innerHTML = `
       <div class="team-empty">
@@ -6504,7 +6524,7 @@ async function renderTeam() {
 function _teamRowHtml(d, callIcon, textIcon) {
   const name    = d.name || d.full_name || "—";
   const initials = initialsOf(name);
-  const photo   = d.photo_path ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-photos/${d.photo_path}` : null;
+  const photo   = d.photo_url || null;  // pre-signed at team-roster load (0446)
   const avatar  = photo
     ? `<img class="team-avatar" src="${escapeHtml(photo)}" alt=""/>`
     : `<span class="team-avatar team-avatar-initials">${escapeHtml(initials)}</span>`;
@@ -9591,11 +9611,14 @@ async function uploadDriverPhoto(file) {
       body: fd,
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok || !json?.photo_url) {
+    // Success is keyed on photo_path (bucket is private now; photo_url is a
+    // signed URL that may be null if the edge-side sign hiccupped — driver_me
+    // will re-sign within a minute either way).
+    if (!res.ok || !json?.photo_path) {
       toast("Upload failed: " + (json?.error || res.statusText), "warn");
       return;
     }
-    writeSession({ ...session, photo_url: json.photo_url, photo_path: json.photo_path });
+    writeSession({ ...session, photo_url: json.photo_url || null, photo_path: json.photo_path });
     toast("Photo updated", "ok");
     render(); // re-render so header chip + profile avatar pick up the new URL
   } catch (err) {
