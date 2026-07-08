@@ -59,6 +59,29 @@ insert into public.forms (id, dsp_id, title, status, fields, settings) values
 insert into public.form_assignments (form_id, driver_id, dsp_id) values
   ('55555555-5555-5555-5555-555555555555', '33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111');
 
+-- Vehicles for the DVIC / Vehicle-Concern side-effect branches. Distinct so
+-- each concern_van string below resolves to exactly one van (the RPC requires
+-- a unique match). Van D is the standing (rank-0) van for Driver A, which the
+-- DVIC branch resolves via private.driver_resolve_today_van.
+insert into public.vehicles (id, dsp_id, name, nickname, plate, status) values
+  ('a0000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'Van 7',    null,      null,     'active'),
+  ('a0000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'V0099',    'Thunder', null,     'active'),
+  ('a0000000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111', 'V0100',    null,      'XYZ789', 'active'),
+  ('a0000000-0000-0000-0000-0000000000a4', '11111111-1111-1111-1111-111111111111', 'DVIC Van', null,      null,     'active');
+
+insert into public.vehicle_driver_assignments (dsp_id, vehicle_id, driver_id, rank) values
+  ('11111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-0000000000a4', '22222222-2222-2222-2222-222222222222', 0);
+
+-- Vehicle-Concern form (opens a vehicle_issues ticket) and DVIC form (writes a
+-- vehicle_inspections row with derived pass/fail). Empty `fields` so no field
+-- validation runs; the branches read their answers by well-known keys. DVIC
+-- fields carry flag_on rules so a matching answer flips the result to failed.
+insert into public.forms (id, dsp_id, title, status, fields, settings) values
+  ('88888888-8888-8888-8888-888888888888', '11111111-1111-1111-1111-111111111111', 'Concern', 'published', '[]'::jsonb, '{"is_vehicle_concern": true}'::jsonb),
+  ('99999999-9999-9999-9999-999999999999', '11111111-1111-1111-1111-111111111111', 'DVIC',    'published',
+     '[{"id":"brakes","type":"yes_no","flag_on":"fail"},{"id":"lights","type":"yes_no","flag_on":"fail"}]'::jsonb,
+     '{"is_dvic": true}'::jsonb);
+
 
 -- ── 1. private.form_answer_flagged (DVIC pass/fail core, migration 0436) ──
 do $$
@@ -202,6 +225,81 @@ begin
   select count(*) into total from _cases;
   assert fails = 0, format('%s of %s shared fixtures disagree between the SQL validator and JS/fixtures', fails, total);
   raise notice '✓ server-side validation parity: all % shared fixtures agree', total;
+end $$;
+
+
+-- ── 6. Vehicle-Concern branch (migration 0439) ───────────────────────
+-- A concern submission resolves the typed van (by name / nickname / plate),
+-- maps the free-text category & severity onto the enums, and opens a
+-- vehicle_issues ticket linked back to the submission.
+do $$
+declare v_res jsonb; v_issue public.vehicle_issues;
+begin
+  -- Resolve by NAME; 'brakes' → mechanical; 'urgent' → high; title carried.
+  v_res := public.driver_submit_form('tok_test_a', '88888888-8888-8888-8888-888888888888',
+    '{"concern_van":"Van 7","concern_category":"brakes","concern_severity":"urgent","concern_title":"Grinding noise","concern_description":"Loud when braking"}'::jsonb);
+  assert (v_res->>'issue_id') is not null, 'concern: an issue_id is returned';
+  assert (v_res->>'vehicle_id') = 'a0000000-0000-0000-0000-0000000000a1', 'concern: resolved van by name';
+  select * into v_issue from public.vehicle_issues where id = (v_res->>'issue_id')::uuid;
+  assert v_issue.category = 'mechanical',          'concern: brakes → mechanical (got '||v_issue.category||')';
+  assert v_issue.severity = 'high',                'concern: urgent → high (got '||v_issue.severity||')';
+  assert v_issue.title    = 'Grinding noise',      'concern: title carried through';
+  assert v_issue.description = 'Loud when braking','concern: description carried through';
+  assert v_issue.status   = 'open',                'concern: ticket opens as open';
+  assert v_issue.source   = 'driver_self_report',  'concern: source tagged as driver self-report';
+
+  -- Resolve by NICKNAME; 'damage' → body; 'minor' → low; default title.
+  v_res := public.driver_submit_form('tok_test_a', '88888888-8888-8888-8888-888888888888',
+    '{"concern_van":"Thunder","concern_category":"damage","concern_severity":"minor"}'::jsonb);
+  assert (v_res->>'vehicle_id') = 'a0000000-0000-0000-0000-0000000000a2', 'concern: resolved van by nickname';
+  select * into v_issue from public.vehicle_issues where id = (v_res->>'issue_id')::uuid;
+  assert v_issue.category = 'body',                       'concern: damage → body';
+  assert v_issue.severity = 'low',                        'concern: minor → low';
+  assert v_issue.title    = 'Driver-reported concern',    'concern: default title when omitted';
+
+  -- Resolve by PLATE; unknown category → self_reported; empty severity → medium.
+  v_res := public.driver_submit_form('tok_test_a', '88888888-8888-8888-8888-888888888888',
+    '{"concern_van":"XYZ789","concern_category":"kerfuffle","concern_severity":""}'::jsonb);
+  assert (v_res->>'vehicle_id') = 'a0000000-0000-0000-0000-0000000000a3', 'concern: resolved van by plate';
+  select * into v_issue from public.vehicle_issues where id = (v_res->>'issue_id')::uuid;
+  assert v_issue.category = 'self_reported', 'concern: unrecognised category → self_reported';
+  assert v_issue.severity = 'medium',        'concern: empty severity → medium';
+
+  -- Empty category → self_reported (distinct '' code path); 'critical' → critical.
+  v_res := public.driver_submit_form('tok_test_a', '88888888-8888-8888-8888-888888888888',
+    '{"concern_van":"Van 7","concern_category":"","concern_severity":"critical"}'::jsonb);
+  select * into v_issue from public.vehicle_issues where id = (v_res->>'issue_id')::uuid;
+  assert v_issue.category = 'self_reported', 'concern: empty category → self_reported';
+  assert v_issue.severity = 'critical',      'concern: critical → critical';
+
+  raise notice '✓ vehicle-concern branch (van resolution + category/severity mapping)';
+end $$;
+
+
+-- ── 7. DVIC branch (migrations 0436 / 0439) ──────────────────────────
+-- A DVIC submission resolves the driver's standing (rank-0) van via
+-- private.driver_resolve_today_van, derives pass/fail from the per-field
+-- flag_on rules, and writes a vehicle_inspections row.
+do $$
+declare v_res jsonb; v_insp public.vehicle_inspections;
+begin
+  -- A flagged answer ('fail' matches the brakes flag_on) → failed.
+  v_res := public.driver_submit_form('tok_test_a', '99999999-9999-9999-9999-999999999999',
+    '{"brakes":"fail","lights":"pass"}'::jsonb);
+  assert (v_res->>'inspection_id') is not null, 'dvic: an inspection_id is returned';
+  assert (v_res->>'result')     = 'failed', 'dvic: any flagged field → failed (got '||coalesce(v_res->>'result','null')||')';
+  assert (v_res->>'vehicle_id') = 'a0000000-0000-0000-0000-0000000000a4', 'dvic: resolved standing rank-0 van';
+  select * into v_insp from public.vehicle_inspections where id = (v_res->>'inspection_id')::uuid;
+  assert v_insp.kind       = 'dvic',   'dvic: inspection kind is dvic';
+  assert v_insp.result     = 'failed', 'dvic: inspection row records failed';
+  assert v_insp.vehicle_id = 'a0000000-0000-0000-0000-0000000000a4'::uuid, 'dvic: inspection linked to van';
+
+  -- No flagged answer → passed.
+  v_res := public.driver_submit_form('tok_test_a', '99999999-9999-9999-9999-999999999999',
+    '{"brakes":"pass","lights":"pass"}'::jsonb);
+  assert (v_res->>'result') = 'passed', 'dvic: no flagged field → passed';
+
+  raise notice '✓ dvic branch (standing-van resolution + pass/fail derivation)';
 end $$;
 
 rollback;
