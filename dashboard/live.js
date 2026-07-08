@@ -64937,10 +64937,15 @@ async function loadFormsList() {
   // Submissions are loaded alongside the forms list so the KPI strip
   // up top can paint "this week" counts without a second round-trip.
   // A failure here doesn't block the forms render — KPIs just dash out.
-  const [{ data, error }, { data: ac }, submRes] = await Promise.all([
+  const [{ data, error }, { data: ac }, submRes, funnelRes] = await Promise.all([
     sb.rpc("list_forms"),
     sb.rpc("form_assignment_counts"),
     sb.rpc("list_form_submissions", { p_form_id: null }).then((r) => r, () => ({ data: [] })),
+    // Completion funnel (migration 0447), 7-day window to match the KPI
+    // strip's "· 7d" label and its week-based sibling tiles. Degrades
+    // gracefully: until the migration is applied the RPC 404s, so the
+    // KPI/per-card % just dash out.
+    sb.rpc("form_funnel_stats", { p_days: 7 }).then((r) => r, () => ({ data: null })),
   ]);
   if (error) {
     grid.innerHTML = "";
@@ -64949,6 +64954,22 @@ async function loadFormsList() {
   }
   _formAssignCounts = {};
   for (const r of (Array.isArray(ac) ? ac : [])) _formAssignCounts[r.form_id] = Number(r.n) || 0;
+
+  // Per-form completion funnel keyed by form_id + tenant totals, from
+  // form_funnel_stats. Null/absent (RPC not yet deployed, or dispatcher
+  // gate) leaves the map empty and the UI simply omits the % — never errors.
+  _formFunnelByForm = {};
+  let _funnelTotals = null;
+  {
+    const fn = (funnelRes && !funnelRes.error) ? funnelRes.data : null;
+    if (fn && typeof fn === "object") {
+      _funnelTotals = fn.totals || null;
+      for (const r of (Array.isArray(fn.by_form) ? fn.by_form : [])) {
+        if (r && r.form_id) _formFunnelByForm[r.form_id] = r;
+      }
+    }
+  }
+
   const forms = data || [];
 
   // Real per-form submission tallies, grouped from the tenant-wide
@@ -64981,10 +65002,14 @@ async function loadFormsList() {
   const weekDrivers = new Set(weekSubs.map(s => s.driver_id).filter(Boolean));
   const completed = weekSubs.filter(s => /complete|submitted/i.test(s.status || "")).length;
   const rate = weekSubs.length > 0 ? Math.round((completed / weekSubs.length) * 100) : null;
+  // Prefer the real opened→completed funnel rate (last 7d) when available;
+  // fall back to the older submissions-only ratio otherwise.
+  const funnelRate = (_funnelTotals && _funnelTotals.completion_rate != null)
+    ? Math.round(Number(_funnelTotals.completion_rate) * 100) : null;
   const setKpi = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setKpi("rr-forms-kpi-published", String(published));
   setKpi("rr-forms-kpi-subs",      String(weekSubs.length));
-  setKpi("rr-forms-kpi-rate",      rate == null ? "—" : `${rate}%`);
+  setKpi("rr-forms-kpi-rate",      funnelRate != null ? `${funnelRate}%` : (rate == null ? "—" : `${rate}%`));
   setKpi("rr-forms-kpi-drivers",   String(weekDrivers.size));
 
   // ── Right rail: Recent submissions + Form activity ────────────
@@ -65249,6 +65274,7 @@ function _renderFormsRail(allSubs, weekSubs, weekCompleted) {
   }
 }
 let _formAssignCounts = {};
+let _formFunnelByForm = {};        // per-form completion funnel (migration 0447)
 let _formAudienceDrivers = null;   // cached active-driver list for the audience picker
 
 function _formCardHtml(f) {
@@ -65262,6 +65288,12 @@ function _formCardHtml(f) {
       : `<span class="form-card-status draft">Draft</span>`;
   const updated = f.updated_at ? new Date(f.updated_at).toLocaleDateString() : "";
   const assignN = _formAssignCounts[f.id] || 0;
+  // Completion funnel (migration 0447): "N opened · X% completed", shown only
+  // when there's activity and the funnel data is available.
+  const fn = _formFunnelByForm[f.id];
+  const funnelStat = (fn && Number(fn.opened) > 0)
+    ? `<span><strong>${Number(fn.opened)}</strong> opened · <strong>${Math.round(Number(fn.completion_rate || 0) * 100)}%</strong> completed</span>`
+    : "";
   const safeId = escapeHtml(f.id);
   const safeTitle = escapeHtml(f.title || "Untitled form");
   // Active forms get an Archive icon button.  Archived forms get a
@@ -65282,6 +65314,7 @@ function _formCardHtml(f) {
       <div class="form-card-stats">
         <span><strong>${fieldCount}</strong> field${fieldCount === 1 ? "" : "s"}</span>
         <span>${assignN > 0 ? `Assigned · <strong>${assignN}</strong> driver${assignN === 1 ? "" : "s"}` : "All drivers"}</span>
+        ${funnelStat}
         ${updated ? `<span>Updated <strong>${escapeHtml(updated)}</strong></span>` : ""}
         ${f.category ? `<span class="form-card-cat" style="text-transform:capitalize">${escapeHtml(f.category)}</span>` : ""}
       </div>
