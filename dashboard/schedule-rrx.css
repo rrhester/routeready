@@ -101,7 +101,7 @@
   line-height: 1.25;
 }
 #view-schedule.rrx-schedule #ob-roster-mount #rr-roster-table-wrap .cell-name-sub {
-  font-size: 10px;
+  font-size: var(--fs-10);
 }
 
 /* ── Title block ────────────────────────────────────────────── */
@@ -360,7 +360,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   border-radius: var(--rr-radius-medium);
   color: var(--rr-fg-secondary);
   font-family: var(--rr-font-family);
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   line-height: 1.2;
   letter-spacing: 0;
@@ -463,7 +463,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: transparent;
   color: var(--rr-fg-secondary, var(--rr-gray-500));
   font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -1271,7 +1271,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   gap: 10px;
   padding: 7px 14px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--rr-fg-primary);
   border-radius: 4px;
 }
@@ -1291,7 +1291,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 .sched-kpi-config-row:hover{ background: var(--rr-bg-hover); }
 .sched-kpi-config-row > label{
   display: flex; align-items: center; gap: 10px;
-  flex: 1 1 auto; cursor: pointer; font-size: 13px;
+  flex: 1 1 auto; cursor: pointer; font-size: var(--fs-md);
   color: var(--rr-fg-primary); min-width: 0;
 }
 .sched-kpi-config-row > label input[type="checkbox"]{
@@ -1302,7 +1302,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   width: 20px; height: 20px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid transparent; border-radius: 4px;
-  color: var(--rr-fg-secondary); cursor: pointer; font-size: 10px; line-height: 1;
+  color: var(--rr-fg-secondary); cursor: pointer; font-size: var(--fs-10); line-height: 1;
 }
 .sched-kpi-reorder button:hover:not(:disabled){
   background: var(--rr-bg-surface-1); border-color: var(--rr-border-primary); color: var(--rr-fg-primary);
@@ -1902,7 +1902,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-nav-heading-actions .subnav-item span,
 #view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-page-btn:not(#rr-sched-smartfill-h) span {
-  font-size: 13px !important;
+  font-size: var(--fs-md) !important;
   font-weight: 500 !important;
 }
 
@@ -2081,7 +2081,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   border: 0;
   border-radius: var(--rr-radius-medium);
   color: var(--rr-fg-secondary);
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   line-height: 1.2;
   /* Tactile press feedback on every command-strip tile — the spring
@@ -2120,7 +2120,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-v2-tile span {
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
 }
 
@@ -2218,7 +2218,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   right: 0;
   bottom: -4px;
   text-align: center;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: .01em;
   color: var(--rr-gray-900);
@@ -2316,7 +2316,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   gap: 8px;
   background: rgba(37,99,235, .08);
   color: var(--sch-blue, var(--rr-blue-600));
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   letter-spacing: .01em;
   padding: 11px 16px 9px;
@@ -2534,7 +2534,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   border-radius: 8px;
   background: var(--rr-comm-blue, var(--rr-blue-600));
   color: var(--rr-white);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   line-height: 1.25;
   white-space: nowrap;
@@ -2775,7 +2775,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   border: 0;
   border-radius: var(--rr-radius-medium);
   color: var(--rr-fg-secondary);
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   transition: background var(--rr-motion-fast), color var(--rr-motion-fast);
 }
@@ -3203,7 +3203,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   top: auto;
   bottom: 2px;
   right: 3px;
-  font-size: 9px;
+  font-size: var(--fs-9);
   font-weight: 700;
   line-height: 1.3;
   padding: 0 3px;
@@ -3234,7 +3234,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   right: auto;
 }
 #view-schedule.rrx-schedule .shift-chip-class-badge {
-  font-size: 9px;
+  font-size: var(--fs-9);
   font-weight: 700;
   line-height: 1.3;
   padding: 0 3px;
@@ -3439,7 +3439,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    explicit color outranks the chip-wide `* { color }` ink rule). */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
   font-weight: 400;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.2;
   letter-spacing: -.005em;
   color: var(--rr-gray-800) !important;
@@ -3454,7 +3454,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 /* Wave · supporting metadata — quiet muted gray under the time. */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-secondary {
   margin-top: 2px;
-  font-size: 10.5px;
+  font-size: var(--fs-10-5);
   font-weight: 500;
   line-height: 1.3;
   color: var(--rr-slate-500) !important;
@@ -3463,7 +3463,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 /* Van · supporting metadata — same muted gray as the Wave line. */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-van {
   margin-top: 2px;
-  font-size: 10.5px;
+  font-size: var(--fs-10-5);
   font-weight: 500;
   line-height: 1.3;
   color: var(--rr-slate-500) !important;
@@ -3494,7 +3494,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 /* Route eyebrow · crisp uppercase label above the time — softened to sit
    inside the quiet reference hierarchy. */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code {
-  font-size: 9.5px;
+  font-size: var(--fs-9-5);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .05em;
@@ -3811,14 +3811,14 @@ body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
      doesn't want the avatar shrinking as the grid compresses. */
   width: 30px !important;
   height: 30px !important;
-  font-size: 12px !important;
+  font-size: var(--fs-sm) !important;
 }
 body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label-name {
-  font-size: 12px !important;
+  font-size: var(--fs-sm) !important;
   line-height: 1.1 !important;
 }
 body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label-meta {
-  font-size: 10px !important;
+  font-size: var(--fs-10) !important;
   line-height: 1.05 !important;
   margin-top: 0 !important;
 }
@@ -3828,11 +3828,11 @@ body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip {
   min-height: 0 !important;
 }
 body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-route {
-  font-size: 11px !important;
+  font-size: var(--fs-xs) !important;
   line-height: 1.05 !important;
 }
 body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-time {
-  font-size: 9.5px !important;
+  font-size: var(--fs-9-5) !important;
   line-height: 1.05 !important;
 }
 
@@ -3889,10 +3889,10 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label .avatar-s
   /* Keep the driver photo full-size across density modes. */
   width: 30px !important;
   height: 30px !important;
-  font-size: 12px !important;
+  font-size: var(--fs-sm) !important;
 }
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label-name {
-  font-size: 11px !important;
+  font-size: var(--fs-xs) !important;
   line-height: 1.05 !important;
   font-weight: 600 !important;
 }
@@ -3902,7 +3902,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label-meta {
      visible but strip station + word "scheduled" so it reads as
      a single short "60h" pill — fits the 24px row, preserves
      the operator's read on each driver's weekly load. */
-  font-size: 9.5px !important;
+  font-size: var(--fs-9-5) !important;
   line-height: 1.05 !important;
   margin-top: 0 !important;
   font-weight: 600 !important;
@@ -3938,7 +3938,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-time,
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-primary,
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-wave {
   display: inline-block !important;
-  font-size: 11px !important;
+  font-size: var(--fs-xs) !important;
   line-height: 1 !important;
   font-weight: 600 !important;
   font-variant-numeric: tabular-nums !important;
@@ -3981,7 +3981,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-milestone {
   /* Header density pass (operator 2026-06-12): the date/routes block
      stepped down ~20% (23 → 18px), then a further 10% on request
      (→ 16px), day number and target line scaled to match. */
-  font-size: 16px !important;
+  font-size: var(--fs-lg) !important;
   /* Lighter header weight (polish pass: 800 → 700) — still clearly the
      anchor number, but it no longer shouts. */
   font-weight: 700 !important;
@@ -4002,7 +4002,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-milestone {
 }
 /* Day number + cell padding scaled with the header density passes. */
 #view-schedule.rrx-schedule .cal-cell-head .day-num {
-  font-size: 15px !important;
+  font-size: var(--fs-15) !important;
   margin-top: 1px !important;
 }
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head {
@@ -4032,15 +4032,15 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-s
   /* Keep the driver photo full-size across density modes. */
   width: 30px !important;
   height: 30px !important;
-  font-size: 12px !important;
+  font-size: var(--fs-sm) !important;
 }
 body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label-name {
-  font-size: 10px !important;
+  font-size: var(--fs-10) !important;
   line-height: 1.05 !important;
   font-weight: 600 !important;
 }
 body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label-meta {
-  font-size: 9px !important;
+  font-size: var(--fs-9) !important;
   line-height: 1.05 !important;
   margin-top: 0 !important;
   font-weight: 600 !important;
@@ -4070,7 +4070,7 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-time,
 body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-wave,
 body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-van {
   display: block !important;
-  font-size: 9.5px !important;
+  font-size: var(--fs-9-5) !important;
   line-height: 1.08 !important;
   font-weight: 600 !important;
   font-variant-numeric: tabular-nums !important;
@@ -4501,7 +4501,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   display: flex; flex-direction: column; gap: 2px;
 }
 #view-schedule.rrx-schedule .sched-monthly-month {
-  font-size: 20px; font-weight: 700; color: var(--text);
+  font-size: var(--fs-20); font-weight: 700; color: var(--text);
   letter-spacing: -0.005em;
 }
 #view-schedule.rrx-schedule .sched-monthly-sub {
@@ -4578,7 +4578,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 #view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-bodycell {
   display: flex; align-items: center; justify-content: center; padding: 8px 10px;
-  font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-15); font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums;
 }
 /* ── 13-Week Workforce Forecast table ──────────────────────────────
    Reuses the grid chrome; rows are natural height (not stretched) so it
@@ -4589,7 +4589,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   gap: 6px; padding: 10px 14px; text-transform: none; letter-spacing: normal;
 }
 #view-schedule.rrx-schedule .sched-fc-title {
-  font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; line-height: 1.2;
+  font-size: var(--fs-15); font-weight: 700; color: var(--text); letter-spacing: -0.01em; line-height: 1.2;
 }
 #view-schedule.rrx-schedule .sched-fc-target {
   display: inline-flex; align-items: center; gap: 6px;
@@ -4605,7 +4605,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   text-transform: none; letter-spacing: normal;
 }
 #view-schedule.rrx-schedule .sched-fc-wknum { font-size: var(--fs-xs); font-weight: 700; color: var(--text); }
-#view-schedule.rrx-schedule .sched-fc-wkrange { font-size: 10px; font-weight: 500; color: var(--text-subtle); }
+#view-schedule.rrx-schedule .sched-fc-wkrange { font-size: var(--fs-10); font-weight: 500; color: var(--text-subtle); }
 /* Driver Gap — the key row: a touch heavier label, very subtle status fills. */
 #view-schedule.rrx-schedule .sched-fc-gaprow.sched-mw-rowlabel,
 #view-schedule.rrx-schedule .sched-fc-gaprow.sched-mw-bodycell { font-weight: 700; }
@@ -4618,7 +4618,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .sched-fc-help {
   display: inline-flex; align-items: center; justify-content: center;
   width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; cursor: help;
-  font-size: 9px; font-weight: 700; color: var(--text-subtle);
+  font-size: var(--fs-9); font-weight: 700; color: var(--text-subtle);
   background: rgba(15, 23, 42, 0.06); border: 1px solid rgba(15, 23, 42, 0.14);
 }
 #view-schedule.rrx-schedule .sched-fc-inputcell { padding: 3px 4px; }
@@ -4641,7 +4641,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   text-transform: none; letter-spacing: normal;
 }
 #view-schedule.rrx-schedule .sched-mw-corner-month {
-  font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.01em;
+  font-size: var(--fs-18); font-weight: 700; color: var(--text); letter-spacing: -0.01em;
 }
 /* Compact the month nav so it fits the corner cell. */
 #view-schedule.rrx-schedule .sched-mw-corner .sched-monthly-nav-btn { width: 28px }
@@ -4671,7 +4671,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-live {
   display: inline-flex; align-items: center; gap: 3px;
   height: 18px; padding: 0 8px; border-radius: var(--rr-radius-pill, 9999px);
-  font-size: 11px; font-weight: 700; letter-spacing: 0.01em; line-height: 1;
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.01em; line-height: 1;
   color: var(--rr-green-700);
   background: rgba(34, 197, 94, 0.15);
   border: 1px solid rgba(21, 128, 61, 0.35);
@@ -4750,7 +4750,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
    under 100% staffed, green when fully staffed (or over). Saved + projected
    (forecast) coverage read identically. */
 #view-schedule.rrx-schedule .sched-month-cell-cov {
-  font-size: 21px; font-weight: 700; color: var(--text-muted);
+  font-size: var(--fs-21); font-weight: 700; color: var(--text-muted);
   margin-top: 3px; line-height: 1.05; letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
@@ -4797,7 +4797,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .rr-fc-model-empty { padding: 16px; color: var(--text-subtle); font-size: var(--fs-sm); }
 #view-schedule.rrx-schedule .rr-fc-model-head {
   padding: 12px 16px; border-bottom: 1px solid rgba(15, 23, 42, 0.10);
-  font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.01em;
+  font-size: var(--fs-15); font-weight: 700; color: var(--text); letter-spacing: -0.01em;
 }
 #view-schedule.rrx-schedule .rr-fc-model-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 16px; }
 /* Scenario selector — vertical list of selectable rows. */
@@ -4810,13 +4810,13 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 #view-schedule.rrx-schedule .rr-fc-scn:hover { background: var(--sch-hover); }
 #view-schedule.rrx-schedule .rr-fc-scn.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
-#view-schedule.rrx-schedule .rr-fc-scn-rec { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--green); }
+#view-schedule.rrx-schedule .rr-fc-scn-rec { font-size: var(--fs-10); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--green); }
 /* OT slider. */
 #view-schedule.rrx-schedule .rr-fc-field-row { display: flex; align-items: baseline; justify-content: space-between; }
 #view-schedule.rrx-schedule .rr-fc-field-row label { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
 #view-schedule.rrx-schedule .rr-fc-ot-val { font-size: var(--fs-md); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 #view-schedule.rrx-schedule #rr-fc-ot-slider { width: 100%; margin: 8px 0 2px; accent-color: var(--accent); cursor: pointer; }
-#view-schedule.rrx-schedule .rr-fc-slider-ends { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-subtle); }
+#view-schedule.rrx-schedule .rr-fc-slider-ends { display: flex; justify-content: space-between; font-size: var(--fs-10); color: var(--text-subtle); }
 /* Results + balanced — small stat tiles, restrained color only. */
 #view-schedule.rrx-schedule .rr-fc-results,
 #view-schedule.rrx-schedule .rr-fc-balanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -4824,8 +4824,8 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   background: var(--canvas, var(--rr-gray-50)); border: 1px solid rgba(15, 23, 42, 0.10);
   border-radius: var(--r-md); padding: 9px 10px;
 }
-#view-schedule.rrx-schedule .rr-fc-stat-val { font-size: 18px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
-#view-schedule.rrx-schedule .rr-fc-stat-lbl { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; color: var(--text-subtle); margin-top: 3px; }
+#view-schedule.rrx-schedule .rr-fc-stat-val { font-size: var(--fs-18); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
+#view-schedule.rrx-schedule .rr-fc-stat-lbl { font-size: var(--fs-10-5); font-weight: 600; text-transform: uppercase; letter-spacing: .02em; color: var(--text-subtle); margin-top: 3px; }
 #view-schedule.rrx-schedule .rr-fc-stat.ok    .rr-fc-stat-val { color: #0B5A30; }
 #view-schedule.rrx-schedule .rr-fc-stat.watch .rr-fc-stat-val { color: #7A5E0C; }
 #view-schedule.rrx-schedule .rr-fc-stat.bad   .rr-fc-stat-val { color: #9A2D2D; }
@@ -4940,7 +4940,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   background: var(--rr-white);
   color: var(--rr-fg-primary, var(--rr-gray-900));
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-12-5);
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
@@ -4964,7 +4964,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   border-radius: 5px;
   background: var(--sidebar-bg, var(--rr-slate-900));
   color: var(--rr-white);
-  font-size: 11.5px;
+  font-size: var(--fs-11-5);
   font-weight: 700;
 }
 #view-schedule .rr-ab-badge[hidden] { display: none; }
@@ -4985,12 +4985,12 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 #view-schedule .rr-ab-coverage[hidden] { display: none; }
 #view-schedule .rr-ab-coverage-main {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--rr-fg-primary, var(--rr-gray-900));
 }
 #view-schedule .rr-ab-coverage-sub {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--red, var(--rr-red-600));
 }
@@ -5077,7 +5077,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   border-radius: 7px;
   background: none;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-md);
   text-align: left;
   color: var(--text, var(--rr-slate-900));
   cursor: pointer;
@@ -5089,7 +5089,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
    gains a split caret that opens the van/driver chain editor. — */
 #view-schedule .rr-ab-driver {
   align-self: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -5132,13 +5132,13 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule .rr-ab-weeknav .sched-week-nav-btn svg { width: 13px; height: 13px; }
 #view-schedule .rr-ab-weeknav .sched-week-nav-today {
   padding: 0 12px;
-  font-size: 12.5px;
+  font-size: var(--fs-12-5);
   font-weight: 600;
   border-right: 1px solid rgba(15,23,42, .14);
 }
 #view-schedule .rr-ab-weeknav .sched-week-nav-range {
   padding: 0 12px;
-  font-size: 12.5px;
+  font-size: var(--fs-12-5);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -5358,7 +5358,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   line-height: 1.2 !important;
 }
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
-  font-size: 12px !important;
+  font-size: var(--fs-sm) !important;
   font-weight: 650 !important;
   letter-spacing: .01em;
   font-variant-numeric: tabular-nums;
@@ -5367,7 +5367,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
   display: flex !important;
   align-items: center !important;
   gap: 4px !important;
-  font-size: 10.5px !important;
+  font-size: var(--fs-10-5) !important;
   font-weight: 500 !important;
   color: var(--rr-slate-500) !important;
   margin-top: 1px;
@@ -5431,7 +5431,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label .avatar-s
 body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
   width: 40px !important;
   height: 40px !important;
-  font-size: 14px !important;
+  font-size: var(--fs-base) !important;
 }
 
 /* ============================================================
@@ -5563,7 +5563,7 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 /* Open-task count riding the My Tasks icon (hidden when zero, via JS). */
 #rr-util-rail-mount .sched-util-badge{
   position:absolute; top:0; right:0; min-width:16px; height:16px; padding:0 4px; z-index:2;
-  border-radius:8px; background:#7C3AED; color:var(--rr-white); font-size:10px; font-weight:700;
+  border-radius:8px; background:#7C3AED; color:var(--rr-white); font-size:var(--fs-10); font-weight:700;
   line-height:16px; text-align:center; box-shadow:0 0 0 2px var(--canvas,var(--rr-gray-50)); pointer-events:none;
 }
 /* Unread-message dot on the My Tasks icon — a small blue pip at the
@@ -5597,7 +5597,7 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
   display:flex;align-items:center;gap:10px;width:100%;
   padding:9px 10px;margin:0 0 10px;
   background:transparent;border:0;border-radius:8px;cursor:pointer;
-  font:inherit;font-size:13px;font-weight:600;color:var(--accent-text,var(--rr-blue-700));
+  font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--accent-text,var(--rr-blue-700));
   transition:background var(--t-fast,.12s);
 }
 #rr-util-rail-mount .ctp-create:hover{background:var(--accent-soft,rgba(37,99,235,.08))}
@@ -5646,11 +5646,11 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
   flex:0 0 auto;width:32px;height:32px;border-radius:50%;
   display:inline-flex;align-items:center;justify-content:center;
   background:var(--accent-soft,rgba(37,99,235,.13));color:var(--accent-text,var(--rr-blue-700));
-  font-size:13px;font-weight:700;
+  font-size:var(--fs-md);font-weight:700;
 }
 #rr-util-rail-mount .ctp-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-#rr-util-rail-mount .ctp-name{font-size:13px;font-weight:600;color:var(--text,var(--rr-slate-900));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#rr-util-rail-mount .ctp-sub{font-size:11px;color:var(--text-subtle,var(--rr-slate-400));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rr-util-rail-mount .ctp-name{font-size:var(--fs-md);font-weight:600;color:var(--text,var(--rr-slate-900));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rr-util-rail-mount .ctp-sub{font-size:var(--fs-xs);color:var(--text-subtle,var(--rr-slate-400));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Quick actions (call / email / edit / delete) reveal on hover or
    keyboard focus, Google-style. */
 #rr-util-rail-mount .ctp-acts{display:none;align-items:center;gap:2px;flex:0 0 auto}
@@ -5714,12 +5714,12 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 #rr-util-rail-mount .ctp-poc-del{
   flex:0 0 auto;width:22px;height:22px;border:0;border-radius:50%;
   background:transparent;color:var(--text-subtle,var(--rr-slate-400));cursor:pointer;
-  font-size:15px;line-height:1;
+  font-size:var(--fs-15);line-height:1;
   transition:background var(--t-fast,.12s), color var(--t-fast,.12s);
 }
 #rr-util-rail-mount .ctp-poc-del:hover{background:var(--red-soft,rgba(220,38,38,.08));color:var(--red,var(--rr-red-600))}
 #rr-util-rail-mount .ctp-poc{
-  display:block;font-size:11px;color:var(--text-subtle,var(--rr-slate-400));
+  display:block;font-size:var(--fs-xs);color:var(--text-subtle,var(--rr-slate-400));
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 #rr-util-rail-mount .ctp-poc-tel{color:var(--accent-text,var(--rr-blue-700));text-decoration:none}
@@ -5744,11 +5744,11 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
   flex:0 0 auto;width:40px;height:40px;border-radius:50%;
   display:inline-flex;align-items:center;justify-content:center;
   background:var(--accent-soft,rgba(37,99,235,.13));color:var(--accent-text,var(--rr-blue-700));
-  font-size:16px;font-weight:700;
+  font-size:var(--fs-lg);font-weight:700;
 }
 .ctpd-id{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.ctpd-name{font-size:15px;font-weight:700;color:var(--text,var(--rr-slate-900));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ctpd-org{font-size:12px;color:var(--text-subtle,var(--rr-slate-400));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctpd-name{font-size:var(--fs-15);font-weight:700;color:var(--text,var(--rr-slate-900));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctpd-org{font-size:var(--fs-sm);color:var(--text-subtle,var(--rr-slate-400));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ctpd-x{
   flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
   width:28px;height:28px;border-radius:50%;border:0;background:transparent;
@@ -5763,24 +5763,24 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
   background:var(--accent-soft,rgba(37,99,235,.10));color:var(--accent-text,var(--rr-blue-700));
 }
 .ctpd-lines{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.ctpd-val{font-size:13px;color:var(--text,var(--rr-slate-900));word-break:break-word}
+.ctpd-val{font-size:var(--fs-md);color:var(--text,var(--rr-slate-900));word-break:break-word}
 a.ctpd-val{color:var(--accent-text,var(--rr-blue-700));text-decoration:none}
 a.ctpd-val:hover{text-decoration:underline}
-.ctpd-sec-h{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle,var(--rr-slate-400));margin-bottom:6px}
+.ctpd-sec-h{font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle,var(--rr-slate-400));margin-bottom:6px}
 .ctpd-pocs{border-top:1px dashed var(--border,var(--rr-gray-200));padding-top:10px;display:flex;flex-direction:column;gap:6px}
 .ctpd-poc{display:flex;flex-direction:column;gap:1px}
-.ctpd-poc-name{font-size:13px;font-weight:600;color:var(--text,var(--rr-slate-900))}
-.ctpd-poc-meta{font-size:12px;color:var(--text-subtle,var(--rr-slate-400))}
+.ctpd-poc-name{font-size:var(--fs-md);font-weight:600;color:var(--text,var(--rr-slate-900))}
+.ctpd-poc-meta{font-size:var(--fs-sm);color:var(--text-subtle,var(--rr-slate-400))}
 .ctpd-poc-tel{color:var(--accent-text,var(--rr-blue-700));text-decoration:none}
 .ctpd-poc-tel:hover{text-decoration:underline}
 .ctpd-notes{
   border-top:1px dashed var(--border,var(--rr-gray-200));padding-top:10px;
-  font-size:13px;color:var(--text-muted,var(--rr-gray-600));white-space:pre-wrap;word-break:break-word;
+  font-size:var(--fs-md);color:var(--text-muted,var(--rr-gray-600));white-space:pre-wrap;word-break:break-word;
 }
-.ctpd-empty{font-size:13px;color:var(--text-subtle,var(--rr-slate-400))}
+.ctpd-empty{font-size:var(--fs-md);color:var(--text-subtle,var(--rr-slate-400))}
 .ctpd-foot{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border,var(--rr-gray-200));padding-top:12px}
 .ctpd .ctp-btn{
-  font-size:13px;padding:6px 16px;border-radius:8px;cursor:pointer;
+  font-size:var(--fs-md);padding:6px 16px;border-radius:8px;cursor:pointer;
   border:1px solid var(--border,var(--rr-gray-300));background:var(--surface,var(--rr-white));color:var(--text,var(--rr-slate-900));
   transition:background .12s;
 }
@@ -5849,7 +5849,7 @@ a.ctpd-val:hover{text-decoration:underline}
    Calm Outlook/Google-grade chrome: light-canvas panel, white cards,
    soft borders, restrained var(--rr-blue-600) accent, thin colored note-type rule. */
 #rr-util-rail-mount .ntp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px 11px}
-#rr-util-rail-mount .ntp-head-title{font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--text,var(--rr-slate-900))}
+#rr-util-rail-mount .ntp-head-title{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;color:var(--text,var(--rr-slate-900))}
 #rr-util-rail-mount .ntp-icon-btn{
   appearance:none;cursor:pointer;flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:0;background:transparent;color:var(--text-subtle,var(--rr-slate-400));
   display:inline-flex;align-items:center;justify-content:center;transition:background .15s,color .15s;
@@ -5863,7 +5863,7 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-composer{border:1px solid var(--border,rgba(15,23,42,.12));border-radius:12px;background:var(--rr-white);box-shadow:0 1px 2px rgba(15,23,42,.04);overflow:hidden}
 #rr-util-rail-mount .ntp-composer-row{display:flex;align-items:flex-start;gap:9px;padding:10px 12px}
 #rr-util-rail-mount .ntp-composer-plus{flex:0 0 auto;color:var(--rr-blue-600);display:flex;margin-top:2px}
-#rr-util-rail-mount .ntp-composer-input{flex:1;min-width:0;min-height:22px;max-height:140px;overflow-y:auto;outline:none;font:inherit;font-size:14px;line-height:1.5;color:var(--text,var(--rr-slate-900))}
+#rr-util-rail-mount .ntp-composer-input{flex:1;min-width:0;min-height:22px;max-height:140px;overflow-y:auto;outline:none;font:inherit;font-size:var(--fs-base);line-height:1.5;color:var(--text,var(--rr-slate-900))}
 #rr-util-rail-mount .ntp-composer-input:empty:before{content:attr(data-placeholder);color:var(--text-subtle,var(--rr-slate-400))}
 #rr-util-rail-mount .ntp-composer-input a{color:var(--rr-blue-600)}
 #rr-util-rail-mount .ntp-composer-pin{flex:0 0 auto;appearance:none;cursor:pointer;width:26px;height:26px;border-radius:7px;border:0;background:transparent;color:var(--text-subtle,var(--rr-slate-300));display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
@@ -5871,21 +5871,21 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-composer-pin[aria-pressed="true"]{color:var(--rr-blue-600)}
 #rr-util-rail-mount .ntp-composer-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.07));background:var(--canvas,var(--rr-slate-50))}
 #rr-util-rail-mount .ntp-fmt{display:flex;align-items:center;gap:1px}
-#rr-util-rail-mount .ntp-fmt-btn{appearance:none;cursor:pointer;width:26px;height:26px;border-radius:6px;border:0;background:transparent;color:var(--text-muted,var(--rr-slate-500));display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;transition:background .15s,color .15s}
+#rr-util-rail-mount .ntp-fmt-btn{appearance:none;cursor:pointer;width:26px;height:26px;border-radius:6px;border:0;background:transparent;color:var(--text-muted,var(--rr-slate-500));display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-md);font-weight:700;transition:background .15s,color .15s}
 #rr-util-rail-mount .ntp-fmt-btn:hover{background:rgba(15,23,42,.06);color:var(--text,var(--rr-slate-900))}
 #rr-util-rail-mount .ntp-fmt-bold{font-weight:800}
 #rr-util-rail-mount .ntp-fmt-italic{font-style:italic;font-family:Georgia,'Times New Roman',serif}
-#rr-util-rail-mount .ntp-add-btn{appearance:none;cursor:pointer;border:0;border-radius:8px;background:var(--rr-blue-600);color:var(--rr-white);font:inherit;font-size:13px;font-weight:600;padding:7px 14px;transition:background .15s}
+#rr-util-rail-mount .ntp-add-btn{appearance:none;cursor:pointer;border:0;border-radius:8px;background:var(--rr-blue-600);color:var(--rr-white);font:inherit;font-size:var(--fs-md);font-weight:600;padding:7px 14px;transition:background .15s}
 #rr-util-rail-mount .ntp-add-btn:hover{background:var(--rr-blue-700)}
-#rr-util-rail-mount .ntp-add-btn-sm{padding:6px 12px;font-size:12.5px}
+#rr-util-rail-mount .ntp-add-btn-sm{padding:6px 12px;font-size:var(--fs-12-5)}
 
 #rr-util-rail-mount .ntp-filter{display:flex;align-items:center;gap:8px;margin:14px 0 10px}
-#rr-util-rail-mount .ntp-filter-sel{appearance:none;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:var(--rr-white);color:var(--text,var(--rr-slate-900));font:inherit;font-size:12.5px;font-weight:600;padding:7px 9px;transition:background .15s}
+#rr-util-rail-mount .ntp-filter-sel{appearance:none;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:var(--rr-white);color:var(--text,var(--rr-slate-900));font:inherit;font-size:var(--fs-12-5);font-weight:600;padding:7px 9px;transition:background .15s}
 #rr-util-rail-mount .ntp-filter-sel:hover{background:var(--canvas,var(--rr-slate-50))}
 #rr-util-rail-mount .ntp-filter-sel svg{color:var(--text-subtle,var(--rr-slate-400))}
 #rr-util-rail-mount .ntp-search{flex:1;min-width:0;display:flex;align-items:center;gap:7px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:var(--rr-white);padding:0 9px}
 #rr-util-rail-mount .ntp-search svg{flex:0 0 auto;color:var(--text-subtle,var(--rr-slate-400))}
-#rr-util-rail-mount .ntp-search input{flex:1;min-width:0;border:0;outline:none;background:transparent;font:inherit;font-size:13px;color:var(--text,var(--rr-slate-900));padding:7px 0}
+#rr-util-rail-mount .ntp-search input{flex:1;min-width:0;border:0;outline:none;background:transparent;font:inherit;font-size:var(--fs-md);color:var(--text,var(--rr-slate-900));padding:7px 0}
 #rr-util-rail-mount .ntp-search input::placeholder{color:var(--text-subtle,var(--rr-slate-400))}
 
 #rr-util-rail-mount .ntp-list{display:flex;flex-direction:column;gap:10px}
@@ -5895,9 +5895,9 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-note[data-type="green"]{border-left-color:var(--rr-green-600)}
 #rr-util-rail-mount .ntp-note[data-type="violet"]{border-left-color:#7C3AED}
 #rr-util-rail-mount .ntp-note-top{display:flex;align-items:baseline;gap:8px;margin-bottom:4px;flex-wrap:wrap}
-#rr-util-rail-mount .ntp-note-time{font-size:11.5px;color:var(--text-subtle,var(--rr-slate-400));font-weight:500}
-#rr-util-rail-mount .ntp-note-author{font-size:11.5px;font-weight:600;color:var(--text-muted,var(--rr-slate-500))}
-#rr-util-rail-mount .ntp-note-body{font-size:13.5px;line-height:1.5;color:var(--text,var(--rr-slate-900));word-break:break-word}
+#rr-util-rail-mount .ntp-note-time{font-size:var(--fs-11-5);color:var(--text-subtle,var(--rr-slate-400));font-weight:500}
+#rr-util-rail-mount .ntp-note-author{font-size:var(--fs-11-5);font-weight:600;color:var(--text-muted,var(--rr-slate-500))}
+#rr-util-rail-mount .ntp-note-body{font-size:var(--fs-13-5);line-height:1.5;color:var(--text,var(--rr-slate-900));word-break:break-word}
 #rr-util-rail-mount .ntp-note-body a{color:var(--rr-blue-600)}
 #rr-util-rail-mount .ntp-note-body img{max-width:100%;border-radius:6px;margin-top:6px}
 #rr-util-rail-mount .ntp-note-pin{position:absolute;top:9px;right:30px;width:22px;height:22px;border-radius:6px;appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,var(--rr-slate-300));display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
@@ -5905,20 +5905,20 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-note.is-pinned .ntp-note-pin{color:var(--rr-blue-600)}
 #rr-util-rail-mount .ntp-note-menu{position:absolute;top:9px;right:7px;width:22px;height:22px;border-radius:6px;appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-subtle,var(--rr-slate-300));display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s}
 #rr-util-rail-mount .ntp-note-menu:hover{background:rgba(15,23,42,.05);color:var(--text-muted,var(--rr-slate-500))}
-#rr-util-rail-mount .ntp-empty{font-size:12.5px;color:var(--text-subtle,var(--rr-slate-400));text-align:center;line-height:1.5;padding:22px 10px}
+#rr-util-rail-mount .ntp-empty{font-size:var(--fs-12-5);color:var(--text-subtle,var(--rr-slate-400));text-align:center;line-height:1.5;padding:22px 10px}
 
-#rr-util-rail-mount .ntp-viewall{display:inline-block;margin:11px 2px 4px;font-size:12.5px;font-weight:600;color:var(--rr-blue-600);text-decoration:none;cursor:pointer}
+#rr-util-rail-mount .ntp-viewall{display:inline-block;margin:11px 2px 4px;font-size:var(--fs-12-5);font-weight:600;color:var(--rr-blue-600);text-decoration:none;cursor:pointer}
 #rr-util-rail-mount .ntp-viewall:hover{text-decoration:underline}
 
 #rr-util-rail-mount .ntp-tasks-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.07))}
 /* In the dedicated Tasks panel the block stands alone — no divider above. */
 #rr-util-rail-mount .ntp-tasks-block--solo{margin-top:0;padding-top:2px;border-top:0}
 #rr-util-rail-mount .ntp-tasks-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-#rr-util-rail-mount .ntp-section-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted,var(--rr-slate-500))}
-#rr-util-rail-mount .ntp-addtask-btn{appearance:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:var(--rr-white);color:var(--text,var(--rr-slate-900));font:inherit;font-size:12px;font-weight:600;padding:6px 10px;transition:background .15s}
+#rr-util-rail-mount .ntp-section-title{font-size:var(--fs-xs);font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted,var(--rr-slate-500))}
+#rr-util-rail-mount .ntp-addtask-btn{appearance:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:8px;background:var(--rr-white);color:var(--text,var(--rr-slate-900));font:inherit;font-size:var(--fs-sm);font-weight:600;padding:6px 10px;transition:background .15s}
 #rr-util-rail-mount .ntp-addtask-btn:hover{background:var(--canvas,var(--rr-slate-50))}
 #rr-util-rail-mount .ntp-task-form{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:10px;border:1px solid var(--border,rgba(15,23,42,.12));border-radius:10px;background:var(--rr-white)}
-#rr-util-rail-mount .ntp-task-input,#rr-util-rail-mount .ntp-task-date{border:1px solid var(--border,rgba(15,23,42,.12));border-radius:7px;background:var(--rr-white);font:inherit;font-size:13px;color:var(--text,var(--rr-slate-900));padding:7px 9px;outline:none}
+#rr-util-rail-mount .ntp-task-input,#rr-util-rail-mount .ntp-task-date{border:1px solid var(--border,rgba(15,23,42,.12));border-radius:7px;background:var(--rr-white);font:inherit;font-size:var(--fs-md);color:var(--text,var(--rr-slate-900));padding:7px 9px;outline:none}
 #rr-util-rail-mount .ntp-task-input:focus,#rr-util-rail-mount .ntp-task-date:focus{border-color:var(--rr-blue-600);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 #rr-util-rail-mount .ntp-task-form-row{display:flex;align-items:center;gap:8px}
 /* The class's display:flex outranks the UA [hidden]{display:none}, so the
@@ -5927,14 +5927,14 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-task-form-row[hidden]{display:none}
 #rr-util-rail-mount .ntp-task-date{flex:1;min-width:0}
 #rr-util-rail-mount .ntp-task-repcount{flex:0 0 64px;text-align:center}
-#rr-util-rail-mount .ntp-task-rep{flex:0 0 auto;font-size:11px;opacity:.7;margin-left:2px}
+#rr-util-rail-mount .ntp-task-rep{flex:0 0 auto;font-size:var(--fs-xs);opacity:.7;margin-left:2px}
 #rr-util-rail-mount .ntp-rep-extra{flex-wrap:wrap}
-#rr-util-rail-mount .ntp-rep-lbl{font-size:12.5px;color:var(--text-muted,var(--rr-slate-500))}
+#rr-util-rail-mount .ntp-rep-lbl{font-size:var(--fs-12-5);color:var(--text-muted,var(--rr-slate-500))}
 #rr-util-rail-mount .ntp-dow{display:flex;gap:5px;flex-wrap:wrap}
-#rr-util-rail-mount .ntp-dow-b{width:30px;height:30px;border-radius:50%;border:1px solid var(--border,rgba(15,23,42,.14));background:var(--rr-white);color:var(--text,var(--rr-slate-900));font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:0}
+#rr-util-rail-mount .ntp-dow-b{width:30px;height:30px;border-radius:50%;border:1px solid var(--border,rgba(15,23,42,.14));background:var(--rr-white);color:var(--text,var(--rr-slate-900));font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;padding:0}
 #rr-util-rail-mount .ntp-dow-b:hover{background:#eef4ff}
 #rr-util-rail-mount .ntp-dow-b.on{background:var(--rr-blue-600);border-color:var(--rr-blue-600);color:var(--rr-white)}
-#rr-util-rail-mount .ntp-ghost-btn{appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-muted,var(--rr-slate-500));font:inherit;font-size:12.5px;font-weight:600;padding:6px 8px;border-radius:7px}
+#rr-util-rail-mount .ntp-ghost-btn{appearance:none;cursor:pointer;border:0;background:transparent;color:var(--text-muted,var(--rr-slate-500));font:inherit;font-size:var(--fs-12-5);font-weight:600;padding:6px 8px;border-radius:7px}
 #rr-util-rail-mount .ntp-ghost-btn:hover{background:rgba(15,23,42,.05)}
 #rr-util-rail-mount .ntp-tasklist{display:flex;flex-direction:column;gap:1px}
 #rr-util-rail-mount .ntp-task{display:flex;align-items:center;gap:11px;padding:9px 6px;border-radius:8px;transition:background .15s}
@@ -5946,26 +5946,26 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-task.is-done .ntp-task-check svg{opacity:1}
 /* Titles wrap (up to 3 lines, then ellipsis) so long tasks stay readable;
    the span's title attribute carries the full text past the clamp. */
-#rr-util-rail-mount .ntp-task-title{flex:1;min-width:0;font-size:13.5px;line-height:1.35;color:var(--text,var(--rr-slate-900));overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+#rr-util-rail-mount .ntp-task-title{flex:1;min-width:0;font-size:var(--fs-13-5);line-height:1.35;color:var(--text,var(--rr-slate-900));overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow-wrap:anywhere}
 #rr-util-rail-mount .ntp-task.is-done .ntp-task-title{color:var(--text-subtle,var(--rr-slate-400));text-decoration:line-through}
-#rr-util-rail-mount .ntp-task-due{flex:0 0 auto;font-size:12px;font-weight:600;color:var(--text-subtle,var(--rr-slate-400))}
+#rr-util-rail-mount .ntp-task-due{flex:0 0 auto;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle,var(--rr-slate-400))}
 #rr-util-rail-mount .ntp-task-due.is-soon{color:#EA580C}
 #rr-util-rail-mount .ntp-task-due.is-over{color:var(--rr-red-600)}
-#rr-util-rail-mount .ntp-task-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--rr-slate-200);color:var(--text-muted,var(--rr-slate-500));display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;overflow:hidden}
+#rr-util-rail-mount .ntp-task-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--rr-slate-200);color:var(--text-muted,var(--rr-slate-500));display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-10);font-weight:700;overflow:hidden}
 #rr-util-rail-mount .ntp-task-avatar img{width:100%;height:100%;object-fit:cover}
 /* Team tasks (0432): teammate rows get no special avatar tint — the
    tooltip + provenance text distinguish them (kept deliberately subtle,
    per operator: no purple, no bubbles). */
 #rr-util-rail-mount .ntp-task-avatar.is-other{background:var(--rr-slate-200);color:var(--text-muted,var(--rr-slate-500))}
 /* "from Ryan" / "→ Dana" — quiet muted text beside the title (no pill). */
-#rr-util-rail-mount .ntp-task-from{flex:0 0 auto;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:500;color:var(--text-subtle,var(--rr-slate-400))}
+#rr-util-rail-mount .ntp-task-from{flex:0 0 auto;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle,var(--rr-slate-400))}
 /* My Tasks ↔ Delegated switcher (hidden until server mode confirms) —
    flat text tabs on a hairline, dark-slate underline marks the active
    one. No pills, no accent fill. */
 #rr-util-rail-mount .ntp-task-views{display:flex;gap:16px;margin-bottom:10px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.07))}
 #rr-util-rail-mount .ntp-task-views[hidden]{display:none}
-#rr-util-rail-mount .ntp-task-view-b{appearance:none;cursor:pointer;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:transparent;color:var(--text-muted,var(--rr-slate-500));font:inherit;font-size:12.5px;font-weight:600;padding:2px 1px 7px;transition:color .15s,border-color .15s}
-#rr-util-rail-mount .ntp-task-view-b b{font-weight:600;font-size:11.5px;margin-left:4px;opacity:.65}
+#rr-util-rail-mount .ntp-task-view-b{appearance:none;cursor:pointer;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:transparent;color:var(--text-muted,var(--rr-slate-500));font:inherit;font-size:var(--fs-12-5);font-weight:600;padding:2px 1px 7px;transition:color .15s,border-color .15s}
+#rr-util-rail-mount .ntp-task-view-b b{font-weight:600;font-size:var(--fs-11-5);margin-left:4px;opacity:.65}
 #rr-util-rail-mount .ntp-task-view-b:hover{color:var(--text,var(--rr-slate-900))}
 #rr-util-rail-mount .ntp-task-view-b.on{color:var(--text,var(--rr-slate-900));border-bottom-color:var(--text,var(--rr-slate-900))}
 /* Clickable title (server rows open the detail modal). */
@@ -5973,12 +5973,12 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .ntp-task-title--click:hover{text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--border,rgba(15,23,42,.3))}
 /* Acknowledge indicator on delegated rows (0434): amber ● awaiting,
    green ✓ acknowledged. */
-#rr-util-rail-mount .ntp-task-ack{flex:0 0 auto;font-size:11px;line-height:1;font-weight:700}
+#rr-util-rail-mount .ntp-task-ack{flex:0 0 auto;font-size:var(--fs-xs);line-height:1;font-weight:700}
 #rr-util-rail-mount .ntp-task-ack.is-wait{color:var(--rr-amber-600)}
 #rr-util-rail-mount .ntp-task-ack.is-done{color:#059669}
 /* Comment indicator on rows (0435): muted 💬 + count; lit blue with a
    pip when there's a message I haven't seen. */
-#rr-util-rail-mount .ntp-task-msg{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--text-subtle,var(--rr-slate-400))}
+#rr-util-rail-mount .ntp-task-msg{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle,var(--rr-slate-400))}
 #rr-util-rail-mount .ntp-task-msg svg{width:12px;height:12px}
 #rr-util-rail-mount .ntp-task-msg.is-unread{color:var(--rr-blue-600)}
 #rr-util-rail-mount .ntp-task-msg-dot{position:absolute;top:-3px;right:-4px;width:6px;height:6px;border-radius:50%;background:var(--rr-blue-600)}
@@ -5991,7 +5991,7 @@ a.ctpd-val:hover{text-decoration:underline}
 /* Delete chooser for repeating tasks — appended to <body> (not the rail),
    so styled unscoped. "This task" vs. "all N in this series". */
 .ntp-task-del-pop{position:fixed;z-index:10060;background:var(--rr-white);border:1px solid rgba(15,23,42,.12);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:4px;display:flex;flex-direction:column;gap:1px;min-width:210px}
-.ntp-task-del-pop button{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:13px;color:var(--rr-gray-900);text-align:left;padding:8px 12px;border-radius:7px}
+.ntp-task-del-pop button{appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;font-size:var(--fs-md);color:var(--rr-gray-900);text-align:left;padding:8px 12px;border-radius:7px}
 .ntp-task-del-pop button:hover{background:rgba(220,38,38,.08);color:var(--rr-red-600)}
 
 /* ── Task detail modal (0434) · acknowledge + comments + activity ────
@@ -6004,44 +6004,44 @@ a.ctpd-val:hover{text-decoration:underline}
 .rr-td-back.open .rr-td-card{transform:none}
 .rr-td-head{display:flex;align-items:flex-start;gap:12px;padding:18px 18px 12px}
 .rr-td-title{flex:1;min-width:0}
-.rr-td-title-t{font-size:16px;font-weight:700;line-height:1.35;color:var(--rr-slate-900);overflow-wrap:anywhere}
+.rr-td-title-t{font-size:var(--fs-lg);font-weight:700;line-height:1.35;color:var(--rr-slate-900);overflow-wrap:anywhere}
 .rr-td-title-t.is-done{color:var(--rr-slate-400);text-decoration:line-through}
 .rr-td-x{appearance:none;cursor:pointer;flex:0 0 auto;border:0;background:transparent;color:var(--rr-slate-400);padding:5px;border-radius:8px;display:inline-flex}
 .rr-td-x:hover{background:rgba(15,23,42,.06);color:var(--rr-slate-900)}
 .rr-td-meta{padding:0 18px 14px;border-bottom:1px solid rgba(15,23,42,.07)}
 .rr-td-chips{display:flex;flex-wrap:wrap;gap:6px}
-.rr-td-chip{font-size:11.5px;font-weight:600;color:var(--rr-slate-600);background:var(--rr-slate-100);border-radius:999px;padding:3px 10px}
+.rr-td-chip{font-size:var(--fs-11-5);font-weight:600;color:var(--rr-slate-600);background:var(--rr-slate-100);border-radius:999px;padding:3px 10px}
 .rr-td-chip.is-soon{color:#c2410c;background:#ffedd5}
 .rr-td-chip.is-over{color:var(--rr-red-700);background:#fee2e2}
-.rr-td-ack{margin-top:10px;font-size:12.5px;font-weight:600;border-radius:9px;padding:8px 11px}
+.rr-td-ack{margin-top:10px;font-size:var(--fs-12-5);font-weight:600;border-radius:9px;padding:8px 11px}
 .rr-td-ack.is-done{color:#047857;background:#ecfdf5;border:1px solid #a7f3d0}
 .rr-td-ack.is-wait{color:var(--rr-amber-700);background:#fffbeb;border:1px solid #fde68a}
-.rr-td-ackbtn{margin-top:10px;appearance:none;cursor:pointer;border:0;border-radius:9px;background:#059669;color:var(--rr-white);font:inherit;font-size:13px;font-weight:600;padding:9px 14px;transition:background .15s}
+.rr-td-ackbtn{margin-top:10px;appearance:none;cursor:pointer;border:0;border-radius:9px;background:#059669;color:var(--rr-white);font:inherit;font-size:var(--fs-md);font-weight:600;padding:9px 14px;transition:background .15s}
 .rr-td-ackbtn:hover{background:#047857}
 .rr-td-thread{flex:1;min-height:120px;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px}
-.rr-td-loading{color:var(--rr-slate-400);font-size:13px;text-align:center;padding:20px}
+.rr-td-loading{color:var(--rr-slate-400);font-size:var(--fs-md);text-align:center;padding:20px}
 /* Activity line — quiet, dotted timeline. */
-.rr-td-act{display:flex;align-items:baseline;gap:8px;font-size:12.5px;color:var(--rr-slate-500);line-height:1.4}
+.rr-td-act{display:flex;align-items:baseline;gap:8px;font-size:var(--fs-12-5);color:var(--rr-slate-500);line-height:1.4}
 .rr-td-act-dot{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--rr-slate-300);transform:translateY(-1px)}
 .rr-td-act-t{flex:1;min-width:0}
 .rr-td-act-t b{font-weight:600;color:var(--rr-slate-700)}
-.rr-td-act-when{flex:0 0 auto;font-size:11px;color:#a3aab7}
+.rr-td-act-when{flex:0 0 auto;font-size:var(--fs-xs);color:#a3aab7}
 /* Comment bubble. */
 .rr-td-c{display:flex;gap:9px;align-items:flex-start}
 .rr-td-c.mine{flex-direction:row-reverse}
-.rr-td-c-av{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--rr-slate-200);color:var(--rr-slate-500);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.rr-td-c-av{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--rr-slate-200);color:var(--rr-slate-500);display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700}
 .rr-td-c.mine .rr-td-c-av{background:#dbeafe;color:var(--rr-blue-700)}
 .rr-td-c-bub{max-width:78%;background:var(--rr-slate-50);border:1px solid rgba(15,23,42,.07);border-radius:12px;padding:7px 11px}
 .rr-td-c.mine .rr-td-c-bub{background:var(--rr-blue-50);border-color:#dbeafe}
 .rr-td-c-top{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
-.rr-td-c-who{font-size:11.5px;font-weight:700;color:var(--rr-slate-700)}
-.rr-td-c-when{font-size:10.5px;color:#a3aab7}
-.rr-td-c-body{font-size:13px;color:var(--rr-slate-800);line-height:1.4;overflow-wrap:anywhere}
+.rr-td-c-who{font-size:var(--fs-11-5);font-weight:700;color:var(--rr-slate-700)}
+.rr-td-c-when{font-size:var(--fs-10-5);color:#a3aab7}
+.rr-td-c-body{font-size:var(--fs-md);color:var(--rr-slate-800);line-height:1.4;overflow-wrap:anywhere}
 /* Composer. */
 .rr-td-composer{flex:0 0 auto;display:flex;gap:8px;padding:12px 18px;border-top:1px solid rgba(15,23,42,.07);background:var(--rr-white)}
-.rr-td-input{flex:1;min-width:0;border:1px solid rgba(15,23,42,.14);border-radius:10px;background:var(--rr-white);font:inherit;font-size:13.5px;color:var(--rr-slate-900);padding:9px 12px;outline:none}
+.rr-td-input{flex:1;min-width:0;border:1px solid rgba(15,23,42,.14);border-radius:10px;background:var(--rr-white);font:inherit;font-size:var(--fs-13-5);color:var(--rr-slate-900);padding:9px 12px;outline:none}
 .rr-td-input:focus{border-color:var(--rr-blue-600);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
-.rr-td-send{appearance:none;cursor:pointer;flex:0 0 auto;border:0;border-radius:10px;background:var(--rr-blue-600);color:var(--rr-white);font:inherit;font-size:13px;font-weight:600;padding:0 16px;transition:background .15s}
+.rr-td-send{appearance:none;cursor:pointer;flex:0 0 auto;border:0;border-radius:10px;background:var(--rr-blue-600);color:var(--rr-white);font:inherit;font-size:var(--fs-md);font-weight:600;padding:0 16px;transition:background .15s}
 .rr-td-send:hover{background:var(--rr-blue-700)}
 
 /* ── Driver Forms panel · enterprise card list ──────────────────────
@@ -6060,13 +6060,13 @@ a.ctpd-val:hover{text-decoration:underline}
    on the right. The ONLY prominent blue in the panel. */
 #rr-util-rail-mount .rr-fp-head{align-items:flex-start;padding:16px 16px 12px}
 #rr-util-rail-mount .rr-fp-head-titles{min-width:0;flex:1}
-#rr-util-rail-mount .rr-fp-head .ntp-head-title{font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--text,var(--rr-gray-900));line-height:1.2}
-#rr-util-rail-mount .rr-fp-subtitle{margin-top:3px;font-size:12px;color:var(--text-subtle,var(--rr-gray-500));line-height:1.35}
+#rr-util-rail-mount .rr-fp-head .ntp-head-title{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;color:var(--text,var(--rr-gray-900));line-height:1.2}
+#rr-util-rail-mount .rr-fp-subtitle{margin-top:3px;font-size:var(--fs-sm);color:var(--text-subtle,var(--rr-gray-500));line-height:1.35}
 #rr-util-rail-mount .rr-fp-head-actions{flex:0 0 auto;display:flex;align-items:center;gap:8px}
 #rr-util-rail-mount .rr-fp-newsplit{display:inline-flex;align-items:stretch;border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(37,99,235,.18)}
 #rr-util-rail-mount .rr-fp-new,
 #rr-util-rail-mount .rr-fp-new-caret{appearance:none;cursor:pointer;border:0;background:var(--rr-blue-600);color:var(--rr-white);font:inherit;display:inline-flex;align-items:center;justify-content:center;transition:background .15s}
-#rr-util-rail-mount .rr-fp-new{font-size:12.5px;font-weight:600;padding:7px 11px;letter-spacing:-.01em}
+#rr-util-rail-mount .rr-fp-new{font-size:var(--fs-12-5);font-weight:600;padding:7px 11px;letter-spacing:-.01em}
 #rr-util-rail-mount .rr-fp-new-caret{padding:0 7px;border-left:1px solid rgba(255,255,255,.22)}
 #rr-util-rail-mount .rr-fp-new:hover,
 #rr-util-rail-mount .rr-fp-new-caret:hover{background:var(--rr-blue-700)}
@@ -6080,9 +6080,9 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .rr-fp-search{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:#F7F8FA;border:1px solid #E7EAF0;border-radius:10px;padding:0 10px;height:34px;color:var(--text-subtle,var(--rr-gray-500));transition:border-color .15s,background .15s}
 #rr-util-rail-mount .rr-fp-search:focus-within{background:var(--rr-white);border-color:#C7D2E4}
 #rr-util-rail-mount .rr-fp-search svg{flex:0 0 auto}
-#rr-util-rail-mount .rr-fp-search-input{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:13px;color:var(--text,var(--rr-gray-900));outline:none}
+#rr-util-rail-mount .rr-fp-search-input{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:var(--fs-md);color:var(--text,var(--rr-gray-900));outline:none}
 #rr-util-rail-mount .rr-fp-search-input::placeholder{color:var(--text-disabled,var(--rr-gray-400))}
-#rr-util-rail-mount .rr-fp-trig{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;appearance:none;cursor:pointer;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:10px;height:34px;padding:0 9px;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted,var(--rr-gray-600));white-space:nowrap;transition:border-color .15s,background .15s}
+#rr-util-rail-mount .rr-fp-trig{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;appearance:none;cursor:pointer;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:10px;height:34px;padding:0 9px;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted,var(--rr-gray-600));white-space:nowrap;transition:border-color .15s,background .15s}
 #rr-util-rail-mount .rr-fp-trig:hover{background:#F7F8FA}
 #rr-util-rail-mount .rr-fp-trig svg{color:var(--text-subtle,var(--rr-gray-500))}
 #rr-util-rail-mount .rr-fp-opt{flex:0 0 auto;appearance:none;cursor:pointer;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:10px;color:var(--text-muted,var(--rr-gray-600));transition:border-color .15s,background .15s}
@@ -6091,7 +6091,7 @@ a.ctpd-val:hover{text-decoration:underline}
 /* Filter chips — subtle pills. Selected: faint blue tint + blue text.
    Unselected: white, #E7EAF0 border, gray text. */
 #rr-util-rail-mount .rr-fp-chips{display:flex;flex-wrap:wrap;gap:6px}
-#rr-util-rail-mount .rr-fp-chip{appearance:none;cursor:pointer;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:999px;padding:5px 11px;font:inherit;font-size:12px;font-weight:500;color:var(--text-muted,var(--rr-gray-600));transition:background .15s,border-color .15s,color .15s}
+#rr-util-rail-mount .rr-fp-chip{appearance:none;cursor:pointer;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:999px;padding:5px 11px;font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted,var(--rr-gray-600));transition:background .15s,border-color .15s,color .15s}
 #rr-util-rail-mount .rr-fp-chip:hover{background:#F7F8FA}
 #rr-util-rail-mount .rr-fp-chip.is-active{background:rgba(37,99,235,.09);border-color:rgba(37,99,235,.22);color:var(--rr-blue-800);font-weight:600}
 
@@ -6108,13 +6108,13 @@ a.ctpd-val:hover{text-decoration:underline}
 #rr-util-rail-mount .rr-fp-card-ico svg{width:17px;height:17px;stroke-width:1.8}
 #rr-util-rail-mount .rr-fp-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
 #rr-util-rail-mount .rr-fp-card-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding-right:22px}
-#rr-util-rail-mount .rr-fp-card-title{font-size:13.5px;font-weight:600;color:var(--text,var(--rr-gray-900));line-height:1.25;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#rr-util-rail-mount .rr-fp-card-sub{font-size:12px;color:var(--text-subtle,var(--rr-gray-500));line-height:1.3}
-#rr-util-rail-mount .rr-fp-card-meta{font-size:11.5px;color:var(--text-disabled,var(--rr-gray-400));line-height:1.3}
+#rr-util-rail-mount .rr-fp-card-title{font-size:var(--fs-13-5);font-weight:600;color:var(--text,var(--rr-gray-900));line-height:1.25;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rr-util-rail-mount .rr-fp-card-sub{font-size:var(--fs-sm);color:var(--text-subtle,var(--rr-gray-500));line-height:1.3}
+#rr-util-rail-mount .rr-fp-card-meta{font-size:var(--fs-11-5);color:var(--text-disabled,var(--rr-gray-400));line-height:1.3}
 
 /* Badges — soft, muted, low-saturation tints with darker muted text.
    Nothing vivid. */
-#rr-util-rail-mount .rr-fp-badge{flex:0 0 auto;font-size:10.5px;font-weight:600;line-height:1;white-space:nowrap;padding:3px 7px;border-radius:6px}
+#rr-util-rail-mount .rr-fp-badge{flex:0 0 auto;font-size:var(--fs-10-5);font-weight:600;line-height:1;white-space:nowrap;padding:3px 7px;border-radius:6px}
 #rr-util-rail-mount .rr-fp-st-published{background:#EAF1EC;color:#3F6B50}
 #rr-util-rail-mount .rr-fp-st-draft{background:#F4EFE3;color:#8A6D3B}
 #rr-util-rail-mount .rr-fp-st-archived{background:#F0F1F4;color:var(--rr-gray-500)}
@@ -6128,7 +6128,7 @@ a.ctpd-val:hover{text-decoration:underline}
 
 /* Pagination — pinned at the foot of the panel, quiet monochrome. */
 #rr-util-rail-mount .rr-fp-pager{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 16px;border-top:1px solid #E7EAF0;background:var(--rr-white)}
-#rr-util-rail-mount .rr-fp-pager-label{font-size:12px;color:var(--text-subtle,var(--rr-gray-500))}
+#rr-util-rail-mount .rr-fp-pager-label{font-size:var(--fs-sm);color:var(--text-subtle,var(--rr-gray-500))}
 #rr-util-rail-mount .rr-fp-pager-btns{display:flex;align-items:center;gap:6px}
 #rr-util-rail-mount .rr-fp-pager-btn{appearance:none;cursor:pointer;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:8px;color:var(--text-muted,var(--rr-gray-600));transition:background .15s,border-color .15s,color .15s}
 #rr-util-rail-mount .rr-fp-pager-btn:hover:not(:disabled){background:#F7F8FA}
@@ -6565,12 +6565,12 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 
 /* Segmented switcher under a panel header (Recognition's Upcoming/Sent) */
 #rr-util-rail-mount .rr-clf-seg{flex:0 0 auto;display:flex;gap:4px;margin:0 16px 12px;padding:3px;background:#F2F4F8;border:1px solid #E7EAF0;border-radius:10px;opacity:0;transition:opacity 120ms ease}
-#rr-util-rail-mount .rr-clf-seg-b{flex:1;appearance:none;cursor:pointer;border:0;background:transparent;border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text-subtle,var(--rr-gray-500));transition:background .15s,color .15s,box-shadow .15s}
+#rr-util-rail-mount .rr-clf-seg-b{flex:1;appearance:none;cursor:pointer;border:0;background:transparent;border-radius:8px;padding:6px 10px;font:inherit;font-size:var(--fs-12-5);font-weight:600;color:var(--text-subtle,var(--rr-gray-500));transition:background .15s,color .15s,box-shadow .15s}
 #rr-util-rail-mount .rr-clf-seg-b:hover{color:var(--text-muted,var(--rr-gray-600))}
 #rr-util-rail-mount .rr-clf-seg-b.is-active{background:var(--rr-white);color:var(--text,var(--rr-gray-900));box-shadow:0 1px 2px rgba(17,24,39,.08)}
 
 /* Checklist cards — extends .rr-fp-card */
-#rr-util-rail-mount .rr-clf-meta-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;color:var(--text-disabled,var(--rr-gray-400));line-height:1.3}
+#rr-util-rail-mount .rr-clf-meta-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;font-size:var(--fs-11-5);color:var(--text-disabled,var(--rr-gray-400));line-height:1.3}
 #rr-util-rail-mount .rr-clf-meta-row .rr-clf-warn{color:var(--rr-red-700);font-weight:600}
 #rr-util-rail-mount .rr-clf-sum-ok{color:#3F6B50}
 #rr-util-rail-mount .rr-fp-st-active{background:#EAF1EC;color:#3F6B50}
@@ -6581,7 +6581,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    overflows the card's bounds, isn't painted behind the next card. */
 #rr-util-rail-mount .rr-fp-card.rr-fp-card--menu-open{z-index:30}
 #rr-util-rail-mount .rr-clf-menu{position:absolute;top:32px;right:8px;z-index:5;min-width:150px;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:10px;box-shadow:0 8px 24px rgba(17,24,39,.12);padding:5px;display:flex;flex-direction:column}
-#rr-util-rail-mount .rr-clf-menu button{appearance:none;cursor:pointer;border:0;background:transparent;border-radius:7px;text-align:left;font:inherit;font-size:12.5px;color:var(--text,var(--rr-gray-900));padding:7px 9px;transition:background .12s}
+#rr-util-rail-mount .rr-clf-menu button{appearance:none;cursor:pointer;border:0;background:transparent;border-radius:7px;text-align:left;font:inherit;font-size:var(--fs-12-5);color:var(--text,var(--rr-gray-900));padding:7px 9px;transition:background .12s}
 #rr-util-rail-mount .rr-clf-menu button:hover{background:#F7F8FA}
 #rr-util-rail-mount .rr-clf-menu button.rr-clf-menu-danger{color:var(--rr-red-700)}
 #rr-util-rail-mount .rr-clf-menu button.rr-clf-menu-danger:hover{background:var(--rr-red-50)}
@@ -6595,8 +6595,8 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 #rr-util-rail-mount #rr-sched-recog.is-open .rr-clf-seg{opacity:1;transition:opacity 120ms ease 100ms}
 #rr-util-rail-mount .rr-rgp-card{align-items:center}
 #rr-util-rail-mount .rr-rgp-ava{flex:0 0 auto;width:34px;height:34px;border-radius:9px;object-fit:cover;background:#F2F4F8}
-#rr-util-rail-mount .rr-rgp-ini{font-size:12px;font-weight:700;color:#9D174D;background:#FCE7F3}
-#rr-util-rail-mount .rr-rgp-btn{flex:0 0 auto;align-self:center;appearance:none;cursor:pointer;border:1px solid rgba(219,39,119,.35);background:#FDF2F8;color:#9D174D;border-radius:8px;font:inherit;font-size:11.5px;font-weight:600;padding:5px 10px;white-space:nowrap;transition:background .15s,border-color .15s}
+#rr-util-rail-mount .rr-rgp-ini{font-size:var(--fs-sm);font-weight:700;color:#9D174D;background:#FCE7F3}
+#rr-util-rail-mount .rr-rgp-btn{flex:0 0 auto;align-self:center;appearance:none;cursor:pointer;border:1px solid rgba(219,39,119,.35);background:#FDF2F8;color:#9D174D;border-radius:8px;font:inherit;font-size:var(--fs-11-5);font-weight:600;padding:5px 10px;white-space:nowrap;transition:background .15s,border-color .15s}
 #rr-util-rail-mount .rr-rgp-btn:hover{background:#FCE7F3}
 #rr-util-rail-mount .rr-rgp-x{flex:0 0 auto;align-self:center;appearance:none;cursor:pointer;border:0;background:transparent;width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-disabled,var(--rr-gray-400));transition:background .12s,color .12s}
 #rr-util-rail-mount .rr-rgp-x:hover{background:var(--rr-red-50);color:var(--rr-red-700)}
@@ -6684,7 +6684,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 }
 .rr-day-risk-pop .rr-drp-title { font-size: var(--fs-md); font-weight: 700; color: var(--text); }
 .rr-day-risk-pop .rr-drp-pill {
-  font-size: 10px;
+  font-size: var(--fs-10);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .04em;
@@ -6760,7 +6760,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   line-height: 1.15;
 }
 #view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-day {
-  font-size: 10px;
+  font-size: var(--fs-10);
   font-weight: 650;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -6777,7 +6777,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   height: 26px;
 }
 #view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-label {
-  font-size: 10px;
+  font-size: var(--fs-10);
   font-weight: 600;
   color: var(--text-muted);
   max-width: 100%;
@@ -6786,7 +6786,7 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   white-space: nowrap;
 }
 #view-schedule.rrx-schedule .cal-cell-head.rr-wx-head .rr-wx-head-temp {
-  font-size: 10px;
+  font-size: var(--fs-10);
   font-weight: 650;
   color: var(--text);
 }
@@ -6858,8 +6858,8 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell-head.rr-wx-hea
     padding: 4px !important;
   }
   #view-schedule.rrx-schedule #sched-sub-week .cal-cell-head { padding: 8px 4px 9px !important; }
-  #view-schedule.rrx-schedule #sched-sub-week .cal-cell-head .day-num { font-size: 17px !important; }
-  #view-schedule.rrx-schedule #sched-sub-week .cal-row-label-name { font-size: 13px !important; }
+  #view-schedule.rrx-schedule #sched-sub-week .cal-cell-head .day-num { font-size: var(--fs-17) !important; }
+  #view-schedule.rrx-schedule #sched-sub-week .cal-row-label-name { font-size: var(--fs-md) !important; }
 }
 
 /* ─── Schedule grid accessibility (keyboard + screen reader) ───────────

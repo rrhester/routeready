@@ -28,6 +28,17 @@ the pay-down happens incrementally.
 | Batch 2 — full slate/gray/amber/green/red scales across the whole dashboard document family (`inline-styles`, `schedule-rrx`, `onboarding-rrx`) | 910 | −763 |
 | Batch 3 — driver app onto its own primitive `:root` (`app/styles.css`, `app/rr-system.css`) | 758 | −152 |
 | Batch 4 — driver app **semantic layer → primitives** (token definitions only) | 758 | 0* |
+| Batch 5 — **font-size type scale** for the dashboard family (`rawFontSize` 1,139 → 127) | 758 | 0** |
+
+**Batch 5 targets the *font-size* ratchet, not raw hex. The dashboard already
+referenced a named scale (`--fs-xs..xxl`) 1,640×; 1,000+ literals bypassed it.
+This maps on-scale literals onto the existing named tokens and gives recurring
+off-scale sizes exact-value tokens — the half-pixel names (`--fs-12-5`,
+`--fs-10-5`, …) deliberately flag values that should later *snap* to a tight
+scale. One-off and special sizes (`0`, `em`, `clamp()`) are left alone.
+Pixel-identical: each token's value equals the literal it replaces (verified —
+the schedule screenshot is byte-for-byte identical to clean `main`). Literal
+font-sizes: **1,139 → 127.**
 
 *Batch 4 doesn't move the raw-hex count — it rewrites token *definitions*, not
 property values (which the ratchet measures). Its win is **architectural**: the
@@ -102,6 +113,29 @@ The right migration is to a proper hierarchy, then move usages onto it:
 verified** with the local Playwright harness (`.claude/skills/verify`) —
 screenshot before/after to prove nothing shifts — then `--update` the baseline.
 
-Same idea for `!important` (raise specificity properly or scope, don't add
-`!important`) and font-sizes (a type scale: `--fs-xs … --fs-2xl`, several of
-which already exist).
+The font-size type scale is now mostly done (batch 5): `--fs-*` tokens cover the
+recurring sizes; only ~127 one-off literals remain, and the `--fs-*-5`
+half-pixel tokens mark values that should eventually snap to a tighter scale.
+
+### `!important` (3,605) — read this before "cleaning it up"
+
+**Most of these are load-bearing, not cruft — do not bulk-remove them.** The
+count breaks down roughly as:
+
+- **~1,300 in `schedule-rrx.css` + `onboarding-rrx.css`** exist *by design*:
+  those stylesheets are a Fluent-2 "rebind" that re-skins the old chrome, and
+  every rule uses `!important` specifically to outrank the pre-existing inline
+  `#view-*` declarations it's replacing (see each file's header comment).
+  Removing the `!important` lets the **old** rules win → visual regression. The
+  real fix is *finishing* that migration — deleting the superseded inline rules
+  — which is a large, careful project, not a mechanical pass.
+- **~2,258 in `inline-styles.css`** are the older layer. Some are inert (nothing
+  competes), but inertness can only be proven per-element per-state, and the
+  visual-regression gate only covers a handful of rendered states — so a green
+  gate does **not** prove a given removal is safe across every view / hover /
+  modal / role / data-state.
+
+So unlike hex and font-size (pixel-identical *by construction*), `!important`
+removal changes the cascade and is **not** safely mechanizable. Reduce it only
+by properly completing the skin migration or refactoring one well-understood
+component at a time with exhaustive state coverage — never in bulk.
