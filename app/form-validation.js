@@ -35,6 +35,23 @@ export function validateFormAnswer(f, v) {
     case "phone":
       if (String(v).replace(/\D/g, "").length < 7) return `"${label}" needs a valid phone number`;
       break;
+    case "date": {
+      // ISO 'YYYY-MM-DD' AND a real calendar date — reject impossible dates
+      // (2026-02-30, non-leap 2026-02-29) the same way the server's ::date
+      // cast does. Mirrors migration 0445.
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v));
+      if (!m) return `"${label}" needs a valid date`;
+      const y = +m[1], mo = +m[2], d = +m[3];
+      const dt = new Date(Date.UTC(y, mo - 1, d));
+      if (dt.getUTCFullYear() !== y || dt.getUTCMonth() + 1 !== mo || dt.getUTCDate() !== d) {
+        return `"${label}" needs a valid date`;
+      }
+      break;
+    }
+    case "time":
+      // 24-hour HH:MM (optional :SS), matching the native <input type=time>.
+      if (!/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(String(v))) return `"${label}" needs a valid time`;
+      break;
     case "number": {
       const n = Number(v);
       if (!isFinite(n)) return `"${label}" must be a number`;

@@ -34,9 +34,10 @@ create table if not exists public.form_submissions (
   driver_id    uuid not null references public.drivers(id) on delete cascade,
   answers      jsonb not null default '{}'::jsonb,
   submitted_at timestamptz not null default now(),
-  -- Status lets dispatchers triage flagged submissions later.  For
-  -- now we always insert 'submitted'; review/flagging lands when we
-  -- wire the dispatcher review queue.
+  -- Status/flagged let dispatchers triage submissions. Inserted as
+  -- 'submitted'/false here; the dispatcher review queue that drives them
+  -- (reviewed / flagged transitions) landed later in migration 0440
+  -- (form_submission_review).
   status       text not null default 'submitted',
   flagged      boolean not null default false,
   notes        text

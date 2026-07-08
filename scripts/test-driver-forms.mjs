@@ -40,6 +40,17 @@ okInvalid("email whitespace", { id: "q", type: "email" }, "a b@c.com");
 okValid("phone 10 digits", { id: "q", type: "phone" }, "555-123-4567");
 okInvalid("phone 6 digits", { id: "q", type: "phone" }, "12-34-56");
 
+// date (ISO + real calendar date) / time (24h HH:MM[:SS])
+okValid("date iso", { id: "q", type: "date" }, "2026-07-08");
+okValid("date leap day", { id: "q", type: "date" }, "2024-02-29");
+okInvalid("date impossible", { id: "q", type: "date" }, "2026-02-30");
+okInvalid("date non-leap feb29", { id: "q", type: "date" }, "2026-02-29");
+okInvalid("date loose", { id: "q", type: "date" }, "2026-7-8");
+okValid("time hh:mm", { id: "q", type: "time" }, "09:30");
+okValid("time hh:mm:ss", { id: "q", type: "time" }, "08:15:30");
+okInvalid("time hour 24", { id: "q", type: "time" }, "24:00");
+okInvalid("time min 60", { id: "q", type: "time" }, "12:60");
+
 // number + range
 okValid("number in range", { id: "q", type: "number", validation: { min: 1, max: 10 } }, "5");
 okInvalid("number below min", { id: "q", type: "number", validation: { min: 1 } }, "0");
