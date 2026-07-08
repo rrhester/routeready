@@ -435,6 +435,25 @@ window.RR_ENTITLEMENTS = {
   styleEl.textContent = rules.join("\n");
 })();
 
+// ─── Operator activity ping ────────────────────────────────────────────
+// Bump dsps.last_seen_at so the platform-admin console shows *real* last
+// activity instead of the newest-teammate-signup proxy.  Fire-and-forget,
+// throttled to ~once/hour per browser so a reload storm doesn't hammer the
+// row.  Failure is silent — this is telemetry, never load-bearing.
+(function pingDspActivity() {
+  try {
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId) return;
+    const key = `rr-touch:${dspId}`;
+    const last = Number(localStorage.getItem(key) || 0);
+    if (Date.now() - last < 3600000) return;
+    localStorage.setItem(key, String(Date.now()));
+    sb.rpc("touch_dsp_activity").then(({ error }) => {
+      if (error) localStorage.removeItem(key); // let the next boot retry
+    }).catch(() => { try { localStorage.removeItem(key); } catch (_) {} });
+  } catch (_) { /* telemetry only */ }
+})();
+
 // ─── Brand · paint DSP name + station code into the sidebar chip ────────
 // The chip in dashboard/index.html is a static placeholder ("Cardinal
 // Logistics") so the file looks fine in a static preview. Replace it
@@ -3766,8 +3785,17 @@ function _adminRowSignals(d) {
   if (d.status === "active") {
     const idle = _adminDaysSince(d.last_active_at);
     if (idle != null && idle >= 30) {
-      sig.push({ sev: 1, short: `Idle ${idle}d`, label: `No sign-in activity for ${idle} days` });
+      sig.push({ sev: 1, short: `Idle ${idle}d`, label: `No activity for ${idle} days` });
     }
+  }
+  // Client-error spike — bump to high severity past 10 in a week.
+  const errs = d.error_count_7d ?? 0;
+  if (errs >= 3) {
+    sig.push({
+      sev: errs >= 10 ? 3 : 2,
+      short: `${errs} error${errs === 1 ? "" : "s"}`,
+      label: `${errs} client error${errs === 1 ? "" : "s"} in the last 7 days`,
+    });
   }
   return sig;
 }
@@ -4009,7 +4037,7 @@ function _renderAdminRow(d) {
       <td>${phoneLine}</td>
       <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span></td>
       <td class="rr-admin-cell-num">${d.driver_count ?? 0}</td>
-      <td class="rr-admin-cell-num"><span class="rr-admin-cell-muted">${d.route_count ?? 0}</span></td>
+      <td class="rr-admin-cell-num">${(d.route_count ?? 0) > 0 ? d.route_count : `<span class="rr-admin-cell-muted">0</span>`}</td>
       <td><span class="${planClass}">${escapeHtml(d.subscription_plan || "starter")}</span></td>
       <td>${modulesCell}</td>
       <td class="rr-admin-cell-muted">${_adminFmtRelative(d.last_active_at)}</td>
@@ -4073,6 +4101,8 @@ async function _runAdminAction(action, dspId) {
   if (!dsp) return;
   switch (action) {
     case "view":
+      _openAdminDspProfile(dspId);
+      return;
     case "edit":
       _openAdminEditDspModal(dspId);
       return;
@@ -4177,27 +4207,14 @@ function _bindAdminPageHandlers() {
   nextEl?.addEventListener("click", () => { _admin.page += 1; _renderPlatformAdminTable(); });
   emptyCta?.addEventListener("click", () => document.getElementById("rr-admin-add-dsp")?.click());
 
-  // Needs-attention queue → clicking a row focuses that DSP in the
-  // table below (search-narrow + scroll into view).  Delegated so it
-  // survives every re-paint of the attention list.
+  // Needs-attention queue → clicking a row opens that DSP's profile
+  // drawer (drill-down).  Delegated so it survives every re-paint.
   document.addEventListener("click", (e) => {
     const row = e.target.closest("[data-rr-admin-focus]");
     if (!row) return;
     const id = row.getAttribute("data-rr-admin-focus");
-    const dsp = (_admin.dsps || []).find((d) => d.id === id);
-    if (!dsp) return;
-    const searchEl = document.getElementById("rr-admin-search");
-    const term = dsp.short_code || dsp.name || "";
-    if (searchEl) { searchEl.value = term; }
-    _admin.search = term;
-    _admin.filterStatus = "";
-    _admin.filterPlan = "";
-    _admin.page = 1;
-    const fs = document.getElementById("rr-admin-filter-status"); if (fs) fs.value = "";
-    const fp = document.getElementById("rr-admin-filter-plan");   if (fp) fp.value = "";
-    _renderPlatformAdminTable();
-    const rowEl = document.querySelector(`[data-rr-admin-row="${CSS.escape(id)}"]`);
-    (rowEl || document.getElementById("rr-admin-tbody"))?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!(_admin.dsps || []).some((d) => d.id === id)) return;
+    _openAdminDspProfile(id);
   });
 
   // "Add DSP client" → open the Phase-4a modal.
@@ -5081,6 +5098,222 @@ async function _saveAdminAccess() {
     }
   });
 })();
+
+// ─── DSP profile drawer ─────────────────────────────────────────────────
+// Drill-down for one DSP: usage stats, entitlement summary, recent
+// support + errors, and quick actions.  Backed by admin_dsp_detail()
+// (extended in migration 0443).
+let _adminProfileCurrentDspId = null;
+
+function _openAdminDspProfile(dspId) {
+  _adminProfileCurrentDspId = dspId;
+  const drawer   = document.getElementById("rr-admin-profile-drawer");
+  const backdrop = document.getElementById("rr-admin-profile-backdrop");
+  const titleEl  = document.getElementById("rr-admin-profile-title");
+  const subEl    = document.getElementById("rr-admin-profile-sub");
+  const bodyEl   = document.getElementById("rr-admin-profile-body");
+  if (!drawer || !backdrop || !bodyEl) return;
+
+  const dsp = _admin.dsps.find((d) => d.id === dspId);
+  if (titleEl) titleEl.textContent = dsp?.name || "DSP profile";
+  if (subEl)   subEl.textContent   = dsp?.short_code ? `${dsp.short_code} · loading…` : "loading…";
+  bodyEl.innerHTML = `<div class="rr-admin-users-skel" aria-hidden="true"><div></div><div></div><div></div></div>`;
+
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden", "false");
+  backdrop.classList.add("open");
+
+  _loadAdminDspProfile(dspId);
+}
+
+function _closeAdminDspProfile() {
+  const drawer   = document.getElementById("rr-admin-profile-drawer");
+  const backdrop = document.getElementById("rr-admin-profile-backdrop");
+  if (drawer)   { drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true"); }
+  if (backdrop) backdrop.classList.remove("open");
+  _adminProfileCurrentDspId = null;
+}
+
+async function _loadAdminDspProfile(dspId) {
+  const bodyEl = document.getElementById("rr-admin-profile-body");
+  const subEl  = document.getElementById("rr-admin-profile-sub");
+  if (!bodyEl) return;
+
+  const { data, error } = await sb.rpc("admin_dsp_detail", { p_dsp_id: dspId });
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    bodyEl.innerHTML = `<div class="rr-admin-users-empty" style="color:var(--red);border-color:var(--red-soft)">Couldn't load profile: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  if (!data || !data.dsp) {
+    bodyEl.innerHTML = `<div class="rr-admin-users-empty">DSP not found.</div>`;
+    return;
+  }
+  _renderAdminDspProfile(dspId, data, subEl);
+}
+
+function _renderAdminDspProfile(dspId, detail, subEl) {
+  const bodyEl = document.getElementById("rr-admin-profile-body");
+  if (!bodyEl) return;
+  const dsp = detail.dsp || {};
+  // Prefer the live table row for owner/last-active/status (it carries the
+  // rolled-up fields admin_list_dsps computes); fall back to the detail row.
+  const row = _admin.dsps.find((d) => d.id === dspId) || {};
+
+  const status = dsp.status || row.status || "active";
+  const statusClass =
+    status === "active"    ? "status-pill-success" :
+    status === "pending"   ? "status-pill-pending" :
+    status === "suspended" ? "status-pill-danger"  : "status-pill-neutral";
+  const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+  const plan = dsp.subscription_plan || row.subscription_plan || "starter";
+  const planClass = plan === "enterprise"
+    ? "rr-admin-cell-plan rr-admin-cell-plan--enterprise"
+    : plan === "growth" ? "rr-admin-cell-plan rr-admin-cell-plan--growth" : "rr-admin-cell-plan";
+
+  const signals = _adminRowSignals(row.id ? row : { ...dsp, error_count_7d: detail.error_count_7d, last_active_at: detail.last_seen_at, owner_email: row.owner_email });
+  const health = status === "suspended" ? "red" : (signals.length ? "amber" : "green");
+
+  const users = Array.isArray(detail.users) ? detail.users : [];
+  const activeUsers = users.filter((u) => u.active).length;
+  const errors7d = detail.error_count_7d ?? 0;
+  const routeCount = detail.route_count ?? 0;
+  const lastSeen = detail.last_seen_at || row.last_active_at;
+
+  if (subEl) subEl.textContent = dsp.short_code ? `${dsp.short_code} · member since ${_adminFmtDate(dsp.created_at)}` : `member since ${_adminFmtDate(dsp.created_at)}`;
+
+  // Stat tiles.
+  const tile = (label, value, tone) =>
+    `<div class="rr-prof-tile${tone ? ` rr-prof-tile--${tone}` : ""}"><div class="rr-prof-tile__value">${value}</div><div class="rr-prof-tile__label">${escapeHtml(label)}</div></div>`;
+  const tiles = [
+    tile("Drivers", detail.driver_count ?? 0),
+    tile("Active users", activeUsers),
+    tile("Routes · this wk", routeCount),
+    tile("Errors · 7d", errors7d, errors7d >= 10 ? "danger" : errors7d >= 3 ? "warn" : ""),
+    tile("Last active", `<span style="font-size:var(--fs-md)">${escapeHtml(_adminFmtRelative(lastSeen))}</span>`),
+    tile("Plan", `<span class="${planClass}" style="font-size:var(--fs-xs)">${escapeHtml(plan)}</span>`),
+  ].join("");
+
+  // Entitlements summary.
+  const cat = window.RR_ENTITLEMENTS || { pages: [], features: [] };
+  const md = dsp.metadata || {};
+  const dPages = new Set(Array.isArray(md.disabled_pages) ? md.disabled_pages : []);
+  const dFeat  = new Set(Array.isArray(md.disabled_features) ? md.disabled_features : []);
+  const offList = (items, set) => items.filter((i) => set.has(i.key)).map((i) => escapeHtml(i.label));
+  const offPages = offList(cat.pages, dPages);
+  const offFeat  = offList(cat.features, dFeat);
+  const entLine = (label, total, offNames) => {
+    const on = total - offNames.length;
+    return `<div class="rr-prof-ent-row">
+        <span class="rr-prof-ent-row__label">${label}</span>
+        <span class="rr-prof-ent-row__val">${on}/${total} on${offNames.length ? ` <span class="rr-admin-cell-muted">· off: ${offNames.join(", ")}</span>` : ""}</span>
+      </div>`;
+  };
+
+  // Support summary.
+  const sup = detail.support || null;
+  const supHtml = sup && sup.last_message_at
+    ? `<div class="rr-prof-support">
+         <div class="rr-prof-support__head">
+           ${sup.unread > 0 ? `<span class="rr-cc-badge" style="background:var(--amber-soft-strong);color:var(--amber)">${sup.unread} unread</span>` : `<span class="rr-admin-cell-muted">No unread</span>`}
+           <span class="rr-admin-cell-muted">${escapeHtml(_adminFmtRelative(sup.last_message_at))}</span>
+         </div>
+         <div class="rr-prof-support__msg">${escapeHtml((sup.last_message || "").slice(0, 160) || "—")}</div>
+         <button class="btn btn-ghost btn-sm" type="button" data-rr-prof-support>Open support thread →</button>
+       </div>`
+    : `<div class="rr-admin-users-empty" style="padding:var(--s-4)">No support conversation yet.</div>`;
+
+  // Recent errors.
+  const recent = Array.isArray(detail.recent_errors) ? detail.recent_errors : [];
+  const errHtml = recent.length
+    ? `<div class="rr-prof-errs">${recent.map((e) => `
+        <div class="rr-prof-err">
+          <div class="rr-prof-err__top"><span class="rr-prof-err__page">${escapeHtml(e.page || e.source || "—")}</span><span class="rr-admin-cell-muted">${escapeHtml(_adminFmtRelative(e.created_at))}</span></div>
+          <div class="rr-prof-err__msg">${escapeHtml((e.message || "").slice(0, 180))}</div>
+        </div>`).join("")}</div>`
+    : `<div class="rr-admin-users-empty" style="padding:var(--s-4)">No client errors recorded. 🎉</div>`;
+
+  const suspendBtn = status === "suspended"
+    ? `<button class="btn btn-ghost btn-sm" type="button" data-rr-prof-action="reactivate">Reactivate</button>`
+    : `<button class="btn btn-ghost btn-sm" type="button" data-rr-prof-action="suspend" style="color:var(--red)">Suspend</button>`;
+
+  bodyEl.innerHTML = `
+    <div class="rr-prof-hero">
+      <span class="rr-admin-health rr-admin-health--${health}" style="width:10px;height:10px"></span>
+      <span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span>
+      ${dsp.phone ? `<span class="rr-admin-cell-muted" style="font-size:var(--fs-sm)">${escapeHtml(dsp.phone)}</span>` : ""}
+      ${row.owner_email ? `<a href="mailto:${escapeHtml(row.owner_email)}" style="font-size:var(--fs-sm);color:var(--accent-text);text-decoration:none;margin-left:auto">${escapeHtml(row.owner_email)}</a>` : ""}
+    </div>
+
+    <div class="rr-prof-tiles">${tiles}</div>
+
+    <div class="rr-prof-actions">
+      <button class="btn btn-sm" type="button" data-rr-prof-action="edit">Edit account</button>
+      <button class="btn btn-sm" type="button" data-rr-prof-action="users">Manage users</button>
+      <button class="btn btn-sm" type="button" data-rr-prof-action="access">Access &amp; modules</button>
+      ${suspendBtn}
+    </div>
+
+    <div class="rr-prof-section">
+      <div class="rr-prof-section__head">Modules</div>
+      ${entLine("Pages", cat.pages.length, offPages)}
+      ${entLine("Features", cat.features.length, offFeat)}
+    </div>
+
+    <div class="rr-prof-section">
+      <div class="rr-prof-section__head">Support</div>
+      ${supHtml}
+    </div>
+
+    <div class="rr-prof-section">
+      <div class="rr-prof-section__head">Recent errors ${errors7d > 0 ? `<span class="rr-admin-cell-muted" style="font-weight:500">· ${errors7d} in 7d</span>` : ""}</div>
+      ${errHtml}
+    </div>`;
+}
+
+// Delegated handlers for the profile drawer (close, quick actions).
+(function bindAdminProfileHandlers() {
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-rr-admin-profile-close]")) { _closeAdminDspProfile(); return; }
+    const actBtn = e.target.closest("[data-rr-prof-action]");
+    if (actBtn) {
+      const id = _adminProfileCurrentDspId;
+      if (!id) return;
+      const action = actBtn.getAttribute("data-rr-prof-action");
+      if (action === "edit")   { _closeAdminDspProfile(); _openAdminEditDspModal(id); return; }
+      if (action === "users")  { _openAdminManageUsers(id); return; }
+      if (action === "access") { _openAdminAccessDrawer(id); return; }
+      if (action === "suspend" || action === "reactivate") {
+        _closeAdminDspProfile();
+        _runAdminAction(action, id);
+        return;
+      }
+    }
+    if (e.target.closest("[data-rr-prof-support]")) {
+      // Jump to the support inbox section + open this DSP's thread.
+      const id = _adminProfileCurrentDspId;
+      _closeAdminDspProfile();
+      const section = document.getElementById("rr-supadm-section");
+      section?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (id && typeof _supAdmOpen === "function") {
+        try { _supAdmOpen(id); } catch (_) {}
+      }
+      return;
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const drawer = document.getElementById("rr-admin-profile-drawer");
+      if (drawer && drawer.classList.contains("open")) _closeAdminDspProfile();
+    }
+  });
+})();
+
+function _adminFmtDate(iso) {
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleDateString(undefined, { month: "short", year: "numeric" }); }
+  catch (_) { return "—"; }
+}
 
 async function _loadAdminManageUsers(dspId) {
   const bodyEl = document.getElementById("rr-admin-users-body");

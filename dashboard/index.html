@@ -2609,6 +2609,28 @@ Evidence attached:
 </aside>
 
 <!-- ═══════════════════════════════════════════════════════════
+     DSP PROFILE DRAWER  (platform admin)
+     Drill-down for one DSP: usage stats, entitlements, recent
+     support + errors, and quick actions.  Backed by
+     admin_dsp_detail() (extended in migration 0443).
+     ═══════════════════════════════════════════════════════════ -->
+<div class="rr-drawer-backdrop" id="rr-admin-profile-backdrop" data-rr-admin-profile-close></div>
+<aside class="rr-drawer rr-drawer--wide" id="rr-admin-profile-drawer" aria-hidden="true" role="dialog" aria-labelledby="rr-admin-profile-title">
+  <div class="rr-drawer-head">
+    <div style="min-width:0">
+      <p class="modal-title" id="rr-admin-profile-title">DSP profile</p>
+      <p class="modal-sub" id="rr-admin-profile-sub">—</p>
+    </div>
+    <button class="rr-drawer-close" type="button" data-rr-admin-profile-close aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="rr-drawer-body" id="rr-admin-profile-body">
+    <!-- Populated by _openAdminDspProfile(). -->
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════
      MAINTENANCE WORK ORDER MODAL
      ═══════════════════════════════════════════════════════════ -->
 <!-- ═══ WHAT'S NEW · update the list when meaningful improvements ship
