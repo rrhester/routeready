@@ -143,7 +143,7 @@
                     <th>Phone</th>
                     <th>Status</th>
                     <th class="u-right">Drivers</th>
-                    <th class="u-right">Routes</th>
+                    <th class="u-right" title="Distinct route codes on scheduled shifts in the next 7 days">Routes</th>
                     <th>Plan</th>
                     <th>Modules</th>
                     <th>Last active</th>
