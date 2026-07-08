@@ -26,28 +26,68 @@
           </div>
         </div>
 
-        <!-- Stats overview · 4 metric cards backed by admin_kpis(). -->
+        <!-- Stats overview · 4 metric cards backed by admin_kpis(),
+             enriched with live context lines computed client-side from
+             the in-memory DSP list (_adminRenderInsights). -->
         <div class="kpi-grid">
           <div class="kpi-card" data-rr-admin-stat="total">
             <div class="kpi-label">Total DSP accounts</div>
             <div class="kpi-value" data-rr-admin-stat-value>—</div>
-            <div class="kpi-sub">All registered DSPs</div>
+            <div class="kpi-sub" data-rr-admin-substat="total">All registered DSPs</div>
           </div>
           <div class="kpi-card" data-rr-admin-stat="active">
             <div class="kpi-label"><span class="kpi-pip green"></span>Active</div>
             <div class="kpi-value" data-rr-admin-stat-value>—</div>
-            <div class="kpi-sub">Operating normally</div>
+            <div class="rr-kpi-bar" aria-hidden="true"><span data-rr-admin-bar="active"></span></div>
+            <div class="kpi-sub" data-rr-admin-substat="active">Operating normally</div>
           </div>
           <div class="kpi-card" data-rr-admin-stat="pending">
             <div class="kpi-label"><span class="kpi-pip amber"></span>Pending onboarding</div>
             <div class="kpi-value" data-rr-admin-stat-value>—</div>
-            <div class="kpi-sub">Awaiting owner signup</div>
+            <div class="kpi-sub" data-rr-admin-substat="pending">Awaiting owner signup</div>
           </div>
           <div class="kpi-card" data-rr-admin-stat="suspended">
             <div class="kpi-label"><span class="kpi-pip red"></span>Suspended</div>
             <div class="kpi-value" data-rr-admin-stat-value>—</div>
-            <div class="kpi-sub">Disabled by admin</div>
+            <div class="kpi-sub" data-rr-admin-substat="suspended">Disabled by admin</div>
           </div>
+        </div>
+
+        <!-- ── Control-center band · Needs-attention queue + portfolio
+             snapshot.  Both panels are painted by _adminRenderInsights()
+             from the same in-memory list that feeds the table, so they
+             stay in lock-step with any filter-free view of the data. -->
+        <div class="rr-cc-band">
+          <section class="rr-cc-panel rr-cc-panel--attention">
+            <div class="rr-cc-panel__head">
+              <div>
+                <h3 class="rr-cc-panel__title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  Needs attention
+                </h3>
+                <p class="rr-cc-panel__sub">DSPs with a signal worth a look — click to open.</p>
+              </div>
+              <span class="rr-cc-badge" id="rr-admin-attention-count" hidden>0</span>
+            </div>
+            <div id="rr-admin-attention" class="rr-cc-attention-list">
+              <div class="rr-cc-skel"><span></span><span></span><span></span></div>
+            </div>
+          </section>
+
+          <section class="rr-cc-panel rr-cc-panel--portfolio">
+            <div class="rr-cc-panel__head">
+              <div>
+                <h3 class="rr-cc-panel__title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7" rx="1"/><rect x="12" y="6" width="3" height="11" rx="1"/><rect x="17" y="13" width="3" height="4" rx="1"/></svg>
+                  Portfolio
+                </h3>
+                <p class="rr-cc-panel__sub">Fleet size and plan mix across all DSPs.</p>
+              </div>
+            </div>
+            <div id="rr-admin-portfolio" class="rr-cc-portfolio">
+              <div class="rr-cc-skel"><span></span><span></span></div>
+            </div>
+          </section>
         </div>
 
         <div class="section">
@@ -105,6 +145,7 @@
                     <th class="u-right">Drivers</th>
                     <th class="u-right">Routes</th>
                     <th>Plan</th>
+                    <th>Modules</th>
                     <th>Last active</th>
                     <th style="text-align:right;width:48px">&nbsp;</th>
                   </tr>
@@ -113,9 +154,9 @@
                   <!-- Rows are rendered by _renderPlatformAdminTable in live.js.
                        Initial state: skeleton rows so the toolbar isn't sitting
                        on a blank canvas while admin_list_dsps() is in flight. -->
-                  <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
-                  <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
-                  <tr><td colspan="10" class="rr-admin-skel"><span></span></td></tr>
+                  <tr><td colspan="11" class="rr-admin-skel"><span></span></td></tr>
+                  <tr><td colspan="11" class="rr-admin-skel"><span></span></td></tr>
+                  <tr><td colspan="11" class="rr-admin-skel"><span></span></td></tr>
                 </tbody>
               </table>
             </div>
