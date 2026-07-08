@@ -11309,7 +11309,9 @@ body.rr-cmdk-open{ overflow:hidden }
   #rr-boot-overlay.rr-failed .rr-boot-text{display:none}
   #rr-boot-overlay .rr-boot-err-title{font-size:var(--fs-lg);font-weight:600;color:var(--rr-slate-900);font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
   #rr-boot-overlay .rr-boot-err-sub{font-size:var(--fs-md);line-height:1.5;color:var(--rr-slate-600);font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
-  #rr-boot-overlay .rr-boot-err-actions{display:flex;gap:10px;margin-top:6px}
+  #rr-boot-overlay .rr-boot-err-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:6px}
+  #rr-boot-overlay .rr-boot-err-hint{font-size:var(--fs-sm);line-height:1.45;color:var(--rr-slate-500);font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;margin-top:2px}
+  #rr-boot-overlay .rr-boot-err-detail{font-size:var(--fs-xs,12px);line-height:1.4;color:var(--rr-slate-400);font-family:ui-monospace,"SFMono-Regular","Menlo","Consolas",monospace;word-break:break-word;max-width:340px;margin-top:4px}
   #rr-boot-overlay .rr-boot-err-btn{
     appearance:none;cursor:pointer;border-radius:6px;padding:9px 16px;
     font-family:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
