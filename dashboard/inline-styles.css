@@ -29176,7 +29176,7 @@ body:not(.rr-wb-fullscreen) #view-workbooks #rr-wb-root{
 }
 .wb-rangepick-btn:hover{background:var(--canvas)}
 .wb-rangepick-btn.primary{border-color:transparent;background:var(--green-dark);color:var(--text-inverse)}
-.wb-rangepick-btn.primary:hover{background:#14532D}
+.wb-rangepick-btn.primary:hover{background:color-mix(in srgb, var(--green-dark), black 12%)}
 .wb-rangepick-btn:disabled{opacity:.5;cursor:not-allowed}
 .wb-rangepick-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .wb-vis-row{display:flex;gap:var(--s-3)}
