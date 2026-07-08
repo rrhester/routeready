@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=13fb9344ae95";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=13fb9344ae95";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=13fb9344ae95";
+import { planScheduleWeek } from "./scheduling-engine.js?v=62641ea6a619";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=62641ea6a619";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=62641ea6a619";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -81787,6 +81787,98 @@ async function _clfReopenFlag(answerId) {
   } catch (e) { toast("Couldn't reopen: " + (e.message || e), "warn"); }
 }
 
+// ── Compliance insights ───────────────────────────────────────────────
+// A read-only dashboard (checklist_analytics, migration 0442): submitted /
+// on-time / overdue / flags KPIs, a submitted-per-day trend, top flagged
+// items, and per-checklist / per-driver breakdowns.
+
+let _clfInsightsDays = 30;
+
+function _clfOpenInsights() {
+  let root = document.getElementById("rr-clf-insights-drawer");
+  if (!root) { root = document.createElement("div"); root.id = "rr-clf-insights-drawer"; document.body.appendChild(root); }
+  root.style.cssText = "position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end";
+  root.innerHTML = `<div style="width:min(680px,100%);height:100%;background:var(--surface,#fff);box-shadow:-8px 0 30px rgba(0,0,0,.2);display:flex;flex-direction:column" role="dialog" aria-label="Compliance insights">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)">
+      <div><div style="font-weight:700;font-size:16px">Compliance insights</div><div style="font-size:12px;color:var(--text-subtle)">Driver checklist completion, on-time rate &amp; flags</div></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <select data-rr-clf-insights-days style="font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;background:var(--canvas)">
+          <option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option>
+        </select>
+        <button type="button" data-rr-clf-insights-close aria-label="Close" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--text-subtle)">×</button>
+      </div>
+    </div>
+    <div id="rr-clf-insights-body" style="flex:1;overflow:auto;padding:16px 18px">Loading…</div>
+  </div>`;
+  _clfLoadInsights();
+}
+
+async function _clfLoadInsights() {
+  const body = document.getElementById("rr-clf-insights-body");
+  if (!body) return;
+  body.innerHTML = `<div class="rr-loading" style="padding:24px;text-align:center;color:var(--text-subtle)">Loading insights…</div>`;
+  let a;
+  try {
+    const { data, error } = await sb.rpc("checklist_analytics", { p_days: _clfInsightsDays });
+    if (error) throw error;
+    a = data || {};
+  } catch (e) {
+    body.innerHTML = `<div class="rr-an-error">Couldn't load insights: ${escapeHtml(e.message || String(e))}</div>`;
+    return;
+  }
+  const t = a.totals || {};
+  const onTimeRate = (t.due_tracked || 0) > 0 ? Math.round((t.on_time / t.due_tracked) * 100) : null;
+  const kpi = (label, val, sub, color) => `<div style="flex:1;min-width:120px;border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+    <div style="font-size:22px;font-weight:700;color:${color || "var(--text)"}">${val}</div>
+    <div style="font-size:12px;color:var(--text-subtle)">${label}</div>${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:2px">${sub}</div>` : ""}</div>`;
+
+  const byDay = Array.isArray(a.by_day) ? a.by_day : [];
+  const dayMax = Math.max(1, ...byDay.map((d) => d.submitted || 0));
+  const trend = byDay.length
+    ? `<div style="display:flex;align-items:flex-end;gap:3px;height:90px;margin-top:8px">${byDay.map((d) => {
+        const h = Math.round(((d.submitted || 0) / dayMax) * 84);
+        return `<div title="${escapeHtml(d.day)} · ${d.submitted}" style="flex:1;min-width:3px;height:${Math.max(2, h)}px;background:var(--accent,#2563eb);border-radius:2px 2px 0 0;opacity:.85"></div>`;
+      }).join("")}</div><div style="font-size:11px;color:var(--text-subtle);margin-top:4px">${escapeHtml(byDay[0].day)} → ${escapeHtml(byDay[byDay.length - 1].day)}</div>`
+    : `<div style="font-size:13px;color:var(--text-subtle);padding:12px 0">No submissions in this window.</div>`;
+
+  const top = Array.isArray(a.top_flagged) ? a.top_flagged : [];
+  const topMax = Math.max(1, ...top.map((x) => x.count || 0));
+  const topHtml = top.length
+    ? top.map((x) => `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="width:150px;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(x.label)}">${escapeHtml(x.label)}</div>
+        <div style="flex:1;background:var(--canvas);border-radius:5px;overflow:hidden;height:16px"><div style="width:${Math.round((x.count / topMax) * 100)}%;height:100%;background:#dc2626;opacity:.8"></div></div>
+        <div style="width:28px;text-align:right;font-size:12px;font-weight:600">${x.count}</div></div>`).join("")
+    : `<div style="font-size:13px;color:var(--text-subtle)">No flagged answers 🎉</div>`;
+
+  const rowsTable = (arr, cols) => `<table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <thead><tr>${cols.map((c) => `<th style="text-align:${c.right ? "right" : "left"};padding:5px 6px;border-bottom:1px solid var(--border);color:var(--text-subtle);font-weight:600">${c.h}</th>`).join("")}</tr></thead>
+    <tbody>${arr.map((r) => `<tr>${cols.map((c) => `<td style="text-align:${c.right ? "right" : "left"};padding:5px 6px;border-bottom:1px solid var(--border)">${c.cell(r)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  const byChecklist = Array.isArray(a.by_checklist) ? a.by_checklist : [];
+  const byDriver = Array.isArray(a.by_driver) ? a.by_driver : [];
+
+  body.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      ${kpi("Submitted", t.submitted || 0, `${t.in_progress || 0} in progress`)}
+      ${kpi("On-time", onTimeRate == null ? "—" : onTimeRate + "%", `${t.on_time || 0} of ${t.due_tracked || 0} with a due time`)}
+      ${kpi("Overdue", t.overdue || 0, "open past due", (t.overdue || 0) > 0 ? "#dc2626" : null)}
+      ${kpi("Open flags", t.open_flags || 0, `${t.resolved_flags || 0} resolved`, (t.open_flags || 0) > 0 ? "#dc2626" : null)}
+    </div>
+    <div style="margin-top:20px;font-weight:600;font-size:13px">Submitted per day</div>${trend}
+    <div style="margin-top:20px;font-weight:600;font-size:13px;margin-bottom:8px">Top flagged items</div>${topHtml}
+    <div style="margin-top:20px;font-weight:600;font-size:13px;margin-bottom:6px">By checklist</div>
+    ${byChecklist.length ? rowsTable(byChecklist, [
+      { h: "Checklist", cell: (r) => escapeHtml(r.name || "Untitled") },
+      { h: "Submitted", right: true, cell: (r) => r.submitted || 0 },
+      { h: "Flagged", right: true, cell: (r) => `<span style="color:${(r.flagged || 0) > 0 ? "#dc2626" : "inherit"}">${r.flagged || 0}</span>` },
+    ]) : `<div style="font-size:13px;color:var(--text-subtle)">No data.</div>`}
+    <div style="margin-top:20px;font-weight:600;font-size:13px;margin-bottom:6px">By driver</div>
+    ${byDriver.length ? rowsTable(byDriver, [
+      { h: "Driver", cell: (r) => escapeHtml(r.name || "Driver") },
+      { h: "Submitted", right: true, cell: (r) => r.submitted || 0 },
+      { h: "Flagged", right: true, cell: (r) => `<span style="color:${(r.flagged || 0) > 0 ? "#dc2626" : "inherit"}">${r.flagged || 0}</span>` },
+    ]) : `<div style="font-size:13px;color:var(--text-subtle)">No data.</div>`}`;
+}
+
 function _clfSidebarPaint() {
   const host = document.getElementById("rr-clf-list");
   if (!host) return;
@@ -82507,6 +82599,10 @@ document.addEventListener("click", async (e) => {
   // export responses to CSV
   if (e.target.closest("[data-rr-clf-export]")) { _clfExportCsv(); return; }
 
+  // insights dashboard
+  if (e.target.closest("[data-rr-clf-insights]")) { _clfOpenInsights(); return; }
+  if (e.target.closest("[data-rr-clf-insights-close]") || e.target.id === "rr-clf-insights-drawer") { document.getElementById("rr-clf-insights-drawer")?.remove(); return; }
+
   // flags queue
   if (e.target.closest("[data-rr-clf-flags]")) { _clfOpenFlags(); return; }
   if (e.target.closest("[data-rr-clf-flags-close]") || e.target.id === "rr-clf-flags-drawer") { document.getElementById("rr-clf-flags-drawer")?.remove(); return; }
@@ -82737,6 +82833,7 @@ document.addEventListener("change", async (e) => {
     return;
   }
   if (e.target?.matches?.("[data-rr-clf-flags-showresolved]")) { _clfLoadFlags(e.target.checked); return; }
+  if (e.target?.matches?.("[data-rr-clf-insights-days]")) { _clfInsightsDays = parseInt(e.target.value, 10) || 30; _clfLoadInsights(); return; }
 });
 
 // Drag-and-drop: reorder item rows by their handle; drag palette types in.

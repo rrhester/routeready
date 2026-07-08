@@ -2995,6 +2995,7 @@
               <div class="rr-fp-subtitle">Build, assign, and track driver checklists</div>
             </div>
             <div class="rr-fp-head-actions">
+              <button type="button" class="rr-fp-new" data-rr-clf-insights title="Compliance insights" style="background:none;border:1px solid var(--border);color:inherit">📊 Insights</button>
               <button type="button" class="rr-fp-new" data-rr-clf-flags title="Review flagged answers" style="background:none;border:1px solid var(--border);color:inherit">⚑ Flags<span id="rr-clf-flags-badge" hidden style="margin-left:6px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;padding:1px 6px;border-radius:9px"></span></button>
               <button type="button" class="rr-fp-new" data-rr-clf-new title="Create a new checklist">+ New Checklist</button>
               <button type="button" class="ntp-icon-btn" data-rr-checklists-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
