@@ -6645,6 +6645,39 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 #rr-util-rail-mount .rr-fp-st-sched{background:#E8EEFB;color:var(--rr-blue-800)}
 
 /* ============================================================
+   Receipts panel (#rr-sched-receipts) · reuses the rr-fp chrome;
+   these rules cover the receipt-specific bits only. Tokens/rgba
+   only — no new raw hex (design-lint ratchet).
+   ============================================================ */
+#rr-util-rail-mount .rr-rcp-summary{margin-top:8px;font-size:var(--fs-sm);color:var(--text-subtle,var(--rr-gray-500));line-height:1.35}
+#rr-util-rail-mount .rr-rcp-pill{flex:0 0 auto;font-size:var(--fs-10-5);font-weight:600;line-height:1;white-space:nowrap;padding:3px 7px;border-radius:6px;background:var(--rr-gray-100);color:var(--rr-gray-600)}
+#rr-util-rail-mount .rr-rcp-pill.is-warn{background:rgba(180,83,9,.10);color:var(--rr-amber-800)}
+#rr-util-rail-mount .rr-rcp-pill.is-ok{background:rgba(22,163,74,.10);color:var(--rr-green-700)}
+#rr-util-rail-mount .rr-rcp-syncerr{font-size:var(--fs-xs);color:var(--rr-amber-800);display:flex;align-items:center;gap:8px}
+.rr-rcp-linkbtn{appearance:none;cursor:pointer;border:0;background:transparent;padding:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--rr-blue-700);text-decoration:none}
+.rr-rcp-linkbtn:hover{text-decoration:underline}
+.rr-rcp-linkbtn:disabled{color:var(--rr-gray-400);cursor:default;text-decoration:none}
+
+/* Detail modal · fixed overlay + compact card (small modal = review +
+   one decision, per the modal rules). */
+.rr-rcp-modal{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.42);display:flex;align-items:center;justify-content:center;padding:24px}
+.rr-rcp-modal-card{background:var(--rr-white);border-radius:12px;box-shadow:0 18px 50px rgba(15,23,42,.28);width:min(720px,100%);max-height:min(86vh,760px);display:flex;flex-direction:column;overflow:hidden}
+.rr-rcp-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--rr-gray-200)}
+.rr-rcp-modal-title{font-size:var(--fs-md);font-weight:600;color:var(--text,var(--rr-gray-900));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-rcp-modal-body{display:flex;gap:16px;padding:16px;overflow:auto}
+.rr-rcp-modal-img{flex:1 1 50%;min-width:0;display:flex;align-items:flex-start;justify-content:center;background:var(--rr-gray-50);border:1px solid var(--rr-gray-200);border-radius:10px;padding:10px;overflow:auto}
+.rr-rcp-modal-img img{max-width:100%;height:auto;border-radius:6px}
+.rr-rcp-modal-facts{flex:1 1 50%;min-width:0;display:flex;flex-direction:column;gap:8px}
+.rr-rcp-fact{display:flex;justify-content:space-between;gap:12px;font-size:var(--fs-sm)}
+.rr-rcp-fact span{color:var(--text-subtle,var(--rr-gray-500))}
+.rr-rcp-fact strong{font-weight:600;color:var(--text,var(--rr-gray-900));text-align:right;overflow:hidden;text-overflow:ellipsis}
+.rr-rcp-field{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);font-weight:600;color:var(--text-muted,var(--rr-gray-600));margin-top:4px}
+.rr-rcp-field select,.rr-rcp-field textarea{font:inherit;font-weight:400;color:var(--text,var(--rr-gray-900));border:1px solid var(--rr-gray-300);border-radius:8px;padding:7px 9px;background:var(--rr-white)}
+.rr-rcp-field textarea{resize:vertical}
+.rr-rcp-modal-actions{display:flex;justify-content:flex-end;margin-top:8px}
+@media (max-width:640px){.rr-rcp-modal-body{flex-direction:column}}
+
+/* ============================================================
    Daily risk indicator · subtle glyph in the day-header corner
    that lifts on hover/focus and reveals a summary card
    (#rr-day-risk-pop). Painted by renderScheduleWeek's header

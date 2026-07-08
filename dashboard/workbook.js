@@ -6484,6 +6484,13 @@ async function openOrCreateReceiptLedger(wrap) {
   await openWorkbook(wb.id);
 }
 
+// Deep-link hook · the schedule rail's Receipts panel ("Open ledger") calls
+// this after goto("workbooks") so the singleton Receipt Ledger opens without
+// the operator hunting for its card.
+try {
+  window.rrOpenReceiptLedger = () => { try { return openOrCreateReceiptLedger(null); } catch (_) {} };
+} catch (_) {}
+
 // Whenever the Receipt Ledger is opened — any way, and regardless of migration
 // state — guarantee (1) the Status column is a dropdown and (2) a "How it
 // works" tab exists. Runs client-side so it doesn't depend on the server heal

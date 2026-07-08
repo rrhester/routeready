@@ -2618,6 +2618,9 @@
           <button type="button" class="sched-util-btn sched-util-btn--forms" data-rr-forms-toggle title="Forms" aria-label="Forms" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12l2 2 4-4"/></svg>
           </button>
+          <button type="button" class="sched-util-btn sched-util-btn--receipts" data-rr-receipts-toggle title="Receipts" aria-label="Receipts" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h14v18l-2.33-1.6L14.33 21 12 19.4 9.67 21l-2.34-1.6L5 21z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
+          </button>
           <button type="button" class="sched-util-btn sched-util-btn--recog" data-rr-recog-toggle title="Recognition" aria-label="Recognition" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="5"/><path d="M8.9 12.6 7.4 21l4.6-2.5L16.6 21l-1.5-8.4"/></svg>
           </button>
@@ -2817,6 +2820,38 @@
               <button type="button" class="rr-fp-pager-btn" data-rr-fp-page="prev" aria-label="Previous page"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
               <button type="button" class="rr-fp-pager-btn" data-rr-fp-page="next" aria-label="Next page"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg></button>
             </div>
+          </div>
+        </aside>
+        <!-- Receipts slide-out · driver-submitted receipts (receipt intake,
+             migrations 0435-0439) reviewed without leaving the schedule.
+             List/summary come from the dispatcher-gated receipts_list /
+             receipts_summary RPCs; status changes go through
+             receipt_set_status and the 0436 trigger reflects them into the
+             Receipt Ledger workbook. Rendered by _rcpLoad() in live.js. -->
+        <aside class="sched-notes-panel rr-fp" id="rr-sched-receipts" aria-label="Receipts" aria-hidden="true">
+          <div class="ntp-head rr-fp-head">
+            <div class="rr-fp-head-titles">
+              <div class="ntp-head-title">Receipts</div>
+              <div class="rr-fp-subtitle">Driver-submitted receipts · review &amp; reconcile</div>
+            </div>
+            <div class="rr-fp-head-actions">
+              <button type="button" class="rr-fp-new" data-rr-rcp-ledger title="Open the Receipt Ledger workbook">Open ledger</button>
+              <button type="button" class="ntp-icon-btn" data-rr-receipts-close title="Close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+          </div>
+
+          <div class="rr-fp-toolbar">
+            <div class="rr-fp-chips" id="rr-rcp-chips" role="tablist" aria-label="Filter receipts">
+              <button type="button" class="rr-fp-chip is-active" data-rr-rcp-chip="all">All</button>
+              <button type="button" class="rr-fp-chip" data-rr-rcp-chip="review">Needs review</button>
+              <button type="button" class="rr-fp-chip" data-rr-rcp-chip="open">Unreconciled</button>
+              <button type="button" class="rr-fp-chip" data-rr-rcp-chip="dupes">Duplicates</button>
+            </div>
+            <div class="rr-rcp-summary" id="rr-rcp-summary" hidden></div>
+          </div>
+
+          <div class="ntp-scroll rr-fp-scroll">
+            <div class="rr-fp-cards" id="rr-rcp-list" role="list"></div>
           </div>
         </aside>
         <!-- Recognition slide-out · celebrate birthdays / anniversaries and
