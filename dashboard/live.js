@@ -11285,6 +11285,7 @@ function _rrAddTaskFromForm() {
   const de = document.querySelector("#rr-sched-tasks [data-rr-task-due]");
   const re = document.querySelector("#rr-sched-tasks [data-rr-task-repeat]");
   const rc = document.querySelector("#rr-sched-tasks [data-rr-task-repeat-count]");
+  const fv = document.querySelector("#rr-sched-tasks [data-rr-task-repeat-forever]");
   const asel = document.querySelector("#rr-sched-tasks [data-rr-task-assignee]");
   if (!ti) return;
   const title = (ti.value || "").trim();
@@ -11302,7 +11303,15 @@ function _rrAddTaskFromForm() {
     // Repeat on a schedule: materialize one task per occurrence, each completable
     // on its own, all sharing a series id. Honors weekday picks (weekly) and the
     // day-of-month / Nth-weekday pattern (monthly).
-    const count = Math.max(1, Math.min(60, parseInt(rc && rc.value, 10) || 1));
+    // "Repeat forever" has no end date. Occurrences are materialized rows (no
+    // rule-based top-up on this model), and the store caps a series at 60, so
+    // forever means "fill the series to that ceiling" — the longest rolling
+    // horizon we can lay down. A count-limited repeat uses the picked number.
+    const SERIES_MAX = 60;
+    const forever = !!(fv && fv.checked);
+    const count = forever
+      ? SERIES_MAX
+      : Math.max(1, Math.min(SERIES_MAX, parseInt(rc && rc.value, 10) || 1));
     const series = _rrNtId("s");
     const base = new Date(due + "T12:00:00");
     const dates = [];
@@ -11353,7 +11362,7 @@ function _rrAddTaskFromForm() {
     _rrTaskCreate({ title, dues: dates.map(isoOf), series, repeat, assigneeId })
       .then((made) => {
         const n = (made && made.length) || 0;
-        toast(`Added ${n} recurring task${n !== 1 ? "s" : ""}${assigneeName ? " for " + assigneeName : ""}`, "success");
+        toast(`Added ${n} recurring task${n !== 1 ? "s" : ""}${forever ? " (repeats forever)" : ""}${assigneeName ? " for " + assigneeName : ""}`, "success");
         if (assigneeId) _rrTasksView = "delegated";   // show the operator what they just delegated
         _rrRenderTasks();
       }).catch(() => {});
@@ -11368,10 +11377,13 @@ function _rrAddTaskFromForm() {
   ti.value = ""; if (de) de.value = "";
   if (re) re.value = "";
   if (rc) rc.value = "8";
+  if (fv) fv.checked = false;
   if (asel) asel.value = "";
   const root = document.getElementById("rr-sched-tasks");
   if (root) {
     root.querySelectorAll("[data-rr-task-dows] .on").forEach(c => c.classList.remove("on"));
+    const cr0 = root.querySelector("[data-rr-task-rep-count-row]");
+    if (cr0) cr0.classList.remove("rr-forever-on");
     ["[data-rr-task-rep-weekly]", "[data-rr-task-rep-monthly]", "[data-rr-task-rep-count-row]"].forEach(s => { const el = root.querySelector(s); if (el) el.hidden = true; });
   }
   const form = document.querySelector("#rr-sched-tasks [data-rr-task-form]"); if (form) form.hidden = true;
@@ -12020,6 +12032,12 @@ function _rrTaskRepSync() {
   // the Nth weekday); annually just repeats on the due date, no extra row.
   if (mo) mo.hidden = repeat !== "monthly" && repeat !== "quarterly";
   if (cr) cr.hidden = !repeat;
+  // "Repeat forever" hides the count controls (an occurrence count is moot
+  // with no end date). Class-driven so the row can stay flat flexbox.
+  if (cr) {
+    const fv = cr.querySelector("[data-rr-task-repeat-forever]");
+    cr.classList.toggle("rr-forever-on", !!(fv && fv.checked));
+  }
   // Weekly: default-select the due date's weekday if nothing is chosen yet.
   if (repeat === "weekly" && due) {
     const chips = root.querySelectorAll("[data-rr-task-dows] [data-dow]");
@@ -12052,7 +12070,7 @@ function _rrTaskRepSync() {
   }
 }
 document.addEventListener("change", (e) => {
-  if (e.target.closest && (e.target.closest("[data-rr-task-repeat]") || e.target.closest("#rr-sched-tasks [data-rr-task-due]"))) _rrTaskRepSync();
+  if (e.target.closest && (e.target.closest("[data-rr-task-repeat]") || e.target.closest("[data-rr-task-repeat-forever]") || e.target.closest("#rr-sched-tasks [data-rr-task-due]"))) _rrTaskRepSync();
 });
 // Weekday chips toggle.
 document.addEventListener("click", (e) => {
