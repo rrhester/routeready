@@ -5,7 +5,7 @@
             <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
             <div>
               <h1 class="page-title">Workspaces</h1>
-              <p class="page-sub">Recurring task lists for opening, closing, vehicle prep, onboarding · 14 active · 4 due now</p>
+              <p class="page-sub">Recurring task lists for opening, closing, vehicle prep, onboarding</p>
             </div>
           </div>
           <div class="page-actions">
@@ -21,13 +21,13 @@
           <!-- Workflows (boards) tab hidden — fleet assignment
                board moved to the Schedule view. -->
           <button class="subnav-item" data-sub="workflows" onclick="goto('workspaces')" style="display:none" aria-hidden="true">Workflows</button>
-          <button class="subnav-item active" data-sub="checklists" onclick="checklistSub('my')">Checklists <span style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">14</span></button>
+          <button class="subnav-item active" data-sub="checklists" onclick="checklistSub('my')">Checklists</button>
         </div>
 
         <div class="cl-subtabs" role="tablist" aria-label="Checklist sections">
           <button class="cl-subtab active" data-sub="my" onclick="checklistSub('my')">All checklists</button>
-          <button class="cl-subtab" data-sub="status" onclick="checklistSub('status')">Today's status <span class="cl-subtab-badge warn">4</span></button>
-          <button class="cl-subtab" data-sub="templates" onclick="checklistSub('templates')">Templates <span class="cl-subtab-badge">9</span></button>
+          <button class="cl-subtab" data-sub="status" onclick="checklistSub('status')">Today's status</button>
+          <button class="cl-subtab" data-sub="templates" onclick="checklistSub('templates')">Templates</button>
         </div>
 
         <!-- MY CHECKLISTS -->

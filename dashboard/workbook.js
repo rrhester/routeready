@@ -18173,8 +18173,10 @@ function renderLiveBar(g) {
   if (!label) { if (bar) bar.remove(); return; }
   if (!bar) { bar = document.createElement("div"); bar.className = "wb-livebar"; bar.setAttribute("data-wb-livebar", ""); chrome.appendChild(bar); }
   const at = g.sheet.meta.fill.loadedAt;
+  // "Synced", not "Live" — the loader writes a point-in-time snapshot
+  // into the cells; it does not auto-update until someone hits Refresh.
   bar.innerHTML = `<span class="wb-live-dot" aria-hidden="true"></span>
-    <span class="wb-live-src">Live · ${esc(label)}</span>
+    <span class="wb-live-src">Synced · ${esc(label)}</span>
     <span class="wb-live-at">updated ${esc(agoText(at))}</span>
     ${WB.canEdit ? `<button type="button" class="wb-live-refresh" data-wb-liverefresh title="Re-pull the latest data">⟳ Refresh</button>` : ""}`;
 }

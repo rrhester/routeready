@@ -74,20 +74,41 @@ def first_failure_reason(
     driver: DriverIn,
     shift: ShiftIn,
     pto_dates_by_driver: dict[str, set[str]],
+    eligible_driver_status: Optional[str] = None,
 ) -> Optional[FailReason]:
     """The first static hard gate that rejects this (driver, shift) pair, or
     None when the pair is eligible.
 
-    Gate order is IDENTICAL to the legacy cpsat_model._is_eligible:
+    Gate order mirrors the in-browser engine's R002→…→R003 chain:
+      0. driver status (R002) — active always; onboarding only when the DSP
+         allows it; anything else is ineligible for auto-fill
       1. PTO on the shift date
       2. availability (no availability on file → unschedulable; else DOW gate)
       3. certification match for the route type (DOT / XL / EDV)
       4. driver's license not expired on the shift date
 
+    `eligible_driver_status` carries the DSP's R002 policy — the value of the
+    `eligible_driver_status` setting ("active" | "active_and_onboarding").
+    When it is None (legacy callers) OR the driver has no status on file, the
+    status gate is skipped, preserving the pre-R002 behavior.
+
     Anything not gated here (max days, consecutive days, weekly hours, min
     rest) is a *global* CP-SAT constraint, not a per-pair filter — see the
     module docstring.
     """
+    # 0. Driver status (R002). Matches engine/src/rules/r002_status.ts:
+    #    active → eligible; onboarding → eligible only when the DSP set
+    #    eligible_driver_status = "active_and_onboarding"; else blocked.
+    if eligible_driver_status is not None and driver.status:
+        if driver.status != "active" and not (
+            driver.status == "onboarding"
+            and eligible_driver_status == "active_and_onboarding"
+        ):
+            return FailReason(
+                STATUS_FAIL,
+                f"Driver status is {driver.status}, not eligible for auto-fill",
+            )
+
     # 1. PTO / approved day off on the shift date.
     if shift.date in pto_dates_by_driver.get(driver.id, set()):
         return FailReason(
@@ -149,8 +170,11 @@ def is_eligible(
     driver: DriverIn,
     shift: ShiftIn,
     pto_dates_by_driver: dict[str, set[str]],
+    eligible_driver_status: Optional[str] = None,
 ) -> bool:
     """Boolean hard-eligibility. Identical decision to the legacy
     `_is_eligible`; defined as "no first-failure reason exists" so the gate
     logic has a single home."""
-    return first_failure_reason(driver, shift, pto_dates_by_driver) is None
+    return first_failure_reason(
+        driver, shift, pto_dates_by_driver, eligible_driver_status
+    ) is None

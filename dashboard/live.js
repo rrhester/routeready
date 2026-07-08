@@ -586,15 +586,35 @@ async function _loadDriverPhotos() {
       .eq("dsp_id", dspId)
       .not("photo_path", "is", null);
     if (error) { console.warn("loadDriverPhotos:", error); return _driverPhotos.map; }
-    for (const r of (data || [])) {
-      _driverPhotos.map.set(
-        r.id,
-        `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-photos/${r.photo_path}`
-      );
-    }
+    // driver-photos is a PRIVATE bucket (migration 0446) — sign the paths.
+    // Batch-sign once here; every avatar surface reads the signed URL from
+    // this map (keyed by driver id) via _driverPhotoUrl().
+    const rows = (data || []).filter((r) => r.photo_path);
+    const byPath = new Map(rows.map((r) => [r.photo_path, r.id]));
+    try {
+      const { data: signed } = await sb.storage
+        .from("driver-photos")
+        .createSignedUrls(rows.map((r) => r.photo_path), 60 * 60 * 8);
+      for (const s of (signed || [])) {
+        if (s && s.path && s.signedUrl && !s.error) {
+          const id = byPath.get(s.path);
+          if (id) _driverPhotos.map.set(id, s.signedUrl);
+        }
+      }
+    } catch (e) { console.warn("signDriverPhotos:", e); }
     return _driverPhotos.map;
   })();
   return _driverPhotos.loaded;
+}
+
+// Signed driver-photo URL for a driver id, or a "<driver_id>/…" storage path.
+// Backed by the pre-signed _driverPhotos map; returns null (→ initials) when
+// the driver has no photo or the map hasn't loaded yet.
+function _driverPhotoUrl(idOrPath) {
+  if (!idOrPath) return null;
+  const s = String(idOrPath);
+  const id = s.includes("/") ? s.split("/")[0] : s;
+  return _driverPhotos.map.get(id) || null;
 }
 
 function _resolveDriverIdForAvatar(el) {
@@ -2475,6 +2495,12 @@ async function handleAction(btn) {
         card?.querySelector(".pa-btn-advance")?.classList.add("is-primary");
       }
       btn.disabled = false;
+      return;
+    } else if (action === "open_onboarding") {
+      // Hired-card CTA — the driver row already exists (record_outcome
+      // created it on hire); take the operator to the onboarding roster.
+      btn.disabled = false;
+      goto("onboarding-ops");
       return;
     } else if (action === "email_thread") {
       // Look up the applicant's display name for the modal header.
@@ -5878,7 +5904,7 @@ async function _submitBulkDrivers() {
 // Driver stage state — what the operator has filtered to.
 let _driverStage = "active";
 // Roster filter / sort state (set by the toolbar dropdowns + search).
-let _rosterFilters = { station: "", tenure: "", score: "", q: "", sort: "risk-desc" };
+let _rosterFilters = { station: "", tenure: "", score: "", risk: "", q: "", sort: "risk-desc" };
 
 // Status-header filter options · the Status column dropdown switches
 // _driverStage so the roster can show non-active drivers (On leave /
@@ -6045,7 +6071,10 @@ function _rowsForStage(rows, stage) {
     case "onboarding": return rows.filter(r => r.status === "onboarding");
     case "active":     return rows.filter(r => r.status === "active");
     case "seasonal":   return rows.filter(r => r.status === "seasonal");
-    case "atrisk":     return rows.filter(r => r.status === "active" && (r.score ?? 999) < 70);
+    // "At risk" = drivers with an open corrective action (the same signal
+    // the roster's Risk column shows). drivers.score is not used — nothing
+    // computes it.
+    case "atrisk":     return rows.filter(r => r.status === "active" && _rosterRisk.get(r.id));
     case "onleave":    return rows.filter(r => r.status === "leave");
     case "inactive":   return rows.filter(r => ["inactive","terminated"].includes(r.status));
     // Granular status filters driven by the Status-header dropdown.
@@ -6114,6 +6143,9 @@ function _applyRosterFiltersAndSort(rows) {
   // Risk rank from the map the roster loader fills: At Risk (2) > Watch (1)
   // > none (0). Drives the Risk column sort.
   const riskRank = (r) => { const v = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(r.id) : null; return v === "atrisk" ? 2 : v === "watch" ? 1 : 0; };
+  // "At risk" view chip → only drivers with an open corrective action
+  // (Watch or At Risk), the same signal the Risk column renders.
+  if (f.risk === "flagged") out = out.filter(r => riskRank(r) > 0);
   // Attendance points + last-coaching date drive their roster columns' sorts.
   const ptsVal = (r) => (_rosterAttPoints && _rosterAttPoints.get) ? (_rosterAttPoints.get(r.id) || 0) : 0;
   const lastCoachMs = (r) => { const iso = (_rosterLastCoached && _rosterLastCoached.get) ? _rosterLastCoached.get(r.id) : null; return iso ? new Date(iso).getTime() : null; };
@@ -6340,7 +6372,7 @@ function renderDriverTable(rows, error) {
       : _driverStage === "active"
       ? { title: "No active drivers yet", body: "Hire someone in Interview Day, or use Add driver / Bulk import to build the roster." }
       : _driverStage === "atrisk"
-      ? { title: "No at-risk drivers", body: "Drivers whose score drops below 70 surface here so you can intervene early." }
+      ? { title: "No at-risk drivers", body: "Drivers with an open corrective action (Watch or At Risk) surface here so you can intervene early." }
       : _driverStage === "seasonal"
       ? { title: "No seasonal drivers", body: "Drivers set to Seasonal appear here." }
       : _driverStage === "onleave"
@@ -12235,17 +12267,20 @@ function _rrApplyRosterView(view) {
     c.setAttribute("aria-pressed", on ? "true" : "false");
   });
   if (v === "atrisk") {
+    // Real risk signal (open corrective action), not the unused
+    // drivers.score field — score is never computed, so filtering on
+    // it always produced an empty list.
     _driverStage = "active";
-    _rosterFilters = { ..._rosterFilters, score: "0-69", tenure: "" };
+    _rosterFilters = { ..._rosterFilters, score: "", risk: "flagged", tenure: "" };
   } else if (v === "newhires") {
     _driverStage = "active";
-    _rosterFilters = { ..._rosterFilters, score: "", tenure: "0-30" };
+    _rosterFilters = { ..._rosterFilters, score: "", risk: "", tenure: "0-30" };
   } else if (v === "onleave") {
     _driverStage = "onleave";
-    _rosterFilters = { ..._rosterFilters, score: "", tenure: "" };
+    _rosterFilters = { ..._rosterFilters, score: "", risk: "", tenure: "" };
   } else {
     _driverStage = "active";
-    _rosterFilters = { ..._rosterFilters, score: "", tenure: "" };
+    _rosterFilters = { ..._rosterFilters, score: "", risk: "", tenure: "" };
   }
   if (typeof loadDriversRoster === "function") loadDriversRoster();
 }
@@ -18668,8 +18703,9 @@ function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
     : "";
 
   const renderRow = (r) => {
-    const av = r.driver_photo_path
-      ? `<img class="tp-driver-avatar" src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="">`
+    const _avU = _driverPhotoUrl(r.driver_photo_path);
+    const av = _avU
+      ? `<img class="tp-driver-avatar" src="${escapeHtml(_avU)}" alt="">`
       : `<div class="tp-driver-avatar">${escapeHtml(initials(r.driver_name))}</div>`;
 
     const timeStr = (r.starts_at || r.ends_at)
@@ -18774,8 +18810,9 @@ function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
   // separately from onboarding scaffolding.
   const trainingTotal = classTrainingRows.length + roadTrainingRows.length;
   const renderTrainingRow = (r, isClass) => {
-    const av = r.driver_photo_path
-      ? `<img class="tp-driver-avatar" src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="">`
+    const _avU = _driverPhotoUrl(r.driver_photo_path);
+    const av = _avU
+      ? `<img class="tp-driver-avatar" src="${escapeHtml(_avU)}" alt="">`
       : `<div class="tp-driver-avatar">${escapeHtml(initials(r.driver_name))}</div>`;
     const timeStr = (r.starts_at || r.ends_at)
       ? `<span style="font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.starts_at))}${r.ends_at ? " – " + escapeHtml(fmtTime(r.ends_at)) : ""}</span>`
@@ -18924,8 +18961,9 @@ function _renderTpVanRoster(data, error) {
   const initials = (name) => (name || "?").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 
   const body = rows.map((r) => {
-    const av = r.driver_photo_path
-      ? `<img src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
+    const _avU = _driverPhotoUrl(r.driver_photo_path);
+    const av = _avU
+      ? `<img src="${escapeHtml(_avU)}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
       : `<div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700;flex:0 0 auto">${escapeHtml(initials(r.driver_name))}</div>`;
 
     const timeStr = (r.starts_at || r.ends_at)
@@ -70723,11 +70761,12 @@ let _fleetIssueFilters = { q: "", state: "open", severity: "" };
 let _fleetSearchT      = null;
 let _fleetIssuesSearchT = null;
 
-// Public photo URL builder — same pattern as driver-photos.
-function _flPhotoUrl(path) {
-  if (!path) return null;
-  return `${cfg.SUPABASE_URL}/storage/v1/object/public/vehicle-photos/${encodeURI(path)}`;
-}
+// vehicle-photos is a PRIVATE bucket (migration 0445) — reads go through
+// short-lived signed URLs, not a public URL. Signing happens once at
+// data-load time (see _flLoadRoster / loadFleetDrawer) and the signed URL is
+// stashed on `v.photo_url`; renderers just read that. Falls back to the van
+// icon whenever there's no photo or signing failed, so a sign hiccup only
+// costs the thumbnail, never breaks the row.
 
 function _flVanIconSvg() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 17h2l1-4h12l1 4h2"/><path d="M5 13v4M19 13v4"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/></svg>`;
@@ -70735,9 +70774,27 @@ function _flVanIconSvg() {
 
 function _flVehThumb(v, opts) {
   const cls = (opts && opts.cls) || "fl-veh-thumb";
-  const url = _flPhotoUrl(v.photo_path);
+  const url = v.photo_url || null;
   if (url) return `<div class="${cls}"><img src="${escapeHtml(url)}" alt=""></div>`;
   return `<div class="${cls}">${_flVanIconSvg()}</div>`;
+}
+
+// Batch-sign storage paths in a private bucket → Map(path → signedUrl).
+// Best-effort: any error (or an individual path that can't be signed) just
+// drops out of the map and the caller shows its placeholder. 8h TTL comfortably
+// outlives a roster/browsing session; re-loading the list re-signs.
+async function _flSignPhotos(bucket, paths, ttl) {
+  const uniq = [...new Set((paths || []).filter(Boolean))];
+  if (!uniq.length) return new Map();
+  const out = new Map();
+  try {
+    const { data, error } = await sb.storage.from(bucket).createSignedUrls(uniq, ttl || 60 * 60 * 8);
+    if (error || !Array.isArray(data)) return out;
+    for (const r of data) {
+      if (r && r.path && r.signedUrl && !r.error) out.set(r.path, r.signedUrl);
+    }
+  } catch (_) { /* fall through — placeholders */ }
+  return out;
 }
 
 function _flStatusPill(s) {
@@ -71202,6 +71259,10 @@ async function _flLoadRoster() {
     return;
   }
   _fleetRows = Array.isArray(data) ? data : [];
+  // vehicle-photos is private (0445) — sign the thumbnails up front so the
+  // sync renderers can just read v.photo_url.
+  const _vpSigs = await _flSignPhotos("vehicle-photos", _fleetRows.map((v) => v.photo_path));
+  for (const v of _fleetRows) v.photo_url = v.photo_path ? (_vpSigs.get(v.photo_path) || null) : null;
   _flPopulateStationFilter(_fleetRows);
   _flRenderRoster();
   _flPaintTabCounts();
@@ -72725,6 +72786,14 @@ async function loadFleetDrawer(vehicleId) {
   const { data, error } = await sb.rpc("vehicle_record", { p_id: vehicleId });
   if (error || !data) { toast("Couldn't load van: " + (error?.message || "not found"), "warn"); return; }
   _fdVehicle = data;
+  // vehicle-photos is private (0445) — sign the header thumbnail on open.
+  const _fdV = _fdVehicle.vehicle;
+  if (_fdV && _fdV.photo_path) {
+    try {
+      const { data: s } = await sb.storage.from("vehicle-photos").createSignedUrl(_fdV.photo_path, 60 * 60 * 8);
+      _fdV.photo_url = s?.signedUrl || null;
+    } catch (_) { _fdV.photo_url = null; }
+  }
   _fdPaintHead();
   // Activate the requested tab in the strip
   document.querySelectorAll("#rr-fd-drawer .fd-tab").forEach((t) => t.classList.toggle("active", t.getAttribute("data-rr-fd-tab") === _fdTab));
@@ -72752,7 +72821,7 @@ function _fdPaintHead() {
   const thumb = document.getElementById("rr-fd-thumb");
   if (thumb) {
     thumb.querySelector("img")?.remove();
-    const url = _flPhotoUrl(v.photo_path);
+    const url = v.photo_url || null;
     if (url) {
       const img = document.createElement("img");
       img.src = url; img.alt = "";
@@ -77124,10 +77193,10 @@ async function _toFetchPendingCount() {
 //   • _recogRenderUpcoming/History — paint rows from the RPC payload
 //   • openRecogSendModal(opts)     — driver picker + send/schedule form
 //
-// The driver app does NOT yet read driver_recognitions — celebration
-// animations are a separate piece of work.  Until then, every "Send"
-// from this view persists a row that the animations layer will
-// consume when it's built.
+// The driver app DOES consume driver_recognitions: on app open,
+// checkAndShowPendingRecognition (app/app.js) fetches the pending
+// event and routes to the #/welcome celebration view. Rows sent or
+// scheduled here are delivered the next time the driver opens the app.
 
 let _recogUpcomingData = [];
 let _recogHistoryData  = [];
@@ -77271,15 +77340,11 @@ function _recogDriverCell(r) {
     .map((s) => s[0].toUpperCase()).join("") || "?";
   // Photo URLs are constructed by the same getStorageUrl pattern the
   // rest of the dashboard uses; if it isn't loaded, fall back to initials.
+  // driver-photos is private (0446) — read the pre-signed URL from the map.
+  const _rgU = _driverPhotoUrl(r.photo_path);
   let avatarHtml;
-  if (r.photo_path && typeof sb?.storage?.from === "function") {
-    try {
-      const pub = sb.storage.from("driver-photos").getPublicUrl(r.photo_path);
-      const url = pub?.data?.publicUrl;
-      avatarHtml = url
-        ? `<img src="${escapeHtml(url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(initials)}'}))">`
-        : escapeHtml(initials);
-    } catch (e) { avatarHtml = escapeHtml(initials); }
+  if (_rgU) {
+    avatarHtml = `<img src="${escapeHtml(_rgU)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(initials)}'}))">`;
   } else {
     avatarHtml = escapeHtml(initials);
   }
@@ -84356,12 +84421,9 @@ function _rgpFmtDate(d) {
   } catch (_) { return String(d); }
 }
 function _rgpAvatar(name, path) {
-  if (path) {
-    try {
-      const { data } = sb.storage.from("driver-photos").getPublicUrl(path);
-      if (data?.publicUrl) return `<img class="rr-rgp-ava" src="${escapeHtml(data.publicUrl)}" alt="" loading="lazy"/>`;
-    } catch (_) {}
-  }
+  // driver-photos is private (0446) — read the pre-signed URL from the map.
+  const _u = _driverPhotoUrl(path);
+  if (_u) return `<img class="rr-rgp-ava" src="${escapeHtml(_u)}" alt="" loading="lazy"/>`;
   const ini = String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return `<span class="rr-fp-card-ico rr-rgp-ini">${escapeHtml(ini || "?")}</span>`;
 }

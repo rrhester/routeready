@@ -358,6 +358,8 @@ function normalizeRouteType(raw) {
     case "extra_large":
     case "extralarge":
       return "xl";
+    case "edv":
+      return "edv";
     default:
       throw new EngineError(`Unknown route_type: ${raw}`);
   }
@@ -494,6 +496,7 @@ function normalizeDriver(raw) {
     license_expiration_date: raw.license_expiration_date ?? null,
     dot_certified: raw.dot_certified === true,
     xl_certified: raw.xl_certified === true,
+    edv_certified: raw.edv_certified === true,
     saved_availability: validateAvailability(raw.saved_availability, where),
     preferred_availability: validateAvailability(
       raw.preferred_availability,
@@ -894,6 +897,9 @@ function checkCertification(shift, driver, settings) {
   }
   if (shift.route_type === "xl" && !driver.xl_certified) {
     return { rule: "R004", message: "Missing XL certification" };
+  }
+  if (shift.route_type === "edv" && !driver.edv_certified) {
+    return { rule: "R004", message: "Missing EDV certification" };
   }
   return null;
 }

@@ -93,16 +93,9 @@
                   <option value="365+">Over a year</option>
                 </select>
               </div>
-              <div class="popover-section">
-                <label class="popover-field-label" for="rr-roster-score">Score</label>
-                <select id="rr-roster-score" class="popover-field">
-                  <option value="">Any score</option>
-                  <option value="0-69">Below 70</option>
-                  <option value="70-84">70–84</option>
-                  <option value="85+">85 or higher</option>
-                  <option value="none">No score yet</option>
-                </select>
-              </div>
+              <!-- (Score filter removed — drivers.score is not computed
+                   anywhere yet. Reintroduce only when a real score source
+                   ships, otherwise the filter always returns nothing.) -->
             </div>
           </div>
           <div class="dr-search">
@@ -141,7 +134,7 @@
              (_rrApplyRosterView). -->
         <div class="rr-roster-views" id="rr-roster-views" data-rr-no-drawer>
           <button type="button" class="rr-roster-view-chip is-active" data-rr-view="all" aria-pressed="true">All drivers</button>
-          <button type="button" class="rr-roster-view-chip" data-rr-view="atrisk" aria-pressed="false" title="Active drivers with score under 70">At risk</button>
+          <button type="button" class="rr-roster-view-chip" data-rr-view="atrisk" aria-pressed="false" title="Active drivers with an open corrective action (Watch or At Risk)">At risk</button>
           <button type="button" class="rr-roster-view-chip" data-rr-view="newhires" aria-pressed="false" title="Hired in the last 30 days">New hires</button>
           <button type="button" class="rr-roster-view-chip" data-rr-view="onleave" aria-pressed="false" title="Drivers on leave of absence">On leave</button>
         </div>
@@ -172,8 +165,8 @@
               <tr>
                 <th class="dr-cb" data-rr-no-drawer></th>
                 <th>Driver</th>
+                <th>Risk</th>
                 <th>Tenure</th>
-                <th>Score</th>
                 <th>App</th>
                 <th></th>
               </tr>

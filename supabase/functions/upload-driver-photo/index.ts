@@ -68,11 +68,15 @@ Deno.serve(async (req) => {
   });
   if (setErr) return jsonRespCors({ error: "set_photo_failed: " + setErr.message }, 500);
 
-  // Public bucket → public URL is deterministic.
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-  const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/driver-photos/${objectPath}?v=${Date.now()}`;
+  // Private bucket (migration 0446) → hand back a signed URL the client can
+  // render directly. The service role bypasses RLS, and the unique token is
+  // its own cache-buster. photo_path is always returned so the client can
+  // re-sign later via driver_me even if signing hiccups here.
+  const { data: signed } = await supa.storage
+    .from("driver-photos")
+    .createSignedUrl(objectPath, 7 * 24 * 60 * 60);
 
-  return jsonRespCors({ ok: true, photo_url: photoUrl, photo_path: objectPath });
+  return jsonRespCors({ ok: true, photo_url: signed?.signedUrl ?? null, photo_path: objectPath });
 });
 
 function jsonRespCors(body: unknown, status = 200) {

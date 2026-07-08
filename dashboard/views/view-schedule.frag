@@ -1297,7 +1297,7 @@
                 </svg>
                 <span>Risk forecast</span>
               </button>
-              <button type="button" class="sched-v2-intel-tile" data-rr-intel="compliance-watch" title="Compliance watch · DOT / DL / cert expirations rolling forward">
+              <button type="button" class="sched-v2-intel-tile sched-v2-intel-tile-soon" data-rr-intel="compliance-watch" disabled aria-disabled="true" title="Compliance watch — coming soon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                   <circle cx="12" cy="12" r="3"/>
@@ -1306,7 +1306,7 @@
                 </svg>
                 <span>Compliance watch</span>
               </button>
-              <button type="button" class="sched-v2-intel-tile" data-rr-intel="hiring-pulse" title="Hiring pulse · pipeline velocity vs. hire-by dates">
+              <button type="button" class="sched-v2-intel-tile sched-v2-intel-tile-soon" data-rr-intel="hiring-pulse" disabled aria-disabled="true" title="Hiring pulse — coming soon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                   <circle cx="9" cy="7" r="4"/>
@@ -1317,7 +1317,7 @@
                 </svg>
                 <span>Hiring pulse</span>
               </button>
-              <button type="button" class="sched-v2-intel-tile" data-rr-intel="peak-days" title="Peak days · HVE / Prime / seasonal spikes on the horizon">
+              <button type="button" class="sched-v2-intel-tile sched-v2-intel-tile-soon" data-rr-intel="peak-days" disabled aria-disabled="true" title="Peak days — coming soon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <rect x="3" y="4" width="18" height="18" rx="1"/>
                   <line x1="3" y1="10" x2="21" y2="10"/>
@@ -1327,7 +1327,7 @@
                 </svg>
                 <span>Peak days</span>
               </button>
-              <button type="button" class="sched-v2-intel-tile" data-rr-intel="what-if" title="What-if · run the solver against a scenario before you commit">
+              <button type="button" class="sched-v2-intel-tile sched-v2-intel-tile-soon" data-rr-intel="what-if" disabled aria-disabled="true" title="What-if — coming soon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <line x1="6" y1="3" x2="6" y2="13"/>
                   <circle cx="6" cy="17" r="2"/>
@@ -1976,107 +1976,10 @@
               <div class="cal-cell-head">Mon<span class="day-num">7</span></div>
             </div>
 
-            <!-- Marcus Davidson -->
-            <div class="cal-grid">
-              <div class="cal-row-label"><div class="avatar-sm tier-d">MD</div><div><div class="cal-row-label-name">Marcus Davidson</div><div class="cal-row-label-meta">KMO1 · 18 mo</div></div></div>
-              <div class="cal-cell today"><div class="shift-chip"><div class="shift-chip-route">KMO1-14B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-14B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-14B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-14B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-22A</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip off">Off</div></div>
-              <div class="cal-cell"><div class="shift-chip off">Off</div></div>
-            </div>
-
-            <!-- Tasha Reyes -->
-            <div class="cal-grid">
-              <div class="cal-row-label"><div class="avatar-sm tier-d">TR</div><div><div class="cal-row-label-name">Tasha Reyes</div><div class="cal-row-label-meta">KMO2 · 9 mo</div></div></div>
-              <div class="cal-cell today"><div class="shift-chip"><div class="shift-chip-route">KMO2-08C</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO2-08C</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO2-08C</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO2-08C</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell">
-                <div class="conflict-marker" title="Swap pending approval — schedule will adjust">!</div>
-                <div class="shift-chip swap"><div class="shift-chip-route">↔ Hill</div><div class="shift-chip-time">Pending swap</div></div>
-              </div>
-              <div class="cal-cell"><div class="shift-chip off">Off</div></div>
-              <div class="cal-cell"><div class="shift-chip off">Off</div></div>
-            </div>
-
-            <!-- Kerwin Whitfield -->
-            <div class="cal-grid">
-              <div class="cal-row-label"><div class="avatar-sm tier-c">KW</div><div><div class="cal-row-label-name">Kerwin Whitfield</div><div class="cal-row-label-meta">KMO1 · 24 mo</div></div></div>
-              <div class="cal-cell today"><div class="shift-chip"><div class="shift-chip-route">KMO1-09A</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-09A</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-09A</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-09A</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-09A</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-09A</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip off">Off</div></div>
-            </div>
-
-            <!-- Jordan Beckett -->
-            <div class="cal-grid">
-              <div class="cal-row-label"><div class="avatar-sm tier-c">JB</div><div><div class="cal-row-label-name">Jordan Beckett</div><div class="cal-row-label-meta">KMO3 · 6 mo</div></div></div>
-              <div class="cal-cell today"><div class="shift-chip off">Off</div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO3-04D</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO3-04D</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO3-04D</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO3-04D</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO3-04D</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip off">Off</div></div>
-            </div>
-
-            <!-- Devon Patterson — has time off -->
-            <div class="cal-grid">
-              <div class="cal-row-label"><div class="avatar-sm tier-b">DP</div><div><div class="cal-row-label-name">Devon Patterson</div><div class="cal-row-label-meta">KMO3 · 11 mo</div></div></div>
-              <div class="cal-cell today"><div class="shift-chip"><div class="shift-chip-route">KMO3-12B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO3-12B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO3-12B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell">
-                <div class="conflict-marker error" title="PTO approved but route still scheduled — needs reassignment">!</div>
-                <div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div>
-              </div>
-              <div class="cal-cell"><div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div></div>
-              <div class="cal-cell"><div class="shift-chip off">Off</div></div>
-              <div class="cal-cell"><div class="shift-chip off">Off</div></div>
-            </div>
-
-            <!-- Camille Foster -->
-            <div class="cal-grid">
-              <div class="cal-row-label"><div class="avatar-sm tier-a">CF</div><div><div class="cal-row-label-name">Camille Foster</div><div class="cal-row-label-meta">KMO1 · 22 mo</div></div></div>
-              <div class="cal-cell today"><div class="shift-chip"><div class="shift-chip-route">KMO1-03B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-03B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-03B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-03B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip"><div class="shift-chip-route">KMO1-03B</div><div class="shift-chip-time">7:00a – 6:00p</div></div></div>
-              <div class="cal-cell"><div class="shift-chip off">Off</div></div>
-              <div class="cal-cell"><div class="shift-chip off">Off</div></div>
-            </div>
-
-            <!-- Open shift row -->
-            <div class="cal-grid" style="background:var(--canvas)">
-              <div class="cal-row-label" style="background:var(--canvas)"><div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div><div><div class="cal-row-label-name" style="color:var(--text-muted)">Unassigned</div><div class="cal-row-label-meta">3 routes need a driver</div></div></div>
-              <div class="cal-cell today"><div class="shift-chip open">+ KMO2-15A</div></div>
-              <div class="cal-cell"><div class="shift-chip off"></div></div>
-              <div class="cal-cell"><div class="shift-chip off"></div></div>
-              <div class="cal-cell"><div class="shift-chip open">+ KMO3-07C</div></div>
-              <div class="cal-cell"><div class="shift-chip open">+ KMO1-19D</div></div>
-              <div class="cal-cell"><div class="shift-chip off"></div></div>
-              <div class="cal-cell"><div class="shift-chip off"></div></div>
-            </div>
-
-            <!-- Coverage strip -->
-            <div class="coverage-strip">
-              <div class="coverage-cell">Coverage</div>
-              <div class="coverage-cell partial">87 / 90</div>
-              <div class="coverage-cell full">90 / 90</div>
-              <div class="coverage-cell full">90 / 90</div>
-              <div class="coverage-cell gap">86 / 90</div>
-              <div class="coverage-cell gap">85 / 90</div>
-              <div class="coverage-cell full">42 / 42</div>
-              <div class="coverage-cell full">38 / 38</div>
-            </div>
+            <!-- Grid rows render here. renderScheduleWeek owns everything
+                 below the .head row (driver rows, open-shift rows, coverage
+                 strip); _clearScheduleMockup shows a loading skeleton until
+                 the first paint. No static sample rows may ship here. -->
           </div>
 
           <!-- Right rail: Open Shifts panel lives inside the Driver pool footer;
@@ -2086,56 +1989,15 @@
           <aside class="driver-pool">
             <div class="pool-head">
               <span>Driver pool</span>
-              <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-subtle);font-size:var(--fs-xs)">12 available</span>
             </div>
             <input class="pool-search" placeholder="Search drivers…" />
 
+            <!-- Pre-render placeholder only. renderSchedOpenShiftsPool /
+                 renderScheduleWeek replace this aside's contents with the
+                 real pool as soon as schedule data loads — no sample
+                 drivers may ever appear here. -->
             <div>
-              <div class="pool-section-label">Available</div>
-              <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Sasha Underwood')">
-                <div class="avatar-sm tier-c">SU</div>
-                <div><div class="pool-driver-name">Sasha Underwood</div><div class="pool-driver-meta">KMO2 · 0h scheduled</div></div>
-                <span class="pool-driver-hours">0h</span>
-              </div>
-              <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Trevor Anders')">
-                <div class="avatar-sm tier-a">TA</div>
-                <div><div class="pool-driver-name">Trevor Anders</div><div class="pool-driver-meta">KMO1 · onboarding · 0h</div></div>
-                <span class="pool-driver-hours">0h</span>
-              </div>
-              <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Lena Whitcomb')">
-                <div class="avatar-sm tier-a">LW</div>
-                <div><div class="pool-driver-name">Lena Whitcomb</div><div class="pool-driver-meta">KMO1 · 22h scheduled</div></div>
-                <span class="pool-driver-hours">22h</span>
-              </div>
-              <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Asha Thornton')">
-                <div class="avatar-sm tier-b">AT</div>
-                <div><div class="pool-driver-name">Asha Thornton</div><div class="pool-driver-meta">KMO2 · 33h scheduled</div></div>
-                <span class="pool-driver-hours">33h</span>
-              </div>
-              <div class="pool-driver" draggable="true" onclick="toast('Click a calendar cell to assign Marcus Hill')">
-                <div class="avatar-sm tier-b">MH</div>
-                <div><div class="pool-driver-name">Marcus Hill</div><div class="pool-driver-meta">KMO1 · 44h scheduled</div></div>
-                <span class="pool-driver-hours">44h</span>
-              </div>
-              <div class="pool-driver maxed" draggable="false" title="At weekly max">
-                <div class="avatar-sm tier-c">DM</div>
-                <div><div class="pool-driver-name">Devin Mateo</div><div class="pool-driver-meta">KMO3 · max hours</div></div>
-                <span class="pool-driver-hours">55h</span>
-              </div>
-            </div>
-
-            <div>
-              <div class="pool-section-label">Off / time off</div>
-              <div class="pool-driver off">
-                <div class="avatar-sm tier-d">DP</div>
-                <div><div class="pool-driver-name">Devon Patterson</div><div class="pool-driver-meta">PTO May 15–17</div></div>
-                <span class="pool-driver-hours">PTO</span>
-              </div>
-              <div class="pool-driver off">
-                <div class="avatar-sm tier-c">JB</div>
-                <div><div class="pool-driver-name">Jordan Beckett</div><div class="pool-driver-meta">Off Mon (school)</div></div>
-                <span class="pool-driver-hours">Off</span>
-              </div>
+              <div class="pool-section-label">Loading drivers…</div>
             </div>
 
             <!-- Open-shifts footer · status-aware. renderScheduleWeek
@@ -2233,60 +2095,10 @@
         </div><!-- /sched-sub-smartfill -->
 
         <!-- BY DRIVER SUB-VIEW (full driver list with current week summary) -->
-        <div class="sched-subview" id="sched-sub-drivers" style="display:none">
-          <div class="schedule-grid-wrap">
-            <div class="sg-toolbar">
-              <div>78 active drivers · click any row for full schedule editor</div>
-              <div class="sg-toolbar-actions">
-                <button class="btn btn-sm">Apply template…</button>
-                <button class="btn btn-sm">Filter: All stations</button>
-              </div>
-            </div>
-            <table class="schedule-table">
-              <thead>
-                <tr>
-                  <th>Driver</th>
-                  <th class="day">M</th><th class="day">T</th><th class="day">W</th><th class="day">T</th><th class="day">F</th><th class="day">S</th><th class="day">S</th>
-                  <th>Hours</th>
-                  <th>Time off</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="driver-cell"><div class="avatar-sm tier-d">MD</div><div><div class="cell-name">Marcus Davidson</div><div class="cell-name-sub">KMO1 · 18 mo</div></div></td>
-                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>
-                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>
-                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>
-                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>
-                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>
-                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
-                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
-                  <td style="font-size:var(--fs-sm);font-weight:600">55h</td>
-                  <td class="timeoff-cell">—</td>
-                  <td class="actions-cell"><button class="btn btn-sm">Edit</button></td>
-                </tr>
-                <tr>
-                  <td class="driver-cell"><div class="avatar-sm tier-d">TR</div><div><div class="cell-name">Tasha Reyes</div><div class="cell-name-sub">KMO2 · 9 mo</div></div></td>
-                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>
-                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>
-                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
-                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>
-                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>
-                  <td class="day-cell"><button class="day-toggle on" onclick="sgToggle(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>
-                  <td class="day-cell"><button class="day-toggle" onclick="sgToggle(this)"></button></td>
-                  <td style="font-size:var(--fs-sm);font-weight:600">55h</td>
-                  <td class="timeoff-cell"><span class="has-off">May 10–12</span></td>
-                  <td class="actions-cell"><button class="btn btn-sm">Edit</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <!-- The legacy static "By driver" and "Availability matrix" mockup
+             sub-views were removed: nothing routes to them and they only
+             contained sample data. -->
 
-        <!-- TIME OFF APPROVAL QUEUE -->
-
-        <!-- SHIFT SWAPS APPROVAL QUEUE -->
         <div class="sched-subview" id="sched-sub-swaps" style="display:none">
           <div class="section">
             <div class="section-head">
@@ -2323,208 +2135,9 @@
         </div>
 
         <!-- AVAILABILITY MATRIX -->
-        <div class="sched-subview" id="sched-sub-availability" style="display:none">
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-4)">
-            <div>
-              <h2 style="font-size:var(--fs-lg);font-weight:600;margin:0">Driver availability</h2>
-              <p class="page-sub" style="margin:4px 0 0 0">What each driver is willing to work, recurring. Drivers update this in their app — managers see conflicts when scheduling outside it.</p>
-            </div>
-            <div style="display:flex;gap:var(--s-2)">
-              <button class="btn btn-sm btn-ghost btn-icon" title="Export" aria-label="Export">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              </button>
-              <button class="btn btn-sm">Request availability update</button>
-            </div>
-          </div>
+        <!-- (Static "4-week coverage forecast" mockup removed — unreachable,
+             sample data only. The live forecast lives on Targets/OKAMI.) -->
 
-          <div class="avail-legend">
-            <div class="avail-legend-item"><span class="avail-legend-swatch preferred"></span>Preferred</div>
-            <div class="avail-legend-item"><span class="avail-legend-swatch available"></span>Available</div>
-            <div class="avail-legend-item"><span class="avail-legend-swatch unavailable"></span>Not available</div>
-            <div class="avail-legend-item"><span class="avail-legend-swatch timeoff"></span>Time off (date-specific)</div>
-            <div class="avail-legend-item" style="margin-left:auto;color:var(--text-subtle)">Last updated by drivers · 2h ago</div>
-          </div>
-
-          <table class="avail-table">
-            <thead>
-              <tr>
-                <th class="driver-col">Driver</th>
-                <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
-                <th>Min hrs</th>
-                <th>Max hrs</th>
-                <th>Preferences</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="driver-col"><div style="display:flex;align-items:center;gap:var(--s-2-5)"><div class="avatar-sm tier-d">MD</div><div><div class="cell-name">Marcus Davidson</div><div class="cell-name-sub">KMO1 · 18 mo</div></div></div></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell available">✓</span></td>
-                <td><span class="avail-cell unavailable">—</span></td>
-                <td class="avail-hours"><strong>40h</strong></td>
-                <td class="avail-hours"><strong>55h</strong></td>
-                <td style="font-size:var(--fs-xs);color:var(--text-muted);text-align:left">Open to swaps · Backup pool</td>
-              </tr>
-              <tr>
-                <td class="driver-col"><div style="display:flex;align-items:center;gap:var(--s-2-5)"><div class="avatar-sm tier-d">TR</div><div><div class="cell-name">Tasha Reyes</div><div class="cell-name-sub">KMO2 · 9 mo</div></div></div></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell unavailable">—</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell available">✓</span></td>
-                <td><span class="avail-cell unavailable">—</span></td>
-                <td class="avail-hours"><strong>40h</strong></td>
-                <td class="avail-hours"><strong>50h</strong></td>
-                <td style="font-size:var(--fs-xs);color:var(--text-muted);text-align:left">Childcare on Wed · Open to swaps</td>
-              </tr>
-              <tr>
-                <td class="driver-col"><div style="display:flex;align-items:center;gap:var(--s-2-5)"><div class="avatar-sm tier-c">KW</div><div><div class="cell-name">Kerwin Whitfield</div><div class="cell-name-sub">KMO1 · 24 mo</div></div></div></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell available">✓</span></td>
-                <td class="avail-hours"><strong>50h</strong></td>
-                <td class="avail-hours"><strong>60h</strong></td>
-                <td style="font-size:var(--fs-xs);color:var(--text-muted);text-align:left">Wants extra hours · 6+ days</td>
-              </tr>
-              <tr>
-                <td class="driver-col"><div style="display:flex;align-items:center;gap:var(--s-2-5)"><div class="avatar-sm tier-c">JB</div><div><div class="cell-name">Jordan Beckett</div><div class="cell-name-sub">KMO3 · 6 mo</div></div></div></td>
-                <td><span class="avail-cell unavailable">—</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell unavailable">—</span></td>
-                <td class="avail-hours"><strong>40h</strong></td>
-                <td class="avail-hours"><strong>50h</strong></td>
-                <td style="font-size:var(--fs-xs);color:var(--text-muted);text-align:left">School Mondays · Tu–Sat preferred</td>
-              </tr>
-              <tr>
-                <td class="driver-col"><div style="display:flex;align-items:center;gap:var(--s-2-5)"><div class="avatar-sm tier-b">DP</div><div><div class="cell-name">Devon Patterson</div><div class="cell-name-sub">KMO3 · 11 mo</div></div></div></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell timeoff">PTO</span></td>
-                <td><span class="avail-cell timeoff">PTO</span></td>
-                <td><span class="avail-cell available">✓</span></td>
-                <td><span class="avail-cell unavailable">—</span></td>
-                <td class="avail-hours"><strong>40h</strong></td>
-                <td class="avail-hours"><strong>55h</strong></td>
-                <td style="font-size:var(--fs-xs);color:var(--text-muted);text-align:left">PTO May 15–17</td>
-              </tr>
-              <tr>
-                <td class="driver-col"><div style="display:flex;align-items:center;gap:var(--s-2-5)"><div class="avatar-sm tier-a">CF</div><div><div class="cell-name">Camille Foster</div><div class="cell-name-sub">KMO1 · 22 mo</div></div></div></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell preferred">✓</span></td>
-                <td><span class="avail-cell unavailable">—</span></td>
-                <td><span class="avail-cell unavailable">—</span></td>
-                <td class="avail-hours"><strong>40h</strong></td>
-                <td class="avail-hours"><strong>50h</strong></td>
-                <td style="font-size:var(--fs-xs);color:var(--text-muted);text-align:left">Strict M–F</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div style="margin-top:var(--s-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-5)">
-            <h3 style="font-size:var(--fs-md);font-weight:600;margin:0 0 var(--s-3) 0">Availability summary by day</h3>
-            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s-2)">
-              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Mon</div><div style="font-size:18px;font-weight:700;color:var(--text)">71</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Tue</div><div style="font-size:18px;font-weight:700;color:var(--text)">75</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Wed</div><div style="font-size:18px;font-weight:700;color:var(--amber)">68</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Thu</div><div style="font-size:18px;font-weight:700;color:var(--text)">73</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Fri</div><div style="font-size:18px;font-weight:700;color:var(--text)">76</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Sat</div><div style="font-size:18px;font-weight:700;color:var(--amber)">52</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Sun</div><div style="font-size:18px;font-weight:700;color:var(--red)">28</div><div class="u-xs-subtle">of 78 available</div></div>
-            </div>
-            <div style="margin-top:var(--s-4);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-muted)">
-              <strong style="color:var(--text)">Coverage forecast</strong> — Sunday is your tightest day. Demand 38 routes, only 28 drivers available. <a style="color:var(--accent-text);font-weight:500" onclick="goto('pipeline')" href="javascript:void(0)">Hire 10 more weekend-available drivers →</a>
-            </div>
-          </div>
-        </div>
-
-        <!-- FORECAST — 4-week look-ahead -->
-        <div class="sched-subview" id="sched-sub-forecast" style="display:none">
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--s-4)">
-            <div>
-              <h2 style="font-size:var(--fs-lg);font-weight:600;margin:0">4-week coverage forecast</h2>
-              <p class="page-sub" style="margin:4px 0 0 0">Predicts uncovered routes before they happen, based on schedules, time-off, and historical patterns.</p>
-            </div>
-            <button class="btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.36 7.36L12 16.71l-6.17 4.51 2.36-7.36L2 9.36h7.61z"/></svg>
-              Auto-fix all
-            </button>
-          </div>
-
-          <div class="forecast-grid">
-            <div class="forecast-week">
-              <div class="forecast-week-label">Week 1 · This week</div>
-              <div class="forecast-week-dates">May 1 – May 7</div>
-              <div class="forecast-coverage"><div class="forecast-num">87</div><div class="forecast-of">of 90 routes</div></div>
-              <div class="forecast-status warn"><span class="kpi-pip amber"></span>3 open shifts</div>
-              <div class="forecast-issues"><strong>Tuesday + Friday</strong> short — backup pool notified for KMO2-15A and KMO3-07C.</div>
-              <button class="forecast-action">Manage open shifts</button>
-            </div>
-
-            <div class="forecast-week">
-              <div class="forecast-week-label">Week 2 · Next week</div>
-              <div class="forecast-week-dates">May 8 – May 14</div>
-              <div class="forecast-coverage"><div class="forecast-num">85</div><div class="forecast-of">of 90 routes</div></div>
-              <div class="forecast-status warn"><span class="kpi-pip amber"></span>5 open shifts</div>
-              <div class="forecast-issues">Reyes off Mon–Wed (PTO). <strong>2 routes need backup</strong> Mon, 1 Tue, 2 Wed.</div>
-              <button class="forecast-action primary" onclick="openAiSchedule()">Smart Fill →</button>
-            </div>
-
-            <div class="forecast-week">
-              <div class="forecast-week-label">Week 3</div>
-              <div class="forecast-week-dates">May 15 – May 21</div>
-              <div class="forecast-coverage"><div class="forecast-num">82</div><div class="forecast-of">of 90 routes</div></div>
-              <div class="forecast-status bad"><span class="kpi-pip red"></span>8 open shifts</div>
-              <div class="forecast-issues">Devon Patterson approved PTO. <strong>3 callout-prone Mondays</strong> in pattern history. Backup pool currently 4 deep — likely insufficient.</div>
-              <button class="forecast-action primary">Plan hires →</button>
-            </div>
-
-            <div class="forecast-week">
-              <div class="forecast-week-label">Week 4</div>
-              <div class="forecast-week-dates">May 22 – May 28</div>
-              <div class="forecast-coverage"><div class="forecast-num">80</div><div class="forecast-of">of 90 routes</div></div>
-              <div class="forecast-status bad"><span class="kpi-pip red"></span>10 open shifts</div>
-              <div class="forecast-issues">Camille Foster PTO. Memorial Day weekend dip. <strong>Hire 3 drivers</strong> from cycle 14 to fill structural gap.</div>
-              <button class="forecast-action primary" onclick="goto('pipeline')">Open pipeline →</button>
-            </div>
-          </div>
-
-          <div style="margin-top:var(--s-6);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-5)">
-            <h3 style="font-size:var(--fs-md);font-weight:600;margin:0 0 var(--s-3) 0">Pattern insights</h3>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-4)">
-              <div>
-                <div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px">Callout pattern</div>
-                <div style="font-size:var(--fs-md);color:var(--text);line-height:1.5">3 drivers consistently call out Mondays. Build buffer for that day.</div>
-              </div>
-              <div>
-                <div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px">Demand seasonality</div>
-                <div style="font-size:var(--fs-md);color:var(--text);line-height:1.5">Friday demand averages 105% of Tuesday. Schedule 2 extra drivers Fri.</div>
-              </div>
-              <div>
-                <div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px">Open shift fill rate</div>
-                <div style="font-size:var(--fs-md);color:var(--text);line-height:1.5">Backup pool fills 78% of open shifts within 24h. Notify earlier next time.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- TEMPLATES — saved weekly patterns the operator can paste forward. -->
         <div class="sched-subview" id="sched-sub-templates" style="display:none">
           <div style="display:flex;justify-content:space-between;align-items:start;gap:var(--s-4);margin-bottom:var(--s-4);flex-wrap:wrap">
             <div>

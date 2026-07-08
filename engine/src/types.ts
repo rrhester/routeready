@@ -7,7 +7,7 @@ export const ENGINE_VERSION = "1.0.0";
 // Canonical enums
 // ---------------------------------------------------------------------------
 
-export type RouteType = "standard" | "step_van" | "xl";
+export type RouteType = "standard" | "step_van" | "xl" | "edv";
 export type EmploymentType = "full_time" | "part_time";
 export type DriverStatus =
   | "active"
@@ -88,6 +88,7 @@ export interface DriverInput {
   license_expiration_date?: string | null;
   dot_certified?: boolean;
   xl_certified?: boolean;
+  edv_certified?: boolean;
   saved_availability?: WeeklyAvailability | null;
   preferred_availability?: WeeklyAvailability | null;
   pto_records?: PtoRecord[];
@@ -299,6 +300,7 @@ export interface NormalizedDriver {
   license_expiration_date: string | null;
   dot_certified: boolean;
   xl_certified: boolean;
+  edv_certified: boolean;
   saved_availability: WeeklyAvailability | null;
   preferred_availability: WeeklyAvailability | null;
   pto_dates: Set<string>;

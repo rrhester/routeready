@@ -17558,6 +17558,14 @@ body.rr-cmdk-open{ overflow:hidden }
             outline:none;background:rgba(15,23,42,.04);color:var(--text);
             box-shadow:0 0 0 2px rgba(37,99,235,.30);
           }
+          /* Not-yet-wired intel views ship disabled — muted, no hover
+             affordance, cursor default. Remove the class + disabled attr
+             when a view's renderer registers in _RR_INTEL_RENDERERS. */
+          #view-schedule .sched-v2-intel-tile-soon,
+          #view-schedule .sched-v2-intel-tile-soon:hover{
+            background:transparent;color:var(--text-subtle);
+            opacity:.55;cursor:default;
+          }
           /* Active intel tile · subtle ring + brand color when its
              view is being shown. Same affordance as the schedule
              tab's "active" treatment, scaled to the smaller tile. */
