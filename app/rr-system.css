@@ -44,6 +44,19 @@
 }
 
 :root {
+  /* ── Primitive palette (batch 4: complete the scale so the semantic layer can reference it) ── */
+  --rr-blue-50: #eff6ff;
+  --rr-blue-400: #60a5fa;
+  --rr-blue-900: #1e3a8a;
+  --rr-slate-800: #1e293b;
+  --rr-gray-400: #9ca3af;
+  --rr-gray-700: #374151;
+  --rr-green-500: #22c55e;
+  --rr-green-800: #166534;
+  --rr-amber-500: #f59e0b;
+  --rr-red-500: #ef4444;
+  --rr-red-600: #dc2626;
+
   /* ── Primitive palette (design-system pay-down; role-neutral, values canonical) ── */
   --rr-white: #ffffff;
   --rr-blue-600: #2563eb;
@@ -111,27 +124,27 @@
   --rr-radius-pill:   9999px;
 
   /* ─── COLORS ─────────────────────────────────────────────── */
-  --rr-bg-canvas:     #F9FAFB;
-  --rr-bg-surface-1:  #FFFFFF;
-  --rr-bg-surface-2:  #F9FAFB;
-  --rr-bg-hover:      #F3F4F6;
-  --rr-bg-selected:   #EFF6FF;
+  --rr-bg-canvas:     var(--rr-gray-50);
+  --rr-bg-surface-1:  var(--rr-white);
+  --rr-bg-surface-2:  var(--rr-gray-50);
+  --rr-bg-hover:      var(--rr-gray-100);
+  --rr-bg-selected:   var(--rr-blue-50);
 
-  --rr-fg-primary:    #111827;
-  --rr-fg-secondary:  #6B7280;
-  --rr-fg-disabled:   #9CA3AF;
+  --rr-fg-primary:    var(--rr-gray-900);
+  --rr-fg-secondary:  var(--rr-gray-500);
+  --rr-fg-disabled:   var(--rr-gray-400);
 
-  --rr-border-primary:   #E5E7EB;
-  --rr-border-secondary: #F3F4F6;
-  --rr-border-input:     #9CA3AF;
+  --rr-border-primary:   var(--rr-gray-200);
+  --rr-border-secondary: var(--rr-gray-100);
+  --rr-border-input:     var(--rr-gray-400);
 
-  --rr-brand-primary: #2563EB;
-  --rr-brand-hover:   #1D4ED8;
-  --rr-brand-pressed: #1E40AF;
+  --rr-brand-primary: var(--rr-blue-600);
+  --rr-brand-hover:   var(--rr-blue-700);
+  --rr-brand-pressed: var(--rr-blue-800);
 
-  --rr-success: #16A34A;
-  --rr-warning: #F59E0B;
-  --rr-danger:  #DC2626;
+  --rr-success: var(--rr-green-600);
+  --rr-warning: var(--rr-amber-500);
+  --rr-danger:  var(--rr-red-600);
 
   /* Soft semantic fills for chips / inline status */
   --rr-success-soft: rgba(22,163,74,.10);
@@ -163,7 +176,7 @@
        Anatomy   [status dot|icon] + [value (bold) / sub (muted)].
        Voice     worded headline + numeric sub, tabular figures,
                  colour reserved for status only (no tint noise). */
-  --kpi-bg:             var(--rr-bg-surface-1);        /* #FFFFFF  surface-1            */
+  --kpi-bg:             var(--rr-bg-surface-1);        /* var(--rr-white)  surface-1            */
   --kpi-border:         rgba(15, 23, 42, .22);         /* outer strip border (strong)   */
   --kpi-divider:        rgba(15, 23, 42, .18);         /* inter-cell hairline           */
   --kpi-radius:         var(--rr-radius-medium);       /* 4px                           */
@@ -173,17 +186,17 @@
   --kpi-pad-x:          var(--rr-space-240);           /* 24px                          */
   --kpi-gap:            var(--rr-space-100);           /* 10px  dot ↔ text              */
   --kpi-margin-bottom:  var(--rr-space-80);            /* 8px                           */
-  --kpi-text-primary:   var(--rr-fg-primary);          /* #111827  value               */
-  --kpi-text-secondary: var(--rr-fg-secondary);        /* #6B7280  sub / label          */
+  --kpi-text-primary:   var(--rr-fg-primary);          /* var(--rr-gray-900)  value               */
+  --kpi-text-secondary: var(--rr-fg-secondary);        /* var(--rr-gray-500)  sub / label          */
   --kpi-value-font:     600 14px/1.15 var(--rr-font-family);
   --kpi-label-font:     500 12px/16px var(--rr-font-family);
   --kpi-dot-size:       7px;                           /* status dot                    */
   --kpi-icon-size:      16px;                          /* status icon (replaces dot)    */
-  --kpi-dot-neutral:    #1E293B;                       /* at-rest navy status dot       */
-  --kpi-success:        var(--rr-success);             /* #16A34A                       */
-  --kpi-warning:        var(--rr-warning);             /* #F59E0B                       */
-  --kpi-danger:         var(--rr-danger);              /* #DC2626                       */
-  --kpi-brand:          var(--rr-brand-primary);       /* #2563EB                       */
+  --kpi-dot-neutral:    var(--rr-slate-800);                       /* at-rest navy status dot       */
+  --kpi-success:        var(--rr-success);             /* var(--rr-green-600)                       */
+  --kpi-warning:        var(--rr-warning);             /* var(--rr-amber-500)                       */
+  --kpi-danger:         var(--rr-danger);              /* var(--rr-red-600)                       */
+  --kpi-brand:          var(--rr-brand-primary);       /* var(--rr-blue-600)                       */
 }
 
 /* ============================================================

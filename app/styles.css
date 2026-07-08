@@ -13,13 +13,13 @@
      keyboard offset, transition curves) live alongside them. */
 
   /* ── Surfaces (Fluent 2 neutrals — flat workspace) ─────────── */
-  --bg: #F9FAFB;                       /* corporate page ground */
+  --bg: var(--rr-gray-50);                       /* corporate page ground */
   --bg-grad: none;
-  --surface: #FFFFFF;
+  --surface: var(--rr-white);
   --surface-grad: none;                /* Fluent doesn't use surface gradients */
   --surface-hover: rgba(15,23,42,.03);
   --surface-pressed: rgba(15,23,42,.06);
-  --canvas: #F9FAFB;                   /* corporate page ground */
+  --canvas: var(--rr-gray-50);                   /* corporate page ground */
   --border: rgba(15,23,42,.14);        /* Fluent neutralStroke-2 — crisper hairline, matched toward the dashboard's finer-line standard */
   --border-strong: rgba(15,23,42,.20); /* Fluent neutralStroke-1 */
   --border-subtle: rgba(15,23,42,.07);
@@ -35,37 +35,37 @@
     0 1px 2px rgba(0,0,0,.05);
   --shadow-card-strong:
     0 2px 6px rgba(15,23,42,.10);
-  --text: #111827;                     /* Fluent neutralForeground-1 */
-  --text-muted: #374151;               /* Fluent neutralForeground-2 — darkened one step for sharper contrast */
-  --text-subtle: #6B7280;              /* Fluent neutralForeground-3 — darkened one step for sharper contrast */
-  --text-disabled: #D1D5DB;            /* Fluent neutralForegroundDisabled */
+  --text: var(--rr-gray-900);                     /* Fluent neutralForeground-1 */
+  --text-muted: var(--rr-gray-700);               /* Fluent neutralForeground-2 — darkened one step for sharper contrast */
+  --text-subtle: var(--rr-gray-500);              /* Fluent neutralForeground-3 — darkened one step for sharper contrast */
+  --text-disabled: var(--rr-gray-300);            /* Fluent neutralForegroundDisabled */
 
   /* ── Accent — Microsoft Fluent communicationBlue (M365 brand
      chrome — Outlook / Teams / Office). One brand-blue family
      for the whole driver surface: hero, primary CTAs, active tab,
      inline links, focus rings.  Ramp = communicationBlueShade30
      for pressed, Tint10/20 for hover/glow. */
-  --accent: #2563EB;
-  --accent-hover: #1D4ED8;
-  --accent-strong: #1E40AF;
-  --accent-pressed: #1E3A8A;
-  --accent-text: #1E40AF;              /* readable on white */
+  --accent: var(--rr-blue-600);
+  --accent-hover: var(--rr-blue-700);
+  --accent-strong: var(--rr-blue-800);
+  --accent-pressed: var(--rr-blue-900);
+  --accent-text: var(--rr-blue-800);              /* readable on white */
   --accent-soft: rgba(37,99,235,.08);
   --accent-soft-strong: rgba(37,99,235,.14);
   --accent-border: rgba(37,99,235,.24);
   /* Flat CTA fills — corporate pass: no gradient stops on actions. */
-  --accent-grad: linear-gradient(180deg, #2563EB 0%, #2563EB 100%);
-  --accent-grad-hover: linear-gradient(180deg, #1D4ED8 0%, #1D4ED8 100%);
-  --accent-grad-pressed: linear-gradient(180deg, #1E40AF 0%, #1E40AF 100%);
+  --accent-grad: linear-gradient(180deg, var(--rr-blue-600) 0%, var(--rr-blue-600) 100%);
+  --accent-grad-hover: linear-gradient(180deg, var(--rr-blue-700) 0%, var(--rr-blue-700) 100%);
+  --accent-grad-pressed: linear-gradient(180deg, var(--rr-blue-800) 0%, var(--rr-blue-800) 100%);
   --accent-glow: 0 0 0 2px rgba(37,99,235,.32);
 
   /* ── Semantic — corporate governance palette (matches dashboard):
      green = confirmed success · amber = warning / attention ·
      red = genuine operational issue · blue = informational. */
-  --green: #16A34A; --green-bright: #22C55E; --green-dark: #166534; --green-soft: rgba(22,163,74,.10);
-  --amber: #D97706; --amber-bright: #F59E0B; --amber-dark: #B45309; --amber-soft: rgba(245,158,11,.12);
-  --red:   #DC2626; --red-bright:   #EF4444; --red-dark:   #B91C1C; --red-soft:   rgba(220,38,38,.10);
-  --info:  #2563EB; --info-bright:  #60A5FA; --info-dark:  #1D4ED8; --info-soft:  rgba(37,99,235,.10);
+  --green: var(--rr-green-600); --green-bright: var(--rr-green-500); --green-dark: var(--rr-green-800); --green-soft: rgba(22,163,74,.10);
+  --amber: var(--rr-amber-600); --amber-bright: var(--rr-amber-500); --amber-dark: var(--rr-amber-700); --amber-soft: rgba(245,158,11,.12);
+  --red:   var(--rr-red-600); --red-bright:   var(--rr-red-500); --red-dark:   var(--rr-red-700); --red-soft:   rgba(220,38,38,.10);
+  --info:  var(--rr-blue-600); --info-bright:  var(--rr-blue-400); --info-dark:  var(--rr-blue-700); --info-soft:  rgba(37,99,235,.10);
 
   /* ── System surfaces (modal overlay + focus ring tokens) ──── */
   --overlay: rgba(15,23,42,.55);
