@@ -53249,13 +53249,12 @@ async function autoFillScheduleWeek() {
     }
   }
   await renderScheduleWeek();
-  // Show the solve recap once the filled grid is painted behind it. Fire-
-  // and-forget + fully guarded so it can never disrupt the render or the
-  // post-fill passes below. (summary is null for what-if sims / when the
-  // recap couldn't be built.)
-  if (summary) {
-    setTimeout(() => { try { _rrShowSmartFillSummary(summary); } catch (_) {} }, 450);
-  }
+  // Solve-recap card intentionally NOT shown after a run — the operator
+  // asked for no post-fill pop-up (2026-07-08). `summary` is still built
+  // above and the card/report renderers (_rrShowSmartFillSummary /
+  // _rrShowDecisionReportModal) stay defined for a future opt-in surface,
+  // but nothing auto-pops here.
+  void summary;
   // Post-Smart-Fill call-off coverage · when "Auto-add call-off backups"
   // is on, proactively schedule standby drivers on the days the call-off
   // risk tool flags. The renderScheduleWeek() just awaited recomputes
