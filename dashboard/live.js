@@ -51977,11 +51977,12 @@ window.openAiSchedule = async function () {
   sfTiles.forEach((t) => t.classList.add("rr-sf-optimizing"));
   // Stage the upcoming Smart Fill render's card reveal.
   _rrSmartFillStaging = true;
-  let _sfRes = null;
   try {
     // No toast — the spinning bolt icon is enough feedback per
-    // the operator's request.
-    _sfRes = await autoFillScheduleWeek();
+    // the operator's request. The post-run solve-summary card is shown
+    // from inside autoFillScheduleWeek (where the summary is in scope),
+    // right after it re-renders the filled grid.
+    await autoFillScheduleWeek();
   } finally {
     _rrSmartFillStaging = false;
     window._rrSfRunning = false;
@@ -51991,13 +51992,6 @@ window.openAiSchedule = async function () {
       btn.innerHTML = orig;
     }
     sfTiles.forEach((t) => t.classList.remove("rr-sf-optimizing"));
-  }
-  // Show the solve recap once the grid has begun re-rendering behind it, so
-  // the operator sees the filled week under the card. Only when a real solve
-  // actually produced a result (the error / "solver unavailable" paths return
-  // no summary and already toasted).
-  if (_sfRes && _sfRes.summary) {
-    setTimeout(() => _rrShowSmartFillSummary(_sfRes.summary), 450);
   }
 };
 
@@ -53122,11 +53116,16 @@ async function autoFillScheduleWeek() {
     return;
   }
   let summaryAlert = null;
+  // Function-scoped so the post-render card display below (outside this
+  // if/else) can read it. Declaring `summary` as a const inside the else
+  // left it out of scope at the `if (summary)` check → ReferenceError.
+  let summary = null;
   if (failed.length > 0) {
     toast(`Synced ${calls.length - failed.length} of ${calls.length} day-stations · ${failed.length} failed`, "warn");
   } else {
     // Auto-assign drivers to the freshly-generated open shifts.
-    const { assigned, diagnostics } = await autoAssignDriversForWeek();
+    const { assigned, diagnostics, summary: _sfSummary } = await autoAssignDriversForWeek();
+    summary = _sfSummary;
     if (assigned > 0) {
       toast(`Schedule synced · ${assigned} shift${assigned === 1 ? "" : "s"} auto-assigned`, "success");
     } else {
@@ -53201,6 +53200,13 @@ async function autoFillScheduleWeek() {
     }
   }
   await renderScheduleWeek();
+  // Show the solve recap once the filled grid is painted behind it. Fire-
+  // and-forget + fully guarded so it can never disrupt the render or the
+  // post-fill passes below. (summary is null for what-if sims / when the
+  // recap couldn't be built.)
+  if (summary) {
+    setTimeout(() => { try { _rrShowSmartFillSummary(summary); } catch (_) {} }, 450);
+  }
   // Post-Smart-Fill call-off coverage · when "Auto-add call-off backups"
   // is on, proactively schedule standby drivers on the days the call-off
   // risk tool flags. The renderScheduleWeek() just awaited recomputes
@@ -55003,34 +55009,42 @@ async function autoAssignDriversForWeek() {
   } catch (e) { console.warn("optimization audit · record:", e); }
 
   // Post-run "solve summary" — turns the invisible CP-SAT solve into a
-  // visible recap so Smart Fill reads as the optimization engine it is,
-  // not a plain auto-fill. Built ONLY from what the solver actually
-  // returned (metrics.solver_status / solver_wall_ms) plus the rules that
-  // were enforced this run. Skipped for what-if sims (nothing was written).
-  const summary = _rrWhatIfOptions ? null : (() => {
-    const honored = [
-      "Driver licenses & certifications",
-      "Approved PTO",
-      "Saved availability",
-      "One shift per day",
-      `Max ${_maxDaysOut} days per week`,
-    ];
-    if (sfPayload.rules.consecutive_working_days) honored.push("Consecutive-day limits");
-    if (sfPayload.rules.min_rest) honored.push(`Min ${sfPayload.rules.min_rest_hours}h rest between shifts`);
-    if (sfPayload.rules.weekly_hour_cap_enforcement) honored.push(`Weekly hour cap (${_weeklyHourOut}h)`);
-    return {
-      ok: result.status === "ok",
-      solverStatus: (result.metrics && result.metrics.solver_status) || null,
-      wallMs: (result.metrics && result.metrics.solver_wall_ms != null)
-        ? result.metrics.solver_wall_ms : null,
-      assigned,
-      uncovered: (result.uncovered_shifts || []).length,
-      totalOpen: (engineShifts || []).filter(s => !s.is_locked).length,
-      driverCount: (sfPayload.drivers || []).length,
-      solverVersion: result.solver_version || null,
-      honored,
-    };
-  })();
+  // visible recap so Smart Fill reads as the optimization engine it is.
+  // Reads the payload from window._rrLastSmartFillPayload (the local
+  // sfPayload / _maxDaysOut are block-scoped and out of reach here), and is
+  // wrapped so a failure can NEVER throw out of this function — a broken
+  // recap must not stop the post-Smart-Fill grid re-render.
+  let summary = null;
+  try {
+    if (!_rrWhatIfOptions) {
+      const _pl      = window._rrLastSmartFillPayload || {};
+      const _plRules = _pl.rules || {};
+      const _maxD    = _pl.max_days;
+      const _weeklyH = _pl.weekly_hour_cap;
+      const honored = [
+        "Driver licenses & certifications",
+        "Approved PTO",
+        "Saved availability",
+        "One shift per day",
+      ];
+      if (_maxD != null) honored.push(`Max ${_maxD} days per week`);
+      if (_plRules.consecutive_working_days) honored.push("Consecutive-day limits");
+      if (_plRules.min_rest) honored.push(`Min ${_plRules.min_rest_hours || 10}h rest between shifts`);
+      if (_plRules.weekly_hour_cap_enforcement && _weeklyH != null) honored.push(`Weekly hour cap (${_weeklyH}h)`);
+      summary = {
+        ok: !!(result && result.status === "ok"),
+        solverStatus: (result && result.metrics && result.metrics.solver_status) || null,
+        wallMs: (result && result.metrics && result.metrics.solver_wall_ms != null)
+          ? result.metrics.solver_wall_ms : null,
+        assigned,
+        uncovered: ((result && result.uncovered_shifts) || []).length,
+        totalOpen: (engineShifts || []).filter(s => !s.is_locked).length,
+        driverCount: (_pl.drivers || []).length,
+        solverVersion: (result && result.solver_version) || null,
+        honored,
+      };
+    }
+  } catch (e) { console.warn("smart fill summary build:", e); summary = null; }
 
   return { assigned, diagnostics, summary };
 }
