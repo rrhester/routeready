@@ -39276,6 +39276,15 @@ function openMessageEditor(template) {
   // upload + remove files before saving.
   let attachments = Array.isArray(t.attachments) ? [...t.attachments] : [];
 
+  // message-attachments is a private bucket (0447). Attachments store a
+  // storage `path`; legacy rows only have a public `url` we can derive the
+  // path from. Returns the storage path (or null).
+  const _msgAttPath = (a) => {
+    if (a?.path) return a.path;
+    const m2 = String(a?.url || "").match(/\/object\/(?:public|sign)\/message-attachments\/([^?]+)/);
+    return m2 ? decodeURIComponent(m2[1]) : null;
+  };
+
   let m = document.getElementById("rr-msg-modal");
   if (m) m.remove();
   m = document.createElement("div");
@@ -39293,7 +39302,7 @@ function openMessageEditor(template) {
           <div class="u-xs-subtle">${a.content_type || ""} · ${a.size ? Math.round(a.size/1024)+" KB" : ""}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <a class="btn btn-sm" href="${a.url}" target="_blank" rel="noreferrer">Open</a>
+          <button class="btn btn-sm" data-rr-att-open="${i}">Open</button>
           <button class="btn btn-sm" data-rr-att-remove="${i}" style="color:var(--red)">Remove</button>
         </div>
       </div>`).join("");
@@ -39359,6 +39368,19 @@ function openMessageEditor(template) {
       return;
     }
 
+    const openBtn = e.target.closest("[data-rr-att-open]");
+    if (openBtn) {
+      const a = attachments[parseInt(openBtn.getAttribute("data-rr-att-open"), 10)];
+      const p = a && _msgAttPath(a);
+      if (!p) { toast("Can't open this attachment", "warn"); return; }
+      try {
+        const { data: sg } = await sb.storage.from("message-attachments").createSignedUrl(p, 300);
+        if (sg?.signedUrl) window.open(sg.signedUrl, "_blank", "noopener");
+        else toast("Couldn't open attachment", "warn");
+      } catch (_) { toast("Couldn't open attachment", "warn"); }
+      return;
+    }
+
     if (e.target.closest("[data-rr-att-upload]")) {
       const input = m.querySelector("[data-rr-att-file]");
       const file = input?.files?.[0];
@@ -39368,9 +39390,10 @@ function openMessageEditor(template) {
         contentType: file.type, upsert: false,
       });
       if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
-      const { data: pub } = sb.storage.from("message-attachments").getPublicUrl(path);
+      // Private bucket (0447) — store the path; "Open" signs on click and the
+      // senders sign a fresh URL at send time.
       attachments.push({
-        name: file.name, url: pub.publicUrl,
+        name: file.name, path,
         content_type: file.type, size: file.size,
       });
       input.value = "";
@@ -39384,8 +39407,17 @@ function openMessageEditor(template) {
       if (!body.trim()) { toast("Body is required", "warn"); return; }
       const subject = isEmail ? m.querySelector("[data-rr-msg-subject]").value : t.subject;
       const active = m.querySelector("[data-rr-msg-active]").checked;
+      // Persist attachments in the canonical { name, path, … } form so the
+      // senders can sign them (0447). Migrate legacy rows to `path` where we
+      // can derive it; keep the old `url` only when we can't.
+      const attachmentsOut = attachments.map((a) => {
+        const p = _msgAttPath(a);
+        return p
+          ? { name: a.name, path: p, content_type: a.content_type, size: a.size }
+          : { name: a.name, url: a.url, content_type: a.content_type, size: a.size };
+      });
       const { error } = await sb.from("message_templates")
-        .update({ body, subject, active, attachments })
+        .update({ body, subject, active, attachments: attachmentsOut })
         .eq("id", t.id);
       if (error) { toast("Save failed: " + error.message, "warn"); return; }
       m.remove();
