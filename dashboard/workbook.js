@@ -7818,12 +7818,24 @@ function cellReceiptRef(cell) {
 // A form-photo cell (format.photo = { path, name, bucket }) points at a
 // driver-uploaded picture in a private storage bucket — the report builder
 // emits these for photo/image answers. Like receipts we never store the bytes;
-// unlike receipts the picture shows inline, so we batch-sign the paths on open
-// (ensurePhotoUrls) and cache the URLs. Path + bucket are validated so a
+// unlike receipts the picture shows inline. Path + bucket are validated so a
 // tampered format degrades to a filename chip rather than rendering anything.
+//
+// Performance (a report can carry hundreds of photos): the grid is virtualized,
+// so only the ~dozens of photo cells actually on screen ever render an <img>.
+// We lean into that — photos are signed LAZILY as their cells paint (never all
+// up front), and each thumbnail is served DOWNSCALED via Supabase image
+// transforms (~640px, ~20KB) instead of the full ~1600px upload (~300KB), a
+// ~15× bytes cut. Click-to-enlarge signs a full-resolution URL on demand.
+// If the storage tier doesn't support transforms, the first thumbnail 404s and
+// we fall back to full-size URLs for the rest (WB_PHOTO_TX flips off).
 const WB_PHOTO_RE = /^[A-Za-z0-9][A-Za-z0-9._/\-]{0,300}$/;
 const WB_PHOTO_BUCKETS = new Set(["driver-documents", "driver-photos"]);
-const WB_PHOTO_URLS = new Map(); // "bucket|path" -> signedUrl ("" while pending/failed)
+const WB_PHOTO_URLS = new Map();    // "bucket|path" -> thumbnail signedUrl ("" while pending)
+const WB_PHOTO_PENDING = new Map(); // "bucket|path" -> ref, queued for the next sign flush
+const WB_PHOTO_THUMB = { width: 640, height: 640, resize: "contain", quality: 72 };
+let WB_PHOTO_TX = true;             // false once we learn the tier can't transform
+let _wbPhotoFlushT = null;
 
 // Report photo cells scale with their row/column (object-fit: contain), so
 // resizing is really "set the height + width of every photo row/column at
@@ -7845,46 +7857,90 @@ function cellPhotoRef(cell) {
   return { path, bucket, name: (p.name && typeof p.name === "string") ? p.name : "Photo" };
 }
 
-// Batch-sign every photo cell across the open workbook's sheets, cache the
-// URLs (8h, matching driver photos elsewhere), then repaint so the pictures
-// appear. Idempotent — already-signed paths are skipped — so it's cheap to
-// call again after a live refresh or a fresh report create.
-async function ensurePhotoUrls() {
+// Queue a photo cell for signing on the next flush. Only cells that actually
+// paint (i.e. are on screen) ever call this, so signing tracks the viewport
+// instead of the whole — possibly enormous — sheet.
+function queuePhotoSign(ref) {
+  const key = photoUrlKey(ref);
+  if (WB_PHOTO_URLS.has(key) || WB_PHOTO_PENDING.has(key)) return;
+  WB_PHOTO_PENDING.set(key, ref);
+  if (!_wbPhotoFlushT) _wbPhotoFlushT = setTimeout(flushPhotoSigns, 50);
+}
+
+// Run at most `limit` promise-returning tasks at once.
+async function _mapLimit(items, limit, fn) {
+  const it = items[Symbol.iterator]();
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (let n = it.next(); !n.done; n = it.next()) await fn(n.value);
+  });
+  await Promise.all(workers);
+}
+
+// Sign the queued (visible) photos: a downscaled thumbnail URL each, capped in
+// concurrency so a screenful of photos can't fire a hundred requests at once.
+// Then repaint so the pictures swap in. Signing failures leave the cell as its
+// filename chip rather than a broken image.
+async function flushPhotoSigns() {
+  _wbPhotoFlushT = null;
+  const refs = [...WB_PHOTO_PENDING.values()];
+  WB_PHOTO_PENDING.clear();
   const sb = _sb();
-  if (!sb || !WB.sheetsByBlock) return;
-  const byBucket = new Map(); // bucket -> Set(paths) still needing a URL
-  for (const arr of WB.sheetsByBlock.values()) {
-    for (const sh of arr) {
-      for (const cell of sh.cells.values()) {
-        const ref = cellPhotoRef(cell);
-        if (!ref || WB_PHOTO_URLS.has(photoUrlKey(ref))) continue;
-        if (!byBucket.has(ref.bucket)) byBucket.set(ref.bucket, new Set());
-        byBucket.get(ref.bucket).add(ref.path);
-      }
-    }
-  }
-  if (!byBucket.size) return;
-  for (const [bucket, set] of byBucket) {
-    const paths = [...set];
-    for (const p of paths) WB_PHOTO_URLS.set(bucket + "|" + p, ""); // mark pending
+  if (!sb || !refs.length) return;
+  for (const ref of refs) WB_PHOTO_URLS.set(photoUrlKey(ref), ""); // mark pending
+  await _mapLimit(refs, 8, async (ref) => {
+    const opts = WB_PHOTO_TX ? { transform: WB_PHOTO_THUMB } : undefined;
     try {
-      const res = await sb.storage.from(bucket).createSignedUrls(paths, 60 * 60 * 8);
-      for (const row of (res && res.data) || []) {
-        if (row && row.path && row.signedUrl) WB_PHOTO_URLS.set(bucket + "|" + row.path, row.signedUrl);
-      }
-    } catch (e) { console.warn("sign photo cells:", e && e.message); }
-  }
+      const res = await sb.storage.from(ref.bucket).createSignedUrl(ref.path, 60 * 60 * 8, opts);
+      const url = res && res.data && res.data.signedUrl;
+      if (url) WB_PHOTO_URLS.set(photoUrlKey(ref), url);
+    } catch (e) { /* leave chip; a later interaction can retry */ }
+  });
   for (const g of GRIDS.values()) repaintGrid(g);
 }
 
-// Inline photo markup for a cell: the signed image once we have it, otherwise
-// a filename chip that still opens the picture on click. The signed URL is
-// data from Supabase storage, so esc() it before it reaches the src.
+// Kick a repaint so freshly-arrived photo cells (workbook open, live refresh)
+// queue + sign through the normal paint path. Kept as the public entry point
+// the open/refresh flows call.
+function ensurePhotoUrls() { for (const g of GRIDS.values()) repaintGrid(g); }
+
+// Full-resolution signed URL for the lightbox (no downscale), minted on click.
+async function signPhotoFull(ref) {
+  const sb = _sb();
+  if (!sb) return null;
+  try {
+    const res = await sb.storage.from(ref.bucket).createSignedUrl(ref.path, 60 * 60 * 8);
+    return (res && res.data && res.data.signedUrl) || null;
+  } catch (_) { return null; }
+}
+
+// If a thumbnail 404s because the storage tier can't transform images, drop
+// transforms for the rest of the session and re-sign this path full-size so the
+// picture still appears. Wired via a delegated error listener (CSP-safe — no
+// inline onerror). Idempotent per <img> through the data-wb-fellback guard.
+function _wbPhotoFallback(img) {
+  if (!img || img.dataset.wbFellback) return;
+  img.dataset.wbFellback = "1";
+  WB_PHOTO_TX = false;
+  const rc = keyRC(img.getAttribute("data-wb-photo") || "");
+  const g = GRIDS.get((img.closest("[data-wb-gridfocus]") || {}).getAttribute?.("data-wb-gridfocus"));
+  const ref = g && cellPhotoRef(g.sheet.cells.get(cellKey(rc.r, rc.c)));
+  if (!ref) return;
+  WB_PHOTO_URLS.delete(photoUrlKey(ref));
+  signPhotoFull(ref).then((url) => { if (url) { WB_PHOTO_URLS.set(photoUrlKey(ref), url); img.src = url; } });
+}
+
+// Inline photo markup for a cell. Once the thumbnail URL is signed we render a
+// lazy, async-decoded <img>; until then a filename chip that still opens the
+// picture on click. Painting a not-yet-signed cell queues it for signing, so
+// only on-screen photos are ever fetched. The signed URL comes from Supabase
+// storage, so esc() it before it reaches the src.
 function photoCellHtml(ref, r, c) {
   const url = WB_PHOTO_URLS.get(photoUrlKey(ref));
-  return url
-    ? `<img class="wb-cell-img wb-cell-photo" src="${esc(url)}" data-wb-photo="${r},${c}" alt="${esc(ref.name)}" title="${esc(ref.name)} — click to enlarge" draggable="false">`
-    : `<span class="wb-cell-photolink" data-wb-photo="${r},${c}" title="${esc(ref.name)}">${esc(ref.name)}</span>`;
+  if (url) {
+    return `<img class="wb-cell-img wb-cell-photo" src="${esc(url)}" data-wb-photo="${r},${c}" alt="${esc(ref.name)}" title="${esc(ref.name)} — click to enlarge" loading="lazy" decoding="async" draggable="false">`;
+  }
+  queuePhotoSign(ref);
+  return `<span class="wb-cell-photolink" data-wb-photo="${r},${c}" title="${esc(ref.name)}">${esc(ref.name)}</span>`;
 }
 
 // A report matrix cell may arrive as a rich photo descriptor ({ rrPhoto, rrText
@@ -17897,6 +17953,13 @@ function installRootListeners() {
   if (WB.listenersInstalled) return;
   WB.listenersInstalled = true;
 
+  // Thumbnail transform not supported by the storage tier → the <img> 404s;
+  // fall back to a full-size URL (capture phase: image errors don't bubble).
+  document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (img instanceof HTMLImageElement && img.classList.contains("wb-cell-photo")) _wbPhotoFallback(img);
+  }, true);
+
   document.addEventListener("click", (e) => {
     const root = wbRoot();
     if (!root) return;
@@ -17986,9 +18049,9 @@ function installRootListeners() {
       return;
     }
 
-    // Form-photo cell → enlarge the signed picture (or a message if it hasn't
-    // signed yet / access lapsed). The URL comes off the validated cache, not
-    // the DOM, so only a signed storage URL ever reaches the lightbox.
+    // Form-photo cell → enlarge. Show the cached thumbnail instantly if we
+    // have it, then swap in a freshly-signed full-resolution image so the
+    // lightbox is crisp. The ref comes off the validated cell, not the DOM.
     const photoEl = e.target.closest("[data-wb-photo]");
     if (photoEl) {
       const gridEl = photoEl.closest("[data-wb-gridfocus]");
@@ -17997,9 +18060,16 @@ function installRootListeners() {
         const rc = keyRC(photoEl.getAttribute("data-wb-photo"));
         setActive(g, rc.r, rc.c, { scroll: false });
         const ref = cellPhotoRef(g.sheet.cells.get(cellKey(rc.r, rc.c)));
-        const url = ref && WB_PHOTO_URLS.get(photoUrlKey(ref));
-        if (url) openImageLightbox(url);
-        else { ensurePhotoUrls(); _toast("Loading picture…", "info"); }
+        if (ref) {
+          const thumb = WB_PHOTO_URLS.get(photoUrlKey(ref));
+          if (thumb) openImageLightbox(thumb); else _toast("Loading picture…", "info");
+          signPhotoFull(ref).then((full) => {
+            if (!full) return;
+            // don't re-open a lightbox the user already dismissed
+            if (thumb && !document.querySelector(".wb-imgbox")) return;
+            openImageLightbox(full);
+          });
+        }
       }
       return;
     }
