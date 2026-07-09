@@ -5053,6 +5053,7 @@ async function openWorkbook(id) {
     await ensureReceiptLedgerExtras();
     renderDetailPage();
     openRealtime();
+    ensurePhotoUrls(); // sign + paint any form-photo cells (fire-and-forget)
     refreshLiveReports();
     fetchUsers().then(() => { renderPresence(); refreshPanel(); });
   } catch (e) {
@@ -5102,7 +5103,7 @@ async function createWorkbook({ title, description, visibility, templateKey, spe
         const shIns = await s.from("workbook_sheets").insert({
           dsp_id: dsp.id, workbook_id: wb.id, block_id: block.id,
           name: ss.name || `Sheet ${sPos + 1}`, position: sPos++,
-          row_count: rows, col_count: cols, col_widths: ss.colWidths || {},
+          row_count: rows, col_count: cols, col_widths: ss.colWidths || {}, row_heights: ss.rowHeights || {},
         }).select().single();
         if (shIns.error) throw shIns.error;
         const sheet = shIns.data;
@@ -5115,6 +5116,18 @@ async function createWorkbook({ title, description, visibility, templateKey, spe
         (ss.rows || []).forEach((r, ri) => {
           r.forEach((v, ci) => {
             if (v === "" || v == null) return;
+            // A rich photo descriptor becomes an inline-image cell (path only,
+            // no bytes) rather than a scalar.
+            const photo = reportPhotoCell(v);
+            if (photo) {
+              cellRows.push({
+                dsp_id: dsp.id, workbook_id: wb.id, sheet_id: sheet.id,
+                row_index: ri + 1, col_index: ci,
+                value: photo.value, formula: null, value_type: "text",
+                format: photo.format, updated_by: self ? self.id : null,
+              });
+              return;
+            }
             const isFormula = typeof v === "string" && v.startsWith("=");
             cellRows.push({
               dsp_id: dsp.id, workbook_id: wb.id, sheet_id: sheet.id,
@@ -5220,6 +5233,18 @@ function setWorkbookDocTitle(name) {
 }
 
 export async function createReportWorkbook({ title, description, headers, rows, sheetName, report }) {
+  // Rows carrying a form photo get extra height so the thumbnail is legible,
+  // and their columns widen a touch — same affordance as pasted cell images.
+  const rowHeights = {}, colWidths = {};
+  (rows || []).forEach((r, ri) => {
+    r.forEach((v, ci) => {
+      if (v && typeof v === "object" && v.rrPhoto) {
+        rowHeights[ri + 1] = 84;
+        colWidths[ci] = Math.max(colWidths[ci] || 0, 120);
+      }
+    });
+  });
+  const hasPhotos = Object.keys(rowHeights).length > 0;
   const wb = await createWorkbook({
     title,
     description,
@@ -5231,7 +5256,11 @@ export async function createReportWorkbook({ title, description, headers, rows, 
         type: "sheet",
         title: "",
         settings: report ? { report } : {},
-        sheets: [{ name: String(sheetName || title || "Report").slice(0, 60), cols: headers, rows }],
+        sheets: [{
+          name: String(sheetName || title || "Report").slice(0, 60), cols: headers, rows,
+          colWidths: hasPhotos ? colWidths : undefined,
+          rowHeights: hasPhotos ? rowHeights : undefined,
+        }],
       }],
     },
   });
@@ -5441,14 +5470,30 @@ function applyReportRefresh(g, sheet, { headers, rows }) {
   const touched = [];
   const want = (r, c) => (r === 0 ? headers[c] : (rows[r - 1] || [])[c]);
   const wantRows = rows.length + 1;
+  let refreshedPhotos = false;
   for (let r = 0; r < wantRows; r++) {
     for (let c = 0; c < nCols; c++) {
-      const v = String(want(r, c) ?? "");
+      const raw = want(r, c);
       const key = cellKey(r, c);
       const cur = sheet.cells.get(key);
-      if (cur && !cur.formula && String(cur.value ?? "") === v) continue;
-      const format = cur && cur.format && Object.keys(cur.format).length ? cur.format : (r === 0 ? { bold: true, bg: "header" } : {});
-      sheet.cells.set(key, { value: v, formula: null, type: detectType(v).type, format, computed: null, err: null });
+      // A rich photo descriptor refreshes into an inline-image cell; skip only
+      // when both the caption and the stored path already match.
+      const photo = r > 0 ? reportPhotoCell(raw) : null;
+      if (photo) {
+        const curPath = cur && cur.format && cur.format.photo && cur.format.photo.path;
+        if (cur && !cur.formula && String(cur.value ?? "") === photo.value && curPath === photo.format.photo.path) continue;
+        const format = { ...(cur && cur.format ? cur.format : {}), photo: photo.format.photo };
+        sheet.cells.set(key, { value: photo.value, formula: null, type: "text", format, computed: null, err: null });
+        touched.push(key);
+        refreshedPhotos = true;
+        continue;
+      }
+      const v = String(raw ?? "");
+      if (cur && !cur.formula && String(cur.value ?? "") === v && !(cur.format && cur.format.photo)) continue;
+      // Clear a stale photo format when a cell is no longer a picture.
+      const baseFmt = cur && cur.format && Object.keys(cur.format).length ? { ...cur.format } : (r === 0 ? { bold: true, bg: "header" } : {});
+      if (baseFmt.photo) delete baseFmt.photo;
+      sheet.cells.set(key, { value: v, formula: null, type: detectType(v).type, format: baseFmt, computed: null, err: null });
       touched.push(key);
     }
   }
@@ -5467,6 +5512,7 @@ function applyReportRefresh(g, sheet, { headers, rows }) {
   computeGeometry(g);
   repaintGrid(g);
   syncFormulaBar(g);
+  if (refreshedPhotos) ensurePhotoUrls(); // sign any newly-arrived pictures
   _toast("Report data refreshed", "info");
 }
 
@@ -7768,6 +7814,79 @@ function cellReceiptRef(cell) {
   return { path, name: (r && typeof r.name === "string" && r.name) ? r.name : "receipt" };
 }
 
+// A form-photo cell (format.photo = { path, name, bucket }) points at a
+// driver-uploaded picture in a private storage bucket — the report builder
+// emits these for photo/image answers. Like receipts we never store the bytes;
+// unlike receipts the picture shows inline, so we batch-sign the paths on open
+// (ensurePhotoUrls) and cache the URLs. Path + bucket are validated so a
+// tampered format degrades to a filename chip rather than rendering anything.
+const WB_PHOTO_RE = /^[A-Za-z0-9][A-Za-z0-9._/\-]{0,300}$/;
+const WB_PHOTO_BUCKETS = new Set(["driver-documents", "driver-photos"]);
+const WB_PHOTO_URLS = new Map(); // "bucket|path" -> signedUrl ("" while pending/failed)
+function photoUrlKey(ref) { return ref.bucket + "|" + ref.path; }
+function cellPhotoRef(cell) {
+  const p = cell && cell.format && cell.format.photo;
+  const path = p && typeof p.path === "string" ? p.path : null;
+  const bucket = p && typeof p.bucket === "string" ? p.bucket : "driver-documents";
+  if (!path || !WB_PHOTO_RE.test(path) || !WB_PHOTO_BUCKETS.has(bucket)) return null;
+  return { path, bucket, name: (p.name && typeof p.name === "string") ? p.name : "Photo" };
+}
+
+// Batch-sign every photo cell across the open workbook's sheets, cache the
+// URLs (8h, matching driver photos elsewhere), then repaint so the pictures
+// appear. Idempotent — already-signed paths are skipped — so it's cheap to
+// call again after a live refresh or a fresh report create.
+async function ensurePhotoUrls() {
+  const sb = _sb();
+  if (!sb || !WB.sheetsByBlock) return;
+  const byBucket = new Map(); // bucket -> Set(paths) still needing a URL
+  for (const arr of WB.sheetsByBlock.values()) {
+    for (const sh of arr) {
+      for (const cell of sh.cells.values()) {
+        const ref = cellPhotoRef(cell);
+        if (!ref || WB_PHOTO_URLS.has(photoUrlKey(ref))) continue;
+        if (!byBucket.has(ref.bucket)) byBucket.set(ref.bucket, new Set());
+        byBucket.get(ref.bucket).add(ref.path);
+      }
+    }
+  }
+  if (!byBucket.size) return;
+  for (const [bucket, set] of byBucket) {
+    const paths = [...set];
+    for (const p of paths) WB_PHOTO_URLS.set(bucket + "|" + p, ""); // mark pending
+    try {
+      const res = await sb.storage.from(bucket).createSignedUrls(paths, 60 * 60 * 8);
+      for (const row of (res && res.data) || []) {
+        if (row && row.path && row.signedUrl) WB_PHOTO_URLS.set(bucket + "|" + row.path, row.signedUrl);
+      }
+    } catch (e) { console.warn("sign photo cells:", e && e.message); }
+  }
+  for (const g of GRIDS.values()) repaintGrid(g);
+}
+
+// Inline photo markup for a cell: the signed image once we have it, otherwise
+// a filename chip that still opens the picture on click. The signed URL is
+// data from Supabase storage, so esc() it before it reaches the src.
+function photoCellHtml(ref, r, c) {
+  const url = WB_PHOTO_URLS.get(photoUrlKey(ref));
+  return url
+    ? `<img class="wb-cell-img wb-cell-photo" src="${esc(url)}" data-wb-photo="${r},${c}" alt="${esc(ref.name)}" title="${esc(ref.name)} — click to enlarge" draggable="false">`
+    : `<span class="wb-cell-photolink" data-wb-photo="${r},${c}" title="${esc(ref.name)}">${esc(ref.name)}</span>`;
+}
+
+// A report matrix cell may arrive as a rich photo descriptor ({ rrPhoto, rrText
+// }) from reports.js instead of a scalar. Returns { value, format } for the
+// workbook cell, or null for a plain value the caller handles as before.
+function reportPhotoCell(v) {
+  if (!v || typeof v !== "object" || !v.rrPhoto) return null;
+  const p = v.rrPhoto;
+  if (!p || typeof p.path !== "string") return null;
+  return {
+    value: String(v.rrText || p.name || "Photo"),
+    format: { photo: { path: p.path, name: (typeof p.name === "string" && p.name) || "Photo", bucket: (typeof p.bucket === "string" && p.bucket) || "driver-documents" } },
+  };
+}
+
 function repaintGrid(g) {
   if (g.raf) return;
   g.raf = requestAnimationFrame(() => { g.raf = 0; paintNow(g); });
@@ -7848,8 +7967,12 @@ function paintNow(g) {
     // a Receipt Ledger cell renders a "View Receipt" button in place of text;
     // the image itself stays in storage and is fetched (signed) on click
     const receiptRef = cell ? cellReceiptRef(cell) : null;
+    // a form-photo cell shows the driver's picture inline (signed on open)
+    const photoRef = cell && !receiptRef && !imgSrc ? cellPhotoRef(cell) : null;
     const inner = receiptRef
       ? `<button type="button" class="wb-cell-receipt" data-wb-receipt="${esc(receiptRef.path)}" title="Open the stored receipt"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>View Receipt</button>`
+      : photoRef
+      ? photoCellHtml(photoRef, r, c)
       : imgSrc
       ? `<img class="wb-cell-img" src="${imgSrc}" data-wb-img="${r},${c}" alt="Cell image" title="Click to enlarge" draggable="false">`
       : dvCheck
@@ -7857,7 +7980,7 @@ function paintNow(g) {
       : isDv && dvStyle === "chip"
         ? `<span class="wb-dv-pill ${cell && disp ? "" : "is-empty"}" data-wb-dvchip="${r},${c}" style="${dvColor ? `background:${dvColor};` : ""}">${cell && disp ? esc(disp) : "Select"}<span class="wb-dv-pillarrow">▾</span></span>`
         : cell && disp ? cellInnerHtml(cell, disp) : isDv && dvStyle === "arrow" ? `<span class="wb-dv-chip-empty">Select</span>` : "";
-    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
+    return `<div class="wb-cell ${err ? "is-err" : ""} ${cell && cell.formula ? "is-formula" : ""} ${cell && cell.spill ? "is-spill-origin" : ""} ${inval ? "is-invalid" : ""} ${isDv ? "is-dv" : ""} ${isDv && dvStyle === "arrow" ? "is-dvarrow" : ""} ${imgSrc || photoRef ? "is-img" : ""} ${receiptRef ? "is-receipt" : ""} ${linkUrl ? "is-link" : ""}" data-r="${r}" data-c="${c}" style="left:${x}px;top:${top}px;width:${w}px;height:${h}px;${cell ? cellStyle(sheet, r, c, cell) : ""}${dvFill ? `background:${dvFill};` : ""}${condStyleFor(sheet, r, c, cell)}" ${inval ? `title="${esc(validationMsg(findValidationRule(sheet, r, c)))}"` : err ? `title="${esc(cell.err + " — " + errorHint(cell.err))}"` : linkUrl ? `title="${esc(linkUrl)}"` : ""}>${commented.has(key) ? `<span class="wb-cmark" title="Has comments"></span>` : ""}${condIconFor(sheet, r, c, cell)}${inner}${dvMark}${fltBtn(r, c)}</div>`;
   };
   let html = "";
   const paintedMerges = new Set();
@@ -15668,7 +15791,7 @@ function bindGridEvents(g) {
     // from the document click delegate — opening here on mousedown would
     // be undone by the click-away closer, and the repaint that follows
     // setActive would detach the node before its click event fires)
-    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-dvcheck]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && (e.target.closest("[data-wb-img]") || e.target.closest("[data-wb-receipt]")))) { e.preventDefault(); return; }
+    if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-dvcheck]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && (e.target.closest("[data-wb-img]") || e.target.closest("[data-wb-photo]") || e.target.closest("[data-wb-receipt]")))) { e.preventDefault(); return; }
 
     // ── drag-fill handle ──
     const fh = e.target.closest("[data-wb-fillhandle]");
@@ -17768,6 +17891,24 @@ function installRootListeners() {
         // validated data URLs ever reach the lightbox
         const src = cellImgSrc(g.sheet.cells.get(cellKey(rc.r, rc.c)));
         if (src) openImageLightbox(src);
+      }
+      return;
+    }
+
+    // Form-photo cell → enlarge the signed picture (or a message if it hasn't
+    // signed yet / access lapsed). The URL comes off the validated cache, not
+    // the DOM, so only a signed storage URL ever reaches the lightbox.
+    const photoEl = e.target.closest("[data-wb-photo]");
+    if (photoEl) {
+      const gridEl = photoEl.closest("[data-wb-gridfocus]");
+      const g = gridEl && GRIDS.get(gridEl.getAttribute("data-wb-gridfocus"));
+      if (g) {
+        const rc = keyRC(photoEl.getAttribute("data-wb-photo"));
+        setActive(g, rc.r, rc.c, { scroll: false });
+        const ref = cellPhotoRef(g.sheet.cells.get(cellKey(rc.r, rc.c)));
+        const url = ref && WB_PHOTO_URLS.get(photoUrlKey(ref));
+        if (url) openImageLightbox(url);
+        else { ensurePhotoUrls(); _toast("Loading picture…", "info"); }
       }
       return;
     }
