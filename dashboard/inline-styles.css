@@ -724,7 +724,7 @@ textarea,
    APP SHELL
    ───────────────────────────────────────────────────────────── */
 .app{display:grid;grid-template-columns:176px 1fr;min-height:100vh}
-.app:has(.sidebar.collapsed){grid-template-columns:64px 1fr}
+.app:has(.sidebar.collapsed){grid-template-columns:84px 1fr}
 /* Drive is a focused, full-screen workspace — hide the global app rail.
    Navigation off Drive goes through the in-header app launcher (the app
    drawer mirrors every visible sidebar destination). */
@@ -894,9 +894,14 @@ textarea,
   width:34px;height:34px;border-radius:var(--r-md);
   display:flex;align-items:center;justify-content:center;
   overflow:hidden;
+  /* Enterprise pass · dark, subtle container that belongs to the navy
+     rail — no colorful app-icon tile. */
+  background:var(--rr-nav-bg-deep);
+  color:var(--rr-nav-ink);
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
 }
 .brand-mark img{width:100%;height:100%;object-fit:cover;display:block}
+.brand-mark svg{width:20px;height:20px;display:block;color:var(--rr-nav-ink)}
 .brand-name{font-weight:600;font-size:var(--fs-base);letter-spacing:-.005em;color:var(--rr-white)}
 .brand-name em{font-style:normal;font-weight:400;color:var(--sidebar-ink-idle)}
 
@@ -994,33 +999,34 @@ textarea,
    renders collapsed from the first frame (no flash). The
    sidebar.collapsed class is applied by live.js after init for
    the runtime toggle. Both selectors share the same rules. */
+/* Compact rail (default) · Amazon-style icon-over-label. Each nav item
+   stacks a monoline icon above a small caption, centered in an 84px
+   rail. Widened from the old icon-only 64px so the labels fit. */
 html.rr-sidebar-collapsed-boot .sidebar,
-.sidebar.collapsed{width:64px;padding-left:var(--s-2);padding-right:var(--s-2)}
-html.rr-sidebar-collapsed-boot .app{grid-template-columns:64px 1fr}
+.sidebar.collapsed{width:84px;padding-left:var(--s-2);padding-right:var(--s-2)}
+html.rr-sidebar-collapsed-boot .app{grid-template-columns:84px 1fr}
 html.rr-sidebar-collapsed-boot .sidebar .brand-name{display:none}
 html.rr-sidebar-collapsed-boot .sidebar .brand{justify-content:center;padding-left:0;padding-right:0}
-html.rr-sidebar-collapsed-boot .sidebar .nav-item{
-  justify-content:center;gap:0;padding:6px 0;
-  font-size:0;overflow:hidden;
+html.rr-sidebar-collapsed-boot .sidebar .nav-item,
+.sidebar.collapsed .nav-item{
+  flex-direction:column;justify-content:center;align-items:center;gap:3px;
+  padding:8px 2px;
+  font-size:10px;font-weight:600;line-height:1.15;letter-spacing:.01em;
+  text-align:center;overflow:hidden;
 }
-html.rr-sidebar-collapsed-boot .sidebar .nav-item .nav-icon{
-  font-size:var(--fs-md);margin:0;
+html.rr-sidebar-collapsed-boot .sidebar .nav-item .nav-icon,
+.sidebar.collapsed .nav-item .nav-icon{
+  font-size:var(--fs-md);margin:0;width:26px;height:26px;
 }
-html.rr-sidebar-collapsed-boot .sidebar .nav-badge{display:none !important}
+html.rr-sidebar-collapsed-boot .sidebar .nav-badge,
+.sidebar.collapsed .nav-badge{display:none !important}
+/* Left accent bar hugs the rail's left edge on the compact rail. */
+html.rr-sidebar-collapsed-boot .sidebar .nav-item.active::before,
+.sidebar.collapsed .nav-item.active::before{left:-2px;top:5px;bottom:5px}
 html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn{align-self:center}
 html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rotate(180deg)}
 .sidebar.collapsed .brand-name{display:none}
 .sidebar.collapsed .brand{justify-content:center;padding-left:0;padding-right:0}
-.sidebar.collapsed .nav-item{
-  justify-content:center;gap:0;padding:6px 0;
-  font-size:0;             /* hides the bare text node */
-  overflow:hidden;
-}
-.sidebar.collapsed .nav-item .nav-icon{
-  font-size:var(--fs-md);   /* reset for the inner icon */
-  margin:0;
-}
-.sidebar.collapsed .nav-badge{display:none !important}
 
 /* Transparent icon container — no tile background, no per-category
    tint.  The page's whole personality is calm slate + one accent
@@ -1060,27 +1066,66 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
    that reuses var(--sidebar-bg) as a navy accent (Targets pills, the calendar
    buttons, search inputs, dividers) keeps var(--rr-slate-900) untouched. The handful of
    hardcoded white inks in the rail are re-pointed to dark for contrast. */
+/* ── Enterprise polish tokens (2026-07) ─────────────────────────────
+   New palette values for the Schedule maturity pass, defined once as
+   tokens (design-lint exempts --token: definition lines) and consumed
+   via var() everywhere below so no raw hex leaks into the ratchet. */
+:root{
+  --rr-nav-bg:#071E2F;         /* deep blue-black rail */
+  --rr-nav-bg-mid:#061B2A;
+  --rr-nav-bg-deep:#03121D;
+  --rr-nav-ink:#EAF2F8;        /* light ink / icons */
+  --rr-nav-ink-muted:#A9BBCB;  /* muted ink / icons */
+  --rr-nav-accent:#1473E6;     /* active blue accent */
+  --rr-ctl-border:#D7DEE8;     /* toolbar button hairline */
+  --rr-ctl-border-hover:#C4CEDA;
+  --rr-ctl-hover:#F8FAFC;       /* toolbar hover fill */
+  --rr-ctl-active:#EEF2F7;      /* toolbar pressed fill */
+  --rr-amber-primary:#FF9900;   /* Finalize orange */
+  --rr-amber-primary-hover:#F97316;
+  --rr-amber-primary-active:#EA6A0C;
+  --rr-chip-bg:#F3F8FF;         /* shift card fill */
+  --rr-chip-bg-hover:#E9F2FE;
+  --rr-chip-border:#CEDBEA;     /* shift card hairline */
+  --rr-cert-red-bg:#FEF2F2;     /* V badge fill */
+  --rr-cert-red-border:#FCA5A5; /* V badge border */
+  --rr-cert-red-ink:#DC2626;    /* V badge text */
+}
+/* ── Dark logistics rail (enterprise pass 2026-07) ──────────────────
+   Amazon-style deep blue-black chrome. Idle ink is muted blue-gray,
+   the selected item carries a bright blue left accent bar + a faint
+   blue wash. Only the rail flips to this dark theme (tokens are scoped
+   to .sidebar); everything else that reuses var(--sidebar-bg) as a navy
+   accent keeps var(--rr-slate-900). */
 .sidebar{
-  --sidebar-bg:#EFF6FF;
-  --sidebar-ink:#1E293B;
-  --sidebar-ink-idle:#475569;
-  --sidebar-icon-idle:#64748B;
-  --sidebar-icon-active:#2563EB;
-  --sidebar-hover:#E0EAFE;
-  --sidebar-divider:rgba(15,23,42,.10);
+  --sidebar-bg:var(--rr-nav-bg);
+  --sidebar-ink:var(--rr-nav-ink);
+  --sidebar-ink-idle:var(--rr-nav-ink-muted);
+  --sidebar-icon-idle:var(--rr-nav-ink-muted);
+  --sidebar-icon-active:var(--rr-nav-ink);
+  --sidebar-hover:rgba(255,255,255,.06);
+  --sidebar-active:var(--rr-nav-accent);
+  --sidebar-divider:rgba(255,255,255,.14);
+  background-image:linear-gradient(180deg,var(--rr-nav-bg) 0%,var(--rr-nav-bg-mid) 58%,var(--rr-nav-bg-deep) 100%);
 }
-.sidebar .nav{scrollbar-color:rgba(15,23,42,.20) transparent}
-.sidebar .brand-name{color:var(--rr-slate-900)}
-/* Main nav · selected = white pill + blue ink (clear against the blue rail). */
+.sidebar .nav{scrollbar-color:rgba(255,255,255,.18) transparent}
+.sidebar .brand-name{color:var(--rr-nav-ink)}
+.sidebar .brand-name em{color:var(--rr-nav-ink-muted)}
+/* Main nav · selected = bright blue left accent bar + faint blue wash,
+   icon + label brighten to white. */
 .sidebar .nav-item.active{
-  background:var(--rr-white);color:var(--rr-blue-800);
-  box-shadow:0 1px 2px rgba(15,23,42,.07), 0 0 0 1px rgba(15,23,42,.05);
+  background:rgba(20,115,230,.14);color:var(--rr-white);
+  box-shadow:none;
 }
-.sidebar .nav-item.active:hover{background:var(--rr-white);color:#1E3A8A}
-/* Sub-nav · selected = soft blue tint + blue ink (lighter than the main pill). */
-.sidebar .nav-sub-item.active{background:rgba(37,99,235,.10);color:var(--rr-blue-800);font-weight:600}
-/* Account avatar · a visible blue tint instead of the dark-rail white wash. */
-.sidebar .sidebar-foot .hdr-avatar{background:rgba(37,99,235,.12);color:var(--rr-blue-800)}
+.sidebar .nav-item.active::before{
+  content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--rr-nav-accent);
+}
+.sidebar .nav-item.active:hover{background:rgba(20,115,230,.20);color:var(--rr-white)}
+/* Sub-nav · selected = soft blue tint + light ink (lighter than the main item). */
+.sidebar .nav-sub-item.active{background:rgba(20,115,230,.18);color:var(--rr-nav-ink);font-weight:600}
+/* Account avatar · a visible blue tint on the dark rail. */
+.sidebar .sidebar-foot .hdr-avatar{background:rgba(20,115,230,.22);color:var(--rr-nav-ink)}
 
 /* Main column */
 .main{display:flex;flex-direction:column;min-width:0;background:transparent}
@@ -27084,16 +27129,13 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-al-btn{
   width:32px; height:32px; flex:0 0 auto; padding:0;
   display:inline-flex; align-items:center; justify-content:center;
-  /* Premium refinement pass (operator): soft warm yellow with a near-
-     imperceptible vertical gradient + a faint top highlight for restrained
-     depth; very-light neutral hairline; soft drop shadow; squircle corners.
-     Charcoal dots live on the SVG. Footprint unchanged (32×32). */
-  border:1px solid rgba(0,0,0,.06); border-radius:14px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.45), rgba(255,255,255,0) 45%),
-    linear-gradient(180deg, #FCEAA8, #F7E199);
-  box-shadow:0 2px 6px rgba(0,0,0,.08);
-  color:var(--text-muted, var(--rr-slate-500)); cursor:pointer;
+  /* Enterprise pass 2026-07 · neutral utility button that belongs to the
+     white toolbar — the warm-yellow tile was retired (no decorative color).
+     Matches the toolbar button system: white fill, hairline border. */
+  border:1px solid var(--rr-ctl-border); border-radius:10px;
+  background:var(--rr-white);
+  box-shadow:none;
+  color:var(--rr-slate-700); cursor:pointer;
   /* GPU-accelerated, ease-out, no bounce / no spring. */
   transition:transform .2s ease-out, box-shadow .2s ease-out, border-color .2s ease-out;
   will-change:transform;
@@ -27102,28 +27144,24 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Hover · lifts toward the user: brighter fill, larger soft shadow, a small
    rise + 1.02 scale. */
 .rr-al-btn:hover{
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,0) 45%),
-    linear-gradient(180deg, #FDEEB4, #F9E6A4);
-  border-color:rgba(0,0,0,.10);
-  box-shadow:0 6px 16px rgba(0,0,0,.12);
-  transform:translateY(-1.5px) scale(1.02);
+  background:var(--rr-ctl-hover);
+  border-color:var(--rr-ctl-border-hover);
+  box-shadow:none;
+  transform:none;
 }
-/* Pressed · physical button: drops down, shadow collapses to an inset, fill
-   darkens, quick. */
+/* Pressed · quiet neutral darken. */
 .rr-al-btn:active{
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,0) 45%),
-    linear-gradient(180deg, #F3DA8C, #EDCE78);
-  transform:translateY(1px) scale(1);
-  box-shadow:0 1px 2px rgba(0,0,0,.10), inset 0 2px 3px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.25);
+  background:var(--rr-ctl-active);
+  transform:none;
+  box-shadow:none;
   transition-duration:.1s;
 }
-/* Open (menu showing) · a settled, slightly-darker "pressed-in" rest state. */
+/* Open (menu showing) · quiet blue selected state. */
 .rr-al-btn[aria-expanded="true"]{
-  background:linear-gradient(180deg, #F4DC92, #EFD180);
-  border-color:rgba(0,0,0,.10);
-  box-shadow:0 1px 3px rgba(0,0,0,.08), inset 0 1px 2px rgba(0,0,0,.08);
+  background:rgba(37,99,235,.10);
+  border-color:rgba(37,99,235,.28);
+  color:var(--rr-blue-600);
+  box-shadow:none;
   transform:none;
 }
 .rr-al-panel{
@@ -30883,17 +30921,19 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-schedule.rrx-schedule .cal-row-label-otwarn { line-height: 1 !important; }
 #view-schedule.rrx-schedule .cal-row-label-vanwarn::after,
 #view-schedule.rrx-schedule .cal-row-label-otwarn::after {
-  font: 700 9.5px/1 var(--rr-font-family, 'Inter', 'Segoe UI', sans-serif);
-  letter-spacing: .03em;
-  padding: 3px 5px;
-  border-radius: 5px;
+  /* Subtle certification/requirement badge — a thin-outlined chip, not a
+     solid filled block (enterprise pass 2026-07). */
+  font: 700 11px/1 var(--rr-font-family, 'Inter', 'Segoe UI', sans-serif);
+  letter-spacing: .02em;
+  padding: 2px 4px;
+  border-radius: 4px;
   border: 1px solid transparent;
 }
 #view-schedule.rrx-schedule .cal-row-label-vanwarn::after {
   content: "V";
-  color: #B42318;
-  background: rgba(220, 38, 38, .10);
-  border-color: rgba(220, 38, 38, .16);
+  color: var(--rr-cert-red-ink);
+  background: var(--rr-cert-red-bg);
+  border-color: var(--rr-cert-red-border);
 }
 #view-schedule.rrx-schedule .cal-row-label-otwarn::after {
   content: "OT";
@@ -30909,12 +30949,14 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
    Trade the raised tile for a hairline, soften the fill one notch, and let
    the route code recede to a quiet label above the time. */
 #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #EFF4FB !important;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .07) !important;
+  /* Restrained production scheduling object · very light blue fill with a
+     thin blue-gray hairline (enterprise pass 2026-07). */
+  background: var(--rr-chip-bg) !important;
+  box-shadow: inset 0 0 0 1px var(--rr-chip-border) !important;
 }
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #E4EEFB !important;
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .28) !important;
+  background: var(--rr-chip-bg-hover) !important;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .30) !important;
 }
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
   color: var(--text-subtle, var(--rr-gray-500)) !important;
