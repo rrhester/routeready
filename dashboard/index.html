@@ -144,18 +144,22 @@
      happens through "File → Add to Dock" (no install event), so the
      button stays hidden there but the manifest + apple-touch-icon
      + theme-color still wire up the Dock icon and title bar. -->
-<link rel="manifest" href="manifest.webmanifest?v=6c3f0a2b8d51">
+<link rel="manifest" href="manifest.webmanifest?v=7d4e1b9c0a62">
 <!-- theme-color paints the OS title bar of the installed app — the
      standalone title bar (overlay toggled off) and the native-controls
      backdrop in WCO mode (and the browser tab bar tint on mobile).
-     Matched to the rail-blue title-bar band (#EFF6FF): in WCO mode the
-     band is painted per-column by inline-styles.css (body::before) in WCO
-     mode. In plain standalone mode (e.g. an installed ChromeOS PWA) there is
-     no WCO band — Chrome paints the whole title bar from theme-color instead,
-     so this is the dark rail navy (#071E2F = --rr-nav-bg). That makes the dark
-     sidebar read as reaching the very top of the window; Chrome auto-switches
-     the window-control glyphs to light for contrast. -->
-<meta name="theme-color" content="#071E2F">
+     Kept LIGHT (#EFF6FF = --rr-blue-50, the rail-blue title-bar band):
+     the "dark sidebar reaches the top" look is a TWO-TONE effect (navy
+     only over the rail width, light over the content) and that is only
+     possible in Window Controls Overlay mode, where inline-styles.css
+     paints the band per-column via body::before. In plain standalone mode
+     (e.g. an installed ChromeOS PWA) there is no overlay — Chrome paints
+     the ENTIRE title bar from this one color, so a navy value here made
+     the whole top band dark (a full-width band, not just the sidebar).
+     We therefore keep it light so standalone shows a calm light title bar
+     instead of a heavy dark band; WCO windows still get the sidebar-only
+     navy from body::before. (Reverts #3635.) -->
+<meta name="theme-color" content="#EFF6FF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">
