@@ -28,7 +28,14 @@
 // v134 · Receipt OCR confidence: the on-device OCR's confidence score now
 // rides along with receipt submissions (receipt_uploads.ocr_confidence was
 // always null). Bumped so installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v134";
+//
+// v135 · Form photos: on submit, the app now also uploads a small ~480px
+// thumbnail alongside the full image and records its path (answers[fid].thumb),
+// so photo-heavy dispatcher reports load light thumbnails instead of full
+// shots. Best-effort — a failed thumb just falls back to the full image.
+// Covers both the online and offline (queued) submission paths. Bumped so
+// installed driver PWAs pick up the new app.js.
+const SHELL_CACHE = "rr-app-shell-v135";
 const SHELL_FILES = [
   "./",
   "index.html",
