@@ -275,8 +275,30 @@ function submittedText(ts) {
   return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-// Plain-text rendering of one answer value — collapses signatures, photos,
-// GPS, files, arrays, and booleans to something a report cell can hold.
+// Driver-uploaded form files land in this private bucket (see app.js form
+// flush) — the workbook signs the paths on open to show the picture inline.
+const FORM_UPLOAD_BUCKET = "driver-documents";
+const IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i;
+
+// A rich photo cell: the workbook renders it as an inline thumbnail (signed on
+// open); CSV, print, and preview fall back to cellText() below. Kept distinct
+// from a plain string so the text paths never leak "[object Object]".
+function photoCell(upload) {
+  return {
+    rrPhoto: { path: upload.path, name: upload.name || "Photo", bucket: FORM_UPLOAD_BUCKET },
+    rrText: upload.name || "Photo",
+  };
+}
+
+// Text for any answer cell — a rich photo cell collapses to its filename so
+// CSV/print/preview stay plain text; everything else is already a string.
+function cellText(v) {
+  return v && typeof v === "object" && "rrText" in v ? v.rrText : v;
+}
+
+// Plain-text rendering of one answer value — collapses signatures, GPS, files,
+// arrays, and booleans to something a report cell can hold. Photos (and image
+// files) become a rich photo cell so the workbook can show the picture.
 function fmtAnswer(v, field) {
   if (v == null || v === "") return DASH;
   const t = field && field.type;
@@ -286,7 +308,14 @@ function fmtAnswer(v, field) {
     return `${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)}${acc}`;
   }
   if (v && typeof v === "object" && !Array.isArray(v) && (v.path || v.name)) {
-    return v.error ? "Upload failed" : (v.name || "Attachment");
+    if (v.error) return "Upload failed";
+    // Photo fields — and any file upload that's actually an image — render as
+    // a picture in the workbook. Non-image files stay as their filename.
+    const isImage = t === "photo"
+      || (typeof v.type === "string" && v.type.startsWith("image/"))
+      || IMAGE_EXT_RE.test(v.name || "");
+    if (isImage && v.path && typeof v.path === "string") return photoCell(v);
+    return v.name || "Attachment";
   }
   if (Array.isArray(v)) return v.length ? v.join(", ") : DASH;
   if (typeof v === "boolean") return v ? "Yes" : "No";
@@ -905,7 +934,7 @@ export async function buildReportData(spec) {
 
 function toCsv(headers, rows) {
   const cell = (v) => {
-    const s = String(v ?? "");
+    const s = String(cellText(v) ?? "");
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   return [headers, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
@@ -1052,7 +1081,7 @@ export function renderReportsInto(container) {
       <div class="rb-table-wrap">
         <table class="rb-table">
           <thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
-          <tbody>${shown.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody>
+          <tbody>${shown.map((r) => `<tr>${r.map((v) => `<td>${esc(cellText(v))}</td>`).join("")}</tr>`).join("")}</tbody>
         </table>
       </div>`;
     footState();
@@ -1145,7 +1174,7 @@ export function renderReportsInto(container) {
         <h1>${esc(reportTitle())}</h1>
         <p>${esc(_dsp().name || "")} · ${rows.length} ${esc(rows.length === 1 ? (RB_SOURCES[RB.source] || RB_SOURCES.people).noun[0] : (RB_SOURCES[RB.source] || RB_SOURCES.people).noun[1])} · ${new Date().toLocaleDateString()}</p>
         <table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
-        <tbody>${rows.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+        <tbody>${rows.map((r) => `<tr>${r.map((v) => `<td>${esc(cellText(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>
       </body></html>`);
       win.document.close();
       win.focus();
