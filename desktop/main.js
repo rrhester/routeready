@@ -437,9 +437,23 @@ function createWindow() {
     minWidth: 720,
     minHeight: 480,
     title: "RouteReady Desktop",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#071E2F", // dark navy so the frame matches the dashboard's dark rail
     icon: path.join(__dirname, "build", "icon.png"),
     autoHideMenuBar: true, // no white menu strip above the dashboard
+    // Window Controls Overlay · hide the native (light) title bar and hand the
+    // title-bar strip to the web content, so the dashboard's dark left rail
+    // reaches the very top of the window. Enabling titleBarOverlay makes the
+    // renderer report `display-mode: window-controls-overlay` and exposes the
+    // env(titlebar-area-*) vars, which the dashboard already styles: the
+    // segment over the rail paints navy, the content side stays light. The
+    // overlay rectangle (behind the min/max/close buttons, top-right) is
+    // painted to match that light content side with dark glyphs.
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#EFF6FF",       // matches the dashboard's --rr-blue-50 title-bar band
+      symbolColor: "#1E293B", // dark control glyphs, legible on the light overlay
+      height: 40,
+    },
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
