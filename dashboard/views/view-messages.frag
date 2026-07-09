@@ -24,8 +24,8 @@
               <button class="msg-list-tab" data-tab="broadcasts" role="tab" aria-selected="false" onclick="msgListTab(this)">Broadcasts</button>
             </div>
             <div class="msg-list-search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input placeholder="Search conversations…" />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="rr-msg-search" type="search" placeholder="Search conversations…" aria-label="Search conversations" autocomplete="off" />
             </div>
             <div class="msg-list-items" id="rr-msg-driver-list">
               <!-- Conversation list skeleton — matches the .msg-item
