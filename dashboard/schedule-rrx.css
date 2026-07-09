@@ -439,11 +439,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   width: 100%;
   box-sizing: border-box;
   padding: 0 8px;
-  /* Transparent fill — the operator-picked light blue rgb(194,231,255)
-     lives on the active tab's TEXT + underline instead of the bar
-     background (2026-06-27). No bottom hairline. */
+  /* Transparent fill; a hairline divider runs under the whole tab row
+     (enterprise pass 2026-07) so the tabs read as a production tab bar. */
   background: transparent;
   border: 0;
+  border-bottom: 1px solid var(--rr-slate-200);
   border-radius: 0;
   overflow: visible;
   margin-bottom: 14px;          /* breathing room between the tabs and the toolbar below */
@@ -461,7 +461,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: var(--rr-fg-secondary, var(--rr-gray-500));
+  color: var(--rr-slate-700);
   font-family: var(--rr-font-family, Inter, system-ui, sans-serif);
   font-size: var(--fs-base);
   font-weight: 600;
@@ -475,15 +475,14 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   flex: 0 0 auto;
   stroke-width: 1.8;
 }
-#rr-sched-viewseg .rr-viewseg-btn:hover { color: var(--rr-fg-primary, var(--rr-gray-800)); }
+#rr-sched-viewseg .rr-viewseg-btn:hover { color: var(--rr-gray-900); }
 #rr-sched-viewseg .rr-viewseg-btn.active {
-  /* Active label reads in primary ink — the rgb(194,231,255) light blue was
-     too faint on the white bar (operator 2026-06-27). The light blue stays
-     on the underline below as the active accent. */
-  color: var(--rr-fg-primary, var(--rr-gray-800));
-  border-bottom-color: rgb(194, 231, 255);
+  /* Active tab · near-black label with a clear blue underline
+     (enterprise pass 2026-07). */
+  color: var(--rr-gray-900);
+  border-bottom-color: var(--rr-blue-600);
 }
-#rr-sched-viewseg .rr-viewseg-btn.active svg { color: var(--rr-fg-primary, var(--rr-gray-800)); }
+#rr-sched-viewseg .rr-viewseg-btn.active svg { color: var(--rr-gray-900); }
 #rr-sched-viewseg .rr-viewseg-btn:focus-visible {
   outline: 2px solid var(--accent, var(--rr-blue-600));
   outline-offset: -3px;
@@ -3205,7 +3204,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
 /* Tighter corners on shift chips · 3px tile-style corners read as
    crisp Excel/Outlook scheduling cells, not soft pills. */
 #view-schedule.rrx-schedule .shift-chip {
-  border-radius: 6px !important;
+  border-radius: 7px !important;
   /* Resting transition for the hover-lift (polish pass: 100ms). Lower
      specificity than the .rr-sf-card-in reveal rule, so the staged build
      keeps its own timing; for normally-rendered cards this is the
@@ -4946,27 +4945,25 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  /* −10% control size pass (operator 2026-06-12): 40 → 36px tall,
-     type and padding scaled with it. */
-  height: 36px;
-  padding: 0 13px;
-  /* Quiet chrome (polish pass): a 1px hairline + dark-ink label reads as
-     calm, understated toolbar chrome — the heavy 1.5px navy outline was
-     too loud for an enterprise header. */
-  border: 1px solid var(--rr-border-primary, var(--rr-gray-200));
+  /* Enterprise pass 2026-07 · one coherent 40px toolbar button system —
+     every control (Today / ‹ › / Smart Fill / Unassign Fleet / ⋯ / Finalize)
+     shares this height, radius, border color, font size and weight. */
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--rr-ctl-border);
   border-radius: 8px;
   background: var(--rr-white);
-  color: var(--rr-fg-primary, var(--rr-gray-900));
+  color: var(--rr-gray-900);
   font: inherit;
   font-size: var(--fs-12-5);
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color .12s ease, box-shadow .12s ease;
+  transition: background-color .12s ease, box-shadow .12s ease, border-color .12s ease;
 }
-#view-schedule .rr-ab-btn:hover { background: rgba(15,23,42, .05); }
-#view-schedule .rr-ab-btn:active { background: rgba(15,23,42, .10); }
+#view-schedule .rr-ab-btn:hover { background: var(--rr-ctl-hover); border-color: var(--rr-ctl-border-hover); }
+#view-schedule .rr-ab-btn:active { background: var(--rr-ctl-active); }
 #view-schedule .rr-ab-btn:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(15,23,42, .22);
@@ -5021,14 +5018,16 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   font-weight: 700;
   margin-right: 4px;
 }
-/* Primary — solid brand blue, lock glyph. */
+/* Primary — Amazon orange, lock glyph. The main action on the screen
+   (enterprise pass 2026-07: orange, never blue). */
 #view-schedule .rr-ab-primary {
-  background: var(--rr-comm-blue, var(--rr-blue-600));
-  border-color: var(--rr-comm-blue, var(--rr-blue-600));
+  background: var(--rr-amber-primary);
+  border-color: var(--rr-amber-primary);
   color: var(--rr-white);
+  font-weight: 700;
 }
-#view-schedule .rr-ab-primary:hover { background: var(--rr-blue-700); border-color: var(--rr-blue-700); }
-#view-schedule .rr-ab-primary:active { background: #0A4A85; }
+#view-schedule .rr-ab-primary:hover { background: var(--rr-amber-primary-hover); border-color: var(--rr-amber-primary-hover); }
+#view-schedule .rr-ab-primary:active { background: var(--rr-amber-primary-active); border-color: var(--rr-amber-primary-active); }
 /* Live state · a quiet status control, not a call-to-action (polish pass).
    White pill, hairline border, a small green "live" dot, dark-ink label —
    minimal emphasis. (The Finalize/draft state keeps the primary styling.) */
@@ -5122,11 +5121,13 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule .rr-ab-weeknav .sched-week-nav {
   display: inline-flex;
   align-items: stretch;
-  height: 36px;
+  /* Match the toolbar button system (enterprise pass 2026-07): 40px tall,
+     the same hairline border color as every other control. */
+  height: 40px;
   gap: 0;
   padding: 0;
   background: var(--rr-white);
-  border: 1.5px solid var(--sidebar-bg, var(--rr-slate-900));
+  border: 1px solid var(--rr-ctl-border);
   border-radius: 8px;
   overflow: hidden;
   box-shadow: none;
@@ -5622,6 +5623,43 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 #rr-util-rail-mount .sched-util-btn--contacts{color:#0D9488}
 #rr-util-rail-mount .sched-util-btn--contacts:hover{background:rgba(13,148,136,.12);border-color:rgba(13,148,136,.30)}
 #rr-util-rail-mount .sched-util-btn--contacts:focus-visible{border-color:#0D9488;box-shadow:0 0 0 3px rgba(13,148,136,.25)}
+
+/* ── Enterprise pass 2026-07 · plain utility rail ──────────────────────
+   The per-tile hues (blue / violet / green / gold / indigo / teal) read
+   as a colorful app launcher. A mature utility rail is monochrome: quiet
+   slate icons at rest, a soft neutral hover, blue only when its panel is
+   open. Notification badges keep their color. These rules come last in
+   the rail block so they win on source order without !important. */
+#rr-util-rail-mount .sched-util-btn,
+#rr-util-rail-mount .sched-util-btn--tasks,
+#rr-util-rail-mount .sched-util-btn--checklists,
+#rr-util-rail-mount .sched-util-btn--ops,
+#rr-util-rail-mount .sched-util-btn--forms,
+#rr-util-rail-mount .sched-util-btn--contacts{
+  color:var(--rr-slate-700);
+}
+#rr-util-rail-mount .sched-util-btn:hover,
+#rr-util-rail-mount .sched-util-btn--tasks:hover,
+#rr-util-rail-mount .sched-util-btn--checklists:hover,
+#rr-util-rail-mount .sched-util-btn--ops:hover,
+#rr-util-rail-mount .sched-util-btn--forms:hover,
+#rr-util-rail-mount .sched-util-btn--contacts:hover{
+  background:rgba(15,23,42,.06);border-color:rgba(15,23,42,.12);color:var(--rr-gray-900);
+}
+#rr-util-rail-mount .sched-util-btn:focus-visible,
+#rr-util-rail-mount .sched-util-btn--tasks:focus-visible,
+#rr-util-rail-mount .sched-util-btn--checklists:focus-visible,
+#rr-util-rail-mount .sched-util-btn--ops:focus-visible,
+#rr-util-rail-mount .sched-util-btn--forms:focus-visible,
+#rr-util-rail-mount .sched-util-btn--contacts:focus-visible{
+  border-color:var(--rr-blue-600);box-shadow:0 0 0 3px rgba(37,99,235,.22);color:var(--rr-blue-600);
+}
+/* Open panel · quiet blue selected state (not the old amber wash). */
+#rr-util-rail-mount .sched-util-btn[aria-expanded="true"]{
+  background:rgba(37,99,235,.10);border-color:rgba(37,99,235,.28);color:var(--rr-blue-600);
+}
+/* Notification count stays restrained blue-indigo, not violet. */
+#rr-util-rail-mount .sched-util-badge{background:var(--rr-blue-600)}
 
 /* ── Contacts slide-out internals (.ctp-*) · ntp panel chrome with a
    Google-Contacts-style create → search → list column. Controls speak
@@ -6634,9 +6672,11 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 
 /* ── Recognition rail panel (#rr-sched-recog) ─────────────────────────
    Rose award icon, same push-panel chrome as Notes/Checklists/Forms. */
-#rr-util-rail-mount .sched-util-btn--recog{color:#DB2777}
-#rr-util-rail-mount .sched-util-btn--recog:hover{background:rgba(219,39,119,.10);border-color:rgba(219,39,119,.28)}
-#rr-util-rail-mount .sched-util-btn--recog:focus-visible{border-color:#DB2777;box-shadow:0 0 0 3px rgba(219,39,119,.22)}
+/* Enterprise pass 2026-07 · Recognition tile joins the plain slate rail
+   (was pink). Placed after the base --recog rule so it wins on source order. */
+#rr-util-rail-mount .sched-util-btn--recog{color:var(--rr-slate-700)}
+#rr-util-rail-mount .sched-util-btn--recog:hover{background:rgba(15,23,42,.06);border-color:rgba(15,23,42,.12);color:var(--rr-gray-900)}
+#rr-util-rail-mount .sched-util-btn--recog:focus-visible{border-color:var(--rr-blue-600);box-shadow:0 0 0 3px rgba(37,99,235,.22);color:var(--rr-blue-600)}
 #rr-util-rail-mount #rr-sched-recog.rr-fp{background:var(--rr-white)}
 #rr-util-rail-mount #rr-sched-recog.is-open .rr-clf-seg{opacity:1;transition:opacity 120ms ease 100ms}
 #rr-util-rail-mount .rr-rgp-card{align-items:center}
