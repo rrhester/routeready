@@ -6701,6 +6701,13 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 .rr-rcp-linkbtn{appearance:none;cursor:pointer;border:0;background:transparent;padding:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--rr-blue-700);text-decoration:none}
 .rr-rcp-linkbtn:hover{text-decoration:underline}
 .rr-rcp-linkbtn:disabled{color:var(--rr-gray-400);cursor:default;text-decoration:none}
+/* Quick reconcile · inline resolve action on an open receipt card. Green =
+   resolved-good, matching the is-ok status pill. */
+#rr-util-rail-mount .rr-rcp-cardacts{display:flex;justify-content:flex-end;margin-top:6px}
+#rr-util-rail-mount .rr-rcp-quick{appearance:none;cursor:pointer;font:inherit;font-size:var(--fs-xs);font-weight:600;line-height:1;color:var(--rr-green-700);background:rgba(22,163,74,.10);border:1px solid rgba(22,163,74,.22);border-radius:6px;padding:5px 11px}
+#rr-util-rail-mount .rr-rcp-quick:hover{background:rgba(22,163,74,.16)}
+#rr-util-rail-mount .rr-rcp-quick:focus-visible{outline:2px solid var(--rr-green-700);outline-offset:2px}
+#rr-util-rail-mount .rr-rcp-quick.is-busy{color:var(--rr-gray-400);background:var(--rr-gray-100);border-color:var(--rr-gray-200);cursor:default}
 
 /* Detail modal · fixed overlay + compact card (small modal = review +
    one decision, per the modal rules). */

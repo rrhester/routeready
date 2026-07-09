@@ -11691,6 +11691,18 @@ function _rcpRenderList() {
     const syncErr = r.ledger_sync_error
       ? `<div class="rr-rcp-syncerr">Ledger sync failed
            <button type="button" class="rr-rcp-linkbtn" data-rr-rcp-resync="${escapeHtml(r.id)}">Retry</button></div>` : "";
+    // Quick reconcile · resolve the receipt right from the panel (mark it
+    // Matched) without opening the detail. Only offered while it's still
+    // open — Matched/Reimbursable are already resolved. Reject / notes /
+    // Reimbursable stay in the detail modal for the finer decisions.
+    // A <span role="button"> (not a <button>) so the HTML parser doesn't
+    // implicitly close the enclosing card <button> and hoist this out as a
+    // sibling — clicks/keys are wired in the delegated handlers below.
+    const resolved = status === "Matched" || status === "Reimbursable";
+    const quick = resolved ? "" :
+      `<div class="rr-rcp-cardacts">
+         <span class="rr-rcp-quick" role="button" tabindex="0" data-rr-rcp-reconcile="${escapeHtml(r.id)}" title="Mark this receipt reconciled (Matched)">Reconcile</span>
+       </div>`;
     return `<button type="button" class="rr-fp-card" data-rr-rcp-row="${escapeHtml(r.id)}" role="listitem">
       <div class="rr-fp-card-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14v18l-2.33-1.6L14.33 21 12 19.4 9.67 21l-2.34-1.6L5 21z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg></div>
       <div class="rr-fp-card-body">
@@ -11701,9 +11713,35 @@ function _rcpRenderList() {
         </div>
         <div class="rr-fp-card-sub">${sub || "&nbsp;"}</div>
         ${syncErr}
+        ${quick}
       </div>
     </button>`;
   }).join("");
+}
+
+// Quick reconcile from the panel list — mark a still-open receipt "Matched"
+// in one click (same receipt_set_status RPC the detail modal uses, so the
+// 0436 trigger mirrors it into the Receipt Ledger). Filtered lists drop the
+// row on reload, which reads as done.
+async function _rcpQuickReconcile(id, btn) {
+  if (!id) return;
+  // The control is a <span> (see _rcpRenderList) so guard re-entry with a
+  // class/flag rather than the missing `disabled` property.
+  if (btn) {
+    if (btn.getAttribute("aria-busy") === "true") return;
+    btn.setAttribute("aria-busy", "true");
+    btn.classList.add("is-busy");
+    btn.textContent = "Reconciling…";
+  }
+  try {
+    const { error } = await sb.rpc("receipt_set_status", { p_receipt_id: id, p_status: "Matched" });
+    if (error) throw error;
+    toast("Receipt reconciled — ledger row synced", "success");
+    _rcpLoad();
+  } catch (e) {
+    toast("Reconcile failed: " + (e?.message || "unknown error"), "warn");
+    if (btn) { btn.removeAttribute("aria-busy"); btn.classList.remove("is-busy"); btn.textContent = "Reconcile"; }
+  }
 }
 
 async function _rcpResync(id, btn) {
@@ -11834,6 +11872,10 @@ document.addEventListener("pointerdown", (e) => {
 // Keyboard: Enter / Space on a focused contact row opens its detail popup.
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
+  // Quick-reconcile span (role="button") — activate on Enter/Space and keep
+  // the key from bubbling to the enclosing card (which would open detail).
+  const rec = e.target.closest && e.target.closest("[data-rr-rcp-reconcile]");
+  if (rec) { e.preventDefault(); e.stopPropagation(); _rcpQuickReconcile(rec.getAttribute("data-rr-rcp-reconcile"), rec); return; }
   const row = e.target.closest && e.target.closest(".ctp-row[data-rr-contact-id]");
   if (!row || e.target.closest(".ctp-acts")) return;
   e.preventDefault();
@@ -11870,6 +11912,8 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("[data-rr-rcp-ledger]")) { e.preventDefault(); _rcpOpenLedger(); return; }
   const rcpRetry = e.target.closest("[data-rr-rcp-resync]");
   if (rcpRetry) { e.preventDefault(); e.stopPropagation(); _rcpResync(rcpRetry.getAttribute("data-rr-rcp-resync"), rcpRetry); return; }
+  const rcpRec = e.target.closest("[data-rr-rcp-reconcile]");
+  if (rcpRec) { e.preventDefault(); e.stopPropagation(); _rcpQuickReconcile(rcpRec.getAttribute("data-rr-rcp-reconcile"), rcpRec); return; }
   if (e.target.closest("[data-rr-rcp-reload]")) { e.preventDefault(); _rcpLoad(); return; }
   const rcpRow = e.target.closest("[data-rr-rcp-row]");
   if (rcpRow) { e.preventDefault(); _rcpOpenDetail(rcpRow.getAttribute("data-rr-rcp-row")); return; }
