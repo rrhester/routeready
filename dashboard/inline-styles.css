@@ -24960,16 +24960,22 @@ body.rr-cmdk-open{ overflow:hidden }
        bottom (env+4) meets the tab-bar top (env+4) exactly. */
     height:calc(env(titlebar-area-height, 33px) + 4px);z-index:55;
     -webkit-app-region:drag;app-region:drag;
-    /* Solid dark title-bar band (2026-07): the whole overlay strip is the
-       dark rail color (var(--rr-nav-bg) = the sidebar's top gradient stop),
-       so the top of the window reads as one continuous dark bar that matches
-       the sidebar edge-to-edge — including the top-right, over the content
-       and behind the window controls. (The window-control glyphs read as
-       light because theme-color is navy; see index.html + the manifest.)
-       body::before is NOT inside .sidebar, so the navy is referenced from
-       the shared :root token rather than the sidebar-scoped --sidebar-bg. */
-    background:var(--rr-nav-bg);
+    /* Two-tone title-bar band (2026-07, operator-confirmed): the segment
+       OVER THE SIDEBAR is the dark rail color (var(--rr-nav-bg) = the
+       sidebar's top gradient stop) so the dark rail extends to the very top
+       of the window; the segment OVER THE CONTENT stays the light rail-blue
+       (var(--rr-blue-50)) so the rest of the top reads as a light band. The
+       hard colour stop sits at the rail width (--rr-tb-rail-w), which flips
+       84↔176px with the collapse state below. body::before is NOT inside
+       .sidebar, so the tokens are referenced from :root. */
+    background:linear-gradient(90deg,
+      var(--rr-nav-bg) 0, var(--rr-nav-bg) var(--rr-tb-rail-w, 176px),
+      var(--rr-blue-50) var(--rr-tb-rail-w, 176px));
   }
+  /* Collapsed rail (the default) → narrow the navy segment to the 84px rail.
+     Mirrors the sidebar-width rules (boot class OR runtime .collapsed). */
+  html.rr-sidebar-collapsed-boot body::before,
+  body:has(.sidebar.collapsed)::before{ --rr-tb-rail-w:84px; }
 }
 .topbar{-webkit-app-region:no-drag;app-region:no-drag}
 
