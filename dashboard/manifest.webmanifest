@@ -8,7 +8,7 @@
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "any",
-  "theme_color": "#EFF6FF",
+  "theme_color": "#071E2F",
   "background_color": "#F2F7FC",
   "categories": ["productivity", "business", "logistics"],
   "icons": [

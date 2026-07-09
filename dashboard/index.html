@@ -149,11 +149,13 @@
      standalone title bar (overlay toggled off) and the native-controls
      backdrop in WCO mode (and the browser tab bar tint on mobile).
      Matched to the rail-blue title-bar band (#EFF6FF): in WCO mode the
-     band is painted a uniform #EFF6FF by inline-styles.css (body::before)
-     so it reads as one color with the icon rail + the Schedule tab bar.
-     The OS window controls sit on this same blue — otherwise they read as
-     a white rectangle in the top-right corner. Keep in sync with that band. -->
-<meta name="theme-color" content="#EFF6FF">
+     band is painted per-column by inline-styles.css (body::before) in WCO
+     mode. In plain standalone mode (e.g. an installed ChromeOS PWA) there is
+     no WCO band — Chrome paints the whole title bar from theme-color instead,
+     so this is the dark rail navy (#071E2F = --rr-nav-bg). That makes the dark
+     sidebar read as reaching the very top of the window; Chrome auto-switches
+     the window-control glyphs to light for contrast. -->
+<meta name="theme-color" content="#071E2F">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">
