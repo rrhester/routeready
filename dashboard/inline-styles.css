@@ -24960,18 +24960,22 @@ body.rr-cmdk-open{ overflow:hidden }
        bottom (env+4) meets the tab-bar top (env+4) exactly. */
     height:calc(env(titlebar-area-height, 33px) + 4px);z-index:55;
     -webkit-app-region:drag;app-region:drag;
-    /* Uniform rail-blue title-bar band (operator 2026-06-27): the whole
-       band is var(--rr-blue-50) so it reads as one continuous color with the icon
-       rail AND the Schedule view-switcher tab bar directly below it. Was a
-       two-tone gradient (rail blue over the sidebar, var(--rr-gray-50) page ground
-       over the content); the operator asked for the content side to match
-       the rail too. body::before is NOT inside .sidebar, so the blue is
-       hardcoded — it can't read the sidebar-scoped --sidebar-bg override
-       and would otherwise fall back to the :root navy. The old rail-width
-       split (--rr-tb-rail-w / collapsed 64px) is retired now that both
-       segments are the same color. */
-    background:var(--rr-blue-50);
+    /* Two-tone title-bar band (enterprise pass 2026-07): the segment over
+       the sidebar is the dark rail color (var(--rr-nav-bg) = the sidebar's
+       top gradient stop) so the dark rail reads as reaching the very top of
+       the window; the segment over the content stays the light rail-blue.
+       body::before is NOT inside .sidebar, so the navy is referenced from
+       the shared :root token rather than the sidebar-scoped --sidebar-bg.
+       The hard colour stop sits at the rail width (--rr-tb-rail-w), which
+       flips 84↔176px with the collapse state below. */
+    background:linear-gradient(90deg,
+      var(--rr-nav-bg) 0, var(--rr-nav-bg) var(--rr-tb-rail-w, 176px),
+      var(--rr-blue-50) var(--rr-tb-rail-w, 176px));
   }
+  /* Collapsed rail (the default) → narrow the navy segment to the 84px rail.
+     Mirrors the sidebar-width rules (boot class OR runtime .collapsed). */
+  html.rr-sidebar-collapsed-boot body::before,
+  body:has(.sidebar.collapsed)::before{ --rr-tb-rail-w:84px; }
 }
 .topbar{-webkit-app-region:no-drag;app-region:no-drag}
 
