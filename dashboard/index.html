@@ -148,16 +148,15 @@
 <!-- theme-color paints the OS title bar of the installed app — the
      standalone title bar (overlay toggled off) and the native-controls
      backdrop in WCO mode (and the browser tab bar tint on mobile).
-     DARK rail navy (#071E2F = --rr-nav-bg, the sidebar's top color): the
-     operator wants the whole title bar — including the top-right, over the
-     content and behind the window controls — to match the dark sidebar, one
-     continuous dark bar. In WCO mode body::before paints the band navy
-     edge-to-edge and theme-color paints the window-controls corner navy
-     (Chrome auto-lightens the min/max/close glyphs for contrast). In plain
-     standalone mode Chrome paints the whole title bar from this one color,
-     which is likewise the intended full-width dark bar. (Re-applies the dark
-     title bar; supersedes the #3638 light-band revert per operator request.) -->
-<meta name="theme-color" content="#071E2F">
+     LIGHT rail-blue (#EFF6FF = --rr-blue-50): the operator wants a TWO-TONE
+     top — the dark sidebar extends to the top over the rail column, and a
+     LIGHT band across the rest of the top (over the content + behind the
+     window controls). In WCO mode body::before paints the band navy only
+     over the rail width and light over the content; theme-color paints the
+     window-controls corner this same light blue so it joins the light band.
+     (Standalone can only show ONE title-bar color and would go all-light —
+     the two-tone needs overlay mode, which the ChromeOS install now uses.) -->
+<meta name="theme-color" content="#EFF6FF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">
