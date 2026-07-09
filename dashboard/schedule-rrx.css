@@ -6693,6 +6693,13 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    these rules cover the receipt-specific bits only. Tokens/rgba
    only — no new raw hex (design-lint ratchet).
    ============================================================ */
+/* Reveal the filter toolbar on open. .rr-fp-toolbar defaults to opacity:0
+   and each panel opts back in via its own #id.is-open rule (Forms /
+   Checklists have one); Receipts was missing it, so the chips stayed
+   invisible while still occupying ~113px — a dead band that pushed the
+   first receipt far below the header. This restores the chips and closes
+   the gap. */
+#rr-util-rail-mount #rr-sched-receipts.is-open .rr-fp-toolbar{opacity:1;transition:opacity 120ms ease 100ms}
 #rr-util-rail-mount .rr-rcp-summary{margin-top:8px;font-size:var(--fs-sm);color:var(--text-subtle,var(--rr-gray-500));line-height:1.35}
 #rr-util-rail-mount .rr-rcp-pill{flex:0 0 auto;font-size:var(--fs-10-5);font-weight:600;line-height:1;white-space:nowrap;padding:3px 7px;border-radius:6px;background:var(--rr-gray-100);color:var(--rr-gray-600)}
 #rr-util-rail-mount .rr-rcp-pill.is-warn{background:rgba(180,83,9,.10);color:var(--rr-amber-800)}
