@@ -16762,6 +16762,13 @@ function openSheetsCellMenu(g, x, y) {
   };
   render();
   m.addEventListener("click", async (e) => {
+    // Own every click inside the menu. Drilling into a submenu re-renders
+    // m.innerHTML, which detaches the clicked node — so the document-level
+    // "click outside a popover closes it" handler would then see a target
+    // with no .wb-ctx-menu ancestor and wrongly close the whole menu (the
+    // submenu flashed open and vanished). Stopping propagation keeps the
+    // menu's fate in this handler alone.
+    e.stopPropagation();
     if (e.target.closest("[data-menu-back]")) { stack.pop(); render(); return; }
     const btn = e.target.closest("[data-menu-i]");
     if (!btn || btn.disabled) return;
