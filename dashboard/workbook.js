@@ -7815,8 +7815,8 @@ function cellReceiptRef(cell) {
   return { path, name: (r && typeof r.name === "string" && r.name) ? r.name : "receipt" };
 }
 
-// A form-photo cell (format.photo = { path, name, bucket }) points at a
-// driver-uploaded picture in a private storage bucket — the report builder
+// A form-photo cell (format.photo = { path, thumbPath, name, bucket }) points at
+// a driver-uploaded picture in a private storage bucket — the report builder
 // emits these for photo/image answers. Like receipts we never store the bytes;
 // unlike receipts the picture shows inline. Path + bucket are validated so a
 // tampered format degrades to a filename chip rather than rendering anything.
@@ -7824,18 +7824,22 @@ function cellReceiptRef(cell) {
 // Performance (a report can carry hundreds of photos): the grid is virtualized,
 // so only the ~dozens of photo cells actually on screen ever render an <img>.
 // We lean into that — photos are signed LAZILY as their cells paint (never all
-// up front), and each thumbnail is served DOWNSCALED via Supabase image
-// transforms (~640px, ~20KB) instead of the full ~1600px upload (~300KB), a
-// ~15× bytes cut. Click-to-enlarge signs a full-resolution URL on demand.
-// If the storage tier doesn't support transforms, the first thumbnail 404s and
-// we fall back to full-size URLs for the rest (WB_PHOTO_TX flips off).
+// up front). Each cell shows a small THUMBNAIL that the driver app uploaded
+// alongside the full image (thumbPath, ~480px/~20KB) — no server-side image
+// transform needed, so this works on any Supabase tier. Older photos with no
+// thumbnail fall back to the full image. Click-to-enlarge always signs the
+// full-resolution path. If a thumbnail is missing/unreadable, the <img> error
+// handler swaps in the full image so nothing shows broken.
 const WB_PHOTO_RE = /^[A-Za-z0-9][A-Za-z0-9._/\-]{0,300}$/;
 const WB_PHOTO_BUCKETS = new Set(["driver-documents", "driver-photos"]);
-const WB_PHOTO_URLS = new Map();    // "bucket|path" -> thumbnail signedUrl ("" while pending)
-const WB_PHOTO_PENDING = new Map(); // "bucket|path" -> ref, queued for the next sign flush
-const WB_PHOTO_THUMB = { width: 640, height: 640, resize: "contain", quality: 72 };
-let WB_PHOTO_TX = true;             // false once we learn the tier can't transform
+const WB_PHOTO_URLS = new Map();    // "bucket|path" -> signedUrl ("" while pending)
+const WB_PHOTO_PENDING = new Map(); // "bucket|path" -> {bucket,path}, queued for the next flush
 let _wbPhotoFlushT = null;
+
+// The storage path a cell's thumbnail should load: the uploaded thumbnail when
+// present, else the full image (older submissions, or if the thumb upload
+// failed). Enlarge always uses ref.path.
+function photoThumbPath(ref) { return ref.thumbPath || ref.path; }
 
 // Report photo cells scale with their row/column (object-fit: contain), so
 // resizing is really "set the height + width of every photo row/column at
@@ -7854,7 +7858,8 @@ function cellPhotoRef(cell) {
   const path = p && typeof p.path === "string" ? p.path : null;
   const bucket = p && typeof p.bucket === "string" ? p.bucket : "driver-documents";
   if (!path || !WB_PHOTO_RE.test(path) || !WB_PHOTO_BUCKETS.has(bucket)) return null;
-  return { path, bucket, name: (p.name && typeof p.name === "string") ? p.name : "Photo" };
+  const thumbPath = (p.thumbPath && typeof p.thumbPath === "string" && WB_PHOTO_RE.test(p.thumbPath)) ? p.thumbPath : null;
+  return { path, thumbPath, bucket, name: (p.name && typeof p.name === "string") ? p.name : "Photo" };
 }
 
 // Queue a photo cell for signing on the next flush. Only cells that actually
@@ -7876,10 +7881,9 @@ async function _mapLimit(items, limit, fn) {
   await Promise.all(workers);
 }
 
-// Sign the queued (visible) photos: a downscaled thumbnail URL each, capped in
-// concurrency so a screenful of photos can't fire a hundred requests at once.
-// Then repaint so the pictures swap in. Signing failures leave the cell as its
-// filename chip rather than a broken image.
+// Sign the queued (visible) thumbnails, capped in concurrency so a screenful of
+// photos can't fire a hundred requests at once. Then repaint so the pictures
+// swap in. Signing failures leave the cell as its filename chip.
 async function flushPhotoSigns() {
   _wbPhotoFlushT = null;
   const refs = [...WB_PHOTO_PENDING.values()];
@@ -7888,9 +7892,8 @@ async function flushPhotoSigns() {
   if (!sb || !refs.length) return;
   for (const ref of refs) WB_PHOTO_URLS.set(photoUrlKey(ref), ""); // mark pending
   await _mapLimit(refs, 8, async (ref) => {
-    const opts = WB_PHOTO_TX ? { transform: WB_PHOTO_THUMB } : undefined;
     try {
-      const res = await sb.storage.from(ref.bucket).createSignedUrl(ref.path, 60 * 60 * 8, opts);
+      const res = await sb.storage.from(ref.bucket).createSignedUrl(ref.path, 60 * 60 * 8);
       const url = res && res.data && res.data.signedUrl;
       if (url) WB_PHOTO_URLS.set(photoUrlKey(ref), url);
     } catch (e) { /* leave chip; a later interaction can retry */ }
@@ -7913,33 +7916,35 @@ async function signPhotoFull(ref) {
   } catch (_) { return null; }
 }
 
-// If a thumbnail 404s because the storage tier can't transform images, drop
-// transforms for the rest of the session and re-sign this path full-size so the
-// picture still appears. Wired via a delegated error listener (CSP-safe — no
-// inline onerror). Idempotent per <img> through the data-wb-fellback guard.
+// If a thumbnail is missing/unreadable, re-sign the FULL image and swap it in
+// so the cell never shows broken. Only meaningful when the cell actually has a
+// separate thumbnail; a full-image cell that errors has nothing to fall back
+// to. Wired via a delegated error listener (CSP-safe — no inline onerror);
+// idempotent per <img> through the data-wb-fellback guard.
 function _wbPhotoFallback(img) {
   if (!img || img.dataset.wbFellback) return;
   img.dataset.wbFellback = "1";
-  WB_PHOTO_TX = false;
   const rc = keyRC(img.getAttribute("data-wb-photo") || "");
   const g = GRIDS.get((img.closest("[data-wb-gridfocus]") || {}).getAttribute?.("data-wb-gridfocus"));
   const ref = g && cellPhotoRef(g.sheet.cells.get(cellKey(rc.r, rc.c)));
-  if (!ref) return;
-  WB_PHOTO_URLS.delete(photoUrlKey(ref));
-  signPhotoFull(ref).then((url) => { if (url) { WB_PHOTO_URLS.set(photoUrlKey(ref), url); img.src = url; } });
+  if (!ref || !ref.thumbPath) return; // no distinct full image to fall back to
+  signPhotoFull(ref).then((url) => {
+    if (url) { WB_PHOTO_URLS.set(ref.bucket + "|" + photoThumbPath(ref), url); img.src = url; }
+  });
 }
 
 // Inline photo markup for a cell. Once the thumbnail URL is signed we render a
 // lazy, async-decoded <img>; until then a filename chip that still opens the
-// picture on click. Painting a not-yet-signed cell queues it for signing, so
-// only on-screen photos are ever fetched. The signed URL comes from Supabase
-// storage, so esc() it before it reaches the src.
+// picture on click. Painting a not-yet-signed cell queues its thumbnail for
+// signing, so only on-screen photos are ever fetched. The signed URL comes from
+// Supabase storage, so esc() it before it reaches the src.
 function photoCellHtml(ref, r, c) {
-  const url = WB_PHOTO_URLS.get(photoUrlKey(ref));
+  const key = ref.bucket + "|" + photoThumbPath(ref);
+  const url = WB_PHOTO_URLS.get(key);
   if (url) {
     return `<img class="wb-cell-img wb-cell-photo" src="${esc(url)}" data-wb-photo="${r},${c}" alt="${esc(ref.name)}" title="${esc(ref.name)} — click to enlarge" loading="lazy" decoding="async" draggable="false">`;
   }
-  queuePhotoSign(ref);
+  queuePhotoSign({ bucket: ref.bucket, path: photoThumbPath(ref) });
   return `<span class="wb-cell-photolink" data-wb-photo="${r},${c}" title="${esc(ref.name)}">${esc(ref.name)}</span>`;
 }
 
@@ -7950,10 +7955,9 @@ function reportPhotoCell(v) {
   if (!v || typeof v !== "object" || !v.rrPhoto) return null;
   const p = v.rrPhoto;
   if (!p || typeof p.path !== "string") return null;
-  return {
-    value: String(v.rrText || p.name || "Photo"),
-    format: { photo: { path: p.path, name: (typeof p.name === "string" && p.name) || "Photo", bucket: (typeof p.bucket === "string" && p.bucket) || "driver-documents" } },
-  };
+  const photo = { path: p.path, name: (typeof p.name === "string" && p.name) || "Photo", bucket: (typeof p.bucket === "string" && p.bucket) || "driver-documents" };
+  if (typeof p.thumbPath === "string" && p.thumbPath) photo.thumbPath = p.thumbPath;
+  return { value: String(v.rrText || p.name || "Photo"), format: { photo } };
 }
 
 function repaintGrid(g) {

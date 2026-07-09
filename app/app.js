@@ -3932,11 +3932,21 @@ async function _formFlushQueue({ silent } = {}) {
       for (const fr of (it.files || [])) {
         const ts = Date.now();
         const safe = (fr.name || "file").replace(/[^A-Za-z0-9._-]+/g, "-");
-        const path = `${session.dsp_id || "no-dsp"}/dvic/${session.driver_id || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        const base = `${session.dsp_id || "no-dsp"}/dvic/${session.driver_id || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}`;
+        const path = `${base}-${safe}`;
         const { error } = await sb.storage.from("driver-documents")
           .upload(path, fr.blob, { contentType: fr.type, upsert: false });
         if (error) { stuck = true; break; }
-        answers[fr.fid] = { path, name: fr.name, size: fr.blob?.size, type: fr.type };
+        // Best-effort thumbnail so photo-heavy reports load light — a failed
+        // thumb just omits the field and the report shows the full image.
+        let thumb;
+        if (fr.thumb) {
+          const thumbPath = `${base}-thumb.jpg`;
+          const { error: tErr } = await sb.storage.from("driver-documents")
+            .upload(thumbPath, fr.thumb, { contentType: fr.thumb.type || "image/jpeg", upsert: false });
+          if (!tErr) thumb = thumbPath;
+        }
+        answers[fr.fid] = { path, name: fr.name, size: fr.blob?.size, type: fr.type, ...(thumb ? { thumb } : {}) };
       }
       if (stuck) break;  // still offline / storage down — retry next trigger
       const { error: subErr } = await sb.rpc("driver_submit_form", {
@@ -8091,13 +8101,14 @@ async function _collectFormAnswers(fields, opts = {}) {
       out[fid] = Array.from(el.querySelectorAll("input[type=checkbox]:checked")).map((c) => c.value);
     } else if (t === "photo") {
       if (skipUploads) return;  // skip in draft mode
-      // Offline path: carry the (downscaled) blob for the queue to upload later.
+      // Offline path: carry the (downscaled) blob + a small thumbnail for the
+      // queue to upload later.
       if (opts.deferFiles) {
         const f = el.files?.[0];
         if (f) {
           out[fid] = { name: f.name, size: f.size, type: f.type, deferred: true };
-          deferOps.push(_downscaleImageFile(f).then((up) => {
-            opts.deferredFiles.push({ fid, blob: up, name: f.name, type: up.type });
+          deferOps.push(Promise.all([_downscaleImageFile(f), _downscaleImageFile(f, 480, 0.6)]).then(([up, thumb]) => {
+            opts.deferredFiles.push({ fid, blob: up, thumb: thumb !== f ? thumb : null, name: f.name, type: up.type });
           }));
         } else { out[fid] = null; }
         return;
@@ -8112,23 +8123,35 @@ async function _collectFormAnswers(fields, opts = {}) {
       if (f) {
         const ts = Date.now();
         const safe = (f.name || "photo").replace(/[^A-Za-z0-9._-]+/g, "-");
-        const path = `${dspId || "no-dsp"}/dvic/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        const base = `${dspId || "no-dsp"}/dvic/${driverId || "anon"}/${ts}-${Math.random().toString(36).slice(2, 8)}`;
+        const path = `${base}-${safe}`;
+        const thumbPath = `${base}-thumb.jpg`;
         out[fid] = { path, name: f.name, size: f.size, type: f.type, uploading: true };
         photoUploads.push(
-          _downscaleImageFile(f).then((up) =>
-            sb.storage.from("driver-documents").upload(path, up, { contentType: up.type, upsert: false })
-              .then(({ error }) => {
-                if (error) {
-                  console.warn("DVIC photo upload failed:", error.message);
-                  out[fid] = { name: f.name, size: f.size, type: f.type, error: error.message };
-                } else {
-                  out[fid] = { path, name: f.name, size: up.size, type: up.type };
-                }
-              })
-          ).catch((e) => {
-              console.warn("DVIC photo upload error:", e);
-              out[fid] = { name: f.name, size: f.size, type: f.type, error: String(e) };
-            })
+          // Upload the full image + a small thumbnail in parallel. The
+          // thumbnail is best-effort: photo-heavy reports load the light
+          // thumb, but a failed thumb just falls back to the full image.
+          Promise.all([
+            _downscaleImageFile(f).then((up) =>
+              sb.storage.from("driver-documents").upload(path, up, { contentType: up.type, upsert: false })
+                .then(({ error }) => ({ error, size: up.size, type: up.type }))),
+            _downscaleImageFile(f, 480, 0.6).then((tb) =>
+              tb !== f
+                ? sb.storage.from("driver-documents").upload(thumbPath, tb, { contentType: tb.type || "image/jpeg", upsert: false })
+                    .then(({ error }) => !error)
+                    .catch(() => false)
+                : false),
+          ]).then(([full, thumbOk]) => {
+            if (full.error) {
+              console.warn("DVIC photo upload failed:", full.error.message);
+              out[fid] = { name: f.name, size: f.size, type: f.type, error: full.error.message };
+            } else {
+              out[fid] = { path, name: f.name, size: full.size, type: full.type, ...(thumbOk ? { thumb: thumbPath } : {}) };
+            }
+          }).catch((e) => {
+            console.warn("DVIC photo upload error:", e);
+            out[fid] = { name: f.name, size: f.size, type: f.type, error: String(e) };
+          })
         );
       } else {
         out[fid] = null;

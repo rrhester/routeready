@@ -282,12 +282,13 @@ const IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i;
 
 // A rich photo cell: the workbook renders it as an inline thumbnail (signed on
 // open); CSV, print, and preview fall back to cellText() below. Kept distinct
-// from a plain string so the text paths never leak "[object Object]".
+// from a plain string so the text paths never leak "[object Object]". When the
+// driver app captured a small thumbnail alongside the full image, carry its
+// path so the report loads the light thumbnail instead of the full photo.
 function photoCell(upload) {
-  return {
-    rrPhoto: { path: upload.path, name: upload.name || "Photo", bucket: FORM_UPLOAD_BUCKET },
-    rrText: upload.name || "Photo",
-  };
+  const rrPhoto = { path: upload.path, name: upload.name || "Photo", bucket: FORM_UPLOAD_BUCKET };
+  if (typeof upload.thumb === "string" && upload.thumb) rrPhoto.thumbPath = upload.thumb;
+  return { rrPhoto, rrText: upload.name || "Photo" };
 }
 
 // Text for any answer cell — a rich photo cell collapses to its filename so
