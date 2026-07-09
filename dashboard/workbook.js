@@ -5233,14 +5233,15 @@ function setWorkbookDocTitle(name) {
 }
 
 export async function createReportWorkbook({ title, description, headers, rows, sheetName, report }) {
-  // Rows carrying a form photo get extra height so the thumbnail is legible,
-  // and their columns widen a touch — same affordance as pasted cell images.
+  // Rows carrying a form photo get a large preview so the picture is easy to
+  // read at a glance; their columns widen to match. Operators can still drag
+  // a row/column smaller — object-fit keeps the image sharp at any size.
   const rowHeights = {}, colWidths = {};
   (rows || []).forEach((r, ri) => {
     r.forEach((v, ci) => {
       if (v && typeof v === "object" && v.rrPhoto) {
-        rowHeights[ri + 1] = 84;
-        colWidths[ci] = Math.max(colWidths[ci] || 0, 120);
+        rowHeights[ri + 1] = PHOTO_SIZE_DEFAULT.h;
+        colWidths[ci] = Math.max(colWidths[ci] || 0, PHOTO_SIZE_DEFAULT.w);
       }
     });
   });
@@ -7823,6 +7824,18 @@ function cellReceiptRef(cell) {
 const WB_PHOTO_RE = /^[A-Za-z0-9][A-Za-z0-9._/\-]{0,300}$/;
 const WB_PHOTO_BUCKETS = new Set(["driver-documents", "driver-photos"]);
 const WB_PHOTO_URLS = new Map(); // "bucket|path" -> signedUrl ("" while pending/failed)
+
+// Report photo cells scale with their row/column (object-fit: contain), so
+// resizing is really "set the height + width of every photo row/column at
+// once." These presets back the right-click "Resize photos" tool; the middle
+// one is also the size a fresh report is built at.
+const WB_PHOTO_SIZES = [
+  { key: "s", label: "Small", h: 96, w: 120 },
+  { key: "m", label: "Medium", h: 168, w: 220 },
+  { key: "l", label: "Large", h: 240, w: 320 },
+  { key: "xl", label: "Extra large", h: 300, w: 460 },
+];
+const PHOTO_SIZE_DEFAULT = WB_PHOTO_SIZES[2]; // Large
 function photoUrlKey(ref) { return ref.bucket + "|" + ref.path; }
 function cellPhotoRef(cell) {
   const p = cell && cell.format && cell.format.photo;
@@ -10255,6 +10268,35 @@ function removeCellImage(g, r, c) {
   delete next.format.img;
   const empty = next.value == null && !next.formula && !Object.keys(next.format).length;
   setCells(g, [{ r, c, cell: empty ? null : next }]);
+}
+
+// True when any cell on the sheet is a form-photo cell — gates the
+// "Resize photos" context-menu tool.
+function sheetHasPhotos(sheet) {
+  for (const cell of sheet.cells.values()) if (cellPhotoRef(cell)) return true;
+  return false;
+}
+
+// Resize every photo row (height) and photo column (width) on the sheet to the
+// given pixels, clamped to the grid limits. One layout change, like a manual
+// row/column drag — text columns are left alone.
+function setPhotoSize(g, h, w) {
+  const sheet = g.sheet;
+  const rowsSet = new Set(), colsSet = new Set();
+  for (const [key, cell] of sheet.cells) {
+    if (!cellPhotoRef(cell)) continue;
+    const rc = keyRC(key);
+    rowsSet.add(rc.r); colsSet.add(rc.c);
+  }
+  if (!rowsSet.size) { _toast("No photos on this sheet", "info"); return; }
+  const hpx = Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, Math.round(h)));
+  const wpx = Math.min(MAX_COL_W, Math.max(MIN_COL_W, Math.round(w)));
+  for (const r of rowsSet) sheet.rowHeights[r] = hpx;
+  for (const c of colsSet) sheet.colWidths[c] = wpx;
+  computeGeometry(g);
+  repaintGrid(g);
+  saveSheetMeta(sheet.id);
+  _toast("Photos resized", "success");
 }
 
 // ── Drag-move: grab the selection border and drop the cells elsewhere ──
@@ -16630,6 +16672,7 @@ function openSheetsCellMenu(g, x, y) {
   const cell = g.sheet.cells.get(cellKey(r, c));
   const hasLink = !!(cell && cell.format && cell.format.link);
   const hasImg = !!cellImgSrc(cell);
+  const hasPhotos = sheetHasPhotos(g.sheet);
   const sep = "—";
   const it = (icon, label, act, o) => ({ icon, label, act, ...(o || {}) });
   const moreSub = [
@@ -16690,6 +16733,11 @@ function openSheetsCellMenu(g, x, y) {
     it(CTX_ICONS.comment, "Comment", "comment", { kbd: "Ctrl+Alt+M" }),
     it(CTX_ICONS.dropdown, "Dropdown", "data-validation", { disabled: ro }),
     ...(hasImg ? [] : [it(CTX_ICONS.image, "Image in cell…", "insert-image", { disabled: ro })]),
+    ...(hasPhotos && !ro ? [{ icon: CTX_ICONS.image, label: "Resize photos", sub: [
+      ...WB_PHOTO_SIZES.map((s) => it(null, s.label, "photo-size:" + s.key)),
+      sep,
+      it(null, "Custom size…", "photo-size:custom"),
+    ] }] : []),
     sep,
     { icon: CTX_ICONS.more, label: "View more cell actions", sub: moreSub },
   ];
@@ -16724,6 +16772,20 @@ function openSheetsCellMenu(g, x, y) {
     if (String(item.act || "").startsWith("fill:")) {
       const did = fillDriverIdAt(g.sheet, r);
       if (did) fillDriverAction(g, did, item.act);
+      return;
+    }
+    if (String(item.act || "").startsWith("photo-size:")) {
+      const which = item.act.slice("photo-size:".length);
+      if (which === "custom") {
+        const inp = window.prompt("Photo height in pixels (22–300):", String(PHOTO_SIZE_DEFAULT.h));
+        if (inp == null) return;
+        const px = parseInt(inp, 10);
+        if (!Number.isFinite(px)) { _toast("Enter a number", "warn"); return; }
+        setPhotoSize(g, px, Math.round(px * 1.33));
+      } else {
+        const p = WB_PHOTO_SIZES.find((s) => s.key === which);
+        if (p) setPhotoSize(g, p.h, p.w);
+      }
       return;
     }
     switch (item.act) {
