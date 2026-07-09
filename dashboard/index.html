@@ -148,18 +148,16 @@
 <!-- theme-color paints the OS title bar of the installed app — the
      standalone title bar (overlay toggled off) and the native-controls
      backdrop in WCO mode (and the browser tab bar tint on mobile).
-     Kept LIGHT (#EFF6FF = --rr-blue-50, the rail-blue title-bar band):
-     the "dark sidebar reaches the top" look is a TWO-TONE effect (navy
-     only over the rail width, light over the content) and that is only
-     possible in Window Controls Overlay mode, where inline-styles.css
-     paints the band per-column via body::before. In plain standalone mode
-     (e.g. an installed ChromeOS PWA) there is no overlay — Chrome paints
-     the ENTIRE title bar from this one color, so a navy value here made
-     the whole top band dark (a full-width band, not just the sidebar).
-     We therefore keep it light so standalone shows a calm light title bar
-     instead of a heavy dark band; WCO windows still get the sidebar-only
-     navy from body::before. (Reverts #3635.) -->
-<meta name="theme-color" content="#EFF6FF">
+     DARK rail navy (#071E2F = --rr-nav-bg, the sidebar's top color): the
+     operator wants the whole title bar — including the top-right, over the
+     content and behind the window controls — to match the dark sidebar, one
+     continuous dark bar. In WCO mode body::before paints the band navy
+     edge-to-edge and theme-color paints the window-controls corner navy
+     (Chrome auto-lightens the min/max/close glyphs for contrast). In plain
+     standalone mode Chrome paints the whole title bar from this one color,
+     which is likewise the intended full-width dark bar. (Re-applies the dark
+     title bar; supersedes the #3638 light-band revert per operator request.) -->
+<meta name="theme-color" content="#071E2F">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">
