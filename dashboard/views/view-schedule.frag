@@ -2617,13 +2617,13 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor"/><polyline points="8.5 12 11 14.5 15.5 9.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <button type="button" class="sched-util-btn sched-util-btn--forms" data-rr-forms-toggle title="Forms" aria-label="Forms" aria-expanded="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12l2 2 4-4"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" fill="currentColor"/><rect x="8" y="2" width="8" height="4" rx="1" fill="currentColor"/><path d="M8.7 12.6l2.1 2.1 4.6-4.6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <button type="button" class="sched-util-btn sched-util-btn--receipts" data-rr-receipts-toggle title="Receipts" aria-label="Receipts" aria-expanded="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h14v18l-2.33-1.6L14.33 21 12 19.4 9.67 21l-2.34-1.6L5 21z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18l-2.33-1.6L14.33 21 12 19.4 9.67 21l-2.34-1.6L5 21z" fill="currentColor"/><line x1="9" y1="8.5" x2="15" y2="8.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="12.5" x2="15" y2="12.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
           </button>
           <button type="button" class="sched-util-btn sched-util-btn--recog" data-rr-recog-toggle title="Recognition" aria-label="Recognition" aria-expanded="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="5"/><path d="M8.9 12.6 7.4 21l4.6-2.5L16.6 21l-1.5-8.4"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.9 12.6 7.4 21l4.6-2.5L16.6 21l-1.5-8.4z" fill="currentColor"/><circle cx="12" cy="8.5" r="5.5" fill="currentColor"/><circle cx="12" cy="8.5" r="2.3" fill="#fff"/></svg>
           </button>
         </div>
         <aside class="sched-notes-panel" id="rr-sched-notes" aria-label="Notes" aria-hidden="true">
