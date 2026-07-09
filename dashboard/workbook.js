@@ -14651,6 +14651,7 @@ function openChartDialog(g, existing) {
     </div>`;
   document.body.appendChild(wrap);
   wireRangePick(g, wrap);
+  wireSrcAutoRange(g, wrap, "wb-chart-src", "wb-chart-range");
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
@@ -14750,6 +14751,25 @@ function wireRangePick(g, wrap) {
       const srcSelect = srcId ? wrap.querySelector("#" + srcId) : null;
       beginRangePick(g, { wrap, input, srcSelect, single: btn.hasAttribute("data-wb-pick-single") });
     });
+  });
+}
+
+// Switching the Data-source sheet auto-fills the range field to that sheet's
+// populated extent, so you don't have to re-type it for the new sheet. Only
+// overwrites a range the user hasn't hand-edited (still holds the previous
+// sheet's auto default), so a deliberately-typed range is left alone.
+function wireSrcAutoRange(g, wrap, srcSelId, rangeInputId) {
+  const sel = wrap.querySelector("#" + srcSelId), input = wrap.querySelector("#" + rangeInputId);
+  if (!sel || !input) return;
+  const sheetById = (id) => (WB.sheetsByBlock.get(g.blockId) || []).find((s) => s.id === id);
+  const autoFor = (id) => { const s = sheetById(id); return s ? rangeRefText(sheetDataRange(s)) : ""; };
+  let prevAuto = autoFor(sel.value);
+  sel.addEventListener("change", () => {
+    const cur = input.value.trim().toUpperCase();
+    const nextAuto = autoFor(sel.value);
+    // leave a custom range in place; refresh one that's still the old default
+    if (!cur || cur === prevAuto.toUpperCase()) input.value = nextAuto;
+    prevAuto = nextAuto;
   });
 }
 
@@ -14894,6 +14914,7 @@ function openKpiDialog(g, existing) {
         <div class="wb-chart-opts"><label class="wb-check"><input type="checkbox" id="wb-kpi-invert" ${existing && existing.invert ? "checked" : ""}><span>Lower is better</span></label></div></div>
     </div>`, existing ? "Save" : "Add tile");
   wireRangePick(g, wrap);
+  wireSrcAutoRange(g, wrap, "wb-kpi-src", "wb-kpi-value");
   const aggSel = wrap.querySelector("#wb-kpi-agg"), valLbl = wrap.querySelector("#wb-kpi-value-lbl");
   const syncAggLbl = () => { valLbl.textContent = aggSel.value === "cell" ? "Value cell" : "Range to " + KPI_AGGS[aggSel.value].toLowerCase(); };
   aggSel.addEventListener("change", syncAggLbl); syncAggLbl();
@@ -14952,6 +14973,7 @@ function openTableDialog(g, existing) {
       </div></div>`,
     existing ? "Save" : "Add table");
   wireRangePick(g, wrap);
+  wireSrcAutoRange(g, wrap, "wb-tbl-src", "wb-tbl-range");
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
     if (!e.target.closest("[data-wb-save]")) return;
