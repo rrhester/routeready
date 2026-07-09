@@ -34845,27 +34845,112 @@ let _dispatchPriority    = "normal";
 let _dispatchRequiresAck = false;
 
 // ── Conversation search ──────────────────────────────────────────────
-// The search box lives in the static aside (view-messages.frag) and
-// persists across list re-renders, so we bind it once and hold the
-// query in a module var.  Every list renderer (Drivers / HR /
-// Broadcasts) calls _applyMsgSearch() after painting its rows, so the
-// filter survives the 8s poll rebuilds.  Filtering is purely client-
-// side over the already-loaded rows — name + preview substring match.
+// Two layers:
+//  1. On the DRIVERS tab, a query of ≥2 chars runs a server full-text
+//     search across the whole driver-message history (dispatch_chat_search,
+//     migration 0449) — so you can find a conversation by anything ever
+//     said in it, not just the latest preview line, including drivers not
+//     currently in the loaded inbox.  Results replace the inbox rows and
+//     the 8s inbox poll pauses its render while they're shown.
+//  2. On HR / Broadcasts (channel lists), and for 1-char queries, it falls
+//     back to an instant client-side filter over the already-loaded rows
+//     (name + preview substring).  _applyMsgSearch runs after every list
+//     render so that local filter survives the poll rebuilds.
+// The box lives in the static aside and persists across list re-renders,
+// so we bind it once and hold the query in a module var.
 let _msgSearchQuery = "";
+let _msgSearchServerRows = null; // non-null => the drivers list is showing server results
+let _msgSearchTimer = null;
+let _msgSearchSeq = 0;           // guards against out-of-order RPC responses
+
+function _fmtMsgRelative(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const m = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const days = Math.floor(h / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString();
+}
+
 function _rrWireMsgSearch() {
   const input = document.getElementById("rr-msg-search");
   if (!input || input.dataset.rrWired) return;
   input.dataset.rrWired = "1";
   input.value = _msgSearchQuery;
   input.addEventListener("input", () => {
-    _msgSearchQuery = (input.value || "").trim().toLowerCase();
-    _applyMsgSearch();
+    _msgSearchQuery = (input.value || "").trim();
+    _onMsgSearchChange();
   });
 }
+
+function _onMsgSearchChange() {
+  const q = _msgSearchQuery;
+  if (_msgSearchTimer) { clearTimeout(_msgSearchTimer); _msgSearchTimer = null; }
+  const isDrivers = _msgInboxTab === "drivers";
+  // Drivers tab + ≥2 chars → debounced server search over full history.
+  if (isDrivers && q.length >= 2) {
+    _msgSearchTimer = setTimeout(() => _runServerChatSearch(q), 250);
+    return;
+  }
+  // Otherwise: leaving server-search mode (if we were in it) and applying
+  // the instant local filter over the loaded rows.
+  _msgSearchSeq++; // cancel any in-flight server response
+  if (_msgSearchServerRows) {
+    _msgSearchServerRows = null;
+    if (isDrivers) { refreshDriverChatList(false); return; } // repaint real inbox; it calls _applyMsgSearch
+  }
+  _applyMsgSearch();
+}
+
+async function _runServerChatSearch(q) {
+  if (_msgInboxTab !== "drivers" || _msgSearchQuery !== q || q.length < 2) return;
+  const seq = ++_msgSearchSeq;
+  const { data, error } = await sb.rpc("dispatch_chat_search", { p_query: q, p_limit: 30 });
+  // Drop stale / superseded / cancelled responses.
+  if (seq !== _msgSearchSeq || _msgSearchQuery !== q || _msgInboxTab !== "drivers") return;
+  _msgSearchServerRows = error ? [] : (Array.isArray(data) ? data : []);
+  _renderMsgSearchResults(_msgSearchServerRows, q);
+}
+
+function _renderMsgSearchResults(rows, q) {
+  const list = document.getElementById("rr-msg-driver-list");
+  if (!list) return;
+  const header = `<div style="padding:8px var(--s-3) 6px;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle)">Message matches${rows.length ? ` · ${rows.length}` : ""}</div>`;
+  if (!rows.length) {
+    list.innerHTML = header + `<div class="rr-empty-inline">No messages match “${escapeHtml(q)}”.</div>`;
+    return;
+  }
+  list.innerHTML = header + rows.map((r) => {
+    const initials = (r.name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+    const isActive = _msgInboxSelectedId === r.driver_id;
+    const preview = (r.sender_kind === "dispatch" ? "You: " : "") + (r.snippet || "");
+    const previewTrunc = preview.length > 64 ? preview.slice(0, 61) + "…" : preview;
+    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${escapeHtml(r.driver_id)}" data-rr-driver-id="${escapeHtml(r.driver_id)}">
+      <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="msg-item-presence"></span></div>
+      <div><div class="msg-item-name">${escapeHtml(r.name || "")}${r.station_code ? ` <span class="msg-item-station">· ${escapeHtml(r.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(previewTrunc)}</div></div>
+      <div><div class="msg-item-time">${escapeHtml(_fmtMsgRelative(r.message_at))}</div></div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll("[data-rr-thread]").forEach((el) => {
+    el.addEventListener("click", () => openDriverChatThread(el.dataset.rrThread));
+  });
+  _presencePaintList();
+}
+
+// True while server search results are on screen — the inbox poll checks
+// this to avoid clobbering them on its 8s tick.
+function _msgSearchServerActive() {
+  return !!_msgSearchServerRows && _msgSearchQuery.length >= 2 && _msgInboxTab === "drivers";
+}
+
 function _applyMsgSearch() {
   const list = document.getElementById("rr-msg-driver-list");
   if (!list) return;
-  const q = _msgSearchQuery;
+  const q = _msgSearchQuery.toLowerCase();
   let anyVisible = false;
   list.querySelectorAll(".msg-item").forEach((row) => {
     if (!q) { row.style.display = ""; anyVisible = true; return; }
@@ -34886,14 +34971,10 @@ function _applyMsgSearch() {
       note.className = "rr-empty-inline";
       list.appendChild(note);
     }
-    note.textContent = `No conversations match “${input_value_for_note()}”.`;
+    note.textContent = `No conversations match “${_msgSearchQuery}”.`;
     note.style.display = "";
   } else if (note) {
     note.style.display = "none";
-  }
-  function input_value_for_note() {
-    const el = document.getElementById("rr-msg-search");
-    return (el && el.value) || _msgSearchQuery;
   }
 }
 
@@ -35076,6 +35157,8 @@ let _msgSupportRealtime = null;    // realtime channel for support_messages (DSP
 async function refreshDriverChatList(autoSelect) {
   const list = document.getElementById("rr-msg-driver-list");
   if (!list) return;
+  // Don't let the 8s inbox poll overwrite active server-search results.
+  if (_msgSearchServerActive()) return;
   // Fetch the driver inbox and the support thread in parallel — the
   // support thread fuels the pinned "RouteReady Support" row at the top.
   const [{ data, error }, supRes] = await Promise.all([
@@ -36530,6 +36613,14 @@ window.msgListTab = function (btn) {
   _msgSyncTabStrip(tab);
   if (tab === _msgInboxTab) return;
   _msgInboxTab = tab;
+  // Clear the search on any tab change — server search is drivers-only and
+  // a stale query carried into a channel list is more confusing than useful.
+  _msgSearchQuery = "";
+  _msgSearchServerRows = null;
+  _msgSearchSeq++;
+  if (_msgSearchTimer) { clearTimeout(_msgSearchTimer); _msgSearchTimer = null; }
+  const _si = document.getElementById("rr-msg-search");
+  if (_si) _si.value = "";
   const mode = tab === "drivers" ? "direct" : "channels";
   _msgChannelKind = tab === "hr" ? "hr" : "broadcast";
 
