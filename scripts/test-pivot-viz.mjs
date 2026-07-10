@@ -183,6 +183,24 @@ ok("ooxml pie emits a pieChart with no cartesian axes", () => {
   assert.ok(xml.includes("<c:pieChart>") && !xml.includes("<c:valAx>"));
 });
 
+ok("ooxml scatter emits a real scatterChart (xVal/yVal), not a line chart", () => {
+  const cd = { categories: ["1", "2", "3"], series: [{ name: "Y", values: [10, 20, 30] }] };
+  const xml = ooxmlChartXml({ type: "scatter", r0: 0, c0: 0, r1: 3, c1: 1 }, "Ops", cd);
+  assert.ok(xml.includes("<c:scatterChart>") && xml.includes("<c:xVal>") && xml.includes("<c:yVal>"));
+  assert.ok(!xml.includes("<c:lineChart>"), "scatter must not fall back to a categorical line chart");
+});
+
+ok("ooxml single-column scatter is skipped rather than misleading", () => {
+  const cd = { categories: ["1", "2"], series: [{ name: "Y", values: [10, 20] }] };
+  assert.equal(ooxmlChartXml({ type: "scatter", r0: 0, c0: 0, r1: 2, c1: 0 }, "Ops", cd), null);
+});
+
+ok("chart formulas reference the (exported) sheet name passed in", () => {
+  const cd = { categories: ["A", "B"], series: [{ name: "S", values: [1, 2] }] };
+  const xml = ooxmlChartXml({ type: "column", r0: 0, c0: 0, r1: 2, c1: 1 }, "Renamed Sheet", cd);
+  assert.ok(xml.includes("'Renamed Sheet'!"), "series formulas must use the passed export name");
+});
+
 ok("ooxml chart + drawing parts are well-formed XML", () => {
   const cd = { categories: ["A", "B"], series: [{ name: "S", values: [1, 2] }] };
   const combo = { categories: ["A", "B"], series: [{ name: "S", values: [1, 2] }, { name: "T", values: [3, 4] }] };
@@ -191,6 +209,7 @@ ok("ooxml chart + drawing parts are well-formed XML", () => {
   assert.ok(wellFormed(ooxmlChartXml({ type: "area", r0: 0, c0: 0, r1: 2, c1: 1 }, "Ops", cd)), "area");
   assert.ok(wellFormed(ooxmlChartXml({ type: "pie", r0: 0, c0: 0, r1: 2, c1: 1 }, "Ops", cd)), "pie");
   assert.ok(wellFormed(ooxmlChartXml({ type: "combo", r0: 0, c0: 0, r1: 2, c1: 2 }, "Ops", combo)), "combo");
+  assert.ok(wellFormed(ooxmlChartXml({ type: "scatter", r0: 0, c0: 0, r1: 2, c1: 1 }, "Ops", cd)), "scatter");
   assert.ok(wellFormed(ooxmlDrawingXml([{ fromCol: 3, fromRow: 0, toCol: 11, toRow: 16, relId: "rIdCh1", name: "Chart 1", id: 2 }])), "drawing");
 });
 
@@ -225,6 +244,16 @@ await okA("charts + pivots survive the .xlsx round-trip", async () => {
   assert.ok(parsed.sheets[1].cells.some((c) => Number(c.value) === 22), "East subtotal 22 exported");
   // original data still intact on sheet 1
   assert.ok(parsed.sheets[0].cells.some((c) => c.value === "Mon"));
+});
+
+await okA("cross-sheet chart export resolves its source sheet by srcSheetId", async () => {
+  const data = sheetFrom([["Day", "Routes"], ["Mon", 10], ["Tue", 20]]);
+  data.name = "Data"; data.id = "sD";
+  // the chart lives on an empty dashboard sheet but sources "Data"
+  const dash = { id: "sX", name: "Dash", rowCount: 1, colCount: 1, cells: new Map(), colWidths: {}, meta: { charts: [{ id: "c9", type: "column", r0: 0, c0: 0, r1: 2, c1: 1, srcSheetId: "sD" }] } };
+  const bytes = buildXlsxBytes([dash, data]); // must not throw — reads Data, not the empty Dash grid
+  const parsed = await parseXlsxBytes(bytes);
+  assert.ok(parsed.sheets.some((s) => s.name === "Data") && parsed.sheets.some((s) => s.name === "Dash"), "both sheets present");
 });
 
 console.log(`✓ pivot-viz + chart-viz: ${n} checks passed`);

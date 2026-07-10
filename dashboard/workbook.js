@@ -13351,10 +13351,20 @@ function ooxmlChartXml(ch, sheetName, cd) {
     const barSeries = type === "combo" ? serAll.slice(0, Math.max(1, serAll.length - 1)) : serAll;
     plot += `<c:barChart><c:barDir val="${barDir}"/><c:grouping val="${stacked ? "stacked" : "clustered"}"/><c:varyColors val="0"/>${barSeries.join("")}${stacked ? `<c:overlap val="100"/>` : `<c:gapWidth val="90"/>`}<c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:barChart>`;
     if (type === "combo" && serAll.length > 1) plot += `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${serAll[serAll.length - 1]}<c:marker val="1"/><c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:lineChart>`;
-  } else if (type === "line" || type === "scatter") {
+  } else if (type === "line") {
     plot += `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${serAll.join("")}<c:marker val="1"/><c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:lineChart>`;
   } else if (type === "area") {
     plot += `<c:areaChart><c:grouping val="standard"/><c:varyColors val="0"/>${serAll.join("")}<c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:areaChart>`;
+  } else if (type === "scatter") {
+    // Real XY scatter: X = the first column, Y = each remaining column. Two
+    // value axes. Skip a single-column scatter rather than emit a misleading
+    // categorical chart.
+    if (single) return null;
+    const xF = `${SREF}!$${L(ch.c0)}$${dataR0 + 1}:$${L(ch.c0)}$${ch.r1 + 1}`;
+    const xs = cd.categories.map((v) => { const nx = Number(v); return isFinite(nx) && v !== "" ? nx : null; });
+    const sSer = cols.map((col, i) => `<c:ser><c:idx val="${i}"/><c:order val="${i}"/><c:tx><c:strRef><c:f>${xmlEsc(nameF(col))}</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${xmlEsc(series[i].name)}</c:v></c:pt></c:strCache></c:strRef></c:tx><c:xVal><c:numRef><c:f>${xmlEsc(xF)}</c:f>${_chNumCache(xs)}</c:numRef></c:xVal><c:yVal><c:numRef><c:f>${xmlEsc(valF(col))}</c:f>${_chNumCache(series[i].values)}</c:numRef></c:yVal></c:ser>`).join("");
+    const sAxes = `<c:valAx><c:axId val="${AX_CAT}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/><c:tickLblPos val="nextTo"/><c:crossAx val="${AX_VAL}"/></c:valAx><c:valAx><c:axId val="${AX_VAL}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="l"/><c:majorGridlines/><c:tickLblPos val="nextTo"/><c:crossAx val="${AX_CAT}"/></c:valAx>`;
+    return _chartWrap(`<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>${sSer}<c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:scatterChart>${sAxes}`, ch.title);
   } else {
     return null;
   }
@@ -13622,8 +13632,12 @@ function buildXlsxBytes(sheets) {
       const anchors = [], drels = [];
       for (const ch of chSpecs) {
         if (![ch.r0, ch.c0, ch.r1, ch.c1].every(Number.isInteger)) continue;
+        // A chart may source another sheet (dashboard charts carry srcSheetId).
+        // Read the data — and reference the formulas — against that sheet.
+        const srcSheet = (ch.srcSheetId && sheets.find((s) => s.id === ch.srcSheetId)) || sheet;
+        const srcName = exportNameById.get(srcSheet.id) || srcSheet.name;
         let cxml;
-        try { const cd = chartData(sheet, ch); if (!cd.series.length) continue; cxml = ooxmlChartXml(ch, sheet.name, cd); } catch (e) { cxml = null; }
+        try { const cd = chartData(srcSheet, ch); if (!cd.series.length) continue; cxml = ooxmlChartXml(ch, srcName, cd); } catch (e) { cxml = null; }
         if (!cxml) continue;
         const cid = ++chartSeq;
         chartParts.push({ id: cid, xml: cxml });
@@ -13645,15 +13659,19 @@ function buildXlsxBytes(sheets) {
     return { xml, links, tables: sheetTables, drawing: sheetDrawing };
   };
 
-  // sheet XML first — it populates the style + table registries as it goes
+  // sheet XML first — it populates the style + table registries as it goes.
+  // Export names (Excel-sanitized + de-duplicated) are computed up front so a
+  // chart's series formulas reference the *exported* sheet name, not the raw
+  // in-app name that Excel may have altered.
   let tableIdSeq = 0;
   const usedTableNames = new Set();
   let drawingSeq = 0, chartSeq = 0;
   const drawingParts = [], chartParts = [];
+  const usedSheetNames = new Set();
+  const names = sheets.map((sh) => xlsxSheetName(sh.name, usedSheetNames));
+  const exportNameById = new Map(sheets.map((sh, i) => [sh.id, names[i]]));
   const sheetParts = sheets.map(sheetXml);
   const allTables = sheetParts.flatMap((p) => p.tables || []);
-  const used = new Set();
-  const names = sheets.map((sh) => xlsxSheetName(sh.name, used));
 
   const dxfXml = dxfs.length ? `<dxfs count="${dxfs.length}">${dxfs.join("")}</dxfs>` : "";
   const numFmtDefs = [`<numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/>`, ...customNumFmts.map((nf) => `<numFmt numFmtId="${nf.id}" formatCode="${xmlEsc(nf.code)}"/>`)];
