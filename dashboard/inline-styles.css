@@ -21928,6 +21928,57 @@ body.rr-cmdk-open{ overflow:hidden }
         }
         #view-fleet2 .rr-ab-btn.rr-ab-emph > svg:first-child { color: var(--rr-blue-600); }
         #view-fleet2 .rr-ab-btn.rr-ab-emph:hover { background: var(--rr-blue-50); }
+        /* Split-button caret + dropdown · exact twin of Schedule's
+           .rr-ab-caret / .rr-ab-menu (schedule-rrx.css:5083, 5195). The
+           .rr-ab-split-wrap is the position:relative anchor holding the
+           pill + its menu; the caret is a divided chevron segment on the
+           pill's right edge, and the menu is a floating card the inline
+           wiring positions fixed under the caret. */
+        #view-fleet2 .rr-ab-split-wrap { position: relative; display: inline-flex; }
+        #view-fleet2 .rr-ab-caret {
+          display: inline-flex;
+          align-items: center;
+          align-self: stretch;
+          margin: 0 -13px 0 2px;
+          padding: 0 8px;
+          border-left: 1px solid rgba(15, 23, 42, .18);
+          border-radius: 0 7px 7px 0;
+          color: inherit;
+        }
+        #view-fleet2 .rr-ab-caret:hover { background: rgba(15, 23, 42, .07); }
+        #view-fleet2 .rr-ab-caret:focus-visible {
+          outline: none;
+          box-shadow: inset 0 0 0 2px var(--rr-blue-600);
+        }
+        #view-fleet2 .rr-ab-caret svg { width: 11px; height: 11px; }
+        #view-fleet2 .rr-ab-menu {
+          position: absolute;
+          top: calc(100% + 6px);
+          left: 0;
+          z-index: 9000;
+          min-width: 190px;
+          padding: 6px;
+          border: 1px solid var(--rr-border-primary, rgba(15, 23, 42, .20));
+          border-radius: 10px;
+          background: var(--rr-white);
+          box-shadow: 0 10px 28px rgba(2, 6, 23, .14);
+        }
+        #view-fleet2 .rr-ab-menu[hidden] { display: none; }
+        #view-fleet2 .rr-ab-menu button {
+          display: block;
+          width: 100%;
+          padding: 8px 10px;
+          border: 0;
+          border-radius: 7px;
+          background: none;
+          font: inherit;
+          font-size: var(--fs-md);
+          font-weight: 500;
+          text-align: left;
+          color: var(--rr-fg-primary, var(--rr-gray-900));
+          cursor: pointer;
+        }
+        #view-fleet2 .rr-ab-menu button:hover { background: rgba(15, 23, 42, .05); }
         /* Shared-chrome host · the global bell (and the app launcher,
            which auto-docks just left of any visible bell) park here
            while Fleet is active, mirroring their seat at the right
