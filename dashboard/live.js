@@ -18799,7 +18799,23 @@ function _renderTpMeta(attData, rosterData, otData, planData) {
   }
   const rows = attData?.rows || [];
   el.removeAttribute("aria-busy");
-  if (!rows.length) {
+  // Operational metrics drawn from data already fetched — overtime_intelligence
+  // summary (unused until now) and today_plan (open routes + expiring licenses).
+  // Computed BEFORE the empty-rows guard: today_attendance() only returns
+  // assigned-driver shifts, but today_plan.open_shifts are *unassigned* routes,
+  // so a day with routes imported but nobody assigned yet has no attendance
+  // rows — and must still surface the red open-route alert.
+  const otSum = (otData && otData.summary) || null;
+  const otActive = otSum ? Number(otSum.drivers_active_ot) || 0 : 0;
+  const otProjected = otSum ? Number(otSum.drivers_projected_ot) || 0 : 0;
+  const otRiskCount = Math.max(otActive, otProjected);
+  const otExposure = otSum ? Number(otSum.est_ot_exposure_usd) || 0 : 0;
+  const openRoutes = (!planning && planData) ? ((planData.open_shifts || []).length) : null;
+  const dlList = (!planning && planData) ? (planData.dl_expiring || []) : [];
+  const dlUrgent = dlList.some((d) => Number(d.days_left) <= 0);
+  const dlSoon = dlList.some((d) => Number(d.days_left) <= 2);
+  const hasOpsSignal = (openRoutes || 0) > 0 || dlList.length > 0;
+  if (!rows.length && !hasOpsSignal) {
     el.innerHTML = `<span class="tp-kpi-empty">${escapeHtml(planning ? "No shifts scheduled for this day." : "No shifts scheduled today.")}</span>`;
     _renderSchedTodayKpisMirror(null);
     return;
@@ -18810,17 +18826,6 @@ function _renderTpMeta(attData, rosterData, otData, planData) {
   const checkedIn = rows.filter(r => ["checked_in", "checked_out"].includes(r.computed_outcome)).length;
   const navy = "#1E293B";
   const pct = rows.length ? Math.round((checkedIn / rows.length) * 100) : 0;
-  // Operational metrics drawn from data already fetched — overtime_intelligence
-  // summary (unused until now) and today_plan (open routes + expiring licenses).
-  const otSum = (otData && otData.summary) || null;
-  const otActive = otSum ? Number(otSum.drivers_active_ot) || 0 : 0;
-  const otProjected = otSum ? Number(otSum.drivers_projected_ot) || 0 : 0;
-  const otRiskCount = Math.max(otActive, otProjected);
-  const otExposure = otSum ? Number(otSum.est_ot_exposure_usd) || 0 : 0;
-  const openRoutes = (!planning && planData) ? ((planData.open_shifts || []).length) : null;
-  const dlList = (!planning && planData) ? (planData.dl_expiring || []) : [];
-  const dlUrgent = dlList.some((d) => Number(d.days_left) <= 0);
-  const dlSoon = dlList.some((d) => Number(d.days_left) <= 2);
   const summary = {
     scheduled:  { value: rows.length, sub: `${waves.size} wave${waves.size === 1 ? "" : "s"}`,    tone: "navy" },
     attendance: { value: planning ? "—" : checkedIn, sub: planning ? "Planning mode" : `${pct}% checked in`, tone: "navy" },
