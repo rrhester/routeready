@@ -29795,13 +29795,13 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-pv-gt{font-weight:600;background:var(--canvas)}
 /* Drill affordance: a value cell you can click to see its source rows. */
 #view-workbooks .wb-pv-drill{cursor:pointer}
-#view-workbooks .wb-pv-drill:hover{background:var(--accent-soft,rgba(37,99,235,.10));box-shadow:inset 0 0 0 1px var(--accent,#2563EB)}
-#view-workbooks .wb-pv-drill-table td{color:var(--text-muted,#6B7280)}
+#view-workbooks .wb-pv-drill:hover{background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+#view-workbooks .wb-pv-drill-table td{color:var(--text-muted)}
 /* A pivot's own chart, drawn above its table. */
 #view-workbooks .wb-pivot-chart{margin:2px 0 8px}
 #view-workbooks .wb-pivot-chart svg{max-width:100%;height:auto}
 /* Active state for the collapse / chart toggle buttons in a pivot head. */
-#view-workbooks .wb-pivot-card .wb-chart-head .btn.is-on{color:var(--accent,#2563EB);background:var(--accent-soft,rgba(37,99,235,.10))}
+#view-workbooks .wb-pivot-card .wb-chart-head .btn.is-on{color:var(--accent);background:var(--accent-soft)}
 /* Shared status pills reflecting active pivot state — let the title size to its
    content so the pills sit next to it and the action buttons stay right. */
 #view-workbooks .wb-pivot-card .wb-chart-head .wb-chart-title{flex:0 1 auto}
