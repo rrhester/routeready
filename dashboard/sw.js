@@ -141,7 +141,8 @@
 //   2026-07-10.8 · Workbook pivot tables: heatmap cell highlighting. The pivot dialog gains a "Heatmap value cells" option (matching the dashboard table widget) that tints each value cell on a light blue min→max ramp, scaled per measure. Grand-total rows/columns are excluded from the scale and left untinted so totals don't wash it out; tinted cells pin dark ink for contrast in either theme. workbook.js + inline-styles.css only.
 //   2026-07-10.9 · Workbook: pivot tables now render as floating grid embeds (like charts/KPIs/tables) — movable, resizable, on the sheet — instead of a strip below the grid. "pivots" became a first-class embed kind; collapse/chart toggles + state pills in a slim body toolbar; "Pivot table" added to the ＋ Add widget menu; dashboard pivots source a data sheet. workbook.js + inline-styles.css.
 //   2026-07-10.10 · Workbook pivot dialog: the Source range field gets the "select on the grid" picker (grid icon → drag a range → Use this range), matching the chart/KPI/table dialogs, instead of typing a range by hand. Committing a pick now fires a change event so the pivot's field dropdowns reload from the picked range. workbook.js only.
-const SW_DEPLOY_NONCE = "2026-07-10.10";
+//   2026-07-10.11 · Dashboard: Today's Plan expands into an operational command center — the KPI strip gains drillable Open-routes / OT-risk (with $ exposure) / Licenses-expiring pills (from data already fetched) plus a 14-day call-out trend sparkline on the attendance pill. live.js + inline-styles.css.
+const SW_DEPLOY_NONCE = "2026-07-10.11";
 
 self.addEventListener("install", () => {
   // Take over as soon as possible so the purge + refresh run without
