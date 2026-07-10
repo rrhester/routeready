@@ -15444,6 +15444,10 @@ function endRangePick(commit) {
   if (commit) {
     p.input.value = pickRefText(p, g);
     if (p.srcSelect && Array.from(p.srcSelect.options).some((o) => o.value === g.sheet.id)) p.srcSelect.value = g.sheet.id;
+    // Notify listeners the field changed — e.g. the pivot dialog reloads its
+    // field dropdowns from the picked range. (Programmatic .value assignment
+    // fires no event on its own.)
+    p.input.dispatchEvent(new Event("change", { bubbles: true }));
   }
   // The dialog is bound to the sheet it was opened on — always return there so
   // the widget saves to the right sheet.
@@ -16251,7 +16255,7 @@ function openPivotDialog(g, existing) {
         ${srcOpts ? `<label class="wb-field"><span class="wb-field-label">Data source (sheet)</span>
           <select class="wb-input" id="wb-pv-src">${srcOpts}</select></label>` : ""}
         <label class="wb-field"${srcOpts ? ' style="margin-top:10px"' : ""}><span class="wb-field-label">Source range</span>
-          <input type="text" class="wb-input" id="wb-pv-range" value="${esc(pivotRefText(spec))}" placeholder="A1:F200" spellcheck="false"></label>
+          ${wbRangeField("wb-pv-range", pivotRefText(spec), "A1:F200", { srcSelId: srcOpts ? "wb-pv-src" : "" })}</label>
         <div class="wb-field-row" style="margin-top:10px">
           <label class="wb-field"><span class="wb-field-label">Rows — group by</span>
             <select class="wb-input" id="wb-pv-row1">${fieldOpts(spec.rows && spec.rows[0])}</select></label>
@@ -16289,8 +16293,19 @@ function openPivotDialog(g, existing) {
       </div>
     </div>`;
   document.body.appendChild(wrap);
-  // reload field lists when the range changes
+  wireRangePick(g, wrap);   // "select on the grid" button on the Source range field
+  // Keep srcSheet in sync with the Data-source select — a grid pick sets that
+  // select's value programmatically (no change event), so resolve it here rather
+  // than only on the select's own change handler.
+  const syncSrcSheet = () => {
+    const sel = wrap.querySelector("#wb-pv-src");
+    if (!sel) return;
+    const s = (WB.sheetsByBlock.get(g.blockId) || []).find((x) => x.id === sel.value);
+    if (s) srcSheet = s;
+  };
+  // reload field lists when the range (or source sheet) changes
   const reloadFields = () => {
+    syncSrcSheet();
     const rng = parseRangeRefText(wrap.querySelector("#wb-pv-range").value);
     if (!rng) return;
     spec.r0 = rng.r0; spec.c0 = rng.c0; spec.r1 = rng.r1; spec.c1 = rng.c1;
@@ -16300,14 +16315,11 @@ function openPivotDialog(g, existing) {
       sel.innerHTML = fieldOpts(keep);
     }
   };
+  // Fires on manual typing (change) and after a grid pick (endRangePick dispatches change).
   wrap.querySelector("#wb-pv-range").addEventListener("change", reloadFields);
   if (srcOpts) {
     wireSrcAutoRange(g, wrap, "wb-pv-src", "wb-pv-range");   // auto-fills the range from the picked sheet
-    wrap.querySelector("#wb-pv-src").addEventListener("change", (e) => {
-      const s = (WB.sheetsByBlock.get(g.blockId) || []).find((x) => x.id === e.target.value);
-      if (s) srcSheet = s;
-      reloadFields();   // re-read the field list from the newly-picked source
-    });
+    wrap.querySelector("#wb-pv-src").addEventListener("change", reloadFields);   // re-read the field list from the newly-picked source
   }
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
   wrap.addEventListener("click", (e) => {
