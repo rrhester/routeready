@@ -256,4 +256,15 @@ await okA("cross-sheet chart export resolves its source sheet by srcSheetId", as
   assert.ok(parsed.sheets.some((s) => s.name === "Data") && parsed.sheets.some((s) => s.name === "Dash"), "both sheets present");
 });
 
+await okA("a dashboard pivot exports its data via srcSheetId (not the empty grid)", async () => {
+  const data = sheetFrom([["Region", "Amount"], ["East", 100], ["West", 250]]);
+  data.name = "Data"; data.id = "sData";
+  // pivot lives on an empty dashboard sheet but sources "Data"
+  const dash = { id: "sDash", name: "Board", rowCount: 1, colCount: 1, cells: new Map(), colWidths: {}, meta: { pivots: [{ id: "pz", r0: 0, c0: 0, r1: 2, c1: 1, rows: ["Region"], cols: [], values: [{ field: "Amount", agg: "sum" }], srcSheetId: "sData", title: "Regions" }] } };
+  const parsed = await parseXlsxBytes(buildXlsxBytes([dash, data]));
+  const pv = parsed.sheets.find((s) => s.name === "Regions");
+  assert.ok(pv, "pivot values sheet exported");
+  assert.ok(pv.cells.some((c) => Number(c.value) === 350), "grand total 350 read from the source sheet, not the empty dashboard grid");
+});
+
 console.log(`✓ pivot-viz + chart-viz: ${n} checks passed`);

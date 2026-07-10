@@ -29804,6 +29804,16 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
    content so the pills sit next to it and the action buttons stay right. */
 #view-workbooks .wb-pivot-card .wb-chart-head .wb-chart-title{flex:0 1 auto}
 #view-workbooks .wb-pivot-card .wb-chart-head .wb-pv-state{display:inline-flex;gap:6px;align-items:center;margin-right:auto}
+/* Pivot as a floating grid embed: the table scrolls inside the widget body, and
+   a slim sticky toolbar holds the state pills + collapse/chart toggles. */
+#view-workbooks .wb-embed-pivot .wb-embed-body{display:block;overflow:auto;padding:0 8px 8px}
+#view-workbooks .wb-embed-pivot .wb-pivot-chart svg{width:100%;height:auto}
+#view-workbooks .wb-embed-pivot .wb-pv-toolbar .btn svg{width:13px;height:13px}
+#view-workbooks .wb-embed-pivot .wb-pv-scroll{width:100%}
+#view-workbooks .wb-pv-toolbar{display:flex;align-items:center;gap:6px;position:sticky;top:0;z-index:2;background:var(--surface);padding:5px 0}
+#view-workbooks .wb-pv-toolbar-sp{flex:1}
+#view-workbooks .wb-embed-pivot .wb-pivot-chart{margin:0 0 6px}
+#view-workbooks .wb-embed-pivot .wb-pv-toolbar .btn.is-on{color:var(--accent);background:var(--accent-soft)}
 
 /* ── Formula bar ── */
 #view-workbooks .wb-fbar{
