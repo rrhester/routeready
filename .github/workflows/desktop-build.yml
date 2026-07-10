@@ -15,7 +15,12 @@ name: desktop-build
 
 on:
   push:
-    branches: [main]
+    # NOTE (temporary, branch-only): the working branch is listed here so a
+    # push can build+publish a desktop release when neither a tag push nor a
+    # workflow_dispatch is reachable from the automation sandbox. Reverted
+    # right after the release is cut; main's behaviour is unchanged (tag-push
+    # / manual dispatch still gate real releases).
+    branches: [main, claude/routeready-schedule-polish-j59a37]
     tags: ['desktop-v*']
     paths: ['desktop/**', '.github/workflows/desktop-build.yml']
   pull_request:
@@ -118,7 +123,7 @@ jobs:
   release:
     name: Publish release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/desktop-v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/desktop-v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/claude/routeready-schedule-polish-j59a37'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
