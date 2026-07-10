@@ -7390,12 +7390,20 @@ function mountSheetBlock(block, body) {
   });
   g.els.pivots.addEventListener("click", (e) => {
     const card = e.target.closest("[data-wb-pivot]");
-    const act = e.target.closest("[data-wb-pivotact]");
-    if (!card || !act) return;
+    if (!card) return;
     const pv = sheetPivots(g.sheet).find((x) => x.id === card.getAttribute("data-wb-pivot"));
     if (!pv) return;
-    if (act.getAttribute("data-wb-pivotact") === "edit") openPivotDialog(g, pv);
-    else confirmModal({ title: "Delete this pivot table?", body: "The underlying cells are untouched.", confirmLabel: "Delete pivot", danger: true, onConfirm: () => deletePivot(g, pv.id) });
+    const act = e.target.closest("[data-wb-pivotact]");
+    if (act) {
+      const a = act.getAttribute("data-wb-pivotact");
+      if (a === "edit") openPivotDialog(g, pv);
+      else if (a === "collapse") togglePivotCollapse(g, pv.id);
+      else if (a === "chart") togglePivotChart(g, pv.id);
+      else confirmModal({ title: "Delete this pivot table?", body: "The underlying cells are untouched.", confirmLabel: "Delete pivot", danger: true, onConfirm: () => deletePivot(g, pv.id) });
+      return;
+    }
+    const cell = e.target.closest("[data-pv-drill]");
+    if (cell) openPivotDrill(g, pv, cell.getAttribute("data-pv-rk"), cell.getAttribute("data-pv-ck"), cell.hasAttribute("data-pv-ckall"), +cell.getAttribute("data-pv-vi") || 0);
   });
 }
 
@@ -15702,7 +15710,14 @@ function pivotShowCell(mode, raw, colTotal, running, rank) {
   }
 }
 
+// When a 2-level pivot is collapsed, render only the first row dimension.
+function pivotEffectiveSpec(spec) {
+  if (spec && spec.collapsed && Array.isArray(spec.rows) && spec.rows.length > 1) return { ...spec, rows: [spec.rows[0]] };
+  return spec;
+}
+
 function pivotTableHtml(sheet, spec) {
+  spec = pivotEffectiveSpec(spec);
   const p = computePivot(sheet, spec);
   if (!p) return `<div class="wb-chart-empty">Add at least one value field to this pivot.</div>`;
   if (!p.records.length || !p.rowKeys.length) return `<div class="wb-chart-empty">No data to summarize in ${esc(pivotRefText(spec))} yet.</div>`;
@@ -15744,7 +15759,8 @@ function pivotTableHtml(sheet, spec) {
     const dataCells = groups.map((gp, gi) => p.values.map((_, vi) => {
       const mode = showOf(vi);
       const cell = pivotShowCell(mode, rawM[gi][vi][ri], p.aggOf(null, gp.ck, vi), runM[gi][vi][ri], rankM[gi][vi][ri]);
-      return `<td class="wb-pv-num">${cell}</td>`;
+      const drill = gp.ck === null ? `data-pv-drill data-pv-rk="${esc(rk)}" data-pv-ckall="1" data-pv-vi="${vi}"` : `data-pv-drill data-pv-rk="${esc(rk)}" data-pv-ck="${esc(gp.ck)}" data-pv-vi="${vi}"`;
+      return `<td class="wb-pv-num wb-pv-drill" ${drill} title="Show the source rows behind this number">${cell}</td>`;
     }).join("")).join("");
     return `<tr>${rhCells}${dataCells}</tr>`;
   }).join("");
@@ -15762,6 +15778,49 @@ function pivotTableHtml(sheet, spec) {
   return `<div class="wb-pv-scroll"><table class="wb-pv-table"><thead>${thead}</thead><tbody>${bodyRows}${foot}</tbody></table></div>`;
 }
 
+// Source records behind one pivot cell — filtered to its row key, column key
+// (or the whole column for a grand-total cell), honoring any pivot filters and
+// the collapsed-view effective spec.
+function pivotDrillRecords(sheet, spec, rk, ck, ckAll) {
+  const espec = pivotEffectiveSpec(spec);
+  const { fields, records } = pivotSource(sheet, espec);
+  const rowFields = (espec.rows || []).filter(Boolean);
+  const colFields = (espec.cols || []).filter(Boolean);
+  const filt = (espec.filters || []).filter((f) => f && f.field && Array.isArray(f.values) && f.values.length);
+  const rowKey = (rec) => rowFields.map((f) => String(rec[f] ?? "")).join(" · ");
+  const colKey = (rec) => colFields.map((f) => String(rec[f] ?? "")).join(" · ");
+  const out = records.filter((rec) =>
+    filt.every((f) => f.values.map(String).includes(String(rec[f.field] ?? ""))) &&
+    (rk == null || rowKey(rec) === rk) &&
+    (ckAll || ck == null || colKey(rec) === ck));
+  return { fields, records: out };
+}
+
+// A live chart drawn straight from a pivot's aggregated output. Builds a tiny
+// in-memory sheet (categories × series) and reuses the normal chart renderer.
+function pivotChartSvg(sheet, spec, W, H) {
+  const espec = pivotEffectiveSpec(spec);
+  const p = computePivot(sheet, espec);
+  if (!p || !p.rowKeys.length) return "";
+  const hasCols = p.colFields.length > 0 && p.colKeys.length > 0;
+  let rowKeys = p.rowKeys;
+  const topN = Math.max(0, Math.min(10000, Math.round(+espec.topN || 0)));
+  const grandCk = hasCols ? null : "";
+  if (topN > 0) rowKeys = [...p.rowKeys].sort((a, b) => (_pvNum(p.aggOf(b, grandCk, 0)) ?? -Infinity) - (_pvNum(p.aggOf(a, grandCk, 0)) ?? -Infinity)).slice(0, topN);
+  const seriesDefs = hasCols
+    ? p.colKeys.map((ck) => ({ name: ck || "(blank)", ck, vi: 0 }))
+    : p.values.map((v, vi) => ({ name: `${WB_PIVOT_AGGS[v.agg] || ""} of ${v.field}`, ck: "", vi }));
+  const header = [p.rowFields.join(" · ") || "Total", ...seriesDefs.map((s) => s.name)];
+  const body = rowKeys.map((rk) => [rk || "(blank)", ...seriesDefs.map((s) => _pvNum(p.aggOf(rk, s.ck, s.vi)) ?? 0)]);
+  const matrix = [header, ...body];
+  const cells = new Map();
+  matrix.forEach((row, r) => row.forEach((v, c) => cells.set(cellKey(r, c), { value: v, type: typeof v === "number" ? "number" : "text" })));
+  const synth = { rowCount: matrix.length, colCount: header.length, cells, meta: {} };
+  const ch = { r0: 0, c0: 0, r1: matrix.length - 1, c1: header.length - 1, type: WB_CHART_TYPES[spec.chartType] ? spec.chartType : "column", theme: spec.chartTheme || "route", grid: true };
+  const { svg, legend } = chartSvg(synth, ch, { W: W || 560, H: H || 260 });
+  return `<div class="wb-pivot-chart">${svg}${legend ? `<div class="wb-chart-legend">${legend}</div>` : ""}</div>`;
+}
+
 function renderPivots(g) {
   const host = g.els.pivots;
   if (!host) return;
@@ -15769,15 +15828,25 @@ function renderPivots(g) {
   if (!pivots.length) { host.innerHTML = ""; host.hidden = true; return; }
   host.hidden = false;
   host.innerHTML = pivots.map((pv) => {
-    let table;
+    let table, chart = "";
     try { table = pivotTableHtml(g.sheet, pv); }
     catch (e) { table = `<div class="wb-chart-empty">Couldn't build this pivot.</div>`; }
+    if (pv.chart) { try { chart = pivotChartSvg(g.sheet, pv); } catch (e) { chart = ""; } }
+    const canCollapse = Array.isArray(pv.rows) && pv.rows.length > 1;
+    const iconBtn = (act, title, on, svg) => `<button type="button" class="btn btn-ghost btn-icon btn-sm${on ? " is-on" : ""}" data-wb-pivotact="${act}" title="${esc(title)}" aria-label="${esc(title)}" aria-pressed="${on ? "true" : "false"}">${svg}</button>`;
+    const collapseIcon = pv.collapsed
+      ? `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>`
+      : `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+    const chartIcon = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
     return `<div class="wb-pivot-card" data-wb-pivot="${esc(pv.id)}">
       <div class="wb-chart-head">
         <span class="wb-chart-title">${esc(pv.title || `Pivot · ${pivotRefText(pv)}`)}</span>
+        ${canCollapse ? iconBtn("collapse", pv.collapsed ? "Expand groups" : "Collapse groups", pv.collapsed, collapseIcon) : ""}
+        ${iconBtn("chart", pv.chart ? "Hide chart" : "Chart this pivot", !!pv.chart, chartIcon)}
         ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="edit" title="Edit pivot" aria-label="Edit pivot"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="delete" title="Delete pivot" aria-label="Delete pivot">×</button>` : ""}
       </div>
+      ${chart}
       ${table}
     </div>`;
   }).join("");
@@ -15788,6 +15857,55 @@ function deletePivot(g, pivotId) {
   g.sheet.meta = { ...(g.sheet.meta || {}), pivots: sheetPivots(g.sheet).filter((p) => p.id !== pivotId) };
   saveSheetMeta(g.sheet.id);
   renderPivots(g);
+}
+
+// Toggle a per-pivot UI flag (collapsed / chart) and re-render. These are view
+// state, so they persist with the sheet meta like the pivot spec itself.
+function _pivotPatch(g, pivotId, patch) {
+  const pivots = sheetPivots(g.sheet).map((p) => (p.id === pivotId ? { ...p, ...patch } : p));
+  g.sheet.meta = { ...(g.sheet.meta || {}), pivots };
+  if (WB.canEdit) saveSheetMeta(g.sheet.id);
+  renderPivots(g);
+}
+function togglePivotCollapse(g, pivotId) {
+  const pv = sheetPivots(g.sheet).find((p) => p.id === pivotId);
+  if (pv) _pivotPatch(g, pivotId, { collapsed: !pv.collapsed });
+}
+function togglePivotChart(g, pivotId) {
+  const pv = sheetPivots(g.sheet).find((p) => p.id === pivotId);
+  if (pv) _pivotPatch(g, pivotId, { chart: !pv.chart });
+}
+
+// Drill drawer: the source rows behind a clicked pivot cell.
+function openPivotDrill(g, pv, rk, ck, ckAll, vi) {
+  document.getElementById("wb-pv-drill-modal")?.remove();
+  let fields = [], records = [];
+  try { ({ fields, records } = pivotDrillRecords(g.sheet, pv, rk, ck, ckAll)); }
+  catch (e) { _toast("Couldn't load the source rows", "error"); return; }
+  const espec = pivotEffectiveSpec(pv);
+  const val = espec.values && espec.values[vi];
+  const crumbs = [rk != null ? rk : null, !ckAll && ck != null && ck !== "" ? ck : null].filter(Boolean).join(" · ");
+  const sub = `${records.length.toLocaleString()} source row${records.length === 1 ? "" : "s"}${val ? ` · ${WB_PIVOT_AGGS[val.agg] || ""} of ${val.field}` : ""}`;
+  const head = fields.map((f) => `<th>${esc(f)}</th>`).join("");
+  const MAX = 500;
+  const rows = records.slice(0, MAX).map((rec) => `<tr>${fields.map((f) => `<td>${esc(rec[f] == null ? "" : String(rec[f]))}</td>`).join("")}</tr>`).join("");
+  const more = records.length > MAX ? `<div class="wb-chart-empty">Showing the first ${MAX} of ${records.length.toLocaleString()} rows.</div>` : "";
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-pv-drill-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Source rows" style="width:min(760px,94vw)">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">${esc(crumbs || "Source rows")}</p><p class="rr-modal-sub">${esc(sub)}</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        ${records.length ? `<div class="wb-pv-scroll"><table class="wb-pv-table wb-pv-drill-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>${more}` : `<div class="wb-chart-empty">No source rows matched.</div>`}
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) wrap.remove(); });
 }
 
 function openPivotDialog(g, existing) {
@@ -19735,7 +19853,7 @@ export const __engine = {
   dateRangeSerials, controlPredicate, DATE_PRESETS, findColumnByName,
   linearFit, analyzeColumns, computeInsights,
   aiWorkbookSchema, aiPlanToSpecs,
-  computePivot, pivotAggregate, pivotTableHtml,
+  computePivot, pivotAggregate, pivotTableHtml, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg,
   autoLinkFor, cellLink, cellInnerHtml,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,

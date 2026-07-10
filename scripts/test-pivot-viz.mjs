@@ -3,7 +3,7 @@
 // target-line rendering.  node scripts/test-pivot-viz.mjs
 import assert from "node:assert/strict";
 import { __engine } from "../dashboard/workbook.js";
-const { computePivot, pivotTableHtml, chartSvg } = __engine;
+const { computePivot, pivotTableHtml, chartSvg, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg } = __engine;
 
 let n = 0;
 const ok = (name, fn) => { try { fn(); n++; } catch (e) { console.error(`✗ ${name}`); console.error("  " + (e && e.message)); process.exit(1); } };
@@ -107,6 +107,46 @@ ok("charts without target/movavg still render normally", () => {
   const { svg } = chartSvg(chartSheet, ch, { W: 480, H: 220 });
   assert.ok(svg.includes("<svg"), "chart should still render");
   assert.ok(!/Target/.test(svg), "no stray target label");
+});
+
+// ── interactive: drill + collapse + pivot-chart ──────────────────────────────
+ok("drill returns the source rows behind a cell", () => {
+  const { records } = pivotDrillRecords(sheet, baseSpec, "West", "", false);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].Amount, 250);
+});
+
+const twoLevel = sheetFrom([
+  ["Region", "Rep", "Amount"],
+  ["East", "Ann", 100],
+  ["East", "Bob", 40],
+  ["West", "Cy", 250],
+]);
+const twoSpec = { r0: 0, c0: 0, r1: 3, c1: 2, rows: ["Region", "Rep"], cols: [], values: [{ field: "Amount", agg: "sum" }] };
+
+ok("collapsed spec drops the second row dimension", () => {
+  assert.deepEqual(pivotEffectiveSpec({ ...twoSpec, collapsed: true }).rows, ["Region"]);
+});
+
+ok("collapsed pivot shows first-level subtotals only", () => {
+  const html = pivotTableHtml(twoLevel, { ...twoSpec, collapsed: true });
+  assert.ok(html.includes(">140<"), "East should subtotal to 140 when collapsed");
+  assert.ok(!html.includes("Ann"), "collapsed view hides the second level");
+});
+
+ok("expanded pivot shows the leaf rows", () => {
+  const html = pivotTableHtml(twoLevel, twoSpec);
+  assert.ok(html.includes("Ann") && html.includes("Bob"), "expanded shows the leaves");
+});
+
+ok("drill on a collapsed 2-level cell returns both leaf rows", () => {
+  const { records } = pivotDrillRecords(twoLevel, { ...twoSpec, collapsed: true }, "East", "", false);
+  assert.equal(records.length, 2);
+});
+
+ok("pivot chart renders an svg from pivot output", () => {
+  const svg = pivotChartSvg(twoLevel, twoSpec, 520, 260);
+  assert.ok(svg.includes("<svg"), "expected a chart svg from the pivot");
 });
 
 console.log(`✓ pivot-viz + chart-viz: ${n} checks passed`);
