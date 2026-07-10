@@ -7322,9 +7322,20 @@ function mountSheetBlock(block, body) {
     if (action === "edit") openEmbedEditor(g, key, item);
     else if (action === "dup") duplicateEmbed(g, key, item);
     else {
-      const label = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile", controls: "filter", insights: "insights tile" }[key] || "widget";
+      const label = EMBED_LABELS[key] || "widget";
       confirmModal({ title: `Delete this ${label}?`, body: "The underlying cells are untouched.", confirmLabel: "Delete", danger: true, onConfirm: () => deleteEmbed(g, key, item.id) });
     }
+  });
+  // Right-click a floating widget (chart / KPI / table / etc.) → its own menu
+  // instead of the browser's native context menu. Mirrors the header actions.
+  g.els.charts.addEventListener("contextmenu", (e) => {
+    const card = e.target.closest("[data-wb-embed-id]");
+    if (!card || !WB.canEdit) return;                  // read-only → leave the native menu
+    e.preventDefault();
+    const key = card.getAttribute("data-wb-embed-kind");
+    const item = sheetEmbeds(g.sheet, key).find((x) => x.id === card.getAttribute("data-wb-embed-id"));
+    if (!item) return;
+    openEmbedMenu(g, key, item, e.clientX, e.clientY);
   });
   // Filter-control inputs drive every widget on the dashboard
   g.els.charts.addEventListener("change", (e) => {
@@ -14613,6 +14624,35 @@ function duplicateEmbed(g, key, item) {
   const L = item.layout || embedDefaultLayout(g, key, item);
   const copy = { ...item, id: key.slice(0, 2) + Math.random().toString(36).slice(2, 8), layout: { ...L, x: L.x + 20, y: L.y + 20 } };
   saveEmbed(g, key, copy);
+}
+const EMBED_LABELS = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile", controls: "filter", insights: "insights tile" };
+// Right-click menu for a floating widget: Edit · Duplicate · Delete. Reuses the
+// shared ctxMenu / cell-menu styling so it reads like the rest of the workbook.
+function openEmbedMenu(g, key, item, x, y) {
+  if (!WB.canEdit) return;
+  const label = EMBED_LABELS[key] || "widget";
+  const pencil = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+  const items = [
+    { icon: pencil, label: `Edit ${label}…`, act: "edit" },
+    { icon: CTX_ICONS.copy, label: "Duplicate", act: "dup" },
+    "—",
+    { icon: CTX_ICONS.trash, label: `Delete ${label}`, act: "delete", danger: true },
+  ];
+  const html = items.map((it, i) => it === "—"
+    ? `<div class="popover-section"></div>`
+    : `<button type="button" class="popover-item${it.danger ? " is-danger" : ""}" data-menu-i="${i}" role="menuitem"><span class="wb-ctx-ic">${it.icon || ""}</span><span class="wb-ctx-lbl">${esc(it.label)}</span><span class="wb-menu-kbd"></span></button>`).join("");
+  const m = ctxMenu(x, y, html);
+  m.classList.add("wb-menu-pop", "wb-cellmenu");
+  m.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const btn = e.target.closest("[data-menu-i]");
+    if (!btn) return;
+    const act = items[+btn.getAttribute("data-menu-i")].act;
+    closeAllPopovers();
+    if (act === "edit") openEmbedEditor(g, key, item);
+    else if (act === "dup") duplicateEmbed(g, key, item);
+    else if (act === "delete") confirmModal({ title: `Delete this ${label}?`, body: "The underlying cells are untouched.", confirmLabel: "Delete", danger: true, onConfirm: () => deleteEmbed(g, key, item.id) });
+  });
 }
 // Shelf-pack every widget left-to-right into a clean grid, preserving each
 // widget's size and its current reading order.
