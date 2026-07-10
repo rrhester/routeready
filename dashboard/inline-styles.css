@@ -29802,6 +29802,10 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-pivot-chart svg{max-width:100%;height:auto}
 /* Active state for the collapse / chart toggle buttons in a pivot head. */
 #view-workbooks .wb-pivot-card .wb-chart-head .btn.is-on{color:var(--accent,#2563EB);background:var(--accent-soft,rgba(37,99,235,.10))}
+/* Shared status pills reflecting active pivot state — let the title size to its
+   content so the pills sit next to it and the action buttons stay right. */
+#view-workbooks .wb-pivot-card .wb-chart-head .wb-chart-title{flex:0 1 auto}
+#view-workbooks .wb-pivot-card .wb-chart-head .wb-pv-state{display:inline-flex;gap:6px;align-items:center;margin-right:auto}
 
 /* ── Formula bar ── */
 #view-workbooks .wb-fbar{

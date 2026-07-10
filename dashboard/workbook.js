@@ -16002,9 +16002,18 @@ function renderPivots(g) {
       ? `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>`
       : `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
     const chartIcon = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
+    // Active pivot state as shared status pills (the same vocabulary the rest
+    // of the app uses for status), so the Workbook stops being a visual island.
+    const stateChips = [];
+    if (canCollapse && pv.collapsed) stateChips.push(`<span class="status-pill status-pill-neutral">Collapsed</span>`);
+    if (Math.round(+pv.topN || 0) > 0) stateChips.push(`<span class="status-pill status-pill-info">Top ${Math.round(+pv.topN)}</span>`);
+    const pvShow = (pv.values || []).map((v) => v && v.show).find((s) => s && s !== "raw" && WB_PIVOT_SHOWS[s]);
+    if (pvShow) stateChips.push(`<span class="status-pill status-pill-neutral">${esc(WB_PIVOT_SHOWS[pvShow])}</span>`);
+    const stateXml = stateChips.length ? `<span class="wb-pv-state">${stateChips.join("")}</span>` : "";
     return `<div class="wb-pivot-card" data-wb-pivot="${esc(pv.id)}">
       <div class="wb-chart-head">
         <span class="wb-chart-title">${esc(pv.title || `Pivot · ${pivotRefText(pv)}`)}</span>
+        ${stateXml}
         ${canCollapse ? iconBtn("collapse", pv.collapsed ? "Expand groups" : "Collapse groups", pv.collapsed, collapseIcon) : ""}
         ${iconBtn("chart", pv.chart ? "Hide chart" : "Chart this pivot", !!pv.chart, chartIcon)}
         ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="edit" title="Edit pivot" aria-label="Edit pivot"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
