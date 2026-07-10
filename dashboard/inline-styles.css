@@ -29748,7 +29748,7 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks .wb-control-dash{color:var(--text-muted);flex:none}
 /* Table heatmap: inline-tinted numeric cells; drop the zebra so tint reads clean */
 #view-workbooks .wb-embed-table.is-heatmap tr:nth-child(even) td{background:none}
-#view-workbooks .wb-embed-table.is-heatmap td{color:#0b0b0b}
+#view-workbooks .wb-embed-table.is-heatmap td,#view-workbooks .wb-pv-table.is-heatmap td.wb-pv-heat{color:#0b0b0b}
 /* Present mode: full-screen, no edit chrome */
 #view-workbooks .wb-grid.is-presenting{background:var(--canvas,#f6f6f4)}
 #view-workbooks .wb-grid.is-presenting .wb-dash-bar,
