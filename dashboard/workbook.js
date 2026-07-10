@@ -14052,6 +14052,9 @@ function chartSvg(sheet, ch, opts = {}) {
   const trendFits = showTrend ? series.map((s) => linearFit(s.values)) : [];
   const fc = showTrend ? Math.max(0, Math.min(24, Math.round(+ch.forecast || 0))) : 0;
   const xN = nCat + fc;
+  // Moving average (cartesian types only) + a horizontal target/reference line.
+  const maW = (ch.type === "column" || ch.type === "line" || ch.type === "area" || ch.type === "combo") ? Math.max(0, Math.min(52, Math.round(+ch.movavg || 0))) : 0;
+  const targetV = (ch.target != null && ch.target !== "" && isFinite(+ch.target)) ? +ch.target : null;
   let lo = 0, hi = 1;
   const allVals = series.flatMap((s) => s.values).filter((v) => v != null);
   if (allVals.length) { lo = Math.min(...allVals), hi = Math.max(...allVals); }
@@ -14067,6 +14070,7 @@ function chartSvg(sheet, ch, opts = {}) {
       hi = Math.max(hi, pos); lo = Math.min(lo, neg);
     }
   } else if (ch.type !== "line") { lo = Math.min(0, lo); hi = Math.max(0, hi); } // bars/areas keep a zero baseline
+  if (targetV != null) { if (targetV < lo) lo = targetV; if (targetV > hi) hi = targetV; } // keep the target line in view
   const ticks = chartNiceTicks(lo, hi);
   lo = ticks[0]; hi = ticks[ticks.length - 1];
   const span = hi - lo || 1;
@@ -14197,6 +14201,32 @@ function chartSvg(sheet, ch, opts = {}) {
         out += `<circle cx="${xf.toFixed(1)}" cy="${yf.toFixed(1)}" r="3.2" fill="var(--surface)" stroke="${color(si)}" stroke-width="1.6"><title>Forecast · ${t(s.name)}: ${chartFmt(fv)}</title></circle>`;
       }
     });
+  }
+
+  // moving-average line(s), plotted over the category midpoints (cartesian only)
+  if (maW >= 2 && !horizontal) {
+    const cxM = (i) => padL + ((i + 0.5) / xN) * plotW;
+    series.forEach((s, si) => {
+      const pts = [];
+      for (let i = 0; i < s.values.length; i++) {
+        let sum = 0, cnt = 0;
+        for (let k = Math.max(0, i - maW + 1); k <= i; k++) { const v = s.values[k]; if (v != null && isFinite(v)) { sum += v; cnt++; } }
+        if (cnt) pts.push([cxM(i), vy(sum / cnt)]);
+      }
+      if (pts.length >= 2) out += `<path d="${pts.map((p, k) => `${k ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")}" fill="none" stroke="${color(si)}" stroke-width="1.7" stroke-dasharray="1 3" stroke-linecap="round" opacity="0.9"><title>${maW}-pt moving average · ${t(s.name)}</title></path>`;
+    });
+  }
+  // target / reference line
+  if (targetV != null) {
+    if (horizontal) {
+      const tx = vx(targetV);
+      out += `<line x1="${tx.toFixed(1)}" y1="${padT}" x2="${tx.toFixed(1)}" y2="${padT + plotH}" stroke="var(--text)" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.5"><title>Target: ${chartFmt(targetV)}</title></line>`;
+      out += `<text x="${tx.toFixed(1)}" y="${padT + 9}" text-anchor="middle" class="wb-chart-tick">Target ${t(chartFmt(targetV))}</text>`;
+    } else {
+      const ty = vy(targetV);
+      out += `<line x1="${padL}" y1="${ty.toFixed(1)}" x2="${W - padR}" y2="${ty.toFixed(1)}" stroke="var(--text)" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.5"><title>Target: ${chartFmt(targetV)}</title></line>`;
+      out += `<text x="${(W - padR).toFixed(1)}" y="${(ty - 4).toFixed(1)}" text-anchor="end" class="wb-chart-tick">Target ${t(chartFmt(targetV))}</text>`;
+    }
   }
 
   // axis titles (secondary ink — never the series color)
@@ -14868,6 +14898,12 @@ function openChartDialog(g, existing) {
           <label class="wb-field"><span class="wb-field-label">Forecast periods <span class="wb-field-opt">optional</span></span>
             <input type="number" class="wb-input" id="wb-chart-forecast" min="0" max="24" value="${existing && existing.forecast ? esc(String(existing.forecast)) : 0}"></label>
         </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Moving average <span class="wb-field-opt">points · 0 = off</span></span>
+            <input type="number" class="wb-input" id="wb-chart-movavg" min="0" max="52" step="1" value="${existing && existing.movavg ? esc(String(existing.movavg)) : 0}"></label>
+          <label class="wb-field"><span class="wb-field-label">Target line <span class="wb-field-opt">optional</span></span>
+            <input type="number" class="wb-input" id="wb-chart-target" step="any" value="${existing && existing.target != null && existing.target !== "" ? esc(String(existing.target)) : ""}" placeholder="e.g. 40"></label>
+        </div>
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
@@ -14895,6 +14931,8 @@ function openChartDialog(g, existing) {
       yTitle: wrap.querySelector("#wb-chart-ytitle").value.trim(),
       trend: wrap.querySelector("#wb-chart-trend").checked,
       forecast: Math.max(0, Math.min(24, +wrap.querySelector("#wb-chart-forecast").value || 0)),
+      movavg: Math.max(0, Math.min(52, Math.round(+wrap.querySelector("#wb-chart-movavg").value || 0))),
+      target: (() => { const raw = String(wrap.querySelector("#wb-chart-target").value).trim(); return raw === "" || !isFinite(+raw) ? null : +raw; })(),
       srcSheetId: (wrap.querySelector("#wb-chart-src") && wrap.querySelector("#wb-chart-src").value) || (existing && existing.srcSheetId) || "",
       ...range,
       // keep the on-grid position/size across edits; new charts get placed on render
@@ -15645,6 +15683,25 @@ function pivotNumFmt(v) {
   return esc(String(v));
 }
 
+// "Show values as" display modes for a pivot value field (Excel-style).
+const WB_PIVOT_SHOWS = { raw: "Raw", pct: "% of total", running: "Running total", rank: "Rank" };
+const _pvNum = (v) => (typeof v === "number" && isFinite(v) ? v : null);
+function pivotPctFmt(v) {
+  if (v == null || !isFinite(v)) return "";
+  return (Math.round(v * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 }) + "%";
+}
+// One display value for a body cell under a "show values as" mode. `raw` is the
+// aggregate; `colTotal` the column's grand total; `running`/`rank` the
+// precomputed cumulative sum and 1-based descending rank for this cell.
+function pivotShowCell(mode, raw, colTotal, running, rank) {
+  switch (mode) {
+    case "pct": { const n = _pvNum(raw), d = _pvNum(colTotal); return d ? pivotPctFmt((n == null ? 0 : n) / d * 100) : ""; }
+    case "running": return pivotNumFmt(running);
+    case "rank": return rank == null ? "" : String(rank);
+    default: return pivotNumFmt(raw);
+  }
+}
+
 function pivotTableHtml(sheet, spec) {
   const p = computePivot(sheet, spec);
   if (!p) return `<div class="wb-chart-empty">Add at least one value field to this pivot.</div>`;
@@ -15652,9 +15709,24 @@ function pivotTableHtml(sheet, spec) {
   const nv = p.values.length;
   const hasCols = p.colFields.length > 0 && p.colKeys.length > 0;
   const rowHdrs = p.rowFields.length ? p.rowFields : ["Total"];
-  const vlab = (vi) => esc(`${WB_PIVOT_AGGS[p.values[vi].agg] || ""} of ${p.values[vi].field}`);
+  const showOf = (vi) => (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw");
+  const vlab = (vi) => { const m = showOf(vi); const base = `${WB_PIVOT_AGGS[p.values[vi].agg] || ""} of ${p.values[vi].field}`; return esc(m === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[m]}`); };
   // column groups: each colKey, then a Grand Total group (only when cols exist)
   const groups = hasCols ? [...p.colKeys.map((ck) => ({ ck, label: ck || "(blank)" })), { ck: null, label: "Grand total" }] : [{ ck: "", label: null }];
+
+  // Top-N: keep the highest rows by the first value's grand-total aggregate.
+  let rowKeys = p.rowKeys;
+  const topN = Math.max(0, Math.min(10000, Math.round(+spec.topN || 0)));
+  const grandCk = hasCols ? null : "";
+  if (topN > 0) {
+    rowKeys = [...p.rowKeys].sort((a, b) => (_pvNum(p.aggOf(b, grandCk, 0)) ?? -Infinity) - (_pvNum(p.aggOf(a, grandCk, 0)) ?? -Infinity)).slice(0, topN);
+  }
+
+  // Per (group, value) precompute the raw column, its running totals and ranks
+  // over the *visible* rows so pct/running/rank read correctly after Top-N.
+  const rawM = groups.map((gp) => p.values.map((_, vi) => rowKeys.map((rk) => p.aggOf(rk, gp.ck, vi))));
+  const runM = rawM.map((gvs) => gvs.map((col) => { let acc = 0; return col.map((v) => { const n = _pvNum(v); if (n != null) acc += n; return acc; }); }));
+  const rankM = rawM.map((gvs) => gvs.map((col) => col.map((v) => { const n = _pvNum(v); if (n == null) return null; return 1 + col.reduce((c, o) => c + ((_pvNum(o) ?? -Infinity) > n ? 1 : 0), 0); })));
 
   let thead;
   if (hasCols) {
@@ -15666,16 +15738,25 @@ function pivotTableHtml(sheet, spec) {
     thead = `<tr>${rowHdrs.map((h) => `<th class="wb-pv-rh">${esc(h)}</th>`).join("")}${p.values.map((_, vi) => `<th class="wb-pv-vh">${vlab(vi)}</th>`).join("")}</tr>`;
   }
 
-  const bodyRows = p.rowKeys.map((rk) => {
+  const bodyRows = rowKeys.map((rk, ri) => {
     const parts = p.rowFields.length ? rk.split(" · ") : ["Total"];
     const rhCells = rowHdrs.map((_, i) => `<td class="wb-pv-rk">${esc(parts[i] ?? "")}</td>`).join("");
-    const dataCells = groups.map((gp) => p.values.map((_, vi) => `<td class="wb-pv-num">${pivotNumFmt(p.aggOf(rk, gp.ck, vi))}</td>`).join("")).join("");
+    const dataCells = groups.map((gp, gi) => p.values.map((_, vi) => {
+      const mode = showOf(vi);
+      const cell = pivotShowCell(mode, rawM[gi][vi][ri], p.aggOf(null, gp.ck, vi), runM[gi][vi][ri], rankM[gi][vi][ri]);
+      return `<td class="wb-pv-num">${cell}</td>`;
+    }).join("")).join("");
     return `<tr>${rhCells}${dataCells}</tr>`;
   }).join("");
 
-  // grand total row
-  const gtLabel = `<td class="wb-pv-rk wb-pv-gt" colspan="${rowHdrs.length}">Grand total</td>`;
-  const gtCells = groups.map((gp) => p.values.map((_, vi) => `<td class="wb-pv-num wb-pv-gt">${pivotNumFmt(p.aggOf(null, gp.ck, vi))}</td>`).join("")).join("");
+  // grand total row — pct reads 100%, rank is meaningless (—), raw/running show the total
+  const gtLabel = `<td class="wb-pv-rk wb-pv-gt" colspan="${rowHdrs.length}">Grand total${topN > 0 && rowKeys.length < p.rowKeys.length ? ` · top ${rowKeys.length}` : ""}</td>`;
+  const gtCells = groups.map((gp) => p.values.map((_, vi) => {
+    const mode = showOf(vi);
+    const total = p.aggOf(null, gp.ck, vi);
+    const cell = mode === "pct" ? (_pvNum(total) ? "100%" : "") : mode === "rank" ? "—" : pivotNumFmt(total);
+    return `<td class="wb-pv-num wb-pv-gt">${cell}</td>`;
+  }).join("")).join("");
   const foot = `<tr>${gtLabel}${gtCells}</tr>`;
 
   return `<div class="wb-pv-scroll"><table class="wb-pv-table"><thead>${thead}</thead><tbody>${bodyRows}${foot}</tbody></table></div>`;
@@ -15722,6 +15803,7 @@ function openPivotDialog(g, existing) {
   wrap.id = "wb-pivot-modal";
   const fieldOpts = (sel) => `<option value=""></option>` + fields.map((f) => `<option value="${esc(f)}" ${f === sel ? "selected" : ""}>${esc(f)}</option>`).join("");
   const aggOpts = (sel) => Object.entries(WB_PIVOT_AGGS).map(([k, l]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${l}</option>`).join("");
+  const showOpts = (sel) => Object.entries(WB_PIVOT_SHOWS).map(([k, l]) => `<option value="${k}" ${k === (sel || "raw") ? "selected" : ""}>${l}</option>`).join("");
   wrap.innerHTML = `
     <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${existing ? "Edit pivot table" : "Pivot table"}" style="width:560px">
       <div class="rr-modal-head">
@@ -15742,15 +15824,21 @@ function openPivotDialog(g, existing) {
         <div class="wb-field-row" style="margin-top:10px">
           <label class="wb-field"><span class="wb-field-label">Values — summarize</span>
             <select class="wb-input" id="wb-pv-val1">${fieldOpts(spec.values && spec.values[0] && spec.values[0].field)}</select></label>
-          <label class="wb-field" style="flex:0 0 150px"><span class="wb-field-label">as</span>
+          <label class="wb-field" style="flex:0 0 120px"><span class="wb-field-label">as</span>
             <select class="wb-input" id="wb-pv-agg1">${aggOpts(spec.values && spec.values[0] && spec.values[0].agg || "sum")}</select></label>
+          <label class="wb-field" style="flex:0 0 138px"><span class="wb-field-label">show</span>
+            <select class="wb-input" id="wb-pv-show1">${showOpts(spec.values && spec.values[0] && spec.values[0].show)}</select></label>
         </div>
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">and <span class="wb-field-opt">optional</span></span>
             <select class="wb-input" id="wb-pv-val2">${fieldOpts(spec.values && spec.values[1] && spec.values[1].field)}</select></label>
-          <label class="wb-field" style="flex:0 0 150px"><span class="wb-field-label">as</span>
+          <label class="wb-field" style="flex:0 0 120px"><span class="wb-field-label">as</span>
             <select class="wb-input" id="wb-pv-agg2">${aggOpts(spec.values && spec.values[1] && spec.values[1].agg || "sum")}</select></label>
+          <label class="wb-field" style="flex:0 0 138px"><span class="wb-field-label">show</span>
+            <select class="wb-input" id="wb-pv-show2">${showOpts(spec.values && spec.values[1] && spec.values[1].show)}</select></label>
         </div>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Show top N rows <span class="wb-field-opt">optional · 0 = all</span></span>
+          <input type="number" class="wb-input" id="wb-pv-topn" min="0" max="10000" step="1" value="${esc(String(spec.topN || 0))}"></label>
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
@@ -15779,12 +15867,13 @@ function openPivotDialog(g, existing) {
     const rows = [wrap.querySelector("#wb-pv-row1").value, wrap.querySelector("#wb-pv-row2").value].filter(Boolean);
     const cols = [wrap.querySelector("#wb-pv-col").value].filter(Boolean);
     const values = [
-      { field: wrap.querySelector("#wb-pv-val1").value, agg: wrap.querySelector("#wb-pv-agg1").value },
-      { field: wrap.querySelector("#wb-pv-val2").value, agg: wrap.querySelector("#wb-pv-agg2").value },
+      { field: wrap.querySelector("#wb-pv-val1").value, agg: wrap.querySelector("#wb-pv-agg1").value, show: wrap.querySelector("#wb-pv-show1").value },
+      { field: wrap.querySelector("#wb-pv-val2").value, agg: wrap.querySelector("#wb-pv-agg2").value, show: wrap.querySelector("#wb-pv-show2").value },
     ].filter((v) => v.field);
     if (!rows.length) { _toast("Pick at least one Rows field", "warn"); return; }
     if (!values.length) { _toast("Pick at least one Values field", "warn"); return; }
-    const next = { id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, title: existing ? existing.title : "" };
+    const topN = Math.max(0, Math.min(10000, Math.round(+wrap.querySelector("#wb-pv-topn").value || 0)));
+    const next = { id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, title: existing ? existing.title : "" };
     const pivots = sheetPivots(sheet).filter((p) => p.id !== next.id);
     pivots.push(next);
     g.sheet.meta = { ...(g.sheet.meta || {}), pivots };
