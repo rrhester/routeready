@@ -3,7 +3,21 @@
 // target-line rendering.  node scripts/test-pivot-viz.mjs
 import assert from "node:assert/strict";
 import { __engine } from "../dashboard/workbook.js";
-const { computePivot, pivotTableHtml, chartSvg, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg } = __engine;
+const { computePivot, pivotTableHtml, chartSvg, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg,
+  ooxmlChartXml, ooxmlDrawingXml, pivotToExportSheet, buildXlsxBytes, parseXlsxBytes } = __engine;
+
+// Minimal XML well-formedness check (tag balance) — a guard against malformed
+// chart/drawing parts that would make Excel refuse to open the file.
+function wellFormed(xml) {
+  const body = xml.replace(/<\?[^>]*\?>/g, "");
+  const re = /<(\/?)([a-zA-Z][\w:.-]*)(?:[^>"']|"[^"]*"|'[^']*')*?(\/?)>/g;
+  const stack = []; let m;
+  while ((m = re.exec(body))) {
+    if (m[1] === "/") { if (stack.pop() !== m[2]) return false; }
+    else if (m[3] !== "/") stack.push(m[2]);
+  }
+  return stack.length === 0;
+}
 
 let n = 0;
 const ok = (name, fn) => { try { fn(); n++; } catch (e) { console.error(`✗ ${name}`); console.error("  " + (e && e.message)); process.exit(1); } };
@@ -147,6 +161,70 @@ ok("drill on a collapsed 2-level cell returns both leaf rows", () => {
 ok("pivot chart renders an svg from pivot output", () => {
   const svg = pivotChartSvg(twoLevel, twoSpec, 520, 260);
   assert.ok(svg.includes("<svg"), "expected a chart svg from the pivot");
+});
+
+// ── OOXML export: chart parts + pivot values sheet ───────────────────────────
+ok("ooxml column chart has barChart + category & value axes + a series", () => {
+  const cd = { categories: ["Mon", "Tue"], series: [{ name: "Routes", values: [10, 20] }] };
+  const xml = ooxmlChartXml({ type: "column", r0: 0, c0: 0, r1: 2, c1: 1 }, "Ops", cd);
+  assert.ok(xml.includes("<c:barChart>") && xml.includes("<c:catAx>") && xml.includes("<c:valAx>"));
+  assert.ok(xml.includes("<c:ser>") && xml.includes("<c:numCache>"));
+});
+
+ok("ooxml combo emits both a bar and a line chart", () => {
+  const cd = { categories: ["Mon", "Tue"], series: [{ name: "Routes", values: [10, 20] }, { name: "Cov", values: [80, 90] }] };
+  const xml = ooxmlChartXml({ type: "combo", r0: 0, c0: 0, r1: 2, c1: 2 }, "Ops", cd);
+  assert.ok(xml.includes("<c:barChart>") && xml.includes("<c:lineChart>"), "combo needs both plot groups");
+});
+
+ok("ooxml pie emits a pieChart with no cartesian axes", () => {
+  const cd = { categories: ["East", "West"], series: [{ name: "Routes", values: [22, 20] }] };
+  const xml = ooxmlChartXml({ type: "pie", r0: 0, c0: 0, r1: 2, c1: 1 }, "Ops", cd);
+  assert.ok(xml.includes("<c:pieChart>") && !xml.includes("<c:valAx>"));
+});
+
+ok("ooxml chart + drawing parts are well-formed XML", () => {
+  const cd = { categories: ["A", "B"], series: [{ name: "S", values: [1, 2] }] };
+  const combo = { categories: ["A", "B"], series: [{ name: "S", values: [1, 2] }, { name: "T", values: [3, 4] }] };
+  assert.ok(wellFormed(ooxmlChartXml({ type: "column", r0: 0, c0: 0, r1: 2, c1: 1 }, "Ops", cd)), "column");
+  assert.ok(wellFormed(ooxmlChartXml({ type: "line", r0: 0, c0: 0, r1: 2, c1: 1 }, "Ops", cd)), "line");
+  assert.ok(wellFormed(ooxmlChartXml({ type: "area", r0: 0, c0: 0, r1: 2, c1: 1 }, "Ops", cd)), "area");
+  assert.ok(wellFormed(ooxmlChartXml({ type: "pie", r0: 0, c0: 0, r1: 2, c1: 1 }, "Ops", cd)), "pie");
+  assert.ok(wellFormed(ooxmlChartXml({ type: "combo", r0: 0, c0: 0, r1: 2, c1: 2 }, "Ops", combo)), "combo");
+  assert.ok(wellFormed(ooxmlDrawingXml([{ fromCol: 3, fromRow: 0, toCol: 11, toRow: 16, relId: "rIdCh1", name: "Chart 1", id: 2 }])), "drawing");
+});
+
+ok("pivotToExportSheet materializes the grand total as a cell", () => {
+  const syn = pivotToExportSheet(sheet, baseSpec, "By Region", 1);
+  assert.ok(syn && syn.rowCount >= 2, "expected a values sheet");
+  assert.ok([...syn.cells.values()].some((c) => c.value === 500), "grand total 500 should be a cell");
+});
+
+// Async round-trip: a workbook with a chart + a pivot must build a valid .xlsx
+// (parseXlsxBytes proves the zip/worksheet are well-formed) and gain a pivot
+// values sheet.
+const okA = async (name, fn) => { try { await fn(); n++; } catch (e) { console.error(`✗ ${name}`); console.error("  " + (e && e.message)); process.exit(1); } };
+
+await okA("charts + pivots survive the .xlsx round-trip", async () => {
+  const src = sheetFrom([
+    ["Day", "Routes", "Region"],
+    ["Mon", 10, "East"],
+    ["Tue", 20, "West"],
+    ["Wed", 12, "East"],
+  ]);
+  src.name = "Ops";
+  src.meta = {
+    charts: [{ id: "c1", type: "column", theme: "route", r0: 0, c0: 0, r1: 3, c1: 1 }],
+    pivots: [{ id: "p1", r0: 0, c0: 0, r1: 3, c1: 2, rows: ["Region"], cols: [], values: [{ field: "Routes", agg: "sum" }], title: "By Region" }],
+  };
+  const bytes = buildXlsxBytes([src]); // must not throw with chart + pivot present
+  const parsed = await parseXlsxBytes(bytes);
+  assert.equal(parsed.sheets.length, 2, "original sheet + a pivot values sheet");
+  assert.equal(parsed.sheets[1].name, "By Region");
+  // East = 10 + 12 = 22 must appear in the pivot values sheet (parse returns numbers as strings)
+  assert.ok(parsed.sheets[1].cells.some((c) => Number(c.value) === 22), "East subtotal 22 exported");
+  // original data still intact on sheet 1
+  assert.ok(parsed.sheets[0].cells.some((c) => c.value === "Mon"));
 });
 
 console.log(`✓ pivot-viz + chart-viz: ${n} checks passed`);

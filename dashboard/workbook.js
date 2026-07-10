@@ -13299,7 +13299,142 @@ function dataValidationXml(sheet) {
   return items.length ? `<dataValidations count="${items.length}">${items.join("")}</dataValidations>` : "";
 }
 
+// ─── OOXML chart + pivot export ──────────────────────────────────────────────
+// Native chart parts (xl/charts/chartN.xml) so a workbook's charts survive the
+// .xlsx round-trip instead of being dropped. Series data is written with cached
+// values (numCache/strCache) AND live cell refs, so the chart both renders
+// immediately and stays linked to the source range.
+
+function _chNumCache(vals) {
+  const pts = vals.map((v, i) => (v == null || !isFinite(v) ? "" : `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`)).join("");
+  return `<c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${vals.length}"/>${pts}</c:numCache>`;
+}
+function _chStrCache(labels) {
+  const pts = labels.map((v, i) => `<c:pt idx="${i}"><c:v>${xmlEsc(String(v))}</c:v></c:pt>`).join("");
+  return `<c:strCache><c:ptCount val="${labels.length}"/>${pts}</c:strCache>`;
+}
+function _chartWrap(inner, title) {
+  const titleXml = title
+    ? `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>${xmlEsc(title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>`
+    : `<c:autoTitleDeleted val="1"/>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:chart>${titleXml}<c:plotArea><c:layout/>${inner}</c:plotArea><c:legend><c:legendPos val="b"/><c:overlay val="0"/></c:legend><c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>`;
+}
+// Build a chartSpace XML for one chart spec using its computed {categories,series}.
+// Returns null for a type we don't emit natively (caller keeps the "stays in
+// RouteReady" note for those).
+function ooxmlChartXml(ch, sheetName, cd) {
+  const series = cd.series;
+  if (!series.length) return null;
+  const type = ch.type;
+  const single = ch.c1 === ch.c0;
+  const dataR0 = ch.r0 + 1, catCol = ch.c0;
+  const L = colLabel;
+  const SREF = `'${String(sheetName).replace(/'/g, "''")}'`;
+  const nameF = (col) => `${SREF}!$${L(col)}$${ch.r0 + 1}`;
+  const valF = (col) => `${SREF}!$${L(col)}$${dataR0 + 1}:$${L(col)}$${ch.r1 + 1}`;
+  const catF = `${SREF}!$${L(catCol)}$${dataR0 + 1}:$${L(catCol)}$${ch.r1 + 1}`;
+  const catXml = single ? "" : `<c:cat><c:strRef><c:f>${xmlEsc(catF)}</c:f>${_chStrCache(cd.categories)}</c:strRef></c:cat>`;
+  const cols = [];
+  for (let col = (single ? ch.c0 : ch.c0 + 1); col <= ch.c1; col++) cols.push(col);
+  const serXml = (s, si, col) => `<c:ser><c:idx val="${si}"/><c:order val="${si}"/><c:tx><c:strRef><c:f>${xmlEsc(nameF(col))}</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${xmlEsc(s.name)}</c:v></c:pt></c:strCache></c:strRef></c:tx>${catXml}<c:val><c:numRef><c:f>${xmlEsc(valF(col))}</c:f>${_chNumCache(s.values)}</c:numRef></c:val></c:ser>`;
+  if (type === "pie") {
+    const col = single ? ch.c0 : ch.c0 + 1;
+    return _chartWrap(`<c:pieChart><c:varyColors val="1"/>${serXml(series[0], 0, col)}<c:firstSliceAng val="0"/></c:pieChart>`, ch.title);
+  }
+  const AX_CAT = 111111111, AX_VAL = 222222222;
+  const barDir = (type === "bar" || type === "stackbar") ? "bar" : "col";
+  const stacked = (type === "stackcol" || type === "stackbar");
+  const serAll = cols.map((col, i) => serXml(series[i], i, col));
+  if (!serAll.length) return null;
+  let plot = "";
+  if (type === "column" || type === "bar" || type === "stackcol" || type === "stackbar" || type === "combo") {
+    const barSeries = type === "combo" ? serAll.slice(0, Math.max(1, serAll.length - 1)) : serAll;
+    plot += `<c:barChart><c:barDir val="${barDir}"/><c:grouping val="${stacked ? "stacked" : "clustered"}"/><c:varyColors val="0"/>${barSeries.join("")}${stacked ? `<c:overlap val="100"/>` : `<c:gapWidth val="90"/>`}<c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:barChart>`;
+    if (type === "combo" && serAll.length > 1) plot += `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${serAll[serAll.length - 1]}<c:marker val="1"/><c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:lineChart>`;
+  } else if (type === "line" || type === "scatter") {
+    plot += `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${serAll.join("")}<c:marker val="1"/><c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:lineChart>`;
+  } else if (type === "area") {
+    plot += `<c:areaChart><c:grouping val="standard"/><c:varyColors val="0"/>${serAll.join("")}<c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:areaChart>`;
+  } else {
+    return null;
+  }
+  const axes = `<c:catAx><c:axId val="${AX_CAT}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="${barDir === "bar" ? "l" : "b"}"/><c:tickLblPos val="nextTo"/><c:crossAx val="${AX_VAL}"/></c:catAx><c:valAx><c:axId val="${AX_VAL}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="${barDir === "bar" ? "b" : "l"}"/><c:majorGridlines/><c:tickLblPos val="nextTo"/><c:crossAx val="${AX_CAT}"/></c:valAx>`;
+  return _chartWrap(plot + axes, ch.title);
+}
+// A drawing part positioning each chart in a twoCellAnchor to the right of its data.
+function ooxmlDrawingXml(anchors) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+    anchors.map((an) => `<xdr:twoCellAnchor editAs="oneCell"><xdr:from><xdr:col>${an.fromCol}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${an.fromRow}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>${an.toCol}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${an.toRow}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${an.id}" name="${xmlEsc(an.name)}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="${an.relId}"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>`).join("") +
+    `</xdr:wsDr>`;
+}
+
+// Materialize a pivot's computed output into a plain values sheet so pivots
+// survive .xlsx export (Excel's native pivot parts are not written).
+function pivotToExportSheet(srcSheet, spec, name, position) {
+  const espec = pivotEffectiveSpec(spec);
+  let p;
+  try { p = computePivot(srcSheet, espec); } catch (e) { return null; }
+  if (!p || !p.rowKeys.length) return null;
+  const hasCols = p.colFields.length > 0 && p.colKeys.length > 0;
+  let rowKeys = p.rowKeys;
+  const topN = Math.max(0, Math.min(10000, Math.round(+espec.topN || 0)));
+  const grandCk = hasCols ? null : "";
+  if (topN > 0) rowKeys = [...p.rowKeys].sort((a, b) => (_pvNum(p.aggOf(b, grandCk, 0)) ?? -Infinity) - (_pvNum(p.aggOf(a, grandCk, 0)) ?? -Infinity)).slice(0, topN);
+  const groups = hasCols ? [...p.colKeys.map((ck) => ({ ck, label: ck || "(blank)" })), { ck: null, label: "Grand total" }] : [{ ck: "", label: "" }];
+  const rowHdrs = p.rowFields.length ? p.rowFields : ["Total"];
+  const showOf = (vi) => (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw");
+  const vLabel = (vi) => { const v = p.values[vi]; const base = `${WB_PIVOT_AGGS[v.agg] || ""} of ${v.field}`; return showOf(vi) === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[showOf(vi)]}`; };
+  const header = [...rowHdrs, ...groups.flatMap((gp) => p.values.map((_, vi) => (hasCols ? `${gp.label} · ${vLabel(vi)}` : vLabel(vi))))];
+  const rawM = groups.map((gp) => p.values.map((_, vi) => rowKeys.map((rk) => p.aggOf(rk, gp.ck, vi))));
+  const runM = rawM.map((gvs) => gvs.map((col) => { let a = 0; return col.map((v) => { const n = _pvNum(v); if (n != null) a += n; return a; }); }));
+  const rankM = rawM.map((gvs) => gvs.map((col) => col.map((v) => { const n = _pvNum(v); if (n == null) return null; return 1 + col.reduce((c, o) => c + ((_pvNum(o) ?? -Infinity) > n ? 1 : 0), 0); })));
+  const cellVal = (mode, gi, vi, ri) => {
+    const raw = rawM[gi][vi][ri];
+    if (mode === "pct") { const d = _pvNum(p.aggOf(null, groups[gi].ck, vi)), n = _pvNum(raw); return d ? Math.round((n == null ? 0 : n) / d * 1000) / 10 : ""; }
+    if (mode === "running") return _pvNum(runM[gi][vi][ri]) ?? "";
+    if (mode === "rank") return rankM[gi][vi][ri] ?? "";
+    return _pvNum(raw) != null ? _pvNum(raw) : (raw == null ? "" : raw);
+  };
+  const body = rowKeys.map((rk, ri) => {
+    const parts = p.rowFields.length ? rk.split(" · ") : ["Total"];
+    const cells = rowHdrs.map((_, i) => parts[i] ?? "");
+    groups.forEach((gp, gi) => p.values.forEach((_, vi) => cells.push(cellVal(showOf(vi), gi, vi, ri))));
+    return cells;
+  });
+  const gtRow = ["Grand total", ...Array(Math.max(0, rowHdrs.length - 1)).fill("")];
+  groups.forEach((gp, gi) => p.values.forEach((_, vi) => {
+    const mode = showOf(vi), total = _pvNum(p.aggOf(null, gp.ck, vi));
+    gtRow.push(mode === "pct" ? (total ? 100 : "") : mode === "rank" ? "" : (total == null ? "" : total));
+  }));
+  const matrix = [header, ...body, gtRow];
+  const cells = new Map();
+  matrix.forEach((row, r) => row.forEach((v, c) => {
+    if (v === "" || v == null) return;
+    const isNum = typeof v === "number" && isFinite(v);
+    const cell = { value: v, type: isNum ? "number" : "text" };
+    if (r === 0) cell.format = { bold: true, bg: "header" };
+    else if (r === matrix.length - 1) cell.format = { bold: true };
+    cells.set(cellKey(r, c), cell);
+  }));
+  return { id: "pvx" + Math.random().toString(36).slice(2, 8), name, position, rowCount: matrix.length, colCount: header.length, cells, meta: {}, colWidths: {} };
+}
+// Append a values sheet for every pivot so nothing is silently dropped.
+function expandExportSheets(sheets) {
+  const out = sheets.slice();
+  let pos = sheets.reduce((m, s) => Math.max(m, s.position || 0), 0);
+  for (const sh of sheets) {
+    const pvs = Array.isArray(sh.meta && sh.meta.pivots) ? sh.meta.pivots : [];
+    pvs.forEach((pv, i) => {
+      const base = (pv.title && pv.title.trim()) || `${sh.name} pivot${pvs.length > 1 ? " " + (i + 1) : ""}`;
+      const syn = pivotToExportSheet(sh, pv, base, ++pos);
+      if (syn) out.push(syn);
+    });
+  }
+  return out;
+}
+
 function buildXlsxBytes(sheets) {
+  sheets = expandExportSheets(sheets);
   const enc = new TextEncoder();
   const XMLH = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`;
   const FG_HEX = { muted: "FF6B7280", blue: "FF1E40AF", green: "FF166534", amber: "FF92400E", red: "FFB91C1C" };
@@ -13478,15 +13613,43 @@ function buildXlsxBytes(sheets) {
       sheetTables.push({ relId: `rtbl${sheetTables.length + 1}`, gid, xml: tableXml });
     }
     const tablePartsXml = sheetTables.length ? `<tableParts count="${sheetTables.length}">${sheetTables.map((t) => `<tablePart r:id="${t.relId}"/>`).join("")}</tableParts>` : "";
+    // charts → a drawing part + one chart part each, anchored to the right of
+    // each chart's data range. A chart that fails to build is skipped so the
+    // rest of the file stays valid.
+    let drawingXml = "", sheetDrawing = null;
+    const chSpecs = sheetCharts(sheet);
+    if (chSpecs.length) {
+      const anchors = [], drels = [];
+      for (const ch of chSpecs) {
+        if (![ch.r0, ch.c0, ch.r1, ch.c1].every(Number.isInteger)) continue;
+        let cxml;
+        try { const cd = chartData(sheet, ch); if (!cd.series.length) continue; cxml = ooxmlChartXml(ch, sheet.name, cd); } catch (e) { cxml = null; }
+        if (!cxml) continue;
+        const cid = ++chartSeq;
+        chartParts.push({ id: cid, xml: cxml });
+        const relId = `rIdCh${anchors.length + 1}`;
+        drels.push(`<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart${cid}.xml"/>`);
+        const fromCol = ch.c1 + 2, fromRow = Math.max(0, ch.r0);
+        anchors.push({ fromCol, fromRow, toCol: fromCol + 8, toRow: fromRow + 16, relId, name: `Chart ${cid}`, id: cid + 1 });
+      }
+      if (anchors.length) {
+        const did = ++drawingSeq;
+        drawingParts.push({ id: did, xml: ooxmlDrawingXml(anchors), rels: drels });
+        drawingXml = `<drawing r:id="rIdDr${did}"/>`;
+        sheetDrawing = { id: did, relId: `rIdDr${did}` };
+      }
+    }
     // OOXML worksheet child order: …mergeCells, conditionalFormatting,
-    // dataValidations, hyperlinks, …, tableParts (last)
-    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${cfXml}${dvXml}${linkXml}${tablePartsXml}</worksheet>`;
-    return { xml, links, tables: sheetTables };
+    // dataValidations, hyperlinks, …, drawing, tableParts (last)
+    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${cfXml}${dvXml}${linkXml}${drawingXml}${tablePartsXml}</worksheet>`;
+    return { xml, links, tables: sheetTables, drawing: sheetDrawing };
   };
 
   // sheet XML first — it populates the style + table registries as it goes
   let tableIdSeq = 0;
   const usedTableNames = new Set();
+  let drawingSeq = 0, chartSeq = 0;
+  const drawingParts = [], chartParts = [];
   const sheetParts = sheets.map(sheetXml);
   const allTables = sheetParts.flatMap((p) => p.tables || []);
   const used = new Set();
@@ -13498,7 +13661,7 @@ function buildXlsxBytes(sheets) {
   const workbookXml = `${XMLH}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n, i) => `<sheet name="${xmlEsc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`;
   const wbRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
   const rootRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
-  const contentTypes = `${XMLH}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${allTables.map((t) => `<Override PartName="/xl/tables/table${t.gid}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`).join("")}</Types>`;
+  const contentTypes = `${XMLH}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${allTables.map((t) => `<Override PartName="/xl/tables/table${t.gid}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`).join("")}${drawingParts.map((d) => `<Override PartName="/xl/drawings/drawing${d.id}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`).join("")}${chartParts.map((c) => `<Override PartName="/xl/charts/chart${c.id}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`).join("")}</Types>`;
 
   const file = (name, xml) => ({ nameB: enc.encode(name), bytes: enc.encode(xml) });
   const parts = [
@@ -13509,12 +13672,16 @@ function buildXlsxBytes(sheets) {
     file("xl/styles.xml", stylesXml),
     ...sheetParts.map((p, i) => file(`xl/worksheets/sheet${i + 1}.xml`, p.xml)),
     ...allTables.map((t) => file(`xl/tables/table${t.gid}.xml`, t.xml)),
+    ...drawingParts.map((d) => file(`xl/drawings/drawing${d.id}.xml`, d.xml)),
+    ...drawingParts.map((d) => file(`xl/drawings/_rels/drawing${d.id}.xml.rels`, `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${d.rels.join("")}</Relationships>`)),
+    ...chartParts.map((c) => file(`xl/charts/chart${c.id}.xml`, c.xml)),
   ];
-  // per-sheet relationships: hyperlinks and/or table parts
+  // per-sheet relationships: hyperlinks, table parts, and/or a drawing
   sheetParts.forEach((p, i) => {
     const rels = [];
     p.links.forEach((l, j) => rels.push(`<Relationship Id="rlk${j + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xmlEsc(l.url)}" TargetMode="External"/>`));
     (p.tables || []).forEach((t) => rels.push(`<Relationship Id="${t.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table${t.gid}.xml"/>`));
+    if (p.drawing) rels.push(`<Relationship Id="${p.drawing.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${p.drawing.id}.xml"/>`);
     if (!rels.length) return;
     parts.push(file(`xl/worksheets/_rels/sheet${i + 1}.xml.rels`, `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join("")}</Relationships>`));
   });
@@ -13842,13 +14009,10 @@ function exportBlockXlsx(g) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   wbLog("xlsx.exported", `exported ${sheets.length === 1 ? `sheet “${sheets[0].name}”` : `${sheets.length} sheets`} as an Excel file`, { target_type: "block", target_id: g.blockId });
   _toast("Excel file exported", "success");
-  // Charts and pivot tables aren't written to .xlsx yet — say so rather than
-  // let them vanish silently. (Values, formulas, formats, data validation and
-  // conditional formatting all export.)
-  const dropped = [];
-  if (sheets.some((sh) => Array.isArray(sh.meta && sh.meta.charts) && sh.meta.charts.length)) dropped.push("charts");
-  if (sheets.some((sh) => Array.isArray(sh.meta && sh.meta.pivots) && sh.meta.pivots.length)) dropped.push("pivot tables");
-  if (dropped.length) setTimeout(() => _toast(`Heads up: ${dropped.join(" and ")} aren't included in the Excel file — they stay in RouteReady.`, "info"), 600);
+  // Charts now export as native Excel charts; pivot tables are written as
+  // separate values sheets (Excel's native pivot parts aren't generated).
+  const hasPivots = sheets.some((sh) => Array.isArray(sh.meta && sh.meta.pivots) && sh.meta.pivots.length);
+  if (hasPivots) setTimeout(() => _toast("Each pivot table was added as its own values sheet in the Excel file.", "info"), 600);
 }
 
 // ─── Charts ──────────────────────────────────────────────────────────────────
@@ -19853,7 +20017,7 @@ export const __engine = {
   dateRangeSerials, controlPredicate, DATE_PRESETS, findColumnByName,
   linearFit, analyzeColumns, computeInsights,
   aiWorkbookSchema, aiPlanToSpecs,
-  computePivot, pivotAggregate, pivotTableHtml, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg,
+  computePivot, pivotAggregate, pivotTableHtml, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg, ooxmlChartXml, ooxmlDrawingXml, pivotToExportSheet, expandExportSheets,
   autoLinkFor, cellLink, cellInnerHtml,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,
