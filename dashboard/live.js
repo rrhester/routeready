@@ -18205,7 +18205,7 @@ async function _refreshTodayPlanData() {
   // Update the meta line (page-level scheduled-driver count + on-app).
   // Pass rosterData so the future-day KPIs can synthesize counts the
   // same way the roster card does.
-  try { _renderTpMeta(attData, rosterData); } catch (e) { console.warn("tp meta:", e); }
+  try { _renderTpMeta(attData, rosterData, otData, planData); } catch (e) { console.warn("tp meta:", e); }
 
   // The single unified roster card replaces the old four-card layout.
   try { _renderTpUnifiedRoster(attData, rosterData, attError || rosterError, otData); }
@@ -18772,7 +18772,7 @@ function _tpRowActions(r) {
 }
 
 // Top-of-page overview — a quiet SaaS summary strip above the roster.
-function _renderTpMeta(attData, rosterData) {
+function _renderTpMeta(attData, rosterData, otData, planData) {
   const el = document.getElementById("rr-tp-kpis");
   if (!el) return;
   const viewIso = (typeof _tpDateIso === "string" && _tpDateIso) || (typeof _tpToday === "function" ? _tpToday() : null);
@@ -18799,7 +18799,23 @@ function _renderTpMeta(attData, rosterData) {
   }
   const rows = attData?.rows || [];
   el.removeAttribute("aria-busy");
-  if (!rows.length) {
+  // Operational metrics drawn from data already fetched — overtime_intelligence
+  // summary (unused until now) and today_plan (open routes + expiring licenses).
+  // Computed BEFORE the empty-rows guard: today_attendance() only returns
+  // assigned-driver shifts, but today_plan.open_shifts are *unassigned* routes,
+  // so a day with routes imported but nobody assigned yet has no attendance
+  // rows — and must still surface the red open-route alert.
+  const otSum = (otData && otData.summary) || null;
+  const otActive = otSum ? Number(otSum.drivers_active_ot) || 0 : 0;
+  const otProjected = otSum ? Number(otSum.drivers_projected_ot) || 0 : 0;
+  const otRiskCount = Math.max(otActive, otProjected);
+  const otExposure = otSum ? Number(otSum.est_ot_exposure_usd) || 0 : 0;
+  const openRoutes = (!planning && planData) ? ((planData.open_shifts || []).length) : null;
+  const dlList = (!planning && planData) ? (planData.dl_expiring || []) : [];
+  const dlUrgent = dlList.some((d) => Number(d.days_left) <= 0);
+  const dlSoon = dlList.some((d) => Number(d.days_left) <= 2);
+  const hasOpsSignal = (openRoutes || 0) > 0 || dlList.length > 0;
+  if (!rows.length && !hasOpsSignal) {
     el.innerHTML = `<span class="tp-kpi-empty">${escapeHtml(planning ? "No shifts scheduled for this day." : "No shifts scheduled today.")}</span>`;
     _renderSchedTodayKpisMirror(null);
     return;
@@ -18814,19 +18830,71 @@ function _renderTpMeta(attData, rosterData) {
     scheduled:  { value: rows.length, sub: `${waves.size} wave${waves.size === 1 ? "" : "s"}`,    tone: "navy" },
     attendance: { value: planning ? "—" : checkedIn, sub: planning ? "Planning mode" : `${pct}% checked in`, tone: "navy" },
     extras:     { value: extras, sub: "Cushion / Ex drivers", tone: "navy" },
-    attention:  { value: planning ? "—" : flagged, sub: planning ? "Live attendance starts day-of" : (flagged > 0 ? `${flagged} decision${flagged === 1 ? "" : "s"} to review` : "No open attendance decisions"), tone: flagged > 0 ? "red" : "navy" },
+    openroutes: openRoutes == null ? null : { value: openRoutes, sub: openRoutes === 0 ? "All routes covered" : "to assign", tone: openRoutes > 0 ? "red" : "green", onclick: "goto('schedule')", navTitle: "Open the schedule to assign routes" },
+    otrisk:     otSum ? { value: otRiskCount, sub: otExposure ? `~$${Math.round(otExposure).toLocaleString()} OT exposure` : `${otActive} in OT · ${otProjected} projected`, tone: otActive > 0 ? "red" : (otProjected > 0 ? "amber" : "navy"), onclick: "goto('schedule')", navTitle: "Overtime intelligence on the schedule" } : null,
+    license:    dlList.length ? { value: dlList.length, sub: "license expiring ≤7 days", tone: dlUrgent ? "red" : (dlSoon ? "amber" : "navy"), onclick: "window._rrGotoSubIntent={view:'schedule',sub:'roster'};goto('schedule')", navTitle: "Open the roster" } : null,
+    attention:  { value: planning ? "—" : flagged, sub: planning ? "Live attendance starts day-of" : (flagged > 0 ? `${flagged} decision${flagged === 1 ? "" : "s"} to review` : "No open attendance decisions"), tone: flagged > 0 ? "red" : "navy", spark: !planning },
   };
+  const toneColor = (t) => t === "red" ? "var(--red)" : t === "amber" ? "var(--amber)" : t === "green" ? "var(--green)" : navy;
   const pill = (key, label, val) => {
-    const color = val.tone === "red" ? "var(--red)" : navy;
+    if (!val) return "";
+    const color = toneColor(val.tone);
     const subHtml = val.sub ? `<span class="tp-kpi-sub">${escapeHtml(String(val.sub))}</span>` : "";
-    return `<span class="tp-kpi-pill" data-rr-tp-kpi="${key}"><span class="tp-kpi-dot" style="background:${color}"></span><span class="tp-kpi-text">${escapeHtml(String(val.value))} ${escapeHtml(label)}${subHtml}</span></span>`;
+    const sparkHtml = val.spark ? `<span class="tp-kpi-sparkslot" data-rr-tp-spark="${key}"></span>` : "";
+    const nav = val.onclick ? ` role="button" tabindex="0" onclick="${escapeHtml(val.onclick)}"${val.navTitle ? ` title="${escapeHtml(val.navTitle)}"` : ""}` : "";
+    return `<span class="tp-kpi-pill${val.onclick ? " tp-kpi-nav" : ""}" data-rr-tp-kpi="${key}"${nav}><span class="tp-kpi-dot" style="background:${color}"></span><span class="tp-kpi-text">${escapeHtml(String(val.value))} ${escapeHtml(label)}${subHtml}${sparkHtml}</span></span>`;
   };
   el.innerHTML =
       pill("scheduled",  "Scheduled",  summary.scheduled)
     + pill("attendance", "Checked in", summary.attendance)
     + pill("extras",     "Extras",     summary.extras)
+    + pill("openroutes", openRoutes === 1 ? "Open route" : "Open routes", summary.openroutes)
+    + pill("otrisk",     "OT risk",    summary.otrisk)
+    + pill("license",    dlList.length === 1 ? "License" : "Licenses", summary.license)
     + pill("attention",  flagged === 1 ? "Open decision" : "Open decisions", summary.attention);
   _renderSchedTodayKpisMirror(el.innerHTML);
+  _fillTpSparklines();
+}
+
+// A compact inline SVG trend sparkline (area + line + emphasized endpoint),
+// self-contained so any strip can drop one in. Returns "" for too-few points.
+function _rrSparkline(vals, opts) {
+  opts = opts || {};
+  const v = (vals || []).filter((x) => typeof x === "number" && isFinite(x));
+  if (v.length < 2) return "";
+  const w = opts.w || 64, h = opts.h || 16, pad = 1.5;
+  const lo = Math.min(...v), hi = Math.max(...v), span = (hi - lo) || 1;
+  const px = (i) => pad + (i / (v.length - 1)) * (w - 2 * pad);
+  const py = (val) => h - pad - ((val - lo) / span) * (h - 2 * pad);
+  const pts = v.map((val, i) => [px(i), py(val)]);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const color = opts.color || "var(--accent,#2563eb)";
+  const last = pts[pts.length - 1];
+  const gid = "tpsp" + Math.random().toString(36).slice(2, 7);
+  const area = `${line} L${last[0].toFixed(1)},${(h - pad).toFixed(1)} L${pts[0][0].toFixed(1)},${(h - pad).toFixed(1)} Z`;
+  return `<svg class="tp-kpi-spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">`
+    + `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity="0.22"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>`
+    + `<path d="${area}" fill="url(#${gid})"/>`
+    + `<path d="${line}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`
+    + `<circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="1.8" fill="${color}"/></svg>`;
+}
+
+// Fill the KPI-strip sparkline slots from the existing per-day attendance
+// history (a cached shifts fetch). Fire-and-forget; silent on any failure so a
+// missing history never blanks the KPI strip. Fills both the dashboard strip
+// and its schedule-view mirror.
+async function _fillTpSparklines() {
+  const slots = document.querySelectorAll('[data-rr-tp-spark="attention"]');
+  if (!slots.length) return;
+  try {
+    const hist = await _ensureAttKpiHistory(14);
+    const byDay = ((hist && hist.byDay) || []).slice(-14);
+    if (byDay.length < 3) return;
+    const vals = byDay.map((d) => (Number(d.callouts) || 0) + (Number(d.noshows) || 0));
+    if (vals.every((x) => x === 0)) return;   // nothing meaningful to trend
+    const svg = _rrSparkline(vals, { color: "var(--red,#dc2626)" });
+    document.querySelectorAll('[data-rr-tp-spark="attention"]').forEach((s) => { s.innerHTML = svg; });
+  } catch (e) { /* silent — the KPI numbers stand on their own */ }
 }
 
 // When the schedule's Today sub-view is the visible host for the
