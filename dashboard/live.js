@@ -3637,6 +3637,7 @@ window.goto = function (view) {
   if (view === "messages")  { _msgInboxTab = "drivers"; _msgInboxMode = "direct"; _msgChannelKind = "broadcast"; _msgSyncTabStrip("drivers"); loadDriverChatInbox(); }
   if (view === "workspaces") loadWorkspacesView();
   if (view === "workbooks") loadWorkbooksView();
+  if (view === "notebooks" && window.RRNotebooks) window.RRNotebooks.loadView();
   if (view === "forms")     loadFormsList();
   if (view === "admin")     { loadPlatformAdmin(); loadAdminSupportInbox(); }
   if (view === "outlook")   loadStaffingOutlook();
