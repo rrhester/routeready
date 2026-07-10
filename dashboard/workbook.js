@@ -7309,8 +7309,20 @@ function mountSheetBlock(block, body) {
     if (add) {
       const kind = add.getAttribute("data-wb-dashadd");
       if (kind === "auto") { autoBuildDashboard(g); return; }
-      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog, filter: openControlDialog, insights: openInsightsDialog }[kind] || openChartDialog)(g);
+      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog, filter: openControlDialog, insights: openInsightsDialog, pivot: openPivotDialog }[kind] || openChartDialog)(g);
       return;
+    }
+    // Pivot embeds carry their own in-body controls (collapse / chart toggle)
+    // and drillable value cells — handle those before the generic act buttons.
+    const pvCard = e.target.closest('[data-wb-embed-kind="pivots"]');
+    if (pvCard && !e.target.closest("[data-wb-embed-act]")) {
+      const pv = sheetEmbeds(g.sheet, "pivots").find((x) => x.id === pvCard.getAttribute("data-wb-embed-id"));
+      if (pv) {
+        const pact = e.target.closest("[data-wb-pivotact]");
+        if (pact) { const a = pact.getAttribute("data-wb-pivotact"); if (a === "collapse") togglePivotCollapse(g, pv.id); else if (a === "chart") togglePivotChart(g, pv.id); return; }
+        const dcell = e.target.closest("[data-pv-drill]");
+        if (dcell) { openPivotDrill(g, pv, dcell.getAttribute("data-pv-rk"), dcell.getAttribute("data-pv-ck"), dcell.hasAttribute("data-pv-ckall"), +dcell.getAttribute("data-pv-vi") || 0); return; }
+      }
     }
     const card = e.target.closest("[data-wb-embed-id]");
     const act = e.target.closest("[data-wb-embed-act]");
@@ -7390,13 +7402,13 @@ function mountSheetBlock(block, body) {
     // handler, which would otherwise dismiss the menu we're about to open
     e.stopPropagation();
     const r = addBtn.getBoundingClientRect();
-    const m = ctxMenu(r.right, r.bottom + 4, [["kpi", "KPI tile"], ["chart", "Chart"], ["table", "Table"], ["filter", "Filter control"], ["insights", "Insights ✨"], ["text", "Text / heading"]]
+    const m = ctxMenu(r.right, r.bottom + 4, [["kpi", "KPI tile"], ["chart", "Chart"], ["pivot", "Pivot table"], ["table", "Table"], ["filter", "Filter control"], ["insights", "Insights ✨"], ["text", "Text / heading"]]
       .map(([k, l]) => `<button type="button" class="popover-item" data-wb-add="${k}" role="menuitem">${l}</button>`).join(""));
     m.addEventListener("click", (ev) => {
       const b = ev.target.closest("[data-wb-add]"); if (!b) return;
       ev.stopPropagation();
       closeAllPopovers();
-      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog, filter: openControlDialog, insights: openInsightsDialog }[b.getAttribute("data-wb-add")])(g);
+      ({ chart: openChartDialog, kpi: openKpiDialog, table: openTableDialog, text: openTextDialog, filter: openControlDialog, insights: openInsightsDialog, pivot: openPivotDialog }[b.getAttribute("data-wb-add")])(g);
     });
   });
   g.els.pivots.addEventListener("click", (e) => {
@@ -14494,9 +14506,9 @@ function chartSvg(sheet, ch, opts = {}) {
 // A "dashboard" sheet (meta.kind === "dashboard") is just a grid sheet with
 // the cells hidden, so the widgets read as a clean dashboard page.
 
-const EMBED_KINDS = ["controls", "insights", "kpis", "charts", "tables", "texts"];
-const EMBED_META_KEY = { charts: "charts", kpis: "kpis", tables: "tables", texts: "texts", controls: "controls", insights: "insights" };
-const EMBED_DEFAULT_SIZE = { charts: { w: 440, h: 280 }, kpis: { w: 248, h: 132 }, tables: { w: 380, h: 240 }, texts: { w: 320, h: 120 }, controls: { w: 264, h: 108 }, insights: { w: 340, h: 200 } };
+const EMBED_KINDS = ["controls", "insights", "kpis", "charts", "tables", "texts", "pivots"];
+const EMBED_META_KEY = { charts: "charts", kpis: "kpis", tables: "tables", texts: "texts", controls: "controls", insights: "insights", pivots: "pivots" };
+const EMBED_DEFAULT_SIZE = { charts: { w: 440, h: 280 }, kpis: { w: 248, h: 132 }, tables: { w: 380, h: 240 }, texts: { w: 320, h: 120 }, controls: { w: 264, h: 108 }, insights: { w: 340, h: 200 }, pivots: { w: 400, h: 280 } };
 function sheetKpis(sheet)     { const v = sheet.meta && sheet.meta.kpis;     return Array.isArray(v) ? v : []; }
 function sheetTables(sheet)   { const v = sheet.meta && sheet.meta.tables;   return Array.isArray(v) ? v : []; }
 function sheetTexts(sheet)    { const v = sheet.meta && sheet.meta.texts;    return Array.isArray(v) ? v : []; }
@@ -14505,7 +14517,7 @@ function sheetInsights(sheet) { const v = sheet.meta && sheet.meta.insights; ret
 function sheetEmbeds(sheet, key) {
   return key === "charts" ? sheetCharts(sheet) : key === "kpis" ? sheetKpis(sheet)
     : key === "tables" ? sheetTables(sheet) : key === "controls" ? sheetControls(sheet)
-    : key === "insights" ? sheetInsights(sheet) : sheetTexts(sheet);
+    : key === "insights" ? sheetInsights(sheet) : key === "pivots" ? sheetPivots(sheet) : sheetTexts(sheet);
 }
 function allEmbeds(sheet) { return EMBED_KINDS.flatMap((key) => sheetEmbeds(sheet, key).map((item) => ({ key, item }))); }
 function isDashboardSheet(sheet) { return !!(sheet && sheet.meta && sheet.meta.kind === "dashboard"); }
@@ -14776,8 +14788,33 @@ function embedInnerHtml(g, key, item, L) {
     const { svg, legend } = chartSvg(src, item, { W: L.w, H: Math.max(110, L.h - 40), rowFilter });
     return { title: esc(item.title || `${WB_CHART_TYPES[item.type] || "Chart"} · ${chartRefText(item)}`), body: svg, footer: legend ? `<div class="wb-chart-legend">${legend}</div>` : "" };
   }
+  if (key === "pivots") return pivotEmbedInner(g, item, L, src);
   if (key === "kpis") return kpiTileHtml(src, item, rowFilter);
   return tableTileHtml(src, item, rowFilter);
+}
+
+// A pivot rendered as a floating grid embed: a slim toolbar (state pills +
+// collapse / chart toggles) over the pivot table (+ its optional chart). The
+// value cells stay drillable; interactions are handled on the embed host.
+function pivotEmbedInner(g, item, L, src) {
+  let table = "", chart = "";
+  try { table = pivotTableHtml(src, item); } catch (e) { table = `<div class="wb-chart-empty">Couldn't build this pivot.</div>`; }
+  if (item.chart) { try { chart = pivotChartSvg(src, item, Math.max(160, (L.w || 360) - 26), Math.max(120, Math.min(230, (L.h || 280) - 150))); } catch (e) { chart = ""; } }
+  const canCollapse = Array.isArray(item.rows) && item.rows.length > 1;
+  const chips = [];
+  if (canCollapse && item.collapsed) chips.push(`<span class="status-pill status-pill-neutral">Collapsed</span>`);
+  if (Math.round(+item.topN || 0) > 0) chips.push(`<span class="status-pill status-pill-info">Top ${Math.round(+item.topN)}</span>`);
+  const pvShow = (item.values || []).map((v) => v && v.show).find((s) => s && s !== "raw" && WB_PIVOT_SHOWS[s]);
+  if (pvShow) chips.push(`<span class="status-pill status-pill-neutral">${esc(WB_PIVOT_SHOWS[pvShow])}</span>`);
+  const tbtn = (act, title, on, svg) => WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm${on ? " is-on" : ""}" data-wb-pivotact="${act}" title="${esc(title)}" aria-label="${esc(title)}" aria-pressed="${on ? "true" : "false"}">${svg}</button>` : "";
+  const collapseIcon = item.collapsed
+    ? `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>`
+    : `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  const chartIcon = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
+  const toolbar = (chips.length || WB.canEdit)
+    ? `<div class="wb-pv-toolbar">${chips.join("")}<span class="wb-pv-toolbar-sp"></span>${canCollapse ? tbtn("collapse", item.collapsed ? "Expand groups" : "Collapse groups", item.collapsed, collapseIcon) : ""}${tbtn("chart", item.chart ? "Hide chart" : "Chart this pivot", !!item.chart, chartIcon)}</div>`
+    : "";
+  return { title: esc(item.title || `Pivot · ${pivotRefText(item)}`), body: `${toolbar}${chart}${table}`, cls: "wb-embed-pivot" };
 }
 
 function renderCharts(g) {                    // renders every embed kind
@@ -14891,7 +14928,7 @@ function duplicateEmbed(g, key, item) {
   const copy = { ...item, id: key.slice(0, 2) + Math.random().toString(36).slice(2, 8), layout: { ...L, x: L.x + 20, y: L.y + 20 } };
   saveEmbed(g, key, copy);
 }
-const EMBED_LABELS = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile", controls: "filter", insights: "insights tile" };
+const EMBED_LABELS = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile", controls: "filter", insights: "insights tile", pivots: "pivot table" };
 // Right-click menu for a floating widget: Edit · Duplicate · Delete. Reuses the
 // shared ctxMenu / cell-menu styling so it reads like the rest of the workbook.
 function openEmbedMenu(g, key, item, x, y) {
@@ -15232,6 +15269,7 @@ function openEmbedEditor(g, key, item) {
   if (key === "tables") return openTableDialog(g, item);
   if (key === "controls") return openControlDialog(g, item);
   if (key === "insights") return openInsightsDialog(g, item);
+  if (key === "pivots") return openPivotDialog(g, item);
   return openTextDialog(g, item);
 }
 
@@ -16089,51 +16127,19 @@ function pivotChartSvg(sheet, spec, W, H) {
   return `<div class="wb-pivot-chart">${svg}${legend ? `<div class="wb-chart-legend">${legend}</div>` : ""}</div>`;
 }
 
+// Pivots now render as floating grid embeds (via renderCharts → pivotEmbedInner),
+// like charts/KPIs/tables. This keeps the old below-grid strip cleared for any
+// legacy layout that still mounts #rr … data-wb-pivots.
 function renderPivots(g) {
   const host = g.els.pivots;
-  if (!host) return;
-  const pivots = sheetPivots(g.sheet);
-  if (!pivots.length) { host.innerHTML = ""; host.hidden = true; return; }
-  host.hidden = false;
-  host.innerHTML = pivots.map((pv) => {
-    let table, chart = "";
-    try { table = pivotTableHtml(g.sheet, pv); }
-    catch (e) { table = `<div class="wb-chart-empty">Couldn't build this pivot.</div>`; }
-    if (pv.chart) { try { chart = pivotChartSvg(g.sheet, pv); } catch (e) { chart = ""; } }
-    const canCollapse = Array.isArray(pv.rows) && pv.rows.length > 1;
-    const iconBtn = (act, title, on, svg) => `<button type="button" class="btn btn-ghost btn-icon btn-sm${on ? " is-on" : ""}" data-wb-pivotact="${act}" title="${esc(title)}" aria-label="${esc(title)}" aria-pressed="${on ? "true" : "false"}">${svg}</button>`;
-    const collapseIcon = pv.collapsed
-      ? `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>`
-      : `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
-    const chartIcon = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
-    // Active pivot state as shared status pills (the same vocabulary the rest
-    // of the app uses for status), so the Workbook stops being a visual island.
-    const stateChips = [];
-    if (canCollapse && pv.collapsed) stateChips.push(`<span class="status-pill status-pill-neutral">Collapsed</span>`);
-    if (Math.round(+pv.topN || 0) > 0) stateChips.push(`<span class="status-pill status-pill-info">Top ${Math.round(+pv.topN)}</span>`);
-    const pvShow = (pv.values || []).map((v) => v && v.show).find((s) => s && s !== "raw" && WB_PIVOT_SHOWS[s]);
-    if (pvShow) stateChips.push(`<span class="status-pill status-pill-neutral">${esc(WB_PIVOT_SHOWS[pvShow])}</span>`);
-    const stateXml = stateChips.length ? `<span class="wb-pv-state">${stateChips.join("")}</span>` : "";
-    return `<div class="wb-pivot-card" data-wb-pivot="${esc(pv.id)}">
-      <div class="wb-chart-head">
-        <span class="wb-chart-title">${esc(pv.title || `Pivot · ${pivotRefText(pv)}`)}</span>
-        ${stateXml}
-        ${canCollapse ? iconBtn("collapse", pv.collapsed ? "Expand groups" : "Collapse groups", pv.collapsed, collapseIcon) : ""}
-        ${iconBtn("chart", pv.chart ? "Hide chart" : "Chart this pivot", !!pv.chart, chartIcon)}
-        ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="edit" title="Edit pivot" aria-label="Edit pivot"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="delete" title="Delete pivot" aria-label="Delete pivot">×</button>` : ""}
-      </div>
-      ${chart}
-      ${table}
-    </div>`;
-  }).join("");
+  if (host) { host.innerHTML = ""; host.hidden = true; }
 }
 
 function deletePivot(g, pivotId) {
   if (!WB.canEdit) return;
   g.sheet.meta = { ...(g.sheet.meta || {}), pivots: sheetPivots(g.sheet).filter((p) => p.id !== pivotId) };
   saveSheetMeta(g.sheet.id);
-  renderPivots(g);
+  renderCharts(g);
 }
 
 // Toggle a per-pivot UI flag (collapsed / chart) and re-render. These are view
@@ -16142,7 +16148,7 @@ function _pivotPatch(g, pivotId, patch) {
   const pivots = sheetPivots(g.sheet).map((p) => (p.id === pivotId ? { ...p, ...patch } : p));
   g.sheet.meta = { ...(g.sheet.meta || {}), pivots };
   if (WB.canEdit) saveSheetMeta(g.sheet.id);
-  renderPivots(g);
+  renderCharts(g);
 }
 function togglePivotCollapse(g, pivotId) {
   const pv = sheetPivots(g.sheet).find((p) => p.id === pivotId);
@@ -16268,15 +16274,18 @@ function openPivotDialog(g, existing) {
     if (!rows.length) { _toast("Pick at least one Rows field", "warn"); return; }
     if (!values.length) { _toast("Pick at least one Values field", "warn"); return; }
     const topN = Math.max(0, Math.min(10000, Math.round(+wrap.querySelector("#wb-pv-topn").value || 0)));
-    const next = { id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, title: existing ? existing.title : "" };
+    // Spread existing first so a pivot's on-grid position (layout) and view
+    // state (chart/collapsed) survive edits; new pivots get placed on the grid.
+    const next = { ...(existing || {}), id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, title: existing ? existing.title : "" };
+    if (!next.layout) next.layout = embedDefaultLayout(g, "pivots", rng);
     const pivots = sheetPivots(sheet).filter((p) => p.id !== next.id);
     pivots.push(next);
     g.sheet.meta = { ...(g.sheet.meta || {}), pivots };
     saveSheetMeta(sheet.id);
     wbLog("sheet.pivot", `${existing ? "updated" : "created"} a pivot table on ${pivotRefText(next)} in ${sheet.name}`, { target_type: "sheet", target_id: sheet.id });
     wrap.remove();
-    renderPivots(g);
-    g.els.pivots?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    renderCharts(g);
+    scrollEmbedIntoView(g, next.id);
   });
   setTimeout(() => wrap.querySelector("#wb-pv-range")?.focus(), 30);
 }
