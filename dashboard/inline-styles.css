@@ -2257,6 +2257,13 @@ button.card:focus-visible{
 .tp-kpi-text{display:inline-flex;flex-direction:column;line-height:1.1}
 .tp-kpi-sub{font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);margin-top:2px}
 .tp-kpi-empty{font-size:var(--fs-sm);color:var(--text-subtle);font-style:italic}
+/* Drillable KPI pills — click through to the detail view. */
+.tp-kpi-nav{cursor:pointer;border-radius:8px;margin:-4px -7px;padding:4px 7px;transition:background .12s ease}
+.tp-kpi-nav:hover{background:var(--canvas)}
+.tp-kpi-nav:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+/* Inline trend sparkline inside a KPI pill. */
+.tp-kpi-sparkslot{display:block;margin-top:3px;min-height:16px}
+.tp-kpi-spark{display:block;opacity:.9}
 
 /* ── Today's Plan · main row ───────────────────────────────────
    Roster on the left, Coverage rail (open shifts + expiring DLs
