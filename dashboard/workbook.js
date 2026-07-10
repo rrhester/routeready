@@ -13505,7 +13505,9 @@ function expandExportSheets(sheets) {
     const pvs = Array.isArray(sh.meta && sh.meta.pivots) ? sh.meta.pivots : [];
     pvs.forEach((pv, i) => {
       const base = (pv.title && pv.title.trim()) || `${sh.name} pivot${pvs.length > 1 ? " " + (i + 1) : ""}`;
-      const syn = pivotToExportSheet(sh, pv, base, ++pos);
+      // a pivot may source another sheet (dashboard pivots) — read from it
+      const srcSheet = (pv.srcSheetId && sheets.find((s) => s.id === pv.srcSheetId)) || sh;
+      const syn = pivotToExportSheet(srcSheet, pv, base, ++pos);
       if (syn) out.push(syn);
     });
   }
@@ -14988,7 +14990,7 @@ function tidyDashboard(g, silent) {
   if (!WB.canEdit) return;
   const embeds = allEmbeds(g.sheet).filter((e) => e.item.layout);
   if (!embeds.length) return;
-  const order = { texts: 0, controls: 1, kpis: 2, insights: 3, charts: 4, tables: 5 };
+  const order = { texts: 0, controls: 1, kpis: 2, insights: 3, charts: 4, tables: 5, pivots: 6 };
   embeds.sort((a, b) => (order[a.key] - order[b.key]) || (a.item.layout.y - b.item.layout.y) || (a.item.layout.x - b.item.layout.x));
   const gr = dashGridPlacer(g);
   // consume runs of the same kind into rows, keeping each widget's height but
@@ -15756,7 +15758,7 @@ function autoBuildDashboard(g) {
     else if (insights[0]) gr.flow([insights[0]], 6, 220, 1);
     if (restCharts.length) gr.flow(restCharts, 6, 272, 2);             // charts, 2 across
     if (tables.length) gr.flow(tables, 12, 328, 1);                    // full-width table
-    g.sheet.meta = { ...(g.sheet.meta || {}), controls, insights, kpis, charts, tables, texts };
+    g.sheet.meta = { ...(g.sheet.meta || {}), controls, insights, kpis, charts, tables, texts, pivots: [] };
     saveSheetMeta(g.sheet.id);
     wbLog("sheet.autobuild", `auto-built a dashboard across ${analyzed.length} sheets`, { target_type: "sheet", target_id: g.sheet.id });
     computeGeometry(g);
@@ -15879,7 +15881,7 @@ function applyAiPlan(g, specs, plan, question) {
     else if (insights[0]) gr.flow([insights[0]], 6, 220, 1);
     if (rest.length) gr.flow(rest, 6, 272, 2);
     if (tables.length) gr.flow(tables, 12, 328, 1);
-    g.sheet.meta = { ...(g.sheet.meta || {}), controls, insights, kpis, charts, tables, texts };
+    g.sheet.meta = { ...(g.sheet.meta || {}), controls, insights, kpis, charts, tables, texts, pivots: [] };
     saveSheetMeta(g.sheet.id);
     wbLog("sheet.aiask", `AI analyst: ${question}`.slice(0, 180), { target_type: "sheet", target_id: g.sheet.id });
     computeGeometry(g);
@@ -16196,9 +16198,18 @@ function openPivotDialog(g, existing) {
   document.getElementById("wb-pivot-modal")?.remove();
   const sheet = g.sheet;
   const rect = selRect(g);
-  const spec = existing || { r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1, rows: [], cols: [], values: [] };
-  const fieldsOf = () => pivotSource(sheet, spec).fields;
+  // A pivot reads from a data sheet (its srcSheetId), same as charts/KPIs/tables.
+  // On a dashboard the current selection is meaningless, so default the range to
+  // the source sheet's populated extent.
+  const srcDef = existing ? embedSourceSheet(g, existing) : defaultSrcSheet(g);
+  let srcSheet = srcDef;
+  const defRange = existing
+    ? { r0: existing.r0, c0: existing.c0, r1: existing.r1, c1: existing.c1 }
+    : (isDashboardSheet(sheet) ? sheetDataRange(srcDef) : { r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 });
+  const spec = existing || { ...defRange, rows: [], cols: [], values: [] };
+  const fieldsOf = () => pivotSource(srcSheet, spec).fields;
   let fields = fieldsOf();
+  const srcOpts = embedSourceOptions(g, (existing && existing.srcSheetId) || srcDef.id);
   const wrap = document.createElement("div");
   wrap.className = "rr-modal-backdrop";
   wrap.id = "wb-pivot-modal";
@@ -16212,7 +16223,9 @@ function openPivotDialog(g, existing) {
         <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
       </div>
       <div class="rr-modal-body">
-        <label class="wb-field"><span class="wb-field-label">Source range</span>
+        ${srcOpts ? `<label class="wb-field"><span class="wb-field-label">Data source (sheet)</span>
+          <select class="wb-input" id="wb-pv-src">${srcOpts}</select></label>` : ""}
+        <label class="wb-field"${srcOpts ? ' style="margin-top:10px"' : ""}><span class="wb-field-label">Source range</span>
           <input type="text" class="wb-input" id="wb-pv-range" value="${esc(pivotRefText(spec))}" placeholder="A1:F200" spellcheck="false"></label>
         <div class="wb-field-row" style="margin-top:10px">
           <label class="wb-field"><span class="wb-field-label">Rows — group by</span>
@@ -16259,6 +16272,14 @@ function openPivotDialog(g, existing) {
     }
   };
   wrap.querySelector("#wb-pv-range").addEventListener("change", reloadFields);
+  if (srcOpts) {
+    wireSrcAutoRange(g, wrap, "wb-pv-src", "wb-pv-range");   // auto-fills the range from the picked sheet
+    wrap.querySelector("#wb-pv-src").addEventListener("change", (e) => {
+      const s = (WB.sheetsByBlock.get(g.blockId) || []).find((x) => x.id === e.target.value);
+      if (s) srcSheet = s;
+      reloadFields();   // re-read the field list from the newly-picked source
+    });
+  }
   wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap || e.target.closest("[data-wb-close]")) { wrap.remove(); return; }
@@ -16274,9 +16295,10 @@ function openPivotDialog(g, existing) {
     if (!rows.length) { _toast("Pick at least one Rows field", "warn"); return; }
     if (!values.length) { _toast("Pick at least one Values field", "warn"); return; }
     const topN = Math.max(0, Math.min(10000, Math.round(+wrap.querySelector("#wb-pv-topn").value || 0)));
+    const srcId = (wrap.querySelector("#wb-pv-src") && wrap.querySelector("#wb-pv-src").value) || (existing && existing.srcSheetId) || srcDef.id;
     // Spread existing first so a pivot's on-grid position (layout) and view
     // state (chart/collapsed) survive edits; new pivots get placed on the grid.
-    const next = { ...(existing || {}), id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, title: existing ? existing.title : "" };
+    const next = { ...(existing || {}), id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, srcSheetId: srcId, title: existing ? existing.title : "" };
     if (!next.layout) next.layout = embedDefaultLayout(g, "pivots", rng);
     const pivots = sheetPivots(sheet).filter((p) => p.id !== next.id);
     pivots.push(next);
