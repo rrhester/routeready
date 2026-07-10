@@ -34929,14 +34929,22 @@ function _renderMsgSearchResults(rows, q) {
     const isActive = _msgInboxSelectedId === r.driver_id;
     const preview = (r.sender_kind === "dispatch" ? "You: " : "") + (r.snippet || "");
     const previewTrunc = preview.length > 64 ? preview.slice(0, 61) + "…" : preview;
-    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${escapeHtml(r.driver_id)}" data-rr-driver-id="${escapeHtml(r.driver_id)}">
+    // Stash the matched message id/time on the row so the click can jump
+    // the thread straight to that bubble (data-rr-focus-msg). Older
+    // servers (pre-0450) omit message_id — the row still opens, just at
+    // the bottom like before.
+    const focusAttr = r.message_id ? ` data-rr-focus-msg="${escapeHtml(r.message_id)}" data-rr-focus-at="${escapeHtml(r.message_at || "")}"` : "";
+    return `<div class="msg-item ${isActive ? "active" : ""}" data-rr-thread="${escapeHtml(r.driver_id)}" data-rr-driver-id="${escapeHtml(r.driver_id)}"${focusAttr}>
       <div class="msg-item-avatar"><div class="avatar-sm">${escapeHtml(initials)}</div><span class="msg-item-presence"></span></div>
       <div><div class="msg-item-name">${escapeHtml(r.name || "")}${r.station_code ? ` <span class="msg-item-station">· ${escapeHtml(r.station_code)}</span>` : ""}</div><div class="msg-item-preview">${escapeHtml(previewTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(_fmtMsgRelative(r.message_at))}</div></div>
     </div>`;
   }).join("");
   list.querySelectorAll("[data-rr-thread]").forEach((el) => {
-    el.addEventListener("click", () => openDriverChatThread(el.dataset.rrThread));
+    el.addEventListener("click", () => {
+      const focusId = el.getAttribute("data-rr-focus-msg");
+      openDriverChatThread(el.dataset.rrThread, focusId ? { id: focusId, at: el.getAttribute("data-rr-focus-at") } : null);
+    });
   });
   _presencePaintList();
 }
@@ -34983,6 +34991,27 @@ function _applyMsgSearch() {
 // operator taps "Load earlier messages".  Reset to 200 whenever a
 // different thread is opened (see openDriverChatThread).
 let _mcThreadLimit = 200;
+// When a conversation is opened from a message-search result, this holds
+// the id of the matched bubble to scroll to + flash once the thread
+// renders.  Cleared after the first successful focus so polls don't keep
+// yanking the operator back to it.
+let _mcFocusMsgId = null;
+
+// Scroll a bubble into the middle of the thread and flash a ring around it
+// so the operator's eye lands on the message the search matched.
+function _rrMcFlashBubble(el) {
+  if (!el) return;
+  try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
+  catch { el.scrollIntoView(false); }
+  const prevShadow = el.style.boxShadow;
+  const prevTrans  = el.style.transition;
+  el.style.transition = "box-shadow .25s ease";
+  el.style.boxShadow = "0 0 0 3px var(--accent, #2f6bff)";
+  setTimeout(() => {
+    el.style.boxShadow = prevShadow || "";
+    setTimeout(() => { el.style.transition = prevTrans || ""; }, 300);
+  }, 1800);
+}
 // Normalise a message body for optimistic-stub reconciliation — the
 // same transform on both the stub side (at send) and the server side
 // (on refresh) so a stub matches its own echoed row regardless of
@@ -35366,16 +35395,21 @@ async function _loadMcContextSchedule(driverId) {
   }
 }
 
-async function openDriverChatThread(driverId) {
+async function openDriverChatThread(driverId, focus) {
   _msgInboxSelectedId = driverId;
   // Fresh thread — reset the page size so we don't over-fetch a short
-  // conversation just because the previous one was expanded.
-  _mcThreadLimit = 200;
+  // conversation just because the previous one was expanded.  When opening
+  // from a search hit we fetch the max page so the matched (possibly old)
+  // message is loaded and can be scrolled to; otherwise start small.
+  _mcFocusMsgId = focus?.id || null;
+  _mcThreadLimit = _mcFocusMsgId ? 1000 : 200;
   document.querySelectorAll("#rr-msg-driver-list [data-rr-thread]").forEach((el) => {
     el.classList.toggle("active", el.dataset.rrThread === driverId);
   });
   document.querySelector("#rr-msg-driver-list [data-rr-support-thread]")?.classList.remove("active");
-  await refreshDriverChatThread(true);
+  // Don't force-scroll to bottom when we're going to focus a specific
+  // message — the focus scroll below handles positioning.
+  await refreshDriverChatThread(!_mcFocusMsgId);
   _loadMcContextSchedule(driverId);
   if (_msgInboxThreadTimer) clearInterval(_msgInboxThreadTimer);
   // Realtime (postgres_changes on driver_messages) is the primary
@@ -36332,7 +36366,7 @@ async function refreshDriverChatThread(scrollToBottom) {
   // Smart-scroll: pin to bottom if the operator was already near it,
   // or if the caller forced it (e.g. opening a new thread).  Otherwise
   // surface the jump pill if the message count grew under their feet.
-  if (scrollToBottom || wasNearBottom) {
+  if (!_mcFocusMsgId && (scrollToBottom || wasNearBottom)) {
     thread.dataset.rrAnchor = "1";
     if (jump) jump.classList.remove("show");
     // Multi-pass pin to bottom.  Each pass uses scrollTop assignment
@@ -36394,8 +36428,27 @@ async function refreshDriverChatThread(scrollToBottom) {
       thread.addEventListener("touchmove", release, { passive: true });
       thread.addEventListener("keydown",   release);
     }
-  } else if (prevMsgCount >= 0 && msgs.length > prevMsgCount) {
+  } else if (!_mcFocusMsgId && prevMsgCount >= 0 && msgs.length > prevMsgCount) {
     if (jump) jump.classList.add("show");
+  }
+
+  // Message-search focus: scroll to + flash the matched bubble once the
+  // thread has rendered.  Cleared immediately so the 30s poll doesn't keep
+  // dragging the operator back to it.
+  if (_mcFocusMsgId) {
+    const target = _mcFocusMsgId;
+    _mcFocusMsgId = null;
+    thread.dataset.rrAnchor = "0"; // positioning by message, not by bottom
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(target) : target;
+    const bubble = thread.querySelector(`[data-rr-mc-msg="${sel}"]`);
+    if (bubble) {
+      requestAnimationFrame(() => _rrMcFlashBubble(bubble));
+    } else {
+      // Matched message is older than even the max page — land at the top
+      // so the operator can scroll the rest of the way.
+      thread.scrollTop = 0;
+      toast("Opened the thread — the matched message is further back in history.");
+    }
   }
 
   if (msgs.some((m) => m.sender_kind === "driver")) {
