@@ -1767,11 +1767,11 @@
                  bar leads with the week navigator, all controls
                  left-justified. -->
             <span class="rr-ab-weeknav" id="rr-ab-weeknav"></span>
-            <button type="button" class="rr-ab-btn" id="rr-ab-smartfill" title="Auto-staff this week from your rules + OKAMI demand">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.95 2.55L22.5 18.5l-2.55.95L19 22l-.95-2.55L15.5 18.5l2.55-.95z"/></svg>
-              Smart Fill
+            <button type="button" class="rr-ab-btn" id="rr-ab-smartfill" title="Build this week's schedule from your rules + OKAMI demand">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="13" y2="17"/></svg>
+              Build Schedule
               <span class="rr-ab-badge" id="rr-ab-sf-badge" hidden>0</span>
-              <span class="rr-ab-caret" id="rr-ab-smartfill-caret" role="button" tabindex="0" title="Smart Fill rules" aria-haspopup="dialog">
+              <span class="rr-ab-caret" id="rr-ab-smartfill-caret" role="button" tabindex="0" title="Schedule rules" aria-haspopup="dialog">
                 <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
               </span>
             </button>

@@ -1077,16 +1077,16 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   --rr-nav-ink:#EAF2F8;        /* light ink / icons */
   --rr-nav-ink-muted:#A9BBCB;  /* muted ink / icons */
   --rr-nav-accent:#1473E6;     /* active blue accent */
-  --rr-ctl-border:#D7DEE8;     /* toolbar button hairline */
-  --rr-ctl-border-hover:#C4CEDA;
+  --rr-ctl-border:#D7DCE3;     /* toolbar button hairline (enterprise pass 2026-07-10 · darkened so controls read as substantial) */
+  --rr-ctl-border-hover:#C4CBD6;
   --rr-ctl-hover:#F8FAFC;       /* toolbar hover fill */
   --rr-ctl-active:#EEF2F7;      /* toolbar pressed fill */
   --rr-amber-primary:#FF9900;   /* Finalize orange */
   --rr-amber-primary-hover:#F97316;
   --rr-amber-primary-active:#EA6A0C;
-  --rr-chip-bg:#F3F8FF;         /* shift card fill */
-  --rr-chip-bg-hover:#E9F2FE;
-  --rr-chip-border:#CEDBEA;     /* shift card hairline */
+  --rr-chip-bg:#EEF2F6;         /* shift card fill (enterprise pass 2026-07-10 · cooler enterprise gray, only a hint of blue) */
+  --rr-chip-bg-hover:#E7ECF2;
+  --rr-chip-border:#D6DDE6;     /* shift card hairline */
   --rr-cert-red-bg:#FEF2F2;     /* V badge fill */
   --rr-cert-red-border:#FCA5A5; /* V badge border */
   --rr-cert-red-ink:#DC2626;    /* V badge text */

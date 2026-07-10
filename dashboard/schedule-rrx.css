@@ -3351,13 +3351,13 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
    ============================================================ */
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  /* Reference card (operator 2026-06-12): very light blue fill
-     (var(--rr-blue-50)), fully borderless — no ring, no colored left accent
-     bar — with a quiet text hierarchy (time leads, Wave/Van muted).
-     The outline keeps a uniform 1px width (transparent) so the card's
-     size and the grid layout don't shift. */
-  background: var(--rr-blue-50) !important;
-  border: 1px solid transparent !important;
+  /* Reference card (enterprise pass 2026-07-10): a very light enterprise
+     gray with only a hint of blue (var(--rr-chip-bg) #EEF2F6) and a quiet
+     neutral hairline (var(--rr-chip-border) #D6DDE6) — Outlook / Azure
+     calendar, not a baby-blue pill. The card blends into the grid and lets
+     the text hierarchy (time leads, Wave/Van muted) carry it. */
+  background: var(--rr-chip-bg) !important;
+  border: 1px solid var(--rr-chip-border) !important;
   box-shadow: none !important;
   color: var(--rr-gray-900) !important;
 }
@@ -3367,13 +3367,16 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
 }
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
   color: var(--rr-gray-900) !important;
-  font-weight: 800 !important;
+  /* Route label · semibold, not black (enterprise pass 2026-07-10 —
+     800 read as heavy-handed; 700 keeps it the card's anchor without
+     shouting). */
+  font-weight: 700 !important;
 }
 
-/* On hover, deepen the light blue a touch so the focused cell registers. */
+/* On hover, deepen the gray a touch so the focused cell registers. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #E4EFFE !important;
-  border-color: transparent !important;
+  background: var(--rr-chip-bg-hover) !important;
+  border-color: var(--rr-chip-border) !important;
 }
 
 /* ============================================================
@@ -3387,26 +3390,26 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
    BLUE: solid blue fill.
    ============================================================ */
 body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: var(--rr-blue-50) !important;
-  border: 1px solid transparent !important;
+  background: var(--rr-chip-bg) !important;
+  border: 1px solid var(--rr-chip-border) !important;
   color: var(--rr-gray-900) !important;
 }
 body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #E4EFFE !important;
-  border-color: transparent !important;
+  background: var(--rr-chip-bg-hover) !important;
+  border-color: var(--rr-chip-border) !important;
 }
 body.rr-sched-cards-blue #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   /* The Blue card style renders the same reference card as White now
      (operator 2026-06-12: the picked look applies regardless of the
      legacy Card-style toggle — operators with "Blue" saved in
      localStorage must see it too). */
-  background: var(--rr-blue-50) !important;
-  border: 1px solid transparent !important;
+  background: var(--rr-chip-bg) !important;
+  border: 1px solid var(--rr-chip-border) !important;
   color: var(--rr-gray-900) !important;
 }
 body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #E4EFFE !important;
-  border-color: transparent !important;
+  background: var(--rr-chip-bg-hover) !important;
+  border-color: var(--rr-chip-border) !important;
 }
 
 /* Hover-lift · when the cursor is over an assigned card, raise it 2px
@@ -3419,10 +3422,11 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    rule above and only lifts the card under the cursor, not every card
    in the cell. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here):hover {
-  transform: translateY(-2px);
-  /* Richer (still soft, two-layer) lift shadow — premium V2 polish pass. */
-  box-shadow: var(--shadow-md-hover) !important;
-  border-color: transparent !important;
+  /* Enterprise pass 2026-07-10 · no lift, almost no elevation. The card
+     acknowledges the cursor with a slightly firmer border and a whisper
+     shadow rather than floating off the grid. */
+  box-shadow: 0 1px 2px rgba(15,23,42, .07) !important;
+  border-color: var(--rr-ctl-border-hover) !important;
 }
 
 /* Reduced motion · keep the shadow/border feedback but drop the travel. */
@@ -4945,13 +4949,14 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  /* Enterprise pass 2026-07 · one coherent 40px toolbar button system —
-     every control (Today / ‹ › / Smart Fill / Unassign Fleet / ⋯ / Finalize)
-     shares this height, radius, border color, font size and weight. */
-  height: 40px;
-  padding: 0 14px;
+  /* Enterprise pass 2026-07-10 · one coherent 36px toolbar button system —
+     every command (Today / ‹ › / Build Schedule / Assign Fleet / ⋯ / Finalize)
+     shares this height, radius, border color, font size and weight. Tighter
+     than the prior 40px/8px so the bar reads as precise, dense chrome. */
+  height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--rr-ctl-border);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--rr-white);
   color: var(--rr-gray-900);
   font: inherit;
@@ -4966,7 +4971,9 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule .rr-ab-btn:active { background: var(--rr-ctl-active); }
 #view-schedule .rr-ab-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(15,23,42, .22);
+  /* Blue focus ring · blue is reserved for focus (enterprise pass 2026-07-10). */
+  box-shadow: 0 0 0 3px rgba(37,99,235, .30);
+  border-color: var(--rr-blue-600);
 }
 #view-schedule .rr-ab-btn svg { width: 15px; height: 15px; flex: 0 0 auto; }
 #view-schedule .rr-ab-badge {
@@ -5115,20 +5122,22 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 #view-schedule .rr-ab-weeknav { display: flex; align-items: center; margin-right: 4px; }
 #view-schedule .rr-ab-weeknav:empty { display: none; }
-/* Date scroll box · same chrome as the Smart Fill button (operator
-   2026-06-12): white fill, 1.5px navy outline, 9px radius, 40px tall.
-   The inner Today / ‹ / › controls become quiet ghost segments. */
+/* Week navigator · an enterprise segmented control (enterprise pass
+   2026-07-10). White fill, hairline neutral border, 6px radius, 36px
+   tall to match the command-button system. The inner Today / ‹ / ›
+   controls are quiet ghost segments split by subtle vertical dividers
+   — Microsoft Office / Amazon-tooling, not an iOS segmented control.
+   No blue fill anywhere; blue is reserved for the active (this-week)
+   outline and the focus ring. */
 #view-schedule .rr-ab-weeknav .sched-week-nav {
   display: inline-flex;
   align-items: stretch;
-  /* Match the toolbar button system (enterprise pass 2026-07): 40px tall,
-     the same hairline border color as every other control. */
-  height: 40px;
+  height: 36px;
   gap: 0;
   padding: 0;
   background: var(--rr-white);
   border: 1px solid var(--rr-ctl-border);
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   box-shadow: none;
 }
@@ -5144,16 +5153,19 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--sidebar-bg, var(--rr-slate-900));
+  color: var(--rr-gray-900);
   cursor: pointer;
 }
-#view-schedule .rr-ab-weeknav .sched-week-nav-btn { width: 31px; padding: 0; }
+/* Subtle vertical dividers between every segment. */
+#view-schedule .rr-ab-weeknav .sched-week-nav > * + * {
+  border-left: 1px solid rgba(15,23,42, .12);
+}
+#view-schedule .rr-ab-weeknav .sched-week-nav-btn { width: 32px; padding: 0; }
 #view-schedule .rr-ab-weeknav .sched-week-nav-btn svg { width: 13px; height: 13px; }
 #view-schedule .rr-ab-weeknav .sched-week-nav-today {
   padding: 0 12px;
   font-size: var(--fs-12-5);
   font-weight: 600;
-  border-right: 1px solid rgba(15,23,42, .14);
 }
 #view-schedule .rr-ab-weeknav .sched-week-nav-range {
   padding: 0 12px;
@@ -5162,9 +5174,20 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* Hover · quiet light-gray wash on the hovered segment only. */
 #view-schedule .rr-ab-weeknav .sched-week-nav-btn:hover,
 #view-schedule .rr-ab-weeknav .sched-week-nav-today:hover,
-#view-schedule .rr-ab-weeknav .sched-week-nav-range:hover { background: rgba(15,23,42, .05); }
+#view-schedule .rr-ab-weeknav .sched-week-nav-range:hover { background: var(--rr-ctl-active); }
+/* Active (currently viewing this week) · a blue outline on the Today
+   segment rather than a blue fill. */
+#view-schedule .rr-ab-weeknav .sched-week-nav-today.is-on-today {
+  box-shadow: inset 0 0 0 1.5px var(--rr-blue-600);
+  color: var(--rr-blue-700);
+}
+#view-schedule .rr-ab-weeknav .sched-week-nav :focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--rr-blue-600);
+}
 /* The corner cell's Driver label is redundant once the bar leads with
    it (live.js also moves the week nav out of the corner cell). */
 #view-schedule #rr-sched-actionbar ~ .builder-shell .cal-grid.head .cal-cell-head > #rr-sched-row-label { display: none; }
@@ -5175,18 +5198,15 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   align-self: stretch;
   margin: 0 -7px 0 2px;
   padding: 0 8px;
-  border-left: 1px solid rgba(15,23,42, .25);
-  border-radius: 0 7px 7px 0;
+  border-left: 1px solid rgba(15,23,42, .18);
+  border-radius: 0 5px 5px 0;
 }
 #view-schedule .rr-ab-caret:hover { background: rgba(15,23,42, .07); }
 #view-schedule .rr-ab-caret svg { width: 11px; height: 11px; }
 
-/* Operator-picked light-blue fill (#C2E7FF) on the week-nav ‹ / › arrows
-   only (operator: keep it on the arrows, not the Smart Fill / Unassign
-   carets — those stay white). Placed after the base/hover rules so it wins
-   on equal specificity; dark glyphs stay legible, deeper blue on hover. */
-#view-schedule .rr-ab-weeknav .sched-week-nav-btn { background: rgb(194, 231, 255); }
-#view-schedule .rr-ab-weeknav .sched-week-nav-btn:hover { background: rgb(168, 213, 242); }
+/* Enterprise pass 2026-07-10 · the ‹ / › arrows carry no blue fill —
+   they are quiet white ghost segments like the rest of the control,
+   with only a light-gray hover (defined above). */
 /* Docked top-right chrome · the bell + account buttons relocated from
    the sidebar foot (see dockTopRight in index.html) ride the bar's far
    right next to the ⋯ overflow as quiet 40px ghost squares. */
@@ -5421,18 +5441,14 @@ body:not(.rr-sched-compact):not(.rr-sched-ultra-compact):not(.rr-sched-super-com
   min-height: 56px !important;
 }
 
-/* Smart Fill · the page's primary workflow. Same size as its
-   neighbors — emphasis comes from the navy outline, slightly
-   heavier label and the brand-blue sparkle. Calm, Linear-style. */
-#view-schedule .rr-ab-btn#rr-ab-smartfill {
-  border: 1.5px solid var(--sidebar-bg, var(--rr-slate-900));
-  font-weight: 650;
-}
+/* Build Schedule (was "Smart Fill") · an enterprise command, not a
+   feature advertisement (enterprise pass 2026-07-10). The prior navy
+   1.5px outline + brand-blue sparkle read as an AI marketing badge; it
+   now shares the exact chrome of every other command button — hairline
+   border, monochrome icon, neutral hover. Emphasis is earned by its
+   position and label, not by color. */
 #view-schedule .rr-ab-btn#rr-ab-smartfill > svg:first-child {
-  color: var(--rr-blue-600);
-}
-#view-schedule .rr-ab-btn#rr-ab-smartfill:hover {
-  background: var(--rr-blue-50);
+  color: var(--rr-gray-500);
 }
 
 /* ============================================================
