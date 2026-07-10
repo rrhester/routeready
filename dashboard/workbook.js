@@ -7401,12 +7401,20 @@ function mountSheetBlock(block, body) {
   });
   g.els.pivots.addEventListener("click", (e) => {
     const card = e.target.closest("[data-wb-pivot]");
-    const act = e.target.closest("[data-wb-pivotact]");
-    if (!card || !act) return;
+    if (!card) return;
     const pv = sheetPivots(g.sheet).find((x) => x.id === card.getAttribute("data-wb-pivot"));
     if (!pv) return;
-    if (act.getAttribute("data-wb-pivotact") === "edit") openPivotDialog(g, pv);
-    else confirmModal({ title: "Delete this pivot table?", body: "The underlying cells are untouched.", confirmLabel: "Delete pivot", danger: true, onConfirm: () => deletePivot(g, pv.id) });
+    const act = e.target.closest("[data-wb-pivotact]");
+    if (act) {
+      const a = act.getAttribute("data-wb-pivotact");
+      if (a === "edit") openPivotDialog(g, pv);
+      else if (a === "collapse") togglePivotCollapse(g, pv.id);
+      else if (a === "chart") togglePivotChart(g, pv.id);
+      else confirmModal({ title: "Delete this pivot table?", body: "The underlying cells are untouched.", confirmLabel: "Delete pivot", danger: true, onConfirm: () => deletePivot(g, pv.id) });
+      return;
+    }
+    const cell = e.target.closest("[data-pv-drill]");
+    if (cell) openPivotDrill(g, pv, cell.getAttribute("data-pv-rk"), cell.getAttribute("data-pv-ck"), cell.hasAttribute("data-pv-ckall"), +cell.getAttribute("data-pv-vi") || 0);
   });
 }
 
@@ -13348,7 +13356,152 @@ function dataValidationXml(sheet) {
   return items.length ? `<dataValidations count="${items.length}">${items.join("")}</dataValidations>` : "";
 }
 
+// ─── OOXML chart + pivot export ──────────────────────────────────────────────
+// Native chart parts (xl/charts/chartN.xml) so a workbook's charts survive the
+// .xlsx round-trip instead of being dropped. Series data is written with cached
+// values (numCache/strCache) AND live cell refs, so the chart both renders
+// immediately and stays linked to the source range.
+
+function _chNumCache(vals) {
+  const pts = vals.map((v, i) => (v == null || !isFinite(v) ? "" : `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`)).join("");
+  return `<c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${vals.length}"/>${pts}</c:numCache>`;
+}
+function _chStrCache(labels) {
+  const pts = labels.map((v, i) => `<c:pt idx="${i}"><c:v>${xmlEsc(String(v))}</c:v></c:pt>`).join("");
+  return `<c:strCache><c:ptCount val="${labels.length}"/>${pts}</c:strCache>`;
+}
+function _chartWrap(inner, title) {
+  const titleXml = title
+    ? `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>${xmlEsc(title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>`
+    : `<c:autoTitleDeleted val="1"/>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:chart>${titleXml}<c:plotArea><c:layout/>${inner}</c:plotArea><c:legend><c:legendPos val="b"/><c:overlay val="0"/></c:legend><c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>`;
+}
+// Build a chartSpace XML for one chart spec using its computed {categories,series}.
+// Returns null for a type we don't emit natively (caller keeps the "stays in
+// RouteReady" note for those).
+function ooxmlChartXml(ch, sheetName, cd) {
+  const series = cd.series;
+  if (!series.length) return null;
+  const type = ch.type;
+  const single = ch.c1 === ch.c0;
+  const dataR0 = ch.r0 + 1, catCol = ch.c0;
+  const L = colLabel;
+  const SREF = `'${String(sheetName).replace(/'/g, "''")}'`;
+  const nameF = (col) => `${SREF}!$${L(col)}$${ch.r0 + 1}`;
+  const valF = (col) => `${SREF}!$${L(col)}$${dataR0 + 1}:$${L(col)}$${ch.r1 + 1}`;
+  const catF = `${SREF}!$${L(catCol)}$${dataR0 + 1}:$${L(catCol)}$${ch.r1 + 1}`;
+  const catXml = single ? "" : `<c:cat><c:strRef><c:f>${xmlEsc(catF)}</c:f>${_chStrCache(cd.categories)}</c:strRef></c:cat>`;
+  const cols = [];
+  for (let col = (single ? ch.c0 : ch.c0 + 1); col <= ch.c1; col++) cols.push(col);
+  const serXml = (s, si, col) => `<c:ser><c:idx val="${si}"/><c:order val="${si}"/><c:tx><c:strRef><c:f>${xmlEsc(nameF(col))}</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${xmlEsc(s.name)}</c:v></c:pt></c:strCache></c:strRef></c:tx>${catXml}<c:val><c:numRef><c:f>${xmlEsc(valF(col))}</c:f>${_chNumCache(s.values)}</c:numRef></c:val></c:ser>`;
+  if (type === "pie") {
+    const col = single ? ch.c0 : ch.c0 + 1;
+    return _chartWrap(`<c:pieChart><c:varyColors val="1"/>${serXml(series[0], 0, col)}<c:firstSliceAng val="0"/></c:pieChart>`, ch.title);
+  }
+  const AX_CAT = 111111111, AX_VAL = 222222222;
+  const barDir = (type === "bar" || type === "stackbar") ? "bar" : "col";
+  const stacked = (type === "stackcol" || type === "stackbar");
+  const serAll = cols.map((col, i) => serXml(series[i], i, col));
+  if (!serAll.length) return null;
+  let plot = "";
+  if (type === "column" || type === "bar" || type === "stackcol" || type === "stackbar" || type === "combo") {
+    const barSeries = type === "combo" ? serAll.slice(0, Math.max(1, serAll.length - 1)) : serAll;
+    plot += `<c:barChart><c:barDir val="${barDir}"/><c:grouping val="${stacked ? "stacked" : "clustered"}"/><c:varyColors val="0"/>${barSeries.join("")}${stacked ? `<c:overlap val="100"/>` : `<c:gapWidth val="90"/>`}<c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:barChart>`;
+    if (type === "combo" && serAll.length > 1) plot += `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${serAll[serAll.length - 1]}<c:marker val="1"/><c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:lineChart>`;
+  } else if (type === "line") {
+    plot += `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${serAll.join("")}<c:marker val="1"/><c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:lineChart>`;
+  } else if (type === "area") {
+    plot += `<c:areaChart><c:grouping val="standard"/><c:varyColors val="0"/>${serAll.join("")}<c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:areaChart>`;
+  } else if (type === "scatter") {
+    // Real XY scatter: X = the first column, Y = each remaining column. Two
+    // value axes. Skip a single-column scatter rather than emit a misleading
+    // categorical chart.
+    if (single) return null;
+    const xF = `${SREF}!$${L(ch.c0)}$${dataR0 + 1}:$${L(ch.c0)}$${ch.r1 + 1}`;
+    const xs = cd.categories.map((v) => { const nx = Number(v); return isFinite(nx) && v !== "" ? nx : null; });
+    const sSer = cols.map((col, i) => `<c:ser><c:idx val="${i}"/><c:order val="${i}"/><c:tx><c:strRef><c:f>${xmlEsc(nameF(col))}</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${xmlEsc(series[i].name)}</c:v></c:pt></c:strCache></c:strRef></c:tx><c:xVal><c:numRef><c:f>${xmlEsc(xF)}</c:f>${_chNumCache(xs)}</c:numRef></c:xVal><c:yVal><c:numRef><c:f>${xmlEsc(valF(col))}</c:f>${_chNumCache(series[i].values)}</c:numRef></c:yVal></c:ser>`).join("");
+    const sAxes = `<c:valAx><c:axId val="${AX_CAT}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/><c:tickLblPos val="nextTo"/><c:crossAx val="${AX_VAL}"/></c:valAx><c:valAx><c:axId val="${AX_VAL}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="l"/><c:majorGridlines/><c:tickLblPos val="nextTo"/><c:crossAx val="${AX_CAT}"/></c:valAx>`;
+    return _chartWrap(`<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>${sSer}<c:axId val="${AX_CAT}"/><c:axId val="${AX_VAL}"/></c:scatterChart>${sAxes}`, ch.title);
+  } else {
+    return null;
+  }
+  const axes = `<c:catAx><c:axId val="${AX_CAT}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="${barDir === "bar" ? "l" : "b"}"/><c:tickLblPos val="nextTo"/><c:crossAx val="${AX_VAL}"/></c:catAx><c:valAx><c:axId val="${AX_VAL}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="${barDir === "bar" ? "b" : "l"}"/><c:majorGridlines/><c:tickLblPos val="nextTo"/><c:crossAx val="${AX_CAT}"/></c:valAx>`;
+  return _chartWrap(plot + axes, ch.title);
+}
+// A drawing part positioning each chart in a twoCellAnchor to the right of its data.
+function ooxmlDrawingXml(anchors) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+    anchors.map((an) => `<xdr:twoCellAnchor editAs="oneCell"><xdr:from><xdr:col>${an.fromCol}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${an.fromRow}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>${an.toCol}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${an.toRow}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${an.id}" name="${xmlEsc(an.name)}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="${an.relId}"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>`).join("") +
+    `</xdr:wsDr>`;
+}
+
+// Materialize a pivot's computed output into a plain values sheet so pivots
+// survive .xlsx export (Excel's native pivot parts are not written).
+function pivotToExportSheet(srcSheet, spec, name, position) {
+  const espec = pivotEffectiveSpec(spec);
+  let p;
+  try { p = computePivot(srcSheet, espec); } catch (e) { return null; }
+  if (!p || !p.rowKeys.length) return null;
+  const hasCols = p.colFields.length > 0 && p.colKeys.length > 0;
+  let rowKeys = p.rowKeys;
+  const topN = Math.max(0, Math.min(10000, Math.round(+espec.topN || 0)));
+  const grandCk = hasCols ? null : "";
+  if (topN > 0) rowKeys = [...p.rowKeys].sort((a, b) => (_pvNum(p.aggOf(b, grandCk, 0)) ?? -Infinity) - (_pvNum(p.aggOf(a, grandCk, 0)) ?? -Infinity)).slice(0, topN);
+  const groups = hasCols ? [...p.colKeys.map((ck) => ({ ck, label: ck || "(blank)" })), { ck: null, label: "Grand total" }] : [{ ck: "", label: "" }];
+  const rowHdrs = p.rowFields.length ? p.rowFields : ["Total"];
+  const showOf = (vi) => (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw");
+  const vLabel = (vi) => { const v = p.values[vi]; const base = `${WB_PIVOT_AGGS[v.agg] || ""} of ${v.field}`; return showOf(vi) === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[showOf(vi)]}`; };
+  const header = [...rowHdrs, ...groups.flatMap((gp) => p.values.map((_, vi) => (hasCols ? `${gp.label} · ${vLabel(vi)}` : vLabel(vi))))];
+  const rawM = groups.map((gp) => p.values.map((_, vi) => rowKeys.map((rk) => p.aggOf(rk, gp.ck, vi))));
+  const runM = rawM.map((gvs) => gvs.map((col) => { let a = 0; return col.map((v) => { const n = _pvNum(v); if (n != null) a += n; return a; }); }));
+  const rankM = rawM.map((gvs) => gvs.map((col) => col.map((v) => { const n = _pvNum(v); if (n == null) return null; return 1 + col.reduce((c, o) => c + ((_pvNum(o) ?? -Infinity) > n ? 1 : 0), 0); })));
+  const cellVal = (mode, gi, vi, ri) => {
+    const raw = rawM[gi][vi][ri];
+    if (mode === "pct") { const d = _pvNum(p.aggOf(null, groups[gi].ck, vi)), n = _pvNum(raw); return d ? Math.round((n == null ? 0 : n) / d * 1000) / 10 : ""; }
+    if (mode === "running") return _pvNum(runM[gi][vi][ri]) ?? "";
+    if (mode === "rank") return rankM[gi][vi][ri] ?? "";
+    return _pvNum(raw) != null ? _pvNum(raw) : (raw == null ? "" : raw);
+  };
+  const body = rowKeys.map((rk, ri) => {
+    const parts = p.rowFields.length ? rk.split(" · ") : ["Total"];
+    const cells = rowHdrs.map((_, i) => parts[i] ?? "");
+    groups.forEach((gp, gi) => p.values.forEach((_, vi) => cells.push(cellVal(showOf(vi), gi, vi, ri))));
+    return cells;
+  });
+  const gtRow = ["Grand total", ...Array(Math.max(0, rowHdrs.length - 1)).fill("")];
+  groups.forEach((gp, gi) => p.values.forEach((_, vi) => {
+    const mode = showOf(vi), total = _pvNum(p.aggOf(null, gp.ck, vi));
+    gtRow.push(mode === "pct" ? (total ? 100 : "") : mode === "rank" ? "" : (total == null ? "" : total));
+  }));
+  const matrix = [header, ...body, gtRow];
+  const cells = new Map();
+  matrix.forEach((row, r) => row.forEach((v, c) => {
+    if (v === "" || v == null) return;
+    const isNum = typeof v === "number" && isFinite(v);
+    const cell = { value: v, type: isNum ? "number" : "text" };
+    if (r === 0) cell.format = { bold: true, bg: "header" };
+    else if (r === matrix.length - 1) cell.format = { bold: true };
+    cells.set(cellKey(r, c), cell);
+  }));
+  return { id: "pvx" + Math.random().toString(36).slice(2, 8), name, position, rowCount: matrix.length, colCount: header.length, cells, meta: {}, colWidths: {} };
+}
+// Append a values sheet for every pivot so nothing is silently dropped.
+function expandExportSheets(sheets) {
+  const out = sheets.slice();
+  let pos = sheets.reduce((m, s) => Math.max(m, s.position || 0), 0);
+  for (const sh of sheets) {
+    const pvs = Array.isArray(sh.meta && sh.meta.pivots) ? sh.meta.pivots : [];
+    pvs.forEach((pv, i) => {
+      const base = (pv.title && pv.title.trim()) || `${sh.name} pivot${pvs.length > 1 ? " " + (i + 1) : ""}`;
+      const syn = pivotToExportSheet(sh, pv, base, ++pos);
+      if (syn) out.push(syn);
+    });
+  }
+  return out;
+}
+
 function buildXlsxBytes(sheets) {
+  sheets = expandExportSheets(sheets);
   const enc = new TextEncoder();
   const XMLH = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`;
   const FG_HEX = { muted: "FF6B7280", blue: "FF1E40AF", green: "FF166534", amber: "FF92400E", red: "FFB91C1C" };
@@ -13527,19 +13680,55 @@ function buildXlsxBytes(sheets) {
       sheetTables.push({ relId: `rtbl${sheetTables.length + 1}`, gid, xml: tableXml });
     }
     const tablePartsXml = sheetTables.length ? `<tableParts count="${sheetTables.length}">${sheetTables.map((t) => `<tablePart r:id="${t.relId}"/>`).join("")}</tableParts>` : "";
+    // charts → a drawing part + one chart part each, anchored to the right of
+    // each chart's data range. A chart that fails to build is skipped so the
+    // rest of the file stays valid.
+    let drawingXml = "", sheetDrawing = null;
+    const chSpecs = sheetCharts(sheet);
+    if (chSpecs.length) {
+      const anchors = [], drels = [];
+      for (const ch of chSpecs) {
+        if (![ch.r0, ch.c0, ch.r1, ch.c1].every(Number.isInteger)) continue;
+        // A chart may source another sheet (dashboard charts carry srcSheetId).
+        // Read the data — and reference the formulas — against that sheet.
+        const srcSheet = (ch.srcSheetId && sheets.find((s) => s.id === ch.srcSheetId)) || sheet;
+        const srcName = exportNameById.get(srcSheet.id) || srcSheet.name;
+        let cxml;
+        try { const cd = chartData(srcSheet, ch); if (!cd.series.length) continue; cxml = ooxmlChartXml(ch, srcName, cd); } catch (e) { cxml = null; }
+        if (!cxml) continue;
+        const cid = ++chartSeq;
+        chartParts.push({ id: cid, xml: cxml });
+        const relId = `rIdCh${anchors.length + 1}`;
+        drels.push(`<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart${cid}.xml"/>`);
+        const fromCol = ch.c1 + 2, fromRow = Math.max(0, ch.r0);
+        anchors.push({ fromCol, fromRow, toCol: fromCol + 8, toRow: fromRow + 16, relId, name: `Chart ${cid}`, id: cid + 1 });
+      }
+      if (anchors.length) {
+        const did = ++drawingSeq;
+        drawingParts.push({ id: did, xml: ooxmlDrawingXml(anchors), rels: drels });
+        drawingXml = `<drawing r:id="rIdDr${did}"/>`;
+        sheetDrawing = { id: did, relId: `rIdDr${did}` };
+      }
+    }
     // OOXML worksheet child order: …mergeCells, conditionalFormatting,
-    // dataValidations, hyperlinks, …, tableParts (last)
-    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${cfXml}${dvXml}${linkXml}${tablePartsXml}</worksheet>`;
-    return { xml, links, tables: sheetTables };
+    // dataValidations, hyperlinks, …, drawing, tableParts (last)
+    const xml = `${XMLH}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${view}${cols}<sheetData>${body}</sheetData>${mergeXml}${cfXml}${dvXml}${linkXml}${drawingXml}${tablePartsXml}</worksheet>`;
+    return { xml, links, tables: sheetTables, drawing: sheetDrawing };
   };
 
-  // sheet XML first — it populates the style + table registries as it goes
+  // sheet XML first — it populates the style + table registries as it goes.
+  // Export names (Excel-sanitized + de-duplicated) are computed up front so a
+  // chart's series formulas reference the *exported* sheet name, not the raw
+  // in-app name that Excel may have altered.
   let tableIdSeq = 0;
   const usedTableNames = new Set();
+  let drawingSeq = 0, chartSeq = 0;
+  const drawingParts = [], chartParts = [];
+  const usedSheetNames = new Set();
+  const names = sheets.map((sh) => xlsxSheetName(sh.name, usedSheetNames));
+  const exportNameById = new Map(sheets.map((sh, i) => [sh.id, names[i]]));
   const sheetParts = sheets.map(sheetXml);
   const allTables = sheetParts.flatMap((p) => p.tables || []);
-  const used = new Set();
-  const names = sheets.map((sh) => xlsxSheetName(sh.name, used));
 
   const dxfXml = dxfs.length ? `<dxfs count="${dxfs.length}">${dxfs.join("")}</dxfs>` : "";
   const numFmtDefs = [`<numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00"/>`, ...customNumFmts.map((nf) => `<numFmt numFmtId="${nf.id}" formatCode="${xmlEsc(nf.code)}"/>`)];
@@ -13547,7 +13736,7 @@ function buildXlsxBytes(sheets) {
   const workbookXml = `${XMLH}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n, i) => `<sheet name="${xmlEsc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`;
   const wbRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
   const rootRels = `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
-  const contentTypes = `${XMLH}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${allTables.map((t) => `<Override PartName="/xl/tables/table${t.gid}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`).join("")}</Types>`;
+  const contentTypes = `${XMLH}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${allTables.map((t) => `<Override PartName="/xl/tables/table${t.gid}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`).join("")}${drawingParts.map((d) => `<Override PartName="/xl/drawings/drawing${d.id}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`).join("")}${chartParts.map((c) => `<Override PartName="/xl/charts/chart${c.id}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`).join("")}</Types>`;
 
   const file = (name, xml) => ({ nameB: enc.encode(name), bytes: enc.encode(xml) });
   const parts = [
@@ -13558,12 +13747,16 @@ function buildXlsxBytes(sheets) {
     file("xl/styles.xml", stylesXml),
     ...sheetParts.map((p, i) => file(`xl/worksheets/sheet${i + 1}.xml`, p.xml)),
     ...allTables.map((t) => file(`xl/tables/table${t.gid}.xml`, t.xml)),
+    ...drawingParts.map((d) => file(`xl/drawings/drawing${d.id}.xml`, d.xml)),
+    ...drawingParts.map((d) => file(`xl/drawings/_rels/drawing${d.id}.xml.rels`, `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${d.rels.join("")}</Relationships>`)),
+    ...chartParts.map((c) => file(`xl/charts/chart${c.id}.xml`, c.xml)),
   ];
-  // per-sheet relationships: hyperlinks and/or table parts
+  // per-sheet relationships: hyperlinks, table parts, and/or a drawing
   sheetParts.forEach((p, i) => {
     const rels = [];
     p.links.forEach((l, j) => rels.push(`<Relationship Id="rlk${j + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xmlEsc(l.url)}" TargetMode="External"/>`));
     (p.tables || []).forEach((t) => rels.push(`<Relationship Id="${t.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table${t.gid}.xml"/>`));
+    if (p.drawing) rels.push(`<Relationship Id="${p.drawing.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${p.drawing.id}.xml"/>`);
     if (!rels.length) return;
     parts.push(file(`xl/worksheets/_rels/sheet${i + 1}.xml.rels`, `${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join("")}</Relationships>`));
   });
@@ -13891,13 +14084,10 @@ function exportBlockXlsx(g) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   wbLog("xlsx.exported", `exported ${sheets.length === 1 ? `sheet “${sheets[0].name}”` : `${sheets.length} sheets`} as an Excel file`, { target_type: "block", target_id: g.blockId });
   _toast("Excel file exported", "success");
-  // Charts and pivot tables aren't written to .xlsx yet — say so rather than
-  // let them vanish silently. (Values, formulas, formats, data validation and
-  // conditional formatting all export.)
-  const dropped = [];
-  if (sheets.some((sh) => Array.isArray(sh.meta && sh.meta.charts) && sh.meta.charts.length)) dropped.push("charts");
-  if (sheets.some((sh) => Array.isArray(sh.meta && sh.meta.pivots) && sh.meta.pivots.length)) dropped.push("pivot tables");
-  if (dropped.length) setTimeout(() => _toast(`Heads up: ${dropped.join(" and ")} aren't included in the Excel file — they stay in RouteReady.`, "info"), 600);
+  // Charts now export as native Excel charts; pivot tables are written as
+  // separate values sheets (Excel's native pivot parts aren't generated).
+  const hasPivots = sheets.some((sh) => Array.isArray(sh.meta && sh.meta.pivots) && sh.meta.pivots.length);
+  if (hasPivots) setTimeout(() => _toast("Each pivot table was added as its own values sheet in the Excel file.", "info"), 600);
 }
 
 // ─── Charts ──────────────────────────────────────────────────────────────────
@@ -14109,6 +14299,9 @@ function chartSvg(sheet, ch, opts = {}) {
   const trendFits = showTrend ? series.map((s) => linearFit(s.values)) : [];
   const fc = showTrend ? Math.max(0, Math.min(24, Math.round(+ch.forecast || 0))) : 0;
   const xN = nCat + fc;
+  // Moving average (cartesian types only) + a horizontal target/reference line.
+  const maW = (ch.type === "column" || ch.type === "line" || ch.type === "area" || ch.type === "combo") ? Math.max(0, Math.min(52, Math.round(+ch.movavg || 0))) : 0;
+  const targetV = (ch.target != null && ch.target !== "" && isFinite(+ch.target)) ? +ch.target : null;
   let lo = 0, hi = 1;
   const allVals = series.flatMap((s) => s.values).filter((v) => v != null);
   if (allVals.length) { lo = Math.min(...allVals), hi = Math.max(...allVals); }
@@ -14124,6 +14317,7 @@ function chartSvg(sheet, ch, opts = {}) {
       hi = Math.max(hi, pos); lo = Math.min(lo, neg);
     }
   } else if (ch.type !== "line") { lo = Math.min(0, lo); hi = Math.max(0, hi); } // bars/areas keep a zero baseline
+  if (targetV != null) { if (targetV < lo) lo = targetV; if (targetV > hi) hi = targetV; } // keep the target line in view
   const ticks = chartNiceTicks(lo, hi);
   lo = ticks[0]; hi = ticks[ticks.length - 1];
   const span = hi - lo || 1;
@@ -14254,6 +14448,32 @@ function chartSvg(sheet, ch, opts = {}) {
         out += `<circle cx="${xf.toFixed(1)}" cy="${yf.toFixed(1)}" r="3.2" fill="var(--surface)" stroke="${color(si)}" stroke-width="1.6"><title>Forecast · ${t(s.name)}: ${chartFmt(fv)}</title></circle>`;
       }
     });
+  }
+
+  // moving-average line(s), plotted over the category midpoints (cartesian only)
+  if (maW >= 2 && !horizontal) {
+    const cxM = (i) => padL + ((i + 0.5) / xN) * plotW;
+    series.forEach((s, si) => {
+      const pts = [];
+      for (let i = 0; i < s.values.length; i++) {
+        let sum = 0, cnt = 0;
+        for (let k = Math.max(0, i - maW + 1); k <= i; k++) { const v = s.values[k]; if (v != null && isFinite(v)) { sum += v; cnt++; } }
+        if (cnt) pts.push([cxM(i), vy(sum / cnt)]);
+      }
+      if (pts.length >= 2) out += `<path d="${pts.map((p, k) => `${k ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")}" fill="none" stroke="${color(si)}" stroke-width="1.7" stroke-dasharray="1 3" stroke-linecap="round" opacity="0.9"><title>${maW}-pt moving average · ${t(s.name)}</title></path>`;
+    });
+  }
+  // target / reference line
+  if (targetV != null) {
+    if (horizontal) {
+      const tx = vx(targetV);
+      out += `<line x1="${tx.toFixed(1)}" y1="${padT}" x2="${tx.toFixed(1)}" y2="${padT + plotH}" stroke="var(--text)" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.5"><title>Target: ${chartFmt(targetV)}</title></line>`;
+      out += `<text x="${tx.toFixed(1)}" y="${padT + 9}" text-anchor="middle" class="wb-chart-tick">Target ${t(chartFmt(targetV))}</text>`;
+    } else {
+      const ty = vy(targetV);
+      out += `<line x1="${padL}" y1="${ty.toFixed(1)}" x2="${W - padR}" y2="${ty.toFixed(1)}" stroke="var(--text)" stroke-width="1.4" stroke-dasharray="6 4" opacity="0.5"><title>Target: ${chartFmt(targetV)}</title></line>`;
+      out += `<text x="${(W - padR).toFixed(1)}" y="${(ty - 4).toFixed(1)}" text-anchor="end" class="wb-chart-tick">Target ${t(chartFmt(targetV))}</text>`;
+    }
   }
 
   // axis titles (secondary ink — never the series color)
@@ -14954,6 +15174,12 @@ function openChartDialog(g, existing) {
           <label class="wb-field"><span class="wb-field-label">Forecast periods <span class="wb-field-opt">optional</span></span>
             <input type="number" class="wb-input" id="wb-chart-forecast" min="0" max="24" value="${existing && existing.forecast ? esc(String(existing.forecast)) : 0}"></label>
         </div>
+        <div class="wb-field-row">
+          <label class="wb-field"><span class="wb-field-label">Moving average <span class="wb-field-opt">points · 0 = off</span></span>
+            <input type="number" class="wb-input" id="wb-chart-movavg" min="0" max="52" step="1" value="${existing && existing.movavg ? esc(String(existing.movavg)) : 0}"></label>
+          <label class="wb-field"><span class="wb-field-label">Target line <span class="wb-field-opt">optional</span></span>
+            <input type="number" class="wb-input" id="wb-chart-target" step="any" value="${existing && existing.target != null && existing.target !== "" ? esc(String(existing.target)) : ""}" placeholder="e.g. 40"></label>
+        </div>
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
@@ -14981,6 +15207,8 @@ function openChartDialog(g, existing) {
       yTitle: wrap.querySelector("#wb-chart-ytitle").value.trim(),
       trend: wrap.querySelector("#wb-chart-trend").checked,
       forecast: Math.max(0, Math.min(24, +wrap.querySelector("#wb-chart-forecast").value || 0)),
+      movavg: Math.max(0, Math.min(52, Math.round(+wrap.querySelector("#wb-chart-movavg").value || 0))),
+      target: (() => { const raw = String(wrap.querySelector("#wb-chart-target").value).trim(); return raw === "" || !isFinite(+raw) ? null : +raw; })(),
       srcSheetId: (wrap.querySelector("#wb-chart-src") && wrap.querySelector("#wb-chart-src").value) || (existing && existing.srcSheetId) || "",
       ...range,
       // keep the on-grid position/size across edits; new charts get placed on render
@@ -15731,16 +15959,57 @@ function pivotNumFmt(v) {
   return esc(String(v));
 }
 
+// "Show values as" display modes for a pivot value field (Excel-style).
+const WB_PIVOT_SHOWS = { raw: "Raw", pct: "% of total", running: "Running total", rank: "Rank" };
+const _pvNum = (v) => (typeof v === "number" && isFinite(v) ? v : null);
+function pivotPctFmt(v) {
+  if (v == null || !isFinite(v)) return "";
+  return (Math.round(v * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 }) + "%";
+}
+// One display value for a body cell under a "show values as" mode. `raw` is the
+// aggregate; `colTotal` the column's grand total; `running`/`rank` the
+// precomputed cumulative sum and 1-based descending rank for this cell.
+function pivotShowCell(mode, raw, colTotal, running, rank) {
+  switch (mode) {
+    case "pct": { const n = _pvNum(raw), d = _pvNum(colTotal); return d ? pivotPctFmt((n == null ? 0 : n) / d * 100) : ""; }
+    case "running": return pivotNumFmt(running);
+    case "rank": return rank == null ? "" : String(rank);
+    default: return pivotNumFmt(raw);
+  }
+}
+
+// When a 2-level pivot is collapsed, render only the first row dimension.
+function pivotEffectiveSpec(spec) {
+  if (spec && spec.collapsed && Array.isArray(spec.rows) && spec.rows.length > 1) return { ...spec, rows: [spec.rows[0]] };
+  return spec;
+}
+
 function pivotTableHtml(sheet, spec) {
+  spec = pivotEffectiveSpec(spec);
   const p = computePivot(sheet, spec);
   if (!p) return `<div class="wb-chart-empty">Add at least one value field to this pivot.</div>`;
   if (!p.records.length || !p.rowKeys.length) return `<div class="wb-chart-empty">No data to summarize in ${esc(pivotRefText(spec))} yet.</div>`;
   const nv = p.values.length;
   const hasCols = p.colFields.length > 0 && p.colKeys.length > 0;
   const rowHdrs = p.rowFields.length ? p.rowFields : ["Total"];
-  const vlab = (vi) => esc(`${WB_PIVOT_AGGS[p.values[vi].agg] || ""} of ${p.values[vi].field}`);
+  const showOf = (vi) => (WB_PIVOT_SHOWS[p.values[vi].show] ? p.values[vi].show : "raw");
+  const vlab = (vi) => { const m = showOf(vi); const base = `${WB_PIVOT_AGGS[p.values[vi].agg] || ""} of ${p.values[vi].field}`; return esc(m === "raw" ? base : `${base} · ${WB_PIVOT_SHOWS[m]}`); };
   // column groups: each colKey, then a Grand Total group (only when cols exist)
   const groups = hasCols ? [...p.colKeys.map((ck) => ({ ck, label: ck || "(blank)" })), { ck: null, label: "Grand total" }] : [{ ck: "", label: null }];
+
+  // Top-N: keep the highest rows by the first value's grand-total aggregate.
+  let rowKeys = p.rowKeys;
+  const topN = Math.max(0, Math.min(10000, Math.round(+spec.topN || 0)));
+  const grandCk = hasCols ? null : "";
+  if (topN > 0) {
+    rowKeys = [...p.rowKeys].sort((a, b) => (_pvNum(p.aggOf(b, grandCk, 0)) ?? -Infinity) - (_pvNum(p.aggOf(a, grandCk, 0)) ?? -Infinity)).slice(0, topN);
+  }
+
+  // Per (group, value) precompute the raw column, its running totals and ranks
+  // over the *visible* rows so pct/running/rank read correctly after Top-N.
+  const rawM = groups.map((gp) => p.values.map((_, vi) => rowKeys.map((rk) => p.aggOf(rk, gp.ck, vi))));
+  const runM = rawM.map((gvs) => gvs.map((col) => { let acc = 0; return col.map((v) => { const n = _pvNum(v); if (n != null) acc += n; return acc; }); }));
+  const rankM = rawM.map((gvs) => gvs.map((col) => col.map((v) => { const n = _pvNum(v); if (n == null) return null; return 1 + col.reduce((c, o) => c + ((_pvNum(o) ?? -Infinity) > n ? 1 : 0), 0); })));
 
   let thead;
   if (hasCols) {
@@ -15752,19 +16021,72 @@ function pivotTableHtml(sheet, spec) {
     thead = `<tr>${rowHdrs.map((h) => `<th class="wb-pv-rh">${esc(h)}</th>`).join("")}${p.values.map((_, vi) => `<th class="wb-pv-vh">${vlab(vi)}</th>`).join("")}</tr>`;
   }
 
-  const bodyRows = p.rowKeys.map((rk) => {
+  const bodyRows = rowKeys.map((rk, ri) => {
     const parts = p.rowFields.length ? rk.split(" · ") : ["Total"];
     const rhCells = rowHdrs.map((_, i) => `<td class="wb-pv-rk">${esc(parts[i] ?? "")}</td>`).join("");
-    const dataCells = groups.map((gp) => p.values.map((_, vi) => `<td class="wb-pv-num">${pivotNumFmt(p.aggOf(rk, gp.ck, vi))}</td>`).join("")).join("");
+    const dataCells = groups.map((gp, gi) => p.values.map((_, vi) => {
+      const mode = showOf(vi);
+      const cell = pivotShowCell(mode, rawM[gi][vi][ri], p.aggOf(null, gp.ck, vi), runM[gi][vi][ri], rankM[gi][vi][ri]);
+      const drill = gp.ck === null ? `data-pv-drill data-pv-rk="${esc(rk)}" data-pv-ckall="1" data-pv-vi="${vi}"` : `data-pv-drill data-pv-rk="${esc(rk)}" data-pv-ck="${esc(gp.ck)}" data-pv-vi="${vi}"`;
+      return `<td class="wb-pv-num wb-pv-drill" ${drill} title="Show the source rows behind this number">${cell}</td>`;
+    }).join("")).join("");
     return `<tr>${rhCells}${dataCells}</tr>`;
   }).join("");
 
-  // grand total row
-  const gtLabel = `<td class="wb-pv-rk wb-pv-gt" colspan="${rowHdrs.length}">Grand total</td>`;
-  const gtCells = groups.map((gp) => p.values.map((_, vi) => `<td class="wb-pv-num wb-pv-gt">${pivotNumFmt(p.aggOf(null, gp.ck, vi))}</td>`).join("")).join("");
+  // grand total row — pct reads 100%, rank is meaningless (—), raw/running show the total
+  const gtLabel = `<td class="wb-pv-rk wb-pv-gt" colspan="${rowHdrs.length}">Grand total${topN > 0 && rowKeys.length < p.rowKeys.length ? ` · top ${rowKeys.length}` : ""}</td>`;
+  const gtCells = groups.map((gp) => p.values.map((_, vi) => {
+    const mode = showOf(vi);
+    const total = p.aggOf(null, gp.ck, vi);
+    const cell = mode === "pct" ? (_pvNum(total) ? "100%" : "") : mode === "rank" ? "—" : pivotNumFmt(total);
+    return `<td class="wb-pv-num wb-pv-gt">${cell}</td>`;
+  }).join("")).join("");
   const foot = `<tr>${gtLabel}${gtCells}</tr>`;
 
   return `<div class="wb-pv-scroll"><table class="wb-pv-table"><thead>${thead}</thead><tbody>${bodyRows}${foot}</tbody></table></div>`;
+}
+
+// Source records behind one pivot cell — filtered to its row key, column key
+// (or the whole column for a grand-total cell), honoring any pivot filters and
+// the collapsed-view effective spec.
+function pivotDrillRecords(sheet, spec, rk, ck, ckAll) {
+  const espec = pivotEffectiveSpec(spec);
+  const { fields, records } = pivotSource(sheet, espec);
+  const rowFields = (espec.rows || []).filter(Boolean);
+  const colFields = (espec.cols || []).filter(Boolean);
+  const filt = (espec.filters || []).filter((f) => f && f.field && Array.isArray(f.values) && f.values.length);
+  const rowKey = (rec) => rowFields.map((f) => String(rec[f] ?? "")).join(" · ");
+  const colKey = (rec) => colFields.map((f) => String(rec[f] ?? "")).join(" · ");
+  const out = records.filter((rec) =>
+    filt.every((f) => f.values.map(String).includes(String(rec[f.field] ?? ""))) &&
+    (rk == null || rowKey(rec) === rk) &&
+    (ckAll || ck == null || colKey(rec) === ck));
+  return { fields, records: out };
+}
+
+// A live chart drawn straight from a pivot's aggregated output. Builds a tiny
+// in-memory sheet (categories × series) and reuses the normal chart renderer.
+function pivotChartSvg(sheet, spec, W, H) {
+  const espec = pivotEffectiveSpec(spec);
+  const p = computePivot(sheet, espec);
+  if (!p || !p.rowKeys.length) return "";
+  const hasCols = p.colFields.length > 0 && p.colKeys.length > 0;
+  let rowKeys = p.rowKeys;
+  const topN = Math.max(0, Math.min(10000, Math.round(+espec.topN || 0)));
+  const grandCk = hasCols ? null : "";
+  if (topN > 0) rowKeys = [...p.rowKeys].sort((a, b) => (_pvNum(p.aggOf(b, grandCk, 0)) ?? -Infinity) - (_pvNum(p.aggOf(a, grandCk, 0)) ?? -Infinity)).slice(0, topN);
+  const seriesDefs = hasCols
+    ? p.colKeys.map((ck) => ({ name: ck || "(blank)", ck, vi: 0 }))
+    : p.values.map((v, vi) => ({ name: `${WB_PIVOT_AGGS[v.agg] || ""} of ${v.field}`, ck: "", vi }));
+  const header = [p.rowFields.join(" · ") || "Total", ...seriesDefs.map((s) => s.name)];
+  const body = rowKeys.map((rk) => [rk || "(blank)", ...seriesDefs.map((s) => _pvNum(p.aggOf(rk, s.ck, s.vi)) ?? 0)]);
+  const matrix = [header, ...body];
+  const cells = new Map();
+  matrix.forEach((row, r) => row.forEach((v, c) => cells.set(cellKey(r, c), { value: v, type: typeof v === "number" ? "number" : "text" })));
+  const synth = { rowCount: matrix.length, colCount: header.length, cells, meta: {} };
+  const ch = { r0: 0, c0: 0, r1: matrix.length - 1, c1: header.length - 1, type: WB_CHART_TYPES[spec.chartType] ? spec.chartType : "column", theme: spec.chartTheme || "route", grid: true };
+  const { svg, legend } = chartSvg(synth, ch, { W: W || 560, H: H || 260 });
+  return `<div class="wb-pivot-chart">${svg}${legend ? `<div class="wb-chart-legend">${legend}</div>` : ""}</div>`;
 }
 
 function renderPivots(g) {
@@ -15774,15 +16096,34 @@ function renderPivots(g) {
   if (!pivots.length) { host.innerHTML = ""; host.hidden = true; return; }
   host.hidden = false;
   host.innerHTML = pivots.map((pv) => {
-    let table;
+    let table, chart = "";
     try { table = pivotTableHtml(g.sheet, pv); }
     catch (e) { table = `<div class="wb-chart-empty">Couldn't build this pivot.</div>`; }
+    if (pv.chart) { try { chart = pivotChartSvg(g.sheet, pv); } catch (e) { chart = ""; } }
+    const canCollapse = Array.isArray(pv.rows) && pv.rows.length > 1;
+    const iconBtn = (act, title, on, svg) => `<button type="button" class="btn btn-ghost btn-icon btn-sm${on ? " is-on" : ""}" data-wb-pivotact="${act}" title="${esc(title)}" aria-label="${esc(title)}" aria-pressed="${on ? "true" : "false"}">${svg}</button>`;
+    const collapseIcon = pv.collapsed
+      ? `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>`
+      : `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+    const chartIcon = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
+    // Active pivot state as shared status pills (the same vocabulary the rest
+    // of the app uses for status), so the Workbook stops being a visual island.
+    const stateChips = [];
+    if (canCollapse && pv.collapsed) stateChips.push(`<span class="status-pill status-pill-neutral">Collapsed</span>`);
+    if (Math.round(+pv.topN || 0) > 0) stateChips.push(`<span class="status-pill status-pill-info">Top ${Math.round(+pv.topN)}</span>`);
+    const pvShow = (pv.values || []).map((v) => v && v.show).find((s) => s && s !== "raw" && WB_PIVOT_SHOWS[s]);
+    if (pvShow) stateChips.push(`<span class="status-pill status-pill-neutral">${esc(WB_PIVOT_SHOWS[pvShow])}</span>`);
+    const stateXml = stateChips.length ? `<span class="wb-pv-state">${stateChips.join("")}</span>` : "";
     return `<div class="wb-pivot-card" data-wb-pivot="${esc(pv.id)}">
       <div class="wb-chart-head">
         <span class="wb-chart-title">${esc(pv.title || `Pivot · ${pivotRefText(pv)}`)}</span>
+        ${stateXml}
+        ${canCollapse ? iconBtn("collapse", pv.collapsed ? "Expand groups" : "Collapse groups", pv.collapsed, collapseIcon) : ""}
+        ${iconBtn("chart", pv.chart ? "Hide chart" : "Chart this pivot", !!pv.chart, chartIcon)}
         ${WB.canEdit ? `<button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="edit" title="Edit pivot" aria-label="Edit pivot"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" data-wb-pivotact="delete" title="Delete pivot" aria-label="Delete pivot">×</button>` : ""}
       </div>
+      ${chart}
       ${table}
     </div>`;
   }).join("");
@@ -15793,6 +16134,55 @@ function deletePivot(g, pivotId) {
   g.sheet.meta = { ...(g.sheet.meta || {}), pivots: sheetPivots(g.sheet).filter((p) => p.id !== pivotId) };
   saveSheetMeta(g.sheet.id);
   renderPivots(g);
+}
+
+// Toggle a per-pivot UI flag (collapsed / chart) and re-render. These are view
+// state, so they persist with the sheet meta like the pivot spec itself.
+function _pivotPatch(g, pivotId, patch) {
+  const pivots = sheetPivots(g.sheet).map((p) => (p.id === pivotId ? { ...p, ...patch } : p));
+  g.sheet.meta = { ...(g.sheet.meta || {}), pivots };
+  if (WB.canEdit) saveSheetMeta(g.sheet.id);
+  renderPivots(g);
+}
+function togglePivotCollapse(g, pivotId) {
+  const pv = sheetPivots(g.sheet).find((p) => p.id === pivotId);
+  if (pv) _pivotPatch(g, pivotId, { collapsed: !pv.collapsed });
+}
+function togglePivotChart(g, pivotId) {
+  const pv = sheetPivots(g.sheet).find((p) => p.id === pivotId);
+  if (pv) _pivotPatch(g, pivotId, { chart: !pv.chart });
+}
+
+// Drill drawer: the source rows behind a clicked pivot cell.
+function openPivotDrill(g, pv, rk, ck, ckAll, vi) {
+  document.getElementById("wb-pv-drill-modal")?.remove();
+  let fields = [], records = [];
+  try { ({ fields, records } = pivotDrillRecords(g.sheet, pv, rk, ck, ckAll)); }
+  catch (e) { _toast("Couldn't load the source rows", "error"); return; }
+  const espec = pivotEffectiveSpec(pv);
+  const val = espec.values && espec.values[vi];
+  const crumbs = [rk != null ? rk : null, !ckAll && ck != null && ck !== "" ? ck : null].filter(Boolean).join(" · ");
+  const sub = `${records.length.toLocaleString()} source row${records.length === 1 ? "" : "s"}${val ? ` · ${WB_PIVOT_AGGS[val.agg] || ""} of ${val.field}` : ""}`;
+  const head = fields.map((f) => `<th>${esc(f)}</th>`).join("");
+  const MAX = 500;
+  const rows = records.slice(0, MAX).map((rec) => `<tr>${fields.map((f) => `<td>${esc(rec[f] == null ? "" : String(rec[f]))}</td>`).join("")}</tr>`).join("");
+  const more = records.length > MAX ? `<div class="wb-chart-empty">Showing the first ${MAX} of ${records.length.toLocaleString()} rows.</div>` : "";
+  const wrap = document.createElement("div");
+  wrap.className = "rr-modal-backdrop";
+  wrap.id = "wb-pv-drill-modal";
+  wrap.innerHTML = `
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Source rows" style="width:min(760px,94vw)">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content"><p class="rr-modal-title">${esc(crumbs || "Source rows")}</p><p class="rr-modal-sub">${esc(sub)}</p></div>
+        <button class="rr-modal-close" type="button" data-wb-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        ${records.length ? `<div class="wb-pv-scroll"><table class="wb-pv-table wb-pv-drill-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>${more}` : `<div class="wb-chart-empty">No source rows matched.</div>`}
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Escape") wrap.remove(); });
+  wrap.addEventListener("click", (e) => { if (e.target === wrap || e.target.closest("[data-wb-close]")) wrap.remove(); });
 }
 
 function openPivotDialog(g, existing) {
@@ -15808,6 +16198,7 @@ function openPivotDialog(g, existing) {
   wrap.id = "wb-pivot-modal";
   const fieldOpts = (sel) => `<option value=""></option>` + fields.map((f) => `<option value="${esc(f)}" ${f === sel ? "selected" : ""}>${esc(f)}</option>`).join("");
   const aggOpts = (sel) => Object.entries(WB_PIVOT_AGGS).map(([k, l]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${l}</option>`).join("");
+  const showOpts = (sel) => Object.entries(WB_PIVOT_SHOWS).map(([k, l]) => `<option value="${k}" ${k === (sel || "raw") ? "selected" : ""}>${l}</option>`).join("");
   wrap.innerHTML = `
     <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="${existing ? "Edit pivot table" : "Pivot table"}" style="width:560px">
       <div class="rr-modal-head">
@@ -15828,15 +16219,21 @@ function openPivotDialog(g, existing) {
         <div class="wb-field-row" style="margin-top:10px">
           <label class="wb-field"><span class="wb-field-label">Values — summarize</span>
             <select class="wb-input" id="wb-pv-val1">${fieldOpts(spec.values && spec.values[0] && spec.values[0].field)}</select></label>
-          <label class="wb-field" style="flex:0 0 150px"><span class="wb-field-label">as</span>
+          <label class="wb-field" style="flex:0 0 120px"><span class="wb-field-label">as</span>
             <select class="wb-input" id="wb-pv-agg1">${aggOpts(spec.values && spec.values[0] && spec.values[0].agg || "sum")}</select></label>
+          <label class="wb-field" style="flex:0 0 138px"><span class="wb-field-label">show</span>
+            <select class="wb-input" id="wb-pv-show1">${showOpts(spec.values && spec.values[0] && spec.values[0].show)}</select></label>
         </div>
         <div class="wb-field-row">
           <label class="wb-field"><span class="wb-field-label">and <span class="wb-field-opt">optional</span></span>
             <select class="wb-input" id="wb-pv-val2">${fieldOpts(spec.values && spec.values[1] && spec.values[1].field)}</select></label>
-          <label class="wb-field" style="flex:0 0 150px"><span class="wb-field-label">as</span>
+          <label class="wb-field" style="flex:0 0 120px"><span class="wb-field-label">as</span>
             <select class="wb-input" id="wb-pv-agg2">${aggOpts(spec.values && spec.values[1] && spec.values[1].agg || "sum")}</select></label>
+          <label class="wb-field" style="flex:0 0 138px"><span class="wb-field-label">show</span>
+            <select class="wb-input" id="wb-pv-show2">${showOpts(spec.values && spec.values[1] && spec.values[1].show)}</select></label>
         </div>
+        <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Show top N rows <span class="wb-field-opt">optional · 0 = all</span></span>
+          <input type="number" class="wb-input" id="wb-pv-topn" min="0" max="10000" step="1" value="${esc(String(spec.topN || 0))}"></label>
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
@@ -15865,12 +16262,13 @@ function openPivotDialog(g, existing) {
     const rows = [wrap.querySelector("#wb-pv-row1").value, wrap.querySelector("#wb-pv-row2").value].filter(Boolean);
     const cols = [wrap.querySelector("#wb-pv-col").value].filter(Boolean);
     const values = [
-      { field: wrap.querySelector("#wb-pv-val1").value, agg: wrap.querySelector("#wb-pv-agg1").value },
-      { field: wrap.querySelector("#wb-pv-val2").value, agg: wrap.querySelector("#wb-pv-agg2").value },
+      { field: wrap.querySelector("#wb-pv-val1").value, agg: wrap.querySelector("#wb-pv-agg1").value, show: wrap.querySelector("#wb-pv-show1").value },
+      { field: wrap.querySelector("#wb-pv-val2").value, agg: wrap.querySelector("#wb-pv-agg2").value, show: wrap.querySelector("#wb-pv-show2").value },
     ].filter((v) => v.field);
     if (!rows.length) { _toast("Pick at least one Rows field", "warn"); return; }
     if (!values.length) { _toast("Pick at least one Values field", "warn"); return; }
-    const next = { id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, title: existing ? existing.title : "" };
+    const topN = Math.max(0, Math.min(10000, Math.round(+wrap.querySelector("#wb-pv-topn").value || 0)));
+    const next = { id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, title: existing ? existing.title : "" };
     const pivots = sheetPivots(sheet).filter((p) => p.id !== next.id);
     pivots.push(next);
     g.sheet.meta = { ...(g.sheet.meta || {}), pivots };
@@ -19757,7 +20155,7 @@ export const __engine = {
   dateRangeSerials, controlPredicate, DATE_PRESETS, findColumnByName,
   linearFit, analyzeColumns, computeInsights,
   aiWorkbookSchema, aiPlanToSpecs,
-  computePivot, pivotAggregate, pivotTableHtml,
+  computePivot, pivotAggregate, pivotTableHtml, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg, ooxmlChartXml, ooxmlDrawingXml, pivotToExportSheet, expandExportSheets,
   autoLinkFor, cellLink, cellInnerHtml,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,
