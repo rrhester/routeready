@@ -7322,9 +7322,20 @@ function mountSheetBlock(block, body) {
     if (action === "edit") openEmbedEditor(g, key, item);
     else if (action === "dup") duplicateEmbed(g, key, item);
     else {
-      const label = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile", controls: "filter", insights: "insights tile" }[key] || "widget";
+      const label = EMBED_LABELS[key] || "widget";
       confirmModal({ title: `Delete this ${label}?`, body: "The underlying cells are untouched.", confirmLabel: "Delete", danger: true, onConfirm: () => deleteEmbed(g, key, item.id) });
     }
+  });
+  // Right-click a floating widget (chart / KPI / table / etc.) → its own menu
+  // instead of the browser's native context menu. Mirrors the header actions.
+  g.els.charts.addEventListener("contextmenu", (e) => {
+    const card = e.target.closest("[data-wb-embed-id]");
+    if (!card || !WB.canEdit) return;                  // read-only → leave the native menu
+    e.preventDefault();
+    const key = card.getAttribute("data-wb-embed-kind");
+    const item = sheetEmbeds(g.sheet, key).find((x) => x.id === card.getAttribute("data-wb-embed-id"));
+    if (!item) return;
+    openEmbedMenu(g, key, item, e.clientX, e.clientY);
   });
   // Filter-control inputs drive every widget on the dashboard
   g.els.charts.addEventListener("change", (e) => {
@@ -10415,6 +10426,47 @@ function planMoveChanges(sheet, src, dr, dc, copy) {
   return changes;
 }
 
+// ── Edge auto-scroll ─────────────────────────────────────────────────────
+// While a drag is in progress, parking the cursor near (or past) an edge of
+// the grid viewport keeps the sheet scrolling in that direction — so a
+// selection, fill, or move can extend well beyond what's currently on screen.
+// The scroll runs on its own animation loop rather than off mousemove events,
+// so it keeps going while the cursor is held still at the edge (the behavior
+// spreadsheets have). `onTick` re-applies whatever the drag does at the last
+// pointer position after each scroll step, so the selection keeps extending.
+// `axis` limits scrolling to "x" or "y" (default: both) for header drags.
+function edgeAutoScroll(scroll, onTick, axis) {
+  const doX = axis !== "y", doY = axis !== "x";
+  const EDGE = 42;   // px band from the viewport edge that triggers scrolling
+  const MAX = 28;    // px per frame at (or past) the edge
+  const speed = (over) => Math.min(MAX, Math.max(3, over * 0.6));
+  let raf = 0, cx = 0, cy = 0, live = false;
+  const frame = () => {
+    if (!live) { raf = 0; return; }
+    const rect = scroll.getBoundingClientRect();
+    let dx = 0, dy = 0;
+    if (doX) {
+      if (cx - rect.left < EDGE) dx = -speed(EDGE - (cx - rect.left));
+      else if (rect.right - cx < EDGE) dx = speed(EDGE - (rect.right - cx));
+    }
+    if (doY) {
+      if (cy - rect.top < EDGE) dy = -speed(EDGE - (cy - rect.top));
+      else if (rect.bottom - cy < EDGE) dy = speed(EDGE - (rect.bottom - cy));
+    }
+    if (dx || dy) {
+      const x0 = scroll.scrollLeft, y0 = scroll.scrollTop;
+      scroll.scrollLeft = x0 + dx;
+      scroll.scrollTop = y0 + dy;
+      if (scroll.scrollLeft !== x0 || scroll.scrollTop !== y0) onTick();
+    }
+    raf = requestAnimationFrame(frame);
+  };
+  return {
+    update(ev) { cx = ev.clientX; cy = ev.clientY; live = true; if (!raf) raf = requestAnimationFrame(frame); },
+    stop() { live = false; if (raf) { cancelAnimationFrame(raf); raf = 0; } },
+  };
+}
+
 function startMoveDrag(g, e0, src, canvasPos) {
   const sheet = g.sheet;
   const nR = src.r1 - src.r0 + 1, nC = src.c1 - src.c0 + 1;
@@ -10444,15 +10496,10 @@ function startMoveDrag(g, e0, src, canvasPos) {
     badge.textContent = (copy ? "+ " : "") + ref;
   };
   paint();
-  const onMove = (ev) => {
-    copy = ev.ctrlKey || ev.metaKey || ev.altKey;
-    // edge auto-scroll keeps long moves reachable
+  let lastX = e0.clientX, lastY = e0.clientY;
+  const moveTo = (clientX, clientY) => {
     const rect = g.els.scroll.getBoundingClientRect();
-    if (ev.clientY > rect.bottom - 24) g.els.scroll.scrollTop += 18;
-    else if (ev.clientY < rect.top + 24) g.els.scroll.scrollTop -= 18;
-    if (ev.clientX > rect.right - 24) g.els.scroll.scrollLeft += 18;
-    else if (ev.clientX < rect.left + 24) g.els.scroll.scrollLeft -= 18;
-    const p = canvasPos(ev);
+    const p = { x: clientX - rect.left + g.els.scroll.scrollLeft, y: clientY - rect.top + g.els.scroll.scrollTop };
     const r = g.rows[dispRowAt(g, p.y)] ?? dst.r0 + grabR;
     const c = colAt(g, p.x);
     dst = {
@@ -10461,7 +10508,17 @@ function startMoveDrag(g, e0, src, canvasPos) {
     };
     paint();
   };
+  // edge auto-scroll keeps long moves reachable, and keeps scrolling while the
+  // cursor is parked at the edge (not just when it moves)
+  const auto = edgeAutoScroll(g.els.scroll, () => moveTo(lastX, lastY));
+  const onMove = (ev) => {
+    copy = ev.ctrlKey || ev.metaKey || ev.altKey;
+    lastX = ev.clientX; lastY = ev.clientY;
+    moveTo(ev.clientX, ev.clientY);
+    auto.update(ev);
+  };
   const finish = () => {
+    auto.stop();
     document.removeEventListener("mousemove", onMove);
     document.removeEventListener("mouseup", onUp);
     document.removeEventListener("keydown", onKey, true);
@@ -14834,6 +14891,35 @@ function duplicateEmbed(g, key, item) {
   const copy = { ...item, id: key.slice(0, 2) + Math.random().toString(36).slice(2, 8), layout: { ...L, x: L.x + 20, y: L.y + 20 } };
   saveEmbed(g, key, copy);
 }
+const EMBED_LABELS = { charts: "chart", kpis: "KPI tile", tables: "table", texts: "text tile", controls: "filter", insights: "insights tile" };
+// Right-click menu for a floating widget: Edit · Duplicate · Delete. Reuses the
+// shared ctxMenu / cell-menu styling so it reads like the rest of the workbook.
+function openEmbedMenu(g, key, item, x, y) {
+  if (!WB.canEdit) return;
+  const label = EMBED_LABELS[key] || "widget";
+  const pencil = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+  const items = [
+    { icon: pencil, label: `Edit ${label}…`, act: "edit" },
+    { icon: CTX_ICONS.copy, label: "Duplicate", act: "dup" },
+    "—",
+    { icon: CTX_ICONS.trash, label: `Delete ${label}`, act: "delete", danger: true },
+  ];
+  const html = items.map((it, i) => it === "—"
+    ? `<div class="popover-section"></div>`
+    : `<button type="button" class="popover-item${it.danger ? " is-danger" : ""}" data-menu-i="${i}" role="menuitem"><span class="wb-ctx-ic">${it.icon || ""}</span><span class="wb-ctx-lbl">${esc(it.label)}</span><span class="wb-menu-kbd"></span></button>`).join("");
+  const m = ctxMenu(x, y, html);
+  m.classList.add("wb-menu-pop", "wb-cellmenu");
+  m.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const btn = e.target.closest("[data-menu-i]");
+    if (!btn) return;
+    const act = items[+btn.getAttribute("data-menu-i")].act;
+    closeAllPopovers();
+    if (act === "edit") openEmbedEditor(g, key, item);
+    else if (act === "dup") duplicateEmbed(g, key, item);
+    else if (act === "delete") confirmModal({ title: `Delete this ${label}?`, body: "The underlying cells are untouched.", confirmLabel: "Delete", danger: true, onConfirm: () => deleteEmbed(g, key, item.id) });
+  });
+}
 // Shelf-pack every widget left-to-right into a clean grid, preserving each
 // widget's size and its current reading order.
 // A 12-column grid placer: aligned columns, uniform gutters, rows advanced by
@@ -16325,11 +16411,13 @@ function bindGridEvents(g) {
       preview.className = "wb-fill-preview";
       g.els.sel.appendChild(preview);
       const d0 = dispIndexOfRow(g, src.r0);
-      let ext = null;
-      const onMove = (ev) => {
-        const p = canvasPos(ev);
-        const r = g.rows[dispRowAt(g, p.y)] ?? src.r1;
-        const c = colAt(g, p.x);
+      let ext = null, lastX = e.clientX, lastY = e.clientY;
+      const previewAt = (clientX, clientY) => {
+        const rect = scroll.getBoundingClientRect();
+        const px = clientX - rect.left + scroll.scrollLeft;
+        const py = clientY - rect.top + scroll.scrollTop;
+        const r = g.rows[dispRowAt(g, py)] ?? src.r1;
+        const c = colAt(g, px);
         const dRow = r - src.r1, dCol = c - src.c1;
         if (dRow > 0 && dRow >= dCol) ext = { axis: "row", count: dRow };
         else if (dCol > 0) ext = { axis: "col", count: dCol };
@@ -16344,7 +16432,14 @@ function bindGridEvents(g) {
         preview.style.height = (y2 - y) + "px";
         preview.style.display = ext ? "block" : "none";
       };
+      const auto = edgeAutoScroll(scroll, () => previewAt(lastX, lastY));
+      const onMove = (ev) => {
+        lastX = ev.clientX; lastY = ev.clientY;
+        previewAt(ev.clientX, ev.clientY);
+        auto.update(ev);
+      };
       const onUp = () => {
+        auto.stop();
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
         preview.remove();
@@ -16406,12 +16501,15 @@ function bindGridEvents(g) {
       } else {
         g.active = { r: g.rows[0] ?? 0, c };
         g.sel = { r0: 0, c0: c, r1: g.sheet.rowCount - 1, c1: c };
-        const onMove = (ev) => {
+        let lastX = e.clientX;
+        const extendCol = (clientX) => {
           const rect = g.els.scroll.getBoundingClientRect();
-          const c2 = colAt(g, ev.clientX - rect.left + g.els.scroll.scrollLeft);
+          const c2 = colAt(g, clientX - rect.left + g.els.scroll.scrollLeft);
           if (c2 !== g.sel.c1) { g.sel.c1 = c2; paintSelection(g); repaintGrid(g); }
         };
-        const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+        const auto = edgeAutoScroll(g.els.scroll, () => extendCol(lastX), "x");
+        const onMove = (ev) => { lastX = ev.clientX; extendCol(ev.clientX); auto.update(ev); };
+        const onUp = () => { auto.stop(); document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
         document.addEventListener("mousemove", onMove);
         document.addEventListener("mouseup", onUp);
       }
@@ -16429,12 +16527,15 @@ function bindGridEvents(g) {
       } else {
         g.active = { r, c: 0 };
         g.sel = { r0: r, c0: 0, r1: r, c1: g.sheet.colCount - 1 };
-        const onMove = (ev) => {
+        let lastY = e.clientY;
+        const extendRow = (clientY) => {
           const rect = g.els.scroll.getBoundingClientRect();
-          const r2 = g.rows[dispRowAt(g, ev.clientY - rect.top + g.els.scroll.scrollTop)] ?? r;
+          const r2 = g.rows[dispRowAt(g, clientY - rect.top + g.els.scroll.scrollTop)] ?? r;
           if (r2 !== g.sel.r1) { g.sel.r1 = r2; paintSelection(g); repaintGrid(g); }
         };
-        const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+        const auto = edgeAutoScroll(g.els.scroll, () => extendRow(lastY), "y");
+        const onMove = (ev) => { lastY = ev.clientY; extendRow(ev.clientY); auto.update(ev); };
+        const onUp = () => { auto.stop(); document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
         document.addEventListener("mousemove", onMove);
         document.addEventListener("mouseup", onUp);
       }
@@ -16510,19 +16611,29 @@ function bindGridEvents(g) {
     } else {
       setActive(g, r, c, { scroll: false });
       g.dragging = true;
-      const onMove = (ev) => {
-        if (!g.dragging) return;
-        const p = canvasPos(ev);
-        const dr = g.rows[dispRowAt(g, p.y)] ?? r;
-        const dc = colAt(g, p.x);
+      let lastX = e.clientX, lastY = e.clientY;
+      const extendTo = (clientX, clientY) => {
+        const rect = scroll.getBoundingClientRect();
+        const px = clientX - rect.left + scroll.scrollLeft;
+        const py = clientY - rect.top + scroll.scrollTop;
+        const dr = g.rows[dispRowAt(g, py)] ?? r;
+        const dc = colAt(g, px);
         if (dr !== g.sel.r1 || dc !== g.sel.c1) {
           g.sel.r1 = dr; g.sel.c1 = dc;
           paintSelection(g);
           repaintGrid(g);
         }
       };
+      const auto = edgeAutoScroll(scroll, () => extendTo(lastX, lastY));
+      const onMove = (ev) => {
+        if (!g.dragging) return;
+        lastX = ev.clientX; lastY = ev.clientY;
+        extendTo(ev.clientX, ev.clientY);
+        auto.update(ev);
+      };
       const onUp = () => {
         g.dragging = false;
+        auto.stop();
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
         if (g.painter) applyFormatPainter(g);
