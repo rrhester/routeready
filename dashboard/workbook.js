@@ -16229,12 +16229,15 @@ function openPivotDialog(g, existing) {
   const rect = selRect(g);
   // A pivot reads from a data sheet (its srcSheetId), same as charts/KPIs/tables.
   // On a dashboard the current selection is meaningless, so default the range to
-  // the source sheet's populated extent.
+  // the source sheet's populated extent. A bare cursor (single-cell selection)
+  // expands to that extent too — otherwise the pivot would see only one cell's
+  // column as a field. A deliberate multi-cell selection is honored as-is.
   const srcDef = existing ? embedSourceSheet(g, existing) : defaultSrcSheet(g);
   let srcSheet = srcDef;
+  const singleCell = rect.r0 === rect.r1 && rect.c0 === rect.c1;
   const defRange = existing
     ? { r0: existing.r0, c0: existing.c0, r1: existing.r1, c1: existing.c1 }
-    : (isDashboardSheet(sheet) ? sheetDataRange(srcDef) : { r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 });
+    : (isDashboardSheet(sheet) || singleCell ? sheetDataRange(srcDef) : { r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 });
   const spec = existing || { ...defRange, rows: [], cols: [], values: [] };
   const fieldsOf = () => pivotSource(srcSheet, spec).fields;
   let fields = fieldsOf();
