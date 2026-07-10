@@ -16051,6 +16051,29 @@ function pivotTableHtml(sheet, spec) {
   const runM = rawM.map((gvs) => gvs.map((col) => { let acc = 0; return col.map((v) => { const n = _pvNum(v); if (n != null) acc += n; return acc; }); }));
   const rankM = rawM.map((gvs) => gvs.map((col) => col.map((v) => { const n = _pvNum(v); if (n == null) return null; return 1 + col.reduce((c, o) => c + ((_pvNum(o) ?? -Infinity) > n ? 1 : 0), 0); })));
 
+  // Optional heatmap highlighting (mirrors the dashboard table widget): tint each
+  // value cell within its measure's min→max range, over the visible body cells.
+  // The grand-total column and grand-total row are excluded so totals don't
+  // dominate the scale. The tint keys off the raw aggregate regardless of the
+  // "show values as" mode, so the color reflects the underlying magnitude.
+  const heat = spec.heatmap ? [] : null;
+  if (heat) {
+    for (let vi = 0; vi < nv; vi++) {
+      let lo = Infinity, hi = -Infinity, has = false;
+      groups.forEach((gp, gi) => {
+        if (gp.ck == null) return;                // skip the grand-total column
+        for (const v of rawM[gi][vi]) { const n = _pvNum(v); if (n != null) { has = true; if (n < lo) lo = n; if (n > hi) hi = n; } }
+      });
+      if (has) heat[vi] = [lo, hi];
+    }
+  }
+  const heatBg = (vi, ck, raw) => {
+    const n = _pvNum(raw);
+    if (!heat || !heat[vi] || ck == null || n == null) return "";
+    const [lo, hi] = heat[vi], t = hi > lo ? (n - lo) / (hi - lo) : 0.5;
+    return ` style="background:${cfScaleColor(HEATMAP_STOPS, t)}"`;
+  };
+
   let thead;
   if (hasCols) {
     const r1 = rowHdrs.map((h) => `<th rowspan="2" class="wb-pv-rh">${esc(h)}</th>`).join("") +
@@ -16066,9 +16089,11 @@ function pivotTableHtml(sheet, spec) {
     const rhCells = rowHdrs.map((_, i) => `<td class="wb-pv-rk">${esc(parts[i] ?? "")}</td>`).join("");
     const dataCells = groups.map((gp, gi) => p.values.map((_, vi) => {
       const mode = showOf(vi);
-      const cell = pivotShowCell(mode, rawM[gi][vi][ri], p.aggOf(null, gp.ck, vi), runM[gi][vi][ri], rankM[gi][vi][ri]);
+      const raw = rawM[gi][vi][ri];
+      const cell = pivotShowCell(mode, raw, p.aggOf(null, gp.ck, vi), runM[gi][vi][ri], rankM[gi][vi][ri]);
       const drill = gp.ck === null ? `data-pv-drill data-pv-rk="${esc(rk)}" data-pv-ckall="1" data-pv-vi="${vi}"` : `data-pv-drill data-pv-rk="${esc(rk)}" data-pv-ck="${esc(gp.ck)}" data-pv-vi="${vi}"`;
-      return `<td class="wb-pv-num wb-pv-drill" ${drill} title="Show the source rows behind this number">${cell}</td>`;
+      const hb = heatBg(vi, gp.ck, raw);
+      return `<td class="wb-pv-num wb-pv-drill${hb ? " wb-pv-heat" : ""}" ${drill}${hb} title="Show the source rows behind this number">${cell}</td>`;
     }).join("")).join("");
     return `<tr>${rhCells}${dataCells}</tr>`;
   }).join("");
@@ -16083,7 +16108,7 @@ function pivotTableHtml(sheet, spec) {
   }).join("")).join("");
   const foot = `<tr>${gtLabel}${gtCells}</tr>`;
 
-  return `<div class="wb-pv-scroll"><table class="wb-pv-table"><thead>${thead}</thead><tbody>${bodyRows}${foot}</tbody></table></div>`;
+  return `<div class="wb-pv-scroll"><table class="wb-pv-table${spec.heatmap ? " is-heatmap" : ""}"><thead>${thead}</thead><tbody>${bodyRows}${foot}</tbody></table></div>`;
 }
 
 // Source records behind one pivot cell — filtered to its row key, column key
@@ -16253,6 +16278,10 @@ function openPivotDialog(g, existing) {
         </div>
         <label class="wb-field" style="margin-top:10px"><span class="wb-field-label">Show top N rows <span class="wb-field-opt">optional · 0 = all</span></span>
           <input type="number" class="wb-input" id="wb-pv-topn" min="0" max="10000" step="1" value="${esc(String(spec.topN || 0))}"></label>
+        <div class="wb-field" style="margin-top:10px"><span class="wb-field-label">Options</span>
+          <div class="wb-chart-opts">
+            <label class="wb-check"><input type="checkbox" id="wb-pv-heatmap" ${existing && existing.heatmap ? "checked" : ""}><span>Heatmap value cells</span></label>
+          </div></div>
       </div>
       <div class="rr-modal-foot">
         <button class="rr-modal-btn" type="button" data-wb-close>Cancel</button>
@@ -16296,9 +16325,10 @@ function openPivotDialog(g, existing) {
     if (!values.length) { _toast("Pick at least one Values field", "warn"); return; }
     const topN = Math.max(0, Math.min(10000, Math.round(+wrap.querySelector("#wb-pv-topn").value || 0)));
     const srcId = (wrap.querySelector("#wb-pv-src") && wrap.querySelector("#wb-pv-src").value) || (existing && existing.srcSheetId) || srcDef.id;
+    const heatmap = !!(wrap.querySelector("#wb-pv-heatmap") && wrap.querySelector("#wb-pv-heatmap").checked);
     // Spread existing first so a pivot's on-grid position (layout) and view
     // state (chart/collapsed) survive edits; new pivots get placed on the grid.
-    const next = { ...(existing || {}), id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, srcSheetId: srcId, title: existing ? existing.title : "" };
+    const next = { ...(existing || {}), id: existing ? existing.id : "pv" + Math.random().toString(36).slice(2, 8), ...rng, rows, cols, values, topN, srcSheetId: srcId, heatmap, title: existing ? existing.title : "" };
     if (!next.layout) next.layout = embedDefaultLayout(g, "pivots", rng);
     const pivots = sheetPivots(sheet).filter((p) => p.id !== next.id);
     pivots.push(next);
