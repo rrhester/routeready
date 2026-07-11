@@ -242,4 +242,64 @@ t("assessPlan folds rates + onboarding gating into the gaps", () => {
   assert.equal(a.weeks[0].kind, "watch"); // 59/65 ≈ 91%
 });
 
+// ── Calculator options · extraSupply + demandOverride ─────────────────────
+
+t("extraSupply adds hires only from their arrival week forward", () => {
+  const weeks = mkWeeks([
+    { needed: 80, avail: 65 }, // −15
+    { needed: 80, avail: 65 }, // −15, hires arrive here
+    { needed: 80, avail: 65 }, // −15
+  ]);
+  const a = assessPlan(weeks, {
+    todayIso: "2026-07-01",
+    extraSupply: { fromIso: weeks[1].weekStartIso, count: 10 },
+  });
+  assert.equal(a.weeks[0].effAvail, 65);
+  assert.equal(a.weeks[0].supply.extraHires, 0);
+  assert.equal(a.weeks[1].effAvail, 75);
+  assert.equal(a.weeks[1].supply.extraHires, 10);
+  assert.equal(a.weeks[2].effAvail, 75);
+});
+
+t("extra hires call out at the observed rate like everyone else", () => {
+  // 90 bodies + 10 hires = 100 × 10% callouts → 90 effective.
+  const weeks = mkWeeks([{ needed: 95, avail: 90 }]);
+  const a = assessPlan(weeks, {
+    todayIso: "2026-07-01",
+    calloutRate: 0.10,
+    extraSupply: { fromIso: weeks[0].weekStartIso, count: 10 },
+  });
+  assert.equal(a.weeks[0].supply.calloutLoss, 10);
+  assert.equal(a.weeks[0].effAvail, 90);
+});
+
+t("demandOverride recomputes needed from routesMax; weeks without keep planned", () => {
+  const weeks = mkWeeks([
+    { needed: 88, avail: 65, routesMax: 40 }, // 40 × 1.5 × 1.0 = 60
+    { needed: 70, avail: 65 },                // no routesMax → planned 70 stands
+  ]);
+  const a = assessPlan(weeks, {
+    todayIso: "2026-07-01",
+    demandOverride: { driversPerRoute: 1.5, padPct: 0 },
+  });
+  assert.equal(a.weeks[0].needed, 60);
+  assert.equal(a.weeks[0].gap, 5);
+  assert.equal(a.weeks[1].needed, 70);
+});
+
+t("calculator options change the prescription end to end", () => {
+  const weeks = mkWeeks([
+    { needed: 70, avail: 65 }, { needed: 70, avail: 65 },
+    { needed: 70, avail: 65 }, { needed: 70, avail: 65 },
+    { needed: 70, avail: 65 }, { needed: 70, avail: 65 },
+  ]);
+  const base = assessPlan(weeks, { todayIso: "2026-07-01" });
+  assert.equal(base.prescription.action, "hire");
+  const fixed = assessPlan(weeks, {
+    todayIso: "2026-07-01",
+    extraSupply: { fromIso: weeks[0].weekStartIso, count: 5 },
+  });
+  assert.equal(fixed.prescription.action, "none");
+});
+
 console.log(`test-labor-forecast: ${passed} passed${process.exitCode ? " (with failures)" : ""}`);
