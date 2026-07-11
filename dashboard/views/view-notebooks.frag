@@ -79,6 +79,9 @@
 .rrnb-menu-item:hover .kebab{opacity:1}
 .rrnb-menu-sep{height:1px;background:var(--border);margin:var(--s-1) 0}
 .rrnb-menu-add{color:var(--accent);font-weight:600}
+/* inline title editing — double-click a section / page / group title */
+.rrnb-inline-edit{outline:2px solid var(--accent);outline-offset:1px;border-radius:4px;background:var(--surface);
+  cursor:text;white-space:normal;overflow:visible;text-overflow:clip;padding:0 3px;margin:0 -3px;box-shadow:var(--shadow-pop)}
 
 /* ── section list ────────────────────────────────────────────────── */
 .rrnb-sections{flex:1;min-height:0;overflow:auto;padding:var(--s-2)}
@@ -205,7 +208,7 @@
 /* figures (pasted / dropped images) */
 .rrnb-editor figure.rrnb-fig{margin:var(--s-3) 0;max-width:100%}
 .rrnb-editor figure.rrnb-fig img{display:block;margin:0;cursor:default}
-.rrnb-editor figure.rrnb-fig.sel img{outline:2px solid var(--accent);outline-offset:2px}
+.rrnb-editor figure.rrnb-fig.sel img,.rrnb-editor img.sel{outline:2px solid var(--accent);outline-offset:2px}
 .rrnb-editor figure.rrnb-fig figcaption{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:6px;
   padding:2px 2px;outline:0;border-radius:var(--r-sm)}
 .rrnb-editor figure.rrnb-fig figcaption:empty::before{content:"Add a caption…";color:var(--text-disabled)}
@@ -225,6 +228,25 @@
 .rrnb-pop .rrnb-sizes button{flex:1;height:30px;border:1px solid var(--border);border-radius:var(--r-md);
   background:var(--surface);color:var(--text-muted);cursor:pointer;font-size:var(--fs-sm);font-weight:600}
 .rrnb-pop .rrnb-sizes button:hover{border-color:var(--accent);color:var(--accent)}
+/* drag-to-resize overlay for pictures — grips on corners/edges of the selected image.
+   Lives on <body> (never inside the contenteditable) so it can't leak into saved HTML. */
+#rrnb-imgrz{position:fixed;z-index:75;pointer-events:none}
+#rrnb-imgrz b{position:absolute;display:block;pointer-events:auto;touch-action:none}
+#rrnb-imgrz b::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:11px;height:11px;background:var(--surface);border:2px solid var(--accent);border-radius:50%;
+  box-shadow:0 1px 3px rgba(0,0,0,.25)}
+#rrnb-imgrz [data-rz=nw]{left:-7px;top:-7px;width:14px;height:14px;cursor:nwse-resize}
+#rrnb-imgrz [data-rz=ne]{right:-7px;top:-7px;width:14px;height:14px;cursor:nesw-resize}
+#rrnb-imgrz [data-rz=sw]{left:-7px;bottom:-7px;width:14px;height:14px;cursor:nesw-resize}
+#rrnb-imgrz [data-rz=se]{right:-7px;bottom:-7px;width:14px;height:14px;cursor:nwse-resize}
+/* edge strips: the whole border is grabbable, only the midpoint shows a grip */
+#rrnb-imgrz [data-rz=n]{left:10px;right:10px;top:-5px;height:10px;cursor:ns-resize}
+#rrnb-imgrz [data-rz=s]{left:10px;right:10px;bottom:-5px;height:10px;cursor:ns-resize}
+#rrnb-imgrz [data-rz=e]{top:10px;bottom:10px;right:-5px;width:10px;cursor:ew-resize}
+#rrnb-imgrz [data-rz=w]{top:10px;bottom:10px;left:-5px;width:10px;cursor:ew-resize}
+#rrnb-imgrz [data-rz=n]::after,#rrnb-imgrz [data-rz=s]::after,
+#rrnb-imgrz [data-rz=e]::after,#rrnb-imgrz [data-rz=w]::after{width:9px;height:9px}
+html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 /* page-add row + template button */
 .rrnb-pageadd{display:flex;gap:6px;margin-top:var(--s-1)}
 .rrnb-pageadd .rrnb-newpage{margin-top:0}
@@ -805,7 +827,7 @@
     S.be.rename("notebook", id, next).then(function () {
       var n = (S.notebooks || []).filter(function (x) { return x.id === id; })[0]; if (n) n.name = next;
       renderNotebookMenu();
-      if (S.nbId === id) { var b = $(".rrnb-breadcrumb"); if (b) { var parts = b.innerHTML.split("›"); parts[0] = esc(next) + " "; b.innerHTML = parts.join("<span class=sep>›</span>"); } }
+      if (S.nbId === id) { var cn = $(".rrnb-cr-nb"); if (cn) cn.textContent = next; }
     }).catch(function (e) { nm.textContent = orig; fail(e); });
   }
 
@@ -829,8 +851,75 @@
     }).catch(fail);
   }
 
+  // ── generic inline title editing (sections, pages, groups) ──────────
+  // Double-click any title to rename it in place — no modal. Enter / blur
+  // commits, Escape cancels. renderSections()/renderPageList() no-op while
+  // an edit is live (S._inlineEditing) so an async re-render can't wipe the
+  // field mid-edit; we re-render once the edit settles.
+  function startInlineEdit(el, commit, refresh) {
+    if (!el || S._inlineEditing) return;
+    S._inlineEditing = true;
+    var orig = el.textContent, done = false;
+    el.setAttribute("contenteditable", "true"); el.setAttribute("spellcheck", "false");
+    el.classList.add("rrnb-inline-edit");
+    el.focus();
+    try { var r = document.createRange(); r.selectNodeContents(el); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); } catch (e) {}
+    function finish(save) {
+      if (done) return; done = true; S._inlineEditing = false;
+      el.removeEventListener("keydown", onKey); el.removeEventListener("blur", onBlur);
+      el.removeAttribute("contenteditable"); el.classList.remove("rrnb-inline-edit");
+      var next = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (!save || !next || next === (orig || "").trim()) { el.textContent = orig; if (refresh) refresh(); return; }
+      el.textContent = next;
+      try { commit(next); } catch (e2) {}
+      if (refresh) refresh();
+    }
+    function onKey(e) {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); el.blur(); }
+      else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+    }
+    function onBlur() { finish(true); }
+    el.addEventListener("keydown", onKey); el.addEventListener("blur", onBlur);
+  }
+  function editSectionTitle(id) {
+    var host = $id("rrnb-sections");
+    var el = host && host.querySelector('.rrnb-section[data-sec="' + id + '"] .nm');
+    if (!el) return renamePrompt("section", id);
+    startInlineEdit(el, function (next) {
+      var s = ((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0];
+      var prev = s ? s.name : ""; if (s) s.name = next;
+      if (S.pageId) { var op = pageById(S.pageId); if (op && op.section_id === id) { var cs = $(".rrnb-cr-sec"); if (cs) cs.textContent = next; } }
+      S.be.rename("section", id, next).catch(function (err) { if (s) s.name = prev; renderSections(); fail(err); });
+    }, renderSections);
+  }
+  function editPageTitle(id) {
+    var host = $id("rrnb-pagelist");
+    var el = host && host.querySelector('.rrnb-page[data-page="' + id + '"] .ttl');
+    if (!el) return renamePrompt("page", id);
+    startInlineEdit(el, function (next) {
+      var p = pageById(id); var prev = p ? p.title : ""; if (p) p.title = next;
+      if (S.pageId === id) { if (S.page) S.page.title = next; var t = $id("rrnb-title"); if (t) t.value = next; updateBreadcrumbTitle(); }
+      S.be.rename("page", id, next).catch(function (err) {
+        if (p) p.title = prev; if (S.pageId === id) { var t2 = $id("rrnb-title"); if (t2) t2.value = prev; updateBreadcrumbTitle(); }
+        renderPageList(); fail(err);
+      });
+    }, renderPageList);
+  }
+  function editGroupTitle(id) {
+    var host = $id("rrnb-sections");
+    var el = host && host.querySelector('.rrnb-group-hd[data-toggle="' + id + '"] .gnm');
+    if (!el) return;
+    startInlineEdit(el, function (next) {
+      var g = ((S.tree && S.tree.groups) || []).filter(function (x) { return x.id === id; })[0];
+      var prev = g ? g.name : ""; if (g) g.name = next;
+      S.be.rename("group", id, next).catch(function (err) { if (g) g.name = prev; renderSections(); fail(err); });
+    }, renderSections);
+  }
+
   // ── sections rail ────────────────────────────────────────────────
   function renderSections() {
+    if (S._inlineEditing) return; // don't wipe an in-progress inline rename
     var host = $id("rrnb-sections"); if (!host) return;
     if (!S.tree) { host.innerHTML = '<div class="rrnb-empty">No notebook selected.</div>'; return; }
     var groups = S.tree.groups || [], sections = S.tree.sections || [];
@@ -846,7 +935,7 @@
     groups.forEach(function (g) {
       var col = S.collapsedGroups[g.id] ? " collapsed" : "";
       html += '<div class="rrnb-group' + col + '" data-grp="' + g.id + '"><div class="rrnb-group-hd" data-toggle="' + g.id + '">' +
-        '<span class="tw">▾</span><span>' + esc(g.name) + '</span></div>' +
+        '<span class="tw">▾</span><span class="gnm">' + esc(g.name) + '</span></div>' +
         (byGroup[g.id] || []).map(secRow).join("") + '</div>';
     });
     html += '<button class="rrnb-newpage" data-add-section="1" style="margin-top:var(--s-2)">＋ New section</button>';
@@ -855,6 +944,7 @@
 
   // ── page list ────────────────────────────────────────────────────
   function renderPageList() {
+    if (S._inlineEditing) return; // don't wipe an in-progress inline rename
     var host = $id("rrnb-pagelist"); if (!host) return;
     if (S.mode === "search") return; // search owns the list
     if (S.mode === "recycle") return renderRecycle(host);
@@ -953,6 +1043,7 @@
       S.pageId = id; S.page = p; S.mode = "notebook"; S.savedAt = p.updated_at;
       S.baseUpdatedAt = p.updated_at;
       trackRecent(p);
+      if (S._inlineEditing) { renderPageList(); return; } // a live inline rename owns the DOM — don't rebuild over it
       renderCanvas(p);
       renderPageList();
       joinPresence(id);
@@ -963,11 +1054,14 @@
 
   function renderCanvas(p) {
     var wrap = $id("rrnb-canvas-wrap"); if (!wrap) return;
+    hideImgResize();
+    // our own grips replace Firefox's native contenteditable image resizers
+    try { document.execCommand("enableObjectResizing", false, "false"); } catch (e) {}
     var nb = (S.notebooks.filter(function (n) { return n.id === S.nbId; })[0]) || {};
     var sec = ((S.tree && S.tree.sections) || []).filter(function (s) { return s.id === p.section_id; })[0] || {};
     wrap.innerHTML =
       '<div class="rrnb-doc">' +
-        '<div class="rrnb-breadcrumb">' + esc(nb.name || "Notebook") + ' <span class="sep">›</span> ' + esc(sec.name || "Section") + ' <span class="sep">›</span> ' + esc(p.title || "Page") + '</div>' +
+        '<div class="rrnb-breadcrumb"><span class="rrnb-cr-nb">' + esc(nb.name || "Notebook") + '</span> <span class="sep">›</span> <span class="rrnb-cr-sec">' + esc(sec.name || "Section") + '</span> <span class="sep">›</span> <span class="rrnb-cr-pg">' + esc(p.title || "Page") + '</span></div>' +
         '<input class="rrnb-title" id="rrnb-title" placeholder="Untitled Page" value="' + esc(p.title || "") + '" />' +
         '<div class="rrnb-metaline"><span class="rrnb-save" id="rrnb-save"><span class="dot"></span><span id="rrnb-save-txt">Saved</span></span>' +
           '<span id="rrnb-author">' + esc(p.author || "") + '</span>' +
@@ -993,7 +1087,7 @@
     title.addEventListener("keydown", stopTypingLeak);
     title.addEventListener("keyup", stopTypingLeak);
     title.addEventListener("keypress", stopTypingLeak);
-    ed.addEventListener("input", function () { scheduleSave(); autoLinkify(); });
+    ed.addEventListener("input", function () { scheduleSave(); autoLinkify(); positionImgResize(); });
     ed.addEventListener("keydown", onEditorKey);
     ed.addEventListener("click", onEditorClick);
     ed.addEventListener("contextmenu", onEditorCtx);
@@ -1014,7 +1108,7 @@
   }
   function id_of(p) { return p.id || S.pageId; }
   function autoGrow(el) { if (!el) return; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
-  function updateBreadcrumbTitle() { var b = $(".rrnb-breadcrumb"); var t = $id("rrnb-title"); if (b && t) { var parts = b.innerHTML.split("›"); parts[parts.length - 1] = " " + esc(t.value || "Page"); b.innerHTML = parts.join("<span class=sep>›</span>"); } }
+  function updateBreadcrumbTitle() { var el = $(".rrnb-cr-pg"); var t = $id("rrnb-title"); if (el && t) el.textContent = t.value || "Page"; }
 
   // ── toolbar behaviour ────────────────────────────────────────────
   function bindToolbar() {
@@ -1168,10 +1262,11 @@
   function onEditorClick(e) {
     var box = e.target.closest(".rrnb-todo-box");
     if (box) { var row = box.closest(".rrnb-todo"); row.setAttribute("data-checked", row.getAttribute("data-checked") === "1" ? "0" : "1"); box.textContent = row.getAttribute("data-checked") === "1" ? "✓" : ""; scheduleSave(); return; }
-    var img = e.target.closest("figure.rrnb-fig img");
+    var img = e.target.closest("img");
     var ed = $id("rrnb-editor");
-    if (ed) ed.querySelectorAll("figure.rrnb-fig.sel").forEach(function (f) { f.classList.remove("sel"); });
-    if (img) { var fig = img.closest("figure.rrnb-fig"); fig.classList.add("sel"); openImageSize(fig, img); return; }
+    if (ed) ed.querySelectorAll("figure.rrnb-fig.sel, img.sel").forEach(function (f) { f.classList.remove("sel"); });
+    hideImgResize();
+    if (img) { var fig = img.closest("figure.rrnb-fig") || img; fig.classList.add("sel"); showImgResize(fig, img); openImageSize(fig, img); return; }
     var fl = e.target.closest("a.rrnb-file"); if (fl) { return; } // let the download link work
     var pl = e.target.closest("a.rrnb-pagelink");
     if (pl && (e.ctrlKey || e.metaKey || e.type === "click")) { var pid = pl.getAttribute("data-page-id"); if (pid) { e.preventDefault(); openPage(pid); } return; }
@@ -1274,7 +1369,7 @@
       '<div class="rrnb-sizes"><button data-imgocr="1" style="flex:1">Copy text from picture</button></div>', r);
     pop.addEventListener("click", function (e) {
       var b = e.target.closest("[data-imgw]");
-      if (b) { img.style.width = b.getAttribute("data-imgw") + "%"; img.style.height = "auto"; hidePop(); scheduleSave(); return; }
+      if (b) { img.style.width = b.getAttribute("data-imgw") + "%"; img.style.height = "auto"; hidePop(); positionImgResize(); scheduleSave(); return; }
       if (e.target.closest("[data-imgocr]")) {
         hidePop();
         var put = function (t) {
@@ -1285,6 +1380,71 @@
         if (have) put(have); else { notify("Reading picture…"); ocrFigure(fig, img.src, put); }
       }
     });
+  }
+
+  // ── drag-to-resize: grab any corner or border of the selected picture ──
+  var RZ = { img: null, fig: null, box: null };
+  function rzBox() {
+    if (RZ.box) return RZ.box;
+    var d = document.createElement("div");
+    d.id = "rrnb-imgrz"; d.hidden = true;
+    d.innerHTML = ["nw", "n", "ne", "e", "se", "s", "sw", "w"].map(function (k) { return '<b data-rz="' + k + '"></b>'; }).join("");
+    d.addEventListener("pointerdown", rzStart);
+    document.body.appendChild(d);
+    window.addEventListener("scroll", positionImgResize, true);
+    window.addEventListener("resize", positionImgResize);
+    RZ.box = d;
+    return d;
+  }
+  function showImgResize(fig, img) { RZ.fig = fig; RZ.img = img; rzBox().hidden = false; positionImgResize(); }
+  function hideImgResize() { RZ.fig = RZ.img = null; if (RZ.box) RZ.box.hidden = true; }
+  function positionImgResize() {
+    if (!RZ.box || RZ.box.hidden) return;
+    if (!RZ.img || !document.body.contains(RZ.img)) { hideImgResize(); return; }
+    var r = RZ.img.getBoundingClientRect();
+    if (!r.width && !r.height) { hideImgResize(); return; }
+    RZ.box.style.left = r.left + "px"; RZ.box.style.top = r.top + "px";
+    RZ.box.style.width = r.width + "px"; RZ.box.style.height = r.height + "px";
+  }
+  function rzStart(e) {
+    var h = e.target.closest("[data-rz]"); if (!h || !RZ.img) return;
+    e.preventDefault(); e.stopPropagation(); hidePop();
+    var dir = h.getAttribute("data-rz"), img = RZ.img;
+    var r0 = img.getBoundingClientRect();
+    // width is stored in % of the containing block so pages stay responsive
+    var host = (RZ.fig && RZ.fig !== img) ? RZ.fig : (img.parentElement || img);
+    var maxW = host.clientWidth || (($id("rrnb-editor") || {}).clientWidth || 0) || r0.width;
+    var aspect = r0.height ? r0.width / r0.height : 1;
+    var sx = e.clientX, sy = e.clientY, moved = false;
+    document.documentElement.classList.add("rrnb-rz-drag");
+    document.documentElement.style.cursor = getComputedStyle(h).cursor;
+    try { h.setPointerCapture(e.pointerId); } catch (err) {}
+    function widthAt(ev) {
+      var hx = /e/.test(dir) ? ev.clientX - sx : (/w/.test(dir) ? sx - ev.clientX : 0);
+      var hy = /s/.test(dir) ? ev.clientY - sy : (/n/.test(dir) ? sy - ev.clientY : 0);
+      if (hx && hy) return Math.abs(hy * aspect) > Math.abs(hx) ? (r0.height + hy) * aspect : r0.width + hx; // corner: dominant axis wins
+      if (hy) return (r0.height + hy) * aspect; // top/bottom edge: height drives width (aspect kept)
+      return r0.width + hx;
+    }
+    function onMove(ev) {
+      moved = true;
+      var pct = Math.max(4, Math.min(100, Math.max(40, widthAt(ev)) / maxW * 100));
+      img.style.width = pct.toFixed(1) + "%";
+      img.style.height = "auto";
+      positionImgResize();
+    }
+    function onUp() {
+      h.removeEventListener("pointermove", onMove);
+      h.removeEventListener("pointerup", onUp);
+      h.removeEventListener("pointercancel", onUp);
+      document.documentElement.classList.remove("rrnb-rz-drag");
+      document.documentElement.style.cursor = "";
+      positionImgResize();
+      if (moved) scheduleSave();
+    }
+    h.addEventListener("pointermove", onMove);
+    h.addEventListener("pointerup", onUp);
+    h.addEventListener("pointercancel", onUp);
   }
 
   // ── keyboard shortcuts in the editor ─────────────────────────────
@@ -1332,7 +1492,10 @@
     ed.querySelectorAll("figure.rrnb-fig[data-ocr]").forEach(function (f) {
       var t = f.getAttribute("data-ocr"); if (t) text += "\n[image] " + t;
     });
-    return { title: title.value.trim() || "Untitled Page", content_html: ed.innerHTML, content_text: text, tags: (S.page && S.page.tags) || [] };
+    // strip the transient image-selection highlight so it never persists
+    var clean = ed.cloneNode(true);
+    clean.querySelectorAll("figure.rrnb-fig.sel, img.sel").forEach(function (n) { n.classList.remove("sel"); });
+    return { title: title.value.trim() || "Untitled Page", content_html: clean.innerHTML, content_text: text, tags: (S.page && S.page.tags) || [] };
   }
   function scheduleSave() {
     setSaveState("saving");
@@ -2040,7 +2203,7 @@
   function handleCtx(act) {
     var t = $id("rrnb-ctx")._target; hideCtx(); if (!t) return;
     if (t.kind === "page") {
-      if (act === "rename") return renamePrompt("page", t.id);
+      if (act === "rename") return editPageTitle(t.id);
       if (act === "pin") { var p = pageById(t.id); return S.be.pinPage(t.id, !(p && p.is_pinned)).then(function () { if (p) p.is_pinned = !p.is_pinned; renderPageList(); }); }
       if (act === "print") return printPage(t.id);
       if (act === "md") return exportMarkdown(t.id);
@@ -2055,7 +2218,7 @@
       if (act === "del") return deleteNotebook(t.id);
     }
     if (t.kind === "section") {
-      if (act === "rename") return renamePrompt("section", t.id);
+      if (act === "rename") return editSectionTitle(t.id);
       if (act === "recolor") return recolorSection(t.id);
       if (act === "newgroup") return S.be.createGroup(S.nbId, "New Group").then(function () { return selectNotebook(S.nbId, S.pageId); });
       if (act === "del") return S.be.deleteItem("section", t.id).then(function () { S.activeSection = null; return selectNotebook(S.nbId, null); });
@@ -2123,18 +2286,29 @@
 
     // sections rail (delegated)
     var secHost = $id("rrnb-sections");
+    if (secHost) secHost.addEventListener("dblclick", function (e) {
+      var gh = e.target.closest(".rrnb-group-hd"); if (gh && e.target.closest(".gnm")) { e.preventDefault(); return editGroupTitle(gh.getAttribute("data-toggle")); }
+      var srow = e.target.closest("[data-sec]"); if (srow && e.target.closest(".nm")) { e.preventDefault(); return editSectionTitle(srow.getAttribute("data-sec")); }
+    });
     if (secHost) secHost.addEventListener("click", function (e) {
+      if (S._inlineEditing) return;
       var nn = e.target.closest("[data-new-notebook]"); if (nn) return createNotebookFlow();
       var kb = e.target.closest("[data-menu='section']"); if (kb) { var r = kb.getBoundingClientRect(); return sectionMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
       var tg = e.target.closest("[data-toggle]"); if (tg) { var g = tg.getAttribute("data-toggle"); S.collapsedGroups[g] = !S.collapsedGroups[g]; return renderSections(); }
       var add = e.target.closest("[data-add-section]"); if (add) { return S.be.createSection(S.nbId, "New Section", null, PALETTE[(S.tree.sections.length) % PALETTE.length]).then(function (s) { S.activeSection = s.id; return selectNotebook(S.nbId, null); }); }
       var sec = e.target.closest("[data-sec]"); if (sec) {
-        S.activeSection = sec.getAttribute("data-sec"); S.mode = "notebook"; renderSections(); renderPageList();
-        // on mobile, picking a section flows into the pages drawer — and stays
-        // there so the operator can pick a page (openPage would close it)
+        var sid = sec.getAttribute("data-sec");
+        // on mobile, picking a section (even the active one) flows into the
+        // pages drawer — and stays there so the operator can pick a page
+        // (openPage would close it)
         var sh = $id("rrnb-shell"), mobileFlow = false;
         if (sh && sh.classList.contains("show-rail")) { sh.classList.remove("show-rail"); sh.classList.add("show-pages"); mobileFlow = true; }
-        var f = firstPageOf(S.activeSection);
+        // re-clicking the active section is a no-op on desktop — and crucially
+        // must NOT re-render, or a synchronous rail rebuild between the two
+        // clicks of a double-click breaks native dblclick-to-rename
+        if (sid === S.activeSection) return;
+        S.activeSection = sid; S.mode = "notebook"; renderSections(); renderPageList();
+        var f = firstPageOf(sid);
         if (f && !mobileFlow) openPage(f); else if (!f) showBlank();
       }
     });
@@ -2142,7 +2316,11 @@
     // page list (delegated)
     var plHost = $id("rrnb-pagelist");
     if (plHost) {
+      plHost.addEventListener("dblclick", function (e) {
+        var prow = e.target.closest("[data-page]"); if (prow && e.target.closest(".ttl")) { e.preventDefault(); return editPageTitle(prow.getAttribute("data-page")); }
+      });
       plHost.addEventListener("click", function (e) {
+        if (S._inlineEditing) return;
         var kb = e.target.closest("[data-menu='page']"); if (kb) { var r = kb.getBoundingClientRect(); return pageMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
         var add = e.target.closest("[data-add-page]"); if (add) return newPage();
         var tpl = e.target.closest("[data-template-menu]"); if (tpl) return openTemplateMenu(tpl);
@@ -2207,6 +2385,11 @@
       if (!e.target.closest("#rrnb-pop") && !e.target.closest("[data-cmd]")) hidePop();
       if (!e.target.closest("#rrnb-nb-menu") && !e.target.closest("#rrnb-nb-current")) { var m = $id("rrnb-nb-menu"); if (m) m.hidden = true; }
       if (!e.target.closest("#rrnb-aimenu") && !e.target.closest(".rrnb-tb-ai")) hideAiMenu();
+      if (!e.target.closest("#rrnb-imgrz") && !e.target.closest("#rrnb-pop") && !e.target.closest("img")) {
+        hideImgResize();
+        var ed0 = $id("rrnb-editor");
+        if (ed0) ed0.querySelectorAll("figure.rrnb-fig.sel, img.sel").forEach(function (f) { f.classList.remove("sel"); });
+      }
     });
 
     // global shortcuts while the view is active
@@ -2215,10 +2398,10 @@
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !e.shiftKey) { var s = $id("rrnb-search-input"); if (s) { e.preventDefault(); s.focus(); s.select(); } }
       if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); if (e.shiftKey) newSection(); else newPage(); }
       if (e.altKey && e.key.toLowerCase() === "q") { e.preventDefault(); quickNote(); }
-      if (e.key === "Escape") { hidePop(); hideCtx(); hideAiMenu(); }
+      if (e.key === "Escape") { hidePop(); hideCtx(); hideAiMenu(); hideImgResize(); }
       // OneNote-style page ops — only when NOT typing in the editor/inputs
       if (!typingContext() && S.pageId && S.mode === "notebook") {
-        if (e.key === "F2") { e.preventDefault(); renamePrompt("page", S.pageId); return; }
+        if (e.key === "F2") { e.preventDefault(); editPageTitle(S.pageId); return; }
         if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); if (window.confirm("Move this page to the Recycle Bin?")) S.be.deleteItem("page", S.pageId).then(function () { showBlank(); return selectNotebook(S.nbId, null); }).catch(fail); return; }
         if (e.altKey && e.key === "ArrowDown") { e.preventDefault(); navPage(1); return; }
         if (e.altKey && e.key === "ArrowUp") { e.preventDefault(); navPage(-1); return; }
