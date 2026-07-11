@@ -2257,6 +2257,13 @@ button.card:focus-visible{
 .tp-kpi-text{display:inline-flex;flex-direction:column;line-height:1.1}
 .tp-kpi-sub{font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);margin-top:2px}
 .tp-kpi-empty{font-size:var(--fs-sm);color:var(--text-subtle);font-style:italic}
+/* Drillable KPI pills — click through to the detail view. */
+.tp-kpi-nav{cursor:pointer;border-radius:8px;margin:-4px -7px;padding:4px 7px;transition:background .12s ease}
+.tp-kpi-nav:hover{background:var(--canvas)}
+.tp-kpi-nav:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+/* Inline trend sparkline inside a KPI pill. */
+.tp-kpi-sparkslot{display:block;margin-top:3px;min-height:16px}
+.tp-kpi-spark{display:block;opacity:.9}
 
 /* ── Today's Plan · main row ───────────────────────────────────
    Roster on the left, Coverage rail (open shifts + expiring DLs
@@ -30220,6 +30227,30 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
   position:absolute;pointer-events:none;
   border:2px solid var(--accent);border-radius:1px;
   box-shadow:0 0 0 1px rgba(255,255,255,.65) inset;
+}
+/* Copy/cut "marching ants" marquee — the one sanctioned bit of motion.
+   Four dashed edges built from repeating gradients that scroll in a
+   clockwise loop. Alternating dark/light keeps the marquee visible over
+   any cell fill and in both themes, exactly like Excel's marquee. */
+#view-workbooks .wb-copy-march{
+  position:absolute;pointer-events:none;z-index:3;box-sizing:border-box;
+  /* fixed primitive tokens (not theme-flipped) so the alternating dark/
+     light dashes stay visible on any cell fill and in either theme */
+  background-image:
+    repeating-linear-gradient(90deg,var(--rr-slate-800) 0 4px,var(--rr-slate-50) 4px 8px),
+    repeating-linear-gradient(90deg,var(--rr-slate-800) 0 4px,var(--rr-slate-50) 4px 8px),
+    repeating-linear-gradient(0deg,var(--rr-slate-800) 0 4px,var(--rr-slate-50) 4px 8px),
+    repeating-linear-gradient(0deg,var(--rr-slate-800) 0 4px,var(--rr-slate-50) 4px 8px);
+  background-size:100% 2px,100% 2px,2px 100%,2px 100%;
+  background-position:0 0,0 100%,0 0,100% 0;
+  background-repeat:no-repeat;
+  animation:wb-march 480ms linear infinite;
+}
+@keyframes wb-march{
+  to{ background-position:8px 0,-8px 100%,0 -8px,100% 8px; }
+}
+@media (prefers-reduced-motion:reduce){
+  #view-workbooks .wb-copy-march{animation:none}
 }
 #view-workbooks .wb-cell-editor{
   position:absolute;z-index:4;box-sizing:border-box;

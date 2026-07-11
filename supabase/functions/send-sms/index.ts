@@ -98,7 +98,18 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    await supa.from("sms_messages").update({ status: "sending" }).eq("id", row.id);
+    // Atomically claim the row: flip queued→sending only if it is STILL
+    // queued. The pg_net insert trigger and the 1-minute cron drainer both
+    // select status='queued' and can race for the same row; without this
+    // guard both would send it (duplicate SMS = Twilio cost + TCPA
+    // exposure). The conditional update returns the row only to the worker
+    // that won the claim; a loser gets zero rows and skips.
+    const { data: claimed } = await supa.from("sms_messages")
+      .update({ status: "sending" })
+      .eq("id", row.id)
+      .eq("status", "queued")
+      .select("id");
+    if (!claimed || claimed.length === 0) { skipped++; continue; }
 
     const form = new URLSearchParams();
     form.set("To", row.to_phone);

@@ -4509,6 +4509,7 @@ const WB = {
   gotoWrapped: false,
   listenersInstalled: false,
   clipboard: null,           // rich copy/cut buffer (cells + TSV mirror)
+  march: null,               // {sheetId,r0,c0,r1,c1,mode} — copy/cut "marching ants" marquee
 };
 
 const GRIDS = new Map();     // blockId -> grid instance
@@ -8166,6 +8167,19 @@ function paintSelection(g) {
     const hx = g.colX[Math.max(c0, c1) + 1], hy = g.rowY[di1 + 1];
     html += `<div class="wb-fill-handle" data-wb-fillhandle title="Drag to fill" style="left:${hx - 4}px;top:${hy - 4}px"></div>`;
   }
+  // copy/cut marquee ("marching ants") over the source range — anchored to
+  // the same overlay as the selection, so it tracks scrolling for free
+  if (WB.march && WB.march.sheetId === g.sheet.id) {
+    const m = WB.march;
+    const mr0 = Math.min(m.r0, m.r1), mr1 = Math.max(m.r0, m.r1);
+    const mc0 = Math.min(m.c0, m.c1), mc1 = Math.max(m.c0, m.c1);
+    const mdi0 = dispIndexOfRow(g, mr0), mdi1 = dispIndexOfRow(g, mr1);
+    if (mdi0 >= 0 && mdi1 >= 0) {
+      const mx = g.colX[mc0], mx2 = g.colX[mc1 + 1];
+      const my = g.rowY[mdi0], my2 = g.rowY[mdi1 + 1];
+      html += `<div class="wb-copy-march${m.mode === "cut" ? " is-cut" : ""}" style="left:${mx}px;top:${my}px;width:${mx2 - mx}px;height:${my2 - my}px"></div>`;
+    }
+  }
   g.els.sel.innerHTML = html;
   updateSelStats(g);
   if (WB.rangePick && WB.rangePick.g === g) refreshRangePickBar();
@@ -9914,6 +9928,7 @@ function startEdit(g, r, c, initial) {
   // always counts as a change, so orig must NOT equal the seeded value
   // enterMode = Excel's type-to-replace state: arrow keys commit + move
   g.editing = { r, c, input, orig: initial != null ? "\u0000" : input.value, enterMode: initial != null, point: null, pointRC: null, pointAnchor: null };
+  if (WB.march) { WB.march = null; paintSelection(g); } // typing dismisses the copy marquee (Excel)
   input.focus();
   if (initial != null) input.setSelectionRange(input.value.length, input.value.length);
   else input.select();
@@ -10102,10 +10117,25 @@ function captureClipboard(g, mode) {
     rows.push(line);
   }
   WB.clipboard = { mode: mode || "copy", sheetId: g.sheet.id, r0, c0, rows, text: selectionToTsv(g) };
+  // Excel's "marching ants": remember the copied rectangle so paintSelection
+  // can draw the animated dashed marquee over the source range until it's
+  // dismissed (Escape / an edit / a cut-paste / a fresh copy).
+  const nRows = rows.length, nCols = rows[0] ? rows[0].length : 1;
+  WB.march = { sheetId: g.sheet.id, r0, c0, r1: r0 + nRows - 1, c1: c0 + nCols - 1, mode: mode || "copy" };
+}
+
+// Dismiss the copy/cut marquee (keeps the clipboard payload — Ctrl+V still
+// pastes after Escape, matching Excel). Returns true if there was one.
+function clearMarquee(g) {
+  if (!WB.march) return false;
+  WB.march = null;
+  if (g) paintSelection(g);
+  return true;
 }
 
 async function copySelection(g, mode) {
   captureClipboard(g, mode);
+  paintSelection(g); // surface the marching-ants marquee immediately
   const tsv = WB.clipboard.text;
   try { await navigator.clipboard.writeText(tsv); }
   catch (_) {
@@ -10272,6 +10302,7 @@ function pasteRich(g, cb, opts) {
       }
     }
     cb.mode = "copy"; // a cut pastes once; further pastes behave as copy
+    WB.march = null;  // the marching-ants marquee clears when a cut is placed (Excel)
   }
   setCells(g, changes);
   g.sel = { r0: sel.r0, c0: sel.c0, r1: Math.min(sheet.rowCount - 1, sel.r0 + repR * outR - 1), c1: Math.min(sheet.colCount - 1, sel.c0 + repC * outC - 1) };
@@ -16256,12 +16287,15 @@ function openPivotDialog(g, existing) {
   const rect = selRect(g);
   // A pivot reads from a data sheet (its srcSheetId), same as charts/KPIs/tables.
   // On a dashboard the current selection is meaningless, so default the range to
-  // the source sheet's populated extent.
+  // the source sheet's populated extent. A bare cursor (single-cell selection)
+  // expands to that extent too — otherwise the pivot would see only one cell's
+  // column as a field. A deliberate multi-cell selection is honored as-is.
   const srcDef = existing ? embedSourceSheet(g, existing) : defaultSrcSheet(g);
   let srcSheet = srcDef;
+  const singleCell = rect.r0 === rect.r1 && rect.c0 === rect.c1;
   const defRange = existing
     ? { r0: existing.r0, c0: existing.c0, r1: existing.r1, c1: existing.c1 }
-    : (isDashboardSheet(sheet) ? sheetDataRange(srcDef) : { r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 });
+    : (isDashboardSheet(sheet) || singleCell ? sheetDataRange(srcDef) : { r0: rect.r0, c0: rect.c0, r1: rect.r1, c1: rect.c1 });
   const spec = existing || { ...defRange, rows: [], cols: [], values: [] };
   const fieldsOf = () => pivotSource(srcSheet, spec).fields;
   let fields = fieldsOf();
@@ -16887,7 +16921,7 @@ function bindGridEvents(g) {
       case "Tab": e.preventDefault(); moveActive(g, 0, e.shiftKey ? -1 : 1, false); return;
       case "Delete":
       case "Backspace": e.preventDefault(); clearSelection(g); return;
-      case "Escape": e.preventDefault(); if (g.painter) { cancelFormatPainter(g); return; } closeAllPopovers(); g.sel = { r0: g.active.r, c0: g.active.c, r1: g.active.r, c1: g.active.c }; paintSelection(g); repaintGrid(g); return;
+      case "Escape": e.preventDefault(); if (g.painter) { cancelFormatPainter(g); return; } if (clearMarquee(g)) return; closeAllPopovers(); g.sel = { r0: g.active.r, c0: g.active.c, r1: g.active.r, c1: g.active.c }; paintSelection(g); repaintGrid(g); return;
     }
     // type-to-replace: printable character starts an edit
     if (WB.canEdit && k.length === 1 && !meta && !e.altKey) {
@@ -16952,12 +16986,14 @@ function bindGridEvents(g) {
     e.preventDefault();
     captureClipboard(g, "copy");
     e.clipboardData.setData("text/plain", WB.clipboard.text);
+    paintSelection(g); // marching-ants marquee
   });
   grid.addEventListener("cut", (e) => {
     if (g.editing) return;
     e.preventDefault();
     captureClipboard(g, "cut");
     e.clipboardData.setData("text/plain", WB.clipboard.text);
+    paintSelection(g); // marching-ants marquee
   });
 
   // ── formula bar ──

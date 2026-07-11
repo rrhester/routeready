@@ -2090,10 +2090,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
               background 0.12s ease;
 }
 
-/* Press / sink — real-button feedback on click for ALL strip tiles.
-   The tile dips + shrinks slightly, then springs back on release. */
+/* Press feedback for ALL strip tiles. Excel feel: mechanical — the tile
+   acknowledges the click with an instant state change, never a shrink or
+   spring-back (motion sweep 2026-07-10). */
 #view-schedule.rrx-schedule .sched-v2-tile:active {
-  transform: translateY(1px) scale(0.97);
+  transform: none;
   transition-duration: 0.04s;
 }
 
@@ -2303,8 +2304,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 #view-schedule.rrx-schedule #rr-sched-roster-rules-popover[hidden] { display: none; }
 @keyframes rr-sched-roster-rules-emerge {
-  from { opacity: 0; transform: translateY(-6px) scale(.97); }
-  to   { opacity: 1; transform: none; }
+  /* Excel feel: the popover resolves as a pure fade — no slide, no scale. */
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 /* Softer blue header — matches the Smart Fill / Week rules popovers
    (light bar, schedule-blue text + icon, hairline divider) rather than
@@ -2590,22 +2592,19 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    lets it settle to the chip's normal state. */
 #view-schedule.rrx-schedule .shift-chip.rr-sf-card-pending {
   opacity: 0;
-  transform: translateY(8px) scale(0.96);
 }
 #view-schedule.rrx-schedule .shift-chip.rr-sf-card-in {
   opacity: 1;
-  transform: translateY(0) scale(1);
-  /* opacity + transform keep the staged-reveal timing; box-shadow +
-     border-color are appended so a card that still carries this class
-     after the build also gets the 180ms hover-lift settle. */
-  transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.2, 0.7, 0.2, 1),
-              box-shadow 0.18s ease, border-color 0.18s ease;
+  /* Excel feel: built cards resolve as a pure fade — a state change, not
+     a slide-and-scale reveal. Nothing travels or springs; box-shadow and
+     border-color settle instantly (motion sweep 2026-07-10). */
+  transition: opacity 0.16s linear, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 /* Delete · fade + scale the chip OUT before the grid repaints. */
 #view-schedule.rrx-schedule .shift-chip.rr-sf-card-out {
   opacity: 0;
-  transform: scale(0.9);
-  transition: opacity 0.16s ease, transform 0.16s cubic-bezier(0.4, 0, 1, 1);
+  /* Excel feel: removed cards fade out flat — no shrink. */
+  transition: opacity 0.14s linear;
   pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2848,18 +2847,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: rgba(34, 197, 94, 0.15);
   color: var(--rr-green-700);
   border: 1px solid rgba(21, 128, 61, 0.35);
-  /* Operational pulse · a single, very subtle scale tick (100→103→100
-     over ~800ms) then a long ~3.2s rest, like a Teams presence dot —
-     no color/opacity change, just transform. Communicates "live &
-     monitoring" without being flashy. */
-  transform-origin: center;
-  animation: rr-live-pulse 4s ease-in-out infinite;
-}
-@keyframes rr-live-pulse {
-  0%   { transform: scale(1); }
-  10%  { transform: scale(1.03); }
-  20%  { transform: scale(1); }
-  100% { transform: scale(1); }   /* long rest between pulses */
+  /* Excel feel: the "live & monitoring" state is a static green chip —
+     no scale pulse. Motion should communicate a change of state, and
+     "still live" is not a change (motion sweep 2026-07-10). */
 }
 @media (prefers-reduced-motion: reduce) {
   #view-schedule.rrx-schedule .sched-v2-status-pill[data-state="live"] {
@@ -2889,8 +2879,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 /* Phase 1 — Finalize button: depress while publishing; icon spins. */
 #view-schedule.rrx-schedule .sched-ribbon-actions--grouped > #rr-sched-finalize-h.rr-fin-btn-busy {
-  transform: translateY(1px) scale(.97);
-  transition: transform 160ms cubic-bezier(.4, 0, .2, 1);
+  /* Excel feel: busy state is signalled by the spinning icon + disabled
+     interaction, not a shrinking button. */
+  transform: none;
   pointer-events: none;
   cursor: default;
 }
@@ -2939,15 +2930,17 @@ body.rr-sched-publishing #view-schedule.rrx-schedule #rr-sched-kpis::after {
   100% { transform: translateX(120%); }
 }
 
-/* Phase 4 — status pill activates Draft → Live: scale 0.9 → 1.15 → 1.0
-   with a soft green radial glow behind it that fades naturally. */
+/* Phase 4 — status pill activates Draft → Live. The scale pop was removed
+   (motion sweep 2026-07-10); the change now reads through the label swap and
+   the green radial glow that fades behind the pill. Keyframe kept as a no-op
+   so any stray reference can't reintroduce a pop. */
 @keyframes rr-fin-pill-activate {
-  0%   { transform: scale(.9); }
-  55%  { transform: scale(1.15); }
-  100% { transform: scale(1); }
+  from { transform: none; }
+  to   { transform: none; }
 }
 #view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-activate {
-  animation: rr-fin-pill-activate 600ms cubic-bezier(.34, 1.32, .64, 1) both;
+  /* Excel feel: Draft→Live reads through the label + the green glow
+     behind the pill, not a spring/scale pop on the pill itself. */
   position: relative;
   z-index: 1;
 }
@@ -3205,11 +3198,11 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff * {
    crisp Excel/Outlook scheduling cells, not soft pills. */
 #view-schedule.rrx-schedule .shift-chip {
   border-radius: 7px !important;
-  /* Resting transition for the hover-lift (polish pass: 100ms). Lower
-     specificity than the .rr-sf-card-in reveal rule, so the staged build
-     keeps its own timing; for normally-rendered cards this is the
-     transition the hover uses. */
-  transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
+  /* Cards never move — Excel feel is anchored to the grid. Only the
+     shadow/border acknowledge the cursor, and instantly (motion sweep
+     2026-07-10). No transform is transitioned so a stray transform can
+     never ease a card off its cell. */
+  transition: box-shadow 0.1s ease, border-color 0.1s ease;
 }
 /* Service-type badge (XL / HUB / ASU …) pinned to the chip's top-right
    corner. Absolute so it never adds to the chip's height — XL chips stay
@@ -3582,9 +3575,10 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
    ============================================================ */
 
 @keyframes rr-v2-spin-pulse {
-  0%   { transform: rotate(0deg)   scale(1);    }
-  50%  { transform: rotate(360deg) scale(1.12); }
-  100% { transform: rotate(720deg) scale(1);    }
+  /* Excel feel: a plain rotating spinner communicates "working" — no
+     breathing scale on top of it. */
+  0%   { transform: rotate(0deg);   }
+  100% { transform: rotate(720deg); }
 }
 
 #view-schedule.rrx-schedule .sched-v2-tile.is-v2-spin svg {
@@ -5592,7 +5586,7 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
 }
 #rr-util-rail-mount .sched-util-btn svg{width:22px;height:22px;position:relative;z-index:1}
 /* Press feedback — a subtle Google-style scale-down on pointer-down. */
-#rr-util-rail-mount .sched-util-btn:active{transform:scale(.96)}
+#rr-util-rail-mount .sched-util-btn:active{transform:none}
 #rr-util-rail-mount .sched-util-btn:hover{background:rgba(49,134,255,.12);border-color:rgba(49,134,255,.30)}
 /* Active (panel open) — a unified soft yellow (the RouteReady accent) sits
    behind the icon for every utility: the colour the open ripple settles
@@ -5824,7 +5818,7 @@ body[data-rr-active-view="view-fleet2"] #rr-util-rail-mount{display:block}
   padding:14px; display:flex; flex-direction:column; gap:12px;
   animation:ctpdIn .14s cubic-bezier(0,0,.2,1);
 }
-@keyframes ctpdIn{from{opacity:0;transform:translateY(4px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes ctpdIn{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion: reduce){.ctpd{animation:none}}
 .ctpd-head{display:flex;align-items:center;gap:10px}
 .ctpd-avatar{
@@ -6091,7 +6085,7 @@ a.ctpd-val:hover{text-decoration:underline}
    and a comment composer pinned at the bottom. */
 .rr-td-back{position:fixed;inset:0;z-index:10070;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.42);opacity:0;transition:opacity .16s;padding:20px}
 .rr-td-back.open{opacity:1}
-.rr-td-card{width:min(520px,96vw);max-height:86vh;display:flex;flex-direction:column;background:var(--rr-white);border:1px solid rgba(15,23,42,.10);border-radius:16px;box-shadow:0 24px 64px rgba(15,23,42,.28);transform:translateY(8px) scale(.99);transition:transform .16s;overflow:hidden}
+.rr-td-card{width:min(520px,96vw);max-height:86vh;display:flex;flex-direction:column;background:var(--rr-white);border:1px solid rgba(15,23,42,.10);border-radius:16px;box-shadow:0 24px 64px rgba(15,23,42,.28);overflow:hidden}
 .rr-td-back.open .rr-td-card{transform:none}
 .rr-td-head{display:flex;align-items:flex-start;gap:12px;padding:18px 18px 12px}
 .rr-td-title{flex:1;min-width:0}
@@ -6194,7 +6188,7 @@ a.ctpd-val:hover{text-decoration:underline}
 /* Form card — white, very light border, 12px radius, no shadow at rest;
    light shadow + slight lift on hover only. */
 #rr-util-rail-mount .rr-fp-card{position:relative;display:flex;align-items:flex-start;gap:11px;width:100%;text-align:left;cursor:pointer;background:var(--rr-white);border:1px solid #E7EAF0;border-radius:12px;padding:12px 12px 11px;transition:box-shadow .16s ease,transform .16s ease,border-color .16s ease}
-#rr-util-rail-mount .rr-fp-card:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(17,24,39,.07);border-color:#DDE2EC}
+#rr-util-rail-mount .rr-fp-card:hover{box-shadow:0 3px 10px rgba(17,24,39,.07);border-color:#DDE2EC}
 #rr-util-rail-mount .rr-fp-card-ico{flex:0 0 auto;width:34px;height:34px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:#F2F4F8;color:var(--text-muted,var(--rr-gray-600))}
 #rr-util-rail-mount .rr-fp-card-ico svg{width:17px;height:17px;stroke-width:1.8}
 #rr-util-rail-mount .rr-fp-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
@@ -6787,7 +6781,6 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
 #view-schedule.rrx-schedule .day-risk-glyph:focus-visible {
   opacity: 1;
   outline: none;
-  transform: scale(1.1);
 }
 #view-schedule.rrx-schedule .day-risk-glyph.red:hover,
 #view-schedule.rrx-schedule .day-risk-glyph.red:focus-visible   { background: rgba(220, 38, 38, .17); }
@@ -6819,11 +6812,11 @@ body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip
   border-radius: var(--r-lg);
   box-shadow: 0 12px 34px rgba(15, 23, 42, .16), 0 2px 6px rgba(15, 23, 42, .08);
   opacity: 0;
-  transform: translateY(-4px);
   pointer-events: none;
-  transition: opacity .12s ease, transform .12s ease;
+  /* Excel feel: the risk pop resolves as a flat fade — no slide. */
+  transition: opacity .12s ease;
 }
-.rr-day-risk-pop.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.rr-day-risk-pop.open { opacity: 1; pointer-events: auto; }
 .rr-day-risk-pop .rr-drp-top {
   display: flex;
   align-items: center;
