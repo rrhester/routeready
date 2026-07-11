@@ -7304,6 +7304,9 @@ function mountSheetBlock(block, body) {
     },
     active: { r: 0, c: 0 },
     sel: { r0: 0, c0: 0, r1: 0, c1: 0 },
+    selAreas: [],           // extra disjoint rectangles (Ctrl+click multi-select); g.sel is the active area
+    entryCol: null,         // Excel data-entry: column a Tab run started in, so Enter returns to it
+    extendMode: false,      // Excel F8: arrows/clicks extend the selection like Shift is held
     editing: null,          // { r, c, input, viaBar }
     dragging: false,
     resize: null,
@@ -8148,10 +8151,23 @@ function paintSelection(g) {
   const di0 = dispIndexOfRow(g, Math.min(r0, r1)), di1 = dispIndexOfRow(g, Math.max(r0, r1));
   const adi = dispIndexOfRow(g, a.r);
   let html = "";
+  // committed disjoint areas (Ctrl+click multi-select) paint first, behind
+  // the active rectangle
+  if (g.selAreas && g.selAreas.length) {
+    for (const s of g.selAreas) {
+      const sr0 = Math.min(s.r0, s.r1), sr1 = Math.max(s.r0, s.r1);
+      const sc0 = Math.min(s.c0, s.c1), sc1 = Math.max(s.c0, s.c1);
+      const sdi0 = dispIndexOfRow(g, sr0), sdi1 = dispIndexOfRow(g, sr1);
+      if (sdi0 < 0 || sdi1 < 0) continue;
+      const sx = g.colX[sc0], sx2 = g.colX[sc1 + 1];
+      const sy = g.rowY[sdi0], sy2 = g.rowY[sdi1 + 1];
+      html += `<div class="wb-sel-range" style="left:${sx}px;top:${sy}px;width:${sx2 - sx}px;height:${sy2 - sy}px"></div>`;
+    }
+  }
   if (di0 >= 0 && di1 >= 0) {
     const x = g.colX[Math.min(c0, c1)], x2 = g.colX[Math.max(c0, c1) + 1];
     const y = g.rowY[di0], y2 = g.rowY[di1 + 1];
-    if (Math.min(r0, r1) !== Math.max(r0, r1) || Math.min(c0, c1) !== Math.max(c0, c1)) {
+    if (Math.min(r0, r1) !== Math.max(r0, r1) || Math.min(c0, c1) !== Math.max(c0, c1) || hasMultiSel(g)) {
       html += `<div class="wb-sel-range" style="left:${x}px;top:${y}px;width:${x2 - x}px;height:${y2 - y}px"></div>`;
     }
   }
@@ -8182,6 +8198,7 @@ function paintSelection(g) {
   }
   g.els.sel.innerHTML = html;
   updateSelStats(g);
+  updateModeIndicator(g);
   if (WB.rangePick && WB.rangePick.g === g) refreshRangePickBar();
 }
 
@@ -8193,7 +8210,7 @@ function updateSelStats(g) {
     g.els.sbfilter.textContent = g.filters && g.filters.size ? `${g.rows.length - 1} of ${g.sheet.rowCount} rows` : "";
   }
   const { r0, r1, c0, c1 } = selRect(g);
-  if (r0 === r1 && c0 === c1) { el.textContent = `${colLabel(c0)}${r0 + 1}`; return; }
+  if (r0 === r1 && c0 === c1 && !hasMultiSel(g)) { el.textContent = `${colLabel(c0)}${r0 + 1}`; return; }
   let sum = 0, nnum = 0, cnt = 0;
   const tally = (cell) => {
     if (!cell) return;
@@ -8203,26 +8220,41 @@ function updateSelStats(g) {
     const num = cellNumeric(raw);
     if (num != null && cell.type !== "text") { sum += num; nnum++; }
   };
-  // Walk whichever is smaller — the selected rectangle or the populated map —
-  // so a small selection on a large sheet doesn't rescan every filled cell.
-  const area = (r1 - r0 + 1) * (c1 - c0 + 1);
-  if (area <= g.sheet.cells.size) {
-    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) tally(g.sheet.cells.get(cellKey(r, c)));
-  } else {
-    for (const [key, cell] of g.sheet.cells) {
-      const { r, c } = keyRC(key);
-      if (r < r0 || r > r1 || c < c0 || c > c1) continue;
-      tally(cell);
-    }
-  }
+  // Aggregate across every selected cell (all disjoint areas), each counted once.
+  forEachSelectedCell(g, (r, c) => tally(g.sheet.cells.get(cellKey(r, c))));
   const fmtN = (x) => {
     const r2 = Math.round(x * 100) / 100;
     return Math.abs(r2) >= 1000 ? r2.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(r2);
   };
-  const ref = `${colLabel(c0)}${r0 + 1}:${colLabel(c1)}${r1 + 1}`;
+  const ref = hasMultiSel(g) ? `${g.selAreas.length + 1} areas` : `${colLabel(c0)}${r0 + 1}:${colLabel(c1)}${r1 + 1}`;
   el.textContent = !cnt ? ref
     : nnum ? `${ref} · Sum ${fmtN(sum)} · Avg ${fmtN(sum / nnum)} · Count ${cnt}`
     : `${ref} · Count ${cnt}`;
+}
+
+// Excel's status-bar mode word: Ready / Enter / Edit / Point, plus the
+// F8 selection modes. Reflects the cell's current interaction state.
+function updateModeIndicator(g) {
+  const el = g.els.sbmode;
+  if (!el) return;
+  let mode = "Ready";
+  if (g.editing) {
+    const pt = typeof formulaPointState === "function" && formulaPointState(g);
+    mode = pt ? "Point" : (g.editing.enterMode ? "Enter" : "Edit");
+  } else if (g.extendMode) {
+    mode = "Extend Selection";
+  }
+  if (el.textContent !== mode) el.textContent = mode;
+}
+
+// Excel shows the drag extent (e.g. "3R x 2C") in the Name Box while
+// drag-selecting or resizing; a null size restores the active reference.
+function showDragSize(g, rows, cols) {
+  const box = g.els.fbarRef;
+  if (!box) return;
+  if (rows == null) { syncFormulaBar(g); return; }
+  const txt = `${rows}R x ${cols}C`;
+  if (box.tagName === "INPUT") box.value = txt; else box.textContent = txt;
 }
 
 function paintFrozen(g, sx, sy, c0, c1) {
@@ -9618,6 +9650,8 @@ function setActive(g, r, c, opts) {
   if (mg) { r = mg.r0; c = mg.c0; } // clicks inside a merge land on its anchor
   g.active = { r, c };
   if (!opts || !opts.keepSel) g.sel = { r0: r, c0: c, r1: r, c1: c };
+  if (!opts || !opts.keepAreas) clearSelAreas(g); // a plain move/click drops Ctrl-click areas
+  g.entryCol = null; // any explicit re-anchor ends the Tab/Enter data-entry run (selNav restores it)
   if (!g.editing && g.els.refhl && g.els.refhl.innerHTML) g.els.refhl.innerHTML = "";
   paintSelection(g);
   // headers repaint for the sel highlight (cheap — reuse main paint)
@@ -9715,6 +9749,52 @@ function moveActive(g, dr, dc, extend) {
   }
 }
 
+// Excel Enter/Tab navigation.
+//  · axis "v" = Enter (down / Shift+Enter up), "h" = Tab (right / Shift+Tab left).
+//  · Inside a multi-cell selection the active cell cycles and wraps within the
+//    range, leaving the selection put — so you can type down a column and it
+//    wraps to the next column's top.
+//  · On a single cell it steps one cell, and Tab/Enter cooperate through the
+//    "entry column": Tab remembers where a row's data entry began, and Enter
+//    drops to the next row back at that column.
+// Pure: the next active cell when cycling within a rectangle. axis "v" =
+// Enter (down / back=up), "h" = Tab (right / back=left). Wraps around the
+// rectangle — down past the last row jumps to the next column's top, etc.
+function selCycle(rect, active, axis, back) {
+  let r = Math.max(rect.r0, Math.min(rect.r1, active.r));
+  let c = Math.max(rect.c0, Math.min(rect.c1, active.c));
+  if (axis === "v") {
+    if (!back) { r++; if (r > rect.r1) { r = rect.r0; c++; if (c > rect.c1) c = rect.c0; } }
+    else       { r--; if (r < rect.r0) { r = rect.r1; c--; if (c < rect.c0) c = rect.c1; } }
+  } else {
+    if (!back) { c++; if (c > rect.c1) { c = rect.c0; r++; if (r > rect.r1) r = rect.r0; } }
+    else       { c--; if (c < rect.c0) { c = rect.c1; r--; if (r < rect.r0) r = rect.r1; } }
+  }
+  return { r, c };
+}
+
+function selNavStep(g, axis, back) {
+  const rect = selRect(g);
+  const multi = (rect.r0 !== rect.r1 || rect.c0 !== rect.c1);
+  if (multi) {
+    const { r, c } = selCycle(rect, g.active, axis, back);
+    setActive(g, r, c, { keepSel: true, keepAreas: true });
+    return;
+  }
+  if (axis === "h") {
+    const col = g.entryCol == null ? g.active.c : g.entryCol;
+    moveActive(g, 0, back ? -1 : 1, false); // resets entryCol via setActive…
+    g.entryCol = col;                       // …so restore the row's entry column
+  } else {
+    const col = g.entryCol == null ? g.active.c : g.entryCol;
+    const di = dispIndexOfRow(g, g.active.r);
+    const nd = Math.max(0, Math.min(g.rows.length - 1, di + (back ? -1 : 1)));
+    const r = g.rows[nd] ?? g.active.r;
+    setActive(g, r, col);
+    g.entryCol = col; // Enter keeps the column so continued Enter stays in it
+  }
+}
+
 // Ctrl+Arrow: jump to the edge of the current data block (Excel).
 function dataEdge(g, from, dr, dc) {
   const sheet = g.sheet;
@@ -9744,6 +9824,43 @@ function selRect(g) {
     r0: Math.min(g.sel.r0, g.sel.r1), r1: Math.max(g.sel.r0, g.sel.r1),
     c0: Math.min(g.sel.c0, g.sel.c1), c1: Math.max(g.sel.c0, g.sel.c1),
   };
+}
+
+// Every selected rectangle: the committed disjoint areas (Ctrl+click) plus
+// the active one. Normalized so callers can iterate without worrying about
+// which corner is the anchor.
+function selAllRects(g) {
+  const norm = (s) => ({
+    r0: Math.min(s.r0, s.r1), r1: Math.max(s.r0, s.r1),
+    c0: Math.min(s.c0, s.c1), c1: Math.max(s.c0, s.c1),
+  });
+  const out = (g.selAreas || []).map(norm);
+  out.push(selRect(g));
+  return out;
+}
+
+// True when more than the single active rectangle is selected.
+function hasMultiSel(g) { return (g.selAreas && g.selAreas.length > 0); }
+
+// Drop the extra disjoint areas, leaving just the active rectangle.
+function clearSelAreas(g) { if (g.selAreas && g.selAreas.length) g.selAreas = []; }
+
+// Walk every selected cell across all areas exactly once (filter-aware for
+// rows). cb receives (r, c). Used by clear/format/stats so they honour a
+// Ctrl+click multi-selection, not just the active rectangle.
+function forEachSelectedCell(g, cb) {
+  const seen = new Set();
+  const rowsInRange = (r0, r1) => g.rows.filter((r) => r >= r0 && r <= r1);
+  for (const rect of selAllRects(g)) {
+    for (const r of rowsInRange(rect.r0, rect.r1)) {
+      for (let c = rect.c0; c <= rect.c1; c++) {
+        const k = cellKey(r, c);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        cb(r, c);
+      }
+    }
+  }
 }
 
 // rows in the selection that are actually visible under the filter
@@ -9904,15 +10021,29 @@ function cellFromInput(raw, prevCell) {
 
 // ─── Editing ─────────────────────────────────────────────────────────────────
 
+// Grow the in-cell editor to fit its (possibly multiline) content, never
+// shrinking below the cell's own height.
+function autosizeCellEditor(g) {
+  const ed = g.editing;
+  if (!ed || !ed.input || ed.input.tagName !== "TEXTAREA") return;
+  const ta = ed.input;
+  ta.style.height = "auto";
+  ta.style.height = Math.max(ed.baseH || 0, ta.scrollHeight) + "px";
+}
+
 function startEdit(g, r, c, initial) {
   if (!WB.canEdit) return;
   cancelEdit(g);
+  g.extendMode = false; // typing/F2 leaves F8 extend mode (Excel)
   const sheet = g.sheet;
   const di = dispIndexOfRow(g, r);
   if (di < 0) return;
   const cell = sheet.cells.get(cellKey(r, c));
-  const input = document.createElement("input");
-  input.type = "text";
+  // a <textarea> (not <input>) so Alt+Enter can insert real in-cell line
+  // breaks (Excel); plain Enter still commits — see the editor keydown below
+  const input = document.createElement("textarea");
+  input.rows = 1;
+  input.wrap = "off";
   input.className = "wb-cell-editor";
   input.setAttribute("aria-label", `Edit cell ${colLabel(c)}${r + 1}`);
   input.value = initial != null ? initial : cell ? (cell.formula || (cell.value ?? "")) : "";
@@ -9927,11 +10058,13 @@ function startEdit(g, r, c, initial) {
   // type-to-replace passes the first typed char as `initial` — that
   // always counts as a change, so orig must NOT equal the seeded value
   // enterMode = Excel's type-to-replace state: arrow keys commit + move
-  g.editing = { r, c, input, orig: initial != null ? "\u0000" : input.value, enterMode: initial != null, point: null, pointRC: null, pointAnchor: null };
+  g.editing = { r, c, input, orig: initial != null ? "\u0000" : input.value, enterMode: initial != null, point: null, pointRC: null, pointAnchor: null, baseH: parseFloat(input.style.height) || 0 };
   if (WB.march) { WB.march = null; paintSelection(g); } // typing dismisses the copy marquee (Excel)
+  updateModeIndicator(g); // Enter (type-to-replace) / Edit (F2)
   input.focus();
   if (initial != null) input.setSelectionRange(input.value.length, input.value.length);
   else input.select();
+  autosizeCellEditor(g); // a pre-existing multiline value opens at full height
   syncFormulaBar(g);
   paintFormulaRefs(g);
 
@@ -9980,6 +10113,18 @@ function startEdit(g, r, c, initial) {
       }
       return; // edit mode: arrows move the caret
     }
+    if (e.key === "Enter" && e.altKey) {
+      // Alt+Enter: insert a line break at the caret (Excel). Auto-enable wrap
+      // so the committed multiline value shows on more than one row.
+      e.preventDefault();
+      const s = input.selectionStart ?? input.value.length, en = input.selectionEnd ?? s;
+      input.value = input.value.slice(0, s) + "\n" + input.value.slice(en);
+      input.setSelectionRange(s + 1, s + 1);
+      if (g.editing) g.editing.forceWrap = true;
+      autosizeCellEditor(g);
+      input.dispatchEvent(new Event("input"));
+      return;
+    }
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitEdit(g, 0, 0, { fillSelection: true }); }
     else if (e.key === "Enter") { e.preventDefault(); commitEdit(g, e.shiftKey ? -1 : 1, 0); }
     else if (e.key === "Tab") { e.preventDefault(); commitEdit(g, 0, e.shiftKey ? -1 : 1); }
@@ -9993,6 +10138,7 @@ function startEdit(g, r, c, initial) {
   input.addEventListener("input", (e) => {
     const ed2 = g.editing;
     if (ed2) { ed2.point = null; ed2.pointRC = null; ed2.pointAnchor = null; ed2.enterMode = false; }
+    autosizeCellEditor(g); // grow with wrapped/multiline content
     // Excel value autocomplete: while typing forward at the end of a plain-text
     // cell, offer the nearest matching earlier entry in the column as a
     // selected suffix (Enter/Tab accepts; typing more replaces it).
@@ -10021,6 +10167,8 @@ function commitEdit(g, dr, dc, opts) {
   if (raw !== ed.orig) {
     const prev = g.sheet.cells.get(cellKey(ed.r, ed.c));
     const nextCell = cellFromInput(raw, prev);
+    // Alt+Enter line breaks turn on wrap so the multiline value shows (Excel)
+    if (nextCell && (ed.forceWrap || /\n/.test(raw))) nextCell.format = { ...(nextCell.format || {}), wrap: true };
     const v = validateCommit(g.sheet, ed.r, ed.c, nextCell);
     if (!v.ok && v.strict) {
       _toast(v.msg, "error");
@@ -10058,6 +10206,7 @@ function cancelEdit(g) {
   clearFormulaChrome(g);
   if (ed.input) ed.input.remove();
   syncFormulaBar(g);
+  updateModeIndicator(g); // back to Ready
 }
 
 // ─── Formula bar ─────────────────────────────────────────────────────────────
@@ -10134,6 +10283,7 @@ function clearMarquee(g) {
 }
 
 async function copySelection(g, mode) {
+  if (hasMultiSel(g)) { _toast("That command can't be used on multiple selections", "warn"); return; }
   captureClipboard(g, mode);
   paintSelection(g); // surface the marching-ants marquee immediately
   const tsv = WB.clipboard.text;
@@ -10722,16 +10872,13 @@ async function deleteReceiptEntry(g, row, path, box, close) {
 
 function clearSelection(g, { formatToo } = {}) {
   const sheet = g.sheet;
-  const { c0, c1 } = selRect(g);
   const changes = [];
-  for (const r of selVisibleRows(g)) {
-    for (let c = c0; c <= c1; c++) {
-      const cell = sheet.cells.get(cellKey(r, c));
-      if (!cell) continue;
-      if (formatToo) changes.push({ r, c, cell: null });
-      else changes.push({ r, c, cell: cellFromInput("", cell) });
-    }
-  }
+  forEachSelectedCell(g, (r, c) => {
+    const cell = sheet.cells.get(cellKey(r, c));
+    if (!cell) return;
+    if (formatToo) changes.push({ r, c, cell: null });
+    else changes.push({ r, c, cell: cellFromInput("", cell) });
+  });
   if (changes.length) setCells(g, changes);
 }
 
@@ -10774,21 +10921,18 @@ function deleteCellsShift(g, dir) {
 function formatSelection(g, patch) {
   if (!WB.canEdit) return;
   const sheet = g.sheet;
-  const { c0, c1 } = selRect(g);
   const changes = [];
-  for (const r of selVisibleRows(g)) {
-    for (let c = c0; c <= c1; c++) {
-      const cell = sheet.cells.get(cellKey(r, c));
-      const base = cell ? cloneCell(cell) : { value: null, formula: null, type: null, format: {} };
-      const fmt = { ...base.format };
-      for (const [k, v] of Object.entries(patch)) {
-        if (v === null || v === "" || v === false) delete fmt[k];
-        else fmt[k] = v;
-      }
-      if (!cell && !Object.keys(fmt).length) continue;
-      changes.push({ r, c, cell: { ...base, format: fmt } });
+  forEachSelectedCell(g, (r, c) => {
+    const cell = sheet.cells.get(cellKey(r, c));
+    const base = cell ? cloneCell(cell) : { value: null, formula: null, type: null, format: {} };
+    const fmt = { ...base.format };
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === "" || v === false) delete fmt[k];
+      else fmt[k] = v;
     }
-  }
+    if (!cell && !Object.keys(fmt).length) return;
+    changes.push({ r, c, cell: { ...base, format: fmt } });
+  });
   if (changes.length) setCells(g, changes);
 }
 
@@ -10800,17 +10944,14 @@ function toggleFormat(g, key) {
 
 function clearFormatting(g) {
   const sheet = g.sheet;
-  const { c0, c1 } = selRect(g);
   const changes = [];
-  for (const r of selVisibleRows(g)) {
-    for (let c = c0; c <= c1; c++) {
-      const cell = sheet.cells.get(cellKey(r, c));
-      if (!cell || !cell.format || !Object.keys(cell.format).length) continue;
-      const base = cloneCell(cell);
-      base.format = {};
-      changes.push({ r, c, cell: base.value == null && base.formula == null ? null : base });
-    }
-  }
+  forEachSelectedCell(g, (r, c) => {
+    const cell = sheet.cells.get(cellKey(r, c));
+    if (!cell || !cell.format || !Object.keys(cell.format).length) return;
+    const base = cloneCell(cell);
+    base.format = {};
+    changes.push({ r, c, cell: base.value == null && base.formula == null ? null : base });
+  });
   if (changes.length) setCells(g, changes);
 }
 
@@ -16458,6 +16599,14 @@ function bindGridEvents(g) {
 
   scroll.addEventListener("scroll", () => repaintGrid(g));
 
+  // Ctrl/⌘ + mouse-wheel zooms the grid (Excel), in 10% steps
+  scroll.addEventListener("wheel", (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    const step = e.deltaY < 0 ? 0.1 : -0.1;
+    setZoom(g, Math.round((g.zoom + step) * 100) / 100);
+  }, { passive: false });
+
   // ── mouse selection / resize ──
   const canvasPos = (e) => {
     const rect = scroll.getBoundingClientRect();
@@ -16600,15 +16749,20 @@ function bindGridEvents(g) {
         if (!rs) return;
         const delta = (rs.kind === "col" ? ev.clientX : ev.clientY) - rs.startPos;
         const size = Math.round(rs.startSize + delta / (g.zoom || 1));
-        if (rs.kind === "col") sheet.colWidths[rs.idx] = Math.min(MAX_COL_W, Math.max(MIN_COL_W, size));
-        else sheet.rowHeights[rs.idx] = Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, size));
+        let applied;
+        if (rs.kind === "col") applied = sheet.colWidths[rs.idx] = Math.min(MAX_COL_W, Math.max(MIN_COL_W, size));
+        else applied = sheet.rowHeights[rs.idx] = Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, size));
         computeGeometry(g);
         repaintGrid(g);
+        // live size in the Name Box while dragging the divider (Excel)
+        const box = g.els.fbarRef;
+        if (box) { const t = `${rs.kind === "col" ? "Width" : "Height"}: ${applied}px`; if (box.tagName === "INPUT") box.value = t; else box.textContent = t; }
       };
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
         document.body.style.cursor = "";
+        showDragSize(g, null); // restore the active-cell reference
         if (g.resize) { saveSheetMeta(g.sheet.id); pushStructUndo(g, g.resize.before); }
         g.resize = null;
       };
@@ -16738,12 +16892,21 @@ function bindGridEvents(g) {
       if (url) { openWbLink(url); return; }
     }
     if (g.editing) commitEdit(g, 0, 0, { refocus: false });
-    if (e.shiftKey) {
-      g.sel.r1 = r; g.sel.c1 = c;
+    const metaSel = (e.ctrlKey || e.metaKey) && !e.shiftKey; // Ctrl+click begins a new disjoint area
+    if (e.shiftKey || g.extendMode) {
+      g.sel.r1 = r; g.sel.c1 = c; // extend the active area (F8 or Shift); other areas persist
       paintSelection(g);
       repaintGrid(g);
     } else {
-      setActive(g, r, c, { scroll: false });
+      if (metaSel) {
+        // commit the current active rectangle, then start a fresh one at the
+        // click — the Ctrl+click multi-select gesture
+        g.selAreas = g.selAreas || [];
+        g.selAreas.push(selRect(g));
+        setActive(g, r, c, { scroll: false, keepAreas: true });
+      } else {
+        setActive(g, r, c, { scroll: false });
+      }
       g.dragging = true;
       let lastX = e.clientX, lastY = e.clientY;
       const extendTo = (clientX, clientY) => {
@@ -16756,6 +16919,8 @@ function bindGridEvents(g) {
           g.sel.r1 = dr; g.sel.c1 = dc;
           paintSelection(g);
           repaintGrid(g);
+          const rr = selRect(g); // live "NR x NC" in the Name Box (Excel)
+          showDragSize(g, rr.r1 - rr.r0 + 1, rr.c1 - rr.c0 + 1);
         }
       };
       const auto = edgeAutoScroll(scroll, () => extendTo(lastX, lastY));
@@ -16770,6 +16935,7 @@ function bindGridEvents(g) {
         auto.stop();
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        showDragSize(g, null); // restore the active-cell reference
         if (g.painter) applyFormatPainter(g);
       };
       document.addEventListener("mousemove", onMove);
@@ -16893,35 +17059,78 @@ function bindGridEvents(g) {
     if (meta && (k === "/" )) { e.preventDefault(); showShortcutsHelp(); return; } // shortcuts help
     if (meta && k.startsWith("Arrow")) {
       e.preventDefault();
+      g.entryCol = null;
+      const extend = e.shiftKey || g.extendMode;
       const dir = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[k];
-      const edge = dataEdge(g, e.shiftKey ? { r: g.sel.r1, c: g.sel.c1 } : g.active, dir[0], dir[1]);
-      if (e.shiftKey) {
+      const edge = dataEdge(g, extend ? { r: g.sel.r1, c: g.sel.c1 } : g.active, dir[0], dir[1]);
+      if (extend) {
         g.sel.r1 = edge.r; g.sel.c1 = edge.c;
         paintSelection(g); repaintGrid(g); scrollCellIntoView(g, edge.r, edge.c);
       } else setActive(g, edge.r, edge.c);
       return;
     }
+    // Ctrl+Space = whole column(s); Shift+Space = whole row(s);
+    // Ctrl+Shift+Space = whole sheet (Excel). Intercept before type-to-replace
+    // so Shift+Space doesn't start an edit with a space.
+    if ((meta || e.shiftKey) && k === " ") {
+      e.preventDefault();
+      g.entryCol = null;
+      clearSelAreas(g);
+      const rect = selRect(g);
+      if (meta && e.shiftKey) g.sel = { r0: 0, c0: 0, r1: g.sheet.rowCount - 1, c1: g.sheet.colCount - 1 };
+      else if (meta)         g.sel = { r0: 0, c0: rect.c0, r1: g.sheet.rowCount - 1, c1: rect.c1 };
+      else                   g.sel = { r0: rect.r0, c0: 0, r1: rect.r1, c1: g.sheet.colCount - 1 };
+      paintSelection(g); repaintGrid(g); syncFormulaBar(g);
+      return;
+    }
+    // F8 = toggle Extend Selection mode; Shift+F8 = Add to Selection (commit the
+    // active rectangle as a new disjoint area, then start a fresh one)
+    if (k === "F8") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        g.selAreas = g.selAreas || [];
+        g.selAreas.push(selRect(g));
+        g.extendMode = false;
+        setActive(g, g.active.r, g.active.c, { scroll: false, keepAreas: true });
+      } else {
+        g.extendMode = !g.extendMode;
+      }
+      updateModeIndicator(g);
+      return;
+    }
 
+    const ext = e.shiftKey || g.extendMode;
     switch (k) {
-      case "ArrowUp": e.preventDefault(); moveActive(g, -1, 0, e.shiftKey); return;
-      case "ArrowDown": e.preventDefault(); moveActive(g, 1, 0, e.shiftKey); return;
-      case "ArrowLeft": e.preventDefault(); moveActive(g, 0, -1, e.shiftKey); return;
-      case "ArrowRight": e.preventDefault(); moveActive(g, 0, 1, e.shiftKey); return;
-      case "Home": e.preventDefault(); setActive(g, e.ctrlKey ? (g.rows[0] ?? 0) : g.active.r, 0); return;
-      case "End": {
-        e.preventDefault();
-        const { maxC, maxR } = usedRange(g.sheet);
-        setActive(g, e.ctrlKey ? Math.max(0, maxR) : g.active.r, Math.max(0, maxC));
+      case "ArrowUp": e.preventDefault(); g.entryCol = null; moveActive(g, -1, 0, ext); return;
+      case "ArrowDown": e.preventDefault(); g.entryCol = null; moveActive(g, 1, 0, ext); return;
+      case "ArrowLeft": e.preventDefault(); g.entryCol = null; moveActive(g, 0, -1, ext); return;
+      case "ArrowRight": e.preventDefault(); g.entryCol = null; moveActive(g, 0, 1, ext); return;
+      case "Home": {
+        e.preventDefault(); g.entryCol = null;
+        const hr = e.ctrlKey ? (g.rows[0] ?? 0) : g.active.r;
+        if (ext) { g.sel.r1 = hr; g.sel.c1 = 0; paintSelection(g); repaintGrid(g); scrollCellIntoView(g, hr, 0); }
+        else setActive(g, hr, 0);
         return;
       }
-      case "PageDown": e.preventDefault(); moveActive(g, 15, 0, e.shiftKey); return;
-      case "PageUp": e.preventDefault(); moveActive(g, -15, 0, e.shiftKey); return;
-      case "Enter": e.preventDefault(); if (WB.canEdit) startEdit(g, g.active.r, g.active.c); return;
+      case "End": {
+        e.preventDefault(); g.entryCol = null;
+        const { maxC, maxR } = usedRange(g.sheet);
+        const er = e.ctrlKey ? Math.max(0, maxR) : g.active.r;
+        const ec = Math.max(0, maxC);
+        if (ext) { g.sel.r1 = er; g.sel.c1 = ec; paintSelection(g); repaintGrid(g); scrollCellIntoView(g, er, ec); }
+        else setActive(g, er, ec);
+        return;
+      }
+      case "PageDown": e.preventDefault(); g.entryCol = null; moveActive(g, 15, 0, ext); return;
+      case "PageUp": e.preventDefault(); g.entryCol = null; moveActive(g, -15, 0, ext); return;
+      // Excel: Enter/Tab navigate (they never open the editor). Enter moves
+      // down, Tab moves right; inside a selection they cycle and wrap.
+      case "Enter": e.preventDefault(); selNavStep(g, "v", e.shiftKey); return;
       case "F2": e.preventDefault(); if (WB.canEdit) startEdit(g, g.active.r, g.active.c); return;
-      case "Tab": e.preventDefault(); moveActive(g, 0, e.shiftKey ? -1 : 1, false); return;
+      case "Tab": e.preventDefault(); selNavStep(g, "h", e.shiftKey); return;
       case "Delete":
       case "Backspace": e.preventDefault(); clearSelection(g); return;
-      case "Escape": e.preventDefault(); if (g.painter) { cancelFormatPainter(g); return; } if (clearMarquee(g)) return; closeAllPopovers(); g.sel = { r0: g.active.r, c0: g.active.c, r1: g.active.r, c1: g.active.c }; paintSelection(g); repaintGrid(g); return;
+      case "Escape": e.preventDefault(); if (g.painter) { cancelFormatPainter(g); return; } if (clearMarquee(g)) return; if (g.extendMode) { g.extendMode = false; updateModeIndicator(g); } closeAllPopovers(); clearSelAreas(g); g.sel = { r0: g.active.r, c0: g.active.c, r1: g.active.r, c1: g.active.c }; paintSelection(g); repaintGrid(g); return;
     }
     // type-to-replace: printable character starts an edit
     if (WB.canEdit && k.length === 1 && !meta && !e.altKey) {
@@ -16984,6 +17193,7 @@ function bindGridEvents(g) {
   grid.addEventListener("copy", (e) => {
     if (g.editing) return;
     e.preventDefault();
+    if (hasMultiSel(g)) { _toast("That command can't be used on multiple selections", "warn"); return; }
     captureClipboard(g, "copy");
     e.clipboardData.setData("text/plain", WB.clipboard.text);
     paintSelection(g); // marching-ants marquee
@@ -16991,6 +17201,7 @@ function bindGridEvents(g) {
   grid.addEventListener("cut", (e) => {
     if (g.editing) return;
     e.preventDefault();
+    if (hasMultiSel(g)) { _toast("That command can't be used on multiple selections", "warn"); return; }
     captureClipboard(g, "cut");
     e.clipboardData.setData("text/plain", WB.clipboard.text);
     paintSelection(g); // marching-ants marquee
@@ -20294,6 +20505,7 @@ export const __engine = {
   aiWorkbookSchema, aiPlanToSpecs,
   computePivot, pivotAggregate, pivotTableHtml, pivotEffectiveSpec, pivotDrillRecords, pivotChartSvg, ooxmlChartXml, ooxmlDrawingXml, pivotToExportSheet, expandExportSheets,
   autoLinkFor, cellLink, cellInnerHtml,
+  selCycle,
   WB_IMG_RE, cellImgSrc,
   planMoveChanges, recalcSheet,
   fillWeekDates, fillSheetInfo, fillDriverIdAt, fillSheetDriverIds,
