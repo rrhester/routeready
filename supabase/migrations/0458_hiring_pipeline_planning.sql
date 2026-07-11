@@ -17,7 +17,7 @@
 --
 -- Cohort honesty: conditional rates are computed only over applicants
 -- whose outcome is known — terminal status (hired / auto_declined /
--- rejected / no_show) or older than 45 days (a stale, silent applicant is
+-- rejected / not_hired / no_show) or older than 45 days (a stale, silent applicant is
 -- a "no" in practice). Counting mid-funnel applicants as non-hires would
 -- understate rates; ignoring stale ones would overstate them. The same
 -- 45-day line keeps the "in funnel now" counts fresh: only non-terminal
@@ -94,7 +94,7 @@ begin
       ('interview_booked', 6), ('interview_completed', 6),
       ('orientation_invited', 7), ('orientation_booked', 7),
       ('hired', 8),
-      ('rejected', 1), ('no_show', 1)
+      ('rejected', 1), ('not_hired', 1), ('no_show', 1)
   ),
   events as (
     -- Every status an applicant has ever held: current + full history.
@@ -111,9 +111,9 @@ begin
     select a.id,
            max(coalesce(rm.rnk, 1)) as max_rank,
            bool_or(e.st = 'hired')  as is_hired,
-           (a.status::text in ('hired', 'auto_declined', 'rejected', 'no_show')
+           (a.status::text in ('hired', 'auto_declined', 'rejected', 'not_hired', 'no_show')
              or a.created_at <= now() - interval '45 days') as resolved,
-           case when a.status::text not in ('hired', 'auto_declined', 'rejected', 'no_show')
+           case when a.status::text not in ('hired', 'auto_declined', 'rejected', 'not_hired', 'no_show')
                   and a.created_at > now() - interval '45 days'
                 then (select rm2.rnk from rank_map rm2 where rm2.st = a.status::text)
                 else null end as live_rank
