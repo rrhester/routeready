@@ -3582,15 +3582,23 @@ function _rrIntelRenderRiskForecast(view) {
           <span class="rr-intel-headline-pill ok" id="rr-rf-pill" hidden><span class="dot"></span></span>
         </h2>
         <p class="rr-intel-view-sub">${window._rrSimResultsByWeek
-          ? "Reading from your last <strong>Simulate 13 weeks</strong> run — each week starts from the actual driver pool minus approved time-off, then folds in your observed callout and attrition rates."
-          : "Effective-supply projections across your 13-week plan — payroll minus onboarding ramp, projected attrition, and expected callouts. Click <strong>Simulate 13 weeks</strong> on the Targets page to fold in approved PTO + time-off."}</p>
+          ? "Reading from your last <strong>Simulate 13 weeks</strong> run."
+          : "Effective-supply projections across your 13-week plan."}</p>
       </div>
       <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </header>
 
-    <form class="rr-intel-whatif-form rr-intel-calcbar" id="rr-rf-calc" title="Every field recalculates the forecast instantly. Sandbox only — your plan is not changed.">
+    <div class="rr-intel-calcrow">
+      <button type="button" class="rr-intel-calc-toggle${window._rrRfCalcOpen ? " is-open" : ""}" id="rr-rf-calc-toggle" aria-expanded="${window._rrRfCalcOpen ? "true" : "false"}" aria-controls="rr-rf-calc" title="Adjust the forecast's assumptions — sandbox only, your plan is not changed">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><circle cx="9" cy="8" r="2.2"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="15" cy="16" r="2.2"/></svg>
+        Assumptions
+        <svg class="rr-intel-calc-caret" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+      </button>
+      <span class="rr-intel-flexplan-hint" id="rr-rf-calc-note"></span>
+    </div>
+    <form class="rr-intel-whatif-form rr-intel-calcbar" id="rr-rf-calc"${window._rrRfCalcOpen ? "" : " hidden"} title="Every field recalculates the forecast instantly. Sandbox only — your plan is not changed.">
       <label class="rr-intel-whatif-field"><span>Callout %</span><input type="number" id="rr-rf-callout" min="0" max="50" step="1" value="${seedCallout}"></label>
       <label class="rr-intel-whatif-field"><span>Attrition %/wk</span><input type="number" id="rr-rf-attr" min="0" max="10" step="0.1" value="${seedAttr}"></label>
       <label class="rr-intel-whatif-field"><span>Hire lead · days</span><input type="number" id="rr-rf-lead" min="7" max="90" step="1" value="${seedLead}"></label>
@@ -3598,10 +3606,21 @@ function _rrIntelRenderRiskForecast(view) {
       <label class="rr-intel-whatif-field"><span>Pad %</span><input type="number" id="rr-rf-pad" min="0" max="50" step="1" value="${seedPad}"></label>
       <label class="rr-intel-whatif-field"><span>+ Hires</span><input type="number" id="rr-rf-hires" min="0" max="200" step="1" value="${seedHires}"></label>
       <label class="rr-intel-whatif-field"><span>Arriving</span><select id="rr-rf-from">${fromOpts}</select></label>
-      <button type="button" class="rr-intel-whatif-run" id="rr-rf-reset">Reset to observed</button>
-      <span class="rr-intel-flexplan-hint" id="rr-rf-calc-note"></span>
+      <button type="button" class="rr-intel-whatif-run" id="rr-rf-reset" hidden>Reset to observed</button>
     </form>
     <div id="rr-intel-rf-out"></div>`;
+
+  // The bar stays collapsed until asked for — the forecast reads as a calm
+  // report first, calculator second. Open state persists for the session.
+  const calcToggle = view.querySelector("#rr-rf-calc-toggle");
+  if (calcToggle) calcToggle.addEventListener("click", () => {
+    const form = view.querySelector("#rr-rf-calc");
+    if (!form) return;
+    window._rrRfCalcOpen = form.hidden;
+    form.hidden = !form.hidden;
+    calcToggle.setAttribute("aria-expanded", String(!form.hidden));
+    calcToggle.classList.toggle("is-open", !form.hidden);
+  });
 
   const bar = view.querySelector("#rr-rf-calc");
   let barDebounce = null;
@@ -3794,10 +3813,14 @@ function _rrRenderRiskForecastOut(view, weeks) {
     pill.innerHTML = `<span class="dot"></span>${overallLabel}`;
   }
   // Sandbox note — deltas vs the observed baseline, shown while any dial
-  // is set so the operator always sees what their inputs changed.
+  // is set (visible even with the bar collapsed, so edits are never
+  // silent). Reset only appears when there is something to reset.
   const note = view.querySelector("#rr-rf-calc-note");
+  const resetEl = view.querySelector("#rr-rf-reset");
+  const hasOverrides = Object.keys(overrides).length > 0;
+  if (resetEl) resetEl.hidden = !hasOverrides;
   if (note) {
-    if (Object.keys(overrides).length) {
+    if (hasOverrides) {
       const B = _rrAssessOkamiPlan(weeks);
       const shortN = (X) => X.weeks.filter((w) => w.gap < 0).length;
       note.textContent = (B.worstWeek?.gap !== A.worstWeek?.gap || shortN(B) !== shortN(A))
@@ -3835,7 +3858,7 @@ function _rrRenderRiskForecastOut(view, weeks) {
     <div class="rr-intel-strip-section">
       <div class="rr-intel-section-head">
         <h3 class="rr-intel-section-title">13-week risk strip</h3>
-        <span class="rr-intel-section-aside">Bar height = drivers needed · solid cap = uncovered · color = coverage status</span>
+        <span class="rr-intel-section-aside">height = needed · cap = uncovered</span>
       </div>
       <div class="rr-intel-strip" role="list" aria-label="13-week risk bars">${stripHtml}</div>
     </div>
