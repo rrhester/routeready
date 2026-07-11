@@ -514,7 +514,7 @@ function handlePresence(stateMap) {
       }
     }
   }
-  if (state.isHost) {
+  if (canAdmitGuests()) {
     for (const k of knockers) {
       if (!prevWaitKeys.has(k.key)) {
         toast(`${k.name || "Someone"} is waiting to join`);
@@ -529,15 +529,34 @@ function handlePresence(stateMap) {
 
 // ─── waiting room · host queue UI + admission events ─────────────────────
 
+// Who gets the Admit/Deny queue? Hosts and staff. FAIL-SAFE: if nobody
+// in the room advertises host powers (system-minted room where is_host
+// detection failed, host on a stale client, migration not yet applied),
+// every participant already inside gets it — field report 2026-07-11: a
+// guest sat in the waiting room while the interviewer had no admit UI
+// at all. A stuck waiting room is worse than a generous one; the
+// unguessable invite code remains the actual security boundary.
+function canAdmitGuests() {
+  if (state.knock || document.body.dataset.screen !== "room") return false;
+  if (state.isHost) return true;
+  return !state.roster.some((r) => r.key !== state.peerKey && r.host);
+}
+
 function renderWaitingUI() {
   const btn = $("btn-waiting");
   if (!btn) return;
   const q = state.waiting;
-  const visible = state.isHost && q.length > 0 && document.body.dataset.screen === "room";
+  const visible = canAdmitGuests() && q.length > 0;
   btn.style.display = visible ? "" : "none";
   btn.textContent = q.length === 1 ? "1 waiting" : `${q.length} waiting`;
   const pop = $("waiting-pop");
+  // Auto-open when someone new knocks — the chip alone was missable in
+  // the field. Manual toggle still works; the pop closes itself when
+  // the queue empties.
+  const prevCount = renderWaitingUI._n || 0;
+  renderWaitingUI._n = visible ? q.length : 0;
   if (!visible) { pop.hidden = true; return; }
+  if (q.length > prevCount) pop.hidden = false;
   const list = $("waiting-list");
   list.innerHTML = "";
   for (const k of q) {
