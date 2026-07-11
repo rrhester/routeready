@@ -25,6 +25,14 @@ async function bootForm(page, form) {
     }
     return route.abort();
   });
+  // supabase-js is vendored same-origin now (app/vendor/supabase-js.mjs) —
+  // swap the real bundle for the same fake client the esm.sh stub returned.
+  await page.route(/\/vendor\/supabase-js\.mjs(\?.*)?$/, (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: "export function createClient(){ return window.__rrSb; }",
+    })
+  );
 
   await page.addInitScript(({ form, session }) => {
     localStorage.setItem("rr.driver.session", JSON.stringify(session));
