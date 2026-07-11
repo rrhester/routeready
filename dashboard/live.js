@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=34cc65559aa9";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=34cc65559aa9";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=34cc65559aa9";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20fff63bdb36";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=20fff63bdb36";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=20fff63bdb36";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -18174,7 +18174,7 @@ async function _refreshTodayPlanData() {
   //
   // overtime_intelligence() drives the "until OT" sub-line on each
   // roster row. Pulled in parallel; a failure here just hides the line.
-  const [attRes, rosterRes, otRes, planRes, fleetRes, pipeRes] = await Promise.allSettled([
+  const [attRes, rosterRes, otRes, planRes, fleetRes, pipeRes, riskRes] = await Promise.allSettled([
     isToday ? sb.rpc("today_attendance") : Promise.resolve({ data: null, error: null }),
     sb.rpc("today_roster", { p_date: viewIso }),
     sb.rpc("overtime_intelligence"),
@@ -18186,6 +18186,12 @@ async function _refreshTodayPlanData() {
     // Date-independent; a failure just hides the tile.
     sb.rpc("fleet_execution_summary"),
     sb.rpc("pipeline_counts"),
+    // Call-out exposure: drivers on an active (unresolved) FINAL corrective
+    // action are the "High Risk" population most likely to call out. FINAL-only
+    // — matching the roster / Schedule Callout Exposure definition exactly
+    // (termination was dropped per operator definition, sw.js nonce .53) so the
+    // two surfaces never disagree. Just the at-risk driver ids.
+    sb.from("coachings").select("driver_id").eq("dsp_id", window.RR.dsp.id).is("archived_at", null).is("resolved_at", null).eq("severity", "final"),
   ]);
 
   const attData    = (attRes.status === "fulfilled"    ? attRes.value.data    : null);
@@ -18201,6 +18207,8 @@ async function _refreshTodayPlanData() {
   const planError = (planRes.status === "fulfilled" ? planRes.value.error : planRes.reason);
   const fleetData = (fleetRes.status === "fulfilled" ? fleetRes.value.data : null);
   const pipeData  = (pipeRes.status === "fulfilled"  ? pipeRes.value.data  : null);
+  // At-risk drivers (open Final/Termination CA). Null on failure → pill hides.
+  const riskData  = (riskRes.status === "fulfilled"  ? riskRes.value.data  : null);
 
   if (attData)  _tpCacheWrite(_TP_CACHE_KEYS.att,  attData);
   if (planData) _tpCacheWrite(_TP_CACHE_KEYS.plan, planData);
@@ -18221,7 +18229,7 @@ async function _refreshTodayPlanData() {
   // Update the meta line (page-level scheduled-driver count + on-app).
   // Pass rosterData so the future-day KPIs can synthesize counts the
   // same way the roster card does.
-  try { _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeData); } catch (e) { console.warn("tp meta:", e); }
+  try { _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeData, riskData); } catch (e) { console.warn("tp meta:", e); }
 
   // The single unified roster card replaces the old four-card layout.
   try { _renderTpUnifiedRoster(attData, rosterData, attError || rosterError, otData); }
@@ -18788,7 +18796,7 @@ function _tpRowActions(r) {
 }
 
 // Top-of-page overview — a quiet SaaS summary strip above the roster.
-function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeData) {
+function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeData, riskData) {
   const el = document.getElementById("rr-tp-kpis");
   if (!el) return;
   const viewIso = (typeof _tpDateIso === "string" && _tpDateIso) || (typeof _tpToday === "function" ? _tpToday() : null);
@@ -18853,6 +18861,12 @@ function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeDat
   const dayPills = rows.length > 0;
   const waves = new Set(rows.map(r => r.wave_index ?? 0));
   const extras = rows.filter(r => r.is_cushion).length;
+  // Call-out exposure: how many of today's scheduled drivers are on an active
+  // (unresolved) FINAL corrective action — the "High Risk" population most
+  // likely to no-show, defined identically to the Schedule Callout Exposure
+  // panel. Red when at-risk outnumbers the cushion drivers who'd cover them.
+  const atRiskIds = new Set((Array.isArray(riskData) ? riskData : []).map(c => c.driver_id).filter(Boolean));
+  const atRiskScheduled = atRiskIds.size ? rows.filter(r => atRiskIds.has(r.driver_id)).length : 0;
   const flagged = rows.filter(r => ["tardy","ncns","missed_reported"].includes(r.computed_outcome) && !r.decision).length;
   const checkedIn = rows.filter(r => ["checked_in", "checked_out"].includes(r.computed_outcome)).length;
   const navy = "#1E293B";
@@ -18863,6 +18877,7 @@ function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeDat
     extras:     dayPills ? { value: extras, sub: "Cushion / Ex drivers", tone: "navy" } : null,
     openroutes: (openRoutes == null || (!dayPills && openRoutes === 0)) ? null : { value: openRoutes, sub: openRoutes === 0 ? "All routes covered" : "to assign", tone: openRoutes > 0 ? "red" : "green", onclick: "goto('schedule')", navTitle: "Open the schedule to assign routes" },
     otrisk:     (otSum && (dayPills || otRiskCount > 0)) ? { value: otRiskCount, sub: otExposure ? `~$${Math.round(otExposure).toLocaleString()} OT exposure` : `${otActive} in OT · ${otProjected} projected`, tone: otActive > 0 ? "red" : (otProjected > 0 ? "amber" : "navy"), onclick: "goto('schedule')", navTitle: "Overtime intelligence on the schedule" } : null,
+    callout:    (dayPills && atRiskScheduled > 0) ? { value: atRiskScheduled, sub: `vs ${extras} cushion`, tone: atRiskScheduled > extras ? "red" : "amber", onclick: "goto('schedule')", navTitle: "At-risk drivers scheduled today (open Final corrective action)" } : null,
     license:    dlList.length ? { value: dlList.length, sub: "license expiring ≤7 days", tone: dlUrgent ? "red" : (dlSoon ? "amber" : "navy"), onclick: "window._rrGotoSubIntent={view:'schedule',sub:'roster'};goto('schedule')", navTitle: "Open the roster" } : null,
     fleet:      (vorr && fleetBranded > 0 && fleetPct != null) ? { value: `${fleetPct}%`, sub: fleetGrounded > 0 ? `${fleetGrounded} grounded` : "fleet ready", tone: vorr.threshold_status === "critical" ? "red" : (vorr.threshold_status === "warning" ? "amber" : "green"), onclick: "goto('fleet2')", navTitle: "Open Fleet" } : null,
     pipeline:   pipeCounts.length ? { value: inPipeline, sub: "in hiring pipeline", tone: "navy", onclick: "goto('pipeline')", navTitle: "Open the hiring pipeline" } : null,
@@ -18883,6 +18898,7 @@ function _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeDat
     + pill("extras",     "Extras",     summary.extras)
     + pill("openroutes", openRoutes === 1 ? "Open route" : "Open routes", summary.openroutes)
     + pill("otrisk",     "OT risk",    summary.otrisk)
+    + pill("callout",    "At-risk",    summary.callout)
     + pill("license",    dlList.length === 1 ? "License" : "Licenses", summary.license)
     + pill("fleet",      "Fleet ready", summary.fleet)
     + pill("pipeline",   inPipeline === 1 ? "Candidate" : "Candidates", summary.pipeline)
