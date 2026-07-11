@@ -187,6 +187,33 @@
 .rrnb-editor th{background:var(--surface-secondary);font-weight:600;text-align:left}
 .rrnb-editor mark{background:var(--amber-soft,rgba(217,119,6,.18));border-radius:2px;padding:0 1px}
 .rrnb-editor img{max-width:100%;border-radius:var(--r-md);margin:var(--s-1) 0}
+/* figures (pasted / dropped images) */
+.rrnb-editor figure.rrnb-fig{margin:var(--s-3) 0;max-width:100%}
+.rrnb-editor figure.rrnb-fig img{display:block;margin:0;cursor:default}
+.rrnb-editor figure.rrnb-fig.sel img{outline:2px solid var(--accent);outline-offset:2px}
+.rrnb-editor figure.rrnb-fig figcaption{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:6px;
+  padding:2px 2px;outline:0;border-radius:var(--r-sm)}
+.rrnb-editor figure.rrnb-fig figcaption:empty::before{content:"Add a caption…";color:var(--text-disabled)}
+.rrnb-editor figure.rrnb-fig figcaption:focus{background:var(--surface-secondary)}
+/* file attachment chip */
+.rrnb-editor .rrnb-file{display:flex;align-items:center;gap:var(--s-2);margin:var(--s-2) 0;padding:var(--s-2) var(--s-3);
+  border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);max-width:420px;text-decoration:none;color:var(--text)}
+.rrnb-editor .rrnb-file:hover{border-color:var(--accent);background:var(--accent-soft)}
+.rrnb-editor .rrnb-file .fic{width:34px;height:34px;border-radius:var(--r-sm);background:var(--surface-secondary);
+  display:grid;place-items:center;flex:0 0 auto;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase}
+.rrnb-editor .rrnb-file .fnm{flex:1;min-width:0}
+.rrnb-editor .rrnb-file .fnm b{display:block;color:var(--text);font-size:var(--fs-base);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrnb-editor .rrnb-file .fnm span{font-size:var(--fs-xs);color:var(--text-subtle)}
+.rrnb-editor.rrnb-drop{outline:2px dashed var(--accent);outline-offset:-6px;background:var(--accent-soft)}
+/* image size popover buttons */
+.rrnb-pop .rrnb-sizes{display:flex;gap:4px;margin-top:var(--s-1)}
+.rrnb-pop .rrnb-sizes button{flex:1;height:30px;border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);color:var(--text-muted);cursor:pointer;font-size:var(--fs-sm);font-weight:600}
+.rrnb-pop .rrnb-sizes button:hover{border-color:var(--accent);color:var(--accent)}
+/* page-add row + template button */
+.rrnb-pageadd{display:flex;gap:6px;margin-top:var(--s-1)}
+.rrnb-pageadd .rrnb-newpage{margin-top:0}
+.rrnb-tpl-btn{flex:0 0 auto;width:40px;justify-content:center;font-size:var(--fs-lg)}
 /* to-do widget */
 .rrnb-todo{display:flex;align-items:flex-start;gap:var(--s-2);margin:2px 0}
 .rrnb-todo-box{flex:0 0 auto;width:18px;height:18px;margin-top:3px;border:1.6px solid var(--border-strong);
@@ -276,6 +303,14 @@
     </div>
     <div class="rrnb-sections" id="rrnb-sections"></div>
     <div class="rrnb-railfoot">
+      <button class="rrnb-linkbtn" id="rrnb-quicknote-btn" type="button" title="Capture a quick note (Alt+Q)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>
+        <span>Quick Note</span>
+      </button>
+      <button class="rrnb-linkbtn" id="rrnb-recent-btn" type="button" title="Recently opened pages">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+        <span>Recent</span>
+      </button>
       <button class="rrnb-linkbtn" id="rrnb-recycle-btn" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
         <span>Recycle Bin</span>
@@ -551,6 +586,7 @@
     var host = $id("rrnb-pagelist"); if (!host) return;
     if (S.mode === "search") return; // search owns the list
     if (S.mode === "recycle") return renderRecycle(host);
+    if (S.mode === "recent") return renderRecent();
     if (!S.tree || !S.activeSection) { host.innerHTML = '<div class="rrnb-empty">Pick a section to see its pages.</div>'; return; }
     var pages = S.tree.pages.filter(function (p) { return p.section_id === S.activeSection; });
     // build tree order: top pages by position, children after their parent
@@ -562,7 +598,8 @@
     if (pinned.length) { html += '<div class="rrnb-plgroup-hd">Pinned</div>' + pinned.map(function (p) { return pageRow(p, true); }).join(""); html += '<div class="rrnb-plgroup-hd">Pages</div>'; }
     function walk(p) { html += pageRow(p, false); (kids[p.id] || []).forEach(walk); }
     tops.forEach(walk);
-    html += '<button class="rrnb-newpage" data-add-page="1">＋ Add page  <span style="margin-left:auto;color:var(--text-disabled)">Alt+N</span></button>';
+    html += '<div class="rrnb-pageadd"><button class="rrnb-newpage" data-add-page="1">＋ Add page  <span style="margin-left:auto;color:var(--text-disabled)">Alt+N</span></button>' +
+      '<button class="rrnb-newpage rrnb-tpl-btn" data-template-menu="1" title="New page from a template">▤</button></div>';
     host.innerHTML = html;
   }
   function pageRow(p, pinnedCtx) {
@@ -622,6 +659,8 @@
       '<button class="rrnb-tb" data-cmd="callout" title="Callout">⚑</button>' +
       '<button class="rrnb-tb" data-cmd="hr" title="Divider">—</button>' +
       '<button class="rrnb-tb" data-cmd="table" title="Insert table"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></svg></button>' +
+      '<button class="rrnb-tb" data-cmd="image" title="Insert picture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-5-5-6 6-3-3-4 4"/></svg></button>' +
+      '<button class="rrnb-tb" data-cmd="attach" title="Attach a file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7l9-9a3.3 3.3 0 0 1 4.7 4.7l-9 9a1.6 1.6 0 0 1-2.3-2.3l8.3-8.3"/></svg></button>' +
       '<span class="rrnb-tb-sep"></span>' +
       '<button class="rrnb-tb" data-cmd="link" title="Link (Ctrl+K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></button>' +
       '<button class="rrnb-tb" data-cmd="pagelink" title="Link to a page">[[ ]]</button>' +
@@ -635,6 +674,7 @@
     S.be.getPage(id).then(function (p) {
       if (!p) { showBlank(); return; }
       S.pageId = id; S.page = p; S.mode = "notebook"; S.savedAt = p.updated_at;
+      trackRecent(p);
       renderCanvas(p);
       renderPageList();
     }).catch(fail);
@@ -664,7 +704,12 @@
     ed.addEventListener("click", onEditorClick);
     ed.addEventListener("keyup", refreshToolbarState);
     ed.addEventListener("mouseup", refreshToolbarState);
+    ed.addEventListener("paste", onEditorPaste);
+    ed.addEventListener("dragover", function (e) { e.preventDefault(); ed.classList.add("rrnb-drop"); });
+    ed.addEventListener("dragleave", function () { ed.classList.remove("rrnb-drop"); });
+    ed.addEventListener("drop", onEditorDrop);
     bindToolbar();
+    makeCaptionsEditable();
     renderTags(p.tags || []);
     renderBacklinks(id_of(p));
     refreshSaveLabel();
@@ -700,6 +745,8 @@
       case "callout": insertCallout(); break;
       case "todo": insertTodo(); break;
       case "table": openTablePicker(); break;
+      case "image": pickFile("image/*", true); break;
+      case "attach": pickFile("*/*", false); break;
       case "link": openLinkPicker(); break;
       case "pagelink": openPagePicker(); break;
       case "smartlink": smartLink(); break;
@@ -732,12 +779,99 @@
   function onEditorClick(e) {
     var box = e.target.closest(".rrnb-todo-box");
     if (box) { var row = box.closest(".rrnb-todo"); row.setAttribute("data-checked", row.getAttribute("data-checked") === "1" ? "0" : "1"); box.textContent = row.getAttribute("data-checked") === "1" ? "✓" : ""; scheduleSave(); return; }
+    var img = e.target.closest("figure.rrnb-fig img");
+    var ed = $id("rrnb-editor");
+    if (ed) ed.querySelectorAll("figure.rrnb-fig.sel").forEach(function (f) { f.classList.remove("sel"); });
+    if (img) { var fig = img.closest("figure.rrnb-fig"); fig.classList.add("sel"); openImageSize(fig, img); return; }
+    var fl = e.target.closest("a.rrnb-file"); if (fl) { return; } // let the download link work
     var pl = e.target.closest("a.rrnb-pagelink");
     if (pl && (e.ctrlKey || e.metaKey || e.type === "click")) { var pid = pl.getAttribute("data-page-id"); if (pid) { e.preventDefault(); openPage(pid); } return; }
     var ol = e.target.closest("a.rrnb-objlink");
     if (ol) { e.preventDefault(); var ot = ol.getAttribute("data-obj-type"), oi = ol.getAttribute("data-obj-id"); openObjectRef(ot, oi); }
   }
   function openObjectRef(type, id) { if (window.RRNotebooks && window.RRNotebooks.openFor) window.RRNotebooks.openFor(type, id); }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  MEDIA — images (paste / drop / pick, client-side compressed) + files
+  // ══════════════════════════════════════════════════════════════════
+  var MAX_IMG_DIM = 1600, MAX_FILE_BYTES = 8 * 1024 * 1024; // 8MB inline cap
+  function pickFile(accept, isImage) {
+    var inp = document.createElement("input");
+    inp.type = "file"; inp.accept = accept; inp.style.display = "none";
+    if (accept === "image/*") inp.multiple = true;
+    document.body.appendChild(inp);
+    inp.addEventListener("change", function () {
+      var files = Array.prototype.slice.call(inp.files || []);
+      files.forEach(function (f) { isImage || /^image\//.test(f.type) ? insertImageFile(f) : insertFileAttachment(f); });
+      inp.remove();
+    });
+    inp.click();
+  }
+  function insertImageFile(file) {
+    if (!file || !/^image\//.test(file.type)) return insertFileAttachment(file);
+    var reader = new FileReader();
+    reader.onload = function () { compressImage(reader.result, file.type, function (dataUrl) {
+      insertHTMLAtCursor('<figure class="rrnb-fig"><img src="' + dataUrl + '" alt="' + esc(file.name || "image") + '" /><figcaption></figcaption></figure><p><br></p>');
+      makeCaptionsEditable(); scheduleSave();
+    }); };
+    reader.readAsDataURL(file);
+  }
+  function compressImage(dataUrl, type, cb) {
+    try {
+      var im = new Image();
+      im.onload = function () {
+        var w = im.naturalWidth, h = im.naturalHeight, scale = Math.min(1, MAX_IMG_DIM / Math.max(w, h));
+        if (scale >= 1 && (dataUrl.length < 400000)) return cb(dataUrl); // small enough already
+        var cw = Math.round(w * scale), ch = Math.round(h * scale);
+        var c = document.createElement("canvas"); c.width = cw; c.height = ch;
+        c.getContext("2d").drawImage(im, 0, 0, cw, ch);
+        var out = /png/.test(type) ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.82);
+        cb(out || dataUrl);
+      };
+      im.onerror = function () { cb(dataUrl); };
+      im.src = dataUrl;
+    } catch (e) { cb(dataUrl); }
+  }
+  function insertFileAttachment(file) {
+    if (!file) return;
+    if (file.size > MAX_FILE_BYTES) { notify('"' + (file.name || "file") + '" is over 8 MB — large files land in Phase 3 (Storage offload).'); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var ext = ((file.name || "").split(".").pop() || "file").slice(0, 4);
+      insertHTMLAtCursor('<a class="rrnb-file" contenteditable="false" href="' + reader.result + '" download="' + esc(file.name || "file") + '">' +
+        '<span class="fic">' + esc(ext) + '</span><span class="fnm"><b>' + esc(file.name || "file") + '</b><span>' + fmtBytes(file.size) + '</span></span></a><p><br></p>');
+      scheduleSave();
+    };
+    reader.readAsDataURL(file);
+  }
+  function fmtBytes(n) { if (!n && n !== 0) return ""; if (n < 1024) return n + " B"; if (n < 1048576) return (n / 1024).toFixed(0) + " KB"; return (n / 1048576).toFixed(1) + " MB"; }
+  function makeCaptionsEditable() {
+    var ed = $id("rrnb-editor"); if (!ed) return;
+    ed.querySelectorAll("figure.rrnb-fig figcaption").forEach(function (c) { c.setAttribute("contenteditable", "true"); });
+  }
+  function onEditorPaste(e) {
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.indexOf("image") === 0) {
+        var f = items[i].getAsFile(); if (f) { e.preventDefault(); insertImageFile(f); return; }
+      }
+    }
+  }
+  function onEditorDrop(e) {
+    var ed = $id("rrnb-editor"); if (ed) ed.classList.remove("rrnb-drop");
+    var files = (e.dataTransfer && e.dataTransfer.files) || [];
+    if (files.length) {
+      e.preventDefault();
+      Array.prototype.slice.call(files).forEach(function (f) { /^image\//.test(f.type) ? insertImageFile(f) : insertFileAttachment(f); });
+    }
+  }
+  function openImageSize(fig, img) {
+    var r = img.getBoundingClientRect();
+    var pop = showPop('<label>Picture size</label><div class="rrnb-sizes">' +
+      '<button data-imgw="25">25%</button><button data-imgw="50">50%</button><button data-imgw="75">75%</button><button data-imgw="100">100%</button></div>', r);
+    pop.addEventListener("click", function (e) { var b = e.target.closest("[data-imgw]"); if (!b) return;
+      img.style.width = b.getAttribute("data-imgw") + "%"; img.style.height = "auto"; hidePop(); scheduleSave(); });
+  }
 
   // ── keyboard shortcuts in the editor ─────────────────────────────
   function onEditorKey(e) {
@@ -1072,7 +1206,10 @@
       plHost.addEventListener("click", function (e) {
         var kb = e.target.closest("[data-menu='page']"); if (kb) { var r = kb.getBoundingClientRect(); return pageMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
         var add = e.target.closest("[data-add-page]"); if (add) return newPage();
+        var tpl = e.target.closest("[data-template-menu]"); if (tpl) return openTemplateMenu(tpl);
         var exit = e.target.closest("[data-exit-recycle]"); if (exit) { S.mode = "notebook"; return renderPageList(); }
+        var exr = e.target.closest("[data-exit-recent]"); if (exr) { S.mode = "notebook"; return renderPageList(); }
+        var rp = e.target.closest("[data-recent-page]"); if (rp) { var rnb = rp.getAttribute("data-recent-nb"), rpg = rp.getAttribute("data-recent-page"); if (rnb && rnb !== S.nbId) { S.activeSection = null; return selectNotebook(rnb, rpg); } S.mode = "notebook"; return openPage(rpg); }
         var rb = e.target.closest("[data-restore-btn]"); if (rb) { return S.be.restoreItem("page", rb.getAttribute("data-restore-btn")).then(function () { return selectNotebook(S.nbId, null); }); }
         var sr = e.target.closest("[data-search-page]"); if (sr) { var nb = sr.getAttribute("data-search-nb"), pg = sr.getAttribute("data-search-page"); var si = $id("rrnb-search-input"); if (si) si.value = ""; if (nb !== S.nbId) { S.activeSection = null; return selectNotebook(nb, pg); } S.mode = "notebook"; return openPage(pg); }
         var pg2 = e.target.closest("[data-page]"); if (pg2) { S.mode = "notebook"; openPage(pg2.getAttribute("data-page")); }
@@ -1085,6 +1222,12 @@
     // recycle bin button
     var rec = $id("rrnb-recycle-btn");
     if (rec) rec.addEventListener("click", function () { S.mode = "recycle"; renderPageList(); });
+
+    // quick note + recent
+    var qn = $id("rrnb-quicknote-btn");
+    if (qn) qn.addEventListener("click", function () { quickNote(); });
+    var rcb = $id("rrnb-recent-btn");
+    if (rcb) rcb.addEventListener("click", function () { S.mode = "recent"; renderRecent(); });
 
     // search
     var si = $id("rrnb-search-input");
@@ -1112,6 +1255,7 @@
       var v = ROOT(); if (!v || !v.classList.contains("active")) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && !e.shiftKey) { var s = $id("rrnb-search-input"); if (s) { e.preventDefault(); s.focus(); s.select(); } }
       if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); if (e.shiftKey) newSection(); else newPage(); }
+      if (e.altKey && e.key.toLowerCase() === "q") { e.preventDefault(); quickNote(); }
       if (e.key === "Escape") { hidePop(); hideCtx(); }
     });
 
@@ -1149,6 +1293,90 @@
       renderPageList(); openPage(p.id);
       setTimeout(function () { var t = $id("rrnb-title"); if (t) { t.focus(); t.select(); } }, 30);
     }).catch(fail);
+  }
+
+  // ── templates ────────────────────────────────────────────────────
+  var TEMPLATES = [
+    { id: "blank", name: "Blank page", title: "Untitled Page", html: "" },
+    { id: "meeting", name: "Meeting notes", title: "Meeting — " + todayStr(), html:
+      "<h2>Meeting notes</h2><p><b>Date:</b> " + todayStr() + " &nbsp; <b>Attendees:</b> </p>" +
+      "<h3>Agenda</h3><ul><li></li></ul><h3>Discussion</h3><p></p>" +
+      "<h3>Action items</h3><div class='rrnb-todo' data-checked='0'><span class='rrnb-todo-box' contenteditable='false'></span><span class='rrnb-todo-text'></span></div>" +
+      "<h3>Decisions</h3><ul><li></li></ul>" },
+    { id: "incident", name: "Incident report", title: "Incident — " + todayStr(), html:
+      "<h2>Incident report</h2><p><b>When:</b> " + todayStr() + " &nbsp; <b>Where:</b> &nbsp; <b>Reported by:</b> </p>" +
+      "<h3>What happened</h3><p></p><h3>People / vehicles involved</h3><ul><li></li></ul>" +
+      "<h3>Immediate actions</h3><div class='rrnb-todo' data-checked='0'><span class='rrnb-todo-box' contenteditable='false'></span><span class='rrnb-todo-text'></span></div>" +
+      "<h3>Follow-up</h3><p></p>" },
+    { id: "standup", name: "Daily standup", title: "Standup — " + todayStr(), html:
+      "<h2>Daily standup — " + todayStr() + "</h2><h3>On road today</h3><p></p><h3>Callouts / gaps</h3><ul><li></li></ul><h3>Blockers</h3><ul><li></li></ul>" },
+    { id: "sop", name: "SOP / procedure", title: "SOP — ", html:
+      "<h2>Standard operating procedure</h2><p><b>Purpose:</b> </p><p><b>Scope:</b> </p><h3>Steps</h3><ol><li></li><li></li></ol><h3>Notes</h3><p></p>" },
+    { id: "coaching", name: "Driver coaching", title: "Coaching — " + todayStr(), html:
+      "<h2>Driver coaching</h2><p><b>Driver:</b> &nbsp; <b>Date:</b> " + todayStr() + "</p><h3>Topic</h3><p></p><h3>Discussion</h3><p></p>" +
+      "<h3>Agreed actions</h3><div class='rrnb-todo' data-checked='0'><span class='rrnb-todo-box' contenteditable='false'></span><span class='rrnb-todo-text'></span></div>" }
+  ];
+  function todayStr() { try { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); } catch (e) { return ""; } }
+  function openTemplateMenu(anchor) {
+    var r = anchor.getBoundingClientRect();
+    var pop = showPop('<label>New page from template</label><div class="rrnb-pop-list">' +
+      TEMPLATES.map(function (t) { return '<div class="rrnb-pop-opt" data-tpl="' + t.id + '">' + esc(t.name) + '</div>'; }).join("") + '</div>', r);
+    pop.addEventListener("click", function (e) { var o = e.target.closest("[data-tpl]"); if (!o) return; hidePop(); createFromTemplate(o.getAttribute("data-tpl")); });
+  }
+  function createFromTemplate(tplId) {
+    var tpl = TEMPLATES.filter(function (t) { return t.id === tplId; })[0] || TEMPLATES[0];
+    if (!S.activeSection) { if (S.tree && S.tree.sections[0]) S.activeSection = S.tree.sections[0].id; else return; }
+    S.be.createPage(S.activeSection, tpl.title || "Untitled Page", null, 0).then(function (p) {
+      return S.be.savePage(p.id, { title: tpl.title, content_html: tpl.html, content_text: stripHtml(tpl.html), tags: [] }).then(function () {
+        return selectNotebook(S.nbId, p.id);
+      });
+    }).catch(fail);
+  }
+  function stripHtml(html) { var d = document.createElement("div"); d.innerHTML = html || ""; return d.innerText || ""; }
+
+  // ── Quick Notes: capture into a "Quick Notes" section of the current notebook ──
+  function quickNote() {
+    if (!S.nbId && S.notebooks[0]) S.nbId = S.notebooks[0].id;
+    if (!S.nbId) return;
+    var doCreate = function (sectionId) {
+      var stamp = todayStr() + " " + new Date().toTimeString().slice(0, 5);
+      S.be.createPage(sectionId, "Quick note · " + stamp, null, 0).then(function (p) {
+        S.activeSection = sectionId; S.mode = "notebook";
+        return selectNotebook(S.nbId, p.id).then(function () {
+          setTimeout(function () { var ed = $id("rrnb-editor"); if (ed) ed.focus(); }, 60);
+        });
+      }).catch(fail);
+    };
+    var existing = ((S.tree && S.tree.sections) || []).filter(function (s) { return s.name === "Quick Notes"; })[0];
+    if (existing) return doCreate(existing.id);
+    S.be.createSection(S.nbId, "Quick Notes", null, "#d97706").then(function (s) {
+      return S.be.tree(S.nbId).then(function (t) { S.tree = t; renderSections(); doCreate(s.id); });
+    }).catch(fail);
+  }
+
+  // ── Recent pages (cross-notebook, localStorage) ──────────────────
+  function recentKey() { return "rrnb-recent:" + (((window.RR && window.RR.dsp && window.RR.dsp.id) || "local")); }
+  function trackRecent(p) {
+    try {
+      var list = JSON.parse(localStorage.getItem(recentKey()) || "[]");
+      list = list.filter(function (x) { return x.id !== p.id; });
+      list.unshift({ id: p.id, title: p.title, notebook_id: p.notebook_id || S.nbId, section_id: p.section_id, at: new Date().toISOString() });
+      localStorage.setItem(recentKey(), JSON.stringify(list.slice(0, 25)));
+    } catch (e) {}
+  }
+  function renderRecent() {
+    var host = $id("rrnb-pagelist"); if (!host) return;
+    var list = [];
+    try { list = JSON.parse(localStorage.getItem(recentKey()) || "[]"); } catch (e) {}
+    var html = '<div class="rrnb-plgroup-hd">Recent</div>';
+    if (!list.length) html += '<div class="rrnb-empty">Pages you open show up here.</div>';
+    html += list.map(function (r) {
+      var nb = S.notebooks.filter(function (n) { return n.id === r.notebook_id; })[0];
+      return '<div class="rrnb-page" data-recent-page="' + r.id + '" data-recent-nb="' + r.notebook_id + '"><div class="body">' +
+        '<div class="ttl">' + esc(r.title || "Untitled") + '</div><div class="sub">' + esc(nb ? nb.name : "") + '  ·  ' + esc(relTime(r.at)) + '</div></div></div>';
+    }).join("");
+    html += '<button class="rrnb-newpage" data-exit-recent="1">‹ Back to pages</button>';
+    host.innerHTML = html;
   }
 
   // ══════════════════════════════════════════════════════════════════
