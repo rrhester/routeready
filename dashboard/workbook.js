@@ -8706,8 +8706,35 @@ function insertTodayDate(g) {
   setCells(g, [{ r: g.active.r, c: g.active.c, cell: { value: isoDate(new Date()), formula: null, type: "date", computed: null, err: null, format: {} } }]);
 }
 
+// Date-aware series for the right-drag fill menu (Fill Days / Weekdays /
+// Months / Years). Steps from the last source date by the chosen unit.
+function dateUnitSeries(vals, count, unit) {
+  const clean = (vals || []).filter((v) => v != null && v !== "").map(String);
+  if (!clean.length) return null;
+  const base = parseDateLoose(clean[clean.length - 1].trim());
+  if (!base) return null;
+  const out = [], mk = (d) => ({ value: isoDate(d), type: "date" });
+  const Y = base.getFullYear(), M = base.getMonth(), D = base.getDate();
+  if (unit === "weekday") {
+    const cur = new Date(Y, M, D);
+    for (let k = 1; k <= count; k++) { do { cur.setDate(cur.getDate() + 1); } while (cur.getDay() === 0 || cur.getDay() === 6); out.push(mk(new Date(cur))); }
+  } else if (unit === "month") {
+    for (let k = 1; k <= count; k++) out.push(mk(new Date(Y, M + k, D)));
+  } else if (unit === "year") {
+    for (let k = 1; k <= count; k++) out.push(mk(new Date(Y + k, M, D)));
+  } else {
+    for (let k = 1; k <= count; k++) out.push(mk(new Date(Y, M, D + k)));
+  }
+  return out;
+}
+
+// mode: "series" (default smart series) | "copy" (repeat source, no series) |
+// "formats" (copy formatting only, keep target values) | "values" (fill
+// values/series but keep the target's own formatting). ext.dateUnit forces a
+// date series (day/weekday/month/year).
 function applyFill(g, src, ext) {
   const sheet = g.sheet;
+  const mode = ext.mode || "series";
   const changes = [];
   const vertical = ext.axis === "row";
   const laneLo = vertical ? src.c0 : src.r0;
@@ -8720,24 +8747,37 @@ function applyFill(g, src, ext) {
     for (let i = srcLo; i <= srcHi; i++) series.push(sheet.cells.get(vertical ? cellKey(i, lane) : cellKey(lane, i)) || null);
     // detect a smart series over the (non-formula) source values; null ⇒ copy
     const allValues = series.every((cl) => cl && !cl.formula && cl.value != null && cl.value !== "");
-    const seriesVals = allValues ? fillSeries(series.map((cl) => cl.value), ext.count) : null;
+    let seriesVals = null;
+    if (mode === "series" || mode === "values") {
+      if (ext.dateUnit) seriesVals = dateUnitSeries(series.map((cl) => cl && cl.value), ext.count, ext.dateUnit);
+      else if (allValues) seriesVals = fillSeries(series.map((cl) => cl.value), ext.count);
+    }
     for (let k = 1; k <= ext.count; k++) {
       const t = srcHi + k;
       if (vertical ? t >= sheet.rowCount : t >= sheet.colCount) break;
       const si = (k - 1) % srcLen;
       const srcCell = series[si];
+      const tgtKey = vertical ? cellKey(t, lane) : cellKey(lane, t);
+      const tgt = sheet.cells.get(tgtKey);
       let next = null;
-      if (srcCell) {
+      if (mode === "formats") {
+        // formatting only: keep the target's own value/formula, take src format
+        const fmt = srcCell && srcCell.format ? { ...srcCell.format } : {};
+        if (tgt) { next = cloneCell(tgt); next.format = fmt; }
+        else if (Object.keys(fmt).length) next = { value: null, formula: null, type: null, computed: null, err: null, format: fmt };
+      } else if (srcCell) {
         next = cloneCell(srcCell);
         if (srcCell.formula) {
           next.formula = vertical
             ? shiftFormulaRelative(srcCell.formula, t - (srcLo + si), 0)
             : shiftFormulaRelative(srcCell.formula, 0, t - (srcLo + si));
-        } else if (seriesVals) {
+        } else if (seriesVals && seriesVals[k - 1]) {
           next.value = seriesVals[k - 1].value;
           next.type = seriesVals[k - 1].type;
           next.formula = null; next.computed = null; next.err = null;
         }
+        // "without formatting": keep whatever format the target already had
+        if (mode === "values") next.format = tgt && tgt.format ? { ...tgt.format } : {};
       }
       changes.push(vertical ? { r: t, c: lane, cell: next } : { r: lane, c: t, cell: next });
     }
@@ -8748,6 +8788,84 @@ function applyFill(g, src, ext) {
   else g.sel = { r0: src.r0, c0: src.c0, r1: src.r1, c1: src.c1 + ext.count };
   paintSelection(g);
   repaintGrid(g);
+}
+
+// The drag-fill gesture, shared by the left-drag (applies immediately) and
+// right-drag (opens the fill-options menu on release) paths.
+function fillHandleDrag(g, e, right) {
+  if (g.filters.size) { _toast("Clear the filter before drag-filling", "warn"); return; }
+  const scroll = g.els.scroll;
+  const src = selRect(g);
+  const preview = document.createElement("div");
+  preview.className = "wb-fill-preview";
+  g.els.sel.appendChild(preview);
+  const d0 = dispIndexOfRow(g, src.r0);
+  let ext = null, lastX = e.clientX, lastY = e.clientY;
+  const previewAt = (clientX, clientY) => {
+    const rect = scroll.getBoundingClientRect();
+    const px = clientX - rect.left + scroll.scrollLeft;
+    const py = clientY - rect.top + scroll.scrollTop;
+    const r = g.rows[dispRowAt(g, py)] ?? src.r1;
+    const c = colAt(g, px);
+    const dRow = r - src.r1, dCol = c - src.c1;
+    if (dRow > 0 && dRow >= dCol) ext = { axis: "row", count: dRow };
+    else if (dCol > 0) ext = { axis: "col", count: dCol };
+    else ext = null;
+    const x = g.colX[src.c0], y = g.rowY[d0];
+    const x2 = ext && ext.axis === "col" ? g.colX[Math.min(g.sheet.colCount, src.c1 + ext.count + 1)] : g.colX[src.c1 + 1];
+    const dEnd = ext && ext.axis === "row" ? dispIndexOfRow(g, Math.min(g.sheet.rowCount - 1, src.r1 + ext.count)) : dispIndexOfRow(g, src.r1);
+    const y2 = dEnd >= 0 ? g.rowY[dEnd + 1] : g.rowY[dispIndexOfRow(g, src.r1) + 1];
+    preview.style.left = x + "px";
+    preview.style.top = y + "px";
+    preview.style.width = (x2 - x) + "px";
+    preview.style.height = (y2 - y) + "px";
+    preview.style.display = ext ? "block" : "none";
+  };
+  const auto = edgeAutoScroll(scroll, () => previewAt(lastX, lastY));
+  const onMove = (ev) => { lastX = ev.clientX; lastY = ev.clientY; previewAt(ev.clientX, ev.clientY); auto.update(ev); };
+  const onUp = (ev) => {
+    auto.stop();
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    preview.remove();
+    if (!ext) return;
+    if (right) {
+      g.rightFillActive = true; // swallow the contextmenu that follows this right-release
+      setTimeout(() => { g.rightFillActive = false; }, 0);
+      openFillMenu(g, ev.clientX, ev.clientY, src, ext);
+    } else applyFill(g, src, ext);
+  };
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+}
+
+// True when every source cell holds a (non-formula) date value.
+function fillSrcIsDates(g, src) {
+  const sheet = g.sheet;
+  let any = false;
+  for (let r = src.r0; r <= src.r1; r++) for (let c = src.c0; c <= src.c1; c++) {
+    const cl = sheet.cells.get(cellKey(r, c));
+    if (!cl || cl.formula || cl.value == null || cl.value === "") return false;
+    if (!parseDateLoose(String(cl.value).trim())) return false;
+    any = true;
+  }
+  return any;
+}
+
+// Excel's right-drag fill menu — choose how to fill the previewed range.
+function openFillMenu(g, x, y, src, ext) {
+  const opt = (mode, label, unit) => `<button type="button" class="popover-item" data-fillmode="${mode}"${unit ? ` data-dateunit="${unit}"` : ""} role="menuitem">${label}</button>`;
+  let html = opt("copy", "Copy Cells") + opt("series", "Fill Series") + opt("formats", "Fill Formatting Only") + opt("values", "Fill Without Formatting");
+  if (fillSrcIsDates(g, src)) {
+    html += `<div class="popover-section"></div>` + opt("series", "Fill Days", "day") + opt("series", "Fill Weekdays", "weekday") + opt("series", "Fill Months", "month") + opt("series", "Fill Years", "year");
+  }
+  const m = ctxMenu(x, y, html);
+  m.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-fillmode]");
+    if (!b) return;
+    applyFill(g, src, { ...ext, mode: b.getAttribute("data-fillmode"), dateUnit: b.getAttribute("data-dateunit") || null });
+    closeAllPopovers();
+  });
 }
 
 // ── Point mode: while typing a formula, clicking/dragging cells (or
@@ -10982,6 +11100,19 @@ function shiftFormulaRefs(formula, axis, index, delta) {
     if (row < 0 || col < 0) return "#REF";
     return (ref.colAbs ? "$" : "") + colLabel(col) + (ref.rowAbs ? "$" : "") + (row + 1);
   });
+}
+
+// Ctrl++ / Ctrl+- : insert / delete based on the selection shape. Whole
+// columns selected act on columns; otherwise (whole rows, or a cell block)
+// act on rows — matching Excel's keyboard insert/delete without the dialog.
+function structFromSelection(g, insert) {
+  if (!WB.canEdit) return;
+  const rect = selRect(g);
+  const fullRows = rect.c0 === 0 && rect.c1 === g.sheet.colCount - 1;
+  const fullCols = rect.r0 === 0 && rect.r1 === g.sheet.rowCount - 1;
+  const nR = rect.r1 - rect.r0 + 1, nC = rect.c1 - rect.c0 + 1;
+  if (fullCols && !fullRows) restructure(g, "col", rect.c0, insert ? nC : -nC);
+  else restructure(g, "row", rect.r0, insert ? nR : -nR);
 }
 
 function restructure(g, axis, index, delta) {
@@ -16614,6 +16745,13 @@ function bindGridEvents(g) {
   };
 
   grid.addEventListener("mousedown", (e) => {
+    // right-drag the fill handle → preview, then a fill-options menu on
+    // release (Excel). Must run before the context-menu bail below.
+    if (e.button === 2 && WB.canEdit && e.target.closest("[data-wb-fillhandle]")) {
+      e.preventDefault();
+      fillHandleDrag(g, e, true);
+      return;
+    }
     if (e.button === 2) return; // context menu path
 
     // the "Add N more rows" bar handles its own clicks/typing
@@ -16684,52 +16822,11 @@ function bindGridEvents(g) {
     // setActive would detach the node before its click event fires)
     if (e.target.closest("[data-wb-dvchip]") || e.target.closest("[data-wb-dvcheck]") || e.target.closest("[data-wb-fltbtn]") || (e.button === 0 && (e.target.closest("[data-wb-img]") || e.target.closest("[data-wb-photo]") || e.target.closest("[data-wb-receipt]")))) { e.preventDefault(); return; }
 
-    // ── drag-fill handle ──
+    // ── drag-fill handle (left button) ──
     const fh = e.target.closest("[data-wb-fillhandle]");
     if (fh && WB.canEdit) {
       e.preventDefault();
-      if (g.filters.size) { _toast("Clear the filter before drag-filling", "warn"); return; }
-      const src = selRect(g);
-      const preview = document.createElement("div");
-      preview.className = "wb-fill-preview";
-      g.els.sel.appendChild(preview);
-      const d0 = dispIndexOfRow(g, src.r0);
-      let ext = null, lastX = e.clientX, lastY = e.clientY;
-      const previewAt = (clientX, clientY) => {
-        const rect = scroll.getBoundingClientRect();
-        const px = clientX - rect.left + scroll.scrollLeft;
-        const py = clientY - rect.top + scroll.scrollTop;
-        const r = g.rows[dispRowAt(g, py)] ?? src.r1;
-        const c = colAt(g, px);
-        const dRow = r - src.r1, dCol = c - src.c1;
-        if (dRow > 0 && dRow >= dCol) ext = { axis: "row", count: dRow };
-        else if (dCol > 0) ext = { axis: "col", count: dCol };
-        else ext = null;
-        const x = g.colX[src.c0], y = g.rowY[d0];
-        const x2 = ext && ext.axis === "col" ? g.colX[Math.min(g.sheet.colCount, src.c1 + ext.count + 1)] : g.colX[src.c1 + 1];
-        const dEnd = ext && ext.axis === "row" ? dispIndexOfRow(g, Math.min(g.sheet.rowCount - 1, src.r1 + ext.count)) : dispIndexOfRow(g, src.r1);
-        const y2 = dEnd >= 0 ? g.rowY[dEnd + 1] : g.rowY[dispIndexOfRow(g, src.r1) + 1];
-        preview.style.left = x + "px";
-        preview.style.top = y + "px";
-        preview.style.width = (x2 - x) + "px";
-        preview.style.height = (y2 - y) + "px";
-        preview.style.display = ext ? "block" : "none";
-      };
-      const auto = edgeAutoScroll(scroll, () => previewAt(lastX, lastY));
-      const onMove = (ev) => {
-        lastX = ev.clientX; lastY = ev.clientY;
-        previewAt(ev.clientX, ev.clientY);
-        auto.update(ev);
-      };
-      const onUp = () => {
-        auto.stop();
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
-        preview.remove();
-        if (ext) applyFill(g, src, ext);
-      };
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
+      fillHandleDrag(g, e, false);
       return;
     }
 
@@ -16744,6 +16841,18 @@ function bindGridEvents(g) {
         ? { kind: "col", idx: +rzCol.getAttribute("data-wb-rzcol"), startPos: e.clientX, startSize: colW(sheet, +rzCol.getAttribute("data-wb-rzcol")), before: rzBefore }
         : { kind: "row", idx: +rzRow.getAttribute("data-wb-rzrow"), startPos: e.clientY, startSize: rowH(sheet, +rzRow.getAttribute("data-wb-rzrow")), before: rzBefore };
       document.body.style.cursor = rzCol ? "col-resize" : "row-resize";
+      // a dashed guide line follows the divider while dragging (Excel). Lives
+      // on the scrolled canvas so it tracks scroll; survives cell repaints.
+      const guide = document.createElement("div");
+      guide.className = "wb-resize-guide" + (rzCol ? "" : " is-horz");
+      g.els.canvas.appendChild(guide);
+      g.resize.guide = guide;
+      const placeGuide = () => {
+        const rs = g.resize; if (!rs || !rs.guide) return;
+        if (rs.kind === "col") rs.guide.style.left = g.colX[rs.idx + 1] + "px";
+        else { const di = dispIndexOfRow(g, rs.idx); if (di >= 0) rs.guide.style.top = g.rowY[di + 1] + "px"; }
+      };
+      placeGuide();
       const onMove = (ev) => {
         const rs = g.resize;
         if (!rs) return;
@@ -16754,6 +16863,7 @@ function bindGridEvents(g) {
         else applied = sheet.rowHeights[rs.idx] = Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, size));
         computeGeometry(g);
         repaintGrid(g);
+        placeGuide();
         // live size in the Name Box while dragging the divider (Excel)
         const box = g.els.fbarRef;
         if (box) { const t = `${rs.kind === "col" ? "Width" : "Height"}: ${applied}px`; if (box.tagName === "INPUT") box.value = t; else box.textContent = t; }
@@ -16763,7 +16873,7 @@ function bindGridEvents(g) {
         document.removeEventListener("mouseup", onUp);
         document.body.style.cursor = "";
         showDragSize(g, null); // restore the active-cell reference
-        if (g.resize) { saveSheetMeta(g.sheet.id); pushStructUndo(g, g.resize.before); }
+        if (g.resize) { if (g.resize.guide) g.resize.guide.remove(); saveSheetMeta(g.sheet.id); pushStructUndo(g, g.resize.before); }
         g.resize = null;
       };
       document.addEventListener("mousemove", onMove);
@@ -16960,6 +17070,8 @@ function bindGridEvents(g) {
   });
 
   grid.addEventListener("contextmenu", (e) => {
+    // a right-drag fill just opened its own menu — swallow this contextmenu
+    if (g.rightFillActive) { e.preventDefault(); return; }
     const cellEl = e.target.closest(".wb-cell");
     const hcol = e.target.closest(".wb-hcol");
     const hrow = e.target.closest(".wb-hrow");
@@ -17057,6 +17169,8 @@ function bindGridEvents(g) {
     if (meta && (k === ";" || k === ":")) { e.preventDefault(); insertTodayDate(g); return; } // insert today's date
     if (meta && e.shiftKey && (k === "l" || k === "L")) { e.preventDefault(); toggleFilterMode(g); return; } // toggle filter
     if (meta && (k === "/" )) { e.preventDefault(); showShortcutsHelp(); return; } // shortcuts help
+    if (meta && (k === "+" || k === "=")) { e.preventDefault(); if (WB.canEdit) structFromSelection(g, true); return; }  // insert rows/cols
+    if (meta && (k === "-" || k === "_")) { e.preventDefault(); if (WB.canEdit) structFromSelection(g, false); return; } // delete rows/cols
     if (meta && k.startsWith("Arrow")) {
       e.preventDefault();
       g.entryCol = null;

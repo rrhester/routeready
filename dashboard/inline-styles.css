@@ -30529,6 +30529,9 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-workbooks input.wb-fbar-ref:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);color:var(--text)}
 /* drag-fill handle + preview */
 #view-workbooks .wb-fill-handle{position:absolute;width:9px;height:9px;background:var(--accent);border:1.5px solid var(--surface);border-radius:2px;pointer-events:auto;cursor:crosshair;z-index:3;box-sizing:border-box}
+/* Dashed guide line shown while dragging a row/column divider (Excel). */
+#view-workbooks .wb-resize-guide{position:absolute;top:0;left:0;height:100%;width:0;border-left:1px dashed var(--accent);z-index:6;pointer-events:none}
+#view-workbooks .wb-resize-guide.is-horz{left:0;top:0;width:100%;height:0;border-left:0;border-top:1px dashed var(--accent)}
 #view-workbooks .wb-fill-preview{position:absolute;border:1.5px dashed var(--accent);background:var(--accent-soft);opacity:.5;pointer-events:none;box-sizing:border-box}
 /* drag-move: move cursor on the selection border + destination preview */
 #view-workbooks .wb-gr-cells.is-mv .wb-cell{cursor:move}
