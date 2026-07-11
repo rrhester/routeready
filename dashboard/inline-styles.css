@@ -31349,6 +31349,15 @@ body:has(#view-workbooks.view.active) .rr-applauncher.rr-al-fixed{display:none}
 #view-schedule.rrx-schedule .rr-ab-cov-meter[data-state="gap"] > i { background: var(--red, var(--rr-red-600)); }
 #view-schedule.rrx-schedule .rr-ab-cov-meter[data-state="cushion"] > i { background: var(--amber-bright, #F59E0B); }
 
+/* No-plan placeholder · the card stays mounted on empty weeks (live.js
+   renders "– / – Routes · No plan yet" instead of hiding it) so the
+   Finalize button never shifts left. Everything reads muted: gray
+   dashes, quiet sub line, bare meter track. */
+#view-schedule.rrx-schedule .rr-ab-coverage.is-empty .rr-ab-cov-num,
+#view-schedule.rrx-schedule .rr-ab-coverage.is-empty .rr-ab-coverage-sub {
+  color: var(--rr-fg-secondary, var(--rr-gray-500));
+}
+
 /* ── (2) Row status flags · loud dots → quiet soft chips ─────────────────
    The "V" (scheduled without a van) and "OT" (over hours) markers ship as
    filled SVG discs that read like unread-notification badges. Hide the disc
