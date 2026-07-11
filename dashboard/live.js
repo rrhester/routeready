@@ -3013,8 +3013,14 @@ function _rrIntelShow(name) {
   const view = document.getElementById("rr-intel-view-" + name);
   if (!host || !view) return;
   // Remember which sched-subview was visible so we can restore it.
+  // Check the CSSOM property, not the style attribute: schedSub hides
+  // views with el.style.display = "none", which serializes as
+  // "display: none" (with a space), so a [style*='display:none']
+  // attribute match misses every JS-hidden view and would always
+  // record the first subview in DOM order (the week grid).
   if (!_rrIntelActiveName) {
-    const active = document.querySelector("#view-schedule .sched-subview:not([style*='display:none'])");
+    const active = Array.from(document.querySelectorAll("#view-schedule .sched-subview"))
+      .find((s) => s.style.display !== "none");
     _rrIntelPriorSubview = active?.id || null;
   }
   // Hide every sched-subview while the intel view is up.
@@ -3042,16 +3048,18 @@ function _rrIntelHide() {
   document.querySelectorAll(".rr-intel-view").forEach((v) => { v.hidden = true; });
   document.querySelectorAll(".sched-v2-intel-tile").forEach((t) => t.classList.remove("is-active"));
   // Restore the sched-subview that was visible before we took over.
+  // "block" (not "") matches how schedSub shows a subview, and keeps
+  // the rrx flex-sizing rule keyed on [style*="block"] applying.
   if (_rrIntelPriorSubview) {
     const prior = document.getElementById(_rrIntelPriorSubview);
-    if (prior) prior.style.display = "";
+    if (prior) prior.style.display = "block";
   } else {
     // No prior recorded — default to whatever the data-sub button
     // says is active in the schedule's sub-nav.
     const activeBtn = document.querySelector("#view-schedule .subnav-item.active[data-sub]");
     const sub = activeBtn?.getAttribute("data-sub") || "week";
     const target = document.getElementById("sched-sub-" + sub);
-    if (target) target.style.display = "";
+    if (target) target.style.display = "block";
   }
   _rrIntelActiveName = null;
   _rrIntelPriorSubview = null;
@@ -7518,24 +7526,6 @@ function _fillObMatrixSkeletonRows(body) {
   document.head?.appendChild(css);
 })();
 
-function _obMountDocuments() {
-  // Move the entire #view-documents node into the Overview tab's
-  // right-side placeholder card (#ob-docs-mount). The dedicated
-  // Documents subnav tab was retired — Documents now lives on the
-  // Overview tab next to the readiness matrix.
-  const host = document.getElementById("ob-docs-mount");
-  const docs = document.getElementById("view-documents");
-  if (host && docs && docs.parentElement !== host) {
-    docs.classList.remove("view", "active");
-    docs.style.display = "";
-    // Clear the loading placeholder before mounting.
-    const loading = host.querySelector(".ob-docs-loading");
-    if (loading) loading.remove();
-    host.classList.remove("ob-placeholder-card");
-    host.appendChild(docs);
-  }
-}
-
 window.obSub = function (which) {
   // Mark the active sub on the container so per-page CSS can scope to it
   // (e.g. the Funnel page strips the command-strip icons).
@@ -7547,32 +7537,20 @@ window.obSub = function (which) {
   show("obsub-overview",  which === "overview");
   show("obsub-workauth",  which === "workauth");
   show("obsub-pipeline",  isPipe);
-  // The onboarding KPI band belongs on the Onboarding (overview) page and the
-  // Funnel (its own funnel metrics). Hide it on Interview / Calendar / Work
-  // auth so those views start right under the icon strip.
+  // The KPI band only carries the Funnel metrics now — the Overview's
+  // step-count pills were removed (operator request); the matrix rings
+  // carry that read. Keep the host displayable on the overview so
+  // roster mode (entered from there) can paint its pills into it; when
+  // empty the #rr-ob-kpis:empty rule collapses it.
   show("rr-ob-kpis",      which === "overview" || which === "funnel");
   // Calendar view tiles live permanently on the strip — keep their active
   // highlight in sync (cleared whenever we're not on the Calendar view).
   if (typeof _ivcalSyncStripView === "function") _ivcalSyncStripView(which === "calendar");
-  // Documents now live inside the Overview tab's right card; mount
-  // them whenever the Overview tab is activated so they show up
-  // alongside the readiness matrix.
   if (which === "overview") {
-    _obMountDocuments();
-    if (typeof loadDocumentsView === "function") {
-      try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
-    }
-    // Swap the TCP KPI bar back to the onboarding-stage pills.
-    // Uses the cached enriched + stepCols last computed by
-    // loadOnboardingOps so no refetch is needed; if the cache is
-    // empty (very first render before data lands) we no-op and
-    // the next matrix render will fill the bar.
-    try {
-      const cache = window.__obKpiCache;
-      if (cache && cache.stepCols && typeof window.__obRenderKpis === "function") {
-        window.__obRenderKpis(cache.enriched || [], cache.stepCols);
-      }
-    } catch (_) { /* non-fatal */ }
+    // Clear any pills left behind by the Funnel sub-tab so the strip
+    // collapses instead of showing stale funnel metrics.
+    const kpiHost = document.getElementById("rr-ob-kpis");
+    if (kpiHost) kpiHost.innerHTML = "";
   }
   // The page title + sub-line follow the active icon.
   const _OB_META = {
@@ -7604,8 +7582,6 @@ window.obSub = function (which) {
       if (typeof loadPipelineKpis === "function") loadPipelineKpis();
     }
   }
-  // ("documents" subnav was retired — Documents now mount into the
-  //  Overview tab's right card, handled in the if-overview block above.)
 };
 
 // Onboarding "Rules" footer · opens the onboarding-steps blueprint
@@ -8683,21 +8659,13 @@ document.addEventListener("click", (e) => {
 });
 
 async function loadOnboardingOps(opts) {
-  // Overview is now a 2-column shell: readiness matrix in
-  // #obsub-overview-left, the Documents page mounted into the
-  // right-side card. Fall back to the outer #obsub-overview for
-  // legacy DOMs that haven't been updated yet (cached HTML, etc.).
+  // The readiness matrix renders into #obsub-overview-left. Fall back
+  // to the outer #obsub-overview for legacy DOMs that haven't been
+  // updated yet (cached HTML, etc.).
   const body  = document.getElementById("obsub-overview-left")
              || document.getElementById("obsub-overview");
   const subEl = document.getElementById("rr-onboardops-sub");
   if (!body) return;
-  // Mount + initialize the Documents view in the right card. Safe
-  // to re-run — _obMountDocuments is a no-op once mounted, and
-  // loadDocumentsView re-renders idempotently.
-  if (typeof _obMountDocuments === "function") _obMountDocuments();
-  if (typeof loadDocumentsView === "function") {
-    try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
-  }
   if (!(opts && opts.keepTab) && typeof obSub === "function") obSub("overview");
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
@@ -8747,93 +8715,6 @@ async function loadOnboardingOps(opts) {
   _rosterState = new Map((Array.isArray(stateRes?.data) ? stateRes.data : []).map((r) => [r.driver_id, (r && r.steps) || {}]));
   if (subEl) subEl.textContent = N ? `${N} driver${N === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
 
-  // ── Per-step "is this driver done with that step?" predicate.
-  // Mirrors matrixRow's done-detection logic so the KPI counts agree
-  // with the dots painted in the matrix below. Walks the same data
-  // sources matrixRow does (_rosterProg, _rosterState, _rosterI9,
-  // _rosterPairings); centralizing here means the matrix and the KPI
-  // bar can never drift.
-  function _obIsStepDoneFor(d, stepCol) {
-    if (!d || !stepCol || !stepCol.map) return false;
-    const m = stepCol.map;
-    if (m.kind === "drv") return !!d[m.done];
-    if (m.kind === "prog") {
-      const prog = (_rosterProg && _rosterProg.get(d.id)) || {};
-      return !!prog[m.done];
-    }
-    if (m.kind === "state") {
-      if (stepCol.key === "trainer_pair") {
-        const pair = _rosterPairings && _rosterPairings.get(d.id);
-        return !!(pair && pair.status === "materialized");
-      }
-      const st = (_rosterState && _rosterState.get(d.id)) || {};
-      return !!st[m.done];
-    }
-    if (m.kind === "i9") {
-      const i9r = (_rosterI9 && _rosterI9.get(d.id)) || null;
-      if (!i9r) return false;
-      const i9 = _i9Derived(i9r);
-      return i9.key === "verified" || i9.key === "verified_expiring" || i9.key === "sealing";
-    }
-    return false;
-  }
-
-  // ── Paint the dynamic KPI bar from the blueprint. The KPI bar
-  // (#rr-ob-kpis) sits in the TCP slot above the matrix. Pills are
-  // built from the same `stepCols` array the matrix uses, so the bar
-  // reflects whatever steps the operator has configured in the
-  // Onboarding Builder — add a step → new pill, remove a step → pill
-  // disappears, on the next render.
-  function _obRenderKpis(rowsEnriched, stepCols) {
-    const host = document.getElementById("rr-ob-kpis");
-    if (!host) return;
-    // Don't overwrite the roster KPI pills when the operator is in
-    // Roster mode — refreshDriverStatRow paints Active / On LOA /
-    // Avg tenure into this same host, and any matrix re-render
-    // (driver updates, polling refresh, blueprint edits) was
-    // wiping it back to onboarding step pills. The outer scope in
-    // loadOnboardingOps keeps the cache up to date so _obCmdTab
-    // can still restore the step pills when the operator exits
-    // roster mode.
-    const obShell = document.getElementById("rr-ob-cmd");
-    if (obShell && obShell.classList.contains("is-roster")) return;
-    const total = rowsEnriched.length;
-    const navy  = "#1F2A44";
-    const green = "#10B981";
-
-    const pill = (key, dotColor, valHtml, subText) =>
-      `<span class="sched-kpi-pill" data-rr-ob-kpi="${escapeHtml(key)}">` +
-        `<span class="sched-kpi-dot" style="background:${dotColor}"></span>` +
-        `<span class="sched-kpi-text">` +
-          `<span class="sched-kpi-val">${valHtml}</span>` +
-          `<span class="sched-kpi-sub">${escapeHtml(subText)}</span>` +
-        `</span>` +
-      `</span>`;
-
-    // Leftmost · total onboarding-drivers count. The value reads as
-    // a plain number; sub-line says "Onboarding drivers" so the
-    // operator immediately knows what's being totalled.
-    const header = pill("total", navy, String(total), "Onboarding drivers");
-
-    // Per blueprint step · "N/total Step Name". Dot greens when
-    // every onboarding driver has cleared that step.
-    const stages = stepCols.map(s => {
-      const n = rowsEnriched.filter(({ d }) => _obIsStepDoneFor(d, s)).length;
-      const color = total > 0 && n === total ? green : navy;
-      const valHtml = `${n}<span style="color:var(--rr-fg-secondary);font-weight:500">/${total}</span>`;
-      return pill(s.key || s.map.head, color, valHtml, s.map.head);
-    }).join("");
-
-    // Rightmost · drivers who have flipped to status="active". This
-    // mirrors the Active column on the right edge of the matrix.
-    const activeN = rowsEnriched.filter(({ d }) => d && d.status === "active").length;
-    const activeColor = activeN > 0 ? green : navy;
-    const activeVal = `${activeN}<span style="color:var(--rr-fg-secondary);font-weight:500">/${total}</span>`;
-    const activePill = pill("active", activeColor, activeVal, "Active");
-
-    host.innerHTML = header + stages + activePill;
-  }
-
   // The matrix is the page.  Sorted urgency-first — compliance risks
   // rise to the top, then ready-to-activate, then due-soon, etc. — so
   // the colour-coded status pills carry the at-a-glance read with no
@@ -8855,14 +8736,6 @@ async function loadOnboardingOps(opts) {
   // column comes from the blueprint loop now (driver-state-backed),
   // so no special-case column rendering is needed.
   const stepCols = _obSteps().filter(s => s && s.enabled).map(_obStepColumn);
-  // Cache the latest matrix inputs + the renderer itself on window
-  // so obSub('overview') can repaint the KPI bar with onboarding
-  // stages WITHOUT having to re-run loadOnboardingOps (which would
-  // refetch the roster). The Funnel sub-tab installs its own pills
-  // via _obRenderFunnelKpis; the overview path uses this cache to
-  // swap back.
-  window.__obKpiCache   = { enriched, stepCols };
-  window.__obRenderKpis = _obRenderKpis;
   const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
   // Onboarding dot: green once the step is complete, no fill otherwise.
   // Every step in the overview is visible to the driver; hover for status.
@@ -8995,24 +8868,10 @@ async function loadOnboardingOps(opts) {
   // as a real row so adding a real applicant just replaces a skeleton.
   // Ghost/skeleton filler rows removed by request — the table now ends after
   // the real applicants instead of padding to the viewport bottom.
-  // Paint the dynamic KPI bar above the matrix with one pill per
-  // blueprint stage (Drug clear / BG clear / Job offer / …) plus
-  // a leftmost "Onboarding drivers" total and a rightmost "Active"
-  // count. Stages come from the same blueprint that drives the
-  // matrix columns, so adding or removing a step in the builder
-  // updates the KPI bar on the next render. Guarded so it ONLY
-  // paints when the Overview sub-tab is active — otherwise the
-  // matrix-render path would overwrite the Funnel KPIs that obSub
-  // just installed and the operator would see a brief onboarding-
-  // stage flash before the funnel pills repaint.
-  try {
-    const activeSub = document.querySelector(
-      "#view-onboarding-ops .subnav .subnav-item[data-obsub].active"
-    )?.getAttribute("data-obsub");
-    if (!activeSub || activeSub === "overview") {
-      _obRenderKpis(enriched, stepCols);
-    }
-  } catch (_) { /* non-fatal */ }
+  // Overview KPI strip (step-count pills above the matrix) removed by
+  // request — #rr-ob-kpis stays empty on the Overview and the :empty
+  // rule collapses it. The Funnel sub-tab and Roster mode still paint
+  // their own pills into the same host.
 
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
     el.addEventListener("click", (e) => {
@@ -20944,8 +20803,8 @@ async function refreshDriverStatRow(rows) {
 
   // Onboarding page's roster mode · the visible KPI strip is
   // #rr-ob-kpis. Overwrite it with the roster pills while the
-  // operator is in roster mode; _obCmdTab restores onboarding pills
-  // on exit via the window.__obRenderKpis cache.
+  // operator is in roster mode; _obCmdTab clears the strip on exit
+  // (the Overview no longer paints its own pills).
   const obShell = document.getElementById("rr-ob-cmd");
   if (obShell && obShell.classList.contains("is-roster")) {
     const obHost = document.getElementById("rr-ob-kpis");
@@ -49422,13 +49281,12 @@ function _obCmdTab(mode) {
       }
     } catch (_) { /* non-fatal */ }
   } else {
-    // Leaving roster mode → restore the onboarding step pills via
-    // the cached renderer + cached inputs (set inside
-    // loadOnboardingOps when the matrix is rendered).
+    // Leaving roster mode → clear the roster pills. The Overview's
+    // own KPI strip was removed, so the host stays empty (collapsed
+    // by the :empty rule) until Funnel/Roster paint it again.
     try {
-      if (window.__obRenderKpis && window.__obKpiCache) {
-        window.__obRenderKpis(window.__obKpiCache.enriched, window.__obKpiCache.stepCols);
-      }
+      const obHost = document.getElementById("rr-ob-kpis");
+      if (obHost) obHost.innerHTML = "";
     } catch (_) { /* non-fatal */ }
   }
 }

@@ -81,6 +81,14 @@
   --rr-green-600: #16a34a;
   --rr-red-700: #b91c1c;
 
+  /* Ink — deep navy chrome family, lifted from the app icon tile
+     (#16273F → #0A1320). Used for the driver app's structural chrome
+     (header, hero) so the surface reads operational/logistics-grade;
+     brand blue stays the *accent* (CTAs, links, active states). */
+  --rr-ink-700: #1f3050;
+  --rr-ink-800: #16273f;
+  --rr-ink-900: #0a1320;
+
   /* ─── TYPOGRAPHY ─────────────────────────────────────────── */
   --rr-font-family:
     'Inter',
@@ -1359,14 +1367,20 @@ textarea.rrx-input {
    only an inner panel to scroll.
    ============================================================ */
 
+/* 100dvh with a 100vh fallback: identical on desktop (the dashboard),
+   correct on phones — plain 100vh is the *large* viewport on iOS, and
+   because this sheet loads after app/styles.css it silently overrode
+   the driver app's own 100dvh sizing. */
 html,
 body {
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
 .app {
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 

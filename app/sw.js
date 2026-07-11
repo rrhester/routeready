@@ -35,15 +35,45 @@
 // shots. Best-effort — a failed thumb just falls back to the full image.
 // Covers both the online and offline (queued) submission paths. Bumped so
 // installed driver PWAs pick up the new app.js.
-const SHELL_CACHE = "rr-app-shell-v135";
+//
+// v136 · Professional-polish pass #1: real icon set (192/512 + maskable +
+// apple-touch + favicon) and iOS splash screens; font preload; warn/offline
+// surfaces moved to --amber-dark for AA contrast; toast() understands
+// "success"/"info"; raw RPC error text routed through _friendlyError on a
+// dozen surfaces; Tasks hub shows an error state instead of a false
+// "Nothing to do" when its fetches fail; boot guard renders a readable
+// retry screen if config.js fails to load. Bumped so installed driver PWAs
+// purge the old shell and pick up the new app.js + CSS + index.html.
+//
+// v137 · Offline shell actually works cold: supabase-js is vendored
+// same-origin (the esm.sh import was an uncacheable cross-origin module
+// that killed offline boot), the precache now covers everything the shell
+// really loads (rr-system.css, form-validation.js, the Inter font,
+// dashboard/config.js, the vendored client), cache fallbacks match with
+// ignoreSearch so ?v=-stamped requests hit the unversioned precache, and
+// the fetch matcher is an exact-path allowlist (the old endsWith("") check
+// matched every same-origin GET). Bumped so installed driver PWAs purge
+// the old shell and pick up the new app.js + sw.js.
+// v138 · Ink chrome: the header and home hero move from wall-to-wall
+// brand blue to the deep navy of the app icon tile (--rr-ink-800/900);
+// blue is demoted to the accent (CTAs, active states, avatar, check-in
+// card) so actions pop against the chrome. theme-color follows. Bumped
+// so installed driver PWAs pick up the new CSS + index.html.
+const SHELL_CACHE = "rr-app-shell-v138";
 const SHELL_FILES = [
   "./",
   "index.html",
   "styles.css",
+  "rr-system.css",
   "app.js",
+  "form-validation.js",
+  "vendor/supabase-js.mjs",
   "manifest.webmanifest",
   "icon.svg",
   "Icon.png",
+  "icons/favicon-32.png",
+  "fonts/inter-var-latin.woff2",
+  "../dashboard/config.js",
 ];
 
 self.addEventListener("install", (event) => {
@@ -60,30 +90,40 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Exact same-origin paths the shell branch may serve — resolved against the
+// SW scope so "../dashboard/config.js" maps to /dashboard/config.js. The old
+// matcher used endsWith() over SHELL_FILES, and the "./" entry made it
+// endsWith("") — true for EVERY same-origin GET, silently caching unbounded
+// content into the shell cache.
+const SHELL_PATHS = new Set(
+  SHELL_FILES.filter((f) => f !== "./").map((f) => new URL(f, self.registration.scope).pathname)
+);
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
-  // Same-origin static assets: NETWORK-FIRST.  Cache-first held
-  // users on a stale app.js even after we bumped ?v= because iOS
-  // PWA SW updates are unreliable.  Network-first means every
-  // reload tries fresh; the cache fallback keeps offline launches
-  // working.
-  if (url.origin === location.origin && SHELL_FILES.some((f) => url.pathname.endsWith(f.replace(/^\.\//, "")))) {
+  // Same-origin shell assets: NETWORK-FIRST.  Cache-first held users on a
+  // stale app.js even after we bumped ?v= because iOS PWA SW updates are
+  // unreliable.  Network-first means every reload tries fresh; the cache
+  // fallback keeps offline launches working.  ignoreSearch lets the
+  // ?v=-stamped requests fall back to the unversioned install-time
+  // precache on a cold offline launch.
+  if (url.origin === location.origin && SHELL_PATHS.has(url.pathname)) {
     event.respondWith(
       fetch(req).then((res) => {
         const copy = res.clone();
         caches.open(SHELL_CACHE).then((c) => c.put(req, copy)).catch(() => {});
         return res;
-      }).catch(() => caches.match(req))
+      }).catch(() => caches.match(req, { ignoreSearch: true }))
     );
     return;
   }
   // Navigation requests: network-first so updated index.html lands on relaunch.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req).catch(() => caches.match("./index.html"))
+      fetch(req).catch(() => caches.match("./index.html", { ignoreSearch: true }))
     );
     return;
   }

@@ -20,6 +20,18 @@
   to   = "/dashboard/refer.html?r=:token"
   status = 200
 
+# RouteReady Meet — short invite links (meet.js also parses the /m/<code>
+# path directly, so the 200 rewrite works even though ?m= stays unset).
+[[redirects]]
+  from = "/m/:code"
+  to   = "/dashboard/meet.html?m=:code"
+  status = 200
+
+[[redirects]]
+  from = "/meet"
+  to   = "/dashboard/meet.html"
+  status = 200
+
 # Old marketing pages consolidated into the landing. 301 so any
 # externally-linked URLs (or Google's index) update over time.
 [[redirects]]
@@ -107,6 +119,10 @@
 # dashboard against clickjacking, MIME sniffing, referrer leakage, and
 # protocol-downgrade attacks. geolocation=(self) because the routing
 # app uses navigator.geolocation (dashboard/live.js, app/app.js).
+# camera/microphone/display-capture=(self) because RouteReady Meet
+# (dashboard/meet.html) is a first-party video tool — (self) still
+# denies embedded third-party iframes; the browser's own permission
+# prompt continues to gate actual device access per page.
 # CSP: deferred — inline scripts/styles need nonce/hash refactor first.
 [[headers]]
   for = "/*"
@@ -115,7 +131,7 @@
     X-Content-Type-Options    = "nosniff"
     Referrer-Policy           = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
-    Permissions-Policy        = "geolocation=(self), camera=(), microphone=(), payment=()"
+    Permissions-Policy        = "geolocation=(self), camera=(self), microphone=(self), display-capture=(self), payment=()"
     X-XSS-Protection          = "0"
 
 [[headers]]

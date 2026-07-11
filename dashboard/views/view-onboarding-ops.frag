@@ -344,10 +344,8 @@
                     </div>
                   </div>
                 </div>
-                <!-- Documents subnav tab removed — #view-documents
-                     now mounts into the Overview tab's right-side
-                     placeholder card instead. See _obMountDocuments
-                     in live.js. -->
+                <!-- Documents subnav tab removed — the Documents
+                     surface no longer lives on the Onboarding page. -->
 
                 <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-interview">
                   <button class="subnav-item" data-obsub="interview" onclick="obSub('interview')" title="Interview">
@@ -662,35 +660,23 @@
         <div id="ob-roster-mount" class="ob-roster-mount" hidden></div>
 
         <div id="obsub-overview">
-          <!-- Two-column shell: the readiness matrix lives in
-               .ob-overview-left (loadOnboardingOps writes there);
-               .ob-overview-right is a sibling placeholder card the
-               operator will populate with moved-in items shortly. -->
-          <div class="ob-overview-cols">
-            <div id="obsub-overview-left" class="ob-overview-left">
-              <!-- Skeleton readiness matrix — 4 cohort cards stacked.
-                   Replaced by loadOnboardingOps() once data arrives. -->
-              <div class="onb-skel-grid" aria-busy="true">
-                <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:30%"></span><span class="rr-skel rr-skel-sm" style="width:70%"></span><span class="rr-skel rr-skel-sm" style="width:60%"></span></div>
-                <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:36%"></span><span class="rr-skel rr-skel-sm" style="width:84%"></span><span class="rr-skel rr-skel-sm" style="width:68%"></span></div>
-                <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:28%"></span><span class="rr-skel rr-skel-sm" style="width:76%"></span><span class="rr-skel rr-skel-sm" style="width:54%"></span></div>
-                <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-sm" style="width:80%"></span><span class="rr-skel rr-skel-sm" style="width:64%"></span></div>
-              </div>
-            </div>
-            <!-- #view-documents is mounted into this card by
-                 _obMountDocuments() on Overview activation. -->
-            <div id="ob-docs-mount" class="ob-overview-right ob-placeholder-card" aria-label="Documents">
-              <div class="ob-placeholder-inner ob-docs-loading">
-                <div class="ob-placeholder-title">Documents</div>
-                <div class="ob-placeholder-sub">—</div>
-              </div>
+          <!-- Readiness matrix host (loadOnboardingOps writes here).
+               The right-side Documents card was removed — the matrix
+               owns the full page width. -->
+          <div id="obsub-overview-left" class="ob-overview-left">
+            <!-- Skeleton readiness matrix — 4 cohort cards stacked.
+                 Replaced by loadOnboardingOps() once data arrives. -->
+            <div class="onb-skel-grid" aria-busy="true">
+              <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:30%"></span><span class="rr-skel rr-skel-sm" style="width:70%"></span><span class="rr-skel rr-skel-sm" style="width:60%"></span></div>
+              <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:36%"></span><span class="rr-skel rr-skel-sm" style="width:84%"></span><span class="rr-skel rr-skel-sm" style="width:68%"></span></div>
+              <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:28%"></span><span class="rr-skel rr-skel-sm" style="width:76%"></span><span class="rr-skel rr-skel-sm" style="width:54%"></span></div>
+              <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-sm" style="width:80%"></span><span class="rr-skel rr-skel-sm" style="width:64%"></span></div>
             </div>
           </div>
 
         </div>
 
         <!-- style block 14 extracted to inline-styles.css -->
-        <!-- style block 15 extracted to inline-styles.css -->
 
         <div id="obsub-workauth" style="display:none">
           <div id="rr-i9-queue">
@@ -706,10 +692,6 @@
              pipeline icon is opened. The Funnel / Interview Day /
              Calendar icons drive pipeSub() inside it. -->
         <div id="obsub-pipeline" style="display:none"></div>
-
-        <!-- Documents now mounts into #ob-docs-mount inside the
-             Overview tab's right column (see _obMountDocuments).
-             The old #obsub-documents host is removed. -->
 
       </div>
     
