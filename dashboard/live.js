@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=6e6264c62cd2";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=6e6264c62cd2";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=6e6264c62cd2";
+import { planScheduleWeek } from "./scheduling-engine.js?v=a27d4cda200d";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=a27d4cda200d";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=a27d4cda200d";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -18122,6 +18122,7 @@ async function loadTodayPlan() {
         ${skelKpi}${skelKpi}${skelKpi}${skelKpi}
       </div>
       <div id="rr-tp-ridealong-alerts"></div>
+      <div id="rr-tp-weekrisk" class="tp-weekrisk-mount"></div>
       <div id="rr-tp-mainrow" class="tp-mainrow">
         <div id="rr-tp-roster" class="card card-flush">
           <div class="rr-tp-section-head">Today's roster</div>
@@ -18230,6 +18231,10 @@ async function _refreshTodayPlanData() {
   // Pass rosterData so the future-day KPIs can synthesize counts the
   // same way the roster card does.
   try { _renderTpMeta(attData, rosterData, otData, planData, fleetData, pipeData, riskData); } catch (e) { console.warn("tp meta:", e); }
+
+  // Week-ahead exposure heat strip (reads the schedule's canonical exposure /
+  // its persisted snapshot). Best-effort; hides itself when there's no data.
+  try { _renderTpWeekRisk(); } catch (e) { console.warn("tp week-risk:", e); }
 
   // The single unified roster card replaces the old four-card layout.
   try { _renderTpUnifiedRoster(attData, rosterData, attError || rosterError, otData); }
@@ -19013,6 +19018,87 @@ function _rrTpCalloutDrill(ev) {
   setTimeout(() => { document.addEventListener("keydown", onKey, true); document.addEventListener("click", onDoc, true); }, 0);
 }
 window._rrTpCalloutDrill = _rrTpCalloutDrill;
+
+// Week-ahead call-out exposure matrix — a compact heat strip on the command
+// center showing, per upcoming scheduled day, whether at-risk drivers outnumber
+// the cushion (exposed) or not (covered). It reads the SAME canonical exposure
+// the schedule's Callout Exposure panel computes (window._rrCalloutExposure),
+// falling back to a persisted snapshot (localStorage) so the strip is populated
+// even before the operator opens the schedule this session. Days are filtered to
+// today-forward, so a stale past week naturally drops out and the strip hides.
+function _renderTpWeekRisk() {
+  const el = document.getElementById("rr-tp-weekrisk");
+  if (!el) return;
+  const todayIso = (typeof _tpToday === "function" ? _tpToday() : null) || "";
+
+  // Source: prefer the live in-memory exposure; else the persisted snapshot.
+  let src = null, fromCache = false, generatedAt = 0;
+  const live = window._rrCalloutExposure;
+  if (live && Array.isArray(live.days)) {
+    src = live.days;
+  } else {
+    try {
+      const dspId = (window.RR && window.RR.dsp && window.RR.dsp.id) || "x";
+      const raw = localStorage.getItem("rr.tp.weekrisk:" + dspId);
+      if (raw) { const o = JSON.parse(raw); if (o && Array.isArray(o.days)) { src = o.days; fromCache = true; generatedAt = Number(o.generatedAt) || 0; } }
+    } catch (_) { src = null; }
+  }
+
+  const ahead = (src || []).filter(d => d && d.iso && d.iso >= todayIso).sort((a, b) => a.iso.localeCompare(b.iso));
+  if (!ahead.length) { el.innerHTML = ""; return; }   // nothing to show → stay invisible
+
+  const exposedCount = ahead.filter(d => (d.exposure || 0) > 0).length;
+  // Cell tone: exposed days scale amber → red by how many drivers are uncovered;
+  // covered days stay calm. Matches the schedule panel's red/green treatment.
+  const cellTone = (d) => {
+    const ex = d.exposure || 0;
+    if (ex <= 0) return "covered";
+    return ex >= 2 ? "hot" : "warm";
+  };
+  const cellHtml = ahead.map((d) => {
+    const ex = d.exposure || 0;
+    const tone = cellTone(d);
+    const big = ex > 0 ? `+${ex}` : "✓";
+    const sub = ex > 0
+      ? `${d.atRisk} at-risk · ${Math.max(0, d.cushionDrivers || 0)} cushion`
+      : (d.cushionDrivers > 0 ? `+${d.cushionDrivers} spare` : "covered");
+    const title = `${d.weekday}: ${d.label || (ex > 0 ? ex + " exposed" : "covered")} — ${d.atRisk || 0} at-risk vs ${Math.max(0, d.cushionDrivers || 0)} cushion of ${d.scheduledDrivers || 0} scheduled`;
+    return `<button type="button" class="tp-wr-cell tone-${tone}" title="${escapeHtml(title)}" onclick="goto('schedule')">
+      <span class="tp-wr-day">${escapeHtml(String(d.weekday || d.iso))}</span>
+      <span class="tp-wr-val">${escapeHtml(big)}</span>
+      <span class="tp-wr-sub">${escapeHtml(sub)}</span>
+    </button>`;
+  }).join("");
+
+  const heading = exposedCount > 0
+    ? `${exposedCount} exposed day${exposedCount === 1 ? "" : "s"} ahead`
+    : "Covered through the week";
+  const stale = fromCache && generatedAt ? `<span class="tp-wr-asof" title="From the last schedule render">as of ${escapeHtml(_rrRelTime(generatedAt))}</span>` : "";
+
+  el.innerHTML = `
+    <div class="tp-weekrisk card card-flush">
+      <div class="tp-wr-head">
+        <span class="tp-wr-title">Call-out exposure · days ahead</span>
+        <span class="tp-wr-status ${exposedCount > 0 ? "is-exposed" : "is-covered"}">${escapeHtml(heading)}</span>
+        ${stale}
+      </div>
+      <div class="tp-wr-strip">${cellHtml}</div>
+    </div>`;
+}
+
+// Compact relative-time label ("just now", "2h ago", "yesterday", "Jul 9").
+function _rrRelTime(ts) {
+  const diff = Date.now() - ts;
+  if (!(diff >= 0)) return "just now";
+  const m = Math.floor(diff / 60000), h = Math.floor(m / 60), dys = Math.floor(h / 24);
+  if (m < 2) return "just now";
+  if (h < 1) return m + "m ago";
+  if (dys < 1) return h + "h ago";
+  if (dys === 1) return "yesterday";
+  if (dys < 7) return dys + "d ago";
+  try { return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+  catch { return dys + "d ago"; }
+}
 
 // When the schedule's Today sub-view is the visible host for the
 // Today's Plan shell, mirror the in-shell minimal KPI strip into the
@@ -58489,6 +58575,23 @@ async function renderScheduleWeek() {
     };
   })();
   window._rrCalloutExposure = _calloutExposure;
+  // Persist a compact snapshot so the dashboard's week-risk matrix renders the
+  // SAME canonical exposure even before the operator opens the schedule this
+  // session. localStorage survives across sessions; the schedule recomputes and
+  // rewrites it on every render, and the dashboard filters to days >= today so a
+  // stale past week naturally drops out. Best-effort — a failure just means the
+  // dashboard falls back to the live in-memory global (or an empty matrix).
+  try {
+    const _dspId = (window.RR && window.RR.dsp && window.RR.dsp.id) || "x";
+    localStorage.setItem("rr.tp.weekrisk:" + _dspId, JSON.stringify({
+      generatedAt: Date.now(),
+      weekStart: _calloutExposure.weekStart,
+      days: (_calloutExposure.days || []).map(d => ({
+        iso: d.iso, weekday: d.weekday, atRisk: d.atRisk, cushionDrivers: d.cushionDrivers,
+        scheduledDrivers: d.scheduledDrivers, exposure: d.exposure, status: d.status, label: d.label,
+      })),
+    }));
+  } catch (_) {}
 
   // Stash the strip's Preferred metrics too so the Improve
   // Preferred drill-down can match — same pattern as the
