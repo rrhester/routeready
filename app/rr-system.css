@@ -89,6 +89,16 @@
   --rr-ink-800: #16273f;
   --rr-ink-900: #0a1320;
 
+  /* Completions for values the driver app previously hand-typed in
+     template strings (inline-style token paydown). */
+  --rr-slate-100: #f1f5f9;
+  --rr-slate-600: #475569;
+  --rr-teal-700: #0f766e;
+  --rr-green-100: #dcfce7;
+  --rr-red-50: #fef2f2;
+  --rr-red-200: #fecaca;
+  --rr-red-800: #991b1b;
+
   /* ─── TYPOGRAPHY ─────────────────────────────────────────── */
   --rr-font-family:
     'Inter',
