@@ -3588,24 +3588,40 @@ function _rrIntelRenderRiskForecast(view) {
 
   const bar = view.querySelector("#rr-rf-calc");
   let barDebounce = null;
-  const readBar = () => {
-    const num = (id, lo, hi) => {
-      const v = Number(view.querySelector(id)?.value);
-      return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : null;
-    };
-    window._rrRfCalc = {
-      calloutPct: num("#rr-rf-callout", 0, 50),
-      attrPct:    num("#rr-rf-attr", 0, 10),
-      leadDays:   num("#rr-rf-lead", 7, 90),
-      dpr:        num("#rr-rf-dpr", 1, 5),
-      padPct:     num("#rr-rf-pad", 0, 50),
-      hires:      num("#rr-rf-hires", 0, 200) || 0,
-      fromIso:    view.querySelector("#rr-rf-from")?.value || "",
-    };
-    _rrRenderRiskForecastOut(view, weeks);
+  // Only the dial the operator actually edited becomes an override —
+  // untouched dials keep tracking the observed rates (storing the whole
+  // bar would freeze pre-load fallbacks and rounded display seeds as
+  // unintended overrides). Clearing a field hands it back to observed.
+  const RR_RF_FIELDS = {
+    "rr-rf-callout": ["calloutPct", 0, 50],
+    "rr-rf-attr":    ["attrPct", 0, 10],
+    "rr-rf-lead":    ["leadDays", 7, 90],
+    "rr-rf-dpr":     ["dpr", 1, 5],
+    "rr-rf-pad":     ["padPct", 0, 50],
+    "rr-rf-hires":   ["hires", 0, 200],
+    "rr-rf-from":    ["fromIso"],
   };
   if (bar) {
-    bar.addEventListener("input", () => { clearTimeout(barDebounce); barDebounce = setTimeout(readBar, 120); });
+    bar.addEventListener("input", (e) => {
+      const spec = RR_RF_FIELDS[e.target?.id];
+      if (!spec) return;
+      const st = window._rrRfCalc || (window._rrRfCalc = {});
+      if (spec[0] === "fromIso") {
+        st.fromIso = e.target.value || "";
+      } else if (String(e.target.value).trim() === "") {
+        delete st[spec[0]]; // cleared → back to observed
+      } else {
+        const v = Number(e.target.value);
+        if (Number.isFinite(v)) st[spec[0]] = Math.max(spec[1], Math.min(spec[2], v));
+      }
+      // "+ Hires" needs an arrival week even if the select was never
+      // touched — capture its current value once.
+      if (spec[0] === "hires" && st.hires > 0 && !st.fromIso) {
+        st.fromIso = view.querySelector("#rr-rf-from")?.value || "";
+      }
+      clearTimeout(barDebounce);
+      barDebounce = setTimeout(() => _rrRenderRiskForecastOut(view, weeks), 120);
+    });
     bar.addEventListener("submit", (e) => e.preventDefault());
   }
   const resetBtn = view.querySelector("#rr-rf-reset");
