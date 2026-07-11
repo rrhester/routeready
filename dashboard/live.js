@@ -3167,6 +3167,87 @@ function _rrAssessOkamiPlan(weeks) {
   });
 }
 
+// ── Flex capacity · tier-aware absorption + hiring plan (edge engine) ──────
+// Calls the flex-capacity edge function, which loads the DSP-week's live
+// rows (driver availability, preferred days, 5th-day opt-ins, certs, PTO,
+// scheduled shifts, demand) and runs the pure engine in /flex-capacity.
+// scenario_simple carries what-if counts; omitted → a no-op scenario, whose
+// WhatIfResult is the coverage verdict for the week exactly as planned.
+// Results cache 10 minutes per (week, scenario). Degrades silently when the
+// function isn't reachable — the UI simply doesn't show the plan block.
+window._rrFlexByWeek = window._rrFlexByWeek || {};
+const _RR_FLEX_NOOP = { addRoutesPerDay: 0 };
+async function _rrFlexForWeek(weekStartIso, scenarioSimple) {
+  if (!weekStartIso) return null;
+  const simple = scenarioSimple || _RR_FLEX_NOOP;
+  const key = weekStartIso + "|" + JSON.stringify(simple);
+  const cached = window._rrFlexByWeek[key];
+  if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.data;
+  try {
+    const { data, error } = await sb.functions.invoke("flex-capacity", {
+      body: { week_start: weekStartIso, scenario_simple: simple },
+    });
+    if (error || !data || data.error) throw (error || new Error(data?.error || "flex_failed"));
+    window._rrFlexByWeek[key] = { at: Date.now(), data };
+    return data;
+  } catch (e) {
+    console.warn("flex-capacity:", e?.message || e);
+    return null;
+  }
+}
+function _rrFlexBaseCached(weekStartIso) {
+  const hit = window._rrFlexByWeek[weekStartIso + "|" + JSON.stringify(_RR_FLEX_NOOP)];
+  return hit && Date.now() - hit.at < 10 * 60 * 1000 ? hit.data : null;
+}
+
+// Engine verdict (green/yellow/red/critical) → display language + the
+// legacy status classes. Tier words, not alarm words: the verdict answers
+// "HOW would this week be covered", not "is it at risk".
+const _RR_FLEX_VERDICT = {
+  green:    { label: "Covered comfortably",  cls: "ok",    hint: "Preferred days and normal patterns absorb it." },
+  yellow:   { label: "Covered at stretch",   cls: "tight", hint: "Needs non-preferred days and voluntary 5th days." },
+  red:      { label: "Needs hires",          cls: "risk",  hint: "Even the emergency ceiling barely covers it — hire." },
+  critical: { label: "Cannot cover",         cls: "risk",  hint: "Demand exceeds the maximum tier — hire and mitigate." },
+};
+
+// Fill the Risk Forecast coverage-plan block for the break week. Patches
+// the placeholder in place (no full re-render); bails silently if the view
+// changed underneath or the engine isn't reachable.
+async function _rrFillFlexPlan(weekStartIso, weekLabel) {
+  const host = document.getElementById("rr-intel-flex-plan");
+  if (!host || host.dataset.week !== weekStartIso) return;
+  const data = await _rrFlexForWeek(weekStartIso);
+  const still = document.getElementById("rr-intel-flex-plan");
+  if (!still || still.dataset.week !== weekStartIso) return;
+  if (!data || !data.flex) { still.remove(); return; }
+  const { flex, whatIf } = data;
+  const v = _RR_FLEX_VERDICT[whatIf?.status] || _RR_FLEX_VERDICT.green;
+  const kpi = flex.kpi || {};
+  const hireLine = whatIf && whatIf.driversNeeded > 0
+    ? `<div class="rr-intel-flexplan-hire"><strong>Hire ${whatIf.driversNeeded}</strong>
+        (${whatIf.recommendedFtHires} FT + ${whatIf.recommendedPtHires} PT) to restore comfortable coverage
+        · OT risk ${escapeHtml(whatIf.otRisk || "—")} · confidence ${Math.round(whatIf.confidenceScore || 0)}%</div>`
+    : `<div class="rr-intel-flexplan-hire">No hires required for this week's plan${
+        whatIf?.status === "yellow" ? " — ask for voluntary 5th days / non-preferred days" : ""}.</div>`;
+  still.innerHTML = `
+    <div class="rr-intel-section-head">
+      <h3 class="rr-intel-section-title">Coverage plan · ${escapeHtml(weekLabel)}</h3>
+      <span class="rr-intel-section-aside">From live availability, preferred days, 5th-day opt-ins, certs, PTO + scheduled shifts</span>
+    </div>
+    <div class="rr-intel-flexplan-verdict">
+      <span class="rr-intel-headline-pill ${v.cls}"><span class="dot"></span>${escapeHtml(v.label)}</span>
+      <span class="rr-intel-flexplan-hint">${escapeHtml(v.hint)}</span>
+    </div>
+    <div class="rr-intel-flexplan-tiers">
+      <div class="rr-intel-flexplan-tier"><span>Comfortable headroom</span><strong>+${Number(kpi.comfortableRoutesAvailable) || 0} routes/day</strong><em>preferred days, no pattern disruption</em></div>
+      <div class="rr-intel-flexplan-tier"><span>Stretch headroom</span><strong>+${Number(kpi.stretchRoutesAvailable) || 0} routes/day</strong><em>non-preferred days + voluntary 5th days</em></div>
+      <div class="rr-intel-flexplan-tier"><span>Maximum ceiling</span><strong>+${Number(kpi.maximumRoutesAvailable) || 0} routes/day</strong><em>emergency only — not sustainable</em></div>
+    </div>
+    ${hireLine}`;
+  // The gap card can now enrich its prescription with the FT/PT split.
+  try { if (typeof _rrRefreshTargetsGapCard === "function") _rrRefreshTargetsGapCard(); } catch (_) {}
+}
+
 // Map an OKAMI row's week label (e.g. "W22 May 24–30") to an ISO date
 // the simulation cache is keyed by. _okamiStart is the ISO date of
 // week-0 in the table; each subsequent row is +7 days. Returns null
@@ -3609,6 +3690,13 @@ function _rrIntelRenderRiskForecast(view) {
 
     ${detailHtml}
 
+    ${nextBreak && nextBreak.weekStartIso ? `
+    <div class="rr-intel-flexplan" id="rr-intel-flex-plan" data-week="${escapeHtml(nextBreak.weekStartIso)}">
+      <div class="rr-intel-section-head">
+        <h3 class="rr-intel-section-title">Coverage plan · ${escapeHtml(nextBreak.label)}</h3>
+        <span class="rr-intel-section-aside">Computing from live availability…</span>
+      </div>
+    </div>` : ""}
     <div id="rr-intel-upper-funnel"></div>
 
     <footer class="rr-intel-foot">
@@ -3620,6 +3708,13 @@ function _rrIntelRenderRiskForecast(view) {
         : "Loading observed callout + attrition rates…"}</span>
     </footer>
   `;
+
+  // Tier-aware coverage plan for the break week — fills in asynchronously
+  // from the flex-capacity engine; the placeholder disappears quietly if
+  // the engine isn't reachable.
+  if (nextBreak && nextBreak.weekStartIso) {
+    _rrFillFlexPlan(nextBreak.weekStartIso, nextBreak.label);
+  }
 
   // Upper funnel · backward-solve the next break into a sourcing quota.
   // Async (one cached RPC) so the core forecast still paints instantly.
@@ -3932,11 +4027,127 @@ function _rrIntelRenderHiringPulse(view) {
   });
 }
 
+// ── What-if · stress-test a week against the flex-capacity engine ─────────
+// The operator picks a week and turns four dials (extra routes/day, demand
+// multiplier, callouts, attrition); the edge function materializes the
+// counts against the live roster (deterministic — most-scheduled drivers
+// first) and scores the scenario at the three capacity tiers.
+function _rrIntelRenderWhatIf(view) {
+  const weeks = _rrReadOkamiWeeks();
+  const head = `
+    <header class="rr-intel-view-head">
+      <div class="rr-intel-view-head-l">
+        <p class="rr-intel-view-eyebrow">Intelligence · What-if</p>
+        <h2 class="rr-intel-view-title">What-if</h2>
+        <p class="rr-intel-view-sub">Stress-test a week before it happens: pile on routes, a Prime-Week multiplier,
+          callouts, or attrition, and the flex engine answers with tier headroom and a hiring plan —
+          from live availability, preferred days, 5th-day opt-ins, certs, PTO and scheduled shifts.</p>
+      </div>
+      <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>`;
+  if (!weeks.length) {
+    view.innerHTML = head + `<div class="rr-intel-empty">No 13-week plan data yet. Visit Schedule → Targets to load it, then come back.</div>`;
+    return;
+  }
+  let A = null;
+  try { A = _rrAssessOkamiPlan(weeks); } catch (_) {}
+  const defaultIso = (A && A.firstBreak && A.firstBreak.weekStartIso) || weeks[0].weekStartIso || "";
+  const options = weeks
+    .filter((w) => w.weekStartIso)
+    .map((w) => `<option value="${escapeHtml(w.weekStartIso)}"${w.weekStartIso === defaultIso ? " selected" : ""}>${escapeHtml(w.label)} · ${escapeHtml(w.dates)}</option>`)
+    .join("");
+  view.innerHTML = head + `
+    <div class="rr-intel-whatif">
+      <form class="rr-intel-whatif-form" id="rr-wi-form">
+        <label class="rr-intel-whatif-field">
+          <span>Week</span>
+          <select id="rr-wi-week">${options}</select>
+        </label>
+        <label class="rr-intel-whatif-field">
+          <span>Extra routes/day</span>
+          <input type="number" id="rr-wi-routes" min="0" max="30" step="1" value="0">
+        </label>
+        <label class="rr-intel-whatif-field">
+          <span>Demand</span>
+          <select id="rr-wi-mult">
+            <option value="1" selected>As planned</option>
+            <option value="1.15">+15% surge</option>
+            <option value="1.25">Prime Week (+25%)</option>
+            <option value="1.5">Peak (+50%)</option>
+          </select>
+        </label>
+        <label class="rr-intel-whatif-field">
+          <span>Callouts</span>
+          <input type="number" id="rr-wi-callouts" min="0" max="15" step="1" value="0">
+        </label>
+        <label class="rr-intel-whatif-field">
+          <span>Drivers quit</span>
+          <input type="number" id="rr-wi-attrition" min="0" max="10" step="1" value="0">
+        </label>
+        <button type="submit" class="rr-intel-whatif-run" id="rr-wi-run">Run scenario</button>
+      </form>
+      <div class="rr-intel-whatif-result" id="rr-wi-result">
+        <div class="rr-intel-empty">Pick a week, set the dials, and run. Callouts and attrition are simulated
+        against your most-scheduled drivers first, so reruns are comparable.</div>
+      </div>
+    </div>`;
+  const form = view.querySelector("#rr-wi-form");
+  if (form) form.addEventListener("submit", (e) => { e.preventDefault(); _rrRunWhatIf(view); });
+}
+
+async function _rrRunWhatIf(view) {
+  const btn = view.querySelector("#rr-wi-run");
+  const out = view.querySelector("#rr-wi-result");
+  if (!out) return;
+  const weekIso = view.querySelector("#rr-wi-week")?.value || "";
+  const clampInt = (id, max) => Math.max(0, Math.min(max, parseInt(view.querySelector(id)?.value, 10) || 0));
+  const simple = {
+    addRoutesPerDay: clampInt("#rr-wi-routes", 30),
+    routeMultiplier: Number(view.querySelector("#rr-wi-mult")?.value) || 1,
+    calloutCount: clampInt("#rr-wi-callouts", 15),
+    attritionCount: clampInt("#rr-wi-attrition", 10),
+  };
+  if (btn) { btn.disabled = true; btn.textContent = "Running…"; }
+  out.innerHTML = `<div class="rr-intel-empty">Loading the week's live roster and scoring the scenario…</div>`;
+  const data = await _rrFlexForWeek(weekIso, simple);
+  if (btn) { btn.disabled = false; btn.textContent = "Run scenario"; }
+  if (!data || !data.whatIf) {
+    out.innerHTML = `<div class="rr-intel-empty">The flex-capacity engine isn't reachable right now
+      (it deploys with the next main build). Try again in a few minutes.</div>`;
+    return;
+  }
+  const w = data.whatIf;
+  const v = _RR_FLEX_VERDICT[w.status] || _RR_FLEX_VERDICT.green;
+  const shortDays = (w.dailyShortages || []).filter((d) => d.shortage > 0);
+  const dayNames = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+  out.innerHTML = `
+    <div class="rr-intel-flexplan-verdict">
+      <span class="rr-intel-headline-pill ${v.cls}"><span class="dot"></span>${escapeHtml(v.label)}</span>
+      <span class="rr-intel-flexplan-hint">${escapeHtml(v.hint)}
+        · confidence ${Math.round(w.confidenceScore || 0)}%</span>
+    </div>
+    <div class="rr-intel-flexplan-tiers">
+      <div class="rr-intel-flexplan-tier"><span>Comfortable headroom left</span><strong>+${Number(w.comfortableRemaining) || 0} routes/day</strong><em>preferred days, no pattern disruption</em></div>
+      <div class="rr-intel-flexplan-tier"><span>Stretch headroom left</span><strong>+${Number(w.stretchRemaining) || 0} routes/day</strong><em>non-preferred days + voluntary 5th days</em></div>
+      <div class="rr-intel-flexplan-tier"><span>Maximum ceiling left</span><strong>+${Number(w.maximumRemaining) || 0} routes/day</strong><em>emergency only — not sustainable</em></div>
+    </div>
+    ${shortDays.length ? `<div class="rr-intel-flexplan-hire">Uncoverable even at maximum:
+      ${shortDays.map((d) => `<strong>${dayNames[d.day] || d.day} −${d.shortage}</strong>`).join(" · ")}
+      (${w.weeklyShortage} route-day${w.weeklyShortage === 1 ? "" : "s"} short across the week)</div>` : ""}
+    <div class="rr-intel-flexplan-hire">${w.driversNeeded > 0
+      ? `<strong>Hire ${w.driversNeeded}</strong> (${w.recommendedFtHires} FT + ${w.recommendedPtHires} PT)
+         to restore comfortable coverage · OT risk ${escapeHtml(w.otRisk || "—")} · schedule-disruption risk ${escapeHtml(w.scheduleDisruptionRisk || "—")}`
+      : `No hires required for this scenario.`}</div>`;
+}
+
 const _RR_INTEL_RENDERERS = {
   "risk-forecast": _rrIntelRenderRiskForecast,
   "hiring-pulse": _rrIntelRenderHiringPulse,
-  // 3 other intel views land in follow-up PRs:
-  //   compliance-watch, peak-days, what-if
+  "what-if": _rrIntelRenderWhatIf,
+  // 2 other intel views land in follow-up PRs:
+  //   compliance-watch, peak-days
 };
 
 // ── Undo stack ─────────────────────────────────────────────────────
@@ -43828,6 +44039,13 @@ function _rrRefreshTargetsGapCard() {
   const fmtIsoShort = (iso) => (iso ? fmtMD(new Date(iso + "T12:00:00")) : "");
   if (subEl) {
     if (rx.action === "hire") {
+      // FT/PT split rides along when the flex engine has already scored the
+      // first reachable week (cache-only — the card never fetches flex).
+      let split = "";
+      const flexData = rx.firstReachable && rx.firstReachable.weekStartIso
+        ? _rrFlexBaseCached(rx.firstReachable.weekStartIso) : null;
+      const wi = flexData && flexData.whatIf;
+      if (wi && wi.driversNeeded > 0) split = ` (${wi.recommendedFtHires} FT + ${wi.recommendedPtHires} PT)`;
       // Upper-funnel enrichment · when the planning payload is already
       // cached, extend "Hire N" into the application quota it implies.
       // Cold cache: kick the fetch and repaint this card once it lands
@@ -43845,8 +44063,8 @@ function _rrRefreshTargetsGapCard() {
         }
       }
       subEl.textContent = rx.unreachable.length
-        ? `Hire ${rx.hires} by ${fmtIsoShort(rx.deadlineIso)} · ${rx.unreachable.length} wk${rx.unreachable.length === 1 ? "" : "s"} need OT/flex`
-        : `Hire ${rx.hires} by ${fmtIsoShort(rx.deadlineIso)}` + appsSuffix;
+        ? `Hire ${rx.hires}${split} by ${fmtIsoShort(rx.deadlineIso)} · ${rx.unreachable.length} wk${rx.unreachable.length === 1 ? "" : "s"} need OT/flex`
+        : `Hire ${rx.hires}${split} by ${fmtIsoShort(rx.deadlineIso)}` + appsSuffix;
     } else if (rx.action === "mitigate") {
       subEl.textContent = `Hire window passed — cover ${rx.shortNow} with OT/flex`;
     } else {

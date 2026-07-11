@@ -1327,7 +1327,7 @@
                 </svg>
                 <span>Peak days</span>
               </button>
-              <button type="button" class="sched-v2-intel-tile sched-v2-intel-tile-soon" data-rr-intel="what-if" disabled aria-disabled="true" title="What-if — coming soon">
+              <button type="button" class="sched-v2-intel-tile" data-rr-intel="what-if" title="What-if · stress-test a week: extra routes, Prime-Week demand, callouts, attrition">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <line x1="6" y1="3" x2="6" y2="13"/>
                   <circle cx="6" cy="17" r="2"/>
@@ -1702,6 +1702,7 @@
         <section class="rr-intel-host" id="rr-intel-host" aria-live="polite" hidden>
           <article class="rr-intel-view" id="rr-intel-view-risk-forecast" data-rr-intel-view="risk-forecast" hidden></article>
           <article class="rr-intel-view" id="rr-intel-view-hiring-pulse" data-rr-intel-view="hiring-pulse" hidden></article>
+          <article class="rr-intel-view" id="rr-intel-view-what-if" data-rr-intel-view="what-if" hidden></article>
         </section>
 
         <!-- WEEK VIEW SUB-VIEW -->

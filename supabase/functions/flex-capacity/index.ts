@@ -5,7 +5,12 @@
 //
 // POST body:
 //   { week_start: "2026-05-25", growth_routes_per_day?: number,
-//     scenario?: Scenario }                 // optional What-If
+//     scenario?: Scenario,                  // optional What-If (full shape)
+//     scenario_simple?: SimpleScenario }    // optional What-If by counts —
+//                                           // { addRoutesPerDay?, routeMultiplier?,
+//                                           //   calloutCount?, attritionCount? },
+//                                           // materialized deterministically against
+//                                           // the live roster (see flex-capacity/src/simple.ts)
 //
 // Returns the FlexResult, and (when a scenario is supplied) a WhatIfResult.
 //
@@ -20,6 +25,7 @@ import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts"
 import { buildFlexInput } from "../../../flex-capacity/src/adapter.ts";
 import { computeFlexCapacity } from "../../../flex-capacity/src/engine.ts";
 import { runWhatIf, type Scenario } from "../../../flex-capacity/src/whatif.ts";
+import { materializeScenario, type SimpleScenario } from "../../../flex-capacity/src/simple.ts";
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -57,7 +63,12 @@ Deno.serve(async (req: Request) => {
   if (!["dispatcher", "ops", "owner"].includes(appUser.role)) return json({ error: "forbidden" }, 403);
 
   // ── Parse request ──────────────────────────────────────────────────────
-  let body: { week_start?: string; growth_routes_per_day?: number; scenario?: Scenario };
+  let body: {
+    week_start?: string;
+    growth_routes_per_day?: number;
+    scenario?: Scenario;
+    scenario_simple?: SimpleScenario;
+  };
   try {
     body = await req.json();
   } catch {
@@ -120,7 +131,11 @@ Deno.serve(async (req: Request) => {
 
   const growth = typeof body.growth_routes_per_day === "number" ? body.growth_routes_per_day : 0;
   const flex = computeFlexCapacity(input, growth);
-  const whatIf = body.scenario ? runWhatIf(input, body.scenario) : null;
+  // Full scenario wins when both are supplied; scenario_simple is expanded
+  // against the live roster (deterministic — see simple.ts).
+  const scenario = body.scenario
+    ?? (body.scenario_simple ? materializeScenario(input, body.scenario_simple) : null);
+  const whatIf = scenario ? runWhatIf(input, scenario) : null;
 
   // Cache the latest base result for fast KPI reads / trend charts. Best
   // effort — a cache failure must never fail the request. (Skipped when the

@@ -39,3 +39,4 @@ export {
   type DailyMaxScenario,
   type DailyMaxResult,
 } from "./daily-max.ts";
+export { materializeScenario, type SimpleScenario } from "./simple.ts";
