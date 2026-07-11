@@ -29843,6 +29843,10 @@ async function openDriverDrawer(driverId, opts) {
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
             <span class="dd-act-txt">Create coaching</span>
           </button>
+          <button type="button" class="dd-act" data-rr-dd-action="notebook" title="Open this driver's notebook">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/><path d="M8 13h6M8 17h4"/></svg>
+            <span class="dd-act-txt">Notebook</span>
+          </button>
           <div class="dd-more-wrap">
             <button type="button" class="dd-act" data-rr-dd-action="more" aria-haspopup="menu" aria-expanded="false" title="More actions">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/><circle cx="5" cy="12" r="1.6"/></svg>
@@ -37821,6 +37825,7 @@ document.addEventListener("click", async (e) => {
     if (moreMenu) moreMenu.hidden = true;
     if (!id) { toast("Save the driver record first.", "warn"); return; }
     if (act === "message")      { _ddMessageDriver(id); return; }
+    if (act === "notebook")     { var _nbNm = (typeof displayDriverName === "function" ? displayDriverName(_ddDriver.driver) : "Driver"); var _dd = document.getElementById("rr-dd-drawer"); if (_dd && typeof _dd._ddClose === "function") _dd._ddClose(); if (window.RRNotebooks) window.RRNotebooks.openFor("driver", id, _nbNm); return; }
     if (act === "coach")        { if (typeof openCoachingForm === "function") openCoachingForm(id); return; }
     if (act === "availability") { _ddTab = "availability"; renderDriverDrawerTab(); return; }
     if (act === "report")       { if (typeof _openEmploymentReport === "function") _openEmploymentReport(id); return; }
@@ -73876,6 +73881,8 @@ async function openFleetDrawer(vehicleId, opts) {
               <div id="rr-fd-headside-status" style="font-weight:600;line-height:1.3">—</div>
               <div style="font-size:10px;color:var(--text-subtle);margin-top:2px;font-weight:500">Change from the Fleet roster</div>
             </div>
+            <button type="button" class="btn btn-sm btn-ghost" data-rr-fd-action="notebook" title="Open this vehicle's notebook" style="align-self:center;display:inline-flex;align-items:center;gap:6px">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/><path d="M8 13h6M8 17h4"/></svg>Notebook</button>
             <button id="rr-fd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px;line-height:1">×</button>
           </div>
         </div>
@@ -73894,6 +73901,8 @@ async function openFleetDrawer(vehicleId, opts) {
   document.body.appendChild(drawer);
 
   drawer.addEventListener("click", (e) => {
+    const nbBtn = e.target.closest && e.target.closest("[data-rr-fd-action='notebook']");
+    if (nbBtn) { const v = _fdVehicle && _fdVehicle.vehicle; drawer.remove(); if (v && window.RRNotebooks) window.RRNotebooks.openFor("vehicle", v.id, v.name || v.plate || "Vehicle"); return; }
     if (e.target === drawer || e.target.id === "rr-fd-close" || e.target.id === "rr-fd-cancel") { drawer.remove(); return; }
   });
 
