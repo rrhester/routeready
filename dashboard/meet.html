@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#111318">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>RouteReady Meet</title>
+<link rel="icon" href="/app/icon.svg">
+<!-- Asset paths are ABSOLUTE on purpose: the /m/:code short link is a
+     Netlify 200 rewrite, so the browser stays on /m/… and relative
+     paths would resolve against /m/. Same trick as rsvp.html. -->
+<style>
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400 800;font-display:swap;src:url(/app/fonts/inter-var-latin.woff2) format('woff2')}
+  :root{
+    --accent:#2563EB; --accent-d:#1D4ED8; --text:#111827; --muted:#6B7280;
+    --border:#E4E4E9; --canvas:#F9FAFB; --surface:#fff; --red:#DC2626; --green:#16A34A;
+    --room-bg:#111318; --room-panel:#1A1D24; --room-tile:#20242E; --room-line:#2C3140;
+    --room-text:#F3F4F6; --room-muted:#9CA3AF;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font:15px/1.45 "Inter","Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);background:var(--canvas)}
+  button{font:inherit;cursor:pointer}
+  section[data-screen]{display:none;height:100%}
+  body[data-screen="boot"]  section[data-screen="boot"],
+  body[data-screen="home"]  section[data-screen="home"],
+  body[data-screen="lobby"] section[data-screen="lobby"],
+  body[data-screen="room"]  section[data-screen="room"],
+  body[data-screen="done"]  section[data-screen="done"]{display:flex}
+
+  /* ── shared chrome ─────────────────────────────────────────────── */
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .logo{width:38px;height:38px;border-radius:9px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px}
+  .brand .t{font-weight:800;font-size:17px}
+  .brand .t small{display:block;font-weight:600;font-size:12px;color:var(--muted)}
+  .spin{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:s .7s linear infinite;margin:auto}
+  @keyframes s{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none}}
+
+  /* ── home ──────────────────────────────────────────────────────── */
+  .home-wrap{flex-direction:column;align-items:center;justify-content:center;gap:0;padding:24px}
+  .home-card{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;margin-top:22px}
+  .home-card h1{font-size:22px;line-height:1.25;margin:0 0 6px}
+  .home-card .sub{color:var(--muted);margin:0 0 20px;font-size:14px}
+  .btn-primary{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:13px;border:0;border-radius:9px;background:var(--accent);color:#fff;font-weight:700;font-size:15px}
+  .btn-primary:hover{background:var(--accent-d)}
+  .btn-primary[disabled]{opacity:.6;cursor:default}
+  .or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:16px 0}
+  .or::before,.or::after{content:"";flex:1;height:1px;background:var(--border)}
+  .join-row{display:flex;gap:8px}
+  .join-row input{flex:1;padding:12px;border:1px solid var(--border);border-radius:9px;font:inherit;min-width:0}
+  .join-row input:focus{outline:2px solid rgba(37,99,235,.35);border-color:var(--accent)}
+  .btn-secondary{padding:12px 18px;border:1px solid var(--border);border-radius:9px;background:#fff;font-weight:700;color:var(--accent)}
+  .btn-secondary:hover{background:#F3F6FE}
+  .fielderr{color:var(--red);font-size:13px;min-height:18px;margin-top:8px}
+  .signin-hint{font-size:13px;color:var(--muted);margin-top:14px;text-align:center}
+  .signin-hint a{color:var(--accent);font-weight:600}
+  #recent{display:none;width:100%;max-width:480px;margin-top:16px}
+  #recent h3{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}
+  .recent-row{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:11px 14px;margin-bottom:6px}
+  .recent-row:hover:not([disabled]){border-color:var(--accent)}
+  .recent-row[disabled]{opacity:.55;cursor:default}
+  .recent-title{font-weight:600}
+  .recent-meta{color:var(--muted);font-size:13px;white-space:nowrap}
+
+  /* ── lobby ─────────────────────────────────────────────────────── */
+  .lobby-wrap{align-items:center;justify-content:center;gap:34px;padding:24px;flex-wrap:wrap}
+  .preview{position:relative;width:min(560px,92vw);aspect-ratio:16/9;background:#14161C;border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(17,24,39,.18)}
+  .preview video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .preview .avatar-big{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .preview .avatar-big span{width:92px;height:92px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:700}
+  .preview .preview-ctrls{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:center;gap:12px}
+  .lobby-side{width:300px;max-width:92vw}
+  .lobby-side h2{margin:0 0 4px;font-size:20px}
+  .lobby-side .code{color:var(--muted);font-size:14px;margin-bottom:18px}
+  .lobby-side label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+  .lobby-side input{width:100%;padding:12px;border:1px solid var(--border);border-radius:9px;font:inherit;margin-bottom:14px}
+  .lobby-side input:focus{outline:2px solid rgba(37,99,235,.35);border-color:var(--accent)}
+
+  /* ── room ──────────────────────────────────────────────────────── */
+  .room-wrap{flex-direction:column;background:var(--room-bg);color:var(--room-text)}
+  .room-head{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--room-line)}
+  .room-head .rh-title{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .code-chip{border:1px solid var(--room-line);background:var(--room-panel);color:var(--room-muted);border-radius:7px;padding:4px 10px;font-size:13px;font-weight:600;letter-spacing:.02em}
+  .code-chip:hover{color:var(--room-text)}
+  .rh-right{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13px;color:var(--room-muted)}
+  .rh-right .dot{width:4px;height:4px;border-radius:50%;background:var(--room-line)}
+  .room-main{flex:1;display:flex;min-height:0;position:relative}
+  #grid{flex:1;display:grid;grid-template-columns:repeat(var(--cols,1),1fr);grid-auto-rows:1fr;gap:10px;padding:14px;min-height:0}
+  #grid.has-stage{display:flex;flex-wrap:wrap;align-content:stretch}
+  #grid.has-stage .tile.stage{flex:1 1 100%;height:calc(100% - 152px)}
+  #grid.has-stage .tile:not(.stage){flex:0 0 auto;height:140px;aspect-ratio:16/9}
+  .tile{position:relative;background:var(--room-tile);border-radius:11px;overflow:hidden;min-height:0}
+  .tile video{width:100%;height:100%;object-fit:cover;display:block}
+  .tile.stage video{object-fit:contain;background:#000}
+  .tile video.mirror{transform:scaleX(-1)}
+  .tile.cam-off video{visibility:hidden}
+  .tile .avatar{position:absolute;inset:0;display:none;align-items:center;justify-content:center}
+  .tile.cam-off .avatar{display:flex}
+  .tile .avatar span{width:72px;height:72px;border-radius:50%;background:#333B4E;color:#E5E7EB;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700}
+  .plate{position:absolute;left:8px;bottom:8px;display:flex;align-items:center;gap:6px;background:rgba(10,12,16,.72);border-radius:6px;padding:4px 9px;font-size:12.5px;font-weight:600;max-width:calc(100% - 16px)}
+  .plate-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .plate-mic{display:none;color:#F87171}
+  .plate-mic.muted{display:inline-flex}
+  .plate-mic svg{width:13px;height:13px}
+  .tile-status{position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;padding-top:14px;color:var(--room-muted);font-size:13px;pointer-events:none}
+
+  /* chat panel */
+  #chat{width:0;overflow:hidden;transition:width .18s ease;background:var(--room-panel);border-left:1px solid var(--room-line);display:flex;flex-direction:column}
+  #chat.open{width:320px}
+  @media (prefers-reduced-motion:reduce){#chat{transition:none}}
+  .chat-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--room-line);font-weight:700;font-size:14px;white-space:nowrap}
+  .chat-head button{background:none;border:0;color:var(--room-muted);font-size:18px;line-height:1;padding:2px 6px}
+  .chat-head button:hover{color:var(--room-text)}
+  #chat-list{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:290px}
+  .chat-msg .chat-who{font-size:12px;color:var(--room-muted);margin-bottom:2px}
+  .chat-msg.self .chat-who{color:#93B4F5}
+  .chat-msg .chat-text{background:var(--room-tile);border-radius:8px;padding:8px 11px;font-size:14px;word-wrap:break-word;white-space:pre-wrap}
+  .chat-compose{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--room-line);min-width:290px}
+  .chat-compose input{flex:1;background:var(--room-tile);border:1px solid var(--room-line);color:var(--room-text);border-radius:8px;padding:10px 12px;font:inherit;font-size:14px;min-width:0}
+  .chat-compose input:focus{outline:2px solid rgba(37,99,235,.5)}
+  .chat-compose button{background:var(--accent);border:0;color:#fff;border-radius:8px;padding:0 14px;font-weight:700}
+
+  /* control bar */
+  .room-ctrls{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--room-line)}
+  .ctrl{position:relative;width:52px;height:52px;border-radius:50%;border:1px solid var(--room-line);background:var(--room-panel);color:var(--room-text);display:flex;align-items:center;justify-content:center}
+  .ctrl:hover{background:#232836}
+  .ctrl svg{width:22px;height:22px}
+  .ctrl .ic-off{display:none}
+  .ctrl.off{background:var(--red);border-color:var(--red)}
+  .ctrl.off:hover{background:#B91C1C}
+  .ctrl.off .ic-on{display:none}
+  .ctrl.off .ic-off{display:block}
+  .ctrl.on{background:var(--accent);border-color:var(--accent)}
+  .ctrl.on:hover{background:var(--accent-d)}
+  #chat-unread{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px}
+  .btn-leave{margin-left:14px;padding:14px 22px;border:0;border-radius:26px;background:var(--red);color:#fff;font-weight:700}
+  .btn-leave:hover{background:#B91C1C}
+  .btn-endall{padding:14px 18px;border:1px solid var(--red);border-radius:26px;background:transparent;color:#F87171;font-weight:700}
+  .btn-endall:hover{background:rgba(220,38,38,.14)}
+
+  /* ── done ──────────────────────────────────────────────────────── */
+  .done-wrap{flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px;text-align:center}
+  .done-wrap .big{font-size:21px;font-weight:800;margin-top:14px}
+  .done-actions{display:flex;gap:10px;margin-top:18px}
+  .done-actions .btn-primary{width:auto;padding:12px 22px}
+  .done-actions .btn-secondary{padding:12px 22px}
+
+  /* toast */
+  #toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(12px);background:#111827;color:#fff;border-radius:9px;padding:11px 18px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.18s;z-index:60;max-width:90vw}
+  #toast.show{opacity:1;transform:translateX(-50%)}
+  @media (prefers-reduced-motion:reduce){#toast{transition:none}}
+
+  @media (max-width:760px){
+    #chat{position:absolute;right:0;top:0;bottom:0;z-index:30}
+    #chat.open{width:min(320px,88vw)}
+    .rh-right .rh-host{display:none}
+    #grid{padding:8px;gap:6px}
+    .room-ctrls{gap:8px}
+    .ctrl{width:48px;height:48px}
+  }
+</style>
+</head>
+<body data-screen="boot">
+
+  <!-- boot -->
+  <section data-screen="boot" style="align-items:center;justify-content:center"><div class="spin"></div></section>
+
+  <!-- home -->
+  <section data-screen="home" class="home-wrap">
+    <div class="brand"><div class="logo">R</div><div class="t">RouteReady Meet<small>Video meetings on your own domain</small></div></div>
+    <div class="home-card">
+      <h1>Instant video meetings</h1>
+      <p class="sub">Start a meeting and share one link — applicants and drivers join right from their browser, no app, no account.</p>
+      <button id="btn-new" class="btn-primary" type="button" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        New meeting
+      </button>
+      <div id="home-signin" class="signin-hint">Hosting a meeting requires a RouteReady account — <a href="/dashboard/login.html?next=%2Fdashboard%2Fmeet.html">sign in</a> to start one.</div>
+      <div class="or">or join one</div>
+      <div class="join-row">
+        <input id="join-code" type="text" autocomplete="off" spellcheck="false" placeholder="Enter a code or link" aria-label="Meeting code or link">
+        <button id="btn-join" class="btn-secondary" type="button">Join</button>
+      </div>
+      <div id="join-err" class="fielderr"></div>
+      <div id="home-err" class="fielderr" style="text-align:center"></div>
+    </div>
+    <div id="recent"></div>
+  </section>
+
+  <!-- lobby -->
+  <section data-screen="lobby" class="lobby-wrap">
+    <div class="preview">
+      <video id="lobby-video" autoplay muted playsinline></video>
+      <div class="avatar-big" id="lobby-avatar" style="display:none"><span id="lobby-avatar-initials">?</span></div>
+      <div class="preview-ctrls">
+        <button id="lobby-mic" class="ctrl" type="button" title="Toggle microphone">
+          <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+          <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+        </button>
+        <button id="lobby-cam" class="ctrl" type="button" title="Toggle camera">
+          <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="lobby-side">
+      <h2 id="lobby-title">RouteReady meeting</h2>
+      <div class="code" id="lobby-code"></div>
+      <label for="name-input">Your name</label>
+      <input id="name-input" type="text" autocomplete="name" maxlength="60" placeholder="e.g. Dana Ortiz">
+      <button id="btn-enter" class="btn-primary" type="button">Join now</button>
+    </div>
+  </section>
+
+  <!-- room -->
+  <section data-screen="room" class="room-wrap">
+    <header class="room-head">
+      <div class="rh-title" id="room-title">RouteReady meeting</div>
+      <button class="code-chip" id="room-code" type="button" title="Copy invite link"></button>
+      <div class="rh-right">
+        <span id="room-timer">0:00</span>
+        <span class="dot" aria-hidden="true"></span>
+        <span title="Participants"><span id="people-count">1</span> in call</span>
+      </div>
+    </header>
+    <main class="room-main">
+      <div id="grid" style="--cols:1;--rows:1"></div>
+      <aside id="chat" aria-label="In-meeting chat">
+        <div class="chat-head">In-meeting chat <button id="chat-close" type="button" aria-label="Close chat">×</button></div>
+        <div id="chat-list"></div>
+        <div class="chat-compose">
+          <input id="chat-input" type="text" maxlength="1000" placeholder="Send a message to everyone" aria-label="Chat message">
+          <button id="chat-send" type="button">Send</button>
+        </div>
+      </aside>
+    </main>
+    <footer class="room-ctrls">
+      <button id="btn-mic" class="ctrl" type="button" title="Mute">
+        <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+        <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      </button>
+      <button id="btn-cam" class="ctrl" type="button" title="Turn camera off">
+        <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/></svg>
+      </button>
+      <button id="btn-share" class="ctrl" type="button" title="Share your screen">
+        <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><path d="M12 13V7m0 0l-3 3m3-3l3 3"/></svg>
+      </button>
+      <button id="btn-chat" class="ctrl" type="button" title="Chat">
+        <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span id="chat-unread" style="display:none">0</span>
+      </button>
+      <button id="btn-invite" class="ctrl" type="button" title="Copy invite link">
+        <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      </button>
+      <button id="btn-end" class="btn-endall" type="button" style="display:none">End for all</button>
+      <button id="btn-leave" class="btn-leave" type="button">Leave</button>
+    </footer>
+  </section>
+
+  <!-- done -->
+  <section data-screen="done" class="done-wrap">
+    <div class="brand"><div class="logo">R</div><div class="t">RouteReady Meet</div></div>
+    <div class="big" id="done-msg">You left the meeting.</div>
+    <div class="done-actions">
+      <button id="btn-rejoin" class="btn-primary" type="button">Rejoin</button>
+      <button id="btn-home" class="btn-secondary" type="button">Back to start</button>
+    </div>
+  </section>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+<script src="/dashboard/config.js"></script>
+<script type="module" src="/dashboard/meet.js?v=dev"></script>
+</body>
+</html>

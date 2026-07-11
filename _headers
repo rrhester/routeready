@@ -14,13 +14,17 @@
 #   geolocation=(self): the routing app uses navigator.geolocation
 #   (dashboard/live.js station-locate, app/app.js), so (self) is the
 #   least-breaking Permissions-Policy value.
+#   camera/microphone/display-capture=(self): RouteReady Meet
+#   (dashboard/meet.html) is a first-party video tool; (self) still
+#   denies embedded third-party iframes, and the browser's permission
+#   prompt continues to gate actual device access per page.
 # CSP: deferred — inline scripts/styles need nonce/hash refactor first.
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=()
+  Permissions-Policy: geolocation=(self), camera=(self), microphone=(self), display-capture=(self), payment=()
   X-XSS-Protection: 0
 
 /*.html

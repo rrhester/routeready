@@ -50,6 +50,8 @@ const token = deriveToken().slice(0, 12) || String(Date.now());
 const FILES = [
   "dashboard/index.html",
   "dashboard/live.js",
+  "dashboard/meet.html",
+  "dashboard/meet.js",
   "app/index.html",
 ];
 
