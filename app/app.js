@@ -1020,7 +1020,11 @@ function render() {
       || path === "/tasks/documents"
       || path === "/tasks/documents/sign"
       || path === "/tasks/i9"
+      // /chat plus its sub-routes — channels moved onto real routes
+      // (/chat/channels, /chat/channel), and onboarding drivers use
+      // Chat to receive dispatch instructions.
       || path === "/chat"
+      || path.startsWith("/chat/")
       // Schedule stays unlocked during onboarding so the driver can
       // see any training shifts the dispatcher slots in before they
       // flip to "active". Without this, manually-added training
