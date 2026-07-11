@@ -606,7 +606,7 @@ select.field{
 /* Van · the one operational fact worth a touch of accent. */
 .sc-cell-v--van{color:var(--accent-text)}
 /* Status / training tints — value-only, no chrome. */
-.sc-cell-v--train{color:#0F766E}
+.sc-cell-v--train{color:var(--rr-teal-700)}
 .sc-cell-v--road{color:var(--rr-amber-700)}
 .sc-cell-v--ex{color:var(--amber-dark)}
 .sc-cell-v--done{color:var(--green-dark)}
@@ -637,7 +637,7 @@ select.field{
 }
 .ss-off{color:var(--text-subtle)}
 .ss-on{background:var(--accent-soft);color:var(--accent-text);font-weight:700}
-.ss-train.ss-on{background:rgba(15,118,110,.12);color:#0F766E}
+.ss-train.ss-on{background:rgba(15,118,110,.12);color:var(--rr-teal-700)}
 .ss-past{opacity:.5}
 .ss-past.ss-on{background:var(--surface-pressed);color:var(--text-subtle);font-weight:700}
 .ss-today{box-shadow:inset 0 0 0 2px var(--accent);color:var(--accent);font-weight:700}
@@ -689,7 +689,7 @@ select.field{
   background:var(--canvas);color:var(--text-muted);border:1px solid var(--border-subtle);
 }
 .sc-chip-rot{background:rgba(180,83,9,.10);color:var(--rr-amber-700);border-color:transparent}
-.sc-chip-train{background:rgba(15,118,110,.12);color:#0F766E;border-color:transparent}
+.sc-chip-train{background:rgba(15,118,110,.12);color:var(--rr-teal-700);border-color:transparent}
 .sc-chip-road{background:rgba(180,83,9,.10);color:var(--rr-amber-700);border-color:transparent}
 .sc-chip-cushion{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
 .sc-chip-done{background:var(--green-soft);color:var(--green-dark);border-color:transparent}
