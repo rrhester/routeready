@@ -590,7 +590,9 @@
           .map(function (p) { return { id: p.id, section_id: p.section_id, parent_page_id: p.parent_page_id, title: p.title, level: p.level, position: p.position, tags: p.tags, is_pinned: p.is_pinned, updated_at: p.updated_at }; })
       }); },
       ensureFor: function (t, i, title) {
-        var found = db.notebooks.filter(function (n) { return n.subject_type === t && n.subject_id === String(i) && !n.deleted_at; })[0];
+        var found = db.notebooks.filter(function (n) { return n.subject_type === t && n.subject_id === String(i); })[0];
+        // a deleted object notebook is revived, not duplicated — matches notebook_ensure_for
+        if (found && found.deleted_at) { delete found.deleted_at; persist(); }
         if (!found) { var id = uid(); found = { id: id, name: title || (t.charAt(0).toUpperCase() + t.slice(1) + " notebook"), color: "#2563eb", kind: "object", subject_type: t, subject_id: String(i), is_pinned: false, position: db.notebooks.length };
           db.notebooks.push(found); db.sections.push({ id: uid(), notebook_id: id, group_id: null, name: "Notes", color: "#2563eb", position: 0 }); persist(); }
         return P(found);
