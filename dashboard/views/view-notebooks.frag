@@ -1439,7 +1439,7 @@
     if (cur) cur.addEventListener("click", function () { var m = $id("rrnb-nb-menu"); m.hidden = !m.hidden; });
     var menu = $id("rrnb-nb-menu");
     if (menu) menu.addEventListener("click", function (e) {
-      var kb = e.target.closest("[data-menu='notebook']"); if (kb) { menu.hidden = true; var r = kb.getBoundingClientRect(); return notebookMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
+      var kb = e.target.closest("[data-menu='notebook']"); if (kb) { var r = kb.getBoundingClientRect(); menu.hidden = true; return notebookMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
       var add = e.target.closest("[data-new]"); if (add) { menu.hidden = true; return createNotebookFlow(); }
       var it = e.target.closest("[data-nb]"); if (it) { menu.hidden = true; S.activeSection = null; selectNotebook(it.getAttribute("data-nb")); }
     });
