@@ -3070,7 +3070,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (code.indexOf("ANTHROPIC_API_KEY") >= 0) return "AI isn't set up on the server yet — the ANTHROPIC_API_KEY secret is missing on the Supabase project. An admin can add it under Project Settings → Edge Functions → Secrets.";
       if (code === "missing_auth" || code === "invalid_auth") return "Your session has expired — sign out and back in to use AI.";
       if (code === "no_membership") return "AI is available to active team members only. Ask an admin to check your account.";
-      if (code === "ai_failed") return "The AI service returned an error: " + (p.detail || "unknown error") + ". Try again in a moment.";
+      if (code === "ai_failed") {
+        var d = String(p.detail || "");
+        if (/credit balance|billing/i.test(d)) return "The AI account is out of credits — an admin can top up at console.anthropic.com → Plans & Billing. AI works again immediately after.";
+        if (/rate.?limit|overloaded|529/i.test(d)) return "The AI service is busy right now — try again in a minute.";
+        return "The AI service returned an error: " + (d || "unknown error") + ".";
+      }
       if (code === "image_too_large") return "That picture is too large for AI to read.";
       return p.detail || p.error || null;
     }
