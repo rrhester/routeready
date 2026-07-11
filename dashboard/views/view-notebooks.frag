@@ -546,7 +546,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       listNotebooks: function () { return rpc("notebooks_list"); },
       tree: function (id) { return rpc("notebook_tree", { p_notebook_id: id }); },
       ensureFor: function (t, i, title) { return rpc("notebook_ensure_for", { p_subject_type: t, p_subject_id: String(i), p_title: title || null }); },
-      createNotebook: function (name, color) { return rpc("notebook_create", { p_name: name, p_color: color }); },
+      createNotebook: function (name, color, kind) { return rpc("notebook_create", { p_name: name, p_color: color, p_kind: kind || "workspace" }); },
+      shareCandidates: function () { return rpc("notebook_share_candidates"); },
+      shareList: function (nb) { return rpc("notebook_share_list", { p_notebook_id: nb }); },
+      shareSet: function (nb, members) { return rpc("notebook_share_set", { p_notebook_id: nb, p_members: members }); },
       createGroup: function (nb, name) { return rpc("notebook_section_group_create", { p_notebook_id: nb, p_name: name }); },
       createSection: function (nb, name, grp, color) { return rpc("notebook_section_create", { p_notebook_id: nb, p_name: name, p_group_id: grp || null, p_color: color }); },
       createPage: function (sec, title, parent, level) { return rpc("notebook_page_create", { p_section_id: sec, p_title: title, p_parent_page_id: parent || null, p_level: level || 0 }); },
@@ -632,7 +635,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
           db.notebooks.push(found); db.sections.push({ id: uid(), notebook_id: id, group_id: null, name: "Notes", color: "#2563eb", position: 0 }); persist(); }
         return P(found);
       },
-      createNotebook: function (name, color) { var id = uid(); var n = { id: id, name: name || "New Notebook", color: color || "#2563eb", kind: "workspace", is_pinned: false, position: db.notebooks.length, subject_type: null, subject_id: null };
+      shareCandidates: function () { return P([]); },
+      shareList: function () { return P([]); },
+      shareSet: function () { return P([]); },
+      createNotebook: function (name, color, kind) { var id = uid(); var n = { id: id, name: name || "New Notebook", color: color || "#2563eb", kind: kind === "personal" ? "personal" : "workspace", is_pinned: false, position: db.notebooks.length, subject_type: null, subject_id: null };
         db.notebooks.push(n); db.sections.push({ id: uid(), notebook_id: id, group_id: null, name: "New Section", color: color || "#2563eb", position: 0 }); persist(); return P(n); },
       createGroup: function (nbId, name) { var g = { id: uid(), notebook_id: nbId, name: name || "New Group", color: "#64748b", position: db.groups.length }; db.groups.push(g); persist(); return P(g); },
       createSection: function (nbId, name, grp, color) { var s = { id: uid(), notebook_id: nbId, group_id: grp || null, name: name || "New Section", color: color || "#2563eb", position: db.sections.length }; db.sections.push(s); persist(); return P(s); },
@@ -791,6 +797,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (sw && meta) sw.style.background = meta.color || "var(--accent)";
     return S.be.tree(id).then(function (t) {
       S.tree = t; S.mode = "notebook";
+      S.myRole = (t.notebook && t.notebook.my_role) || "editor";
+      S.readOnly = S.myRole === "viewer";
       renderSections(); renderPageList();
       renderMentions(meta || (t && t.notebook));
       var first = pageId || (S.activeSection && firstPageOf(S.activeSection)) || null;
@@ -808,11 +816,19 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function renderNotebookMenu() {
     var m = $id("rrnb-nb-menu"); if (!m) return;
     var html = S.notebooks.map(function (n) {
+      var badge = "";
+      if (n.kind === "personal") {
+        badge = (n.member_count > 0)
+          ? '<span class="ct" title="Private — shared with ' + n.member_count + '">🔒👥' + n.member_count + '</span>'
+          : '<span class="ct" title="Private — only you">🔒</span>';
+        if (n.my_role === "viewer") badge += '<span class="ct" title="View only">view</span>';
+      }
       return '<div class="rrnb-menu-item" data-nb="' + n.id + '"><span class="rrnb-swatch" style="background:' + esc(n.color) + '"></span>' +
-        '<span class="nm">' + esc(n.name) + '</span><span class="ct">' + (n.page_count || 0) + '</span>' +
+        '<span class="nm">' + esc(n.name) + '</span>' + badge + '<span class="ct">' + (n.page_count || 0) + '</span>' +
         '<button class="rrnb-iconbtn kebab" data-menu="notebook" data-id="' + n.id + '" title="Notebook options">⋯</button></div>';
     }).join("");
-    html += '<div class="rrnb-menu-sep"></div><div class="rrnb-menu-item rrnb-menu-add" data-new="1">＋ New notebook</div>';
+    html += '<div class="rrnb-menu-sep"></div><div class="rrnb-menu-item rrnb-menu-add" data-new="1">＋ New notebook</div>' +
+      '<div class="rrnb-menu-item rrnb-menu-add" data-new-private="1" title="Only you can see it, until you share it">🔒 New private notebook</div>';
     m.innerHTML = html;
   }
 
@@ -957,7 +973,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
         '<span class="tw">▾</span><span class="gnm">' + esc(g.name) + '</span></div>' +
         (byGroup[g.id] || []).map(secRow).join("") + '</div>';
     });
-    html += '<button class="rrnb-newpage" data-add-section="1" style="margin-top:var(--s-2)">＋ New section</button>';
+    if (!S.readOnly) html += '<button class="rrnb-newpage" data-add-section="1" style="margin-top:var(--s-2)">＋ New section</button>';
     host.innerHTML = html;
   }
 
@@ -979,7 +995,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     if (pinned.length) { html += '<div class="rrnb-plgroup-hd">Pinned</div>' + pinned.map(function (p) { return pageRow(p, true); }).join(""); html += '<div class="rrnb-plgroup-hd">Pages</div>'; }
     function walk(p) { html += pageRow(p, false); (kids[p.id] || []).forEach(walk); }
     tops.forEach(walk);
-    html += '<div class="rrnb-pageadd"><button class="rrnb-newpage" data-add-page="1">＋ Add page  <span style="margin-left:auto;color:var(--text-disabled)">Alt+N</span></button>' +
+    if (!S.readOnly) html += '<div class="rrnb-pageadd"><button class="rrnb-newpage" data-add-page="1">＋ Add page  <span style="margin-left:auto;color:var(--text-disabled)">Alt+N</span></button>' +
       '<button class="rrnb-newpage rrnb-tpl-btn" data-template-menu="1" title="New page from a template">▤</button></div>';
     host.innerHTML = html;
   }
@@ -1121,12 +1137,33 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     ed.addEventListener("drop", onEditorDrop);
     bindToolbar();
     makeCaptionsEditable();
+    if (S.readOnly || p.my_role === "viewer") applyReadOnly();
     hydrateMedia(ed);
     renderTags(p.tags || []);
     renderBacklinks(id_of(p));
     refreshSaveLabel();
   }
   function id_of(p) { return p.id || S.pageId; }
+  // viewer role: the page renders normally but nothing is editable
+  function applyReadOnly() {
+    S.readOnly = true;
+    var ed = $id("rrnb-editor"), title = $id("rrnb-title"), tb = $id("rrnb-toolbar");
+    if (ed) {
+      ed.setAttribute("contenteditable", "false");
+      ed.querySelectorAll("figcaption[contenteditable]").forEach(function (c) { c.setAttribute("contenteditable", "false"); });
+    }
+    if (title) title.readOnly = true;
+    if (tb) tb.hidden = true;
+    var at = $id("rrnb-addtag"); if (at) at.hidden = true;
+    var sv = $id("rrnb-save"); if (sv) sv.hidden = true;
+    var ml = $(".rrnb-metaline");
+    if (ml && !$id("rrnb-viewonly")) {
+      var s = document.createElement("span"); s.id = "rrnb-viewonly"; s.className = "rrnb-tag";
+      s.title = "You have view-only access to this notebook";
+      s.textContent = "View only";
+      ml.insertBefore(s, ml.firstChild);
+    }
+  }
   function autoGrow(el) { if (!el) return; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
   function updateBreadcrumbTitle() { var el = $(".rrnb-cr-pg"); var t = $id("rrnb-title"); if (el && t) el.textContent = t.value || "Page"; }
 
@@ -1711,6 +1748,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     return { title: title.value.trim() || "Untitled Page", content_html: clean.innerHTML, content_text: text, tags: (S.page && S.page.tags) || [] };
   }
   function scheduleSave() {
+    if (S.readOnly) return; // viewer role: nothing to save
     setSaveState("saving");
     clearTimeout(S.saveTimer);
     S.saveTimer = setTimeout(doSave, 650);
@@ -1892,11 +1930,12 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (!rev) return;
       var p = aiPanel();
       p.innerHTML = '<div class="ph">Version from ' + esc(relTime(rev.created_at)) +
-        '<span class="sp"><button class="pri" data-rv-restore="1">Restore this version</button><button data-ai-x="1">Close</button></span></div>' +
+        '<span class="sp">' + (S.readOnly ? '' : '<button class="pri" data-rv-restore="1">Restore this version</button>') + '<button data-ai-x="1">Close</button></span></div>' +
         '<div class="bd">' + (rev.content_html || "<p>(empty page)</p>") + '</div>';
       hydrateMedia(p.querySelector(".bd"));
       p.querySelector("[data-ai-x]").onclick = function () { p.remove(); };
-      p.querySelector("[data-rv-restore]").onclick = function () {
+      var rvBtn = p.querySelector("[data-rv-restore]");
+      if (rvBtn) rvBtn.onclick = function () {
         p.remove();
         S.be.revisionRestore(revId).then(function () { notify("Version restored"); openPage(S.pageId); }).catch(fail);
       };
@@ -2464,7 +2503,10 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
 
   function pageMenu(id, x, y) {
     var p = ((S.tree && S.tree.pages) || []).filter(function (x) { return x.id === id; })[0] || {};
-    showCtx(x, y, [
+    var items = S.readOnly ? [
+      { act: "print", label: "Print / PDF" },
+      { act: "md", label: "Download as Markdown" }
+    ] : [
       { act: "rename", label: "Rename" },
       { act: "pin", label: p.is_pinned ? "Unpin" : "Pin to top" },
       { act: "sub", label: "Make subpage (Tab)" },
@@ -2475,14 +2517,18 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       { act: "md", label: "Download as Markdown" },
       { act: "tpl", label: "Save as template" },
       { sep: 1 }, { act: "del", label: "Delete", danger: true }
-    ]);
+    ];
+    showCtx(x, y, items);
     $id("rrnb-ctx")._target = { kind: "page", id: id };
   }
   function notebookMenu(id, x, y) {
-    showCtx(x, y, [
-      { act: "rename", label: "Rename notebook" },
-      { sep: 1 }, { act: "del", label: "Delete notebook", danger: true }
-    ]);
+    var n = (S.notebooks || []).filter(function (x2) { return x2.id === id; })[0] || {};
+    var items = [{ act: "rename", label: "Rename notebook" }];
+    if (n.kind === "personal" && (n.my_role === "owner" || n.my_role == null)) {
+      items.push({ act: "share", label: "Share…" + (n.member_count ? " (" + n.member_count + ")" : "") });
+    }
+    items.push({ sep: 1 }, { act: "del", label: "Delete notebook", danger: true });
+    showCtx(x, y, items);
     $id("rrnb-ctx")._target = { kind: "notebook", id: id };
   }
   function sectionMenu(id, x, y) {
@@ -2509,6 +2555,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     }
     if (t.kind === "notebook") {
       if (act === "rename") return startNotebookRename(t.id);
+      if (act === "share") return openSharePopover(t.id);
       if (act === "del") return deleteNotebook(t.id);
     }
     if (t.kind === "section") {
@@ -2574,6 +2621,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
     var menu = $id("rrnb-nb-menu");
     if (menu) menu.addEventListener("click", function (e) {
       var kb = e.target.closest("[data-menu='notebook']"); if (kb) { var r = kb.getBoundingClientRect(); menu.hidden = true; return notebookMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
+      var addp = e.target.closest("[data-new-private]"); if (addp) { menu.hidden = true; return createNotebookFlow("personal"); }
       var add = e.target.closest("[data-new]"); if (add) { menu.hidden = true; return createNotebookFlow(); }
       var it = e.target.closest("[data-nb]"); if (it) { menu.hidden = true; S.activeSection = null; selectNotebook(it.getAttribute("data-nb")); }
     });
@@ -2695,8 +2743,8 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       if (e.key === "Escape") { hidePop(); hideCtx(); hideAiMenu(); hideImgResize(); }
       // OneNote-style page ops — only when NOT typing in the editor/inputs
       if (!typingContext() && S.pageId && S.mode === "notebook") {
-        if (e.key === "F2") { e.preventDefault(); editPageTitle(S.pageId); return; }
-        if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); if (window.confirm("Move this page to the Recycle Bin?")) S.be.deleteItem("page", S.pageId).then(function () { showBlank(); return selectNotebook(S.nbId, null); }).catch(fail); return; }
+        if (e.key === "F2") { e.preventDefault(); if (!S.readOnly) editPageTitle(S.pageId); return; }
+        if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); if (!S.readOnly && window.confirm("Move this page to the Recycle Bin?")) S.be.deleteItem("page", S.pageId).then(function () { showBlank(); return selectNotebook(S.nbId, null); }).catch(fail); return; }
         if (e.altKey && e.key === "ArrowDown") { e.preventDefault(); navPage(1); return; }
         if (e.altKey && e.key === "ArrowUp") { e.preventDefault(); navPage(-1); return; }
       }
@@ -2719,17 +2767,63 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   }
 
   // ── create flows ─────────────────────────────────────────────────
-  function createNotebookFlow() {
-    var name = window.prompt("New notebook name", "New Notebook"); if (name == null) return;
+  function createNotebookFlow(kind) {
+    var priv = kind === "personal";
+    var name = window.prompt(priv ? "New private notebook name (only you can see it)" : "New notebook name",
+      priv ? "My Notebook" : "New Notebook");
+    if (name == null) return;
     var color = PALETTE[S.notebooks.length % PALETTE.length];
-    S.be.createNotebook(name || "New Notebook", color).then(function (nb) {
+    S.be.createNotebook(name || (priv ? "My Notebook" : "New Notebook"), color, priv ? "personal" : "workspace").then(function (nb) {
       return S.be.listNotebooks().then(function (list) { S.notebooks = list; renderNotebookMenu(); S.activeSection = null; return selectNotebook(nb.id); });
     }).catch(fail);
   }
+
+  // ── share a private notebook with teammates ─────────────────────────
+  function openSharePopover(nbId) {
+    var host = $id("rrnb-nb-current");
+    var r = host ? host.getBoundingClientRect() : { left: 80, bottom: 80 };
+    Promise.all([S.be.shareCandidates(), S.be.shareList(nbId)]).then(function (res) {
+      var candidates = res[0] || [], members = res[1] || [];
+      if (!candidates.length) { notify("No other staff to share with yet"); return; }
+      var byId = {}; members.forEach(function (m) { byId[m.user_id] = m.role; });
+      var pop = showPop('<label>Share this private notebook</label><div class="rrnb-pop-list">' +
+        candidates.map(function (c) {
+          var cur = byId[c.user_id] || "";
+          return '<div class="rrnb-pop-opt" style="display:flex;align-items:center;gap:8px" data-share-row="' + esc(c.user_id) + '">' +
+            '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.name) + '</span>' +
+            '<select data-share-role="' + esc(c.user_id) + '" class="rrnb-tb-sel" style="border:1px solid var(--border);height:26px">' +
+              '<option value=""' + (cur === "" ? " selected" : "") + '>No access</option>' +
+              '<option value="viewer"' + (cur === "viewer" ? " selected" : "") + '>Can view</option>' +
+              '<option value="editor"' + (cur === "editor" ? " selected" : "") + '>Can edit</option>' +
+            '</select></div>';
+        }).join("") + '</div>' +
+        '<div class="rrnb-pop-row"><button class="rrnb-pop-btn ghost" data-pop-cancel="1">Cancel</button>' +
+        '<button class="rrnb-pop-btn" id="rrnb-share-save">Save sharing</button></div>', r);
+      pop.addEventListener("mousedown", function (e) { e.stopPropagation(); }); // keep selects usable
+      var cancel = pop.querySelector("[data-pop-cancel]");
+      if (cancel) cancel.addEventListener("click", hidePop);
+      var save = $id("rrnb-share-save");
+      if (save) save.addEventListener("click", function () {
+        var out = [];
+        pop.querySelectorAll("[data-share-role]").forEach(function (sel) {
+          if (sel.value) out.push({ user_id: sel.getAttribute("data-share-role"), role: sel.value });
+        });
+        S.be.shareSet(nbId, out).then(function (list2) {
+          hidePop();
+          var n = (S.notebooks || []).filter(function (x) { return x.id === nbId; })[0];
+          if (n) n.member_count = (list2 || []).length;
+          renderNotebookMenu();
+          notify((list2 || []).length ? "Shared with " + (list2 || []).length + " teammate" + ((list2 || []).length > 1 ? "s" : "") : "No longer shared");
+        }).catch(fail);
+      });
+    }).catch(fail);
+  }
   function newSection() {
+    if (S.readOnly) { notify("You have view-only access to this notebook"); return; }
     S.be.createSection(S.nbId, "New Section", null, PALETTE[((S.tree && S.tree.sections.length) || 0) % PALETTE.length]).then(function (s) { S.activeSection = s.id; return selectNotebook(S.nbId, null); }).catch(fail);
   }
   function newPage() {
+    if (S.readOnly) { notify("You have view-only access to this notebook"); return; }
     if (!S.activeSection) { if (S.tree && S.tree.sections[0]) S.activeSection = S.tree.sections[0].id; else return; }
     S.be.createPage(S.activeSection, "Untitled Page", null, 0).then(function (p) {
       if (S.tree) S.tree.pages.push({ id: p.id, section_id: p.section_id, parent_page_id: null, title: p.title, level: 0, position: p.position, tags: [], is_pinned: false, updated_at: p.updated_at });
@@ -2821,6 +2915,7 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   function quickNote() {
     if (!S.nbId && S.notebooks[0]) S.nbId = S.notebooks[0].id;
     if (!S.nbId) return;
+    if (S.readOnly) { notify("You have view-only access to this notebook — pick another for quick notes"); return; }
     var doCreate = function (sectionId) {
       var stamp = todayStr() + " " + new Date().toTimeString().slice(0, 5);
       S.be.createPage(sectionId, "Quick note · " + stamp, null, 0).then(function (p) {
