@@ -979,6 +979,8 @@ const routes = {
   "/settings/attendance":   { render: renderAttendance,      tab: "/profile", back: "/settings", title: "Attendance" },
   "/settings/time-off":     { render: renderTimeOff,         tab: "/profile", back: "/settings", title: "Time off" },
   "/chat":              { render: renderChat,            tab: "/chat" },
+  "/chat/channels":     { render: renderChatChannelsList, tab: "/chat" },
+  "/chat/channel":      { render: renderChatChannelThread, tab: "/chat", back: "/chat/channels" },
   "/team":              { render: renderTeam,            tab: "/team" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
@@ -1018,7 +1020,11 @@ function render() {
       || path === "/tasks/documents"
       || path === "/tasks/documents/sign"
       || path === "/tasks/i9"
+      // /chat plus its sub-routes — channels moved onto real routes
+      // (/chat/channels, /chat/channel), and onboarding drivers use
+      // Chat to receive dispatch instructions.
       || path === "/chat"
+      || path.startsWith("/chat/")
       // Schedule stays unlocked during onboarding so the driver can
       // see any training shifts the dispatcher slots in before they
       // flip to "active". Without this, manually-added training
@@ -5334,10 +5340,12 @@ function _onChatRealtimeStatus(status) {
 }
 
 async function renderChat() {
-  if (_chatTab === "channels") {
-    if (_chatChannelId) return renderChatChannelThread();
-    return renderChatChannelsList();
-  }
+  // Chat's internal navigation lives in the router now (/chat,
+  // /chat/channels, /chat/channel?id=…) so hardware Back pops
+  // thread → list → out, and channels are deep-linkable. The module
+  // vars remain as caches for pollers/guards and the thread header.
+  _chatTab = "dispatch";
+  _chatChannelId = null;
   setHeader("Chat", "");
   const main = document.getElementById("main");
   main.innerHTML = `
@@ -5622,16 +5630,13 @@ async function renderChat() {
     await refreshChat(false);
   });
 
-  // Tab toggle — Dispatch / Channels.
+  // Tab toggle — Dispatch / Channels. Real routes, so Back behaves.
   document.querySelectorAll("[data-rr-chat-tab]").forEach(btn => {
     btn.addEventListener("click", () => {
       const next = btn.getAttribute("data-rr-chat-tab");
       if (next === _chatTab) return;
       if (_chatPollTimer) { clearInterval(_chatPollTimer); _chatPollTimer = null; }
-      _chatTab = next;
-      _chatChannelId = null;
-      _chatChannelMeta = null;
-      renderChat();
+      navigate(next === "channels" ? "/chat/channels" : "/chat");
     });
   });
 
@@ -6201,6 +6206,8 @@ function _rrChatBindAnchorRelease(wrap) {
 let _chatChannelPollTimer = null;
 
 async function renderChatChannelsList() {
+  _chatTab = "channels";
+  _chatChannelId = null;
   setHeader("Channels", "");
   const main = document.getElementById("main");
   main.innerHTML = `
@@ -6219,10 +6226,7 @@ async function renderChatChannelsList() {
       const next = btn.getAttribute("data-rr-chat-tab");
       if (next === _chatTab) return;
       if (_chatChannelPollTimer) { clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; }
-      _chatTab = next;
-      _chatChannelId = null;
-      _chatChannelMeta = null;
-      renderChat();
+      navigate(next === "channels" ? "/chat/channels" : "/chat");
     });
   });
 
@@ -6230,7 +6234,7 @@ async function renderChatChannelsList() {
   if (_chatChannelPollTimer) clearInterval(_chatChannelPollTimer);
   _chatChannelPollTimer = setInterval(() => {
     if (document.hidden) return;
-    if (currentRoute() !== "/chat" || _chatTab !== "channels" || _chatChannelId) {
+    if (currentRoute() !== "/chat/channels") {
       clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; return;
     }
     refreshChannelList();
@@ -6304,27 +6308,42 @@ async function refreshChannelList() {
   list.querySelectorAll("[data-rr-open-channel]").forEach(el => {
     el.addEventListener("click", () => {
       const id = el.getAttribute("data-rr-open-channel");
-      _chatChannelId   = id;
+      // Cache the header meta so the thread paints its name instantly;
+      // the thread itself resolves meta from the RPC on deep links.
       _chatChannelMeta = channels.find(c => c.id === id) || null;
       if (_chatChannelPollTimer) { clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; }
-      renderChat();
+      navigate("/chat/channel?id=" + encodeURIComponent(id));
     });
   });
 }
 
 async function renderChatChannelThread() {
+  // Route-driven: /chat/channel?id=… — the router supplies the back
+  // arrow (→ /chat/channels), history pops naturally, and dispatchers
+  // can deep-link a channel. Meta comes from the list tap when we have
+  // it; on a cold deep link it's resolved from driver_channels_list.
+  _chatTab = "channels";
+  const qid = routeQuery().get("id");
+  if (qid) _chatChannelId = qid;
+  if (!_chatChannelId) { navigate("/chat/channels"); return; }
+  if (_chatChannelMeta && _chatChannelMeta.id !== _chatChannelId) _chatChannelMeta = null;
   const meta = _chatChannelMeta || {};
   setHeader(`#${meta.name || "channel"}`, meta.station_code ? `station ${meta.station_code}` : `${meta.member_count || 0} member${meta.member_count === 1 ? "" : "s"}`);
-  // Show the back arrow — points to the channel list rather than the
-  // home tab, so the operator-style breadcrumb stays inside /chat.
-  const back = document.getElementById("head-back");
-  if (back) {
-    back.style.display = "inline-flex";
-    back.onclick = () => {
-      _chatChannelId   = null;
-      _chatChannelMeta = null;
-      renderChat();
-    };
+  if (!_chatChannelMeta) {
+    // Deep link — fill the header in once the channel list resolves.
+    const wantedId = _chatChannelId;
+    const s = readSession();
+    if (s?.token) {
+      sb.rpc("driver_channels_list", { p_token: s.token }).then(({ data }) => {
+        if (currentRoute() !== "/chat/channel" || _chatChannelId !== wantedId) return;
+        const m = (data?.channels || []).find((c) => c.id === wantedId);
+        if (!m) return;
+        _chatChannelMeta = m;
+        setHeader(`#${m.name || "channel"}`, m.station_code ? `station ${m.station_code}` : `${m.member_count || 0} member${m.member_count === 1 ? "" : "s"}`);
+        const taEl = document.getElementById("chat-input");
+        if (taEl) taEl.placeholder = `Post to #${m.name || "channel"}…`;
+      }).catch(() => {});
+    }
   }
 
   const main = document.getElementById("main");
@@ -6461,7 +6480,7 @@ async function renderChatChannelThread() {
   // Realtime is primary; the poller is just a safety net.
   _chatChannelPollTimer = setInterval(() => {
     if (document.hidden) return;
-    if (currentRoute() !== "/chat" || _chatTab !== "channels" || !_chatChannelId) {
+    if (currentRoute() !== "/chat/channel" || !_chatChannelId) {
       clearInterval(_chatChannelPollTimer); _chatChannelPollTimer = null; return;
     }
     refreshChannelThread(false);
@@ -6479,7 +6498,7 @@ function _chatChannelRealtimeWire(channelId) {
   const fire = () => {
     clearTimeout(_chatChannelRealtimeDebounce);
     _chatChannelRealtimeDebounce = setTimeout(() => {
-      if (currentRoute() !== "/chat" || _chatTab !== "channels" || _chatChannelId !== channelId) return;
+      if (currentRoute() !== "/chat/channel" || _chatChannelId !== channelId) return;
       refreshChannelThread(false);
     }, 200);
   };
