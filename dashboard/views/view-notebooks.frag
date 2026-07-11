@@ -1735,8 +1735,9 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
       S.saving = false;
       if (/stale_write/.test(String((e && e.message) || ""))) { setSaveState("conflict"); showConflict(); return; }
       // network-ish failure: park the edit in the outbox so closing the tab
-      // can't lose it — it replays on reconnect / next boot
-      if (S.be.kind === "supabase") { outboxPut(pid, data, force ? null : (S.baseUpdatedAt || null)); setSaveState("queued"); }
+      // can't lose it — it replays on reconnect / next boot. Only claim
+      // "saved on this device" if the outbox write actually persisted.
+      if (S.be.kind === "supabase" && outboxPut(pid, data, force ? null : (S.baseUpdatedAt || null))) setSaveState("queued");
       else setSaveState("err");
       console.warn(e);
     });
@@ -1757,8 +1758,13 @@ html.rrnb-rz-drag,html.rrnb-rz-drag *{user-select:none!important}
   // "(conflicted copy)" page — both versions survive, OneNote-style.
   function outboxKey() { return "rrnb-outbox:" + (((window.RR && window.RR.dsp && window.RR.dsp.id) || "local")); }
   function outboxRead() { try { return JSON.parse(localStorage.getItem(outboxKey()) || "{}"); } catch (e) { return {}; } }
-  function outboxWrite(ob) { try { localStorage.setItem(outboxKey(), JSON.stringify(ob)); } catch (e) {} }
-  function outboxPut(pid, data, base) { var ob = outboxRead(); ob[pid] = { data: data, base: base || null, at: new Date().toISOString() }; outboxWrite(ob); }
+  function outboxWrite(ob) { try { localStorage.setItem(outboxKey(), JSON.stringify(ob)); return true; } catch (e) { return false; } }
+  // returns false when persistence failed (quota, private browsing) — callers
+  // must NOT claim "saved on this device" in that case (Codex review)
+  function outboxPut(pid, data, base) {
+    var ob = outboxRead(); ob[pid] = { data: data, base: base || null, at: new Date().toISOString() };
+    return outboxWrite(ob) && !!outboxRead()[pid];
+  }
   function outboxRemove(pid) { var ob = outboxRead(); if (ob[pid]) { delete ob[pid]; outboxWrite(ob); } }
   var _outboxBusy = false;
   function outboxFlush() {

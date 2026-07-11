@@ -25,7 +25,8 @@ do $$ begin
   values ('notebook-media', 'notebook-media', false, 26214400)
   on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 exception
-  when undefined_table then null;   -- storage schema absent (bare stack)
+  when undefined_table then null;       -- storage.buckets absent
+  when invalid_schema_name then null;   -- storage schema absent entirely (bare stack)
 end $$;
 
 -- ── dsp-scoped object access ────────────────────────────────────────────────
@@ -48,8 +49,9 @@ do $$ begin
       )
   $pol$;
 exception
-  when undefined_table then null;    -- storage schema absent
-  when undefined_function then null; -- storage.foldername absent
+  when undefined_table then null;        -- storage.objects absent
+  when invalid_schema_name then null;    -- storage schema absent entirely
+  when undefined_function then null;     -- storage.foldername absent
   when insufficient_privilege then null; -- storage.objects owned elsewhere; policy ships via dashboard
 end $$;
 
