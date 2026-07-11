@@ -19,12 +19,23 @@
 /* Scoped to #view-notebooks; colors/sizes reference design tokens so the
    design-ratchet never trips (this file is not even in its scan set, but we
    hold the same bar). Dynamic per-item colors are inline (data-driven). */
-/* The view is a normal block child of .main (which already begins to the
-   right of the app sidebar), sized to the viewport so its three panes fill
-   the content column and scroll internally — no window-level absolute
-   positioning, so it never slides under the sidebar. */
+/* The view is a normal block child of .main, which lays out as a flex column
+   with a 44px sticky .topbar (Window-Controls-Overlay title bar in the desktop
+   app) as its first child. The notebook must fill the space BELOW that bar —
+   using the full 100vh made it 44px too tall, which pushed its top row (the
+   notebook picker + search) up under the title bar in the desktop app.
+   Primary: flex-fill the remaining height when the app has stamped the active
+   view on <body> (auto-adapts to the bar's height). Fallback: calc for any
+   render that hasn't stamped it. Either way the three panes scroll internally. */
 #view-notebooks{color:var(--text);font-size:var(--fs-base)}
-#view-notebooks.active{display:block;height:100vh;overflow:hidden;background:var(--canvas)}
+/* The view sits at the top of the window with the app's 44px title bar
+   (Window-Controls-Overlay) drawn over it, so its top row (notebook picker +
+   search) was hidden underneath. Fill the window (100vh) but reserve 44px of
+   top padding INSIDE the box so all content starts below the title bar. The
+   shell is 100% of the content box, i.e. 100vh − 44px, and its panes scroll
+   internally — no page overflow. */
+#view-notebooks.active{display:block;height:100vh;box-sizing:border-box;padding-top:44px;
+  overflow:hidden;background:var(--canvas)}
 .rrnb-shell{height:100%;display:grid;
   grid-template-columns:248px 300px 1fr;min-height:0;min-width:0}
 .rrnb-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
@@ -51,6 +62,8 @@
 .rrnb-nbcurrent:hover{background:var(--surface-hover)}
 .rrnb-nbcurrent .rrnb-swatch{flex:0 0 auto}
 .rrnb-nbcurrent .nm{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrnb-nbcurrent .nm.is-editing{overflow:visible;text-overflow:clip;cursor:text;padding:0 3px;margin:0 -3px;
+  border-radius:4px;outline:2px solid var(--accent);outline-offset:1px;background:var(--surface)}
 .rrnb-nbcurrent .chev{flex:0 0 auto;color:var(--text-subtle)}
 .rrnb-swatch{width:12px;height:12px;border-radius:3px;background:var(--accent)}
 .rrnb-menu{position:absolute;z-index:40;left:var(--s-2);right:var(--s-2);top:calc(100% - var(--s-1));
@@ -62,6 +75,8 @@
 .rrnb-menu-item:hover,.rrnb-menu-item.sel{background:var(--accent-soft)}
 .rrnb-menu-item .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rrnb-menu-item .ct{color:var(--text-subtle);font-size:var(--fs-xs)}
+.rrnb-menu-item .kebab{opacity:0;flex:0 0 auto}
+.rrnb-menu-item:hover .kebab{opacity:1}
 .rrnb-menu-sep{height:1px;background:var(--border);margin:var(--s-1) 0}
 .rrnb-menu-add{color:var(--accent);font-weight:600}
 
@@ -753,10 +768,65 @@
     var m = $id("rrnb-nb-menu"); if (!m) return;
     var html = S.notebooks.map(function (n) {
       return '<div class="rrnb-menu-item" data-nb="' + n.id + '"><span class="rrnb-swatch" style="background:' + esc(n.color) + '"></span>' +
-        '<span class="nm">' + esc(n.name) + '</span><span class="ct">' + (n.page_count || 0) + '</span></div>';
+        '<span class="nm">' + esc(n.name) + '</span><span class="ct">' + (n.page_count || 0) + '</span>' +
+        '<button class="rrnb-iconbtn kebab" data-menu="notebook" data-id="' + n.id + '" title="Notebook options">⋯</button></div>';
     }).join("");
     html += '<div class="rrnb-menu-sep"></div><div class="rrnb-menu-item rrnb-menu-add" data-new="1">＋ New notebook</div>';
     m.innerHTML = html;
+  }
+
+  // ── rename a notebook inline, right in the picker header ─────────────
+  // No modal prompt: the current-notebook name becomes editable in place
+  // (double-click it, or ⋯ → Rename notebook). Enter / blur commits,
+  // Escape cancels.
+  function startNotebookRename(id) {
+    // Renaming happens in the header, which only shows the active notebook,
+    // so switch to it first when the ⋯ came from another row.
+    if (id && id !== S.nbId) { S.activeSection = null; return selectNotebook(id).then(beginHeaderEdit); }
+    beginHeaderEdit();
+  }
+  function beginHeaderEdit() {
+    var nm = $id("rrnb-nb-name"); if (!nm || !S.nbId || S._nbEditing) return;
+    S._nbEditing = true; S._nbEditOrig = nm.textContent || "";
+    nm.classList.add("is-editing");
+    nm.setAttribute("contenteditable", "true"); nm.setAttribute("spellcheck", "false");
+    nm.focus();
+    try { var r = document.createRange(); r.selectNodeContents(nm); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); } catch (e) {}
+  }
+  function endHeaderEdit(commit) {
+    var nm = $id("rrnb-nb-name"); if (!nm || !S._nbEditing) return;
+    S._nbEditing = false;
+    nm.removeAttribute("contenteditable"); nm.classList.remove("is-editing");
+    var next = (nm.textContent || "").replace(/\s+/g, " ").trim();
+    var orig = (S._nbEditOrig || "").trim();
+    var id = S.nbId;
+    if (!commit || !next || next === orig) { nm.textContent = orig; return; }
+    nm.textContent = next;
+    S.be.rename("notebook", id, next).then(function () {
+      var n = (S.notebooks || []).filter(function (x) { return x.id === id; })[0]; if (n) n.name = next;
+      renderNotebookMenu();
+      if (S.nbId === id) { var b = $(".rrnb-breadcrumb"); if (b) { var parts = b.innerHTML.split("›"); parts[0] = esc(next) + " "; b.innerHTML = parts.join("<span class=sep>›</span>"); } }
+    }).catch(function (e) { nm.textContent = orig; fail(e); });
+  }
+
+  // ── delete a notebook (soft-delete → recycle) ───────────────────────
+  function deleteNotebook(id) {
+    var n = (S.notebooks || []).filter(function (x) { return x.id === id; })[0];
+    var nm = n ? n.name : "this notebook";
+    var pc = n ? (n.page_count || 0) : 0;
+    var msg = 'Delete "' + nm + '"?' + (pc ? ' Its ' + pc + ' page' + (pc === 1 ? '' : 's') + ' will move to the Recycle Bin.' : '');
+    if (!window.confirm(msg)) return;
+    S.be.deleteItem("notebook", id).then(function () {
+      return S.be.listNotebooks().then(function (list) {
+        S.notebooks = list || []; renderNotebookMenu();
+        if (S.nbId !== id) return;
+        S.nbId = null; S.tree = null; S.pageId = null; S.activeSection = null; S.mode = "notebook";
+        if (S.notebooks[0]) return selectNotebook(S.notebooks[0].id);
+        var hn = $id("rrnb-nb-name"); if (hn) hn.textContent = "Notebooks";
+        var sw = $id("rrnb-nb-swatch"); if (sw) sw.style.background = "var(--accent)";
+        renderSections(); renderPageList(); renderFirstRun();
+      });
+    }).catch(fail);
   }
 
   // ── sections rail ────────────────────────────────────────────────
@@ -1951,6 +2021,13 @@
     ]);
     $id("rrnb-ctx")._target = { kind: "page", id: id };
   }
+  function notebookMenu(id, x, y) {
+    showCtx(x, y, [
+      { act: "rename", label: "Rename notebook" },
+      { sep: 1 }, { act: "del", label: "Delete notebook", danger: true }
+    ]);
+    $id("rrnb-ctx")._target = { kind: "notebook", id: id };
+  }
   function sectionMenu(id, x, y) {
     showCtx(x, y, [
       { act: "rename", label: "Rename section" },
@@ -1973,6 +2050,10 @@
       if (act === "sub") return indentPage(t.id, +1);
       if (act === "promote") return indentPage(t.id, -1);
     }
+    if (t.kind === "notebook") {
+      if (act === "rename") return startNotebookRename(t.id);
+      if (act === "del") return deleteNotebook(t.id);
+    }
     if (t.kind === "section") {
       if (act === "rename") return renamePrompt("section", t.id);
       if (act === "recolor") return recolorSection(t.id);
@@ -1987,8 +2068,10 @@
     S.be.rename("section", id, s.name, next).then(function () { s.color = next; renderSections(); });
   }
   function renamePrompt(kind, id) {
-    var cur = kind === "page" ? (pageById(id) || {}).title : (((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0] || {}).name;
+    var cur = kind === "page" ? (pageById(id) || {}).title
+      : (((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0] || {}).name;
     var v = window.prompt("Rename", cur || ""); if (v == null) return;
+    v = v.trim(); if (!v) return;
     S.be.rename(kind, id, v).then(function () {
       if (kind === "page") { var p = pageById(id); if (p) p.title = v; if (S.pageId === id) { var t = $id("rrnb-title"); if (t) t.value = v; updateBreadcrumbTitle(); } renderPageList(); }
       else { var s = ((S.tree && S.tree.sections) || []).filter(function (x) { return x.id === id; })[0]; if (s) s.name = v; renderSections(); }
@@ -2017,9 +2100,23 @@
 
     // notebook picker
     var cur = $id("rrnb-nb-current");
-    if (cur) cur.addEventListener("click", function () { var m = $id("rrnb-nb-menu"); m.hidden = !m.hidden; });
+    if (cur) cur.addEventListener("click", function () { if (S._nbEditing) return; var m = $id("rrnb-nb-menu"); m.hidden = !m.hidden; });
+    // inline rename: double-click the header name to edit it in place
+    var nmEl = $id("rrnb-nb-name");
+    if (nmEl) {
+      nmEl.addEventListener("dblclick", function (e) { e.preventDefault(); e.stopPropagation(); var m = $id("rrnb-nb-menu"); if (m) m.hidden = true; if (S.nbId) beginHeaderEdit(); });
+      nmEl.addEventListener("click", function (e) { if (S._nbEditing) e.stopPropagation(); });
+      nmEl.addEventListener("keydown", function (e) {
+        if (!S._nbEditing) return;
+        if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); nmEl.blur(); }
+        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); endHeaderEdit(false); }
+        else e.stopPropagation(); // keep typing from reaching global shortcuts
+      });
+      nmEl.addEventListener("blur", function () { if (S._nbEditing) endHeaderEdit(true); });
+    }
     var menu = $id("rrnb-nb-menu");
     if (menu) menu.addEventListener("click", function (e) {
+      var kb = e.target.closest("[data-menu='notebook']"); if (kb) { var r = kb.getBoundingClientRect(); menu.hidden = true; return notebookMenu(kb.getAttribute("data-id"), r.left, r.bottom); }
       var add = e.target.closest("[data-new]"); if (add) { menu.hidden = true; return createNotebookFlow(); }
       var it = e.target.closest("[data-nb]"); if (it) { menu.hidden = true; S.activeSection = null; selectNotebook(it.getAttribute("data-nb")); }
     });
