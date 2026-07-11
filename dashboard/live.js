@@ -25477,9 +25477,18 @@ async function _ivcalOpenEmail(kind, id) {
   }
 }
 
-// A unique, unguessable Jitsi room URL. No API key / server call — Whereby's
-// API edge was blocking room creation (403), so video uses meet.jit.si.
-function _ivcalVideoRoom() {
+// Mint a first-party RouteReady Meet room (dashboard/meet.html, meetings
+// table via meet_create RPC) and return its short /m/<code> invite link.
+// Falls back to a unique meet.jit.si URL if the RPC fails — a booking must
+// never die because room minting hiccuped.
+async function _ivcalVideoRoom(title) {
+  try {
+    const { data, error } = await sb.rpc("meet_create", { p_title: title || "Interview" });
+    if (!error && data && data.code) {
+      const base = ((window.RR_CONFIG && window.RR_CONFIG.PUBLIC_BASE_URL) || location.origin).replace(/\/+$/, "");
+      return base + "/m/" + data.code;
+    }
+  } catch (_) { /* fall through to Jitsi */ }
   const rand = (typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID().replace(/-/g, "")
     : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
@@ -25755,6 +25764,7 @@ function _ivcalNewEvent(dateISO, startMin, endMin, editEv) {
   const _calOptions = `<option value="">No calendar</option>` + _calList.map(c =>
     `<option value="${escapeHtml(c.id)}"${String(c.id)===String(_calCurrent)?" selected":""}>${escapeHtml(c.name)}</option>`).join("");
   let roomUrl = "";
+  let roomMintPending = null; // in-flight meet_create — Save/Send awaits it
   const rsvpToken = ((typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID().replace(/-/g, "")
     : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
@@ -26526,14 +26536,31 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         renderRoomState();
         toast("Video meeting removed — this is now a plain calendar invite", "info");
       } else {
-        roomUrl = (isEdit && ev0 && ev0.meeting_url) ? ev0.meeting_url : _ivcalVideoRoom();
-        if (loc && !loc.value.trim()) loc.value = "Online video meeting";
-        // Convenience: seed the interview template/title on a blank event.
-        const bodyEl = document.getElementById("rr-ne-body");
-        if (bodyEl && !bodyEl.value.trim()) bodyEl.value = INTERVIEW_TEMPLATE;
-        if (!titleInp.value.trim()) { titleInp.value = "Driver interview"; document.getElementById("rr-ne-tt").textContent = "Driver interview"; }
-        renderRoomState();
-        toast("Video meeting added · link included in the invite", "success");
+        const applyRoom = (url) => {
+          roomUrl = url;
+          if (loc && !loc.value.trim()) loc.value = "Online video meeting";
+          // Convenience: seed the interview template/title on a blank event.
+          const bodyEl = document.getElementById("rr-ne-body");
+          if (bodyEl && !bodyEl.value.trim()) bodyEl.value = INTERVIEW_TEMPLATE;
+          if (!titleInp.value.trim()) { titleInp.value = "Driver interview"; document.getElementById("rr-ne-tt").textContent = "Driver interview"; }
+          renderRoomState();
+          toast("Video meeting added · link included in the invite", "success");
+        };
+        if (isEdit && ev0 && ev0.meeting_url) {
+          applyRoom(ev0.meeting_url);
+        } else {
+          // Minting is a server round-trip now (RouteReady Meet room);
+          // disable the toggle so a double-click can't mint two rooms,
+          // and stash the promise so Save/Send can await it (an invite
+          // must never go out missing the link the operator just added).
+          const mintBtn = e.target.closest("[data-ne-act]");
+          if (mintBtn) mintBtn.disabled = true;
+          roomMintPending = _ivcalVideoRoom(titleInp.value.trim() || "Driver interview").then((url) => {
+            roomMintPending = null;
+            if (mintBtn) mintBtn.disabled = false;
+            applyRoom(url);
+          });
+        }
       }
       return;
     }
@@ -26551,6 +26578,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     if (chipBtn) { attachments.splice(+chipBtn.getAttribute("data-ne-chip"), 1); renderChips(); return; }
 
     if (act === "send" || act === "save" || e.target.closest("#rr-ne-create")) {
+      // A video-room mint may still be in flight (it's an RPC round-trip
+      // now) — wait for it so the saved event/invite carries the link.
+      if (roomMintPending) { toast("Adding the video link…", "info"); await roomMintPending; }
       // "Save" puts the event on the calendar without inviting/emailing anyone
       // (personal blocks); "Send" also invites the attendees.
       const isSave   = act === "save";
@@ -27646,8 +27676,16 @@ function _ivcalOpenRoom(ev) {
   const apptId = ev.applicant_id || null;
   const me = (window.RR && window.RR.user && (window.RR.user.full_name || window.RR.user.name))
     || (window.RR && window.RR.dsp && window.RR.dsp.name) || "Interviewer";
+  // First-party Meet rooms (/m/<code> links) embed our own meet.html —
+  // same origin, ?name= prefills the lobby, and the operator's dashboard
+  // session carries over (staff get End-for-all via meet_lookup.is_host).
+  // Legacy meet.jit.si URLs (events booked before the switch) keep the
+  // old Jitsi iframe config.
+  const meetCode = (String(ev.meeting_url).match(/\/m\/([a-z0-9-]{8,16})(?:[/?#]|$)/i) || [])[1] || null;
   const hash = "#config.prejoinPageEnabled=false&userInfo.displayName=" + encodeURIComponent('"' + me + '"');
-  const src = ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
+  const src = meetCode
+    ? "/dashboard/meet.html?m=" + encodeURIComponent(meetCode) + "&name=" + encodeURIComponent(me)
+    : ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
   const canNotes = !!ev.id;
   const initials = (who || "?").split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
   const scorecard = {};

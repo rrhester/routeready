@@ -1137,7 +1137,10 @@ async function openLobby() {
   $("lobby-code").textContent = state.code;
   let stored = "";
   try { stored = localStorage.getItem("rr_meet_name") || ""; } catch { /* private mode */ }
-  if (!$("name-input").value) $("name-input").value = stored || state.prefillName || "";
+  // ?name= (from the dashboard's embedded interview room) is the caller's
+  // live identity — it beats a stale remembered name.
+  const urlName = (new URLSearchParams(location.search).get("name") || "").trim().slice(0, 60);
+  if (!$("name-input").value) $("name-input").value = urlName || stored || state.prefillName || "";
 
   const stream = await acquireMedia();
   adoptStream(stream);
