@@ -419,12 +419,17 @@
 #view-onboarding-ops.rrx-onboarding .sched-ribbon-group:hover .ob-v2-group-launcher {
   opacity: 0.9;
 }
-#view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher:hover,
+/* Hover · quiet neutral wash — hover is not selection (enterprise
+   pass 2026-07-11). Focus keeps a blue ring: blue is for focus. */
+#view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher:hover {
+  opacity: 1;
+  color: var(--rr-gray-900);
+  background: var(--rr-ctl-active, rgba(15, 23, 42, .06));
+}
 #view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher:focus-visible {
   opacity: 1;
-  color: var(--sch-blue, var(--rr-brand-primary));
-  background: var(--sch-blue-softer, var(--rr-brand-soft));
   outline: none;
+  box-shadow: 0 0 0 2px var(--rr-blue-600);
 }
 /* Inert stub launcher (Actions group · no rules yet) — default cursor,
    no brand-blue hover so it doesn't promise interactivity. */
@@ -727,11 +732,13 @@
   pointer-events: auto !important;
 }
 
+/* Hover · neutral wash (enterprise pass 2026-07-11); the expanded
+   state below keeps blue — that's an active state. */
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot:hover,
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot:focus-visible {
   opacity: 1 !important;
-  color: var(--sch-blue, var(--rr-brand-primary)) !important;
-  background: var(--sch-blue-softer, var(--rr-brand-soft)) !important;
+  color: var(--rr-gray-900) !important;
+  background: var(--rr-ctl-active, rgba(15, 23, 42, .06)) !important;
   outline: none !important;
 }
 
@@ -785,8 +792,15 @@
   opacity: .6;
   pointer-events: auto;
 }
+/* Hover · neutral wash; open (expanded) keeps blue as an active
+   state (enterprise pass 2026-07-11). */
 #view-onboarding-ops.rrx-onboarding .ob-split-caret:hover,
-#view-onboarding-ops.rrx-onboarding .ob-split-caret:focus-visible,
+#view-onboarding-ops.rrx-onboarding .ob-split-caret:focus-visible {
+  opacity: 1;
+  color: var(--rr-gray-900);
+  background: var(--rr-ctl-active, rgba(15, 23, 42, .06));
+  outline: none;
+}
 #view-onboarding-ops.rrx-onboarding .ob-split-caret[aria-expanded="true"] {
   opacity: 1;
   color: var(--sch-blue, var(--rr-brand-primary));
@@ -870,8 +884,8 @@
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-rules-foot:hover,
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-rules-foot:focus-visible {
   opacity: 1 !important;
-  color: var(--sch-blue, var(--rr-brand-primary)) !important;
-  background: var(--sch-blue-softer, var(--rr-brand-soft)) !important;
+  color: var(--rr-gray-900) !important;
+  background: var(--rr-ctl-active, rgba(15, 23, 42, .06)) !important;
 }
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-rules-foot[aria-expanded="true"] {
   opacity: 1 !important;
@@ -1259,19 +1273,20 @@
   gap: var(--rr-space-80);
   height: 36px;
   padding: 0 var(--rr-space-160);
-  background: var(--rr-brand-primary);
-  border: 1px solid var(--rr-brand-primary);
+  /* Primary = Amazon orange, never blue (enterprise pass 2026-07-11). */
+  background: var(--rr-amber-primary);
+  border: 1px solid var(--rr-amber-primary);
   border-radius: var(--rr-radius-medium);
   color: var(--rr-white);
   font: var(--rr-font-body);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: background var(--rr-motion-fast), border-color var(--rr-motion-fast);
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-print-btn:hover {
-  background: var(--rr-brand-hover);
-  border-color: var(--rr-brand-hover);
+  background: var(--rr-amber-primary-hover);
+  border-color: var(--rr-amber-primary-hover);
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-print-btn svg {
@@ -1523,15 +1538,16 @@
 #view-onboarding-ops.rrx-onboarding #obsub-pipeline .btn.btn-primary,
 #view-onboarding-ops.rrx-onboarding #obsub-documents .btn.btn-primary,
 #view-onboarding-ops.rrx-onboarding #obsub-workauth .btn.btn-primary {
-  background: var(--rr-brand-primary, var(--rr-blue-600)) !important;
-  border-color: var(--rr-brand-primary, var(--rr-blue-600)) !important;
+  /* Primary = Amazon orange, never blue (enterprise pass 2026-07-11). */
+  background: var(--rr-amber-primary) !important;
+  border-color: var(--rr-amber-primary) !important;
   color: var(--rr-white) !important;
 }
 #view-onboarding-ops.rrx-onboarding #obsub-pipeline .btn.btn-primary:hover,
 #view-onboarding-ops.rrx-onboarding #obsub-documents .btn.btn-primary:hover,
 #view-onboarding-ops.rrx-onboarding #obsub-workauth .btn.btn-primary:hover {
-  background: var(--rr-brand-hover, var(--rr-blue-700)) !important;
-  border-color: var(--rr-brand-hover, var(--rr-blue-700)) !important;
+  background: var(--rr-amber-primary-hover) !important;
+  border-color: var(--rr-amber-primary-hover) !important;
 }
 
 /* ============================================================
