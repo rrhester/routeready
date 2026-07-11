@@ -72,6 +72,8 @@ edge runtime — you do **not** set them yourself.
 | `FINCH_REDIRECT_URI` | `finch-oauth-start`, `finch-oauth-callback` | The deployed `finch-oauth-callback` URL, e.g. `https://doiwrhkirgblcvuskhno.functions.supabase.co/finch-oauth-callback`. Must **also** be registered as a redirect URI in the Finch dashboard, or the connect popup errors. |
 | `FINCH_SANDBOX` | `finch-oauth-start` | Optional. Set `finch` (Finch-simulated) or `provider` to test without a live ADP account. Omit in production. |
 | `FINCH_API_VERSION` | `finch-sync`, `finch-oauth-callback` | Optional. Defaults to `2020-09-17`. |
+| `ANTHROPIC_API_KEY` | `notebook-ai`, `workbook-ai`, `analytics-ai`, `ai-proxy`, `dvic-ai-review`, `document-classify`, `explain-optimization-run` | **Every AI feature** (notebook writing assistant + picture OCR, workbook AI, analytics Q&A, DVIC review, document classification). If missing, the notebook AI panel shows "AI isn't set up on the server yet" and the others fail with `ANTHROPIC_API_KEY not configured`. Create a key at <https://console.anthropic.com> (format `sk-ant-…`). |
+| `ANTHROPIC_MODEL` | same AI functions | Optional. Overrides the default Claude model (`claude-sonnet-4-6` for notebook-ai). Leave unset unless told otherwise. |
 | *(reused)* `GOOGLE_TOKEN_ENC_KEY`, `OAUTH_STATE_SECRET`, `DASHBOARD_URL` | Finch + Google | The Finch functions reuse the Google integration's token-encryption key, signed-state secret, and dashboard base URL — no new values needed if Google Calendar already works. |
 
 ### Configure Twilio Messaging Service
