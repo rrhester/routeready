@@ -8,9 +8,9 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=a27d4cda200d";
-import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=a27d4cda200d";
-import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=a27d4cda200d";
+import { planScheduleWeek } from "./scheduling-engine.js?v=2f4d46080639";
+import { loadWorkbooksView, createReportWorkbook, registerReportProvider, registerReportsScreen, openReportsScreen, registerScheduleEngine, registerDriverActions, parseXlsxBytes, requestOpenWorkbook } from "./workbook.js?v=2f4d46080639";
+import { initReportsBuilder, renderReportsInto, buildReportData } from "./reports.js?v=2f4d46080639";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -218,7 +218,9 @@ window.RR.user = profile;
   const apply = () => {
     document.querySelectorAll(".nav-item[data-view]").forEach(btn => {
       const view = btn.getAttribute("data-view");
-      if (view === "settings") return;
+      // Settings + Dashboard (the home/landing command center) are always
+      // reachable — never hidden by a restricted allowed_pages list.
+      if (view === "settings" || view === "dashboard") return;
       if (!allowed.includes(view)) {
         btn.style.display = "none";
       }
