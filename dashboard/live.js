@@ -23749,7 +23749,7 @@ function _ivcalAwaiting() {
       ? `<span class="oc-await-age${ageDays >= 2 ? " is-old" : ""}" title="In the pipeline ${ageDays} day${ageDays === 1 ? "" : "s"}">${ageDays}d</span>` : "";
     const sub = ago ? `Link sent ${escapeHtml(ago)}` : (a.email ? escapeHtml(a.email) : "Invited — no time booked");
     const linkIco = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
-    return `<div class="oc-await-row" data-ivcal-await="${escapeHtml(a.id)}" title="Open ${escapeHtml(name)}">
+    return `<div class="oc-await-row" data-ivcal-await="${escapeHtml(a.id)}" data-ivcal-await-name="${escapeHtml(name)}" draggable="true" title="Open ${escapeHtml(name)} — or drag onto a shaded bookable slot to book them">
       <span class="oc-await-dot" aria-hidden="true"></span>
       <span class="oc-await-main"><span class="oc-await-name">${escapeHtml(name)}</span><span class="oc-await-sub">${sub}</span></span>
       ${ageChip}
@@ -24566,6 +24566,91 @@ function _ivcalRender() {
     if (act === "connect") _ivcalGoogleConnect();
     else if (act === "menu") _ivcalGoogleMenu(e);
     else _ivcalGoogleDisconnect();
+  });
+
+  // ── Drag-to-book (enterprise pass 2026-07-11) · drag a candidate from
+  //    the Interview-booking queue onto a shaded bookable band to book
+  //    that slot on their behalf. Deliberately rides the SAME hardened
+  //    engine as candidate self-booking (booking_link_get →
+  //    book_interview_slot), so every server guard — eligibility,
+  //    double-book, minimum lead time, grid alignment, capacity, busy
+  //    overlap — applies identically. No new write path.
+  host.querySelectorAll(".oc-await-row[draggable]").forEach(rowEl => {
+    rowEl.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", JSON.stringify({
+        rr: "awaiting",
+        id: rowEl.getAttribute("data-ivcal-await"),
+        name: rowEl.getAttribute("data-ivcal-await-name") || "",
+      }));
+      e.dataTransfer.effectAllowed = "copy";
+    });
+  });
+  host.querySelectorAll(".oc-col[data-ivcal-date]").forEach(col => {
+    col.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      col.classList.add("is-bk-dropover");
+    });
+    col.addEventListener("dragleave", () => col.classList.remove("is-bk-dropover"));
+    col.addEventListener("drop", async (e) => {
+      col.classList.remove("is-bk-dropover");
+      let payload = null;
+      try { payload = JSON.parse(e.dataTransfer.getData("text/plain") || "null"); } catch (_) {}
+      if (!payload || payload.rr !== "awaiting" || !payload.id) return;
+      e.preventDefault(); e.stopPropagation();
+      const dateISO = col.getAttribute("data-ivcal-date");
+      const y = e.clientY - col.getBoundingClientRect().top;
+      const aimMin = _IVCAL_H0 * 60 + (y / _IVCAL_RH) * 60;
+      const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+      const nm = rrTitleCaseName(payload.name) || "this candidate";
+      try {
+        // The server's open-slot list is the source of truth (Codex
+        // review): it honors Holidays & date overrides, capacity, lead
+        // time and existing bookings — the weekly-window shading does
+        // not. Snap the drop to the nearest genuinely-open slot on the
+        // target day instead of trusting the client grid.
+        const { data: lk, error: e1 } = await sb.rpc("booking_link_get", { p_id: payload.id });
+        if (e1) throw e1;
+        if (!lk || !lk.token) throw new Error("No booking token returned");
+        const { data: open, error: e2 } = await sb.rpc("interview_open_slots", { p_token: lk.token });
+        if (e2) throw e2;
+        const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+        const minFmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
+        const daySlots = (Array.isArray(open) ? open : [])
+          .filter(s => s && s.slot_start && dayFmt.format(new Date(s.slot_start)) === dateISO)
+          .map(s => {
+            const [hh, mi] = minFmt.format(new Date(s.slot_start)).split(":").map(Number);
+            return { ...s, _min: hh * 60 + mi };
+          })
+          .sort((a, b) => Math.abs(a._min - aimMin) - Math.abs(b._min - aimMin));
+        if (!daySlots.length) { toast("No open interview slots on that day (check Holidays & date overrides, capacity and lead time).", "warn"); return; }
+        const pick = daySlots[0];
+        const tt = new Date(); tt.setHours(Math.floor(pick._min / 60), pick._min % 60, 0, 0);
+        const slotMin = pick.slot_end
+          ? Math.max(5, Math.round((new Date(pick.slot_end) - new Date(pick.slot_start)) / 60000))
+          : ((_ivcalCache && _ivcalCache.slot) || 30);
+        const whenTxt = new Date(dateISO + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })
+          + " at " + tt.toLocaleTimeString([], _ivClockOpts());
+        if (!(await _rrConfirmDialog({ title: `Book ${nm}?`, body: `${whenTxt} · ${slotMin} min — the confirmation email with the interview details goes out automatically.`, confirmLabel: "Book interview" }))) return;
+        const args = { p_token: lk.token, p_slot_start: pick.slot_start };
+        if (pick.session_id) args.p_session_id = pick.session_id;
+        const { data: res, error: e3 } = await sb.rpc("book_interview_slot", args);
+        if (e3) throw e3;
+        if (!res || !res.ok) throw new Error("Could not book that time.");
+        toast(`${nm} booked · ${whenTxt}`, "success");
+        await loadIvCalendar();
+      } catch (err) {
+        const s = String((err && err.message) || err).toLowerCase();
+        const msg = s.includes("already_booked") ? `${nm} already has an interview on the calendar.`
+          : s.includes("slot_taken") ? "That slot just filled — pick another."
+          : s.includes("slot_too_soon") ? "That slot is inside the minimum booking lead time."
+          : s.includes("slot_unavailable") ? "That time isn't open for booking."
+          : s.includes("not_eligible") ? `${nm} is past the interview stage.`
+          : (s.includes("does not exist") || s.includes("schema cache")) ? "Update needed — run the latest Supabase migrations to enable booking links."
+          : "Couldn't book: " + ((err && err.message) || err);
+        toast(msg, "warn");
+      }
+    });
   });
 
   // Event interactions: click the camera glyph → open the video interview
