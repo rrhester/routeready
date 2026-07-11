@@ -1326,32 +1326,6 @@
   align-items: center !important;
 }
 
-/* ============================================================
-   Documents · mounted into #obsub-documents
-   ------------------------------------------------------------
-   When #view-documents is relocated here (via _obMountDocuments),
-   it brings its own .page > .page-header > "Documents" header
-   inside. The Onboarding command bar already shows "Documents"
-   as the title, so the inner header is redundant — hide it and
-   neutralize the inner .page padding so the documents content
-   sits flush in the sub-page container.
-   ============================================================ */
-
-#view-onboarding-ops.rrx-onboarding #obsub-documents #view-documents > .page > .page-header {
-  display: none !important;
-}
-
-#view-onboarding-ops.rrx-onboarding #obsub-documents #view-documents {
-  display: block !important;  /* defeat the legacy `.view { display:none }` rule */
-  min-height: 0 !important;
-}
-
-#view-onboarding-ops.rrx-onboarding #obsub-documents #view-documents > .page {
-  padding: 0 !important;
-  display: block !important;  /* don't inherit the page flex lock */
-  overflow: visible !important;
-}
-
 /* Print-only mount — invisible until window.print() runs. */
 #rr-ob-print-area {
   display: none;
@@ -1936,23 +1910,4 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   outline: 2px solid var(--accent, var(--rr-blue-600));
   outline-offset: -3px;
   border-radius: 4px;
-}
-
-/* ── Onboarding overview: readiness matrix + Documents ─────
-   The matrix is the page (it gets the flexible column); Documents is a
-   RIGHT SIDEBAR panel in the same layout system as the Schedule page's
-   right rail — a fixed-ish width column, not a second half-page
-   (parity pass 2026-07-11; was 1fr/1fr). Below 1024px the two columns
-   stack (Documents under the matrix), mirroring how the Schedule page
-   collapses its right rail on narrow widths. */
-#view-onboarding-ops .ob-overview-cols {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
-  gap: var(--rr-space-160, 16px);
-  align-items: start;
-}
-@media (max-width: 1024px) {
-  #view-onboarding-ops .ob-overview-cols {
-    grid-template-columns: 1fr;
-  }
 }

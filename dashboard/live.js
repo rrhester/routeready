@@ -7402,24 +7402,6 @@ function _fillObMatrixSkeletonRows(body) {
   document.head?.appendChild(css);
 })();
 
-function _obMountDocuments() {
-  // Move the entire #view-documents node into the Overview tab's
-  // right-side placeholder card (#ob-docs-mount). The dedicated
-  // Documents subnav tab was retired — Documents now lives on the
-  // Overview tab next to the readiness matrix.
-  const host = document.getElementById("ob-docs-mount");
-  const docs = document.getElementById("view-documents");
-  if (host && docs && docs.parentElement !== host) {
-    docs.classList.remove("view", "active");
-    docs.style.display = "";
-    // Clear the loading placeholder before mounting.
-    const loading = host.querySelector(".ob-docs-loading");
-    if (loading) loading.remove();
-    host.classList.remove("ob-placeholder-card");
-    host.appendChild(docs);
-  }
-}
-
 window.obSub = function (which) {
   // Mark the active sub on the container so per-page CSS can scope to it
   // (e.g. the Funnel page strips the command-strip icons).
@@ -7438,14 +7420,7 @@ window.obSub = function (which) {
   // Calendar view tiles live permanently on the strip — keep their active
   // highlight in sync (cleared whenever we're not on the Calendar view).
   if (typeof _ivcalSyncStripView === "function") _ivcalSyncStripView(which === "calendar");
-  // Documents now live inside the Overview tab's right card; mount
-  // them whenever the Overview tab is activated so they show up
-  // alongside the readiness matrix.
   if (which === "overview") {
-    _obMountDocuments();
-    if (typeof loadDocumentsView === "function") {
-      try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
-    }
     // Swap the TCP KPI bar back to the onboarding-stage pills.
     // Uses the cached enriched + stepCols last computed by
     // loadOnboardingOps so no refetch is needed; if the cache is
@@ -7488,8 +7463,6 @@ window.obSub = function (which) {
       if (typeof loadPipelineKpis === "function") loadPipelineKpis();
     }
   }
-  // ("documents" subnav was retired — Documents now mount into the
-  //  Overview tab's right card, handled in the if-overview block above.)
 };
 
 // Onboarding "Rules" footer · opens the onboarding-steps blueprint
@@ -8567,21 +8540,13 @@ document.addEventListener("click", (e) => {
 });
 
 async function loadOnboardingOps(opts) {
-  // Overview is now a 2-column shell: readiness matrix in
-  // #obsub-overview-left, the Documents page mounted into the
-  // right-side card. Fall back to the outer #obsub-overview for
-  // legacy DOMs that haven't been updated yet (cached HTML, etc.).
+  // The readiness matrix renders into #obsub-overview-left. Fall back
+  // to the outer #obsub-overview for legacy DOMs that haven't been
+  // updated yet (cached HTML, etc.).
   const body  = document.getElementById("obsub-overview-left")
              || document.getElementById("obsub-overview");
   const subEl = document.getElementById("rr-onboardops-sub");
   if (!body) return;
-  // Mount + initialize the Documents view in the right card. Safe
-  // to re-run — _obMountDocuments is a no-op once mounted, and
-  // loadDocumentsView re-renders idempotently.
-  if (typeof _obMountDocuments === "function") _obMountDocuments();
-  if (typeof loadDocumentsView === "function") {
-    try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
-  }
   if (!(opts && opts.keepTab) && typeof obSub === "function") obSub("overview");
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
