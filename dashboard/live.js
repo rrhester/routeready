@@ -7027,10 +7027,12 @@ function _obMxStylesOnce() {
        still read as sharp clear shapes. */
     ".ob-mx-toolbar{display:inline-flex;align-items:center;gap:2px}" +
     ".ob-tb-btn{position:relative;appearance:none;background:transparent;border:0;border-radius:4px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;flex:0 0 auto;transition:color var(--t-fast),background var(--t-fast)}" +
-    ".ob-tb-btn:hover{color:#2563EB;background:var(--rr-bg-hover,#F3F4F6)}" +
+    /* Hover is not selection (enterprise pass) — quiet neutral wash + ink. */
+    ".ob-tb-btn:hover{color:var(--rr-gray-900,#111827);background:var(--rr-ctl-hover,#F8FAFC)}" +
     ".ob-tb-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}" +
     ".ob-tb-btn.ob-tb-remove:hover{color:var(--red);background:var(--red-soft)}" +
-    ".ob-tb-btn svg{width:22px;height:22px}" +
+    ".ob-tb-btn svg{width:20px;height:20px}" +
+    ".ob-tb-btn.ob-tb-more[aria-expanded='true']{color:var(--rr-gray-900,#111827);background:var(--rr-ctl-active,#EEF2F7)}" +
     /* Label spans hidden (kept in markup as aria fallback so screen
        readers still get the action name). */
     ".ob-tb-btn-label{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}" +
@@ -8837,12 +8839,9 @@ async function loadOnboardingOps(opts) {
         ${cells}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "todo"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td class="ob-mx-toolcell"><div class="ob-mx-toolbar">
-          <button type="button" class="ob-tb-btn" data-rr-ob-email="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" data-email="${escapeHtml(d.email || "")}" ${d.email ? "" : "disabled"} title="${d.email ? "Email this driver" : "No email on file"}" aria-label="Email this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6" fill="currentColor" fill-opacity="0.2" stroke="currentColor"/></svg><span class="ob-tb-btn-label">Email</span></button>
           <button type="button" class="ob-tb-btn onb-msg-btn${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? " has-unread" : ""}" data-rr-ob-msg="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? `Message this driver — ${_onbUnreadByDriver.get(d.id)} unread` : "Message this driver"}" aria-label="Message this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="ob-tb-btn-label">Message</span><span class="onb-msg-dot" aria-hidden="true"></span></button>
           <button type="button" class="ob-tb-btn" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="ob-tb-btn-label">Documents</span></button>
-          <button type="button" class="ob-tb-btn" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><span class="ob-tb-btn-label">Notes</span></button>
-          <button type="button" class="ob-tb-btn" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg><span class="ob-tb-btn-label">Phone</span></button>
-          <button type="button" class="ob-tb-btn ob-tb-remove" data-rr-ob-remove="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Remove from onboarding" aria-label="Remove this driver from onboarding"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg><span class="ob-tb-btn-label">Delete</span></button>
+          <button type="button" class="ob-tb-btn ob-tb-more" data-rr-ob-more="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" data-email="${escapeHtml(d.email || "")}" aria-haspopup="menu" aria-expanded="false" title="More actions" aria-label="More actions for this driver"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg><span class="ob-tb-btn-label">More</span></button>
         </div></td>
       </tr>`;
   };
@@ -8925,6 +8924,61 @@ async function loadOnboardingOps(opts) {
   // Fill the embedded Work-authorization (Form I-9) queue.
   loadDriverWorkAuthView();
 }
+
+// ── Matrix row ⋯ overflow · Email / Notes / App preview / Remove ──────
+// The everyday actions (Message, Send documents) stay as row icons; the
+// occasional ones live behind one quiet ⋯ so the row reads calm
+// (parity pass 2026-07-11). Menu items carry the SAME data-rr-*
+// attributes the existing document-delegated handlers route, so no new
+// action code paths — this block only opens/closes the menu.
+function _obTbToggleMoreMenu(btn) {
+  const existing = document.getElementById("rr-ob-tb-menu");
+  const wasOpen = existing && existing.__rrFor === btn;
+  existing?.remove();
+  document.querySelectorAll("[data-rr-ob-more][aria-expanded='true']").forEach(b => b.setAttribute("aria-expanded", "false"));
+  if (wasOpen) return;
+  const id = btn.getAttribute("data-rr-ob-more");
+  const name = btn.getAttribute("data-name") || "";
+  const email = btn.getAttribute("data-email") || "";
+  const menu = document.createElement("div");
+  menu.id = "rr-ob-tb-menu";
+  menu.className = "ob-split-menu";
+  menu.setAttribute("role", "menu");
+  menu.__rrFor = btn;
+  menu.innerHTML =
+    `<button type="button" role="menuitem" data-rr-ob-email="${escapeHtml(id)}" data-name="${escapeHtml(name)}" data-email="${escapeHtml(email)}" ${email ? "" : "disabled"}>${email ? "Email driver" : "Email driver — none on file"}</button>` +
+    `<button type="button" role="menuitem" data-rr-ob-notes="${escapeHtml(id)}" data-name="${escapeHtml(name)}">Internal notes</button>` +
+    `<button type="button" role="menuitem" data-rr-driver-app="${escapeHtml(id)}">Driver app preview</button>` +
+    `<button type="button" role="menuitem" class="is-danger" data-rr-ob-remove="${escapeHtml(id)}" data-name="${escapeHtml(name)}">Remove from onboarding</button>`;
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  const w = 224;
+  menu.style.position = "fixed";
+  menu.style.minWidth = w + "px";
+  menu.style.top = `${r.bottom + 6}px`;
+  menu.style.left = `${Math.min(Math.max(8, r.right - w), window.innerWidth - w - 8)}px`;
+  btn.setAttribute("aria-expanded", "true");
+  const close = () => {
+    menu.remove();
+    btn.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", onDoc, true);
+    document.removeEventListener("keydown", onKey);
+  };
+  const onDoc = (ev) => { if (!ev.target.closest("#rr-ob-tb-menu") && !btn.contains(ev.target)) close(); };
+  const onKey = (ev) => { if (ev.key === "Escape") close(); };
+  setTimeout(() => {
+    document.addEventListener("click", onDoc, true);
+    document.addEventListener("keydown", onKey);
+  }, 0);
+  menu.addEventListener("click", () => setTimeout(close, 0));
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-rr-ob-more]");
+  if (!b) return;
+  e.preventDefault();
+  e.stopPropagation();
+  _obTbToggleMoreMenu(b);
+});
 
 // ─── Orientation dashboard · internal Notes drawer ────────────────────
 // A quiet right-side drawer for staff-only notes on a driver's
@@ -68043,12 +68097,6 @@ async function _renderDocsTemplates() {
     return;
   }
   const isSecure = (t) => (t.kind || "secure") !== "informational";
-  const fieldChip = (t) => {
-    const n = Array.isArray(t.fields) ? t.fields.length : 0;
-    return n > 0
-      ? `<span class="docs-mono-chip"><span class="lbl">Fields</span>${n} signature ${n === 1 ? "field" : "fields"} placed</span>`
-      : `<span class="docs-mono-chip"><span class="lbl">Fields</span>default placement</span>`;
-  };
   const tierBadge = (t) => isSecure(t)
     ? `<span class="docs-tier secure" title="Compliance-grade: signing, hash-chained audit, ECDSA + RFC 3161 seal, Certificate of Completion"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>Secure</span>`
     : `<span class="docs-tier info" title="Informational: the driver opens and acknowledges it — no signature, no seal"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/></svg>Informational</span>`;
@@ -68071,14 +68119,12 @@ async function _renderDocsTemplates() {
         <div class="docs-card-title">${escapeHtml(t.title)}</div>
         <div class="docs-meta-row">
           ${tierBadge(t)}
-          ${isSecure(t) ? `<span class="docs-mono-chip"><span class="lbl">SHA-256</span>${escapeHtml(String(t.source_hash || "").slice(0,18))}…</span>${fieldChip(t)}` : `<span class="docs-mono-chip"><span class="lbl">View only</span>open &amp; acknowledge</span>`}
           <span class="docs-meta-dim">Added ${escapeHtml(new Date(t.created_at).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}))}</span>
         </div>
       </div>
-      <div style="display:flex;gap:7px;flex:0 0 auto;align-items:center">
-        ${isSecure(t) ? `<button class="btn btn-sm btn-ghost" data-rr-docs-fields="${escapeHtml(t.id)}">Place fields</button>` : ""}
-        <button class="btn btn-sm btn-primary" data-rr-docs-send="${escapeHtml(t.id)}">${isSecure(t) ? "Send for signature" : "Send to driver"}</button>
-        <button class="btn btn-sm btn-ghost" data-rr-docs-archive="${escapeHtml(t.id)}" title="Archive this document">Archive</button>
+      <div class="docs-row-btns" style="display:flex;gap:7px;flex:0 0 auto;align-items:center">
+        <button class="btn btn-sm" data-rr-docs-send="${escapeHtml(t.id)}">${isSecure(t) ? "Send for signature" : "Send to driver"}</button>
+        <button class="btn btn-sm btn-ghost docs-more-btn" data-rr-docs-more="${escapeHtml(t.id)}" data-docs-secure="${isSecure(t) ? "1" : "0"}" aria-haspopup="menu" aria-expanded="false" title="More actions" aria-label="More actions"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
       </div>
     </div>`).join("");
 }
@@ -69135,8 +69181,53 @@ async function _docsVoidEnvelope(id) {
   loadDocumentsView("envelopes");
 }
 
+// ── Template-row ⋯ overflow (Place fields / Archive) ───────────────────
+// One body-mounted menu, rebuilt per open. Items carry the same
+// data-rr-docs-* attributes the delegated handler below already routes,
+// so the menu needs no action wiring of its own — just open/close.
+function _docsToggleMoreMenu(btn) {
+  const existing = document.getElementById("rr-docs-more-menu");
+  const wasOpen = existing && !existing.hidden && existing.__rrFor === btn;
+  document.getElementById("rr-docs-more-menu")?.remove();
+  document.querySelectorAll("[data-rr-docs-more][aria-expanded='true']").forEach(b => b.setAttribute("aria-expanded", "false"));
+  if (wasOpen) return;
+  const id = btn.getAttribute("data-rr-docs-more");
+  const secure = btn.getAttribute("data-docs-secure") === "1";
+  const menu = document.createElement("div");
+  menu.id = "rr-docs-more-menu";
+  menu.className = "ob-split-menu";
+  menu.setAttribute("role", "menu");
+  menu.__rrFor = btn;
+  menu.innerHTML =
+    (secure ? `<button type="button" role="menuitem" data-rr-docs-fields="${escapeHtml(id)}">Place signature fields</button>` : "") +
+    `<button type="button" role="menuitem" data-rr-docs-archive="${escapeHtml(id)}">Archive document</button>`;
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  const w = 208;
+  menu.style.position = "fixed";
+  menu.style.top = `${r.bottom + 6}px`;
+  menu.style.left = `${Math.min(Math.max(8, r.right - w), window.innerWidth - w - 8)}px`;
+  btn.setAttribute("aria-expanded", "true");
+  const close = () => {
+    menu.remove();
+    btn.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", onDoc, true);
+    document.removeEventListener("keydown", onKey);
+  };
+  const onDoc = (ev) => { if (!ev.target.closest("#rr-docs-more-menu") && !btn.contains(ev.target)) close(); };
+  const onKey = (ev) => { if (ev.key === "Escape") close(); };
+  // Defer so the opening click doesn't immediately close it.
+  setTimeout(() => {
+    document.addEventListener("click", onDoc, true);
+    document.addEventListener("keydown", onKey);
+  }, 0);
+  menu.addEventListener("click", () => setTimeout(close, 0));
+}
+
 // ── Delegated click + upload wiring ────────────────────────────────────
 document.addEventListener("click", (e) => {
+  const more = e.target.closest("[data-rr-docs-more]");
+  if (more) { _docsToggleMoreMenu(more); return; }
   const sub = e.target.closest("[data-docs-sub]");
   if (sub) { loadDocumentsView(sub.getAttribute("data-docs-sub")); return; }
   if (e.target.closest("#docs-upload-btn")) {
