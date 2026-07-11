@@ -5,18 +5,31 @@ short links `/m/<code>`). Calls are peer-to-peer WebRTC; signaling rides
 Supabase Realtime; rooms live in the `meetings` table (migrations 0457-0459).
 This doc covers the pieces an operator can configure.
 
-## TURN relay (recommended for reliability)
+## TURN relay (reliability on hostile networks)
 
-Out of the box calls use STUN only. That connects fine on typical home,
-office, and mobile networks, but two participants who are BOTH behind very
-strict NATs (some corporate VPNs / hotel networks) can fail to get media
-through — the tile sits on "connecting…". A TURN relay fixes that by
-relaying media when a direct path can't be punched. Zoom runs its own relay
-fleet; we rent one only when needed.
+STUN-only connects fine on typical home, office, and mobile networks, but
+two participants who are BOTH behind very strict NATs (some corporate
+VPNs / hotel networks) can fail to get media through — the tile sits on
+"connecting…". A TURN relay fixes that by carrying media when a direct
+path can't be punched. Zoom runs its own relay fleet; we layer it in.
 
-Clients fetch their ICE server list from the database at join time
-(`meet_ice_servers` RPC, migration 0458), so **enabling TURN is one SQL
-INSERT — no deploy**:
+**Default (migration 0460):** when no operator relay is configured, calls
+automatically include the Open Relay Project (openrelay.metered.ca —
+Metered's free public TURN service). It's strictly additive: WebRTC only
+uses a relay when the direct path fails, and ignores it entirely if the
+relay is unreachable, so the worst case equals plain STUN. Media through
+any TURN relay stays SRTP-encrypted end to end — the relay forwards
+packets it cannot decrypt.
+
+**Verify from a real network:** every lobby has a **"Test my connection"**
+link that reports Local / STUN / Relay reachability — "Relay ✓" is the
+strict-firewall guarantee. Use it when an applicant reports connection
+trouble.
+
+**Upgrade to an operator-owned relay** (guaranteed capacity, SLA, your
+account): clients fetch their ICE server list from the database at join
+time (`meet_ice_servers` RPC), so **it's one SQL INSERT — no deploy** —
+and it overrides the public default the moment it's set:
 
 ```sql
 insert into private.app_settings (key, value) values (

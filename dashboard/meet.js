@@ -1589,6 +1589,58 @@ function syncLobbyPreview() {
   video.style.visibility = on ? "" : "hidden";
 }
 
+// Zoom-style connection test (lobby): gathers ICE candidates against the
+// room's real server list and reports which paths work from THIS network.
+// "Relay ✓" is the strict-firewall guarantee — it means this participant
+// can connect even when no direct path can be punched.
+async function runNetTest() {
+  const btn = $("btn-nettest");
+  const out = $("nettest-out");
+  btn.disabled = true;
+  const found = { host: false, srflx: false, relay: false };
+  const ROWS = [
+    ["host", "Local network"],
+    ["srflx", "Internet (STUN)"],
+    ["relay", "Relay (TURN) — strict firewalls"],
+  ];
+  const render = (final) => {
+    out.innerHTML = "";
+    for (const [key, label] of ROWS) {
+      const row = document.createElement("div");
+      row.className = "nt-row" + (found[key] ? " ok" : final ? " bad" : "");
+      row.textContent = `${found[key] ? "✓" : final ? "✗" : "…"} ${label}`;
+      out.appendChild(row);
+    }
+    if (final) {
+      const sum = document.createElement("div");
+      sum.className = "nt-sum";
+      sum.textContent = found.relay
+        ? "Excellent — you can connect from any network, including strict firewalls."
+        : found.srflx
+          ? "Good — typical networks connect fine; the strictest corporate firewalls may not reach you."
+          : "Limited — this network is blocking most paths; try a different network if the call won't connect.";
+      out.appendChild(sum);
+    }
+  };
+  try {
+    const pc = new RTCPeerConnection({ iceServers });
+    pc.createDataChannel("nettest");
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) return;
+      if (found[e.candidate.type] === false) { found[e.candidate.type] = true; render(false); }
+    };
+    render(false);
+    await pc.setLocalDescription(await pc.createOffer());
+    await new Promise((r) => setTimeout(r, 8000));
+    pc.close();
+    render(true);
+  } catch (err) {
+    console.warn("net test failed", err);
+    out.textContent = "The test couldn't run in this browser.";
+  }
+  btn.disabled = false;
+}
+
 async function openLobby() {
   show("lobby");
   $("lobby-title").textContent = state.meeting?.title || "RouteReady meeting";
@@ -1757,6 +1809,7 @@ function wire() {
   $("btn-wait-leave").onclick = leaveMeeting;
   $("btn-waiting").onclick = () => { const pop = $("waiting-pop"); pop.hidden = !pop.hidden; };
   $("btn-record").onclick = toggleRecording;
+  $("btn-nettest").onclick = runNetTest;
   $("btn-end").onclick = endForAll;
   $("btn-rejoin").onclick = () => { location.reload(); };
   $("btn-home").onclick = () => { location.href = location.pathname + (LOCAL_MODE ? "?local=1" : ""); };
