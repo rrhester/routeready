@@ -89,7 +89,15 @@
 
   /* ── Radii — Fluent 2 functional scale (mobile-tuned) ─────── */
   --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px; --r-2xl: 16px;
-  --tab-h: 68px;
+  /* Tab bar: content band height + the slice of the iPhone home-indicator
+     inset the bar reserves BELOW its content. The raw inset (~34px) plus a
+     68px centered band read as a big dead zone under the labels; a 58px
+     band with the inset trimmed by 14px keeps the labels clear of the
+     indicator while sitting visibly lower and denser (Flex-style). Both
+     values feed the bar, the main scroller, the chat shell, and the toast
+     position, so they stay in lockstep. */
+  --tab-h: 58px;
+  --tab-inset: max(calc(env(safe-area-inset-bottom, 0px) - 14px), 0px);
 
   /* ── Glass blur (used on a couple of sticky bars) ────────── */
   --blur-sm: 6px; --blur-md: 14px; --blur-lg: 24px;
@@ -250,7 +258,7 @@ main{
   /* Subtract the on-screen keyboard height so an input that has focus
      stays visible above it on iOS PWAs (visualViewport doesn't push
      position:absolute children up the way it does for fixed:bottom). */
-  bottom:calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + var(--rr-kbd, 0px));
+  bottom:calc(var(--tab-h) + var(--tab-inset) + var(--rr-kbd, 0px));
   left:0;right:0;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
@@ -1001,9 +1009,9 @@ body.scan-camming{overflow:hidden}
   position:absolute;bottom:0;left:0;right:0;z-index:20;
   background:var(--rr-white);
   border-top:1px solid var(--border);
-  padding-bottom:env(safe-area-inset-bottom, 0px);
+  padding-bottom:var(--tab-inset);
   display:grid;grid-auto-flow:column;grid-auto-columns:1fr;
-  height:calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
+  height:calc(var(--tab-h) + var(--tab-inset));
   box-shadow:0 -.8px 1.8px rgba(0,0,0,.05);
 }
 .tab{
@@ -1141,7 +1149,7 @@ body.scan-camming{overflow:hidden}
    from shared-pattern code reads correctly on both surfaces.
    Mobile keeps the simpler full-width-near-tab-bar style. */
 .toast{
-  position:fixed;bottom:calc(var(--tab-h) + 16px + env(safe-area-inset-bottom, 0px));
+  position:fixed;bottom:calc(var(--tab-h) + 16px + var(--tab-inset));
   left:50%;transform:translateX(-50%);
   background:var(--text);color:var(--surface);
   padding:10px 16px;border-radius:var(--r-md);font-size:var(--fs-md);font-weight:500;
@@ -1214,7 +1222,7 @@ body.scan-camming{overflow:hidden}
 #chat-shell{
   position:fixed;
   top:calc(60px + env(safe-area-inset-top, 0px));
-  bottom:calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + var(--rr-kbd, 0px));
+  bottom:calc(var(--tab-h) + var(--tab-inset) + var(--rr-kbd, 0px));
   left:0;right:0;
   background:var(--bg);
   z-index:5;
