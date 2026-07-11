@@ -24585,19 +24585,6 @@ function _ivcalRender() {
       e.dataTransfer.effectAllowed = "copy";
     });
   });
-  // Snap a raw drop minute to the availability grid exactly the way the
-  // server validates it (window start + k·(slot+buffer), fully inside).
-  const _bkSnap = (dateISO, rawMin) => {
-    const wd = new Date(dateISO + "T00:00:00").getDay();
-    const slot = (_ivcalCache && _ivcalCache.slot) || 30, buf = (_ivcalCache && _ivcalCache.buffer) || 0;
-    for (const w of ((_ivcalCache && _ivcalCache.windows) || []).filter(w => w.weekday === wd)) {
-      if (rawMin < w.start_min || rawMin >= w.end_min) continue;
-      const step = Math.max(slot + buf, 1);
-      const mm = w.start_min + Math.floor((rawMin - w.start_min) / step) * step;
-      if (mm + slot <= w.end_min) return mm;
-    }
-    return null;
-  };
   host.querySelectorAll(".oc-col[data-ivcal-date]").forEach(col => {
     col.addEventListener("dragover", (e) => {
       e.preventDefault();
@@ -24613,23 +24600,42 @@ function _ivcalRender() {
       e.preventDefault(); e.stopPropagation();
       const dateISO = col.getAttribute("data-ivcal-date");
       const y = e.clientY - col.getBoundingClientRect().top;
-      const mm = _bkSnap(dateISO, _IVCAL_H0 * 60 + (y / _IVCAL_RH) * 60);
-      if (mm === null) { toast("Drop onto a shaded bookable band — those are the offered slots", "warn"); return; }
-      const slot = (_ivcalCache && _ivcalCache.slot) || 30;
+      const aimMin = _IVCAL_H0 * 60 + (y / _IVCAL_RH) * 60;
       const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
-      const hh = String(Math.floor(mm / 60)).padStart(2, "0"), mi = String(mm % 60).padStart(2, "0");
-      const startISO = _ivLocalToISO(dateISO, hh + ":" + mi, tz);
-      const tt = new Date(); tt.setHours(Math.floor(mm / 60), mm % 60, 0, 0);
-      const whenTxt = new Date(dateISO + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })
-        + " at " + tt.toLocaleTimeString([], _ivClockOpts());
       const nm = rrTitleCaseName(payload.name) || "this candidate";
-      if (!(await _rrConfirmDialog({ title: `Book ${nm}?`, body: `${whenTxt} · ${slot} min — the confirmation email with the interview details goes out automatically.`, confirmLabel: "Book interview" }))) return;
       try {
+        // The server's open-slot list is the source of truth (Codex
+        // review): it honors Holidays & date overrides, capacity, lead
+        // time and existing bookings — the weekly-window shading does
+        // not. Snap the drop to the nearest genuinely-open slot on the
+        // target day instead of trusting the client grid.
         const { data: lk, error: e1 } = await sb.rpc("booking_link_get", { p_id: payload.id });
         if (e1) throw e1;
         if (!lk || !lk.token) throw new Error("No booking token returned");
-        const { data: res, error: e2 } = await sb.rpc("book_interview_slot", { p_token: lk.token, p_slot_start: startISO });
+        const { data: open, error: e2 } = await sb.rpc("interview_open_slots", { p_token: lk.token });
         if (e2) throw e2;
+        const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+        const minFmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
+        const daySlots = (Array.isArray(open) ? open : [])
+          .filter(s => s && s.slot_start && dayFmt.format(new Date(s.slot_start)) === dateISO)
+          .map(s => {
+            const [hh, mi] = minFmt.format(new Date(s.slot_start)).split(":").map(Number);
+            return { ...s, _min: hh * 60 + mi };
+          })
+          .sort((a, b) => Math.abs(a._min - aimMin) - Math.abs(b._min - aimMin));
+        if (!daySlots.length) { toast("No open interview slots on that day (check Holidays & date overrides, capacity and lead time).", "warn"); return; }
+        const pick = daySlots[0];
+        const tt = new Date(); tt.setHours(Math.floor(pick._min / 60), pick._min % 60, 0, 0);
+        const slotMin = pick.slot_end
+          ? Math.max(5, Math.round((new Date(pick.slot_end) - new Date(pick.slot_start)) / 60000))
+          : ((_ivcalCache && _ivcalCache.slot) || 30);
+        const whenTxt = new Date(dateISO + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })
+          + " at " + tt.toLocaleTimeString([], _ivClockOpts());
+        if (!(await _rrConfirmDialog({ title: `Book ${nm}?`, body: `${whenTxt} · ${slotMin} min — the confirmation email with the interview details goes out automatically.`, confirmLabel: "Book interview" }))) return;
+        const args = { p_token: lk.token, p_slot_start: pick.slot_start };
+        if (pick.session_id) args.p_session_id = pick.session_id;
+        const { data: res, error: e3 } = await sb.rpc("book_interview_slot", args);
+        if (e3) throw e3;
         if (!res || !res.ok) throw new Error("Could not book that time.");
         toast(`${nm} booked · ${whenTxt}`, "success");
         await loadIvCalendar();
@@ -24638,9 +24644,9 @@ function _ivcalRender() {
         const msg = s.includes("already_booked") ? `${nm} already has an interview on the calendar.`
           : s.includes("slot_taken") ? "That slot just filled — pick another."
           : s.includes("slot_too_soon") ? "That slot is inside the minimum booking lead time."
-          : s.includes("slot_unavailable") ? "That time isn't inside a bookable window."
+          : s.includes("slot_unavailable") ? "That time isn't open for booking."
           : s.includes("not_eligible") ? `${nm} is past the interview stage.`
-          : s.includes("booking_link_get") || s.includes("does not exist") ? "Update needed — run the latest Supabase migration to enable booking links."
+          : (s.includes("does not exist") || s.includes("schema cache")) ? "Update needed — run the latest Supabase migrations to enable booking links."
           : "Couldn't book: " + ((err && err.message) || err);
         toast(msg, "warn");
       }
